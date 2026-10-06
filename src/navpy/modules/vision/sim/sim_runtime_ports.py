@@ -60,15 +60,15 @@ class AttitudeTimestampAcceptor(Protocol):
     ) -> Optional[float]: ...
 
 
-class TargetSnapshotReader(Protocol):
+class PoiSnapshotReader(Protocol):
     def __call__(self) -> tuple[SimulationObject, ...]: ...
 
 
-class TargetProjectorPort(Protocol):
+class PoiProjectorPort(Protocol):
     def __call__(
         self,
         camera_location: Location,
-        target: SimulationObject,
+        poi: SimulationObject,
         uas_attitude: Attitude,
         *,
         timestamp_s: Optional[float],
@@ -80,7 +80,7 @@ class TargetProjectorPort(Protocol):
 class SourceNameResolver(Protocol):
     def __call__(
         self,
-        targets: Sequence[DetectedObject],
+        pois: Sequence[DetectedObject],
     ) -> Optional[str]: ...
 
 
@@ -157,7 +157,7 @@ class TrackingRuntimePort(Protocol):
 
     def apply_detection_update(
         self,
-        target: Optional[DetectedObject],
+        poi: Optional[DetectedObject],
         timestamp_s: float,
     ) -> None: ...
 
@@ -218,8 +218,8 @@ __all__ = [
     "RenderedFrame",
     "ResetAction",
     "SourceNameResolver",
-    "TargetProjectorPort",
-    "TargetSnapshotReader",
+    "PoiProjectorPort",
+    "PoiSnapshotReader",
     "TimestampReader",
     "TrackLossDiagnoser",
     "TrackingRuntimePort",

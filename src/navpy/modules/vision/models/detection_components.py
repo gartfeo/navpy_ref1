@@ -1,4 +1,4 @@
-"""Cohesive immutable evidence groups for one detected target."""
+"""Cohesive immutable evidence groups for one detected POI."""
 
 from __future__ import annotations
 
@@ -109,8 +109,8 @@ class SourceTiming:
 class DetectionGeoDiagnostics:
     reference_height_m: float | None = None
     camera_location: Location | None = None
-    projected_target_location: Location | None = None
-    truth_target_location: Location | None = None
+    projected_poi_location: Location | None = None
+    truth_poi_location: Location | None = None
     is_simulation: bool = False
 
 

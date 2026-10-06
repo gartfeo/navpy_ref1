@@ -1,4 +1,4 @@
-"""Authoritative reset of queued and retained terminal command state."""
+"""Authoritative reset of queued and retained final-approach command state."""
 
 from __future__ import annotations
 
@@ -8,38 +8,38 @@ from typing import Protocol
 
 from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.nav.vision_nav.command_hold import (
-    TerminalCommandHoldStore,
+    FinalApproachCommandHoldStore,
 )
 from navpy.modules.navigation.nav.vision_nav.command_postprocess import (
-    TerminalPostprocessFence,
+    FinalApproachPostprocessFence,
 )
 from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
-    TerminalDiagnosticMailbox,
+    FinalApproachDiagnosticMailbox,
 )
-from navpy.modules.navigation.nav.vision_nav.queued_frame import TerminalQueuedFrame
+from navpy.modules.navigation.nav.vision_nav.queued_frame import FinalApproachQueuedFrame
 
 
-class TerminalResettableState(Protocol):
+class FinalApproachResettableState(Protocol):
     def reset(self) -> None: ...
 
 
 @dataclass(frozen=True)
-class TerminalCommandResetPorts:
+class FinalApproachCommandResetPorts:
     lock: threading.RLock
     slot: NavigationCommandSlot
-    mailbox: TerminalDiagnosticMailbox
-    hold: TerminalCommandHoldStore
-    law: TerminalResettableState
-    visual_pass: TerminalResettableState
-    status: TerminalResettableState
-    liveness: TerminalResettableState
-    postprocess_fence: TerminalPostprocessFence
+    mailbox: FinalApproachDiagnosticMailbox
+    hold: FinalApproachCommandHoldStore
+    law: FinalApproachResettableState
+    visual_pass: FinalApproachResettableState
+    status: FinalApproachResettableState
+    liveness: FinalApproachResettableState
+    postprocess_fence: FinalApproachPostprocessFence
 
 
-class TerminalCommandReset:
+class FinalApproachCommandReset:
     """Reset every state owner that can affect the next actuator call."""
 
-    def __init__(self, ports: TerminalCommandResetPorts) -> None:
+    def __init__(self, ports: FinalApproachCommandResetPorts) -> None:
         self._ports = ports
 
     def invalidate_commands(self) -> None:
@@ -57,7 +57,7 @@ class TerminalCommandReset:
 
     def _invalidate_locked(self) -> None:
         pending = self._ports.slot.invalidate()
-        if isinstance(pending, TerminalQueuedFrame):
+        if isinstance(pending, FinalApproachQueuedFrame):
             self._ports.mailbox.discard(pending.diagnostic_token)
 
     def _reset_control_locked(self) -> None:
@@ -68,7 +68,7 @@ class TerminalCommandReset:
 
 
 __all__ = [
-    "TerminalCommandReset",
-    "TerminalCommandResetPorts",
-    "TerminalResettableState",
+    "FinalApproachCommandReset",
+    "FinalApproachCommandResetPorts",
+    "FinalApproachResettableState",
 ]

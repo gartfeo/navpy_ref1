@@ -1,4 +1,4 @@
-"""Construction of the public detected-target evidence groups."""
+"""Construction of the public detected-POI evidence groups."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from navpy.modules.vision.visual_ray_projection import camera_to_body_from_gimba
 
 
 class DetectedObjectBuilder:
-    """Assemble immutable frame evidence into the public target DTO."""
+    """Assemble immutable frame evidence into the public POI DTO."""
 
     def __init__(self, reference_height_m: float) -> None:
         self._reference_height_m = reference_height_m

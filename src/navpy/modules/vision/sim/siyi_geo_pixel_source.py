@@ -1,4 +1,4 @@
-"""Finite SIYI pixels from one known geo target for navigation isolation."""
+"""Finite SIYI pixels from one known geo POI for navigation isolation."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vehicle.pose_streams import pose_frame_association_max_skew_s
 from navpy.modules.vehicle.vehicle_interface import IVehicle
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.sim.finite_target_projector import FiniteTargetProjector
+from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
 from navpy.modules.vision.sim.pose_associator import PoseAssociator
 from navpy.modules.vision.sim.pose_stream_link import PoseStreamLink
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize, ProjectionCameraPort
@@ -24,7 +24,7 @@ from navpy.modules.vision.sim.siyi_pixel_diagnostics import (
     SiyiPixelSourceMetrics,
     SiyiSightRecorder,
     center_error_px,
-    projected_target_pixels,
+    projected_poi_pixels,
 )
 from navpy.modules.vision.simulation_object import SimulationObject
 
@@ -58,7 +58,7 @@ class SiyiGeoPixelSource:
     def __init__(
         self,
         vehicle: IVehicle,
-        target: Location,
+        poi: Location,
         mount: object,
         tracker: GimbalNavigation,
         geo_ref: object,
@@ -68,7 +68,7 @@ class SiyiGeoPixelSource:
         deliver: Callable[[DetectedObject], bool],
         wall_now_s: Callable[[], float] = time.time,
     ) -> None:
-        self._target = SimulationObject(1, target, 2)
+        self._poi = SimulationObject(1, poi, 2)
         self._mount = mount
         self._tracker = tracker
         self._min_pixels = float(min_pixels)
@@ -76,7 +76,7 @@ class SiyiGeoPixelSource:
         self._wall_now_s = wall_now_s
         self._lock = threading.RLock()
         self._state = _SiyiAcquisitionState()
-        self._sight = SiyiSightRecorder(geo_ref, self._target.g_loc)
+        self._sight = SiyiSightRecorder(geo_ref, self._poi.g_loc)
         self._stream = PoseStreamLink(vehicle)
         scheduler_period_s = pose_frame_association_max_skew_s(
             self._stream.rate_hz
@@ -91,7 +91,7 @@ class SiyiGeoPixelSource:
             require_event_pair=True,
         )
         frame_size = FrameSize.with_defaults(mount.image_width, mount.image_height)
-        self._projector = FiniteTargetProjector(
+        self._projector = FinitePoiProjector(
             ProjectionCameraPort(
                 self._read_matrix,
                 self._read_gimbal,
@@ -99,7 +99,7 @@ class SiyiGeoPixelSource:
                 mount.is_valid,
             ),
             geo_ref.calc_uv,
-            lambda: (self._target,),
+            lambda: (self._poi,),
             self.source_now,
         )
 
@@ -124,10 +124,10 @@ class SiyiGeoPixelSource:
 
     def dispatch_available(self) -> bool:
         with self._lock:
-            target, self._state.latest = self._state.latest, None
-        if target is None:
+            poi, self._state.latest = self._state.latest, None
+        if poi is None:
             return False
-        delivered = bool(self._deliver(target))
+        delivered = bool(self._deliver(poi))
         with self._lock:
             self._sight.record_delivery(delivered)
         return delivered
@@ -172,20 +172,20 @@ class SiyiGeoPixelSource:
             self._state.frame = frame
             result = None if frame is None else self._projector.detect(
                 location,
-                self._target,
+                self._poi,
                 attitude,
                 timestamp_s=associated.attitude_timestamp_s,
                 uas_body_rates_rad_s=associated.attitude_sample.body_rates_rad_s,
             )
-            detection = None if result is None else result.target
+            detection = None if result is None else result.poi
             if detection is None:
                 if self._state.active:
                     self._sight.record_sight_loss(location)
                 return
             self._sight.reset_sight_loss_run()
             self._sight.record_visual_truth_error(detection, location, attitude)
-            projected_px = projected_target_pixels(
-                detection, location, self._target.g_loc
+            projected_px = projected_poi_pixels(
+                detection, location, self._poi.g_loc
             )
             centered = center_error_px(detection) < 5.0
             commanded_zoom = self._tracker.status.geo.zoom_key

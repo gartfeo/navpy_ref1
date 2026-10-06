@@ -15,7 +15,7 @@ from navpy.modules.nav.navigation_zoom import ZoomController
 class NavEntryPorts:
     request_guided: Callable[[], None]
     navigation_init: Callable[[], None]
-    terminal_active: Callable[[], bool]
+    final_approach_active: Callable[[], bool]
 
 
 class NavEntry:
@@ -35,16 +35,16 @@ class NavEntry:
 
     def run(self) -> None:
         self._navigation_task.nav_mode_observed = False
-        self._navigation_task.terminal_navigation_active = False
-        self._navigation_task.terminal_nav_completed = False
+        self._navigation_task.final_approach_navigation_active = False
+        self._navigation_task.final_approach_nav_completed = False
         if (
-            self._ports.terminal_active()
-            and not self._zoom.freeze_terminal_wide()
+            self._ports.final_approach_active()
+            and not self._zoom.freeze_final_approach_wide()
         ):
             raise RuntimeError("final approach requires minimum zoom")
         self._ports.request_guided()
         self._ports.navigation_init()
-        if not self._ports.terminal_active():
+        if not self._ports.final_approach_active():
             self._zoom.set_recognition_demand(False)
         self._logger.info(
             "INIT: NAV MODE",

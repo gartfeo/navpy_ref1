@@ -1,4 +1,4 @@
-"""Track one known geo target with the SIYI simulator, without detection."""
+"""Track one known geo POI with the SIYI simulator, without detection."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ class GeoTrackMetrics:
     post_acquisition_max_center_angle_deg: float
     selected_zoom: str | None
     zoom_level: float | None
-    projected_target_px: float | None
+    projected_poi_px: float | None
     acquisition_reached: bool
     acquisition_sample: int | None
     post_acquisition_samples: int
@@ -73,10 +73,10 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connection", required=True)
     parser.add_argument("--sysid", required=True, type=int)
-    parser.add_argument("--target-lat", required=True, type=float)
-    parser.add_argument("--target-lon", required=True, type=float)
-    parser.add_argument("--target-alt", required=True, type=float)
-    parser.add_argument("--engage-seq", required=True, type=int, dest='scoring_start_seq')
+    parser.add_argument("--poi-lat", required=True, type=float)
+    parser.add_argument("--poi-lon", required=True, type=float)
+    parser.add_argument("--poi-alt", required=True, type=float)
+    parser.add_argument("--scoring-start-seq", required=True, type=int, dest='scoring_start_seq')
     parser.add_argument("--timeout", required=True, type=float)
     parser.add_argument("--result", required=True, type=Path)
     parser.add_argument("--ready", required=True, type=Path)
@@ -114,8 +114,8 @@ def _wait_for_scoring_interval(vehicle: object, sequence: int, timeout_s: float)
     raise TimeoutError(f"mission did not reach tracking sequence {sequence}")
 
 
-def _command_target_loiter(vehicle: object, target: Location) -> None:
-    """Put the aircraft in the target-centred geometry used for confirmation."""
+def _command_poi_loiter(vehicle: object, poi: Location) -> None:
+    """Put the aircraft in the POI-centred geometry used for confirmation."""
     location = vehicle.location(True)
     if location is None:
         raise RuntimeError("relative aircraft location unavailable for loiter")
@@ -123,7 +123,7 @@ def _command_target_loiter(vehicle: object, target: Location) -> None:
     if not math.isfinite(radius) or radius <= 0.0:
         raise RuntimeError(f"invalid WP_LOITER_RAD for SIYI test: {radius!r}")
     vehicle.goto_loiter(
-        Location(target.lat, target.lng, location.alt, is_absolute=False),
+        Location(poi.lat, poi.lng, location.alt, is_absolute=False),
         radius,
     )
 
@@ -142,7 +142,7 @@ def _zoom_matches_command(rig: _SiyiRig, command: str | None) -> bool:
     return abs(float(command) - float(rig.mount.gimbal.get_zoom_level())) < 0.1
 
 
-def _sample(rig: _SiyiRig, vehicle: object, target: Location) -> dict:
+def _sample(rig: _SiyiRig, vehicle: object, poi: Location) -> dict:
     mount = rig.mount
     location = vehicle.location(False)
     attitude = vehicle.attitude
@@ -156,7 +156,7 @@ def _sample(rig: _SiyiRig, vehicle: object, target: Location) -> dict:
     if frame is None:
         return {"valid": False}
     ned = pymap3d.geodetic2ned(
-        target.lat, target.lng, target.alt,
+        poi.lat, poi.lng, poi.alt,
         location.lat, location.lng, location.alt,
     )
     k = frame.k
@@ -183,7 +183,7 @@ def _sample(rig: _SiyiRig, vehicle: object, target: Location) -> dict:
         "fy_px": float(k[1, 1]),
         "cx_px": float(k[0, 2]),
         "cy_px": float(k[1, 2]),
-        "projected_target_px": (
+        "projected_poi_px": (
             float(k[1, 1]) * get_class_detect_size(0) / max(slant_m, 1.0)
         ),
         "slant_m": slant_m,
@@ -196,10 +196,10 @@ def run(options: argparse.Namespace) -> GeoTrackMetrics:
     args = _args(options)
     logger = initialize_logger(LoggerArgs(args), options.sysid)
     vehicle = cadence = rig = None
-    target = Location(
-        options.target_lat,
-        options.target_lon,
-        options.target_alt,
+    poi = Location(
+        options.poi_lat,
+        options.poi_lon,
+        options.poi_alt,
         is_absolute=True,
     )
     samples = in_frame = losses = 0
@@ -231,11 +231,11 @@ def run(options: argparse.Namespace) -> GeoTrackMetrics:
         rig = _SiyiRig(spec.mount, tracker, assembly.geo_ref, assembly.profile)
         request_pose_streams(vehicle)
         rig.mount.start()
-        rig.tracker.start_geo_tracking(target, rig.geo_ref)
+        rig.tracker.start_geo_tracking(poi, rig.geo_ref)
         options.ready.write_text("SIYI_GEO_READY\n", encoding="utf-8")
         print("SIYI_GEO_READY", flush=True)
         _wait_for_scoring_interval(vehicle, options.scoring_start_seq, options.timeout)
-        _command_target_loiter(vehicle, target)
+        _command_poi_loiter(vehicle, poi)
         min_pixels = get_min_pixels_for_class(rig.profile, 0)
         deadline_s = time.monotonic() + options.timeout
         while time.monotonic() < deadline_s:
@@ -249,7 +249,7 @@ def run(options: argparse.Namespace) -> GeoTrackMetrics:
                 )
                 if zoom_changed:
                     commanded_zoom = rig.mount.camera.get_zoom_key()
-                last = _sample(rig, vehicle, target)
+                last = _sample(rig, vehicle, poi)
                 if last.get("valid"):
                     samples += 1
                     if last.get("in_frame"):
@@ -257,7 +257,7 @@ def run(options: argparse.Namespace) -> GeoTrackMetrics:
                         error_px = float(last["center_error_px"])
                         reached = (
                             error_px < 5.0
-                            and float(last["projected_target_px"]) >= min_pixels
+                            and float(last["projected_poi_px"]) >= min_pixels
                         )
                         if reached and not acquired:
                             acquired = True
@@ -300,7 +300,7 @@ def run(options: argparse.Namespace) -> GeoTrackMetrics:
             ),
             selected_zoom=commanded_zoom,
             zoom_level=last.get("zoom_level"),
-            projected_target_px=last.get("projected_target_px"),
+            projected_poi_px=last.get("projected_poi_px"),
             acquisition_reached=acquired,
             acquisition_sample=acquisition_sample,
             post_acquisition_samples=post_acquisition_samples,

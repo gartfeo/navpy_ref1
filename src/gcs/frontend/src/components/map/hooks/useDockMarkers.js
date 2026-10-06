@@ -26,9 +26,9 @@ export default function useDockMarkers(cesiumRef, viewerRef, entitiesRef, simDoc
 
     const added = [];
     for (let i = 0; i < simDocks.length; i++) {
-      const target = simDocks[i];
-      const position = Cesium.Cartesian3.fromDegrees(target.lon, target.lat, 0);
-      const colorHex = zoneColorsSolid[target.zoneIndex % zoneColorsSolid.length];
+      const poi = simDocks[i];
+      const position = Cesium.Cartesian3.fromDegrees(poi.lon, poi.lat, 0);
+      const colorHex = zoneColorsSolid[poi.zoneIndex % zoneColorsSolid.length];
       const labelColor = Cesium.Color.fromCssColorString(colorHex);
 
       const e = viewer.entities.add({
@@ -59,7 +59,7 @@ export default function useDockMarkers(cesiumRef, viewerRef, entitiesRef, simDoc
     }
 
     ents.simDocks = added;
-    // viewerReady gates re-run so target markers/labels set before the async
+    // viewerReady gates re-run so POI markers/labels set before the async
     // Cesium viewer finished init aren't lost — same fresh-load race as
     // usePolygonLayer.
     // i18n.language re-runs so the Ц/T/Թ label follows a live locale switch.

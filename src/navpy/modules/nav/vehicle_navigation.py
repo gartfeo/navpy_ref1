@@ -26,8 +26,8 @@ class NavigationModeLocation(Protocol):
 class ApproachCommandPorts:
     """Narrow peer-approach command surface owned by Navigation composition."""
 
-    goto_target: Callable[[Location], None]
-    loiter_target: Callable[[Location, float, Optional[float]], None]
+    goto_poi: Callable[[Location], None]
+    loiter_poi: Callable[[Location, float, Optional[float]], None]
 
 
 class LoiterRadiusLease:
@@ -85,13 +85,13 @@ class VehicleNavigationCommands:
     ) -> None:
         radius = plan.orbit_radius or 0.0
         if radius > 0:
-            self._commands.loiter_target(
+            self._commands.loiter_poi(
                 plan.approach_location,
                 radius,
                 loiter_alt_rel,
             )
         else:
-            self._commands.goto_target(plan.approach_location)
+            self._commands.goto_poi(plan.approach_location)
 
     def save_loiter_radius(self) -> bool:
         return self._loiter_radius.acquire()

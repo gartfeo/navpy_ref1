@@ -80,7 +80,7 @@ from scripts.eval_navigation_cases import (  # noqa: E402
 from scripts.eval_sim_cpa_config import resolve_mode  # noqa: E402
 from scripts.eval_sim_parameters import sim_parameters  # noqa: E402
 from scripts.eval_sim_cpa_stage import SimCpaStage  # noqa: E402
-from scripts.pixel_pn_terminal_speed import launch_speedup  # noqa: E402
+from scripts.pixel_pn_final_approach_speed import launch_speedup  # noqa: E402
 
 
 def gate_preboot_defaults(
@@ -170,14 +170,14 @@ def run_fleet(
             master, sys_ids, winds, args=args, speedup=speedup,
             case_dirs=directories, sim_cpa=stages,
             # Each aircraft also gets the certified single-case `case.json`:
-            # the SIM_CPA scorer reads its expected target back from it, and
+            # the SIM_CPA scorer reads its expected POI back from it, and
             # it records the cell's EFFECTIVE parameter pushes per aircraft.
             manifest=AircraftManifest(
                 identity=identity, speedup=speedup,
                 launch_speedup=launch_rate, repetition=repetition,
             ),
         )
-        targets, assigned = plan.targets, plan.winds
+        pois, assigned = plan.pois, plan.winds
         rates = verify_fleet_clock(master, sys_ids, launch_rate)
 
         require_same_source(identity, "during launch")
@@ -192,7 +192,7 @@ def run_fleet(
             sys_id: one._launch_child(
                 python, directories[sys_id],
                 device=ip.companion_device(sys_id), sysid=sys_id,
-                target=targets[sys_id],
+                poi=pois[sys_id],
                 scoring_start_seq=plan.scoring_start_sequences[sys_id],
                 timeout_s=args.timeout,
                 speed_plan=plan.speed_plans[sys_id],
@@ -204,9 +204,9 @@ def run_fleet(
         require_same_source(identity, "while the fleet was starting")
         many._start_missions(master, sys_ids)
 
-        scorers = {sys_id: CoordinateScorer(targets[sys_id]) for sys_id in sys_ids}
-        tracks = {sys_id: GroundTrackRecorder(targets[sys_id]) for sys_id in sys_ids}
-        truths = truth_recorders(sys_ids, targets, plan, args)
+        scorers = {sys_id: CoordinateScorer(pois[sys_id]) for sys_id in sys_ids}
+        tracks = {sys_id: GroundTrackRecorder(pois[sys_id]) for sys_id in sys_ids}
+        truths = truth_recorders(sys_ids, pois, plan, args)
         child_results, failures = collect_fleet(
             master, children, directories, scorers, tracks, truths, args.timeout
         )
@@ -251,7 +251,7 @@ def run_fleet(
 def main() -> int:
     args = _parser().parse_args()
     # Resolved (and override-validated) BEFORE anything launches: a
-    # redirected cross-check target must die here, not minutes into a case.
+    # redirected cross-check POI must die here, not minutes into a case.
     args.sim_cpa_mode = resolve_mode(args.sim_cpa, args.sitl_param)
     root = (
         one.WORKTREE / ".sitl-runs"

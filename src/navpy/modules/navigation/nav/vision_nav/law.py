@@ -10,7 +10,7 @@ from navpy.modules.navigation.nav.vision_nav.command_anchor import (
     PITCH_CEILING_DEG,
     PITCH_FLOOR_DEG,
     ROLL_LIMIT_CAP_DEG,
-    TerminalCommandAnchor,
+    FinalApproachCommandAnchor,
     advanced_anchor,
     bootstrap_anchor,
     clamped_anchor,
@@ -19,16 +19,16 @@ from navpy.modules.navigation.nav.vision_nav.command_anchor import (
     frame_elevation,
     is_outlier,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.law_config import (
-    FixedTerminalLawConfigProvider,
-    TerminalLawConfig,
-    TerminalLawConfigProvider,
+    FixedFinalApproachLawConfigProvider,
+    FinalApproachLawConfig,
+    FinalApproachLawConfigProvider,
 )
 from navpy.modules.navigation.nav.vision_nav.law_plan import (
     LATERAL_PN_NAVIGATION_CONSTANT,
-    TerminalLawPlan,
-    TerminalPlanOrigin,
+    FinalApproachLawPlan,
+    FinalApproachPlanOrigin,
     VERTICAL_PN_NAVIGATION_CONSTANT,
     held_plan,
     replace_anchor,
@@ -49,7 +49,7 @@ VERTICAL_RATE_FILTER_TAU_S = 0.10
 #
 # CURRENTLY OFF (None = raw passthrough).  Owner decision 2026-08-20: measured
 # noise-free, the filter cuts NO dither at all (mean change per cycle 0.1308 OFF
-# vs 0.1302 at tau 0.30), and only softens the lock-on step while still lagging
+# vs 0.1302 at tau 0.30), and only softens the acquisition step while still lagging
 # a changing LOS rate.  It is a noise tool, so it belongs on once the LOS-rate noise
 # SPECTRUM is measured and a tau is fitted against it -- 0.30 never was.  The
 # machinery and its tests stay; this is one line to re-enable.
@@ -70,13 +70,13 @@ class VisionNavLaw:
 
     def __init__(
         self,
-        config_provider: TerminalLawConfigProvider,
+        config_provider: FinalApproachLawConfigProvider,
     ) -> None:
         self._config_provider = config_provider
         self._config = config_provider.read()
         self._rates = VerticalRateFilter()
         self._lateral_rates = LateralRateFilter()
-        self._anchor: TerminalCommandAnchor | None = None
+        self._anchor: FinalApproachCommandAnchor | None = None
 
     def reset(self) -> None:
         self._config = self._config_provider.read()
@@ -103,7 +103,7 @@ class VisionNavLaw:
             return 0.0, 0.0
         return self._config.pitch_min_deg, self._config.pitch_max_deg
 
-    def seed(self, frame: TerminalVisionFrame, roll_deg: float = 0.0) -> None:
+    def seed(self, frame: FinalApproachVisionFrame, roll_deg: float = 0.0) -> None:
         self._rates.seed(frame)
         self._lateral_rates.seed(frame)
         # `confirmation.py:47-56` seeds WITHOUT issuing a command, so this
@@ -123,13 +123,13 @@ class VisionNavLaw:
         # Aircraft roll is not command state. ArduPilot owns attitude response.
         del roll_deg
 
-    def preview(self, frame: TerminalVisionFrame) -> TerminalLawPlan | None:
+    def preview(self, frame: FinalApproachVisionFrame) -> FinalApproachLawPlan | None:
         return self._plan(frame)
 
-    def plan(self, frame: TerminalVisionFrame) -> TerminalLawPlan | None:
+    def plan(self, frame: FinalApproachVisionFrame) -> FinalApproachLawPlan | None:
         return self._plan(frame)
 
-    def _plan(self, frame: TerminalVisionFrame) -> TerminalLawPlan | None:
+    def _plan(self, frame: FinalApproachVisionFrame) -> FinalApproachLawPlan | None:
         """Compute a command without mutating any state.
 
         `preview` and `plan` share this body deliberately.  `confirmation.py`
@@ -200,13 +200,13 @@ class VisionNavLaw:
                 )
             )
         command = clamped_command(config, raw_roll, raw_pitch)
-        return TerminalLawPlan(
+        return FinalApproachLawPlan(
             command,
             raw_roll,
             raw_pitch,
             rate,
             lateral_rate,
-            TerminalCommandAnchor(
+            FinalApproachCommandAnchor(
                 frame.continuity_key,
                 frame.source_timestamp_s,
                 # Conditional integration: the CLAMPED command becomes the next
@@ -221,7 +221,7 @@ class VisionNavLaw:
             frame,
             lateral_held=lateral_held,
             # A roll-only hold is NOT the same event as a whole-command hold.
-            origin=TerminalPlanOrigin(
+            origin=FinalApproachPlanOrigin(
                 reason="lateral_held" if lateral_held else "normal",
                 anchor_cmd_roll_deg=anchor.cmd_roll_deg,
                 anchor_cmd_pitch_deg=anchor.cmd_pitch_deg,
@@ -231,14 +231,14 @@ class VisionNavLaw:
 
     def _usable_anchor(
         self,
-        frame: TerminalVisionFrame,
-    ) -> TerminalCommandAnchor | None:
+        frame: FinalApproachVisionFrame,
+    ) -> FinalApproachCommandAnchor | None:
         anchor = self._anchor
         if anchor is None or anchor.continuity_key != frame.continuity_key:
             return None
         return anchor
 
-    def commit(self, plan: TerminalLawPlan) -> None:
+    def commit(self, plan: FinalApproachLawPlan) -> None:
         if plan.reseed:
             self._rates.seed(plan.frame)
             self._lateral_rates.seed(plan.frame)
@@ -248,7 +248,7 @@ class VisionNavLaw:
         self._anchor = plan.next_anchor
 
 
-def _lateral_is_ill_conditioned(frame: TerminalVisionFrame) -> bool:
+def _lateral_is_ill_conditioned(frame: FinalApproachVisionFrame) -> bool:
     horizontal_norm = math.hypot(frame.control_x, frame.control_y)
     return (
         horizontal_norm < STEEP_LOS_HORIZONTAL_MIN
@@ -257,7 +257,7 @@ def _lateral_is_ill_conditioned(frame: TerminalVisionFrame) -> bool:
 
 
 __all__ = [
-    "FixedTerminalLawConfigProvider",
+    "FixedFinalApproachLawConfigProvider",
     "OUTLIER_BEARING_DELTA_DEG",
     "OUTLIER_ELEVATION_DELTA_DEG",
     "PITCH_CEILING_DEG",
@@ -265,10 +265,10 @@ __all__ = [
     "ROLL_LIMIT_CAP_DEG",
     "STEEP_LOS_HORIZONTAL_MIN",
     "STEEP_PITCH_DEG",
-    "TerminalCommandAnchor",
-    "TerminalLawConfig",
-    "TerminalLawConfigProvider",
-    "TerminalLawPlan",
+    "FinalApproachCommandAnchor",
+    "FinalApproachLawConfig",
+    "FinalApproachLawConfigProvider",
+    "FinalApproachLawPlan",
     "VERTICAL_PN_NAVIGATION_CONSTANT",
     "VERTICAL_RATE_FILTER_TAU_S",
     "LATERAL_PN_NAVIGATION_CONSTANT",

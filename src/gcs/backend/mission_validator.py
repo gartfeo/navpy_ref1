@@ -10,7 +10,7 @@ from gcs.backend.planner.waypoint_builder import (
     META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_FALLBACK_DELIVERY_LOCATION,
     decode_meta_z, decode_location_type_from_z,
 )
-from navpy.args.navigation_target_args import is_nav_target_command
+from navpy.args.navigation_poi_args import is_nav_poi_command
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
     fallback_delivery_location = None
     last_meta_z = 0.0
     route_index = 0
-    target_ordinal = 0
+    poi_ordinal = 0
     in_metadata = False
     for i in range(count):
         wp = vehicle.get_mission_item(i)
@@ -90,9 +90,9 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
             "mission_sequence": i,
             "command": int(wp.command),
         }
-        if is_nav_target_command(wp.command):
-            target_ordinal += 1
-            row["nav_waypoint_ordinal"] = target_ordinal
+        if is_nav_poi_command(wp.command):
+            poi_ordinal += 1
+            row["nav_waypoint_ordinal"] = poi_ordinal
         waypoints.append(row)
         if altitude_m is None:
             altitude_m = loc.alt

@@ -1,4 +1,4 @@
-"""Compose terminal NAV dispatch and the navigation application runtime."""
+"""Compose final-approach NAV dispatch and the navigation application runtime."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from navpy.modules.nav.nav_composition_types import (
     NavigationTaskWorkflows,
     NavCapabilities,
     NavStateOwnership,
-    TargetMissionOwnership,
+    PoiMissionOwnership,
     VehicleApproachOwnership,
 )
 from navpy.modules.nav.nav_state import NavState
@@ -41,7 +41,7 @@ from navpy.modules.nav.navigation_transition_handler import (
     NavigationTransitionHandler,
     TransitionPorts,
 )
-from navpy.modules.nav.terminal_nav_workflow import TerminalNavWorkflow
+from navpy.modules.nav.final_approach_nav_workflow import FinalApproachNavWorkflow
 from navpy.modules.vehicle.vehicle_interface import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
@@ -52,14 +52,14 @@ def compose_nav_application(
     args: NavArgs,
     logger: ILogger,
     state: NavStateOwnership,
-    target: TargetMissionOwnership,
+    poi: PoiMissionOwnership,
     approach: VehicleApproachOwnership,
     observation: DetectionReviewOwnership,
     navigation_workflows: NavigationTaskWorkflows,
     confirmation: ConfirmationWorkflows,
     decision: DecisionWorkflows,
     navigation: NavCapabilities,
-    terminal_nav: TerminalNavWorkflow,
+    final_approach_nav: FinalApproachNavWorkflow,
 ) -> NavApplication:
     loop: Optional[NavigationLoop] = None
     nav_transition = NavTransition(
@@ -67,7 +67,7 @@ def compose_nav_application(
             NavEntryPorts(
                 request_guided=lambda: approach.commands.request_guided(),
                 navigation_init=navigation.init,
-                terminal_active=lambda: navigation.terminal.is_active,
+                final_approach_active=lambda: navigation.final_approach.is_active,
             ),
             state.navigation_task,
             observation.zoom,
@@ -75,7 +75,7 @@ def compose_nav_application(
         ),
         NavExitCleanup(
             NavExitCleanupPorts(
-                close_terminal_source=terminal_nav.close_source_admission,
+                close_final_approach_source=final_approach_nav.close_source_admission,
                 navigation_reset=navigation.reset,
                 detector_stop=detection.tracking_commands.stop_tracking,
             ),
@@ -114,7 +114,7 @@ def compose_nav_application(
         navigation_workflows.selector,
         navigation_workflows.navigation_task_action,
         navigation_workflows.peer_notifier,
-        target.confirmation_manager,
+        poi.confirmation_manager,
         PeerGeoTick(
             state.navigation_task,
             state.geo_hold,
@@ -128,7 +128,7 @@ def compose_nav_application(
                 update_geo=detection.geo_pointing.update_geo,
             ),
             navigation_workflows.peer_geo_acquisition,
-            lambda: navigation.terminal.is_active,
+            lambda: navigation.final_approach.is_active,
             lambda: vehicle.location(False),
             lambda: vehicle.attitude,
         ),
@@ -140,7 +140,7 @@ def compose_nav_application(
             NavState.ONHOLD: navigation.pause,
             NavState.DETECT: detect_action.act,
             NavState.CONFIRM: confirmation.confirmation_action.act,
-            NavState.NAV: terminal_nav.act_nav,
+            NavState.NAV: final_approach_nav.act_nav,
             NavState.RESET: navigation.pause,
             NavState.RECOVERY: decision.recovery.act,
         },
@@ -160,7 +160,7 @@ def compose_nav_application(
     )
     loop = NavigationLoop(cycle, state.clock, logger)
     shutdown = NavShutdown(
-        terminal_nav.close_source_admission,
+        final_approach_nav.close_source_admission,
         navigation.reset,
         confirmation.reset.reset,
         observation.network,

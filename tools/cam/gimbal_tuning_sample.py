@@ -14,27 +14,27 @@ from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.models.detection_components import BoundingBox
 
 from .gimbal_tuning_geometry import TrackingCommand, normalize_bbox
-from .gimbal_tuning_overlay import OverlayTarget
+from .gimbal_tuning_overlay import OverlayPoi
 
 
 class TuningTrackerPort(Protocol):
     def update(self, sample: GimbalAngularSample) -> GimbalRateUpdate: ...
 
-    def lose_target(self) -> GimbalTrackResult: ...
+    def lose_poi(self) -> GimbalTrackResult: ...
 
     def stop(self) -> GimbalTrackResult: ...
 
 
-def tracking_bbox(target: DetectedObject | None) -> BoundingBox | None:
-    if target is None:
+def tracking_bbox(poi: DetectedObject | None) -> BoundingBox | None:
+    if poi is None:
         return None
-    return target.tracking.bbox_cxcywh or target.confirmation.bbox_cxcywh
+    return poi.tracking.bbox_cxcywh or poi.confirmation.bbox_cxcywh
 
 
-def source_timestamp(target: DetectedObject | None) -> float | None:
-    if target is None:
+def source_timestamp(poi: DetectedObject | None) -> float | None:
+    if poi is None:
         return None
-    value = target.timing.detection_timestamp_s
+    value = poi.timing.detection_timestamp_s
     if value is None or isinstance(value, bool):
         return None
     try:
@@ -44,22 +44,22 @@ def source_timestamp(target: DetectedObject | None) -> float | None:
     return timestamp_s if math.isfinite(timestamp_s) else None
 
 
-def build_overlay_target(
-    target: DetectedObject | None,
-) -> OverlayTarget | None:
-    if target is None:
+def build_overlay_poi(
+    poi: DetectedObject | None,
+) -> OverlayPoi | None:
+    if poi is None:
         return None
-    return OverlayTarget(
-        target.identity.obj_id,
-        normalize_bbox(tracking_bbox(target)),
+    return OverlayPoi(
+        poi.identity.obj_id,
+        normalize_bbox(tracking_bbox(poi)),
     )
 
 
-def build_tracker_target(
+def build_tracker_poi(
     command: TrackingCommand,
-    source_target: DetectedObject | None = None,
+    source_poi: DetectedObject | None = None,
 ) -> GimbalAngularSample | None:
-    timestamp_s = source_timestamp(source_target)
+    timestamp_s = source_timestamp(source_poi)
     if timestamp_s is None:
         return None
     return GimbalAngularSample(
@@ -72,20 +72,20 @@ def build_tracker_target(
 def tick_gimbal_tracker(
     tracker: TuningTrackerPort,
     command: TrackingCommand | None,
-    source_target: DetectedObject | None,
+    source_poi: DetectedObject | None,
 ) -> GimbalTrackResult:
     if command is None:
-        return tracker.lose_target()
-    sample = build_tracker_target(command, source_target)
+        return tracker.lose_poi()
+    sample = build_tracker_poi(command, source_poi)
     if sample is None:
-        return tracker.lose_target()
+        return tracker.lose_poi()
     return tracker.update(sample).result
 
 
 __all__ = [
     "TuningTrackerPort",
-    "build_overlay_target",
-    "build_tracker_target",
+    "build_overlay_poi",
+    "build_tracker_poi",
     "source_timestamp",
     "tick_gimbal_tracker",
     "tracking_bbox",

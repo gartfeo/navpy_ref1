@@ -9,7 +9,7 @@ from navpy.modules.vision.vision_class_profile import get_class_detect_size
 
 
 class MissionCatalog:
-    """Own the current mission's target and scan-band metadata."""
+    """Own the current mission's POI and scan-band metadata."""
 
     def __init__(self, vehicle: IVehicle) -> None:
         self._vehicle = vehicle

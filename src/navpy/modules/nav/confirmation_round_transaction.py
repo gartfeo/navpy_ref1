@@ -30,7 +30,7 @@ class ConfirmationOutboundTransaction:
 
 @dataclass(frozen=True)
 class ConfirmationWorkerLease:
-    target_id: Optional[int]
+    poi_id: Optional[int]
     generation: int
     cancel_event: threading.Event
 
@@ -59,10 +59,10 @@ class ConfirmationRequestRef:
 
 @dataclass(frozen=True, eq=False)
 class ConfirmationRound:
-    target_id: int
+    poi_id: int
     generation: int
     response_event: threading.Event
-    target: DetectedObject
+    poi: DetectedObject
     worker: ConfirmationWorkerLease
     request_ref: Optional[ConfirmationRequestRef] = None
     accepts_legacy_response: bool = True

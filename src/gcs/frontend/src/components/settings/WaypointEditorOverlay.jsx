@@ -5,7 +5,7 @@ import { inputStyle } from './SettingsField.jsx';
 import MiniWaypointPath from './MiniWaypointPath.jsx';
 import BitmaskInput from './BitmaskInput.jsx';
 
-export default function WaypointEditorOverlay({ vehicleMissions, vehicleList, selectedVehicles, targetsMap, navLastWpMap, onPerVehicleNavLastWpChange, vehicleParams, onToggle, onDownload, downloading, onPerVehicleTargChange, onDiscard, onApply, onClose }) {
+export default function WaypointEditorOverlay({ vehicleMissions, vehicleList, selectedVehicles, poisMap, navLastWpMap, onPerVehicleNavLastWpChange, vehicleParams, onToggle, onDownload, downloading, onPerVehicleTargChange, onDiscard, onApply, onClose }) {
   const { t } = useTranslation();
   const selIds = [...(selectedVehicles || [])];
   const backdropMouseDown = useRef(false);
@@ -15,8 +15,8 @@ export default function WaypointEditorOverlay({ vehicleMissions, vehicleList, se
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10001,
       }}
-      onMouseDown={(e) => { backdropMouseDown.current = e.target === e.currentTarget; }}
-      onClick={(e) => { if (e.target === e.currentTarget && backdropMouseDown.current) onClose(); }}
+      onMouseDown={(e) => { backdropMouseDown.current = e.target === e.currentPoi; }}
+      onClick={(e) => { if (e.target === e.currentPoi && backdropMouseDown.current) onClose(); }}
     >
       <div style={{
         width: 800, maxHeight: '80vh', background: colors.bgLight,
@@ -27,7 +27,7 @@ export default function WaypointEditorOverlay({ vehicleMissions, vehicleList, se
           padding: '10px 16px', borderBottom: `1px solid ${colors.border}`,
           display: 'flex', alignItems: 'center', position: 'relative',
         }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: colors.textBright }}>{t('vehicle.simulatedTargetSelection')}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: colors.textBright }}>{t('vehicle.simulatedPoiSelection')}</span>
           <span style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: 10, color: colors.textDim }}>{t('vehicle.scrollZoomDragPan')}</span>
           <button title={t('settings.close')} onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: colors.textDim, cursor: 'pointer', fontSize: 18, padding: '2px 6px' }}>&times;</button>
         </div>
@@ -36,7 +36,7 @@ export default function WaypointEditorOverlay({ vehicleMissions, vehicleList, se
             vehicleMissions={vehicleMissions}
             vehicleList={vehicleList}
             selectedVehicles={selectedVehicles}
-            targetsMap={targetsMap}
+            poisMap={poisMap}
             navLastWpMap={navLastWpMap}
             onToggle={onToggle}
             onDownload={onDownload}
@@ -51,7 +51,7 @@ export default function WaypointEditorOverlay({ vehicleMissions, vehicleList, se
                 clr: zoneColorsSolid[(vi >= 0 ? vi : 0) % zoneColorsSolid.length],
                 name: vehicleList.find((v) => v.sys_id === sid)?.name || `UAV ${sid}`,
                 lastWp: navLastWpMap?.[sid] ?? 0,
-                targMask: targetsMap[sid] || 0,
+                targMask: poisMap[sid] || 0,
               };
             });
             const cellInput = { ...inputStyle, fontSize: 12, padding: '2px 4px', width: 80, boxSizing: 'border-box', textAlign: 'left' };

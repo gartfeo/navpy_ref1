@@ -23,7 +23,7 @@ from navpy.modules.nav.nav_controller import NavController, NavState
 from navpy.modules.vehicle.flight_mode import FlightMode
 from navpy.modules.vision.models.detect_response import DetectResponse
 from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 from tests.modules.nav.nav_test_rig import create_nav_test_rig
 
 # Pixel bbox well below MIN_CONFIRM_PIXELS (diagonal ~17px) -- blocks the
@@ -56,20 +56,20 @@ def _create_mock_vehicle():
 def _create_mock_detector(detections=None, is_zoom_stable=True):
     detector = Mock()
     detector.get_detect_data = Mock(
-        return_value=DetectResponse(detections or [], primary_target=None),
+        return_value=DetectResponse(detections or [], primary_poi=None),
     )
     detector.drain_detection_events = Mock(return_value=[])
     detector.open_detection_event_lease = Mock(return_value=None)
     detector.has_source_driven_detection_events = False
-    detector.target_uses_source_driven_events = Mock(return_value=False)
+    detector.poi_uses_source_driven_events = Mock(return_value=False)
     detector.is_simulation = True
     detector.is_zoom_stable = is_zoom_stable
     detector.get_zoom_result = Mock(return_value=None)
     detector.is_detection_armed = False
     detector.is_geo_armed = False
     detector.refresh = Mock()
-    detector.set_sim_target = Mock()
-    detector.freeze_terminal_zoom_at_min = Mock()
+    detector.set_sim_poi = Mock()
+    detector.freeze_final_approach_zoom_at_min = Mock()
     detector.start_geo_tracking = Mock()
     detector.stop_geo_tracking = Mock()
     detector.start_tracking = Mock()
@@ -86,24 +86,24 @@ def _create_mock_navigation():
     navigation.algorithm_info = ("l1", 1.0)
     navigation.init = Mock()
     navigation.nav = Mock(return_value=True)
-    navigation.pause_terminate = Mock()
-    navigation.terminal = Mock()
-    navigation.terminal.is_active = False
-    navigation.terminal.clear_source_discontinuity = Mock()
-    navigation.terminal.can_confirm_detection = Mock(return_value=True)
-    navigation.terminal.record_confirmed_detection = Mock(return_value=True)
-    navigation.terminal.nav_without_detection = Mock(return_value=True)
-    navigation.terminal.target_passed_override = Mock(return_value=None)
-    navigation.terminal.last_measured_lateral_bearing_deg = Mock(return_value=None)
-    navigation.legacy_targets = Mock()
-    navigation.legacy_targets.locked_distance = Mock(return_value=1000.0)
-    navigation.legacy_targets.ground_location = Mock(
+    navigation.pause_final_approach = Mock()
+    navigation.final_approach = Mock()
+    navigation.final_approach.is_active = False
+    navigation.final_approach.clear_source_discontinuity = Mock()
+    navigation.final_approach.can_confirm_detection = Mock(return_value=True)
+    navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+    navigation.final_approach.nav_without_detection = Mock(return_value=True)
+    navigation.final_approach.poi_passed_override = Mock(return_value=None)
+    navigation.final_approach.last_measured_lateral_bearing_deg = Mock(return_value=None)
+    navigation.legacy_pois = Mock()
+    navigation.legacy_pois.locked_distance = Mock(return_value=1000.0)
+    navigation.legacy_pois.ground_location = Mock(
         return_value=Location(40.001, -74.001, 0.0)
     )
-    navigation.legacy_targets.geo_ref = Mock(name="geo_ref_sentinel")
+    navigation.legacy_pois.geo_ref = Mock(name="geo_ref_sentinel")
     navigation.vehicle_commands = Mock()
-    navigation.vehicle_commands.peer_target = Mock()
-    navigation.vehicle_commands.peer_target_loiter = Mock()
+    navigation.vehicle_commands.peer_poi = Mock()
+    navigation.vehicle_commands.peer_poi_loiter = Mock()
     return navigation
 
 
@@ -121,8 +121,8 @@ def _create_mock_args(confirm_gate_timeout=15.0):
     return args
 
 
-def _create_detected_target(obj_id=1, detection_frame=None, bbox=None, task_id=None):
-    return make_detected_target(
+def _create_detected_poi(obj_id=1, detection_frame=None, bbox=None, task_id=None):
+    return make_detected_poi(
         obj_id=obj_id,
         task_id=obj_id if task_id is None else task_id,
         x_error=0.0,
@@ -164,12 +164,12 @@ class ConfirmBlockedStatusTests(unittest.TestCase):
 
     def test_pixels_blocked_emits_reason_with_source_and_min(self):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        target = _create_detected_target(obj_id=1, detection_frame=frame, bbox=_SMALL_BBOX)
-        detector = _create_mock_detector(detections=[target], is_zoom_stable=True)
+        poi = _create_detected_poi(obj_id=1, detection_frame=frame, bbox=_SMALL_BBOX)
+        detector = _create_mock_detector(detections=[poi], is_zoom_stable=True)
         logger = Mock()
         controller = _create_controller(detector=detector, logger=logger)
 
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
         controller.confirmation_action.act()
@@ -178,16 +178,16 @@ class ConfirmBlockedStatusTests(unittest.TestCase):
         blocked = [t for t in texts if t.startswith("CONFIRM_BLOCKED:pixels|")]
         self.assertEqual(len(blocked), 1, texts)
         self.assertTrue(blocked[0].endswith("|1"), blocked[0])  # task_id=1 rides the status
-        self.assertIsNone(controller.confirmation_manager.get_status(target))
+        self.assertIsNone(controller.confirmation_manager.get_status(poi))
 
     def test_zoom_not_stable_emits_zoom_reason(self):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        target = _create_detected_target(obj_id=2, detection_frame=frame, bbox=_LARGE_BBOX)
-        detector = _create_mock_detector(detections=[target], is_zoom_stable=False)
+        poi = _create_detected_poi(obj_id=2, detection_frame=frame, bbox=_LARGE_BBOX)
+        detector = _create_mock_detector(detections=[poi], is_zoom_stable=False)
         logger = Mock()
         controller = _create_controller(detector=detector, logger=logger)
 
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
         controller.confirmation_action.act()
@@ -197,14 +197,14 @@ class ConfirmBlockedStatusTests(unittest.TestCase):
 
     def test_blocked_state_clears_when_gate_passes(self):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        target = _create_detected_target(obj_id=1, detection_frame=frame, bbox=_LARGE_BBOX)
-        detector = _create_mock_detector(detections=[target], is_zoom_stable=True)
+        poi = _create_detected_poi(obj_id=1, detection_frame=frame, bbox=_LARGE_BBOX)
+        detector = _create_mock_detector(detections=[poi], is_zoom_stable=True)
         logger = Mock()
         controller = _create_controller(detector=detector, logger=logger)
         controller.blocked.reason = 'pixels'
-        controller.blocked.target_id = 1
+        controller.blocked.poi_id = 1
 
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
         controller.confirmation_action.act()
@@ -213,14 +213,14 @@ class ConfirmBlockedStatusTests(unittest.TestCase):
         self.assertIn("CONFIRM_BLOCKED:clear", texts)
         self.assertIsNone(controller.blocked.reason)
 
-    def test_blocked_state_clears_when_target_lost(self):
-        target = _create_detected_target(obj_id=1, detection_frame=None)
+    def test_blocked_state_clears_when_poi_lost(self):
+        poi = _create_detected_poi(obj_id=1, detection_frame=None)
         detector = _create_mock_detector(detections=[])  # no fresh detection this tick
         logger = Mock()
         controller = _create_controller(detector=detector, logger=logger)
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.blocked.reason = 'pixels'
-        controller.blocked.target_id = 1
+        controller.blocked.poi_id = 1
 
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
@@ -232,11 +232,11 @@ class ConfirmBlockedStatusTests(unittest.TestCase):
 
     def test_blocked_status_rate_limited_across_repeated_ticks(self):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        target = _create_detected_target(obj_id=1, detection_frame=frame, bbox=_SMALL_BBOX)
-        detector = _create_mock_detector(detections=[target], is_zoom_stable=True)
+        poi = _create_detected_poi(obj_id=1, detection_frame=frame, bbox=_SMALL_BBOX)
+        detector = _create_mock_detector(detections=[poi], is_zoom_stable=True)
         logger = Mock()
         controller = _create_controller(detector=detector, logger=logger)
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
 
@@ -249,13 +249,13 @@ class ConfirmBlockedStatusTests(unittest.TestCase):
         self.assertEqual(len(blocked), 1, "rapid repeated ticks must be rate-limited, not spammed")
 
     def test_blocked_status_not_emitted_when_gate_passes_cleanly(self):
-        """A target that never blocks must never emit CONFIRM_BLOCKED."""
+        """A POI that never blocks must never emit CONFIRM_BLOCKED."""
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        target = _create_detected_target(obj_id=1, detection_frame=frame, bbox=_LARGE_BBOX)
-        detector = _create_mock_detector(detections=[target], is_zoom_stable=True)
+        poi = _create_detected_poi(obj_id=1, detection_frame=frame, bbox=_LARGE_BBOX)
+        detector = _create_mock_detector(detections=[poi], is_zoom_stable=True)
         logger = Mock()
         controller = _create_controller(detector=detector, logger=logger)
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
 
@@ -268,53 +268,53 @@ class ConfirmBlockedStatusTests(unittest.TestCase):
 class ForceConfirmOverrideTests(unittest.TestCase):
     """Task 3: "Ask me anyway" one-shot gate bypass (D-18/D-19/D-20)."""
 
-    def test_forced_target_bypasses_pixel_gate_and_marks_degraded(self):
+    def test_forced_poi_bypasses_pixel_gate_and_marks_degraded(self):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        target = _create_detected_target(obj_id=5, detection_frame=frame, bbox=_SMALL_BBOX)
-        detector = _create_mock_detector(detections=[target], is_zoom_stable=True)
+        poi = _create_detected_poi(obj_id=5, detection_frame=frame, bbox=_SMALL_BBOX)
+        detector = _create_mock_detector(detections=[poi], is_zoom_stable=True)
         navigation = _create_mock_navigation()
         logger = Mock()
         controller = _create_controller(detector=detector, navigation=navigation, logger=logger)
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.application.force_confirm_override(5)
 
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
         controller.confirmation_action.act()
 
-        self.assertTrue(target.confirmation.degraded)
-        navigation.vehicle_commands.peer_target_loiter.assert_called_once()
+        self.assertTrue(poi.confirmation.degraded)
+        navigation.vehicle_commands.peer_poi_loiter.assert_called_once()
         # review() ran synchronously up to update_status(CONFIRMING); the
         # background worker (no network -> auto-resolves) may have already
         # advanced it further by the time we check, so assert only that a
         # review round actually started (status left None).
-        self.assertIsNotNone(controller.confirmation_manager.get_status(target))
+        self.assertIsNotNone(controller.confirmation_manager.get_status(poi))
 
-    def test_forced_target_bypasses_zoom_gate(self):
+    def test_forced_poi_bypasses_zoom_gate(self):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        target = _create_detected_target(obj_id=9, detection_frame=frame, bbox=_LARGE_BBOX)
-        detector = _create_mock_detector(detections=[target], is_zoom_stable=False)
+        poi = _create_detected_poi(obj_id=9, detection_frame=frame, bbox=_LARGE_BBOX)
+        detector = _create_mock_detector(detections=[poi], is_zoom_stable=False)
         navigation = _create_mock_navigation()
         controller = _create_controller(detector=detector, navigation=navigation)
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.application.force_confirm_override(9)
 
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
         controller.confirmation_action.act()
 
-        self.assertTrue(target.confirmation.degraded)
-        navigation.vehicle_commands.peer_target_loiter.assert_called_once()
+        self.assertTrue(poi.confirmation.degraded)
+        navigation.vehicle_commands.peer_poi_loiter.assert_called_once()
 
     def test_override_is_one_shot_not_reused(self):
-        """A second blocked tick for the same target must NOT auto-request
+        """A second blocked tick for the same POI must NOT auto-request
         again once the one-shot force flag has been consumed."""
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        target = _create_detected_target(obj_id=7, detection_frame=frame, bbox=_SMALL_BBOX)
-        detector = _create_mock_detector(detections=[target], is_zoom_stable=True)
+        poi = _create_detected_poi(obj_id=7, detection_frame=frame, bbox=_SMALL_BBOX)
+        detector = _create_mock_detector(detections=[poi], is_zoom_stable=True)
         navigation = _create_mock_navigation()
         controller = _create_controller(detector=detector, navigation=navigation)
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.application.force_confirm_override(7)
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
@@ -322,36 +322,36 @@ class ForceConfirmOverrideTests(unittest.TestCase):
         controller.confirmation_action.act()
 
         self.assertFalse(controller.overrides.contains(7))
-        navigation.vehicle_commands.peer_target_loiter.assert_called_once()
+        navigation.vehicle_commands.peer_poi_loiter.assert_called_once()
 
-        # Fresh navigation task for the same target_id; gate still blocking; the
+        # Fresh navigation task for the same poi_id; gate still blocking; the
         # one-shot force flag was already consumed -- must stay blocked.
         controller.confirmation_manager.reset()
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
 
         controller.confirmation_action.act()
 
-        navigation.vehicle_commands.peer_target_loiter.assert_called_once()  # still just the one call
-        self.assertIsNone(controller.confirmation_manager.get_status(target))
+        navigation.vehicle_commands.peer_poi_loiter.assert_called_once()  # still just the one call
+        self.assertIsNone(controller.confirmation_manager.get_status(poi))
 
     def test_override_does_not_fire_when_gate_would_not_block(self):
-        """A force flag set for a target whose gate already passes is simply
+        """A force flag set for a POI whose gate already passes is simply
         unused -- no double-request, no crash."""
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        target = _create_detected_target(obj_id=3, detection_frame=frame, bbox=_LARGE_BBOX)
-        detector = _create_mock_detector(detections=[target], is_zoom_stable=True)
+        poi = _create_detected_poi(obj_id=3, detection_frame=frame, bbox=_LARGE_BBOX)
+        detector = _create_mock_detector(detections=[poi], is_zoom_stable=True)
         navigation = _create_mock_navigation()
         controller = _create_controller(detector=detector, navigation=navigation)
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
         controller.application.force_confirm_override(3)
 
         controller.sensor.sense()
         controller.phase.current = NavState.CONFIRM
         controller.confirmation_action.act()
 
-        navigation.vehicle_commands.peer_target_loiter.assert_called_once()
-        self.assertFalse(target.confirmation.degraded)
+        navigation.vehicle_commands.peer_poi_loiter.assert_called_once()
+        self.assertFalse(poi.confirmation.degraded)
 
 
 class SetNetworkRegistersOverrideListenerTests(unittest.TestCase):

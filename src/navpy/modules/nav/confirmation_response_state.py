@@ -30,13 +30,13 @@ def matches_round(
 
 def response_for_current_round(
     registry: ConfirmationRegistryState,
-    target_id: int,
+    poi_id: int,
     is_confirmed: bool,
 ) -> ConfirmationResponseKind:
-    current = registry.status_by_id(target_id)
+    current = registry.status_by_id(poi_id)
     if current is ConfirmationStatus.CONFIRMING:
         registry.set_status(
-            target_id,
+            poi_id,
             ConfirmationStatus.CONFIRMED if is_confirmed else ConfirmationStatus.REJECTED,
         )
         return (
@@ -45,7 +45,7 @@ def response_for_current_round(
             else ConfirmationResponseKind.REJECTED
         )
     if current is ConfirmationStatus.CONFIRMED and not is_confirmed:
-        registry.set_status(target_id, ConfirmationStatus.REJECTED)
+        registry.set_status(poi_id, ConfirmationStatus.REJECTED)
         return ConfirmationResponseKind.CANCELLATION_REQUESTED
     if current is ConfirmationStatus.REJECTED and is_confirmed:
         return ConfirmationResponseKind.ALREADY_REJECTED
@@ -58,18 +58,18 @@ class ConfirmationResponseLedger:
     def __init__(self, registry: ConfirmationRegistryState) -> None:
         self._registry = registry
         self._resolved: dict[int, ResolvedConfirmation] = {}
-        self._seen_target_ids: set[int] = set()
+        self._seen_poi_ids: set[int] = set()
 
-    def legacy_allowed(self, target_id: int) -> bool:
-        return target_id not in self._seen_target_ids
+    def legacy_allowed(self, poi_id: int) -> bool:
+        return poi_id not in self._seen_poi_ids
 
-    def start_review(self, target_id: int) -> None:
+    def start_review(self, poi_id: int) -> None:
         """Invalidate prior recall authority without reopening legacy input."""
-        self._resolved.pop(target_id, None)
+        self._resolved.pop(poi_id, None)
 
-    def install(self, target_id: int) -> None:
-        self._resolved.pop(target_id, None)
-        self._seen_target_ids.add(target_id)
+    def install(self, poi_id: int) -> None:
+        self._resolved.pop(poi_id, None)
+        self._seen_poi_ids.add(poi_id)
 
     def remember_completion(
         self,
@@ -79,7 +79,7 @@ class ConfirmationResponseLedger:
         if status is ConfirmationStatus.CONFIRMED:
             self._remember(confirmation)
         else:
-            self._resolved.pop(confirmation.target_id, None)
+            self._resolved.pop(confirmation.poi_id, None)
 
     def record_result(
         self,
@@ -89,23 +89,23 @@ class ConfirmationResponseLedger:
         if result is ConfirmationResponseKind.CONFIRMED:
             self._remember(confirmation)
         elif result is not ConfirmationResponseKind.WAKE_ONLY:
-            self._resolved.pop(confirmation.target_id, None)
+            self._resolved.pop(confirmation.poi_id, None)
 
     def resolve_without_round(
         self,
-        target_id: int,
+        poi_id: int,
         is_confirmed: bool,
         response_ref: Optional[ConfirmationRequestRef],
     ) -> ConfirmationResponseKind:
-        resolved = self._resolved.get(target_id)
+        resolved = self._resolved.get(poi_id)
         if (
-            self._registry.status_by_id(target_id) is ConfirmationStatus.CONFIRMED
+            self._registry.status_by_id(poi_id) is ConfirmationStatus.CONFIRMED
             and not is_confirmed
             and resolved is not None
             and self._matches(resolved, response_ref)
         ):
-            self._registry.set_status(target_id, ConfirmationStatus.REJECTED)
-            self._resolved.pop(target_id, None)
+            self._registry.set_status(poi_id, ConfirmationStatus.REJECTED)
+            self._resolved.pop(poi_id, None)
             return ConfirmationResponseKind.CANCELLATION_REQUESTED
         return ConfirmationResponseKind.LATE_OR_DUPLICATE
 
@@ -113,7 +113,7 @@ class ConfirmationResponseLedger:
         self._resolved.clear()
 
     def _remember(self, confirmation: ConfirmationRound) -> None:
-        self._resolved[confirmation.target_id] = ResolvedConfirmation(
+        self._resolved[confirmation.poi_id] = ResolvedConfirmation(
             confirmation.request_ref,
             confirmation.accepts_legacy_response,
         )

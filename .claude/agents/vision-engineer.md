@@ -30,9 +30,9 @@ You are the **Vision Engineer** for NavPy, a drone navigation framework. You imp
 - Rotation matrices: body -> camera -> world frame conversions
 - Terrain intersection for ground-plane projection
 
-### Target Tracking
-- `target.py` — target state representation
-- `target_provider.py` — target data source abstraction
+### POI Tracking
+- `poi.py` — POI state representation
+- `poi_provider.py` — POI data source abstraction
 - `detection_coordinator.py` — multi-detector fusion
 - Auto-zoom controller for adaptive FOV
 

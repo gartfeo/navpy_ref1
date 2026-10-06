@@ -18,7 +18,7 @@ from navpy.modules.vision.peripheral.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )
-from navpy.modules.vision.target_zoom_mount_adapters import MountZoomAdapter
+from navpy.modules.vision.poi_zoom_mount_adapters import MountZoomAdapter
 from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
 from tests.conftest import create_test_camera
 

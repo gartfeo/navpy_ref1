@@ -1,4 +1,4 @@
-"""Coordinator-owned target identity and publication-mode registry."""
+"""Coordinator-owned POI identity and publication-mode registry."""
 
 from __future__ import annotations
 
@@ -7,22 +7,22 @@ import threading
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
-from navpy.modules.vision.target_identity import (
-    TargetIdentity,
-    TargetTaskIdAllocator,
+from navpy.modules.vision.poi_identity import (
+    PoiIdentity,
+    PoiTaskIdAllocator,
 )
-from navpy.modules.vision.target_priority import prioritize_targets
+from navpy.modules.vision.poi_priority import prioritize_pois
 
 if TYPE_CHECKING:
     from navpy.modules.vision.models.detect_data import DetectedObject
 
 
 class DetectionIdentityRegistry:
-    """Own task allocation and per-target source publication mode."""
+    """Own task allocation and per-POI source publication mode."""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._allocator = TargetTaskIdAllocator()
+        self._allocator = PoiTaskIdAllocator()
         self._source_driven = weakref.WeakKeyDictionary()
 
     def reset(self) -> None:
@@ -32,30 +32,30 @@ class DetectionIdentityRegistry:
 
     def remember_publication_mode(
             self,
-            targets: Iterable["DetectedObject"],
+            pois: Iterable["DetectedObject"],
             *,
             source_driven: bool,
     ) -> None:
         with self._lock:
-            for target in targets:
+            for poi in pois:
                 try:
-                    self._source_driven[target] = bool(source_driven)
+                    self._source_driven[poi] = bool(source_driven)
                 except TypeError:
                     continue
 
-    def target_uses_source_driven_events(
+    def poi_uses_source_driven_events(
             self,
-            target: "DetectedObject",
+            poi: "DetectedObject",
     ) -> bool | None:
         with self._lock:
             try:
-                return self._source_driven.get(target)
+                return self._source_driven.get(poi)
             except TypeError:
                 return None
 
-    def normalize_targets(
+    def normalize_pois(
             self,
-            targets: list["DetectedObject"],
+            pois: list["DetectedObject"],
             primary_candidates: list["DetectedObject"],
             *,
             select_primary: Callable[
@@ -64,17 +64,17 @@ class DetectionIdentityRegistry:
             ],
     ) -> list["DetectedObject"]:
         with self._lock:
-            for target in targets:
-                self._allocator.assign(target)
-            for target in primary_candidates:
-                self._allocator.assign(target)
-            primary_target = select_primary(primary_candidates or targets)
-            return prioritize_targets(targets, primary_target)
+            for poi in pois:
+                self._allocator.assign(poi)
+            for poi in primary_candidates:
+                self._allocator.assign(poi)
+            primary_poi = select_primary(primary_candidates or pois)
+            return prioritize_pois(pois, primary_poi)
 
-    def identity_for_task(self, task_id: int) -> TargetIdentity | None:
+    def identity_for_task(self, task_id: int) -> PoiIdentity | None:
         with self._lock:
             return self._allocator.get_identity(task_id)
 
-    def rebind_task_id(self, task_id: int, target: "DetectedObject") -> bool:
+    def rebind_task_id(self, task_id: int, poi: "DetectedObject") -> bool:
         with self._lock:
-            return self._allocator.rebind(task_id, target)
+            return self._allocator.rebind(task_id, poi)

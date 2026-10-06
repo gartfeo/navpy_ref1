@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react';
 
 /**
- * Manages task assignment state: peer-assigned targets from swarm protocol.
+ * Manages task assignment state: peer-assigned POIs from swarm protocol.
  *
  * availableTasks — keyed by task_id: { taskId, taskType, lat, lon, alt, senderId }
- *   Populated when `available_task_request` arrives (targets detected, pre-assignment).
+ *   Populated when `available_task_request` arrives (POIs detected, pre-assignment).
  *
  * assignments — keyed by task_id: { taskId, taskType, lat, lon, alt, senderId, receiverId, status, receivedAt }
- *   Populated when `task_assign_request` arrives (Hungarian algorithm assigned target).
+ *   Populated when `task_assign_request` arrives (Hungarian algorithm assigned POI).
  */
 export default function useTaskAssignment() {
   const [assignments, setAssignments] = useState({});

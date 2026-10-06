@@ -30,33 +30,33 @@ class GimbalLockCalculator:
     def calc_att_loc(
         self,
         current_loc: Location,
-        target_loc: Location,
+        poi_loc: Location,
         uas_att: Attitude,
         g_data: GimbalData,
     ) -> Attitude:
-        target_ned = pymap3d.geodetic2ned(
-            target_loc.lat,
-            target_loc.lng,
-            target_loc.alt,
+        poi_ned = pymap3d.geodetic2ned(
+            poi_loc.lat,
+            poi_loc.lng,
+            poi_loc.alt,
             current_loc.lat,
             current_loc.lng,
             current_loc.alt,
         )
-        return self.calc_att_ned(target_ned, uas_att, g_data)
+        return self.calc_att_ned(poi_ned, uas_att, g_data)
 
     def calc_att_ned(
         self,
-        target_ned: Sequence[float] | np.ndarray,
+        poi_ned: Sequence[float] | np.ndarray,
         uas_att: Attitude,
         g_data: GimbalData,
     ) -> Attitude:
-        target_direction = self._target_direction(
-            target_ned,
+        poi_direction = self._poi_direction(
+            poi_ned,
             uas_att,
             g_data,
         )
         camera_axis = self._camera_axis(g_data)
-        pitch, yaw = _solve_lock_yaw_pitch(target_direction, camera_axis)
+        pitch, yaw = _solve_lock_yaw_pitch(poi_direction, camera_axis)
         return Attitude(pitch, yaw, 0.0)
 
     def calc_readback(
@@ -81,21 +81,21 @@ class GimbalLockCalculator:
             att=get_att_by_sequence(euler, g_data.args.g_seq),
         )
 
-    def _target_direction(
+    def _poi_direction(
         self,
-        target_ned: Sequence[float] | np.ndarray,
+        poi_ned: Sequence[float] | np.ndarray,
         uas_att: Attitude,
         g_data: GimbalData,
     ) -> np.ndarray:
-        target = _vec3(target_ned, "target_ned")
+        poi = _vec3(poi_ned, "poi_ned")
         gimbal_offset = np.asarray(
             g_data.args.setup_dist,
             dtype=float,
         ).reshape(3)
-        from_gimbal = target - (
+        from_gimbal = poi - (
             self._frame.rotation_to_ned(uas_att) @ gimbal_offset
         )
-        return _unit_vector(from_gimbal, "target_from_gimbal_ned")
+        return _unit_vector(from_gimbal, "poi_from_gimbal_ned")
 
     @staticmethod
     def _camera_axis(g_data: GimbalData) -> np.ndarray:
@@ -114,10 +114,10 @@ class GimbalLockCalculator:
 
 
 def _solve_lock_yaw_pitch(
-    target_dir_ned: np.ndarray,
+    poi_dir_ned: np.ndarray,
     optical_axis_gimbal: np.ndarray,
 ) -> tuple[float, float]:
-    target_dir_ned = _unit_vector(target_dir_ned, "target_dir_ned")
+    poi_dir_ned = _unit_vector(poi_dir_ned, "poi_dir_ned")
     optical_axis_gimbal = _unit_vector(
         optical_axis_gimbal,
         "optical_axis_gimbal",
@@ -131,36 +131,36 @@ def _solve_lock_yaw_pitch(
             "camera optical axis cannot be aimed by yaw/pitch LOCK command"
         )
 
-    target_down = float(target_dir_ned[2])
-    if abs(target_down) > xz_norm + 1e-9:
+    poi_down = float(poi_dir_ned[2])
+    if abs(poi_down) > xz_norm + 1e-9:
         raise ValueError(
-            "target direction is outside yaw/pitch LOCK command manifold"
+            "POI direction is outside yaw/pitch LOCK command manifold"
         )
-    target_down = max(-xz_norm, min(xz_norm, target_down))
+    poi_down = max(-xz_norm, min(xz_norm, poi_down))
 
     phase = math.atan2(axis_x, axis_z)
     candidates = []
-    solution_angle = math.acos(target_down / xz_norm)
+    solution_angle = math.acos(poi_down / xz_norm)
     for solution in (solution_angle, -solution_angle):
         pitch_rad = _wrap_pi(solution - phase)
         horizontal_x = (
             math.cos(pitch_rad) * axis_x
             + math.sin(pitch_rad) * axis_z
         )
-        yaw_rad = math.atan2(target_dir_ned[1], target_dir_ned[0])
+        yaw_rad = math.atan2(poi_dir_ned[1], poi_dir_ned[0])
         yaw_rad = _wrap_pi(yaw_rad - math.atan2(axis_y, horizontal_x))
         aimed = Rotation.from_euler(
             "ZYX",
             [math.degrees(yaw_rad), math.degrees(pitch_rad), 0.0],
             degrees=True,
         ).apply(optical_axis_gimbal)
-        error = float(np.linalg.norm(aimed - target_dir_ned))
+        error = float(np.linalg.norm(aimed - poi_dir_ned))
         candidates.append((error, abs(pitch_rad), pitch_rad, yaw_rad))
 
     min_error = min(item[0] for item in candidates)
     if min_error > 1e-6:
         raise ValueError(
-            "could not solve yaw/pitch LOCK command for target direction"
+            "could not solve yaw/pitch LOCK command for POI direction"
         )
     valid = [item for item in candidates if item[0] <= min_error + 1e-9]
     _, _, pitch_rad, yaw_rad = min(valid, key=lambda item: item[1])

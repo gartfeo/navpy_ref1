@@ -28,7 +28,7 @@ class TestHandleArm(unittest.TestCase):
         self.assertEqual(result, {"5": "not_connected"})
 
     @patch("gcs.backend.routes.control.vehicle_mgr")
-    def test_arm_multiple_targets(self, mock_mgr):
+    def test_arm_multiple_pois(self, mock_mgr):
         entry1 = MagicMock()
         entry2 = MagicMock()
         mock_mgr.get_vehicle.side_effect = [entry1, entry2]
@@ -106,7 +106,7 @@ class TestHandleForceDisarm(unittest.TestCase):
         self.assertEqual(result, {"5": "not_connected"})
 
     @patch("gcs.backend.routes.control.vehicle_mgr")
-    def test_force_disarm_multiple_targets(self, mock_mgr):
+    def test_force_disarm_multiple_pois(self, mock_mgr):
         entry1 = MagicMock()
         entry2 = MagicMock()
         mock_mgr.get_vehicle.side_effect = [entry1, entry2]

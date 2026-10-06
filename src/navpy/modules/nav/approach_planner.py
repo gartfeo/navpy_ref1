@@ -1,4 +1,4 @@
-"""Pure planning policy for target approach geometry."""
+"""Pure planning policy for POI approach geometry."""
 
 from __future__ import annotations
 
@@ -34,14 +34,14 @@ class ApproachPlanner:
             self,
             vehicle: ApproachVehicle,
             mounts: Callable[[], Sequence],
-            terminal_navigation_enabled: Callable[[], bool],
+            final_approach_navigation_enabled: Callable[[], bool],
             vision_profile: dict,
             logger: ILogger,
             plan_offset: Callable = calc_peer_approach_offset,
     ) -> None:
         self._vehicle = vehicle
         self._mounts = mounts
-        self._terminal_navigation_enabled = terminal_navigation_enabled
+        self._final_approach_navigation_enabled = final_approach_navigation_enabled
         self._vision_profile = vision_profile
         self._logger = logger
         self._plan_offset = plan_offset
@@ -71,7 +71,7 @@ class ApproachPlanner:
 
     def plan(
             self,
-            target_loc: Location,
+            poi_loc: Location,
             class_id: int,
             drone_loc: Optional[Location],
             *,
@@ -89,7 +89,7 @@ class ApproachPlanner:
         plan_drone_loc = drone_loc
         if use_nav_orbit:
             plan_drone_loc, use_nav_orbit = self._planning_location(
-                target_loc,
+                poi_loc,
                 drone_loc,
                 approach_alt_rel,
             )
@@ -99,7 +99,7 @@ class ApproachPlanner:
             class_id,
         )
         plan = self._plan_offset(
-            target_loc,
+            poi_loc,
             plan_drone_loc,
             self._mounts(),
             class_id=class_id,
@@ -107,9 +107,9 @@ class ApproachPlanner:
             orbit_limits=orbit_limits if use_nav_orbit else None,
             recognition_px=recognition_px,
         )
-        plan = self._prefer_terminal_radius(
+        plan = self._prefer_final_approach_radius(
             plan,
-            target_loc=target_loc,
+            poi_loc=poi_loc,
             plan_drone_loc=plan_drone_loc,
             orbit_limits=orbit_limits,
             use_nav_orbit=use_nav_orbit,
@@ -118,11 +118,11 @@ class ApproachPlanner:
 
     def _planning_location(
             self,
-            target_loc: Location,
+            poi_loc: Location,
             drone_loc: Location,
             approach_alt_rel: float,
     ) -> tuple[Location, bool]:
-        if target_loc.is_absolute:
+        if poi_loc.is_absolute:
             home = self._vehicle.home_location
             if home is None:
                 return drone_loc, False
@@ -138,11 +138,11 @@ class ApproachPlanner:
             is_absolute=is_absolute,
         ), True
 
-    def _prefer_terminal_radius(
+    def _prefer_final_approach_radius(
             self,
             plan: ApproachPlan,
             *,
-            target_loc: Location,
+            poi_loc: Location,
             plan_drone_loc: Optional[Location],
             orbit_limits: Optional[OrbitNavigationLimits],
             use_nav_orbit: bool,
@@ -152,12 +152,12 @@ class ApproachPlanner:
             and plan_drone_loc is not None
             and orbit_limits is not None
             and plan.kind == ApproachKind.ORBIT
-            and self._terminal_navigation_enabled()
+            and self._final_approach_navigation_enabled()
         ):
             return plan
 
-        altitude_agl = max(plan_drone_loc.alt - target_loc.alt, 0.0)
-        terminal_radius = r_nav_min(
+        altitude_agl = max(plan_drone_loc.alt - poi_loc.alt, 0.0)
+        final_approach_radius = r_nav_min(
             orbit_limits,
             altitude_agl,
             floor_m=MIN_APPROACH_STANDOFF_M,
@@ -165,13 +165,13 @@ class ApproachPlanner:
         camera_radius = float(plan.orbit_radius or 0.0)
         if not math.isclose(
                 camera_radius,
-                terminal_radius,
+                final_approach_radius,
                 rel_tol=0.0,
                 abs_tol=0.5,
         ):
             self._logger.info(
-                f"Terminal ORBIT: camera-sized {camera_radius:.0f}m -> "
-                f"navigation-feasible {terminal_radius:.0f}m",
+                f"Final-approach ORBIT: camera-sized {camera_radius:.0f}m -> "
+                f"navigation-feasible {final_approach_radius:.0f}m",
                 key="nav",
                 dest=LogStatusDest.DRONE,
             )
@@ -179,5 +179,5 @@ class ApproachPlanner:
             kind=plan.kind,
             approach_location=plan.approach_location,
             offset_distance=plan.offset_distance,
-            orbit_radius=terminal_radius,
+            orbit_radius=final_approach_radius,
         )

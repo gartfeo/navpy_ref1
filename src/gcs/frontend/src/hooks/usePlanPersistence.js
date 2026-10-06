@@ -206,8 +206,8 @@ export default function usePlanPersistence({
           // observations no longer describe it.
           resetFenceObservations?.();
           undoRef.current = [];
-          const targets = raw.dock_classes;
-          if (poly?.length >= 3 && raw.search_pattern !== 'corridor') localAnalyze(poly, targets);
+          const pois = raw.dock_classes;
+          if (poly?.length >= 3 && raw.search_pattern !== 'corridor') localAnalyze(poly, pois);
         } catch {
           window.alert(t('planFile.invalidData'));
         }

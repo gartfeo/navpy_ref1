@@ -1,4 +1,4 @@
-"""CONFIRM tick orchestration and terminal/local admission."""
+"""CONFIRM tick orchestration and final-approach/local admission."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ from navpy.modules.nav.confirmation_frame_policy import ConfirmationFramePolicy
 from navpy.modules.nav.confirmation_recognition import RecognitionGate
 from navpy.modules.nav.confirmation_review import ConfirmationReview
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
-from navpy.modules.nav.peer_target_notification import PeerTargetNotifier
-from navpy.modules.nav.target_selection import TargetSelector
+from navpy.modules.nav.peer_poi_notification import PeerPoiNotifier
+from navpy.modules.nav.poi_selection import PoiSelector
 from navpy.modules.nav.nav_state import (
     GeoHoldState,
-    TerminalNavState,
+    FinalApproachNavState,
 )
 from navpy.modules.nav.peer_geo import PeerGeoAcquisition
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
@@ -26,46 +26,46 @@ from navpy.modules.vision.models.detect_data import DetectedObject
 
 
 @dataclass(frozen=True)
-class TerminalConfirmationPorts:
-    terminal_active: Callable[[], bool]
+class FinalApproachConfirmationPorts:
+    final_approach_active: Callable[[], bool]
     can_confirm: Callable[[DetectedObject], bool]
     record_confirmed: Callable[[DetectedObject], bool]
     auto_confirm: Callable[[], bool]
 
 
-class TerminalConfirmationAdmission:
+class FinalApproachConfirmationAdmission:
     def __init__(
         self,
-        ports: TerminalConfirmationPorts,
-        terminal_state: TerminalNavState,
+        ports: FinalApproachConfirmationPorts,
+        final_approach_state: FinalApproachNavState,
         review: ConfirmationReview,
         debug: ConfirmDebugReporter,
     ) -> None:
         self._ports = ports
-        self._terminal_state = terminal_state
+        self._final_approach_state = final_approach_state
         self._review = review
         self._debug = debug
 
-    def handle(self, target: DetectedObject) -> bool:
-        if not self._ports.terminal_active():
+    def handle(self, poi: DetectedObject) -> bool:
+        if not self._ports.final_approach_active():
             return False
-        if not self._ports.can_confirm(target):
-            self._debug.log(f"terminal_los_unavailable obj={target.identity.obj_id}")
+        if not self._ports.can_confirm(poi):
+            self._debug.log(f"final_approach_los_unavailable obj={poi.identity.obj_id}")
             return True
         if not self._ports.auto_confirm():
             return False
-        if not self._ports.record_confirmed(target):
-            self._debug.log(f"terminal_record_unavailable obj={target.identity.obj_id}")
+        if not self._ports.record_confirmed(poi):
+            self._debug.log(f"final_approach_record_unavailable obj={poi.identity.obj_id}")
             return True
-        self._terminal_state.confirmed_recorded = True
-        self._review.confirm_local(target)
+        self._final_approach_state.confirmed_recorded = True
+        self._review.confirm_local(poi)
         return True
 
 
-class ActiveTargetDetectionQuery(Protocol):
-    """Fresh active-target lookup required by one CONFIRM tick."""
+class ActivePoiDetectionQuery(Protocol):
+    """Fresh active-POI lookup required by one CONFIRM tick."""
 
-    def find_active_target_detection(self) -> Optional[DetectedObject]: ...
+    def find_active_poi_detection(self) -> Optional[DetectedObject]: ...
 
 
 class ConfirmationGeoHold:
@@ -94,12 +94,12 @@ class ConfirmationGeoHold:
         attitude = self._current_attitude()
         if location is None or attitude is None:
             return
-        active = self._confirmation_manager.active_target
+        active = self._confirmation_manager.active_poi
         class_id = active.classification.class_id if active is not None else 0
         state = self._acquisition.snapshot(
             location,
             attitude,
-            target_location=self._geo_hold.target_location,
+            poi_location=self._geo_hold.poi_location,
             class_id=class_id,
         )
         if state is not None:
@@ -118,12 +118,12 @@ class ConfirmationAction:
     def __init__(
         self,
         detections: DetectionSnapshot,
-        selector: TargetSelector,
-        peer_notifier: PeerTargetNotifier,
+        selector: PoiSelector,
+        peer_notifier: PeerPoiNotifier,
         confirmation_manager: ConfirmationManager,
-        source: ActiveTargetDetectionQuery,
+        source: ActivePoiDetectionQuery,
         frame_policy: ConfirmationFramePolicy,
-        terminal_admission: TerminalConfirmationAdmission,
+        final_approach_admission: FinalApproachConfirmationAdmission,
         recognition_gate: RecognitionGate,
         blocked: ConfirmBlockedReporter,
         debug: ConfirmDebugReporter,
@@ -135,7 +135,7 @@ class ConfirmationAction:
         self._confirmation_manager = confirmation_manager
         self._source = source
         self._frame_policy = frame_policy
-        self._terminal_admission = terminal_admission
+        self._final_approach_admission = final_approach_admission
         self._recognition_gate = recognition_gate
         self._blocked = blocked
         self._debug = debug
@@ -145,21 +145,21 @@ class ConfirmationAction:
         self._geo_hold.tick()
         selection = self._detections.selection()
         _, peers = self._selector.select(
-            list(selection.targets),
-            selection.primary_target,
+            list(selection.pois),
+            selection.primary_poi,
         )
         if peers:
             self._peer_notifier.notify(peers)
-        active = self._confirmation_manager.active_target
+        active = self._confirmation_manager.active_poi
         if active is None or self._confirmation_manager.get_status(active) is not None:
             self._blocked.clear()
             return
-        fresh = self._source.find_active_target_detection()
+        fresh = self._source.find_active_poi_detection()
         if fresh is None:
             self._debug.log("no_detection")
             self._blocked.clear()
             return
-        if self._terminal_admission.handle(fresh):
+        if self._final_approach_admission.handle(fresh):
             return
         if not self._frame_policy.is_ready(fresh):
             return
@@ -167,9 +167,9 @@ class ConfirmationAction:
 
 
 __all__ = [
-    "ActiveTargetDetectionQuery",
+    "ActivePoiDetectionQuery",
     "ConfirmationAction",
     "ConfirmationGeoHold",
-    "TerminalConfirmationAdmission",
-    "TerminalConfirmationPorts",
+    "FinalApproachConfirmationAdmission",
+    "FinalApproachConfirmationPorts",
 ]

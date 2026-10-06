@@ -47,8 +47,8 @@ class MissionStore:
             return None
         if waypoint.command == MAV_CMD_NAV_TAKEOFF:
             raise ValueError(
-                "Takeoff command is marked for Target. Please use other WP. "
-                f"target_wp_index: {sequence}"
+                "Takeoff command is marked for POI. Please use other WP. "
+                f"poi_wp_index: {sequence}"
             )
         if any(getattr(waypoint, name, None) is None for name in ("x", "y", "z")):
             raise ValueError(f"Mission item {sequence} does not have valid coordinates.")

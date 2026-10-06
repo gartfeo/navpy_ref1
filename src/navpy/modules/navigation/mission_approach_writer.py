@@ -55,13 +55,13 @@ class MissionApproachWriter:
         vehicle: MissionApproachVehicle,
         wind_bearing: float,
         current: Location,
-        target: Location,
+        poi: Location,
         distance: float,
     ) -> bool:
         start, wind_sign = self._start_location(
             current,
             distance,
-            target,
+            poi,
             wind_bearing,
         )
         if self._args.plan_loiter_wind_direction:
@@ -109,13 +109,13 @@ class MissionApproachWriter:
         vehicle: MissionApproachVehicle,
         bearing: float,
         current: Location,
-        target: Location,
+        poi: Location,
         distance: float,
     ) -> bool:
         start, wind_sign = self._start_location(
             current,
             distance,
-            target,
+            poi,
             bearing,
         )
         altitude = vehicle.get_mission_item_location(1).alt
@@ -170,25 +170,25 @@ class MissionApproachWriter:
         self,
         current: Location,
         distance: float,
-        target: Location,
+        poi: Location,
         wind_bearing: float,
     ) -> tuple[Point, int]:
         if self._args.wind_dir is not None:
             wind_sign = 1 if self._args.wind_dir is True else -1
             return (
                 geodesic(meters=wind_sign * distance).destination(
-                    point=(target.lat, target.lng),
+                    point=(poi.lat, poi.lng),
                     bearing=wind_bearing,
                 ),
                 wind_sign,
             )
 
         opposite = geodesic(meters=-distance).destination(
-            point=(target.lat, target.lng),
+            point=(poi.lat, poi.lng),
             bearing=wind_bearing,
         )
         aligned = geodesic(meters=distance).destination(
-            point=(target.lat, target.lng),
+            point=(poi.lat, poi.lng),
             bearing=wind_bearing,
         )
         opposite_distance = geodesic().measure(

@@ -21,8 +21,8 @@ def build_navpy_command(
     nav_device: str,
     speedup: float,
     navigation_speedup: float,
-    target_wp: int,
-    target_rel_alt_m: float,
+    poi_wp: int,
+    poi_rel_alt_m: float,
     args: argparse.Namespace,
 ) -> list[str]:
     """Build one headless final approach NavPy command."""
@@ -52,9 +52,9 @@ def build_navpy_command(
         "-tct",
         "40",
         "-twps",
-        f"{target_wp},",
+        f"{poi_wp},",
         "-talt",
-        str(int(round(target_rel_alt_m))),
+        str(int(round(poi_rel_alt_m))),
         "-ut",
         "false",
         "-udt",
@@ -86,8 +86,8 @@ def launch_navpy(
     nav_device: str,
     speedup: float,
     navigation_speedup: float,
-    target_wp: int,
-    target_rel_alt_m: float,
+    poi_wp: int,
+    poi_rel_alt_m: float,
     args: argparse.Namespace,
     command_builder: Callable[..., list[str]] = build_navpy_command,
 ) -> subprocess.Popen[Any]:
@@ -106,8 +106,8 @@ def launch_navpy(
         nav_device=nav_device,
         speedup=speedup,
         navigation_speedup=navigation_speedup,
-        target_wp=target_wp,
-        target_rel_alt_m=target_rel_alt_m,
+        poi_wp=poi_wp,
+        poi_rel_alt_m=poi_rel_alt_m,
         args=args,
     )
     (run_case_dir / "navpy.cmd.json").write_text(

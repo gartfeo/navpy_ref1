@@ -21,15 +21,15 @@ def is_valid_location(location: Optional[Location]) -> bool:
 
 def calc_h_v_dist(
     current: Optional[Location],
-    target: Optional[Location],
+    poi: Optional[Location],
 ) -> tuple[float, float]:
     """Return infinite miss when either diagnostic position is unavailable."""
-    if not is_valid_location(current) or not is_valid_location(target):
+    if not is_valid_location(current) or not is_valid_location(poi):
         return float("inf"), float("inf")
     north, east, down = pymap3d.geodetic2ned(
-        target.lat,
-        target.lng,
-        target.alt,
+        poi.lat,
+        poi.lng,
+        poi.alt,
         current.lat,
         current.lng,
         current.alt,
@@ -58,35 +58,35 @@ def calc_distance(
 def _require_segment_locations(
     c0: Location,
     c1: Location,
-    target: Location,
+    poi: Location,
 ) -> None:
-    if not all(is_valid_location(location) for location in (c0, c1, target)):
+    if not all(is_valid_location(location) for location in (c0, c1, poi)):
         raise ValueError("closest-point geometry requires finite locations")
 
 
 def closest_point_components_on_segment(
     c0: Location,
     c1: Location,
-    target: Location,
+    poi: Location,
 ) -> ClosestPointComponents:
     """Find the closest path point and its track-frame miss components."""
-    _require_segment_locations(c0, c1, target)
+    _require_segment_locations(c0, c1, poi)
     n1, e1, d1 = pymap3d.geodetic2ned(
         c1.lat, c1.lng, c1.alt, c0.lat, c0.lng, c0.alt,
     )
     nt, et, dt = pymap3d.geodetic2ned(
-        target.lat, target.lng, target.alt, c0.lat, c0.lng, c0.alt,
+        poi.lat, poi.lng, poi.alt, c0.lat, c0.lng, c0.alt,
     )
     segment = np.array([n1, e1, d1], dtype=float)
-    target_from_start = np.array([nt, et, dt], dtype=float)
+    poi_from_start = np.array([nt, et, dt], dtype=float)
     denominator = float(np.dot(segment, segment))
     if denominator < 1e-6:
         closest = np.zeros(3)
     else:
-        fraction = float(np.dot(target_from_start, segment) / denominator)
+        fraction = float(np.dot(poi_from_start, segment) / denominator)
         closest = max(0.0, min(1.0, fraction)) * segment
 
-    residual = target_from_start - closest
+    residual = poi_from_start - closest
     north, east, down = residual.tolist()
     h_dist = math.hypot(north, east)
     v_dist = abs(down)
@@ -136,9 +136,9 @@ def closest_point_components_on_segment(
 def closest_on_segment(
     c0: Location,
     c1: Location,
-    target: Location,
+    poi: Location,
 ) -> tuple[Location, float, float, float, np.ndarray]:
-    components = closest_point_components_on_segment(c0, c1, target)
+    components = closest_point_components_on_segment(c0, c1, poi)
     return (
         components.c_star,
         components.h_dist,
@@ -151,23 +151,23 @@ def closest_on_segment(
 def closest_horizontal_on_segment(
     c0: Location,
     c1: Location,
-    target: Location,
+    poi: Location,
 ) -> tuple[float, float]:
     """Return minimum horizontal miss and vertical miss at that point."""
-    _require_segment_locations(c0, c1, target)
+    _require_segment_locations(c0, c1, poi)
     n1, e1, d1 = pymap3d.geodetic2ned(
         c1.lat, c1.lng, c1.alt, c0.lat, c0.lng, c0.alt,
     )
     nt, et, dt = pymap3d.geodetic2ned(
-        target.lat, target.lng, target.alt, c0.lat, c0.lng, c0.alt,
+        poi.lat, poi.lng, poi.alt, c0.lat, c0.lng, c0.alt,
     )
     segment_horizontal = np.array([n1, e1], dtype=float)
-    target_horizontal = np.array([nt, et], dtype=float)
+    poi_horizontal = np.array([nt, et], dtype=float)
     denominator = float(np.dot(segment_horizontal, segment_horizontal))
     if denominator < 1e-6:
         fraction = 0.0
     else:
-        fraction = float(np.dot(target_horizontal, segment_horizontal) / denominator)
+        fraction = float(np.dot(poi_horizontal, segment_horizontal) / denominator)
         fraction = max(0.0, min(1.0, fraction))
 
     residual_north = nt - fraction * n1

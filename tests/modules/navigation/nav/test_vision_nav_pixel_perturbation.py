@@ -66,7 +66,7 @@ def test_constant_vertical_pixel_bias_does_not_create_a_false_pitch_command() ->
         _case("vertical-pixel-bias-high-pass"),
         LARGE_PITCH_BIAS_DEG,
     )
-    assert miss.passed_target
+    assert miss.passed_poi
     assert not miss.timed_out
     assert miss.slant_m < 0.15
 
@@ -76,7 +76,7 @@ def test_error_free_pixel_calibration_hits_without_a_correction_knob() -> None:
         _case("error-free-pixel-calibration"),
         0.0,
     )
-    assert miss.passed_target
+    assert miss.passed_poi
     assert not miss.timed_out
     assert miss.slant_m < 0.15
 
@@ -87,7 +87,7 @@ def test_small_pixel_pitch_miscalibration_remains_bounded() -> None:
             _case(f"pixel-pitch-bias-{bias_deg:+g}"),
             bias_deg,
         )
-        assert miss.passed_target, bias_deg
+        assert miss.passed_poi, bias_deg
         assert not miss.timed_out, bias_deg
         assert miss.slant_m < CALIBRATION_ERROR_SLANT_BOUND_M, bias_deg
 
@@ -101,6 +101,6 @@ def test_vertical_pixel_bias_with_crosswind_remains_tightly_bounded() -> None:
     )
     miss = _run_with_pitch_pixel_bias(case, LARGE_PITCH_BIAS_DEG)
     assert miss == _run_with_pitch_pixel_bias(case, LARGE_PITCH_BIAS_DEG)
-    assert miss.passed_target
+    assert miss.passed_poi
     assert not miss.timed_out
     assert miss.slant_m < CROSSWIND_BIAS_SLANT_BOUND_M

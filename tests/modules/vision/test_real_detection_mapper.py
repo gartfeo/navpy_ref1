@@ -80,9 +80,9 @@ def test_all_mode_emits_only_confirmed_tracks_but_keeps_all_live_ids():
     confirmed = _track(1, confirmed=True)
     tentative = _track(2, confirmed=False)
 
-    targets = mapper.convert([confirmed, tentative], None, _association())
+    pois = mapper.convert([confirmed, tentative], None, _association())
 
-    assert [target.identity.obj_id for target in targets] == [1]
+    assert [poi.identity.obj_id for poi in pois] == [1]
     store.evict_except.assert_called_once_with({1, 2})
 
 
@@ -96,9 +96,9 @@ def test_locked_mode_emits_unconfirmed_lock_and_evicts_from_live_tracks():
     live = _track(1, confirmed=True)
     locked = _track(9, confirmed=False)
 
-    targets = mapper.convert([live], locked, _association())
+    pois = mapper.convert([live], locked, _association())
 
-    assert [target.identity.obj_id for target in targets] == [9]
+    assert [poi.identity.obj_id for poi in pois] == [9]
     store.evict_except.assert_called_once_with({1})
 
 
@@ -106,9 +106,9 @@ def test_missing_mount_returns_without_touching_confirmation_store():
     store = Mock(spec=ConfirmationFrameStore)
     mapper = DetectedObjectMapper(DetectionMappingConfig(output_mode="all"), store)
 
-    targets = mapper.convert([], None, SimpleNamespace(mount_state=None))
+    pois = mapper.convert([], None, SimpleNamespace(mount_state=None))
 
-    assert targets == []
+    assert pois == []
     assert store.method_calls == []
 
 
@@ -119,11 +119,11 @@ def test_locked_mode_without_lock_returns_without_eviction():
         store,
     )
 
-    targets = mapper.convert(
+    pois = mapper.convert(
         [_track(1, confirmed=True)],
         None,
         SimpleNamespace(mount_state=object()),
     )
 
-    assert targets == []
+    assert pois == []
     assert store.method_calls == []

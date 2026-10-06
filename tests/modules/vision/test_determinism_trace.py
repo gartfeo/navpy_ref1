@@ -364,7 +364,7 @@ def test_no_recording_call_ever_holds_both_locks_at_once() -> None:
     """The lock-ordering claim, MEASURED rather than read off the source.
 
     Two locks held at once is the shape a future deadlock grows from. The
-    source-level check in test_direct_target_pixel_source can only reject
+    source-level check in test_direct_poi_pixel_source can only reject
     shapes it knows to look for, and a review found five nesting forms it
     missed: a nested function, a chained alias, an annotated alias, the public
     ``command_log`` property, and a bare ``acquire()``. This test does not care

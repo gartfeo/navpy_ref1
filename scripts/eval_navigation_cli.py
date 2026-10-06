@@ -14,7 +14,7 @@ from eval_navigation_matrix import (
     parse_float_list,
     parse_navigation_speedups,
     parse_int_list,
-    parse_target_alts,
+    parse_poi_alts,
 )
 
 
@@ -27,18 +27,18 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the evaluator CLI without performing filesystem checks."""
     parser = argparse.ArgumentParser(
         description=(
-            "Run one-aircraft final approach SITL cases with target identity, "
+            "Run one-aircraft final approach SITL cases with POI identity, "
             "mission-coordinate, altitude, and independent closest-approach checks."
         )
     )
     parser.add_argument("--python", type=Path, default=DEFAULT_PYTHON)
     parser.add_argument(
-        "--target-alts",
-        type=parse_target_alts,
+        "--poi-alts",
+        type=parse_poi_alts,
         default=None,
         metavar="ALTS",
     )
-    parser.add_argument("--target-wp", type=int, default=4)
+    parser.add_argument("--poi-wp", type=int, default=4)
     parser.add_argument(
         "--max-distance",
         "--max-dist",
@@ -96,10 +96,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     args.python = args.python.resolve()
     if not args.python.is_file():
         parser.error(f"Python runtime does not exist: {args.python}")
-    if args.target_wp < 1:
-        parser.error("--target-wp must be >= 1")
-    if args.target_alts is None:
-        args.target_alts = [0]
+    if args.poi_wp < 1:
+        parser.error("--poi-wp must be >= 1")
+    if args.poi_alts is None:
+        args.poi_alts = [0]
     explicit_max_distance = args.max_distance is not None
     if not explicit_max_distance:
         args.max_distance = DEFAULT_MAX_DISTANCE_M

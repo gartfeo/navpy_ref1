@@ -51,15 +51,15 @@ class NetworkAbc(ABC):
         serialized_message = self.serializer.serialize_message(message)
         self.broadcast_data(serialized_message.encode('utf-8'))
 
-    def send_image(self, target_id: int, image_b64: str) -> int:
+    def send_image(self, poi_id: int, image_b64: str) -> int:
         """
-        Send confirmation image for a target using chunked transfer.
+        Send confirmation image for a POI using chunked transfer.
 
         Splits image into chunks and sends via _send_image_chunk().
         Chunk size is configurable per network type.
 
         Args:
-            target_id: Target ID for this confirmation
+            poi_id: POI ID for this confirmation
             image_b64: Base64 encoded JPEG image
 
         Returns:
@@ -74,7 +74,7 @@ class NetworkAbc(ABC):
         num_chunks = math.ceil(total_size / self._image_chunk_size)
 
         # Send header/handshake
-        self._send_image_header(target_id, total_size, num_chunks)
+        self._send_image_header(poi_id, total_size, num_chunks)
 
         if self._inter_chunk_delay_sec > 0:
             time.sleep(self._inter_chunk_delay_sec * 2)  # Extra delay after header
@@ -85,7 +85,7 @@ class NetworkAbc(ABC):
             end = min(start + self._image_chunk_size, total_size)
             chunk_data = image_bytes[start:end]
 
-            self._send_image_chunk(target_id, seq, chunk_data)
+            self._send_image_chunk(poi_id, seq, chunk_data)
 
             if self._inter_chunk_delay_sec > 0 and seq < num_chunks - 1:
                 time.sleep(self._inter_chunk_delay_sec)
@@ -93,24 +93,24 @@ class NetworkAbc(ABC):
         return num_chunks
 
     @abstractmethod
-    def _send_image_header(self, target_id: int, total_size: int, num_chunks: int) -> None:
+    def _send_image_header(self, poi_id: int, total_size: int, num_chunks: int) -> None:
         """
         Send image transfer header/handshake.
 
         Args:
-            target_id: Target ID for this image
+            poi_id: POI ID for this image
             total_size: Total image size in bytes
             num_chunks: Number of chunks that will follow
         """
         raise NotImplementedError
 
     @abstractmethod
-    def _send_image_chunk(self, target_id: int, sequence: int, data: bytes) -> None:
+    def _send_image_chunk(self, poi_id: int, sequence: int, data: bytes) -> None:
         """
         Send a single image chunk.
 
         Args:
-            target_id: Target ID for this image
+            poi_id: POI ID for this image
             sequence: Chunk sequence number (0-indexed)
             data: Chunk data bytes
         """

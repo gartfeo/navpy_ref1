@@ -20,7 +20,7 @@ from navpy.modules.vision.detector import (
     RealDetectorConfig,
 )
 from navpy.modules.vision.peripheral.gimbal_siyi import GimbalSiyi
-from navpy.modules.vision.target_zoom_tracker import TargetZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_tracker import PoiZoomTrackerConfig
 
 from scripts.python.run_gimbal_tracker_args import (
     SIYI_PROFILE_NAME,
@@ -62,7 +62,7 @@ class RunnerAssembly:
     mount: CameraMount
     detector_settings: dict[str, object]
     tracking_setup: GimbalTrackingSetup | None
-    zoom_config: TargetZoomTrackerConfig | None
+    zoom_config: PoiZoomTrackerConfig | None
     default_stream: str
 
 
@@ -128,7 +128,7 @@ def build_navigation(
     mount: CameraMount,
     logger: ConsoleLogger,
     tracking_setup: GimbalTrackingSetup | None,
-    zoom_config: TargetZoomTrackerConfig | None,
+    zoom_config: PoiZoomTrackerConfig | None,
 ) -> GimbalNavigation:
     setup = tracking_setup
     if setup is not None and args.max_rate is not None:
@@ -175,10 +175,10 @@ def build_detector(
                 detect_hz=settings.get("detect_hz", 20.0),
                 track_hz=settings.get("track_hz", 60.0),
                 reference_height_m=settings.get("reference_height_m", 2.0),
-                use_target_lock=True,
+                use_poi_lock=True,
                 output_mode="locked",
                 frame_source=frame_source,
-                auto_target_lock=False,
+                auto_poi_lock=False,
             ),
         ),
     )

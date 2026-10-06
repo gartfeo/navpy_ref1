@@ -1,4 +1,4 @@
-"""Coordinated detector and target-identity reset."""
+"""Coordinated detector and POI-identity reset."""
 
 from __future__ import annotations
 

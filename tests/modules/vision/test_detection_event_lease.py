@@ -19,7 +19,7 @@ from navpy.modules.vision.models.detection_event_lease import (
 from navpy.modules.vision.sim.detection_publication_store import (
     DetectionPublicationStore,
 )
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 def _publish(
@@ -32,18 +32,18 @@ def _publish(
 ) -> None:
     slot = store.reserve(threading.Event(), threading.Event())
     assert slot is not None
-    target = make_detected_target(
+    poi = make_detected_poi(
         obj_id=obj_id,
         x_error=timestamp_s,
         y_error=0.0,
         k=None,
         timestamp=timestamp_s,
     )
-    targets = [target] if detected else []
+    pois = [poi] if detected else []
     assert store.publish(
         slot,
-        targets,
-        primary_target=target if detected else None,
+        pois,
+        primary_poi=poi if detected else None,
         source_timestamp_s=timestamp_s,
         source_receipt_timestamp_s=None,
         source_name="ideal_360",
@@ -96,7 +96,7 @@ def test_lease_atomically_claims_prefix_and_coalesces_to_latest_publication():
     lease.close()
 
 
-def test_terminal_lease_dispatches_latest_publication_from_backlog():
+def test_final_approach_lease_dispatches_latest_publication_from_backlog():
     store = DetectionPublicationStore(source_driven=True, capacity=4)
     lease = store.open_event_lease()
     _publish(store, 1.0)
@@ -107,7 +107,7 @@ def test_terminal_lease_dispatches_latest_publication_from_backlog():
     lease.close()
 
 
-def test_terminal_lease_preserves_discontinuity_before_latest_state():
+def test_final_approach_lease_preserves_discontinuity_before_latest_state():
     store = DetectionPublicationStore(source_driven=True, capacity=4)
     lease = store.open_event_lease()
     _publish(store, 1.0)
@@ -119,12 +119,12 @@ def test_terminal_lease_preserves_discontinuity_before_latest_state():
 
     assert reset.source_timestamp_s == 2.0
     assert reset.source_discontinuity is True
-    assert reset.detected_targets == ()
+    assert reset.detected_pois == ()
     assert latest.source_timestamp_s == 3.0
     lease.close()
 
 
-def test_terminal_lease_preserves_each_discontinuity_before_latest_state():
+def test_final_approach_lease_preserves_each_discontinuity_before_latest_state():
     store = DetectionPublicationStore(source_driven=True, capacity=5)
     lease = store.open_event_lease()
     _publish(store, 1.0)
@@ -145,7 +145,7 @@ def test_terminal_lease_preserves_each_discontinuity_before_latest_state():
     lease.close()
 
 
-def test_terminal_lease_dispatches_latest_empty_state():
+def test_final_approach_lease_dispatches_latest_empty_state():
     store = DetectionPublicationStore(source_driven=True, capacity=3)
     lease = store.open_event_lease()
     _publish(store, 1.0)
@@ -154,7 +154,7 @@ def test_terminal_lease_dispatches_latest_empty_state():
     latest = _dispatch_one(lease)
 
     assert latest.source_timestamp_s == 2.0
-    assert latest.detected_targets == ()
+    assert latest.detected_pois == ()
     lease.close()
 
 
@@ -286,7 +286,7 @@ def _source_child(lease) -> SimpleNamespace:
 
 
 def test_aggregator_wraps_single_source_lease_with_identity_normalization():
-    target = make_detected_target(
+    poi = make_detected_poi(
         obj_id=4,
         x_error=0.0,
         y_error=0.0,
@@ -310,10 +310,10 @@ def test_aggregator_wraps_single_source_lease_with_identity_normalization():
         lambda publication: normalized.append(publication) or True
     ) is DetectionLeaseDispatch.ACCEPTED
     assert len(normalized) == 1
-    normalized_target = normalized[0].detected_targets[0]
-    assert normalized_target.identity.obj_id == target.identity.obj_id
-    assert normalized_target.identity.task_id is not None
-    assert aggregator.target_uses_source_driven_events(normalized_target) is True
+    normalized_poi = normalized[0].detected_pois[0]
+    assert normalized_poi.identity.obj_id == poi.identity.obj_id
+    assert normalized_poi.identity.task_id is not None
+    assert aggregator.poi_uses_source_driven_events(normalized_poi) is True
     child.open_detection_event_lease.assert_called_once()
     lease.close()
     assert child_lease.closed is True
@@ -447,7 +447,7 @@ def test_clear_hides_pre_reset_snapshot_before_reset_callback_returns():
     assert reset_entered.wait(1.0)
 
     try:
-        assert store.snapshot().detected_targets == ()
+        assert store.snapshot().detected_pois == ()
     finally:
         release_reset.set()
     resetting.join(1.0)

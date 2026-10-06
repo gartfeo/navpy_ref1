@@ -13,8 +13,8 @@ class FlyEstimatorTest(unittest.TestCase):
         self.vehicle.location.return_value = Location(0.0, 0.0, 0.0)
         self.vehicle.battery_level = 80  # 80% battery
 
-        # Target location 600 meters north from the vehicle's current location
-        self.target_location = Location(0.0054, 0.0, 0.0)  # Approx 600 meters north
+        # POI location 600 meters north from the vehicle's current location
+        self.poi_location = Location(0.0054, 0.0, 0.0)  # Approx 600 meters north
 
     def test_time_to_fly_no_wind(self):
         # Arrange
@@ -23,7 +23,7 @@ class FlyEstimatorTest(unittest.TestCase):
         self.vehicle.wind.direction = 0.0
 
         # Act
-        estimated_time = FlyEstimator.time_to_fly(self.vehicle, self.target_location)
+        estimated_time = FlyEstimator.time_to_fly(self.vehicle, self.poi_location)
 
         # Assert
         self.assertIsNotNone(estimated_time)
@@ -38,7 +38,7 @@ class FlyEstimatorTest(unittest.TestCase):
         self.vehicle.wind.direction = 180.0  # Wind coming from the North (0 degrees)
 
         # Act
-        estimated_time = FlyEstimator.time_to_fly(self.vehicle, self.target_location)
+        estimated_time = FlyEstimator.time_to_fly(self.vehicle, self.poi_location)
 
         # Assert
         self.assertIsNotNone(estimated_time)
@@ -55,7 +55,7 @@ class FlyEstimatorTest(unittest.TestCase):
         self.vehicle.wind.direction = 0.0  # Wind coming from the South (180 degrees)
 
         # Act
-        estimated_time = FlyEstimator.time_to_fly(self.vehicle, self.target_location)
+        estimated_time = FlyEstimator.time_to_fly(self.vehicle, self.poi_location)
 
         # Assert
         self.assertIsNotNone(estimated_time)
@@ -73,12 +73,12 @@ class FlyEstimatorTest(unittest.TestCase):
         self.vehicle.wind.direction = 90.0  # Wind coming from the East (90 degrees)
 
         # Act
-        estimated_time = FlyEstimator.time_to_fly(self.vehicle, self.target_location)
+        estimated_time = FlyEstimator.time_to_fly(self.vehicle, self.poi_location)
 
         # Assert
         self.assertIsNotNone(estimated_time)
         # Wind is coming from 90 degrees (East), so going to 270 degrees (West)
         # Heading is towards 0 degrees (North)
-        # Crosswind component doesn't affect ground speed towards target
-        # Effective ground speed towards target remains approximately 10 m/s
+        # Crosswind component doesn't affect ground speed towards POI
+        # Effective ground speed towards POI remains approximately 10 m/s
         self.assertAlmostEqual(estimated_time, 1.0, places=2)

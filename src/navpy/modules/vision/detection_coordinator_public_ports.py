@@ -15,7 +15,7 @@ from navpy.modules.vision.detector_ports import (
     MountCatalogPort,
     SchedulerCadence,
     SimulationControlPort,
-    TargetIdentityPort,
+    PoiIdentityPort,
     TrackingCommandPort,
     TrackingStatusPort,
     ZoomControlPort,
@@ -50,7 +50,7 @@ class CoordinatorSimulationParts(Protocol):
 class CoordinatorTrackingParts(Protocol):
     tracking_commands: TrackingCommandPort
     tracking_status: TrackingStatusPort
-    target_identity: TargetIdentityPort
+    poi_identity: PoiIdentityPort
 
 
 class CoordinatorGeoParts(Protocol):

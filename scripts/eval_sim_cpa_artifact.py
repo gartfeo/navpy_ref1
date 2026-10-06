@@ -3,7 +3,7 @@
 Binding is identity-based, never discovery-based: LASTLOG.TXT in the
 slot's logs directory names the last log number, and it advances exactly
 when a boot starts logging (at arm), so the case's BIN is the recorded
-successor of the pre-flight number.  Target matching in the BIN certifies
+successor of the pre-flight number.  POI matching in the BIN certifies
 the CONTENT afterwards; it never chooses the file.  Wrapped numbering is
 real on this host (slot 121 holds 500 BINs with LASTLOG at 371), so a
 stale higher-numbered file always exists -- the successor rule plus the

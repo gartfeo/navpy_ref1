@@ -18,7 +18,7 @@ class TestCreateConfirmationThumbnail(unittest.TestCase):
         frame[:] = (100, 150, 200)  # Fill with a color
 
         bbox = (320.0, 240.0, 100.0, 80.0)  # cx, cy, w, h
-        result = create_confirmation_thumbnail(frame, target_id=1, bbox=bbox)
+        result = create_confirmation_thumbnail(frame, poi_id=1, bbox=bbox)
 
         self.assertIsNotNone(result)
         self.assertIsInstance(result, str)
@@ -29,7 +29,7 @@ class TestCreateConfirmationThumbnail(unittest.TestCase):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         bbox = (320.0, 240.0, 100.0, 80.0)
 
-        result = create_confirmation_thumbnail(frame, target_id=5, bbox=bbox)
+        result = create_confirmation_thumbnail(frame, poi_id=5, bbox=bbox)
         decoded = decode_confirmation_thumbnail(result)
 
         self.assertIsNotNone(decoded)
@@ -42,7 +42,7 @@ class TestCreateConfirmationThumbnail(unittest.TestCase):
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         bbox = (960.0, 540.0, 200.0, 150.0)
 
-        result = create_confirmation_thumbnail(frame, target_id=1, bbox=bbox)
+        result = create_confirmation_thumbnail(frame, poi_id=1, bbox=bbox)
         decoded = decode_confirmation_thumbnail(result)
 
         self.assertIsNotNone(decoded)
@@ -51,13 +51,13 @@ class TestCreateConfirmationThumbnail(unittest.TestCase):
 
     def test_handles_none_frame(self):
         """Test that None frame returns None."""
-        result = create_confirmation_thumbnail(None, target_id=1, bbox=(0, 0, 10, 10))
+        result = create_confirmation_thumbnail(None, poi_id=1, bbox=(0, 0, 10, 10))
         self.assertIsNone(result)
 
     def test_handles_empty_frame(self):
         """Test that empty frame returns None."""
         frame = np.array([], dtype=np.uint8)
-        result = create_confirmation_thumbnail(frame, target_id=1, bbox=(0, 0, 10, 10))
+        result = create_confirmation_thumbnail(frame, poi_id=1, bbox=(0, 0, 10, 10))
         self.assertIsNone(result)
 
     def test_handles_bbox_at_edge(self):
@@ -65,11 +65,11 @@ class TestCreateConfirmationThumbnail(unittest.TestCase):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         bbox = (50.0, 50.0, 120.0, 100.0)  # Partially outside frame
 
-        result = create_confirmation_thumbnail(frame, target_id=1, bbox=bbox)
+        result = create_confirmation_thumbnail(frame, poi_id=1, bbox=bbox)
         self.assertIsNotNone(result)
 
-    def test_crops_around_bbox_for_small_target(self):
-        """Test that a tiny target in a large frame becomes visible after cropping."""
+    def test_crops_around_bbox_for_small_poi(self):
+        """Test that a tiny POI in a large frame becomes visible after cropping."""
         # Simulate a 32x22 rectangular sprite in a 1920x1080 frame (detection at ~700m)
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         frame[:] = (60, 80, 50)  # greenish background
@@ -77,13 +77,13 @@ class TestCreateConfirmationThumbnail(unittest.TestCase):
         cx, cy, bw, bh = 960, 540, 32, 22
         frame[cy - bh // 2:cy + bh // 2, cx - bw // 2:cx + bw // 2] = (255, 255, 255)
 
-        result = create_confirmation_thumbnail(frame, target_id=0, bbox=(cx, cy, bw, bh))
+        result = create_confirmation_thumbnail(frame, poi_id=0, bbox=(cx, cy, bw, bh))
         decoded = decode_confirmation_thumbnail(result)
 
         self.assertIsNotNone(decoded)
         self.assertEqual(decoded.shape[:2], (THUMBNAIL_SIZE[1], THUMBNAIL_SIZE[0]))
 
-        # The crop should zoom in, making the white target pixels take up
+        # The crop should zoom in, making the white POI pixels take up
         # a significant portion of the thumbnail (not just 10x7 pixels).
         # Count non-background pixels in the decoded image.
         # With cropping, the white rectangle should be much larger than
@@ -92,14 +92,14 @@ class TestCreateConfirmationThumbnail(unittest.TestCase):
         white_pixel_count = np.count_nonzero(white_mask)
         # Without crop: ~70 white pixels. With crop: should be >>200.
         self.assertGreater(white_pixel_count, 200,
-                           f"Target too small in thumbnail ({white_pixel_count} white pixels)")
+                           f"POI too small in thumbnail ({white_pixel_count} white pixels)")
 
     def test_crop_keeps_bbox_centered(self):
-        """Test that the target bbox stays roughly centered after cropping."""
+        """Test that the POI bbox stays roughly centered after cropping."""
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         cx, cy, bw, bh = 960, 540, 50, 40
 
-        result = create_confirmation_thumbnail(frame, target_id=1, bbox=(cx, cy, bw, bh))
+        result = create_confirmation_thumbnail(frame, poi_id=1, bbox=(cx, cy, bw, bh))
         decoded = decode_confirmation_thumbnail(result)
         self.assertIsNotNone(decoded)
 
@@ -119,22 +119,22 @@ class TestCreateConfirmationThumbnail(unittest.TestCase):
     def test_crop_clamps_to_frame_corner(self):
         """Test bbox near a corner doesn't crash and produces valid output."""
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
-        # Target near top-left corner
+        # POI near top-left corner
         bbox = (30.0, 20.0, 32.0, 22.0)
 
-        result = create_confirmation_thumbnail(frame, target_id=0, bbox=bbox)
+        result = create_confirmation_thumbnail(frame, poi_id=0, bbox=bbox)
         decoded = decode_confirmation_thumbnail(result)
         self.assertIsNotNone(decoded)
         self.assertEqual(decoded.shape[:2], (THUMBNAIL_SIZE[1], THUMBNAIL_SIZE[0]))
 
-    def test_bbox_larger_than_target(self):
-        """Test that drawn bbox is padded larger than the actual target."""
+    def test_bbox_larger_than_poi(self):
+        """Test that drawn bbox is padded larger than the actual POI."""
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         cx, cy, bw, bh = 960, 540, 32, 22
-        # Draw a bright green target (distinct from orange bbox and white label)
+        # Draw a bright green POI (distinct from orange bbox and white label)
         frame[cy - bh // 2:cy + bh // 2, cx - bw // 2:cx + bw // 2] = (0, 255, 0)
 
-        result = create_confirmation_thumbnail(frame, target_id=0, bbox=(cx, cy, bw, bh))
+        result = create_confirmation_thumbnail(frame, poi_id=0, bbox=(cx, cy, bw, bh))
         decoded = decode_confirmation_thumbnail(result)
         self.assertIsNotNone(decoded)
 
@@ -143,35 +143,35 @@ class TestCreateConfirmationThumbnail(unittest.TestCase):
         orange_coords = np.argwhere(orange_mask)
         self.assertGreater(len(orange_coords), 0, "No bounding box drawn")
 
-        # Green target pixels (high green, low red and blue)
+        # Green POI pixels (high green, low red and blue)
         green_mask = (decoded[:, :, 1] > 200) & (decoded[:, :, 0] < 50) & (decoded[:, :, 2] < 50)
         green_coords = np.argwhere(green_mask)
-        self.assertGreater(len(green_coords), 0, "Target not visible")
+        self.assertGreater(len(green_coords), 0, "POI not visible")
 
-        # Bbox should span a larger area than the target itself
+        # Bbox should span a larger area than the POI itself
         bbox_span_y = orange_coords[:, 0].max() - orange_coords[:, 0].min()
         bbox_span_x = orange_coords[:, 1].max() - orange_coords[:, 1].min()
-        target_span_y = green_coords[:, 0].max() - green_coords[:, 0].min()
-        target_span_x = green_coords[:, 1].max() - green_coords[:, 1].min()
-        self.assertGreater(bbox_span_x, target_span_x * 1.3, "Bbox not wider than target")
-        self.assertGreater(bbox_span_y, target_span_y * 1.3, "Bbox not taller than target")
+        poi_span_y = green_coords[:, 0].max() - green_coords[:, 0].min()
+        poi_span_x = green_coords[:, 1].max() - green_coords[:, 1].min()
+        self.assertGreater(bbox_span_x, poi_span_x * 1.3, "Bbox not wider than POI")
+        self.assertGreater(bbox_span_y, poi_span_y * 1.3, "Bbox not taller than POI")
 
 
 class TestConfirmationThumbnailCropToggle(unittest.TestCase):
-    """Tests for the crop_to_target toggle in create_confirmation_thumbnail."""
+    """Tests for the crop_to_poi toggle in create_confirmation_thumbnail."""
 
     def test_crop_disabled_shows_full_frame_marker_at_corner(self):
-        """With crop_to_target=False, a bright corner marker in the original
+        """With crop_to_poi=False, a bright corner marker in the original
         frame must be visible in the thumbnail (crop would cut it off)."""
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         # Bright green 20x20 marker at top-left corner of the source frame.
         frame[0:20, 0:20] = (0, 255, 0)
-        # Target is far away (bottom-right quadrant) so a centered crop would
+        # POI is far away (bottom-right quadrant) so a centered crop would
         # discard the top-left corner entirely.
         bbox = (1700.0, 900.0, 60.0, 60.0)
 
         result = create_confirmation_thumbnail(
-            frame, target_id=0, bbox=bbox, crop_to_target=False,
+            frame, poi_id=0, bbox=bbox, crop_to_poi=False,
         )
         decoded = decode_confirmation_thumbnail(result)
         self.assertIsNotNone(decoded)
@@ -182,13 +182,13 @@ class TestConfirmationThumbnailCropToggle(unittest.TestCase):
         self.assertTrue(green_mask.any(), "Corner marker lost — frame was cropped")
 
     def test_crop_enabled_by_default_cuts_distant_corner(self):
-        """Sanity: with the default (crop_to_target=True), the same distant
+        """Sanity: with the default (crop_to_poi=True), the same distant
         corner marker is cropped out of the thumbnail."""
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         frame[0:20, 0:20] = (0, 255, 0)
         bbox = (1700.0, 900.0, 60.0, 60.0)
 
-        result = create_confirmation_thumbnail(frame, target_id=0, bbox=bbox)
+        result = create_confirmation_thumbnail(frame, poi_id=0, bbox=bbox)
         decoded = decode_confirmation_thumbnail(result)
         self.assertIsNotNone(decoded)
 
@@ -198,18 +198,18 @@ class TestConfirmationThumbnailCropToggle(unittest.TestCase):
 
     def test_frame_bboxes_does_not_expand_crop(self):
         """Other detections (frame_bboxes) must NOT enlarge the crop — the
-        selected target stays framed at the same size, so the output is
+        selected POI stays framed at the same size, so the output is
         byte-identical with or without them. (The old code expanded the crop
-        to enclose every detection, shrinking the selected target.)"""
+        to enclose every detection, shrinking the selected POI.)"""
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
-        frame[520:560, 940:980] = (0, 255, 0)  # selected target near center
+        frame[520:560, 940:980] = (0, 255, 0)  # selected POI near center
         bbox = (960.0, 540.0, 40.0, 40.0)
         # A far-away detection in the corner the old code would expand to.
         distant = [(100.0, 100.0, 80.0, 80.0)]
 
-        without = create_confirmation_thumbnail(frame, target_id=0, bbox=bbox)
+        without = create_confirmation_thumbnail(frame, poi_id=0, bbox=bbox)
         with_distant = create_confirmation_thumbnail(
-            frame, target_id=0, bbox=bbox, frame_bboxes=distant)
+            frame, poi_id=0, bbox=bbox, frame_bboxes=distant)
 
         self.assertIsNotNone(without)
         self.assertEqual(without, with_distant)
@@ -222,7 +222,7 @@ class TestConfirmationThumbnailDegradedBanner(unittest.TestCase):
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         bbox = (960.0, 540.0, 80.0, 60.0)
         result = create_confirmation_thumbnail(
-            frame, target_id=0, bbox=bbox, degraded=True,
+            frame, poi_id=0, bbox=bbox, degraded=True,
         )
         decoded = decode_confirmation_thumbnail(result)
         self.assertIsNotNone(decoded)
@@ -238,7 +238,7 @@ class TestConfirmationThumbnailDegradedBanner(unittest.TestCase):
     def test_non_degraded_has_no_red_banner(self):
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         bbox = (960.0, 540.0, 80.0, 60.0)
-        result = create_confirmation_thumbnail(frame, target_id=0, bbox=bbox)
+        result = create_confirmation_thumbnail(frame, poi_id=0, bbox=bbox)
         decoded = decode_confirmation_thumbnail(result)
         self.assertIsNotNone(decoded)
 
@@ -250,11 +250,11 @@ class TestConfirmationThumbnailDegradedBanner(unittest.TestCase):
         self.assertFalse(red_mask.any(), "Banner drawn even though degraded=False")
 
     def test_degraded_works_with_crop_disabled(self):
-        """The crop_to_target=False path also supports the LOW-RES banner."""
+        """The crop_to_poi=False path also supports the LOW-RES banner."""
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         bbox = (960.0, 540.0, 80.0, 60.0)
         result = create_confirmation_thumbnail(
-            frame, target_id=0, bbox=bbox, crop_to_target=False, degraded=True,
+            frame, poi_id=0, bbox=bbox, crop_to_poi=False, degraded=True,
         )
         decoded = decode_confirmation_thumbnail(result)
         self.assertIsNotNone(decoded)
@@ -275,7 +275,7 @@ class TestDecodeConfirmationThumbnail(unittest.TestCase):
         frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
         bbox = (320.0, 240.0, 100.0, 80.0)
 
-        encoded = create_confirmation_thumbnail(frame, target_id=1, bbox=bbox)
+        encoded = create_confirmation_thumbnail(frame, poi_id=1, bbox=bbox)
         decoded = decode_confirmation_thumbnail(encoded)
 
         self.assertIsNotNone(decoded)

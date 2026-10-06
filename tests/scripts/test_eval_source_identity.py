@@ -2,7 +2,7 @@
 
 The identity set used to be written down by hand, and it went stale exactly the
 way a hand-maintained list does: the flight child grew an import of
-`pixel_pn_terminal_speed`, which decides whether the scored leg runs at the
+`pixel_pn_final_approach_speed`, which decides whether the scored leg runs at the
 requested clock, and that module reads its acceptance tolerance from
 `swarm_run_verification_model`. Neither appeared in the list, so editing either
 changed how a case flew while its recorded SHA stayed put -- and the whole
@@ -43,7 +43,7 @@ def test_the_module_that_sets_the_flight_clock_is_part_of_the_identity() -> None
     """The exact file the hand-written list missed."""
     names = {path.name for path in script_import_closure(CHILD, SCRIPTS)}
 
-    assert "pixel_pn_terminal_speed.py" in names
+    assert "pixel_pn_final_approach_speed.py" in names
 
 
 def test_the_tolerance_that_accepts_the_clock_is_part_of_the_identity() -> None:

@@ -11,7 +11,7 @@ Contract this file keeps:
   raises into the caller: a fault latches ``failed``, so a broken trace can
   neither change a command nor pass as a clean one. It does cost CPU and does
   lengthen the source's critical section: decision-neutral, NOT free.
-- **No file I/O during engagement.** The owner drains the rows after the leg,
+- **No file I/O during the scoring window.** The owner drains the rows after the leg,
   and a drain latches the trace incomplete: summarise FIRST, then drain.
 - **One read per store.** A post-leg reader reduces a ``TraceCapture``: each
   store read in ONE acquisition of its own lock, so no row count is ever
@@ -261,7 +261,7 @@ class DeterminismTrace:
     def capture(self) -> TraceCapture:
         """Every store, each in one acquisition -- see ``TraceCapture``.
 
-        O(rows + entries): a post-leg read, never an engagement-path one. A
+        O(rows + entries): a post-leg read, never an scoring-path one. A
         hole in the command ledger folds into ``status``, one in the ATTITUDE
         ledger into ``TraceCapture.complete``.
         """

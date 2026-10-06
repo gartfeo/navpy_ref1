@@ -87,8 +87,8 @@ export default function SettingsModal({ settings, onSave, onReset, onClose, onOp
         justifyContent: 'center',
         zIndex: 9999,
       }}
-      onMouseDown={(e) => { backdropMouseDown.current = e.target === e.currentTarget; }}
-      onClick={(e) => { if (e.target === e.currentTarget && backdropMouseDown.current) onClose(); }}
+      onMouseDown={(e) => { backdropMouseDown.current = e.target === e.currentPoi; }}
+      onClick={(e) => { if (e.target === e.currentPoi && backdropMouseDown.current) onClose(); }}
     >
       <div
         style={{

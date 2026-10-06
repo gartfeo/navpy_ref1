@@ -13,7 +13,7 @@ from navpy.modules.vision.sim.detection_publication_store import (
     DetectionPublicationStore,
     PublicationSlot,
 )
-from navpy.modules.vision.target_priority import select_most_centered_target
+from navpy.modules.vision.poi_priority import select_most_centered_poi
 from navpy.modules.vision.sim.frame_generation_gate import (
     FrameGeneration,
     FrameGenerationGate,
@@ -162,7 +162,7 @@ class SourceFrameCoordinator:
     def publish_detection(
         self,
         slot: PublicationSlot,
-        targets: Sequence[DetectedObject],
+        pois: Sequence[DetectedObject],
         *,
         source_timestamp_s: float,
         source_receipt_timestamp_s: Optional[float],
@@ -171,8 +171,8 @@ class SourceFrameCoordinator:
     ) -> bool:
         return self._publications.publish(
             slot,
-            targets,
-            primary_target=select_most_centered_target(targets),
+            pois,
+            primary_poi=select_most_centered_poi(pois),
             source_timestamp_s=source_timestamp_s,
             source_receipt_timestamp_s=source_receipt_timestamp_s,
             source_name=source_name,

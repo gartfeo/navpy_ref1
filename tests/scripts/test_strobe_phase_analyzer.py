@@ -100,13 +100,13 @@ def test_a_wrong_prior_fails_the_verdict_instead_of_shifting_the_answer(
     assert result["classes"].get("unexpected_lit", 0) > 0
 
 
-def test_terminal_exclusion_honors_a_nondefault_prior():
+def test_final_approach_exclusion_honors_a_nondefault_prior():
     """The cutoff must move with the prior the operator chose (review
     finding: it silently used the default)."""
     frames, pulses = synth_session(*SPLIT_GEOM, 100, LINEAR)
     fit = affine_fit(frames)
-    strict = analyzer.drop_terminal_pulses(frames, pulses, fit, 300_000_000)
-    lax = analyzer.drop_terminal_pulses(frames, pulses, fit, 0)
+    strict = analyzer.drop_final_approach_pulses(frames, pulses, fit, 300_000_000)
+    lax = analyzer.drop_final_approach_pulses(frames, pulses, fit, 0)
     assert len(strict) <= len(lax)
     assert len(lax) == len(pulses), "zero prior excludes nothing here"
 

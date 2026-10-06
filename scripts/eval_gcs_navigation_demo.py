@@ -33,7 +33,7 @@ from scripts.eval_gcs_demo_constants import (
     NAVIGATION_SPEEDUP_OVERRIDE,
     ROOT,
     SIM_SPEEDUP,
-    TERMINAL_ROLL_LIMIT_DEG,
+    FINAL_APPROACH_ROLL_LIMIT_DEG,
     VISION_MOUNT_PITCH_DEG,
     VISION_PROFILE,
 )
@@ -84,7 +84,7 @@ __all__ = [
     "RegressionError",
     "RunReport",
     "SIM_SPEEDUP",
-    "TERMINAL_ROLL_LIMIT_DEG",
+    "FINAL_APPROACH_ROLL_LIMIT_DEG",
     "TelemetryEventStream",
     "VISION_MOUNT_PITCH_DEG",
     "VISION_PROFILE",

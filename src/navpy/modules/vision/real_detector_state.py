@@ -35,25 +35,25 @@ ConfirmationFrame = tuple[
 
 
 class DetectionResultStore:
-    """Atomic owner of the published target list and primary target."""
+    """Atomic owner of the published POI list and primary POI."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._targets: list[DetectedObject] = []
+        self._pois: list[DetectedObject] = []
         self._primary: DetectedObject | None = None
 
     def publish(
         self,
-        targets: Sequence[DetectedObject],
+        pois: Sequence[DetectedObject],
         primary: DetectedObject | None,
     ) -> None:
         with self._lock:
-            self._targets = list(targets)
+            self._pois = list(pois)
             self._primary = primary
 
     def snapshot(self) -> tuple[list[DetectedObject], DetectedObject | None]:
         with self._lock:
-            return list(self._targets), self._primary
+            return list(self._pois), self._primary
 
     def clear(self) -> None:
         self.publish([], None)
@@ -117,7 +117,7 @@ class ConfirmationFrameStore:
 
 
 class FreshnessPolicy:
-    """Single cached-target freshness rule shared by all readers."""
+    """Single cached-POI freshness rule shared by all readers."""
 
     def __init__(self, track_period_s: float) -> None:
         self._maximum_age_s = max(0.25, 3.0 * float(track_period_s))
@@ -128,13 +128,13 @@ class FreshnessPolicy:
 
     def is_fresh(
         self,
-        target: TimestampedVisionItem,
+        poi: TimestampedVisionItem,
         now_s: float | None = None,
     ) -> bool:
         timestamp = (
-            target.timing.detection_timestamp_s
-            if isinstance(target, DetectedObject)
-            else target.timestamp
+            poi.timing.detection_timestamp_s
+            if isinstance(poi, DetectedObject)
+            else poi.timestamp
         )
         if timestamp is None:
             return True

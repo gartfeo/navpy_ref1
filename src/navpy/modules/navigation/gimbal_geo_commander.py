@@ -41,15 +41,15 @@ class GimbalGeoCommander:
         if uav_loc is None or uav_att is None:
             return
         with self._fence.lock:
-            target = self._geo.target
+            poi = self._geo.poi
             geo_ref = self._geo.geo_ref
             generation = self._fence.generation
-            if target is None or geo_ref is None:
+            if poi is None or geo_ref is None:
                 return
         try:
             command = geo_ref.calc_gimbal_lock_att_loc(
                 uav_loc,
-                target,
+                poi,
                 uav_att,
                 self._hardware.mount.get_gimbal_data(),
             )
@@ -65,7 +65,7 @@ class GimbalGeoCommander:
             )
             return
         self._diagnostics.log(
-            target,
+            poi,
             geo_ref,
             uav_loc,
             uav_att,
@@ -76,7 +76,7 @@ class GimbalGeoCommander:
         with self._gate.lock:
             with self._fence.lock:
                 if (
-                    self._geo.target is not target
+                    self._geo.poi is not poi
                     or self._fence.generation != generation
                 ):
                     return

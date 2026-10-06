@@ -24,7 +24,7 @@ export default function PlanningSidebar({
   analysis,
   uavCount,
   setUavCount,
-  onTargetChange,
+  onPoiChange,
   plan,
   launchPoint,
   corridorPoints,
@@ -65,13 +65,13 @@ export default function PlanningSidebar({
 }) {
   const { t } = useTranslation();
 
-  const toggleTarget = (id) => {
+  const togglePoi = (id) => {
     const next = dockClasses.includes(id)
       ? dockClasses.filter((tc) => tc !== id)
       : [...dockClasses, id];
     if (next.length > 0) {
       setDockClasses(next);
-      onTargetChange(next);
+      onPoiChange(next);
     }
   };
 
@@ -86,14 +86,14 @@ export default function PlanningSidebar({
   const effectivePerUav = (zi) => (perUavDockClasses?.[zi]?.length ? perUavDockClasses[zi] : dockClasses);
   const isPerUavCustom = (zi) => (perUavDockClasses?.[zi]?.length ?? 0) > 0;
 
-  const togglePerUavTarget = (zi, id) => {
+  const togglePerUavPoi = (zi, id) => {
     const base = effectivePerUav(zi);
     const next = base.includes(id) ? base.filter((tc) => tc !== id) : [...base, id];
     if (next.length === 0) return;
     setPerUavDockClasses({ ...(perUavDockClasses || {}), [zi]: next });
   };
 
-  const resetPerUavTarget = (zi) => {
+  const resetPerUavPoi = (zi) => {
     if (!isPerUavCustom(zi)) return;
     const nextMap = { ...(perUavDockClasses || {}) };
     delete nextMap[zi];
@@ -132,7 +132,7 @@ export default function PlanningSidebar({
       {/* Dock class — mission-wide default (single-row icon chips) */}
       <Label>{t('planningSidebar.dockClass')}</Label>
       <div style={{ marginBottom: zones.length > 0 ? 12 : 16 }}>
-        <DockClassChips selected={dockClasses} onToggle={toggleTarget} />
+        <DockClassChips selected={dockClasses} onToggle={togglePoi} />
       </div>
 
       {/* Per-UAV dock class override — inherits the default unless customized */}
@@ -154,12 +154,12 @@ export default function PlanningSidebar({
                   </span>
                   <DockClassChips
                     selected={effectivePerUav(zi)}
-                    onToggle={(id) => togglePerUavTarget(zi, id)}
+                    onToggle={(id) => togglePerUavPoi(zi, id)}
                     compact
                   />
                   {custom && (
                     <button
-                      onClick={() => resetPerUavTarget(zi)}
+                      onClick={() => resetPerUavPoi(zi)}
                       title={t('planningSidebar.perUavResetHint')}
                       style={{
                         background: 'transparent',
@@ -530,7 +530,7 @@ export default function PlanningSidebar({
         setManualFallbackLocationEdit={setManualFallbackLocationEdit}
       />
 
-      {/* Sim Targets grid */}
+      {/* Sim POIs grid */}
       {simMode && plan?.zones?.length > 0 && (
         <>
           <Divider />

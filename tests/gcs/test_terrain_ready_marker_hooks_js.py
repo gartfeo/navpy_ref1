@@ -44,7 +44,7 @@ _CLAMP = "heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,"
 _MAP_SRC = _read_map_file("CesiumMap.jsx")
 _ASSIGNMENT_SRC = _read_map_file("hooks", "useAssignmentMarkers.js")
 _AVAILABLE_SRC = _read_map_file("hooks", "useAvailableTaskMarkers.js")
-_TARGET_SRC = _read_map_file("hooks", "useDockMarkers.js")
+_POI_SRC = _read_map_file("hooks", "useDockMarkers.js")
 _DETECTION_SRC = _read_map_file("hooks", "useDetectionMarkers.js")
 _DOCK_SRC = _read_map_file("hooks", "useFallbackLocationLayer.js")
 
@@ -77,17 +77,17 @@ class TestTerrainReadyMarkerHooks(unittest.TestCase):
         self.assertIn("[availableTasks, viewerReady]", compact)
         self.assertNotIn("if (!terrainReady)", _AVAILABLE_SRC)
 
-    def test_target_markers_self_clamp(self):
+    def test_poi_markers_self_clamp(self):
         # Signature / viewerReady deps are owned by
         # test_viewer_ready_polygon_hooks_js.py; here we only pin the
         # terrain-correct placement and the absence of a terrainReady gate.
         self.assertIn(
             "if (!simDocks || simDocks.length === 0) { ents.simDocks = []; return; }",
-            _compact(_TARGET_SRC),
+            _compact(_POI_SRC),
         )
         # Detection class 0 model + label both clamp to terrain.
-        self.assertGreaterEqual(_TARGET_SRC.count(_CLAMP), 2)
-        self.assertNotIn("if (!terrainReady)", _TARGET_SRC)
+        self.assertGreaterEqual(_POI_SRC.count(_CLAMP), 2)
+        self.assertNotIn("if (!terrainReady)", _POI_SRC)
 
     def test_detection_markers_clamp_relative_to_ground(self):
         self.assertIn(
@@ -124,7 +124,7 @@ class TestTerrainReadyMarkerHooks(unittest.TestCase):
             compact,
         )
         self.assertIn(
-            "useDockMarkers(cesiumRef, viewerRef, entitiesRef, stableTargets, viewerReady);",
+            "useDockMarkers(cesiumRef, viewerRef, entitiesRef, stablePois, viewerReady);",
             compact,
         )
         self.assertIn(

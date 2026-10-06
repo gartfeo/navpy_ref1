@@ -1,7 +1,7 @@
 """Selectable multi-object tracker backends (public surface).
 
 All backends normalize their output to ``TrackedObject`` so the detector,
-target lock, navigation, and UI paths stay independent from a specific tracker
+POI lock, navigation, and UI paths stay independent from a specific tracker
 library.
 
 Backends:

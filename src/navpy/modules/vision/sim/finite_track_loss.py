@@ -1,4 +1,4 @@
-"""Finite-camera track-loss diagnosis, separate from target projection."""
+"""Finite-camera track-loss diagnosis, separate from POI projection."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.sim_camera_ports import ProjectionCameraPort
 from navpy.modules.vision.sim.sim_runtime_ports import (
     PixelCalculator,
-    TargetSnapshotReader,
+    PoiSnapshotReader,
 )
 from navpy.modules.vision.simulation_object import SimulationObject
 from navpy.modules.vision.vision_class_profile import (
@@ -21,17 +21,17 @@ from navpy.modules.vision.vision_class_profile import (
 
 
 class FiniteTrackLossDiagnoser:
-    """Explain finite-camera track loss without owning target projection."""
+    """Explain finite-camera track loss without owning POI projection."""
 
     def __init__(
         self,
         camera: ProjectionCameraPort,
         calc_uv: PixelCalculator,
-        target_snapshot: TargetSnapshotReader,
+        poi_snapshot: PoiSnapshotReader,
     ) -> None:
         self._camera = camera
         self._calc_uv = calc_uv
-        self._target_snapshot = target_snapshot
+        self._poi_snapshot = poi_snapshot
 
     def diagnose(
         self,
@@ -41,30 +41,30 @@ class FiniteTrackLossDiagnoser:
         camera_matrix: np.ndarray,
         gimbal_data: GimbalData,
     ) -> str:
-        for target in self._target_snapshot():
-            if target.uid != tracking_id:
+        for poi in self._poi_snapshot():
+            if poi.uid != tracking_id:
                 continue
-            return self._diagnose_target(
-                target,
+            return self._diagnose_poi(
+                poi,
                 camera_location,
                 uas_attitude,
                 camera_matrix,
                 gimbal_data,
             )
-        return f"uid={tracking_id}_not_in_targets"
+        return f"uid={tracking_id}_not_in_pois"
 
-    def _diagnose_target(
+    def _diagnose_poi(
         self,
-        target: SimulationObject,
+        poi: SimulationObject,
         camera_location: Location,
         uas_attitude: Attitude,
         camera_matrix: np.ndarray,
         gimbal_data: GimbalData,
     ) -> str:
         p_ned = pymap3d.geodetic2ned(
-            target.g_loc.lat,
-            target.g_loc.lng,
-            target.g_loc.alt,
+            poi.g_loc.lat,
+            poi.g_loc.lng,
+            poi.g_loc.alt,
             camera_location.lat,
             camera_location.lng,
             camera_location.alt,

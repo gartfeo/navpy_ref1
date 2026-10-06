@@ -9,7 +9,7 @@ other's messages (and the type filter must stay a list; pymavlink wraps a
 tuple as a single element, which matches nothing).
 
 Per aircraft the single-case semantics are kept exactly: scoring interval is
-sticky from the first `engaged.marker` sighting; the EKF scorer and ground
+sticky from the first `scoring_active.marker` sighting; the EKF scorer and ground
 track FREEZE at that aircraft's `result.json` (its episode is over --
 post-pass trajectory could invalidate the run on post-episode maneuvers or
 distort the wind classification); the truth recorder keeps receiving until
@@ -91,7 +91,7 @@ def collect_fleet(
     while not all(aircraft_done(sys_id) for sys_id in children):
         for sys_id in children:
             scoring_active[sys_id] = scoring_active[sys_id] or (
-                directories[sys_id] / "engaged.marker"
+                directories[sys_id] / "scoring_active.marker"
             ).exists()
         for _ in range(500):
             message = master.recv_match(type=_DRAIN_MESSAGE_TYPES, blocking=False)

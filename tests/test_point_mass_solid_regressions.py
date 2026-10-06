@@ -48,8 +48,8 @@ def test_point_mass_facade_uses_production_pixel_sensor_exactly() -> None:
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
     }
     assert "body_ray_to_pixel" in called
-    assert "TerminalVisionFrame" not in called
-    assert "TerminalFrameProjector" not in {
+    assert "FinalApproachVisionFrame" not in called
+    assert "FinalApproachFrameProjector" not in {
         node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
     }
     run_tree = ast.parse(
@@ -57,7 +57,7 @@ def test_point_mass_facade_uses_production_pixel_sensor_exactly() -> None:
             encoding="utf-8"
         )
     )
-    assert "TerminalFrameProjector" in {
+    assert "FinalApproachFrameProjector" in {
         node.id for node in ast.walk(run_tree) if isinstance(node, ast.Name)
     }
 
@@ -74,21 +74,21 @@ def test_point_mass_far_flyby_is_a_completed_miss_not_timeout() -> None:
         )
     )
     assert miss.slant_m > 40.0
-    assert miss.passed_target
+    assert miss.passed_poi
     assert not miss.timed_out
 
 
 def test_point_mass_directly_astern_receding_never_closes_and_times_out() -> None:
     """The law must never CLAIM this geometry: no hit, no closing, timeout.
 
-    PN commands on LOS RATE. A target directly astern, on a reciprocal
+    PN commands on LOS RATE. A POI directly astern, on a reciprocal
     bearing, receding radially, presents zero LOS rate by construction --
     there is nothing to null. The law still runs: every cycle it plans a
     zero-increment command that holds the anchor, so commands ARE issued;
-    what never happens is a turn back toward the target. This is not a
+    what never happens is a turn back toward the POI. This is not a
     defect to tune away: it is a property of the law's input, pinned here on
     a DETERMINISTIC instrument that reproduces exactly. Acquisition from
-    this geometry is the approach layer's job: turn toward the target
+    this geometry is the approach layer's job: turn toward the POI
     FIRST, then hand over. The law acquiring 118 deg off-nose is certified
     separately (test_far_off_boresight_ideal_360_acquisition_converges).
 
@@ -120,7 +120,7 @@ def test_point_mass_directly_astern_receding_never_closes_and_times_out() -> Non
             max_t_s=120.0,
         )
     )
-    assert not miss.passed_target
+    assert not miss.passed_poi
     assert miss.timed_out
     assert miss.t_s == 0.02
     assert miss.slant_m > 700.0
@@ -148,7 +148,7 @@ def test_point_mass_navigation_cadence_never_scales_source_timestamps() -> None:
     assert fast.command_timestamps_s[:4] == pytest.approx((0.0, 0.04, 0.08, 0.12))
     assert slow.command_timestamps_s[:4] == pytest.approx((0.0, 0.2, 0.4, 0.6))
     assert len(fast.command_timestamps_s) > len(slow.command_timestamps_s)
-    assert fast.miss.passed_target and slow.miss.passed_target
+    assert fast.miss.passed_poi and slow.miss.passed_poi
     assert fast.miss.t_s == pytest.approx(slow.miss.t_s)
     assert fast.miss.slant_m < 0.25
     assert slow.miss.slant_m < 0.25

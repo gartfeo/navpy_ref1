@@ -35,7 +35,7 @@ from scripts.eval_navigation_cases import (  # noqa: E402
     request_coordinate_score_stream,
     require_nav_solution,
     resolve_home_abs_alt_m,
-    resolve_target_expectation,
+    resolve_poi_expectation,
     set_param,
 )
 from scripts.eval_navigation_telemetry import (  # noqa: E402
@@ -48,7 +48,7 @@ from scripts.eval_source_identity import (  # noqa: E402
 )
 import eval_preboot_profile as preboot_profile  # noqa: E402
 from scripts.pixel_pn_case_manifest import write_case_manifest  # noqa: E402
-from scripts.pixel_pn_terminal_speed import terminal_speed_plan  # noqa: E402
+from scripts.pixel_pn_final_approach_speed import final_approach_speed_plan  # noqa: E402
 from scripts.upload_north_line_mission import upload_north_line  # noqa: E402
 
 # The single-case identity closure does NOT reach the fleet harness: it is
@@ -82,7 +82,7 @@ def fleet_source_identity() -> dict[str, object]:
 class FleetPlan:
     """Each aircraft's reference location, scoring start sequence, and wind."""
 
-    targets: dict[int, object] = field(default_factory=dict)
+    pois: dict[int, object] = field(default_factory=dict)
     scoring_start_sequences: dict[int, int] = field(default_factory=dict)
     speed_plans: dict[int, object] = field(default_factory=dict)
     winds: dict[int, tuple[float, float]] = field(default_factory=dict)
@@ -114,7 +114,7 @@ def upload_missions(
             home=one._home_lat_lon(args.home),
             loiter_offset=args.loiter_offset,
             gate_offset=args.gate_offset,
-            waypoint_offset=args.target_offset,
+            waypoint_offset=args.poi_offset,
             alt_m=args.mission_alt,
             echo=lambda line: (case_dir / "mission.log").open(
                 "a", encoding="utf-8").write(f"{line}\n"),
@@ -146,7 +146,7 @@ class AircraftManifest:
     """The case-constant inputs of each aircraft's `case.json`.
 
     The per-aircraft manifest is the certified single-case one, written by
-    the same writer: the SIM_CPA scorer reads its expected target back from
+    the same writer: the SIM_CPA scorer reads its expected POI back from
     `case_dir/case.json`, and an archived aircraft directory must say what
     that aircraft flew -- its cell's EFFECTIVE parameter pushes included,
     which the fleet-level manifest cannot carry per aircraft.
@@ -215,15 +215,15 @@ def prepare_aircraft(
         mission = download_mission(master)
         home_alt = resolve_home_abs_alt_m(master, timeout_s=30.0)
         plan.home_alts[sys_id] = home_alt
-        plan.targets[sys_id] = resolve_target_expectation(
-            mission, target_wp=args.target_wp,
-            target_rel_alt_m=args.target_alt, home_abs_alt_m=home_alt,
+        plan.pois[sys_id] = resolve_poi_expectation(
+            mission, poi_wp=args.poi_wp,
+            poi_rel_alt_m=args.poi_alt, home_abs_alt_m=home_alt,
         ).location
-        plan.scoring_start_sequences[sys_id] = resolve_target_expectation(
-            mission, target_wp=args.scoring_start_wp,
-            target_rel_alt_m=args.target_alt, home_abs_alt_m=home_alt,
+        plan.scoring_start_sequences[sys_id] = resolve_poi_expectation(
+            mission, poi_wp=args.scoring_start_wp,
+            poi_rel_alt_m=args.poi_alt, home_abs_alt_m=home_alt,
         ).mission_seq
-        plan.speed_plans[sys_id] = terminal_speed_plan(
+        plan.speed_plans[sys_id] = final_approach_speed_plan(
             args, speedup, mission, home_alt
         )
         plan.winds[sys_id] = (speed, direction)
@@ -232,13 +232,13 @@ def prepare_aircraft(
             # BEFORE any parameter push, like the single case: an aircraft
             # that dies on an unserved parameter must still leave the record
             # of what it was configured to fly -- and the SIM_CPA scorer
-            # later reads its expected target back from this file.
+            # later reads its expected POI back from this file.
             write_case_manifest(
                 case_dirs[sys_id],
                 speedup=manifest.speedup,
                 launch_speedup=manifest.launch_speedup,
                 repetition=manifest.repetition,
-                target=plan.targets[sys_id],
+                poi=plan.pois[sys_id],
                 scoring_start_seq=plan.scoring_start_sequences[sys_id],
                 identity=manifest.identity,
                 speed_plan=plan.speed_plans[sys_id],
@@ -255,7 +255,7 @@ def prepare_aircraft(
             sim_cpa[sys_id].pre_flight(
                 master,
                 sysid=sys_id,
-                target=plan.targets[sys_id],
+                poi=plan.pois[sys_id],
                 case_dir=case_dirs[sys_id],
             )
     return plan

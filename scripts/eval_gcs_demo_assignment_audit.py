@@ -36,7 +36,7 @@ def derive_global_assignment_map(
         raise TypeError("GCS backend assignment evidence must be text")
     owner_id = plan.owner.sys_id
     peer_ids = {peer.sys_id for peer in plan.peers}
-    target_by_id = {target.task_id: target for target in plan.targets}
+    poi_by_id = {poi.task_id: poi for poi in plan.pois}
     requests: list[tuple[int, int, int, float, float]] = []
     responses: list[tuple[int, int, int, bool]] = []
 
@@ -57,26 +57,26 @@ def derive_global_assignment_map(
             task_id = int(match.group("task"))
             lat = float(match.group("lat"))
             lon = float(match.group("lon"))
-            matched_targets = [
-                target
-                for target in plan.targets
-                if _distance_m(lat, lon, target.lat, target.lon)
+            matched_pois = [
+                poi
+                for poi in plan.pois
+                if _distance_m(lat, lon, poi.lat, poi.lon)
                 <= MAX_ASSIGNMENT_COORD_ERROR_M
             ]
-            if not matched_targets:
+            if not matched_pois:
                 raise ValueError(
-                    f"assignment auction task T{task_id} is not within "
+                    f"assignment auction task P{task_id} is not within "
                     f"{MAX_ASSIGNMENT_COORD_ERROR_M:g}m of a plan coordinate"
                 )
-            if len(matched_targets) != 1:
+            if len(matched_pois) != 1:
                 raise ValueError(
-                    f"assignment auction task T{task_id} ambiguously matches "
+                    f"assignment auction task P{task_id} ambiguously matches "
                     "multiple plan coordinates"
                 )
             requests.append((
                 receiver,
                 task_id,
-                matched_targets[0].task_id,
+                matched_pois[0].task_id,
                 lat,
                 lon,
             ))
@@ -110,7 +110,7 @@ def derive_global_assignment_map(
     peer_plan_tasks = [item[1] for item in by_peer.values()]
     if len(set(peer_plan_tasks)) != len(peer_plan_tasks):
         raise ValueError(
-            "owner assigned the same resolved-plan target to multiple peers"
+            "owner assigned the same resolved-plan POI to multiple peers"
         )
 
     expected_responses = {
@@ -131,9 +131,9 @@ def derive_global_assignment_map(
                 f"expected exactly one assignment response {key}, found {len(matches)}"
             )
         if not matches[0][3]:
-            raise ValueError(f"peer {key[0]} rejected global task T{key[2]}")
+            raise ValueError(f"peer {key[0]} rejected global task P{key[2]}")
 
-    remaining = set(target_by_id) - set(peer_plan_tasks)
+    remaining = set(poi_by_id) - set(peer_plan_tasks)
     if len(remaining) != 1:
         raise ValueError("accepted peer assignments do not leave one owner task")
     owner_task = remaining.pop()

@@ -48,12 +48,12 @@ def build_execution_graph(
         cadence_lease=cadence_lease,
         scheduler_period_s=1.0 / SIM_DETECTOR_POLL_RATE_HZ,
         ideal_360=options.ideal_360,
-        detect_targets=pipeline.detect_targets,
+        detect_pois=pipeline.detect_pois,
         record_outcome=source.record_outcome,
     )
     resetter = SimDetectorReset(
         pose_source=source.pose_source,
-        target_catalog=render.target_provider,
+        poi_catalog=render.poi_provider,
         capture_state=render.capture,
         gap_state=render.gap,
         tracking=render.tracking,

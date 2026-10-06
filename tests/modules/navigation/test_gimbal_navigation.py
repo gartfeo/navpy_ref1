@@ -28,18 +28,18 @@ from navpy.modules.vision.gimbal_rate_types import (
     GimbalTrackResult,
 )
 from navpy.modules.vision.models.detect_data import DetectedObject
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.modules.vision.target_zoom_tracker import (
-    TargetZoomTrackerConfig,
+from navpy.modules.vision.poi_zoom_tracker import (
+    PoiZoomTrackerConfig,
     ZoomTrackResult,
     ZoomTrackingState,
 )
 
 
-def _make_target(x_error=960, y_error=540):
+def _make_poi(x_error=960, y_error=540):
     k = np.array([[1000, 0, 960], [0, 1000, 540], [0, 0, 1]], dtype=np.float32)
-    return make_detected_target(
+    return make_detected_poi(
         obj_id=7,
         x_error=x_error,
         y_error=y_error,
@@ -115,7 +115,7 @@ class TestGimbalNavigation(unittest.TestCase):
             repoint_sec=2.0,
         )
         self.tracking = GimbalTrackingSetup(self.rate_cfg, self.loss_policy)
-        self.zoom_cfg = TargetZoomTrackerConfig(
+        self.zoom_cfg = PoiZoomTrackerConfig(
             target_pixels={"default": 80.0},
         )
 
@@ -203,29 +203,29 @@ class TestGimbalNavigation(unittest.TestCase):
         g = self._make(with_zoom=False)
         g.set_zoom_size_demand(False)  # must not raise
 
-    def test_terminal_zoom_freeze_commands_min_and_never_reads_bbox(self):
-        class PoisonBboxTarget:
+    def test_final_approach_zoom_freeze_commands_min_and_never_reads_bbox(self):
+        class PoisonBboxPoi:
             @property
             def tracking_bbox_cxcywh(self):
-                raise AssertionError("bbox must not be read during terminal NAV")
+                raise AssertionError("bbox must not be read during final-approach NAV")
 
             @property
             def bbox_cxcywh(self):
-                raise AssertionError("bbox must not be read during terminal NAV")
+                raise AssertionError("bbox must not be read during final-approach NAV")
 
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
-        g.freeze_terminal_zoom_at_min()
+        g.freeze_final_approach_zoom_at_min()
         _zoom_tracker(g).update = Mock(
             side_effect=AssertionError("bbox-driven zoom tracker must stay frozen")
         )
 
-        g.update(PoisonBboxTarget(), now=10.0)
+        g.update(PoisonBboxPoi(), now=10.0)
 
         self.mount.command_zoom.assert_called_with("1")
         _zoom_tracker(g).update.assert_not_called()
 
-    def test_terminal_zoom_freeze_serializes_with_visual_update(self):
+    def test_final_approach_zoom_freeze_serializes_with_visual_update(self):
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
         tracker = _zoom_tracker(g)
@@ -243,12 +243,12 @@ class TestGimbalNavigation(unittest.TestCase):
         freeze_result = []
         freezer = Thread(
             target=lambda: freeze_result.append(
-                g.freeze_terminal_zoom_at_min()
+                g.freeze_final_approach_zoom_at_min()
             )
         )
         updater = Thread(
             target=lambda: (
-                g.update(_make_target(), now=10.0),
+                g.update(_make_poi(), now=10.0),
                 update_finished.set(),
             )
         )
@@ -266,7 +266,7 @@ class TestGimbalNavigation(unittest.TestCase):
         self.assertFalse(updater.is_alive())
         tracker.update.assert_not_called()
 
-    def test_terminal_zoom_freeze_waits_for_inflight_visual_update(self):
+    def test_final_approach_zoom_freeze_waits_for_inflight_visual_update(self):
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
         tracker = _zoom_tracker(g)
@@ -280,10 +280,10 @@ class TestGimbalNavigation(unittest.TestCase):
             return tracker.last_result
 
         tracker.update = Mock(side_effect=blocking_update)
-        updater = Thread(target=lambda: g.update(_make_target(), now=10.0))
+        updater = Thread(target=lambda: g.update(_make_poi(), now=10.0))
         freezer = Thread(
             target=lambda: (
-                g.freeze_terminal_zoom_at_min(),
+                g.freeze_final_approach_zoom_at_min(),
                 freeze_finished.set(),
             )
         )
@@ -298,41 +298,41 @@ class TestGimbalNavigation(unittest.TestCase):
         self.assertFalse(updater.is_alive())
         self.assertFalse(freezer.is_alive())
         tracker.update.assert_called_once()
-        g.update(_make_target(), now=10.1)
+        g.update(_make_poi(), now=10.1)
         tracker.update.assert_called_once()
 
-    def test_failed_terminal_zoom_freeze_latches_and_retries_hardware(self):
+    def test_failed_final_approach_zoom_freeze_latches_and_retries_hardware(self):
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
         prior_result = _zoom_tracker(g).last_result
         self.mount.command_zoom.side_effect = OSError("link")
 
-        self.assertFalse(g.freeze_terminal_zoom_at_min())
+        self.assertFalse(g.freeze_final_approach_zoom_at_min())
 
         self.assertTrue(
-            g.status.detection.terminal_zoom_frozen_at_min
+            g.status.detection.final_approach_zoom_frozen_at_min
         )
         self.assertFalse(_zoom_tracker(g).size_demand)
         self.assertIs(_zoom_tracker(g).last_result, prior_result)
 
         self.mount.command_zoom.side_effect = None
-        self.assertTrue(g.freeze_terminal_zoom_at_min())
+        self.assertTrue(g.freeze_final_approach_zoom_at_min())
         self.assertTrue(
-            g.status.detection.terminal_zoom_frozen_at_min
+            g.status.detection.final_approach_zoom_frozen_at_min
         )
         self.assertFalse(_zoom_tracker(g).size_demand)
 
-    def test_new_tracking_session_releases_terminal_zoom_freeze(self):
+    def test_new_tracking_session_releases_final_approach_zoom_freeze(self):
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
-        g.freeze_terminal_zoom_at_min()
+        g.freeze_final_approach_zoom_at_min()
         _zoom_tracker(g).update = Mock()
 
         g.start_tracking(8)
-        target = _make_target()
-        g.update(target, now=10.0)
+        poi = _make_poi()
+        g.update(poi, now=10.0)
 
-        _zoom_tracker(g).update.assert_called_once_with(target, pointing=None)
+        _zoom_tracker(g).update.assert_called_once_with(poi, pointing=None)
 
     def test_start_tracking_restores_zoom_size_demand(self):
         g = self._make()
@@ -359,13 +359,13 @@ class TestGimbalNavigation(unittest.TestCase):
         g = self._make(rate_tracker=rate_tracker)
         g.start_tracking(7)
         rate_tracker.reset.reset_mock()
-        target = Mock(
+        poi = Mock(
             class_id=0,
             tracking_bbox_cxcywh=(960.0, 540.0, 10.0, 10.0),
             bbox_cxcywh=None,
         )
-        _zoom_tracker(g).update(target)
-        _zoom_tracker(g).update(target)
+        _zoom_tracker(g).update(poi)
+        _zoom_tracker(g).update(poi)
         g.set_zoom_size_demand(False)
         prior_result = _zoom_tracker(g).last_result
         prior_generation = g.status.generation
@@ -445,7 +445,7 @@ class TestGimbalNavigation(unittest.TestCase):
         timing doesn't carry over from the previous session."""
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)        # prime _last_track_time
+        g.update(_make_poi(), now=10.0)        # prime _last_track_time
         g.update(None, now=12.5)                   # force recentre
         g.stop_tracking()
 
@@ -464,7 +464,7 @@ class TestGimbalNavigation(unittest.TestCase):
         g.start_tracking(7)
         # Prime the recentre state machine so a commit would try to
         # write _last_track_time + _gimbal_recentered.
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
 
         racing_stop_calls = []
 
@@ -478,7 +478,7 @@ class TestGimbalNavigation(unittest.TestCase):
             )
 
         _rate_tracker(g).update = Mock(side_effect=stop_mid_update)
-        g.update(_make_target(), now=10.1)
+        g.update(_make_poi(), now=10.1)
 
         self.assertTrue(racing_stop_calls, "race hook did not fire")
         # Navigation is disarmed; bookkeeping must remain clean.
@@ -494,7 +494,7 @@ class TestGimbalNavigation(unittest.TestCase):
         fresh session's bookkeeping."""
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
 
         def restart_mid_update(_sample, **_kwargs):
             g.stop_tracking()
@@ -505,7 +505,7 @@ class TestGimbalNavigation(unittest.TestCase):
             )
 
         _rate_tracker(g).update = Mock(side_effect=restart_mid_update)
-        g.update(_make_target(), now=10.1)
+        g.update(_make_poi(), now=10.1)
 
         # New session is armed; prior recentre / cache state must NOT bleed.
         self.assertEqual(g.tracking_obj_id, 99)
@@ -518,13 +518,13 @@ class TestGimbalNavigation(unittest.TestCase):
         """Loss recovery must not commit after the session generation changes."""
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         g.update(None, now=12.5)
         self.assertTrue(g.status.detection.recentered)
 
         g2 = self._make(with_zoom=False)
         g2.start_tracking(7)
-        g2.update(_make_target(), now=10.0)
+        g2.update(_make_poi(), now=10.0)
         fence = g2._parts.status._fence
         raced = []
 
@@ -545,7 +545,7 @@ class TestGimbalNavigation(unittest.TestCase):
     def test_loss_is_not_forwarded_to_rate_tracker(self):
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         _rate_tracker(g).update = Mock(
             side_effect=AssertionError("loss reached rate tracker")
         )
@@ -570,7 +570,7 @@ class TestGimbalNavigation(unittest.TestCase):
         )
         g.start_tracking(5)
 
-        t = _make_target()
+        t = _make_poi()
         g.update(t, now=10.0)
 
         # Zoom-only mounts have no pointing data: the centering gate is
@@ -586,7 +586,7 @@ class TestGimbalNavigation(unittest.TestCase):
         before stop_tracking but calls update afterwards."""
         g = self._make(with_zoom=False)
         # No start_tracking / arm.
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         self.gimbal.set_motion_mode.assert_not_called()
         # Rate tracker is not ticked when disarmed — set_rate only fires
         # if the tracker sees a detection.
@@ -594,10 +594,10 @@ class TestGimbalNavigation(unittest.TestCase):
 
     # --- per-tick: rate tracking ------------------------------------------
 
-    def test_update_with_target_feeds_rate_tracker(self):
+    def test_update_with_poi_feeds_rate_tracker(self):
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(x_error=960, y_error=540), now=10.0)
+        g.update(_make_poi(x_error=960, y_error=540), now=10.0)
 
         # Rate tracker issues set_rate on the gimbal for every tick
         self.gimbal.set_rate.assert_called()
@@ -608,7 +608,7 @@ class TestGimbalNavigation(unittest.TestCase):
         # does not latch holding or recentre.
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         self.gimbal.set_motion_mode.reset_mock()
         self.gimbal.set_att.reset_mock()
 
@@ -627,7 +627,7 @@ class TestGimbalNavigation(unittest.TestCase):
         # neutral. Pure camera-state hold; no zoom reset.
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         self.gimbal.set_motion_mode.reset_mock()
         self.gimbal.set_att.reset_mock()
         self.gimbal.set_rate.reset_mock()
@@ -651,7 +651,7 @@ class TestGimbalNavigation(unittest.TestCase):
         # transition fires once.
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         g.update(None, now=11.0)  # Tier 2 (first)
         self.gimbal.set_att.reset_mock()
         self.gimbal.set_rate.reset_mock()
@@ -666,7 +666,7 @@ class TestGimbalNavigation(unittest.TestCase):
     def test_update_tier3_returns_to_search(self):
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         self.gimbal.set_motion_mode.reset_mock()
         self.gimbal.set_att.reset_mock()
 
@@ -683,7 +683,7 @@ class TestGimbalNavigation(unittest.TestCase):
     def test_return_to_search_fires_only_once_until_reacquired(self):
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
 
         g.update(None, now=12.5)  # first return-to-search (past 2.0 repoint)
         self.gimbal.set_att.reset_mock()
@@ -696,11 +696,11 @@ class TestGimbalNavigation(unittest.TestCase):
     def test_reacquire_after_return_to_search_switches_back_to_lock(self):
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         g.update(None, now=12.5)  # return to FOLLOW (past 2.0 repoint)
         self.gimbal.set_motion_mode.reset_mock()
 
-        g.update(_make_target(), now=13.0)  # re-acquired
+        g.update(_make_poi(), now=13.0)  # re-acquired
 
         self.gimbal.set_motion_mode.assert_called_with(MODE_LOCK)
 
@@ -709,12 +709,12 @@ class TestGimbalNavigation(unittest.TestCase):
         # and NOT need a FOLLOW->LOCK mode flip (the gimbal never left LOCK).
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         g.update(None, now=11.0)  # Tier 2 -> holding
         self.assertTrue(g.status.detection.holding)
         self.gimbal.set_motion_mode.reset_mock()
 
-        g.update(_make_target(), now=11.5)  # re-acquired from hold
+        g.update(_make_poi(), now=11.5)  # re-acquired from hold
 
         self.assertFalse(g.status.detection.holding)
         self.gimbal.set_motion_mode.assert_not_called()
@@ -726,7 +726,7 @@ class TestGimbalNavigation(unittest.TestCase):
         rate_mock.state = rate_state
         rate_result = GimbalTrackResult(
             state=rate_state,
-            has_target=rate_state is TrackingState.TRACKING,
+            has_poi=rate_state is TrackingState.TRACKING,
         )
         rate_mock.last_result = rate_result
         rate_mock.update.return_value = GimbalRateUpdate(
@@ -742,39 +742,39 @@ class TestGimbalNavigation(unittest.TestCase):
         navigation.start_tracking(7)
         return navigation, rate_mock, zoom_mock
 
-    def test_zoom_tracker_receives_target_in_tracking_state(self):
+    def test_zoom_tracker_receives_poi_in_tracking_state(self):
         g, rate_mock, zoom_mock = self._make_with_tracker_mocks(
             rate_state=TrackingState.TRACKING,
         )
 
-        target = _make_target()
-        g.update(target, now=10.0)
+        poi = _make_poi()
+        g.update(poi, now=10.0)
 
         # The zoom tracker receives the rate tracker's result of THIS
         # tick as the pointing snapshot for the centering gate.
         zoom_mock.update.assert_called_with(
-            target, pointing=rate_mock.update.return_value.result,
+            poi, pointing=rate_mock.update.return_value.result,
         )
 
-    def test_zoom_tracker_receives_no_stale_target_during_loss(self):
+    def test_zoom_tracker_receives_no_stale_poi_during_loss(self):
         g, rate_mock, zoom_mock = self._make_with_tracker_mocks(
             rate_state=TrackingState.TRACKING,
         )
 
-        # First tick: TRACKING with a real target — navigation caches it
-        t0 = _make_target(x_error=960)
+        # First tick: TRACKING with a real POI — navigation caches it
+        t0 = _make_poi(x_error=960)
         g.update(t0, now=10.0)
 
-        # Next tick: COASTING without a target — navigation feeds the cache
+        # Next tick: COASTING without a POI — navigation feeds the cache
         rate_mock.state = TrackingState.COASTING
         zoom_mock.reset_mock()
         g.update(None, now=10.1)
 
-        target_arg = zoom_mock.update.call_args.args[0]
+        poi_arg = zoom_mock.update.call_args.args[0]
         pointing = zoom_mock.update.call_args.kwargs["pointing"]
-        self.assertIsNone(target_arg)
+        self.assertIsNone(poi_arg)
         self.assertEqual(pointing.state, TrackingState.COASTING)
-        self.assertFalse(pointing.has_target)
+        self.assertFalse(pointing.has_poi)
 
     def test_zoom_tracker_receives_none_in_holding_state(self):
         g, rate_mock, zoom_mock = self._make_with_tracker_mocks(
@@ -783,9 +783,9 @@ class TestGimbalNavigation(unittest.TestCase):
 
         g.update(None, now=15.0)
 
-        target_arg = zoom_mock.update.call_args.args[0]
+        poi_arg = zoom_mock.update.call_args.args[0]
         pointing = zoom_mock.update.call_args.kwargs["pointing"]
-        self.assertIsNone(target_arg)
+        self.assertIsNone(poi_arg)
         self.assertEqual(pointing.state, TrackingState.IDLE)
 
     def test_is_zoom_stable_true_when_no_zoom_configured(self):
@@ -799,7 +799,7 @@ class TestGimbalNavigation(unittest.TestCase):
     def test_zoom_result_returns_tracker_snapshot(self):
         expected = ZoomTrackResult(
             state=ZoomTrackingState.HOLDING,
-            has_target=True,
+            has_poi=True,
             size_px=80.0,
             target_pixels=80.0,
             reason="above-minimum",
@@ -823,7 +823,7 @@ class TestGimbalNavigation(unittest.TestCase):
     def test_tier3_return_to_search_resets_zoom_to_min(self):
         g = self._make()
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         self.mount.command_zoom.reset_mock()
 
         g.update(None, now=12.5)  # past 2.0 repoint boundary -> Tier 3
@@ -839,7 +839,7 @@ class TestGimbalNavigation(unittest.TestCase):
         # return to search (Tier 3).
         g = self._make()
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         self.mount.command_zoom.reset_mock()
 
         g.update(None, now=10.3)   # Tier 1 HOLD
@@ -871,7 +871,7 @@ class TestGimbalNavigation(unittest.TestCase):
         self.tracking = GimbalTrackingSetup(self.rate_cfg, self.loss_policy)
         g = self._make()
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         self.mount.command_zoom.reset_mock()
 
         g.update(None, now=11.0)  # Tier 2 with preservation off -> zoom reset
@@ -881,7 +881,7 @@ class TestGimbalNavigation(unittest.TestCase):
     def test_return_to_search_does_not_reset_zoom_when_no_zoom_tracker(self):
         g = self._make(with_zoom=False)
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         self.mount.command_zoom.reset_mock()
         self.gimbal.set_motion_mode.reset_mock()
         self.gimbal.set_att.reset_mock()
@@ -895,7 +895,7 @@ class TestGimbalNavigation(unittest.TestCase):
     def test_return_to_search_tolerates_zoom_reset_failure(self):
         g = self._make()
         g.start_tracking(7)
-        g.update(_make_target(), now=10.0)
+        g.update(_make_poi(), now=10.0)
         self.mount.command_zoom.side_effect = OSError("UDP drop")
         self.gimbal.set_motion_mode.reset_mock()
         self.gimbal.set_att.reset_mock()
@@ -933,8 +933,8 @@ class _FakeGeoRef:
         self.calls = []
         self.uv_calls = []
 
-    def calc_gimbal_lock_att_loc(self, uav_loc, target_loc, uas_att, g_data):
-        self.calls.append((uav_loc, target_loc, uas_att, g_data))
+    def calc_gimbal_lock_att_loc(self, uav_loc, poi_loc, uas_att, g_data):
+        self.calls.append((uav_loc, poi_loc, uas_att, g_data))
         return Attitude(self.pitch, self.yaw, 0.0)
 
     def calc_uv(self, p_ned, k, g_data, uas_att):
@@ -959,13 +959,13 @@ class TestGimbalNavigationGeo(unittest.TestCase):
             repoint_sec=2.0,
         )
         self.tracking = GimbalTrackingSetup(self.rate_cfg, self.loss_policy)
-        self.target_loc = _FakeLocation(lat=40.3, lng=44.4, alt=1500.0)
+        self.poi_loc = _FakeLocation(lat=40.3, lng=44.4, alt=1500.0)
         self.uav_loc = _FakeLocation(lat=40.31, lng=44.41, alt=1700.0)
         self.uav_att = Attitude(0, 0, 0)
         self.geo_ref = _FakeGeoRef(pitch=-25.0, yaw=120.0)
         self.g_data = GimbalData(att=Attitude(0.0, 0.0, 0.0))
         self.mount.get_gimbal_data.return_value = self.g_data
-        self.zoom_cfg = TargetZoomTrackerConfig(
+        self.zoom_cfg = PoiZoomTrackerConfig(
             target_pixels={"default": 80.0},
         )
 
@@ -1013,16 +1013,16 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self,
         navigation,
         *,
-        target_ned=None,
+        poi_ned=None,
         min_pixels=10.0,
     ):
-        navigation.start_geo_tracking(self.target_loc, self.geo_ref)
+        navigation.start_geo_tracking(self.poi_loc, self.geo_ref)
         with patch(
             "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
             return_value=(
                 np.array([100.0, 0.0, 0.0])
-                if target_ned is None
-                else target_ned
+                if poi_ned is None
+                else poi_ned
             ),
         ):
             return navigation.prepare_geo_acquisition(
@@ -1037,7 +1037,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
     def _armed_after_geo_handoff(self, *, with_zoom=False):
         """Enter visual tracking after a legacy pre-acquisition geo phase."""
         navigation = self._make(with_zoom=with_zoom)
-        navigation.start_geo_tracking(self.target_loc, self.geo_ref)
+        navigation.start_geo_tracking(self.poi_loc, self.geo_ref)
         navigation.start_tracking(7)
         return navigation
 
@@ -1046,12 +1046,12 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
         self.assertFalse(navigation.is_geo_armed)
         self.assertTrue(navigation.is_detection_armed)
-        self.assertIsNone(navigation.status.geo.target)
+        self.assertIsNone(navigation.status.geo.poi)
         self.assertIsNone(navigation.status.geo.geo_ref)
 
-    def test_visual_loss_recentres_without_reading_target_geo(self):
+    def test_visual_loss_recentres_without_reading_poi_geo(self):
         navigation = self._armed_after_geo_handoff()
-        navigation.update(_make_target(), now=10.0)
+        navigation.update(_make_poi(), now=10.0)
         self.gimbal.set_motion_mode.reset_mock()
         self.gimbal.set_att.reset_mock()
         self.geo_ref.calls.clear()
@@ -1067,13 +1067,13 @@ class TestGimbalNavigationGeo(unittest.TestCase):
     def test_tier2_zero_rate_uses_neither_camera_readback_nor_geo(self):
         # Pure-vision: the Tier-2 last-LOS hold must re-point using ONLY the
         # gimbal roll-yaw-pitch readback (camera-state). It must NEVER consult
-        # the geo target / geo_ref pose math during a CONFIRM loss. This fake
+        # the geo POI / geo_ref pose math during a CONFIRM loss. This fake
         # geo_ref FAILS (records a call) if the loss path touches it.
         self.mount.get_gimbal_data.return_value = GimbalData(
             att=Attitude(-12.0, 33.0, 0.0)
         )
         navigation = self._armed_after_geo_handoff()
-        navigation.update(_make_target(), now=10.0)
+        navigation.update(_make_poi(), now=10.0)
         self.gimbal.set_att.reset_mock()
         self.gimbal.set_motion_mode.reset_mock()
         self.gimbal.set_rate.reset_mock()
@@ -1102,7 +1102,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_visual_loss_resets_zoom_instead_of_geo_holding(self):
         navigation = self._armed_after_geo_handoff(with_zoom=True)
-        navigation.update(_make_target(), now=10.0)
+        navigation.update(_make_poi(), now=10.0)
         self.mount.command_zoom.reset_mock()
 
         navigation.update(None, now=12.5)  # past 2.0 repoint boundary -> Tier 3
@@ -1111,9 +1111,9 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     # --- arm / disarm -----------------------------------------------------
 
-    def test_start_geo_tracking_switches_to_lock_and_records_target(self):
+    def test_start_geo_tracking_switches_to_lock_and_records_poi(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         self.assertTrue(g.is_geo_armed)
         self.assertFalse(g.is_detection_armed)
@@ -1123,7 +1123,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_start_geo_tracking_no_op_without_rate_tracker(self):
         g = self._make(with_rate=False)
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         self.assertFalse(g.is_geo_armed)
         self.gimbal.set_motion_mode.assert_not_called()
@@ -1134,7 +1134,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self.gimbal.reset_mock()
 
         with self.assertRaises(RuntimeError):
-            g.start_geo_tracking(self.target_loc, self.geo_ref)
+            g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         self.assertFalse(g.is_geo_armed)
         self.gimbal.set_motion_mode.assert_not_called()
@@ -1145,24 +1145,24 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self.gimbal.set_motion_mode.side_effect = RuntimeError("UDP drop")
 
         with self.assertRaises(RuntimeError):
-            g.start_geo_tracking(self.target_loc, self.geo_ref)
+            g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         self.assertFalse(g.is_geo_armed)
 
     def test_start_geo_tracking_swap_does_not_reassert_lock(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
 
-        new_target = _FakeLocation(lat=41.0, lng=45.0, alt=1600.0)
-        g.start_geo_tracking(new_target, self.geo_ref)
+        new_poi = _FakeLocation(lat=41.0, lng=45.0, alt=1600.0)
+        g.start_geo_tracking(new_poi, self.geo_ref)
 
         self.assertTrue(g.is_geo_armed)
         self.gimbal.set_motion_mode.assert_not_called()
 
     def test_stop_geo_tracking_returns_to_follow_and_neutral(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
 
         g.stop_geo_tracking()
@@ -1186,15 +1186,15 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_update_geo_emits_set_att_with_pose_math_result(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
 
         g.update_geo(self.uav_loc, self.uav_att)
 
         self.assertEqual(len(self.geo_ref.calls), 1)
-        recorded_uav, recorded_target, recorded_att, recorded_g_data = self.geo_ref.calls[0]
+        recorded_uav, recorded_poi, recorded_att, recorded_g_data = self.geo_ref.calls[0]
         self.assertIs(recorded_uav, self.uav_loc)
-        self.assertIs(recorded_target, self.target_loc)
+        self.assertIs(recorded_poi, self.poi_loc)
         self.assertIs(recorded_att, self.uav_att)
         self.assertIs(recorded_g_data, self.g_data)
 
@@ -1206,7 +1206,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_update_geo_skips_ray_diagnostic_when_debug_disabled(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
 
         with patch(
@@ -1219,7 +1219,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_update_geo_debug_logs_cached_ray_diagnostic(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
         self.logger.is_enabled_for.return_value = True
         self.mount.get_k.return_value = np.array([
@@ -1244,7 +1244,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
         self.assertEqual(compute_diag.call_count, 2)
         kwargs = compute_diag.call_args.kwargs
-        self.assertIs(kwargs["target_loc"], self.target_loc)
+        self.assertIs(kwargs["poi_loc"], self.poi_loc)
         self.assertIs(kwargs["uav_loc"], self.uav_loc)
         self.assertIs(kwargs["uav_att"], self.uav_att)
         self.assertIs(kwargs["k"], self.mount.get_k.return_value)
@@ -1282,7 +1282,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self.mount.get_gimbal_data.return_value = GimbalData(att=Attitude(0, 0, 0))
         self.mount.is_valid.return_value = True
         self.mount.set_zoom.return_value = True
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         with patch(
             "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
@@ -1314,7 +1314,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         )
         self.mount.is_valid.return_value = True
         self.mount.set_zoom.return_value = True
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         with patch(
             "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
@@ -1353,7 +1353,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self.mount.get_gimbal_data.return_value = GimbalData(att=Attitude(0, 0, 0))
         self.mount.is_valid.return_value = False
         self.mount.set_zoom.return_value = True
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         with patch(
             "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
@@ -1394,7 +1394,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
         prepared = self._prepare_acquisition(
             g,
-            target_ned=np.array([float("nan"), 0.0, 0.0]),
+            poi_ned=np.array([float("nan"), 0.0, 0.0]),
         )
 
         self.assertFalse(prepared)
@@ -1449,7 +1449,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
         prepared = self._prepare_acquisition(
             g,
-            target_ned=np.array([1.0, 0.0, 0.0]),
+            poi_ned=np.array([1.0, 0.0, 0.0]),
         )
 
         self.assertFalse(prepared)
@@ -1500,7 +1500,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self.mount.get_gimbal_data.return_value = GimbalData(att=Attitude(0, 0, 0))
         self.mount.is_valid.return_value = True
         self.mount.set_zoom.return_value = True
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         with patch(
             "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
             return_value=np.array([100.0, 0.0, 0.0]),
@@ -1516,7 +1516,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_update_geo_no_op_on_missing_inputs(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
 
         g.update_geo(None, self.uav_att)
@@ -1527,7 +1527,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_update_geo_contains_operational_pose_math_oserror(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
 
         def _raise(*args, **kwargs):
@@ -1550,7 +1550,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
                 g = self._make()
                 bad_ref = _FakeGeoRef()
                 bad_ref.calc_gimbal_lock_att_loc = Mock(side_effect=error)
-                g.start_geo_tracking(self.target_loc, bad_ref)
+                g.start_geo_tracking(self.poi_loc, bad_ref)
                 self.gimbal.reset_mock()
 
                 with self.assertRaisesRegex(type(error), str(error)):
@@ -1566,7 +1566,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
             with self.subTest(pitch=pitch, yaw=yaw):
                 g = self._make()
                 geo_ref = _FakeGeoRef(pitch=pitch, yaw=yaw)
-                g.start_geo_tracking(self.target_loc, geo_ref)
+                g.start_geo_tracking(self.poi_loc, geo_ref)
                 self.gimbal.reset_mock()
 
                 g.update_geo(self.uav_loc, self.uav_att)
@@ -1575,7 +1575,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_update_geo_contains_operational_set_att_oserror(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
         self.gimbal.set_att.side_effect = OSError("gimbal unavailable")
 
@@ -1585,32 +1585,32 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_update_geo_propagates_programmer_set_att_typeerror(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
         self.gimbal.set_att.side_effect = TypeError("bad attitude command")
 
         with self.assertRaisesRegex(TypeError, "bad attitude command"):
             g.update_geo(self.uav_loc, self.uav_att)
 
-    def test_target_swap_invalidates_in_flight_update(self):
+    def test_poi_swap_invalidates_in_flight_update(self):
         """Generation gate: a stop+start sandwich between snapshot and
         commit must prevent the stale set_att from landing on the new
         session.
         """
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         self.gimbal.reset_mock()
 
         # Inject the swap inside the pose-math call so it fires after
         # the generation snapshot but before the commit.
-        new_target = _FakeLocation(lat=41.0, lng=45.0, alt=1600.0)
+        new_poi = _FakeLocation(lat=41.0, lng=45.0, alt=1600.0)
         new_ref = _FakeGeoRef(pitch=10.0, yaw=10.0)
 
         original_calc = self.geo_ref.calc_gimbal_lock_att_loc
 
-        def _swap_during_calc(uav_loc, target_loc, uas_att, g_data):
-            result = original_calc(uav_loc, target_loc, uas_att, g_data)
-            g.start_geo_tracking(new_target, new_ref)
+        def _swap_during_calc(uav_loc, poi_loc, uas_att, g_data):
+            result = original_calc(uav_loc, poi_loc, uas_att, g_data)
+            g.start_geo_tracking(new_poi, new_ref)
             return result
 
         self.geo_ref.calc_gimbal_lock_att_loc = _swap_during_calc
@@ -1626,7 +1626,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_start_tracking_while_geo_armed_clears_geo_without_neutralizing(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         # set_motion_mode(LOCK) was called by start_geo_tracking. Reset
         # so we can observe the handoff cleanly.
         self.gimbal.reset_mock()
@@ -1651,7 +1651,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         recoverable.
         """
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         # Set up a hardware failure on the LOCK reassertion that
         # start_tracking does.
         self.gimbal.set_motion_mode.side_effect = RuntimeError("UDP drop")
@@ -1667,14 +1667,14 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         g = self._make()
 
         g.start_geo_tracking(None, self.geo_ref)
-        g.start_geo_tracking(self.target_loc, None)
+        g.start_geo_tracking(self.poi_loc, None)
 
         self.assertFalse(g.is_geo_armed)
         self.gimbal.set_motion_mode.assert_not_called()
 
     def test_geo_update_after_detection_armed_is_a_no_op(self):
         g = self._make()
-        g.start_geo_tracking(self.target_loc, self.geo_ref)
+        g.start_geo_tracking(self.poi_loc, self.geo_ref)
         g.start_tracking(7)
         self.gimbal.reset_mock()
 

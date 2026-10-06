@@ -43,8 +43,8 @@ class NavTransition:
         self._entry.run()
 
     def exit(self) -> NavExitOutcome:
-        navigation_active = self._navigation_task.terminal_navigation_active
-        completed = self._navigation_task.terminal_nav_completed
+        navigation_active = self._navigation_task.final_approach_navigation_active
+        completed = self._navigation_task.final_approach_nav_completed
         cleanup = self._cleanup.run()
         errors = list(cleanup.errors)
 

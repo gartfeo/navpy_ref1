@@ -34,7 +34,7 @@ class GeoRayDiagnosticLogger:
 
     def log(
         self,
-        target: Location,
+        poi: Location,
         geo_ref: GeoRefCalc,
         uav_loc: Location,
         uav_att: Attitude,
@@ -48,7 +48,7 @@ class GeoRayDiagnosticLogger:
             matrix = self._hardware.mount.get_k()
             gimbal_data = self._hardware.mount.get_gimbal_data()
             diagnostic = self._compute(
-                target_loc=target,
+                poi_loc=poi,
                 uav_loc=uav_loc,
                 uav_att=uav_att,
                 k=matrix,
@@ -72,7 +72,7 @@ class GeoRayDiagnosticLogger:
 
         with self._fence.lock:
             if (
-                self._geo.target is not target
+                self._geo.poi is not poi
                 or self._fence.generation != generation
                 or self._geo.last_ray_log_key == key
             ):

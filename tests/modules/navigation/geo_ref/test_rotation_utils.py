@@ -75,17 +75,17 @@ class RotationUtilsTestCase(unittest.TestCase):
         r_b_to_uas = Rotation.from_euler('YZX', [30, 20, 0], degrees=True).as_matrix()
         p_uas = r_b_to_uas @ p_base
 
-        r_uas_to_target = Rotation.from_euler('ZYX', [10, 40, 0], degrees=True).as_matrix()
-        p_target = r_uas_to_target @ p_uas
+        r_uas_to_poi = Rotation.from_euler('ZYX', [10, 40, 0], degrees=True).as_matrix()
+        p_poi = r_uas_to_poi @ p_uas
 
         seq = 'XYZ'
-        euler = get_euler_rotation_angles(p_uas, p_target, seq=seq, degrees=True)
+        euler = get_euler_rotation_angles(p_uas, p_poi, seq=seq, degrees=True)
 
         # test
-        actual_r_uas_to_target = Rotation.from_euler(seq, euler, degrees=True).as_matrix()
-        actual_p_target = actual_r_uas_to_target @ p_uas
+        actual_r_uas_to_poi = Rotation.from_euler(seq, euler, degrees=True).as_matrix()
+        actual_p_poi = actual_r_uas_to_poi @ p_uas
 
-        assert_allclose(actual_p_target, p_target, atol=1e-7)
+        assert_allclose(actual_p_poi, p_poi, atol=1e-7)
 
     def test_calculate_euler_angles(self):
         uas_euler_angles = np.array([0, 10, -10])
@@ -94,7 +94,7 @@ class RotationUtilsTestCase(unittest.TestCase):
         target_euler_angles = np.array([0, -20, 0])
         seq = 'XYZ'
 
-        gimbal_euler_angles_to_target = calculate_euler_angles('ZYX', uas_euler_angles,
+        gimbal_euler_angles_to_poi = calculate_euler_angles('ZYX', uas_euler_angles,
                                                                seq, target_euler_angles,
                                                                True)
 
@@ -106,7 +106,7 @@ class RotationUtilsTestCase(unittest.TestCase):
         r_g_v = Rotation.from_euler(seq, target_euler_angles, degrees=True).as_matrix()
         p_g = r_g_v @ i
 
-        r_uas_g = Rotation.from_euler(seq, gimbal_euler_angles_to_target, degrees=True).as_matrix()
+        r_uas_g = Rotation.from_euler(seq, gimbal_euler_angles_to_poi, degrees=True).as_matrix()
         p_uas_g = r_uas_g @ p_uas
 
         np.testing.assert_allclose(p_g, p_uas_g, rtol=1e-5, atol=1e-8)

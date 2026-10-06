@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence, Tuple
 
-from navpy.modules.vision.target_size import characteristic_pixels
+from navpy.modules.vision.poi_size import characteristic_pixels
 
 
 BBox = Tuple[float, float, float, float]

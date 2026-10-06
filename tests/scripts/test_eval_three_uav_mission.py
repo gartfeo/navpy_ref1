@@ -28,8 +28,8 @@ def stubbed(monkeypatch):
     )
     monkeypatch.setattr(
         mission,
-        "resolve_target_expectation",
-        lambda *a, **k: SimpleNamespace(location="target", mission_seq=4),
+        "resolve_poi_expectation",
+        lambda *a, **k: SimpleNamespace(location="poi", mission_seq=4),
     )
 
     def fake_set_param(master, name, value):
@@ -56,13 +56,13 @@ def _select(state):
 def test_prepare_vehicles_pushes_exactly_the_given_parameters(stubbed) -> None:
     parameters = (("SIM_RATE_HZ", 1000.0), ("SIM_GPS_HZ", 10.0))
 
-    targets, run_navigation_episode = mission.prepare_vehicles(
+    pois, run_navigation_episode = mission.prepare_vehicles(
         object(),
         [121, 122],
         select=_select(stubbed),
-        target_wp=6,
+        poi_wp=6,
         scoring_start_wp=4,
-        target_rel_alt_m=60.0,
+        poi_rel_alt_m=60.0,
         parameters=parameters,
     )
 
@@ -72,7 +72,7 @@ def test_prepare_vehicles_pushes_exactly_the_given_parameters(stubbed) -> None:
         (122, "SIM_RATE_HZ", 1000.0),
         (122, "SIM_GPS_HZ", 10.0),
     ]
-    assert set(targets) == set(run_navigation_episode) == {121, 122}
+    assert set(pois) == set(run_navigation_episode) == {121, 122}
 
 
 def test_a_failed_parameter_echo_stops_the_case(stubbed) -> None:
@@ -85,9 +85,9 @@ def test_a_failed_parameter_echo_stops_the_case(stubbed) -> None:
             object(),
             [121],
             select=_select(stubbed),
-            target_wp=6,
+            poi_wp=6,
             scoring_start_wp=4,
-            target_rel_alt_m=60.0,
+            poi_rel_alt_m=60.0,
             parameters=(("SIM_RATE_HZ", 1000.0),),
         )
 
@@ -98,9 +98,9 @@ def test_prepare_vehicles_holds_each_vehicle_for_its_ekf_origin(stubbed) -> None
         object(),
         [121, 122],
         select=_select(stubbed),
-        target_wp=6,
+        poi_wp=6,
         scoring_start_wp=4,
-        target_rel_alt_m=60.0,
+        poi_rel_alt_m=60.0,
         parameters=(),
     )
     assert stubbed.gated == [121, 122]

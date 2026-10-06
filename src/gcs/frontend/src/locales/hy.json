@@ -318,7 +318,7 @@
     },
     "aas": {
       "sections": {
-        "terminalNavigation": "Վերջնական մոտեցում",
+        "finalApproach": "Վերջնական մոտեցում",
         "control": "Կառավարում",
         "logging": "Մատյանագրում",
         "confirmation": "Հաստատում",
@@ -637,11 +637,11 @@
     "noChanges": "Փոփոխություններ չկան",
     "uploadError": "Վերբեռնման սխալ",
     "simulation": "Սիմուլյացիա",
-    "editTargets": "Խմբագրել սիմուլյացիայի կայանները",
+    "editPois": "Խմբագրել սիմուլյացիայի կայանները",
     "replaceWaypoints": "Փոխարինե՞լ նշված կետերը",
     "noMissionLoaded": "Առաքելություն բեռնված չէ",
     "downloadMissions": "Ներբեռնել առաքելությունները",
-    "simulatedTargetSelection": "Սիմուլյացիայի կայանի ընտրություն",
+    "simulatedPoiSelection": "Սիմուլյացիայի կայանի ընտրություն",
     "scrollZoomDragPan": "Ոլորեք մեծացնելու համար, քաշեք տեղափոխելու համար",
     "detectAfter": "Հայտնաբերել կետից հետո",
     "confirmBlockedPixels": "Հայտնաբերված պատկերը շատ փոքր է ({{detail}} px)",

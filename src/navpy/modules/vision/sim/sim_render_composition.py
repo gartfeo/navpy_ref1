@@ -1,4 +1,4 @@
-"""Compose simulator target rendering and post-render side effects."""
+"""Compose simulator POI rendering and post-render side effects."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ from navpy.modules.vision.sim.detection_publication_buffer import (
     DetectionPublicationBuffer,
 )
 from navpy.modules.vision.detector_ports import source_name_from_gimbal
-from navpy.modules.vision.sim.finite_target_projector import FiniteTargetProjector
+from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
 from navpy.modules.vision.sim.finite_projection_evidence import projection_log_sink
 from navpy.modules.vision.sim.projection_run_recorder import ProjectionRunRecorder, create_projection_recorder, rollback_projection_recorder
 from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
-from navpy.modules.vision.sim.ideal_target_projector import (
-    IdealTargetProjector,
+from navpy.modules.vision.sim.ideal_poi_projector import (
+    IdealPoiProjector,
     UasFrameConvention,
 )
 from navpy.modules.vision.sim.sim_camera_ports import (
@@ -47,20 +47,20 @@ from navpy.modules.vision.sim.sim_source_composition import (
     SimSourceGraph,
     SourceTimestampClock,
 )
-from navpy.modules.vision.sim.sim_target_catalog import SimTargetCatalog
-from navpy.modules.vision.sim.sim_target_projector import SimTargetProjector
+from navpy.modules.vision.sim.sim_poi_catalog import SimPoiCatalog
+from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
 from navpy.modules.vision.sim.sim_tracking_update import SimTrackingUpdater
-from navpy.modules.vision.target_provider import TargetProvider
+from navpy.modules.vision.poi_provider import PoiProvider
 
 
 @dataclass(frozen=True)
 class SimRenderFoundation:
-    target_provider: SimTargetCatalog
+    poi_provider: SimPoiCatalog
     navigation: Optional[GimbalNavigation]
     capture: SimCaptureState
     gap: ForcedGapState
     tracking: SimTrackingControls
-    projector: SimTargetProjector
+    projector: SimPoiProjector
     publications: DetectionPublicationBuffer
     source_clock: SourceTimestampClock
     ideal_camera: IdealCameraState
@@ -72,7 +72,7 @@ def build_render_foundation(
     options: SimDetectorOptions,
     source: SimSourceGraph,
 ) -> SimRenderFoundation:
-    target_provider = SimTargetCatalog(TargetProvider(
+    poi_provider = SimPoiCatalog(PoiProvider(
         dependencies.args,
         dependencies.vehicle,
         dependencies.zc_util,
@@ -96,7 +96,7 @@ def build_render_foundation(
         projector = _build_projector(
             dependencies,
             options,
-            target_provider,
+            poi_provider,
             source_clock,
             frame_size,
             ideal_camera,
@@ -113,7 +113,7 @@ def build_render_foundation(
         rollback_projection_recorder(evidence_recorder, error)
         raise
     return SimRenderFoundation(
-        target_provider,
+        poi_provider,
         navigation,
         capture,
         gap,
@@ -165,7 +165,7 @@ def build_pipeline(
     context = SimDetectionContext(
         options.ideal_360,
         dependencies.mount.sync_zoom_from_hardware,
-        render.target_provider.snapshot,
+        render.poi_provider.snapshot,
         render.projector.update,
         timestamps,
         transactions,
@@ -219,12 +219,12 @@ def _build_capture(
 def _build_projector(
     dependencies: SimDetectorDependencies,
     options: SimDetectorOptions,
-    targets: SimTargetCatalog,
+    pois: SimPoiCatalog,
     source_clock: SourceTimestampClock,
     frame_size: FrameSize,
     ideal_camera: IdealCameraState,
     evidence_recorder: Optional[ProjectionRunRecorder] = None,
-) -> SimTargetProjector:
+) -> SimPoiProjector:
     camera = ProjectionCameraPort(
         dependencies.mount.get_k,
         dependencies.mount.get_gimbal_data,
@@ -236,10 +236,10 @@ def _build_projector(
             evidence_recorder.failed_notice(message)
         dependencies.logger.single_warning(message, key='sim_projection_evidence_error')
 
-    finite = FiniteTargetProjector(
+    finite = FinitePoiProjector(
         camera,
         dependencies.geo_ref.calc_uv,
-        targets.snapshot,
+        pois.snapshot,
         source_clock.now,
         evidence_sink=evidence_recorder if evidence_recorder is not None else projection_log_sink(
             dependencies.logger.debug, dependencies.vehicle.source_system,
@@ -247,7 +247,7 @@ def _build_projector(
         ) if not options.ideal_360 else None,
         evidence_error_sink=record_failure,
     )
-    ideal = IdealTargetProjector(
+    ideal = IdealPoiProjector(
         ideal_camera,
         frame_size,
         UasFrameConvention(
@@ -256,7 +256,7 @@ def _build_projector(
         ),
         source_clock.now,
     )
-    return SimTargetProjector(options.ideal_360, finite, ideal)
+    return SimPoiProjector(options.ideal_360, finite, ideal)
 
 
 __all__ = [

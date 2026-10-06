@@ -13,9 +13,9 @@ from navpy.modules.vision.gimbal_rate_types import (
     TrackingState,
 )
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_zoom_ports import ZoomLogger
-from navpy.modules.vision.target_zoom_orchestrator import TargetZoomTracker
-from navpy.modules.vision.target_zoom_types import ZoomStopPlan, ZoomTrackResult
+from navpy.modules.vision.poi_zoom_ports import ZoomLogger
+from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.modules.vision.poi_zoom_types import ZoomStopPlan, ZoomTrackResult
 
 
 class GimbalZoomController:
@@ -73,14 +73,14 @@ class GimbalZoomController:
     def freeze_at_min(self) -> bool:
         with self._gate.lock:
             with self._fence.lock:
-                self._detection.terminal_zoom_frozen_at_min = True
+                self._detection.final_approach_zoom_frozen_at_min = True
             tracker = self._trackers.zoom
             if tracker is None:
                 return True
             tracker.set_size_demand(False)
             if tracker.reset_to_min():
                 return True
-            self._warn("terminal zoom freeze failed")
+            self._warn("final-approach zoom freeze failed")
             return False
 
     def reset_to_min(self) -> bool:
@@ -94,28 +94,28 @@ class GimbalZoomController:
 
     def update(
         self,
-        target: DetectedObject | None,
-        cached_target: DetectedObject | None,
-        terminal_zoom_frozen: bool,
+        poi: DetectedObject | None,
+        cached_poi: DetectedObject | None,
+        final_approach_zoom_frozen: bool,
         pointing: GimbalTrackResult | None,
     ) -> DetectedObject | None:
         tracker = self._trackers.zoom
-        if tracker is None or terminal_zoom_frozen:
-            return cached_target
+        if tracker is None or final_approach_zoom_frozen:
+            return cached_poi
         if self._trackers.rate is None:
-            cached_target = target if target is not None else cached_target
-            zoom_input = target
+            cached_poi = poi if poi is not None else cached_poi
+            zoom_input = poi
         elif (
-            target is not None
+            poi is not None
             and pointing is not None
             and pointing.state is TrackingState.TRACKING
         ):
-            cached_target = target
-            zoom_input = target
+            cached_poi = poi
+            zoom_input = poi
         else:
             zoom_input = None
         tracker.update(zoom_input, pointing=pointing)
-        return cached_target
+        return cached_poi
 
     def _warn(self, message: str) -> None:
         self._logger.warning(

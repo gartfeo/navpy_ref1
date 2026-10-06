@@ -6,8 +6,8 @@ import math
 from dataclasses import dataclass
 
 from navpy.modules.navigation.nav.nav_law import NavCommand, NavCommandMode
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
-from navpy.modules.navigation.nav.vision_nav.law_config import TerminalLawConfig
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfig
 
 # The command may not dive past this, whatever the loop asks for.  A converged
 # course needs roughly -45 deg at worst; reaching -70 means the loop has already
@@ -29,11 +29,11 @@ OUTLIER_ELEVATION_DELTA_DEG = 15.0
 
 
 @dataclass(frozen=True)
-class TerminalCommandAnchor:
+class FinalApproachCommandAnchor:
     """The command state the next cycle integrates from.
 
     Holding the previous *command* rather than the measured attitude is what
-    makes the fixed point of the recursion the collision course itself: at zero
+    makes the fixed point of the recursion the constant-bearing course itself: at zero
     LOS rate the increment is zero and the command stops changing by
     construction.  Anchoring on measured pitch instead makes the airframe's own
     response time part of the loop gain.
@@ -48,7 +48,7 @@ class TerminalCommandAnchor:
 
 
 @dataclass(frozen=True)
-class TerminalLimits:
+class FinalApproachLimits:
     """A roll limit and a pitch range, kept as one thing.
 
     Used for two DIFFERENT sets that are not interchangeable: the limits the
@@ -68,14 +68,14 @@ def effective_limits(
     roll_limit_deg: float,
     pitch_min_deg: float,
     pitch_max_deg: float,
-) -> TerminalLimits:
+) -> FinalApproachLimits:
     """Configured limits narrowed by the law's own structural caps.
 
     Takes plain floats rather than a config so the command path and the
     evidence builder can both reach it; the evidence builder holds the limits
     but not the config they came from.
     """
-    return TerminalLimits(
+    return FinalApproachLimits(
         roll_limit_deg=min(roll_limit_deg, ROLL_LIMIT_CAP_DEG),
         pitch_min_deg=max(pitch_min_deg, PITCH_FLOOR_DEG),
         pitch_max_deg=min(pitch_max_deg, PITCH_CEILING_DEG),
@@ -83,7 +83,7 @@ def effective_limits(
 
 
 def clamped_command(
-    config: TerminalLawConfig,
+    config: FinalApproachLawConfig,
     raw_roll: float,
     raw_pitch: float,
 ) -> NavCommand:
@@ -100,9 +100,9 @@ def clamped_command(
 
 
 def clamped_anchor(
-    config: TerminalLawConfig | None,
-    anchor: TerminalCommandAnchor,
-) -> TerminalCommandAnchor:
+    config: FinalApproachLawConfig | None,
+    anchor: FinalApproachCommandAnchor,
+) -> FinalApproachCommandAnchor:
     """Force an anchor to hold only a command the limits would allow.
 
     No anchor may ever carry a value the autopilot could not have been sent,
@@ -112,7 +112,7 @@ def clamped_anchor(
     if config is None:
         return anchor
     command = clamped_command(config, anchor.cmd_roll_deg, anchor.cmd_pitch_deg)
-    return TerminalCommandAnchor(
+    return FinalApproachCommandAnchor(
         anchor.continuity_key,
         anchor.timestamp_s,
         command.cmd_pitch_deg,
@@ -122,8 +122,8 @@ def clamped_anchor(
     )
 
 
-def bootstrap_anchor(frame: TerminalVisionFrame) -> TerminalCommandAnchor:
-    return TerminalCommandAnchor(
+def bootstrap_anchor(frame: FinalApproachVisionFrame) -> FinalApproachCommandAnchor:
+    return FinalApproachCommandAnchor(
         frame.continuity_key,
         frame.source_timestamp_s,
         frame.aircraft_pitch_deg,
@@ -134,12 +134,12 @@ def bootstrap_anchor(frame: TerminalVisionFrame) -> TerminalCommandAnchor:
 
 
 def advanced_anchor(
-    anchor: TerminalCommandAnchor,
-    frame: TerminalVisionFrame,
+    anchor: FinalApproachCommandAnchor,
+    frame: FinalApproachVisionFrame,
     bearing: float,
     elevation: float,
-) -> TerminalCommandAnchor:
-    return TerminalCommandAnchor(
+) -> FinalApproachCommandAnchor:
+    return FinalApproachCommandAnchor(
         anchor.continuity_key,
         frame.source_timestamp_s,
         anchor.cmd_pitch_deg,
@@ -152,7 +152,7 @@ def advanced_anchor(
 def is_outlier(
     bearing: float,
     elevation: float,
-    anchor: TerminalCommandAnchor,
+    anchor: FinalApproachCommandAnchor,
 ) -> bool:
     bearing_delta = abs(
         math.atan2(
@@ -166,11 +166,11 @@ def is_outlier(
     ) or elevation_delta > math.radians(OUTLIER_ELEVATION_DELTA_DEG)
 
 
-def frame_bearing(frame: TerminalVisionFrame) -> float:
+def frame_bearing(frame: FinalApproachVisionFrame) -> float:
     return math.atan2(frame.control_y, frame.control_x)
 
 
-def frame_elevation(frame: TerminalVisionFrame) -> float:
+def frame_elevation(frame: FinalApproachVisionFrame) -> float:
     return math.atan2(
         frame.control_z,
         math.hypot(frame.control_x, frame.control_y),
@@ -184,12 +184,12 @@ def clip(value: float, lower: float, upper: float) -> float:
 __all__ = [
     "OUTLIER_BEARING_DELTA_DEG",
     "OUTLIER_ELEVATION_DELTA_DEG",
-    "TerminalLimits",
+    "FinalApproachLimits",
     "PITCH_CEILING_DEG",
     "PITCH_FLOOR_DEG",
     "ROLL_LIMIT_CAP_DEG",
     "effective_limits",
-    "TerminalCommandAnchor",
+    "FinalApproachCommandAnchor",
     "advanced_anchor",
     "bootstrap_anchor",
     "clamped_anchor",

@@ -101,8 +101,8 @@ export function configureDetectorClassDimensions(detectorClassDimensions) {
 
 /** Max confirm distance (slant) — worst-case (Person) at MIN_CONFIRM_PIXELS.
  * NOTE: this is the CONFIRM-range BASE. ProfileSelector scales it by
- * detectRangeScale(selectedTargetSize, MIN_CLASS_SIZE) = (size/minClass)·(20/8)
- * to get the DETECTION range of the selected target before it reaches the
+ * detectRangeScale(selectedPoiSize, MIN_CLASS_SIZE) = (size/minClass)·(20/8)
+ * to get the DETECTION range of the selected POI before it reaches the
  * DetectionRangeDiagram — so the diagram already matches the live map footprint.
  * Do NOT switch this to MIN_DETECT_PIXELS: that double-counts the 20/8 factor. */
 export function computeMaxDetectDist(fy, imageWidth, imageHeight, referenceHeightM, imgsz) {

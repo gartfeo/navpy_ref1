@@ -122,8 +122,8 @@ def sidecar_paths(compact_path: Path | None) -> tuple[Path | None, Path | None]:
     )
 
 
-def post_snap_target_seen(log_path: Path | None) -> bool | None:
-    """Return whether another TARGET episode appeared after SNAP."""
+def post_snap_poi_seen(log_path: Path | None) -> bool | None:
+    """Return whether another POI episode appeared after SNAP."""
     if log_path is None or not log_path.exists():
         return None
     seen_snap = False
@@ -131,6 +131,6 @@ def post_snap_target_seen(log_path: Path | None) -> bool | None:
         for line in handle:
             if "SNAP(" in line:
                 seen_snap = True
-            elif seen_snap and "TARGET:" in line:
+            elif seen_snap and "POI:" in line:
                 return True
     return False

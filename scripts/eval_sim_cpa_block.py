@@ -58,7 +58,7 @@ EVIDENCE_ACCEPTED = "accepted"
 EVIDENCE_PROVENANCE = "provenance_mismatch"
 EVIDENCE_PARSE_FAILED = "parse_failed"
 EVIDENCE_NO_SCPC = "no_scpc"
-EVIDENCE_TARGET_MISMATCH = "target_mismatch"
+EVIDENCE_POI_MISMATCH = "poi_mismatch"
 EVIDENCE_AMBIGUOUS_EPOCH = "ambiguous_epoch"
 EVIDENCE_FAULT = "fault"
 EVIDENCE_NO_ROWS = "no_rows"
@@ -78,7 +78,7 @@ def default_configuration() -> dict[str, Any]:
     return {
         "mode": None,
         "status": STATUS_NOT_ATTEMPTED,
-        "expected_target": None,
+        "expected_poi": None,
         "requested_params": [],
         "acknowledged_params": [],
         "failed_param": None,
@@ -266,7 +266,7 @@ __all__ = [
     "EVIDENCE_NO_SCPC",
     "EVIDENCE_PARSE_FAILED",
     "EVIDENCE_PROVENANCE",
-    "EVIDENCE_TARGET_MISMATCH",
+    "EVIDENCE_POI_MISMATCH",
     "STATUS_NOT_ATTEMPTED",
     "ab_eligible",
     "compare_scores",

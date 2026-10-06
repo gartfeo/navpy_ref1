@@ -22,14 +22,14 @@ class LegacyNavAdjustment:
         self._state = state
 
     def adjust(self, current: Location, target_bearing: float) -> bool:
-        locked_target = self._state.begin_adjustment()
-        if locked_target is None:
+        locked_poi = self._state.begin_adjustment()
+        if locked_poi is None:
             return False
         adjusted = self._mission_planner.adjust_nav(
             self._vehicle,
             target_bearing,
             current,
-            locked_target,
+            locked_poi,
         )
         self._state.finish_adjustment(
             bool(adjusted) if adjusted is not None else False

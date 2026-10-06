@@ -48,8 +48,8 @@ class DetectionSensor:
         )
         response = self._snapshot.get_detect_data(request)
         self._detections.replace(
-            response.detected_targets,
-            response.primary_target,
+            response.detected_pois,
+            response.primary_poi,
             pending_events,
             append_events=self._phase.current == NavState.NAV,
         )

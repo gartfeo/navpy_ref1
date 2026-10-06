@@ -24,13 +24,13 @@ class NavigationSnapSession:
     def sample(
         self,
         current: Optional[Location],
-        target: Optional[Location],
+        poi: Optional[Location],
     ) -> None:
         self._previous = self._tracker.update(
             self._snap,
             self._previous,
             current,
-            target,
+            poi,
         )
 
     def snapshot(self) -> ClosestSnap:

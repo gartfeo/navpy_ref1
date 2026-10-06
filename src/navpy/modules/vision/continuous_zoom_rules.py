@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from navpy.modules.vision.target_zoom_types import ContinuousZoomDecision
+from navpy.modules.vision.poi_zoom_types import ContinuousZoomDecision
 from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
 
 

@@ -22,9 +22,9 @@ from navpy.modules.vision.sim.sim_runtime_ports import (
     FrameOutcomeSink,
     OptionalTextReader,
 )
-from navpy.modules.vision.target_priority import (
-    find_target_by_id,
-    prioritize_targets,
+from navpy.modules.vision.poi_priority import (
+    find_poi_by_id,
+    prioritize_pois,
 )
 
 
@@ -48,10 +48,10 @@ class DetectionPublicationBuffer:
 
     def source_name(
         self,
-        detected_targets: List[DetectedObject],
+        detected_pois: List[DetectedObject],
     ) -> Optional[str]:
-        for target in detected_targets:
-            source_name = target.pixel.source_name
+        for poi in detected_pois:
+            source_name = poi.pixel.source_name
             if isinstance(source_name, str) and source_name:
                 return source_name
         return self._fallback_source_name()
@@ -85,36 +85,36 @@ class DetectionPublicationBuffer:
                 "emitted",
                 publication.source_timestamp_s,
             )
-            forced = self.resolve_forced_target(
+            forced = self.resolve_forced_poi(
                 request,
-                list(publication.detected_targets),
+                list(publication.detected_pois),
             )
-            primary = forced or publication.primary_target
-            responses.append(publication.with_targets(prioritize_targets(
-                publication.detected_targets,
+            primary = forced or publication.primary_poi
+            responses.append(publication.with_pois(prioritize_pois(
+                publication.detected_pois,
                 primary,
             )))
         return responses
 
     def get_detect_data(self, request: DetectRequest) -> DetectResponse:
         snapshot = self._store.snapshot()
-        targets = list(snapshot.detected_targets)
-        primary = self.resolve_forced_target(request, targets)
+        pois = list(snapshot.detected_pois)
+        primary = self.resolve_forced_poi(request, pois)
         if primary is None:
-            primary = snapshot.primary_target
-        ordered = prioritize_targets(targets, primary)
-        return DetectResponse(ordered, primary_target=primary)
+            primary = snapshot.primary_poi
+        ordered = prioritize_pois(pois, primary)
+        return DetectResponse(ordered, primary_poi=primary)
 
     def get_latest_detections(self) -> List[DetectedObject]:
-        return list(self._store.snapshot().debug_targets)
+        return list(self._store.snapshot().debug_pois)
 
     @staticmethod
-    def resolve_forced_target(
+    def resolve_forced_poi(
         request: DetectRequest,
-        targets: List[DetectedObject],
+        pois: List[DetectedObject],
     ) -> Optional[DetectedObject]:
         if request.force_lock_id is not None:
-            return find_target_by_id(targets, request.force_lock_id)
+            return find_poi_by_id(pois, request.force_lock_id)
         bbox = request.force_lock_bbox_cxcywh
         if bbox is None:
             return None
@@ -126,22 +126,22 @@ class DetectionPublicationBuffer:
             fcy + float(bbox[3]) * 0.5,
         )
         best, best_score = None, 0.0
-        for target in targets:
-            target_bbox = target.tracking.bbox_cxcywh
-            if target_bbox is None:
+        for poi in pois:
+            poi_bbox = poi.tracking.bbox_cxcywh
+            if poi_bbox is None:
                 continue
             inside = (
-                fx1 <= float(target_bbox[0]) <= fx2
-                and fy1 <= float(target_bbox[1]) <= fy2
+                fx1 <= float(poi_bbox[0]) <= fx2
+                and fy1 <= float(poi_bbox[1]) <= fy2
             )
-            score = iou_cxcywh(bbox, target_bbox) + (0.25 if inside else 0.0)
+            score = iou_cxcywh(bbox, poi_bbox) + (0.25 if inside else 0.0)
             if score > best_score:
-                best, best_score = target, score
+                best, best_score = poi, score
         return best
 
 
 class BufferedDetectionEventLease:
-    """Apply request-local target ordering to one exclusive store lease."""
+    """Apply request-local POI ordering to one exclusive store lease."""
 
     def __init__(
         self,

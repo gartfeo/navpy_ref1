@@ -6,8 +6,8 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum
 
-from navpy.modules.vision.target_angle_estimator import (
-    TargetAngleEstimatorConfig,
+from navpy.modules.vision.poi_angle_estimator import (
+    PoiAngleEstimatorConfig,
 )
 
 
@@ -33,8 +33,8 @@ class GimbalRateTrackerConfig:
     max_slew_dps: float = 90.0
     settle_tolerance_deg: float = 0.3
     command_lead_time: float = 0.15
-    estimator: TargetAngleEstimatorConfig = field(
-        default_factory=TargetAngleEstimatorConfig
+    estimator: PoiAngleEstimatorConfig = field(
+        default_factory=PoiAngleEstimatorConfig
     )
     rate_clamp_slew_multiple: float = 3.0
 
@@ -65,7 +65,7 @@ def _require_nonnegative(name: str, value: float) -> None:
 @dataclass(frozen=True)
 class GimbalTrackResult:
     state: TrackingState
-    has_target: bool
+    has_poi: bool
     yaw_error: float | None = None
     pitch_error: float | None = None
     yaw_rate: float | None = None

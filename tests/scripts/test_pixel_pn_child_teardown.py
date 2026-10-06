@@ -604,7 +604,7 @@ class _FakeSource:
 
     activate() moves to the next epoch and records one truth row there;
     close() returns the ending epoch and then moves on, as the real
-    ``DirectTargetPixelSource`` does; a dispatch records at the CURRENT epoch,
+    ``DirectPoiPixelSource`` does; a dispatch records at the CURRENT epoch,
     so one that starts after close() lands in the next leg.
     """
 
@@ -647,7 +647,7 @@ class _FakeNavigation:
         self._observer = None
         self._started = False
 
-    def bind_terminal_source_dispatch(self, dispatch, observer) -> None:
+    def bind_final_approach_source_dispatch(self, dispatch, observer) -> None:
         self._dispatch = dispatch
         self._observer = observer
 
@@ -744,7 +744,7 @@ class _ChildRun:
             ),
             "MissionPlanner": lambda *_: SimpleNamespace(),
             "Navigation": lambda *_, **__: self.navigation,
-            "DirectTargetPixelSource": lambda *_, **__: self.source,
+            "DirectPoiPixelSource": lambda *_, **__: self.source,
             "start_identity": self._start_identity,
         }
         for name, factory in built.items():
@@ -782,13 +782,13 @@ class _ChildRun:
         return self._options_parser.parse_args([
             "--connection", "udp:127.0.0.1:14999",
             "--sysid", "1",
-            "--target-lat", "40.0",
-            "--target-lon", "44.0",
-            "--target-alt", "900.0",
-            "--engage-seq", "3",
+            "--poi-lat", "40.0",
+            "--poi-lon", "44.0",
+            "--poi-alt", "900.0",
+            "--scoring-start-seq", "3",
             "--timeout", "5.0",
             "--result", str(self.directory / "result.json"),
-            "--engaged", str(self.directory / "engaged.txt"),
+            "--scoring-active", str(self.directory / "scoring_active.txt"),
         ])
 
     def run(self) -> None:

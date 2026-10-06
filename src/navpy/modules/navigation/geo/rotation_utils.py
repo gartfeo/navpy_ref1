@@ -78,16 +78,16 @@ def angle_between_vectors_proj(v1, v2, axis):
     return angle_deg
 
 
-def get_euler_rotation_angles(start_look_at_vector, target_look_at_vector,
+def get_euler_rotation_angles(start_look_at_vector, poi_look_at_vector,
                               seq, degrees=True,
-                              start_up_vector=None, target_up_vector=None):
+                              start_up_vector=None, poi_up_vector=None):
     def find_additional_vertical_vector(vector):
         ez = np.array([0, 0, 1])
         look_at_vector = normalize(vector)
         up_vector = normalize(ez - np.dot(look_at_vector, ez) * look_at_vector)
         return up_vector
 
-    def calc_rotation_matrix(v1_start, v2_start, v1_target, v2_target):
+    def calc_rotation_matrix(v1_start, v2_start, v1_poi, v2_poi):
         """
         calculating M the rotation matrix from base U to base V
         M @ U = V
@@ -99,20 +99,20 @@ def get_euler_rotation_angles(start_look_at_vector, target_look_at_vector,
             u2_start = normalize(v2_start)
             u3_start = normalize(np.cross(u1_start, u2_start))
 
-            u1_target = normalize(v1_target)
-            u2_target = normalize(v2_target)
-            u3_target = normalize(np.cross(u1_target, u2_target))
+            u1_poi = normalize(v1_poi)
+            u2_poi = normalize(v2_poi)
+            u3_poi = normalize(np.cross(u1_poi, u2_poi))
 
             U = np.hstack([u1_start.reshape(3, 1), u2_start.reshape(3, 1), u3_start.reshape(3, 1)])
-            V = np.hstack([u1_target.reshape(3, 1), u2_target.reshape(3, 1), u3_target.reshape(3, 1)])
+            V = np.hstack([u1_poi.reshape(3, 1), u2_poi.reshape(3, 1), u3_poi.reshape(3, 1)])
 
             return U, V
 
         def calc_base_transition_matrix():
             return np.dot(V, np.linalg.inv(U))
 
-        if not np.isclose(np.dot(v1_target, v2_target), 0, atol=1e-03):
-            raise ValueError("v1_target and v2_target must be vertical")
+        if not np.isclose(np.dot(v1_poi, v2_poi), 0, atol=1e-03):
+            raise ValueError("v1_poi and v2_poi must be vertical")
 
         U, V = get_base_matrices()
         return calc_base_transition_matrix()
@@ -120,30 +120,30 @@ def get_euler_rotation_angles(start_look_at_vector, target_look_at_vector,
     if start_up_vector is None:
         start_up_vector = find_additional_vertical_vector(start_look_at_vector)
 
-    if target_up_vector is None:
-        target_up_vector = find_additional_vertical_vector(target_look_at_vector)
+    if poi_up_vector is None:
+        poi_up_vector = find_additional_vertical_vector(poi_look_at_vector)
 
-    rot_mat = calc_rotation_matrix(start_look_at_vector, start_up_vector, target_look_at_vector, target_up_vector)
-    # is_equal = np.allclose(rot_mat @ start_look_at_vector, target_look_at_vector, atol=1e-03)
-    # print(f"rot_mat @ start_look_at_vector1 == target_look_at_vector1 is {is_equal}")
+    rot_mat = calc_rotation_matrix(start_look_at_vector, start_up_vector, poi_look_at_vector, poi_up_vector)
+    # is_equal = np.allclose(rot_mat @ start_look_at_vector, poi_look_at_vector, atol=1e-03)
+    # print(f"rot_mat @ start_look_at_vector1 == poi_look_at_vector1 is {is_equal}")
     rotation = Rotation.from_matrix(rot_mat)
     return rotation.as_euler(seq, degrees)
 
 
-def calculate_euler_angles(uas_seq, uas_euler_angles, target_seq, target_euler_angles, degrees):
+def calculate_euler_angles(uas_seq, uas_euler_angles, poi_seq, target_euler_angles, degrees):
     uas_rotation = Rotation.from_euler(uas_seq, uas_euler_angles, degrees)
-    target_rotation = Rotation.from_euler(target_seq, target_euler_angles, degrees)
+    poi_rotation = Rotation.from_euler(poi_seq, target_euler_angles, degrees)
 
     uas_rotation_matrix = uas_rotation.as_matrix()
-    target_rotation_matrix = target_rotation.as_matrix()
+    poi_rotation_matrix = poi_rotation.as_matrix()
 
-    gimbal_rotation_matrix = target_rotation_matrix @ np.transpose(uas_rotation_matrix)
+    gimbal_rotation_matrix = poi_rotation_matrix @ np.transpose(uas_rotation_matrix)
     gimbal_rotation = Rotation.from_matrix(gimbal_rotation_matrix)
     # Wrap the Euler angles to the range [-pi, pi] (or [-180°, 180°] for degrees)
-    gimbal_euler_angles = gimbal_rotation.as_euler(target_seq, degrees)
+    gimbal_euler_angles = gimbal_rotation.as_euler(poi_seq, degrees)
     wrapped_gimbal_euler_angles = np.array([wrap_180(angle) for angle in gimbal_euler_angles])
     #
-    # x1, y, x2 = gimbal_rotation.as_euler(target_seq, degrees)
+    # x1, y, x2 = gimbal_rotation.as_euler(poi_seq, degrees)
     # wrapped_gimbal_euler_angles = np.array([wrap_angle(x1 + x2, degrees), wrap_angle(y, degrees), 0])
 
     return wrapped_gimbal_euler_angles

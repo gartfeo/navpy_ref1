@@ -13,7 +13,7 @@ from navpy.modules.vision.sim.sim_detector_public_ports import (
     SimIdentityParts,
     SimTrackingParts,
 )
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class SimDetectorIdentityFacet:
@@ -59,8 +59,8 @@ class SimDetectorTrackingFacet:
     def set_zoom_size_demand(self, enabled: bool) -> None:
         self._parts.zoom.set_zoom_size_demand(enabled)
 
-    def freeze_terminal_zoom_at_min(self) -> bool:
-        return self._parts.zoom.freeze_terminal_zoom_at_min()
+    def freeze_final_approach_zoom_at_min(self) -> bool:
+        return self._parts.zoom.freeze_final_approach_zoom_at_min()
 
     def start_tracking(self, obj_id: int) -> None:
         self._parts.tracking.start_tracking(obj_id)
@@ -74,10 +74,10 @@ class SimDetectorGeoFacet:
 
     def start_geo_tracking(
         self,
-        target_loc: Location,
+        poi_loc: Location,
         geo_ref: GeoRefCalc,
     ) -> None:
-        self._parts.geo.start_geo_tracking(target_loc, geo_ref)
+        self._parts.geo.start_geo_tracking(poi_loc, geo_ref)
 
     def update_geo(self, uav_loc: Location, uav_att: Attitude) -> None:
         self._parts.geo.update_geo(uav_loc, uav_att)

@@ -8,7 +8,7 @@ from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class GimbalTrackingAdapter:
@@ -37,8 +37,8 @@ class GimbalTrackingAdapter:
     def set_zoom_size_demand(self, enabled: bool) -> None:
         self._navigation.set_zoom_size_demand(enabled)
 
-    def freeze_terminal_zoom_at_min(self) -> bool:
-        return self._navigation.freeze_terminal_zoom_at_min()
+    def freeze_final_approach_zoom_at_min(self) -> bool:
+        return self._navigation.freeze_final_approach_zoom_at_min()
 
     def start_tracking(self, obj_id: int) -> None:
         self._navigation.start_tracking(obj_id)
@@ -53,10 +53,10 @@ class GimbalGeoAdapter:
 
     def start_geo_tracking(
         self,
-        target_loc: Location,
+        poi_loc: Location,
         geo_ref: GeoRefCalc,
     ) -> None:
-        self._navigation.start_geo_tracking(target_loc, geo_ref)
+        self._navigation.start_geo_tracking(poi_loc, geo_ref)
 
     def update_geo(self, uav_loc: Location, uav_att: Attitude) -> None:
         self._navigation.update_geo(uav_loc, uav_att)
@@ -99,8 +99,8 @@ class GimbalMeasurementAdapter:
     def tracking_obj_id(self) -> int | None:
         return self._navigation.tracking_obj_id
 
-    def update(self, target: DetectedObject | None) -> None:
-        self._navigation.update(target)
+    def update(self, poi: DetectedObject | None) -> None:
+        self._navigation.update(poi)
 
 
 __all__ = [

@@ -199,8 +199,8 @@ class HeaderAndConfigTests(unittest.TestCase):
                     timestamp=lambda: "09:08:07.006",
                 )
             current = Location(40.0001, 44.0, 100.0, is_absolute=True)
-            target = Location(40.0, 44.0, 100.0, is_absolute=True)
-            logger.sample_snap(current, target)
+            poi = Location(40.0, 44.0, 100.0, is_absolute=True)
+            logger.sample_snap(current, poi)
             logger.write_summary_and_reset(algorithm="pn", kp=0.5)
             logger.close()
 
@@ -457,12 +457,12 @@ class SnapByteStabilityTests(unittest.TestCase):
 
     def test_summary_writes_components_only_to_debug(self):
         harness = _make_logger(timestamp=lambda: "23:45:01.234")
-        target = Location(40.0, 44.0, 100.0, is_absolute=True)
-        start = _loc_from_ned(target, -10.0, 2.0, -3.0)
-        end = _loc_from_ned(target, 10.0, 2.0, -3.0)
+        poi = Location(40.0, 44.0, 100.0, is_absolute=True)
+        start = _loc_from_ned(poi, -10.0, 2.0, -3.0)
+        end = _loc_from_ned(poi, 10.0, 2.0, -3.0)
 
-        harness.logger.sample_snap(start, target)
-        harness.logger.sample_snap(end, target)
+        harness.logger.sample_snap(start, poi)
+        harness.logger.sample_snap(end, poi)
         returned = harness.logger.write_summary_and_reset(
             algorithm="vision-nav-pn",
             kp=1.23,
@@ -494,7 +494,7 @@ class SnapByteStabilityTests(unittest.TestCase):
 
 
 class PrimaryRowByteStabilityTests(unittest.TestCase):
-    def test_primary_row_marks_missing_detected_target_distance_unavailable(self):
+    def test_primary_row_marks_missing_detected_poi_distance_unavailable(self):
         harness = _make_logger(timestamp=lambda: "12:34:56.789")
 
         harness.logger.log(

@@ -10,10 +10,10 @@ from navpy.modules.nav.nav_composition_types import (
     NavCapabilities,
     NavStateOwnership,
     ResetWorkflows,
-    TargetMissionOwnership,
+    PoiMissionOwnership,
     VehicleApproachOwnership,
 )
-from navpy.modules.nav.nav_target_status_composition import _compose_target_status
+from navpy.modules.nav.nav_poi_status_composition import _compose_poi_status
 from navpy.modules.nav.nav_track_recovery_composition import (
     _compose_track_recovery,
 )
@@ -24,7 +24,7 @@ def compose_confirmation_workflows(
     detection: DetectionCoordination,
     logger: ILogger,
     state: NavStateOwnership,
-    target: TargetMissionOwnership,
+    poi: PoiMissionOwnership,
     approach: VehicleApproachOwnership,
     observation: DetectionReviewOwnership,
     admission: ConfirmationAdmissionWorkflows,
@@ -35,17 +35,17 @@ def compose_confirmation_workflows(
         detection,
         logger,
         state,
-        target,
+        poi,
         approach,
         observation,
         reset,
         navigation,
     )
-    target_status = _compose_target_status(
+    poi_status = _compose_poi_status(
         detection,
         logger,
         state,
-        target,
+        poi,
         approach,
         observation,
         reset,
@@ -56,7 +56,7 @@ def compose_confirmation_workflows(
     return ConfirmationWorkflows(
         reset=reset,
         confirmation_action=admission.action,
-        target_status=target_status,
+        poi_status=poi_status,
         deadline=admission.deadline,
     )
 

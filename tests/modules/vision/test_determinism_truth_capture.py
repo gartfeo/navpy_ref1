@@ -7,7 +7,7 @@ import pytest
 
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.vision.sim import determinism_trace
-from tests.modules.vision.test_direct_target_pixel_source import _source, _vehicle
+from tests.modules.vision.test_direct_poi_pixel_source import _source, _vehicle
 from tests.modules.vision.truth_packet_factory import truth_packet
 from tests.modules.vision.determinism_case_factory import (
     eligible_capture, evidence_bytes, with_rows,

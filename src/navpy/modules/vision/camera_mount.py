@@ -11,7 +11,7 @@ from navpy.modules.vision.camera_mount_facets import (
     CameraMountFrameFacet,
     CameraMountLifecycleFacet,
     CameraMountOpticsFacet,
-    CameraMountTargetZoomFacet,
+    CameraMountPoiZoomFacet,
     CameraMountZoomControlFacet,
     CameraMountZoomReadbackFacet,
 )
@@ -37,7 +37,7 @@ class CameraMount(
     CameraMountZoomReadbackFacet,
     CameraMountZoomControlFacet,
     CameraMountLifecycleFacet,
-    CameraMountTargetZoomFacet,
+    CameraMountPoiZoomFacet,
 ):
     """Public compatibility boundary for one camera and one gimbal."""
 

@@ -1,4 +1,4 @@
-"""Terminal-law configuration records and providers."""
+"""Final-approach-law configuration records and providers."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Protocol
 
 
 @dataclass(frozen=True)
-class TerminalLawConfig:
+class FinalApproachLawConfig:
     pitch_min_deg: float
     pitch_max_deg: float
     roll_limit_deg: float
@@ -15,20 +15,20 @@ class TerminalLawConfig:
     throttle: float | None
 
 
-class TerminalLawConfigProvider(Protocol):
-    def read(self) -> TerminalLawConfig | None: ...
+class FinalApproachLawConfigProvider(Protocol):
+    def read(self) -> FinalApproachLawConfig | None: ...
 
 
-class FixedTerminalLawConfigProvider:
-    def __init__(self, config: TerminalLawConfig | None) -> None:
+class FixedFinalApproachLawConfigProvider:
+    def __init__(self, config: FinalApproachLawConfig | None) -> None:
         self._config = config
 
-    def read(self) -> TerminalLawConfig | None:
+    def read(self) -> FinalApproachLawConfig | None:
         return self._config
 
 
 __all__ = [
-    "FixedTerminalLawConfigProvider",
-    "TerminalLawConfig",
-    "TerminalLawConfigProvider",
+    "FixedFinalApproachLawConfigProvider",
+    "FinalApproachLawConfig",
+    "FinalApproachLawConfigProvider",
 ]

@@ -15,7 +15,7 @@ def raw_truth_reasons(case: CaseEvidence) -> list[str]:
 
     V1 retains its original recording-only verdict. Even a passing v2 capture
     proves neither complete transport delivery nor full selector inputs: airspeed,
-    ATTITUDE payloads, boot identity and engagement boundaries remain separate.
+    ATTITUDE payloads, boot identity and scoring-window boundaries remain separate.
     Source repeats/regressions are retained here, not silently reordered.
     """
     if case.manifest["version"] == 1:

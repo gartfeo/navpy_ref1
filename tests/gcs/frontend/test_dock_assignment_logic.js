@@ -1,7 +1,7 @@
 /**
  * Node.js tests for buildFallbackLocationsFromDownload merge logic.
  *
- * Verifies that downloaded targets are matched against existing Docks by
+ * Verifies that downloaded POIs are matched against existing Docks by
  * coordinates, preserving type/name for matches and keeping unmatched
  * existing Docks intact.
  *
@@ -26,11 +26,11 @@ async function loadModule() {
 
   // ---- Test: backward compat — no existingFallbackLocations behaves like before ----
   (function testNoExistingDocks() {
-    const targets = [
+    const pois = [
       { lat: 32.0, lon: 34.0 },
       { lat: 33.0, lon: 35.0 },
     ];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(targets);
+    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois);
     assert.strictEqual(fallbackLocations.length, 2, 'Should create 2 Docks');
     assert.strictEqual(fallbackLocations[0].type, 'other', 'Default type should be other');
     assert.strictEqual(fallbackLocations[0].name, 'Fallback delivery location 1');
@@ -43,21 +43,21 @@ async function loadModule() {
     const existing = [
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
-    const targets = [{ lat: 32.0, lon: 34.0 }];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(targets, existing);
+    const pois = [{ lat: 32.0, lon: 34.0 }];
+    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
     assert.strictEqual(fallbackLocations.length, 1, 'Should not create a duplicate');
     assert.strictEqual(fallbackLocations[0].type, 'building', 'Type should be preserved');
     assert.strictEqual(fallbackLocations[0].name, 'HQ', 'Name should be preserved');
     assert.deepStrictEqual(assignments, [0]);
   })();
 
-  // ---- Test: new target creates type "other" DOCK ----
-  (function testNewTargetCreatesOther() {
+  // ---- Test: new POI creates type "other" DOCK ----
+  (function testNewPoiCreatesOther() {
     const existing = [
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
-    const targets = [{ lat: 40.0, lon: 50.0 }];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(targets, existing);
+    const pois = [{ lat: 40.0, lon: 50.0 }];
+    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
     assert.strictEqual(fallbackLocations.length, 2, 'Should add one new DOCK');
     assert.strictEqual(fallbackLocations[0].name, 'HQ', 'Existing preserved');
     assert.strictEqual(fallbackLocations[1].type, 'other', 'New DOCK should be type other');
@@ -66,12 +66,12 @@ async function loadModule() {
   })();
 
   // ---- Test: downloaded type is preserved for new DOCK ----
-  (function testDownloadedTypePreservedForNewTarget() {
+  (function testDownloadedTypePreservedForNewPoi() {
     const existing = [
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
-    const targets = [{ lat: 40.0, lon: 50.0, type: 'bridge' }];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(targets, existing);
+    const pois = [{ lat: 40.0, lon: 50.0, type: 'bridge' }];
+    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
     assert.strictEqual(fallbackLocations.length, 2, 'Should add one new DOCK');
     assert.strictEqual(fallbackLocations[1].type, 'bridge', 'Downloaded type should be preserved');
     assert.deepStrictEqual(assignments, [1]);
@@ -83,8 +83,8 @@ async function loadModule() {
       { name: 'Alpha', type: 'vehicle', lat: 10.0, lon: 20.0 },
       { name: 'Bravo', type: 'person', lat: 30.0, lon: 40.0 },
     ];
-    const targets = [{ lat: 50.0, lon: 60.0 }];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(targets, existing);
+    const pois = [{ lat: 50.0, lon: 60.0 }];
+    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
     assert.strictEqual(fallbackLocations.length, 3, 'Existing 2 + new 1');
     assert.strictEqual(fallbackLocations[0].name, 'Alpha');
     assert.strictEqual(fallbackLocations[1].name, 'Bravo');
@@ -92,20 +92,20 @@ async function loadModule() {
     assert.deepStrictEqual(assignments, [2]);
   })();
 
-  // ---- Test: dedup within downloaded targets still works ----
+  // ---- Test: dedup within downloaded POIs still works ----
   (function testDedupWithinDownload() {
-    const targets = [
+    const pois = [
       { lat: 32.0, lon: 34.0 },
       { lat: 32.0, lon: 34.0 }, // duplicate
       { lat: 33.0, lon: 35.0 },
     ];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(targets);
+    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois);
     assert.strictEqual(fallbackLocations.length, 2, 'Duplicates should be merged');
     assert.deepStrictEqual(assignments, [0, 0, 1]);
   })();
 
   // ---- Test: empty missionFallbackLocations with existingFallbackLocations returns copy of existing ----
-  (function testEmptyTargetsReturnsExisting() {
+  (function testEmptyPoisReturnsExisting() {
     const existing = [
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
@@ -115,14 +115,14 @@ async function loadModule() {
     assert.deepStrictEqual(assignments, []);
   })();
 
-  // ---- Test: null targets in array are handled ----
-  (function testNullTargetsInArray() {
+  // ---- Test: null POIs in array are handled ----
+  (function testNullPoisInArray() {
     const existing = [
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
-    const targets = [null, { lat: 32.0, lon: 34.0 }, null];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(targets, existing);
-    assert.strictEqual(fallbackLocations.length, 1, 'Only one valid target matches existing');
+    const pois = [null, { lat: 32.0, lon: 34.0 }, null];
+    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
+    assert.strictEqual(fallbackLocations.length, 1, 'Only one valid POI matches existing');
     assert.deepStrictEqual(assignments, [null, 0, null]);
   })();
 
@@ -131,23 +131,23 @@ async function loadModule() {
     const existing = [
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
-    const targets = [{ lat: 50.0, lon: 60.0 }];
-    buildFallbackLocationsFromDownload(targets, existing);
+    const pois = [{ lat: 50.0, lon: 60.0 }];
+    buildFallbackLocationsFromDownload(pois, existing);
     assert.strictEqual(existing.length, 1, 'Original array should not be modified');
   })();
 
-  // ---- Test: mixed match and new targets ----
+  // ---- Test: mixed match and new POIs ----
   (function testMixedMatchAndNew() {
     const existing = [
       { name: 'Alpha', type: 'vehicle', lat: 10.0, lon: 20.0 },
       { name: 'Bravo', type: 'person', lat: 30.0, lon: 40.0 },
     ];
-    const targets = [
+    const pois = [
       { lat: 30.0, lon: 40.0 }, // matches Bravo
       { lat: 50.0, lon: 60.0 }, // new
       { lat: 10.0, lon: 20.0 }, // matches Alpha
     ];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(targets, existing);
+    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
     assert.strictEqual(fallbackLocations.length, 3, 'Existing 2 + new 1');
     assert.strictEqual(fallbackLocations[0].name, 'Alpha');
     assert.strictEqual(fallbackLocations[1].name, 'Bravo');

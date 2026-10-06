@@ -59,12 +59,12 @@ def build_workers(
     batch_processor = TrackingBatchProcessor(
         state.mutation_gate,
         TrackingAssociationProcessor(
-            TrackingModels(models.tracker, models.identity, models.target_lock),
+            TrackingModels(models.tracker, models.identity, models.poi_lock),
             runtime.recovery,
             runtime.deep_channel,
             state.metrics,
             state.inference_generation,
-            pipeline.use_target_lock,
+            pipeline.use_poi_lock,
         ),
         TrackingResultPublisher(
             runtime.mapper,
@@ -127,7 +127,7 @@ def build_diagnostics(
             dependencies.mount,
             lambda: dependencies.vehicle.attitude,
         ),
-        config.pipeline.use_target_lock,
+        config.pipeline.use_poi_lock,
         config.debug,
         dependencies.logger,
     )
@@ -189,7 +189,7 @@ def build_reset(
         state.confirmation_frames,
         models.tracker,
         models.identity,
-        models.target_lock,
+        models.poi_lock,
         models.bridge,
         state.mutation_gate,
     )

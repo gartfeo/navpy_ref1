@@ -13,9 +13,9 @@ def test_selection_evidence_retains_recorded_field_order_and_values():
         "obj_id": 9,
         "default_ooi_registered": True,
         "event_wall_time_s": 100.5,
-        "target_lat_deg": 43.0,
-        "target_lon_deg": 34.0,
-        "target_abs_alt_m": 500.0,
+        "poi_lat_deg": 43.0,
+        "poi_lon_deg": 34.0,
+        "poi_abs_alt_m": 500.0,
     }
     assert list(evidence.to_record().items()) == list(expected.items())
 

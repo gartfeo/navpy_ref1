@@ -14,8 +14,8 @@ import numpy as np
 from navpy.modules.vision.appearance import create_appearance_embedder
 from navpy.modules.vision.frame_provider import FrameProvider
 from navpy.modules.vision.geometry import cxcywh_to_xyxy
-from navpy.modules.vision.lost_target_bridge import LostTargetBridge
-from navpy.modules.vision.target_lock import TargetLock
+from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
+from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.track_identity import TrackIdentityResolver
 from navpy.modules.vision.tracker_backends import create_tracker_backend
 from navpy.modules.vision.yolo_detector import YoloDetector
@@ -61,8 +61,8 @@ def build_stack(model: str, logger: Any) -> TrackingStack:
         detector_device=yolo.device,
         logger=logger,
     )
-    lock = TargetLock(max_lost_frames=120, auto_lock=False)
-    bridge = LostTargetBridge()
+    lock = PoiLock(max_lost_frames=120, auto_lock=False)
+    bridge = LostPoiBridge()
     return yolo, mot, identity, embedder, lock, bridge
 
 

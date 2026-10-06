@@ -7,10 +7,10 @@ from pathlib import Path
 import struct
 
 from scripts.eval_param_file import parse_parm
-from navpy.modules.navigation.nav.terminal_airframe_config import (
-    TerminalAirframeConfigProvider, TerminalParameterPort,
+from navpy.modules.navigation.nav.final_approach_airframe_config import (
+    FinalApproachAirframeConfigProvider, FinalApproachParameterPort,
 )
-from navpy.modules.navigation.nav.vision_nav.law_config import TerminalLawConfig
+from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfig
 
 LIMIT_PARAMETERS = ("PTCH_LIM_MIN_DEG", "PTCH_LIM_MAX_DEG", "ROLL_LIMIT_DEG", "PTCH2SRV_TCONST")
 
@@ -32,7 +32,7 @@ def read_defaults(path: Path, configured_throttle_percent: float | None = None) 
 
 
 def resolve_config(limits: tuple[float, ...], trim_throttle_percent: float | None,
-                   configured_throttle_percent: float | None = None) -> TerminalLawConfig:
+                   configured_throttle_percent: float | None = None) -> FinalApproachLawConfig:
     validate_override(configured_throttle_percent)
     if len(limits) != 5 or not all(math.isfinite(x) for x in limits):
         raise ValueError("invalid approach limits")
@@ -44,7 +44,7 @@ def resolve_config(limits: tuple[float, ...], trim_throttle_percent: float | Non
         raise ValueError("missing or invalid throttle configuration: TRIM_THROTTLE")
     parameters = dict(zip(LIMIT_PARAMETERS, limits[:4]))
     parameters["TRIM_THROTTLE"] = trim_throttle_percent
-    provider = TerminalAirframeConfigProvider(TerminalParameterPort(parameters.get),
+    provider = FinalApproachAirframeConfigProvider(FinalApproachParameterPort(parameters.get),
                                               lambda: configured_throttle_percent if configured_throttle_percent is not None
                                               else (None if throttle < 0 else throttle * 100))
     config = provider.read()

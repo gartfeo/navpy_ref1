@@ -19,7 +19,7 @@ from unittest.mock import Mock
 import numpy as np
 
 from navpy.args.navigation_args import NavigationArgs
-from navpy.args.navigation_target_args import NavigationTargetArgs
+from navpy.args.navigation_poi_args import NavigationPoiArgs
 from navpy.args.mission_planner_args import MissionPlannerArgs
 from navpy.args.pid_args import PIDArgs
 from navpy.modules.common.models.attitude import Attitude
@@ -50,7 +50,7 @@ def _build_args(pitch_controller: str):
     """
     parser = argparse.ArgumentParser()
     NavigationArgs.add_args(parser)
-    NavigationTargetArgs.add_args(parser)
+    NavigationPoiArgs.add_args(parser)
     PIDArgs.add_args(parser, "pitch")
     PIDArgs.add_args(parser, "roll")
     MissionPlannerArgs.add_args(parser)
@@ -103,7 +103,7 @@ def _build_ctx(seed: int) -> NavContext:
     curr = Location(lat=40.0 + lat_offset, lng=44.0 + lng_offset, alt=500.0)
     nxt = Location(lat=40.0 + 2 * lat_offset, lng=44.0 + 2 * lng_offset, alt=500.0)
     bearing_cd = float(rng.uniform(0, 36000))
-    target_ned = rng.uniform(-500, 500, size=3)
+    poi_ned = rng.uniform(-500, 500, size=3)
     pitch_error = float(rng.uniform(-30, 30))
     distance = float(rng.uniform(50, 1500))
     return NavContext(
@@ -111,7 +111,7 @@ def _build_ctx(seed: int) -> NavContext:
         current_loc=curr,
         next_loc=nxt,
         target_bearing_cd=bearing_cd,
-        target_ned=target_ned,
+        poi_ned=poi_ned,
         pitch_error=pitch_error,
         distance=distance,
     )
@@ -145,7 +145,7 @@ class AdapterMatchesInnerTests(unittest.TestCase):
                 current_loc=ctx.current_loc,
                 next_loc=ctx.next_loc,
                 target_bearing_cd=ctx.target_bearing_cd,
-                target_ned=ctx.target_ned,
+                poi_ned=ctx.poi_ned,
                 pitch_error=ctx.pitch_error,
                 distance=ctx.distance,
             )
@@ -278,8 +278,8 @@ class PitchPidPursuitTests(unittest.TestCase):
     """PID pitch = LOS feedforward + PID on the residual.
 
     Without the feedforward a proportional tracker settles at a fraction
-    of the LOS depression and can never intercept — the vehicle passes
-    the target and decays into a stable orbit (2026-06-12 run 181207).
+    of the LOS depression and can never close on the POI — the vehicle passes
+    the POI and decays into a stable orbit (2026-06-12 run 181207).
     ``pitch_error`` is the residual off the LOS (zero when the nose is
     on it).
     """
@@ -308,7 +308,7 @@ class PitchPidPursuitTests(unittest.TestCase):
         self.assertAlmostEqual(cmd, -9.3, places=5)
 
     def test_too_shallow_commands_more_nose_down(self):
-        # The terminal-orbit sample: los ~9 deg, nose 6.8 deg above the
+        # The final-approach-orbit sample: los ~9 deg, nose 6.8 deg above the
         # LOS. The old tracker commanded ~-3 deg and orbited; pursuit
         # commands below the LOS.
         controller, kp = self._make_controller()
@@ -324,8 +324,8 @@ class PitchPidPursuitTests(unittest.TestCase):
         self.assertAlmostEqual(cmd, -9.3 + kp * 27.5, places=5)
         self.assertGreater(cmd, -9.3)
 
-    def test_steep_terminal_los_tracks_full_dive(self):
-        # Close-in over the target the LOS steepens toward vertical: the
+    def test_steep_final_approach_los_tracks_full_dive(self):
+        # Close-in over the POI the LOS steepens toward vertical: the
         # commanded pitch follows it (the nav law clips to airframe
         # limits downstream).
         controller, _ = self._make_controller()

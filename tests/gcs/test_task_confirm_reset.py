@@ -38,7 +38,7 @@ def _broadcast_types(mock_ws):
 
 
 class TestEstopBroadcastsReset:
-    def test_estop_broadcasts_reset_for_target(self, control_client):
+    def test_estop_broadcasts_reset_for_poi(self, control_client):
         tc, mock_ws = control_client
         resp = tc.post("/api/control/command", json={"command": "estop", "sys_ids": [1]})
         assert resp.status_code == 200

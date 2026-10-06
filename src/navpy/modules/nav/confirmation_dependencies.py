@@ -1,4 +1,4 @@
-"""Late-bound dependencies and failure policy for target confirmation."""
+"""Late-bound dependencies and failure policy for POI confirmation."""
 
 from __future__ import annotations
 
@@ -27,23 +27,23 @@ class ConfirmationNetworkSlot:
 
 
 class FreshnessGate:
-    """Fail-closed target-freshness dependency."""
+    """Fail-closed POI-freshness dependency."""
 
     def __init__(self, logger: ILogger) -> None:
         self._logger = logger
-        self._check: Callable[[Optional[int]], bool] = lambda _target_id: False
+        self._check: Callable[[Optional[int]], bool] = lambda _poi_id: False
 
     def set_check(self, check: Callable[[Optional[int]], bool]) -> None:
         self._check = check
 
-    def is_fresh(self, target_id: Optional[int]) -> bool:
-        if target_id is None:
+    def is_fresh(self, poi_id: Optional[int]) -> bool:
+        if poi_id is None:
             return False
         try:
-            return bool(self._check(target_id))
+            return bool(self._check(poi_id))
         except OSError as exc:
             self._logger.error(
-                f"Freshness check raised for T{target_id}, "
+                f"Freshness check raised for P{poi_id}, "
                 f"treating as not fresh: {exc}",
                 exc,
             )
@@ -59,8 +59,8 @@ class ConfirmationFailurePolicy:
         self._confirm_on_fail = confirm_on_fail
         self._freshness = freshness
 
-    def status(self, target_id: Optional[int]) -> ConfirmationStatus:
-        if self._confirm_on_fail() and self._freshness.is_fresh(target_id):
+    def status(self, poi_id: Optional[int]) -> ConfirmationStatus:
+        if self._confirm_on_fail() and self._freshness.is_fresh(poi_id):
             return ConfirmationStatus.CONFIRMED
         return ConfirmationStatus.TIMEOUT_REJECTED
 

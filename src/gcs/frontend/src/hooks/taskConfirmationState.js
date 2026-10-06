@@ -92,7 +92,7 @@ function isOtherRound(entry, data) {
 export function confirmImage(state, data) {
   const entry = state[data.sys_id];
   if (!entry || entry.taskId !== data.task_id) return state;
-  // A thumbnail from a round this card has moved past is not this target's
+  // A thumbnail from a round this card has moved past is not this POI's
   // current picture.
   if (isOtherRound(entry, data)) return state;
   return { ...state, [data.sys_id]: { ...entry, imageB64: data.image_b64 } };
@@ -102,7 +102,7 @@ export function confirmResponse(state, data) {
   const entry = state[data.sys_id];
   if (!entry || entry.taskId !== data.task_id) return state; // task-id guard
   // A decision for an earlier round must not decide the round on screen: the
-  // same target can be asked again while a response is still being sent, and
+  // same POI can be asked again while a response is still being sent, and
   // marking the new card decided would also stop its countdown.
   if (isOtherRound(entry, data)) return state;
   const action = data.action || (data.is_confirmed ? 'approve' : 'deny');

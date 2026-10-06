@@ -18,22 +18,22 @@ FACADE_EXPORTS = {
         "navpy.modules.nav.confirmation_review": (
             "ConfirmationReview",
         ),
-        "navpy.modules.nav.terminal_record_deadline": (
-            "TerminalRecordDeadline",
+        "navpy.modules.nav.final_approach_record_deadline": (
+            "FinalApproachRecordDeadline",
         ),
-        "navpy.modules.nav.terminal_release_gate": ("TerminalReleaseGate",),
+        "navpy.modules.nav.final_approach_release_gate": ("FinalApproachReleaseGate",),
     },
     "navpy.modules.nav.navigation_task": {
         "navpy.modules.nav.navigation_task_action": ("NavigationTaskAction",),
-        "navpy.modules.nav.peer_target_notification": (
-            "PeerTargetNotifier",
-            "PeerTargetNotifierPorts",
+        "navpy.modules.nav.peer_poi_notification": (
+            "PeerPoiNotifier",
+            "PeerPoiNotifierPorts",
         ),
         "navpy.modules.nav.self_detected_approach": (
             "SelfDetectedApproach",
             "SelfDetectedApproachPorts",
         ),
-        "navpy.modules.nav.target_selection": ("TargetSelector",),
+        "navpy.modules.nav.poi_selection": ("PoiSelector",),
     },
     "navpy.modules.nav.nav_confirmation_composition": {
         "navpy.modules.nav.nav_confirmation_admission_composition": (
@@ -43,8 +43,8 @@ FACADE_EXPORTS = {
             "compose_confirmation_workflows",
         ),
         "navpy.modules.nav.nav_reset_composition": ("compose_reset_workflows",),
-        "navpy.modules.nav.nav_target_status_composition": (
-            "_compose_target_status",
+        "navpy.modules.nav.nav_poi_status_composition": (
+            "_compose_poi_status",
         ),
         "navpy.modules.nav.nav_track_recovery_composition": (
             "_compose_track_recovery",
@@ -62,7 +62,7 @@ FACADE_EXPORTS = {
         ),
         "navpy.modules.nav.navigation_zoom": ("ZoomController",),
     },
-    "navpy.modules.nav.target_confirmation": {
+    "navpy.modules.nav.poi_confirmation": {
         "navpy.modules.nav.confirmation_dependencies": (
             "ConfirmationFailurePolicy",
             "ConfirmationNetworkSlot",
@@ -78,26 +78,26 @@ FACADE_EXPORTS = {
             "ConfirmationCoordinator",
         ),
     },
-    "navpy.modules.nav.terminal_navigation": {
-        "navpy.modules.nav.terminal_command_dispatch": (
-            "TerminalCommandDispatch",
-            "TerminalCommandPorts",
+    "navpy.modules.nav.final_approach_navigation": {
+        "navpy.modules.nav.final_approach_command_dispatch": (
+            "FinalApproachCommandDispatch",
+            "FinalApproachCommandPorts",
         ),
-        "navpy.modules.nav.terminal_record_commit": (
-            "TerminalRecordCommit",
-            "TerminalRecordDeferral",
-            "TerminalRecordPorts",
+        "navpy.modules.nav.final_approach_record_commit": (
+            "FinalApproachRecordCommit",
+            "FinalApproachRecordDeferral",
+            "FinalApproachRecordPorts",
         ),
-        "navpy.modules.nav.terminal_nav_workflow": (
+        "navpy.modules.nav.final_approach_nav_workflow": (
             "NavPeerNotifier",
-            "TerminalNavPorts",
-            "TerminalNavWorkflow",
+            "FinalApproachNavPorts",
+            "FinalApproachNavWorkflow",
         ),
-        "navpy.modules.nav.terminal_source_admission": (
+        "navpy.modules.nav.final_approach_source_admission": (
             "DetectionEventInbox",
             "NavSourceBatch",
-            "TerminalSourceAdmission",
-            "TerminalSourcePorts",
+            "FinalApproachSourceAdmission",
+            "FinalApproachSourcePorts",
         ),
     },
     "navpy.modules.swarm.task_actor_state": {

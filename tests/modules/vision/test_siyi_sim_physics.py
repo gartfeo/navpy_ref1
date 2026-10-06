@@ -145,7 +145,7 @@ class TestAngleSeek(unittest.TestCase):
         self.assertAlmostEqual(p.yaw, 45.0, places=1)
         self.assertAlmostEqual(p.pitch, -30.0, places=1)
 
-    def test_target_beyond_body_stop_clamps(self):
+    def test_poi_beyond_body_stop_clamps(self):
         """A world target past the ±135° body stop (vehicle level) clamps to
         the stop. 200° wraps to -160° (the short-path side), so yaw settles at
         the -135° stop; pitch -100° clamps to the -90° stop."""
@@ -156,7 +156,7 @@ class TestAngleSeek(unittest.TestCase):
         self.assertAlmostEqual(p.yaw, ZR10.MIN_YAW_DEG, places=1)
         self.assertAlmostEqual(p.pitch, ZR10.MIN_PITCH_DEG, places=1)
 
-    def test_target_clears_on_arrival(self):
+    def test_poi_clears_on_arrival(self):
         p = GimbalPhysics()
         p.set_target_angles(1.0, 1.0)
         for _ in range(200):
@@ -209,14 +209,14 @@ class TestZoomAbsolute(unittest.TestCase):
 
     def test_zoom_reaches_target(self):
         p = GimbalPhysics()
-        p.set_target_zoom(5.0)
+        p.set_poi_zoom(5.0)
         for _ in range(100):
             p.update(0.02)
         self.assertAlmostEqual(p.zoom_level, 5.0, places=1)
 
     def test_zoom_clamps_at_max(self):
         p = GimbalPhysics()
-        p.set_target_zoom(50.0)  # above max → clamped to 30.0
+        p.set_poi_zoom(50.0)  # above max → clamped to 30.0
         # 30 - 1 = 29 levels at 5/sec → need ~6s. 350 × 0.02 = 7s.
         for _ in range(350):
             p.update(0.02)
@@ -224,7 +224,7 @@ class TestZoomAbsolute(unittest.TestCase):
 
     def test_zoom_clamps_at_min(self):
         p = GimbalPhysics(initial_zoom=5.0)
-        p.set_target_zoom(0.5)  # below min
+        p.set_poi_zoom(0.5)  # below min
         for _ in range(200):
             p.update(0.02)
         self.assertAlmostEqual(p.zoom_level, 1.0, places=1)
@@ -275,14 +275,14 @@ class TestZoomArbitration(unittest.TestCase):
         p = GimbalPhysics()
         p.start_zoom_in()
         self.assertEqual(p.snapshot().zoom.direction, 1)
-        p.set_target_zoom(5.0)
+        p.set_poi_zoom(5.0)
         zoom = p.snapshot().zoom
         self.assertEqual(zoom.direction, 0)
         self.assertIsNotNone(zoom.target)
 
     def test_incremental_cancels_absolute(self):
         p = GimbalPhysics()
-        p.set_target_zoom(5.0)
+        p.set_poi_zoom(5.0)
         self.assertIsNotNone(p.snapshot().zoom.target)
         p.start_zoom_out()
         zoom = p.snapshot().zoom
@@ -372,7 +372,7 @@ class TestStabilizationLockMode(unittest.TestCase):
         self.assertAlmostEqual(p.yaw - (-15.0), ZR10.MAX_YAW_DEG, places=1)
         self.assertAlmostEqual(p.yaw, 120.0, places=1)
 
-    def test_lock_world_target_reachable_via_vehicle_heading(self):
+    def test_lock_world_poi_reachable_via_vehicle_heading(self):
         """LOCK: a world bearing past ±135° is reachable when the vehicle
         heading keeps body yaw within the stop — the orbit case. The old
         world-frame clamp wrongly pinned this near 135°-of-north."""
@@ -413,20 +413,20 @@ class TestStabilizationLockMode(unittest.TestCase):
 
     def test_lock_tracks_through_full_orbit_without_clamp(self):
         """LOCK: as the vehicle heading sweeps 360° (orbit), the gimbal holds a
-        side target (body ~±90°) without ever saturating at the yaw stop —
+        side POI (body ~±90°) without ever saturating at the yaw stop —
         directly reproduces the peer-orbit scenario."""
         p = GimbalPhysics()
         p.set_motion_mode(MODE_LOCK)
         max_body = 0.0
         for deg in range(0, 360, 5):
             heading = float(deg)
-            world_target = _wrap180(heading + 90.0)  # side target on the orbit
+            world_poi = _wrap180(heading + 90.0)  # side POI on the orbit
             p.set_vehicle_attitude(Attitude(0.0, heading, 0.0))
-            p.set_target_angles(world_target, 0.0)
+            p.set_target_angles(world_poi, 0.0)
             for _ in range(20):
                 p.update(0.05)
             max_body = max(max_body, abs(_wrap180(p.yaw - heading)))
-        # Body yaw stays near 90° (the side target) — never pinned at 135°.
+        # Body yaw stays near 90° (the side POI) — never pinned at 135°.
         self.assertLess(max_body, 135.0)
         self.assertAlmostEqual(max_body, 90.0, delta=5.0)
 

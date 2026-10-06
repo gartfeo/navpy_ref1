@@ -278,30 +278,30 @@ function CesiumMap({
     return resolveSimDocks(plan, setCorridorPointsArr, searchPattern, vehicleTargWps, vehicleList);
   }, [simMode, phase, plan, setCorridorPointsArr, searchPattern, vehicleTargWps, vehicleSysIdKey, simDockWpsKey]);
 
-  // Cache targets so they persist even after a vehicle disconnects mid-flight.
+  // Cache POIs so they persist even after a vehicle disconnects mid-flight.
   // Clear the cache when all vehicles are gone (full disconnect).
-  const targetCacheRef = useRef(new Map());
-  const stableTargets = useMemo(() => {
-    // Planning-mode targets (user-selected, no vehicles needed) — pass through directly
+  const poiCacheRef = useRef(new Map());
+  const stablePois = useMemo(() => {
+    // Planning-mode POIs (user-selected, no vehicles needed) — pass through directly
     if (phase === 'PLANNING' && simDocks?.length > 0) return simDocks;
 
     if (!vehicleList || vehicleList.length === 0) {
-      targetCacheRef.current.clear();
+      poiCacheRef.current.clear();
       return [];
     }
     // Prune entries for connected vehicles — they'll be re-added from simfallback locations.
     // Disconnected vehicle entries survive (the cache's purpose).
     const connectedIds = new Set(vehicleList.map(v => v.sys_id));
-    for (const [key, t] of targetCacheRef.current) {
-      if (connectedIds.has(t.sys_id)) targetCacheRef.current.delete(key);
+    for (const [key, t] of poiCacheRef.current) {
+      if (connectedIds.has(t.sys_id)) poiCacheRef.current.delete(key);
     }
     for (const t of (simDocks || [])) {
-      targetCacheRef.current.set(`${t.sys_id}_${t.wpNumber}`, t);
+      poiCacheRef.current.set(`${t.sys_id}_${t.wpNumber}`, t);
     }
-    return [...targetCacheRef.current.values()];
+    return [...poiCacheRef.current.values()];
   }, [simDocks, vehicleSysIdKey, phase]);
 
-  useDockMarkers(cesiumRef, viewerRef, entitiesRef, stableTargets, viewerReady);
+  useDockMarkers(cesiumRef, viewerRef, entitiesRef, stablePois, viewerReady);
 
   const detectAfterWpsKey = JSON.stringify(detectAfterWps || {});
   const detectionPoints = useMemo(() => {

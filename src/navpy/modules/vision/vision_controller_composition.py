@@ -18,7 +18,7 @@ from navpy.modules.vision.gimbal_telemetry_publisher import (
 from navpy.modules.vision.vision_controller_ports import VisionControllerPorts
 from navpy.modules.vision.vision_debug_hud import SimTrackerHudRenderer
 from navpy.modules.vision.vision_debug_panel import SimPanelRenderer
-from navpy.modules.vision.vision_debug_targets import SimTargetOverlayRenderer
+from navpy.modules.vision.vision_debug_pois import SimPoiOverlayRenderer
 from navpy.modules.vision.vision_debug_window import VisionDebugWindow
 from navpy.modules.vision.vision_detector_factory_ports import (
     VisionDetectorFactory,
@@ -102,7 +102,7 @@ def build_vision_controller(
                 SimPanelRenderer(
                     lambda: vehicle.attitude,
                     SimTrackerHudRenderer(),
-                    SimTargetOverlayRenderer(profile.geo_ref.calc_ned),
+                    SimPoiOverlayRenderer(profile.geo_ref.calc_ned),
                 ),
                 VisionDebugWindow(f"navpy-sim-{vehicle.source_system}"),
             )

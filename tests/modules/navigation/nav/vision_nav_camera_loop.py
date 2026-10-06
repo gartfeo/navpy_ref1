@@ -1,4 +1,4 @@
-"""Finite-SIYI pixel/camera loop used by terminal certification tests."""
+"""Finite-SIYI pixel/camera loop used by final-approach certification tests."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
-    TerminalFrameProjector,
-    TerminalProjectionConfig,
+    FinalApproachFrameProjector,
+    FinalApproachProjectionConfig,
 )
 from navpy.modules.navigation.nav.vision_nav.law import (
-    FixedTerminalLawConfigProvider,
-    TerminalLawConfig,
+    FixedFinalApproachLawConfigProvider,
+    FinalApproachLawConfig,
     VisionNavLaw,
 )
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
@@ -34,15 +34,15 @@ from navpy.modules.vision.visual_ray_projection import (
 from navpy.utils.math_utils import GRAVITY_MSS
 from scripts.vision_static_point_mass_plant import (
     PointMassState,
-    closest_point_to_target,
+    closest_point_to_poi,
     component_miss,
-    has_passed_target,
+    has_passed_poi,
     initial_state,
     integrate_plant,
-    is_approaching_target,
+    is_approaching_poi,
 )
 from scripts.vision_static_point_mass_sensor import (
-    render_target_pixel,
+    render_poi_pixel,
     undelayed_truth_gyro,
 )
 from scripts.vision_static_point_mass_types import (
@@ -54,7 +54,7 @@ from scripts.vision_static_point_mass_types import (
 FRAME_WIDTH_PX = 2560.0
 FRAME_HEIGHT_PX = 1440.0
 CALIBRATION = PixelCalibration(2066.49, 2082.84, 1199.61, 810.24)
-PROJECTOR = TerminalFrameProjector(TerminalProjectionConfig("ZYX", True))
+PROJECTOR = FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True))
 TEST_AIRSPEED_MPS = 27.0
 
 
@@ -67,7 +67,7 @@ class SiyiCameraLoopResult:
 
 @dataclass(frozen=True)
 class _RenderedMeasurement:
-    frame: TerminalVisionFrame
+    frame: FinalApproachVisionFrame
     gimbal_sample: GimbalAngularSample
 
 
@@ -128,12 +128,12 @@ def run_siyi_camera_loop() -> SiyiCameraLoopResult:
     # module's undelayed_truth_gyro docstring).
     with undelayed_truth_gyro():
         law = VisionNavLaw(
-            FixedTerminalLawConfigProvider(
-                TerminalLawConfig(-55.0, 30.0, 60.0, 0.5, None)
+            FixedFinalApproachLawConfigProvider(
+                FinalApproachLawConfig(-55.0, 30.0, 60.0, 0.5, None)
             )
         )
     law.seed(
-        TerminalVisionFrame(
+        FinalApproachVisionFrame(
             "siyi-finite-camera",
             0,
             1,
@@ -194,17 +194,17 @@ def run_siyi_camera_loop() -> SiyiCameraLoopResult:
             np.zeros(3, dtype=float),
         )
         state = step.state
-        closest = closest_point_to_target(
+        closest = closest_point_to_poi(
             step.segment_start_ned_m,
             step.segment_ned_m,
         )
         miss = component_miss(closest, step.segment_ned_m, state.t_s)
         if miss.slant_m < best_miss.slant_m:
             best_miss = miss
-        approach_observed = approach_observed or is_approaching_target(step)
-        if approach_observed and has_passed_target(step, case.dt_s):
+        approach_observed = approach_observed or is_approaching_poi(step)
+        if approach_observed and has_passed_poi(step, case.dt_s):
             return SiyiCameraLoopResult(
-                replace(best_miss, passed_target=True),
+                replace(best_miss, passed_poi=True),
                 first_fov_loss_m,
                 observation_count,
             )
@@ -223,7 +223,7 @@ def _render_measurement(
     gimbal_data = gimbal.data(state.t_s)
     camera_to_body = camera_to_body_from_gimbal(gimbal_data)
     try:
-        u_px, v_px = render_target_pixel(
+        u_px, v_px = render_poi_pixel(
             position_ned_m=state.position_ned_m,
             pitch_deg=state.pitch_deg,
             roll_deg=state.roll_deg,

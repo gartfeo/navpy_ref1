@@ -1,4 +1,4 @@
-"""Local terminal confirmation publication."""
+"""Local final-approach confirmation publication."""
 
 from __future__ import annotations
 
@@ -7,11 +7,11 @@ from collections.abc import Callable
 from navpy.args.logger_args import LogStatusDest
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_identity import get_target_task_id
+from navpy.modules.vision.poi_identity import get_poi_task_id
 
 
 class LocalConfirmationPublisher:
-    """Confirm one visual target and report that explicit local decision."""
+    """Confirm one visual POI and report that explicit local decision."""
 
     def __init__(
         self,
@@ -21,10 +21,10 @@ class LocalConfirmationPublisher:
         self._confirm = confirm
         self._logger = logger
 
-    def publish(self, target: DetectedObject) -> None:
-        self._confirm(target)
+    def publish(self, poi: DetectedObject) -> None:
+        self._confirm(poi)
         self._logger.info(
-            f"CONFIRMED: T{get_target_task_id(target)} (vision nav local)",
+            f"CONFIRMED: P{get_poi_task_id(poi)} (vision nav local)",
             key="nav",
             dest=LogStatusDest.DRONE,
         )

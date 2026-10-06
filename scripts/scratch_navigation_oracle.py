@@ -32,7 +32,7 @@ Applied to the frame's AIRSPEED rather than to the law, because
 (`law.py:164`). Substituting the value therefore moves the gain and nothing
 else: no law variant, no second source tree, no new frame field, and no breach
 of the frozen inventory that keeps range and ground velocity out of
-`TerminalVisionFrame`.
+`FinalApproachVisionFrame`.
 
 Selected PER AIRCRAFT by a cell field, so treated and untreated fly the same
 code inside one launch. This bench has measured 5.5x batch-to-batch spread on
@@ -95,7 +95,7 @@ def substitute_speed(
     horizontal_m = math.hypot(north, east)
     if horizontal_m <= 0.0:
         return untreated
-    # Unit vector along the LOS pointing AT the target, so a closing speed
+    # Unit vector along the LOS pointing AT the POI, so a closing speed
     # comes out positive.
     los_n, los_e = north / horizontal_m, east / horizontal_m
 

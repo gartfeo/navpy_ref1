@@ -34,11 +34,11 @@ class TuningTracker:
 
     def update(self, sample: GimbalAngularSample) -> GimbalRateUpdate:
         update = self._tracker.update(sample)
-        if update.result.has_target:
+        if update.result.has_poi:
             self._loss_handled = False
         return update
 
-    def lose_target(self) -> GimbalTrackResult:
+    def lose_poi(self) -> GimbalTrackResult:
         if not self._loss_handled:
             self._command_zero()
             self._loss_handled = True

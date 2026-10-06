@@ -36,7 +36,7 @@ _DEFAULT_MATRIX = np.asarray(
 )
 
 
-def make_detected_target(
+def make_detected_poi(
     *,
     obj_id: int = 1,
     task_id: int | None = None,
@@ -176,4 +176,4 @@ def make_detected_target(
     )
 
 
-__all__ = ["make_detected_target"]
+__all__ = ["make_detected_poi"]

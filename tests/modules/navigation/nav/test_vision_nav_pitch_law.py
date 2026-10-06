@@ -2,7 +2,7 @@
 
 These exercise `pitch_law.py`'s pure function directly, independent of the
 frame/anchor plumbing in `law.py`, so the integrator's defining property is
-isolated from everything else in the terminal law.
+isolated from everything else in the final-approach law.
 
 An `AAS_PITCH_LAW` selector with three alternative formulations was removed on
 2026-08-20 after all three were measured and rejected; the tests that covered
@@ -33,7 +33,7 @@ def test_raw_pitch_current_matches_the_integrator_formula():
 # --------------------------------------------------------------------------
 # The accumulation property, pinned deliberately rather than guarded against.
 #
-# A bias living in the RATE estimate -- not in a real target-elevation change
+# A bias living in the RATE estimate -- not in a real POI-elevation change
 # -- is exactly what a running integral cannot forget, and the drift scales
 # with active navigation time. That is the acknowledged price of the disturbance
 # rejection this formula exists to provide: rejecting a constant unknown bias

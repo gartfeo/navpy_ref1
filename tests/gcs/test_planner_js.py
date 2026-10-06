@@ -126,7 +126,7 @@ class TestAnalyze(unittest.TestCase):
         self.assertGreater(js["estimated_time_min"], 0)
         self.assertGreater(len(js["launch_zone"]), 2)
 
-    def test_multi_target(self):
+    def test_multi_poi(self):
         js = _js_analyze(POLYGON, DOCK_CLASSES_MULTI)
         self.assertGreater(js["area_km2"], 0)
         self.assertGreater(js["required_uavs"], 0)

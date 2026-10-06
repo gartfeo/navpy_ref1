@@ -16,11 +16,11 @@ from navpy.modules.nav.confirmation_round_transaction import (
 from navpy.modules.nav.confirmation_worker_state import ConfirmationWorkerState
 from navpy.modules.nav.confirmation_registry_state import ConfirmationRegistryState, ConfirmationStatus
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_identity import get_target_task_id
+from navpy.modules.vision.poi_identity import get_poi_task_id
 
 
 class ConfirmationManagerState:
-    """Compose target status, worker leases, and exact confirmation rounds."""
+    """Compose POI status, worker leases, and exact confirmation rounds."""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
@@ -34,15 +34,15 @@ class ConfirmationManagerState:
 
     def start_review(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
         event_factory: Callable[[], threading.Event],
     ) -> ConfirmationWorkerLease:
-        target_id = get_target_task_id(target)
+        poi_id = get_poi_task_id(poi)
         with self._lock:
-            if target_id is not None:
-                self._rounds.start_review(target_id)
-                self.registry.set_status(target_id, ConfirmationStatus.CONFIRMING)
-            return self._workers.start(target_id, event_factory)
+            if poi_id is not None:
+                self._rounds.start_review(poi_id)
+                self.registry.set_status(poi_id, ConfirmationStatus.CONFIRMING)
+            return self._workers.start(poi_id, event_factory)
 
     def worker_is_current(self, lease: ConfirmationWorkerLease) -> bool:
         return self._workers.is_current(lease)
@@ -57,19 +57,19 @@ class ConfirmationManagerState:
         status: ConfirmationStatus,
     ) -> bool:
         with self._lock:
-            if lease.target_id is None or not self._workers.is_current(lease):
+            if lease.poi_id is None or not self._workers.is_current(lease):
                 return False
-            self.registry.set_status(lease.target_id, status)
+            self.registry.set_status(lease.poi_id, status)
             return True
 
     def begin_round(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
         lease: ConfirmationWorkerLease,
         event_factory: Callable[[], threading.Event],
         request_ref: Optional[ConfirmationRequestRef] = None,
     ) -> Optional[ConfirmationRound]:
-        return self._rounds.begin(target, lease, event_factory, request_ref)
+        return self._rounds.begin(poi, lease, event_factory, request_ref)
 
     def complete_round(
         self,
@@ -88,30 +88,30 @@ class ConfirmationManagerState:
     ) -> bool:
         return self._rounds.send_if_current(confirmation, send)
 
-    def pending_target(self, target_id: int) -> Optional[DetectedObject]:
-        return self._rounds.pending_target(target_id)
+    def pending_poi(self, poi_id: int) -> Optional[DetectedObject]:
+        return self._rounds.pending_poi(poi_id)
 
     def send_pending_if_current(
         self,
-        target_id: int,
-        target: DetectedObject,
+        poi_id: int,
+        poi: DetectedObject,
         request_ref: Optional[ConfirmationRequestRef],
         send: Callable[[], None],
     ) -> bool:
         return self._rounds.send_pending_if_current(
-            target_id,
-            target,
+            poi_id,
+            poi,
             request_ref,
             send,
         )
 
     def resolve_response(
         self,
-        target_id: int,
+        poi_id: int,
         is_confirmed: bool,
         response_ref: Optional[ConfirmationRequestRef] = None,
     ) -> ConfirmationResponseKind:
-        return self._rounds.resolve_response(target_id, is_confirmed, response_ref)
+        return self._rounds.resolve_response(poi_id, is_confirmed, response_ref)
 
     def reset(self) -> None:
         with self._lock:

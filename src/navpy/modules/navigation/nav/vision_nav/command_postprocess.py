@@ -1,4 +1,4 @@
-"""Lifecycle fence for terminal command diagnostics."""
+"""Lifecycle fence for final-approach command diagnostics."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import time
 POSTPROCESS_DRAIN_TIMEOUT_S = 2.0
 
 
-class TerminalPostprocessFence:
+class FinalApproachPostprocessFence:
     """Let phase reset wait for diagnostics already owned by the worker."""
 
     def __init__(self) -> None:
@@ -23,7 +23,7 @@ class TerminalPostprocessFence:
     def finish(self) -> None:
         with self._condition:
             if self._in_flight <= 0:
-                raise RuntimeError("terminal postprocess fence finished twice")
+                raise RuntimeError("final-approach postprocess fence finished twice")
             self._in_flight -= 1
             if self._in_flight == 0:
                 self._condition.notify_all()
@@ -35,9 +35,9 @@ class TerminalPostprocessFence:
                 remaining_s = deadline_s - time.monotonic()
                 if remaining_s <= 0.0:
                     raise TimeoutError(
-                        "terminal postprocess did not drain before reset"
+                        "final-approach postprocess did not drain before reset"
                     )
                 self._condition.wait(timeout=remaining_s)
 
 
-__all__ = ["POSTPROCESS_DRAIN_TIMEOUT_S", "TerminalPostprocessFence"]
+__all__ = ["POSTPROCESS_DRAIN_TIMEOUT_S", "FinalApproachPostprocessFence"]

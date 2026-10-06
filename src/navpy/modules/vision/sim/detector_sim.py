@@ -30,7 +30,7 @@ from navpy.modules.vision.sim.sim_detector_public_runtime import (
     SimDetectorSimulationFacet,
 )
 from navpy.modules.vision.sim.sim_frame_generator import SimFrameGenerator
-from navpy.modules.vision.target_zoom_types import TargetZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
 
 
 class DetectorSim(
@@ -55,7 +55,7 @@ class DetectorSim(
         zc_util: ZcUtil | None = None,
         sim_assets_path: str | None = None,
         tracking_config: GimbalTrackingSetup | None = None,
-        zoom_config: TargetZoomTrackerConfig | None = None,
+        zoom_config: PoiZoomTrackerConfig | None = None,
         scheduler_cadence: SchedulerCadence | None = None,
         ideal_360: bool = False,
     ) -> None:

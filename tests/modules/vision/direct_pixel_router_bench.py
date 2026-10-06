@@ -37,7 +37,7 @@ from navpy.modules.vehicle.pose_telemetry import (
 from navpy.modules.vehicle.vehicle_identity import VehicleIdentity
 
 TARGET_SYSTEM = 42
-TARGET = Location(40.001, 44.002, 900.0, is_absolute=True)
+POI = Location(40.001, 44.002, 900.0, is_absolute=True)
 PITCH, YAW, ROLL = (math.radians(value) for value in (-4.0, 100.0, 3.0))
 
 
@@ -181,7 +181,7 @@ class RouterVehicle:
 __all__ = [
     "PITCH",
     "ROLL",
-    "TARGET",
+    "POI",
     "TARGET_SYSTEM",
     "YAW",
     "BusLogger",

@@ -18,7 +18,7 @@ from navpy.modules.vehicle.flight_mode import FlightMode
 
 @dataclass(frozen=True)
 class RecoveryPorts:
-    terminal_active: Callable[[], bool]
+    final_approach_active: Callable[[], bool]
     detector_stop: Callable[[], None]
     current_relative: Callable[[], Optional[Location]]
     pause_navigation: Callable[[], None]
@@ -47,8 +47,8 @@ class RecoveryAction:
         self._altitude_available: Optional[bool] = None
 
     def advance(self) -> bool:
-        if self._ports.terminal_active():
-            return self._advance_terminal()
+        if self._ports.final_approach_active():
+            return self._advance_final_approach()
         if self._phase.current == NavState.RESET:
             self._ports.detector_stop()
             altitude = self._altitude()
@@ -97,7 +97,7 @@ class RecoveryAction:
         pitch = math.radians(2 * self._ports.max_pitch_deg())
         self._ports.set_attitude(0, pitch, 0, 1.0)
 
-    def _advance_terminal(self) -> bool:
+    def _advance_final_approach(self) -> bool:
         if self._phase.current == NavState.RESET:
             self._ports.detector_stop()
             self._phase.request(NavState.DETECT)

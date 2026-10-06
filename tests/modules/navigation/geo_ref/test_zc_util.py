@@ -15,11 +15,11 @@ class ZcUtilTestCase(unittest.TestCase):
     def test_geodetic(self):
         zc_util = ZcUtil()
 
-        target_alt = 1295.21
-        target_coords = [40.3114898305604, 44.4552312791348]
-        target_alt_zc = zc_util.get_elevation(target_coords)
-        target_alt_delta = target_alt_zc - target_alt
-        target_loc = Location(lat=target_coords[0], lng=target_coords[1], alt=target_alt_zc)
+        poi_alt = 1295.21
+        poi_coords = [40.3114898305604, 44.4552312791348]
+        poi_alt_zc = zc_util.get_elevation(poi_coords)
+        poi_alt_delta = poi_alt_zc - poi_alt
+        poi_loc = Location(lat=poi_coords[0], lng=poi_coords[1], alt=poi_alt_zc)
 
         current_alt = 1290.17
         current_coords = [40.308993, 44.447804]
@@ -27,14 +27,14 @@ class ZcUtilTestCase(unittest.TestCase):
         current_alt_delta = current_alt_zc - current_alt
         current_loc = Location(lat=40.308993, lng=44.447804, alt=1800 + current_alt_delta)
 
-        ned = pymap3d.geodetic2ned(target_loc.lat, target_loc.lng, target_loc.alt,
+        ned = pymap3d.geodetic2ned(poi_loc.lat, poi_loc.lng, poi_loc.alt,
                                    current_loc.lat, current_loc.lng, current_loc.alt)
 
-        actual_loc = zc_util.ray_to_terrain_ned(current_loc, ned, delta_alt=-target_alt_delta)
+        actual_loc = zc_util.ray_to_terrain_ned(current_loc, ned, delta_alt=-poi_alt_delta)
 
-        self.assertAlmostEqual(actual_loc.alt, target_alt, delta=0.1)
-        self.assertAlmostEqual(actual_loc.lat, target_loc.lat, delta=1e-5)
-        self.assertAlmostEqual(actual_loc.lng, target_loc.lng, delta=1e-5)
+        self.assertAlmostEqual(actual_loc.alt, poi_alt, delta=0.1)
+        self.assertAlmostEqual(actual_loc.lat, poi_loc.lat, delta=1e-5)
+        self.assertAlmostEqual(actual_loc.lng, poi_loc.lng, delta=1e-5)
 
     def test_actual_loc_down(self):
         expected_alt = 1295.4000244140625
@@ -50,28 +50,28 @@ class ZcUtilTestCase(unittest.TestCase):
 
         home_loc = Location(lat=40.31148910522461, lng=44.455230712890625, alt=1295.4000244140625)
         current_loc = Location(lat=40.308993, lng=44.447804, alt=304.2)
-        expected_target_loc = Location(lat=40.311489, lng=44.455231, alt=0.0)
-        target_ned = [0.42867977, 0.97587588, 0.47028754]
+        expected_poi_loc = Location(lat=40.311489, lng=44.455231, alt=0.0)
+        poi_ned = [0.42867977, 0.97587588, 0.47028754]
 
-        actual_target_loc = zc_util.ray_to_terrain_ned(current_loc, target_ned, home_alt=home_loc.alt)
-        self.assertAlmostEqual(actual_target_loc.lat, expected_target_loc.lat, places=5)
-        self.assertAlmostEqual(actual_target_loc.lng, expected_target_loc.lng, places=4) # TODO adjusted for precision
-        self.assertAlmostEqual(actual_target_loc.alt, expected_target_loc.alt, places=0)
+        actual_poi_loc = zc_util.ray_to_terrain_ned(current_loc, poi_ned, home_alt=home_loc.alt)
+        self.assertAlmostEqual(actual_poi_loc.lat, expected_poi_loc.lat, places=5)
+        self.assertAlmostEqual(actual_poi_loc.lng, expected_poi_loc.lng, places=4) # TODO adjusted for precision
+        self.assertAlmostEqual(actual_poi_loc.alt, expected_poi_loc.alt, places=0)
 
     def test_geo_ned(self):
         zc_util = ZcUtil(max_distance=10000, degrees=True)
         current_loc = Location(40.3067927, 44.4511127, 1621.4)
-        target_loc = zc_util.ray_to_terrain(current_loc, Attitude(-35, 3, 5))
+        poi_loc = zc_util.ray_to_terrain(current_loc, Attitude(-35, 3, 5))
 
-        actual_ned = pymap3d.geodetic2ned(target_loc.lat, target_loc.lng, target_loc.alt,
+        actual_ned = pymap3d.geodetic2ned(poi_loc.lat, poi_loc.lng, poi_loc.alt,
                                           current_loc.lat, current_loc.lng, current_loc.alt)
         actual_ned = normalize(actual_ned)
 
-        actual_target_loc = zc_util.ray_to_terrain_ned(current_loc, actual_ned)
+        actual_poi_loc = zc_util.ray_to_terrain_ned(current_loc, actual_ned)
 
-        self.assertAlmostEqual(actual_target_loc.lat, target_loc.lat, places=4)
-        self.assertAlmostEqual(actual_target_loc.lng, target_loc.lng, places=4)
-        self.assertAlmostEqual(actual_target_loc.alt, target_loc.alt, places=1)
+        self.assertAlmostEqual(actual_poi_loc.lat, poi_loc.lat, places=4)
+        self.assertAlmostEqual(actual_poi_loc.lng, poi_loc.lng, places=4)
+        self.assertAlmostEqual(actual_poi_loc.alt, poi_loc.alt, places=1)
 
     def test_intersection(self):
         ray_origin_gps = Location(40.3116676, 44.4551189, 1800)  # Latitude, Longitude, Altitude (above sea level)

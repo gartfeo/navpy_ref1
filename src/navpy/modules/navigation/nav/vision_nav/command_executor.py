@@ -13,71 +13,71 @@ from navpy.modules.navigation.navigation_command_slot import (
 )
 from navpy.modules.common.resource_cleanup import CleanupStack
 from navpy.modules.navigation.nav.vision_nav.command_transaction import (
-    TerminalCommandOutcome,
-    TerminalCommandResult,
-    TerminalCommandTransaction,
+    FinalApproachCommandOutcome,
+    FinalApproachCommandResult,
+    FinalApproachCommandTransaction,
 )
 from navpy.modules.navigation.nav.vision_nav.command_hold import (
-    TerminalCommandHoldStore,
+    FinalApproachCommandHoldStore,
 )
 from navpy.modules.navigation.nav.vision_nav.command_freshness import (
-    TerminalCommandFreshness,
-    TerminalCommandTiming,
+    FinalApproachCommandFreshness,
+    FinalApproachCommandTiming,
 )
 from navpy.modules.navigation.nav.vision_nav.command_liveness import (
-    TerminalCommandFailureSink,
+    FinalApproachCommandFailureSink,
 )
 from navpy.modules.navigation.navigation_postprocess_dispatcher import PostprocessJob
 from navpy.modules.navigation.nav.vision_nav.command_postprocess import (
-    TerminalPostprocessFence,
+    FinalApproachPostprocessFence,
 )
 from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
-    TerminalDiagnosticEntry,
-    TerminalDiagnosticMailbox,
+    FinalApproachDiagnosticEntry,
+    FinalApproachDiagnosticMailbox,
 )
 from navpy.modules.navigation.nav.vision_nav.diagnostics import (
-    TerminalCommandDiagnostics,
+    FinalApproachCommandDiagnostics,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
-from navpy.modules.navigation.nav.vision_nav.runtime_state import TerminalRuntimeStatus
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
 from navpy.modules.navigation.nav.vision_nav.source_time_ports import (
-    TerminalCommandSourceTimeObserver,
+    FinalApproachCommandSourceTimeObserver,
 )
 
 
 @dataclass(frozen=True)
-class TerminalDiagnosticCompletion:
+class FinalApproachDiagnosticCompletion:
     diagnostic: object | None
     evidence_errors: tuple[BaseException, ...]
 
 
 @dataclass
-class TerminalCommandWork:
-    frame: TerminalVisionFrame
+class FinalApproachCommandWork:
+    frame: FinalApproachVisionFrame
     diagnostic_token: int
     lease: NavigationCommandLease
-    _postprocess_fence: TerminalPostprocessFence | None = field(
+    _postprocess_fence: FinalApproachPostprocessFence | None = field(
         default=None,
         init=False,
         repr=False,
         compare=False,
     )
-    _completion: TerminalDiagnosticCompletion | None = field(
+    _completion: FinalApproachDiagnosticCompletion | None = field(
         default=None,
         init=False,
         repr=False,
         compare=False,
     )
 
-    def begin_postprocess(self, fence: TerminalPostprocessFence) -> None:
+    def begin_postprocess(self, fence: FinalApproachPostprocessFence) -> None:
         if self._postprocess_fence is not None:
-            raise RuntimeError("terminal command work executed twice")
+            raise RuntimeError("final-approach command work executed twice")
         self._postprocess_fence = fence
         fence.begin()
 
     def capture_completion(
         self,
-        completion: TerminalDiagnosticCompletion,
+        completion: FinalApproachDiagnosticCompletion,
     ) -> None:
         self._completion = completion
 
@@ -87,7 +87,7 @@ class TerminalCommandWork:
 
     def take_completion(
         self,
-    ) -> tuple[TerminalPostprocessFence, TerminalDiagnosticCompletion | None] | None:
+    ) -> tuple[FinalApproachPostprocessFence, FinalApproachDiagnosticCompletion | None] | None:
         fence = self._postprocess_fence
         if fence is None:
             return None
@@ -98,28 +98,28 @@ class TerminalCommandWork:
 
 
 @dataclass(frozen=True)
-class TerminalExecutorPorts:
+class FinalApproachExecutorPorts:
     slot: NavigationCommandSlot
-    transaction: TerminalCommandTransaction
-    mailbox: TerminalDiagnosticMailbox
-    diagnostics: TerminalCommandDiagnostics
-    status: TerminalRuntimeStatus
-    source_time: TerminalCommandSourceTimeObserver
-    hold: TerminalCommandHoldStore
-    failures: TerminalCommandFailureSink
-    freshness: TerminalCommandFreshness
-    postprocess_fence: TerminalPostprocessFence
+    transaction: FinalApproachCommandTransaction
+    mailbox: FinalApproachDiagnosticMailbox
+    diagnostics: FinalApproachCommandDiagnostics
+    status: FinalApproachRuntimeStatus
+    source_time: FinalApproachCommandSourceTimeObserver
+    hold: FinalApproachCommandHoldStore
+    failures: FinalApproachCommandFailureSink
+    freshness: FinalApproachCommandFreshness
+    postprocess_fence: FinalApproachPostprocessFence
 
 
-class TerminalCommandExecutor:
+class FinalApproachCommandExecutor:
     """Keep the lease fence limited to plan/issue/commit."""
 
-    def __init__(self, ports: TerminalExecutorPorts) -> None:
+    def __init__(self, ports: FinalApproachExecutorPorts) -> None:
         self._ports = ports
 
-    def execute(self, work: TerminalCommandWork) -> CalcData | None:
-        result: TerminalCommandResult | None = None
-        entry: list[TerminalDiagnosticEntry | None] = [None]
+    def execute(self, work: FinalApproachCommandWork) -> CalcData | None:
+        result: FinalApproachCommandResult | None = None
+        entry: list[FinalApproachDiagnosticEntry | None] = [None]
         timing = self._ports.mailbox.timing(work.diagnostic_token)
         entry_s = time.perf_counter()
         work.begin_postprocess(self._ports.postprocess_fence)
@@ -151,7 +151,7 @@ class TerminalCommandExecutor:
             )
         return None if result is None else result.calc_data
 
-    def postprocess_job(self, work: TerminalCommandWork) -> PostprocessJob | None:
+    def postprocess_job(self, work: FinalApproachCommandWork) -> PostprocessJob | None:
         if not work.has_postprocess:
             return None
         return PostprocessJob(
@@ -160,14 +160,14 @@ class TerminalCommandExecutor:
         )
 
     @staticmethod
-    def abandon_postprocess(work: TerminalCommandWork) -> None:
+    def abandon_postprocess(work: FinalApproachCommandWork) -> None:
         owned = work.take_completion()
         if owned is None:
             return
         fence, _completion = owned
         fence.finish()
 
-    def postprocess(self, work: TerminalCommandWork) -> None:
+    def postprocess(self, work: FinalApproachCommandWork) -> None:
         owned = work.take_completion()
         if owned is None:
             return
@@ -179,7 +179,7 @@ class TerminalCommandExecutor:
                 if len(completion.evidence_errors) == 1:
                     raise completion.evidence_errors[0]
                 raise BaseExceptionGroup(
-                    "terminal command evidence capture failed",
+                    "final-approach command evidence capture failed",
                     completion.evidence_errors,
                 )
             if completion.diagnostic is not None:
@@ -189,9 +189,9 @@ class TerminalCommandExecutor:
 
     def _capture_completion(
         self,
-        work: TerminalCommandWork,
-        result: TerminalCommandResult | None,
-        entry: TerminalDiagnosticEntry | None,
+        work: FinalApproachCommandWork,
+        result: FinalApproachCommandResult | None,
+        entry: FinalApproachDiagnosticEntry | None,
     ) -> None:
         status_error: BaseException | None = None
         try:
@@ -205,12 +205,12 @@ class TerminalCommandExecutor:
         try:
             diagnostic = self._ports.diagnostics.capture(
                 work.frame,
-                None if entry is None else entry.target,
+                None if entry is None else entry.poi,
                 result,
             )
         except BaseException as error:
             evidence_errors.append(error)
-        work.capture_completion(TerminalDiagnosticCompletion(
+        work.capture_completion(FinalApproachDiagnosticCompletion(
             diagnostic=diagnostic,
             evidence_errors=tuple(evidence_errors),
         ))
@@ -219,9 +219,9 @@ class TerminalCommandExecutor:
 
     def _execute_current(
         self,
-        work: TerminalCommandWork,
-        timing: TerminalCommandTiming | None,
-    ) -> TerminalCommandResult | None:
+        work: FinalApproachCommandWork,
+        timing: FinalApproachCommandTiming | None,
+    ) -> FinalApproachCommandResult | None:
         ports = self._ports
         ports.hold.clear()
         if timing is None or not ports.freshness.is_fresh(timing):
@@ -232,7 +232,7 @@ class TerminalCommandExecutor:
         except Exception:
             ports.failures.mark_failed()
             raise
-        if result.outcome is TerminalCommandOutcome.LAW_UNAVAILABLE:
+        if result.outcome is FinalApproachCommandOutcome.LAW_UNAVAILABLE:
             ports.failures.mark_failed()
         if result.issued and result.calc_data is not None:
             ports.hold.remember(
@@ -243,9 +243,9 @@ class TerminalCommandExecutor:
 
     def _record_source_time(
         self,
-        work: TerminalCommandWork,
-        result: TerminalCommandResult | None,
-        entry: TerminalDiagnosticEntry | None,
+        work: FinalApproachCommandWork,
+        result: FinalApproachCommandResult | None,
+        entry: FinalApproachDiagnosticEntry | None,
         entry_s: float,
     ) -> None:
         if result is None or not result.issued:
@@ -265,8 +265,8 @@ class TerminalCommandExecutor:
 
 
 __all__ = [
-    "TerminalCommandExecutor",
-    "TerminalCommandWork",
-    "TerminalDiagnosticCompletion",
-    "TerminalExecutorPorts",
+    "FinalApproachCommandExecutor",
+    "FinalApproachCommandWork",
+    "FinalApproachDiagnosticCompletion",
+    "FinalApproachExecutorPorts",
 ]

@@ -36,7 +36,7 @@ class VehicleMavTest(unittest.TestCase):
         # fake MAVLink connection
         self.fake_mav = MagicMock()
         self.fake_mav.file = MagicMock()
-        self.fake_mav_of_target = MagicMock()
+        self.fake_mav_of_poi = MagicMock()
         self.fake_conn = MagicMock()
         self.fake_conn.mav = self.fake_mav
         self.fake_conn.wait_heartbeat = MagicMock()
@@ -59,12 +59,12 @@ class VehicleMavTest(unittest.TestCase):
         self.mode_patch.start()
         self.addCleanup(self.mode_patch.stop)
 
-        mav_of_target_patch = patch(
+        mav_of_poi_patch = patch(
             "navpy.modules.vehicle.vehicle_mav.mavutil.mavlink.MAVLink",
-            return_value=self.fake_mav_of_target,
+            return_value=self.fake_mav_of_poi,
         )
-        self.addCleanup(mav_of_target_patch.stop)
-        mav_of_target_patch.start()
+        self.addCleanup(mav_of_poi_patch.stop)
+        mav_of_poi_patch.start()
 
         self.dm = self._new_dm(device="dev", target_system=42)
 
@@ -613,7 +613,7 @@ class VehicleMavTest(unittest.TestCase):
             | ATTITUDE_TARGET_TYPEMASK_BODY_YAW_RATE_IGNORE,
         )
 
-    def test_set_attitude_exposes_outbound_debug_target(self):
+    def test_set_attitude_exposes_outbound_debug_poi(self):
         self.dm.set_attitude(0.1, 0.2, yaw=None, thr=0.55)
 
         target = self.dm.attitude_target_debug
@@ -1252,12 +1252,12 @@ class TestUploadMission(unittest.TestCase):
         self.mode_patch.start()
         self.addCleanup(self.mode_patch.stop)
 
-        mav_of_target_patch = patch(
+        mav_of_poi_patch = patch(
             "navpy.modules.vehicle.vehicle_mav.mavutil.mavlink.MAVLink",
             return_value=MagicMock(),
         )
-        self.addCleanup(mav_of_target_patch.stop)
-        mav_of_target_patch.start()
+        self.addCleanup(mav_of_poi_patch.stop)
+        mav_of_poi_patch.start()
 
         self.dm = VehicleMav(
             device=self._device, target_system=1,

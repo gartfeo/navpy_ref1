@@ -56,7 +56,7 @@ export function makeAvailableTaskIcon(size) {
   )}`;
 }
 
-// Track waypoint diamond — clickable marker for sim target selection in planning mode
+// Track waypoint diamond — clickable marker for sim POI selection in planning mode
 export function makeTrackWpIcon(color, size, selected) {
   const c = size / 2;
   const d = c - 2;

@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ActiveImage:
-    target_id: int
+    poi_id: int
     round_uid: Optional[str]
 
 
@@ -36,15 +36,15 @@ class ConfirmationImageSession:
         self._broadcast = broadcast
         self._is_companion = is_companion
         self.reassemblers: dict[int, ImageReassembler] = {}
-        self.current_targets: dict[int, ActiveImage] = {}
+        self.current_pois: dict[int, ActiveImage] = {}
 
     def register_vehicle(self, sys_id: int) -> None:
         self.reassemblers[sys_id] = ImageReassembler(timeout_sec=15.0)
 
     def abandon(self, sys_id: int, task_id: int) -> None:
-        active = self.current_targets.get(sys_id)
-        if active is not None and active.target_id == task_id:
-            self.current_targets.pop(sys_id, None)
+        active = self.current_pois.get(sys_id)
+        if active is not None and active.poi_id == task_id:
+            self.current_pois.pop(sys_id, None)
 
     def on_handshake(
         self,
@@ -56,14 +56,14 @@ class ConfirmationImageSession:
         reassembler = self.reassemblers.get(sys_id)
         if reassembler is None:
             return
-        target_id = reassembler.on_handshake(message)
-        if target_id is None:
+        poi_id = reassembler.on_handshake(message)
+        if poi_id is None:
             return
-        self.current_targets[sys_id] = ActiveImage(
-            target_id,
-            self._open_round_uid(sys_id, target_id),
+        self.current_pois[sys_id] = ActiveImage(
+            poi_id,
+            self._open_round_uid(sys_id, poi_id),
         )
-        log.info("Image handshake for vehicle %d, target_id=%d", sys_id, target_id)
+        log.info("Image handshake for vehicle %d, poi_id=%d", sys_id, poi_id)
 
     def on_chunk(
         self,
@@ -73,26 +73,26 @@ class ConfirmationImageSession:
         if not self._is_companion(sys_id, message):
             return
         reassembler = self.reassemblers.get(sys_id)
-        active = self.current_targets.get(sys_id)
+        active = self.current_pois.get(sys_id)
         if reassembler is None or active is None:
             return
-        image_b64 = reassembler.on_chunk(message, active.target_id)
+        image_b64 = reassembler.on_chunk(message, active.poi_id)
         if image_b64 is None:
             return
-        self.current_targets.pop(sys_id, None)
+        self.current_pois.pop(sys_id, None)
 
-        if not self._accept_image(sys_id, active.target_id, active.round_uid):
+        if not self._accept_image(sys_id, active.poi_id, active.round_uid):
             log.info(
-                "Dropping thumbnail for vehicle %d target %d: no matching round",
+                "Dropping thumbnail for vehicle %d POI %d: no matching round",
                 sys_id,
-                active.target_id,
+                active.poi_id,
             )
             return
 
         self._broadcast({
             "type": "task_confirm_image",
             "sys_id": sys_id,
-            "task_id": active.target_id,
+            "task_id": active.poi_id,
             "image_b64": image_b64,
             "round_uid": active.round_uid,
         })

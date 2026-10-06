@@ -18,11 +18,11 @@ class ConfirmationReview:
         self._local = local
         self._operator_review = operator_review
 
-    def confirm_local(self, target: DetectedObject) -> None:
-        self._local.publish(target)
+    def confirm_local(self, poi: DetectedObject) -> None:
+        self._local.publish(poi)
 
-    def request_operator_review(self, target: DetectedObject) -> None:
-        self._operator_review.publish(target)
+    def request_operator_review(self, poi: DetectedObject) -> None:
+        self._operator_review.publish(poi)
 
 
 __all__ = ["ConfirmationReview"]

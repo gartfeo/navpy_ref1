@@ -51,58 +51,58 @@ class ConfirmationInboundHandler:
             or message.subject_type != SUBJECT_TYPE_THUMBNAIL
         ):
             return
-        target = self._state.pending_target(message.subject_id)
-        if target is None:
+        poi = self._state.pending_poi(message.subject_id)
+        if poi is None:
             return
         try:
             self._state.send_pending_if_current(
                 message.subject_id,
-                target,
+                poi,
                 ConfirmationRequestRef.from_meta(message.meta),
-                lambda: self._media.send(target, message.subject_id),
+                lambda: self._media.send(poi, message.subject_id),
             )
         except OSError as exc:
             self._logger.error(
                 f"Failed to resend confirmation thumbnail for "
-                f"T{message.subject_id}: {exc}",
+                f"P{message.subject_id}: {exc}",
                 exc,
             )
 
     def handle_response(self, message: TaskConfirmResponseMsg) -> None:
-        target_id = message.task_id
+        poi_id = message.task_id
         result = self._state.resolve_response(
-            target_id,
+            poi_id,
             message.is_confirmed,
             ConfirmationRequestRef.from_meta(message.meta),
         )
         if result is ConfirmationResponseKind.CONFIRMED:
             self._logger.info(
-                f"Target {target_id} confirmed by ground station.",
+                f"POI {poi_id} confirmed by ground station.",
                 key="nav_state",
-                status=f"T{target_id} confirmed by GCS",
+                status=f"P{poi_id} confirmed by GCS",
                 dest=LogStatusDest.DRONE,
             )
         elif result is ConfirmationResponseKind.REJECTED:
             self._logger.info(
-                f"Target {target_id} rejected by ground station.",
+                f"POI {poi_id} rejected by ground station.",
                 key="nav_state",
-                status=f"T{target_id} rejected by GCS",
+                status=f"P{poi_id} rejected by GCS",
                 dest=LogStatusDest.DRONE,
             )
         elif result is ConfirmationResponseKind.CANCELLATION_REQUESTED:
             self._logger.info(
-                f"Cancellation requested for task {target_id} by ground station.",
+                f"Cancellation requested for task {poi_id} by ground station.",
                 key="nav_state",
-                status=f"T{target_id} rejected by GCS",
+                status=f"P{poi_id} rejected by GCS",
                 dest=LogStatusDest.DRONE,
             )
         elif result is ConfirmationResponseKind.LATE_OR_DUPLICATE:
             self._logger.warning(
-                f"Ignoring late or duplicate confirmation for T{target_id}."
+                f"Ignoring late or duplicate confirmation for P{poi_id}."
             )
         elif result is ConfirmationResponseKind.ALREADY_REJECTED:
             self._logger.warning(
-                f"Ignoring confirm for already-rejected T{target_id}.",
+                f"Ignoring confirm for already-rejected P{poi_id}.",
                 key="nav_state",
                 dest=LogStatusDest.DRONE,
             )

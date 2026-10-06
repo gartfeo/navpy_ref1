@@ -26,43 +26,43 @@ class LosAngleCalculator:
 
     def calc_yaw_pitch_proj_att(
         self,
-        target_att: Attitude,
+        poi_att: Attitude,
         uas_att: Attitude,
     ) -> tuple[float, float]:
-        return self.calc_yaw_pitch_proj(self.calc_uas_ned(target_att), uas_att)
+        return self.calc_yaw_pitch_proj(self.calc_uas_ned(poi_att), uas_att)
 
     def calc_yaw_pitch_proj(
         self,
-        target_ned: Sequence[float] | np.ndarray,
+        poi_ned: Sequence[float] | np.ndarray,
         uas_att: Attitude,
     ) -> tuple[float, float]:
         level_attitude = Attitude(uas_att.pitch, uas_att.yaw, 0)
         ned_to_uas = np.transpose(
             self._frame.rotation_to_ned(level_attitude)
         )
-        target_uas = ned_to_uas @ target_ned
-        yaw, pitch = calculate_yaw_pitch(target_uas, [1, 0, 0])
+        poi_uas = ned_to_uas @ poi_ned
+        yaw, pitch = calculate_yaw_pitch(poi_uas, [1, 0, 0])
         return wrap_180(yaw), wrap_180(pitch)
 
     def calc_pitch_los(
         self,
-        target_ned: Sequence[float] | np.ndarray,
+        poi_ned: Sequence[float] | np.ndarray,
         uas_att: Attitude,
     ) -> float:
         """Return true LOS elevation error, positive nose-down."""
-        north = float(target_ned[0])
-        east = float(target_ned[1])
-        down = float(target_ned[2])
+        north = float(poi_ned[0])
+        east = float(poi_ned[1])
+        down = float(poi_ned[2])
         elevation = math.degrees(math.atan2(down, math.hypot(north, east)))
         return wrap_180(elevation + uas_att.pitch)
 
     def calc_yaw_pitch(
         self,
-        target_ned: Sequence[float] | np.ndarray,
+        poi_ned: Sequence[float] | np.ndarray,
         uas_att: Attitude,
     ) -> tuple[float, float]:
         uas_ned = self.calc_uas_ned(uas_att)
-        euler = get_euler_rotation_angles(target_ned, uas_ned, seq="ZYZ")
+        euler = get_euler_rotation_angles(poi_ned, uas_ned, seq="ZYZ")
         pitch = wrap_180(euler[1])
         yaw = wrap_180(euler[0] + euler[2])
         return -yaw, pitch
@@ -73,23 +73,23 @@ class LosAngleCalculator:
     def calc_yaw_pitch_loc(
         self,
         current_loc: Location,
-        target_loc: Location,
+        poi_loc: Location,
         uas_att: Attitude,
     ) -> tuple[float, float]:
         uas_ned = self.calc_uas_ned(
             Attitude(uas_att.pitch, uas_att.yaw, 0)
         )
-        target_ned = pymap3d.geodetic2ned(
-            target_loc.lat,
-            target_loc.lng,
-            target_loc.alt,
+        poi_ned = pymap3d.geodetic2ned(
+            poi_loc.lat,
+            poi_loc.lng,
+            poi_loc.alt,
             current_loc.lat,
             current_loc.lng,
             current_loc.alt,
         )
         euler = get_euler_rotation_angles(
             uas_ned,
-            target_ned,
+            poi_ned,
             seq="ZYZ",
             degrees=True,
         )

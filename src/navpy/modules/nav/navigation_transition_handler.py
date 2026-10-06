@@ -113,8 +113,8 @@ class NavigationTransitionHandler:
 
     def _reset_confirmation(self, entered_at: float | None) -> None:
         self._confirm.entered_at = entered_at
-        self._confirm.zoom_had_target = False
-        self._confirm.zoom_seen_target = False
+        self._confirm.zoom_had_poi = False
+        self._confirm.zoom_seen_poi = False
         self._confirm.resets_used = 0
         self._confirm.loss_started_at = None
         self._confirm.review_started_at = None

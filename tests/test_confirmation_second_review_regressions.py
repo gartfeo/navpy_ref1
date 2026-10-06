@@ -31,9 +31,9 @@ from navpy.modules.nav.confirmation_round_transaction import (
     ConfirmationRequestRef,
     ConfirmationResponseKind,
 )
-from navpy.modules.nav.peer_target_dispatch import (
-    PeerTargetDispatchPorts,
-    PeerTargetDispatchWorker,
+from navpy.modules.nav.peer_poi_dispatch import (
+    PeerPoiDispatchPorts,
+    PeerPoiDispatchWorker,
 )
 from navpy.modules.nav.self_assignment_publisher import SelfAssignmentPublisher
 from navpy.modules.nav.confirmation_coordinator import (
@@ -43,7 +43,7 @@ from navpy.modules.nav.confirmation_media import ConfirmationMedia
 from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState, ConfirmationStatus
 from navpy.modules.swarm.task_actor_state import create_task_state
 from navpy.modules.swarm.task_assignment_planner import MinimumEtaAssignmentPlanner
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -68,10 +68,10 @@ def test_new_review_invalidates_prior_recall_authority(
     network: object | None,
 ) -> None:
     state = ConfirmationManagerState()
-    target = make_detected_target(obj_id=7, task_id=7)
+    poi = make_detected_poi(obj_id=7, task_id=7)
     old_ref = ConfirmationRequestRef(101, 1)
-    old_worker = state.start_review(target, threading.Event)
-    old_round = state.begin_round(target, old_worker, threading.Event, old_ref)
+    old_worker = state.start_review(poi, threading.Event)
+    old_round = state.begin_round(poi, old_worker, threading.Event, old_ref)
     assert old_round is not None
     assert state.complete_round(old_round, ConfirmationStatus.CONFIRMED)
     state.finish_worker(old_worker)
@@ -87,7 +87,7 @@ def test_new_review_invalidates_prior_recall_authority(
         event_factory=threading.Event,
         thread_factory=lambda **kwargs: _InlineThread(**kwargs),
     )
-    coordinator.review([target])
+    coordinator.review([poi])
     assert state.registry.status_by_id(7) is ConfirmationStatus.CONFIRMED
 
     result = state.resolve_response(7, False, old_ref)
@@ -194,7 +194,7 @@ class _ReleaseBarrierLock:
 def _image_listener(uid: str = "1:1"):
     listener = TaskConfirmListener(Mock())
     listener._rounds.classify(1, 7, uid, 1.0, 120.0)
-    listener._images.current_targets[1] = ActiveImage(7, uid)
+    listener._images.current_pois[1] = ActiveImage(7, uid)
     reassembler = Mock()
     reassembler.on_chunk.return_value = "aW1hZ2U="
     listener._images.reassemblers[1] = reassembler
@@ -226,33 +226,33 @@ def test_image_acceptance_does_not_mark_replacement_round_at_lock_barrier() -> N
     assert (1, 7) not in listener._rounds._image_received
 
 
-def test_peer_notify_oserror_keeps_target_retryable() -> None:
+def test_peer_notify_oserror_keeps_poi_retryable() -> None:
     statuses: set[int] = set()
     failed = threading.Event()
     succeeded = threading.Event()
     attempts = 0
 
-    def notify(_targets) -> None:
+    def notify(_pois) -> None:
         nonlocal attempts
         attempts += 1
         if attempts == 1:
             raise OSError("radio unavailable")
         succeeded.set()
 
-    worker = PeerTargetDispatchWorker(PeerTargetDispatchPorts(
-        active_target=lambda: None,
-        resolve_location=lambda _target: Location(1.0, 2.0, 3.0),
-        status_exists=lambda target: target.identity.task_id in statuses,
-        mark_notified=lambda target: statuses.add(target.identity.task_id),
-        notify_targets=notify,
+    worker = PeerPoiDispatchWorker(PeerPoiDispatchPorts(
+        active_poi=lambda: None,
+        resolve_location=lambda _poi: Location(1.0, 2.0, 3.0),
+        status_exists=lambda poi: poi.identity.task_id in statuses,
+        mark_notified=lambda poi: statuses.add(poi.identity.task_id),
+        notify_pois=notify,
         warn=lambda _message: None,
         error=lambda _message, _error: failed.set(),
     ))
     worker.start()
     try:
-        worker.submit([make_detected_target(obj_id=7, task_id=7)])
+        worker.submit([make_detected_poi(obj_id=7, task_id=7)])
         assert failed.wait(1.0)
-        worker.submit([make_detected_target(obj_id=7, task_id=7)])
+        worker.submit([make_detected_poi(obj_id=7, task_id=7)])
         assert succeeded.wait(1.0)
         assert attempts == 2
         assert statuses == {7}
@@ -325,13 +325,13 @@ def test_self_assignment_programmer_error_propagates() -> None:
         network=lambda: network,
         logger=Mock(),
     )
-    target = make_detected_target(
+    poi = make_detected_poi(
         obj_id=7,
         task_id=7,
         p_t_g_l=Location(1.0, 2.0, 3.0),
     )
     with pytest.raises(TypeError, match="bad broadcast signature"):
-        publisher.publish(target)
+        publisher.publish(poi)
 
 
 def test_confirmation_artifact_programmer_error_propagates() -> None:
@@ -345,14 +345,14 @@ def test_confirmation_artifact_programmer_error_propagates() -> None:
         thumbnail_builder=lambda **_kwargs: "aW1hZ2U=",
         artifact_saver=Mock(side_effect=TypeError("bad artifact signature")),
     )
-    target = make_detected_target(
+    poi = make_detected_poi(
         obj_id=7,
         task_id=7,
         detection_frame=object(),
         bbox_cxcywh=(1.0, 1.0, 1.0, 1.0),
     )
     with pytest.raises(TypeError, match="bad artifact signature"):
-        media.send(target, 7)
+        media.send(poi, 7)
 
 
 def test_auction_cleanup_attempts_all_and_surfaces_exception_group() -> None:

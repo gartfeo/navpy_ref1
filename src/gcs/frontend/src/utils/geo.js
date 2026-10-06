@@ -383,14 +383,14 @@ function _spliceCorridorXY(ring, isBase, pathXY, half, flip) {
  * Inclusion geofence covering everything the UAVs actually touch:
  *
  * - the search zone,
- * - each ASSIGNED target's confirmation-orbit circle (orbit radius; the
+ * - each ASSIGNED POI's confirmation-orbit circle (orbit radius; the
  *   outward margin then adds on top → circle of orbit + margin),
  * - each takeoff corridor as a corridor-shaped TUBE arm (half-width = margin,
  *   launch cap covering the takeoff round) — grafted into the ring rather
  *   than dumped into the hull, so a distant launch doesn't balloon the fence
  *   into the huge hull triangle between launch and zone.
  *
- * Base area = convexHull(zone ∪ target orbit circles), corridors grafted as
+ * Base area = convexHull(zone ∪ POI orbit circles), corridors grafted as
  * spurs, then the whole ring offset outward by ``marginM`` (widening each spur
  * to a full tube). The result is accepted only when it is a simple polygon
  * that passes the segment-level ``fenceCoversPlan`` check; otherwise it falls
@@ -401,19 +401,19 @@ function _spliceCorridorXY(ring, isBase, pathXY, half, flip) {
  *
  * @param {Array<{lat,lon}>} zone - search polygon
  * @param {Array<Array<{lat,lon}>>} transitPaths - one [launch, ...corridor] per set
- * @param {Array<{lat,lon}>} targets - ASSIGNED fallback locations + simulated targets
+ * @param {Array<{lat,lon}>} pois - ASSIGNED fallback locations + simulated POIs
  * @param {{marginM?:number, takeoffRadiusM?:number, orbitRadiusM?:number}} opts
  * @returns {Array<{lat,lon}>}
  */
-export function fenceInclusion(zone, transitPaths, targets, opts = {}) {
+export function fenceInclusion(zone, transitPaths, pois, opts = {}) {
   const marginM = opts.marginM ?? DEFAULT_FENCE_OFFSET_M;
   const takeoffR = opts.takeoffRadiusM ?? 0;
   const orbitR = opts.orbitRadiusM ?? 0;
 
-  // Area contributors: the zone plus each target's confirmation orbit.
+  // Area contributors: the zone plus each POI's confirmation orbit.
   const basePts = [];
   for (const p of (zone || [])) basePts.push({ lat: p.lat, lon: p.lon });
-  for (const t of (targets || [])) {
+  for (const t of (pois || [])) {
     if (!t) continue;
     basePts.push({ lat: t.lat, lon: t.lon });
     if (orbitR > 0) basePts.push(...circlePointsLL(t, orbitR));
@@ -463,7 +463,7 @@ export function fenceInclusion(zone, transitPaths, targets, opts = {}) {
     if (!ok) break;
     const fence = _offsetRingXY(ring, marginM).map(toLL);
     if (isSimpleRing(fence)
-        && fenceCoversPlan(fence, zone, transitPaths, targets, opts)) {
+        && fenceCoversPlan(fence, zone, transitPaths, pois, opts)) {
       return fence;
     }
   }

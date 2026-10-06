@@ -2,7 +2,7 @@
 
 Both live here because both are the source's MUTABLE state, and the source
 owns exactly one lock for all of it: every field below is read and written
-under ``DirectTargetPixelSource._lock``. Keeping them in one holder is what
+under ``DirectPoiPixelSource._lock``. Keeping them in one holder is what
 lets the source stay a message handler instead of also being a state bag.
 """
 

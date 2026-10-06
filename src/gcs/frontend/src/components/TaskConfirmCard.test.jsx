@@ -84,7 +84,7 @@ describe('TaskConfirmCard auto-timeout', () => {
     advance((TIMEOUT_SEC + 1) * 1000);
     expect(handlers.onDeny).toHaveBeenCalledTimes(1);
 
-    // Round B for the same target: fresh uid, fresh receivedAt, pending again.
+    // Round B for the same POI: fresh uid, fresh receivedAt, pending again.
     const roundB = entryFor({ roundUid: '424242:12' });
     rerender(cardFor(roundB, handlers));
 
@@ -131,7 +131,7 @@ describe('TaskConfirmCard forced press-and-hold', () => {
 
   it('does not let a hold started on one round approve the next one', () => {
     // Without a per-round reset the operator's in-progress hold keeps running
-    // across a re-ask and approves a target they were never shown -- the exact
+    // across a re-ask and approves a POI they were never shown -- the exact
     // accidental approve the press-and-hold exists to prevent.
     const handlers = { onApprove: vi.fn(), onDeny: vi.fn(), onCancel: vi.fn() };
     const view = renderCard(entryFor({ roundUid: '424242:11' }), handlers, { forced: true });
@@ -140,7 +140,7 @@ describe('TaskConfirmCard forced press-and-hold', () => {
     advance(LONG_PRESS_MS - 200);
     expect(handlers.onApprove).not.toHaveBeenCalled();
 
-    // Round B arrives mid-hold (same target, new round).
+    // Round B arrives mid-hold (same POI, new round).
     view.rerender(cardFor(entryFor({ roundUid: '424242:12' }), handlers, { forced: true }));
     advance(LONG_PRESS_MS);
 

@@ -44,8 +44,8 @@ class NavigationStatusEmitter:
         x_text = str(x_err_center) if x_err_center is not None else "N/A"
         y_text = str(y_err_center) if y_err_center is not None else "N/A"
         term_text = (
-            f"{sample.terminal_angle:.1f}"
-            if sample.terminal_angle is not None
+            f"{sample.final_approach_angle:.1f}"
+            if sample.final_approach_angle is not None
             else "N/A"
         )
         actual_roll_text = _optional_angle_text(sample.actual_roll)
@@ -55,15 +55,15 @@ class NavigationStatusEmitter:
             sample.current_location,
             sample.detected_current_location,
         )
-        target_delta = calc_distance(
-            sample.target_location,
-            sample.detected_target_location,
+        poi_delta = calc_distance(
+            sample.poi_location,
+            sample.detected_poi_location,
         )
         debug_text = (
             f"c_l ({current_delta:.1f}m): "
             f"{sample.detected_current_location} [{sample.current_location}], "
-            f"t_l ({target_delta:.1f}m): "
-            f"{sample.detected_target_location} [{sample.target_location}], "
+            f"t_l ({poi_delta:.1f}m): "
+            f"{sample.detected_poi_location} [{sample.poi_location}], "
             f"term: {term_text}"
         )
         self._logger.info(

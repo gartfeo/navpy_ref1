@@ -40,7 +40,7 @@ class DetectorDiagnostics:
         metrics: RuntimeMetrics,
         identity: TrackIdentityResolver,
         overlay_renderer: DetectorOverlayRenderer,
-        use_target_lock: bool,
+        use_poi_lock: bool,
         config: DetectorDebugConfig,
         logger: ILogger,
     ) -> None:
@@ -51,7 +51,7 @@ class DetectorDiagnostics:
         self._metrics = metrics
         self._identity = identity
         self._overlay_renderer = overlay_renderer
-        self._use_target_lock = bool(use_target_lock)
+        self._use_poi_lock = bool(use_poi_lock)
         self._config = config
         self._logger = logger
         self._ui_initialized = False
@@ -91,7 +91,7 @@ class DetectorDiagnostics:
             tracks,
             locked,
             fps_est=self._metrics.tracking_fps,
-            use_lock=self._use_target_lock,
+            use_lock=self._use_poi_lock,
         )
 
     def ui_step(self) -> bool:

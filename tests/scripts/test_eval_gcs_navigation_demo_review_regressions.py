@@ -55,7 +55,7 @@ class _Clock:
         self.now += seconds
 
 
-def _terminal_row(
+def _final_approach_row(
     wall: str,
     *,
     obs: float,
@@ -183,20 +183,20 @@ def test_confirmation_rejects_legacy_uid_for_certification():
         )
 
 
-def test_terminal_command_rows_are_atomic_ordered_and_retain_unissued(tmp_path):
+def test_final_approach_command_rows_are_atomic_ordered_and_retain_unissued(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
         "ts,event,payload,,,,,,,,,\n"
-        + _terminal_row("12:00:00.000", obs=1.0, roll="10.0")
-        + _terminal_row("12:00:00.010", obs=1.1, roll="", issued="False")
-        + _terminal_row(
+        + _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
+        + _final_approach_row("12:00:00.010", obs=1.1, roll="", issued="False")
+        + _final_approach_row(
             "12:00:00.020", obs=1.2, roll="", issued="False", passed="True"
         ),
         encoding="utf-8",
     )
 
-    records = evidence.parse_terminal_commands(path)
+    records = evidence.parse_final_approach_commands(path)
 
     assert len(records) == 3
     assert [record.obs_ts for record in records] == [1.0, 1.1, 1.2]
@@ -206,33 +206,33 @@ def test_terminal_command_rows_are_atomic_ordered_and_retain_unissued(tmp_path):
     assert records[2].passed is True
 
 
-def test_terminal_episode_allows_repeated_pass_suppression_before_snap(tmp_path):
+def test_final_approach_episode_allows_repeated_pass_suppression_before_snap(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     metrics = importlib.import_module("scripts.eval_gcs_demo_metrics")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
-        _terminal_row("12:00:00.000", obs=1.0, roll="10.0")
-        + _terminal_row(
+        _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
+        + _final_approach_row(
             "12:00:00.010", obs=1.1, roll="", issued="False", passed="True"
         )
-        + _terminal_row(
+        + _final_approach_row(
             "12:00:00.020", obs=1.2, roll="", issued="False", passed="True"
         )
         + "12:00:00.030,EVENT:SNAP_COMPONENTS,algorithm=VISION-NAV-PN,,,,,,,,,\n",
         encoding="utf-8",
     )
 
-    episodes = evidence.parse_terminal_command_episodes(path)
+    episodes = evidence.parse_final_approach_command_episodes(path)
 
     assert len(episodes) == 1
     assert [command.passed for command in episodes[0]] == [False, True, True]
-    assert metrics.score_terminal_commands(
+    assert metrics.score_final_approach_commands(
         episodes[0],
         roll_limit_deg=45.0,
         saturation_margin_deg=0.5,
         significant_roll_deg=10.0,
     ).sample_count == 1
-    assert metrics.terminal_timing(episodes[0]).observed_speedup == pytest.approx(
+    assert metrics.final_approach_timing(episodes[0]).observed_speedup == pytest.approx(
         10.0
     )
 
@@ -242,7 +242,7 @@ def test_pass_suppressed_tail_cannot_mask_slow_issued_timing(tmp_path):
     metrics = importlib.import_module("scripts.eval_gcs_demo_metrics")
     path = tmp_path / "navigation_debug.csv"
     issued = "".join(
-        _terminal_row(
+        _final_approach_row(
             f"12:00:00.{index * 50:03d}",
             obs=1.0 + index * 0.1,
             roll="10.0",
@@ -250,7 +250,7 @@ def test_pass_suppressed_tail_cannot_mask_slow_issued_timing(tmp_path):
         for index in range(10)
     )
     passed = "".join(
-        _terminal_row(
+        _final_approach_row(
             f"12:00:00.{450 + index * 10:03d}",
             obs=1.9 + index * 0.1,
             roll="",
@@ -261,37 +261,37 @@ def test_pass_suppressed_tail_cannot_mask_slow_issued_timing(tmp_path):
     )
     path.write_text(issued + passed, encoding="utf-8")
 
-    timing = metrics.terminal_timing(evidence.parse_terminal_commands(path))
+    timing = metrics.final_approach_timing(evidence.parse_final_approach_commands(path))
 
     assert timing.observed_speedup == pytest.approx(2.0)
     assert timing.median_wall_gap_s == pytest.approx(0.05)
 
 
-def test_terminal_episode_rejects_an_issued_command_after_pass(tmp_path):
+def test_final_approach_episode_rejects_an_issued_command_after_pass(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
-        _terminal_row("12:00:00.000", obs=1.0, roll="10.0")
-        + _terminal_row(
+        _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
+        + _final_approach_row(
             "12:00:00.010", obs=1.1, roll="", issued="False", passed="True"
         )
-        + _terminal_row("12:00:00.020", obs=1.2, roll="11.0"),
+        + _final_approach_row("12:00:00.020", obs=1.2, roll="11.0"),
         encoding="utf-8",
     )
 
     with pytest.raises(ValueError, match="after pass"):
-        evidence.parse_terminal_command_episodes(path)
+        evidence.parse_final_approach_command_episodes(path)
 
 
-def test_terminal_bool_tokens_are_strict(tmp_path):
+def test_final_approach_bool_tokens_are_strict(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
-        _terminal_row("12:00:00.000", obs=1.0, roll="10", issued="1"),
+        _final_approach_row("12:00:00.000", obs=1.0, roll="10", issued="1"),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="issued"):
-        evidence.parse_terminal_commands(path)
+        evidence.parse_final_approach_commands(path)
 
 
 @pytest.mark.parametrize(
@@ -305,14 +305,14 @@ def test_terminal_bool_tokens_are_strict(tmp_path):
         ({"throttle": "1.1"}, "cmd_thr"),
     ],
 )
-def test_terminal_command_domains_are_strict(tmp_path, overrides, message):
+def test_final_approach_command_domains_are_strict(tmp_path, overrides, message):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     values = {"obs": 1.0, "roll": "10.0", **overrides}
     path = tmp_path / "navigation_debug.csv"
-    path.write_text(_terminal_row("12:00:00.000", **values), encoding="utf-8")
+    path.write_text(_final_approach_row("12:00:00.000", **values), encoding="utf-8")
 
     with pytest.raises(ValueError, match=message):
-        evidence.parse_terminal_commands(path)
+        evidence.parse_final_approach_commands(path)
 
 
 def test_source_gap_is_raw_and_observed_speedup_is_a_ratio(tmp_path):
@@ -320,14 +320,14 @@ def test_source_gap_is_raw_and_observed_speedup_is_a_ratio(tmp_path):
     metrics = importlib.import_module("scripts.eval_gcs_demo_metrics")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
-        _terminal_row("12:00:00.000", obs=1.0, roll="10")
-        + _terminal_row("12:00:00.010", obs=1.1, roll="11")
-        + _terminal_row(
+        _final_approach_row("12:00:00.000", obs=1.0, roll="10")
+        + _final_approach_row("12:00:00.010", obs=1.1, roll="11")
+        + _final_approach_row(
             "12:00:00.020", obs=1.2, roll="", issued="False", passed="True"
         ),
         encoding="utf-8",
     )
-    timing = metrics.terminal_timing(evidence.parse_terminal_commands(path))
+    timing = metrics.final_approach_timing(evidence.parse_final_approach_commands(path))
     assert timing.max_source_gap_s == pytest.approx(0.1)
     assert timing.observed_speedup == pytest.approx(10.0)
 
@@ -338,18 +338,18 @@ def test_saturation_touching_explicit_pass_is_still_scored(tmp_path):
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
         "".join(
-            _terminal_row(
+            _final_approach_row(
                 f"12:00:00.0{index}0", obs=1.0 + index / 10, roll="45.0"
             )
             for index in range(3)
         )
-        + _terminal_row(
+        + _final_approach_row(
             "12:00:00.030", obs=1.3, roll="", issued="False", passed="True"
         ),
         encoding="utf-8",
     )
-    score = metrics.score_terminal_commands(
-        evidence.parse_terminal_commands(path),
+    score = metrics.score_final_approach_commands(
+        evidence.parse_final_approach_commands(path),
         roll_limit_deg=45.0,
         saturation_margin_deg=0.5,
         significant_roll_deg=10.0,
@@ -412,8 +412,8 @@ def test_resolved_plan_requires_owner_identity_and_command_bearing_nav_rows(tmp_
 
     plan = scenario.resolve_demo_plan(ids, mission)
 
-    assert [target.nav_waypoint_ordinal for target in plan.targets] == [3, 4, 7]
-    assert [target.lat for target in plan.targets] == pytest.approx(
+    assert [poi.nav_waypoint_ordinal for poi in plan.pois] == [3, 4, 7]
+    assert [poi.lat for poi in plan.pois] == pytest.approx(
         [rows[index - 1]["lat"] for index in (3, 4, 7)]
     )
     path = tmp_path / "resolved-plan.json"
@@ -421,7 +421,7 @@ def test_resolved_plan_requires_owner_identity_and_command_bearing_nav_rows(tmp_
     assert scenario.load_resolved_plan(path) == plan
     serialized = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(serialized["vehicles"], list)
-    assert isinstance(serialized["targets"], list)
+    assert isinstance(serialized["pois"], list)
     with pytest.raises(ValueError, match="response sys_id"):
         scenario.resolve_demo_plan(ids, {**mission, "sys_id": 4})
     bad_rows = list(rows)
@@ -886,12 +886,12 @@ def test_facade_exact_reexports_and_all_modules_meet_budgets():
     assert not violations, "\n".join(violations)
 
 
-def test_evaluator_has_no_magic_target_mask_regex_or_owner_order_inference():
+def test_evaluator_has_no_magic_poi_mask_regex_or_owner_order_inference():
     text = (ROOT / "scripts" / "eval_gcs_navigation_demo.py").read_text(
         encoding="utf-8"
     )
-    assert "OWNER_TARGET_MASK" not in text
-    assert "_OWNER_TARGET_RE" not in text
+    assert "OWNER_POI_MASK" not in text
+    assert "_OWNER_POI_RE" not in text
     assert "actual_ids[0]" not in text
     assert "actual_ids[:EXPECTED_UAV_COUNT]" not in text
     assert "= 76" not in text

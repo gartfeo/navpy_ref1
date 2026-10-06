@@ -8,7 +8,7 @@ from typing import Callable, Optional, Protocol
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.modules.nav.nav_constants import CONFIRM_FRESH_DETECTION_MAX_AGE_S
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_priority import find_target_by_task_id
+from navpy.modules.vision.poi_priority import find_poi_by_task_id
 
 
 class DetectionReceiptAgeQuery(Protocol):
@@ -16,7 +16,7 @@ class DetectionReceiptAgeQuery(Protocol):
 
     def source_receipt_age_s(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
     ) -> Optional[float]: ...
 
 
@@ -85,10 +85,10 @@ class DetectionFreshnessPolicy:
             and 0.0 <= receipt_age_s <= receipt_wall_max_age_s
         )
 
-    def is_target_fresh_for_confirm(self, target_id: int) -> bool:
-        detection = find_target_by_task_id(
-            self._detections.targets(),
-            target_id,
+    def is_poi_fresh_for_confirm(self, poi_id: int) -> bool:
+        detection = find_poi_by_task_id(
+            self._detections.pois(),
+            poi_id,
         )
         return (
             detection is not None

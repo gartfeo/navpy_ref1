@@ -9,19 +9,19 @@ import numpy as np
 
 
 @dataclass(frozen=True)
-class TargetInfo:
-    target_id: int
+class PoiInfo:
+    poi_id: int
     bbox: tuple[float, float, float, float]
     confidence: float = 1.0
     class_name: str = "Detection"
 
 
-def crop_target(
+def crop_poi(
     frame: np.ndarray,
     bbox: tuple[float, float, float, float],
     size: tuple[int, int],
 ) -> tuple[np.ndarray, tuple[float, float, float, float]]:
-    """Crop around one target and return its coordinates in the crop."""
+    """Crop around one POI and return its coordinates in the crop."""
     frame_height, frame_width = frame.shape[:2]
     cx, cy, bbox_width, bbox_height = bbox
     bbox_max = max(bbox_width, bbox_height, 1)
@@ -89,9 +89,9 @@ def draw_low_res_banner(img: np.ndarray) -> None:
     )
 
 
-def draw_target_box(
+def draw_poi_box(
     img: np.ndarray,
-    target_id: int,
+    poi_id: int,
     bbox: tuple[float, float, float, float],
     confidence: float = 1.0,
     class_name: str = "Detection",
@@ -109,7 +109,7 @@ def draw_target_box(
     font_scale = max(0.35, frame_height / 600)
     cv2.rectangle(img, (x1, y1), (x2, y2), color, thickness)
 
-    label = f"D{target_id} {class_name} {int(confidence * 100)}%"
+    label = f"D{poi_id} {class_name} {int(confidence * 100)}%"
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_thickness = max(1, round(frame_height / 400))
     (label_width, label_height), _ = cv2.getTextSize(
@@ -135,4 +135,4 @@ def draw_target_box(
     )
 
 
-__all__ = ["TargetInfo", "crop_target", "draw_low_res_banner", "draw_target_box"]
+__all__ = ["PoiInfo", "crop_poi", "draw_low_res_banner", "draw_poi_box"]

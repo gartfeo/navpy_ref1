@@ -22,7 +22,7 @@ export function handleClick(Cesium, viewer, click, callbacksRef) {
     return;
   }
 
-  // Sim target toggle — click track waypoint dots in sim mode
+  // Sim POI toggle — click track waypoint dots in sim mode
   if (cb.simMode && cb.editable && cb.onToggleSimDock) {
     const hit = pickEntity(Cesium, viewer, click.position);
     if (hit && hit.type === 'trackWp') {

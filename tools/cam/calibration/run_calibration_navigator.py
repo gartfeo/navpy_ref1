@@ -31,7 +31,7 @@ from cam.calibration.board_detector import BoardDetector
 from cam.calibration.calibration_navigator import (
     CalibrationNavigator,
     NavigatorConfig,
-    compute_target_positions,
+    compute_poi_positions,
     measure_board_size,
 )
 from navpy.modules.common.models.attitude import Attitude
@@ -78,9 +78,9 @@ class OverlayState:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self.targets: list = []
+        self.pois: list = []
         self.active_idx: int = -1
-        self.target_xy: tuple[float, float] | None = None
+        self.poi_xy: tuple[float, float] | None = None
         self.status_lines: list[str] = []
         self.badge: tuple[str, bool] | None = None
         self.center: tuple[float, float] | None = None
@@ -91,14 +91,14 @@ class OverlayState:
         self.manual_pitch: float = 0.0
         self.zoom_level: float = 1.0
 
-    def set_targets(self, targets, active_idx=-1):
+    def set_pois(self, pois, active_idx=-1):
         with self._lock:
-            self.targets = list(targets)
+            self.pois = list(pois)
             self.active_idx = active_idx
 
-    def set_target_xy(self, xy):
+    def set_poi_xy(self, xy):
         with self._lock:
-            self.target_xy = xy
+            self.poi_xy = xy
 
     def set_status(self, *lines):
         with self._lock:
@@ -145,9 +145,9 @@ class OverlayState:
     def snapshot(self):
         with self._lock:
             return (
-                list(self.targets),
+                list(self.pois),
                 self.active_idx,
-                self.target_xy,
+                self.poi_xy,
                 list(self.status_lines),
                 self.badge,
                 self.center,
@@ -215,24 +215,24 @@ class DummyGimbal(GimbalAbc):
 # Drawing helpers
 # ---------------------------------------------------------------------------
 
-def draw_overlay(frame, targets, active_idx, target_xy, status_lines, badge, center):
+def draw_overlay(frame, pois, active_idx, poi_xy, status_lines, badge, center):
     disp = frame.copy()
-    # Targets
-    for i, (tx, ty, label) in enumerate(targets):
+    # POIs
+    for i, (tx, ty, label) in enumerate(pois):
         color = (0, 255, 255) if i == active_idx else (80, 80, 80)
         thickness = 2 if i == active_idx else 1
         pt = (int(tx), int(ty))
         cv2.drawMarker(disp, pt, color, cv2.MARKER_DIAMOND, 20, thickness)
         cv2.putText(disp, label, (pt[0] + 12, pt[1] - 8),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
-    # Detection cross + line to target
+    # Detection cross + line to POI
     if center is not None:
         cx, cy = int(center[0]), int(center[1])
         cv2.drawMarker(disp, (cx, cy), (0, 0, 255), cv2.MARKER_CROSS, 20, 2)
-        if target_xy is not None:
-            tx, ty = int(target_xy[0]), int(target_xy[1])
+        if poi_xy is not None:
+            tx, ty = int(poi_xy[0]), int(poi_xy[1])
             cv2.line(disp, (cx, cy), (tx, ty), (255, 0, 255), 1)
-            error = np.hypot(target_xy[0] - center[0], target_xy[1] - center[1])
+            error = np.hypot(poi_xy[0] - center[0], poi_xy[1] - center[1])
             mid_x, mid_y = (cx + tx) // 2, (cy + ty) // 2
             cv2.putText(disp, f"{error:.0f}px", (mid_x + 5, mid_y - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
@@ -306,7 +306,7 @@ def parse_source(raw):
 # Worker thread — runs Jacobian + navigation in background
 # ---------------------------------------------------------------------------
 
-def worker_thread(nav, state, targets, no_gimbal, detector, fp, img_w, img_h, margin, positions):
+def worker_thread(nav, state, pois, no_gimbal, detector, fp, img_w, img_h, margin, positions):
     """Runs calibration phases in a background thread."""
     try:
         # Wait for SPACE from preview
@@ -323,21 +323,21 @@ def worker_thread(nav, state, targets, no_gimbal, detector, fp, img_w, img_h, ma
             state.set_phase("done")
             return
 
-        # Measure board size from current frame and recompute targets
+        # Measure board size from current frame and recompute POIs
         half_w, half_h = 0.0, 0.0
         frame, _, _ = fp.get_frame()
         if frame is not None:
             corners = detector.detect_corners(frame)
             if corners is not None:
                 half_w, half_h = measure_board_size(corners)
-                targets = compute_target_positions(
+                pois = compute_poi_positions(
                     img_w, img_h,
                     board_half_w=half_w, board_half_h=half_h,
                     positions=positions,
                 )
-                state.set_targets(targets)
+                state.set_pois(pois)
                 nav.set_frame_info(img_w, img_h, half_w, half_h)
-                logger.info("Board size: %.0fx%.0f px, adaptive targets computed",
+                logger.info("Board size: %.0fx%.0f px, adaptive POIs computed",
                             half_w * 2, half_h * 2)
             else:
                 logger.warning("Board not detected for size measurement, using fixed margin")
@@ -369,21 +369,21 @@ def worker_thread(nav, state, targets, no_gimbal, detector, fp, img_w, img_h, ma
         cur_yaw, cur_pitch = yaw, pitch
         results = []
 
-        for i, (tx, ty, label) in enumerate(targets):
+        for i, (tx, ty, label) in enumerate(pois):
             if state.is_quit():
                 break
 
-            logger.info("--- Target %d/%d: %s (%.0f, %.0f) ---",
-                        i + 1, len(targets), label, tx, ty)
+            logger.info("--- POI %d/%d: %s (%.0f, %.0f) ---",
+                        i + 1, len(pois), label, tx, ty)
 
-            target_xy = (tx, ty)
-            state.set_targets(targets, active_idx=i)
-            state.set_target_xy(target_xy)
+            poi_xy = (tx, ty)
+            state.set_pois(pois, active_idx=i)
+            state.set_poi_xy(poi_xy)
             state.set_status(f"Navigating to {label}...",
                              f"yaw={cur_yaw:.2f} pitch={cur_pitch:.2f}")
             state.set_badge(None)
 
-            result = nav.navigate_to(target_xy, cur_yaw, cur_pitch, jacobian=J)
+            result = nav.navigate_to(poi_xy, cur_yaw, cur_pitch, jacobian=J)
 
             reached_str = "OK" if result.reached else "FAIL"
             logger.info("  %s: %s (error=%.1f px, %d iters, yaw=%.2f pitch=%.2f)",
@@ -411,13 +411,13 @@ def worker_thread(nav, state, targets, no_gimbal, detector, fp, img_w, img_h, ma
         # Summary
         ok = sum(1 for _, r in results if r.reached)
         total = len(results)
-        logger.info("=== Done: %d/%d targets reached ===", ok, total)
+        logger.info("=== Done: %d/%d POIs reached ===", ok, total)
         for label, r in results:
             s = "OK" if r.reached else "FAIL"
             logger.info("  %s: %s  error=%.1f px", label, s, r.pixel_error)
 
         state.set_status(f"Done: {ok}/{total} reached -- press Q to exit")
-        state.set_target_xy(None)
+        state.set_poi_xy(None)
         state.set_badge(None)
         state.set_phase("done")
 
@@ -428,27 +428,27 @@ def worker_thread(nav, state, targets, no_gimbal, detector, fp, img_w, img_h, ma
 
 
 # ---------------------------------------------------------------------------
-# Target recomputation after zoom
+# POI recomputation after zoom
 # ---------------------------------------------------------------------------
 
-def _recompute_targets(detector, fp, state, img_w, img_h, args):
-    """Wait for zoom to settle, remeasure board, recompute targets."""
+def _recompute_pois(detector, fp, state, img_w, img_h, args):
+    """Wait for zoom to settle, remeasure board, recompute POIs."""
     time.sleep(0.8)  # let zoom settle + RTSP catch up
     frame, _, _ = fp.get_frame()
     if frame is None:
         return
     corners = detector.detect_corners(frame)
     if corners is None:
-        logger.warning("Board not detected after zoom, targets unchanged")
+        logger.warning("Board not detected after zoom, POIs unchanged")
         return
     half_w, half_h = measure_board_size(corners)
-    targets = compute_target_positions(
+    pois = compute_poi_positions(
         img_w, img_h,
         board_half_w=half_w, board_half_h=half_h,
         positions=args.positions,
     )
-    state.set_targets(targets)
-    logger.info("Zoom %.0fx: board %.0fx%.0f px, targets recomputed",
+    state.set_pois(pois)
+    logger.info("Zoom %.0fx: board %.0fx%.0f px, POIs recomputed",
                 state.zoom_level, half_w * 2, half_h * 2)
 
 
@@ -471,7 +471,7 @@ def parse_args():
     p.add_argument("--cols", type=int, default=7, help="Checkerboard inner cols")
     p.add_argument("--rows", type=int, default=5, help="Checkerboard inner rows")
     p.add_argument("--margin", type=float, default=0.15,
-                   help="Target margin from frame edges (0..0.5)")
+                   help="POI margin from frame edges (0..0.5)")
     p.add_argument("--tolerance", type=float, default=50.0,
                    help="Convergence tolerance in pixels")
     p.add_argument("--probe-step", type=float, default=3.0,
@@ -479,7 +479,7 @@ def parse_args():
     p.add_argument("--settle", type=float, default=0.8,
                    help="Settle time after gimbal move (seconds)")
     p.add_argument("--max-iter", type=int, default=10,
-                   help="Max steering iterations per target")
+                   help="Max steering iterations per POI")
     p.add_argument("--positions", nargs="*", default=None,
                    help="Subset of positions: TL TC TR ML C MR BL BC BR")
     return p.parse_args()
@@ -511,8 +511,8 @@ def main():
         if w == 0 or h == 0:
             raise RuntimeError("Cannot determine frame dimensions")
 
-        targets = compute_target_positions(w, h, margin=args.margin, positions=args.positions)
-        logger.info("Targets (%d): %s", len(targets), ", ".join(t[2] for t in targets))
+        pois = compute_poi_positions(w, h, margin=args.margin, positions=args.positions)
+        logger.info("POIs (%d): %s", len(pois), ", ".join(t[2] for t in pois))
 
         config = NavigatorConfig(
             probe_step_deg=args.probe_step,
@@ -524,7 +524,7 @@ def main():
 
         # Shared state
         state = OverlayState()
-        state.set_targets(targets)
+        state.set_pois(pois)
         state.set_status("Searching for checkerboard... Q to quit")
 
         # Background detector
@@ -533,7 +533,7 @@ def main():
         # Start worker thread (Jacobian + navigation)
         wt = threading.Thread(
             target=worker_thread,
-            args=(nav, state, targets, args.no_gimbal,
+            args=(nav, state, pois, args.no_gimbal,
                   detector, fp, w, h, args.margin, args.positions),
             daemon=True,
         )
@@ -584,13 +584,13 @@ def main():
                 if sdk:
                     sdk.requestAbsoluteZoom(state.zoom_level)
                 logger.info("Zoom: %.0fx", state.zoom_level)
-                _recompute_targets(detector, fp, state, w, h, args)
+                _recompute_pois(detector, fp, state, w, h, args)
             if key_ascii == ord("-"):
                 state.zoom_level = max(1.0, state.zoom_level - 1.0)
                 if sdk:
                     sdk.requestAbsoluteZoom(state.zoom_level)
                 logger.info("Zoom: %.0fx", state.zoom_level)
-                _recompute_targets(detector, fp, state, w, h, args)
+                _recompute_pois(detector, fp, state, w, h, args)
 
             # c key: center gimbal
             if key_ascii == ord("c"):

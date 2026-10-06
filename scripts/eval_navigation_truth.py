@@ -38,7 +38,7 @@ _SCRIPTS = str(Path(__file__).resolve().parent)
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
-from eval_navigation_models import PositionSample, TargetLocation  # noqa: E402
+from eval_navigation_models import PositionSample, PoiLocation  # noqa: E402
 from eval_navigation_scoring import CoordinateScorer  # noqa: E402
 from eval_navigation_truth_cpa import (  # noqa: E402
     canonical_samples, closure_evidence,
@@ -77,15 +77,15 @@ class TruthRecorder:
 
     def __init__(
         self,
-        target: TargetLocation,
+        poi: PoiLocation,
         home_abs_alt_m: float,
         *,
         monotonic_now: Callable[[], float] = time.monotonic,
     ) -> None:
-        self._target = target
+        self._poi = poi
         self._home_abs_alt_m = home_abs_alt_m
         self._monotonic_now = monotonic_now
-        self._scorer = CoordinateScorer(target)
+        self._scorer = CoordinateScorer(poi)
         self._records: list[TruthRecord] = []
         self._scoring_active_samples: list[PositionSample] = []
         self._overflowed = False
@@ -142,7 +142,7 @@ class TruthRecorder:
     def closure_ready(self) -> bool:
         """Cheap post-CPA check for the flight loop's trailing drain."""
         canonical, _ = canonical_samples(self._scoring_active_samples)
-        post_samples, rise, _ = closure_evidence(canonical, self._target)
+        post_samples, rise, _ = closure_evidence(canonical, self._poi)
         return (
             post_samples >= TRUTH_CLOSURE_MIN_POST_SAMPLES
             and rise >= TRUTH_CLOSURE_MIN_RISE_M
@@ -168,7 +168,7 @@ class TruthRecorder:
         count = len(canonical)
         if count < TRUTH_MIN_SCORING_SAMPLES:
             errors.append(
-                f"insufficient engaged truth samples: {count} unique "
+                f"insufficient scoring-window truth samples: {count} unique "
                 f"(need {TRUTH_MIN_SCORING_SAMPLES})"
             )
             return errors
@@ -176,7 +176,7 @@ class TruthRecorder:
         span = times[-1] - times[0]
         if span < TRUTH_MIN_SCORING_SPAN_S:
             errors.append(
-                f"engaged truth span {span:.2f}s below "
+                f"scoring-window truth span {span:.2f}s below "
                 f"{TRUTH_MIN_SCORING_SPAN_S:.2f}s"
             )
             return errors
@@ -205,7 +205,7 @@ class TruthRecorder:
                     f"truth stream stale at finalize: last sample {age:.2f}s "
                     f"old (limit {TRUTH_TRAILING_MAX_AGE_S:.2f}s)"
                 )
-        post_samples, rise, cpa = closure_evidence(canonical, self._target)
+        post_samples, rise, cpa = closure_evidence(canonical, self._poi)
         if post_samples < TRUTH_CLOSURE_MIN_POST_SAMPLES:
             errors.append(
                 f"CPA not closed: {post_samples} samples after the minimum "
@@ -233,7 +233,7 @@ class TruthRecorder:
         canonical, collapsed = canonical_samples(self._scoring_active_samples)
         times = [sample.source_time_s for sample in canonical]
         span = times[-1] - times[0] if len(times) >= 2 else 0.0
-        post_samples, rise, cpa = closure_evidence(canonical, self._target)
+        post_samples, rise, cpa = closure_evidence(canonical, self._poi)
         return {
             "dist_3d_m": None if best is None else best.dist_3d_m,
             "horizontal_m": None if best is None else best.horizontal_m,

@@ -6,8 +6,8 @@ import math
 from dataclasses import dataclass
 
 from navpy.modules.vision.gimbal_rate_types import GimbalRateTrackerConfig
-from navpy.modules.vision.target_angle_estimator import (
-    TargetAngleEstimate,
+from navpy.modules.vision.poi_angle_estimator import (
+    PoiAngleEstimate,
     project_estimate,
 )
 
@@ -24,7 +24,7 @@ class GimbalRateCommandLaw:
     def __init__(self, config: GimbalRateTrackerConfig) -> None:
         self._config = config
 
-    def command(self, estimate: TargetAngleEstimate) -> GimbalRateCommand:
+    def command(self, estimate: PoiAngleEstimate) -> GimbalRateCommand:
         yaw_rad, pitch_rad = project_estimate(
             estimate,
             self._config.command_lead_time,

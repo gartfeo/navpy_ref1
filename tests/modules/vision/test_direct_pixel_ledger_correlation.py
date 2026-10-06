@@ -42,12 +42,12 @@ from navpy.modules.vision.sim.determinism_events import (
 from navpy.modules.vision.sim.determinism_evidence import sealed_capture
 from navpy.modules.vision.sim.determinism_labels import case_labels
 from navpy.modules.vision.sim.determinism_row_log import BoundedRowLog
-from navpy.modules.vision.sim.direct_target_pixel_source import (
-    DirectTargetPixelSource,
+from navpy.modules.vision.sim.direct_poi_pixel_source import (
+    DirectPoiPixelSource,
 )
 from tests.modules.vision import determinism_case_factory as factory
 from tests.modules.vision.direct_pixel_router_bench import (
-    TARGET,
+    POI,
     Message,
     RouterVehicle,
     attitude_message,
@@ -73,14 +73,14 @@ def _source(
     deliver: Callable[[Callable[[Any], None]], Callable[[Any], None]] = (
         lambda append: append
     ),
-) -> tuple[DirectTargetPixelSource, Any]:
+) -> tuple[DirectPoiPixelSource, Any]:
     """A traced source, and the ledger's subscription made as the child
     makes it: BEFORE the source starts (D8.5). ``deliver`` stands between
     the tap and the ledger's ``append``, to lose or alter one delivery."""
     monkeypatch.setattr(determinism_trace, "ENABLED", True)
-    source = DirectTargetPixelSource(
+    source = DirectPoiPixelSource(
         vehicle,
-        TARGET,
+        POI,
         SimpleNamespace(
             wall_period_for_scheduler_period=lambda _: GENEROUS_SKEW_S
         ),
@@ -143,7 +143,7 @@ def _driven_receipts(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _verdict(
-    source: DirectTargetPixelSource, subscription: Any, ending: int | None
+    source: DirectPoiPixelSource, subscription: Any, ending: int | None
 ) -> Verdict:
     """D8's verdict on the case this leg leaves: the capture sealed as the
     writer seals it, the subscription's own figures, and the epoch close()

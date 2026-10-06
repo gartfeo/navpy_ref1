@@ -110,7 +110,7 @@ class ConfirmationManager(ListenerAbc):
     def set_network(self, network: Optional[NetworkAbc]) -> None:
         self._network_slot.set(network)
 
-    def set_target_freshness_check(
+    def set_poi_freshness_check(
         self,
         check: Callable[[Optional[int]], bool],
     ) -> None:
@@ -120,32 +120,32 @@ class ConfirmationManager(ListenerAbc):
         self._state.reset()
 
     @property
-    def active_target(self) -> Optional[DetectedObject]:
-        return self._state.registry.active_target
+    def active_poi(self) -> Optional[DetectedObject]:
+        return self._state.registry.active_poi
 
-    def set_active_target(self, target: Optional[DetectedObject]) -> None:
-        self._state.registry.set_active_target(target)
+    def set_active_poi(self, poi: Optional[DetectedObject]) -> None:
+        self._state.registry.set_active_poi(poi)
 
-    def clear_active_target(self) -> None:
-        self._state.registry.set_active_target(None)
+    def clear_active_poi(self) -> None:
+        self._state.registry.set_active_poi(None)
 
-    def update_status(self, target: DetectedObject, status: ConfirmationStatus) -> None:
-        self._state.registry.update_status(target, status)
+    def update_status(self, poi: DetectedObject, status: ConfirmationStatus) -> None:
+        self._state.registry.update_status(poi, status)
 
-    def get_status(self, target: DetectedObject) -> Optional[ConfirmationStatus]:
-        return self._state.registry.get_status(target)
+    def get_status(self, poi: DetectedObject) -> Optional[ConfirmationStatus]:
+        return self._state.registry.get_status(poi)
 
-    def clear_status(self, target: DetectedObject) -> None:
-        self._state.registry.clear_status(target)
+    def clear_status(self, poi: DetectedObject) -> None:
+        self._state.registry.clear_status(poi)
 
-    def review(self, targets: List[DetectedObject]) -> None:
-        self._coordinator.review(targets)
+    def review(self, pois: List[DetectedObject]) -> None:
+        self._coordinator.review(pois)
 
     def on_message(self, msg: MsgABC) -> None:
         self._inbound.on_message(msg)
 
     def get_status_on_fail(
         self,
-        target_id: Optional[int] = None,
+        poi_id: Optional[int] = None,
     ) -> ConfirmationStatus:
-        return self._failure_policy.status(target_id)
+        return self._failure_policy.status(poi_id)

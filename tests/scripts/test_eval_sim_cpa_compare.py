@@ -6,13 +6,13 @@ import math
 
 from scripts import eval_sim_cpa_bin as bin_mod
 from scripts import eval_sim_cpa_compare as compare
-from scripts.eval_navigation_models import TargetLocation
+from scripts.eval_navigation_models import PoiLocation
 from scripts.eval_navigation_truth_cpa import segment_cpa
 from scripts.eval_navigation_truth_samples import TruthRecord
 from scripts.eval_sim_cpa_bin import EpochEvidence
 from scripts.eval_sim_cpa_block import compare_scores
 
-TARGET = TargetLocation(
+POI = PoiLocation(
     lat_deg=43.0, lon_deg=34.0, rel_alt_m=60.0, abs_alt_m=500.0
 )
 EPOCH_US = 60_000_000
@@ -22,13 +22,13 @@ _LAT_M = math.radians(1.0) * 6_371_000.0
 
 def _record(time_s: float, north_m: float, scoring_active: bool = True,
             converted: bool = True) -> TruthRecord:
-    """A sample flying a straight north line over the target."""
+    """A sample flying a straight north line over the POI."""
     return TruthRecord(
         received_wall_time_s=time_s,
         source_time_s=time_s,
-        lat_deg=TARGET.lat_deg + north_m / _LAT_M,
-        lon_deg=TARGET.lon_deg,
-        abs_alt_m=TARGET.abs_alt_m + 5.0,
+        lat_deg=POI.lat_deg + north_m / _LAT_M,
+        lon_deg=POI.lon_deg,
+        abs_alt_m=POI.abs_alt_m + 5.0,
         scoring_active=scoring_active,
         converted=converted,
         reason=None,
@@ -146,7 +146,7 @@ def test_module_window_score_requires_every_full_interval() -> None:
 def test_stream_recompute_reproduces_an_interior_cpa() -> None:
     records = _flyby_records()
     canonical = compare.scoring_active_samples_from_records(records)
-    official_cpa = segment_cpa(canonical, TARGET)
+    official_cpa = segment_cpa(canonical, POI)
     official = {
         "dist_3d_m": official_cpa.dist_3d_m,
         "horizontal_m": 0.0,
@@ -155,7 +155,7 @@ def test_stream_recompute_reproduces_an_interior_cpa() -> None:
     }
     episode = compare.common_episode(canonical, EPOCH_US)
     score, problems = compare.stream_window_score(
-        canonical, TARGET, episode, official
+        canonical, POI, episode, official
     )
     assert problems == []
     assert score["d3_m"] == official_cpa.dist_3d_m
@@ -175,7 +175,7 @@ def test_stream_recompute_refuses_a_cpa_outside_the_episode() -> None:
         "cpa_source_time_s": episode["end_us"] / 1e6 + 1.0,
     }
     score, problems = compare.stream_window_score(
-        canonical, TARGET, episode, outside
+        canonical, POI, episode, outside
     )
     assert score is None
     assert "not interior" in problems[0]
@@ -192,7 +192,7 @@ def test_stream_recompute_refuses_a_wrong_official_value() -> None:
         "cpa_source_time_s": 120.0,
     }
     score, problems = compare.stream_window_score(
-        canonical, TARGET, episode, wrong
+        canonical, POI, episode, wrong
     )
     assert score is None
     assert "does not reproduce" in problems[0]
@@ -252,7 +252,7 @@ def test_windowed_comparison_end_to_end_agrees() -> None:
     records = _flyby_records()
     canonical = compare.scoring_active_samples_from_records(records)
     evidence = _evidence_for(records)
-    official_cpa = segment_cpa(canonical, TARGET)
+    official_cpa = segment_cpa(canonical, POI)
     truth_block = {
         "dist_3d_m": official_cpa.dist_3d_m,
         "horizontal_m": 0.0,
@@ -261,7 +261,7 @@ def test_windowed_comparison_end_to_end_agrees() -> None:
         "certification_error": None,
     }
     episode, module_score, comparison = compare.windowed_comparison(
-        evidence, records, TARGET, truth_block
+        evidence, records, POI, truth_block
     )
     assert episode is not None and module_score is not None
     assert comparison["status"] == "compared"
@@ -272,7 +272,7 @@ def test_windowed_comparison_end_to_end_agrees() -> None:
 def test_windowed_comparison_passes_through_rejected_evidence() -> None:
     rejected = EpochEvidence(status="fault", errors=("boom",))
     episode, module_score, comparison = compare.windowed_comparison(
-        rejected, [], TARGET, {}
+        rejected, [], POI, {}
     )
     assert episode is None and module_score is None
     assert comparison["status"] == "inadmissible"

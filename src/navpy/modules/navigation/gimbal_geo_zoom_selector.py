@@ -34,7 +34,7 @@ class GeoZoomSelector:
 
     def select(
         self,
-        target_ned: Sequence[float] | np.ndarray,
+        poi_ned: Sequence[float] | np.ndarray,
         gimbal_data: GimbalData,
         uav_att: Attitude,
         geo_ref: GeoRefCalc,
@@ -62,7 +62,7 @@ class GeoZoomSelector:
             if projected_px < min_pixels:
                 continue
             pixel = geo_ref.calc_uv(
-                target_ned,
+                poi_ned,
                 matrix,
                 gimbal_data,
                 uav_att,

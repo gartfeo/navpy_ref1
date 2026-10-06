@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from navpy.modules.vision.models.detection_publication import (
         DetectionPublication,
     )
-    from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+    from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class CoordinatorIdentityFacet:
@@ -64,11 +64,11 @@ class CoordinatorEventsFacet:
     def has_source_driven_detection_events(self) -> bool:
         return self._parts.events.has_source_driven_detection_events
 
-    def target_uses_source_driven_events(
+    def poi_uses_source_driven_events(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
     ) -> bool | None:
-        return self._parts.events.target_uses_source_driven_events(target)
+        return self._parts.events.poi_uses_source_driven_events(poi)
 
     def drain_detection_events(
         self,
@@ -122,13 +122,13 @@ class CoordinatorSimulationFacet:
     def is_simulation(self) -> bool:
         return self._parts.simulation.is_simulation
 
-    def set_sim_target(
+    def set_sim_poi(
         self,
         command_index: int,
         location: Location,
         location_type: str | None = None,
     ) -> None:
-        self._parts.simulation.set_sim_target(
+        self._parts.simulation.set_sim_poi(
             command_index,
             location,
             location_type=location_type,
@@ -152,8 +152,8 @@ class CoordinatorTrackingFacet:
     def loss_hold_sec(self) -> float:
         return self._parts.tracking_status.loss_hold_sec
 
-    def rebind_task_id(self, task_id: int, target: DetectedObject) -> bool:
-        return self._parts.target_identity.rebind_task_id(task_id, target)
+    def rebind_task_id(self, task_id: int, poi: DetectedObject) -> bool:
+        return self._parts.poi_identity.rebind_task_id(task_id, poi)
 
 
 class CoordinatorGeoFacet:
@@ -161,10 +161,10 @@ class CoordinatorGeoFacet:
 
     def start_geo_tracking(
         self,
-        target_loc: Location,
+        poi_loc: Location,
         geo_ref: GeoRefCalc,
     ) -> None:
-        self._parts.geo_pointing.start_geo_tracking(target_loc, geo_ref)
+        self._parts.geo_pointing.start_geo_tracking(poi_loc, geo_ref)
 
     def update_geo(self, uav_loc: Location, uav_att: Attitude) -> None:
         self._parts.geo_pointing.update_geo(uav_loc, uav_att)
@@ -207,8 +207,8 @@ class CoordinatorZoomFacet:
     def set_zoom_size_demand(self, enabled: bool) -> None:
         self._parts.zoom.set_zoom_size_demand(enabled)
 
-    def freeze_terminal_zoom_at_min(self) -> bool:
-        return self._parts.zoom.freeze_terminal_zoom_at_min()
+    def freeze_final_approach_zoom_at_min(self) -> bool:
+        return self._parts.zoom.freeze_final_approach_zoom_at_min()
 
 
 __all__ = [

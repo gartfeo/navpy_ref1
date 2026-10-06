@@ -2,7 +2,7 @@
 
 A SITL that is not keeping up still integrates its physics correctly in
 simulator time: attitudes and positions stay entirely plausible while its
-seconds stop being seconds. Nothing downstream reveals it -- the miss distance
+seconds stop being seconds. Nothing downstream reveals it -- the approach error
 it yields looks like a navigation result. So the certification has to be a raise,
 and it has to cover every aircraft, because the launcher covers only three.
 """

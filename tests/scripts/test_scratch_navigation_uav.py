@@ -36,11 +36,11 @@ import scripts.scratch_navigation_uav as harness
 #   pose, started_t_s              whether a pose arrived at all, and whether
 #                                  the scoring interval has begun. Feed state, not
 #                                  world state: neither says anything about
-#                                  where the target is.
+#                                  where the POI is.
 #   PASSED_BEHIND_MAX              a constant.
 #   elapsed_s, options.scoring_duration_s  the simulated clock the law also uses.
 #
-# Anything else -- range, altitude, target position, ground speed -- is a truth
+# Anything else -- range, altitude, POI position, ground speed -- is a truth
 # quantity gating the command sequence, whatever its position in the loop.
 LEGAL_IN_A_TERMINATING_CONDITION = {
     "time.monotonic",
@@ -144,7 +144,7 @@ def test_ground_contact_is_recorded_and_never_acted_on():
 
 
 def test_the_law_never_receives_a_truth_derived_quantity():
-    """Only a TerminalVisionFrame crosses into the law.
+    """Only a FinalApproachVisionFrame crosses into the law.
 
     Pinned at the call site: whatever else run_navigation_episode() computes, the single
     argument to law.plan() is the frame, whose rays are unit vectors and whose
@@ -426,7 +426,7 @@ def _observe_all(values):
 def test_the_entry_state_records_a_checkable_level_entry():
     """Pitch at trim does not mean the climb has stopped.
 
-    A level-target cell's whole point is a level entry, and entry pitch alone
+    A level-POI cell's whole point is a level entry, and entry pitch alone
     cannot certify one: an aircraft can hold trim pitch while still climbing
     out its energy. The ground-frame path angle can -- so it must be IN the
     artifact, and `run_navigation_episode` must pass it, because the parameter's
@@ -572,7 +572,7 @@ def test_command_and_response_are_summarised_by_the_same_code():
 
 
 def test_the_law_and_the_pass_test_read_the_same_frame():
-    """One frame per pose, or the two could disagree about where the target is.
+    """One frame per pose, or the two could disagree about where the POI is.
 
     An earlier version built a second frame inside the command block. Both were
     built from the same pose so they agreed by construction, but nothing
@@ -641,7 +641,7 @@ def test_both_pose_streams_are_asked_for_and_the_reply_is_recorded():
 
 
 class _Pose:
-    """Just the fields resolve_target reads."""
+    """Just the fields resolve_poi reads."""
 
     lat_deg = 40.3117414
     lon_deg = 44.4552111
@@ -650,45 +650,45 @@ class _Pose:
 
 
 def _options(**overrides):
-    base = dict(target_lat=None, target_lon=None, target_alt=None,
-                target_range_m=None, target_off_boresight_deg=0.0,
-                target_below_m=None)
+    base = dict(poi_lat=None, poi_lon=None, poi_alt=None,
+                poi_range_m=None, poi_off_boresight_deg=0.0,
+                poi_below_m=None)
     base.update(overrides)
     return argparse.Namespace(**base)
 
 
 @pytest.mark.parametrize("overrides,fragment", [
-    ({}, "no target"),
-    ({"target_lat": 40.0}, "needs all of"),
-    ({"target_range_m": 2000.0}, "needs all of"),
-    ({"target_lat": 40.0, "target_lon": 44.0, "target_alt": 1200.0,
-      "target_range_m": 2000.0, "target_below_m": 400.0}, "not both"),
+    ({}, "no POI"),
+    ({"poi_lat": 40.0}, "needs all of"),
+    ({"poi_range_m": 2000.0}, "needs all of"),
+    ({"poi_lat": 40.0, "poi_lon": 44.0, "poi_alt": 1200.0,
+      "poi_range_m": 2000.0, "poi_below_m": 400.0}, "not both"),
 ])
-def test_a_half_stated_target_is_refused(overrides, fragment):
-    """Silently defaulting half a target would fly a geometry nobody chose."""
+def test_a_half_stated_poi_is_refused(overrides, fragment):
+    """Silently defaulting half a POI would fly a geometry nobody chose."""
     with pytest.raises(SystemExit) as raised:
-        harness.check_target_options(_options(**overrides))
+        harness.check_poi_options(_options(**overrides))
     assert fragment in str(raised.value)
 
 
 def test_absolute_coordinates_pass_straight_through():
-    assert harness.resolve_target(
-        _options(target_lat=40.5, target_lon=44.5, target_alt=1200.0), _Pose(),
+    assert harness.resolve_poi(
+        _options(poi_lat=40.5, poi_lon=44.5, poi_alt=1200.0), _Pose(),
     ) == (40.5, 44.5, 1200.0)
 
 
 def test_placement_lands_at_the_range_and_bearing_asked_for():
     """Resolved coordinates must reproduce the requested geometry exactly."""
-    from scripts.navigation_truth_sensor import target_offset_ned_m
+    from scripts.navigation_truth_sensor import poi_offset_ned_m
     pose = _Pose()
-    target = harness.resolve_target(
-        _options(target_range_m=2000.0, target_below_m=400.0,
-                 target_off_boresight_deg=15.0), pose,
+    poi = harness.resolve_poi(
+        _options(poi_range_m=2000.0, poi_below_m=400.0,
+                 poi_off_boresight_deg=15.0), pose,
     )
-    offset = target_offset_ned_m(
+    offset = poi_offset_ned_m(
         lat_deg=pose.lat_deg, lon_deg=pose.lon_deg, alt_m=pose.alt_m,
-        target_lat_deg=target[0], target_lon_deg=target[1],
-        target_alt_m=target[2],
+        poi_lat_deg=poi[0], poi_lon_deg=poi[1],
+        poi_alt_m=poi[2],
     )
     assert float(np.linalg.norm(offset)) == pytest.approx(2000.0, abs=1e-6)
     assert offset[2] == pytest.approx(400.0), "below, so down is positive"
@@ -700,17 +700,17 @@ def test_placement_lands_at_the_range_and_bearing_asked_for():
 def test_placement_is_relative_to_the_nose_not_to_north():
     """Two aircraft that finished their climbs pointing differently must get
     the same scoring interval, which is the entire reason placement exists."""
-    from scripts.navigation_truth_sensor import target_offset_ned_m
-    options = _options(target_range_m=2000.0, target_below_m=400.0)
+    from scripts.navigation_truth_sensor import poi_offset_ned_m
+    options = _options(poi_range_m=2000.0, poi_below_m=400.0)
     bodies = []
     for yaw in (0.0, 137.0, 300.0):
         pose = _Pose()
         pose.yaw_deg = yaw
-        target = harness.resolve_target(options, pose)
-        offset = target_offset_ned_m(
+        poi = harness.resolve_poi(options, pose)
+        offset = poi_offset_ned_m(
             lat_deg=pose.lat_deg, lon_deg=pose.lon_deg, alt_m=pose.alt_m,
-            target_lat_deg=target[0], target_lon_deg=target[1],
-            target_alt_m=target[2],
+            poi_lat_deg=poi[0], poi_lon_deg=poi[1],
+            poi_alt_m=poi[2],
         )
         bodies.append(harness.build_frame(
             offset_ned_m=offset, truth_pitch_deg=0.0, truth_roll_deg=0.0,
@@ -751,20 +751,20 @@ def test_an_impossible_placement_is_refused_not_reshaped(range_m, below_m,
     """`below` is a leg of the triangle whose hypotenuse is `range`.
 
     Asked for 100 m of range 500 m below, an earlier version clamped the
-    horizontal distance to zero and resolved a target 500 m away -- five times
+    horizontal distance to zero and resolved a POI 500 m away -- five times
     the range requested, with nothing in the result saying so.
     """
     with pytest.raises(SystemExit) as raised:
-        harness.check_target_options(
-            _options(target_range_m=range_m, target_below_m=below_m))
+        harness.check_poi_options(
+            _options(poi_range_m=range_m, poi_below_m=below_m))
     assert fragment in str(raised.value)
 
 
-def test_resolve_target_refuses_the_same_geometry_without_the_cli():
-    """A caller that skipped validation must not get a quietly wrong target."""
+def test_resolve_poi_refuses_the_same_geometry_without_the_cli():
+    """A caller that skipped validation must not get a quietly wrong POI."""
     with pytest.raises(ValueError):
-        harness.resolve_target(
-            _options(target_range_m=100.0, target_below_m=500.0), _Pose())
+        harness.resolve_poi(
+            _options(poi_range_m=100.0, poi_below_m=500.0), _Pose())
 
 
 def test_every_parameter_set_is_confirmed_before_the_run_proceeds():
@@ -865,7 +865,7 @@ def test_the_aircraft_is_launched_before_it_is_asked_to_fly():
 
     An earlier version armed straight into GUIDED on the runway. The aircraft
     sat still for the whole climb limit, then the scoring interval began at ground
-    level with the target placed below the terrain -- and every signal along the
+    level with the POI placed below the terrain -- and every signal along the
     way looked healthy: armed, commanded, telemetry flowing. The order is the
     plant harness's (scratch_sitl_uav.py:572-594) and it is load-bearing.
     """
@@ -915,14 +915,14 @@ def test_jitter_is_an_rms_and_refuses_a_negative():
     """
     base = [
         "--connection", "udp:0", "--sysid", "1",
-        "--target-range-m", "3000", "--target-below-m", "350",
+        "--poi-range-m", "3000", "--poi-below-m", "350",
     ]
     options = harness._parser().parse_args(base + ["--estimate-jitter-deg", "2.0"])
-    harness.check_target_options(options)
+    harness.check_poi_options(options)
     assert options.estimate_jitter_deg == pytest.approx(2.0)
 
     with pytest.raises(SystemExit) as refused:
-        harness.check_target_options(
+        harness.check_poi_options(
             harness._parser().parse_args(base + ["--estimate-jitter-deg=-2.0"])
         )
     assert "must not be negative" in str(refused.value)
@@ -968,7 +968,7 @@ def test_an_unbracketed_lag_consumes_its_command_instant_like_any_missing_input(
     tree = _command_path_tree()
 
     # One exception, and only one: WARM-UP. Before `started_t_s` is set there
-    # is no scoring interval, no target and no schedule, so skipping an unbracketable
+    # is no scoring interval, no POI and no schedule, so skipping an unbracketable
     # pose there delays the start rather than omitting a command -- and it is
     # the fix for the onset-parity defect, where lagged arms began their
     # scoring interval on poses they could not command from. The guard therefore
@@ -1045,7 +1045,7 @@ def test_every_arm_begins_its_scoring_interval_on_a_commandable_pose():
 
     Found in review, third defect in one feature. With the schedule anchored to
     the first commandable pose but the SCORING INTERVAL anchored to the first pose,
-    a lagged arm started its clock, fixed its target and began scoring while
+    a lagged arm started its clock, fixed its POI and began scoring while
     still transmitting the zero attitude initialised at entry -- flying
     uncommanded for a lag-length interval that the certification then called
     clean. The zero-lag arms had no such interval, so the two no longer shared
@@ -1074,40 +1074,40 @@ def test_every_arm_begins_its_scoring_interval_on_a_commandable_pose():
 
 
 def _straight_run(bearing_rad: float, count: int = 40):
-    """A collision course: constant bearing, range closing to nothing."""
-    terminal = harness.TerminalGeometry()
+    """A constant-bearing course: range closing to nothing."""
+    final_approach = harness.FinalApproachGeometry()
     for step in range(count):
         range_m = 1000.0 * (1.0 - step / count)
-        terminal.observe_geometry(
+        final_approach.observe_geometry(
             range_m,
             np.array([range_m * math.cos(bearing_rad),
                       range_m * math.sin(bearing_rad),
                       0.0]),
         )
-    return terminal
+    return final_approach
 
 
 def test_the_window_is_gated_on_range_not_on_sample_count():
     """Only the closing quarter counts, whatever the run's duration."""
-    terminal = harness.TerminalGeometry(range_fraction=0.25)
+    final_approach = harness.FinalApproachGeometry(range_fraction=0.25)
     for range_m in (1000.0, 900.0, 500.0, 260.0, 240.0, 100.0, 10.0):
-        terminal.observe_geometry(range_m, np.array([range_m, 0.0, 0.0]))
-    summary = terminal.summary()
+        final_approach.observe_geometry(range_m, np.array([range_m, 0.0, 0.0]))
+    summary = final_approach.summary()
     assert summary["range_gate_m"] == pytest.approx(250.0)
     # 240, 100 and 10 are inside the gate; the four wider ranges are not.
     assert summary["samples"] == 3
 
 
-def test_a_command_outside_the_terminal_window_is_not_counted():
-    """A dither during the turn-in must not be charged to the terminal run."""
-    terminal = harness.TerminalGeometry(range_fraction=0.25)
-    terminal.observe_geometry(1000.0, np.array([1000.0, 0.0, 0.0]))
+def test_a_command_outside_the_final_approach_window_is_not_counted():
+    """A dither during the turn-in must not be charged to the final-approach run."""
+    final_approach = harness.FinalApproachGeometry(range_fraction=0.25)
+    final_approach.observe_geometry(1000.0, np.array([1000.0, 0.0, 0.0]))
     for _ in range(10):
-        terminal.observe_command(20.0, -20.0, _Rate(0.0, 0.0))
-    assert terminal.summary()["roll_commanded"]["magnitude"] is None
-    terminal.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
-    terminal.observe_command(3.0, 3.0, _Rate(0.0, 0.0))
-    assert terminal.summary()["roll_commanded"]["magnitude"]["samples"] == 1
+        final_approach.observe_command(20.0, -20.0, _Rate(0.0, 0.0))
+    assert final_approach.summary()["roll_commanded"]["magnitude"] is None
+    final_approach.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
+    final_approach.observe_command(3.0, 3.0, _Rate(0.0, 0.0))
+    assert final_approach.summary()["roll_commanded"]["magnitude"]["samples"] == 1
 
 
 def test_a_dithering_command_is_told_from_the_roll_the_airframe_flew():
@@ -1117,12 +1117,12 @@ def test_a_dithering_command_is_told_from_the_roll_the_airframe_flew():
     and the reversal count separate a command the airframe is filtering from
     one it is following.
     """
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
-    terminal.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
+    final_approach.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
     for step in range(40):
-        terminal.observe_command(
+        final_approach.observe_command(
             4.0 if step % 2 else -4.0, 4.0, _Rate(0.0, 0.0))
-    summary = terminal.summary()
+    summary = final_approach.summary()
     assert summary["roll_commanded"]["magnitude"]["median_deg"] == (
         pytest.approx(4.0))
     assert summary["roll_actual"]["magnitude"]["median_deg"] == (
@@ -1135,15 +1135,15 @@ def test_a_dithering_command_is_told_from_the_roll_the_airframe_flew():
     assert summary["roll_actual"]["reversals"] == 0
 
 
-def test_the_scoring_interval_records_its_terminal_geometry():
+def test_the_scoring_interval_records_its_final_approach_geometry():
     """Wired into the run, not merely importable."""
     source = inspect.getsource(harness.run_navigation_episode)
     assert "roll.observe_geometry(range_m, offset)" in source
     assert "roll.observe_command(" in source
     record = inspect.getsource(harness.RollRecord)
-    assert "self.terminal.observe_geometry(" in record
-    assert "self.terminal.observe_command(" in record
-    assert '"terminal_geometry": self.terminal.summary()' in record
+    assert "self.final_approach.observe_geometry(" in record
+    assert "self.final_approach.observe_command(" in record
+    assert '"terminal_geometry": self.final_approach.summary()' in record
 
 
 def test_a_steady_rate_and_a_reversing_rate_are_told_apart():
@@ -1153,10 +1153,10 @@ def test_a_steady_rate_and_a_reversing_rate_are_told_apart():
     other reverses every sample -- and the roll command built from them is a
     held bank in one case and a dither in the other.
     """
-    steady = harness.TerminalGeometry(range_fraction=1.0)
-    shaky = harness.TerminalGeometry(range_fraction=1.0)
-    for terminal in (steady, shaky):
-        terminal.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
+    steady = harness.FinalApproachGeometry(range_fraction=1.0)
+    shaky = harness.FinalApproachGeometry(range_fraction=1.0)
+    for final_approach in (steady, shaky):
+        final_approach.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
     rate = math.radians(0.4)
     for step in range(20):
         steady.observe_command(0.0, 0.0, _Rate(rate, rate))
@@ -1176,54 +1176,54 @@ def test_the_two_halves_of_the_lateral_rate_are_reported_separately():
     Reporting only their sum would leave the command dither attributable to
     either one, which is the whole question these two series exist to settle.
     """
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
-    terminal.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
+    final_approach.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
     for step in range(20):
         # Visual term perfectly smooth, inertial term shaking.
-        terminal.observe_command(0.0, 0.0, _Rate(
+        final_approach.observe_command(0.0, 0.0, _Rate(
             math.radians(0.1), math.radians(0.1 if step % 2 else -0.5)))
-    summary = terminal.summary()
+    summary = final_approach.summary()
     assert summary["lateral_rate_visual_deg_s"]["step"]["median_deg"] == (
         pytest.approx(0.0))
     assert summary["lateral_rate_inertial_deg_s"]["step"]["median_deg"] > 0.5
 
 
-def test_a_rate_outside_the_terminal_window_is_not_counted():
-    terminal = harness.TerminalGeometry(range_fraction=0.25)
-    terminal.observe_geometry(1000.0, np.array([1000.0, 0.0, 0.0]))
-    terminal.observe_command(0.0, 0.0, _Rate(1.0, 1.0))
-    assert terminal.summary()["lateral_rate_visual_deg_s"] is None
+def test_a_rate_outside_the_final_approach_window_is_not_counted():
+    final_approach = harness.FinalApproachGeometry(range_fraction=0.25)
+    final_approach.observe_geometry(1000.0, np.array([1000.0, 0.0, 0.0]))
+    final_approach.observe_command(0.0, 0.0, _Rate(1.0, 1.0))
+    assert final_approach.summary()["lateral_rate_visual_deg_s"] is None
 
 
 def test_the_scoring_interval_records_the_rate_the_roll_command_was_built_from():
     assert "plan.lateral_rate" in inspect.getsource(harness.run_navigation_episode)
-    built = inspect.getsource(harness.TerminalGeometry.observe_command)
+    built = inspect.getsource(harness.FinalApproachGeometry.observe_command)
     assert "rate.visual_rate_rad_s" in built
     assert "rate.raw_inertial_rate_rad_s" in built
 
 
-def test_leaving_the_terminal_window_stops_the_command_and_rate_series():
+def test_leaving_the_final_approach_window_stops_the_command_and_rate_series():
     """The window has to close again, because range is not monotonic.
 
-    Once the target is passed the range grows back, and an scoring interval that
+    Once the POI is passed the range grows back, and an scoring interval that
     wanders can cross the gate more than once. A gate that only ever opened
     would keep charging commands and rates to a window the aircraft had left,
     while the geometry series correctly stopped -- so the two series would
     describe different stretches of the same run and nothing in the artifact
     would say so.
     """
-    terminal = harness.TerminalGeometry(range_fraction=0.25)
-    terminal.observe_geometry(1000.0, np.array([1000.0, 0.0, 0.0]))
-    terminal.observe_command(1.0, 1.0, _Rate(0.1, 0.1))
+    final_approach = harness.FinalApproachGeometry(range_fraction=0.25)
+    final_approach.observe_geometry(1000.0, np.array([1000.0, 0.0, 0.0]))
+    final_approach.observe_command(1.0, 1.0, _Rate(0.1, 0.1))
 
-    terminal.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
-    terminal.observe_command(2.0, 2.0, _Rate(0.2, 0.2))
+    final_approach.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
+    final_approach.observe_command(2.0, 2.0, _Rate(0.2, 0.2))
 
-    # Back outside the gate: passed the target, or wandered wide.
-    terminal.observe_geometry(900.0, np.array([900.0, 0.0, 0.0]))
-    terminal.observe_command(30.0, 30.0, _Rate(9.9, 9.9))
+    # Back outside the gate: passed the POI, or wandered wide.
+    final_approach.observe_geometry(900.0, np.array([900.0, 0.0, 0.0]))
+    final_approach.observe_command(30.0, 30.0, _Rate(9.9, 9.9))
 
-    summary = terminal.summary()
+    summary = final_approach.summary()
     assert summary["samples"] == 1
     assert summary["roll_commanded"]["magnitude"]["samples"] == 1
     assert summary["roll_commanded"]["magnitude"]["max_deg"] == (
@@ -1233,38 +1233,38 @@ def test_leaving_the_terminal_window_stops_the_command_and_rate_series():
 
 def test_the_command_and_geometry_series_cover_the_same_stretch():
     """Whatever the path does, neither series may outlast the other's window."""
-    terminal = harness.TerminalGeometry(range_fraction=0.5)
+    final_approach = harness.FinalApproachGeometry(range_fraction=0.5)
     for range_m in (800.0, 700.0, 300.0, 200.0, 600.0, 900.0, 150.0):
-        terminal.observe_geometry(range_m, np.array([range_m, 0.0, 0.0]))
-        terminal.observe_command(1.0, 1.0, _Rate(0.1, 0.1))
-    summary = terminal.summary()
+        final_approach.observe_geometry(range_m, np.array([range_m, 0.0, 0.0]))
+        final_approach.observe_command(1.0, 1.0, _Rate(0.1, 0.1))
+    summary = final_approach.summary()
     # 300, 200 and 150 are inside a 400 m gate; 700, 600 and 900 are not.
     assert summary["samples"] == 3
     assert summary["roll_commanded"]["magnitude"]["samples"] == 3
 
 
-def _pass_through(miss_m: float, terminal=None):
-    """Fly a dead-straight line past a target offset by `miss_m`.
+def _pass_through(miss_m: float, final_approach=None):
+    """Fly a dead-straight line past a POI offset by `miss_m`.
 
     The path is perfectly straight, so every straightness measure must read
     zero -- including across the closest approach, where the bearing to the
-    target swings through half a turn no matter how straight the flying was.
+    POI swings through half a turn no matter how straight the flying was.
     """
-    terminal = terminal or harness.TerminalGeometry(range_fraction=1.0)
+    final_approach = final_approach or harness.FinalApproachGeometry(range_fraction=1.0)
     for step in range(60):
         along = 200.0 - 5.0 * step  # closes, reaches CPA, then flies away
-        terminal.observe_geometry(math.hypot(along, miss_m),
+        final_approach.observe_geometry(math.hypot(along, miss_m),
                                   np.array([along, miss_m, 0.0]))
-    return terminal
+    return final_approach
 
 
 def test_the_closest_approach_is_read_from_the_ranges_not_assumed():
     """No threshold decides the boundary -- the range series does."""
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
     for range_m in (100.0, 60.0, 20.0, 5.0, 40.0, 90.0):
-        terminal.observe_geometry(range_m, np.array([range_m, 1.0, 0.0]))
-    assert terminal.summary()["samples"] == 6
-    assert terminal.summary()["closing_samples"] == 4
+        final_approach.observe_geometry(range_m, np.array([range_m, 1.0, 0.0]))
+    assert final_approach.summary()["samples"] == 6
+    assert final_approach.summary()["closing_samples"] == 4
 
 
 class _Rate:
@@ -1274,19 +1274,19 @@ class _Rate:
         self.visual_rate_rad_s = visual_rad_s
         self.raw_inertial_rate_rad_s = inertial_rad_s
 
-def test_a_straight_run_past_the_target_shows_no_curvature():
+def test_a_straight_run_past_the_poi_shows_no_curvature():
     """The case that broke the first straightness measure.
 
-    The path is dead straight; only the geometry of passing a target makes the
+    The path is dead straight; only the geometry of passing a POI makes the
     bearing sweep. Measured in metres, across the closest approach and out the
     far side, a straight run has to read zero.
     """
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
     for step in range(60):
         along = 200.0 - 5.0 * step  # closes, passes, flies away
-        terminal.observe_geometry(math.hypot(along, 0.02),
+        final_approach.observe_geometry(math.hypot(along, 0.02),
                                   np.array([along, 0.02, 0.0]))
-    summary = terminal.summary()
+    summary = final_approach.summary()
     assert summary["closing_samples"] < summary["samples"]
     assert summary["chord_deviation_m"] < 0.01
 
@@ -1299,33 +1299,33 @@ def test_a_sustained_bank_is_reported_as_the_metres_it_bends():
     readable: 30-77 m of bend over a 750 m window is a held bank, not noise.
     """
     radius_m, span_rad = 1250.0, 0.6
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
     for step in range(61):
         angle = span_rad * step / 60
-        # Aircraft on the arc; target at the origin of the offset.
+        # Aircraft on the arc; POI at the origin of the offset.
         x = radius_m * math.sin(angle)
         y = radius_m * (1.0 - math.cos(angle))
         range_m = 800.0 - 10.0 * step
-        terminal.observe_geometry(range_m, np.array([-x, -y, 0.0]))
+        final_approach.observe_geometry(range_m, np.array([-x, -y, 0.0]))
     expected = radius_m * (1.0 - math.cos(span_rad / 2))
-    assert terminal.summary()["chord_deviation_m"] == pytest.approx(
+    assert final_approach.summary()["chord_deviation_m"] == pytest.approx(
         expected, rel=0.05)
 
 
 def test_the_fly_away_leg_cannot_hide_a_curve_flown_before_it():
     """Truncating at the closest approach must not discard the answer."""
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
     for step in range(30):
         range_m = 200.0 - 5.0 * step
         bearing = math.radians(2.0 * step)
-        terminal.observe_geometry(
+        final_approach.observe_geometry(
             range_m,
             np.array([range_m * math.cos(bearing),
                       range_m * math.sin(bearing), 0.0]))
     for step in range(10):  # fly-away, every sample wider than the last
-        terminal.observe_geometry(60.0 + 5.0 * step,
+        final_approach.observe_geometry(60.0 + 5.0 * step,
                                   np.array([-(60.0 + 5.0 * step), 0.0, 0.0]))
-    summary = terminal.summary()
+    summary = final_approach.summary()
     assert summary["samples"] == 40
     assert summary["closing_samples"] == 30
     assert summary["chord_deviation_m"] > 1.0
@@ -1333,10 +1333,10 @@ def test_the_fly_away_leg_cannot_hide_a_curve_flown_before_it():
 
 def test_the_closest_approach_is_read_from_the_ranges_not_assumed():
     """No threshold decides the boundary -- the range series does."""
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
     for range_m in (100.0, 60.0, 20.0, 5.0, 40.0, 90.0):
-        terminal.observe_geometry(range_m, np.array([range_m, 1.0, 0.0]))
-    summary = terminal.summary()
+        final_approach.observe_geometry(range_m, np.array([range_m, 1.0, 0.0]))
+    summary = final_approach.summary()
     assert summary["samples"] == 6
     assert summary["closing_samples"] == 4
 
@@ -1349,10 +1349,10 @@ def test_a_window_never_entered_reports_no_straightness_rather_than_zero():
     best possible result for missing data. Nothing downstream contradicts it:
     a wide pass is still a valid miss, so it raises no classification error.
     """
-    terminal = harness.TerminalGeometry()
+    final_approach = harness.FinalApproachGeometry()
     for range_m in (3000.0, 2000.0, 1200.0, 900.0, 1500.0):
-        terminal.observe_geometry(range_m, np.array([range_m, 0.0, 0.0]))
-    summary = terminal.summary()
+        final_approach.observe_geometry(range_m, np.array([range_m, 0.0, 0.0]))
+    summary = final_approach.summary()
     assert summary["samples"] == 0
     assert summary["chord_deviation_m"] is None
     assert not harness.classification_errors(
@@ -1363,26 +1363,26 @@ def test_a_window_never_entered_reports_no_straightness_rather_than_zero():
 
 def test_a_window_with_no_interior_point_reports_no_straightness():
     """Two points define the chord and leave nothing to be off it."""
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
-    terminal.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
-    terminal.observe_geometry(50.0, np.array([50.0, 0.0, 0.0]))
-    assert terminal.summary()["chord_deviation_m"] is None
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
+    final_approach.observe_geometry(100.0, np.array([100.0, 0.0, 0.0]))
+    final_approach.observe_geometry(50.0, np.array([50.0, 0.0, 0.0]))
+    assert final_approach.summary()["chord_deviation_m"] is None
 
 
 def test_a_window_whose_ends_coincide_reports_no_straightness():
     """A chord of zero length is no line, so nothing can be measured off it."""
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
     for offset in ((10.0, 0.0), (5.0, 5.0), (10.0, 0.0)):
-        terminal.observe_geometry(math.hypot(*offset),
+        final_approach.observe_geometry(math.hypot(*offset),
                                   np.array([offset[0], offset[1], 0.0]))
-    assert terminal.summary()["chord_deviation_m"] is None
+    assert final_approach.summary()["chord_deviation_m"] is None
 
 
 def test_a_measured_bend_is_still_a_number():
     """The None must not swallow the real readings."""
-    terminal = harness.TerminalGeometry(range_fraction=1.0)
+    final_approach = harness.FinalApproachGeometry(range_fraction=1.0)
     for step in range(20):
-        terminal.observe_geometry(
+        final_approach.observe_geometry(
             200.0 - 5.0 * step,
             np.array([200.0 - 5.0 * step, 4.0 * math.sin(step / 6.0), 0.0]))
-    assert terminal.summary()["chord_deviation_m"] > 0.0
+    assert final_approach.summary()["chord_deviation_m"] > 0.0

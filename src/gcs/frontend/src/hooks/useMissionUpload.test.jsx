@@ -28,8 +28,8 @@ it.each([
   expect(assignments[0]).toMatchObject({ sys_id: 999, zone_index: 0, altitude_m: 120,
     waypoints: track, dock_classes: overrides[0] || mission.dockClasses,
     fallback_delivery_location: { lat: dock.lat, lon: dock.lon, type: dock.type } });
-  expect(Object.hasOwn(assignments[0], 'target_classes')).toBe(false);
-  expect(Object.hasOwn(assignments[0], 'default_target')).toBe(false);
+  expect(Object.hasOwn(assignments[0], 'poi_classes')).toBe(false);
+  expect(Object.hasOwn(assignments[0], 'default_poi')).toBe(false);
   expect(assignments[0].search_pattern).toBe(searchPattern);
   expect(Object.hasOwn(assignments[0], 'tactic')).toBe(false);
   expect(Object.hasOwn(assignments[0], 'searchPattern')).toBe(false);

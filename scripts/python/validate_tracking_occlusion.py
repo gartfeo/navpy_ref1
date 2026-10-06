@@ -1,4 +1,4 @@
-"""Locked-target bus-occlusion replay and proof-frame rendering."""
+"""Locked-POI bus-occlusion replay and proof-frame rendering."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def report_occurrence(
     ids: set[int] = set()
     frame_index = 0
     saved: dict[int, np.ndarray] = {}
-    target_stable_id = event["ib"]
+    poi_stable_id = event["ib"]
     while frame_index <= end_frame:
         ok, frame = capture.read()
         if not ok:
@@ -60,8 +60,8 @@ def report_occurrence(
             lock_armed=(locked_stable_id is not None),
         )
         if locked_stable_id is None and frame_index >= lock_frame:
-            if any(track.id == target_stable_id for track in tracks):
-                locked_stable_id = target_stable_id
+            if any(track.id == poi_stable_id for track in tracks):
+                locked_stable_id = poi_stable_id
                 components[4].force_lock(locked_stable_id)
                 emit(
                     f"  [pass2] locked the occluded car id "

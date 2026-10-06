@@ -60,11 +60,11 @@ class DetectorEventsFacet:
     def has_source_driven_detection_events(self) -> bool:
         return self._parts.events.has_source_driven_detection_events
 
-    def target_uses_source_driven_events(
+    def poi_uses_source_driven_events(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
     ) -> bool | None:
-        return self._parts.events.target_uses_source_driven_events(target)
+        return self._parts.events.poi_uses_source_driven_events(poi)
 
     def drain_detection_events(
         self,
@@ -100,13 +100,13 @@ class DetectorSimulationFacet:
     def is_simulation(self) -> bool:
         return self._parts.simulation.is_simulation
 
-    def set_sim_target(
+    def set_sim_poi(
         self,
         command_index: int,
         location: Location,
         location_type: str | None = None,
     ) -> None:
-        self._parts.simulation.set_sim_target(
+        self._parts.simulation.set_sim_poi(
             command_index,
             location,
             location_type=location_type,

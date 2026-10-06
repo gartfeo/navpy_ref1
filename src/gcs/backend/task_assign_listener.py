@@ -2,7 +2,7 @@
 
 Intercepts NAVLINK messages (TaskAssignRequestMsg, TaskAssignResponseMsg)
 from VehicleMav and broadcasts them to WebSocket clients so the GCS can
-track peer-assigned targets on the map and sidebar.
+track peer-assigned POIs on the map and sidebar.
 """
 from __future__ import annotations
 

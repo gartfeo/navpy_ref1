@@ -22,7 +22,7 @@ def test_new_fields_preserve_values_in_model():
     assert model.model_dump()["fallback_delivery_location"] == data["fallback_delivery_location"]
 
 
-@pytest.mark.parametrize("key,value", [("target_classes", ["old"]), ("default_target", {"lat": 0, "lon": 0})])
+@pytest.mark.parametrize("key,value", [("poi_classes", ["old"]), ("default_poi", {"lat": 0, "lon": 0})])
 def test_old_request_fields_are_rejected(key, value):
     with pytest.raises(ValidationError):
         VehicleAssignment.model_validate({**request_data(), key: value})
@@ -47,6 +47,6 @@ def test_upload_passes_new_values_to_existing_builder(client):
 
 def test_old_field_returns_422_before_upload(client):
     with patch("gcs.backend.routes.missions.upload_mission_with_retry", return_value=UploadResult(success=True, uploaded_count=4, expected_count=4, attempts=1)) as upload:
-        response = client.post("/api/vehicles/upload", json={"assignments": [{**request_data(), "target_classes": ["old"]}]})
+        response = client.post("/api/vehicles/upload", json={"assignments": [{**request_data(), "poi_classes": ["old"]}]})
     assert response.status_code == 422
     upload.assert_not_called()

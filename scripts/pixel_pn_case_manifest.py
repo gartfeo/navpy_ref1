@@ -41,7 +41,7 @@ def case_manifest(
     speedup: float,
     launch_speedup: float,
     repetition: int,
-    target: Any,
+    poi: Any,
     scoring_start_seq: int,
     identity: dict[str, object],
     speed_plan: Any,
@@ -55,7 +55,7 @@ def case_manifest(
     scoring interval span are measured against. `launch_speedup` is what SITL booted
     with. They differ only when the case cruised fast and stepped down to the
     scored speed at `slow_seq`, so a reader can tell a genuine 1x run from a
-    20x cruise that was slowed for its terminal leg.
+    20x cruise that was slowed for its final-approach leg.
 
     The raw `--sitl-param NAME=VALUE` strings pushed on top of the built-in
     parameters come from exactly one of `args`, the harness's parsed
@@ -79,7 +79,7 @@ def case_manifest(
         "launch_speedup": launch_speedup,
         "slow_seq": speed_plan.slow_seq or None,
         "repetition": repetition,
-        "target": asdict(target),
+        "poi": asdict(poi),
         "engage_seq": scoring_start_seq,
         "sitl_params": list(sitl_params),
         "sitl_params_pushed": [list(pair) for pair in sitl_params_pushed],

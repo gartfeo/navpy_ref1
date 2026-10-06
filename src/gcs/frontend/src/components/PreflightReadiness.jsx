@@ -137,7 +137,7 @@ function PitotConfirm({ onConfirm, onCancel }) {
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex',
         alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onClick={(e) => { if (e.target === e.currentPoi) onCancel(); }}
     >
       <div style={{ background: colors.bgLight, border: `2px solid ${colors.warning}`,
         borderRadius: 8, padding: 24, maxWidth: 360, textAlign: 'center' }}>
@@ -239,7 +239,7 @@ function ReadinessBody({ settings, onReboot, fullParams, onOpenParamSync }) {
   const [fleetSent, setFleetSent] = useState(false);
   const [pendingCal, setPendingCal] = useState(null); // {sysIds} | null
   const [tip, setTip] = useState(null); // {text, left, top} | null
-  const [rebootTarget, setRebootTarget] = useState(null); // {sysId, name} | null
+  const [rebootPoi, setRebootPoi] = useState(null); // {sysId, name} | null
 
   const doCal = useCallback(async ({ sysIds, pitotCovered }) => {
     setPendingCal(null);
@@ -293,7 +293,7 @@ function ReadinessBody({ settings, onReboot, fullParams, onOpenParamSync }) {
   });
 
   const showTip = (e, hintKey) => {
-    const el = e.currentTarget;
+    const el = e.currentPoi;
     setTip({ text: t(hintKey), left: el.offsetLeft, top: el.offsetTop + el.offsetHeight + 2 });
   };
 
@@ -399,7 +399,7 @@ function ReadinessBody({ settings, onReboot, fullParams, onOpenParamSync }) {
                     <div key={`actions-${v.sys_id}`} style={{ ...cellBase, background: bg }}>
                       <button
                         type="button"
-                        onClick={() => setRebootTarget({ sysId: v.sys_id, name: v.name })}
+                        onClick={() => setRebootPoi({ sysId: v.sys_id, name: v.name })}
                         disabled={blocked}
                         title={linkDown ? t('preflight.linkDown') : v.armed ? t('reboot.armedBlocked') : t('reboot.tooltip')}
                         style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
@@ -451,17 +451,17 @@ function ReadinessBody({ settings, onReboot, fullParams, onOpenParamSync }) {
         />
       )}
 
-      {rebootTarget && (
+      {rebootPoi && (
         <ConfirmModal
           title={t('reboot.confirmTitle')}
-          message={t('reboot.confirmMessage', { name: rebootTarget.name })}
+          message={t('reboot.confirmMessage', { name: rebootPoi.name })}
           confirmLabel={t('confirm.confirmReboot')}
           tone="caution"
           onConfirm={() => {
-            onReboot(rebootTarget.sysId);
-            setRebootTarget(null);
+            onReboot(rebootPoi.sysId);
+            setRebootPoi(null);
           }}
-          onCancel={() => setRebootTarget(null)}
+          onCancel={() => setRebootPoi(null)}
         />
       )}
     </>
@@ -493,7 +493,7 @@ export default function PreflightReadiness({ settings, onClose, onReboot, fullPa
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex',
         alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentPoi) onClose(); }}
     >
       <div style={{ width: 'min(920px, 95vw)', maxHeight: '85vh', background: colors.bgLight,
         border: `1px solid ${colors.border}`, borderRadius: 8, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

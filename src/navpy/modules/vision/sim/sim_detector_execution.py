@@ -27,7 +27,7 @@ class SimDetectorExecution:
         cadence_lease: SchedulerCadenceLease,
         scheduler_period_s: float,
         ideal_360: bool,
-        detect_targets: DetectFramePort,
+        detect_pois: DetectFramePort,
         record_outcome: FrameOutcomeSink,
     ) -> None:
         self._coordinator = coordinator
@@ -36,7 +36,7 @@ class SimDetectorExecution:
         self._cadence_lease = cadence_lease
         self._scheduler_period_s = float(scheduler_period_s)
         self._ideal_360 = bool(ideal_360)
-        self._detect_targets = detect_targets
+        self._detect_pois = detect_pois
         self._record_outcome = record_outcome
 
     def run(self) -> None:
@@ -68,7 +68,7 @@ class SimDetectorExecution:
                 self._record_outcome(pose.timestamp_s, outcome, None)
                 continue
             try:
-                self._detect_targets(
+                self._detect_pois(
                     pose.location,
                     pose.render_attitude,
                     frame_timestamp_s=pose.timestamp_s,
@@ -96,7 +96,7 @@ class SimDetectorExecution:
         while not stop_event.is_set():
             started_s = time.monotonic()
             sample = self._polling_pose_reader.read()
-            self._detect_targets(
+            self._detect_pois(
                 sample.location,
                 sample.attitude,
                 attitude_time_boot_s=sample.time_boot_s,

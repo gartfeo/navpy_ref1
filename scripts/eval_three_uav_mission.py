@@ -3,7 +3,7 @@
 Split out of ``scripts/eval_direct_pixel_pn_three_uav.py``: that harness sits
 on a frozen line-size debt, and the upload it was missing does not fit beside
 the per-vehicle read-back it already had.  The two are one step -- put a known
-mission on every vehicle, then read back where each vehicle's target is -- so
+mission on every vehicle, then read back where each vehicle's POI is -- so
 they move together rather than leaving half the step behind.
 """
 
@@ -18,7 +18,7 @@ from scripts.eval_navigation_cases import (
     request_coordinate_score_stream,
     require_nav_solution,
     resolve_home_abs_alt_m,
-    resolve_target_expectation,
+    resolve_poi_expectation,
     set_param,
 )
 from scripts.upload_north_line_mission import upload_north_line
@@ -52,9 +52,9 @@ def geometry_record(args: object) -> dict[str, object]:
         "launch_spacing_m": LAUNCH_SPACING_M,
         "loiter_offset_m": args.loiter_offset,
         "gate_offset_m": args.gate_offset,
-        "target_offset_m": args.target_offset,
+        "poi_offset_m": args.poi_offset,
         "mission_alt_m": args.mission_alt,
-        "target_alt_m": args.target_alt,
+        "poi_alt_m": args.poi_alt,
     }
 
 
@@ -88,14 +88,14 @@ def upload_missions(
 
     * the template's waypoints are absolute coordinates, so they stay where
       they were seeded no matter what ``--home`` the run launches at.  Since
-      home defaulted to open water the downloaded target sat about 1000 km
-      from the vehicles, and the run scored a target it could never reach.
+      home defaulted to open water the downloaded POI sat about 1000 km
+      from the vehicles, and the run scored a POI it could never reach.
     * ``run_swarm.sh`` copies each template's ``eeprom.bin`` into every
       non-template instance on every launch, so one launch on a template slot
       that clears the stored mission count propagates to every clone of that
       template.  Measured on 2026-08-21: template 1's ``MIS_TOTAL`` read 0, so
       every sysid congruent to 1 mod 3 -- the first vehicle of every eval trio
-      -- booted with no waypoints and target discovery raised before any
+      -- booted with no waypoints and POI discovery raised before any
       navigation ran.
 
     Uploading here removes the dependency on that state entirely, and matches
@@ -120,18 +120,18 @@ def prepare_vehicles(
     sys_ids: list[int],
     *,
     select: Callable[[object, int], None],
-    target_wp: int,
+    poi_wp: int,
     scoring_start_wp: int,
-    target_rel_alt_m: float,
+    poi_rel_alt_m: float,
     parameters: tuple[tuple[str, float], ...],
 ) -> tuple[dict[int, object], dict[int, int]]:
-    """Read every vehicle's target back and pin its simulator parameters.
+    """Read every vehicle's POI back and pin its simulator parameters.
 
-    The read-back is what makes the upload verifiable end to end: the target
+    The read-back is what makes the upload verifiable end to end: the POI
     the children are given comes from what the vehicle actually stored, not
     from what the uploader believes it sent.
     """
-    targets: dict[int, object] = {}
+    pois: dict[int, object] = {}
     scoring_start_sequences: dict[int, int] = {}
     for sys_id in sys_ids:
         select(master, sys_id)
@@ -143,19 +143,19 @@ def prepare_vehicles(
         require_nav_solution(master, sys_id)
         mission = download_mission(master)
         home_alt = resolve_home_abs_alt_m(master, timeout_s=30.0)
-        targets[sys_id] = resolve_target_expectation(
+        pois[sys_id] = resolve_poi_expectation(
             mission,
-            target_wp=target_wp,
-            target_rel_alt_m=target_rel_alt_m,
+            poi_wp=poi_wp,
+            poi_rel_alt_m=poi_rel_alt_m,
             home_abs_alt_m=home_alt,
         ).location
-        scoring_start_sequences[sys_id] = resolve_target_expectation(
+        scoring_start_sequences[sys_id] = resolve_poi_expectation(
             mission,
-            target_wp=scoring_start_wp,
-            target_rel_alt_m=target_rel_alt_m,
+            poi_wp=scoring_start_wp,
+            poi_rel_alt_m=poi_rel_alt_m,
             home_abs_alt_m=home_alt,
         ).mission_seq
         for name, value in parameters:
             if not set_param(master, name, value):
                 raise RuntimeError(f"sysid={sys_id} parameter echo failed: {name}")
-    return targets, scoring_start_sequences
+    return pois, scoring_start_sequences

@@ -330,7 +330,7 @@ def test_polling_wait_is_interrupted_by_stop_even_at_slow_wall_cadence() -> None
         cadence_lease=SchedulerCadenceLease(cadence, owned=False),
         scheduler_period_s=0.02,
         ideal_360=False,
-        detect_targets=detect,
+        detect_pois=detect,
         record_outcome=Mock(),
     )
 
@@ -356,7 +356,7 @@ def test_info_failure_does_not_change_successful_start():
 def test_reset_owner_attempts_every_clear_before_raising():
     pose_source = Mock()
     pose_source.reset_state.side_effect = RuntimeError("pose reset failed")
-    target_catalog = Mock()
+    poi_catalog = Mock()
     capture = Mock()
     gap = Mock()
     tracking = Mock()
@@ -364,7 +364,7 @@ def test_reset_owner_attempts_every_clear_before_raising():
     mount = Mock()
     resetter = SimDetectorReset(
         pose_source=pose_source,
-        target_catalog=target_catalog,
+        poi_catalog=poi_catalog,
         capture_state=capture,
         gap_state=gap,
         tracking=tracking,
@@ -375,7 +375,7 @@ def test_reset_owner_attempts_every_clear_before_raising():
     with pytest.raises(ExceptionGroup, match="reset failed"):
         resetter.refresh()
 
-    target_catalog.refresh.assert_called_once_with()
+    poi_catalog.refresh.assert_called_once_with()
     capture.reset.assert_called_once_with()
     gap.reset.assert_called_once_with()
     tracking.reset.assert_called_once_with()
@@ -406,7 +406,7 @@ def test_concurrent_worker_start_creates_exactly_one_worker_thread():
         cadence_lease=SchedulerCadenceLease(shared_timebase, owned=False),
         scheduler_period_s=0.02,
         ideal_360=True,
-        detect_targets=Mock(),
+        detect_pois=Mock(),
         record_outcome=Mock(),
     )
     run_started = threading.Event()
@@ -446,7 +446,7 @@ def test_sim_worker_failure_is_persistent_health_failure() -> None:
         cadence_lease=SchedulerCadenceLease(Mock(), owned=False),
         scheduler_period_s=0.02,
         ideal_360=True,
-        detect_targets=Mock(),
+        detect_pois=Mock(),
         record_outcome=Mock(),
     )
 
@@ -477,7 +477,7 @@ def test_delayed_worker_cannot_run_after_failed_coordinator_stop() -> None:
         cadence_lease=SchedulerCadenceLease(cadence, owned=True),
         scheduler_period_s=0.02,
         ideal_360=True,
-        detect_targets=Mock(),
+        detect_pois=Mock(),
         record_outcome=Mock(),
     )
     worker.run = Mock()

@@ -10,7 +10,7 @@ from scripts.eval_gcs_demo_command_bounds import (
     command_bounds_from_snapshot,
 )
 from scripts.eval_gcs_demo_config import aas_params_for, full_param_changes
-from scripts.eval_gcs_demo_constants import TERMINAL_ROLL_LIMIT_DEG
+from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
 from scripts.eval_gcs_demo_models import RegressionError, StackContext, ThreeUavIds
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_process import wait_until
@@ -149,7 +149,7 @@ def configure_vehicle_params(
         bounds.append(command_bounds_from_snapshot(
             sys_id,
             snapshot,
-            roll_limit_deg=TERMINAL_ROLL_LIMIT_DEG,
+            roll_limit_deg=FINAL_APPROACH_ROLL_LIMIT_DEG,
         ))
         full = context.api.put_json(
             f"/api/vehicles/{sys_id}/parameters",

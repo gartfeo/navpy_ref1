@@ -1,9 +1,9 @@
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassDetector
 
 
 def _frame(ts, body_x):
-    return TerminalVisionFrame(
+    return FinalApproachVisionFrame(
         "cam", 0, 1, 2, ts,
         body_x, 0.0, 0.0 if body_x else 1.0,
         body_x, 0.0, 0.0 if body_x else 1.0,

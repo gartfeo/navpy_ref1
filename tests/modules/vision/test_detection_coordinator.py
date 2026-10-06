@@ -14,10 +14,10 @@ from navpy.modules.vision.models.detection_publication import DetectionPublicati
 from navpy.modules.vision.models.detect_request import DetectRequest
 from navpy.modules.vision.models.detect_response import DetectResponse
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.modules.vision.target_priority import select_most_centered_target
+from navpy.modules.vision.poi_priority import select_most_centered_poi
 from navpy.modules.vision.tracking_command_router import TrackingCommandRouter
 from navpy.modules.vision.zoom_control_router import ZoomControlRouter
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 _DETECTOR_CAPABILITIES = (
@@ -34,12 +34,12 @@ _DETECTOR_CAPABILITIES = (
     "get_detect_data",
     "drain_detection_events",
     "open_detection_event_lease",
-    "target_uses_source_driven_events",
+    "poi_uses_source_driven_events",
     "wall_period_for_scheduler_period",
     "start",
     "stop",
     "refresh",
-    "set_sim_target",
+    "set_sim_poi",
     "start_tracking",
     "stop_tracking",
     "start_geo_tracking",
@@ -47,15 +47,15 @@ _DETECTOR_CAPABILITIES = (
     "prepare_geo_acquisition",
     "stop_geo_tracking",
     "set_zoom_size_demand",
-    "freeze_terminal_zoom_at_min",
+    "freeze_final_approach_zoom_at_min",
 )
 
 
 def _detector_double(
-    targets=None,
+    pois=None,
     *,
     is_simulation=True,
-    primary_target=None,
+    primary_poi=None,
     source_name="",
 ):
     """Build a test double that explicitly supplies every fleet capability."""
@@ -71,11 +71,11 @@ def _detector_double(
     detector.has_source_driven_detection_events = False
     detector.get_zoom_result.return_value = None
     detector.get_detect_data.return_value = DetectResponse(
-        targets or [], primary_target=primary_target,
+        pois or [], primary_poi=primary_poi,
     )
     detector.drain_detection_events.return_value = []
     detector.open_detection_event_lease.return_value = None
-    detector.target_uses_source_driven_events.return_value = False
+    detector.poi_uses_source_driven_events.return_value = False
     detector.wall_period_for_scheduler_period.side_effect = lambda period: period
     detector.stop.return_value = True
     return detector
@@ -87,15 +87,15 @@ class TestDetectionCoordinator(unittest.TestCase):
     def setUp(self):
         self.logger = Mock()
 
-    def _create_mock_detector(self, targets=None, is_sim=True, primary_target=None):
-        """Create a mock detector with given targets."""
+    def _create_mock_detector(self, pois=None, is_sim=True, primary_poi=None):
+        """Create a mock detector with given POIs."""
         return _detector_double(
-            targets,
+            pois,
             is_simulation=is_sim,
-            primary_target=primary_target,
+            primary_poi=primary_poi,
         )
 
-    def _create_mock_target(
+    def _create_mock_poi(
         self,
         obj_id=1,
         x_error=100,
@@ -105,8 +105,8 @@ class TestDetectionCoordinator(unittest.TestCase):
         timestamp=None,
         supports_confirmation_frame=True,
     ):
-        """Create a real grouped target at the requested source pixel."""
-        return make_detected_target(
+        """Create a real grouped POI at the requested source pixel."""
+        return make_detected_poi(
             obj_id=obj_id,
             x_error=x_error,
             y_error=y_error,
@@ -133,15 +133,15 @@ class TestDetectionCoordinator(unittest.TestCase):
 
     def test_single_detector(self):
         """Coordinator works with single detector."""
-        target = self._create_mock_target(obj_id=1)
-        detector = self._create_mock_detector([target], primary_target=target)
+        poi = self._create_mock_poi(obj_id=1)
+        detector = self._create_mock_detector([poi], primary_poi=poi)
 
         coordinator = DetectionCoordinator([detector], self.logger)
 
         resp = coordinator.get_detect_data(DetectRequest())
-        self.assertEqual(len(resp.detected_targets), 1)
-        self.assertEqual(resp.detected_targets[0].identity.obj_id, 1)
-        self.assertIs(resp.primary_target, target)
+        self.assertEqual(len(resp.detected_pois), 1)
+        self.assertEqual(resp.detected_pois[0].identity.obj_id, 1)
+        self.assertIs(resp.primary_poi, poi)
 
     def test_wall_period_for_scheduler_period_uses_fastest_child_period(self):
         """Coordinator forwards sim loop timing through child detectors."""
@@ -180,10 +180,10 @@ class TestDetectionCoordinator(unittest.TestCase):
         self.assertTrue(coordinator.has_source_driven_detection_events)
 
     def test_drain_detection_events_preserves_events_and_assigns_task_ids(self):
-        later = self._create_mock_target(
+        later = self._create_mock_poi(
             obj_id=1, source_name="gimbal_0", timestamp=10.02,
         )
-        earlier = self._create_mock_target(
+        earlier = self._create_mock_poi(
             obj_id=1, source_name="gimbal_1", timestamp=10.00,
         )
         detector_later = self._create_mock_detector()
@@ -215,7 +215,7 @@ class TestDetectionCoordinator(unittest.TestCase):
         responses = coordinator.drain_detection_events(DetectRequest())
 
         self.assertEqual(
-            [response.primary_target for response in responses],
+            [response.primary_poi for response in responses],
             [earlier, later],
         )
         self.assertEqual(earlier.identity.task_id, 1)
@@ -233,27 +233,27 @@ class TestDetectionCoordinator(unittest.TestCase):
         detector_earlier.drain_detection_events.assert_called_once()
 
     def test_mixed_source_drain_does_not_resample_polling_child(self):
-        source_target = self._create_mock_target(
+        source_poi = self._create_mock_poi(
             obj_id=1, source_name="gimbal_source",
         )
-        polling_target = self._create_mock_target(
+        polling_poi = self._create_mock_poi(
             obj_id=1, source_name="gimbal_polling",
         )
-        source_target.replace_timing(
-            replace(source_target.timing, detection_timestamp_s=10.0)
+        source_poi.replace_timing(
+            replace(source_poi.timing, detection_timestamp_s=10.0)
         )
-        polling_target.replace_timing(
-            replace(polling_target.timing, detection_timestamp_s=10.0)
+        polling_poi.replace_timing(
+            replace(polling_poi.timing, detection_timestamp_s=10.0)
         )
         source = self._create_mock_detector()
         polling = self._create_mock_detector(
-            [polling_target], primary_target=polling_target,
+            [polling_poi], primary_poi=polling_poi,
         )
         source.has_source_driven_detection_events = True
         polling.has_source_driven_detection_events = False
         source.drain_detection_events.return_value = [
             DetectionPublication(
-                (source_target,),
+                (source_poi,),
                 source_timestamp_s=10.0,
                 source_receipt_timestamp_s=None,
                 source_name="gimbal_source",
@@ -265,39 +265,39 @@ class TestDetectionCoordinator(unittest.TestCase):
         responses = coordinator.drain_detection_events(DetectRequest())
 
         self.assertEqual(len(responses), 1)
-        self.assertIs(responses[0].primary_target, source_target)
+        self.assertIs(responses[0].primary_poi, source_poi)
         polling.get_detect_data.assert_not_called()
 
         snapshot = coordinator.get_detect_data(DetectRequest())
 
-        self.assertIn(polling_target, snapshot.detected_targets)
+        self.assertIn(polling_poi, snapshot.detected_pois)
         self.assertNotEqual(
-            source_target.identity.task_id,
-            polling_target.identity.task_id,
+            source_poi.identity.task_id,
+            polling_poi.identity.task_id,
         )
         polling.get_detect_data.assert_called_once()
         self.assertTrue(
-            coordinator.target_uses_source_driven_events(source_target)
+            coordinator.poi_uses_source_driven_events(source_poi)
         )
         self.assertFalse(
-            coordinator.target_uses_source_driven_events(polling_target)
+            coordinator.poi_uses_source_driven_events(polling_poi)
         )
 
     def test_multiple_detectors_aggregation(self):
         """Coordinator aggregates detections from multiple detectors."""
-        target1 = self._create_mock_target(obj_id=1)
-        target2 = self._create_mock_target(obj_id=2)
-        target3 = self._create_mock_target(obj_id=3)
+        poi1 = self._create_mock_poi(obj_id=1)
+        poi2 = self._create_mock_poi(obj_id=2)
+        poi3 = self._create_mock_poi(obj_id=3)
 
-        detector1 = self._create_mock_detector([target1], primary_target=target1)
-        detector2 = self._create_mock_detector([target2, target3], primary_target=target2)
+        detector1 = self._create_mock_detector([poi1], primary_poi=poi1)
+        detector2 = self._create_mock_detector([poi2, poi3], primary_poi=poi2)
 
         coordinator = DetectionCoordinator([detector1, detector2], self.logger)
 
         resp = coordinator.get_detect_data(DetectRequest())
-        self.assertEqual(len(resp.detected_targets), 3)
+        self.assertEqual(len(resp.detected_pois), 3)
 
-        obj_ids = [t.identity.obj_id for t in resp.detected_targets]
+        obj_ids = [t.identity.obj_id for t in resp.detected_pois]
         self.assertIn(1, obj_ids)
         self.assertIn(2, obj_ids)
         self.assertIn(3, obj_ids)
@@ -306,89 +306,89 @@ class TestDetectionCoordinator(unittest.TestCase):
         """Per-detection frame capability survives coordinator aggregation.
 
         Mixed fleet: a frame-less ideal child and a frame-capable child.
-        The flag is per-detection so it must ride each target through
+        The flag is per-detection so it must ride each POI through
         aggregation and primary selection unchanged.
         """
-        ideal_target = self._create_mock_target(
+        ideal_poi = self._create_mock_poi(
             obj_id=1,
             x_error=1000,
             y_error=500,
             supports_confirmation_frame=False,
         )
-        camera_target = self._create_mock_target(obj_id=2, x_error=1400, y_error=700,
+        camera_poi = self._create_mock_poi(obj_id=2, x_error=1400, y_error=700,
                                                  source_name="gimbal_1",
                                                  supports_confirmation_frame=True)
 
-        detector1 = self._create_mock_detector([ideal_target], primary_target=ideal_target)
-        detector2 = self._create_mock_detector([camera_target], primary_target=camera_target)
+        detector1 = self._create_mock_detector([ideal_poi], primary_poi=ideal_poi)
+        detector2 = self._create_mock_detector([camera_poi], primary_poi=camera_poi)
 
         coordinator = DetectionCoordinator([detector1, detector2], self.logger)
 
         resp = coordinator.get_detect_data(DetectRequest())
-        by_obj_id = {t.identity.obj_id: t for t in resp.detected_targets}
+        by_obj_id = {t.identity.obj_id: t for t in resp.detected_pois}
         self.assertFalse(by_obj_id[1].confirmation.supports_frame)
         self.assertTrue(by_obj_id[2].confirmation.supports_frame)
-        self.assertFalse(resp.primary_target.confirmation.supports_frame)
+        self.assertFalse(resp.primary_poi.confirmation.supports_frame)
 
-    def test_primary_target_comes_from_best_detector_primary(self):
+    def test_primary_poi_comes_from_best_detector_primary(self):
         """Coordinator ranks detector primaries, not arbitrary peer detections."""
-        off_center_primary = self._create_mock_target(obj_id=1, x_error=1400, y_error=700)
-        best_primary = self._create_mock_target(obj_id=2, x_error=1010, y_error=505)
-        centered_peer = self._create_mock_target(obj_id=3, x_error=1000, y_error=500)
+        off_center_primary = self._create_mock_poi(obj_id=1, x_error=1400, y_error=700)
+        best_primary = self._create_mock_poi(obj_id=2, x_error=1010, y_error=505)
+        centered_peer = self._create_mock_poi(obj_id=3, x_error=1000, y_error=500)
 
-        detector1 = self._create_mock_detector([off_center_primary], primary_target=off_center_primary)
-        detector2 = self._create_mock_detector([centered_peer, best_primary], primary_target=best_primary)
-
-        coordinator = DetectionCoordinator([detector1, detector2], self.logger)
-
-        resp = coordinator.get_detect_data(DetectRequest())
-
-        self.assertIs(resp.primary_target, best_primary)
-        self.assertEqual(resp.detected_targets[0].identity.obj_id, 2)
-
-    def test_primary_target_falls_back_to_best_detection_when_missing(self):
-        """Coordinator derives a primary target when detectors do not provide one."""
-        far_target = self._create_mock_target(obj_id=1, x_error=1500, y_error=800)
-        centered_target = self._create_mock_target(obj_id=2, x_error=1005, y_error=495)
-
-        detector1 = self._create_mock_detector([far_target])
-        detector2 = self._create_mock_detector([centered_target])
+        detector1 = self._create_mock_detector([off_center_primary], primary_poi=off_center_primary)
+        detector2 = self._create_mock_detector([centered_peer, best_primary], primary_poi=best_primary)
 
         coordinator = DetectionCoordinator([detector1, detector2], self.logger)
 
         resp = coordinator.get_detect_data(DetectRequest())
 
-        self.assertIs(resp.primary_target, centered_target)
-        self.assertEqual(resp.detected_targets[0].identity.obj_id, 2)
+        self.assertIs(resp.primary_poi, best_primary)
+        self.assertEqual(resp.detected_pois[0].identity.obj_id, 2)
+
+    def test_primary_poi_falls_back_to_best_detection_when_missing(self):
+        """Coordinator derives a primary POI when detectors do not provide one."""
+        far_poi = self._create_mock_poi(obj_id=1, x_error=1500, y_error=800)
+        centered_poi = self._create_mock_poi(obj_id=2, x_error=1005, y_error=495)
+
+        detector1 = self._create_mock_detector([far_poi])
+        detector2 = self._create_mock_detector([centered_poi])
+
+        coordinator = DetectionCoordinator([detector1, detector2], self.logger)
+
+        resp = coordinator.get_detect_data(DetectRequest())
+
+        self.assertIs(resp.primary_poi, centered_poi)
+        self.assertEqual(resp.detected_pois[0].identity.obj_id, 2)
 
     def test_assigns_unique_task_ids_for_same_local_obj_id_across_detectors(self):
         """Coordinator namespaces detector-local IDs into unique task IDs."""
-        left = self._create_mock_target(obj_id=1, source_name="gimbal_0")
-        right = self._create_mock_target(obj_id=1, source_name="gimbal_1")
+        left = self._create_mock_poi(obj_id=1, source_name="gimbal_0")
+        right = self._create_mock_poi(obj_id=1, source_name="gimbal_1")
 
-        detector1 = self._create_mock_detector([left], primary_target=left)
-        detector2 = self._create_mock_detector([right], primary_target=right)
+        detector1 = self._create_mock_detector([left], primary_poi=left)
+        detector2 = self._create_mock_detector([right], primary_poi=right)
 
         coordinator = DetectionCoordinator([detector1, detector2], self.logger)
 
         resp = coordinator.get_detect_data(DetectRequest())
 
-        self.assertEqual(len(resp.detected_targets), 2)
-        self.assertEqual(resp.detected_targets[0].identity.task_id, 1)
-        self.assertEqual(resp.detected_targets[1].identity.task_id, 2)
+        self.assertEqual(len(resp.detected_pois), 2)
+        self.assertEqual(resp.detected_pois[0].identity.task_id, 1)
+        self.assertEqual(resp.detected_pois[1].identity.task_id, 2)
         self.assertNotEqual(left.identity.task_id, right.identity.task_id)
 
-    def _create_mock_detector_with_gimbal_name(self, gimbal_name: str, targets=None):
+    def _create_mock_detector_with_gimbal_name(self, gimbal_name: str, pois=None):
         """Mock detector with an explicit source identity capability."""
-        detector = self._create_mock_detector(targets=targets,
-                                              primary_target=targets[0] if targets else None)
+        detector = self._create_mock_detector(pois=pois,
+                                              primary_poi=pois[0] if pois else None)
         detector.source_name = gimbal_name
         return detector
 
     def test_start_tracking_routes_by_explicit_source_identity(self):
         """A task ID routes only to the detector exposing its source name."""
-        left = self._create_mock_target(obj_id=1, source_name="gimbal_0")
-        right = self._create_mock_target(obj_id=1, source_name="gimbal_1")
+        left = self._create_mock_poi(obj_id=1, source_name="gimbal_0")
+        right = self._create_mock_poi(obj_id=1, source_name="gimbal_1")
         d0 = self._create_mock_detector_with_gimbal_name("gimbal_0", [left])
         d1 = self._create_mock_detector_with_gimbal_name("gimbal_1", [right])
         coord = DetectionCoordinator([d0, d1], self.logger)
@@ -409,7 +409,7 @@ class TestDetectionCoordinator(unittest.TestCase):
         """If the allocator resolves a task_id but no detector's gimbal
         matches, raise — a silent no-op would let navigation_task_action.start think
         tracking was armed and advance to CONFIRM with no gimbal moving."""
-        tgt = self._create_mock_target(obj_id=1, source_name="gimbal_missing")
+        tgt = self._create_mock_poi(obj_id=1, source_name="gimbal_missing")
         d = self._create_mock_detector_with_gimbal_name("gimbal_present", [tgt])
         coord = DetectionCoordinator([d], self.logger)
         coord.get_detect_data(DetectRequest())  # allocates task_id 1
@@ -427,30 +427,30 @@ class TestDetectionCoordinator(unittest.TestCase):
         coord.start_tracking(999)  # never allocated
         d.start_tracking.assert_called_once_with(999)
 
-    def test_allocator_rebind_updates_both_maps_and_target(self):
+    def test_allocator_rebind_updates_both_maps_and_poi(self):
         """rebind evicts stale mappings both directions and adopts the
         ORIGINAL task_id onto the new identity: a FRESH detection of the
         new identity then resolves to the ORIGINAL task_id via assign(),
         get_identity(task_id) resolves to the new identity, and no stale
         reverse mapping remains for the evicted task_id."""
-        from navpy.modules.vision.target_identity import TargetTaskIdAllocator
+        from navpy.modules.vision.poi_identity import PoiTaskIdAllocator
 
-        allocator = TargetTaskIdAllocator()
+        allocator = PoiTaskIdAllocator()
 
-        old_target = self._create_mock_target(obj_id=1, source_name="gimbal_0")
-        task_id = allocator.assign(old_target)
+        old_poi = self._create_mock_poi(obj_id=1, source_name="gimbal_0")
+        task_id = allocator.assign(old_poi)
         self.assertEqual(task_id, 1)
 
-        new_target = self._create_mock_target(obj_id=2, source_name="gimbal_0")
-        new_task_id = allocator.assign(new_target)
+        new_poi = self._create_mock_poi(obj_id=2, source_name="gimbal_0")
+        new_task_id = allocator.assign(new_poi)
         self.assertEqual(new_task_id, 2)
 
-        self.assertTrue(allocator.rebind(task_id, new_target))
-        self.assertEqual(new_target.identity.task_id, task_id)
+        self.assertTrue(allocator.rebind(task_id, new_poi))
+        self.assertEqual(new_poi.identity.task_id, task_id)
 
         # A FRESH detection of the new identity resolves to the ORIGINAL task_id.
-        fresh_new_target = self._create_mock_target(obj_id=2, source_name="gimbal_0")
-        self.assertEqual(allocator.assign(fresh_new_target), task_id)
+        fresh_new_poi = self._create_mock_poi(obj_id=2, source_name="gimbal_0")
+        self.assertEqual(allocator.assign(fresh_new_poi), task_id)
 
         # get_identity(task_id) now resolves to the NEW identity.
         identity = allocator.get_identity(task_id)
@@ -465,8 +465,8 @@ class TestDetectionCoordinator(unittest.TestCase):
         the detector owning the NEW local id — the allocator's
         identity->task_id mapping fully adopts the new track under the
         ORIGINAL task id."""
-        left = self._create_mock_target(obj_id=1, source_name="gimbal_0")
-        right = self._create_mock_target(obj_id=1, source_name="gimbal_1")
+        left = self._create_mock_poi(obj_id=1, source_name="gimbal_0")
+        right = self._create_mock_poi(obj_id=1, source_name="gimbal_1")
         d0 = self._create_mock_detector_with_gimbal_name("gimbal_0", [left])
         d1 = self._create_mock_detector_with_gimbal_name("gimbal_1", [right])
         coord = DetectionCoordinator([d0, d1], self.logger)
@@ -477,7 +477,7 @@ class TestDetectionCoordinator(unittest.TestCase):
         self.assertEqual(right.identity.task_id, 2)
 
         # gimbal_0's local track is lost; gimbal_1's local track #1 (right)
-        # is the SAME physical target re-detected under a different local id.
+        # is the SAME physical POI re-detected under a different local id.
         self.assertTrue(coord.rebind_task_id(1, right))
         self.assertEqual(right.identity.task_id, 1)
 
@@ -485,10 +485,10 @@ class TestDetectionCoordinator(unittest.TestCase):
         d1.start_tracking.assert_called_once_with(1)
         d0.start_tracking.assert_not_called()
 
-    def test_get_zoom_result_routes_to_active_target_detector(self):
+    def test_get_zoom_result_routes_to_active_poi_detector(self):
         """Zoom status must come from the detector that produced the active task id."""
-        left = self._create_mock_target(obj_id=7, source_name="gimbal_0")
-        right = self._create_mock_target(obj_id=7, source_name="gimbal_1")
+        left = self._create_mock_poi(obj_id=7, source_name="gimbal_0")
+        right = self._create_mock_poi(obj_id=7, source_name="gimbal_1")
         d0 = self._create_mock_detector_with_gimbal_name("gimbal_0", [left])
         d1 = self._create_mock_detector_with_gimbal_name("gimbal_1", [right])
         left_result = object()
@@ -498,31 +498,31 @@ class TestDetectionCoordinator(unittest.TestCase):
         coord = DetectionCoordinator([d0, d1], self.logger)
         resp = coord.get_detect_data(DetectRequest())
 
-        result = coord.get_zoom_result(resp.detected_targets[0].identity.task_id)
+        result = coord.get_zoom_result(resp.detected_pois[0].identity.task_id)
 
         self.assertIs(result, left_result)
         d0.get_zoom_result.assert_called_once_with(7)
         d1.get_zoom_result.assert_not_called()
 
     def test_get_zoom_result_returns_none_when_source_detector_missing(self):
-        target = self._create_mock_target(obj_id=3, source_name="gimbal_missing")
-        detector = self._create_mock_detector_with_gimbal_name("gimbal_present", [target])
+        poi = self._create_mock_poi(obj_id=3, source_name="gimbal_missing")
+        detector = self._create_mock_detector_with_gimbal_name("gimbal_present", [poi])
         coord = DetectionCoordinator([detector], self.logger)
         resp = coord.get_detect_data(DetectRequest())
 
         self.assertIsNone(
-            coord.get_zoom_result(resp.detected_targets[0].identity.task_id)
+            coord.get_zoom_result(resp.detected_pois[0].identity.task_id)
         )
         detector.get_zoom_result.assert_not_called()
 
     def test_get_zoom_result_returns_none_when_source_identity_does_not_match(self):
-        target = self._create_mock_target(obj_id=3, source_name="gimbal_0")
-        detector = self._create_mock_detector([target], primary_target=target)
+        poi = self._create_mock_poi(obj_id=3, source_name="gimbal_0")
+        detector = self._create_mock_detector([poi], primary_poi=poi)
         coord = DetectionCoordinator([detector], self.logger)
         resp = coord.get_detect_data(DetectRequest())
 
         self.assertIsNone(
-            coord.get_zoom_result(resp.detected_targets[0].identity.task_id)
+            coord.get_zoom_result(resp.detected_pois[0].identity.task_id)
         )
         detector.get_zoom_result.assert_not_called()
 
@@ -726,18 +726,18 @@ class TestDetectionCoordinator(unittest.TestCase):
         coordinator = DetectionCoordinator([detector1, detector2], self.logger)
         self.assertFalse(coordinator.is_simulation)
 
-    def test_set_sim_target_propagates_to_all(self):
-        """set_sim_target calls set_sim_target on all detectors."""
+    def test_set_sim_poi_propagates_to_all(self):
+        """set_sim_poi calls set_sim_poi on all detectors."""
         detector1 = self._create_mock_detector()
         detector2 = self._create_mock_detector()
 
         coordinator = DetectionCoordinator([detector1, detector2], self.logger)
 
         location = Location(40.0, 44.0, 1000)
-        coordinator.set_sim_target(5, location)
+        coordinator.set_sim_poi(5, location)
 
-        detector1.set_sim_target.assert_called_once_with(5, location, location_type=None)
-        detector2.set_sim_target.assert_called_once_with(5, location, location_type=None)
+        detector1.set_sim_poi.assert_called_once_with(5, location, location_type=None)
+        detector2.set_sim_poi.assert_called_once_with(5, location, location_type=None)
 
     def test_is_zoom_stable_true_when_all_detectors_stable(self):
         d1 = self._create_mock_detector()
@@ -778,15 +778,15 @@ class TestDetectionCoordinator(unittest.TestCase):
         self.assertIn(mount3, mounts)
 
     def test_select_best_detection_empty_list(self):
-        """Target priority returns None for an empty list."""
-        result = select_most_centered_target([])
+        """POI priority returns None for an empty list."""
+        result = select_most_centered_poi([])
         self.assertIsNone(result)
 
-    def test_select_best_detection_single_target(self):
-        """Target priority returns the single target."""
-        target = self._create_mock_target()
-        result = select_most_centered_target([target])
-        self.assertEqual(result, target)
+    def test_select_best_detection_single_poi(self):
+        """POI priority returns the single POI."""
+        poi = self._create_mock_poi()
+        result = select_most_centered_poi([poi])
+        self.assertEqual(result, poi)
 
 
     def test_start_tracking_forwards_to_all_detectors(self):
@@ -965,18 +965,18 @@ class TestDetectionCoordinatorZoomSizeDemand(unittest.TestCase):
         for detector in detectors:
             detector.set_zoom_size_demand.assert_called_once_with(False)
 
-    def test_terminal_zoom_freeze_broadcasts(self):
+    def test_final_approach_zoom_freeze_broadcasts(self):
         detectors = [self._create_mock_detector() for _ in range(3)]
         coordinator = DetectionCoordinator(detectors, self.logger)
 
-        coordinator.freeze_terminal_zoom_at_min()
+        coordinator.freeze_final_approach_zoom_at_min()
 
         for detector in detectors:
-            detector.freeze_terminal_zoom_at_min.assert_called_once_with()
+            detector.freeze_final_approach_zoom_at_min.assert_called_once_with()
 
     def test_detector_abc_does_not_own_zoom_defaults(self):
         self.assertTrue({
-            "set_zoom_size_demand", "freeze_terminal_zoom_at_min",
+            "set_zoom_size_demand", "freeze_final_approach_zoom_at_min",
         }.isdisjoint(DetectorAbc.__dict__))
 
 
@@ -985,7 +985,7 @@ class TestDetectionCoordinatorGeo(unittest.TestCase):
 
     def setUp(self):
         self.logger = Mock()
-        self.target_loc = Location(40.3, 44.4, 1500.0)
+        self.poi_loc = Location(40.3, 44.4, 1500.0)
         self.uav_loc = Location(40.31, 44.41, 1700.0)
         self.uav_att = Mock()
         self.geo_ref = Mock()
@@ -997,10 +997,10 @@ class TestDetectionCoordinatorGeo(unittest.TestCase):
         d1, d2 = self._detector(), self._detector()
         coord = DetectionCoordinator([d1, d2], self.logger)
 
-        coord.start_geo_tracking(self.target_loc, self.geo_ref)
+        coord.start_geo_tracking(self.poi_loc, self.geo_ref)
 
-        d1.start_geo_tracking.assert_called_once_with(self.target_loc, self.geo_ref)
-        d2.start_geo_tracking.assert_called_once_with(self.target_loc, self.geo_ref)
+        d1.start_geo_tracking.assert_called_once_with(self.poi_loc, self.geo_ref)
+        d2.start_geo_tracking.assert_called_once_with(self.poi_loc, self.geo_ref)
 
     def test_update_geo_broadcasts_to_all_children(self):
         d1, d2 = self._detector(), self._detector()
@@ -1044,7 +1044,7 @@ class TestDetectionCoordinatorGeo(unittest.TestCase):
         coord = DetectionCoordinator([d1, d2, d3], self.logger)
 
         with self.assertRaises(RuntimeError):
-            coord.start_geo_tracking(self.target_loc, self.geo_ref)
+            coord.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         # d1 armed and was rolled back; d2 raised; d3 never armed.
         d1.start_geo_tracking.assert_called_once()
@@ -1057,7 +1057,7 @@ class TestDetectionCoordinatorGeo(unittest.TestCase):
         coord = DetectionCoordinator([d1, d2], self.logger)
 
         with self.assertRaises(RuntimeError):
-            coord.start_geo_tracking(self.target_loc, self.geo_ref)
+            coord.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         d2.start_geo_tracking.assert_not_called()
         # No rollback needed — nobody armed.
@@ -1070,7 +1070,7 @@ class TestDetectionCoordinatorGeo(unittest.TestCase):
         coord = DetectionCoordinator([d1, d2], self.logger)
 
         with self.assertRaises(RuntimeError) as ctx:
-            coord.start_geo_tracking(self.target_loc, self.geo_ref)
+            coord.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         # Original "locked" must propagate, not the rollback's own exception.
         self.assertEqual(str(ctx.exception), "locked")

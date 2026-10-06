@@ -50,7 +50,7 @@ class ConfirmationCapture:
     def overlay_position(
         self,
         detection: DetectedObject,
-        target: SimulationObject,
+        poi: SimulationObject,
         camera_location: Location,
     ) -> OverlayPosition:
         renderer = self._state.renderer
@@ -59,61 +59,61 @@ class ConfirmationCapture:
         frame_size = self._camera.frame_size
         x_fraction = float(detection.pixel.u_px) / frame_size.width_px
         y_fraction = float(detection.pixel.v_px) / frame_size.height_px
-        target_ned = pymap3d.geodetic2ned(
-            target.g_loc.lat,
-            target.g_loc.lng,
-            target.g_loc.alt,
+        poi_ned = pymap3d.geodetic2ned(
+            poi.g_loc.lat,
+            poi.g_loc.lng,
+            poi.g_loc.alt,
             camera_location.lat,
             camera_location.lng,
             camera_location.alt,
         )
-        distance_m = float(np.linalg.norm(target_ned))
+        distance_m = float(np.linalg.norm(poi_ned))
         camera_matrix = self._camera.read_matrix()
         focal_y_px = float(camera_matrix[1, 1])
         projected_px = focal_y_px * get_class_detect_size(0) / max(distance_m, 1.0)
-        sprite_height = renderer.sprite_height_for(target.location_type)
-        sprite_width = renderer.sprite_width_for(target.location_type)
+        sprite_height = renderer.sprite_height_for(poi.location_type)
+        sprite_width = renderer.sprite_width_for(poi.location_type)
         scale = self.sprite_scale(projected_px, sprite_width, sprite_height)
         return x_fraction, y_fraction, scale
 
     def capture(
         self,
-        detected_targets: list[DetectedObject],
-        target_positions: Optional[list[OverlayPosition]],
+        detected_pois: list[DetectedObject],
+        poi_positions: Optional[list[OverlayPosition]],
     ) -> None:
         renderer = self._state.renderer
-        if renderer is None or target_positions is None or not detected_targets:
+        if renderer is None or poi_positions is None or not detected_pois:
             return
         location_type = next(
             (
-                target.classification.location_type
-                for target in detected_targets
-                if target.classification.location_type
+                poi.classification.location_type
+                for poi in detected_pois
+                if poi.classification.location_type
             ),
             None,
         )
-        result = renderer.generate_frame(target_positions, location_type=location_type)
+        result = renderer.generate_frame(poi_positions, location_type=location_type)
         if result is not None:
             frame, bounding_boxes = result
             self.store_candidates(
-                detected_targets,
-                target_positions,
+                detected_pois,
+                poi_positions,
                 frame,
                 bounding_boxes,
             )
-        self.attach_best_frames(detected_targets)
+        self.attach_best_frames(detected_pois)
 
     def store_candidates(
         self,
-        detected_targets: list[DetectedObject],
-        target_positions: list[OverlayPosition],
+        detected_pois: list[DetectedObject],
+        poi_positions: list[OverlayPosition],
         frame: np.ndarray,
         bounding_boxes: list[BoundingBox],
     ) -> None:
-        for index, detection in enumerate(detected_targets):
+        for index, detection in enumerate(detected_pois):
             if index >= len(bounding_boxes):
                 continue
-            x_fraction, y_fraction = target_positions[index][:2]
+            x_fraction, y_fraction = poi_positions[index][:2]
             center_score = abs(x_fraction - 0.5) + abs(y_fraction - 0.5)
             stored = self._state.best_frames.get(detection.identity.obj_id)
             stored_bbox = None if stored is None else stored[1]
@@ -137,13 +137,13 @@ class ConfirmationCapture:
                 list(bounding_boxes),
             )
             self._debug(
-                f"Updated best frame for T{detection.identity.obj_id} "
+                f"Updated best frame for P{detection.identity.obj_id} "
                 f"(bbox_h={candidate_bbox[3]:.0f}, score={center_score:.2f}, "
-                f"targets={len(bounding_boxes)})"
+                f"pois={len(bounding_boxes)})"
             )
 
-    def attach_best_frames(self, detected_targets: list[DetectedObject]) -> None:
-        for detection in detected_targets:
+    def attach_best_frames(self, detected_pois: list[DetectedObject]) -> None:
+        for detection in detected_pois:
             stored = self._state.best_frames.get(detection.identity.obj_id)
             if stored is None:
                 continue

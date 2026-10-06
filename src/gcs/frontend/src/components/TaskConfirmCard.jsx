@@ -27,14 +27,14 @@ export default function TaskConfirmCard({
   onApprove, onDeny, onCancel, autoApprove, timeoutSec,
   // CONF-03 (D-18/D-19/D-20): true when this popup's (sysId, entry.taskId)
   // was locally marked forced by the "Ask me anyway" override -- no wire
-  // field, the GCS already knows which target it forced. A forced popup is
+  // field, the GCS already knows which POI it forced. A forced popup is
   // marked gate-overridden and its approve requires press-and-hold, like the
   // override button itself; a normal popup keeps instant approve.
   forced = false,
 }) {
   const { t } = useTranslation();
   const pending = isPending(entry);
-  // Identity of the confirm round on screen. The same target can be asked
+  // Identity of the confirm round on screen. The same POI can be asked
   // again (a bounded re-ask), so the task id alone does NOT change between
   // rounds -- the round uid is what makes this a different question. Rounds
   // from a sender without a uid fall back to receivedAt, which a re-ask also

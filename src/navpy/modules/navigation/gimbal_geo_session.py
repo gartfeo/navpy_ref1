@@ -25,10 +25,10 @@ class GimbalGeoTracking:
 
     def start(
         self,
-        target_loc: Location | None,
+        poi_loc: Location | None,
         geo_ref: GeoRefCalc | None,
     ) -> None:
-        self._lifecycle.start(target_loc, geo_ref)
+        self._lifecycle.start(poi_loc, geo_ref)
 
     def stop(self) -> None:
         self._lifecycle.stop()

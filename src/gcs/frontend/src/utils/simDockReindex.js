@@ -26,7 +26,7 @@ export function reindexZoneMap(map, keptOldIndices, mode = 'array') {
 /**
  * Build targ_wps bitmask updates for all zones.
  * Always produces an entry for every zone (including bitmask 0) so that
- * previously set targets are explicitly cleared on the vehicle.
+ * previously set POIs are explicitly cleared on the vehicle.
  *
  * @param {Object|null} simDockWps – { zoneIndex: [trackWpIndex, ...] }
  * @param {Object[]} zones          – plan zones (need set_index)

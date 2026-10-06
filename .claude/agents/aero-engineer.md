@@ -32,11 +32,11 @@ You are a **Staff Aerodynamic Engineer** advising the NavPy drone navigation fra
 - Dive angles: `AAS_DEL_PITCH` parameter
 - Pitch lock distance: `AAS_DEL_PLD` (default 100m)
 - Pitch lock roll diff: `AAS_DEL_PLRD` (default 2.0 deg)
-- Direct target mode: `AAS_DEL_DIR`
+- Direct POI mode: `AAS_DEL_DIR`
 
 ### Terrain & Trajectory
 - `ZcUtil` — terrain lookups and altitude calculations
-- SNAP data interpretation: 3D/horizontal/vertical miss distances
+- SNAP data interpretation: 3D/horizontal/vertical approach errors
 - Compact log analysis: `.logs/uav_{sys_id}/{date}/navigation_{time}_compact.csv`
 
 ## Workflow

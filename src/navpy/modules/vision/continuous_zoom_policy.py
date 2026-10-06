@@ -11,7 +11,7 @@ from navpy.modules.vision.continuous_zoom_rules import (
     TARGET_BAND_RATIO,
     evaluate_continuous_zoom,
 )
-from navpy.modules.vision.target_zoom_types import ContinuousZoomDecision
+from navpy.modules.vision.poi_zoom_types import ContinuousZoomDecision
 from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
 
 

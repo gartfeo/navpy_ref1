@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from navpy.modules.common.models.location import Location
-from navpy.modules.navigation.nav.terminal_airframe_config import TerminalAirframeConfigProvider, TerminalParameterPort
+from navpy.modules.navigation.nav.final_approach_airframe_config import FinalApproachAirframeConfigProvider, FinalApproachParameterPort
 from scripts import simtime_navigation_config as config
 from scripts.simtime_navigation_protocol import ATTITUDE, Snapshot
 from scripts.simtime_navigation_runtime import SynchronousNavigation
@@ -18,7 +18,7 @@ PARAMETERS = dict(zip(config.LIMIT_PARAMETERS, (-20., 25., 65., .25)), TRIM_THRO
 
 @pytest.mark.parametrize('trim,override', [(0., -1.), (37., -1.), (50., -1.), (100., -1.), (37., .1234567), (37., 0.)])
 def test_runtime_matches_normal_provider_including_missing_camera_holds(trim, override):
-    expected = TerminalAirframeConfigProvider(TerminalParameterPort(dict(PARAMETERS, TRIM_THROTTLE=trim).get),
+    expected = FinalApproachAirframeConfigProvider(FinalApproachParameterPort(dict(PARAMETERS, TRIM_THROTTLE=trim).get),
                                              lambda: None if override < 0 else override * 100).read().throttle
     engine = SynchronousNavigation(Location(40.01, 44., 1300., is_absolute=True), speedup=10,
                                  wall_now=lambda: 100., trim_throttle_percent=trim)

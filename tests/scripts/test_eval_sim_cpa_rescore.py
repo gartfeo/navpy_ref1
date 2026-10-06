@@ -12,7 +12,7 @@ import pytest
 from scripts import eval_sim_cpa_rescore as rescore
 from scripts.eval_direct_pixel_summary import SUMMARY_SCHEMA_VERSION
 
-_TARGET = {
+_POI = {
     "lat_deg": 43.0, "lon_deg": 34.0, "rel_alt_m": 60.0, "abs_alt_m": 500.0,
 }
 
@@ -21,7 +21,7 @@ def _case_dir(tmp_path: Path, name: str = "speed-1-run-1") -> Path:
     case_dir = tmp_path / name
     case_dir.mkdir()
     (case_dir / "case.json").write_text(
-        json.dumps({"target": _TARGET}), encoding="utf-8"
+        json.dumps({"poi": _POI}), encoding="utf-8"
     )
     return case_dir
 

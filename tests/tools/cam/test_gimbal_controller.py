@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 from cam.gimbal_controller import (
@@ -23,7 +23,7 @@ from cam.gimbal_controller import (
     undistort_point,
 )
 from cam.gimbal_tuning_geometry import anchor_pixel, step_zoom
-from cam.gimbal_tuning_sample import build_tracker_target, tracking_bbox
+from cam.gimbal_tuning_sample import build_tracker_poi, tracking_bbox
 
 
 # Typical SIYI ZR10 intrinsics at zoom 1
@@ -344,7 +344,7 @@ class TestBuildBboxTrackingCommand:
         assert command.tracking_k[1, 2] == pytest.approx(command.undistorted_anchor[1])
 
 
-class TestBuildTrackerTarget:
+class TestBuildTrackerPoi:
     def test_builds_current_angular_sample_from_source_time(self):
         command = build_bbox_tracking_command(
             (500.0, 500.0, 120.0, 80.0),
@@ -363,20 +363,20 @@ class TestBuildTrackerTarget:
             image_width=1000,
             image_height=1000,
         )
-        source_target = make_detected_target(
+        source_poi = make_detected_poi(
             obj_id=7,
             timestamp=42.0,
             tracking_bbox_cxcywh=(500.0, 500.0, 120.0, 80.0),
         )
 
-        tracker_target = build_tracker_target(command, source_target)
+        tracker_poi = build_tracker_poi(command, source_poi)
 
-        assert isinstance(tracker_target, GimbalAngularSample)
-        assert tracker_target.source_timestamp_s == pytest.approx(42.0)
-        assert tracker_target.yaw_error_rad == pytest.approx(
+        assert isinstance(tracker_poi, GimbalAngularSample)
+        assert tracker_poi.source_timestamp_s == pytest.approx(42.0)
+        assert tracker_poi.yaw_error_rad == pytest.approx(
             math.radians(command.delta_yaw_deg)
         )
-        assert tracker_target.pitch_error_rad == pytest.approx(
+        assert tracker_poi.pitch_error_rad == pytest.approx(
             math.radians(command.delta_pitch_deg)
         )
 
@@ -398,19 +398,19 @@ class TestBuildTrackerTarget:
             image_width=1000,
             image_height=1000,
         )
-        source_target = make_detected_target(
+        source_poi = make_detected_poi(
             bbox_cxcywh=(300.0, 300.0, 90.0, 60.0),
             tracking_bbox_cxcywh=(520.0, 510.0, 120.0, 80.0),
             timestamp=7.0,
         )
 
-        assert tracking_bbox(source_target) == pytest.approx(
+        assert tracking_bbox(source_poi) == pytest.approx(
             (520.0, 510.0, 120.0, 80.0)
         )
-        tracker_target = build_tracker_target(command, source_target)
+        tracker_poi = build_tracker_poi(command, source_poi)
 
-        assert isinstance(tracker_target, GimbalAngularSample)
-        assert tracker_target.source_timestamp_s == pytest.approx(7.0)
+        assert isinstance(tracker_poi, GimbalAngularSample)
+        assert tracker_poi.source_timestamp_s == pytest.approx(7.0)
 
 
 class TestStepZoom:

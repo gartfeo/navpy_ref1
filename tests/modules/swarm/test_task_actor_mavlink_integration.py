@@ -12,7 +12,7 @@ from navpy.modules.comm.network_mavlink import NetworkMavlink
 from navpy.modules.common.models.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_dispatch import TaskDispatch
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 class _MavlinkBus:
@@ -54,8 +54,8 @@ class _Vehicle:
         return self._location
 
 
-def _target(task_id, location):
-    return make_detected_target(
+def _poi(task_id, location):
+    return make_detected_poi(
         task_id=task_id,
         obj_id=task_id - 1,
         p_t_g_l=location,
@@ -63,15 +63,15 @@ def _target(task_id, location):
     )
 
 
-def test_owner_dispatches_exact_second_and_third_targets_to_distinct_peers():
+def test_owner_dispatches_exact_second_and_third_pois_to_distinct_peers():
     """Exercise NetworkMavlink -> TaskActor using live GCS vehicle sysids."""
-    target_2 = Location(40.2967648, 44.4332133, 1339.7, is_absolute=True)
-    target_3 = Location(40.2974053, 44.4329561, 1339.7, is_absolute=True)
+    poi_2 = Location(40.2967648, 44.4332133, 1339.7, is_absolute=True)
+    poi_3 = Location(40.2974053, 44.4329561, 1339.7, is_absolute=True)
     bus = _MavlinkBus()
     vehicles = [
         _Vehicle(1, Location(40.2961244, 44.4334705, 1339.7), bus),
-        _Vehicle(2, target_2, bus),
-        _Vehicle(3, target_3, bus),
+        _Vehicle(2, poi_2, bus),
+        _Vehicle(3, poi_3, bus),
     ]
     actors = []
     networks = []
@@ -105,9 +105,9 @@ def test_owner_dispatches_exact_second_and_third_targets_to_distinct_peers():
             patch.object(TaskDispatch, "start_rebroadcast", return_value=None),
             patch.object(TaskDispatch, "start_peer_select_timer", return_value=None),
         ):
-            actors[0].notify_targets([
-                _target(2, target_2),
-                _target(3, target_3),
+            actors[0].notify_pois([
+                _poi(2, poi_2),
+                _poi(3, poi_3),
             ])
             bus.drain()
             actors[0]._auction._select_peer_for_task(
@@ -117,7 +117,7 @@ def test_owner_dispatches_exact_second_and_third_targets_to_distinct_peers():
             bus.drain()
 
         peer_tasks = {
-            actor.id: actor.selected_target()
+            actor.id: actor.selected_poi()
             for actor in actors[1:]
         }
         # Task ids stay the mission's 2/3, independent of the node identity.
@@ -128,12 +128,12 @@ def test_owner_dispatches_exact_second_and_third_targets_to_distinct_peers():
             peer_tasks[peer_2_id].location.lat,
             peer_tasks[peer_2_id].location.lng,
             peer_tasks[peer_2_id].location.alt,
-        ) == pytest.approx((target_2.lat, target_2.lng, target_2.alt))
+        ) == pytest.approx((poi_2.lat, poi_2.lng, poi_2.alt))
         assert (
             peer_tasks[peer_3_id].location.lat,
             peer_tasks[peer_3_id].location.lng,
             peer_tasks[peer_3_id].location.alt,
-        ) == pytest.approx((target_3.lat, target_3.lng, target_3.alt))
+        ) == pytest.approx((poi_3.lat, poi_3.lng, poi_3.alt))
 
         dispatch_2 = actors[0]._auction_state.lookup(2)
         dispatch_3 = actors[0]._auction_state.lookup(3)

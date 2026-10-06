@@ -42,11 +42,11 @@ def test_orbit_leaf_uses_the_original_logger_category() -> None:
 
 
 def test_private_facade_wrapper_preserves_arguments_and_offset_fallback() -> None:
-    target = Location(32.0, 34.0, 200.0)
+    poi = Location(32.0, 34.0, 200.0)
     mount = Mock()
     expected = ApproachPlan(
         kind=ApproachKind.ORBIT,
-        approach_location=target,
+        approach_location=poi,
         offset_distance=0.0,
         orbit_radius=500.0,
     )
@@ -57,7 +57,7 @@ def test_private_facade_wrapper_preserves_arguments_and_offset_fallback() -> Non
         return_value=expected,
     ) as planner:
         actual = peer_offset._compute_orbit_plan(
-            target,
+            poi,
             mount,
             150.0,
             2,
@@ -67,7 +67,7 @@ def test_private_facade_wrapper_preserves_arguments_and_offset_fallback() -> Non
 
     assert actual is expected
     planner.assert_called_once_with(
-        target,
+        poi,
         mount,
         150.0,
         2,

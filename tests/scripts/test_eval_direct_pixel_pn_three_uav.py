@@ -68,7 +68,7 @@ def test_run_case_uploads_its_own_mission_before_the_evaluator_link(
     # made every sysid == 1 mod 3 report zero NAV_WAYPOINT items.
     assert order == ["swarm", "upload", "heartbeat", "prepare"]
     assert seen["upload"]["sys_ids"] == [124, 125, 126]
-    # Same start point the swarm was launched at, so the target is reachable.
+    # Same start point the swarm was launched at, so the POI is reachable.
     assert seen["upload"]["home"] == one._home_lat_lon(args.home)
     assert seen["upload"]["waypoint_offset"] == one.DEFAULT_WAYPOINT_OFFSET_M
     assert seen["upload"]["gate_offset"] == one.DEFAULT_GATE_OFFSET_M
@@ -146,11 +146,11 @@ def test_geometry_record_stamps_what_the_run_measured() -> None:
 
     assert record["home"] == one.DEFAULT_HOME_COORDS
     assert record["launch_spacing_m"] == mission_setup.LAUNCH_SPACING_M
-    assert record["target_offset_m"] == one.DEFAULT_WAYPOINT_OFFSET_M
+    assert record["poi_offset_m"] == one.DEFAULT_WAYPOINT_OFFSET_M
     assert record["gate_offset_m"] == one.DEFAULT_GATE_OFFSET_M
     assert record["loiter_offset_m"] == one.DEFAULT_LOITER_OFFSET_M
     assert record["mission_alt_m"] == args.mission_alt
-    assert record["target_alt_m"] == args.target_alt
+    assert record["poi_alt_m"] == args.poi_alt
     # Wind was already recorded; folding it in must not drop it.
     assert record["wind_speed_mps"] == args.wind_speed
     assert record["wind_dir_deg"] == args.wind_dir
@@ -174,7 +174,7 @@ def test_summary_artifact_carries_the_geometry(
     row = json.loads(summaries[0].read_text(encoding="utf-8"))["results"][0]
     assert row["home"] == one.DEFAULT_HOME_COORDS
     assert row["launch_spacing_m"] == mission_setup.LAUNCH_SPACING_M
-    assert row["target_offset_m"] == one.DEFAULT_WAYPOINT_OFFSET_M
+    assert row["poi_offset_m"] == one.DEFAULT_WAYPOINT_OFFSET_M
     assert row["wind_speed_mps"] == 0.0
 
 

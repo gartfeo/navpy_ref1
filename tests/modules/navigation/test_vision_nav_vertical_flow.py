@@ -2,14 +2,14 @@ import math
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.rate_filter import VerticalRateFilter
 
 
 def _frame(ts, angle_deg, generation=0):
     angle = math.radians(angle_deg)
     ray = (math.cos(angle), 0.0, math.sin(angle))
-    return TerminalVisionFrame("cam", generation, 1, 2, ts, *ray, *ray)
+    return FinalApproachVisionFrame("cam", generation, 1, 2, ts, *ray, *ray)
 
 
 def test_filter_uses_raw_source_delta_and_tau():

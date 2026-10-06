@@ -11,7 +11,7 @@ from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
 
 @dataclass(frozen=True)
 class NavExitCleanupPorts:
-    close_terminal_source: Callable[[], None]
+    close_final_approach_source: Callable[[], None]
     navigation_reset: Callable[[], object]
     detector_stop: Callable[[], None]
 
@@ -41,7 +41,7 @@ class NavExitCleanup:
 
         source_closed = False
         try:
-            self._ports.close_terminal_source()
+            self._ports.close_final_approach_source()
             source_closed = True
         except Exception as error:  # noqa: BLE001 - teardown transaction
             errors.append(error)

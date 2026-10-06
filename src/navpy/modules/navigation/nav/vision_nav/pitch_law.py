@@ -1,8 +1,8 @@
-"""The vertical (pitch) command formula for the terminal visual law.
+"""The vertical (pitch) command formula for the final-approach visual law.
 
 One formula, `raw_pitch_current`: a proportional-navigation integrator that
 walks the command anchor down by `N * rate * dt` every cycle. The clamped
-output becomes the next cycle's anchor, so the collision course is the
+output becomes the next cycle's anchor, so the constant-bearing course is the
 recursion's fixed point.
 
 WHY THIS IS THE ONLY ONE LEFT
@@ -25,11 +25,11 @@ matrix by 7.6 to 14.9 m. Root cause: it equates a GROUND-relative LOS elevation
 with an AIR-relative pitch attitude. The achieved flight path is shallower by
 angle of attack plus the wind's effect on along-track ground speed, so it
 under-dives every cycle until the pitch floor saturates. Measured
-`mean(elevation - true flight-path angle)` over the terminal window: +0.11 to
+`mean(elevation - true flight-path angle)` over the final-approach window: +0.11 to
 +0.57 deg for this formula, +3.88 calm and +14.72 tailwind for `memoryless`.
 
 That is the deeper point, and it is why the accumulator stays: rejecting a
-constant unknown disturbance REQUIRES integral action. A pure P+D terminal law
+constant unknown disturbance REQUIRES integral action. A pure P+D final-approach law
 cannot do it at any gain. This integrator is not inertia -- it is disturbance
 rejection. Confirmed from the other side on the noise-free point-mass bench,
 where angle of attack 0 vs 5 deg produces identical misses to three decimals
@@ -71,7 +71,7 @@ def raw_pitch_current(
     rate_rad_s is the filtered rate averaged over this interval, so rate*dt
     is its integral, including when consecutive frame intervals differ.
     The caller clamps the result and feeds it back as the next anchor, which is
-    what makes the collision course the fixed point of the recursion.
+    what makes the constant-bearing course the fixed point of the recursion.
     """
     return anchor_cmd_pitch_deg - math.degrees(
         navigation_constant * rate_rad_s * dt_s

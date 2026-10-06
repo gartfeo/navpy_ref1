@@ -10,7 +10,7 @@ from navpy.modules.vision.sim.sim_detector_config import (
 from navpy.modules.vision.sim.sim_detector_controls import (
     SimDetectorIdentity,
     SimGeoControls,
-    SimTargetControls,
+    SimPoiControls,
     SimZoomControls,
 )
 from navpy.modules.vision.sim.projection_run_recorder import rollback_projection_recorder
@@ -53,7 +53,7 @@ def build_sim_detector(
             render.capture,
         ),
         SimGeoControls(render.navigation),
-        SimTargetControls(render.target_provider),
+        SimPoiControls(render.poi_provider),
         execution.lifecycle,
         execution.worker,
         pipeline,

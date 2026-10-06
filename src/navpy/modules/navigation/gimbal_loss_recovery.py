@@ -26,7 +26,7 @@ class LossRecoveryResult:
 
 
 class GimbalLossRecovery:
-    """Apply timed loss behavior without reading pose or target truth."""
+    """Apply timed loss behavior without reading pose or POI truth."""
 
     def __init__(
         self,
@@ -51,7 +51,7 @@ class GimbalLossRecovery:
         self._log("re-acquired after recentre, mode=LOCK")
         return True
 
-    def accept_target(
+    def accept_poi(
         self,
         now: float,
         previous_holding: bool,

@@ -16,7 +16,7 @@ from navpy.modules.vision.models.detection_event_lease import (
     DetectionLeaseDispatch,
 )
 from navpy.modules.vision.models.detect_response import DetectResponse
-from navpy.modules.vision.target_priority import select_most_centered_target
+from navpy.modules.vision.poi_priority import select_most_centered_poi
 
 if TYPE_CHECKING:
     from navpy.modules.vision.detector_ports import (
@@ -104,25 +104,25 @@ class DetectionAggregator:
             for detector in self._detectors
         )
 
-    def target_uses_source_driven_events(
+    def poi_uses_source_driven_events(
             self,
-            target: "DetectedObject",
+            poi: "DetectedObject",
     ) -> bool | None:
-        return self._registry.target_uses_source_driven_events(target)
+        return self._registry.poi_uses_source_driven_events(poi)
 
     def get_detect_data(self, request: "DetectRequest") -> DetectResponse:
-        targets: list["DetectedObject"] = []
+        pois: list["DetectedObject"] = []
         primary_candidates: list["DetectedObject"] = []
         for detector in self._detectors:
             response = detector.get_detect_data(request)
             self._registry.remember_publication_mode(
-                response.detected_targets,
+                response.detected_pois,
                 source_driven=detector.has_source_driven_detection_events,
             )
-            targets.extend(response.detected_targets)
-            if response.primary_target is not None:
-                primary_candidates.append(response.primary_target)
-        return self.build_response(targets, primary_candidates)
+            pois.extend(response.detected_pois)
+            if response.primary_poi is not None:
+                primary_candidates.append(response.primary_poi)
+        return self.build_response(pois, primary_candidates)
 
     def drain_detection_events(
             self,
@@ -140,7 +140,7 @@ class DetectionAggregator:
                 if not isinstance(publication, DetectionPublication):
                     continue
                 self._registry.remember_publication_mode(
-                    publication.detected_targets,
+                    publication.detected_pois,
                     source_driven=True,
                 )
                 child_events.append((
@@ -175,7 +175,7 @@ class DetectionAggregator:
             return None
         if len(source_children) != 1:
             raise RuntimeError(
-                "terminal source lease requires exactly one source-driven detector"
+                "final-approach source lease requires exactly one source-driven detector"
             )
         lease = source_children[0].open_detection_event_lease(
             request,
@@ -192,35 +192,35 @@ class DetectionAggregator:
         publication: DetectionPublication,
     ) -> DetectionPublication:
         self._registry.remember_publication_mode(
-            publication.detected_targets,
+            publication.detected_pois,
             source_driven=True,
         )
-        return publication.with_targets(self.normalize_targets(
-            list(publication.detected_targets),
-            [publication.primary_target]
-            if publication.primary_target is not None else [],
+        return publication.with_pois(self.normalize_pois(
+            list(publication.detected_pois),
+            [publication.primary_poi]
+            if publication.primary_poi is not None else [],
         ))
 
     def build_response(
             self,
-            targets: list["DetectedObject"],
+            pois: list["DetectedObject"],
             primary_candidates: list["DetectedObject"],
     ) -> DetectResponse:
-        ordered_targets = self.normalize_targets(targets, primary_candidates)
+        ordered_pois = self.normalize_pois(pois, primary_candidates)
         return DetectResponse(
-            ordered_targets,
-            primary_target=ordered_targets[0] if ordered_targets else None,
+            ordered_pois,
+            primary_poi=ordered_pois[0] if ordered_pois else None,
         )
 
-    def normalize_targets(
+    def normalize_pois(
             self,
-            targets: list["DetectedObject"],
+            pois: list["DetectedObject"],
             primary_candidates: list["DetectedObject"],
     ) -> list["DetectedObject"]:
-        return self._registry.normalize_targets(
-            targets,
+        return self._registry.normalize_pois(
+            pois,
             primary_candidates,
-            select_primary=select_most_centered_target,
+            select_primary=select_most_centered_poi,
         )
 
     @staticmethod
@@ -232,9 +232,9 @@ class DetectionAggregator:
         ):
             return float(source_timestamp_s)
         timestamps = [
-            float(target.timing.detection_timestamp_s)
-            for target in publication.detected_targets
-            if isinstance(target.timing.detection_timestamp_s, Real)
-            and math.isfinite(float(target.timing.detection_timestamp_s))
+            float(poi.timing.detection_timestamp_s)
+            for poi in publication.detected_pois
+            if isinstance(poi.timing.detection_timestamp_s, Real)
+            and math.isfinite(float(poi.timing.detection_timestamp_s))
         ]
         return min(timestamps) if timestamps else None

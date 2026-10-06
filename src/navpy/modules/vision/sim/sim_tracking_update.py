@@ -33,7 +33,7 @@ class SimTrackingUpdater:
 
     def update(
         self,
-        detected_targets: list[DetectedObject],
+        detected_pois: list[DetectedObject],
         camera_location: Location,
         uas_attitude: Attitude,
         timestamp_s: float,
@@ -41,28 +41,28 @@ class SimTrackingUpdater:
         tracking_id = self._tracking.tracking_obj_id
         if tracking_id is None:
             return
-        tracked_target = next(
+        tracked_poi = next(
             (
                 detection
-                for detection in detected_targets
+                for detection in detected_pois
                 if detection.identity.obj_id == tracking_id
             ),
             None,
         )
         self._log_tracking(
             tracking_id,
-            tracked_target,
-            detected_targets,
+            tracked_poi,
+            detected_pois,
             camera_location,
             uas_attitude,
         )
-        self._tracking.apply_detection_update(tracked_target, timestamp_s)
+        self._tracking.apply_detection_update(tracked_poi, timestamp_s)
 
     def _log_tracking(
         self,
         tracking_id: int,
-        tracked_target: Optional[DetectedObject],
-        detected_targets: list[DetectedObject],
+        tracked_poi: Optional[DetectedObject],
+        detected_pois: list[DetectedObject],
         camera_location: Location,
         uas_attitude: Attitude,
     ) -> None:
@@ -74,16 +74,16 @@ class SimTrackingUpdater:
             gimbal_data,
             uas_attitude,
         )
-        if tracked_target is not None:
+        if tracked_poi is not None:
             self._debug(
                 f"TRACK: IN_FRAME obj={tracking_id} "
-                f"px=({tracked_target.pixel.u_px:.0f},{tracked_target.pixel.v_px:.0f}) "
-                f"off=({tracked_target.pixel.u_px - center_x:.0f},"
-                f"{tracked_target.pixel.v_px - center_y:.0f}) "
+                f"px=({tracked_poi.pixel.u_px:.0f},{tracked_poi.pixel.v_px:.0f}) "
+                f"off=({tracked_poi.pixel.u_px - center_x:.0f},"
+                f"{tracked_poi.pixel.v_px - center_y:.0f}) "
                 f"{gimbal_body} {uas} {verify}"
             )
             return
-        detection_ids = [target.identity.obj_id for target in detected_targets]
+        detection_ids = [poi.identity.obj_id for poi in detected_pois]
         reason = self._diagnose_track_loss(
             tracking_id,
             camera_location,

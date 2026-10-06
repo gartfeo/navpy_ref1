@@ -8,7 +8,7 @@ import math
 from copy import deepcopy
 from typing import Iterable
 
-from navpy.args.navigation_target_args import is_nav_target_command
+from navpy.args.navigation_poi_args import is_nav_poi_command
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_ports import JsonValue
 
@@ -81,7 +81,7 @@ def mission_assignment(
     waypoints: list[JsonValue] = []
     for index, raw in enumerate(raw_waypoints):
         row = _object(raw, f"mission waypoint {index}")
-        if not is_nav_target_command(row.get("command")):
+        if not is_nav_poi_command(row.get("command")):
             raise RegressionError(
                 f"vehicle {expected_sys_id} mission waypoint {index} is not "
                 "a NAV_WAYPOINT and cannot be losslessly re-uploaded"
@@ -173,7 +173,7 @@ def capture_nav_start_bindings(
             row = _object(raw, f"uploaded mission waypoint {index}")
             if (
                 row.get("nav_waypoint_ordinal") == ordinal
-                and is_nav_target_command(row.get("command"))
+                and is_nav_poi_command(row.get("command"))
             ):
                 matches.append(row)
         if len(matches) != 1:

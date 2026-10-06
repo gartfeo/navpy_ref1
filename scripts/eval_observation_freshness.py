@@ -51,7 +51,7 @@ def scoring_interval_span_s(case_dir: Path, speedup: float) -> float:
             except (KeyError, TypeError, ValueError):
                 continue
     if len(stamps) < 10:
-        raise RuntimeError(f"insufficient engagement samples: {len(stamps)}")
+        raise RuntimeError(f"insufficient scoring-window samples: {len(stamps)}")
     span_s = (stamps[-1] - stamps[0]) * speedup
     if span_s <= 0.0:
         raise RuntimeError("command trace has no advancing timestamps")

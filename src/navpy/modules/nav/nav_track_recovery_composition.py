@@ -1,4 +1,4 @@
-"""Composition of target-loss and identity-reacquisition workflows."""
+"""Composition of POI-loss and identity-reacquisition workflows."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from navpy.modules.nav.nav_composition_types import (
     NavCapabilities,
     NavStateOwnership,
     ResetWorkflows,
-    TargetMissionOwnership,
+    PoiMissionOwnership,
     TrackRecoveryWorkflows,
     VehicleApproachOwnership,
 )
@@ -25,7 +25,7 @@ def _compose_track_recovery(
     detection: DetectionCoordination,
     logger: ILogger,
     state: NavStateOwnership,
-    target: TargetMissionOwnership,
+    poi: PoiMissionOwnership,
     approach: VehicleApproachOwnership,
     observation: DetectionReviewOwnership,
     reset: ResetWorkflows,
@@ -36,19 +36,19 @@ def _compose_track_recovery(
         state.geo_hold,
         state.confirm,
         detection.tracking_commands,
-        target.confirmation_manager,
+        poi.confirmation_manager,
         observation.retry,
         reset.resume_auto,
         logger,
     )
     identity = IdentityReacquisition(
         IdentityReacquisitionPorts(
-            ground_location=navigation.legacy_targets.ground_location,
+            ground_location=navigation.legacy_pois.ground_location,
             absolute_location=approach.commands.absolute_location,
         ),
         state.geo_hold,
         state.detections,
-        detection.target_identity,
+        detection.poi_identity,
         observation.retry,
         recovery,
         logger,
@@ -59,12 +59,12 @@ def _compose_track_recovery(
         detection.tracking_commands,
         detection.tracking_status,
         detection.geo_pointing,
-        lambda: navigation.terminal.is_active,
+        lambda: navigation.final_approach.is_active,
         lambda: state.clock.decision_s(),
-        lambda: state.navigation_task.navigation_target_location,
+        lambda: state.navigation_task.navigation_poi_location,
         recovery,
         identity,
-        navigation.legacy_targets.geo_ref,
+        navigation.legacy_pois.geo_ref,
         logger,
     )
     return TrackRecoveryWorkflows(recovery, geo_coordinator)

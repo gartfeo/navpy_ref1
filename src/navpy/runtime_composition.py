@@ -14,7 +14,7 @@ import cv2
 from navpy.args.conn.network_args import NetworkArgs
 from navpy.args.conn_args import ConnArgs
 from navpy.args.navigation_args import NavigationArgs
-from navpy.args.navigation_target_args import NavigationTargetArgs
+from navpy.args.navigation_poi_args import NavigationPoiArgs
 from navpy.args.logger_args import LoggerArgs
 from navpy.args.nav_args import NavArgs
 from navpy.args.navpy_argparse import make_parser
@@ -204,7 +204,7 @@ def _build_session(
             "mission_items": int(foundation.vehicle.mission_items_count),
             "targ_wps": int(foundation.vehicle.get_param_or_default(
                 "AAS_TARG_WPS",
-                NavigationTargetArgs.PARAMS["AAS_TARG_WPS"],
+                NavigationPoiArgs.PARAMS["AAS_TARG_WPS"],
             )),
             "nav_last_wp": int(foundation.vehicle.get_param_or_default(
                 "AAS_NAV_LAST_WP",

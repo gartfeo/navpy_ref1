@@ -1,4 +1,4 @@
-from navpy.args.navigation_target_args import nav_wp_indices
+from navpy.args.navigation_poi_args import nav_wp_indices
 from navpy.args.vehicle_arg_ports import MissionParameterReader
 from navpy.utils.arg_helper import parse_boolean, StoreWithFlag, StoreTrueWithFlag
 

@@ -386,7 +386,7 @@ def test_runtime_rate_tightens_the_bracket_ceiling() -> None:
     assert association.pose_status == "real_frame_pose_gap"
 
 
-def test_freshness_split_through_a_real_detected_target() -> None:
+def test_freshness_split_through_a_real_detected_poi() -> None:
     # Decision doc 5.3 through the REAL conversion: the DetectedObject
     # carries detection_timestamp_s = CAPTURE estimate, so the freshness
     # floor judges measurement age; a regression back to publication time in
@@ -413,15 +413,15 @@ def test_freshness_split_through_a_real_detected_target() -> None:
         class_id=3, age=1, hits=1, missed=0, is_confirmed=True,
         timestamp=exposure, vx=0.0, vy=0.0,
     )
-    target = mapper.convert([track], track, association)[0]
+    poi = mapper.convert([track], track, association)[0]
     assert (
-        target.timing.detection_timestamp_s == association.capture.estimate_s
+        poi.timing.detection_timestamp_s == association.capture.estimate_s
     )
     assert (
-        target.timing.source_receipt_timestamp_s
+        poi.timing.source_receipt_timestamp_s
         == association.frame_timestamp_s
     )
     policy = FreshnessPolicy(1.0 / 60.0)
     estimate = association.capture.estimate_s
-    assert policy.is_fresh(target, now_s=estimate + 0.184)
-    assert not policy.is_fresh(target, now_s=estimate + 0.300)
+    assert policy.is_fresh(poi, now_s=estimate + 0.184)
+    assert not policy.is_fresh(poi, now_s=estimate + 0.300)

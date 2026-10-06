@@ -12,7 +12,7 @@ from navpy.modules.vision.models.detection_event_lease import DetectionEventLeas
 from navpy.modules.vision.models.detection_publication import DetectionPublication
 from navpy.modules.vision.sim.detection_event_stream import DetectionEventStream
 from navpy.modules.vision.sim.detection_snapshot_state import DetectionSnapshot
-from navpy.modules.vision.target_priority import prioritize_targets
+from navpy.modules.vision.poi_priority import prioritize_pois
 
 
 @dataclass(eq=False)
@@ -62,15 +62,15 @@ class DetectionPublicationStore:
     def publish(
         self,
         slot: PublicationSlot,
-        targets: Sequence[DetectedObject],
+        pois: Sequence[DetectedObject],
         *,
-        primary_target: Optional[DetectedObject],
+        primary_poi: Optional[DetectedObject],
         source_timestamp_s: float,
         source_receipt_timestamp_s: Optional[float],
         source_name: Optional[str],
         source_discontinuity: Optional[bool],
     ) -> bool:
-        target_tuple = tuple(targets)
+        poi_tuple = tuple(pois)
         with self._condition:
             if (
                 self._events.stopped_locked
@@ -80,13 +80,13 @@ class DetectionPublicationStore:
                 return False
             self._reservations.remove(slot)
             self._snapshot = DetectionSnapshot(
-                target_tuple,
-                target_tuple,
-                primary_target,
+                poi_tuple,
+                poi_tuple,
+                primary_poi,
             )
             if self._source_driven:
                 publication = DetectionPublication(
-                    tuple(prioritize_targets(target_tuple, primary_target)),
+                    tuple(prioritize_pois(poi_tuple, primary_poi)),
                     source_timestamp_s,
                     source_receipt_timestamp_s,
                     source_name,

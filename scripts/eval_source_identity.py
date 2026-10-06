@@ -6,7 +6,7 @@ because the navigation constant changed partway through it and nothing in the
 artefacts recorded that.
 
 The set of files that matters was hand-maintained, and that is exactly how it
-went stale: the flight child grew an import of `pixel_pn_terminal_speed`, which
+went stale: the flight child grew an import of `pixel_pn_final_approach_speed`, which
 decides whether the scored leg runs at the requested clock, and which in turn
 reads `CLOCK_RATE_TOLERANCE` out of `swarm_run_verification_model`. Neither was
 in the list, so editing either changed how a case flew without changing its

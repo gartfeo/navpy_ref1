@@ -22,8 +22,8 @@ from navpy.modules.navigation.nav.vision_nav.runtime_api import (
 
 
 @dataclass(frozen=True)
-class NavigationTerminalCapabilities:
-    """Immutable references to the narrow terminal operation groups."""
+class NavigationFinalApproachCapabilities:
+    """Immutable references to the narrow final-approach operation groups."""
 
     status: VisionNavStatus
     confirmation: VisionNavConfirmation
@@ -32,14 +32,14 @@ class NavigationTerminalCapabilities:
 @dataclass(frozen=True)
 class RuntimeBuildResult:
     runtime: NavigationRuntime
-    terminal: Optional[NavigationTerminalCapabilities] = None
+    final_approach: Optional[NavigationFinalApproachCapabilities] = None
 
 
 @dataclass(frozen=True)
 class ActiveNavigationMode:
     spec: NavAlgorithmSpec
     runtime: NavigationRuntime
-    terminal: Optional[NavigationTerminalCapabilities]
+    final_approach: Optional[NavigationFinalApproachCapabilities]
 
 
 class NavigationModeState:
@@ -101,7 +101,7 @@ class NavigationModeBuilder:
         return ActiveNavigationMode(
             spec=self.spec,
             runtime=built.runtime,
-            terminal=built.terminal,
+            final_approach=built.final_approach,
         )
 
 
@@ -171,6 +171,6 @@ __all__ = [
     "NavigationModeBuilder",
     "NavigationModeSelector",
     "NavigationModeState",
-    "NavigationTerminalCapabilities",
+    "NavigationFinalApproachCapabilities",
     "RuntimeBuildResult",
 ]

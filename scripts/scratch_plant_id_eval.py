@@ -31,7 +31,7 @@ from eval_direct_pixel_pn import (  # noqa: E402
 from eval_navigation_cases import (  # noqa: E402
     download_mission,
     resolve_home_abs_alt_m,
-    resolve_target_expectation,
+    resolve_poi_expectation,
     set_param,
     stop_own_stack,
     wait_for_heartbeat,
@@ -78,9 +78,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--mission-alt", type=float, default=DEFAULT_ALT_M)
     parser.add_argument("--gate-offset", type=float, default=DEFAULT_GATE_OFFSET_M)
     parser.add_argument(
-        "--target-offset", type=float, default=DEFAULT_WAYPOINT_OFFSET_M
+        "--poi-offset", type=float, default=DEFAULT_WAYPOINT_OFFSET_M
     )
-    parser.add_argument("--engage-wp", type=int, default=2, dest='scoring_start_wp')
+    parser.add_argument("--scoring-start-wp", type=int, default=2, dest='scoring_start_wp')
     parser.add_argument("--home", default=DEFAULT_HOME_COORDS)
     parser.add_argument("--timeout", type=float, default=400.0)
     return parser
@@ -104,10 +104,10 @@ def _launch_child(
         str(SCRIPTS / "scratch_plant_id_child.py"),
         "--connection", device,
         "--sysid", str(sysid),
-        "--engage-seq", str(scoring_start_seq),
+        "--scoring-start-seq", str(scoring_start_seq),
         "--timeout", repr(args.timeout),
         "--result", str(case_dir / "result.json"),
-        "--engaged", str(case_dir / "engaged.marker"),
+        "--scoring-active", str(case_dir / "scoring_active.marker"),
         "--pitch-deg", repr(pitch_deg),
         "--roll-deg", repr(roll_deg),
         "--throttle", repr(args.throttle),
@@ -171,7 +171,7 @@ def run_case(
             sysid,
             home=(lat, lon),
             gate_offset=args.gate_offset,
-            waypoint_offset=args.target_offset,
+            waypoint_offset=args.poi_offset,
             alt_m=args.mission_alt,
             echo=lambda line: (case_dir / "mission.log").open(
                 "a", encoding="utf-8"
@@ -182,10 +182,10 @@ def run_case(
             raise RuntimeError("no evaluator heartbeat")
         mission = download_mission(master)
         home_alt = resolve_home_abs_alt_m(master, timeout_s=30.0)
-        run_navigation_episode = resolve_target_expectation(
+        run_navigation_episode = resolve_poi_expectation(
             mission,
-            target_wp=args.scoring_start_wp,
-            target_rel_alt_m=60.0,
+            poi_wp=args.scoring_start_wp,
+            poi_rel_alt_m=60.0,
             home_abs_alt_m=home_alt,
         )
         for name, value in (

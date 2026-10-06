@@ -25,7 +25,7 @@ import time
 from typing import Any, Callable
 
 import swarm_run_wsl as wsl
-from eval_navigation_vehicle_config import message_from_target
+from eval_navigation_vehicle_config import message_from_poi
 
 LAUNCHER_TEMPLATE = "~/ardupilot/Tools/autotest/models/plane.parm"
 
@@ -84,7 +84,7 @@ def read_param_typed(
         message = master.recv_match(
             type="PARAM_VALUE", blocking=True, timeout=0.5
         )
-        if message is None or not message_from_target(
+        if message is None or not message_from_poi(
             message, master.target_system
         ):
             continue
@@ -103,9 +103,9 @@ def read_param_typed(
 
 
 # Written after boot by paths OUTSIDE the sim-parameter loop, so they do not
-# appear in sim_parameters(): the SIM_CPA stage configures its target
-# (eval_sim_cpa_config.derive_params) and the terminal step-down sets the clock
-# (pixel_pn_terminal_speed).  Values are irrelevant here -- only the names.
+# appear in sim_parameters(): the SIM_CPA stage configures its POI
+# (eval_sim_cpa_config.derive_params) and the final-approach step-down sets the clock
+# (pixel_pn_final_approach_speed).  Values are irrelevant here -- only the names.
 LATER_WRITERS: tuple[tuple[str, float], ...] = (
     ("SIM_CPA_LAT_HI", 0.0),
     ("SIM_CPA_LAT_LO", 0.0),

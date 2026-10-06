@@ -33,14 +33,14 @@ def test_stale_event_lease_cannot_ack_replaced_generation() -> None:
 
 def test_selection_is_an_immutable_generation_consistent_view() -> None:
     snapshot = DetectionSnapshot()
-    first = Mock(name="first_target")
-    second = Mock(name="second_target")
+    first = Mock(name="first_poi")
+    second = Mock(name="second_poi")
     snapshot.replace_selection([first], first)
 
     selection = snapshot.selection()
     snapshot.replace_selection([second], second)
 
-    assert selection.targets == (first,)
-    assert selection.primary_target is first
-    assert snapshot.selection().targets == (second,)
-    assert snapshot.selection().primary_target is second
+    assert selection.pois == (first,)
+    assert selection.primary_poi is first
+    assert snapshot.selection().pois == (second,)
+    assert snapshot.selection().primary_poi is second

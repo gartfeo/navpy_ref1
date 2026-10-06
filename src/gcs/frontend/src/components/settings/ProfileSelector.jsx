@@ -14,9 +14,9 @@ import { buildCatalogDeviceInfos, buildDiagramDevices } from './profileSelectorU
 /**
  * Per-preset characteristic size derives from the preset's detect class via the
  * backend-owned CLASS_DETECT_SIZES (single source of truth). Presets no longer
- * carry `target_size_m`. Falls back to the smallest class size when unmapped.
+ * carry `poi_size_m`. Falls back to the smallest class size when unmapped.
  */
-function presetTargetSize(presetName) {
+function presetPoiSize(presetName) {
   const classId = DOCK_CLASS_TO_DETECT_ID[presetName];
   return getClassDetectSize(classId) ?? getMinClassSize();
 }
@@ -47,7 +47,7 @@ export default function ProfileSelector({
   // pitches become equal (spread 0) and the by-pitch sort would otherwise tie.
   const slotOrderRef = useRef({ profile: null, names: [] });
   const [localOverrides, setLocalOverrides] = useState({ profile: {}, devices: {}, zooms: {} });
-  const [selectedTarget, setSelectedTarget] = useState('small');
+  const [selectedPoi, setSelectedPoi] = useState('small');
   const [optimizeMsg, setOptimizeMsg] = useState(null);
   // Per-camera selected zoom (modal-local: the settings model persists only one
   // vision_zoom, so non-primary fixed-camera zoom lives here and feeds the diagram).
@@ -212,13 +212,13 @@ export default function ProfileSelector({
     if (!presets[k]) presets[k] = { ...presetOverrides[k] };
   }
   const presetKeys = Object.keys(presets);
-  const altitude = presets[selectedTarget]?.altitude_m ?? 150;
+  const altitude = presets[selectedPoi]?.altitude_m ?? 150;
   // Size is derived from the preset's detect class, not stored on the preset.
-  const selectedTargetSize = presetTargetSize(selectedTarget);
-  // Diagram shows the DETECTION range of the selected target. The base mdd uses
-  // MIN_CLASS_SIZE/MIN_CONFIRM_PIXELS, so rescale to the selected target at the
+  const selectedPoiSize = presetPoiSize(selectedPoi);
+  // Diagram shows the DETECTION range of the selected POI. The base mdd uses
+  // MIN_CLASS_SIZE/MIN_CONFIRM_PIXELS, so rescale to the selected POI at the
   // detection gate (MIN_DETECT_PIXELS) → effective fy·selectedSize/MIN_DETECT_PIXELS.
-  const mddScale = detectRangeScale(selectedTargetSize, getMinClassSize());
+  const mddScale = detectRangeScale(selectedPoiSize, getMinClassSize());
   const anyMultiZoom = devices.some((d) => Object.keys(d.zooms).length > 1);
 
   // --- Camera-class & envelope (shared by the gimbal optimizer and the fixed handlers) ---
@@ -277,7 +277,7 @@ export default function ProfileSelector({
   const maxSpread = (maxP - minP) / Math.max(1, slotDevices.length - 1);
   const groupOverlap = meanFovV != null ? meanFovV - group.spread : null;
 
-  /** Recompute per-target altitudes for the fixed rig (lowest over ground-facing cameras). */
+  /** Recompute per-POI altitudes for the fixed rig (lowest over ground-facing cameras). */
   const recomputeFixedPresets = (pitchByDevice = {}, zoomByDevice = {}) => {
     if (!isDetectorClassDimensionsConfigured()) return null;
     const minAlt = localOverrides.profile.min_altitude ?? profileData?.min_altitude ?? 30;
@@ -294,7 +294,7 @@ export default function ProfileSelector({
     for (const k of baseKeys) {
       const pv = profPresets[k] || {};
       const dv = curPresets[k] || {};
-      const size = presetTargetSize(k);
+      const size = presetPoiSize(k);
       const minPx = pv.min_pixel_size ?? dv.min_pixel_size ?? MIN_CONFIRM_PIXELS;
       const label = t(`planningSidebar.dockClasses.${k}`, { defaultValue: pv.label ?? dv.label ?? k });
       const alt = fixedMissionAltitude({ cameras: cams, sizeM: size, minPx, minAlt, maxAlt });
@@ -382,10 +382,10 @@ export default function ProfileSelector({
     setLocalOverrides((prev) => ({ ...prev, profile: { ...prev.profile, [field]: value } }));
   };
 
-  /** Compute optimal pitch and per-target altitudes.
+  /** Compute optimal pitch and per-POI altitudes.
    *  Fixed camera: pitch = 5 - fovV/2 (upper FOV edge 5° above horizontal).
    *  Gimbal camera: run optimizer to find best pitch for search coverage.
-   *  Per-target altitude = mdd * sin(-pitch), clamped to min_altitude. */
+   *  Per-POI altitude = mdd * sin(-pitch), clamped to min_altitude. */
   const handleOptimize = (pitchArg, minZoomArg) => {
     // Operator-authoritative altitude optimization must use backend-sourced
     // per-class sizes (the single source of truth), never the JS before-fetch
@@ -412,7 +412,7 @@ export default function ProfileSelector({
 
     let optPitch;
     const devOverrides = {};
-    let smallestAlt = null;   // detect-far altitude of the smallest target (gimbal)
+    let smallestAlt = null;   // detect-far altitude of the smallest POI (gimbal)
     let smallestSize = null;
     let visionZoom = null;
     let geom = null;          // gimbal optimizer result (for the post-loop notes)
@@ -421,14 +421,14 @@ export default function ProfileSelector({
 
     if (dev.has_gimbal) {
       // Detect-far model (gimbal + zoom): size the scan so the far FOV edge grazes
-      // the ground at the SMALLEST target's detection range, trading altitude vs
+      // the ground at the SMALLEST POI's detection range, trading altitude vs
       // reach (weight 0.5 = balanced) on the circle alt² + reach² = R_det². Per-class
       // altitudes follow; the planner's min over the mission's classes then makes the
-      // smallest mission target govern. Scan zoom = the device's selected zoom level.
+      // smallest mission POI govern. Scan zoom = the device's selected zoom level.
       const profPresets_g = pd.dock_presets || {};
       const curPresets_g = presetOverrides || {};
       const presetKeys_g = Object.keys(profPresets_g).length > 0 ? Object.keys(profPresets_g) : Object.keys(curPresets_g);
-      smallestSize = Math.min(...presetKeys_g.map((k) => presetTargetSize(k)));
+      smallestSize = Math.min(...presetKeys_g.map((k) => presetPoiSize(k)));
       const zovZ = localOverrides.zooms?.[`${dev.name}/${minZoom}`] || {};
       const fyCal = zovZ.camera_fy ?? dev.zooms[minZoom]?.fy;   // calibrated fy at the scan zoom
       // Clamp the pitch so the FAR FOV edge points BELOW the horizon (depression ≥ FOVv/2,
@@ -445,7 +445,7 @@ export default function ProfileSelector({
       const maxZoomKey = String(Math.max(...Object.keys(dev.zooms).map(Number)));
       fyMax = dev.zooms[maxZoomKey]?.fy;
       geom = optimizeScanGeometry({
-        fy: fyCal, imageHeight: h, targetSizeM: smallestSize,
+        fy: fyCal, imageHeight: h, poiSizeM: smallestSize,
         boresightDeg: depression, zoom: parseFloat(minZoom),
       });
       if (!geom) {
@@ -486,11 +486,11 @@ export default function ProfileSelector({
       devices: { ...prev.devices, ...devOverrides },
     }));
 
-    // Compute per-target altitude: mdd * sin(-pitch), clamped to min_altitude
+    // Compute per-POI altitude: mdd * sin(-pitch), clamped to min_altitude
     const profPresets = pd.dock_presets || {};
     const curPresets = presetOverrides || {};
     const baseKeys = Object.keys(profPresets).length > 0 ? Object.keys(profPresets) : Object.keys(curPresets);
-    const sinP = Math.sin(-optPitch * Math.PI / 180);   // fixed-camera per-target sizing
+    const sinP = Math.sin(-optPitch * Math.PI / 180);   // fixed-camera per-POI sizing
     const updatedPresets = {};
     let ceilingClamped = false;
     let recognitionClamped = false;
@@ -499,7 +499,7 @@ export default function ProfileSelector({
       const pv = profPresets[k] || {};
       const dv = curPresets[k] || {};
       // Size derives from the preset's detect class; it is not stored on the preset.
-      const size = presetTargetSize(k);
+      const size = presetPoiSize(k);
       const minPx = dv.min_pixel_size ?? pv.min_pixel_size ?? MIN_CONFIRM_PIXELS;
       const label = t(`planningSidebar.dockClasses.${k}`, { defaultValue: dv.label ?? pv.label ?? k });
       let alt;
@@ -526,7 +526,7 @@ export default function ProfileSelector({
       setOptimizeMsg(notes.length ? notes.join(' ') : null);
     }
 
-    // Persist optimized_altitude as the lowest target altitude (most restrictive)
+    // Persist optimized_altitude as the lowest POI altitude (most restrictive)
     const lowestAlt = Math.min(...Object.values(updatedPresets).map((p) => p.altitude_m));
     setLocalOverrides((prev) => ({
       ...prev,
@@ -766,13 +766,13 @@ export default function ProfileSelector({
               {presetKeys.map((key) => (
                 <button
                   key={key}
-                  onClick={() => setSelectedTarget(key)}
+                  onClick={() => setSelectedPoi(key)}
                   style={{
                     padding: '2px 10px', fontSize: 11, borderRadius: 3, cursor: 'pointer',
-                    background: selectedTarget === key ? colors.accent : 'transparent',
-                    color: selectedTarget === key ? '#000' : colors.textDim,
-                    border: `1px solid ${selectedTarget === key ? colors.accent : colors.border}`,
-                    fontWeight: selectedTarget === key ? 600 : 400,
+                    background: selectedPoi === key ? colors.accent : 'transparent',
+                    color: selectedPoi === key ? '#000' : colors.textDim,
+                    border: `1px solid ${selectedPoi === key ? colors.accent : colors.border}`,
+                    fontWeight: selectedPoi === key ? 600 : 400,
                   }}
                 >
                   {t(`planningSidebar.dockClasses.${key}`, { defaultValue: presets[key]?.label || key })} ({presets[key]?.altitude_m ?? '?'}m)

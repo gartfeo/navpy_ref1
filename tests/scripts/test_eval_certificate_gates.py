@@ -86,7 +86,7 @@ def _drain(master, tracker, monotonic):
 
 
 def test_pre_scoring_interval_samples_cannot_reach_the_scoring_interval_rate():
-    """The tracker does not exist before the target-identity gate passes.
+    """The tracker does not exist before the POI-identity gate passes.
 
     Taxi, takeoff and cruise are minutes of samples at whatever rate the host
     managed while nothing was being scored. Averaging them into the scoring interval
@@ -192,11 +192,11 @@ def test_an_inadmissible_run_voids_the_certificate_and_the_exit_code(
         tmp_path, monkeypatch):
     code, summary = _run_certificate(tmp_path, monkeypatch, [
         _good_row(),
-        # run_case marks a 12x run invalid; the miss distance is still good.
+        # run_case marks a 12x run invalid; the approach error is still good.
         _good_row(passed=False, measured_clock_rate=12.0,
                   certificate_invalid_reason=(
-                      "engagement clock rate 12.00x is outside 9.00-11.00x"),
-                  error="engagement clock rate 12.00x is outside 9.00-11.00x"),
+                      "scoring-window clock rate 12.00x is outside 9.00-11.00x"),
+                  error="scoring-window clock rate 12.00x is outside 9.00-11.00x"),
     ])
     assert code == 1
     assert not summary["valid"]
@@ -239,7 +239,7 @@ def test_a_good_run_at_the_right_rate_is_admissible():
 
 @pytest.mark.parametrize("rate", [12.0, 7.5, None])
 def test_a_wrong_or_missing_rate_makes_the_run_inadmissible(rate):
-    # The miss distance is irrelevant here: this is about whether the run is
+    # The approach error is irrelevant here: this is about whether the run is
     # even eligible to be counted.
     reason = evaluator.certificate_invalid_reason_for(
         True, measured_rate=rate, requested_speedup=10,

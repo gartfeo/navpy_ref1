@@ -96,7 +96,7 @@ export function nextPlacementState(current, action) {
 }
 
 /**
- * Toggle a waypoint index in the sim target map.
+ * Toggle a waypoint index in the sim POI map.
  * Zone key stays with empty array on toggle-off (preserves serialization semantics).
  *
  * @param {Object} prev - { [zoneIndex]: [wpIndex, ...] }

@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTrackerConfig
-from navpy.modules.vision.target_angle_estimator import TargetAngleEstimatorConfig
+from navpy.modules.vision.poi_angle_estimator import PoiAngleEstimatorConfig
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,7 @@ def _boolean(value: object, name: str) -> bool:
     return value
 
 
-def _estimator_config(raw: object) -> TargetAngleEstimatorConfig | None:
+def _estimator_config(raw: object) -> PoiAngleEstimatorConfig | None:
     if raw is None:
         return None
     estimator = _mapping(raw, "gimbal.tracking.estimator")
@@ -78,7 +78,7 @@ def _estimator_config(raw: object) -> TargetAngleEstimatorConfig | None:
             overrides[key] = None
         else:
             overrides[key] = _finite_float(estimator[key], f"estimator.{key}")
-    return TargetAngleEstimatorConfig(**overrides)
+    return PoiAngleEstimatorConfig(**overrides)
 
 
 def build_tracking_profile(

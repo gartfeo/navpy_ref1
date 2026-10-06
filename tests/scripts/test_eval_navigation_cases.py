@@ -26,20 +26,20 @@ def _mission() -> list[evaluator.MissionItem]:
     ]
 
 
-def _expectation(target_alt_m: float = 0.0) -> evaluator.TargetExpectation:
-    return evaluator.resolve_target_expectation(
+def _expectation(poi_alt_m: float = 0.0) -> evaluator.PoiExpectation:
+    return evaluator.resolve_poi_expectation(
         _mission(),
-        target_wp=4,
-        target_rel_alt_m=target_alt_m,
+        poi_wp=4,
+        poi_rel_alt_m=poi_alt_m,
         home_abs_alt_m=500.0,
     )
 
 
-def _valid_evidence(target_alt_m: float = 0.0) -> evaluator.SelectionEvidence:
-    location = _expectation(target_alt_m).location
+def _valid_evidence(poi_alt_m: float = 0.0) -> evaluator.SelectionEvidence:
+    location = _expectation(poi_alt_m).location
     return evaluator.parse_selection_evidence(
-        "2026-07-10 15:39:24,408 INFO T1: wp:4(seq:11);\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T1 (tracking obj_id=0)\n"
+        "2026-07-10 15:39:24,408 INFO P1: wp:4(seq:11);\n"
+        "2026-07-10 15:39:57,765 INFO POI: P1 (tracking obj_id=0)\n"
         f"2026-07-10 15:39:57,794 INFO cmd, t_l (0.0m): "
         f"{location.lat_deg:.6f}, {location.lon_deg:.6f}, "
         f"{location.abs_alt_m:.1f} [{location.lat_deg:.6f}, "
@@ -47,14 +47,14 @@ def _valid_evidence(target_alt_m: float = 0.0) -> evaluator.SelectionEvidence:
     )
 
 
-def _logged_location(evidence: evaluator.SelectionEvidence) -> evaluator.TargetLocation | None:
+def _logged_location(evidence: evaluator.SelectionEvidence) -> evaluator.PoiLocation | None:
     return evaluator.selected_location_from_evidence(evidence, home_abs_alt_m=500.0)
 
 
 def _gate(
-    expectation: evaluator.TargetExpectation,
+    expectation: evaluator.PoiExpectation,
     evidence: evaluator.SelectionEvidence,
-    selected_location: evaluator.TargetLocation | None,
+    selected_location: evaluator.PoiLocation | None,
     *,
     configured_rel_alt_m: float | None = None,
 ) -> evaluator.EvidenceGateResult:
@@ -70,12 +70,12 @@ def _gate(
     )
 
 
-def test_cli_parses_target_alts_and_matrix_controls():
+def test_cli_parses_poi_alts_and_matrix_controls():
     args = evaluator.parse_args(
         [
-            "--target-alts",
+            "--poi-alts",
             "0,140",
-            "--target-wp",
+            "--poi-wp",
             "5",
             "--speedups",
             "3,10",
@@ -90,8 +90,8 @@ def test_cli_parses_target_alts_and_matrix_controls():
         ]
     )
 
-    assert args.target_alts == [0, 140]
-    assert args.target_wp == 5
+    assert args.poi_alts == [0, 140]
+    assert args.poi_wp == 5
     assert args.speedups == [3.0, 10.0]
     assert args.navigation_speedups == [1.0, 10.0]
     assert args.winds == [0.0, 8.0]
@@ -118,29 +118,29 @@ def test_cli_uses_strict_coordinate_defaults():
     assert args.coordinate_tolerance_m == 0.5
 
 
-def test_cli_defaults_target_alts_to_ground_only():
+def test_cli_defaults_poi_alts_to_ground_only():
     args = evaluator.parse_args([])
 
-    assert args.target_alts == [0]
+    assert args.poi_alts == [0]
 
 
-def test_cli_rejects_fractional_target_alt_because_navpy_target_alt_is_integer():
+def test_cli_rejects_fractional_poi_alt_because_navpy_poi_alt_is_integer():
     with pytest.raises(SystemExit):
-        evaluator.parse_args(["--target-alts", "135.5"])
+        evaluator.parse_args(["--poi-alts", "135.5"])
 
 
-def test_pinned_certification_command_still_parses_to_ground_target():
-    # T-04-26: every certification command states its target explicitly, and
+def test_pinned_certification_command_still_parses_to_ground_poi():
+    # T-04-26: every certification command states its POI explicitly, and
     # this argv shape is pinned in four unexecuted certification plans
     # (04-05..04-08) with ~295 SITL flights outstanding. Those plans must
-    # spell the target as "--target-alts 0"; the old "--target-modes ground"
+    # spell the POI as "--poi-alts 0"; the old "--target-modes ground"
     # spelling was removed. Do not delete or weaken this test without
     # re-certifying those plans.
     args = evaluator.parse_args(
         [
-            "--target-alts",
+            "--poi-alts",
             "0",
-            "--target-wp",
+            "--poi-wp",
             "4",
             "--vision-profile",
             "siyi_zr10",
@@ -157,8 +157,8 @@ def test_pinned_certification_command_still_parses_to_ground_target():
         ]
     )
 
-    assert args.target_alts == [0]
-    assert args.target_wp == 4
+    assert args.poi_alts == [0]
+    assert args.poi_wp == 4
     assert args.vision_profile == "siyi_zr10"
     assert args.winds == [0.0]
     assert args.speedups == [10]
@@ -194,10 +194,10 @@ def test_navigation_speedups_are_an_independent_matrix_dimension():
     ] == [(3, 1.0), (3, 5.0), (10, 1.0), (10, 5.0)]
 
 
-def test_target_wp_resolves_as_nav_waypoint_ordinal_not_raw_mission_seq():
+def test_poi_wp_resolves_as_nav_waypoint_ordinal_not_raw_mission_seq():
     expectation = _expectation()
 
-    assert expectation.target_wp == 4
+    assert expectation.poi_wp == 4
     assert expectation.mission_seq == 11
     assert expectation.expected_task_id == 1
     assert expectation.expected_obj_id == 0
@@ -217,78 +217,78 @@ def test_valid_selection_identity_coordinate_and_altitude_pass_before_snap():
     assert result.errors == ()
     assert result.coordinate_error_m == pytest.approx(0.0)
     assert result.altitude_error_m == pytest.approx(0.0)
-    assert evidence.target_lat_deg == pytest.approx(expectation.location.lat_deg)
-    assert evidence.target_lon_deg == pytest.approx(expectation.location.lon_deg)
-    assert evidence.target_abs_alt_m == pytest.approx(expectation.location.abs_alt_m)
+    assert evidence.poi_lat_deg == pytest.approx(expectation.location.lat_deg)
+    assert evidence.poi_lon_deg == pytest.approx(expectation.location.lon_deg)
+    assert evidence.poi_abs_alt_m == pytest.approx(expectation.location.abs_alt_m)
 
 
-def test_target_coordinate_is_taken_from_first_navigation_command_after_selection():
+def test_poi_coordinate_is_taken_from_first_navigation_command_after_selection():
     evidence = evaluator.parse_selection_evidence(
         "2026-07-10 15:39:57,700 INFO t_l (0.0m): 1.0, 2.0, 3.0 [x]\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T1 (tracking obj_id=0)\n"
+        "2026-07-10 15:39:57,765 INFO POI: P1 (tracking obj_id=0)\n"
         "2026-07-10 15:39:57,794 INFO cmd, t_l (0.0m): "
         "40.004000, 44.004000, 500.0 [40.004000, 44.004000, 500.0]\n"
         "2026-07-10 15:39:57,900 INFO cmd, t_l (0.0m): "
         "50.0, 60.0, 700.0 [50.0, 60.0, 700.0]\n"
     )
 
-    assert evidence.target_lat_deg == 40.004
-    assert evidence.target_lon_deg == 44.004
-    assert evidence.target_abs_alt_m == 500.0
+    assert evidence.poi_lat_deg == 40.004
+    assert evidence.poi_lon_deg == 44.004
+    assert evidence.poi_abs_alt_m == 500.0
 
 
-def test_selection_evidence_does_not_cross_into_a_later_target_episode():
+def test_selection_evidence_does_not_cross_into_a_later_poi_episode():
     evidence = evaluator.parse_selection_evidence(
-        "2026-07-10 15:39:24,408 INFO T1: wp:4(seq:11);\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T1 (tracking obj_id=0)\n"
-        "2026-07-10 15:40:00,000 INFO TARGET: T2 (tracking obj_id=1)\n"
+        "2026-07-10 15:39:24,408 INFO P1: wp:4(seq:11);\n"
+        "2026-07-10 15:39:57,765 INFO POI: P1 (tracking obj_id=0)\n"
+        "2026-07-10 15:40:00,000 INFO POI: P2 (tracking obj_id=1)\n"
         "2026-07-10 15:40:00,010 INFO cmd, t_l (0.0m): "
         "50.0, 60.0, 700.0 [50.0, 60.0, 700.0]\n"
     )
 
     assert evidence.task_id == 1
     assert evidence.obj_id == 0
-    assert evidence.target_lat_deg is None
-    assert evidence.target_lon_deg is None
-    assert evidence.target_abs_alt_m is None
+    assert evidence.poi_lat_deg is None
+    assert evidence.poi_lon_deg is None
+    assert evidence.poi_abs_alt_m is None
 
 
-def test_target_switch_before_snap_is_rejected_from_the_accepted_episode():
+def test_poi_switch_before_snap_is_rejected_from_the_accepted_episode():
     log_text = (
-        "2026-07-10 15:39:24,408 INFO T1: wp:4(seq:11);\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T1 (tracking obj_id=0)\n"
+        "2026-07-10 15:39:24,408 INFO P1: wp:4(seq:11);\n"
+        "2026-07-10 15:39:57,765 INFO POI: P1 (tracking obj_id=0)\n"
         "2026-07-10 15:39:57,794 INFO cmd, t_l (0.0m): "
         "40.004000, 44.004000, 500.0 [x]\n"
-        "2026-07-10 15:40:00,000 INFO TARGET: T2 (tracking obj_id=1)\n"
+        "2026-07-10 15:40:00,000 INFO POI: P2 (tracking obj_id=1)\n"
         "2026-07-10 15:40:01,000 INFO SNAP(VISION-NAV-PN): 3d=0.1\n"
     )
     evidence = evaluator.parse_selection_evidence(log_text)
 
-    error = evaluator.target_episode_binding_error(log_text, evidence)
+    error = evaluator.poi_episode_binding_error(log_text, evidence)
 
     assert error is not None
-    assert "target switched before certified SNAP" in error
+    assert "POI switched before certified SNAP" in error
 
 
-def test_accepted_target_episode_requires_its_later_navigation_snap():
+def test_accepted_poi_episode_requires_its_later_navigation_snap():
     log_text = (
-        "2026-07-10 15:39:24,408 INFO T1: wp:4(seq:11);\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T1 (tracking obj_id=0)\n"
+        "2026-07-10 15:39:24,408 INFO P1: wp:4(seq:11);\n"
+        "2026-07-10 15:39:57,765 INFO POI: P1 (tracking obj_id=0)\n"
         "2026-07-10 15:39:57,794 INFO cmd, t_l (0.0m): "
         "40.004000, 44.004000, 500.0 [x]\n"
     )
     evidence = evaluator.parse_selection_evidence(log_text)
 
     assert (
-        evaluator.target_episode_binding_error(log_text, evidence)
-        == evaluator._TARGET_SNAP_MISSING
+        evaluator.poi_episode_binding_error(log_text, evidence)
+        == evaluator._POI_SNAP_MISSING
     )
 
 
-def test_single_accepted_target_episode_binds_to_later_navigation_snap(tmp_path):
+def test_single_accepted_poi_episode_binds_to_later_navigation_snap(tmp_path):
     log_text = (
-        "2026-07-10 15:39:24,408 INFO T1: wp:4(seq:11);\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T1 (tracking obj_id=0)\n"
+        "2026-07-10 15:39:24,408 INFO P1: wp:4(seq:11);\n"
+        "2026-07-10 15:39:57,765 INFO POI: P1 (tracking obj_id=0)\n"
         "2026-07-10 15:39:57,794 INFO cmd, t_l (0.0m): "
         "40.004000, 44.004000, 500.0 [x]\n"
         "2026-07-10 15:40:01,000 INFO SNAP(VISION-NAV-PN): 3d=0.1\n"
@@ -297,9 +297,9 @@ def test_single_accepted_target_episode_binds_to_later_navigation_snap(tmp_path)
     navigation_path = tmp_path / "uav_121_navigation.log"
     navigation_path.write_text(log_text, encoding="utf-8")
 
-    assert evaluator.target_episode_binding_error(log_text, evidence) is None
+    assert evaluator.poi_episode_binding_error(log_text, evidence) is None
     assert (
-        evaluator.await_target_snap_binding(
+        evaluator.await_poi_snap_binding(
             navigation_path,
             evidence,
             timeout_s=0.0,
@@ -310,9 +310,9 @@ def test_single_accepted_target_episode_binds_to_later_navigation_snap(tmp_path)
 
 def test_selection_catalog_is_bound_to_selected_task():
     evidence = evaluator.parse_selection_evidence(
-        "2026-07-10 15:39:20,000 INFO T2: wp:9(seq:22);\n"
-        "2026-07-10 15:39:24,408 INFO T1: wp:4(seq:11);\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T1 (tracking obj_id=0)\n"
+        "2026-07-10 15:39:20,000 INFO P2: wp:9(seq:22);\n"
+        "2026-07-10 15:39:24,408 INFO P1: wp:4(seq:11);\n"
+        "2026-07-10 15:39:57,765 INFO POI: P1 (tracking obj_id=0)\n"
         "2026-07-10 15:39:57,794 INFO cmd, t_l (0.0m): "
         "40.004000, 44.004000, 500.0 [40.004000, 44.004000, 500.0]\n"
     )
@@ -536,9 +536,9 @@ def test_launch_wait_is_not_bounded_by_the_heartbeat_timeout():
 def test_fallback_location_selection_is_rejected_even_when_task_id_is_one():
     expectation = _expectation(135.0)
     evidence = evaluator.parse_selection_evidence(
-        "2026-07-10 15:37:28,320 INFO T1: wp:4(seq:11);\n"
+        "2026-07-10 15:37:28,320 INFO P1: wp:4(seq:11);\n"
         "2026-07-10 15:38:34,821 INFO SimT(2): WP21\n"
-        "2026-07-10 15:38:35,831 INFO TARGET: T1 (tracking obj_id=1)\n"
+        "2026-07-10 15:38:35,831 INFO POI: P1 (tracking obj_id=1)\n"
         "2026-07-10 15:38:35,850 INFO cmd, t_l (0.0m): "
         "40.5, 44.5, 500.0 [40.5, 44.5, 500.0]\n"
     )
@@ -554,8 +554,8 @@ def test_fallback_location_selection_is_rejected_even_when_task_id_is_one():
 def test_wrong_task_id_is_rejected_even_when_obj_id_and_coordinate_match():
     expectation = _expectation()
     evidence = evaluator.parse_selection_evidence(
-        "2026-07-10 15:39:24,408 INFO T1: wp:4(seq:11);\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T2 (tracking obj_id=0)\n"
+        "2026-07-10 15:39:24,408 INFO P1: wp:4(seq:11);\n"
+        "2026-07-10 15:39:57,765 INFO POI: P2 (tracking obj_id=0)\n"
         "2026-07-10 15:39:57,794 INFO cmd, t_l (0.0m): "
         "40.004000, 44.004000, 500.0 [40.004000, 44.004000, 500.0]\n"
     )
@@ -563,14 +563,14 @@ def test_wrong_task_id_is_rejected_even_when_obj_id_and_coordinate_match():
     result = _gate(expectation, evidence, _logged_location(evidence))
 
     assert not result.passed
-    assert any("expected T1, got T2" in error for error in result.errors)
+    assert any("expected P1, got P2" in error for error in result.errors)
 
 
-def test_wrong_selected_target_coordinate_is_rejected():
+def test_wrong_selected_poi_coordinate_is_rejected():
     expectation = _expectation()
     evidence = evaluator.parse_selection_evidence(
-        "2026-07-10 15:39:24,408 INFO T1: wp:4(seq:11);\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T1 (tracking obj_id=0)\n"
+        "2026-07-10 15:39:24,408 INFO P1: wp:4(seq:11);\n"
+        "2026-07-10 15:39:57,765 INFO POI: P1 (tracking obj_id=0)\n"
         "2026-07-10 15:39:57,794 INFO cmd, t_l (0.0m): "
         "40.004100, 44.004000, 500.0 [40.004100, 44.004000, 500.0]\n"
     )
@@ -582,11 +582,11 @@ def test_wrong_selected_target_coordinate_is_rejected():
     assert any("coordinate differs" in error for error in result.errors)
 
 
-def test_wrong_selected_target_altitude_is_rejected():
+def test_wrong_selected_poi_altitude_is_rejected():
     expectation = _expectation()
     evidence = evaluator.parse_selection_evidence(
-        "2026-07-10 15:39:24,408 INFO T1: wp:4(seq:11);\n"
-        "2026-07-10 15:39:57,765 INFO TARGET: T1 (tracking obj_id=0)\n"
+        "2026-07-10 15:39:24,408 INFO P1: wp:4(seq:11);\n"
+        "2026-07-10 15:39:57,765 INFO POI: P1 (tracking obj_id=0)\n"
         "2026-07-10 15:39:57,794 INFO cmd, t_l (0.0m): "
         "40.004000, 44.004000, 505.0 [40.004000, 44.004000, 505.0]\n"
     )
@@ -599,8 +599,8 @@ def test_wrong_selected_target_altitude_is_rejected():
 
 
 def test_coordinate_scorer_uses_segment_closest_point():
-    target = evaluator.TargetLocation(40.0, 44.0, 100.0, 600.0)
-    scorer = evaluator.CoordinateScorer(target)
+    poi = evaluator.PoiLocation(40.0, 44.0, 100.0, 600.0)
+    scorer = evaluator.CoordinateScorer(poi)
     scorer.add(evaluator.PositionSample(39.999998, 44.0, 600.0, 100.0, 1.0, 10.0))
     scorer.add(evaluator.PositionSample(40.000002, 44.0, 600.0, 100.0, 1.03, 10.03))
 
@@ -609,8 +609,8 @@ def test_coordinate_scorer_uses_segment_closest_point():
 
 
 def test_coordinate_scorer_never_interpolates_across_sparse_curved_path_gap():
-    target = evaluator.TargetLocation(40.0, 44.0, 100.0, 600.0)
-    scorer = evaluator.CoordinateScorer(target)
+    poi = evaluator.PoiLocation(40.0, 44.0, 100.0, 600.0)
+    scorer = evaluator.CoordinateScorer(poi)
     ten_metres_lat = 10.0 / evaluator.EARTH_RADIUS_M * 180.0 / 3.141592653589793
     scorer.add(
         evaluator.PositionSample(40.0 - ten_metres_lat, 44.0, 600.0, 100.0, 0.0, 0.0)
@@ -627,8 +627,8 @@ def test_coordinate_scorer_never_interpolates_across_sparse_curved_path_gap():
 
 
 def test_coordinate_scorer_requires_observed_high_rate_cadence():
-    target = evaluator.TargetLocation(40.0, 44.0, 100.0, 600.0)
-    scorer = evaluator.CoordinateScorer(target)
+    poi = evaluator.PoiLocation(40.0, 44.0, 100.0, 600.0)
+    scorer = evaluator.CoordinateScorer(poi)
     for index, north_offset_m in enumerate((-0.4, 0.0, 0.4)):
         dlat = north_offset_m / evaluator.EARTH_RADIUS_M * 180.0 / 3.141592653589793
         scorer.add(
@@ -648,13 +648,13 @@ def test_coordinate_scorer_requires_observed_high_rate_cadence():
 
 
 def _linear_sample(north_offset_m, source_time_s):
-    """A sample `north_offset_m` north of the scorer target at a given clock."""
+    """A sample `north_offset_m` north of the scorer POI at a given clock."""
     dlat = north_offset_m / evaluator.EARTH_RADIUS_M * 180.0 / 3.141592653589793
     return evaluator.PositionSample(40.0 + dlat, 44.0, 600.0, 100.0, 0.0, source_time_s)
 
 
 def _linear_scorer():
-    return evaluator.CoordinateScorer(evaluator.TargetLocation(40.0, 44.0, 100.0, 600.0))
+    return evaluator.CoordinateScorer(evaluator.PoiLocation(40.0, 44.0, 100.0, 600.0))
 
 
 def test_out_of_order_arrival_is_reordered_not_treated_as_broken_telemetry():
@@ -776,7 +776,7 @@ def test_snap_parser_reads_compact_accuracy():
     assert parsed == {"dist_3d_m": 11.9, "h_m": 11.9, "v_m": 0.8}
 
 
-def test_commands_are_portable_isolated_and_apply_case_target_variables():
+def test_commands_are_portable_isolated_and_apply_case_poi_variables():
     # A fixed fake interpreter keeps the anti-hardcoding assertion below
     # environment-independent: on worktrees whose .venv is a junction into
     # C:\repos\navpy\.venv, resolving sys.executable would itself contain the
@@ -797,8 +797,8 @@ def test_commands_are_portable_isolated_and_apply_case_target_variables():
         nav_device="tcp:127.0.0.1:6960",
         speedup=10,
         navigation_speedup=1.0,
-        target_wp=4,
-        target_rel_alt_m=135.0,
+        poi_wp=4,
+        poi_rel_alt_m=135.0,
         args=args,
     )
 
@@ -809,7 +809,7 @@ def test_commands_are_portable_isolated_and_apply_case_target_variables():
     assert navpy[navpy.index("-twps") + 1] == "4,"
     assert navpy[navpy.index("-talt") + 1] == "135"
     assert navpy[navpy.index("-gsu") + 1] == "1"
-    # The terminal roll-envelope raise was removed from NavPy (ef8b9a55), so
+    # The final-approach roll-envelope raise was removed from NavPy (ef8b9a55), so
     # navpy.main rejects -trl and the companion never launches. Keep the
     # builder from re-introducing the dead argument.
     assert "-trl" not in navpy
@@ -1205,7 +1205,7 @@ def test_position_stream_must_remain_at_live_edge_through_snap():
     assert not evaluator._position_stream_is_live([], 100.1)
 
 
-def test_stop_own_stack_targets_only_this_worktree_eval_slot(monkeypatch):
+def test_stop_own_stack_pois_only_this_worktree_eval_slot(monkeypatch):
     recorded = {}
 
     def fake_run(command, **kwargs):
@@ -1232,7 +1232,7 @@ def _err_log(tmp_path, text):
 
 
 def test_a_released_verdict_is_recovered_from_the_launcher_log(tmp_path):
-    # The reason the registry no longer has. A terminal failure records its
+    # The reason the registry no longer has. A final-approach failure records its
     # verdict, tears down, then retracts — and an eval slot owns nothing else,
     # so that retraction RELEASES the entry and the reason goes with it. An
     # evaluator that was busy across that window sees only a dead child.

@@ -106,16 +106,16 @@ class NavigationLogger:
         detect_c_loc: Optional[Location] = None,
         detect_t_loc_debug: Optional[Location] = None,
         k: Optional[np.ndarray] = None,
-        terminal_los_down_deg: Optional[float] = None,
+        final_approach_los_down_deg: Optional[float] = None,
         gimbal_att=None,
         rate_gate: Optional[bool] = None,
     ) -> bool:
         """Record one sample; only wall cadence controls primary-row gating."""
-        del terminal_los_down_deg
+        del final_approach_los_down_deg
         return self._samples.record(
             NavigationSample(
                 current_location=c_loc,
-                target_location=t_loc,
+                poi_location=t_loc,
                 distance=distance,
                 command_roll=cmd_roll,
                 command_pitch=cmd_pitch,
@@ -125,9 +125,9 @@ class NavigationLogger:
                 actual_pitch=_finite_or_none(actual_pitch),
                 x_error=x_error,
                 y_error=y_error,
-                terminal_angle=term_angle,
+                final_approach_angle=term_angle,
                 detected_current_location=detect_c_loc,
-                detected_target_location=detect_t_loc_debug,
+                detected_poi_location=detect_t_loc_debug,
                 camera_matrix=k,
                 gimbal_attitude=gimbal_att,
             ),
@@ -153,9 +153,9 @@ class NavigationLogger:
         t_loc: Optional[Location],
         *,
         source: Optional[str] = None,
-        terminal_gap_payload: Optional[Mapping[str, str]] = None,
+        final_approach_gap_payload: Optional[Mapping[str, str]] = None,
     ) -> None:
-        del source, terminal_gap_payload
+        del source, final_approach_gap_payload
         self._snap_session.sample(c_loc, t_loc)
 
     def get_snap(self) -> ClosestSnap:

@@ -13,7 +13,7 @@ when it cannot (a CPA outside or at the very edge of the window), the
 comparison is inadmissible rather than approximately right.
 
 Pure logic only: inputs are parsed rows, track records and the case
-target; no file IO beyond what the caller hands in.
+POI; no file IO beyond what the caller hands in.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ _SCRIPTS = str(Path(__file__).resolve().parent)
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
-from eval_navigation_models import PositionSample, TargetLocation  # noqa: E402
+from eval_navigation_models import PositionSample, PoiLocation  # noqa: E402
 from eval_navigation_truth_cpa import canonical_samples, segment_cpa  # noqa: E402
 from eval_navigation_truth_samples import TruthRecord  # noqa: E402
 from eval_sim_cpa_bin import (  # noqa: E402
@@ -189,7 +189,7 @@ def module_window_score(
 
 def stream_window_score(
     canonical: Sequence[PositionSample],
-    target: TargetLocation,
+    poi: PoiLocation,
     episode: dict[str, Any],
     official: dict[str, Any],
 ) -> tuple[dict[str, Any] | None, list[str]]:
@@ -217,7 +217,7 @@ def stream_window_score(
             f"to the common episode [{start_s:.6f}, {end_s:.6f}]"
         ]
     clipped = clip_track(canonical, start_s, end_s)
-    recomputed = segment_cpa(clipped, target)
+    recomputed = segment_cpa(clipped, poi)
     if recomputed is None:
         return None, ["clipped track produced no CPA"]
     if abs(recomputed.dist_3d_m - official_d3) > REPRODUCE_DIST_TOL_M or (
@@ -243,7 +243,7 @@ def stream_window_score(
 def windowed_comparison(
     evidence: EpochEvidence,
     records: Sequence[TruthRecord],
-    target: TargetLocation,
+    poi: PoiLocation,
     official_truth: dict[str, Any],
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any]]:
     """(episode, module_score, comparison) for one case.
@@ -264,7 +264,7 @@ def windowed_comparison(
     if episode is None:
         comparison["status"] = COMPARISON_INADMISSIBLE
         comparison["error"] = (
-            "no grid-aligned common episode inside the engaged stream window"
+            "no grid-aligned common episode inside the scoring stream window"
         )
         return None, None, comparison
     module_score, module_problems = module_window_score(evidence, episode)
@@ -273,7 +273,7 @@ def windowed_comparison(
         comparison["error"] = "; ".join(module_problems)
         return episode, None, comparison
     stream_score, stream_problems = stream_window_score(
-        canonical, target, episode, official_truth
+        canonical, poi, episode, official_truth
     )
     if stream_score is None:
         comparison["status"] = COMPARISON_INADMISSIBLE

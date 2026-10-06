@@ -6,7 +6,7 @@ import math
 import os
 from dataclasses import dataclass
 
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.rate_filter import _low_pass
 
 
@@ -97,7 +97,7 @@ class LateralRateFilter:
     def reset(self) -> None:
         self._state = None
 
-    def seed(self, frame: TerminalVisionFrame) -> None:
+    def seed(self, frame: FinalApproachVisionFrame) -> None:
         self._state = LateralRateState(
             frame.continuity_key,
             frame.source_timestamp_s,
@@ -108,7 +108,7 @@ class LateralRateFilter:
 
     def plan(
         self,
-        frame: TerminalVisionFrame,
+        frame: FinalApproachVisionFrame,
         tau_s: float | None = None,
     ) -> LateralRatePlan:
         bearing = _bearing(frame)
@@ -168,7 +168,7 @@ class LateralRateFilter:
         self._state = plan.next_state
 
 
-def _bearing(frame: TerminalVisionFrame) -> float:
+def _bearing(frame: FinalApproachVisionFrame) -> float:
     return math.atan2(frame.control_y, frame.control_x)
 
 

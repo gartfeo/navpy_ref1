@@ -114,7 +114,7 @@ class TestDownloadMission:
         assert [wp["nav_waypoint_ordinal"] for wp in data["waypoints"]] == [1, 2]
         assert all(wp["command"] == MAV_CMD_NAV_WAYPOINT for wp in data["waypoints"])
 
-    def test_non_waypoint_navigation_command_remains_in_route_without_target_ordinal(
+    def test_non_waypoint_navigation_command_remains_in_route_without_poi_ordinal(
         self,
         client,
         mock_vehicle,
@@ -220,7 +220,7 @@ class TestDownloadMission:
     def test_mission_with_fallback_delivery_location(self, client, mock_vehicle):
         """Download a mission with META_FALLBACK_DELIVERY_LOCATION metadata and trailing NAV_WAYPOINT."""
         meta_z = encode_meta_z("distributed", ["small", "medium"])
-        target_lat, target_lon = 32.05, 34.05
+        poi_lat, poi_lon = 32.05, 34.05
         items = [
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=32.0, lon=34.0),           # home (seq 0)
             _make_wp(MAV_CMD_NAV_TAKEOFF, lat=32.0, lon=34.0),            # takeoff
@@ -229,11 +229,11 @@ class TestDownloadMission:
             # metadata
             _make_wp(CORRIDOR_END_MARKER, lat=32.1, lon=34.1,
                      param1=float(META_POLYGON_VERTEX)),
-            _make_wp(CORRIDOR_END_MARKER, lat=target_lat, lon=target_lon,
+            _make_wp(CORRIDOR_END_MARKER, lat=poi_lat, lon=poi_lon,
                      param1=float(META_FALLBACK_DELIVERY_LOCATION),
                      z=encode_location_type_into_z(meta_z, "antenna")),
             # trailing NAV_WAYPOINT duplicating fallback_delivery_location coords
-            _make_wp(MAV_CMD_NAV_WAYPOINT, lat=target_lat, lon=target_lon),
+            _make_wp(MAV_CMD_NAV_WAYPOINT, lat=poi_lat, lon=poi_lon),
         ]
         mock_vehicle.download_mission.return_value = len(items)
         mock_vehicle.get_mission_item = MagicMock(side_effect=lambda i: items[i])
@@ -248,11 +248,11 @@ class TestDownloadMission:
         data = resp.json()
         # fallback_delivery_location extracted from metadata
         assert data["fallback_delivery_location"] is not None
-        assert abs(data["fallback_delivery_location"]["lat"] - target_lat) < 1e-5
-        assert abs(data["fallback_delivery_location"]["lon"] - target_lon) < 1e-5
+        assert abs(data["fallback_delivery_location"]["lat"] - poi_lat) < 1e-5
+        assert abs(data["fallback_delivery_location"]["lon"] - poi_lon) < 1e-5
         assert data["fallback_delivery_location"]["type"] == "antenna"
-        assert "default_target" not in data
-        assert "target_classes" not in data
+        assert "default_poi" not in data
+        assert "poi_classes" not in data
         # Trailing NAV_WAYPOINT trimmed — only track wp 1 and wp 2 remain
         assert len(data["waypoints"]) == 2
         # search_pattern + dock_classes decoded from the same metadata item's z

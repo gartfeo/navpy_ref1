@@ -489,8 +489,8 @@ class TestComputeExplicitSlantRanges(unittest.TestCase):
         result = vision_profiles.compute_confirm_slant_range(fy=2000)
         self.assertAlmostEqual(result, expected, places=4)
 
-    def test_detect_range_exceeds_confirm_range_for_same_target(self):
-        """Raw detection range is larger than confirmation range for the same target class."""
+    def test_detect_range_exceeds_confirm_range_for_same_poi(self):
+        """Raw detection range is larger than confirmation range for the same POI class."""
         detect = vision_profiles.compute_detect_slant_range(fy=2000, class_size=2.96)
         confirm = vision_profiles.compute_confirm_slant_range(fy=2000, class_size=2.96)
         self.assertGreater(detect, confirm)
@@ -563,7 +563,7 @@ class TestBuildTrackingConfig(unittest.TestCase):
 
         self.assertIsNotNone(config)
         # siyi_zr10 uses correction_bw=2.5 (the library default). #186 raised it
-        # to 5.0 for orbit-lag, but 5.0 overshoots so the target leaves frame
+        # to 5.0 for orbit-lag, but 5.0 overshoots so the POI leaves frame
         # during the confirm orbit; reverted to 2.5 as part of the confirm-loss
         # ladder fix.
         self.assertAlmostEqual(config.rate.correction_bw, 2.5)
@@ -665,12 +665,12 @@ class TestBuildTrackingConfig(unittest.TestCase):
     def test_estimator_defaults_when_not_overridden(self):
         """Without an estimator block the nested config keeps library defaults
         (the robust knee stays on by default — not silently disabled)."""
-        from navpy.modules.vision.target_angle_estimator import TargetAngleEstimatorConfig
+        from navpy.modules.vision.poi_angle_estimator import PoiAngleEstimatorConfig
         device = {"gimbal": {"camera_pitch": -20.0, "tracking": {"enabled": True}}}
         config = vision_profiles.build_tracking_config(device, sim=True)
         self.assertAlmostEqual(
             config.rate.estimator.robust_nis_knee,
-            TargetAngleEstimatorConfig().robust_nis_knee)
+            PoiAngleEstimatorConfig().robust_nis_knee)
 
     def test_invalid_params_return_none(self):
         self.assertIsNone(vision_profiles.compute_approach_interval(0, 540, 1080, 15, 200, 2.96))

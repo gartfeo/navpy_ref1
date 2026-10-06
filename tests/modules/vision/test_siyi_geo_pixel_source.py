@@ -22,8 +22,8 @@ from navpy.modules.vision.sim.siyi_geo_pixel_source import (
 )
 from navpy.modules.vision.sim.siyi_pixel_diagnostics import SiyiSightRecorder
 from scripts.siyi_pixel_pn_child import (
-    _command_target_approach,
-    _command_target_loiter,
+    _command_poi_approach,
+    _command_poi_loiter,
 )
 
 
@@ -42,7 +42,7 @@ def test_siyi_source_uses_geo_for_pointing_but_delivers_only_finite_pixels() -> 
         body_rates_rad_s=(0.0, 0.0, 0.0),
     )
     location = Location(40.0, 44.0, 100.0, is_absolute=True)
-    target = Location(40.001, 44.0, 100.0, is_absolute=True)
+    poi = Location(40.001, 44.0, 100.0, is_absolute=True)
     vehicle.location.return_value = location
     mount = Mock(image_width=1920, image_height=1080)
     mount.capture_frame_state.return_value = SimpleNamespace(
@@ -64,7 +64,7 @@ def test_siyi_source_uses_geo_for_pointing_but_delivers_only_finite_pixels() -> 
     delivered = []
     source = SiyiGeoPixelSource(
         vehicle,
-        target,
+        poi,
         mount,
         tracker,
         geo_ref,
@@ -90,7 +90,7 @@ def test_siyi_source_uses_geo_for_pointing_but_delivers_only_finite_pixels() -> 
     assert detection.pixel.source_name == "siyi_zr10"
     assert source.latest_detection is detection
     assert detection.visual_detection().observation.camera_to_body is not None
-    assert not hasattr(detection.visual_detection(), "target_location")
+    assert not hasattr(detection.visual_detection(), "poi_location")
     assert source.metrics.sight_losses == 0
 
 
@@ -114,12 +114,12 @@ def test_siyi_source_counts_finite_camera_loss_after_activation() -> None:
     assert source.metrics.max_visual_truth_ray_error_deg == 0.2
 
 
-def test_siyi_pixel_navigation_holds_target_centered_loiter_until_acquired() -> None:
+def test_siyi_pixel_navigation_holds_poi_centered_loiter_until_acquired() -> None:
     vehicle = Mock()
     vehicle.location.return_value = Location(1.0, 2.0, 140.0, False)
     vehicle.get_param_or_default.return_value = 90.0
 
-    _command_target_loiter(vehicle, Location(3.0, 4.0, 60.0, True))
+    _command_poi_loiter(vehicle, Location(3.0, 4.0, 60.0, True))
 
     commanded, radius = vehicle.goto_loiter.call_args.args
     assert commanded == Location(3.0, 4.0, 140.0, False)
@@ -176,7 +176,7 @@ def test_siyi_pixel_navigation_uses_geo_only_for_pre_navigation_approach() -> No
     vehicle = Mock()
     vehicle.location.return_value = Location(1.0, 2.0, 140.0, False)
 
-    _command_target_approach(vehicle, Location(3.0, 4.0, 60.0, True))
+    _command_poi_approach(vehicle, Location(3.0, 4.0, 60.0, True))
 
     vehicle.goto.assert_called_once_with(Location(3.0, 4.0, 140.0, False))
 
@@ -203,7 +203,7 @@ def test_siyi_visible_frames_count_only_the_scoring_interval() -> None:
         body_rates_rad_s=(0.0, 0.0, 0.0),
     )
     location = Location(40.0, 44.0, 100.0, is_absolute=True)
-    target = Location(40.001, 44.0, 100.0, is_absolute=True)
+    poi = Location(40.001, 44.0, 100.0, is_absolute=True)
     vehicle.location.return_value = location
     mount = Mock(image_width=1920, image_height=1080)
     mount.capture_frame_state.return_value = SimpleNamespace(
@@ -225,7 +225,7 @@ def test_siyi_visible_frames_count_only_the_scoring_interval() -> None:
     delivered: list[object] = []
     source = SiyiGeoPixelSource(
         vehicle,
-        target,
+        poi,
         mount,
         tracker,
         geo_ref,
@@ -235,7 +235,7 @@ def test_siyi_visible_frames_count_only_the_scoring_interval() -> None:
         wall_now_s=lambda: 100.0,
     )
 
-    # Acquisition: the camera renders the target, but navigation is not driving
+    # Acquisition: the camera renders the POI, but navigation is not driving
     # yet and nothing can be delivered.
     source._on_message(_message("ATTITUDE"))
     source._on_message(_message("GLOBAL_POSITION_INT"))

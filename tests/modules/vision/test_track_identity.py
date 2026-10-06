@@ -176,8 +176,8 @@ class TestFailClosed(unittest.TestCase):
         self.assertEqual(by_emb[7], sid_a)  # EMB_A object keeps A's id
         self.assertEqual(by_emb[8], sid_b)
 
-    def test_appearance_reacquires_target_that_moved_far(self):
-        # The core goal-2 case: a target lost then re-detected far from where it
+    def test_appearance_reacquires_poi_that_moved_far(self):
+        # The core goal-2 case: a POI lost then re-detected far from where it
         # was lost must still be reacquired when appearance matches, even past
         # the geometric gate.
         r = _resolver(max_lost_seconds=5.0, max_center_distance=0.05,

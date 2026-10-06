@@ -71,12 +71,12 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "NavNetworkRuntime",
     ): 150,
     (
-        "src/navpy/modules/nav/peer_target_dispatch.py",
-        "PeerTargetDispatchWorker",
+        "src/navpy/modules/nav/peer_poi_dispatch.py",
+        "PeerPoiDispatchWorker",
     ): 150,
     (
-        "src/navpy/modules/nav/terminal_detection_event_pump.py",
-        "TerminalDetectionEventPump",
+        "src/navpy/modules/nav/final_approach_detection_event_pump.py",
+        "FinalApproachDetectionEventPump",
     ): 150,
     (
         "src/navpy/modules/swarm/swarm_presence.py",
@@ -143,11 +143,11 @@ PASSIVE_RECORD_FIELD_LIMITS = {
     ("src/navpy/modules/vision/track_export_memory.py", "_MemoryState"): 13,
     (
         "src/navpy/modules/navigation/nav/vision_nav/frame.py",
-        "TerminalVisionFrame",
+        "FinalApproachVisionFrame",
     ): 15,
     (
         "src/navpy/modules/navigation/nav/vision_nav/command_transaction.py",
-        "TerminalLawEvidence",
+        "FinalApproachLawEvidence",
     ): 16,
 }
 
@@ -215,8 +215,8 @@ FACADE_METHOD_ALLOWANCES = {
         "Detector",
     ): FacadeMethodAllowance(1, 40, frozenset({"_parts"})),
     (
-        "src/navpy/modules/vision/target_zoom_orchestrator.py",
-        "TargetZoomTracker",
+        "src/navpy/modules/vision/poi_zoom_orchestrator.py",
+        "PoiZoomTracker",
     ): FacadeMethodAllowance(1, 17, frozenset({"_parts"})),
     (
         "src/navpy/modules/vision/vision_controller.py",
@@ -551,7 +551,7 @@ def owned_fields(node: ast.ClassDef) -> tuple[set[str], list[tuple[int, str]]]:
             if (
                 isinstance(statement, ast.AnnAssign)
                 and isinstance(statement.target, ast.Name)
-                and _terminal_name(statement.annotation) != "ClassVar"
+                and _final_approach_name(statement.annotation) != "ClassVar"
             ):
                 scanner.fields.add(statement.target.id)
     return scanner.fields, scanner.dynamic_writes
@@ -865,7 +865,7 @@ def _effective_facet_members(
         fields, _dynamic_writes = owned_fields(node)
         next_active = active | {reference}
         for base in node.bases:
-            name = _terminal_name(base)
+            name = _final_approach_name(base)
             if name is None:
                 continue
             target = aliases[reference[0]].get(name)
@@ -915,7 +915,7 @@ def _absolute_import_module(
 
 def _is_dataclass(node: ast.ClassDef) -> bool:
     return any(
-        _terminal_name(
+        _final_approach_name(
             decorator.func if isinstance(decorator, ast.Call) else decorator
         )
         == "dataclass"
@@ -927,7 +927,7 @@ def _is_frozen_dataclass(node: ast.ClassDef) -> bool:
     for decorator in node.decorator_list:
         if not isinstance(decorator, ast.Call):
             continue
-        if _terminal_name(decorator.func) != "dataclass":
+        if _final_approach_name(decorator.func) != "dataclass":
             continue
         return any(
             keyword.arg == "frozen"
@@ -945,9 +945,9 @@ def _physical_extent(
     return (node.end_lineno or node.lineno) - start + 1
 
 
-def _terminal_name(node: ast.AST) -> str | None:
+def _final_approach_name(node: ast.AST) -> str | None:
     if isinstance(node, ast.Subscript):
-        return _terminal_name(node.value)
+        return _final_approach_name(node.value)
     dotted = _dotted_name(node)
     return dotted.rsplit(".", 1)[-1] if dotted else None
 

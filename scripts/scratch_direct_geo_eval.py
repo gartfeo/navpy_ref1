@@ -1,6 +1,6 @@
 """SCRATCH DIAGNOSTIC (Step-0, Rule-1 isolation) -- DO NOT COMMIT, DELETE AFTER USE.
 
-Direct GEO target evaluator: reuses the direct-pixel eval stack (SITL launch,
+Direct GEO POI evaluator: reuses the direct-pixel eval stack (SITL launch,
 north-line mission, wind params, coordinate scorer, ground track, freshness)
 and launches scratch_direct_geo_child.py (legacy 'pn' on truth geo, -udt true).
 
@@ -36,7 +36,7 @@ from eval_navigation_cases import (  # noqa: E402
     download_mission,
     request_coordinate_score_stream,
     resolve_home_abs_alt_m,
-    resolve_target_expectation,
+    resolve_poi_expectation,
     set_param,
     stop_own_stack,
     wait_for_heartbeat,
@@ -54,13 +54,13 @@ def run_case(
     repetition: int,
     args: argparse.Namespace,
 ) -> dict[str, object]:
-    if args.target_alt < base.MIN_SAFE_TARGET_REL_ALT_M:
+    if args.poi_alt < base.MIN_SAFE_POI_REL_ALT_M:
         return {
             "passed": False,
             "errors": [
-                "direct target relative altitude must be at least "
-                f"{base.MIN_SAFE_TARGET_REL_ALT_M:g}m for terrain-safe "
-                f"isolation; got {args.target_alt:g}m"
+                "direct POI relative altitude must be at least "
+                f"{base.MIN_SAFE_POI_REL_ALT_M:g}m for terrain-safe "
+                f"isolation; got {args.poi_alt:g}m"
             ],
         }
     case_dir = root / f"speed-{speedup:g}-run-{repetition}"
@@ -83,7 +83,7 @@ def run_case(
             sysid,
             home=(lat, lon),
             gate_offset=args.gate_offset,
-            waypoint_offset=args.target_offset,
+            waypoint_offset=args.poi_offset,
             alt_m=args.mission_alt,
             echo=lambda line: (case_dir / "mission.log").open(
                 "a", encoding="utf-8"
@@ -96,16 +96,16 @@ def run_case(
             raise RuntimeError("30 Hz coordinate stream was not acknowledged")
         mission = download_mission(master)
         home_alt = resolve_home_abs_alt_m(master, timeout_s=30.0)
-        target = resolve_target_expectation(
+        poi = resolve_poi_expectation(
             mission,
-            target_wp=args.target_wp,
-            target_rel_alt_m=args.target_alt,
+            poi_wp=args.poi_wp,
+            poi_rel_alt_m=args.poi_alt,
             home_abs_alt_m=home_alt,
         ).location
-        scoring_start_expectation = resolve_target_expectation(
+        scoring_start_expectation = resolve_poi_expectation(
             mission,
-            target_wp=args.scoring_start_wp,
-            target_rel_alt_m=args.target_alt,
+            poi_wp=args.scoring_start_wp,
+            poi_rel_alt_m=args.poi_alt,
             home_abs_alt_m=home_alt,
         )
         for name, value in (
@@ -120,7 +120,7 @@ def run_case(
                 {
                     "speedup": speedup,
                     "repetition": repetition,
-                    "target": asdict(target),
+                    "poi": asdict(poi),
                     "engage_seq": scoring_start_expectation.mission_seq,
                     "mode": "direct-geo-legacy-pn",
                 },
@@ -133,15 +133,15 @@ def run_case(
             case_dir,
             device=ip.companion_device(sysid),
             sysid=sysid,
-            target=target,
+            poi=poi,
             scoring_start_seq=scoring_start_expectation.mission_seq,
             timeout_s=args.timeout,
             child_script=SCRIPTS / "scratch_direct_geo_child.py",
         )
         base._wait_ready(case_dir / "child.out.log", child, 90.0)
         base._start_mission(master)
-        scorer = CoordinateScorer(target)
-        track = GroundTrackRecorder(target)
+        scorer = CoordinateScorer(poi)
+        track = GroundTrackRecorder(poi)
         child_result = base._fly(
             master,
             child,
@@ -161,14 +161,14 @@ def run_case(
         except (OSError, RuntimeError, ValueError) as error:
             errors.append(f"ground track unavailable: {error}")
         if child_result.get("passed") is not True:
-            errors.append(f"target pass false: {child_result.get('error', '')}")
+            errors.append(f"POI pass false: {child_result.get('error', '')}")
         source = child_result.get("source")
         if not isinstance(source, dict):
             errors.append("direct pixel source metrics missing")
         else:
             if source.get("projection_failures") != 0:
                 errors.append(
-                    "target left renderable sight: "
+                    "POI left renderable sight: "
                     f"{source.get('projection_failures')} projection failures"
                 )
             if not isinstance(source.get("delivered_frames"), int) or (

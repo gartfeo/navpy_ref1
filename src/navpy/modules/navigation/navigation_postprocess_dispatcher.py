@@ -94,7 +94,7 @@ class NavigationPostprocessDispatcher:
         failure = worker.first_error
         if failure is not None:
             raise NavigationPostprocessFailure(
-                "terminal command evidence postprocess failed"
+                "final-approach command evidence postprocess failed"
             ) from failure
 
     def close(self) -> None:
@@ -109,7 +109,7 @@ class NavigationPostprocessDispatcher:
                 self._worker = None
         if failure is not None:
             raise NavigationPostprocessFailure(
-                "terminal command evidence postprocess failed"
+                "final-approach command evidence postprocess failed"
             ) from failure
 
     def _execute(self, job: Callable[[], None]) -> None:
@@ -118,13 +118,13 @@ class NavigationPostprocessDispatcher:
         except Exception as error:
             try:
                 self._logger.error(
-                    f"{NAVIGATION_EVIDENCE_FAILURE_MARKER}: terminal postprocess "
+                    f"{NAVIGATION_EVIDENCE_FAILURE_MARKER}: final-approach postprocess "
                     f"{type(error).__name__}: {error}",
                     error,
                 )
             except BaseException as logging_error:
                 raise BaseExceptionGroup(
-                    "terminal postprocess and failure reporting failed",
+                    "final-approach postprocess and failure reporting failed",
                     [error, logging_error],
                 )
             raise

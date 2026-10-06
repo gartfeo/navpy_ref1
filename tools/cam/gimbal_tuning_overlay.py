@@ -26,7 +26,7 @@ class HotkeyAction:
 
 
 @dataclass(frozen=True)
-class OverlayTarget:
+class OverlayPoi:
     obj_id: int | None
     bbox_cxcywh: tuple[float, float, float, float] | None
 
@@ -51,7 +51,7 @@ def decode_hotkey(
 
 def draw_overlay(
     frame: np.ndarray,
-    target: OverlayTarget | None,
+    poi: OverlayPoi | None,
     command: TrackingCommand | None,
     result: GimbalTrackResult,
     anchor_mode: int,
@@ -76,7 +76,7 @@ def draw_overlay(
         2,
     )
     bbox = _bbox_to_xyxy(
-        None if target is None else target.bbox_cxcywh
+        None if poi is None else poi.bbox_cxcywh
     )
     if bbox is not None:
         cv2.rectangle(display, bbox[:2], bbox[2:], (0, 255, 0), 2)
@@ -99,7 +99,7 @@ def draw_overlay(
         )
     _draw_status(
         display,
-        target,
+        poi,
         command,
         result,
         anchor_mode,
@@ -112,7 +112,7 @@ def draw_overlay(
 
 def _draw_status(
     display: np.ndarray,
-    target: OverlayTarget | None,
+    poi: OverlayPoi | None,
     command: TrackingCommand | None,
     result: GimbalTrackResult,
     anchor_mode: int,
@@ -133,14 +133,14 @@ def _draw_status(
         0.65, (0, 255, 0), 2,
     )
     if command is not None and result.yaw_rate is not None:
-        target_id = "?" if target is None else target.obj_id
+        poi_id = "?" if poi is None else poi.obj_id
         tracking = (
-            f"id={target_id}  delta=({command.delta_yaw_deg:+.2f}, "
+            f"id={poi_id}  delta=({command.delta_yaw_deg:+.2f}, "
             f"{command.delta_pitch_deg:+.2f}) deg  "
             f"cmd=({result.yaw_rate:+.1f}, {result.pitch_rate:+.1f})"
         )
     else:
-        tracking = f"state={result.state.value}  waiting for locked target"
+        tracking = f"state={result.state.value}  waiting for locked POI"
     cv2.putText(
         display, tracking, (10, 60), cv2.FONT_HERSHEY_SIMPLEX,
         0.65, (0, 255, 0), 2,
@@ -182,7 +182,7 @@ def _bbox_to_xyxy(
 
 __all__ = [
     "HotkeyAction",
-    "OverlayTarget",
+    "OverlayPoi",
     "decode_hotkey",
     "draw_overlay",
 ]

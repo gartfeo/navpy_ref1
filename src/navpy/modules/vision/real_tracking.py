@@ -11,7 +11,7 @@ from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
 from navpy.modules.vision.geometry import cxcywh_to_xyxy
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.multi_object_tracker import TrackedObject
-from navpy.modules.vision.lost_target_bridge import LostTargetBridge
+from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
 from navpy.modules.vision.real_detector_state import (
     DetectionBatchInbox,
     DetectionResultStore,
@@ -27,8 +27,8 @@ from navpy.modules.vision.real_tracking_batch import (
     TrackingModels,
     TrackingPublications,
 )
-from navpy.modules.vision.target_lock import TargetLock
-from navpy.modules.vision.target_priority import find_target_by_id
+from navpy.modules.vision.poi_lock import PoiLock
+from navpy.modules.vision.poi_priority import find_poi_by_id
 from navpy.modules.vision.track_identity import TrackIdentityResolver
 
 
@@ -44,13 +44,13 @@ class TrackingNavigationSink:
         self._freshness = freshness
         self._last_measurement_timestamp: float | None = None
 
-    def update(self, targets: Sequence[DetectedObject]) -> None:
+    def update(self, pois: Sequence[DetectedObject]) -> None:
         if self._navigation is None:
             return
         tracking_id = self._navigation.tracking_obj_id
         if tracking_id is None:
             return
-        tracked = find_target_by_id(targets, tracking_id)
+        tracked = find_poi_by_id(pois, tracking_id)
         if tracked is not None and not self._freshness.is_fresh(tracked):
             tracked = None
         timestamp = (
@@ -66,25 +66,25 @@ class TrackingNavigationSink:
 
 
 class TrackingRecovery:
-    """Visual re-identification and short-gap recovery for the selected target."""
+    """Visual re-identification and short-gap recovery for the selected POI."""
 
     def __init__(
             self,
-            bridge: LostTargetBridge,
+            bridge: LostPoiBridge,
             appearance: AsyncAppearanceEmbedder | None,
             identity: TrackIdentityResolver,
-            target_lock: TargetLock,
-            use_target_lock: bool,
+            poi_lock: PoiLock,
+            use_poi_lock: bool,
             metrics: RuntimeMetrics,
     ) -> None:
         self._bridge = bridge
         self._appearance = appearance
         self._identity = identity
-        self._target_lock = target_lock
-        self._use_target_lock = bool(use_target_lock)
+        self._poi_lock = poi_lock
+        self._use_poi_lock = bool(use_poi_lock)
         self._metrics = metrics
 
-    def bridge_locked_target(
+    def bridge_locked_poi(
             self,
             raw_tracks: Sequence[TrackedObject],
             frame: np.ndarray,
@@ -92,9 +92,9 @@ class TrackingRecovery:
             frame_height: int,
             now_s: float,
     ) -> None:
-        if not self._use_target_lock:
+        if not self._use_poi_lock:
             return
-        locked_id = self._target_lock.locked_id
+        locked_id = self._poi_lock.locked_id
         if locked_id is None:
             self._bridge.reset()
             return
@@ -188,8 +188,8 @@ class TrackingLoop:
 
     def _coast(self) -> None:
         self._metrics.bump("coast_ticks")
-        targets, _ = self._results.snapshot()
-        self._navigation.update(targets)
+        pois, _ = self._results.snapshot()
+        self._navigation.update(pois)
 
 
 __all__ = [

@@ -8,14 +8,14 @@ const LERP = 0.15;
 
 export default React.memo(function AltitudeTape({ altitude, width = 70, height = 200 }) {
   const canvasRef = useRef(null);
-  const targetRef = useRef(0);
+  const poiRef = useRef(0);
   const displayRef = useRef(0);
-  targetRef.current = altitude ?? 0;
+  poiRef.current = altitude ?? 0;
 
   useEffect(() => {
     const id = 'altitude';
     scheduleRaf(id, () => {
-      displayRef.current += (targetRef.current - displayRef.current) * LERP;
+      displayRef.current += (poiRef.current - displayRef.current) * LERP;
       draw(canvasRef.current, displayRef.current, width, height);
     });
     return () => cancelRaf(id);

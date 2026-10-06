@@ -28,7 +28,7 @@ Event streams, keyed by ``(sys_id, stream)``:
 - ``telemetry_reject`` -- one row per autopilot-telemetry packet that
   ``_accept_telemetry_sample`` refused (foreign component / stale boot time),
   making the drop path countable instead of silent.
-- ``detector_pose`` -- source-pose admission and terminal detector outcomes:
+- ``detector_pose`` -- source-pose admission and final-approach detector outcomes:
   raw attitude boot time, accepted poses, emitted frames, explicit queue /
   reset / invalidation drops, missing timestamps, duplicates, and reordering.
   Only an actual frame publication is ``emitted``; its unchanged raw source
@@ -37,12 +37,12 @@ Event streams, keyed by ``(sys_id, stream)``:
   (``runtime.nav``): the frame's source timestamp, the source clock's "now"
   read through the detection's own provider, and the delivery ``outcome``
   (fresh / duplicate / gap_mismatch / invalid).
-- ``worker`` -- one row per terminal command actually SENT
-  (``execute_terminal_command``, every command -- not decimated like the
+- ``worker`` -- one row per final-approach command actually SENT
+  (``execute_final_approach_command``, every command -- not decimated like the
   TERMINAL_CMD log event): raw observation source timestamp, matching source-
   clock now, diagnostic execution time, and the compatibility marker
   ``measured``, and whether the 25 Hz tick used a ``fresh`` command or a
-  zero-order ``held`` primitive command. The current terminal runtime does not
+  zero-order ``held`` primitive command. The current final-approach runtime does not
   issue predictions.
 
 Rows buffer in memory (append-only lists; list.append is atomic in CPython). A
@@ -176,7 +176,7 @@ def record_worker(
         source: str = "",
         outcome: str = "fresh",
 ) -> None:
-    """Record one terminal command actually sent (execute_terminal_command)."""
+    """Record one final-approach command actually sent (execute_final_approach_command)."""
     if not ENABLED:
         return
     _buffer_for(int(sys_id), "worker").append(

@@ -5,13 +5,22 @@ from collections import Counter
 import json
 import math
 from pathlib import Path, PureWindowsPath
+import sys
 
 import numpy as np
 import pymap3d
 
-from replay_navigation_trace import ROOT, digest, run as replay
-from eval_direct_pixel_command_causality import _samples
-from simtime_navigation_protocol import Snapshot
+# Siblings are imported as top-level modules, which only resolves when this
+# directory is on the path.  Do it here rather than relying on being run as a
+# script: imported as ``scripts.analyze_noise_profiles`` the module (and its
+# test) otherwise fails with ModuleNotFoundError.
+_SCRIPTS = str(Path(__file__).resolve().parent)
+if _SCRIPTS not in sys.path:
+    sys.path.insert(0, _SCRIPTS)
+
+from replay_navigation_trace import ROOT, digest, run as replay  # noqa: E402
+from eval_direct_pixel_command_causality import _samples  # noqa: E402
+from simtime_navigation_protocol import Snapshot  # noqa: E402
 
 
 def local_path(value: str) -> Path:

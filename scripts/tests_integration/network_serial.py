@@ -63,7 +63,7 @@ def main(args):
 
         actor2.checkin()
 
-        actor1.notify_targets([
+        actor1.notify_pois([
             DetectedObject(3, 1, 1, 0, None, None, None, Location(2, 2, 2), Location(2.001, 2.002, 0)),
         ])
 

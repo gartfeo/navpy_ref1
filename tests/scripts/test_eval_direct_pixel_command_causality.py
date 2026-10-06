@@ -5,14 +5,14 @@ import math
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.command_anchor import TerminalLimits
+from navpy.modules.navigation.nav.vision_nav.command_anchor import FinalApproachLimits
 from navpy.modules.navigation.nav.vision_nav.command_transaction import (
-    TerminalLawEvidence,
+    FinalApproachLawEvidence,
 )
 from navpy.modules.navigation.nav.vision_nav.diagnostic_capture import (
     law_evidence_payload,
 )
-from navpy.modules.navigation.nav.vision_nav.law_plan import TerminalPlanOrigin
+from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachPlanOrigin
 from scripts.eval_direct_pixel_command_causality import (
     _OPTIONAL,
     _REQUIRED,
@@ -77,7 +77,7 @@ def _row(
         max(raw_pitch, EFFECTIVE_PITCH_MIN), EFFECTIVE_PITCH_MAX)
 
     fields = [
-        "source=direct_target_pixel", f"obs_ts={index * DT_S}",
+        "source=direct_poi_pixel", f"obs_ts={index * DT_S}",
         f"control_bearing_deg={bearing}",
         f"lateral_rate_deg_s={lateral_rate}",
         f"aircraft_turn_rate_deg_s={turn_rate}",
@@ -286,11 +286,11 @@ def test_the_logged_payload_carries_every_field_the_audit_reads() -> None:
     """Producer and consumer are two files; nothing else holds them together.
 
     The audit reads flat CSV keys while the record keeps value objects, so a
-    rename inside `TerminalLimits` or `TerminalPlanOrigin` would quietly change
+    rename inside `FinalApproachLimits` or `FinalApproachPlanOrigin` would quietly change
     the column set. The audit would then refuse every log, or -- worse, for a
     field it treats as optional -- score a held command as an integration.
     """
-    payload = law_evidence_payload(TerminalLawEvidence(
+    payload = law_evidence_payload(FinalApproachLawEvidence(
         control_bearing_deg=3.0,
         lateral_rate_deg_s=0.2,
         aircraft_turn_rate_deg_s=1.0,
@@ -302,12 +302,12 @@ def test_the_logged_payload_carries_every_field_the_audit_reads() -> None:
         control_elevation_deg=6.0,
         vertical_rate_deg_s=0.1,
         pitch_time_constant_s=0.5,
-        configured_limits=TerminalLimits(45.0, -55.0, 25.0),
-        effective_limits=TerminalLimits(
+        configured_limits=FinalApproachLimits(45.0, -55.0, 25.0),
+        effective_limits=FinalApproachLimits(
             EFFECTIVE_ROLL_LIMIT, EFFECTIVE_PITCH_MIN, EFFECTIVE_PITCH_MAX),
         raw_roll_deg=12.0,
         raw_pitch_deg=-7.6,
-        origin=TerminalPlanOrigin(
+        origin=FinalApproachPlanOrigin(
             reason="normal",
             anchor_cmd_roll_deg=11.0,
             anchor_cmd_pitch_deg=-7.0,

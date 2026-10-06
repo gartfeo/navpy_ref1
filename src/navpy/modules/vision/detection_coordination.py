@@ -20,7 +20,7 @@ from navpy.modules.vision.detector_ports import (
     MountCatalogPort,
     SchedulerCadence,
     SimulationControlPort,
-    TargetIdentityPort,
+    PoiIdentityPort,
     TrackingCommandPort,
     TrackingStatusPort,
     ZoomControlPort,
@@ -43,7 +43,7 @@ class DetectionCoordination:
     events: DetectionEventPort
     tracking_commands: TrackingCommandPort
     tracking_status: TrackingStatusPort
-    target_identity: TargetIdentityPort
+    poi_identity: PoiIdentityPort
     geo_pointing: GeoPointingPort
     zoom: ZoomControlPort
     mounts: MountCatalogPort
@@ -68,7 +68,7 @@ def build_detection_coordination(
             members,
             GimbalLossPolicy().hold_sec,
         ),
-        target_identity=identities,
+        poi_identity=identities,
         geo_pointing=GeoPointingFleet(members, logger),
         zoom=ZoomControlRouter(members, identities),
         mounts=DetectorMountCatalog(members),

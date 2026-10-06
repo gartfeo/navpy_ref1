@@ -187,10 +187,10 @@ def compute_approach_interval(
         image_height = float(img_h)
         pitch = float(pitch_deg)
         altitude = float(alt)
-        target_size = float(class_size)
+        poi_size = float(class_size)
     except (TypeError, ValueError):
         return None
-    values = (fy_value, cy_value, image_height, pitch, altitude, target_size)
+    values = (fy_value, cy_value, image_height, pitch, altitude, poi_size)
     if not all(math.isfinite(value) for value in values):
         return None
     if (
@@ -198,11 +198,11 @@ def compute_approach_interval(
         or image_height <= 0.0
         or pitch <= 0.0
         or altitude <= 0.0
-        or target_size <= 0.0
+        or poi_size <= 0.0
     ):
         return None
 
-    confirm_slant = fy_value * target_size / MIN_CONFIRM_PIXELS
+    confirm_slant = fy_value * poi_size / MIN_CONFIRM_PIXELS
     if confirm_slant <= altitude:
         return None
     ground_max = math.sqrt(confirm_slant**2 - altitude**2)

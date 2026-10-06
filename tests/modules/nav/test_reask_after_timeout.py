@@ -2,15 +2,15 @@
 Tests for the bounded re-ask after timeout (D-14, Phase 2 Plan 02-06 Task 2):
 TIMEOUT_REJECTED distinguishes a
 system/timeout-origin rejection from an operator's explicit REJECTED, so a
-reacquired target can start a fresh, bounded confirm round without EVER
+reacquired POI can start a fresh, bounded confirm round without EVER
 reopening an operator's decision.
 
 Covers:
   - ConfirmationManager.clear_status() in isolation.
   - NavController._can_reask()/_begin_reask() budget bookkeeping.
-  - _select_target()/_handle_new_target() bounded reopen of a
-    TIMEOUT_REJECTED target, and permanent skip of an operator REJECTED
-    target.
+  - _select_poi()/_handle_new_poi() bounded reopen of a
+    TIMEOUT_REJECTED POI, and permanent skip of an operator REJECTED
+    POI.
   - _decide() tearing down both REJECTED and TIMEOUT_REJECTED to DETECT
     immediately, and reask-attempt-counter reset semantics (CONFIRMED /
     operator REJECTED reset it, TIMEOUT_REJECTED does not).
@@ -37,7 +37,7 @@ from navpy.modules.nav.nav_controller import (
 from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
 from navpy.modules.vehicle.flight_mode import FlightMode
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 from navpy.modules.vision.models.detect_response import DetectResponse
 from tests.modules.nav.nav_test_rig import create_nav_test_rig
 
@@ -55,33 +55,33 @@ class ClearStatusTests(unittest.TestCase):
         self.confirmation_manager = ConfirmationManager(
             sys_id=1, args=self.mock_args, logger=self.mock_logger,
         )
-        self.target = make_detected_target(
+        self.poi = make_detected_poi(
             obj_id=11, size_class=DetectionSizeClass.S,
             x_error=0, y_error=0, reference_height_m=0, k=0,
             g_data=None, uas_att=None,
         )
 
     def test_clear_status_removes_entry(self):
-        self.confirmation_manager.update_status(self.target, ConfirmationStatus.TIMEOUT_REJECTED)
+        self.confirmation_manager.update_status(self.poi, ConfirmationStatus.TIMEOUT_REJECTED)
         self.assertEqual(
-            self.confirmation_manager.get_status(self.target), ConfirmationStatus.TIMEOUT_REJECTED,
+            self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED,
         )
 
-        self.confirmation_manager.clear_status(self.target)
+        self.confirmation_manager.clear_status(self.poi)
 
-        self.assertIsNone(self.confirmation_manager.get_status(self.target))
+        self.assertIsNone(self.confirmation_manager.get_status(self.poi))
 
-    def test_clear_status_noop_for_unknown_target(self):
-        """Clearing a target with no status entry must not raise."""
-        self.confirmation_manager.clear_status(self.target)
-        self.assertIsNone(self.confirmation_manager.get_status(self.target))
+    def test_clear_status_noop_for_unknown_poi(self):
+        """Clearing a POI with no status entry must not raise."""
+        self.confirmation_manager.clear_status(self.poi)
+        self.assertIsNone(self.confirmation_manager.get_status(self.poi))
 
     def test_timeout_rejected_and_rejected_are_distinct_values(self):
         self.assertNotEqual(ConfirmationStatus.TIMEOUT_REJECTED, ConfirmationStatus.REJECTED)
 
 
 class MonotonicGuardSurvivesReaskTests(unittest.TestCase):
-    """The response-handler monotonic guard must still protect a target
+    """The response-handler monotonic guard must still protect a POI
     after a re-ask round: a late response with no live token must not flip
     a resolved (even re-resolved) status."""
 
@@ -96,52 +96,52 @@ class MonotonicGuardSurvivesReaskTests(unittest.TestCase):
             sys_id=1, args=self.mock_args, logger=self.mock_logger,
         )
         self.confirmation_manager.set_network(self.mock_network)
-        self.target = make_detected_target(
+        self.poi = make_detected_poi(
             obj_id=12, size_class=DetectionSizeClass.S,
             x_error=0, y_error=0, reference_height_m=0, k=0,
             g_data=None, uas_att=None,
         )
-        self.target.set_p_t_g_loc(Location(lat=10, lng=20, alt=100))
+        self.poi.set_p_t_g_loc(Location(lat=10, lng=20, alt=100))
 
     def test_late_response_after_reask_round_does_not_resurrect(self):
         from time import sleep
 
         # Round 1: times out -> TIMEOUT_REJECTED.
-        self.confirmation_manager.review([self.target])
+        self.confirmation_manager.review([self.poi])
         sleep(0.12)
         self.assertEqual(
-            self.confirmation_manager.get_status(self.target), ConfirmationStatus.TIMEOUT_REJECTED,
+            self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED,
         )
 
         # Reopen for a bounded re-ask round (mirrors NavController._begin_reask).
-        self.confirmation_manager.clear_status(self.target)
-        self.confirmation_manager.review([self.target])
+        self.confirmation_manager.clear_status(self.poi)
+        self.confirmation_manager.review([self.poi])
         sleep(0.12)
         self.assertEqual(
-            self.confirmation_manager.get_status(self.target), ConfirmationStatus.TIMEOUT_REJECTED,
+            self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED,
             "Round 2 also times out under REJECT policy.",
         )
 
         # A late operator approve now arrives for the (long-resolved) task_id.
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=self.target.identity.obj_id,
+            task_id=self.poi.identity.obj_id,
             is_confirmed=True,
         ))
 
         self.assertEqual(
-            self.confirmation_manager.get_status(self.target), ConfirmationStatus.TIMEOUT_REJECTED,
-            "A late response after a re-ask round must not resurrect the target.",
+            self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED,
+            "A late response after a re-ask round must not resurrect the POI.",
         )
         self.assertNotIn(
-            self.target.identity.obj_id,
+            self.poi.identity.obj_id,
             self.confirmation_manager._state.pending_events(),
         )
 
 
 # =============================================================================
-# Part 2: NavController-level -- _can_reask/_begin_reask, _select_target,
-# _handle_new_target, _decide.
+# Part 2: NavController-level -- _can_reask/_begin_reask, _select_poi,
+# _handle_new_poi, _decide.
 # =============================================================================
 
 def _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5, alt=200.0, is_armed=True):
@@ -164,23 +164,23 @@ def _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5, alt=200.0, is_armed=Tr
     return vehicle
 
 
-def _create_mock_detector(detections=None, primary_target=None):
+def _create_mock_detector(detections=None, primary_poi=None):
     detector = Mock()
     detector.get_detect_data = Mock(
-        return_value=DetectResponse(detections or [], primary_target=primary_target),
+        return_value=DetectResponse(detections or [], primary_poi=primary_poi),
     )
     detector.drain_detection_events = Mock(return_value=[])
     detector.open_detection_event_lease = Mock(return_value=None)
     detector.has_source_driven_detection_events = False
-    detector.target_uses_source_driven_events = Mock(return_value=False)
+    detector.poi_uses_source_driven_events = Mock(return_value=False)
     detector.is_simulation = True
     detector.is_zoom_stable = True
     detector.get_zoom_result = Mock(return_value=None)
     detector.is_detection_armed = False
     detector.is_geo_armed = False
     detector.refresh = Mock()
-    detector.set_sim_target = Mock()
-    detector.freeze_terminal_zoom_at_min = Mock()
+    detector.set_sim_poi = Mock()
+    detector.freeze_final_approach_zoom_at_min = Mock()
     detector.start_geo_tracking = Mock()
     detector.stop_geo_tracking = Mock()
     detector.start_tracking = Mock()
@@ -197,24 +197,24 @@ def _create_mock_navigation():
     navigation.algorithm_info = ("l1", 1.0)
     navigation.init = Mock()
     navigation.nav = Mock(return_value=True)
-    navigation.pause_terminate = Mock()
-    navigation.terminal = Mock()
-    navigation.terminal.is_active = False
-    navigation.terminal.clear_source_discontinuity = Mock()
-    navigation.terminal.can_confirm_detection = Mock(return_value=True)
-    navigation.terminal.record_confirmed_detection = Mock(return_value=True)
-    navigation.terminal.nav_without_detection = Mock(return_value=True)
-    navigation.terminal.target_passed_override = Mock(return_value=None)
-    navigation.terminal.last_measured_lateral_bearing_deg = Mock(return_value=None)
-    navigation.legacy_targets = Mock()
-    navigation.legacy_targets.locked_distance = Mock(return_value=1000.0)
-    navigation.legacy_targets.ground_location = Mock(
+    navigation.pause_final_approach = Mock()
+    navigation.final_approach = Mock()
+    navigation.final_approach.is_active = False
+    navigation.final_approach.clear_source_discontinuity = Mock()
+    navigation.final_approach.can_confirm_detection = Mock(return_value=True)
+    navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+    navigation.final_approach.nav_without_detection = Mock(return_value=True)
+    navigation.final_approach.poi_passed_override = Mock(return_value=None)
+    navigation.final_approach.last_measured_lateral_bearing_deg = Mock(return_value=None)
+    navigation.legacy_pois = Mock()
+    navigation.legacy_pois.locked_distance = Mock(return_value=1000.0)
+    navigation.legacy_pois.ground_location = Mock(
         return_value=Location(40.001, -74.001, 0.0)
     )
-    navigation.legacy_targets.geo_ref = Mock(name="geo_ref_sentinel")
+    navigation.legacy_pois.geo_ref = Mock(name="geo_ref_sentinel")
     navigation.vehicle_commands = Mock()
-    navigation.vehicle_commands.peer_target = Mock()
-    navigation.vehicle_commands.peer_target_loiter = Mock()
+    navigation.vehicle_commands.peer_poi = Mock()
+    navigation.vehicle_commands.peer_poi_loiter = Mock()
     return navigation
 
 
@@ -233,8 +233,8 @@ def _create_mock_args(confirm_wait=2.0, auto_confirm=False, confirm_on_fail=True
     return args
 
 
-def _create_detected_target(obj_id=1, task_id=None):
-    return make_detected_target(
+def _create_detected_poi(obj_id=1, task_id=None):
+    return make_detected_poi(
         obj_id=obj_id,
         task_id=obj_id if task_id is None else task_id,
         x_error=0.0,
@@ -259,98 +259,98 @@ def _create_controller(vehicle=None, detector=None, navigation=None, args=None, 
 class CanReaskBeginReaskTests(unittest.TestCase):
     def test_can_reask_true_with_no_prior_attempts(self):
         controller = _create_controller()
-        target = _create_detected_target(obj_id=1)
-        self.assertTrue(controller.retry_policy.can_reask(target))
+        poi = _create_detected_poi(obj_id=1)
+        self.assertTrue(controller.retry_policy.can_reask(poi))
 
     def test_can_reask_false_once_budget_exhausted(self):
         controller = _create_controller()
-        target = _create_detected_target(obj_id=1)
+        poi = _create_detected_poi(obj_id=1)
         controller.retry_state.reask_attempts[1] = CONFIRM_REASK_MAX_ATTEMPTS
 
-        self.assertFalse(controller.retry_policy.can_reask(target))
+        self.assertFalse(controller.retry_policy.can_reask(poi))
 
     def test_can_reask_true_just_under_budget(self):
         controller = _create_controller()
-        target = _create_detected_target(obj_id=1)
+        poi = _create_detected_poi(obj_id=1)
         controller.retry_state.reask_attempts[1] = CONFIRM_REASK_MAX_ATTEMPTS - 1
 
-        self.assertTrue(controller.retry_policy.can_reask(target))
+        self.assertTrue(controller.retry_policy.can_reask(poi))
 
     def test_begin_reask_increments_attempts(self):
         controller = _create_controller()
-        target = _create_detected_target(obj_id=1)
+        poi = _create_detected_poi(obj_id=1)
 
-        controller.retry_policy.begin_reask(target)
+        controller.retry_policy.begin_reask(poi)
         self.assertEqual(controller.retry_state.reask_attempts.get(1), 1)
 
-        controller.retry_policy.begin_reask(target)
+        controller.retry_policy.begin_reask(poi)
         self.assertEqual(controller.retry_state.reask_attempts.get(1), 2)
 
     def test_begin_reask_clears_confirmation_manager_status(self):
         controller = _create_controller()
-        target = _create_detected_target(obj_id=1)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.TIMEOUT_REJECTED)
+        poi = _create_detected_poi(obj_id=1)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
 
-        controller.retry_policy.begin_reask(target)
+        controller.retry_policy.begin_reask(poi)
 
-        self.assertIsNone(controller.confirmation_manager.get_status(target))
+        self.assertIsNone(controller.confirmation_manager.get_status(poi))
 
 
-class SelectTargetReaskTests(unittest.TestCase):
-    def test_timeout_rejected_target_selected_when_under_budget(self):
+class SelectPoiReaskTests(unittest.TestCase):
+    def test_timeout_rejected_poi_selected_when_under_budget(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
-        target = _create_detected_target(obj_id=10)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.TIMEOUT_REJECTED)
+        poi = _create_detected_poi(obj_id=10)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
 
-        self_target, peers = controller.selector.select([target])
+        self_poi, peers = controller.selector.select([poi])
 
-        self.assertIsNotNone(self_target)
-        self.assertEqual(self_target.identity.obj_id, 10)
+        self.assertIsNotNone(self_poi)
+        self.assertEqual(self_poi.identity.obj_id, 10)
 
-    def test_timeout_rejected_target_skipped_when_budget_exhausted(self):
+    def test_timeout_rejected_poi_skipped_when_budget_exhausted(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
         controller.network.task_actor = Mock()
-        target = _create_detected_target(obj_id=10)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.TIMEOUT_REJECTED)
+        poi = _create_detected_poi(obj_id=10)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
         controller.retry_state.reask_attempts[10] = CONFIRM_REASK_MAX_ATTEMPTS
 
-        self_target, peers = controller.selector.select([target])
+        self_poi, peers = controller.selector.select([poi])
 
-        self.assertIsNone(self_target)
-        self.assertIn(target, peers)
+        self.assertIsNone(self_poi)
+        self.assertIn(poi, peers)
 
-    def test_operator_rejected_target_never_selected_even_with_full_budget(self):
-        """An operator REJECTED target must stay permanently skipped -- it
+    def test_operator_rejected_poi_never_selected_even_with_full_budget(self):
+        """An operator REJECTED POI must stay permanently skipped -- it
         never reaches the TIMEOUT_REJECTED reask-budget branch at all."""
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
-        target = _create_detected_target(obj_id=10)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.REJECTED)
+        poi = _create_detected_poi(obj_id=10)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.REJECTED)
         # Budget is fully available (never consumed) -- must still be skipped.
         self.assertNotIn(10, controller.retry_state.reask_attempts)
 
-        self_target, peers = controller.selector.select([target])
+        self_poi, peers = controller.selector.select([poi])
 
-        self.assertIsNone(self_target)
+        self.assertIsNone(self_poi)
 
-    def test_new_target_returned_when_exhausted_timeout_rejected_also_present(self):
+    def test_new_poi_returned_when_exhausted_timeout_rejected_also_present(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
         controller.network.task_actor = Mock()
-        exhausted = _create_detected_target(obj_id=10)
+        exhausted = _create_detected_poi(obj_id=10)
         controller.confirmation_manager.update_status(exhausted, ConfirmationStatus.TIMEOUT_REJECTED)
         controller.retry_state.reask_attempts[10] = CONFIRM_REASK_MAX_ATTEMPTS
-        fresh = _create_detected_target(obj_id=20)
+        fresh = _create_detected_poi(obj_id=20)
 
-        self_target, peers = controller.selector.select([exhausted, fresh])
+        self_poi, peers = controller.selector.select([exhausted, fresh])
 
-        self.assertEqual(self_target.identity.obj_id, 20)
+        self.assertEqual(self_poi.identity.obj_id, 20)
         self.assertIn(exhausted, peers)
 
 
-class HandleNewTargetReaskTests(unittest.TestCase):
+class HandleNewPoiReaskTests(unittest.TestCase):
     def test_missing_speedup_baseline_does_not_consume_reask(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         vehicle.get_parameter.side_effect = [None, 1.0]
@@ -363,76 +363,76 @@ class HandleNewTargetReaskTests(unittest.TestCase):
             detector=detector,
             args=args,
         )
-        target = _create_detected_target(obj_id=19)
+        poi = _create_detected_poi(obj_id=19)
         controller.confirmation_manager.update_status(
-            target,
+            poi,
             ConfirmationStatus.TIMEOUT_REJECTED,
         )
 
-        controller.navigation_task_action.handle_new_target(target)
+        controller.navigation_task_action.handle_new_poi(poi)
 
         detector.start_tracking.assert_not_called()
-        self.assertIsNone(controller.confirmation_manager.active_target)
+        self.assertIsNone(controller.confirmation_manager.active_poi)
         self.assertEqual(
-            controller.confirmation_manager.get_status(target),
+            controller.confirmation_manager.get_status(poi),
             ConfirmationStatus.TIMEOUT_REJECTED,
         )
         self.assertNotIn(19, controller.retry_state.reask_attempts)
 
-        controller.navigation_task_action.handle_new_target(target)
+        controller.navigation_task_action.handle_new_poi(poi)
 
         detector.start_tracking.assert_called_once_with(19)
-        self.assertIs(controller.confirmation_manager.active_target, target)
-        self.assertIsNone(controller.confirmation_manager.get_status(target))
+        self.assertIs(controller.confirmation_manager.active_poi, poi)
+        self.assertIsNone(controller.confirmation_manager.get_status(poi))
         self.assertEqual(controller.retry_state.reask_attempts.get(19), 1)
 
-    def test_reopens_timeout_rejected_target_under_budget(self):
+    def test_reopens_timeout_rejected_poi_under_budget(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
-        target = _create_detected_target(obj_id=10)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.TIMEOUT_REJECTED)
+        poi = _create_detected_poi(obj_id=10)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
 
-        controller.navigation_task_action.handle_new_target(target)
+        controller.navigation_task_action.handle_new_poi(poi)
 
         detector.start_tracking.assert_called_once()
-        self.assertIs(controller.confirmation_manager.active_target, target)
+        self.assertIs(controller.confirmation_manager.active_poi, poi)
         # Status was cleared by _begin_reask (a fresh CONFIRM entry will
         # write CONFIRMING via review(), not yet run here).
-        self.assertIsNone(controller.confirmation_manager.get_status(target))
+        self.assertIsNone(controller.confirmation_manager.get_status(poi))
         self.assertEqual(controller.retry_state.reask_attempts.get(10), 1)
 
-    def test_does_not_reopen_timeout_rejected_target_over_budget(self):
+    def test_does_not_reopen_timeout_rejected_poi_over_budget(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
-        target = _create_detected_target(obj_id=10)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.TIMEOUT_REJECTED)
+        poi = _create_detected_poi(obj_id=10)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
         controller.retry_state.reask_attempts[10] = CONFIRM_REASK_MAX_ATTEMPTS
 
-        controller.navigation_task_action.handle_new_target(target)
+        controller.navigation_task_action.handle_new_poi(poi)
 
         detector.start_tracking.assert_not_called()
-        self.assertIsNone(controller.confirmation_manager.active_target)
+        self.assertIsNone(controller.confirmation_manager.active_poi)
         self.assertEqual(
-            controller.confirmation_manager.get_status(target), ConfirmationStatus.TIMEOUT_REJECTED,
+            controller.confirmation_manager.get_status(poi), ConfirmationStatus.TIMEOUT_REJECTED,
             "Status must stay TIMEOUT_REJECTED -- budget exhausted, never reopened.",
         )
 
-    def test_never_reopens_operator_rejected_target(self):
+    def test_never_reopens_operator_rejected_poi(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
-        target = _create_detected_target(obj_id=10)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.REJECTED)
+        poi = _create_detected_poi(obj_id=10)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.REJECTED)
 
-        controller.navigation_task_action.handle_new_target(target)
+        controller.navigation_task_action.handle_new_poi(poi)
 
         detector.start_tracking.assert_not_called()
-        self.assertIsNone(controller.confirmation_manager.active_target)
+        self.assertIsNone(controller.confirmation_manager.active_poi)
         self.assertEqual(
-            controller.confirmation_manager.get_status(target), ConfirmationStatus.REJECTED,
-            "An operator REJECTED target must never be reopened.",
+            controller.confirmation_manager.get_status(poi), ConfirmationStatus.REJECTED,
+            "An operator REJECTED POI must never be reopened.",
         )
 
 
@@ -444,16 +444,16 @@ class DecideTimeoutRejectedTeardownTests(unittest.TestCase):
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
 
-        target = _create_detected_target(obj_id=1)
-        controller.confirmation_manager.set_active_target(target)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.TIMEOUT_REJECTED)
-        controller.navigation_task.navigation_target_location = target.geo.truth_target_location
+        poi = _create_detected_poi(obj_id=1)
+        controller.confirmation_manager.set_active_poi(poi)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
+        controller.navigation_task.navigation_poi_location = poi.geo.truth_poi_location
 
         controller.decision.decide()
 
         self.assertEqual(controller.phase.current, NavState.DETECT)
-        self.assertIsNone(controller.confirmation_manager.active_target)
-        self.assertIsNone(controller.navigation_task.navigation_target_location)
+        self.assertIsNone(controller.confirmation_manager.active_poi)
+        self.assertIsNone(controller.navigation_task.navigation_poi_location)
         detector.stop_tracking.assert_called()
 
     def test_decide_still_tears_down_operator_rejected_to_detect(self):
@@ -462,22 +462,22 @@ class DecideTimeoutRejectedTeardownTests(unittest.TestCase):
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
 
-        target = _create_detected_target(obj_id=1)
-        controller.confirmation_manager.set_active_target(target)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.REJECTED)
+        poi = _create_detected_poi(obj_id=1)
+        controller.confirmation_manager.set_active_poi(poi)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.REJECTED)
 
         controller.decision.decide()
 
         self.assertEqual(controller.phase.current, NavState.DETECT)
-        self.assertIsNone(controller.confirmation_manager.active_target)
+        self.assertIsNone(controller.confirmation_manager.active_poi)
         detector.stop_tracking.assert_called()
 
     def test_decide_resets_reask_attempts_on_confirmed(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
-        target = _create_detected_target(obj_id=1)
-        controller.confirmation_manager.set_active_target(target)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.CONFIRMED)
+        poi = _create_detected_poi(obj_id=1)
+        controller.confirmation_manager.set_active_poi(poi)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.CONFIRMED)
         controller.retry_state.reask_attempts[1] = 1
 
         controller.decision.decide()
@@ -487,9 +487,9 @@ class DecideTimeoutRejectedTeardownTests(unittest.TestCase):
     def test_decide_resets_reask_attempts_on_operator_rejected(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
-        target = _create_detected_target(obj_id=1)
-        controller.confirmation_manager.set_active_target(target)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.REJECTED)
+        poi = _create_detected_poi(obj_id=1)
+        controller.confirmation_manager.set_active_poi(poi)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.REJECTED)
         controller.retry_state.reask_attempts[1] = 1
 
         controller.decision.decide()
@@ -501,9 +501,9 @@ class DecideTimeoutRejectedTeardownTests(unittest.TestCase):
         across a reacquire -- it must NOT be cleared here."""
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
-        target = _create_detected_target(obj_id=1)
-        controller.confirmation_manager.set_active_target(target)
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.TIMEOUT_REJECTED)
+        poi = _create_detected_poi(obj_id=1)
+        controller.confirmation_manager.set_active_poi(poi)
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
         controller.retry_state.reask_attempts[1] = 1
 
         controller.decision.decide()
@@ -512,51 +512,51 @@ class DecideTimeoutRejectedTeardownTests(unittest.TestCase):
 
 
 class FullReaskCycleIntegrationTests(unittest.TestCase):
-    """Multi-tick integration: a target that keeps timing out gets
+    """Multi-tick integration: a POI that keeps timing out gets
     reopened up to CONFIRM_REASK_MAX_ATTEMPTS times, then stays rejected."""
 
-    def _run_one_timeout_restart_navigation_task_cycle(self, controller, target):
+    def _run_one_timeout_restart_navigation_task_cycle(self, controller, poi):
         """Simulate one full round: TIMEOUT_REJECTED -> _decide() tears down
-        to DETECT -> _select_target/_handle_new_target reopens (bounded) if
-        the target is still present in _last_detections."""
-        controller.confirmation_manager.update_status(target, ConfirmationStatus.TIMEOUT_REJECTED)
+        to DETECT -> _select_poi/_handle_new_poi reopens (bounded) if
+        the POI is still present in _last_detections."""
+        controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
         controller.decision.decide()
         self.assertEqual(controller.phase.current, NavState.DETECT)
-        self.assertIsNone(controller.confirmation_manager.active_target)
+        self.assertIsNone(controller.confirmation_manager.active_poi)
 
-        self_target, _ = controller.selector.select([target])
-        controller.navigation_task_action.handle_new_target(self_target)
+        self_poi, _ = controller.selector.select([poi])
+        controller.navigation_task_action.handle_new_poi(self_poi)
 
     def test_bounded_reask_then_permanently_rejected(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
-        target = _create_detected_target(obj_id=99)
+        poi = _create_detected_poi(obj_id=99)
 
         # Initial navigation_task.
-        controller.confirmation_manager.set_active_target(target)
+        controller.confirmation_manager.set_active_poi(poi)
 
         for round_num in range(1, CONFIRM_REASK_MAX_ATTEMPTS + 1):
-            self._run_one_timeout_restart_navigation_task_cycle(controller, target)
+            self._run_one_timeout_restart_navigation_task_cycle(controller, poi)
             self.assertIs(
-                controller.confirmation_manager.active_target, target,
-                f"Round {round_num}: target should be reopened for a fresh "
+                controller.confirmation_manager.active_poi, poi,
+                f"Round {round_num}: POI should be reopened for a fresh "
                 f"confirm round (budget {round_num}/{CONFIRM_REASK_MAX_ATTEMPTS}).",
             )
             self.assertIsNone(
-                controller.confirmation_manager.get_status(target),
+                controller.confirmation_manager.get_status(poi),
                 f"Round {round_num}: status must be cleared for a fresh review.",
             )
 
         # One more timeout exhausts the budget -- must NOT reopen again.
-        self._run_one_timeout_restart_navigation_task_cycle(controller, target)
+        self._run_one_timeout_restart_navigation_task_cycle(controller, poi)
 
         self.assertIsNone(
-            controller.confirmation_manager.active_target,
-            "Budget exhausted: target must stay torn down, not reopened.",
+            controller.confirmation_manager.active_poi,
+            "Budget exhausted: POI must stay torn down, not reopened.",
         )
         self.assertEqual(
-            controller.confirmation_manager.get_status(target), ConfirmationStatus.TIMEOUT_REJECTED,
+            controller.confirmation_manager.get_status(poi), ConfirmationStatus.TIMEOUT_REJECTED,
             "Budget exhausted: status stays TIMEOUT_REJECTED permanently.",
         )
         self.assertEqual(

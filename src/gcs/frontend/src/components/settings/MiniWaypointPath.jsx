@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors, zoneColorsSolid } from '../../styles';
 
-export default function MiniWaypointPath({ vehicleMissions, vehicleList, selectedVehicles, targetsMap, navLastWpMap, onToggle, onDownload, downloading, tall }) {
+export default function MiniWaypointPath({ vehicleMissions, vehicleList, selectedVehicles, poisMap, navLastWpMap, onToggle, onDownload, downloading, tall }) {
   const { t } = useTranslation();
   const selected = selectedVehicles || new Set();
   const visibleMissions = Object.entries(vehicleMissions || {}).filter(([sid]) => selected.has(Number(sid)));
@@ -126,16 +126,16 @@ export default function MiniWaypointPath({ vehicleMissions, vehicleList, selecte
           const clr = zoneColorsSolid[idx % zoneColorsSolid.length];
           const pts = wps.map((w) => project(w.lat, w.lon));
           const str = pts.map((p) => `${p.x},${p.y}`).join(' ');
-          const mask = parseInt(targetsMap?.[sysId] ?? targetsMap?.[Object.keys(targetsMap || {})[0]]) || 0;
+          const mask = parseInt(poisMap?.[sysId] ?? poisMap?.[Object.keys(poisMap || {})[0]]) || 0;
           const lastWp = parseInt(navLastWpMap?.[sysId] ?? navLastWpMap?.[Object.keys(navLastWpMap || {})[0]]) || 0;
           return (
             <g key={sysId}>
               <polyline points={str} fill="none" stroke={clr} strokeWidth={sw} strokeOpacity={0.6} />
               {pts.map((p, i) => {
                 const selectable = i <= 23;
-                const isTarget = selectable && (mask & (1 << i)) !== 0;
+                const isPoi = selectable && (mask & (1 << i)) !== 0;
                 const isActive = i >= lastWp && selectable;
-                const r = (tall ? (isTarget ? 10 : 7) : (isTarget ? 7 : 5)) * s;
+                const r = (tall ? (isPoi ? 10 : 7) : (isPoi ? 7 : 5)) * s;
                 const fs = (tall ? 11 : 9) * s;
                 const tOff = (tall ? 14 : 10) * s;
                 return (
@@ -144,8 +144,8 @@ export default function MiniWaypointPath({ vehicleMissions, vehicleList, selecte
                     <circle
                       cx={p.x} cy={p.y}
                       r={r}
-                      fill={isTarget ? colors.warning : clr}
-                      fillOpacity={isTarget ? 0.4 : (!selectable ? 0.04 : (isActive ? 0.12 : 0.06))}
+                      fill={isPoi ? colors.warning : clr}
+                      fillOpacity={isPoi ? 0.4 : (!selectable ? 0.04 : (isActive ? 0.12 : 0.06))}
                       stroke={isActive ? clr : 'rgba(255,255,255,0.1)'}
                       strokeWidth={sw}
                     />
@@ -153,7 +153,7 @@ export default function MiniWaypointPath({ vehicleMissions, vehicleList, selecte
                       x={p.x} y={p.y - tOff}
                       textAnchor="middle"
                       fontSize={fs}
-                      fill={isTarget ? colors.warning : (isActive ? clr : 'rgba(255,255,255,0.2)')}
+                      fill={isPoi ? colors.warning : (isActive ? clr : 'rgba(255,255,255,0.2)')}
                       style={{ pointerEvents: 'none', userSelect: 'none' }}
                     >
                       {i + 1}

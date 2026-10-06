@@ -43,7 +43,7 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
             const cached = cache[sid];
             const terrainH = cached?.terrainHeight ?? 0;
             const altRel = v.alt_rel ?? v.alt ?? 0;
-            const targetPos = Cesium.Cartesian3.fromDegrees(v.lon, v.lat, terrainH + altRel);
+            const poiPos = Cesium.Cartesian3.fromDegrees(v.lon, v.lat, terrainH + altRel);
 
             // Async terrain sample when cache is missing, stale, or UAV moved
             if (needsTerrainSample(cached, v.lat, v.lon, now)) {
@@ -55,16 +55,16 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
             const modelPitch = v.roll != null ? -Cesium.Math.toRadians(v.roll) : 0;
             const modelRoll = v.pitch != null ? Cesium.Math.toRadians(v.pitch) : 0;
             const vehicleHpr = new Cesium.HeadingPitchRoll(headingRad, modelPitch, modelRoll);
-            const vehicleQuat = Cesium.Transforms.headingPitchRollQuaternion(targetPos, vehicleHpr);
+            const vehicleQuat = Cesium.Transforms.headingPitchRollQuaternion(poiPos, vehicleHpr);
 
             const modelFixHpr = new Cesium.HeadingPitchRoll(-Cesium.Math.PI, Cesium.Math.PI_OVER_TWO, 0);
             const modelFixQuat = Cesium.Quaternion.fromHeadingPitchRoll(modelFixHpr);
-            const targetOri = Cesium.Quaternion.multiply(
+            const poiOri = Cesium.Quaternion.multiply(
               vehicleQuat, modelFixQuat, new Cesium.Quaternion()
             );
 
             // Advance animation: seamless transition from current interpolated state
-            anim[sid] = advanceAnim(anim[sid], targetPos, targetOri, Cesium);
+            anim[sid] = advanceAnim(anim[sid], poiPos, poiOri, Cesium);
 
             if (existing[sid]) {
               existing[sid].label.text = v.name || `UAV ${sid}`;

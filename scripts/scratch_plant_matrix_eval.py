@@ -52,7 +52,7 @@ from eval_direct_pixel_pn import (  # noqa: E402
 from eval_navigation_cases import (  # noqa: E402
     download_mission,
     resolve_home_abs_alt_m,
-    resolve_target_expectation,
+    resolve_poi_expectation,
     set_param,
     stop_own_stack,
     wait_for_heartbeat,
@@ -107,7 +107,7 @@ FLIGHTS: dict[str, dict] = {
     "C2-thr75": {"segments": "-20:0:8,-45:0:5", "alt": 500.0, "throttle": 0.75},
     # D. SMALL-SIGNAL. The law commands increments of a fraction of a degree to
     # a few degrees, never 20 deg steps, so this is the regime that actually
-    # governs terminal accuracy -- and the one the single-step plant ID missed.
+    # governs final-approach accuracy -- and the one the single-step plant ID missed.
     "D1-small-20": {
         "segments": "-20:0:5,-19:0:3,-20:0:3,-18:0:3,-20:0:3,"
                     "-15:0:3,-20:0:3,-10:0:3,-20:0:3",
@@ -141,7 +141,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-parallel", type=int, default=1)
     parser.add_argument("--timeout", type=float, default=900.0)
     parser.add_argument("--home", default=DEFAULT_HOME_COORDS)
-    parser.add_argument("--engage-wp", type=int, default=2, dest='scoring_start_wp')
+    parser.add_argument("--scoring-start-wp", type=int, default=2, dest='scoring_start_wp')
     parser.add_argument(
         "--allow-floor-risk",
         action="store_true",
@@ -175,10 +175,10 @@ def _launch_command(
         str(SCRIPTS / "scratch_plant_matrix_child.py"),
         f"--connection={device}",
         f"--sysid={sysid}",
-        f"--engage-seq={scoring_start_seq}",
+        f"--scoring-start-seq={scoring_start_seq}",
         f"--timeout={timeout_s!r}",
         f"--result={case_dir / 'result.json'}",
-        f"--engaged={case_dir / 'engaged.marker'}",
+        f"--scoring-active={case_dir / 'scoring_active.marker'}",
         f"--segments={flight['segments']}",
         f"--throttle={float(flight.get('throttle', 0.55))!r}",
         f"--floor-rel-alt-m={ALTITUDE_FLOOR_M!r}",
@@ -265,10 +265,10 @@ def run_flight(
             raise RuntimeError("no evaluator heartbeat")
         mission = download_mission(master)
         home_alt = resolve_home_abs_alt_m(master, timeout_s=30.0)
-        run_navigation_episode = resolve_target_expectation(
+        run_navigation_episode = resolve_poi_expectation(
             mission,
-            target_wp=args.scoring_start_wp,
-            target_rel_alt_m=60.0,
+            poi_wp=args.scoring_start_wp,
+            poi_rel_alt_m=60.0,
             home_abs_alt_m=home_alt,
         )
         for param, value in (
@@ -369,7 +369,7 @@ def _print_tables(rows: list[dict]) -> None:
                   f"{f(r.get('gamma_settle_band_deg'),'.2f'):>6}"
                   f"{f(r.get('gamma_overshoot_frac'),'.2f'):>7}{reach}")
     print("\nm@25 / m@39 = range consumed before gamma SETTLES, at the closing")
-    print("speeds measured in the terminal phase. Computed from g_settle, not")
+    print("speeds measured in the final-approach phase. Computed from g_settle, not")
     print("from g_t90: the response overshoots, so the first 90% crossing")
     print("happens on the way up and is not a completion time.")
     print("band = settling band in degrees, max(10% of step, 0.20 deg floor).")

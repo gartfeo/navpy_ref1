@@ -6,8 +6,8 @@ from navpy.modules.vision.models.detect_data import DetectedObject
 class DetectResponse:
     def __init__(
             self,
-            detected_targets: list[DetectedObject],
-            primary_target: DetectedObject | None = None,
+            detected_pois: list[DetectedObject],
+            primary_poi: DetectedObject | None = None,
     ):
-        self.detected_targets = detected_targets
-        self.primary_target = primary_target
+        self.detected_pois = detected_pois
+        self.primary_poi = primary_poi

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from navpy.modules.vision.models.detect_request import DetectRequest
     from navpy.modules.vision.models.detect_response import DetectResponse
     from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-    from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+    from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class DetectionSnapshotPort(Protocol):
@@ -40,9 +40,9 @@ class DetectionEventPort(Protocol):
         reset_handler: Callable[[], None] | None = None,
     ) -> "DetectionEventLease | None": ...
 
-    def target_uses_source_driven_events(
+    def poi_uses_source_driven_events(
         self,
-        target: "DetectedObject",
+        poi: "DetectedObject",
     ) -> bool | None: ...
 
 
@@ -60,14 +60,14 @@ class TrackingStatusPort(Protocol):
     def loss_hold_sec(self) -> float | None: ...
 
 
-class TargetIdentityPort(Protocol):
-    def rebind_task_id(self, task_id: int, target: "DetectedObject") -> bool: ...
+class PoiIdentityPort(Protocol):
+    def rebind_task_id(self, task_id: int, poi: "DetectedObject") -> bool: ...
 
 
 class GeoPointingPort(Protocol):
     def start_geo_tracking(
         self,
-        target_loc: "Location",
+        poi_loc: "Location",
         geo_ref: "GeoRefCalc",
     ) -> None: ...
 
@@ -98,7 +98,7 @@ class ZoomControlPort(Protocol):
 
     def set_zoom_size_demand(self, enabled: bool) -> None: ...
 
-    def freeze_terminal_zoom_at_min(self) -> bool: ...
+    def freeze_final_approach_zoom_at_min(self) -> bool: ...
 
 
 class MountCatalogPort(Protocol):
@@ -110,7 +110,7 @@ class SimulationControlPort(Protocol):
     @property
     def is_simulation(self) -> bool: ...
 
-    def set_sim_target(
+    def set_sim_poi(
         self,
         command_index: int,
         location: "Location",
@@ -185,11 +185,11 @@ class PollingDetectionEvents:
         del request, reset_handler
         return None
 
-    def target_uses_source_driven_events(
+    def poi_uses_source_driven_events(
         self,
-        target: "DetectedObject",
+        poi: "DetectedObject",
     ) -> bool:
-        del target
+        del poi
         return False
 
 
@@ -207,7 +207,7 @@ class NonSimulationControls:
     def is_simulation(self) -> bool:
         return False
 
-    def set_sim_target(
+    def set_sim_poi(
         self,
         command_index: int,
         location: "Location",
@@ -250,7 +250,7 @@ __all__ = [
     "SchedulerCadence",
     "SimulationControlPort",
     "SourceIdentity",
-    "TargetIdentityPort",
+    "PoiIdentityPort",
     "TrackingCommandPort",
     "TrackingStatusPort",
     "ZoomControlPort",

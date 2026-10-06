@@ -32,11 +32,11 @@ from scripts.pixel_pn_case_manifest import (
     definition_sha256,
     write_case_manifest,
 )
-from scripts.pixel_pn_terminal_speed import TerminalSpeedPlan
+from scripts.pixel_pn_final_approach_speed import FinalApproachSpeedPlan
 
 
 @dataclass(frozen=True)
-class FakeTarget:
+class FakePoi:
     lat_deg: float = 43.0
     lon_deg: float = 34.0
     rel_alt_m: float = 60.0
@@ -53,7 +53,7 @@ UNTRACED_KEYS = [
     "launch_speedup",
     "slow_seq",
     "repetition",
-    "target",
+    "poi",
     "engage_seq",
     "sitl_params",
     "sitl_params_pushed",
@@ -90,7 +90,7 @@ def _refused(constant: str) -> float:
 
 def _write(
     tmp_path: Path,
-    plan: TerminalSpeedPlan,
+    plan: FinalApproachSpeedPlan,
     launch: float,
     sitl_params: list[str] | None = None,
 ) -> dict:
@@ -99,7 +99,7 @@ def _write(
         speedup=1.0,
         launch_speedup=launch,
         repetition=0,
-        target=FakeTarget(),
+        poi=FakePoi(),
         scoring_start_seq=4,
         identity=IDENTITY,
         speed_plan=plan,
@@ -117,7 +117,7 @@ def _harness_args(**overrides: Any) -> argparse.Namespace:
         "speedups": "10,1",
         "repetitions": 3,
         "timeout": 180.0,
-        "target_alt": 60.0,
+        "poi_alt": 60.0,
         "sitl_param": ["SIM_RATE_HZ=1200"],
         "scoring_policy": "sitl-truth",
         **overrides,
@@ -132,10 +132,10 @@ def _fields(**overrides: Any) -> dict[str, Any]:
         "speedup": 1.0,
         "launch_speedup": 1.0,
         "repetition": 1,
-        "target": FakeTarget(),
+        "poi": FakePoi(),
         "scoring_start_seq": 4,
         "identity": IDENTITY,
-        "speed_plan": TerminalSpeedPlan(),
+        "speed_plan": FinalApproachSpeedPlan(),
         "sitl_params_pushed": PUSHED,
         **overrides,
     }
@@ -152,7 +152,7 @@ def test_a_fast_cruise_is_recorded_alongside_the_speed_it_was_scored_at(
     tmp_path: Path,
 ) -> None:
     manifest = _write(
-        tmp_path, TerminalSpeedPlan(del_speedup=1.0, slow_seq=3), 20.0
+        tmp_path, FinalApproachSpeedPlan(del_speedup=1.0, slow_seq=3), 20.0
     )
 
     assert manifest["speedup"] == 1.0
@@ -162,7 +162,7 @@ def test_a_fast_cruise_is_recorded_alongside_the_speed_it_was_scored_at(
 
 def test_a_case_flown_at_one_speed_throughout_says_so(tmp_path: Path) -> None:
     """`slow_seq: null` is what tells a reader nothing was stepped down."""
-    manifest = _write(tmp_path, TerminalSpeedPlan(), 1.0)
+    manifest = _write(tmp_path, FinalApproachSpeedPlan(), 1.0)
 
     assert manifest["speedup"] == manifest["launch_speedup"] == 1.0
     assert manifest["slow_seq"] is None
@@ -170,26 +170,26 @@ def test_a_case_flown_at_one_speed_throughout_says_so(tmp_path: Path) -> None:
 
 def test_the_manifest_still_carries_what_it_always_carried(tmp_path: Path) -> None:
     """Archived readers index on these; the new keys are additions, not a swap."""
-    manifest = _write(tmp_path, TerminalSpeedPlan(), 1.0)
+    manifest = _write(tmp_path, FinalApproachSpeedPlan(), 1.0)
 
     assert manifest["repetition"] == 0
     assert manifest["engage_seq"] == 4
     assert manifest["source_identity"] == IDENTITY
-    assert manifest["target"]["rel_alt_m"] == 60.0
+    assert manifest["poi"]["rel_alt_m"] == 60.0
 
 
 def test_a_sitl_param_override_is_recorded_verbatim(tmp_path: Path) -> None:
     """An override like SIM_RATE_HZ changes what the run measures and leaves
     no trace in the verdict, so the manifest is the only place it can live."""
     manifest = _write(
-        tmp_path, TerminalSpeedPlan(), 1.0, sitl_params=["SIM_RATE_HZ=1200"]
+        tmp_path, FinalApproachSpeedPlan(), 1.0, sitl_params=["SIM_RATE_HZ=1200"]
     )
 
     assert manifest["sitl_params"] == ["SIM_RATE_HZ=1200"]
 
 
 def test_no_override_reads_back_as_an_empty_list(tmp_path: Path) -> None:
-    manifest = _write(tmp_path, TerminalSpeedPlan(), 1.0)
+    manifest = _write(tmp_path, FinalApproachSpeedPlan(), 1.0)
 
     assert manifest["sitl_params"] == []
 
@@ -200,7 +200,7 @@ def test_the_effective_push_list_is_recorded_even_with_no_overrides(
     """Raw strings alone cannot establish the clock: a default run pushes
     SIM_RATE_HZ without any `--sitl-param`, so only the effective list makes
     archives flown under different defaults distinguishable."""
-    manifest = _write(tmp_path, TerminalSpeedPlan(), 1.0)
+    manifest = _write(tmp_path, FinalApproachSpeedPlan(), 1.0)
 
     assert manifest["sitl_params_pushed"] == [
         ["ARMING_CHECK", 0.0], ["SIM_RATE_HZ", 1000.0],
@@ -213,7 +213,7 @@ def test_the_definition_is_the_parsed_arguments_for_this_one_case() -> None:
     assert definition == {
         "speedups": 1.0,
         "timeout": 180.0,
-        "target_alt": 60.0,
+        "poi_alt": 60.0,
         "sitl_param": ["SIM_RATE_HZ=1200"],
         "scoring_policy": "sitl-truth",
     }

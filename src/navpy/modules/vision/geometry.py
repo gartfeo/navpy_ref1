@@ -1,7 +1,7 @@
 """Shared bounding-box geometry helpers for the vision package.
 
 Single source of truth for IoU and box-format conversion so detector,
-target_lock, deep_search, and the trackers cannot drift apart.
+poi_lock, deep_search, and the trackers cannot drift apart.
 
 Box formats:
   - xyxy:   (x1, y1, x2, y2) corner coordinates in pixels

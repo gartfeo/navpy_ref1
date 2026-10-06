@@ -20,7 +20,7 @@ from navpy.modules.nav.nav_state import (
 )
 from navpy.modules.nav.pass_tracker import LegacyPassTracker
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.target_retry import TargetRetryState
+from navpy.modules.nav.poi_retry import PoiRetryState
 from navpy.modules.nav.vehicle_navigation import LoiterRadiusLease
 from navpy.modules.vehicle.flight_mode import FlightMode
 from navpy.modules.vehicle.vehicle_interface import IVehicle
@@ -63,7 +63,7 @@ class NavigationTaskStateReset:
         confirm: ConfirmGateState,
         detections: DetectionSnapshot,
         mission: MissionCatalog,
-        retry: TargetRetryState,
+        retry: PoiRetryState,
         pass_tracker: LegacyPassTracker,
     ) -> None:
         self._navigation_task = navigation_task
@@ -79,21 +79,21 @@ class NavigationTaskStateReset:
         self._navigation_task.nav_mode_observed = False
         self._navigation_task.guided_last_attempt_at = None
         self._navigation_task.guided_request_started_at = None
-        # NAV exit consumes terminal navigation task/completion before the next
+        # NAV exit consumes final-approach navigation task/completion before the next
         # NAV entry resets them.  Teardown must not erase that evidence.
         self._navigation_task.peer_navigation = False
         self._navigation_task.peer_approach_distance_m = PEER_APPROACH_DIST
         self._navigation_task.orbit_radius_m = 0.0
         self._navigation_task.orbit_approach_alt_rel_m = None
-        self._navigation_task.peer_target_location = None
-        self._navigation_task.navigation_target_location = None
+        self._navigation_task.peer_poi_location = None
+        self._navigation_task.navigation_poi_location = None
         self._navigation_failures.reset()
         self._confirm.hold_active = False
         self._confirm.loss_started_at = None
         self._confirm.review_started_at = None
         self._geo_hold.active = False
-        self._geo_hold.target_location = None
-        self._geo_hold.last_own_target_geo = None
+        self._geo_hold.poi_location = None
+        self._geo_hold.last_own_poi_geo = None
         self._geo_hold.acquisition_log_bucket = None
         _run_cleanup_steps(
             "navigation task state reset failed",
@@ -154,7 +154,7 @@ class NavigationTaskResourceReset:
 
         post_fence_steps = (
             (
-                ("target manager", self._confirmation_manager.reset),
+                ("POI manager", self._confirmation_manager.reset),
                 ("detector", self._detector_reset.refresh),
                 ("task actor", self._ports.reset_task_actor),
             )
@@ -181,15 +181,15 @@ class NavigationTaskResetTransaction:
         self,
         state: NavigationTaskStateReset,
         resources: NavigationTaskResourceReset,
-        close_terminal_source: Callable[[], None],
+        close_final_approach_source: Callable[[], None],
     ) -> None:
         self._state = state
         self._resources = resources
-        self._close_terminal_source = close_terminal_source
+        self._close_final_approach_source = close_final_approach_source
 
     def clear(self) -> None:
         try:
-            self._close_terminal_source()
+            self._close_final_approach_source()
         except Exception as error:
             raise ExceptionGroup(
                 "navigation task source fence failed",
@@ -206,9 +206,9 @@ class NavigationTaskResetTransaction:
 
 @dataclass(frozen=True)
 class AutoMissionResumePorts:
-    close_terminal_source: Callable[[], None]
+    close_final_approach_source: Callable[[], None]
     pause_navigation: Callable[[], None]
-    clear_selected_target: Callable[[], None]
+    clear_selected_poi: Callable[[], None]
 
 
 class AutoMissionResume:
@@ -239,7 +239,7 @@ class AutoMissionResume:
         self._loiter_radius = loiter_radius
 
     def run(self) -> None:
-        self._ports.close_terminal_source()
+        self._ports.close_final_approach_source()
         resume_waypoint = self._vehicle.mission_items_next
         if resume_waypoint is not None:
             resume_waypoint = max(resume_waypoint - 1, 0)
@@ -254,17 +254,17 @@ class AutoMissionResume:
         self._navigation_task.peer_approach_distance_m = PEER_APPROACH_DIST
         self._navigation_task.orbit_radius_m = 0.0
         self._navigation_task.orbit_approach_alt_rel_m = None
-        self._navigation_task.peer_target_location = None
-        self._navigation_task.navigation_target_location = None
+        self._navigation_task.peer_poi_location = None
+        self._navigation_task.navigation_poi_location = None
         self._confirm.hold_active = False
         self._mission.clear_navigation_task()
         self._pass_tracker.reset()
         self._detections.clear()
-        self._geo_hold.last_own_target_geo = None
+        self._geo_hold.last_own_poi_geo = None
         self._geo_hold.active = False
-        self._geo_hold.target_location = None
+        self._geo_hold.poi_location = None
         self._geo_hold.acquisition_log_bucket = None
-        self._ports.clear_selected_target()
+        self._ports.clear_selected_poi()
 
 
 __all__ = [

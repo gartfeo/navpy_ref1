@@ -35,21 +35,21 @@ class OrbitMount(Protocol):
 
 
 # Vision-nav ORBIT floor, applied inside r_nav_min for the navigation-law
-# dive (zoom mounts with orbit_limits, and the NavController terminal override).
+# dive (zoom mounts with orbit_limits, and the NavController final-approach override).
 # The raw dive-feasibility minimum can fall to ~185-250 m at normal altitudes;
 # floor the orbit here so the tangential orbit-exit has enough run-in to finish
 # the roll-out BEFORE the dive starts.
 #
 # 500 m (was 300 m): the extra ~200 m of run-in lets the orbit-exit bank settle
-# to wings-level before the terminal dive, so the terminal LOS is not corrupted
-# by residual roll. Live-confirmed (3-UAV eval): bank at the terminal bearing
+# to wings-level before the final-approach dive, so the final-approach LOS is not corrupted
+# by residual roll. Live-confirmed (3-UAV eval): bank at the final-approach bearing
 # zero-crossing fell from 33-40 deg at 300 m to <5 deg at 500 m, collapsing the
 # LATERAL miss from ~1 m to ~0.006 m. Camera is not the constraint: the
-# siyi_zr10 10x zoom holds the target at ~48 px at 500 m (>>20 px confirm).
+# siyi_zr10 10x zoom holds the POI at ~48 px at 500 m (>>20 px confirm).
 #
 # NOTE (2026-07-14): 500 m does NOT on its own reach the <0.5 m 3D goal. Live
 # 500 m SNAP is 1.6-3.4 m, now VERTICAL-dominated (long ~2.4 m, vert ~2.3 m,
-# lat ~0). That vertical residual is a real-airframe terminal-flare limit
+# lat ~0). That vertical residual is a real-airframe final-approach-flare limit
 # (pitch/flight-path-response lag + TECS in the steep dive) that the offline
 # point-mass certs do NOT reproduce (they hit <0.05 m at both 300 m and 500 m);
 # the earlier "offline repro: 500 m -> 0.11 m" prediction was an artifact of
@@ -59,10 +59,10 @@ class OrbitMount(Protocol):
 MIN_APPROACH_STANDOFF_M = 500.0
 
 # Legacy no-zoom / no-orbit-limits acquisition floor ("never park closer than
-# this"). Kept at 300 m: a fixed-camera mount confirms the target at its 1x
+# this"). Kept at 300 m: a fixed-camera mount confirms the POI at its 1x
 # MIN_CONFIRM_PIXELS slant (~426 m for class 0 at alt 100 m), which must NOT be
 # pushed out to the 500 m vision-nav dive floor above -- doing so would put
-# the target beyond the fixed camera's confirm range. Only the navigation-law dive
+# the POI beyond the fixed camera's confirm range. Only the navigation-law dive
 # (zoom + orbit_limits) uses the larger MIN_APPROACH_STANDOFF_M.
 MIN_ACQUIRE_STANDOFF_M = 300.0
 _ORBIT_PIXEL_MARGIN = 0.9
@@ -71,7 +71,7 @@ _DEFAULT_LOGGER = logging.getLogger("navpy.modules.navigation.peer_offset")
 
 
 def compute_orbit_plan(
-    target: Location,
+    poi: Location,
     mount: OrbitMount,
     alt: float,
     class_id: int,
@@ -81,13 +81,13 @@ def compute_orbit_plan(
     fallback_radius_m: float,
     logger: logging.Logger = _DEFAULT_LOGGER,
 ) -> ApproachPlan:
-    """Compute an orbit-around-target plan.
+    """Compute an orbit-around-POI plan.
 
-    Gimbal pitch is ignored because the gimbal tracks the target at any angle.
+    Gimbal pitch is ignored because the gimbal tracks the POI at any angle.
 
     A zoom mount with ``orbit_limits`` uses the furthest standoff that still
     tracks reliably at 1x and reaches operator-identification size at maximum
-    zoom, floored by the terminal dive-feasibility minimum::
+    zoom, floored by the final-approach dive-feasibility minimum::
 
         orbit_slant  = min(fy_1x  * size / MIN_TRACK_PIXELS,
                            fy_max * size / recognition_px)
@@ -100,7 +100,7 @@ def compute_orbit_plan(
     """
     if mount.has_zoom and orbit_limits is not None:
         return _compute_zoom_navigation_orbit_plan(
-            target,
+            poi,
             mount,
             alt,
             class_id,
@@ -109,7 +109,7 @@ def compute_orbit_plan(
             logger=logger,
         )
     return _compute_legacy_orbit_plan(
-        target,
+        poi,
         mount,
         alt,
         class_id,
@@ -119,7 +119,7 @@ def compute_orbit_plan(
 
 
 def _compute_zoom_navigation_orbit_plan(
-    target: Location,
+    poi: Location,
     mount: OrbitMount,
     alt: float,
     class_id: int,
@@ -128,7 +128,7 @@ def _compute_zoom_navigation_orbit_plan(
     *,
     logger: logging.Logger,
 ) -> ApproachPlan:
-    """Size the furthest zoom orbit while respecting the terminal dive floor."""
+    """Size the furthest zoom orbit while respecting the final-approach dive floor."""
     nav_floor = r_nav_min(
         orbit_limits,
         alt,
@@ -163,7 +163,7 @@ def _compute_zoom_navigation_orbit_plan(
         if actual_slant > track_1x_slant + 1.0:
             logger.warning(
                 f"ORBIT(furthest): dive floor {nav_floor:.0f}m puts the "
-                f"target below {MIN_TRACK_PIXELS}px at 1x "
+                f"POI below {MIN_TRACK_PIXELS}px at 1x "
                 f"(slant {actual_slant:.0f}m > track {track_1x_slant:.0f}m, "
                 f"alt={alt:.0f}m) — 1x tracking margin reduced."
             )
@@ -190,14 +190,14 @@ def _compute_zoom_navigation_orbit_plan(
         )
     return ApproachPlan(
         kind=ApproachKind.ORBIT,
-        approach_location=target,
+        approach_location=poi,
         offset_distance=0.0,
         orbit_radius=orbit_radius,
     )
 
 
 def _compute_legacy_orbit_plan(
-    target: Location,
+    poi: Location,
     mount: OrbitMount,
     alt: float,
     class_id: int,
@@ -229,7 +229,7 @@ def _compute_legacy_orbit_plan(
                 f"(fy={fy:.0f}, class={class_size:.1f}m, "
                 f"{threshold_label}_px={pixel_threshold}). "
                 f"Falling back to OFFSET_LOITER_RADIUS_M="
-                f"{fallback_radius_m}m — target may not be detectable."
+                f"{fallback_radius_m}m — POI may not be detectable."
             )
 
         orbit_radius = max(orbit_radius, MIN_ACQUIRE_STANDOFF_M)
@@ -244,7 +244,7 @@ def _compute_legacy_orbit_plan(
 
     return ApproachPlan(
         kind=ApproachKind.ORBIT,
-        approach_location=target,
+        approach_location=poi,
         offset_distance=0.0,
         orbit_radius=orbit_radius,
     )

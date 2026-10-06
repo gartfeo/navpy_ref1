@@ -9,9 +9,9 @@ export default React.memo(function AttitudeIndicator({ pitch = 0, roll = 0 }) {
   const [dims, setDims] = useState(null);
 
   // Smooth display values
-  const targetRef = useRef({ p: 0, r: 0 });
+  const poiRef = useRef({ p: 0, r: 0 });
   const displayRef = useRef({ p: 0, r: 0 });
-  targetRef.current = { p: pitch || 0, r: roll || 0 };
+  poiRef.current = { p: pitch || 0, r: roll || 0 };
 
   // Track parent size
   useEffect(() => {
@@ -33,7 +33,7 @@ export default React.memo(function AttitudeIndicator({ pitch = 0, roll = 0 }) {
     const id = 'attitude';
     scheduleRaf(id, () => {
       const d = displayRef.current;
-      const t = targetRef.current;
+      const t = poiRef.current;
       d.p += (t.p - d.p) * LERP;
       d.r += (t.r - d.r) * LERP;
       draw(canvasRef.current, d.p, d.r, dims.w, dims.h);

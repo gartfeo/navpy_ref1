@@ -19,7 +19,7 @@ _LOCATION_TYPE_LABELS = {
     "other": "Other",
 }
 
-def target_class_name(class_id: int, location_type: Optional[str] = None) -> str:
+def poi_class_name(class_id: int, location_type: Optional[str] = None) -> str:
     """Describe a location type or an ID without guessing the model's labels."""
     if location_type:
         return _LOCATION_TYPE_LABELS.get(location_type, location_type.capitalize())
@@ -44,18 +44,18 @@ class ConfirmationMedia:
         self._thumbnail_builder = thumbnail_builder
         self._artifact_saver = artifact_saver
 
-    def send(self, target: DetectedObject, target_id: int) -> None:
-        confirmation = target.confirmation
-        classification = target.classification
+    def send(self, poi: DetectedObject, poi_id: int) -> None:
+        confirmation = poi.confirmation
+        classification = poi.classification
         if confirmation.frame is None or confirmation.bbox_cxcywh is None:
             return
-        class_name = target_class_name(
+        class_name = poi_class_name(
             classification.class_id,
             classification.location_type,
         )
         image_b64 = self._thumbnail_builder(
             frame=confirmation.frame,
-            target_id=target_id,
+            poi_id=poi_id,
             bbox=confirmation.bbox_cxcywh,
             confidence=classification.confidence,
             class_name=class_name,
@@ -68,20 +68,20 @@ class ConfirmationMedia:
             network = self._network()
             if network is None:
                 return
-            num_packets = network.send_image(target_id, image_b64)
+            num_packets = network.send_image(poi_id, image_b64)
             if num_packets > 0:
                 self._logger.info(
-                    f"T{target_id} image sent ({num_packets} packets).",
+                    f"P{poi_id} image sent ({num_packets} packets).",
                     key="nav_state",
                     dest=LogStatusDest.DRONE,
                 )
         finally:
-            self._save_artifacts(target, target_id, class_name, image_b64)
+            self._save_artifacts(poi, poi_id, class_name, image_b64)
 
     def _save_artifacts(
         self,
-        target: DetectedObject,
-        target_id: int,
+        poi: DetectedObject,
+        poi_id: int,
         class_name: str,
         image_b64: str,
     ) -> None:
@@ -92,19 +92,19 @@ class ConfirmationMedia:
             artifacts = self._artifact_saver(
                 log_path=log_path,
                 sys_id=self._sys_id,
-                target_id=target_id,
-                source_frame=target.confirmation.frame,
+                poi_id=poi_id,
+                source_frame=poi.confirmation.frame,
                 sent_image_b64=image_b64,
-                bbox_cxcywh=target.confirmation.bbox_cxcywh,
-                class_id=target.classification.class_id,
+                bbox_cxcywh=poi.confirmation.bbox_cxcywh,
+                class_id=poi.classification.class_id,
                 class_name=class_name,
-                confidence=target.classification.confidence,
-                frame_bboxes=target.confirmation.frame_bboxes,
-                confirmation_degraded=target.confirmation.degraded,
+                confidence=poi.classification.confidence,
+                frame_bboxes=poi.confirmation.frame_bboxes,
+                confirmation_degraded=poi.confirmation.degraded,
             )
             if artifacts is not None:
                 self._logger.info(
-                    f"T{target_id} confirmation images saved: "
+                    f"P{poi_id} confirmation images saved: "
                     f"{artifacts.source_path.name}, "
                     f"{artifacts.sent_thumbnail_path.name}",
                     key="nav_state",
@@ -112,6 +112,6 @@ class ConfirmationMedia:
         except OSError as exc:
             self._logger.warning(
                 f"Failed to save confirmation image artifacts for "
-                f"T{target_id}: {exc}",
+                f"P{poi_id}: {exc}",
                 key="nav_state",
             )

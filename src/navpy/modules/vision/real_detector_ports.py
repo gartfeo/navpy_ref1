@@ -13,7 +13,7 @@ from navpy.modules.vision.camera_mount import CameraMountFrameState
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.modules.vision.multi_object_tracker import TrackedObject
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class TimestampedVisionItem(Protocol):
@@ -85,7 +85,7 @@ class GimbalTrackingCommandPort(Protocol):
 
     def set_zoom_size_demand(self, enabled: bool) -> None: ...
 
-    def freeze_terminal_zoom_at_min(self) -> bool: ...
+    def freeze_final_approach_zoom_at_min(self) -> bool: ...
 
     def start_tracking(self, obj_id: int) -> None: ...
 
@@ -95,7 +95,7 @@ class GimbalTrackingCommandPort(Protocol):
 class GimbalGeoCommandPort(Protocol):
     def start_geo_tracking(
         self,
-        target_loc: Location,
+        poi_loc: Location,
         geo_ref: GeoRefCalc,
     ) -> None: ...
 
@@ -125,7 +125,7 @@ class GimbalMeasurementPort(Protocol):
     @property
     def tracking_obj_id(self) -> int | None: ...
 
-    def update(self, target: DetectedObject | None) -> None: ...
+    def update(self, poi: DetectedObject | None) -> None: ...
 
 
 class AttitudeSampleView(Protocol):

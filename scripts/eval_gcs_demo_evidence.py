@@ -13,10 +13,10 @@ from scripts.eval_gcs_demo_audit import (
     load_approval_records,
     validate_approval_records,
 )
-from scripts.eval_gcs_demo_models import TerminalCommand
+from scripts.eval_gcs_demo_models import FinalApproachCommand
 
 
-_TERMINAL_FIELDS = (
+_FINAL_APPROACH_FIELDS = (
     "source",
     "generation",
     "task",
@@ -62,9 +62,9 @@ def _payload(payload: str) -> dict[str, str]:
         key, value = token.split("=", 1)
         pairs.append((key, value))
     keys = tuple(key for key, _value in pairs)
-    if keys != _TERMINAL_FIELDS:
+    if keys != _FINAL_APPROACH_FIELDS:
         raise ValueError(
-            f"TERMINAL_CMD fields/order must be {_TERMINAL_FIELDS}, got {keys}"
+            f"TERMINAL_CMD fields/order must be {_FINAL_APPROACH_FIELDS}, got {keys}"
         )
     return dict(pairs)
 
@@ -98,7 +98,7 @@ def _boolean(name: str, value: str) -> bool:
     raise ValueError(f"{name} must be exactly True or False")
 
 
-def _terminal_command(row: list[str], line_number: int) -> TerminalCommand:
+def _final_approach_command(row: list[str], line_number: int) -> FinalApproachCommand:
     if len(row) < 3:
         raise ValueError(f"TERMINAL_CMD row {line_number} has fewer than 3 columns")
     payload = _payload(row[2])
@@ -107,7 +107,7 @@ def _terminal_command(row: list[str], line_number: int) -> TerminalCommand:
         raise ValueError("TERMINAL_CMD source must be a non-empty exact string")
     issued = _boolean("issued", payload["issued"])
     passed = _boolean("passed", payload["passed"])
-    command = TerminalCommand(
+    command = FinalApproachCommand(
         wall_s=seconds_of_day(row[0]),
         source=source,
         generation=_integer("generation", payload["generation"], allow_zero=True),
@@ -144,30 +144,30 @@ def _terminal_command(row: list[str], line_number: int) -> TerminalCommand:
     return command
 
 
-def parse_terminal_commands(path: Path) -> list[TerminalCommand]:
-    commands: list[TerminalCommand] = []
+def parse_final_approach_commands(path: Path) -> list[FinalApproachCommand]:
+    commands: list[FinalApproachCommand] = []
     with path.open("r", encoding="utf-8", errors="strict", newline="") as handle:
         for line_number, row in enumerate(csv.reader(handle), start=1):
             if len(row) >= 2 and row[1] == "EVENT:TERMINAL_CMD":
-                commands.append(_terminal_command(row, line_number))
+                commands.append(_final_approach_command(row, line_number))
     return commands
 
 
-def parse_terminal_command_episodes(path: Path) -> list[list[TerminalCommand]]:
+def parse_final_approach_command_episodes(path: Path) -> list[list[FinalApproachCommand]]:
     """Require one source identity and explicit pass before each debug SNAP."""
-    episodes: list[list[TerminalCommand]] = []
-    current: list[TerminalCommand] = []
+    episodes: list[list[FinalApproachCommand]] = []
+    current: list[FinalApproachCommand] = []
     source_key: tuple[str, int, int, int] | None = None
     passed = False
     with path.open("r", encoding="utf-8", errors="strict", newline="") as handle:
         for line_number, row in enumerate(csv.reader(handle), start=1):
             event = row[1] if len(row) >= 2 else ""
             if event == "EVENT:TERMINAL_CMD":
-                command = _terminal_command(row, line_number)
+                command = _final_approach_command(row, line_number)
                 if source_key is None:
                     source_key = command.source_key
                 elif command.source_key != source_key:
-                    raise ValueError("terminal episode changed atomic source identity")
+                    raise ValueError("final-approach episode changed atomic source identity")
                 if passed and (command.issued or not command.passed):
                     raise ValueError(
                         "non-pass-suppressed TERMINAL_CMD appeared after pass "
@@ -177,13 +177,13 @@ def parse_terminal_command_episodes(path: Path) -> list[list[TerminalCommand]]:
                 passed = passed or command.passed
             elif event == "EVENT:SNAP_COMPONENTS" and current:
                 if not passed:
-                    raise ValueError("terminal episode reached SNAP without passed=True")
+                    raise ValueError("final-approach episode reached SNAP without passed=True")
                 episodes.append(current)
                 current = []
                 source_key = None
                 passed = False
     if current:
-        raise ValueError("terminal episode did not terminate at SNAP_COMPONENTS")
+        raise ValueError("final-approach episode did not terminate at SNAP_COMPONENTS")
     return episodes
 
 
@@ -199,8 +199,8 @@ __all__ = [
     "navigation_speedup_errors",
     "load_approval_records",
     "mission_navigation_segment",
-    "parse_terminal_command_episodes",
-    "parse_terminal_commands",
+    "parse_final_approach_command_episodes",
+    "parse_final_approach_commands",
     "positive_deltas",
     "seconds_of_day",
     "validate_approval_records",

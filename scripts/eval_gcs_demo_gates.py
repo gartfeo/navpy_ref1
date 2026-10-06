@@ -127,7 +127,7 @@ def sensor_config_errors(navigation_text: str) -> list[str]:
     if _IDEAL_360_ACTIVE_RE.search(navigation_text) is not None:
         errors.append(
             "detector reported the simulator-only ideal_360 static sensor active; "
-            "the upper bound must never certify a terminal run"
+            "the upper bound must never certify a final-approach run"
         )
     return errors
 
@@ -135,23 +135,23 @@ def sensor_config_errors(navigation_text: str) -> list[str]:
 def _ordered_workflow_errors(navigation_text: str) -> list[str]:
     errors: list[str] = []
     required = {
-        "manual confirmation request": "Sending confirm request for T",
-        "confirmation state": "CONFIRMING: T",
+        "manual confirmation request": "Sending confirm request for P",
+        "confirmation state": "CONFIRMING: P",
         "ground-station confirmation": "confirmed by ground station.",
         "gimbal detection lock": "start_tracking obj_id=",
         "NAV initialization": "INIT: NAV MODE",
-        "coordinate pass reset": "RESET: PASSED TARGET",
+        "coordinate pass reset": "RESET: PASSED POI",
         "vision-nav SNAP": "SNAP(VISION-NAV",
     }
     for label, marker in required.items():
         if marker not in navigation_text:
             errors.append(f"missing {label} marker ({marker!r})")
     positions = {
-        "confirming": navigation_text.find("CONFIRMING: T"),
-        "request": navigation_text.find("Sending confirm request for T"),
+        "confirming": navigation_text.find("CONFIRMING: P"),
+        "request": navigation_text.find("Sending confirm request for P"),
         "confirmed": navigation_text.find("confirmed by ground station."),
         "nav": navigation_text.find("INIT: NAV MODE"),
-        "reset": navigation_text.find("RESET: PASSED TARGET"),
+        "reset": navigation_text.find("RESET: PASSED POI"),
         "snap": navigation_text.find("SNAP(VISION-NAV"),
     }
     if all(value >= 0 for value in positions.values()):
@@ -181,9 +181,9 @@ def workflow_errors(
             if f"Rebroadcast task {task_id}" not in navigation_text and re.search(rf"\bTask {task_id} accepted by \d+\b", navigation_text) is None:
                 errors.append(f"owner did not dispatch task {task_id} to peers")
         if "Self-detect orbit:" not in navigation_text:
-            errors.append("owner did not keep a target-centred self-detect orbit")
+            errors.append("owner did not keep a POI-centred self-detect orbit")
     else:
-        if "No target is set" not in navigation_text:
+        if "No POI is set" not in navigation_text:
             errors.append("peer did not start with targ_wps=0")
         if "GUIDED_LOITER" not in navigation_text:
             errors.append("peer did not execute GUIDED_LOITER assignment approach")
@@ -194,7 +194,7 @@ def workflow_errors(
         "auto confirmation": "auto-confirmed",
         "local vision auto confirmation": "vision nav local",
         "current-coordinate confirmation hold": "confirm hold:",
-        "post-confirmation target re-approach": "confirm release:",
+        "post-confirmation POI re-approach": "confirm release:",
     }
     for label, marker in forbidden.items():
         if marker in lowered:

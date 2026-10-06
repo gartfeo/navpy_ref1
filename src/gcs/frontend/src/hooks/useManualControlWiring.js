@@ -20,7 +20,7 @@ export default function useManualControlWiring({
   const {
     manualControlEnabled, manualControlTarget, setManualControlTarget,
     toggleManualControl, handleLeftMove, handleRightMove,
-    capturePrevMode, peekRestoreMode, releaseTarget,
+    capturePrevMode, peekRestoreMode, releasePoi,
   } = useManualControl(sendWsMessage, storeRef, setModeRef);
 
   // Subscribe to the manual-control target vehicle so JSX using its
@@ -43,7 +43,7 @@ export default function useManualControlWiring({
           `UAV ${manualControlTarget} is in ${cur} — will be set to ${restoreMode}. Exit RC?`
         )) return;
       }
-      const restored = releaseTarget(manualControlTarget);
+      const restored = releasePoi(manualControlTarget);
       if (restored) setNotification(`UAV ${manualControlTarget} → ${restored}`);
       setManualControlTarget(null);
       setFollowSysId(null);
@@ -51,7 +51,7 @@ export default function useManualControlWiring({
       capturePrevMode(manualControlTarget);
     }
     toggleManualControl();
-  }, [manualControlEnabled, manualControlTarget, toggleManualControl, releaseTarget, capturePrevMode, peekRestoreMode]);
+  }, [manualControlEnabled, manualControlTarget, toggleManualControl, releasePoi, capturePrevMode, peekRestoreMode]);
 
   const handleVehicleSelect = useCallback((sysId) => {
     if (manualControlTarget != null && manualControlTarget !== sysId) {
@@ -62,13 +62,13 @@ export default function useManualControlWiring({
           `UAV ${manualControlTarget} is in ${cur} — will be set to ${restoreMode}. Switch?`
         )) return;
       }
-      const restored = releaseTarget(manualControlTarget);
+      const restored = releasePoi(manualControlTarget);
       if (restored) setNotification(`UAV ${manualControlTarget} → ${restored}`);
     }
     setManualControlTarget(sysId);
     capturePrevMode(sysId);
     setFollowSysId(sysId);
-  }, [manualControlTarget, setManualControlTarget, releaseTarget, capturePrevMode, peekRestoreMode]);
+  }, [manualControlTarget, setManualControlTarget, releasePoi, capturePrevMode, peekRestoreMode]);
 
   // Auto-disable manual control on phase change or target disconnect
   useEffect(() => {

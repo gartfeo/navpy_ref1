@@ -18,11 +18,11 @@ from navpy.modules.vision.deep_search import (
     DeepSearchDetector,
     deep_search_config_from_settings,
 )
-from navpy.modules.vision.lost_target_bridge import LostTargetBridge
+from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
 from navpy.modules.vision.real_detector_config import RealDetectorConfig
 from navpy.modules.vision.real_detector_ports import ModelResourceCloser
 from navpy.modules.vision.real_detector_state import RuntimeMetrics
-from navpy.modules.vision.target_lock import TargetLock
+from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.track_identity import TrackIdentityResolver
 from navpy.modules.vision.tracker_backends import (
     TrackerBackend,
@@ -37,8 +37,8 @@ class RealDetectorModels:
     tracker: TrackerBackend
     identity: TrackIdentityResolver
     appearance: AsyncAppearanceEmbedder | None
-    target_lock: TargetLock
-    bridge: LostTargetBridge
+    poi_lock: PoiLock
+    bridge: LostPoiBridge
     deep_config: DeepSearchConfig | None
     deep_search: DeepSearchDetector | None
 
@@ -153,11 +153,11 @@ def build_models(
             tracker=tracker,
             identity=TrackIdentityResolver(),
             appearance=appearance,
-            target_lock=TargetLock(
+            poi_lock=PoiLock(
                 max_lost_frames=120,
-                auto_lock=config.pipeline.auto_target_lock,
+                auto_lock=config.pipeline.auto_poi_lock,
             ),
-            bridge=LostTargetBridge(),
+            bridge=LostPoiBridge(),
             deep_config=deep_config,
             deep_search=deep_search,
         )

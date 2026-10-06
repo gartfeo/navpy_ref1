@@ -1,4 +1,4 @@
-"""Terminal law plan record and plan-construction helpers."""
+"""Final-approach law plan record and plan-construction helpers."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from dataclasses import dataclass
 
 from navpy.modules.navigation.nav.nav_law import NavCommand
 from navpy.modules.navigation.nav.vision_nav.command_anchor import (
-    TerminalCommandAnchor,
+    FinalApproachCommandAnchor,
     clamped_command,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
-from navpy.modules.navigation.nav.vision_nav.law_config import TerminalLawConfig
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfig
 from navpy.modules.navigation.nav.vision_nav.lateral_rate import LateralRatePlan
 from navpy.modules.navigation.nav.vision_nav.rate_filter import VerticalRatePlan
 
@@ -24,7 +24,7 @@ LATERAL_PN_NAVIGATION_CONSTANT = 4.0
 
 
 @dataclass(frozen=True)
-class TerminalPlanOrigin:
+class FinalApproachPlanOrigin:
     """How one cycle formed its command.
 
     Kept together rather than spread across the plan because they are only
@@ -51,18 +51,18 @@ class TerminalPlanOrigin:
 
 
 @dataclass(frozen=True)
-class TerminalLawPlan:
+class FinalApproachLawPlan:
     command: NavCommand
     raw_roll_deg: float
     raw_pitch_deg: float
     rate: VerticalRatePlan
     lateral_rate: LateralRatePlan
-    next_anchor: TerminalCommandAnchor
-    frame: TerminalVisionFrame
+    next_anchor: FinalApproachCommandAnchor
+    frame: FinalApproachVisionFrame
     bootstrapped: bool = False
     lateral_held: bool = False
     reseed: bool = False
-    origin: TerminalPlanOrigin = TerminalPlanOrigin()
+    origin: FinalApproachPlanOrigin = FinalApproachPlanOrigin()
 
     @property
     def within_limits(self) -> bool:
@@ -73,15 +73,15 @@ class TerminalLawPlan:
 
 
 def held_plan(
-    frame: TerminalVisionFrame,
-    config: TerminalLawConfig,
+    frame: FinalApproachVisionFrame,
+    config: FinalApproachLawConfig,
     rate: VerticalRatePlan,
     lateral_rate: LateralRatePlan,
-    anchor: TerminalCommandAnchor,
+    anchor: FinalApproachCommandAnchor,
     *,
     bootstrapped: bool = False,
     reason: str = "held",
-) -> TerminalLawPlan:
+) -> FinalApproachLawPlan:
     """Reissue the anchor's command, clipped by the same limits.
 
     The returned anchor carries the CLAMPED command, never the raw value.
@@ -94,13 +94,13 @@ def held_plan(
     raw_pitch = anchor.cmd_pitch_deg
     raw_roll = anchor.cmd_roll_deg
     command = clamped_command(config, raw_roll, raw_pitch)
-    return TerminalLawPlan(
+    return FinalApproachLawPlan(
         command,
         raw_roll_deg=raw_roll,
         raw_pitch_deg=raw_pitch,
         rate=rate,
         lateral_rate=lateral_rate,
-        next_anchor=TerminalCommandAnchor(
+        next_anchor=FinalApproachCommandAnchor(
             anchor.continuity_key,
             anchor.timestamp_s,
             command.cmd_pitch_deg,
@@ -111,7 +111,7 @@ def held_plan(
         frame=frame,
         bootstrapped=bootstrapped,
         lateral_held=True,
-        origin=TerminalPlanOrigin(
+        origin=FinalApproachPlanOrigin(
             reason=reason,
             anchor_cmd_roll_deg=anchor.cmd_roll_deg,
             anchor_cmd_pitch_deg=anchor.cmd_pitch_deg,
@@ -120,12 +120,12 @@ def held_plan(
 
 
 def replace_anchor(
-    plan: TerminalLawPlan,
-    anchor: TerminalCommandAnchor,
+    plan: FinalApproachLawPlan,
+    anchor: FinalApproachCommandAnchor,
     *,
     reseed: bool,
-) -> TerminalLawPlan:
-    return TerminalLawPlan(
+) -> FinalApproachLawPlan:
+    return FinalApproachLawPlan(
         plan.command,
         plan.raw_roll_deg,
         plan.raw_pitch_deg,
@@ -144,8 +144,8 @@ def replace_anchor(
 
 __all__ = [
     "LATERAL_PN_NAVIGATION_CONSTANT",
-    "TerminalLawPlan",
-    "TerminalPlanOrigin",
+    "FinalApproachLawPlan",
+    "FinalApproachPlanOrigin",
     "VERTICAL_PN_NAVIGATION_CONSTANT",
     "held_plan",
     "replace_anchor",

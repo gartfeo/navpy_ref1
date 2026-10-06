@@ -1,5 +1,5 @@
 """
-MAVLink image transfer for target confirmation images.
+MAVLink image transfer for POI confirmation images.
 
 Uses standard MAVLink protocol:
 1. DATA_TRANSMISSION_HANDSHAKE - announces image transfer
@@ -25,7 +25,7 @@ CHUNK_SIZE = 253
 
 class ImageTransferType(IntEnum):
     """Image transfer types - extends MAVLink data stream types."""
-    TARGET_CONFIRMATION = 100  # Custom type for target confirmation images
+    POI_CONFIRMATION = 100  # Custom type for POI confirmation images
 
 
 @dataclass
@@ -38,7 +38,7 @@ class ImageTransferHeader:
     num_packets: int
     payload_size: int  # Bytes per packet (typically 253)
     quality: int  # JPEG quality (0-100)
-    target_id: int = 0  # Target ID (stored in width for confirmation images)
+    poi_id: int = 0  # POI ID (stored in width for confirmation images)
 
 
 @dataclass
@@ -54,7 +54,7 @@ class ImageChunker:
     @staticmethod
     def chunk_image(
         image_b64: str,
-        target_id: int,
+        poi_id: int,
         width: int = 640,
         height: int = 480,
         quality: int = 80,
@@ -64,7 +64,7 @@ class ImageChunker:
 
         Args:
             image_b64: Base64 encoded JPEG image
-            target_id: Target ID for confirmation
+            poi_id: POI ID for confirmation
             width: Image width
             height: Image height
             quality: JPEG quality used
@@ -79,14 +79,14 @@ class ImageChunker:
         num_packets = math.ceil(image_size / CHUNK_SIZE)
 
         header = ImageTransferHeader(
-            transfer_type=ImageTransferType.TARGET_CONFIRMATION,
+            transfer_type=ImageTransferType.POI_CONFIRMATION,
             image_size=image_size,
             width=width,
             height=height,
             num_packets=num_packets,
             payload_size=CHUNK_SIZE,
             quality=quality,
-            target_id=target_id,
+            poi_id=poi_id,
         )
 
         # Split into chunks
@@ -110,7 +110,7 @@ class ImageChunker:
         return MAVLink_data_transmission_handshake_message(
             type=header.transfer_type,
             size=header.image_size,
-            width=header.target_id,  # Store target_id in width for confirmation images
+            width=header.poi_id,  # Store poi_id in width for confirmation images
             height=header.height,
             packets=header.num_packets,
             payload=header.payload_size,
@@ -130,7 +130,7 @@ class ImageReassembler:
     """Reassembles image chunks received from MAVLink."""
 
     def __init__(self, timeout_sec: float = 10.0):
-        self._transfers: Dict[int, '_PendingTransfer'] = {}  # target_id -> transfer
+        self._transfers: Dict[int, '_PendingTransfer'] = {}  # poi_id -> transfer
         self._timeout_sec = timeout_sec
 
     def on_handshake(self, msg: MAVLink_data_transmission_handshake_message) -> Optional[int]:
@@ -138,37 +138,37 @@ class ImageReassembler:
         Handle incoming handshake message.
 
         Returns:
-            target_id if this is a confirmation image, None otherwise
+            poi_id if this is a confirmation image, None otherwise
         """
-        if msg.type != ImageTransferType.TARGET_CONFIRMATION:
+        if msg.type != ImageTransferType.POI_CONFIRMATION:
             return None
 
-        target_id = msg.width  # target_id stored in width field
-        self._transfers[target_id] = _PendingTransfer(
-            target_id=target_id,
+        poi_id = msg.width  # poi_id stored in width field
+        self._transfers[poi_id] = _PendingTransfer(
+            poi_id=poi_id,
             total_size=msg.size,
             num_packets=msg.packets,
             payload_size=msg.payload,
             quality=msg.jpg_quality,
             start_time=time.time(),
         )
-        return target_id
+        return poi_id
 
-    def on_chunk(self, msg: MAVLink_encapsulated_data_message, target_id: int) -> Optional[str]:
+    def on_chunk(self, msg: MAVLink_encapsulated_data_message, poi_id: int) -> Optional[str]:
         """
         Handle incoming data chunk.
 
         Args:
             msg: The encapsulated data message
-            target_id: Which transfer this chunk belongs to
+            poi_id: Which transfer this chunk belongs to
 
         Returns:
             Complete base64 image if transfer is complete, None otherwise
         """
-        if target_id not in self._transfers:
+        if poi_id not in self._transfers:
             return None
 
-        transfer = self._transfers[target_id]
+        transfer = self._transfers[poi_id]
         transfer.chunks[msg.seqnr] = bytes(msg.data)
 
         # Check if complete
@@ -183,7 +183,7 @@ class ImageReassembler:
             image_bytes = image_bytes[:transfer.total_size]
 
             # Clean up
-            del self._transfers[target_id]
+            del self._transfers[poi_id]
 
             # Return as base64
             return base64.b64encode(image_bytes).decode('utf-8')
@@ -204,7 +204,7 @@ class ImageReassembler:
 @dataclass
 class _PendingTransfer:
     """Internal class tracking a pending image transfer."""
-    target_id: int
+    poi_id: int
     total_size: int
     num_packets: int
     payload_size: int
@@ -223,7 +223,7 @@ class ImageTransferSender:
 
     Usage:
         sender = ImageTransferSender(vehicle.send_mavlink_message)
-        sender.send_confirmation_image(target_id=1, image_b64="...")
+        sender.send_confirmation_image(poi_id=1, image_b64="...")
     """
 
     def __init__(
@@ -241,7 +241,7 @@ class ImageTransferSender:
 
     def send_confirmation_image(
         self,
-        target_id: int,
+        poi_id: int,
         image_b64: str,
         width: int = 640,
         height: int = 480,
@@ -250,7 +250,7 @@ class ImageTransferSender:
         Send a confirmation image via MAVLink chunked transfer.
 
         Args:
-            target_id: Target ID for this confirmation
+            poi_id: POI ID for this confirmation
             image_b64: Base64 encoded JPEG thumbnail
             width: Image width
             height: Image height
@@ -260,7 +260,7 @@ class ImageTransferSender:
         """
         header, chunks = ImageChunker.chunk_image(
             image_b64=image_b64,
-            target_id=target_id,
+            poi_id=poi_id,
             width=width,
             height=height,
         )

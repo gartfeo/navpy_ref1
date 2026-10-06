@@ -15,11 +15,11 @@ def test_retired_profile_fields_fail_without_rewriting(tmp_path, scope, current_
     dimensions = {"0": {"width_m": 3.5, "height_m": 2.5}}
     data = {"profiles": {"fixture": {"detector": {}}}}
     if scope == "catalog":
-        data["target_classes"] = dimensions
+        data["poi_classes"] = dimensions
         if current_present:
             data["detector_class_dimensions"] = dimensions
     else:
-        data["profiles"]["fixture"]["detector"]["target_presets"] = presets
+        data["profiles"]["fixture"]["detector"]["poi_presets"] = presets
         if current_present:
             data["profiles"]["fixture"]["detector"]["dock_presets"] = presets
     path = tmp_path / "profiles.json"

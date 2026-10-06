@@ -1,4 +1,4 @@
-"""Pure copy/format helpers for terminal command diagnostics."""
+"""Pure copy/format helpers for final-approach command diagnostics."""
 
 from __future__ import annotations
 
@@ -9,18 +9,18 @@ import numpy as np
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.nav.vision_nav.command_transaction import (
-    TerminalLawEvidence,
+    FinalApproachLawEvidence,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.vision.models.detect_data import DetectedObject
 
 
-def body_bearing_deg(frame: TerminalVisionFrame) -> float:
+def body_bearing_deg(frame: FinalApproachVisionFrame) -> float:
     return math.degrees(math.atan2(frame.body_y, frame.body_x))
 
 
 def law_evidence_payload(
-    evidence: TerminalLawEvidence | None,
+    evidence: FinalApproachLawEvidence | None,
 ) -> dict[str, object]:
     names = (
         "control_bearing_deg", "lateral_rate_deg_s",
@@ -60,16 +60,16 @@ def law_evidence_payload(
     return payload
 
 
-def debug_target(target: DetectedObject | None) -> Location | None:
-    if target is None or not target.geo.is_simulation:
+def debug_poi(poi: DetectedObject | None) -> Location | None:
+    if poi is None or not poi.geo.is_simulation:
         return None
-    return target.geo.truth_target_location
+    return poi.geo.truth_poi_location
 
 
-def debug_camera(target: DetectedObject | None) -> Location | None:
-    if target is None or not target.geo.is_simulation:
+def debug_camera(poi: DetectedObject | None) -> Location | None:
+    if poi is None or not poi.geo.is_simulation:
         return None
-    return target.geo.camera_location
+    return poi.geo.camera_location
 
 
 def copy_location(location: Location | None) -> Location | None:
@@ -95,11 +95,11 @@ def optional_float(value: object) -> float | None:
 
 
 def copy_camera_matrix(
-    target: DetectedObject | None,
+    poi: DetectedObject | None,
 ) -> np.ndarray | None:
-    if target is None:
+    if poi is None:
         return None
-    matrix = target.optics.camera_matrix()
+    matrix = poi.optics.camera_matrix()
     if matrix is None:
         return None
     copied = np.array(matrix, copy=True)
@@ -113,7 +113,7 @@ __all__ = [
     "copy_camera_matrix",
     "copy_location",
     "debug_camera",
-    "debug_target",
+    "debug_poi",
     "law_evidence_payload",
     "optional_float",
 ]

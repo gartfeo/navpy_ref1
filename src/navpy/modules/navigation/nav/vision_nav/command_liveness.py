@@ -6,11 +6,11 @@ import threading
 from typing import Protocol
 
 
-class TerminalCommandFailureSink(Protocol):
+class FinalApproachCommandFailureSink(Protocol):
     def mark_failed(self) -> None: ...
 
 
-class TerminalCommandLiveness:
+class FinalApproachCommandLiveness:
     """Publish one failure until navigation consumes or reset clears it."""
 
     def __init__(self) -> None:
@@ -32,4 +32,4 @@ class TerminalCommandLiveness:
             self._failed = False
 
 
-__all__ = ["TerminalCommandFailureSink", "TerminalCommandLiveness"]
+__all__ = ["FinalApproachCommandFailureSink", "FinalApproachCommandLiveness"]

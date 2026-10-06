@@ -14,11 +14,11 @@ from navpy.modules.nav.failure_health import ComponentFailureLatch
 from navpy.modules.nav.nav_network_shutdown import (
     disconnect_nav_network_session,
 )
-from navpy.modules.nav.target_selection import TargetSelector
+from navpy.modules.nav.poi_selection import PoiSelector
 from navpy.modules.nav.nav_state import ConfirmOverrideInbox
-from navpy.modules.nav.peer_target_dispatch import (
-    PeerTargetDispatchPorts,
-    PeerTargetDispatchWorker,
+from navpy.modules.nav.peer_poi_dispatch import (
+    PeerPoiDispatchPorts,
+    PeerPoiDispatchWorker,
 )
 from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
 from navpy.modules.swarm.task_actor import TaskActor
@@ -49,7 +49,7 @@ class NavNetworkRuntime:
         self._network: Optional[NetworkAbc] = None
         self._override_listener: Optional[ConfirmOverrideListener] = None
         self.task_actor: Optional[TaskActor] = None
-        self.peer_dispatch: Optional[PeerTargetDispatchWorker] = None
+        self.peer_dispatch: Optional[PeerPoiDispatchWorker] = None
         self._health = ComponentFailureLatch()
 
     def set_network(self, network: Optional[NetworkAbc]) -> None:
@@ -74,18 +74,18 @@ class NavNetworkRuntime:
         self._confirmation_manager.set_network(network)
         network.set_listener(self._confirmation_manager)
         network.set_listener(override_listener)
-        worker = PeerTargetDispatchWorker(
-            PeerTargetDispatchPorts(
-                active_target=lambda: self._confirmation_manager.active_target,
+        worker = PeerPoiDispatchWorker(
+            PeerPoiDispatchPorts(
+                active_poi=lambda: self._confirmation_manager.active_poi,
                 resolve_location=self._resolve_peer_location,
-                status_exists=lambda target: (
-                    self._confirmation_manager.get_status(target) is not None
+                status_exists=lambda poi: (
+                    self._confirmation_manager.get_status(poi) is not None
                 ),
-                mark_notified=lambda target: self._confirmation_manager.update_status(
-                    target,
+                mark_notified=lambda poi: self._confirmation_manager.update_status(
+                    poi,
                     ConfirmationStatus.PEER_NOTIFIED,
                 ),
-                notify_targets=actor.notify_targets,
+                notify_pois=actor.notify_pois,
                 warn=lambda message: self._logger.warning(message, key="nav"),
                 error=lambda message, error: self._logger.error(
                     f"{message}: {error}",
@@ -99,18 +99,18 @@ class NavNetworkRuntime:
     def has_task_actor(self) -> bool:
         return self.task_actor is not None
 
-    def selected_target(self) -> Optional[TaskAssignMsgData]:
+    def selected_poi(self) -> Optional[TaskAssignMsgData]:
         if self.task_actor is None:
             return None
-        return self.task_actor.selected_target()
+        return self.task_actor.selected_poi()
 
-    def notify_targets(self, targets: list[DetectedObject]) -> None:
+    def notify_pois(self, pois: list[DetectedObject]) -> None:
         if self.task_actor is not None:
-            self.task_actor.notify_targets(targets)
+            self.task_actor.notify_pois(pois)
 
-    def submit_nav_peers(self, targets: list[DetectedObject]) -> None:
-        if self.peer_dispatch is not None and targets:
-            self.peer_dispatch.submit(targets)
+    def submit_nav_peers(self, pois: list[DetectedObject]) -> None:
+        if self.peer_dispatch is not None and pois:
+            self.peer_dispatch.submit(pois)
 
     def start_task_actor(self) -> None:
         if self.task_actor is not None:
@@ -120,9 +120,9 @@ class NavNetworkRuntime:
         if self.task_actor is not None:
             self.task_actor.reset()
 
-    def clear_selected_target(self) -> None:
+    def clear_selected_poi(self) -> None:
         if self.task_actor is not None:
-            self.task_actor.clear_selected_target()
+            self.task_actor.clear_selected_poi()
 
     def reset_peer_dispatch(self) -> None:
         if self.peer_dispatch is not None:
@@ -150,14 +150,14 @@ class NavNetworkRuntime:
 
     def _resolve_peer_location(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
     ) -> Optional[Location]:
         if (
             self._simulation.is_simulation
-            and target.geo.truth_target_location is not None
+            and poi.geo.truth_poi_location is not None
         ):
-            return target.geo.truth_target_location
-        return self._ground_location(target, allow_fallback=False)
+            return poi.geo.truth_poi_location
+        return self._ground_location(poi, allow_fallback=False)
 
 
 class NavPeerSubmission:
@@ -165,7 +165,7 @@ class NavPeerSubmission:
 
     def __init__(
         self,
-        selector: TargetSelector,
+        selector: PoiSelector,
         detections: DetectionSnapshot,
         submit: Callable[[list[DetectedObject]], None],
     ) -> None:
@@ -176,8 +176,8 @@ class NavPeerSubmission:
     def submit(self) -> None:
         selection = self._detections.selection()
         _, peers = self._selector.select(
-            list(selection.targets),
-            selection.primary_target,
+            list(selection.pois),
+            selection.primary_poi,
         )
         if peers:
             # The live-demo fleet has exactly three UAVs: one owner and at

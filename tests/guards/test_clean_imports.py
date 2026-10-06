@@ -76,22 +76,22 @@ def test_internal_modules_do_not_depend_on_compatibility_facades() -> None:
         "from navpy.modules.navigation.gimbal_tracking_session import",
         "from navpy.modules.vision.vision_profiles import",
         "from navpy.modules.vision import vision_profiles",
-        "from navpy.modules.vision.target_zoom_tracker import",
+        "from navpy.modules.vision.poi_zoom_tracker import",
         "from navpy.modules.comm.messages.available_task_msg import",
         "from navpy.modules.swarm.task_actor_state import",
         "from navpy.modules.nav.confirmation_workflow import",
         "from navpy.modules.nav.navigation_task import",
         "from navpy.modules.nav.nav_confirmation_composition import",
         "from navpy.modules.nav.navigation_transitions import",
-        "from navpy.modules.nav.target_confirmation import",
-        "from navpy.modules.nav.terminal_navigation import",
+        "from navpy.modules.nav.poi_confirmation import",
+        "from navpy.modules.nav.final_approach_navigation import",
         "from navpy.modules.vehicle.mission_protocol import",
         "from navpy.modules.vehicle import pose_cadence_debug",
     )
     allowed_imports = {
         (
             source_root / "modules/vision/__init__.py",
-            "from navpy.modules.vision.target_zoom_tracker import",
+            "from navpy.modules.vision.poi_zoom_tracker import",
         ),
     }
     violations: list[str] = []

@@ -52,14 +52,14 @@ def validity_errors(
     except (OSError, RuntimeError, ValueError) as error:
         errors.append(f"ground track unavailable: {error}")
     if child_result.get("passed") is not True:
-        errors.append(f"target pass false: {child_result.get('error', '')}")
+        errors.append(f"POI pass false: {child_result.get('error', '')}")
     source = child_result.get("source")
     if not isinstance(source, dict):
         errors.append("direct pixel source metrics missing")
     else:
         if source.get("projection_failures") != 0:
             errors.append(
-                "target left renderable sight: "
+                "POI left renderable sight: "
                 f"{source.get('projection_failures')} projection failures"
             )
         if not isinstance(source.get("delivered_frames"), int) or (

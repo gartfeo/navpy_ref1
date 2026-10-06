@@ -6,7 +6,7 @@ const _finite = (x) => Number.isFinite(x);
  * Pure detect-far scan geometry for a gimbal + zoom camera.
  *
  * The OPERATOR chooses the camera pitch; this returns the altitude at which the FAR
- * (top) FOV edge grazes the ground at the selected target's detection range R_det:
+ * (top) FOV edge grazes the ground at the selected POI's detection range R_det:
  *   altitude = R_det·sin(θ − FOVv/2),   reach = R_det·cos(θ − FOVv/2)
  * where θ = |boresightDeg| is the pitch depression. No clamping here — the caller
  * applies the altitude floor / ceiling and the recognition cap (see {@link confirmRange}),
@@ -15,7 +15,7 @@ const _finite = (x) => Number.isFinite(x);
  * @param {object}  p
  * @param {number}  p.fy            vertical focal length at the scan zoom, pixels
  * @param {number}  p.imageHeight   image height, pixels
- * @param {number}  p.targetSizeM   selected (smallest) target characteristic diagonal, m
+ * @param {number}  p.poiSizeM   selected (smallest) POI characteristic diagonal, m
  * @param {number} [p.boresightDeg=45] camera pitch depression (deg); non-finite → 45
  * @param {number} [p.detectPx]     detection pixel gate (default MIN_DETECT_PIXELS)
  * @param {number} [p.zoom=1]       scan zoom level, returned as-is
@@ -26,16 +26,16 @@ const _finite = (x) => Number.isFinite(x);
 export function optimizeScanGeometry({
   fy,
   imageHeight,
-  targetSizeM,
+  poiSizeM,
   boresightDeg = 45,
   detectPx = MIN_DETECT_PIXELS,
   zoom = 1,
 }) {
-  if (![fy, imageHeight, targetSizeM, detectPx].every((x) => _finite(x) && x > 0)) {
+  if (![fy, imageHeight, poiSizeM, detectPx].every((x) => _finite(x) && x > 0)) {
     return null;
   }
   const theta = (_finite(boresightDeg) ? Math.abs(boresightDeg) : 45) * Math.PI / 180;
-  const rDet = (fy * targetSizeM) / detectPx;
+  const rDet = (fy * poiSizeM) / detectPx;
   const fovV = 2 * Math.atan(imageHeight / (2 * fy)); // rad — vertical FOV
   const farDep = theta - fovV / 2; // far-edge (top FOV ray) depression
   if (!(farDep > 0)) return null;  // far edge at/above the horizon → no ground intersection
@@ -51,7 +51,7 @@ export function optimizeScanGeometry({
 }
 
 /**
- * Max-zoom confirmation range: the slant range at which a target of size `sizeM` reaches
+ * Max-zoom confirmation range: the slant range at which a POI of size `sizeM` reaches
  * `recognizePx` pixels at the camera's MAX zoom (`fyMax`). The optimizer caps the scan
  * altitude at this so the operator can always confirm/ID by zooming in. Returns Infinity
  * (no cap) when the inputs are missing/invalid.
@@ -63,11 +63,11 @@ export function confirmRange(fyMax, sizeM, recognizePx) {
 
 /**
  * Factor that rescales a confirm-range base (fy·minClassSize/MIN_CONFIRM_PIXELS) to a
- * target's DETECTION range (fy·targetSize/MIN_DETECT_PIXELS). Used by the camera-
+ * POI's DETECTION range (fy·poiSize/MIN_DETECT_PIXELS). Used by the camera-
  * calculator diagram so it shows detection reach, not confirm-of-smallest.
  */
-export function detectRangeScale(targetSizeM, minClassSizeM) {
-  return (targetSizeM / minClassSizeM) * (MIN_CONFIRM_PIXELS / MIN_DETECT_PIXELS);
+export function detectRangeScale(poiSizeM, minClassSizeM) {
+  return (poiSizeM / minClassSizeM) * (MIN_CONFIRM_PIXELS / MIN_DETECT_PIXELS);
 }
 
 // ---------------------------------------------------------------------------

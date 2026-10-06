@@ -22,7 +22,7 @@ from navpy.modules.common.models.location import Location
 from navpy.modules.nav import confirmation_manager as tm_module
 from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 class _RaceEvent(threading.Event):
@@ -92,12 +92,12 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         self.confirmation_manager = ConfirmationManager(sys_id=1, args=self.mock_args, logger=self.mock_logger)
         self.confirmation_manager.set_network(self.mock_network)
 
-        self.target = make_detected_target(
+        self.poi = make_detected_poi(
             obj_id=501, size_class=DetectionSizeClass.S,
             x_error=0, y_error=0, reference_height_m=0, k=0,
             g_data=None, uas_att=None,
         )
-        self.target.set_p_t_g_loc(Location(lat=10, lng=20, alt=100))
+        self.poi.set_p_t_g_loc(Location(lat=10, lng=20, alt=100))
 
     def _confirm_request_calls(self):
         """Broadcast calls that are TaskConfirmRequestMsg (excludes self-assign)."""
@@ -114,7 +114,7 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         D-14/Pitfall 4)."""
         self.mock_args.confirm_wait_time_sec = 0.6
 
-        self.confirmation_manager.review([self.target])
+        self.confirmation_manager.review([self.poi])
         time.sleep(0.25)
         self.assertGreaterEqual(
             len(self._confirm_request_calls()), 2, "expected at least 2 resends by 0.25s",
@@ -122,18 +122,18 @@ class ConfirmationManagerResendTests(unittest.TestCase):
 
         time.sleep(0.6)  # well past the window
         self.assertEqual(
-            self.confirmation_manager.get_status(self.target), ConfirmationStatus.TIMEOUT_REJECTED,
+            self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED,
         )
 
     def _await_status(self, *expected, timeout=3.0):
-        """Block until the target reaches one of *expected* statuses."""
+        """Block until the POI reaches one of *expected* statuses."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            status = self.confirmation_manager.get_status(self.target)
+            status = self.confirmation_manager.get_status(self.poi)
             if status in expected:
                 return status
             time.sleep(0.005)
-        return self.confirmation_manager.get_status(self.target)
+        return self.confirmation_manager.get_status(self.poi)
 
     @patch.object(tm_module, "RESEND_INTERVAL_S", 0.05)
     def test_response_landing_at_wait_timeout_cancels_that_resend(self):
@@ -153,7 +153,7 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         def _deliver_response():
             self.confirmation_manager.on_message(TaskConfirmResponseMsg(
                 receiver_id=1,
-                task_id=self.target.identity.obj_id,
+                task_id=self.poi.identity.obj_id,
                 is_confirmed=True,
             ))
             delivered.set()
@@ -162,7 +162,7 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         self.addCleanup(setattr, _RaceEvent, "on_first_timeout", None)
 
         with patch.object(tm_module, "threading", _ThreadingWithRaceEvent()):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             self.assertTrue(
                 delivered.wait(timeout=3.0), "response was never delivered by the race hook",
             )
@@ -205,7 +205,7 @@ class ConfirmationManagerResendTests(unittest.TestCase):
             def _worker():
                 self.confirmation_manager.on_message(TaskConfirmResponseMsg(
                     receiver_id=1,
-                    task_id=self.target.identity.obj_id,
+                    task_id=self.poi.identity.obj_id,
                     is_confirmed=True,
                 ))
                 _record("response-consumed")
@@ -221,7 +221,7 @@ class ConfirmationManagerResendTests(unittest.TestCase):
 
         with patch.object(tm_module, "RESEND_INTERVAL_S", 0.05), \
                 patch.object(tm_module, "threading", _ThreadingWithRaceEvent()):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             self.assertEqual(
                 self._await_status(ConfirmationStatus.CONFIRMED), ConfirmationStatus.CONFIRMED,
             )
@@ -242,11 +242,11 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         self.mock_args.confirm_wait_time_sec = 0.3
         start = time.monotonic()
 
-        self.confirmation_manager.review([self.target])
+        self.confirmation_manager.review([self.poi])
 
         deadline = start + self.mock_args.confirm_wait_time_sec + 0.4  # generous slack
         while time.monotonic() < deadline:
-            if self.confirmation_manager.get_status(self.target) in (
+            if self.confirmation_manager.get_status(self.poi) in (
                     ConfirmationStatus.CONFIRMED, ConfirmationStatus.REJECTED, ConfirmationStatus.TIMEOUT_REJECTED):
                 break
             time.sleep(0.01)
@@ -280,7 +280,7 @@ class ConfirmationManagerResendTests(unittest.TestCase):
 
             self.mock_network.broadcast.side_effect = _timed_broadcast
 
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             time.sleep(0.75)
 
         self.assertGreaterEqual(len(timestamps), 3, "expected initial send + at least 2 resends")
@@ -297,7 +297,7 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         confirm_wait_time_sec, exactly one confirm-request is sent (no
         resend fires before the window closes)."""
         self.mock_args.confirm_wait_time_sec = 0.1
-        self.confirmation_manager.review([self.target])
+        self.confirmation_manager.review([self.poi])
         time.sleep(0.25)
         self.assertEqual(len(self._confirm_request_calls()), 1)
 

@@ -10,9 +10,9 @@ from navpy.modules.vision.models.detect_data import DetectedObject
 
 @dataclass(frozen=True)
 class DetectionSnapshot:
-    detected_targets: tuple[DetectedObject, ...]
-    debug_targets: tuple[DetectedObject, ...]
-    primary_target: Optional[DetectedObject]
+    detected_pois: tuple[DetectedObject, ...]
+    debug_pois: tuple[DetectedObject, ...]
+    primary_poi: Optional[DetectedObject]
 
 
 __all__ = ["DetectionSnapshot"]

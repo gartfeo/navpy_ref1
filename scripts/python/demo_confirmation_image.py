@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import cv2
 
 from navpy.modules.vision.sim.sim_frame_generator import SimFrameGenerator
-from navpy.utils.image_utils import create_detection_thumbnail, save_confirmation_image, TargetInfo
+from navpy.utils.image_utils import create_detection_thumbnail, save_confirmation_image, PoiInfo
 
 
 def main(argv=None) -> int:
@@ -37,9 +37,9 @@ def main(argv=None) -> int:
         frame_path = args.output / f"sim_frame_{name}.jpg"
         if not cv2.imwrite(str(frame_path), frame):
             raise OSError(f"Cannot write {frame_path}")
-        targets = [TargetInfo(target_id=i, bbox=box, class_name="Dock")
+        pois = [PoiInfo(poi_id=i, bbox=box, class_name="Dock")
                    for i, box in zip(ids, boxes)]
-        thumbnail = create_detection_thumbnail(frame, targets)
+        thumbnail = create_detection_thumbnail(frame, pois)
         save_confirmation_image(thumbnail, str(args.output / f"sim_detect_{name}.jpg"))
         print(f"Rendered {name}: {args.output}")
     return 0

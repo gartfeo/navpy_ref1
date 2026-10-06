@@ -23,7 +23,7 @@ class RollL1PitchNavLaw(NavLaw):
             current_loc=ctx.current_loc,
             next_loc=ctx.next_loc,
             target_bearing_cd=ctx.target_bearing_cd,
-            target_ned=ctx.target_ned,
+            poi_ned=ctx.poi_ned,
             pitch_error=ctx.pitch_error,
             distance=ctx.distance,
         )

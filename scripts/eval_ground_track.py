@@ -2,7 +2,7 @@
 
 Wind only means something relative to where a vehicle is actually MOVING.
 Indexing a wind matrix by compass direction silently assumes every vehicle
-approaches on the same heading; peers can approach a target from any bearing, so
+approaches on the same heading; peers can approach a POI from any bearing, so
 the same world wind is a headwind for one and a tailwind for another and the
 two average into noise.
 
@@ -30,15 +30,15 @@ _SCRIPTS = str(Path(__file__).resolve().parent)
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
-from eval_navigation_models import TargetLocation  # noqa: E402
+from eval_navigation_models import PoiLocation  # noqa: E402
 from eval_navigation_scoring import horizontal_distance_m  # noqa: E402
 
 
-# Distance from the target inside which the track is the terminal approach track.
+# Distance from the POI inside which the track is the final-approach track.
 # Matches the window used for LOS-rate diagnosis: far enough out that the
 # trajectory is still correctable, close enough that the vehicle has committed
 # to its run rather than still turning onto it.
-TERMINAL_TRACK_WINDOW_M = 200.0
+FINAL_APPROACH_TRACK_WINDOW_M = 200.0
 # Below this ground speed the velocity vector's direction is dominated by noise
 # rather than motion, so it is not a meaningful track.
 MIN_TRACK_GROUND_SPEED_M_S = 1.0
@@ -60,8 +60,8 @@ def _wrap_180(degrees: float) -> float:
 class GroundTrackRecorder:
     """Accumulate the measured ground velocity vector during an scoring interval."""
 
-    def __init__(self, target: TargetLocation) -> None:
-        self._target = target
+    def __init__(self, poi: PoiLocation) -> None:
+        self._poi = poi
         self._samples: list[TrackSample] = []
 
     def add(self, message: Any) -> bool:
@@ -82,9 +82,9 @@ class GroundTrackRecorder:
         except (AttributeError, TypeError, ValueError):
             source_time_s = None
         horizontal = horizontal_distance_m(
-            lat, lon, self._target.lat_deg, self._target.lon_deg
+            lat, lon, self._poi.lat_deg, self._poi.lon_deg
         )
-        vertical = abs_alt_m - self._target.abs_alt_m
+        vertical = abs_alt_m - self._poi.abs_alt_m
         self._samples.append(TrackSample(
             source_time_s=source_time_s,
             north_m_s=north,
@@ -130,9 +130,9 @@ class GroundTrackRecorder:
         wind_speed_mps: float,
         wind_dir_deg: float,
         *,
-        window_m: float = TERMINAL_TRACK_WINDOW_M,
+        window_m: float = FINAL_APPROACH_TRACK_WINDOW_M,
     ) -> dict[str, float | int | None]:
-        """Resolve the wind into the measured terminal track frame.
+        """Resolve the wind into the measured final-approach track frame.
 
         ``wind_dir_deg`` follows the ArduPilot/meteorological convention: the
         direction the wind blows FROM.  A vehicle tracking toward ``track_deg``
@@ -147,8 +147,8 @@ class GroundTrackRecorder:
         is positive when the wind comes from the vehicle's right.
         """
         # The window below is a RANGE band, and a level fly-by leaves the
-        # target and re-enters that band on the way out. Inbound and outbound
-        # then partly cancel: measured on a clean 0.08 m intercept, samples
+        # POI and re-enters that band on the way out. Inbound and outbound
+        # then partly cancel: measured on a clean 0.08 m approach, samples
         # averaging 18.10 m/s of ground speed produced a 1.80 m/s resultant
         # pointing 284 deg, on a run flown due north. It squeaked past the
         # cancellation guard below and was reported as a track.
@@ -163,10 +163,10 @@ class GroundTrackRecorder:
             if math.hypot(sample.north_m_s, sample.east_m_s)
             >= MIN_TRACK_GROUND_SPEED_M_S
         ]
-        terminal = [
+        final_approach = [
             sample for sample in moving if sample.range_m <= window_m
         ]
-        used = terminal or moving
+        used = final_approach or moving
         if not used:
             raise RuntimeError(
                 f"no moving ground-track samples in {len(self._samples)} records"
@@ -191,7 +191,7 @@ class GroundTrackRecorder:
         return {
             "sample_count": len(self._samples),
             "track_sample_count": len(used),
-            "used_terminal_window": bool(terminal),
+            "used_terminal_window": bool(final_approach),
             "window_m": window_m,
             "track_deg": track_deg,
             "ground_speed_m_s": resultant_m_s,
@@ -206,6 +206,6 @@ class GroundTrackRecorder:
 __all__ = [
     "GroundTrackRecorder",
     "MIN_TRACK_GROUND_SPEED_M_S",
-    "TERMINAL_TRACK_WINDOW_M",
+    "FINAL_APPROACH_TRACK_WINDOW_M",
     "TrackSample",
 ]

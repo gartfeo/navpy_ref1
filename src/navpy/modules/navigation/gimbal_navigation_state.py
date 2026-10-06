@@ -19,9 +19,9 @@ from navpy.modules.vision.gimbal_rate_tracker import (
 )
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_zoom_orchestrator import TargetZoomTracker
-from navpy.modules.vision.target_zoom_types import (
-    TargetZoomTrackerConfig,
+from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.modules.vision.poi_zoom_types import (
+    PoiZoomTrackerConfig,
     ZoomTrackResult,
 )
 
@@ -39,8 +39,8 @@ class GimbalHardware:
 @dataclass(frozen=True)
 class GimbalTrackers:
     rate: Optional[GimbalRateTracker]
-    zoom: Optional[TargetZoomTracker]
-    zoom_config: Optional[TargetZoomTrackerConfig]
+    zoom: Optional[PoiZoomTracker]
+    zoom_config: Optional[PoiZoomTrackerConfig]
 
 
 @dataclass(frozen=True)
@@ -86,18 +86,18 @@ class GimbalDetectionMemory:
     recentered: bool = False
     holding: bool = False
     last_tracked_for_zoom: Optional[DetectedObject] = None
-    terminal_zoom_frozen_at_min: bool = False
+    final_approach_zoom_frozen_at_min: bool = False
 
 
 @dataclass
 class GimbalGeoMemory:
-    target: Location | None = None
+    poi: Location | None = None
     geo_ref: GeoRefCalc | None = None
     zoom_key: Optional[str] = None
     last_ray_log_key: Optional[tuple] = None
 
     def clear(self) -> None:
-        self.target = None
+        self.poi = None
         self.geo_ref = None
         self.zoom_key = None
         self.last_ray_log_key = None
@@ -110,12 +110,12 @@ class GimbalDetectionSnapshot:
     recentered: bool
     holding: bool
     last_tracked_for_zoom: Optional[DetectedObject]
-    terminal_zoom_frozen_at_min: bool
+    final_approach_zoom_frozen_at_min: bool
 
 
 @dataclass(frozen=True)
 class GimbalGeoSnapshot:
-    target: Location | None
+    poi: Location | None
     geo_ref: GeoRefCalc | None
     zoom_key: Optional[str]
     last_ray_log_key: Optional[tuple]
@@ -153,7 +153,7 @@ class GimbalNavigationStatus:
                 state.recentered,
                 state.holding,
                 state.last_tracked_for_zoom,
-                state.terminal_zoom_frozen_at_min,
+                state.final_approach_zoom_frozen_at_min,
             )
 
     @property
@@ -161,7 +161,7 @@ class GimbalNavigationStatus:
         with self._fence.lock:
             state = self._geo
             return GimbalGeoSnapshot(
-                state.target,
+                state.poi,
                 state.geo_ref,
                 state.zoom_key,
                 state.last_ray_log_key,

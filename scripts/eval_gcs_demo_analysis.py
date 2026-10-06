@@ -20,7 +20,7 @@ from scripts.eval_gcs_demo_models import (
 )
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, load_resolved_plan
-from scripts.eval_gcs_demo_target_binding import terminal_target_binding_errors
+from scripts.eval_gcs_demo_poi_binding import final_approach_poi_binding_errors
 from scripts.eval_gcs_demo_vehicle import analyze_vehicle
 
 
@@ -35,7 +35,7 @@ def mission_assignment_errors(
         rows = [row for row in approvals if row["sys_id"] == sys_id]
         if len(rows) == 1:
             approved_tasks[sys_id] = int(rows[0]["task_id"])
-    return terminal_target_binding_errors(
+    return final_approach_poi_binding_errors(
         log_dir,
         plan,
         global_assignments,

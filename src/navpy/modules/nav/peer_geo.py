@@ -1,4 +1,4 @@
-"""Peer-target geo pointing and acquisition diagnostics."""
+"""Peer-POI geo pointing and acquisition diagnostics."""
 
 from __future__ import annotations
 
@@ -56,23 +56,23 @@ class PeerGeoTracker:
         self._current_attitude = current_attitude
         self._logger = logger
 
-    def start(self, target: Location) -> bool:
-        self._geo_hold.target_location = target
+    def start(self, poi: Location) -> bool:
+        self._geo_hold.poi_location = poi
         try:
-            self._geo_pointing.start_geo_tracking(target, self._geo_ref)
+            self._geo_pointing.start_geo_tracking(poi, self._geo_ref)
         except Exception as error:  # noqa: BLE001 - graceful degradation
             self._logger.warning(
-                f"Peer-nav geo arming failed for target={target}: {error}",
+                f"Peer-nav geo arming failed for poi={poi}: {error}",
                 key="nav",
             )
-            self._geo_hold.target_location = None
+            self._geo_hold.poi_location = None
             self._geo_hold.acquisition_log_bucket = None
             return False
         return True
 
     def prime(self) -> bool:
-        target = self._geo_hold.target_location
-        if target is None:
+        poi = self._geo_hold.poi_location
+        if poi is None:
             return False
         location = self._current_location()
         attitude = self._current_attitude()
@@ -82,27 +82,27 @@ class PeerGeoTracker:
             self._geo_pointing.update_geo(location, attitude)
         except Exception as error:  # noqa: BLE001 - dispatch still proceeds
             self._logger.warning(
-                f"Peer-nav geo priming update failed for target={target}: {error}",
+                f"Peer-nav geo priming update failed for poi={poi}: {error}",
                 key="nav",
             )
             self.stop()
             return False
         self._logger.info(
-            f"Peer-nav geo priming update issued for target={target}",
+            f"Peer-nav geo priming update issued for poi={poi}",
             key="nav",
         )
         return True
 
     def stop(self) -> None:
-        target = self._geo_hold.target_location
+        poi = self._geo_hold.poi_location
         try:
             self._geo_pointing.stop_geo_tracking()
         except Exception as error:  # noqa: BLE001 - best effort teardown
             self._logger.warning(
-                f"Peer-nav geo teardown failed for target={target}: {error}",
+                f"Peer-nav geo teardown failed for poi={poi}: {error}",
                 key="nav",
             )
-        self._geo_hold.target_location = None
+        self._geo_hold.poi_location = None
         self._geo_hold.acquisition_log_bucket = None
 
 
@@ -116,7 +116,7 @@ class PeerGeoAcquisition:
         vision_profile: dict,
         geo_hold: GeoHoldState,
         navigation_task: NavigationTaskState,
-        selected_target: Callable[[], object],
+        selected_poi: Callable[[], object],
         logger: ILogger,
     ) -> None:
         self._mounts = mounts
@@ -124,18 +124,18 @@ class PeerGeoAcquisition:
         self._vision_profile = vision_profile
         self._geo_hold = geo_hold
         self._navigation_task = navigation_task
-        self._selected_target = selected_target
+        self._selected_poi = selected_poi
         self._logger = logger
 
     def snapshot(
         self,
         uav_location: Location,
         uav_attitude: Attitude,
-        target_location: Optional[Location] = None,
+        poi_location: Optional[Location] = None,
         class_id: Optional[int] = None,
     ) -> Optional[PeerGeoAcquisitionState]:
-        target = target_location or self._geo_hold.target_location
-        if target is None or uav_location is None or uav_attitude is None:
+        poi = poi_location or self._geo_hold.poi_location
+        if poi is None or uav_location is None or uav_attitude is None:
             return None
         if not self._mounts.mounts:
             return None
@@ -144,9 +144,9 @@ class PeerGeoAcquisition:
             k = mount.get_k()
             gimbal = mount.get_gimbal_data()
             ned = pymap3d.geodetic2ned(
-                target.lat,
-                target.lng,
-                target.alt,
+                poi.lat,
+                poi.lng,
+                poi.alt,
                 uav_location.lat,
                 uav_location.lng,
                 uav_location.alt,
@@ -179,7 +179,7 @@ class PeerGeoAcquisition:
             )
         except Exception as error:  # noqa: BLE001 - diagnostic only
             self._logger.warning(
-                f"Peer geo acquisition diagnostic failed for target={target}: {error}",
+                f"Peer geo acquisition diagnostic failed for poi={poi}: {error}",
                 key="peer_geo_acq_warn",
             )
             return None
@@ -191,7 +191,7 @@ class PeerGeoAcquisition:
         self._geo_hold.acquisition_log_bucket = bucket
         label = "PEER_GEO_ACQ_OK" if state.reason == "acquired" else "PEER_GEO_ACQ"
         self._logger.info(
-            f"{label}: target={self._geo_hold.target_location} "
+            f"{label}: poi={self._geo_hold.poi_location} "
             f"range_h={state.range_h_m:.0f}m range_v={state.range_v_m:.0f}m "
             f"slant={state.slant_m:.0f}m "
             f"orbit_r={self._navigation_task.orbit_radius_m:.0f}m "
@@ -210,7 +210,7 @@ class PeerGeoAcquisition:
     def _class_id(self, explicit: Optional[int]) -> int:
         if explicit is not None:
             return explicit
-        selected = self._selected_target()
+        selected = self._selected_poi()
         return getattr(selected, "class_id", 0) if selected is not None else 0
 
     @staticmethod

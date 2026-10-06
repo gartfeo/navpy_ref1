@@ -18,7 +18,7 @@ from navpy.modules.vision.real_detector_state import (
     next_loop_deadline,
 )
 from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
-from navpy.modules.vision.target_lock import TargetLock
+from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.yolo_detector import Detection, YoloDetector
 
 
@@ -29,7 +29,7 @@ class DeepSearchChannel:
             self,
             enabled: bool,
             config: DeepSearchConfig | None,
-            target_lock: TargetLock,
+            poi_lock: PoiLock,
             overlays: OverlayStore,
             freshness: FreshnessPolicy,
             generation: InferenceGeneration,
@@ -37,7 +37,7 @@ class DeepSearchChannel:
     ) -> None:
         self._enabled = bool(enabled)
         self._config = config
-        self._target_lock = target_lock
+        self._poi_lock = poi_lock
         self._overlays = overlays
         self._freshness = freshness
         self._generation = generation
@@ -49,7 +49,7 @@ class DeepSearchChannel:
     def should_run(self) -> bool:
         if not self._enabled or self._config is None:
             return False
-        locked_id = self._target_lock.locked_id
+        locked_id = self._poi_lock.locked_id
         if locked_id is None:
             return False
         _, locked = self._overlays.snapshot()
@@ -190,7 +190,7 @@ class DeepSearchLoop:
                     self._metrics.bump("deep_search_runs")
                 if published and detections:
                     self._logger.info(
-                        f"DeepSearch: validating selected target with "
+                        f"DeepSearch: validating selected POI with "
                         f"{len(detections)} candidates",
                         key=f"deep_search_candidates_{len(detections)}",
                     )

@@ -9,7 +9,7 @@ from navpy.modules.navigation.gimbal_navigation_state import GimbalNavigationSta
 from navpy.modules.navigation.gimbal_tracking_constants import ARMED_ANY_OBJ_ID
 from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class GimbalStatusParts(Protocol):
@@ -26,7 +26,7 @@ class GimbalDetectionParts(Protocol):
 
 
 class GeoOwner(Protocol):
-    def start(self, target_loc: object, geo_ref: object) -> None: ...
+    def start(self, poi_loc: object, geo_ref: object) -> None: ...
     def stop(self) -> None: ...
     def update(self, uav_loc: object, uav_att: Attitude) -> None: ...
     def prepare_acquisition(
@@ -45,7 +45,7 @@ class GimbalGeoParts(Protocol):
 class VisualOwner(Protocol):
     def update(
         self,
-        target: object,
+        poi: object,
         now: float | None = None,
         principal_point: tuple[float, float] | None = None,
     ) -> None: ...
@@ -76,7 +76,7 @@ class GimbalNavigationStatusFacet:
 
     @property
     def is_geo_armed(self) -> bool:
-        return self.status.geo.target is not None
+        return self.status.geo.poi is not None
 
     @property
     def rate_result(self) -> GimbalTrackResult | None:
@@ -114,8 +114,8 @@ class GimbalDetectionFacet:
 class GimbalGeoFacet:
     _parts: GimbalGeoParts
 
-    def start_geo_tracking(self, target_loc: object, geo_ref: object) -> None:
-        self._parts.geo.start(target_loc, geo_ref)
+    def start_geo_tracking(self, poi_loc: object, geo_ref: object) -> None:
+        self._parts.geo.start(poi_loc, geo_ref)
 
     def stop_geo_tracking(self) -> None:
         self._parts.geo.stop()
@@ -143,11 +143,11 @@ class GimbalVisualFacet:
 
     def update(
         self,
-        target: object,
+        poi: object,
         now: float | None = None,
         principal_point: tuple[float, float] | None = None,
     ) -> None:
-        self._parts.visual.update(target, now, principal_point)
+        self._parts.visual.update(poi, now, principal_point)
 
 
 class GimbalZoomFacet:
@@ -156,7 +156,7 @@ class GimbalZoomFacet:
     def set_zoom_size_demand(self, enabled: bool) -> None:
         self._parts.zoom.set_size_demand(enabled)
 
-    def freeze_terminal_zoom_at_min(self) -> bool:
+    def freeze_final_approach_zoom_at_min(self) -> bool:
         return self._parts.zoom.freeze_at_min()
 
 

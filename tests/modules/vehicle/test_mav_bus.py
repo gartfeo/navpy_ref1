@@ -426,7 +426,7 @@ class TestMavBusBroadcast(unittest.TestCase):
     """MavBus broadcasts messages from unknown sources to all targets."""
 
     @patch("navpy.modules.vehicle.mav_bus.mavutil")
-    def test_unknown_source_broadcasts_to_all_targets(self, mock_mavutil):
+    def test_unknown_source_broadcasts_to_all_pois(self, mock_mavutil):
         from navpy.modules.vehicle.mav_bus import MavBus
 
         # Gate message delivery until consumers are attached
@@ -461,7 +461,7 @@ class TestMavBusBroadcast(unittest.TestCase):
         bus.close()
 
     @patch("navpy.modules.vehicle.mav_bus.mavutil")
-    def test_known_source_dispatches_to_single_target(self, mock_mavutil):
+    def test_known_source_dispatches_to_single_poi(self, mock_mavutil):
         from navpy.modules.vehicle.mav_bus import MavBus
 
         # Gate message delivery until consumers are attached

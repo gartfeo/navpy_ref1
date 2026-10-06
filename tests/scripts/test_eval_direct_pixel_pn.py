@@ -374,7 +374,7 @@ def test_geometry_defaults_match_the_uploader_so_runs_are_unchanged() -> None:
     args = evaluator._parser().parse_args([])
 
     assert args.gate_offset == uploader.DEFAULT_GATE_OFFSET_M
-    assert args.target_offset == uploader.DEFAULT_WAYPOINT_OFFSET_M
+    assert args.poi_offset == uploader.DEFAULT_WAYPOINT_OFFSET_M
     assert args.mission_alt == uploader.DEFAULT_ALT_M
 
 
@@ -385,11 +385,11 @@ def test_matched_glide_geometry_is_expressible() -> None:
     from scripts import upload_north_line_mission as uploader
 
     args = evaluator._parser().parse_args([
-        "--gate-offset", "1800", "--target-offset", "2100",
-        "--mission-alt", "400", "--target-alt", "285",
+        "--gate-offset", "1800", "--poi-offset", "2100",
+        "--mission-alt", "400", "--poi-alt", "285",
     ])
-    leg_m = args.target_offset - args.gate_offset
-    glide_deg = math.degrees(math.atan((args.mission_alt - args.target_alt) / leg_m))
+    leg_m = args.poi_offset - args.gate_offset
+    glide_deg = math.degrees(math.atan((args.mission_alt - args.poi_alt) / leg_m))
 
     assert leg_m == pytest.approx(300.0)
     assert glide_deg == pytest.approx(20.96, abs=0.5)
@@ -399,8 +399,8 @@ def test_matched_glide_geometry_is_expressible() -> None:
     assert default_glide == pytest.approx(glide_deg, abs=0.5)
 
 
-def test_short_leg_with_a_low_target_is_a_much_steeper_glide() -> None:
-    """Why target altitude must move with leg length, not stay at 60 m."""
+def test_short_leg_with_a_low_poi_is_a_much_steeper_glide() -> None:
+    """Why POI altitude must move with leg length, not stay at 60 m."""
     import math
 
     steep = math.degrees(math.atan((400.0 - 60.0) / 300.0))

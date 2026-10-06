@@ -20,8 +20,8 @@ SCRIPTS = Path(__file__).resolve().parent
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from eval_navigation_models import TargetLocation  # noqa: E402
-from pixel_pn_terminal_speed import TerminalSpeedPlan  # noqa: E402
+from eval_navigation_models import PoiLocation  # noqa: E402
+from pixel_pn_final_approach_speed import FinalApproachSpeedPlan  # noqa: E402
 
 
 def launch_child(
@@ -30,10 +30,10 @@ def launch_child(
     *,
     device: str,
     sysid: int,
-    target: TargetLocation,
+    poi: PoiLocation,
     scoring_start_seq: int,
     timeout_s: float,
-    speed_plan: TerminalSpeedPlan | None = None,
+    speed_plan: FinalApproachSpeedPlan | None = None,
     child_script: Path = SCRIPTS / "direct_pixel_pn_child.py",
 ) -> subprocess.Popen[bytes]:
     command = [
@@ -43,20 +43,20 @@ def launch_child(
         device,
         "--sysid",
         str(sysid),
-        "--target-lat",
-        repr(target.lat_deg),
-        "--target-lon",
-        repr(target.lon_deg),
-        "--target-alt",
-        repr(target.abs_alt_m),
-        "--engage-seq",
+        "--poi-lat",
+        repr(poi.lat_deg),
+        "--poi-lon",
+        repr(poi.lon_deg),
+        "--poi-alt",
+        repr(poi.abs_alt_m),
+        "--scoring-start-seq",
         str(scoring_start_seq),
         "--timeout",
         repr(timeout_s),
         "--result",
         str(case_dir / "result.json"),
-        "--engaged",
-        str(case_dir / "engaged.marker"),
+        "--scoring-active",
+        str(case_dir / "scoring_active.marker"),
     ]
     command.extend(() if speed_plan is None else speed_plan.child_args())
     (case_dir / "child.cmd.json").write_text(

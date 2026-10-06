@@ -70,7 +70,7 @@ from gcs.backend import instance_registry as reg  # noqa: E402
 
 # Below this the simulator is not keeping up and every duration it reports is
 # stretched. Not a tuning knob: 0.95 means 5 % of real time already went
-# missing, which is enough to move a terminal miss distance.
+# missing, which is enough to move a final-approach error.
 CLOCK_FIDELITY_FLOOR = 0.95
 
 # Above this the number is not a fast clock, it is a MEASUREMENT FAULT. The one

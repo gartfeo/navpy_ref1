@@ -80,7 +80,7 @@ def build_static_detection(
     aircraft_yaw_rate_rad_s: float = 0.0,
 ) -> VisualDetection:
     """Use simulator truth only to publish one frame-local visual detection."""
-    u_px, v_px = render_target_pixel(
+    u_px, v_px = render_poi_pixel(
         position_ned_m=position_ned_m,
         pitch_deg=pitch_deg,
         roll_deg=roll_deg,
@@ -110,7 +110,7 @@ def build_static_detection(
     )
 
 
-def render_target_pixel(
+def render_poi_pixel(
     *,
     position_ned_m: np.ndarray,
     pitch_deg: float,
@@ -122,10 +122,10 @@ def render_target_pixel(
     bearing_noise_rad: float = 0.0,
 ) -> tuple[float, float]:
     """Use simulator truth only to synthesize one frame-local pixel."""
-    target_from_ownship_ned = -np.asarray(position_ned_m, dtype=float)
+    poi_from_ownship_ned = -np.asarray(position_ned_m, dtype=float)
     body_ray = _unit(
         _uas_to_ned_matrix(pitch_deg, yaw_deg, roll_deg).T
-        @ target_from_ownship_ned
+        @ poi_from_ownship_ned
     )
     if bearing_noise_rad != 0.0:
         cos_noise = math.cos(bearing_noise_rad)
@@ -178,5 +178,5 @@ __all__ = [
     "PRINCIPAL_X_PX",
     "PRINCIPAL_Y_PX",
     "build_static_detection",
-    "render_target_pixel",
+    "render_poi_pixel",
 ]

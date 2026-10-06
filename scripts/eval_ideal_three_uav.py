@@ -29,7 +29,7 @@ from scripts.eval_ideal_three_uav_runtime import execute_ideal_live_run
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Exact normal-workflow three-UAV ideal_360 terminal regression"
+            "Exact normal-workflow three-UAV ideal_360 final-approach regression"
         )
     )
     parser.add_argument("--analyze-only", type=Path, metavar="RUN_DIR")

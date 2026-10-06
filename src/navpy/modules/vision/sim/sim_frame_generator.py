@@ -1,4 +1,4 @@
-"""Synthetic confirmation-frame rendering for simulator targets."""
+"""Synthetic confirmation-frame rendering for simulator POIs."""
 
 from __future__ import annotations
 

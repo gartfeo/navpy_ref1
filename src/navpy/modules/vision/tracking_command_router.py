@@ -1,4 +1,4 @@
-"""Route target-local tracking commands across detector sources."""
+"""Route POI-local tracking commands across detector sources."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from navpy.exception_groups import ExceptionGroup
 from typing import TYPE_CHECKING, Callable, Protocol, Sequence
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.target_identity import TargetIdentity
+    from navpy.modules.vision.poi_identity import PoiIdentity
 
 
 class TrackingMember(Protocol):
@@ -20,7 +20,7 @@ class TrackingMember(Protocol):
 
 
 class TrackingIdentityResolver(Protocol):
-    def identity_for_task(self, task_id: int) -> "TargetIdentity | None": ...
+    def identity_for_task(self, task_id: int) -> "PoiIdentity | None": ...
 
 
 class TrackingLogger(Protocol):

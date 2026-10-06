@@ -296,7 +296,7 @@ class TestDecidedRoundReanswer:
         loop.run_until_complete(asyncio.sleep(0.05))
         listener.mark_decided(1, 7, is_confirmed=True, round_uid=_uid(11))
 
-        # Same target, same second -- but a new confirm round.
+        # Same POI, same second -- but a new confirm round.
         listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=12))
         loop.run_until_complete(asyncio.sleep(0.05))
 
@@ -383,7 +383,7 @@ class TestDecidedRoundReanswer:
         listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=11))
         loop.run_until_complete(asyncio.sleep(0.05))
         listener.mark_decided(1, 7, True, round_uid=_uid(11))
-        # Duplicate / uncorrelated response for the same target.
+        # Duplicate / uncorrelated response for the same POI.
         listener.mark_decided(1, 7, True, round_uid=None)
         mock_vehicle.send_mavlink_message.reset_mock()
 
@@ -511,7 +511,7 @@ class TestDecidedRoundReanswer:
         If they are two acquisitions, a repeat can read "not decided", then
         the operator's answer lands in the gap and clears the round, and the
         repeat then records itself as a first sighting and pops a second card
-        for a target that is already settled. Here the answer is injected at
+        for a POI that is already settled. Here the answer is injected at
         exactly that release point.
         """
         mock_ws.broadcast = AsyncMock()
@@ -562,7 +562,7 @@ class TestDecidedRoundReanswer:
 def _handshake_msg(task_id, num_packets=1, size=4):
     """DATA_TRANSMISSION_HANDSHAKE opening a confirmation-image transfer."""
     msg = MagicMock()
-    msg.type = ImageTransferType.TARGET_CONFIRMATION
+    msg.type = ImageTransferType.POI_CONFIRMATION
     msg.width = task_id
     msg.size = size
     msg.packets = num_packets

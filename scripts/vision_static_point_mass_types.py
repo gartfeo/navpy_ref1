@@ -32,7 +32,7 @@ class StaticPointMassMiss:
     vertical_m: float
     slant_m: float
     t_s: float
-    passed_target: bool = False
+    passed_poi: bool = False
     timed_out: bool = False
 
 

@@ -2,8 +2,8 @@
 
 Two strategies based on camera capabilities:
 - OFFSET: Body-fixed camera. Fly to a bank-corrected offset point behind
-          the target where the camera FOV intersects the ground.
-- ORBIT:  Gimbal with tracking. Orbit directly around the target at a
+          the POI where the camera FOV intersects the ground.
+- ORBIT:  Gimbal with tracking. Orbit directly around the POI at a
           camera-geometry-matched radius via goto_loiter.
 """
 
@@ -37,7 +37,7 @@ def classify_approach(
 ) -> ApproachKind:
     """Determine approach strategy from camera mount capabilities.
 
-    Any camera with tracking enabled uses ORBIT (goto_loiter around target).
+    Any camera with tracking enabled uses ORBIT (goto_loiter around POI).
     Fixed cameras use OFFSET (fly to bank-corrected offset point).
     """
     for device in devices:

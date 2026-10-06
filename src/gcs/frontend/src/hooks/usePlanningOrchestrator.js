@@ -76,7 +76,7 @@ export default function usePlanningOrchestrator({
     effectiveUavCount, effectiveSets,
     localAnalyze, localGenerate,
     approachPoint, corridorPath,
-    handleTargetChange,
+    handlePoiChange,
   } = usePlanGeneration({
     polygon, setPolygon,
     searchPattern,
@@ -380,7 +380,7 @@ export default function usePlanningOrchestrator({
     setExclusionPolygons([]);
   }, [drawing, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, setPlan, setAnalysis, searchPattern, setFenceEnabled, setFenceTouched, clearFenceIntent, resetFenceObservations, setFenceCustomVertices, setPlacingExclusion, setExclusionPolygons]);
 
-  // Clear sim target and detect-after selections when zone count changes
+  // Clear sim POI and detect-after selections when zone count changes
   // during planning (plan regenerated with different zones). Skip during
   // monitor — download sets these directly and must not be overwritten.
   const prevZoneCountRef = useRef(plan?.zones?.length || 0);
@@ -395,7 +395,7 @@ export default function usePlanningOrchestrator({
     prevZoneCountRef.current = zc;
   }, [plan]);
 
-  // ---- Sim target toggle ----
+  // ---- Sim POI toggle ----
   const handleToggleSimDock = useCallback((zoneIndex, wpIndex) => {
     setSimDockWps((prev) => toggleSimDock(prev, zoneIndex, wpIndex));
   }, []);
@@ -437,7 +437,7 @@ export default function usePlanningOrchestrator({
 
     // Planning-phase actions
     handleSearchPatternChange,
-    handleTargetChange,
+    handlePoiChange,
     handleGoToPlanning,
     handleExitPlanning,
     handleToggleSimDock,

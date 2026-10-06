@@ -24,7 +24,7 @@ _SCRIPTS = str(Path(__file__).resolve().parent)
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
-from eval_navigation_models import TargetLocation  # noqa: E402
+from eval_navigation_models import PoiLocation  # noqa: E402
 from eval_navigation_truth_samples import read_track_records  # noqa: E402
 from eval_sim_cpa_artifact import acquire_bin  # noqa: E402
 from eval_sim_cpa_bin import (  # noqa: E402
@@ -43,19 +43,19 @@ from eval_sim_cpa_slot_io import (  # noqa: E402
 )
 
 
-def _expected_target(case_dir: Path) -> tuple[int, int, int]:
-    from eval_sim_cpa_config import target_ints
+def _expected_poi(case_dir: Path) -> tuple[int, int, int]:
+    from eval_sim_cpa_config import poi_ints
 
     case = json.loads((case_dir / "case.json").read_text(encoding="utf-8"))
-    target = case["target"]
-    return target_ints(
-        target["lat_deg"], target["lon_deg"], target["abs_alt_m"]
+    poi = case["poi"]
+    return poi_ints(
+        poi["lat_deg"], poi["lon_deg"], poi["abs_alt_m"]
     )
 
 
-def _case_target(case_dir: Path) -> TargetLocation:
+def _case_poi(case_dir: Path) -> PoiLocation:
     case = json.loads((case_dir / "case.json").read_text(encoding="utf-8"))
-    return TargetLocation(**case["target"])
+    return PoiLocation(**case["poi"])
 
 
 def _score_bin(
@@ -67,8 +67,8 @@ def _score_bin(
     evidence = default_evidence()
     comparison = default_comparison()
     try:
-        expected = _expected_target(case_dir)
-        target = _case_target(case_dir)
+        expected = _expected_poi(case_dir)
+        poi = _case_poi(case_dir)
         scpc, scpa = parse_sim_cpa_records(bin_path)
     except Exception as error:
         evidence["status"] = EVIDENCE_PARSE_FAILED
@@ -111,7 +111,7 @@ def _score_bin(
         )
         return evidence, comparison
     episode, module_score, comparison = windowed_comparison(
-        certified, records, target, truth_block
+        certified, records, poi, truth_block
     )
     evidence["common_episode"] = episode
     evidence["score"] = module_score
@@ -193,7 +193,7 @@ def score_offline(
     """Re-run evidence + comparison for a preserved case dir and BIN.
 
     Binding is operator-asserted (mode offline-explicit): the caller says
-    this BIN is the case's artifact, and the SCPC target match still
+    this BIN is the case's artifact, and the SCPC POI match still
     certifies the content.  Configuration and provenance layers keep
     whatever the original verdict recorded -- a rescore cannot re-observe
     the flight.

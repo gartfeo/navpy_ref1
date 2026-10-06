@@ -47,8 +47,8 @@ from eval_navigation_models import (  # noqa: E402
     PositionSample,
     PositionStreamAnchor,
     SelectionEvidence,
-    TargetExpectation,
-    TargetLocation,
+    PoiExpectation,
+    PoiLocation,
 )
 
 
@@ -62,17 +62,17 @@ COORDINATE_SCORE_MAX_SPATIAL_GAP_M = scoring.COORDINATE_SCORE_MAX_SPATIAL_GAP_M
 COORDINATE_SCORE_MIN_SAMPLES = scoring.COORDINATE_SCORE_MIN_SAMPLES
 COORDINATE_SCORE_REORDER_WINDOW_S = scoring.COORDINATE_SCORE_REORDER_WINDOW_S
 SCORING_INTERVAL_SAMPLE_MAX_AGE_S = telemetry.SCORING_INTERVAL_SAMPLE_MAX_AGE_S
-TARGET_SNAP_BIND_TIMEOUT_S = evidence.TARGET_SNAP_BIND_TIMEOUT_S
+POI_SNAP_BIND_TIMEOUT_S = evidence.POI_SNAP_BIND_TIMEOUT_S
 NAVPY_LOG_SUBDIR = logs.NAVPY_LOG_SUBDIR
 LAUNCH_VERDICT_TIMEOUT_S = launch.LAUNCH_VERDICT_TIMEOUT_S
 LAUNCHER_LOG_TAIL_BYTES = launch.LAUNCHER_LOG_TAIL_BYTES
-_TARGET_SNAP_MISSING = evidence._TARGET_SNAP_MISSING
+_POI_SNAP_MISSING = evidence._POI_SNAP_MISSING
 
 
 CoordinateScorer = scoring.CoordinateScorer
 parse_float_list = matrix.parse_float_list
 parse_int_list = matrix.parse_int_list
-parse_target_alts = matrix.parse_target_alts
+parse_poi_alts = matrix.parse_poi_alts
 parse_navigation_speedups = matrix.parse_navigation_speedups
 matrix_cases = matrix.matrix_cases
 horizontal_distance_m = scoring.horizontal_distance_m
@@ -80,12 +80,12 @@ _local_vector = scoring._local_vector
 _closest_on_segment = scoring._closest_on_segment
 _same_position = scoring._same_position
 mission_item_from_message = mission.mission_item_from_message
-resolve_target_expectation = mission.resolve_target_expectation
+resolve_poi_expectation = mission.resolve_poi_expectation
 download_mission = mission.download_mission
 resolve_home_abs_alt_m = mission.resolve_home_abs_alt_m
 parse_selection_evidence = evidence.parse_selection_evidence
-target_episode_binding_error = evidence.target_episode_binding_error
-await_target_snap_binding = evidence.await_target_snap_binding
+poi_episode_binding_error = evidence.poi_episode_binding_error
+await_poi_snap_binding = evidence.await_poi_snap_binding
 selected_location_from_evidence = evidence.selected_location_from_evidence
 validate_pre_snap_evidence = evidence.validate_pre_snap_evidence
 wait_for_text = logs.wait_for_text
@@ -95,9 +95,9 @@ snap_from_compact = logs.snap_from_compact
 parse_snap_summary = logs.parse_snap_summary
 parse_snap_components = logs.parse_snap_components
 sidecar_paths = logs.sidecar_paths
-post_snap_target_seen = logs.post_snap_target_seen
-_message_from_target = telemetry.message_from_target
-_recv_target_message = telemetry.recv_target_message
+post_snap_poi_seen = logs.post_snap_poi_seen
+_message_from_poi = telemetry.message_from_poi
+_recv_poi_message = telemetry.recv_poi_message
 command_long = telemetry.command_long
 position_sample_from_message = telemetry.position_sample_from_message
 _position_stream_is_live = telemetry.position_stream_is_live
@@ -197,8 +197,8 @@ def build_navpy_command(
     nav_device: str,
     speedup: float,
     navigation_speedup: float,
-    target_wp: int,
-    target_rel_alt_m: float,
+    poi_wp: int,
+    poi_rel_alt_m: float,
     args: argparse.Namespace,
 ) -> list[str]:
     return navpy_child.build_navpy_command(
@@ -207,8 +207,8 @@ def build_navpy_command(
         nav_device=nav_device,
         speedup=speedup,
         navigation_speedup=navigation_speedup,
-        target_wp=target_wp,
-        target_rel_alt_m=target_rel_alt_m,
+        poi_wp=poi_wp,
+        poi_rel_alt_m=poi_rel_alt_m,
         args=args,
     )
 
@@ -221,8 +221,8 @@ def launch_navpy(
     nav_device: str,
     speedup: float,
     navigation_speedup: float,
-    target_wp: int,
-    target_rel_alt_m: float,
+    poi_wp: int,
+    poi_rel_alt_m: float,
     args: argparse.Namespace,
 ) -> subprocess.Popen[Any]:
     return navpy_child.launch_navpy(
@@ -233,8 +233,8 @@ def launch_navpy(
         nav_device=nav_device,
         speedup=speedup,
         navigation_speedup=navigation_speedup,
-        target_wp=target_wp,
-        target_rel_alt_m=target_rel_alt_m,
+        poi_wp=poi_wp,
+        poi_rel_alt_m=poi_rel_alt_m,
         args=args,
         command_builder=build_navpy_command,
     )

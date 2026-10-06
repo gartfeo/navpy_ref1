@@ -118,8 +118,8 @@ class TaskActor(ListenerAbc):
     def on_message(self, message: MsgABC) -> None:
         self._router.route(message)
 
-    def notify_targets(self, targets: list[DetectedObject]) -> None:
-        self._rebroadcast.notify_targets(targets)
+    def notify_pois(self, pois: list[DetectedObject]) -> None:
+        self._rebroadcast.notify_pois(pois)
 
     def checkin(self) -> None:
         self._presence.checkin()
@@ -127,13 +127,13 @@ class TaskActor(ListenerAbc):
     def checkout(self) -> None:
         self._presence.checkout()
 
-    def selected_target(self) -> Optional[TaskAssignMsgData]:
+    def selected_poi(self) -> Optional[TaskAssignMsgData]:
         return self._selection.selected()
 
-    def has_selected_targets(self) -> bool:
-        return self.selected_target() is not None
+    def has_selected_pois(self) -> bool:
+        return self.selected_poi() is not None
 
-    def clear_selected_target(self) -> None:
+    def clear_selected_poi(self) -> None:
         self._selection.clear()
 
     def reset(self) -> None:

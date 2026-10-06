@@ -12,13 +12,13 @@ from navpy.modules.vision.sim.sim_detection_pipeline import SimDetectionPipeline
 from navpy.modules.vision.sim.sim_detector_controls import (
     SimDetectorIdentity,
     SimGeoControls,
-    SimTargetControls,
+    SimPoiControls,
     SimTrackingControls,
     SimZoomControls,
 )
 from navpy.modules.vision.sim.sim_detector_lifecycle import SimDetectorLifecycle
 from navpy.modules.vision.sim.sim_detector_loop import SimDetectorWorker
-from navpy.modules.vision.sim.sim_target_projector import SimTargetProjector
+from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
 
 
 class SimIdentityParts(Protocol):
@@ -47,12 +47,12 @@ class SimDetectionParts(Protocol):
 
 class SimControlParts(Protocol):
     identity: SimDetectorIdentity
-    simulation: SimTargetControls
+    simulation: SimPoiControls
 
 
 class SimProjectionParts(Protocol):
     renderer: SimDetectionPipeline
-    projector: SimTargetProjector
+    projector: SimPoiProjector
 
 
 __all__ = [

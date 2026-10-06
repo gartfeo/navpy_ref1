@@ -56,11 +56,11 @@ class SimDetectorDetectionFacet:
     def has_source_driven_detection_events(self) -> bool:
         return self._parts.detection.source_driven
 
-    def target_uses_source_driven_events(
+    def poi_uses_source_driven_events(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
     ) -> bool:
-        del target
+        del poi
         return self._parts.detection.source_driven
 
     def drain_detection_events(
@@ -95,13 +95,13 @@ class SimDetectorSimulationFacet:
     def is_simulation(self) -> bool:
         return self._parts.identity.is_simulation
 
-    def set_sim_target(
+    def set_sim_poi(
         self,
         command_index: int,
         location: Location,
         location_type: str | None = None,
     ) -> None:
-        self._parts.simulation.set_sim_target(
+        self._parts.simulation.set_sim_poi(
             command_index,
             location,
             location_type=location_type,
@@ -114,7 +114,7 @@ class SimDetectorProjectionFacet:
     def update(
         self,
         camera_location: Location,
-        target: SimulationObject,
+        poi: SimulationObject,
         uas_attitude: Attitude,
         *,
         timestamp_s: float | None = None,
@@ -123,14 +123,14 @@ class SimDetectorProjectionFacet:
     ) -> DetectedObject | None:
         return self._parts.projector.update(
             camera_location,
-            target,
+            poi,
             uas_attitude,
             timestamp_s=timestamp_s,
             uas_body_rates_rad_s=uas_body_rates_rad_s,
             navigation_attitude=navigation_attitude,
         )
 
-    def detect_targets(
+    def detect_pois(
         self,
         camera_location: Location,
         uas_attitude: Attitude,
@@ -145,7 +145,7 @@ class SimDetectorProjectionFacet:
         frame_generation: FrameGeneration | None = None,
         frame_source_discontinuity: bool | None = None,
     ) -> bool:
-        return self._parts.renderer.detect_targets(
+        return self._parts.renderer.detect_pois(
             camera_location,
             uas_attitude,
             attitude_time_boot_s,

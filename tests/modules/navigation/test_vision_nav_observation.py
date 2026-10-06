@@ -5,18 +5,18 @@ import numpy as np
 import pytest
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
-    TerminalFrameProjector,
-    TerminalProjectionConfig,
+    FinalApproachFrameProjector,
+    FinalApproachProjectionConfig,
 )
 from navpy.modules.vision.models.pixel_observation import PixelProjectionKind
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.visual_ray_projection import body_ray_to_pixel
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
-def _target(**changes):
+def _poi(**changes):
     body_ray = changes.pop("body_ray", None)
     values = dict(
         obj_id=2,
@@ -31,29 +31,29 @@ def _target(**changes):
         pose_is_frame_atomic=True,
     )
     values.update(changes)
-    target = make_detected_target(**values)
+    poi = make_detected_poi(**values)
     if body_ray is not None:
         u_px, v_px = body_ray_to_pixel(
             body_ray,
-            target.pixel.calibration,
-            target.pixel.camera_to_body,
+            poi.pixel.calibration,
+            poi.pixel.camera_to_body,
             PixelProjectionKind.SPHERICAL_EQUIANGULAR,
         )
-        target.replace_pixel(replace(
-            target.pixel,
+        poi.replace_pixel(replace(
+            poi.pixel,
             u_px=u_px,
             v_px=v_px,
             projection=PixelProjectionKind.SPHERICAL_EQUIANGULAR,
         ))
-    return target.visual_detection()
+    return poi.visual_detection()
 
 
 def _projector():
-    return TerminalFrameProjector(TerminalProjectionConfig("ZYX", True))
+    return FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True))
 
 
-def test_terminal_frame_has_exact_primitive_schema_and_is_frozen_slotted():
-    frame = _projector().project(_target(), 3)
+def test_final_approach_frame_has_exact_primitive_schema_and_is_frozen_slotted():
+    frame = _projector().project(_poi(), 3)
     assert frame is not None
     assert [field.name for field in fields(frame)] == [
         "source_name", "source_generation", "task_id", "obj_id",
@@ -67,17 +67,17 @@ def test_terminal_frame_has_exact_primitive_schema_and_is_frozen_slotted():
 
 
 @pytest.mark.parametrize("value", [True, 1.0, "1"])
-def test_terminal_frame_rejects_non_exact_integer_identity(value):
+def test_final_approach_frame_rejects_non_exact_integer_identity(value):
     with pytest.raises(ValueError):
-        TerminalVisionFrame(
+        FinalApproachVisionFrame(
             "cam", value, 1, 2, 1.0,
             1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
         )
 
 
 def test_projector_rejects_any_pose_not_explicitly_atomic():
-    assert _projector().project(_target(pose_is_frame_atomic=None), 0) is None
-    assert _projector().project(_target(pose_is_frame_atomic=False), 0) is None
+    assert _projector().project(_poi(pose_is_frame_atomic=None), 0) is None
+    assert _projector().project(_poi(pose_is_frame_atomic=False), 0) is None
 
 
 def test_spherical_pixels_accept_negative_forward_and_ignore_compass_yaw():
@@ -89,7 +89,7 @@ def test_spherical_pixels_accept_negative_forward_and_ignore_compass_yaw():
         def yaw(self):
             raise AssertionError("aircraft compass yaw was read")
 
-    frame = _projector().project(_target(
+    frame = _projector().project(_poi(
         uas_att=PoisonAttitude(),
         body_ray=np.array([-1.0, 0.0, 0.0]),
         uas_body_rates_rad_s=(0.0, 0.0, 0.0),
@@ -101,7 +101,7 @@ def test_spherical_pixels_accept_negative_forward_and_ignore_compass_yaw():
 
 
 def test_pixel_projection_accepts_arbitrary_unbounded_pixels():
-    frame = _projector().project(_target(
+    frame = _projector().project(_poi(
         x_error=1.0e12,
         y_error=-1.0e12,
     ), 0)
@@ -111,12 +111,12 @@ def test_pixel_projection_accepts_arbitrary_unbounded_pixels():
 
 
 def test_missing_source_or_pitch_roll_fails_closed():
-    missing_source = _target()
+    missing_source = _poi()
     missing_source = replace(
         missing_source,
         observation=replace(missing_source.observation, source_name=""),
     )
-    bad_attitude = _target()
+    bad_attitude = _poi()
     bad_attitude = replace(
         bad_attitude,
         observation=replace(bad_attitude.observation, aircraft_pitch_deg=math.nan),
@@ -127,7 +127,7 @@ def test_missing_source_or_pitch_roll_fails_closed():
 
 def test_projection_signs_positive_body_y_and_z_for_level_aircraft():
     ray = np.array([1.0, 0.2, 0.3])
-    frame = _projector().project(_target(
+    frame = _projector().project(_poi(
         uas_att=Attitude(0.0, 999.0, 0.0),
         body_ray=ray,
     ), 0)
@@ -138,12 +138,12 @@ def test_projection_signs_positive_body_y_and_z_for_level_aircraft():
 
 def test_nonzero_pitch_roll_transform_matches_yaw_zero_rotation():
     body = np.array([0.9, 0.2, 0.3])
-    frame = _projector().project(_target(
+    frame = _projector().project(_poi(
         uas_att=Attitude(-12.0, -177.0, 8.0),
         body_ray=body,
     ), 0)
     assert frame is not None
-    expected = _projector().project(_target(
+    expected = _projector().project(_poi(
         uas_att=Attitude(-12.0, 45.0, 8.0),
         body_ray=body,
     ), 0)

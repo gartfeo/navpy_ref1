@@ -7,7 +7,7 @@ WHY THIS EXISTS. The trace is a BOUNDED IN-MEMORY RING. Landing 1 wired the
 recorder and the post-leg reduction and tested both, but nothing outside the
 tests ever called ``summarise`` -- so a traced leg recorded every decision
 perfectly and then threw all of it away when the process exited.
-``DirectTargetPixelSource.determinism_trace`` describes itself as "the decision
+``DirectPoiPixelSource.determinism_trace`` describes itself as "the decision
 trace for the owner to drain AFTER the scored leg"; no owner ever did. This is
 the owner doing it.
 

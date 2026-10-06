@@ -11,27 +11,27 @@ A collinear route makes the track close to north and easy to reason about; it
 does not make it exact.
 
 The route is HOME, NAV_TAKEOFF, NAV_LOITER_TO_ALT, a handover gate, then the
-target.  Two NAV_WAYPOINTs, so the evaluator wants ``--engage-wp 2
---target-wp 2``: ordinal 1 is the gate and ordinal 2 is the target
+POI.  Two NAV_WAYPOINTs, so the evaluator wants ``--scoring-start-wp 2
+--poi-wp 2``: ordinal 1 is the gate and ordinal 2 is the POI
 (NAV_LOITER_TO_ALT is not a NAV_WAYPOINT and is not counted).  Naming ordinal 1
-would score the gate as the target and hand over at the loiter exit.
+would score the gate as the POI and hand over at the loiter exit.
 
 The loiter and the gate both exist to make handover repeatable.  NAV_TAKEOFF
 ends on altitude alone, so a bare takeoff advances the mission wherever the
-climb happens to finish -- measured 576 m from the target in a 10 m/s tailwind
+climb happens to finish -- measured 576 m from the POI in a 10 m/s tailwind
 against 1377 m in the same headwind, which moves the scoring interval geometry far
 more than the wind moves the navigation.  NAV_LOITER_TO_ALT holds the aircraft
 until it has both the altitude and the outbound heading, at any wind speed, and
 the gate then fixes the handover *position*: the child starts navigation when
-MISSION_CURRENT reaches the target's sequence, which happens when the aircraft
-reaches the gate.  Scored leg = target offset - gate offset, constant.
+MISSION_CURRENT reaches the POI's sequence, which happens when the aircraft
+reaches the gate.  Scored leg = POI offset - gate offset, constant.
 
 The waypoint altitude defaults to the cruise altitude, so the run-in is level.
-The descent onto the target belongs to the navigation law, not to the mission --
+The descent onto the POI belongs to the navigation law, not to the mission --
 a mission that descends would supply vertical navigation the law is supposed to
 produce itself.  ``--waypoint-alt`` exists to make the mission descend anyway,
-which changes what the run measures.  The target's own altitude comes from the
-evaluator's ``--target-alt``, never from the mission.
+which changes what the run measures.  The POI's own altitude comes from the
+evaluator's ``--poi-alt``, never from the mission.
 
 Transfer runs through ``VehicleMav.upload_mission`` rather than a local
 MISSION_COUNT loop, so this shares the project's one tested mission state
@@ -209,7 +209,7 @@ def main() -> int:
         help=(
             "relative altitude at the waypoint (default: same as --alt, so the "
             "run-in is level). Set it lower to make the mission itself descend; "
-            "the terminal dive onto the target is navigation's job, not the "
+            "the final-approach dive onto the POI is navigation's job, not the "
             "mission's, so lowering this changes what the experiment measures."
         ),
     )

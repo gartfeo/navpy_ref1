@@ -51,7 +51,7 @@ def _command_stability(case_dir: Path) -> dict[str, float | int]:
     ]
     if len(alignment) < 10:
         raise RuntimeError(
-            f"insufficient terminal alignment evidence: {len(alignment)} rows"
+            f"insufficient final-approach alignment evidence: {len(alignment)} rows"
         )
     return {
         "sample_count": len(midcourse),

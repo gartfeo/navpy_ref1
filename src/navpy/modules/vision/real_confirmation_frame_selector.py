@@ -15,7 +15,7 @@ from navpy.modules.vision.real_detector_state import ConfirmationFrameStore
 
 @dataclass(frozen=True)
 class SelectedConfirmationFrame:
-    """Stored evidence selected for one emitted target."""
+    """Stored evidence selected for one emitted POI."""
 
     frame: np.ndarray | None
     bbox_cxcywh: BoundingBox | None

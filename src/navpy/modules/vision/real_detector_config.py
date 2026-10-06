@@ -28,7 +28,7 @@ from navpy.modules.vision.real_detector_diagnostics import (
     DetectorDiagnostics,
 )
 from navpy.modules.vision.real_detector_lifecycle import DetectorLifecycle
-from navpy.modules.vision.target_zoom_types import TargetZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
 from navpy.modules.vision.vision_profile_types import VisionProfile
 
 
@@ -57,8 +57,8 @@ class DetectorPipelineConfig:
     track_hz: float = 60.0
     reference_height_m: float = 2.0
     output_mode: str = "all"
-    use_target_lock: bool = True
-    auto_target_lock: bool = True
+    use_poi_lock: bool = True
+    auto_poi_lock: bool = True
     frame_source: int | str | None = None
     # Certified capture-lookup artifact for `frame_source` on the live link.
     # Absent by default: an uncalibrated real source can never be
@@ -69,7 +69,7 @@ class DetectorPipelineConfig:
 @dataclass(frozen=True)
 class DetectorGimbalConfig:
     tracking: GimbalTrackingSetup | None = None
-    zoom: TargetZoomTrackerConfig | None = None
+    zoom: PoiZoomTrackerConfig | None = None
 
 
 @dataclass(frozen=True)
