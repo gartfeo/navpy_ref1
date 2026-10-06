@@ -17,7 +17,7 @@ from cam.calibration.calibration_navigator import (
     CalibrationNavigator,
     NavigatorConfig,
     NavigateResult,
-    compute_poi_positions,
+    compute_target_positions,
     measure_board_size,
     solve_angle_delta,
     flush_and_detect,
@@ -125,22 +125,22 @@ def _make_sim_detect(
 
 
 # ---------------------------------------------------------------------------
-# TestComputePoiPositions
+# TestComputeTargetPositions
 # ---------------------------------------------------------------------------
 
-class TestComputePoiPositions:
+class TestComputeTargetPositions:
     def test_returns_9_positions_by_default(self):
-        pois = compute_poi_positions(1920, 1080)
-        assert len(pois) == 9
+        targets = compute_target_positions(1920, 1080)
+        assert len(targets) == 9
 
     def test_all_labels_present(self):
-        pois = compute_poi_positions(1920, 1080)
-        labels = [t[2] for t in pois]
+        targets = compute_target_positions(1920, 1080)
+        labels = [t[2] for t in targets]
         assert set(labels) == {"TL", "TC", "TR", "ML", "C", "MR", "BL", "BC", "BR"}
 
     def test_margin_math(self):
-        pois = compute_poi_positions(1000, 500, margin=0.1)
-        by_label = {t[2]: (t[0], t[1]) for t in pois}
+        targets = compute_target_positions(1000, 500, margin=0.1)
+        by_label = {t[2]: (t[0], t[1]) for t in targets}
 
         # TL: margin=10%, so x=100, y=50
         assert abs(by_label["TL"][0] - 100.0) < 0.01
@@ -155,25 +155,25 @@ class TestComputePoiPositions:
         assert abs(by_label["C"][1] - 250.0) < 0.01
 
     def test_custom_subset(self):
-        pois = compute_poi_positions(1920, 1080, positions=["TL", "BR", "C"])
-        assert len(pois) == 3
-        labels = {t[2] for t in pois}
+        targets = compute_target_positions(1920, 1080, positions=["TL", "BR", "C"])
+        assert len(targets) == 3
+        labels = {t[2] for t in targets}
         assert labels == {"TL", "BR", "C"}
 
     def test_zero_margin_uses_full_frame(self):
-        pois = compute_poi_positions(1920, 1080, margin=0.0)
-        by_label = {t[2]: (t[0], t[1]) for t in pois}
+        targets = compute_target_positions(1920, 1080, margin=0.0)
+        by_label = {t[2]: (t[0], t[1]) for t in targets}
         assert abs(by_label["TL"][0]) < 0.01
         assert abs(by_label["TL"][1]) < 0.01
         assert abs(by_label["BR"][0] - 1920.0) < 0.01
         assert abs(by_label["BR"][1] - 1080.0) < 0.01
 
     def test_adaptive_board_size(self):
-        """With board_half_w/h, POIs are inset by board_half + frac * remaining."""
+        """With board_half_w/h, targets are inset by board_half + frac * remaining."""
         # 1920x1080, board half=200x150, padding_frac=0.0 → inset = board half only
-        pois = compute_poi_positions(
+        targets = compute_target_positions(
             1920, 1080, board_half_w=200, board_half_h=150, padding_frac=0.0)
-        by_label = {t[2]: (t[0], t[1]) for t in pois}
+        by_label = {t[2]: (t[0], t[1]) for t in targets}
         # TL at (200, 150) — exactly board half-size from edge
         assert abs(by_label["TL"][0] - 200.0) < 0.01
         assert abs(by_label["TL"][1] - 150.0) < 0.01
@@ -189,9 +189,9 @@ class TestComputePoiPositions:
         # 1920x1080, board half=200x150
         # remain_x = 960-200=760, remain_y = 540-150=390
         # padding_frac=0.25 → inset_x = 200+190=390, inset_y = 150+97.5=247.5
-        pois = compute_poi_positions(
+        targets = compute_target_positions(
             1920, 1080, board_half_w=200, board_half_h=150, padding_frac=0.25)
-        by_label = {t[2]: (t[0], t[1]) for t in pois}
+        by_label = {t[2]: (t[0], t[1]) for t in targets}
         assert abs(by_label["TL"][0] - 390.0) < 0.01
         assert abs(by_label["TL"][1] - 247.5) < 0.01
         # BR symmetric
@@ -200,19 +200,19 @@ class TestComputePoiPositions:
 
     def test_adaptive_large_board_clamps(self):
         """Very large board still produces valid (non-inverted) ranges."""
-        pois = compute_poi_positions(
+        targets = compute_target_positions(
             640, 480, board_half_w=300, board_half_h=220, padding_frac=0.25)
-        by_label = {t[2]: (t[0], t[1]) for t in pois}
+        by_label = {t[2]: (t[0], t[1]) for t in targets}
         for _, (x, y) in by_label.items():
             assert x >= 0
             assert y >= 0
 
     def test_adaptive_ignores_zero_board(self):
         """Falls back to margin when board size is 0."""
-        pois_fixed = compute_poi_positions(1920, 1080, margin=0.1)
-        pois_zero = compute_poi_positions(
+        targets_fixed = compute_target_positions(1920, 1080, margin=0.1)
+        targets_zero = compute_target_positions(
             1920, 1080, margin=0.1, board_half_w=0, board_half_h=0)
-        for a, b in zip(pois_fixed, pois_zero):
+        for a, b in zip(targets_fixed, targets_zero):
             assert abs(a[0] - b[0]) < 0.01
             assert abs(a[1] - b[1]) < 0.01
 
@@ -517,7 +517,7 @@ class TestNavigateTo:
         )
 
     def test_single_step_convergence(self):
-        """Object is already near POI -- converges in 1 iteration."""
+        """Object is already near target -- converges in 1 iteration."""
         gimbal = MockGimbal()
         fp = _make_push_fp()
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
