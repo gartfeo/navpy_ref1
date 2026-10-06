@@ -1,7 +1,7 @@
 """Tests for buildFallbackLocationsFromDownload merge logic in fallbackLocationAssignment.js.
 
 Runs test_dock_assignment_logic.js via Node.js subprocess to verify that
-downloaded targets are matched against existing Docks by coordinates,
+downloaded POIs are matched against existing Docks by coordinates,
 preserving type/name for matches and keeping unmatched Docks intact.
 """
 import os

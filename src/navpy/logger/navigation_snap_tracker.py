@@ -21,16 +21,16 @@ class ClosestApproachTracker:
         snap: ClosestSnap,
         previous: Optional[Location],
         current: Optional[Location],
-        target: Optional[Location],
+        poi: Optional[Location],
     ) -> Optional[Location]:
-        if not is_valid_location(current) or not is_valid_location(target):
+        if not is_valid_location(current) or not is_valid_location(poi):
             return previous
 
         segment_start = previous if is_valid_location(previous) else current
         components = closest_point_components_on_segment(
             segment_start,
             current,
-            target,
+            poi,
         )
         if components.slant < snap.dist:
             snap.dist = components.slant
@@ -46,7 +46,7 @@ class ClosestApproachTracker:
         h_min, v_at_h_min = closest_horizontal_on_segment(
             segment_start,
             current,
-            target,
+            poi,
         )
         if h_min < snap.h_min:
             snap.h_min = h_min

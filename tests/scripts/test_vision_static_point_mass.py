@@ -36,7 +36,7 @@ def test_static_point_mass_no_wind_is_strictly_well_conditioned():
     miss = static_pm.run_case(static_pm.StaticPointMassCase(
         name="no-wind", wind_speed_mps=0.0, wind_dir_from_deg=0.0,
     ))
-    assert miss.passed_target
+    assert miss.passed_poi
     assert not miss.timed_out
     assert miss.slant_m < 0.25
 
@@ -51,7 +51,7 @@ def test_crosswind_is_deterministic_bounded_challenge_not_hidden_input():
     first = static_pm.run_case(case)
     second = static_pm.run_case(case)
     assert first == second
-    assert first.passed_target
+    assert first.passed_poi
     assert first.slant_m < 10.0
 
 

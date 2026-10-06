@@ -1,10 +1,10 @@
-"""Visual-only terminal pass state machine."""
+"""Visual-only final-approach pass state machine."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,7 @@ class VisualPassDetector:
     def reset(self) -> None:
         self._state = VisualPassState()
 
-    def plan(self, frame: TerminalVisionFrame) -> VisualPassPlan:
+    def plan(self, frame: FinalApproachVisionFrame) -> VisualPassPlan:
         state = self._state
         if state.identity != frame.continuity_key:
             state = VisualPassState(identity=frame.continuity_key)

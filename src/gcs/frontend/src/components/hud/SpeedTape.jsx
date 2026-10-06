@@ -8,15 +8,15 @@ const LERP = 0.15;
 
 export default React.memo(function SpeedTape({ airSpeed, groundSpeed, width = 70, height = 200 }) {
   const canvasRef = useRef(null);
-  const targetRef = useRef({ as: 0, gs: 0 });
+  const poiRef = useRef({ as: 0, gs: 0 });
   const displayRef = useRef({ as: 0, gs: 0 });
-  targetRef.current = { as: airSpeed ?? 0, gs: groundSpeed ?? 0 };
+  poiRef.current = { as: airSpeed ?? 0, gs: groundSpeed ?? 0 };
 
   useEffect(() => {
     const id = 'speed';
     scheduleRaf(id, () => {
       const d = displayRef.current;
-      const t = targetRef.current;
+      const t = poiRef.current;
       d.as += (t.as - d.as) * LERP;
       d.gs += (t.gs - d.gs) * LERP;
       draw(canvasRef.current, d.as, d.gs, width, height);

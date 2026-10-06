@@ -118,7 +118,7 @@ class RealDetectorFactory:
                         detector_settings.get("camera_index", -1),
                     ),
                     output_mode="all",
-                    use_target_lock=True,
+                    use_poi_lock=True,
                 ),
                 debug=DetectorDebugConfig(
                     show=self._debug_show,

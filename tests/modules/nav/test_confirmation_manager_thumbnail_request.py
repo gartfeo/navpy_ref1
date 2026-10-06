@@ -1,7 +1,7 @@
 """
 Tests for the on-demand thumbnail decouple (D-12, plan 02-04 Task 2): the
 confirm-request resend loop never re-sends the image, and a
-SwarmRequestMsg(RESOURCE, THUMBNAIL) addressed to a still-pending target
+SwarmRequestMsg(RESOURCE, THUMBNAIL) addressed to a still-pending POI
 re-sends the chunked thumbnail without touching the request resend loop or
 the confirm_wait_time_sec window (D-11). Sequence-gap NACK / RETRANSMIT and
 FORCE_CONFIRM auto-fire are explicitly out of scope here (D-27 deferral;
@@ -27,7 +27,7 @@ from navpy.modules.nav import confirmation_manager as tm_module
 from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from navpy.modules.vision.models.detection_components import ConfirmationEvidence
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
@@ -51,13 +51,13 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         self.confirmation_manager.set_network(self.mock_network)
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        self.target = make_detected_target(
+        self.poi = make_detected_poi(
             obj_id=501, size_class=DetectionSizeClass.S,
             x_error=0, y_error=0, reference_height_m=0, k=0,
             g_data=None, uas_att=None,
         )
-        self.target.set_p_t_g_loc(Location(lat=10, lng=20, alt=100))
-        self.target.capture_confirmation(ConfirmationEvidence.capture(
+        self.poi.set_p_t_g_loc(Location(lat=10, lng=20, alt=100))
+        self.poi.capture_confirmation(ConfirmationEvidence.capture(
             frame,
             (320.0, 240.0, 100.0, 80.0),
             None,
@@ -115,14 +115,14 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             time.sleep(0.45)
 
         confirm_calls = self._confirm_request_calls()
         self.assertGreaterEqual(len(confirm_calls), 2, "expected at least one resend")
         self.mock_network.send_image.assert_called_once_with(501, "b64-image")
 
-    def test_swarm_request_resource_for_pending_target_resends_thumbnail(self):
+    def test_swarm_request_resource_for_pending_poi_resends_thumbnail(self):
         """SWARM_REQUEST(RESOURCE, THUMBNAIL) for a still-pending task_id
         triggers exactly one additional chunked send_image, without
         re-broadcasting the request."""
@@ -130,7 +130,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             time.sleep(0.05)  # initial send has landed, still well inside the window
 
             confirm_count_before = len(self._confirm_request_calls())
@@ -149,7 +149,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         self.confirmation_manager.on_message(self._resource_request(999999))
         self.mock_network.send_image.assert_not_called()
 
-    def test_swarm_request_resource_for_finished_target_is_noop(self):
+    def test_swarm_request_resource_for_finished_poi_is_noop(self):
         """Once a confirmation resolves, a late RESOURCE/THUMBNAIL request
         for that task_id is a no-op."""
         self.mock_args.confirm_wait_time_sec = 0.05
@@ -157,35 +157,35 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             time.sleep(0.3)  # window elapses, confirmation resolves
 
         self.assertEqual(self.mock_network.send_image.call_count, 1)
         self.confirmation_manager.on_message(self._resource_request(501))
         self.assertEqual(
-            self.mock_network.send_image.call_count, 1, "no additional send for a finished target",
+            self.mock_network.send_image.call_count, 1, "no additional send for a finished POI",
         )
 
     def test_resource_thumbnail_does_not_start_after_round_reset(self):
         """Reset between lookup and media must fence the stale resource send."""
-        worker = self.confirmation_manager._state.start_review(self.target, threading.Event)
+        worker = self.confirmation_manager._state.start_review(self.poi, threading.Event)
         confirmation = self.confirmation_manager._state.begin_round(
-            self.target,
+            self.poi,
             worker,
             threading.Event,
         )
         self.assertIsNotNone(confirmation)
-        original_pending_target = self.confirmation_manager._state.pending_target
+        original_pending_poi = self.confirmation_manager._state.pending_poi
 
-        def pending_target_then_reset(target_id):
-            target = original_pending_target(target_id)
+        def pending_poi_then_reset(poi_id):
+            poi = original_pending_poi(poi_id)
             self.confirmation_manager.reset()
-            return target
+            return poi
 
         with patch.object(
             self.confirmation_manager._state,
-            "pending_target",
-            side_effect=pending_target_then_reset,
+            "pending_poi",
+            side_effect=pending_poi_then_reset,
         ), patch(
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
@@ -198,8 +198,8 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         request = self._resource_request(501)
         with patch.object(
             self.confirmation_manager._state,
-            "pending_target",
-            return_value=self.target,
+            "pending_poi",
+            return_value=self.poi,
         ), patch.object(
             self.confirmation_manager._state,
             "send_pending_if_current",
@@ -212,8 +212,8 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         request = self._resource_request(501)
         with patch.object(
             self.confirmation_manager._state,
-            "pending_target",
-            return_value=self.target,
+            "pending_poi",
+            return_value=self.poi,
         ), patch.object(
             self.confirmation_manager._state,
             "send_pending_if_current",
@@ -231,7 +231,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             time.sleep(0.05)
             self.confirmation_manager.on_message(
                 self._resource_request(501, request_type=REQUEST_TYPE_RETRANSMIT))
@@ -245,7 +245,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             time.sleep(0.05)
             self.confirmation_manager.on_message(
                 self._resource_request(501, request_type=REQUEST_TYPE_FORCE_CONFIRM))
@@ -259,7 +259,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             time.sleep(0.05)
             self.confirmation_manager.on_message(self._resource_request(501, receiver_id=99))
             self.assertEqual(self.mock_network.send_image.call_count, 1)
@@ -274,13 +274,13 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             time.sleep(0.05)
             self.confirmation_manager.on_message(self._resource_request(501))
 
             deadline = start + self.mock_args.confirm_wait_time_sec + 0.4  # generous slack
             while time.monotonic() < deadline:
-                if self.confirmation_manager.get_status(self.target) in (
+                if self.confirmation_manager.get_status(self.poi) in (
                         ConfirmationStatus.CONFIRMED, ConfirmationStatus.REJECTED, ConfirmationStatus.TIMEOUT_REJECTED):
                     break
                 time.sleep(0.01)

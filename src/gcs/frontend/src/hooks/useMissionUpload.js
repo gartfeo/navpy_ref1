@@ -83,7 +83,7 @@ export default function useMissionUpload({
     // Resolve fallback location assignments synchronously from the plan being uploaded, never
     // from render-stale state — this is the first-click upload fix. Pass whether
     // the plan was just regenerated: if so the displayed assignments may not match
-    // the new zones and are recomputed; otherwise they are preserved (e.g. targets
+    // the new zones and are recomputed; otherwise they are preserved (e.g. POIs
     // restored from a downloaded plan).
     const { assignments: effectiveAssignments, missingLabels } = resolveUploadAssignments(
       activePlan.zones, fallbackLocations, fallbackLocationAssignmentsRef.current, manualFallbackLocationEdit, generated != null,
@@ -169,7 +169,7 @@ export default function useMissionUpload({
       }
       const missionFailures = (result.results || []).filter((r) => r.error);
       if (result.status === 'complete' && fenceOk) {
-        // Write sim target params to vehicles
+        // Write sim POI params to vehicles
         const simMode = settings?.simulation?.sim_mode;
         if (simMode) {
           const corridorLens = sortedZones.map((z) => {

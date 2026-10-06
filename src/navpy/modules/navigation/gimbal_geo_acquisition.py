@@ -58,25 +58,25 @@ class GeoAcquisitionZoom:
         if not math.isfinite(min_pixels) or min_pixels <= 0.0:
             return False
         with self._fence.lock:
-            target = self._geo.target
+            poi = self._geo.poi
             geo_ref = self._geo.geo_ref
             generation = self._fence.generation
-            if target is None or geo_ref is None:
+            if poi is None or geo_ref is None:
                 return False
         try:
-            target_ned = self._geodetic_to_ned(
-                target.lat,
-                target.lng,
-                target.alt,
+            poi_ned = self._geodetic_to_ned(
+                poi.lat,
+                poi.lng,
+                poi.alt,
                 uav_loc.lat,
                 uav_loc.lng,
                 uav_loc.alt,
             )
-            slant_m = float(np.linalg.norm(target_ned))
+            slant_m = float(np.linalg.norm(poi_ned))
             if not math.isfinite(slant_m) or slant_m <= 0.0:
                 return False
             command_zoom, projected_px = self._selector.select(
-                target_ned,
+                poi_ned,
                 self._hardware.mount.get_gimbal_data(),
                 uav_att,
                 geo_ref,
@@ -89,7 +89,7 @@ class GeoAcquisitionZoom:
             with self._gate.lock:
                 with self._fence.lock:
                     if (
-                        self._geo.target is not target
+                        self._geo.poi is not poi
                         or self._fence.generation != generation
                         or self._geo.zoom_key == command_zoom
                     ):
@@ -98,7 +98,7 @@ class GeoAcquisitionZoom:
                     return False
                 with self._fence.lock:
                     if (
-                        self._geo.target is not target
+                        self._geo.poi is not poi
                         or self._fence.generation != generation
                     ):
                         return False

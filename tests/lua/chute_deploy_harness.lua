@@ -146,7 +146,7 @@ local function install_globals()
             if ok then M.state.mode = m end
             return ok
         end,
-        set_target_location = function() return true end,
+        set_poi_location = function() return true end,
     }
     _G.SRV_Channels = {
         set_output_pwm_chan_timeout = function(_, chan, pwm, timeout)

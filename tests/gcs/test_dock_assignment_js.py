@@ -245,7 +245,7 @@ class TestZoneToDockDistance(unittest.TestCase):
 class TestBuildDocksFromDownload(unittest.TestCase):
     """buildFallbackLocationsFromDownload — DOCK extraction from downloaded fallback locations."""
 
-    def test_no_targets_all_null(self):
+    def test_no_pois_all_null(self):
         result = _run_js("""
         const r = buildFallbackLocationsFromDownload([null, null, null]);
         console.log(JSON.stringify(r));
@@ -253,7 +253,7 @@ class TestBuildDocksFromDownload(unittest.TestCase):
         self.assertEqual(result["fallbackLocations"], [])
         self.assertEqual(result["assignments"], [None, None, None])
 
-    def test_single_target(self):
+    def test_single_poi(self):
         result = _run_js("""
         const r = buildFallbackLocationsFromDownload([{lat: 32.0, lon: 34.8}]);
         console.log(JSON.stringify(r));
@@ -265,7 +265,7 @@ class TestBuildDocksFromDownload(unittest.TestCase):
         self.assertAlmostEqual(result["fallbackLocations"][0]["lon"], 34.8)
         self.assertEqual(result["assignments"], [0])
 
-    def test_single_target_with_downloaded_type(self):
+    def test_single_poi_with_downloaded_type(self):
         result = _run_js("""
         const r = buildFallbackLocationsFromDownload([{lat: 32.0, lon: 34.8, type: 'bridge'}]);
         console.log(JSON.stringify(r));
@@ -283,7 +283,7 @@ class TestBuildDocksFromDownload(unittest.TestCase):
         self.assertEqual(len(result["fallbackLocations"]), 1)
         self.assertEqual(result["assignments"], [0, 0])
 
-    def test_mixed_null_and_targets(self):
+    def test_mixed_null_and_pois(self):
         result = _run_js("""
         const r = buildFallbackLocationsFromDownload([
           null,
@@ -314,7 +314,7 @@ class TestBuildDocksFromDownload(unittest.TestCase):
         self.assertEqual(result["fallbackLocations"], [])
         self.assertEqual(result["assignments"], [])
 
-    def test_distinct_targets(self):
+    def test_distinct_pois(self):
         result = _run_js("""
         const r = buildFallbackLocationsFromDownload([
           {lat: 32.0, lon: 34.8},

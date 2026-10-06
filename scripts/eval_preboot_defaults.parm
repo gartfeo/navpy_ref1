@@ -31,7 +31,7 @@ EK3_HGT_DELAY 0
 # --- noise off ------------------------------------------------------------
 # A navigation bench measures the navigation law. Injected noise adds error that
 # is not the law's, so the bench should not carry a term it cannot name. How
-# much it costs in miss distance is NOT established: a verified noise-free arm
+# much it costs in approach error is NOT established: a verified noise-free arm
 # did not miss by less.
 #
 # The four ex-literal rows below need OUR firmware. Upstream SITL hard-codes

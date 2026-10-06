@@ -15,7 +15,7 @@ from navpy.modules.vision.sim.sim_detector_state import (
     SimCaptureState,
 )
 from navpy.modules.vision.sim.sim_runtime_ports import ResetAction
-from navpy.modules.vision.sim.sim_target_catalog import SimTargetCatalog
+from navpy.modules.vision.sim.sim_poi_catalog import SimPoiCatalog
 
 
 class SimDetectorReset:
@@ -25,7 +25,7 @@ class SimDetectorReset:
         self,
         *,
         pose_source: IdealPoseSource,
-        target_catalog: SimTargetCatalog,
+        poi_catalog: SimPoiCatalog,
         capture_state: SimCaptureState,
         gap_state: ForcedGapState,
         tracking: SimTrackingControls,
@@ -33,7 +33,7 @@ class SimDetectorReset:
         ideal_camera: Optional[IdealCameraState],
     ) -> None:
         self._pose_source = pose_source
-        self._target_catalog = target_catalog
+        self._poi_catalog = poi_catalog
         self._capture_state = capture_state
         self._gap_state = gap_state
         self._tracking = tracking
@@ -54,7 +54,7 @@ class SimDetectorReset:
         """Clear all owners; the coordinator opens only if every step passes."""
         actions: list[ResetAction] = [
             self._pose_source.reset_state,
-            self._target_catalog.refresh,
+            self._poi_catalog.refresh,
             self._capture_state.reset,
             self._gap_state.reset,
             self._tracking.reset,

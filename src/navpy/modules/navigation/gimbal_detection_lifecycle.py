@@ -99,7 +99,7 @@ class GimbalDetectionLifecycle:
         self._detection.recentered = False
         self._detection.holding = False
         self._detection.last_tracked_for_zoom = None
-        self._detection.terminal_zoom_frozen_at_min = False
+        self._detection.final_approach_zoom_frozen_at_min = False
 
     def _log_stop(self, previous_id: int, to_neutral: bool) -> None:
         if to_neutral:

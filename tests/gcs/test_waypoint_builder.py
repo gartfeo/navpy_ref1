@@ -571,60 +571,60 @@ class TestLaunchPointRoundTrip(TestRoundTrip):
 class TestDockClassEncoding(unittest.TestCase):
     """Dock class bitmask encoding and decoding."""
 
-    def test_target_class_ids(self):
+    def test_poi_class_ids(self):
         """Dock class IDs are sequential starting from 1."""
         self.assertEqual(DOCK_CLASS_IDS["small"], 1)
         self.assertEqual(DOCK_CLASS_IDS["medium"], 2)
         self.assertEqual(DOCK_CLASS_IDS["large"], 3)
 
-    def test_target_class_names_reverse(self):
+    def test_poi_class_names_reverse(self):
         """DOCK_CLASS_NAMES reverses DOCK_CLASS_IDS."""
         for name, cid in DOCK_CLASS_IDS.items():
             self.assertEqual(DOCK_CLASS_NAMES[cid], name)
 
-    def test_encode_no_targets(self):
+    def test_encode_no_pois(self):
         """No dock classes → only search_pattern in z."""
         z = encode_meta_z("distributed", [])
         self.assertEqual(z, 1.0)
 
     def test_encode_small(self):
-        """small (id=1) → bit 0 set → target_bits=1, z=(1<<8)|1=257."""
+        """small (id=1) → bit 0 set → poi_bits=1, z=(1<<8)|1=257."""
         z = encode_meta_z("distributed", ["small"])
         self.assertEqual(z, (1 << 8) | 1)
 
     def test_encode_medium(self):
-        """medium (id=2) → bit 1 set → target_bits=2, z=(2<<8)|1=513."""
+        """medium (id=2) → bit 1 set → poi_bits=2, z=(2<<8)|1=513."""
         z = encode_meta_z("distributed", ["medium"])
         self.assertEqual(z, (2 << 8) | 1)
 
     def test_encode_large(self):
-        """large (id=3) → bit 2 set → target_bits=4, z=(4<<8)|1=1025."""
+        """large (id=3) → bit 2 set → poi_bits=4, z=(4<<8)|1=1025."""
         z = encode_meta_z("distributed", ["large"])
         self.assertEqual(z, (4 << 8) | 1)
 
     def test_encode_small_medium(self):
-        """[small, medium] → bits 0,1 set → target_bits=3, z=(3<<8)|1=769."""
+        """[small, medium] → bits 0,1 set → poi_bits=3, z=(3<<8)|1=769."""
         z = encode_meta_z("distributed", ["small", "medium"])
         self.assertEqual(z, (3 << 8) | 1)
         self.assertEqual(z, 769.0)
 
     def test_encode_all_classes(self):
-        """All three classes → bits 0,1,2 → target_bits=7, z=(7<<8)|1=1793."""
+        """All three classes → bits 0,1,2 → poi_bits=7, z=(7<<8)|1=1793."""
         z = encode_meta_z("distributed", ["small", "medium", "large"])
         self.assertEqual(z, (7 << 8) | 1)
 
     def test_encode_with_corridor_search_pattern(self):
         """Dock classes combined with corridor search_pattern."""
         z = encode_meta_z("corridor", ["small", "large"])
-        # small=bit0, large=bit2 → target_bits=5
+        # small=bit0, large=bit2 → poi_bits=5
         self.assertEqual(z, (5 << 8) | 4)
 
-    def test_encode_unknown_target_ignored(self):
+    def test_encode_unknown_poi_ignored(self):
         """Unknown dock class names are ignored."""
         z = encode_meta_z("distributed", ["small", "unknown_class"])
         self.assertEqual(z, (1 << 8) | 1)
 
-    def test_decode_no_targets(self):
+    def test_decode_no_pois(self):
         """z=1 → distributed search_pattern, no dock classes."""
         search_pattern, classes = decode_meta_z(1.0)
         self.assertEqual(search_pattern, "distributed")
@@ -659,16 +659,16 @@ class TestDockClassEncoding(unittest.TestCase):
     def test_encode_decode_roundtrip(self):
         """All encode/decode combinations round-trip correctly."""
         for search_pattern in ["distributed", "corridor"]:
-            for targets in [
+            for pois in [
                 [], ["small"], ["medium"], ["large"],
                 ["small", "medium"], ["small", "large"],
                 ["medium", "large"], ["small", "medium", "large"],
             ]:
-                z = encode_meta_z(search_pattern, targets)
+                z = encode_meta_z(search_pattern, pois)
                 dec_search_pattern, dec_classes = decode_meta_z(z)
-                self.assertEqual(dec_search_pattern, search_pattern, f"search_pattern mismatch for {search_pattern}/{targets}")
-                self.assertEqual(dec_classes, sorted(targets, key=lambda n: DOCK_CLASS_IDS[n]),
-                                 f"classes mismatch for {search_pattern}/{targets}")
+                self.assertEqual(dec_search_pattern, search_pattern, f"search_pattern mismatch for {search_pattern}/{pois}")
+                self.assertEqual(dec_classes, sorted(pois, key=lambda n: DOCK_CLASS_IDS[n]),
+                                 f"classes mismatch for {search_pattern}/{pois}")
 
 
 class TestDockClassRoundTrip(TestRoundTrip):

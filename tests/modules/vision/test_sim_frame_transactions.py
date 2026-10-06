@@ -27,10 +27,10 @@ from navpy.modules.vision.sim.sim_detection_pipeline import SimDetectionPipeline
 from navpy.modules.vision.sim.sim_detector_state import ForcedGapState
 from navpy.modules.vision.sim.sim_frame_timestamp import SimFrameTimestampResolver
 from navpy.modules.vision.sim.sim_frame_transactions import DetectionFrameTransactions
-from navpy.modules.vision.sim.sim_target_catalog import SimTargetCatalog
+from navpy.modules.vision.sim.sim_poi_catalog import SimPoiCatalog
 from navpy.modules.vision.sim.source_frame_coordinator import SourceFrameCoordinator
 from navpy.modules.vision.simulation_object import SimulationObject
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 LOCATION = Location(40.0, 44.0, 1000.0)
@@ -70,7 +70,7 @@ def _coordinator(store=None, *, inbox_capacity=4):
 
 
 def _detection(obj_id=7):
-    return make_detected_target(
+    return make_detected_poi(
         obj_id=obj_id,
         x_error=10.0,
         y_error=20.0,
@@ -80,9 +80,9 @@ def _detection(obj_id=7):
 
 def _pipeline(
     coordinator,
-    update_target,
+    update_poi,
     *,
-    targets=(FIXTURE_LOCATION,),
+    pois=(FIXTURE_LOCATION,),
     mount=None,
     tracking_id=7,
 ):
@@ -97,7 +97,7 @@ def _pipeline(
     )
     transactions = DetectionFrameTransactions(
         coordinator,
-        lambda _targets: "ideal",
+        lambda _pois: "ideal",
     )
     context = SimDetectionContext(
         ideal_360=mount is None,
@@ -106,8 +106,8 @@ def _pipeline(
             if mount is None
             else mount.sync_zoom_from_hardware
         ),
-        target_snapshot=lambda: tuple(targets),
-        project_target=update_target,
+        poi_snapshot=lambda: tuple(pois),
+        project_poi=update_poi,
         timestamps=SimFrameTimestampResolver(
             lambda value, *, record_emitted: value,
         ),
@@ -123,7 +123,7 @@ def _pipeline(
 
 
 def _detect(pipeline, token, results, timestamp_s=10.0):
-    results.append(pipeline.detect_targets(
+    results.append(pipeline.detect_pois(
         LOCATION,
         ATTITUDE,
         frame_timestamp_s=timestamp_s,
@@ -170,7 +170,7 @@ def test_reset_during_render_rejects_all_post_render_side_effects():
     assert gap_state.anchor_timestamp_s is None
     capture.capture.assert_not_called()
     tracking.update.assert_not_called()
-    assert store.snapshot().detected_targets == ()
+    assert store.snapshot().detected_pois == ()
     assert store.drain() == []
     assert any(outcome[1] == "source_invalidated_dropped" for outcome in outcomes)
 
@@ -204,7 +204,7 @@ def test_stop_during_render_rejects_all_post_render_side_effects():
     assert gap_state.anchor_timestamp_s is None
     capture.capture.assert_not_called()
     tracking.update.assert_not_called()
-    assert store.snapshot().detected_targets == ()
+    assert store.snapshot().detected_pois == ()
 
 
 def test_pre_render_sensor_mutation_finishes_before_reset_clears_it():
@@ -277,13 +277,13 @@ def test_clock_restart_aborts_old_generation_without_post_reset_mutation():
     )
     transactions = DetectionFrameTransactions(
         coordinator,
-        lambda _targets: "sim",
+        lambda _pois: "sim",
     )
     context = SimDetectionContext(
         ideal_360=False,
         sync_camera_zoom=lambda: False,
-        target_snapshot=lambda: (FIXTURE_LOCATION,),
-        project_target=render,
+        poi_snapshot=lambda: (FIXTURE_LOCATION,),
+        project_poi=render,
         timestamps=SimFrameTimestampResolver(
             lambda value, *, record_emitted: clock.accept_attitude_timestamp(
                 value,
@@ -301,7 +301,7 @@ def test_clock_restart_aborts_old_generation_without_post_reset_mutation():
     )
     old = coordinator.token
 
-    assert pipeline.detect_targets(
+    assert pipeline.detect_pois(
         LOCATION,
         ATTITUDE,
         attitude_time_boot_s=1.0,
@@ -312,7 +312,7 @@ def test_clock_restart_aborts_old_generation_without_post_reset_mutation():
     assert clock.last_frame_s is None
     render.assert_not_called()
 
-    assert pipeline.detect_targets(
+    assert pipeline.detect_pois(
         LOCATION,
         ATTITUDE,
         attitude_time_boot_s=1.02,
@@ -320,7 +320,7 @@ def test_clock_restart_aborts_old_generation_without_post_reset_mutation():
     assert clock.source_now_s == pytest.approx(1.02)
     assert clock.last_frame_s == pytest.approx(1.02)
     render.assert_called_once()
-    assert len(store.snapshot().detected_targets) == 1
+    assert len(store.snapshot().detected_pois) == 1
 
 
 def test_reset_wakes_backpressured_reservation_before_render():
@@ -332,7 +332,7 @@ def test_reset_wakes_backpressured_reservation_before_render():
     assert store.publish(
         occupied,
         [],
-        primary_target=None,
+        primary_poi=None,
         source_timestamp_s=1.0,
         source_receipt_timestamp_s=None,
         source_name="ideal",
@@ -463,32 +463,32 @@ def test_old_callback_is_rejected_through_reset_and_fresh_epoch_reopens():
     assert queued.generation is fresh
 
 
-def test_target_mutation_does_not_change_in_flight_frame_snapshot():
-    first_target = SimpleNamespace(uid=1)
-    second_target = SimpleNamespace(uid=2)
+def test_poi_mutation_does_not_change_in_flight_frame_snapshot():
+    first_poi = SimpleNamespace(uid=1)
+    second_poi = SimpleNamespace(uid=2)
 
     class Provider:
         def __init__(self):
-            self.targets = [first_target]
+            self.pois = [first_poi]
 
-        def set_sim_target(self, *_args, **_kwargs):
-            self.targets.append(second_target)
+        def set_sim_poi(self, *_args, **_kwargs):
+            self.pois.append(second_poi)
 
         def refresh(self):
-            self.targets = list(self.targets)
+            self.pois = list(self.pois)
 
-    catalog = SimTargetCatalog(Provider())
+    catalog = SimPoiCatalog(Provider())
     coordinator, store, _outcomes = _coordinator()
     render_started = threading.Event()
     release_render = threading.Event()
     seen = []
 
-    def render(_location, target, _attitude, **_kwargs):
-        seen.append(target)
+    def render(_location, poi, _attitude, **_kwargs):
+        seen.append(poi)
         if len(seen) == 1:
             render_started.set()
             assert release_render.wait(2.0)
-        return _detection(target.uid)
+        return _detection(poi.uid)
 
     capture = Mock()
     capture.wants_frame.return_value = False
@@ -501,13 +501,13 @@ def test_target_mutation_does_not_change_in_flight_frame_snapshot():
     )
     transactions = DetectionFrameTransactions(
         coordinator,
-        lambda _targets: "ideal",
+        lambda _pois: "ideal",
     )
     context = SimDetectionContext(
         ideal_360=True,
         sync_camera_zoom=lambda: False,
-        target_snapshot=catalog.snapshot,
-        project_target=render,
+        poi_snapshot=catalog.snapshot,
+        project_poi=render,
         timestamps=SimFrameTimestampResolver(
             lambda value, *, record_emitted: value,
         ),
@@ -527,17 +527,17 @@ def test_target_mutation_does_not_change_in_flight_frame_snapshot():
     )
     frame_thread.start()
     assert render_started.wait(2.0)
-    catalog.set_sim_target(2, LOCATION)
+    catalog.set_sim_poi(2, LOCATION)
     release_render.set()
     frame_thread.join(2.0)
 
     assert results == [True]
-    assert seen == [first_target]
-    assert pipeline.detect_targets(
+    assert seen == [first_poi]
+    assert pipeline.detect_pois(
         LOCATION,
         ATTITUDE,
         frame_timestamp_s=11.0,
         frame_generation=coordinator.token,
     )
-    assert seen == [first_target, first_target, second_target]
-    assert len(store.snapshot().detected_targets) == 2
+    assert seen == [first_poi, first_poi, second_poi]
+    assert len(store.snapshot().detected_pois) == 2

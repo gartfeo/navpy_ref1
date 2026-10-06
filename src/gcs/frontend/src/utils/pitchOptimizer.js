@@ -4,7 +4,7 @@
  * Balances two objectives:
  * - Surveillance: maximize union ground-coverage area (determines track spacing)
  * - Navigation: ensure continuous angular coverage across the UAV dive pitch
- *   envelope (min_pitch..max_pitch) so a detected target stays visible
+ *   envelope (min_pitch..max_pitch) so a detected POI stays visible
  *
  * Pure JS, zero imports — testable via Node subprocess.
  */
@@ -144,8 +144,8 @@ const RELIABLE_DETECT_PX = 8;
 
 /**
  * Detection probability weight for a footprint based on slant range.
- * At mdd the target is MIN_DETECT_PX tall (barely visible) → weight ≈ 0.25.
- * At mdd/4 the target is RELIABLE_DETECT_PX tall → weight = 1.0.
+ * At mdd the POI is MIN_DETECT_PX tall (barely visible) → weight ≈ 0.25.
+ * At mdd/4 the POI is RELIABLE_DETECT_PX tall → weight = 1.0.
  */
 function detectWeight(footprint, mdd, altitude) {
   if (!footprint || footprint.length < 3) return 0;

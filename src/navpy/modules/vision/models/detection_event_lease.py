@@ -1,4 +1,4 @@
-"""Exclusive source-publication lease used during terminal NAV."""
+"""Exclusive source-publication lease used during final-approach NAV."""
 
 from __future__ import annotations
 

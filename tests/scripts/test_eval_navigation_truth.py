@@ -8,12 +8,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from scripts import eval_navigation_truth as truth
-from scripts.eval_navigation_models import TargetLocation
+from scripts.eval_navigation_models import PoiLocation
 
 
 EARTH_RADIUS_M = 6_371_008.8
 M_PER_DEG_LAT = math.radians(1.0) * EARTH_RADIUS_M
-TARGET = TargetLocation(
+POI = PoiLocation(
     lat_deg=43.0, lon_deg=34.0, rel_alt_m=60.0, abs_alt_m=500.0
 )
 HOME_ABS_ALT_M = 440.0
@@ -35,9 +35,9 @@ def _message(
     alt_m: float,
     time_s: float,
 ) -> SimpleNamespace:
-    lat_deg = TARGET.lat_deg + north_m / M_PER_DEG_LAT
-    lon_deg = TARGET.lon_deg + east_m / (
-        M_PER_DEG_LAT * math.cos(math.radians(TARGET.lat_deg))
+    lat_deg = POI.lat_deg + north_m / M_PER_DEG_LAT
+    lon_deg = POI.lon_deg + east_m / (
+        M_PER_DEG_LAT * math.cos(math.radians(POI.lat_deg))
     )
     return SimpleNamespace(
         lat_int=round(lat_deg * 1e7),
@@ -59,7 +59,7 @@ def _feed_pass(
     speed_mps: float = 40.0,
     arrivals_per_sample: int = 1,
 ) -> float:
-    """Fly a straight north-to-south pass abeam the target; return last wall."""
+    """Fly a straight north-to-south pass abeam the POI; return last wall."""
     wall = 1000.0
     half = count // 2
     for index in range(count):
@@ -67,7 +67,7 @@ def _feed_pass(
         message = _message(
             north,
             east_offset_m,
-            TARGET.abs_alt_m + alt_offset_m,
+            POI.abs_alt_m + alt_offset_m,
             start_time_s + index * dt_s,
         )
         wall = 1000.0 + index * dt_s
@@ -78,8 +78,8 @@ def _feed_pass(
 
 def _recorder(clock: _Clock | None = None) -> truth.TruthRecorder:
     if clock is None:
-        return truth.TruthRecorder(TARGET, HOME_ABS_ALT_M)
-    return truth.TruthRecorder(TARGET, HOME_ABS_ALT_M, monotonic_now=clock)
+        return truth.TruthRecorder(POI, HOME_ABS_ALT_M)
+    return truth.TruthRecorder(POI, HOME_ABS_ALT_M, monotonic_now=clock)
 
 
 def test_nominal_track_is_certified_and_scores_the_pass() -> None:
@@ -126,7 +126,7 @@ def test_duplicate_arrivals_after_a_source_stall_are_not_fresh() -> None:
     final = _message(
         (200 - 399) * 40.0 * 0.025,
         0.05,
-        TARGET.abs_alt_m + 0.03,
+        POI.abs_alt_m + 0.03,
         100.0 + 399 * 0.025,
     )
     for index in range(10):
@@ -210,7 +210,7 @@ def test_reordered_arrivals_do_not_corrupt_closure() -> None:
         _message(
             (half - index) * 40.0 * 0.025,
             0.05,
-            TARGET.abs_alt_m + 0.03,
+            POI.abs_alt_m + 0.03,
             100.0 + index * 0.025,
         )
         for index in range(400)
@@ -234,7 +234,7 @@ def test_single_gap_fails_the_truth_gate_but_not_the_scorer() -> None:
         time_s = 100.0 + index * 0.025 + (0.1 if index >= 150 else 0.0)
         north = (150 - index) * 1.0
         recorder.add_message(
-            _message(north, 0.05, TARGET.abs_alt_m + 0.03, time_s),
+            _message(north, 0.05, POI.abs_alt_m + 0.03, time_s),
             1000.0 + index * 0.025,
             scoring_active=True,
         )
@@ -257,12 +257,12 @@ def test_trailing_stall_fails_certification() -> None:
 
 def test_missing_time_us_is_rejected_per_sample() -> None:
     recorder = _recorder()
-    message = _message(100.0, 0.05, TARGET.abs_alt_m, 100.0)
+    message = _message(100.0, 0.05, POI.abs_alt_m, 100.0)
     del message.time_us
     recorder.add_message(message, 1000.0, scoring_active=True)
     verdict = recorder.verdict()
     assert verdict["rejected_samples"] == 1
-    assert "insufficient engaged truth samples" in verdict["certification_error"]
+    assert "insufficient scoring-window truth samples" in verdict["certification_error"]
 
 
 def test_float_only_coordinates_are_never_authoritative() -> None:
@@ -289,7 +289,7 @@ def test_truncated_track_fails_closure() -> None:
     recorder = _recorder()
     for index in range(300):
         recorder.add_message(
-            _message(300.0 - index, 0.05, TARGET.abs_alt_m, 100.0 + index * 0.025),
+            _message(300.0 - index, 0.05, POI.abs_alt_m, 100.0 + index * 0.025),
             1000.0 + index * 0.025,
             scoring_active=True,
         )
@@ -307,16 +307,16 @@ def test_cpa_endpoint_sample_is_not_post_cpa_evidence() -> None:
 
     samples = [
         PositionSample(
-            lat_deg=TARGET.lat_deg + (300.0 - index) / M_PER_DEG_LAT,
-            lon_deg=TARGET.lon_deg,
-            abs_alt_m=TARGET.abs_alt_m,
-            rel_alt_m=TARGET.abs_alt_m - HOME_ABS_ALT_M,
+            lat_deg=POI.lat_deg + (300.0 - index) / M_PER_DEG_LAT,
+            lon_deg=POI.lon_deg,
+            abs_alt_m=POI.abs_alt_m,
+            rel_alt_m=POI.abs_alt_m - HOME_ABS_ALT_M,
             received_wall_time_s=1000.0 + index * 0.025,
             source_time_s=100.0 + index * 0.025,
         )
         for index in range(20)
     ]
-    post_samples, rise, cpa = closure_evidence(samples, TARGET)
+    post_samples, rise, cpa = closure_evidence(samples, POI)
     assert cpa is not None and cpa.fraction == 1.0
     assert post_samples == 0
     assert rise == 0.0
@@ -327,7 +327,7 @@ def test_flat_tail_fails_closure_rise() -> None:
     for index in range(300):
         north = max(1.0, 150.0 - index)
         recorder.add_message(
-            _message(north, 0.05, TARGET.abs_alt_m, 100.0 + index * 0.025),
+            _message(north, 0.05, POI.abs_alt_m, 100.0 + index * 0.025),
             1000.0 + index * 0.025,
             scoring_active=True,
         )
@@ -349,9 +349,9 @@ def test_overflow_invalidates_the_score(monkeypatch) -> None:
 def test_write_track_records_rejections(tmp_path: Path) -> None:
     recorder = _recorder()
     recorder.add_message(
-        _message(100.0, 0.05, TARGET.abs_alt_m, 100.0), 1000.0, scoring_active=False
+        _message(100.0, 0.05, POI.abs_alt_m, 100.0), 1000.0, scoring_active=False
     )
-    bad = _message(99.0, 0.05, TARGET.abs_alt_m, 100.025)
+    bad = _message(99.0, 0.05, POI.abs_alt_m, 100.025)
     del bad.time_us
     recorder.add_message(bad, 1000.025, scoring_active=True)
     path = tmp_path / "truth_track.csv"

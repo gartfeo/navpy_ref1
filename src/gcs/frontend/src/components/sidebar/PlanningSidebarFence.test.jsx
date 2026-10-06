@@ -50,7 +50,7 @@ const renderSidebar = (observedFence, over = {}) => render(
     analysis={null}
     uavCount={2}
     setUavCount={vi.fn()}
-    onTargetChange={vi.fn()}
+    onPoiChange={vi.fn()}
     plan={null}
     launchPoint={null}
     corridorPoints={[]}

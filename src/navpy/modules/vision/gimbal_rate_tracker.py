@@ -21,10 +21,10 @@ from navpy.modules.vision.gimbal_rate_types import (
     idle_result,
 )
 from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
-from navpy.modules.vision.target_angle_estimator import (
-    TargetAngleEstimator,
-    TargetAngleEstimatorConfig,
-    TargetAnglePlan,
+from navpy.modules.vision.poi_angle_estimator import (
+    PoiAngleEstimator,
+    PoiAngleEstimatorConfig,
+    PoiAnglePlan,
 )
 
 
@@ -47,7 +47,7 @@ class GimbalRateTracker:
         self._actuator = actuator
         self._logger = logger
         self._config = config or GimbalRateTrackerConfig()
-        self._estimator = TargetAngleEstimator(
+        self._estimator = PoiAngleEstimator(
             _estimator_config(self._config)
         )
         self._law = GimbalRateCommandLaw(self._config)
@@ -131,7 +131,7 @@ class GimbalRateTracker:
     def _log_tracking(
         self,
         sample: GimbalAngularSample,
-        plan: TargetAnglePlan,
+        plan: PoiAnglePlan,
         result: GimbalTrackResult,
         previous: TrackingState,
     ) -> None:
@@ -150,7 +150,7 @@ class GimbalRateTracker:
 
 def _estimator_config(
     config: GimbalRateTrackerConfig,
-) -> TargetAngleEstimatorConfig:
+) -> PoiAngleEstimatorConfig:
     estimator = config.estimator
     if estimator.max_abs_rate is not None:
         return estimator
@@ -164,7 +164,7 @@ def _estimator_config(
 
 
 def _tracking_result(
-    plan: TargetAnglePlan,
+    plan: PoiAnglePlan,
     command: GimbalRateCommand,
     update_count: int,
 ) -> GimbalTrackResult:

@@ -25,12 +25,12 @@ class FrameEvidence:
     declared_epoch: Optional[int]
     receipt_timestamp_s: Optional[float]
     publication: str = 'abandoned'
-    published_target_count: Optional[int] = None
+    published_poi_count: Optional[int] = None
     exception_type: Optional[str] = None
 
-    def published(self, accepted: bool, target_count: int) -> None:
-        self.publication = ('successful' if target_count else 'empty') if accepted else 'rejected'
-        self.published_target_count = target_count if accepted else None
+    def published(self, accepted: bool, poi_count: int) -> None:
+        self.publication = ('successful' if poi_count else 'empty') if accepted else 'rejected'
+        self.published_poi_count = poi_count if accepted else None
 
 
 class ProjectionRunRecorder:

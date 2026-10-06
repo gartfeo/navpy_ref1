@@ -219,7 +219,7 @@ class CommandLoopLog:
 
         O(entries) under the lock, which is affordable because this is a
         POST-LEG read: the summary asks, through the trace's own capture, and
-        nothing on the engagement path does. Do not move it onto a per-frame
+        nothing on the scoring window path does. Do not move it onto a per-frame
         path without replacing the copy -- the trace is decision-neutral, NOT
         free.
         """

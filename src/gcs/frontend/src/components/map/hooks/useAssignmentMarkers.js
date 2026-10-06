@@ -4,7 +4,7 @@ import { zoneColorsSolid } from '../../../styles';
 import { useTelemetryStore } from '../../../hooks/useTelemetryStore';
 
 /**
- * Renders crosshair markers for peer-assigned targets.
+ * Renders crosshair markers for peer-assigned POIs.
  * - Billboard: crosshair colored to match assigned UAV
  * - Label: "UAV {id} > {taskType}" with checkmark on accept
  */

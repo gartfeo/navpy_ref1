@@ -11,7 +11,7 @@ from navpy.modules.nav.nav_composition_types import (
     NavigationTaskWorkflows,
     NavCapabilities,
     NavStateOwnership,
-    TargetMissionOwnership,
+    PoiMissionOwnership,
     VehicleApproachOwnership,
 )
 from navpy.modules.nav.navigation_decision import (
@@ -33,7 +33,7 @@ def compose_decision_workflows(
     args: NavArgs,
     logger: ILogger,
     state: NavStateOwnership,
-    target: TargetMissionOwnership,
+    poi: PoiMissionOwnership,
     approach: VehicleApproachOwnership,
     observation: DetectionReviewOwnership,
     navigation_workflows: NavigationTaskWorkflows,
@@ -42,7 +42,7 @@ def compose_decision_workflows(
 ) -> DecisionWorkflows:
     recovery = RecoveryAction(
         RecoveryPorts(
-            terminal_active=lambda: navigation.terminal.is_active,
+            final_approach_active=lambda: navigation.final_approach.is_active,
             detector_stop=detection.tracking_commands.stop_tracking,
             current_relative=lambda: vehicle.location(True),
             pause_navigation=navigation.pause,
@@ -64,8 +64,8 @@ def compose_decision_workflows(
         state.phase,
         state.navigation_task,
         state.confirm,
-        target.mission,
-        target.confirmation_manager,
+        poi.mission,
+        poi.confirmation_manager,
         approach.loiter_radius,
         navigation_workflows.mission_navigation.mission_pass,
         observation.status,
@@ -75,12 +75,12 @@ def compose_decision_workflows(
             clock_s=lambda: state.clock.decision_s(),
             clear_navigation_task=confirmation.reset.reset.clear,
             request_guided=lambda: approach.commands.request_guided(),
-            terminal_active=lambda: navigation.terminal.is_active,
+            final_approach_active=lambda: navigation.final_approach.is_active,
         ),
         state.phase,
         state.navigation_task,
         state.navigation_failures,
-        target.confirmation_manager,
+        poi.confirmation_manager,
         navigation_workflows.mission_navigation.mission_pass,
         observation.status,
         logger,
@@ -95,9 +95,9 @@ def compose_decision_workflows(
         inactive,
         recovery,
         nav,
-        confirmation.target_status,
+        confirmation.poi_status,
         args,
-        target.mission,
+        poi.mission,
     )
     return DecisionWorkflows(recovery, decision)
 

@@ -15,7 +15,7 @@ import pytest
 from scripts.navigation_truth_sensor import (
     ClosestApproach,
     build_frame,
-    target_offset_ned_m,
+    poi_offset_ned_m,
 )
 
 BASE = {
@@ -28,7 +28,7 @@ BASE = {
 }
 
 
-def test_target_dead_ahead_is_straight_down_the_nose():
+def test_poi_dead_ahead_is_straight_down_the_nose():
     frame = build_frame(offset_ned_m=np.array([1000.0, 0.0, 0.0]), **BASE)
     assert frame.body_x == pytest.approx(1.0)
     assert frame.body_y == pytest.approx(0.0, abs=1e-12)
@@ -39,7 +39,7 @@ def test_range_cannot_reach_the_law():
     """Ten metres and ten kilometres in the same direction are one frame.
 
     This is the structural guarantee: the law is handed a direction, so it
-    cannot recover range, target position or altitude no matter what it does
+    cannot recover range, POI position or altitude no matter what it does
     with the numbers.
     """
     near = build_frame(offset_ned_m=np.array([10.0, 3.0, -2.0]), **BASE)
@@ -49,13 +49,13 @@ def test_range_cannot_reach_the_law():
 
 
 def test_yaw_rotates_the_body_ray_because_the_nose_moved():
-    """Turning the aircraft must change where the target appears."""
+    """Turning the aircraft must change where the POI appears."""
     ahead = build_frame(offset_ned_m=np.array([1000.0, 0.0, 0.0]), **BASE)
     turned = build_frame(
         offset_ned_m=np.array([1000.0, 0.0, 0.0]), **{**BASE, "truth_yaw_deg": 30.0}
     )
     assert ahead.body_y == pytest.approx(0.0, abs=1e-12)
-    # Nose swung right, so the target now sits to the LEFT of the nose.
+    # Nose swung right, so the POI now sits to the LEFT of the nose.
     assert turned.body_y == pytest.approx(-math.sin(math.radians(30.0)), abs=1e-9)
 
 
@@ -63,7 +63,7 @@ def test_control_ray_is_yaw_free():
     """The command frame must not move when only the heading datum moves.
 
     frame_projection.py:53 builds the control ray with yaw=0.0. Here the whole
-    problem is rotated in yaw -- aircraft and target together -- so the geometry
+    problem is rotated in yaw -- aircraft and POI together -- so the geometry
     relative to the nose is unchanged. A yaw-free control frame must return the
     identical ray; anything else means compass heading reached the command path.
     """
@@ -81,13 +81,13 @@ def test_control_ray_is_yaw_free():
 
 
 def test_control_ray_is_stabilised_against_pitch_and_roll():
-    """Attitude must not smear the target's direction.
+    """Attitude must not smear the POI's direction.
 
     Working the rotations through for the ZYX sequence, the control ray reduces
     to Rz(-yaw) applied to the NED direction: the pitch and roll used to leave
     the body frame are undone on the way into the control frame. That is what
     makes it a horizon-stabilised frame, and it is why the aircraft pitching or
-    rolling does not by itself move the target in the command frame.
+    rolling does not by itself move the POI in the command frame.
 
     Pitch and roll are not lost -- they reach the law as their own scalar
     fields, where the law can use them as the project rule permits.
@@ -100,15 +100,15 @@ def test_control_ray_is_stabilised_against_pitch_and_roll():
         )
         assert manoeuvring.control_ray == pytest.approx(
             level.control_ray, abs=1e-9
-        ), "the target did not move, so the stabilised frame must not either"
+        ), "the POI did not move, so the stabilised frame must not either"
         assert manoeuvring.aircraft_pitch_deg == pytest.approx(pitch)
         assert manoeuvring.aircraft_roll_deg == pytest.approx(roll)
         # The BODY ray does move -- that is the raw camera view.
         assert manoeuvring.body_ray != pytest.approx(level.body_ray)
 
 
-def test_control_ray_follows_the_target_across_the_nose():
-    """Stabilised is not blind: a target off to one side must read as off to one side."""
+def test_control_ray_follows_the_poi_across_the_nose():
+    """Stabilised is not blind: a POI off to one side must read as off to one side."""
     left = build_frame(offset_ned_m=np.array([1000.0, -400.0, 0.0]), **BASE)
     right = build_frame(offset_ned_m=np.array([1000.0, 400.0, 0.0]), **BASE)
     assert left.control_y < 0.0 < right.control_y
@@ -128,13 +128,13 @@ def test_zero_offset_is_refused_not_guessed():
 
 
 def test_offset_north_east_and_down_have_the_right_signs():
-    offset = target_offset_ned_m(
+    offset = poi_offset_ned_m(
         lat_deg=40.0, lon_deg=44.0, alt_m=1000.0,
-        target_lat_deg=40.01, target_lon_deg=44.01, target_alt_m=900.0,
+        poi_lat_deg=40.01, poi_lon_deg=44.01, poi_alt_m=900.0,
     )
-    assert offset[0] > 0.0, "target further north"
-    assert offset[1] > 0.0, "target further east"
-    assert offset[2] == pytest.approx(100.0), "target 100 m BELOW, down positive"
+    assert offset[0] > 0.0, "POI further north"
+    assert offset[1] > 0.0, "POI further east"
+    assert offset[2] == pytest.approx(100.0), "POI 100 m BELOW, down positive"
 
 
 def test_offset_uses_latitude_dependent_radii():
@@ -143,13 +143,13 @@ def test_offset_uses_latitude_dependent_radii():
     Using one spherical radius would bias east against north by a fraction of a
     percent, which would read as a steady lateral navigation error.
     """
-    at_equator = target_offset_ned_m(
+    at_equator = poi_offset_ned_m(
         lat_deg=0.0, lon_deg=0.0, alt_m=0.0,
-        target_lat_deg=0.0, target_lon_deg=0.01, target_alt_m=0.0,
+        poi_lat_deg=0.0, poi_lon_deg=0.01, poi_alt_m=0.0,
     )
-    at_sixty = target_offset_ned_m(
+    at_sixty = poi_offset_ned_m(
         lat_deg=60.0, lon_deg=0.0, alt_m=0.0,
-        target_lat_deg=60.0, target_lon_deg=0.01, target_alt_m=0.0,
+        poi_lat_deg=60.0, poi_lon_deg=0.01, poi_alt_m=0.0,
     )
     assert at_sixty[1] == pytest.approx(at_equator[1] * 0.5, rel=0.01)
 
@@ -174,7 +174,7 @@ def test_closest_approach_is_not_the_nearest_sample():
 
 
 def test_closest_approach_does_not_invent_a_future_pass():
-    """Once the target is behind, the miss must not improve on later segments."""
+    """Once the POI is behind, the miss must not improve on later segments."""
     approach = ClosestApproach()
     approach.observe(0.0, np.array([10.0, 0.0, 0.0]))
     approach.observe(1.0, np.array([-10.0, 0.0, 0.0]))
@@ -212,7 +212,7 @@ def test_the_law_is_given_the_estimate_not_the_truth():
 
 
 def test_truth_still_aims_the_ray_when_the_estimate_disagrees():
-    """An attitude estimate error must not move where the target really is."""
+    """An attitude estimate error must not move where the POI really is."""
     honest = build_frame(
         offset_ned_m=np.array([1000.0, 0.0, 0.0]),
         truth_pitch_deg=0.0, truth_roll_deg=0.0, truth_yaw_deg=25.0,
@@ -245,8 +245,8 @@ def test_coordinates_round_trip_through_the_offset():
         np.array([0.0, -3000.0, 0.0]),
     ):
         lat, lon, alt = coordinates_from_offset_ned(**origin, offset_ned_m=offset)
-        back = target_offset_ned_m(
-            **origin, target_lat_deg=lat, target_lon_deg=lon, target_alt_m=alt,
+        back = poi_offset_ned_m(
+            **origin, poi_lat_deg=lat, poi_lon_deg=lon, poi_alt_m=alt,
         )
         assert back == pytest.approx(offset, abs=1e-6)
 
@@ -278,8 +278,8 @@ def test_an_attitude_estimate_error_moves_the_control_ray():
     # But where the aircraft THINKS it is pointing did, so the command frame did.
     assert biased.control_ray != pytest.approx(honest.control_ray)
 
-    # How far it moves depends on where the target sits relative to the rotation
-    # axes -- a roll error barely moves a target that is dead ahead -- so no
+    # How far it moves depends on where the POI sits relative to the rotation
+    # axes -- a roll error barely moves a POI that is dead ahead -- so no
     # fixed number is asserted. What must hold is that a WORSE estimate gives a
     # WORSE frame, monotonically, and never more error than was put in.
     def separation(pitch_error, roll_error):
@@ -322,7 +322,7 @@ def test_a_perfect_estimate_still_gives_the_stabilised_frame():
 def test_the_miss_names_its_channel():
     """A scalar miss cannot say whether roll or pitch missed.
 
-    A pass 1 m directly above the target is a pitch-law miss with a perfect
+    A pass 1 m directly above the POI is a pitch-law miss with a perfect
     roll law; 1 m abeam is the reverse. The two need different fixes, so the
     closest approach records the north-east magnitude and the down component
     separately -- taken AT the interpolated closest point, not at a sample.
@@ -330,7 +330,7 @@ def test_the_miss_names_its_channel():
     import numpy as np
 
     approach = ClosestApproach()
-    # Straight pass 3 m east of the target, 4 m above it: crosses from ahead
+    # Straight pass 3 m east of the POI, 4 m above it: crosses from ahead
     # to behind between the two samples, closest point between them.
     approach.observe(0.0, np.array([10.0, 3.0, 4.0]))
     approach.observe(1.0, np.array([-10.0, 3.0, 4.0]))
@@ -340,7 +340,7 @@ def test_the_miss_names_its_channel():
 
     # Found in review: the horizontal must be its OWN minimisation, not the
     # horizontal component at the 3D closest point. This dive crosses the
-    # target's ground position exactly, but the 3D closest point sits near
+    # POI's ground position exactly, but the 3D closest point sits near
     # the low end where the horizontal component reads 9.6 m -- scoring the
     # roll law with the pitch law's timing.
     dive = ClosestApproach()

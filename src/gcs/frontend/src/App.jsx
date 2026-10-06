@@ -186,10 +186,10 @@ export default function App() {
     () => (settings?.fallback_delivery_locations || []).filter((o) => o && o.lat != null && o.lon != null),
     [settings],
   );
-  // Only targets the UAVs will actually orbit shape the fence: fallback locations ASSIGNED
+  // Only POIs the UAVs will actually orbit shape the fence: fallback locations ASSIGNED
   // to a zone (unassigned fallback locations are display-only) plus the plan's simulated
   // delivery docks (track waypoints the demo approves and approaches).
-  const fenceTargets = React.useMemo(() => {
+  const fencePois = React.useMemo(() => {
     const out = [];
     const seenFallbackLocation = new Set();
     for (const fallbackLocationIdx of (fallbackLocationAssignments || [])) {
@@ -209,13 +209,13 @@ export default function App() {
   }, [fallbackLocations, fallbackLocationAssignments, simDockWps, plan]);
   const fenceAuto = React.useMemo(
     () => (fenceEnabled && polygon.length >= 3
-      ? fenceInclusion(polygon, transitPaths, fenceTargets, {
+      ? fenceInclusion(polygon, transitPaths, fencePois, {
           marginM: fenceOffsetM,
           takeoffRadiusM: takeoffRoundM,
           orbitRadiusM: DEFAULT_ORBIT_RADIUS_M,
         })
       : null),
-    [fenceEnabled, polygon, transitPaths, fenceTargets, fenceOffsetM, takeoffRoundM],
+    [fenceEnabled, polygon, transitPaths, fencePois, fenceOffsetM, takeoffRoundM],
   );
   // Operator-edited ring wins over the auto-derivation until "Reset to auto".
   const fencePolygon = fenceEnabled ? (fenceCustomVertices ?? fenceAuto) : null;
@@ -233,11 +233,11 @@ export default function App() {
   // confirmation orbits): outside the inclusion fence means breach → RTL.
   const fenceCoverageOk = React.useMemo(() => {
     if (!fenceEnabled || !fenceCustomVertices) return true;
-    return fenceCoversPlan(fenceCustomVertices, polygon, transitPaths, fenceTargets, {
+    return fenceCoversPlan(fenceCustomVertices, polygon, transitPaths, fencePois, {
       takeoffRadiusM: takeoffRoundM,
       orbitRadiusM: DEFAULT_ORBIT_RADIUS_M,
     });
-  }, [fenceEnabled, fenceCustomVertices, polygon, transitPaths, fenceTargets, takeoffRoundM]);
+  }, [fenceEnabled, fenceCustomVertices, polygon, transitPaths, fencePois, takeoffRoundM]);
   // A vertex dragged across the ring makes it self-intersecting — ArduPilot's
   // even-odd test flips the crossover pockets to "outside", so warn loudly.
   const fenceSelfIntersecting = React.useMemo(
@@ -267,11 +267,11 @@ export default function App() {
     return analyzeExclusionConflicts({
       corridorPaths: transitPaths,
       tracks: (plan?.zones || []).map((z) => z.track || []),
-      deliveryPoints: fenceTargets, // Assigned fallback locations and simulation docks.
+      deliveryPoints: fencePois, // Assigned fallback locations and simulation docks.
       orbitRadiusM: DEFAULT_ORBIT_RADIUS_M,
       exclusions,
     });
-  }, [exclusions, transitPaths, plan, fenceTargets]);
+  }, [exclusions, transitPaths, plan, fencePois]);
   // What the connected vehicles report about their OWN fences. Display truth
   // only — it never feeds the upload payload.
   const observedFence = React.useMemo(
@@ -846,7 +846,7 @@ export default function App() {
               analysis={analysis}
               uavCount={planning.effectiveUavCount}
               setUavCount={setUavCount}
-              onTargetChange={planning.handleTargetChange}
+              onPoiChange={planning.handlePoiChange}
               launchPoint={launchPoint}
               corridorPoints={corridorPoints}
               plan={plan}

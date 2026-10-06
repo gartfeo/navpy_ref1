@@ -117,8 +117,8 @@ def frame_digest(frame: Any) -> bytes | None:
     the conservative direction: the only frame a real run legitimately has
     nothing to digest for is ``None``, answered above without touching the
     object. Every non-None frame on this path is a ``DetectedObject`` built by
-    ``IdealTargetProjector`` (direct_pixel_render.py:59 constructs it; an earlier
-    version of this docstring named ``finite_target_projector``, which is a
+    ``IdealPoiProjector`` (direct_pixel_render.py:59 constructs it; an earlier
+    version of this docstring named ``finite_poi_projector``, which is a
     different path), and it always carries a pixel. So a frame that yields no
     readable payload is malformed -- and a malformed frame must invalidate a
     verdict rather than pass as a clean absence.

@@ -9,23 +9,23 @@ from typing import Iterable, Protocol
 import numpy as np
 
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
-    TerminalFrameProjector,
-    TerminalProjectionConfig,
+    FinalApproachFrameProjector,
+    FinalApproachProjectionConfig,
 )
 from navpy.modules.navigation.nav.vision_nav.law import (
-    FixedTerminalLawConfigProvider,
-    TerminalLawConfig,
+    FixedFinalApproachLawConfigProvider,
+    FinalApproachLawConfig,
     VisionNavLaw,
 )
 from navpy.modules.vision.models.pixel_observation import VisualDetection
 from scripts.vision_static_point_mass_plant import (
     air_velocity_ned_mps,
-    closest_point_to_target,
+    closest_point_to_poi,
     component_miss,
-    has_passed_target,
+    has_passed_poi,
     initial_state,
     integrate_plant,
-    is_approaching_target,
+    is_approaching_poi,
     wind_ned_mps,
     coordinated_turn_rate_deg_s,
 )
@@ -54,8 +54,8 @@ class StaticDetectionFactory(Protocol):
     ) -> VisualDetection: ...
 
 
-_TERMINAL_PROJECTOR = TerminalFrameProjector(
-    TerminalProjectionConfig("ZYX", True),
+_FINAL_APPROACH_PROJECTOR = FinalApproachFrameProjector(
+    FinalApproachProjectionConfig("ZYX", True),
 )
 
 
@@ -70,8 +70,8 @@ def run_case_analysis(
 ) -> StaticPointMassRun:
     with undelayed_truth_gyro():
         law = VisionNavLaw(
-            FixedTerminalLawConfigProvider(
-                TerminalLawConfig(
+            FixedFinalApproachLawConfigProvider(
+                FinalApproachLawConfig(
                     pitch_min_deg=-55.0,
                     pitch_max_deg=30.0,
                     roll_limit_deg=case.roll_limit_deg,
@@ -123,7 +123,7 @@ def run_case_analysis(
             )
             if not isinstance(detection, VisualDetection):
                 raise TypeError("point-mass sensor must publish VisualDetection")
-            observation = _TERMINAL_PROJECTOR.project(
+            observation = _FINAL_APPROACH_PROJECTOR.project(
                 detection,
                 source_generation=0,
                 air_speed_mps=case.airspeed_mps,
@@ -145,17 +145,17 @@ def run_case_analysis(
             wind,
         )
         state = step.state
-        closest = closest_point_to_target(
+        closest = closest_point_to_poi(
             step.segment_start_ned_m,
             step.segment_ned_m,
         )
         miss = component_miss(closest, step.segment_ned_m, state.t_s)
         if miss.slant_m < best_miss.slant_m:
             best_miss = miss
-        approach_observed = approach_observed or is_approaching_target(step)
-        if approach_observed and has_passed_target(step, case.dt_s):
+        approach_observed = approach_observed or is_approaching_poi(step)
+        if approach_observed and has_passed_poi(step, case.dt_s):
             return StaticPointMassRun(
-                replace(best_miss, passed_target=True),
+                replace(best_miss, passed_poi=True),
                 tuple(command_timestamps),
             )
 

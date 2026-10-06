@@ -36,7 +36,7 @@ class SimDetectionPipeline:
         self._tracking_updater = tracking_updater
         self._evidence_recorder = evidence_recorder
 
-    def detect_targets(
+    def detect_pois(
         self,
         c_g_loc: Location,
         uas_att: Attitude,
@@ -74,7 +74,7 @@ class SimDetectionPipeline:
                 return False
             with projection_frame_scope(self._evidence_recorder, frame, frame_epoch) as evidence:
                 gap_plan = self._forced_gap_policy.plan(frame.timestamp_s)
-                detections, positions = self._collect_targets(
+                detections, positions = self._collect_pois(
                     c_g_loc,
                     uas_att,
                     uas_body_rates_rad_s,
@@ -102,7 +102,7 @@ class SimDetectionPipeline:
                         evidence.published(accepted, len(detections))
                     return accepted
 
-    def _collect_targets(
+    def _collect_pois(
         self,
         camera_location: Location,
         uas_attitude: Attitude,
@@ -112,10 +112,10 @@ class SimDetectionPipeline:
     ) -> tuple[list[DetectedObject], Optional[list[OverlayPosition]]]:
         positions = [] if self._confirmation_capture.wants_frame() else None
         detections = []
-        for target in self._context.targets():
+        for poi in self._context.pois():
             detection = self._context.update(
                 camera_location,
-                target,
+                poi,
                 uas_attitude,
                 timestamp_s=frame.timestamp_s,
                 uas_body_rates_rad_s=body_rates,
@@ -130,7 +130,7 @@ class SimDetectionPipeline:
             if positions is not None:
                 positions.append(self._confirmation_capture.overlay_position(
                     detection,
-                    target,
+                    poi,
                     camera_location,
                 ))
         return detections, positions

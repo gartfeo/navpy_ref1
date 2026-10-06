@@ -9,7 +9,7 @@ spans [EpUS + N*20000, EpUS + (N+1)*20000), a normal row's TimeUS is the
 exact end boundary, and partial rows close early with flag bits.
 
 Fail-closed selection: exactly
-one epoch may match the expected target bit-for-bit -- ambiguity is
+one epoch may match the expected POI bit-for-bit -- ambiguity is
 rejected, never resolved by recency -- and a FAULT anywhere in the
 selected epoch rejects the whole epoch.
 """
@@ -29,14 +29,14 @@ if _SCRIPTS not in sys.path:
 from eval_sim_cpa_block import (  # noqa: E402
     EVIDENCE_ACCEPTED, EVIDENCE_AMBIGUOUS_EPOCH, EVIDENCE_BAD_ARITHMETIC,
     EVIDENCE_FAULT, EVIDENCE_NO_ROWS, EVIDENCE_NO_SCPC,
-    EVIDENCE_PARSE_FAILED, EVIDENCE_TARGET_MISMATCH,
+    EVIDENCE_PARSE_FAILED, EVIDENCE_POI_MISMATCH,
 )
 
 INTERVAL_US = 20_000
 
 EV_ENABLE = 1
 EV_DISABLE = 2
-EV_RETARGET = 3
+EV_REPOI = 3
 EV_FAULT = 4
 EV_INVALID_CONFIG = 5
 
@@ -88,7 +88,7 @@ def _rejected(status: str, *errors: str) -> EpochEvidence:
 def certify_epoch(
     scpc: list[dict[str, Any]],
     scpa: list[dict[str, Any]],
-    expected_target: tuple[int, int, int],
+    expected_poi: tuple[int, int, int],
 ) -> EpochEvidence:
     """Select and certify the case's epoch from parsed rows.
 
@@ -103,12 +103,12 @@ def certify_epoch(
             EVIDENCE_NO_SCPC, "no SCPC configuration record in the BIN"
         )
     open_events = [
-        row for row in scpc if row.get("Ev") in (EV_ENABLE, EV_RETARGET)
+        row for row in scpc if row.get("Ev") in (EV_ENABLE, EV_REPOI)
     ]
     matching = [
         row for row in open_events
         if (row.get("LatE7"), row.get("LngE7"), row.get("AltCM"))
-        == expected_target
+        == expected_poi
     ]
     if not matching:
         observed = [
@@ -116,13 +116,13 @@ def certify_epoch(
             for row in open_events
         ]
         return _rejected(
-            EVIDENCE_TARGET_MISMATCH,
-            f"no epoch matches target {expected_target}; observed {observed}",
+            EVIDENCE_POI_MISMATCH,
+            f"no epoch matches POI {expected_poi}; observed {observed}",
         )
     if len(matching) > 1:
         return _rejected(
             EVIDENCE_AMBIGUOUS_EPOCH,
-            f"{len(matching)} epochs match the target bit-for-bit; "
+            f"{len(matching)} epochs match the POI bit-for-bit; "
             "recency never disambiguates evidence",
         )
     selected = matching[0]
@@ -143,7 +143,7 @@ def certify_epoch(
     close_time_us = None
     for row in epoch_events:
         if row.get("Ev") in (EV_DISABLE, EV_INVALID_CONFIG) or (
-            row.get("Ev") == EV_RETARGET and row is not selected
+            row.get("Ev") == EV_REPOI and row is not selected
         ):
             time_us = row.get("TimeUS")
             if isinstance(time_us, int) and (
@@ -273,7 +273,7 @@ __all__ = [
     "EV_ENABLE",
     "EV_FAULT",
     "EV_INVALID_CONFIG",
-    "EV_RETARGET",
+    "EV_REPOI",
     "EpochEvidence",
     "FLAG_FINAL",
     "FLAG_PARTIAL",

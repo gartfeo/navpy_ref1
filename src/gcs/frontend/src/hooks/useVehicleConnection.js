@@ -547,7 +547,7 @@ export default function useVehicleConnection({
         // post-processing behavior.
         const zonesForEffects = mergedZones;
         const existingFallbackLocations = settings?.fallback_delivery_locations || [];
-        const targets = zonesForEffects.map((z, i) => {
+        const pois = zonesForEffects.map((z, i) => {
           if (i === zonesForEffects.length - 1) return m.fallback_delivery_location || null;
           const fallbackLocationIdx = fallbackLocationAssignments?.[i];
           if (fallbackLocationIdx != null && existingFallbackLocations[fallbackLocationIdx]) {
@@ -563,7 +563,7 @@ export default function useVehicleConnection({
           metadataMission.corridor_backbone,
           metadataMission.launch_point,
           metadataMission.dock_classes,
-          targets,
+          pois,
         );
         await observeFenceFromVehicle(sysId, startupRequestIsActive);
         if (!startupRequestIsActive()) return;

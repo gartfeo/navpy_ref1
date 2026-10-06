@@ -33,7 +33,7 @@ if not __package__:
     )
     from tools.cam.gimbal_tuning_runtime import main
     from tools.cam.gimbal_tuning_sample import (
-        build_tracker_target,
+        build_tracker_poi,
         tick_gimbal_tracker,
     )
 else:
@@ -57,7 +57,7 @@ else:
     )
     from .gimbal_tuning_runtime import main
     from .gimbal_tuning_sample import (
-        build_tracker_target,
+        build_tracker_poi,
         tick_gimbal_tracker,
     )
 
@@ -72,7 +72,7 @@ __all__ = [
     "bbox_center",
     "build_bbox_tracking_command",
     "build_parser",
-    "build_tracker_target",
+    "build_tracker_poi",
     "capture_calibrated_intrinsics",
     "main",
     "parse_args",

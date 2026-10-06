@@ -1,4 +1,4 @@
-"""Non-terminal vehicle commands owned outside the Navigation root."""
+"""Non-final-approach vehicle commands owned outside the Navigation root."""
 
 from __future__ import annotations
 
@@ -19,18 +19,18 @@ class NavigationVehicleCommands:
     def __init__(self, vehicle: NavigationCommandVehicle) -> None:
         self._vehicle = vehicle
 
-    def peer_target(self, target: Location) -> None:
-        relative_target = Location(
-            target.lat,
-            target.lng,
+    def peer_poi(self, poi: Location) -> None:
+        relative_poi = Location(
+            poi.lat,
+            poi.lng,
             self._vehicle.location(True).alt,
             is_absolute=False,
         )
-        self._vehicle.goto(relative_target)
+        self._vehicle.goto(relative_poi)
 
-    def peer_target_loiter(
+    def peer_poi_loiter(
         self,
-        target: Location,
+        poi: Location,
         radius: float,
         alt_rel_m: Optional[float] = None,
     ) -> None:
@@ -39,10 +39,10 @@ class NavigationVehicleCommands:
             if alt_rel_m is None
             else alt_rel_m
         )
-        relative_target = Location(
-            target.lat,
-            target.lng,
+        relative_poi = Location(
+            poi.lat,
+            poi.lng,
             altitude,
             is_absolute=False,
         )
-        self._vehicle.goto_loiter(relative_target, radius)
+        self._vehicle.goto_loiter(relative_poi, radius)

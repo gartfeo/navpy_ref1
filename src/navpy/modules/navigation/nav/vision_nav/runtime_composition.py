@@ -12,70 +12,70 @@ from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.nav.vision_nav.command_executor import (
-    TerminalCommandExecutor,
-    TerminalExecutorPorts,
+    FinalApproachCommandExecutor,
+    FinalApproachExecutorPorts,
 )
 from navpy.modules.navigation.nav.vision_nav.command_freshness import (
-    TerminalCommandFreshness,
+    FinalApproachCommandFreshness,
 )
 from navpy.modules.navigation.nav.vision_nav.command_hold import (
-    TerminalCommandHold,
+    FinalApproachCommandHold,
 )
 from navpy.modules.navigation.nav.vision_nav.command_liveness import (
-    TerminalCommandLiveness,
+    FinalApproachCommandLiveness,
 )
 from navpy.modules.navigation.nav.vision_nav.command_postprocess import (
-    TerminalPostprocessFence,
+    FinalApproachPostprocessFence,
 )
 from navpy.modules.navigation.nav.vision_nav.command_reset import (
-    TerminalCommandReset,
-    TerminalCommandResetPorts,
+    FinalApproachCommandReset,
+    FinalApproachCommandResetPorts,
 )
 from navpy.modules.navigation.nav.vision_nav.command_transaction import (
-    TerminalAttitudeActuator,
-    TerminalCommandTransaction,
+    FinalApproachAttitudeActuator,
+    FinalApproachCommandTransaction,
 )
 from navpy.modules.navigation.nav.vision_nav.confirmation import (
-    TerminalConfirmation,
-    TerminalConfirmationPorts,
+    FinalApproachConfirmation,
+    FinalApproachConfirmationPorts,
 )
 from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
-    TerminalDiagnosticMailbox,
+    FinalApproachDiagnosticMailbox,
 )
 from navpy.modules.navigation.nav.vision_nav.diagnostics import (
-    NavigationTerminalDiagnostics,
-    TerminalDiagnosticReader,
-    TerminalDiagnosticSnapshot,
+    NavigationFinalApproachDiagnostics,
+    FinalApproachDiagnosticReader,
+    FinalApproachDiagnosticSnapshot,
 )
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
-    TerminalFrameProjector,
-    TerminalProjectionConfig,
+    FinalApproachFrameProjector,
+    FinalApproachProjectionConfig,
 )
 from navpy.modules.navigation.nav.vision_nav.ingress import (
-    TerminalIngress,
-    TerminalIngressPorts,
+    FinalApproachIngress,
+    FinalApproachIngressPorts,
 )
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.modules.navigation.nav.vision_nav.runtime import (
-    TerminalCommandWorkRuntime,
-    TerminalSessionRuntime,
+    FinalApproachCommandWorkRuntime,
+    FinalApproachSessionRuntime,
     VisionNavRuntime,
 )
-from navpy.modules.navigation.nav.vision_nav.runtime_state import TerminalRuntimeStatus
+from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
 from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
 from navpy.modules.navigation.nav.vision_nav.source_time_adapter import (
-    PoseCadenceTerminalSourceTimeObserver,
+    PoseCadenceFinalApproachSourceTimeObserver,
 )
 from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassDetector
 
 
 @dataclass(frozen=True)
-class TerminalRuntimeComposition:
+class FinalApproachRuntimeComposition:
     runtime: VisionNavRuntime
-    confirmation: TerminalConfirmation
+    confirmation: FinalApproachConfirmation
 
 
-class TerminalVehicleActuator:
+class FinalApproachVehicleActuator:
     def __init__(self, set_attitude: Callable[..., None]) -> None:
         self._set_attitude = set_attitude
 
@@ -93,7 +93,7 @@ class TerminalVehicleActuator:
         )
 
 
-class TerminalVehicleDiagnosticReader:
+class FinalApproachVehicleDiagnosticReader:
     def __init__(
         self,
         attitude: Callable[[], Attitude | None],
@@ -102,8 +102,8 @@ class TerminalVehicleDiagnosticReader:
         self._attitude = attitude
         self._location = location
 
-    def read(self) -> TerminalDiagnosticSnapshot:
-        return TerminalDiagnosticSnapshot(
+    def read(self) -> FinalApproachDiagnosticSnapshot:
+        return FinalApproachDiagnosticSnapshot(
             attitude=self._read_attitude(),
             location=self._read_location(),
         )
@@ -121,35 +121,35 @@ class TerminalVehicleDiagnosticReader:
             return None
 
 
-def compose_terminal_runtime(
+def compose_final_approach_runtime(
     *,
     lock: threading.RLock,
     slot: NavigationCommandSlot,
     sys_id: int,
-    actuator: TerminalAttitudeActuator,
-    diagnostic_reader: TerminalDiagnosticReader,
+    actuator: FinalApproachAttitudeActuator,
+    diagnostic_reader: FinalApproachDiagnosticReader,
     law: VisionNavLaw,
     aircraft_roll_deg: Callable[[], float],
     aircraft_sequence: str,
     aircraft_degrees: bool,
     navigation_logger: NavigationLogger,
     wall_period_s: Callable[[float], float],
-) -> TerminalRuntimeComposition:
+) -> FinalApproachRuntimeComposition:
     if type(sys_id) is not int:
-        raise TypeError("terminal vehicle target_system must be an integer")
-    source_time = PoseCadenceTerminalSourceTimeObserver(sys_id)
-    liveness = TerminalCommandLiveness()
-    freshness = TerminalCommandFreshness(wall_period_s)
-    hold = TerminalCommandHold(actuator, source_time, liveness, freshness)
-    projector = TerminalFrameProjector(
-        TerminalProjectionConfig(aircraft_sequence, aircraft_degrees)
+        raise TypeError("final-approach vehicle target_system must be an integer")
+    source_time = PoseCadenceFinalApproachSourceTimeObserver(sys_id)
+    liveness = FinalApproachCommandLiveness()
+    freshness = FinalApproachCommandFreshness(wall_period_s)
+    hold = FinalApproachCommandHold(actuator, source_time, liveness, freshness)
+    projector = FinalApproachFrameProjector(
+        FinalApproachProjectionConfig(aircraft_sequence, aircraft_degrees)
     )
     epochs = SourceEpochLedger()
-    mailbox = TerminalDiagnosticMailbox()
-    status = TerminalRuntimeStatus()
+    mailbox = FinalApproachDiagnosticMailbox()
+    status = FinalApproachRuntimeStatus()
     visual_pass = VisualPassDetector()
-    postprocess_fence = TerminalPostprocessFence()
-    command_reset = TerminalCommandReset(TerminalCommandResetPorts(
+    postprocess_fence = FinalApproachPostprocessFence()
+    command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock,
         slot,
         mailbox,
@@ -160,8 +160,8 @@ def compose_terminal_runtime(
         liveness,
         postprocess_fence,
     ))
-    ingress = TerminalIngress(
-        TerminalIngressPorts(
+    ingress = FinalApproachIngress(
+        FinalApproachIngressPorts(
             lock,
             slot,
             projector,
@@ -171,20 +171,20 @@ def compose_terminal_runtime(
             command_reset,
         )
     )
-    confirmation = TerminalConfirmation(
-        TerminalConfirmationPorts(lock, projector, epochs, law, aircraft_roll_deg)
+    confirmation = FinalApproachConfirmation(
+        FinalApproachConfirmationPorts(lock, projector, epochs, law, aircraft_roll_deg)
     )
-    transaction = TerminalCommandTransaction(
+    transaction = FinalApproachCommandTransaction(
         law,
         visual_pass,
         actuator,
     )
-    diagnostics = NavigationTerminalDiagnostics(
+    diagnostics = NavigationFinalApproachDiagnostics(
         navigation_logger,
         diagnostic_reader,
     )
-    executor = TerminalCommandExecutor(
-        TerminalExecutorPorts(
+    executor = FinalApproachCommandExecutor(
+        FinalApproachExecutorPorts(
             slot,
             transaction,
             mailbox,
@@ -198,8 +198,8 @@ def compose_terminal_runtime(
         )
     )
     runtime = VisionNavRuntime(
-        TerminalCommandWorkRuntime(slot, ingress, executor, hold),
-        TerminalSessionRuntime(
+        FinalApproachCommandWorkRuntime(slot, ingress, executor, hold),
+        FinalApproachSessionRuntime(
             lock,
             epochs,
             command_reset,
@@ -208,7 +208,7 @@ def compose_terminal_runtime(
             liveness,
         ),
     )
-    return TerminalRuntimeComposition(runtime, confirmation)
+    return FinalApproachRuntimeComposition(runtime, confirmation)
 
 
 def _attitude_or_none(value: Attitude | None) -> Attitude | None:
@@ -223,8 +223,8 @@ def _location_or_none(value: Location | None) -> Location | None:
 
 
 __all__ = [
-    "TerminalRuntimeComposition",
-    "TerminalVehicleActuator",
-    "TerminalVehicleDiagnosticReader",
-    "compose_terminal_runtime",
+    "FinalApproachRuntimeComposition",
+    "FinalApproachVehicleActuator",
+    "FinalApproachVehicleDiagnosticReader",
+    "compose_final_approach_runtime",
 ]

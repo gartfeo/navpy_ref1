@@ -12,7 +12,7 @@ from pymavlink import mavutil
 from scripts import eval_certificate as cert
 
 from eval_navigation_models import MissionItem
-from eval_navigation_telemetry import message_from_target
+from eval_navigation_telemetry import message_from_poi
 
 
 def set_param(
@@ -36,7 +36,7 @@ def set_param(
         message = master.recv_match(
             type="PARAM_VALUE", blocking=True, timeout=0.5
         )
-        if message is None or not message_from_target(
+        if message is None or not message_from_poi(
             message, master.target_system
         ):
             continue
@@ -69,7 +69,7 @@ def read_param(
         message = master.recv_match(
             type="PARAM_VALUE", blocking=True, timeout=0.5
         )
-        if message is None or not message_from_target(
+        if message is None or not message_from_poi(
             message, master.target_system
         ):
             continue
@@ -157,7 +157,7 @@ def download_all_params(
             if parameters and time.time() - last_seen >= idle_timeout_s:
                 break
             continue
-        if not message_from_target(message, master.target_system):
+        if not message_from_poi(message, master.target_system):
             continue
         take(message)
         if expected is not None and len(seen_indices) >= expected:
@@ -205,7 +205,7 @@ def _repair_missing_params(
         message = master.recv_match(
             type="PARAM_VALUE", blocking=True, timeout=0.5
         )
-        if message is not None and message_from_target(
+        if message is not None and message_from_poi(
             message, master.target_system
         ):
             take(message)

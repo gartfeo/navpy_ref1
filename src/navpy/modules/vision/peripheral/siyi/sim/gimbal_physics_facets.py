@@ -81,7 +81,7 @@ class GimbalPhysicsControlFacet:
     def center(self) -> None:
         self._parts.angular.set_target_angles(0.0, 0.0)
 
-    def set_target_zoom(self, level: float) -> None:
+    def set_poi_zoom(self, level: float) -> None:
         self._parts.zoom.set_target(level)
 
     def start_zoom_in(self) -> None:

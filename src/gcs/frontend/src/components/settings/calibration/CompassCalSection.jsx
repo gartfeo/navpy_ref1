@@ -138,7 +138,7 @@ function VehicleCalCard({ t, vehicle, state, accepted, onStart, onCancel, onAcce
 export default function CompassCalSection({ vehicleList, compassCal }) {
   const { t } = useTranslation();
   const [accepted, setAccepted] = useState({});  // sysId -> true
-  const [rebootTarget, setRebootTarget] = useState(null);
+  const [rebootPoi, setRebootPoi] = useState(null);
 
   const vehicles = vehicleList || [];
   const cal = compassCal?.calByVehicle || {};
@@ -173,8 +173,8 @@ export default function CompassCalSection({ vehicleList, compassCal }) {
   };
 
   const confirmReboot = () => {
-    if (rebootTarget != null) compassCal?.reboot(rebootTarget);
-    setRebootTarget(null);
+    if (rebootPoi != null) compassCal?.reboot(rebootPoi);
+    setRebootPoi(null);
   };
 
   return (
@@ -196,19 +196,19 @@ export default function CompassCalSection({ vehicleList, compassCal }) {
             onStart={handleStart}
             onCancel={(sysId) => compassCal?.cancel(sysId)}
             onAccept={handleAccept}
-            onReboot={(sysId) => setRebootTarget(sysId)}
+            onReboot={(sysId) => setRebootPoi(sysId)}
           />
         ))
       )}
 
-      {rebootTarget != null && (
+      {rebootPoi != null && (
         <ConfirmModal
           title={t('calibration.rebootConfirmTitle')}
           message={t('calibration.rebootConfirmMessage')}
           tone="caution"
           confirmLabel={t('calibration.reboot')}
           onConfirm={confirmReboot}
-          onCancel={() => setRebootTarget(null)}
+          onCancel={() => setRebootPoi(null)}
         />
       )}
     </SettingsSection>

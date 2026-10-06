@@ -1,4 +1,4 @@
-"""Composition of confirmation review and terminal admission gates."""
+"""Composition of confirmation review and final-approach admission gates."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.nav.confirmation_action import (
     ConfirmationAction,
     ConfirmationGeoHold,
-    TerminalConfirmationAdmission,
-    TerminalConfirmationPorts,
+    FinalApproachConfirmationAdmission,
+    FinalApproachConfirmationPorts,
 )
 from navpy.modules.nav.confirmation_frame_policy import ConfirmationFramePolicy
 from navpy.modules.nav.confirmation_legacy_prep import (
@@ -29,12 +29,12 @@ from navpy.modules.nav.nav_composition_types import (
     NavigationTaskWorkflows,
     NavCapabilities,
     NavStateOwnership,
-    TargetMissionOwnership,
+    PoiMissionOwnership,
     VehicleApproachOwnership,
 )
 from navpy.modules.nav.confirmation_manager import ConfirmationStatus
-from navpy.modules.nav.terminal_record_deadline import TerminalRecordDeadline
-from navpy.modules.nav.terminal_release_gate import TerminalReleaseGate
+from navpy.modules.nav.final_approach_record_deadline import FinalApproachRecordDeadline
+from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.modules.vehicle.vehicle_interface import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
@@ -46,7 +46,7 @@ def compose_confirmation_admission_workflows(
     logger: ILogger,
     approach_kind: ApproachKind,
     state: NavStateOwnership,
-    target: TargetMissionOwnership,
+    poi: PoiMissionOwnership,
     approach: VehicleApproachOwnership,
     observation: DetectionReviewOwnership,
     navigation_task: NavigationTaskWorkflows,
@@ -54,30 +54,30 @@ def compose_confirmation_admission_workflows(
 ) -> ConfirmationAdmissionWorkflows:
     review = ConfirmationReview(
         LocalConfirmationPublisher(
-            lambda detected: target.confirmation_manager.update_status(
+            lambda detected: poi.confirmation_manager.update_status(
                 detected,
                 ConfirmationStatus.CONFIRMED,
             ),
             logger,
         ),
         OperatorReviewPublisher(
-            terminal_active=lambda: navigation.terminal.is_active,
-            review=lambda targets: target.confirmation_manager.review(targets),
-            freeze_terminal_zoom=observation.zoom.freeze_terminal_wide,
+            final_approach_active=lambda: navigation.final_approach.is_active,
+            review=lambda pois: poi.confirmation_manager.review(pois),
+            freeze_final_approach_zoom=observation.zoom.freeze_final_approach_wide,
             set_tracking_zoom=observation.zoom.set_recognition_demand,
             logger=logger,
             legacy=(
                 None
-                if navigation.terminal.is_active
+                if navigation.final_approach.is_active
                 else LegacyReviewPreparation(
                     LegacyReviewPorts(
                         ground_location=(
-                            navigation.legacy_targets.ground_location
+                            navigation.legacy_pois.ground_location
                         ),
                         current_location=lambda: vehicle.location(False),
-                        goto_target=navigation.vehicle_commands.peer_target,
+                        goto_poi=navigation.vehicle_commands.peer_poi,
                         goto_loiter=(
-                            navigation.vehicle_commands.peer_target_loiter
+                            navigation.vehicle_commands.peer_poi_loiter
                         ),
                         absolute_location=approach.commands.absolute_location,
                     ),
@@ -99,20 +99,20 @@ def compose_confirmation_admission_workflows(
         observation.debug,
         observation.blocked,
     )
-    terminal_admission = TerminalConfirmationAdmission(
-        TerminalConfirmationPorts(
-            terminal_active=lambda: navigation.terminal.is_active,
-            can_confirm=navigation.terminal.can_confirm_detection,
-            record_confirmed=navigation.terminal.record_confirmed_detection,
+    final_approach_admission = FinalApproachConfirmationAdmission(
+        FinalApproachConfirmationPorts(
+            final_approach_active=lambda: navigation.final_approach.is_active,
+            can_confirm=navigation.final_approach.can_confirm_detection,
+            record_confirmed=navigation.final_approach.record_confirmed_detection,
             auto_confirm=lambda: args.is_auto_confirm,
         ),
-        state.terminal,
+        state.final_approach,
         review,
         observation.debug,
     )
     confirmation_geo_hold = ConfirmationGeoHold(
         state.geo_hold,
-        target.confirmation_manager,
+        poi.confirmation_manager,
         detection.geo_pointing,
         navigation_task.peer_geo_acquisition,
         lambda: vehicle.location(False),
@@ -122,22 +122,22 @@ def compose_confirmation_admission_workflows(
         state.detections,
         navigation_task.selector,
         navigation_task.peer_notifier,
-        target.confirmation_manager,
+        poi.confirmation_manager,
         observation.source,
         ConfirmationFramePolicy(observation.debug),
-        terminal_admission,
+        final_approach_admission,
         recognition,
         observation.blocked,
         observation.debug,
         confirmation_geo_hold,
     )
-    release = TerminalReleaseGate(
+    release = FinalApproachReleaseGate(
         observation.source,
         observation.freshness,
         observation.debug,
     )
-    deadline = TerminalRecordDeadline(
-        state.terminal,
+    deadline = FinalApproachRecordDeadline(
+        state.final_approach,
         state.navigation_failures.mark_failed,
         lambda: state.clock.decision_s(),
         logger,

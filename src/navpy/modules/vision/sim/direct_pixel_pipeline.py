@@ -1,6 +1,6 @@
 """Wire the direct-pixel source's collaborators and their shared bounds.
 
-Split from ``direct_target_pixel_source`` for the same reason
+Split from ``direct_poi_pixel_source`` for the same reason
 ``direct_pixel_render`` was: that module owns the message plumbing, the lock
 and the publish slot, and it should not also own how the association gate, the
 truth history, the renderer and the decision trace are configured.
@@ -45,7 +45,7 @@ from navpy.modules.vision.sim.truth_pose_time_axis import (
 )
 
 
-DIRECT_PIXEL_SOURCE_NAME = "direct_target_pixel"
+DIRECT_PIXEL_SOURCE_NAME = "direct_poi_pixel"
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ class DirectPixelPipeline:
 
 def build_direct_pixel_pipeline(
     vehicle: IVehicle,
-    target: Location,
+    poi: Location,
     cadence: SchedulerCadence,
     *,
     aircraft_sequence: str,
@@ -102,7 +102,7 @@ def build_direct_pixel_pipeline(
         require_event_pair=True,
     )
     renderer = DirectPixelRenderer(
-        target,
+        poi,
         source_name=DIRECT_PIXEL_SOURCE_NAME,
         aircraft_sequence=aircraft_sequence,
         aircraft_degrees=aircraft_degrees,

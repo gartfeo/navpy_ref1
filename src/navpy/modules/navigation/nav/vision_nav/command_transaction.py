@@ -1,4 +1,4 @@
-"""Plan/issue/commit terminal command transaction."""
+"""Plan/issue/commit final-approach command transaction."""
 
 from __future__ import annotations
 
@@ -8,17 +8,17 @@ from enum import Enum
 from typing import Protocol
 
 from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.command_anchor import (
-    TerminalLimits,
+    FinalApproachLimits,
     effective_limits,
 )
-from navpy.modules.navigation.nav.vision_nav.law import TerminalLawPlan
-from navpy.modules.navigation.nav.vision_nav.law_plan import TerminalPlanOrigin
+from navpy.modules.navigation.nav.vision_nav.law import FinalApproachLawPlan
+from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachPlanOrigin
 from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassPlan
 
 
-class TerminalAttitudeActuator(Protocol):
+class FinalApproachAttitudeActuator(Protocol):
     def issue(
         self,
         roll_deg: float,
@@ -27,7 +27,7 @@ class TerminalAttitudeActuator(Protocol):
     ) -> None: ...
 
 
-class TerminalCommandLaw(Protocol):
+class FinalApproachCommandLaw(Protocol):
     @property
     def pitch_time_constant_s(self) -> float | None: ...
 
@@ -37,38 +37,38 @@ class TerminalCommandLaw(Protocol):
     @property
     def pitch_limits_deg(self) -> tuple[float, float]: ...
 
-    def plan(self, frame: TerminalVisionFrame) -> TerminalLawPlan | None: ...
+    def plan(self, frame: FinalApproachVisionFrame) -> FinalApproachLawPlan | None: ...
 
-    def commit(self, plan: TerminalLawPlan) -> None: ...
+    def commit(self, plan: FinalApproachLawPlan) -> None: ...
 
 
-class TerminalPassPolicy(Protocol):
-    def plan(self, frame: TerminalVisionFrame) -> VisualPassPlan: ...
+class FinalApproachPassPolicy(Protocol):
+    def plan(self, frame: FinalApproachVisionFrame) -> VisualPassPlan: ...
 
     def commit(self, plan: VisualPassPlan) -> None: ...
 
 
 @dataclass(frozen=True)
-class TerminalCommandResult:
+class FinalApproachCommandResult:
     calc_data: CalcData | None
-    outcome: "TerminalCommandOutcome"
+    outcome: "FinalApproachCommandOutcome"
     passed: bool
-    evidence: "TerminalLawEvidence | None" = None
+    evidence: "FinalApproachLawEvidence | None" = None
 
     @property
     def issued(self) -> bool:
-        return self.outcome is TerminalCommandOutcome.ISSUED
+        return self.outcome is FinalApproachCommandOutcome.ISSUED
 
 
-class TerminalCommandOutcome(Enum):
+class FinalApproachCommandOutcome(Enum):
     ISSUED = "issued"
     PASS_SUPPRESSED = "pass_suppressed"
     LAW_UNAVAILABLE = "law_unavailable"
 
 
 @dataclass(frozen=True)
-class TerminalLawEvidence:
-    """Frame-local terms that completely explain one terminal command."""
+class FinalApproachLawEvidence:
+    """Frame-local terms that completely explain one final-approach command."""
 
     control_bearing_deg: float
     lateral_rate_deg_s: float
@@ -85,42 +85,42 @@ class TerminalLawEvidence:
     # clipped to after the law's own structural caps narrowed it. Both, because
     # they differ: auditing against the configured values produced a standing
     # 10.0 deg "unexplained residual" on every run.
-    configured_limits: TerminalLimits
-    effective_limits: TerminalLimits
+    configured_limits: FinalApproachLimits
+    effective_limits: FinalApproachLimits
     raw_roll_deg: float
     raw_pitch_deg: float
     # Which branch ran, the anchor it integrated from, the interval and the
     # gains -- everything needed to reproduce the command.
-    origin: TerminalPlanOrigin
+    origin: FinalApproachPlanOrigin
 
 
-class TerminalCommandTransaction:
+class FinalApproachCommandTransaction:
     """Mutate law/pass state only at the command boundary."""
 
     def __init__(
         self,
-        law: TerminalCommandLaw,
-        visual_pass: TerminalPassPolicy,
-        actuator: TerminalAttitudeActuator,
+        law: FinalApproachCommandLaw,
+        visual_pass: FinalApproachPassPolicy,
+        actuator: FinalApproachAttitudeActuator,
     ) -> None:
         self._law = law
         self._pass = visual_pass
         self._actuator = actuator
 
-    def execute(self, frame: TerminalVisionFrame) -> TerminalCommandResult:
+    def execute(self, frame: FinalApproachVisionFrame) -> FinalApproachCommandResult:
         pass_plan = self._pass.plan(frame)
         if pass_plan.suppress_command:
             self._pass.commit(pass_plan)
-            return TerminalCommandResult(
+            return FinalApproachCommandResult(
                 None,
-                TerminalCommandOutcome.PASS_SUPPRESSED,
+                FinalApproachCommandOutcome.PASS_SUPPRESSED,
                 pass_plan.next_state.passed,
             )
         law_plan = self._law.plan(frame)
         if law_plan is None:
-            return TerminalCommandResult(
+            return FinalApproachCommandResult(
                 None,
-                TerminalCommandOutcome.LAW_UNAVAILABLE,
+                FinalApproachCommandOutcome.LAW_UNAVAILABLE,
                 pass_plan.next_state.passed,
             )
         command = law_plan.command
@@ -145,7 +145,7 @@ class TerminalCommandTransaction:
                 math.hypot(frame.control_x, frame.control_y),
             )
         )
-        return TerminalCommandResult(
+        return FinalApproachCommandResult(
             CalcData(
                 yaw=math.degrees(math.atan2(frame.body_y, frame.body_x)),
                 pitch=control_elevation_deg,
@@ -153,9 +153,9 @@ class TerminalCommandTransaction:
                 cmd_pitch=command.cmd_pitch_deg,
                 cmd_thr=command.cmd_thr,
             ),
-            TerminalCommandOutcome.ISSUED,
+            FinalApproachCommandOutcome.ISSUED,
             pass_plan.next_state.passed,
-            TerminalLawEvidence(
+            FinalApproachLawEvidence(
                 control_bearing_deg=control_bearing_deg,
                 lateral_rate_deg_s=math.degrees(
                     law_plan.lateral_rate.visual_rate_rad_s
@@ -176,7 +176,7 @@ class TerminalCommandTransaction:
                 control_elevation_deg=control_elevation_deg,
                 vertical_rate_deg_s=math.degrees(law_plan.rate.rate_rad_s),
                 pitch_time_constant_s=self._law.pitch_time_constant_s,
-                configured_limits=TerminalLimits(
+                configured_limits=FinalApproachLimits(
                     self._law.roll_limit_deg,
                     self._law.pitch_limits_deg[0],
                     self._law.pitch_limits_deg[1],
@@ -190,11 +190,11 @@ class TerminalCommandTransaction:
 
 
 __all__ = [
-    "TerminalAttitudeActuator",
-    "TerminalCommandLaw",
-    "TerminalCommandOutcome",
-    "TerminalCommandResult",
-    "TerminalCommandTransaction",
-    "TerminalLawEvidence",
-    "TerminalPassPolicy",
+    "FinalApproachAttitudeActuator",
+    "FinalApproachCommandLaw",
+    "FinalApproachCommandOutcome",
+    "FinalApproachCommandResult",
+    "FinalApproachCommandTransaction",
+    "FinalApproachLawEvidence",
+    "FinalApproachPassPolicy",
 ]

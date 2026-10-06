@@ -33,7 +33,7 @@ class _GeoRef:
 
 class TestGeoRayDiagnostics(unittest.TestCase):
     def setUp(self):
-        self.target_loc = _Loc(40.1, 44.1, 950.0)
+        self.poi_loc = _Loc(40.1, 44.1, 950.0)
         self.uav_loc = _Loc(40.0, 44.0, 1000.0)
         self.uav_att = Attitude(0.0, 0.0, 0.0)
         self.g_data = GimbalData(att=Attitude(-10.0, 20.0, 0.0))
@@ -51,7 +51,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
             return_value=np.array([100.0, 20.0, 50.0]),
         ):
             diag = compute_geo_ray_diagnostic(
-                target_loc=self.target_loc,
+                poi_loc=self.poi_loc,
                 uav_loc=self.uav_loc,
                 uav_att=self.uav_att,
                 k=self.k,
@@ -61,8 +61,8 @@ class TestGeoRayDiagnostics(unittest.TestCase):
             )
 
         self.assertEqual(diag.projection_status, "in_frame")
-        self.assertEqual(diag.intersection_status, "target_alt_hit")
-        self.assertEqual(diag.target_ned, (100.0, 20.0, 50.0))
+        self.assertEqual(diag.intersection_status, "poi_alt_hit")
+        self.assertEqual(diag.poi_ned, (100.0, 20.0, 50.0))
         self.assertEqual(diag.optical_axis_ned, (2.0, 0.0, 1.0))
         self.assertEqual(diag.plane_hit_ned, (100.0, 0.0, 50.0))
         self.assertAlmostEqual(diag.plane_scale, 50.0)
@@ -82,7 +82,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
             return_value=np.array([100.0, 0.0, 50.0]),
         ):
             diag = compute_geo_ray_diagnostic(
-                target_loc=self.target_loc,
+                poi_loc=self.poi_loc,
                 uav_loc=self.uav_loc,
                 uav_att=self.uav_att,
                 k=self.k,
@@ -92,7 +92,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
             )
 
         self.assertEqual(diag.projection_status, "out_of_fov")
-        self.assertFalse(diag.target_in_frame)
+        self.assertFalse(diag.poi_in_frame)
 
     def test_marks_behind_camera_without_calling_validator(self):
         geo_ref = _GeoRef(uv=(None, None), ray=(2.0, 0.0, 1.0))
@@ -103,7 +103,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
             return_value=np.array([100.0, 0.0, 50.0]),
         ):
             diag = compute_geo_ray_diagnostic(
-                target_loc=self.target_loc,
+                poi_loc=self.poi_loc,
                 uav_loc=self.uav_loc,
                 uav_att=self.uav_att,
                 k=self.k,
@@ -113,7 +113,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
             )
 
         self.assertEqual(diag.projection_status, "behind_cam")
-        self.assertIsNone(diag.target_in_frame)
+        self.assertIsNone(diag.poi_in_frame)
         validator.assert_not_called()
 
     def test_parallel_optical_axis_has_no_plane_hit(self):
@@ -124,7 +124,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
             return_value=np.array([100.0, 0.0, 50.0]),
         ):
             diag = compute_geo_ray_diagnostic(
-                target_loc=self.target_loc,
+                poi_loc=self.poi_loc,
                 uav_loc=self.uav_loc,
                 uav_att=self.uav_att,
                 k=self.k,
@@ -133,7 +133,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
                 is_valid_pixel=lambda _u, _v: True,
             )
 
-        self.assertEqual(diag.intersection_status, "parallel_to_target_alt")
+        self.assertEqual(diag.intersection_status, "parallel_to_poi_alt")
         self.assertIsNone(diag.plane_hit_ned)
         self.assertIsNone(diag.lateral_miss_m)
 

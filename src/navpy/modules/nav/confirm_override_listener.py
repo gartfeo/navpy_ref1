@@ -31,7 +31,7 @@ class ConfirmOverrideListener(ListenerAbc):
     Receives ``SWARM_REQUEST(request_type=FORCE_CONFIRM, subject_id=task_id)``
     from the GCS and invokes one explicit confirmation-policy callback. The
     nav loop consumes that one-shot flag the next tick the pixel/zoom gate
-    would otherwise block that target.
+    would otherwise block that POI.
     """
 
     def __init__(
@@ -63,6 +63,6 @@ class ConfirmOverrideListener(ListenerAbc):
         task_id = msg.subject_id
         self._request_override(task_id)
         self._logger.warning(
-            f"CONFIRM override received (Ask me anyway) for T{task_id}",
+            f"CONFIRM override received (Ask me anyway) for P{task_id}",
             key='nav', dest=LogStatusDest.DRONE,
         )

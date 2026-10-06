@@ -5,7 +5,7 @@ from navpy.args.conn_args import ConnArgs
 from navpy.args.conn.network_args import NetworkArgs
 from navpy.args.pid_args import PIDArgs
 from navpy.args.navigation_args import NavigationArgs
-from navpy.args.navigation_target_args import NavigationTargetArgs
+from navpy.args.navigation_poi_args import NavigationPoiArgs
 from navpy.args.logger_args import LoggerArgs
 from navpy.args.mission_planner_args import MissionPlannerArgs
 from navpy.args.nav_args import NavArgs
@@ -16,7 +16,7 @@ _ARG_MODULES: Sequence[tuple[Callable, tuple]] = (
     # vehicle
     (ConnArgs.add_args, ()),
     # simulator delivery references / navigation
-    (NavigationTargetArgs.add_args, ()),
+    (NavigationPoiArgs.add_args, ()),
     (NavigationArgs.add_args, ()),
     # navigation
     (NavArgs.add_args, ()),

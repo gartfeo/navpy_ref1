@@ -14,7 +14,7 @@ looks like a navigation result and is not one.
 A gated run gets a second, independent check: each child measures its own clock
 when it steps down at the gate and raises if it did not settle. That covers the
 scored leg but only when a cruise speedup was asked for -- with none,
-`_step_to_terminal_speed` returns immediately and no child measures anything.
+`_step_to_final_approach_speed` returns immediately and no child measures anything.
 This module is what covers the fleet in both cases, so it is not conditional on
 gating.
 

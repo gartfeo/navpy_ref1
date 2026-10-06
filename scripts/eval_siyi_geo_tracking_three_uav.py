@@ -16,7 +16,7 @@ from scripts.eval_navigation_cases import (
     download_mission,
     require_nav_solution,
     resolve_home_abs_alt_m,
-    resolve_target_expectation,
+    resolve_poi_expectation,
     set_param,
     stop_own_stack,
     wait_for_heartbeat,
@@ -35,7 +35,7 @@ def _launch_child(
     directory: Path,
     *,
     sys_id: int,
-    target: object,
+    poi: object,
     scoring_start_seq: int,
     timeout_s: float,
 ) -> subprocess.Popen[bytes]:
@@ -44,10 +44,10 @@ def _launch_child(
         str(one.SCRIPTS / "siyi_geo_track_child.py"),
         "--connection", ip.companion_device(sys_id),
         "--sysid", str(sys_id),
-        "--target-lat", repr(target.lat_deg),
-        "--target-lon", repr(target.lon_deg),
-        "--target-alt", repr(target.abs_alt_m),
-        "--engage-seq", str(scoring_start_seq),
+        "--poi-lat", repr(poi.lat_deg),
+        "--poi-lon", repr(poi.lon_deg),
+        "--poi-alt", repr(poi.abs_alt_m),
+        "--scoring-start-seq", str(scoring_start_seq),
         "--timeout", repr(timeout_s),
         "--result", str(directory / "result.json"),
         "--ready", str(directory / "ready.marker"),
@@ -127,22 +127,22 @@ def _case(
         master = wait_for_heartbeat(ip.monitor_device(chat), 120.0)
         if master is None:
             raise RuntimeError("no evaluator heartbeat")
-        targets: dict[int, object] = {}
+        pois: dict[int, object] = {}
         scoring_start_sequences: dict[int, int] = {}
         for sys_id in sys_ids:
             three._select(master, sys_id)
             mission = download_mission(master)
             home_alt = resolve_home_abs_alt_m(master, timeout_s=30.0)
-            targets[sys_id] = resolve_target_expectation(
+            pois[sys_id] = resolve_poi_expectation(
                 mission,
-                target_wp=args.target_wp,
-                target_rel_alt_m=args.target_alt,
+                poi_wp=args.poi_wp,
+                poi_rel_alt_m=args.poi_alt,
                 home_abs_alt_m=home_alt,
             ).location
-            scoring_start_sequences[sys_id] = resolve_target_expectation(
+            scoring_start_sequences[sys_id] = resolve_poi_expectation(
                 mission,
-                target_wp=args.scoring_start_wp,
-                target_rel_alt_m=args.target_alt,
+                poi_wp=args.scoring_start_wp,
+                poi_rel_alt_m=args.poi_alt,
                 home_abs_alt_m=home_alt,
             ).mission_seq
             # The shared push list, not a stale private copy: this harness
@@ -161,7 +161,7 @@ def _case(
                 python,
                 directories[sys_id],
                 sys_id=sys_id,
-                target=targets[sys_id],
+                poi=pois[sys_id],
                 scoring_start_seq=scoring_start_sequences[sys_id],
                 timeout_s=args.timeout,
             )

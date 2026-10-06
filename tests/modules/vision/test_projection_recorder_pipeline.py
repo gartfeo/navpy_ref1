@@ -22,27 +22,27 @@ from tests.modules.vision.test_sim_frame_transactions import _coordinator
 def test_actual_pipeline_associates_projection_with_committed_empty_or_rejected_frame(tmp_path, scenario, expected, accepted):
     file = RunEvidenceFile(tmp_path, scenario, 3, EvidenceBudget(20,100_000))
     recorder = ProjectionRunRecorder(file)
-    projector, _, _, _, loc, target, *_ = rig(recorder, valid=scenario != 'empty', pixels=(640,360))
+    projector, _, _, _, loc, poi, *_ = rig(recorder, valid=scenario != 'empty', pixels=(640,360))
     coordinator, store, _ = _coordinator()
-    def project(location, target, attitude, **kwargs):
+    def project(location, poi, attitude, **kwargs):
         kwargs.pop('navigation_attitude')
-        result = projector.detect(location, target, attitude, **kwargs)
+        result = projector.detect(location, poi, attitude, **kwargs)
         if scenario == 'reset':
             with coordinator.reset():
                 pass
-        return result.target
+        return result.poi
     if scenario == 'publish_rejected':
         store.publish = lambda *args, **kwargs: False
-    context = SimDetectionContext(False, Mock(), lambda: (target,), project,
+    context = SimDetectionContext(False, Mock(), lambda: (poi,), project,
                                   SimFrameTimestampResolver(lambda value, **kwargs: value),
-                                  DetectionFrameTransactions(coordinator, lambda targets: 'finite'))
+                                  DetectionFrameTransactions(coordinator, lambda pois: 'finite'))
     capture, gap, tracking = Mock(), Mock(), Mock()
     capture.wants_frame.return_value = False
     gap.commit.return_value = False
     pipeline = SimDetectionPipeline(context, confirmation_capture=capture, forced_gap_policy=gap,
                                     tracking_updater=tracking, evidence_recorder=recorder)
     token = coordinator.token
-    result = pipeline.detect_targets(loc, Attitude(0,40,0), frame_timestamp_s=849.764,
+    result = pipeline.detect_pois(loc, Attitude(0,40,0), frame_timestamp_s=849.764,
                                      frame_receipt_timestamp_s=900., frame_generation=token, frame_epoch=123)
     assert result is accepted
     recorder.close()
@@ -77,7 +77,7 @@ def test_execution_composition_wires_owned_recorder_close_without_starting_worke
     recorder = ProjectionRunRecorder(file)
     deps = SimpleNamespace(vehicle=Mock(), mount=Mock(), logger=Mock(), scheduler_cadence=Mock())
     source = SimpleNamespace(coordinator=Mock(),pose_source=Mock(),activation=Mock(),record_outcome=Mock())
-    render = SimpleNamespace(target_provider=Mock(),capture=Mock(),gap=Mock(),tracking=Mock(),
+    render = SimpleNamespace(poi_provider=Mock(),capture=Mock(),gap=Mock(),tracking=Mock(),
                              ideal_camera=Mock(),evidence_recorder=recorder)
     graph = build_execution_graph(deps, SimpleNamespace(ideal_360=False),source,render,Mock())
     assert graph.lifecycle.stop() is True
@@ -106,13 +106,13 @@ def test_real_render_composition_owns_recorder_and_binds_pipeline(tmp_path,monke
     from navpy.args.uas_args import UasArgs
     from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
     from navpy.modules.vision.sim.sim_render_composition import build_render_foundation, build_pipeline
-    _,camera,_,_,loc,target,*_ = rig(None)
+    _,camera,_,_,loc,poi,*_ = rig(None)
     for key,value in dict(NAVPY_SIM_PROJECTION_RECORDER='1',NAVPY_SIM_EVIDENCE_DIR=str(tmp_path),
                           NAVPY_SIM_EVIDENCE_RUN_ID='render',NAVPY_SIM_EVIDENCE_MAX_RECORDS='20',
                           NAVPY_SIM_EVIDENCE_MAX_BYTES='100000').items():
         monkeypatch.setenv(key,value)
-    monkeypatch.setattr('navpy.modules.vision.sim.sim_render_composition.TargetProvider',
-                        lambda *args: SimpleNamespace(targets=[target]))
+    monkeypatch.setattr('navpy.modules.vision.sim.sim_render_composition.PoiProvider',
+                        lambda *args: SimpleNamespace(pois=[poi]))
     mount = SimpleNamespace(get_k=camera.read_matrix,get_gimbal_data=camera.read_gimbal,
                             is_valid=camera.pixel_valid,image_width=1280,image_height=720,name='camera',
                             sync_zoom_from_hardware=lambda:False)
@@ -124,7 +124,7 @@ def test_real_render_composition_owns_recorder_and_binds_pipeline(tmp_path,monke
                              coordinator=coordinator,clock=Mock())
     render = build_render_foundation(deps,options,source)
     pipeline = build_pipeline(deps,options,source,render)
-    assert pipeline.detect_targets(loc,Attitude(0,40,0),frame_timestamp_s=12.5,frame_generation=coordinator.token)
+    assert pipeline.detect_pois(loc,Attitude(0,40,0),frame_timestamp_s=12.5,frame_generation=coordinator.token)
     render.evidence_recorder.close()
     rows = [json.loads(line) for line in render.evidence_recorder.output.path.read_text().splitlines()]
     assert [r['kind'] for r in rows] == ['projection','publication']
@@ -163,17 +163,17 @@ def test_recorder_io_failure_keeps_pipeline_result_or_original_exception(tmp_pat
         return FaultFile(path.open(mode),'write' if path.suffix == '.jsonl' else None)
     file = RunEvidenceFile(tmp_path,'io-error',3,EvidenceBudget(20,100000),opener=opener)
     recorder = ProjectionRunRecorder(file)
-    projector,_,calc,_,loc,target,*_ = rig(recorder,valid=True,pixels=(640,360))
+    projector,_,calc,_,loc,poi,*_ = rig(recorder,valid=True,pixels=(640,360))
     original = ValueError('original projection failure')
     if projection_error:
         calc.side_effect = original
-    def project(location,target,attitude,**kwargs):
+    def project(location,poi,attitude,**kwargs):
         kwargs.pop('navigation_attitude')
-        return projector.detect(location,target,attitude,**kwargs).target
+        return projector.detect(location,poi,attitude,**kwargs).poi
     coordinator,_,_ = _coordinator()
-    context = SimDetectionContext(False,Mock(),lambda:(target,),project,
+    context = SimDetectionContext(False,Mock(),lambda:(poi,),project,
                                   SimFrameTimestampResolver(lambda value,**kwargs:value),
-                                  DetectionFrameTransactions(coordinator,lambda targets:'finite'))
+                                  DetectionFrameTransactions(coordinator,lambda pois:'finite'))
     capture,gap,tracking = Mock(),Mock(),Mock()
     capture.wants_frame.return_value = False
     gap.commit.return_value = False
@@ -181,12 +181,12 @@ def test_recorder_io_failure_keeps_pipeline_result_or_original_exception(tmp_pat
                                     tracking_updater=tracking,evidence_recorder=recorder)
     if projection_error:
         with pytest.raises(ValueError) as caught:
-            pipeline.detect_targets(loc,Attitude(0,40,0),frame_timestamp_s=12.5)
+            pipeline.detect_pois(loc,Attitude(0,40,0),frame_timestamp_s=12.5)
         assert caught.value is original
         capture.capture.assert_not_called()
         tracking.update.assert_not_called()
     else:
-        assert pipeline.detect_targets(loc,Attitude(0,40,0),frame_timestamp_s=12.5) is True
+        assert pipeline.detect_pois(loc,Attitude(0,40,0),frame_timestamp_s=12.5) is True
         capture.capture.assert_called_once()
         tracking.update.assert_called_once()
     recorder.close()
@@ -204,10 +204,10 @@ def test_pre_emit_failure_latches_incomplete_through_production_error_callback(t
     from tests.modules.vision.test_projection_run_recorder import frame
     file = RunEvidenceFile(tmp_path,stage,3,EvidenceBudget(20,100000))
     recorder = ProjectionRunRecorder(file)
-    _,camera,_,_,loc,target,*_ = rig(None)
+    _,camera,_,_,loc,poi,*_ = rig(None)
     mount = SimpleNamespace(get_k=camera.read_matrix,get_gimbal_data=camera.read_gimbal,is_valid=camera.pixel_valid)
     deps = SimpleNamespace(mount=mount,geo_ref=GeoRefCalc(UasArgs()),logger=Mock(),vehicle=SimpleNamespace(source_system=3))
-    composed = _build_projector(deps,SimpleNamespace(ideal_360=False),SimpleNamespace(snapshot=lambda:(target,)),
+    composed = _build_projector(deps,SimpleNamespace(ideal_360=False),SimpleNamespace(snapshot=lambda:(poi,)),
                                 SimpleNamespace(now=lambda:12.5),FrameSize(1280,720),
                                 IdealCameraState(camera.read_gimbal),recorder)
     if stage == 'finish':
@@ -215,7 +215,7 @@ def test_pre_emit_failure_latches_incomplete_through_production_error_callback(t
     else:
         monkeypatch.setattr('navpy.modules.vision.sim.projection_run_recorder.asdict',Mock(side_effect=ValueError('before writer')))
     with recorder.frame(frame(1),4):
-        composed.detect(loc,target,Attitude(0,40,0),timestamp_s=1.)
+        composed.detect(loc,poi,Attitude(0,40,0),timestamp_s=1.)
     recorder.close()
     assert not file.status['complete'] and file.status['failed'] > 0
     deps.logger.single_warning.assert_called_once()
@@ -224,13 +224,13 @@ def test_pre_emit_failure_latches_incomplete_through_production_error_callback(t
 def test_successfully_recorded_projection_exception_has_abandoned_publication(tmp_path):
     file = RunEvidenceFile(tmp_path,'abandoned',3,EvidenceBudget(20,100000))
     recorder = ProjectionRunRecorder(file)
-    projector,_,calc,_,loc,target,*_ = rig(recorder)
+    projector,_,calc,_,loc,poi,*_ = rig(recorder)
     original = ValueError('projection failed')
     calc.side_effect = original
     from tests.modules.vision.test_projection_run_recorder import frame
     with pytest.raises(ValueError) as caught:
         with recorder.frame(frame(1),4):
-            projector.detect(loc,target,Attitude(0,40,0),timestamp_s=1.)
+            projector.detect(loc,poi,Attitude(0,40,0),timestamp_s=1.)
     assert caught.value is original
     recorder.close()
     rows = [json.loads(line) for line in file.path.read_text().splitlines()]

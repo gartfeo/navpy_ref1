@@ -14,7 +14,7 @@ import pytest
 
 from navpy.modules.vision.gimbal_rate_types import GimbalRateTrackerConfig
 from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -116,13 +116,13 @@ def test_gimbal_controller_ticks_current_tracker_with_exact_angular_sample() -> 
         image_height=1000,
     )
     assert command is not None
-    target = make_detected_target(timestamp=12.5)
-    sample = gimbal_sample.build_tracker_target(command, target)
+    poi = make_detected_poi(timestamp=12.5)
+    sample = gimbal_sample.build_tracker_poi(command, poi)
     assert isinstance(sample, GimbalAngularSample)
     assert sample.source_timestamp_s == pytest.approx(12.5)
 
-    result = gimbal_sample.tick_gimbal_tracker(tracker, command, target)
-    assert result.has_target
+    result = gimbal_sample.tick_gimbal_tracker(tracker, command, poi)
+    assert result.has_poi
     assert len(actuator.commands) == 1
 
 

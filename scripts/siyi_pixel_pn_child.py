@@ -63,13 +63,13 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connection", required=True)
     parser.add_argument("--sysid", required=True, type=int)
-    parser.add_argument("--target-lat", required=True, type=float)
-    parser.add_argument("--target-lon", required=True, type=float)
-    parser.add_argument("--target-alt", required=True, type=float)
-    parser.add_argument("--engage-seq", required=True, type=int, dest='scoring_start_seq')
+    parser.add_argument("--poi-lat", required=True, type=float)
+    parser.add_argument("--poi-lon", required=True, type=float)
+    parser.add_argument("--poi-alt", required=True, type=float)
+    parser.add_argument("--scoring-start-seq", required=True, type=int, dest='scoring_start_seq')
     parser.add_argument("--timeout", required=True, type=float)
     parser.add_argument("--result", required=True, type=Path)
-    parser.add_argument("--engaged", required=True, type=Path, dest='scoring_active')
+    parser.add_argument("--scoring-active", required=True, type=Path, dest='scoring_active')
     return parser
 
 
@@ -110,7 +110,7 @@ def _wait_for_scoring_interval(vehicle: IVehicle, scoring_start_seq: int, timeou
             return
         time.sleep(0.02)
     raise TimeoutError(
-        f"mission did not reach engagement sequence {scoring_start_seq}"
+        f"mission did not reach scoring start sequence {scoring_start_seq}"
     )
 
 
@@ -123,7 +123,7 @@ def _wait_for_mode(vehicle: IVehicle, mode: FlightMode, timeout_s: float) -> Non
     raise TimeoutError(f"vehicle did not enter {mode.value}")
 
 
-def _command_target_loiter(vehicle: IVehicle, target: Location) -> None:
+def _command_poi_loiter(vehicle: IVehicle, poi: Location) -> None:
     location = vehicle.location(True)
     if location is None:
         raise RuntimeError("relative aircraft location unavailable for loiter")
@@ -131,17 +131,17 @@ def _command_target_loiter(vehicle: IVehicle, target: Location) -> None:
     if not math.isfinite(radius) or radius <= 0.0:
         raise RuntimeError(f"invalid WP_LOITER_RAD: {radius!r}")
     vehicle.goto_loiter(
-        Location(target.lat, target.lng, location.alt, is_absolute=False),
+        Location(poi.lat, poi.lng, location.alt, is_absolute=False),
         radius,
     )
 
 
-def _command_target_approach(vehicle: IVehicle, target: Location) -> None:
+def _command_poi_approach(vehicle: IVehicle, poi: Location) -> None:
     location = vehicle.location(True)
     if location is None:
         raise RuntimeError("relative aircraft location unavailable for approach")
     vehicle.goto(
-        Location(target.lat, target.lng, location.alt, is_absolute=False)
+        Location(poi.lat, poi.lng, location.alt, is_absolute=False)
     )
 
 
@@ -155,12 +155,12 @@ def _wait_for_visual_confirmation(
         detection = source.latest_detection
         if (
             detection is not None
-            and navigation.terminal.can_confirm_detection(detection)
-            and navigation.terminal.record_confirmed_detection(detection)
+            and navigation.final_approach.can_confirm_detection(detection)
+            and navigation.final_approach.record_confirmed_detection(detection)
         ):
             return
         time.sleep(0.01)
-    raise TimeoutError("SIYI target never entered terminal command authority")
+    raise TimeoutError("SIYI POI never entered final-approach command authority")
 
 
 def _initialize_confirmed_navigation(
@@ -168,7 +168,7 @@ def _initialize_confirmed_navigation(
     source: SiyiGeoPixelSource,
     timeout_s: float,
 ) -> None:
-    """Reset terminal state before recording the frame that seeds handoff."""
+    """Reset final-approach state before recording the frame that seeds handoff."""
     navigation.init()
     _wait_for_visual_confirmation(navigation, source, timeout_s)
 
@@ -211,7 +211,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
     cadence = None
     navigation = None
     source = None
-    terminal_recorded = False
+    final_approach_recorded = False
     trace = FlightControlTrace(options.result.parent / "flight_control_trace.csv")
     try:
         vehicle = create_vehicle(ConnArgs(args), logger)
@@ -227,21 +227,21 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             navigation_args,
             scheduler_cadence=cadence,
         )
-        target = Location(
-            options.target_lat,
-            options.target_lon,
-            options.target_alt,
+        poi = Location(
+            options.poi_lat,
+            options.poi_lon,
+            options.poi_alt,
             is_absolute=True,
         )
-        def deliver(target_detection: DetectedObject) -> bool:
-            nonlocal terminal_recorded
-            if not terminal_recorded:
-                terminal_recorded = navigation.terminal.record_confirmed_detection(
-                    target_detection
+        def deliver(poi_detection: DetectedObject) -> bool:
+            nonlocal final_approach_recorded
+            if not final_approach_recorded:
+                final_approach_recorded = navigation.final_approach.record_confirmed_detection(
+                    poi_detection
                 )
-                if not terminal_recorded:
+                if not final_approach_recorded:
                     return False
-            return navigation.nav(target_detection)
+            return navigation.nav(poi_detection)
 
         assembly = build_vision_profile("siyi_zr10", vehicle, logger, cadence)
         if len(assembly.mount_specs) != 1:
@@ -255,7 +255,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         )
         source = SiyiGeoPixelSource(
             vehicle,
-            target,
+            poi,
             spec.mount,
             tracker,
             assembly.geo_ref,
@@ -263,9 +263,9 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             min_pixels=get_min_pixels_for_class(assembly.profile, 0),
             deliver=deliver,
         )
-        navigation.bind_terminal_source_dispatch(source.dispatch_available)
+        navigation.bind_final_approach_source_dispatch(source.dispatch_available)
         spec.mount.start()
-        tracker.start_geo_tracking(target, assembly.geo_ref)
+        tracker.start_geo_tracking(poi, assembly.geo_ref)
         source.start()
         navigation.start()
         print("SIYI_PIXEL_READY", flush=True)
@@ -275,12 +275,12 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             spec.mount.raise_if_failed()
             time.sleep(cadence.wall_period_for_scheduler_period(0.02))
         if not source.ready:
-            raise TimeoutError("SIYI did not acquire the geo-pointed target")
+            raise TimeoutError("SIYI did not acquire the geo-pointed POI")
         if not vehicle.set_mode(FlightMode.GUIDED):
             raise RuntimeError("GUIDED mode request was rejected")
         _wait_for_mode(vehicle, FlightMode.GUIDED, 5.0)
         _initialize_confirmed_navigation(navigation, source, options.timeout)
-        terminal_recorded = True
+        final_approach_recorded = True
         source.activate()
         options.scoring_active.write_text("SIYI_PIXEL_NAV\n", encoding="utf-8")
         print("SIYI_PIXEL_NAV", flush=True)
@@ -288,7 +288,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         while time.monotonic() < deadline_s:
             navigation.raise_if_failed()
             trace.sample(vehicle)
-            if navigation.terminal.target_passed_override() is True:
+            if navigation.final_approach.poi_passed_override() is True:
                 snap = navigation.reset()
                 return _result_payload(True, snap, source)
             time.sleep(0.01)

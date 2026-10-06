@@ -2,11 +2,11 @@
 
 WHY TRUTH AND NOT THE RECEIVED ESTIMATE
 ---------------------------------------
-A synthetic camera has to be told where the target appears, and that means
-rotating the target vector from NED into the body frame, which needs a yaw.
+A synthetic camera has to be told where the POI appears, and that means
+rotating the POI vector from NED into the body frame, which needs a yaw.
 Taking that yaw from the ATTITUDE message is wrong here: ATTITUDE carries the
 vehicle's ESTIMATE, and its yaw is compass-derived. Compass yaw can hold a large
-bias, and this project forbids it in the terminal command path precisely because
+bias, and this project forbids it in the final-approach command path precisely because
 that bias would be indistinguishable from a navigation error. Feeding a
 compass-biased yaw into the sensor rotates the synthesized line of sight by that
 same bias, so the contamination survives into the ray even though the law never
@@ -19,7 +19,7 @@ scripts/vision_static_point_mass_sensor.py:97, "Use simulator truth only to
 synthesize one frame-local pixel", fed from plant state rather than from any
 estimator. This module is the SITL equivalent of that plant state.
 
-The distinction is not academic. Holding the target fixed and changing yaw alone
+The distinction is not academic. Holding the POI fixed and changing yaw alone
 by 15 degrees moves the synthesized pixel by hundreds of pixels, so a compass
 bias of a few degrees is not a rounding difference in the ray.
 
@@ -36,7 +36,7 @@ pose if they are close together in time. At ArduPilot's default rates the gap is
 brutal: measured over 37952 real sample intervals, one 250 ms attitude gap moves
 the aircraft's attitude by 1.69 degrees at the 90th percentile and 17.3 degrees
 at the 99th. At 300 m range the 90th percentile alone is 8.8 m of aim error --
-larger than the miss distance the law is being judged on. Both streams therefore
+larger than the approach error the law is being judged on. Both streams therefore
 have to be raised, and the pairing skew has to be enforced rather than assumed.
 
 WHY AN OBSERVED-CADENCE GATE AND NOT JUST THE ACK
@@ -158,7 +158,7 @@ class TruthPose:
     # ESTIMATED aircraft state, from ATTITUDE -- what the aircraft believes,
     # not what is true. Kept separate from the truth fields above because they
     # are for different consumers and must not be mixed up: truth answers "where
-    # is the target relative to the nose", which stands in for a camera, while
+    # is the POI relative to the nose", which stands in for a camera, while
     # these are what the navigation law is allowed to read about itself.
     #
     # A real aircraft has no truth. Handing the law a perfect pitch or a perfect

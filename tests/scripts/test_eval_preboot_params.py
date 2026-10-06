@@ -472,13 +472,13 @@ class TestTypedReader(unittest.TestCase):
         return message
 
     def test_the_storage_type_is_returned_with_the_value(self) -> None:
-        with patch.object(self.m, "message_from_target", return_value=True):
+        with patch.object(self.m, "message_from_poi", return_value=True):
             reading = self.m.read_param_typed(
                 self._master(self._reply()), "EK3_HGT_DELAY")
         self.assertEqual(reading, (120.0, 4))
 
     def test_a_reply_for_another_parameter_is_not_accepted(self) -> None:
-        with patch.object(self.m, "message_from_target", return_value=True):
+        with patch.object(self.m, "message_from_poi", return_value=True):
             reading = self.m.read_param_typed(
                 self._master(self._reply(name="SIM_BARO_RND")),
                 "EK3_HGT_DELAY", timeout_s=0.05)
@@ -493,7 +493,7 @@ class TestTypedReader(unittest.TestCase):
         # Without the request the vehicle sends nothing, and the read would
         # time out against a live vehicle however well the mock answers.
         master = self._master(self._reply())
-        with patch.object(self.m, "message_from_target", return_value=True):
+        with patch.object(self.m, "message_from_poi", return_value=True):
             self.m.read_param_typed(master, "EK3_HGT_DELAY")
         master.mav.param_request_read_send.assert_called_once()
         args = master.mav.param_request_read_send.call_args.args
@@ -505,21 +505,21 @@ class TestTypedReader(unittest.TestCase):
         # answer with whichever parameter happens to be first
         # (GCS_Param.cpp:390), and that reply would be judged as this one.
         master = self._master(self._reply())
-        with patch.object(self.m, "message_from_target", return_value=True):
+        with patch.object(self.m, "message_from_poi", return_value=True):
             self.m.read_param_typed(master, "EK3_HGT_DELAY")
         self.assertEqual(master.mav.param_request_read_send.call_args.args[3], -1)
 
     def test_the_request_carries_the_selected_component(self) -> None:
         master = self._master(self._reply())
         master.target_component = 7
-        with patch.object(self.m, "message_from_target", return_value=True):
+        with patch.object(self.m, "message_from_poi", return_value=True):
             self.m.read_param_typed(master, "EK3_HGT_DELAY")
         self.assertEqual(
             master.mav.param_request_read_send.call_args.args[1], 7)
 
     def test_only_param_value_replies_are_waited_for(self) -> None:
         master = self._master(self._reply())
-        with patch.object(self.m, "message_from_target", return_value=True):
+        with patch.object(self.m, "message_from_poi", return_value=True):
             self.m.read_param_typed(master, "EK3_HGT_DELAY")
         kwargs = master.recv_match.call_args.kwargs
         self.assertEqual(kwargs.get("type"), "PARAM_VALUE")
@@ -531,7 +531,7 @@ class TestTypedReader(unittest.TestCase):
         master = self._master(self._reply())
         master.target_system = 123
         seen = []
-        with patch.object(self.m, "message_from_target",
+        with patch.object(self.m, "message_from_poi",
                           side_effect=lambda _m, s: (seen.append(s), True)[1]):
             self.m.read_param_typed(master, "EK3_HGT_DELAY")
         self.assertEqual(seen, [123])
@@ -539,7 +539,7 @@ class TestTypedReader(unittest.TestCase):
     def test_a_malformed_value_reads_as_unreadable(self) -> None:
         broken = self._reply()
         broken.param_value = "not a number"
-        with patch.object(self.m, "message_from_target", return_value=True):
+        with patch.object(self.m, "message_from_poi", return_value=True):
             reading = self.m.read_param_typed(
                 self._master(broken), "EK3_HGT_DELAY", timeout_s=0.05)
         self.assertIsNone(reading)
@@ -547,7 +547,7 @@ class TestTypedReader(unittest.TestCase):
     def test_a_reply_from_another_vehicle_is_not_accepted(self) -> None:
         # Every vehicle answers on the shared link. Taking the first
         # PARAM_VALUE would let one aircraft vouch for another.
-        with patch.object(self.m, "message_from_target", return_value=False):
+        with patch.object(self.m, "message_from_poi", return_value=False):
             reading = self.m.read_param_typed(
                 self._master(self._reply()), "EK3_HGT_DELAY", timeout_s=0.05)
         self.assertIsNone(reading)
@@ -557,7 +557,7 @@ class TestTypedReader(unittest.TestCase):
         # field would reject every real reply.
         padded = self._reply()
         padded.param_id = b"EK3_HGT_DELAY" + bytes(3)
-        with patch.object(self.m, "message_from_target", return_value=True):
+        with patch.object(self.m, "message_from_poi", return_value=True):
             reading = self.m.read_param_typed(
                 self._master(padded), "EK3_HGT_DELAY")
         self.assertEqual(reading, (120.0, 4))
@@ -566,7 +566,7 @@ class TestTypedReader(unittest.TestCase):
         # A reader that returned a constant 4 would satisfy a single-type
         # test while losing the distinction verify depends on.
         for reported in (2, 4, 6, 9):
-            with patch.object(self.m, "message_from_target", return_value=True):
+            with patch.object(self.m, "message_from_poi", return_value=True):
                 reading = self.m.read_param_typed(
                     self._master(self._reply(ptype=reported)), "EK3_HGT_DELAY")
             self.assertEqual(reading, (120.0, reported))
@@ -574,7 +574,7 @@ class TestTypedReader(unittest.TestCase):
     def test_a_reply_without_a_type_field_reads_as_untyped(self) -> None:
         bare = self._reply()
         del bare.param_type
-        with patch.object(self.m, "message_from_target", return_value=True):
+        with patch.object(self.m, "message_from_poi", return_value=True):
             reading = self.m.read_param_typed(self._master(bare), "EK3_HGT_DELAY")
         self.assertEqual(reading, (120.0, 0))
 
@@ -654,7 +654,7 @@ class TestFleetGate(unittest.TestCase):
         self.assertIn("SIM_RATE_HZ", names)
 
     def test_the_later_writers_are_included_in_the_conflict_set(self) -> None:
-        # sim_parameters() alone misses the SIM_CPA target and the terminal
+        # sim_parameters() alone misses the SIM_CPA POI and the final_approach
         # step-down clock, which are written by other paths after boot.
         with patch.object(self.fleet, "sim_parameters", return_value=()), \
                 patch.object(self.fleet.preboot, "overrides", return_value={}), \

@@ -161,12 +161,12 @@ export function autoAssignFallbackLocations(zones, fallbackLocations) {
 /**
  * Build fallback locations and assignments from downloaded fallback_delivery_location metadata.
  *
- * Deduplicates targets within 1e-7 degrees (~0.01 m) so that zones sharing
- * the same target get a single fallback location entry with multiple assignment references.
+ * Deduplicates POIs within 1e-7 degrees (~0.01 m) so that zones sharing
+ * the same POI get a single fallback location entry with multiple assignment references.
  *
- * When existingFallbackLocations is provided, downloaded targets are matched against them
+ * When existingFallbackLocations is provided, downloaded POIs are matched against them
  * by coordinates — preserving name/type for matches and keeping unmatched
- * existing fallback locations intact. New targets that don't match any existing fallback location are
+ * existing fallback locations intact. New POIs that don't match any existing fallback location are
  * appended with the downloaded type when present, else 'other'.
  *
  * @param {Array<{lat: number, lon: number, type?: string}|null>} missionFallbackLocations - one per zone

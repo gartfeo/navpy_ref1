@@ -6,5 +6,5 @@
     {"name": "peer-2", "role": "peer"}
   ],
   "owner_slot": "owner",
-  "target_nav_waypoint_ordinals": [3, 4, 7]
+  "poi_nav_waypoint_ordinals": [3, 4, 7]
 }

@@ -51,7 +51,7 @@ def _options(case_dir: Path) -> argparse.Namespace:
         sysid=1,
         timeout=5.0,
         result=case_dir / "result.json",
-        engaged=case_dir / "engaged.marker",
+        scoring_active=case_dir / "scoring_active.marker",
     )
 
 
@@ -262,8 +262,8 @@ def test_the_run_is_described_and_nothing_compares_it(tracing, tmp_path):
     assert wall_start.utcoffset() == timedelta(0)
     assert first["options"] == {
         "connection": "udp:127.0.0.1:14999",
-        "engaged": str(tmp_path / "engaged.marker"),
         "result": str(tmp_path / "result.json"),
+        "scoring_active": str(tmp_path / "scoring_active.marker"),
         "sysid": 1,
         "timeout": 5.0,
     }

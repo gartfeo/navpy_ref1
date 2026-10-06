@@ -154,12 +154,12 @@ def test_any_identity_change_between_repetitions_voids_the_certificate(field):
 def test_one_inadmissible_run_voids_the_whole_certificate():
     summary = cert.certificate_summary([
         _row(1),
-        _row(2, invalid="engagement clock rate 12.00x is outside 9.00-11.00x"),
+        _row(2, invalid="scoring-window clock rate 12.00x is outside 9.00-11.00x"),
     ])
     assert not summary["valid"]
     assert summary["invalid_runs"] == 1
     assert summary["invalid_reasons"] == [
-        "engagement clock rate 12.00x is outside 9.00-11.00x"]
+        "scoring-window clock rate 12.00x is outside 9.00-11.00x"]
 
 
 def test_a_failed_run_voids_the_certificate_even_when_identity_matches():

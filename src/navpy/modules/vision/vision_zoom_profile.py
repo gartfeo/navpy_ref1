@@ -1,10 +1,10 @@
-"""Source-driven target-zoom enablement from a vision profile."""
+"""Source-driven POI-zoom enablement from a vision profile."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 
-from navpy.modules.vision.target_zoom_types import TargetZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
 from navpy.modules.vision.vision_class_profile import (
     CLASS_DETECT_SIZES,
     MIN_CONFIRM_PIXELS,
@@ -28,7 +28,7 @@ def _target_pixels(
 def build_zoom_config(
     device: Mapping[str, object],
     profile: Mapping[str, object] | None = None,
-) -> TargetZoomTrackerConfig | None:
+) -> PoiZoomTrackerConfig | None:
     """Enable zoom; all thresholds and hardware limits come from owners."""
     if not isinstance(device, Mapping):
         raise ValueError("Vision profile device must be a mapping")
@@ -48,7 +48,7 @@ def build_zoom_config(
         raise ValueError("gimbal.zoom.enabled must be boolean")
     if not enabled:
         return None
-    return TargetZoomTrackerConfig(target_pixels=_target_pixels(profile))
+    return PoiZoomTrackerConfig(target_pixels=_target_pixels(profile))
 
 
 __all__ = ["build_zoom_config"]

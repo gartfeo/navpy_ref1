@@ -13,12 +13,12 @@ from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.sim.sim_control_ports import (
     GeoNavigationPort,
-    TargetProviderMutationPort,
+    PoiProviderMutationPort,
     TrackingNavigationPort,
     ZoomNavigationPort,
 )
 from navpy.modules.vision.sim.sim_detector_state import SimCaptureState
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class SimDetectorIdentity:
@@ -63,11 +63,11 @@ class SimTrackingControls:
 
     def apply_detection_update(
         self,
-        target: Optional[DetectedObject],
+        poi: Optional[DetectedObject],
         timestamp_s: float,
     ) -> None:
         if self._navigation is not None:
-            self._navigation.update(target, now=timestamp_s)
+            self._navigation.update(poi, now=timestamp_s)
 
     def start_tracking(self, obj_id: int) -> None:
         capture_was_enabled = self._capture.enabled
@@ -132,20 +132,20 @@ class SimZoomControls:
         if self._navigation is not None:
             self._navigation.set_zoom_size_demand(enabled)
 
-    def freeze_terminal_zoom_at_min(self) -> bool:
+    def freeze_final_approach_zoom_at_min(self) -> bool:
         self._capture.enabled = False
         if self._navigation is None:
             return True
-        return self._navigation.freeze_terminal_zoom_at_min()
+        return self._navigation.freeze_final_approach_zoom_at_min()
 
 
 class SimGeoControls:
     def __init__(self, navigation: Optional[GeoNavigationPort]) -> None:
         self._navigation = navigation
 
-    def start_geo_tracking(self, target_loc: Location, geo_ref: GeoRefCalc) -> None:
+    def start_geo_tracking(self, poi_loc: Location, geo_ref: GeoRefCalc) -> None:
         if self._navigation is not None:
-            self._navigation.start_geo_tracking(target_loc, geo_ref)
+            self._navigation.start_geo_tracking(poi_loc, geo_ref)
 
     def update_geo(self, uav_loc: Location, uav_att: Attitude) -> None:
         if self._navigation is not None:
@@ -176,19 +176,19 @@ class SimGeoControls:
         return bool(self._navigation and self._navigation.is_geo_armed)
 
 
-class SimTargetControls:
+class SimPoiControls:
     """Direct public provider adapter; never injected into a leaf."""
 
-    def __init__(self, target_provider: TargetProviderMutationPort) -> None:
-        self._target_provider = target_provider
+    def __init__(self, poi_provider: PoiProviderMutationPort) -> None:
+        self._poi_provider = poi_provider
 
-    def set_sim_target(
+    def set_sim_poi(
         self,
         command_index: int,
         location: Location,
         location_type: Optional[str] = None,
     ) -> None:
-        self._target_provider.set_sim_target(
+        self._poi_provider.set_sim_poi(
             command_index,
             location,
             location_type=location_type,
@@ -198,7 +198,7 @@ class SimTargetControls:
 __all__ = [
     "SimDetectorIdentity",
     "SimGeoControls",
-    "SimTargetControls",
+    "SimPoiControls",
     "SimTrackingControls",
     "SimZoomControls",
 ]

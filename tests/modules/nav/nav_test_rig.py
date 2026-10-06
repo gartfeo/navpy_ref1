@@ -25,7 +25,7 @@ def as_detection_coordination(detector) -> DetectionCoordination:
         events=detector,
         tracking_commands=detector,
         tracking_status=detector,
-        target_identity=detector,
+        poi_identity=detector,
         geo_pointing=detector,
         zoom=detector,
         mounts=detector,
@@ -43,22 +43,22 @@ class _DetectionTestView:
         object.__setattr__(self, "_state", state)
 
     @property
-    def detected_targets(self):
-        return self._state.targets()
+    def detected_pois(self):
+        return self._state.pois()
 
-    @detected_targets.setter
-    def detected_targets(self, targets) -> None:
+    @detected_pois.setter
+    def detected_pois(self, pois) -> None:
         selection = self._state.selection()
-        self._state.replace_selection(list(targets), selection.primary_target)
+        self._state.replace_selection(list(pois), selection.primary_poi)
 
     @property
-    def primary_target(self):
-        return self._state.selection().primary_target
+    def primary_poi(self):
+        return self._state.selection().primary_poi
 
-    @primary_target.setter
-    def primary_target(self, target) -> None:
+    @primary_poi.setter
+    def primary_poi(self, poi) -> None:
         selection = self._state.selection()
-        self._state.replace_selection(list(selection.targets), target)
+        self._state.replace_selection(list(selection.pois), poi)
 
     @property
     def pending_events(self):
@@ -151,7 +151,7 @@ class NavTestRig:
         self.recovery = self.decision._recovery
         self.nav_decision = self.decision._nav
         self.navigation_failures = self.nav_decision._failures
-        self.target_status = self.decision._target_status
+        self.poi_status = self.decision._poi_status
         self.mission = self.decision._mission
         self.detection_state = self.cycle._detections
         self.detections = _DetectionTestView(self.detection_state)
@@ -164,23 +164,23 @@ class NavTestRig:
         self.pass_tracker = self.mission_pass._pass_tracker
         self.status = self.inactive._status
 
-        self.source = self.target_status._presence._source
-        self.timing = self.target_status._presence._timing
-        self.retry_policy = self.target_status._confirmed._retry
+        self.source = self.poi_status._presence._source
+        self.timing = self.poi_status._presence._timing
+        self.retry_policy = self.poi_status._confirmed._retry
         self.retry_state = self.retry_policy._retry
-        self.geo_coordinator = self.target_status._presence._geo_coordinator
-        self.track_recovery = self.target_status._confirmed._recovery
+        self.geo_coordinator = self.poi_status._presence._geo_coordinator
+        self.track_recovery = self.poi_status._confirmed._recovery
         self.identity_reacquisition = self.geo_coordinator._identity
-        self.geo_hold = self.target_status._presence._geo_hold
-        self.release = self.target_status._confirmed._release
+        self.geo_hold = self.poi_status._presence._geo_hold
+        self.release = self.poi_status._confirmed._release
         self.freshness = self.release._freshness
-        self.auto_resume = self.target_status._rejection._resume_auto
+        self.auto_resume = self.poi_status._rejection._resume_auto
 
         self.detect_action = self.actions._actions[NavState.DETECT].__self__
         self.confirmation_action = (
             self.actions._actions[NavState.CONFIRM].__self__
         )
-        self.terminal_nav = self.actions._actions[NavState.NAV].__self__
+        self.final_approach_nav = self.actions._actions[NavState.NAV].__self__
         self.transitions = self.actions._transitions
         self.selector = self.detect_action._selector
         self.navigation_task_action = self.detect_action._navigation_task
@@ -190,22 +190,22 @@ class NavTestRig:
         self.peer_geo_tracker = self.peer_navigation._approach._geo_tracker
         self.fallback_navigation = self.navigation_task_action._fallback_navigation
         self.self_approach = self.navigation_task_action._self_approach
-        self.terminal = self.navigation_task_action._terminal
+        self.final_approach = self.navigation_task_action._final_approach
         self.speedup = self.navigation_task_action._speedup
         self.vehicle_navigation = self.fallback_navigation._commands
         self.approach_planner = self.fallback_navigation._approach_planner
 
         self.frame_policy = self.confirmation_action._frame_policy
-        self.terminal_admission = self.confirmation_action._terminal_admission
+        self.final_approach_admission = self.confirmation_action._final_approach_admission
         self.recognition = self.confirmation_action._recognition_gate
         self.blocked = self.confirmation_action._blocked
         self.debug = self.confirmation_action._debug
         self.confirmation_geo_hold = self.confirmation_action._geo_hold
         self.review = self.recognition._review
 
-        self.terminal_commands = self.terminal_nav._commands
-        self.deadline = self.terminal_nav._record._deadline
-        self.nav_peers = self.terminal_nav._peers
+        self.final_approach_commands = self.final_approach_nav._commands
+        self.deadline = self.final_approach_nav._record._deadline
+        self.nav_peers = self.final_approach_nav._peers
         self.nav_transition = self.transitions._nav
         self.zoom = self.nav_transition._entry._zoom
 

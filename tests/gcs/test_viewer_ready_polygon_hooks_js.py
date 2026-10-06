@@ -37,7 +37,7 @@ _MAP_SRC = _read_map_file("CesiumMap.jsx")
 _POLYGON_SRC = _read_map_file("hooks", "usePolygonLayer.js")
 _ZONE_SRC = _read_map_file("hooks", "useZoneLayer.js")
 _LAUNCH_ZONE_SRC = _read_map_file("hooks", "useLaunchZoneLayer.js")
-_TARGET_SRC = _read_map_file("hooks", "useDockMarkers.js")
+_POI_SRC = _read_map_file("hooks", "useDockMarkers.js")
 _DETECTION_SRC = _read_map_file("hooks", "useDetectionMarkers.js")
 _PARTITION_SRC = _read_map_file("hooks", "usePartitionHandle.js")
 _TRACK_WP_SRC = _read_map_file("hooks", "useTrackWpMarkers.js")
@@ -74,9 +74,9 @@ class TestViewerReadyPolygonHooks(unittest.TestCase):
         )
         self.assertRegex(compact, r"\[lzLen,[^\]]*\bviewerReady\b[^\]]*\]")
 
-    def test_target_markers_accepts_and_depends_on_viewer_ready(self):
-        # Ц1/Ц2 sim-target labels — same fresh-load race as the polygon outline.
-        compact = _compact(_TARGET_SRC)
+    def test_poi_markers_accepts_and_depends_on_viewer_ready(self):
+        # Ц1/Ц2 sim-POI labels — same fresh-load race as the polygon outline.
+        compact = _compact(_POI_SRC)
         self.assertIn(
             "useDockMarkers(cesiumRef, viewerRef, entitiesRef, simDocks, viewerReady)",
             compact,
@@ -112,7 +112,7 @@ class TestViewerReadyPolygonHooks(unittest.TestCase):
             compact,
         )
         self.assertIn(
-            "useDockMarkers(cesiumRef, viewerRef, entitiesRef, stableTargets, viewerReady);",
+            "useDockMarkers(cesiumRef, viewerRef, entitiesRef, stablePois, viewerReady);",
             compact,
         )
         self.assertIn(
@@ -141,7 +141,7 @@ class TestViewerReadyRemainingHooks(unittest.TestCase):
         )
         # Membership check (not exact-array) so it survives future added deps —
         # exact-substring deps assertions are what silently broke when PR #99
-        # added i18n.language to the target/detection hooks (see module docstring).
+        # added i18n.language to the POI/detection hooks (see module docstring).
         self.assertRegex(compact, r"\[polygon, effectiveSets,[^\]]*\bviewerReady\b[^\]]*\]")
 
     def test_track_wp_markers_accepts_and_depends_on_viewer_ready(self):

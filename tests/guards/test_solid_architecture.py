@@ -55,7 +55,7 @@ def test_passive_record_allowance_rejects_mutation_escapes() -> None:
     source = (
         "from dataclasses import dataclass\n"
         "@dataclass(frozen=True)\n"
-        "class TerminalVisionFrame:\n"
+        "class FinalApproachVisionFrame:\n"
         f"{fields}\n"
         "    @property\n"
         "    def sneaky(self) -> float:\n"

@@ -13,7 +13,7 @@ from eval_navigation_case_state import CaseState
 from eval_navigation_logs import (
     parse_snap_components,
     parse_snap_summary,
-    post_snap_target_seen,
+    post_snap_poi_seen,
     sidecar_paths,
     snap_from_compact,
 )
@@ -76,7 +76,7 @@ def _collect_metrics(
     measured_clock = (
         scoring_interval.rate_tracker.result
         if scoring_interval is not None
-        else cert.ClockRate(None, 0.0, 0, "engagement never started")
+        else cert.ClockRate(None, 0.0, 0, "scoring window never started")
     )
     invalid_reason = certificate_invalid_reason_for(
         state.certificate,
@@ -93,7 +93,7 @@ def _collect_metrics(
         and coordinate_error is None
         and coordinate_score.dist_3d_m < args.max_distance
     )
-    post_target = post_snap_target_seen(state.paths.navigation)
+    post_poi = post_snap_poi_seen(state.paths.navigation)
     gate = state.evidence.gate
     passed = bool(
         not state.error
@@ -102,7 +102,7 @@ def _collect_metrics(
         and gate.passed
         and snap_passed
         and coordinate_passed
-        and post_target is False
+        and post_poi is False
     )
     return {
         "source_time": source_time,
@@ -114,7 +114,7 @@ def _collect_metrics(
         "invalid_reason": invalid_reason,
         "snap_passed": snap_passed,
         "coordinate_passed": coordinate_passed,
-        "post_target": post_target,
+        "post_poi": post_poi,
         "passed": passed,
     }
 
@@ -135,11 +135,11 @@ def _base_row(
         "attempt": attempt,
         "repetition": attempt if state.certificate else "",
         "certificate_mode": state.certificate,
-        "target_alt_m": case.target_alt_m,
+        "poi_alt_m": case.poi_alt_m,
         "vision_profile": args.vision_profile,
         "detector_type": args.detector_type,
-        "target_wp": args.target_wp,
-        "target_mission_seq": expectation.mission_seq if expectation else "",
+        "poi_wp": args.poi_wp,
+        "poi_mission_seq": expectation.mission_seq if expectation else "",
         "expected_lat_deg": expectation.location.lat_deg if expectation else "",
         "expected_lon_deg": expectation.location.lon_deg if expectation else "",
         "expected_rel_alt_m": expectation.location.rel_alt_m if expectation else "",
@@ -165,8 +165,8 @@ def _base_row(
         ),
         "passed_snap_accuracy": metrics["snap_passed"],
         "passed_coordinate_accuracy": metrics["coordinate_passed"],
-        "target_episode_binding_error": state.evidence.episode_error or "",
-        "post_snap_target": metrics["post_target"],
+        "poi_episode_binding_error": state.evidence.episode_error or "",
+        "post_snap_poi": metrics["post_poi"],
         "error": state.error,
         "name": state.name,
         "compact": str(state.paths.compact) if state.paths.compact else "",
@@ -187,16 +187,16 @@ def _identity_and_selection_fields(
         "identity_gate_passed": bool(gate and gate.passed),
         "selected_task_id": selection.task_id if selection else "",
         "selected_obj_id": selection.obj_id if selection else "",
-        "selected_target_lat_deg": selection.target_lat_deg if selection else "",
-        "selected_target_lon_deg": selection.target_lon_deg if selection else "",
-        "selected_target_abs_alt_m": (
-            selection.target_abs_alt_m if selection else ""
+        "selected_poi_lat_deg": selection.poi_lat_deg if selection else "",
+        "selected_poi_lon_deg": selection.poi_lon_deg if selection else "",
+        "selected_poi_abs_alt_m": (
+            selection.poi_abs_alt_m if selection else ""
         ),
         "default_ooi_registered": (
             selection.fallback_location_registered if selection else ""
         ),
-        "target_coordinate_error_m": gate.coordinate_error_m if gate else "",
-        "target_altitude_error_m": gate.altitude_error_m if gate else "",
+        "poi_coordinate_error_m": gate.coordinate_error_m if gate else "",
+        "poi_altitude_error_m": gate.altitude_error_m if gate else "",
     }
 
 

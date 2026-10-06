@@ -31,28 +31,28 @@ def _write_episode(
     wall_step_s: float = 0.01,
     source_step_s: float = 0.1,
 ) -> None:
-    target_coordinate = {
+    poi_coordinate = {
         4: (40.1000, 44.1000),
         5: (40.0005, 44.0000),
         6: (40.0006, 44.0000),
     }.get(sys_id, (40.1000, 44.1000))
     truth_rows = "\n".join(
         "2026-07-10 12:00:02,000 INFO cmd, t_l (0.0m): "
-        f"{target_coordinate[0]:.6f}, {target_coordinate[1]:.6f}, 100.0 [truth]"
+        f"{poi_coordinate[0]:.6f}, {poi_coordinate[1]:.6f}, 100.0 [truth]"
         for _roll in rolls
     )
     if role == "owner":
-        target_setup = (
-            "T1: wp:3(seq:10); T2: wp:4(seq:11); T3: wp:7(seq:14);\n"
+        poi_setup = (
+            "P1: wp:3(seq:10); P2: wp:4(seq:11); P3: wp:7(seq:14);\n"
             "Rebroadcast task 2, waiting for 2 peers\n"
             "Rebroadcast task 3, waiting for 2 peers\n"
             "GUIDED_LOITER cmd=DO_REPOSITION center=40.1000,44.1000,115 "
             "radius=500m\n"
-            "Self-detect orbit: target=40.1000,44.1000 orbit_r=500m"
+            "Self-detect orbit: poi=40.1000,44.1000 orbit_r=500m"
         )
     else:
-        target_setup = (
-            "No target is set\nGUIDED_LOITER cmd=DO_REPOSITION "
+        poi_setup = (
+            "No POI is set\nGUIDED_LOITER cmd=DO_REPOSITION "
             f"center=40.{sys_id:04d},44,100 radius=500m"
         )
     navigation = (
@@ -65,18 +65,18 @@ def _write_episode(
         "pitch=-14.0, fixed=False\n"
         "2026-07-10 12:00:00,010 INFO AAS params (non-default): "
         "AAS_DEL_CTRL=2.0, AAS_NAV_AUTO_CM=0.0\n"
-        f"2026-07-10 12:00:00,020 INFO {target_setup}\n"
+        f"2026-07-10 12:00:00,020 INFO {poi_setup}\n"
         "2026-07-10 12:00:00,030 INFO SIYI ZR10 simulator started "
         "(sim_speed=10.0)\n"
         "2026-07-10 12:00:00,500 INFO GimbalNavigation(siyi_zr10): "
         "start_tracking obj_id=0 (prev=None, mode=LOCK)\n"
-        "2026-07-10 12:00:00,510 INFO TARGET: T1 (tracking obj_id=11)\n"
-        "2026-07-10 12:00:01,000 INFO CONFIRMING: T1\n"
-        "2026-07-10 12:00:01,010 INFO Sending confirm request for T1.\n"
-        "2026-07-10 12:00:01,020 INFO Target 1 confirmed by ground station.\n"
+        "2026-07-10 12:00:00,510 INFO POI: P1 (tracking obj_id=11)\n"
+        "2026-07-10 12:00:01,000 INFO CONFIRMING: P1\n"
+        "2026-07-10 12:00:01,010 INFO Sending confirm request for P1.\n"
+        "2026-07-10 12:00:01,020 INFO POI 1 confirmed by ground station.\n"
         "2026-07-10 12:00:01,030 INFO INIT: NAV MODE\n"
         f"{truth_rows}\n"
-        "2026-07-10 12:00:02,990 INFO RESET: PASSED TARGET\n"
+        "2026-07-10 12:00:02,990 INFO RESET: PASSED POI\n"
         f"2026-07-10 12:00:03,000 INFO SNAP(VISION-NAV-PN): 3d={snap_m:.1f}\n"
     )
     (log_dir / f"uav_{sys_id}_navigation.log").write_text(navigation, encoding="utf-8")
@@ -147,7 +147,7 @@ def _write_resolved_plan(log_dir: Path) -> None:
                     {"slot": "peer-1", "role": "peer", "sys_id": 5},
                     {"slot": "peer-2", "role": "peer", "sys_id": 6},
                 ],
-                "targets": [
+                "pois": [
                     {"task_id": 1, "nav_waypoint_ordinal": 3, "lat": 40.1000, "lon": 44.1000},
                     {"task_id": 2, "nav_waypoint_ordinal": 4, "lat": 40.0005, "lon": 44.0},
                     {"task_id": 3, "nav_waypoint_ordinal": 7, "lat": 40.0006, "lon": 44.0},
@@ -211,7 +211,7 @@ def _approval_records(
 
 
 def test_203401_like_oscillation_fails_even_with_good_truth_snap(tmp_path):
-    # UAV3's second 203401 terminal episode, rounded from the real debug CSV.
+    # UAV3's second 203401 final-approach episode, rounded from the real debug CSV.
     # Give it a deliberately passing 0.25 m truth SNAP: certification must still fail
     # on the oscillation/saturation evidence rather than pass on miss alone.
     rolls = [
@@ -275,8 +275,8 @@ def _add_navigation_speedup_evidence(
         1,
     )
     text = text.replace(
-        "INFO RESET: PASSED TARGET\n",
-        "INFO RESET: PASSED TARGET\n"
+        "INFO RESET: PASSED POI\n",
+        "INFO RESET: PASSED POI\n"
         f"2026-07-10 12:00:02,995 INFO SIM_SPEEDUP={restored}\n",
         1,
     )
@@ -322,7 +322,7 @@ def test_positive_gsu_rejects_unchanged_launch_call_cadence(tmp_path):
 
     assert report.passed is False
     assert report.metrics.observed_speedup == pytest.approx(10.0)
-    assert any("terminal observation speedup" in error for error in report.errors)
+    assert any("final-approach observation speedup" in error for error in report.errors)
 
 
 def test_missing_nav_controller_pass_reset_fails(tmp_path):
@@ -332,7 +332,7 @@ def test_missing_nav_controller_pass_reset_fails(tmp_path):
     navigation_path = tmp_path / "uav_1_navigation.log"
     navigation_path.write_text(
         navigation_path.read_text(encoding="utf-8").replace(
-            "2026-07-10 12:00:02,990 INFO RESET: PASSED TARGET\n", ""
+            "2026-07-10 12:00:02,990 INFO RESET: PASSED POI\n", ""
         ),
         encoding="utf-8",
     )
@@ -386,7 +386,7 @@ def test_max_zoom_best_available_can_certify_smaller_operator_source(tmp_path):
     navigation = tmp_path / "uav_1_navigation.log"
     navigation.write_text(
         navigation.read_text(encoding="utf-8")
-        + "CONFIRM gate best available at max zoom for T1\n",
+        + "CONFIRM gate best available at max zoom for P1\n",
         encoding="utf-8",
     )
 
@@ -397,7 +397,7 @@ def test_max_zoom_best_available_can_certify_smaller_operator_source(tmp_path):
     assert report.passed is True, report.errors
 
 
-def test_terminal_event_gap_is_not_mislabeled_as_raw_camera_cadence(tmp_path):
+def test_final_approach_event_gap_is_not_mislabeled_as_raw_camera_cadence(tmp_path):
     rolls = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
     _write_episode(
         tmp_path,
@@ -635,7 +635,7 @@ def test_all_issued_saturation_is_scored_without_acquisition_exemption(tmp_path)
     assert report.metrics.saturation_fraction == pytest.approx(8 / 14)
 
 
-def test_trailing_endgame_saturation_run_is_scored(tmp_path):
+def test_trailing_final_saturation_run_is_scored(tmp_path):
     # A trailing saturated run is still issued command evidence and must fail
     # the same consecutive-run gate as a run in the middle of the episode.
     rolls = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1,
@@ -670,7 +670,7 @@ def test_mid_episode_saturation_run_still_fails_run_gate(tmp_path):
     )
 
 
-def test_terminal_clock_ratio_rejects_1x_despite_10x_bootstrap_marker(tmp_path):
+def test_final_approach_clock_ratio_rejects_1x_despite_10x_bootstrap_marker(tmp_path):
     rolls = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
     _write_episode(
         tmp_path,
@@ -687,7 +687,7 @@ def test_terminal_clock_ratio_rejects_1x_despite_10x_bootstrap_marker(tmp_path):
 
     assert report.passed is False
     assert report.metrics.observed_speedup == pytest.approx(1.0)
-    assert any("terminal observation speedup" in error for error in report.errors)
+    assert any("final-approach observation speedup" in error for error in report.errors)
 
 
 def test_nonfinite_truth_snap_is_reported_explicitly(tmp_path):
@@ -742,13 +742,13 @@ def test_exact_three_uav_run_passes_owner_and_peer_workflow_gates(tmp_path):
     ("surface", "old", "new"),
     [
         ("approval", "", ""),
-        ("navigation", "CONFIRMING: T1", "CONFIRMING: T99"),
+        ("navigation", "CONFIRMING: P1", "CONFIRMING: P99"),
         (
             "navigation",
-            "Target 1 confirmed by ground station.",
-            "Target 99 confirmed by ground station.",
+            "POI 1 confirmed by ground station.",
+            "POI 99 confirmed by ground station.",
         ),
-        ("navigation", "TARGET: T1", "TARGET: T99"),
+        ("navigation", "POI: P1", "POI: P99"),
         ("debug", "task=1;obj=11", "task=99;obj=11"),
     ],
 )
@@ -781,8 +781,8 @@ def test_exact_run_binds_approval_confirmation_selection_and_commands(
 
     assert report.passed is False
     assert any(
-        "local target identity chain differs" in error
-        or "terminal command identity" in error
+        "local POI identity chain differs" in error
+        or "final-approach command identity" in error
         for error in report.errors
     )
 
@@ -809,7 +809,7 @@ def test_owner_first_auction_acceptance_proves_peer_dispatch(tmp_path):
     assert report.passed is True, report.errors
 
 
-def test_exact_run_rejects_both_peers_at_same_target_coordinate(tmp_path):
+def test_exact_run_rejects_both_peers_at_same_poi_coordinate(tmp_path):
     rolls = [12, 11, 9, 7, 5, 3, 1, 0, -1, -2, -2, -1]
     for sys_id, role in ((4, "owner"), (5, "peer"), (6, "peer")):
         _write_episode(tmp_path, sys_id, rolls, snap_m=0.4, role=role)
@@ -826,7 +826,7 @@ def test_exact_run_rejects_both_peers_at_same_target_coordinate(tmp_path):
     )
 
     assert report.passed is False
-    assert any("terminal truth target differs" in error for error in report.errors)
+    assert any("final-approach truth POI differs" in error for error in report.errors)
 
 
 def test_exact_run_rejects_distinct_but_wrong_peer_coordinates(tmp_path):
@@ -850,7 +850,7 @@ def test_exact_run_rejects_distinct_but_wrong_peer_coordinates(tmp_path):
 
     assert report.passed is False
     assert any(
-        "terminal truth target differs" in error
+        "final-approach truth POI differs" in error
         for error in report.errors
     )
 
@@ -878,7 +878,7 @@ def test_exact_run_rejects_peer_centers_swapped_against_approved_tasks(tmp_path)
     )
 
     assert report.passed is False
-    assert any("terminal truth target differs" in error for error in report.errors)
+    assert any("final-approach truth POI differs" in error for error in report.errors)
 
 
 def test_exact_run_validates_commands_against_captured_autopilot_bounds(tmp_path):

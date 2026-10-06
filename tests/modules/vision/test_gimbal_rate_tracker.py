@@ -13,14 +13,14 @@ from navpy.modules.vision.gimbal_rate_types import (
 )
 from navpy.modules.vision.gimbal_tracking_sample import (
     GimbalAngularSample,
-    GimbalTargetProjector,
+    GimbalPoiProjector,
 )
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.models.pixel_observation import PixelCalibration
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.modules.vision.target_angle_estimator import (
-    TargetAngleEstimatorConfig,
+from navpy.modules.vision.poi_angle_estimator import (
+    PoiAngleEstimatorConfig,
 )
 
 
@@ -72,7 +72,7 @@ def _tracker(
         max_rate=100.0,
         max_slew_dps=90.0,
         command_lead_time=0.15,
-        estimator=TargetAngleEstimatorConfig(
+        estimator=PoiAngleEstimatorConfig(
             measurement_sigma=0.02,
             accel_sigma=1.0,
             initial_angle_sigma=0.08,
@@ -290,12 +290,12 @@ def test_invalid_rate_law_config_is_rejected(field_name: str, value: float):
         GimbalRateTrackerConfig(**{field_name: value})
 
 
-def _target(
+def _poi(
     x_px: object,
     y_px: object,
     matrix: object,
 ) -> DetectedObject:
-    return make_detected_target(
+    return make_detected_poi(
         obj_id=1,
         x_error=x_px,
         y_error=y_px,
@@ -306,13 +306,13 @@ def _target(
     )
 
 
-def test_projector_converts_rich_target_once_to_angular_sample():
+def test_projector_converts_rich_poi_once_to_angular_sample():
     matrix = np.array(
         [[1000.0, 0.0, 960.0], [0.0, 500.0, 540.0], [0.0, 0.0, 1.0]]
     )
 
-    sample = GimbalTargetProjector.project(
-        _target(1460.0, 290.0, matrix),
+    sample = GimbalPoiProjector.project(
+        _poi(1460.0, 290.0, matrix),
         12.5,
     )
 
@@ -323,13 +323,13 @@ def test_projector_can_use_explicit_principal_point_without_mutating_k():
     matrix = np.array(
         [[1000.0, 0.0, 960.0], [0.0, 1000.0, 540.0], [0.0, 0.0, 1.0]]
     )
-    target = _target(600.0, 400.0, matrix)
+    poi = _poi(600.0, 400.0, matrix)
     before = matrix.copy()
 
-    sample = GimbalTargetProjector.project(target, 2.0, (500.0, 500.0))
+    sample = GimbalPoiProjector.project(poi, 2.0, (500.0, 500.0))
 
     assert sample == GimbalAngularSample(0.1, -0.1, 2.0)
-    np.testing.assert_array_equal(target.optics.camera_matrix(), before)
+    np.testing.assert_array_equal(poi.optics.camera_matrix(), before)
 
 
 @pytest.mark.parametrize(
@@ -349,7 +349,7 @@ def test_pixel_calibration_rejects_invalid_camera_geometry(matrix: object):
 @pytest.mark.parametrize("timestamp_s", [math.nan, math.inf, -math.inf])
 def test_projector_rejects_nonfinite_source_timestamp(timestamp_s: float):
     matrix = np.eye(3)
-    assert GimbalTargetProjector.project(
-        _target(1.0, 1.0, matrix),
+    assert GimbalPoiProjector.project(
+        _poi(1.0, 1.0, matrix),
         timestamp_s,
     ) is None

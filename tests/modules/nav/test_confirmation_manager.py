@@ -19,7 +19,7 @@ from navpy.modules.nav.confirmation_manager import (
 )
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from navpy.modules.vision.models.detection_components import ConfirmationEvidence
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.common.models.location import Location
 
@@ -48,7 +48,7 @@ class ConfirmationManagerTests(unittest.TestCase):
         )
 
         # Create real DetectedObject objects with a valid location
-        t1 = make_detected_target(
+        t1 = make_detected_poi(
             obj_id=101,
             size_class=DetectionSizeClass.S,
             x_error=0,
@@ -59,7 +59,7 @@ class ConfirmationManagerTests(unittest.TestCase):
             uas_att=None
         )
         t1.set_p_t_g_loc(Location(lat=10, lng=20, alt=100))
-        t2 = make_detected_target(
+        t2 = make_detected_poi(
             obj_id=202,
             size_class=DetectionSizeClass.M,
             x_error=0,
@@ -70,13 +70,13 @@ class ConfirmationManagerTests(unittest.TestCase):
             uas_att=None
         )
         t2.set_p_t_g_loc(Location(lat=11, lng=21, alt=110))
-        self.detected_targets = [t1, t2]
+        self.detected_pois = [t1, t2]
 
-    def _install_response_round(self, target, event):
+    def _install_response_round(self, poi, event):
         """Create the exact lease/token shape used by a production review."""
-        lease = self.confirmation_manager._state.start_review(target, threading.Event)
+        lease = self.confirmation_manager._state.start_review(poi, threading.Event)
         confirmation = self.confirmation_manager._state.begin_round(
-            target,
+            poi,
             lease,
             lambda: event,
         )
@@ -95,7 +95,7 @@ class ConfirmationManagerTests(unittest.TestCase):
         """A loopback transport may deliver the response inside broadcast()."""
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.confirm_wait_time_sec = 1.0
-        target = self.detected_targets[0]
+        poi = self.detected_pois[0]
         self.confirmation_manager._media.send = MagicMock()
 
         def respond_during_broadcast(message):
@@ -106,7 +106,7 @@ class ConfirmationManagerTests(unittest.TestCase):
             request_meta = message.meta
             self.confirmation_manager.on_message(TaskConfirmResponseMsg(
                 receiver_id=1,
-                task_id=target.identity.obj_id,
+                task_id=poi.identity.obj_id,
                 is_confirmed=True,
                 meta=MsgMeta(
                     request_meta.boot_id,
@@ -118,23 +118,23 @@ class ConfirmationManagerTests(unittest.TestCase):
 
         self.mock_network.broadcast.side_effect = respond_during_broadcast
 
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
 
         self.assertTrue(
             self._wait_until(
-                lambda: self.confirmation_manager.get_status(target)
+                lambda: self.confirmation_manager.get_status(poi)
                 is ConfirmationStatus.CONFIRMED,
             ),
             "synchronous inbound response deadlocked the outbound transaction",
         )
-        self.assertNotIn(target.identity.obj_id, self.confirmation_manager._state.pending_events())
+        self.assertNotIn(poi.identity.obj_id, self.confirmation_manager._state.pending_events())
         self.confirmation_manager._media.send.assert_not_called()
 
-    def test_stale_response_token_cannot_resolve_reused_target_id(self):
+    def test_stale_response_token_cannot_resolve_reused_poi_id(self):
         """A response belongs to the request round, not merely its task ID."""
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.confirm_wait_time_sec = 2.0
-        target = self.detected_targets[0]
+        poi = self.detected_pois[0]
         requests = []
 
         def capture_request(message):
@@ -147,12 +147,12 @@ class ConfirmationManagerTests(unittest.TestCase):
 
         self.mock_network.broadcast.side_effect = capture_request
 
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         self.assertTrue(self._wait_until(lambda: len(requests) == 1))
         first_meta = requests[0].meta
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True,
             meta=MsgMeta(
                 first_meta.boot_id,
@@ -163,11 +163,11 @@ class ConfirmationManagerTests(unittest.TestCase):
         ))
         self.assertTrue(self._wait_until(lambda: self.confirmation_manager._state.active_worker_count == 0))
 
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         self.assertTrue(self._wait_until(lambda: len(requests) == 2))
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True,
             meta=MsgMeta(
                 first_meta.boot_id,
@@ -178,16 +178,16 @@ class ConfirmationManagerTests(unittest.TestCase):
         ))
 
         self.assertIs(
-            self.confirmation_manager.get_status(target),
+            self.confirmation_manager.get_status(poi),
             ConfirmationStatus.CONFIRMING,
             "a delayed response from the first round resolved the replacement round",
         )
-        self.assertIn(target.identity.obj_id, self.confirmation_manager._state.pending_events())
+        self.assertIn(poi.identity.obj_id, self.confirmation_manager._state.pending_events())
 
         current_meta = requests[1].meta
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True,
             meta=MsgMeta(
                 current_meta.boot_id,
@@ -198,10 +198,10 @@ class ConfirmationManagerTests(unittest.TestCase):
         ))
         self.assertTrue(self._wait_until(lambda: self.confirmation_manager._state.active_worker_count == 0))
 
-    def test_metadata_less_response_fails_closed_after_target_id_reuse(self):
+    def test_metadata_less_response_fails_closed_after_poi_id_reuse(self):
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.confirm_wait_time_sec = 2.0
-        target = self.detected_targets[0]
+        poi = self.detected_pois[0]
         requests = []
 
         def capture_request(message):
@@ -213,12 +213,12 @@ class ConfirmationManagerTests(unittest.TestCase):
                 requests.append(message)
 
         self.mock_network.broadcast.side_effect = capture_request
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         self.assertTrue(self._wait_until(lambda: len(requests) == 1))
         first_meta = requests[0].meta
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True,
             meta=MsgMeta(
                 first_meta.boot_id,
@@ -229,19 +229,19 @@ class ConfirmationManagerTests(unittest.TestCase):
         ))
         self.assertTrue(self._wait_until(lambda: self.confirmation_manager._state.active_worker_count == 0))
 
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         self.assertTrue(self._wait_until(lambda: len(requests) == 2))
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True,
         ))
 
-        self.assertIs(self.confirmation_manager.get_status(target), ConfirmationStatus.CONFIRMING)
+        self.assertIs(self.confirmation_manager.get_status(poi), ConfirmationStatus.CONFIRMING)
         current_meta = requests[1].meta
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True,
             meta=MsgMeta(
                 current_meta.boot_id,
@@ -258,16 +258,16 @@ class ConfirmationManagerTests(unittest.TestCase):
         automatically set the status to CONFIRMED immediately.
         """
         self.mock_nav_args.is_auto_confirm = True
-        self.confirmation_manager.review(self.detected_targets)
+        self.confirmation_manager.review(self.detected_pois)
 
         sleep(0.05)  # let the background thread finish
 
-        for target in self.detected_targets:
-            actual_status = self.confirmation_manager.get_status(target)
+        for poi in self.detected_pois:
+            actual_status = self.confirmation_manager.get_status(poi)
             self.assertEqual(
                 actual_status,
                 ConfirmationStatus.CONFIRMED,
-                f"Target {target.identity.obj_id} should be CONFIRMED in auto-confirm mode.",
+                f"POI {poi.identity.obj_id} should be CONFIRMED in auto-confirm mode.",
             )
 
     def test_no_network(self):
@@ -278,21 +278,21 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.confirmation_manager._network = None
         self.mock_nav_args.is_auto_confirm = False
 
-        self.confirmation_manager.review(self.detected_targets)
+        self.confirmation_manager.review(self.detected_pois)
         sleep(0.05)
 
-        for target in self.detected_targets:
-            actual_status = self.confirmation_manager.get_status(target)
+        for poi in self.detected_pois:
+            actual_status = self.confirmation_manager.get_status(poi)
             self.assertEqual(
                 actual_status,
                 ConfirmationStatus.CONFIRMED,
-                f"Target {target.identity.obj_id} should be CONFIRMED because there's no network.",
+                f"POI {poi.identity.obj_id} should be CONFIRMED because there's no network.",
             )
 
     def test_network_broadcast_called(self):
         """
         If network is set, the manager should broadcast a self-assignment AND a confirm
-        request for each target (2 targets × 2 broadcasts = 4 total).
+        request for each POI (2 POIs × 2 broadcasts = 4 total).
 
         No freshness callback is wired on this bare ConfirmationManager (that
         injection is NavController's job -- see
@@ -305,47 +305,47 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.mock_nav_args.is_auto_confirm = False
         self.mock_nav_args.is_confirm_on_fail = True
 
-        self.confirmation_manager.review(self.detected_targets)
+        self.confirmation_manager.review(self.detected_pois)
         sleep(0.2)  # wait enough time for threads to broadcast
 
         # 2 self-assignments + 2 confirm requests = 4 broadcasts
-        expected = len(self.detected_targets) * 2
+        expected = len(self.detected_pois) * 2
         call_count = self.mock_network.broadcast.call_count
         self.assertEqual(
             call_count,
             expected,
-            f"Expected {expected} broadcast calls (self-assign + confirm per target), got {call_count}",
+            f"Expected {expected} broadcast calls (self-assign + confirm per POI), got {call_count}",
         )
         self.assertEqual(
-            self.confirmation_manager.get_status(self.detected_targets[0]),
+            self.confirmation_manager.get_status(self.detected_pois[0]),
             ConfirmationStatus.TIMEOUT_REJECTED,
             "No freshness callback wired: timeout must fail CLOSED, not auto-confirm.",
         )
         self.assertEqual(
-            self.confirmation_manager.get_status(self.detected_targets[1]),
+            self.confirmation_manager.get_status(self.detected_pois[1]),
             ConfirmationStatus.TIMEOUT_REJECTED,
             "No freshness callback wired: timeout must fail CLOSED, not auto-confirm.",
         )
 
     def test_network_incoming_confirm_response(self):
         """
-        If the ground station responds with a confirm, the target should become CONFIRMED.
+        If the ground station responds with a confirm, the POI should become CONFIRMED.
         """
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.is_auto_confirm = False
 
-        # Review only one target
-        target = self.detected_targets[0]
-        self.confirmation_manager.review([target])
+        # Review only one POI
+        poi = self.detected_pois[0]
+        self.confirmation_manager.review([poi])
 
         # Give time for the background thread to broadcast and set status=CONFIRMING
         sleep(0.05)
 
-        # Create a response indicating the GCS confirms the target
+        # Create a response indicating the GCS confirms the POI
         # Adjust constructor to match your real code
         response_msg = TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True
         )
         # manager listens in on_message
@@ -354,7 +354,7 @@ class ConfirmationManagerTests(unittest.TestCase):
         # WAIT a bit longer so the event is set and the manager updates the status
         sleep(0.05)
 
-        actual_status = self.confirmation_manager.get_status(target)
+        actual_status = self.confirmation_manager.get_status(poi)
         self.assertEqual(
             actual_status,
             ConfirmationStatus.CONFIRMED,
@@ -363,33 +363,33 @@ class ConfirmationManagerTests(unittest.TestCase):
 
     def test_network_incoming_reject_response(self):
         """
-        If the ground station responds with a reject, the target should become REJECTED.
+        If the ground station responds with a reject, the POI should become REJECTED.
         """
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.is_auto_confirm = False
 
-        target = self.detected_targets[0]
-        self.confirmation_manager.review([target])
+        poi = self.detected_pois[0]
+        self.confirmation_manager.review([poi])
         sleep(0.05)
 
-        # GCS rejects the target
+        # GCS rejects the POI
         response_msg = TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=False
         )
         self.confirmation_manager.on_message(response_msg)
 
         sleep(0.05)
 
-        actual_status = self.confirmation_manager.get_status(target)
+        actual_status = self.confirmation_manager.get_status(poi)
         self.assertEqual(
             actual_status,
             ConfirmationStatus.REJECTED,
             "Should set status to REJECTED upon negative response.",
         )
 
-    def test_late_confirmation_cannot_resurrect_timed_out_target(self):
+    def test_late_confirmation_cannot_resurrect_timed_out_poi(self):
         """Run 000253 received approval after nav_cwt had already rejected.
 
         The timeout resolution is TIMEOUT_REJECTED (D-14/Pitfall 4, system/
@@ -400,26 +400,26 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.mock_nav_args.is_auto_confirm = False
         self.mock_nav_args.is_confirm_on_fail = False
         self.mock_nav_args.confirm_wait_time_sec = 0.02
-        target = self.detected_targets[0]
+        poi = self.detected_pois[0]
 
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         sleep(0.06)
         self.assertEqual(
-            self.confirmation_manager.get_status(target),
+            self.confirmation_manager.get_status(poi),
             ConfirmationStatus.TIMEOUT_REJECTED,
         )
 
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True,
         ))
 
         self.assertEqual(
-            self.confirmation_manager.get_status(target),
+            self.confirmation_manager.get_status(poi),
             ConfirmationStatus.TIMEOUT_REJECTED,
         )
-        self.assertNotIn(target.identity.obj_id, self.confirmation_manager._state.pending_events())
+        self.assertNotIn(poi.identity.obj_id, self.confirmation_manager._state.pending_events())
 
     def test_first_confirmation_consumes_token_and_duplicate_is_ignored(self):
         """A true duplicate (same decision, same is_confirmed value, resent --
@@ -434,31 +434,31 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.is_auto_confirm = False
         self.mock_nav_args.confirm_wait_time_sec = 1.0
-        target = self.detected_targets[0]
+        poi = self.detected_pois[0]
 
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         sleep(0.05)
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True,
         ))
         # Duplicate copy of the SAME approve decision (same value).
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1,
-            task_id=target.identity.obj_id,
+            task_id=poi.identity.obj_id,
             is_confirmed=True,
         ))
         sleep(0.02)
 
         self.assertEqual(
-            self.confirmation_manager.get_status(target),
+            self.confirmation_manager.get_status(poi),
             ConfirmationStatus.CONFIRMED,
         )
-        self.assertNotIn(target.identity.obj_id, self.confirmation_manager._state.pending_events())
+        self.assertNotIn(poi.identity.obj_id, self.confirmation_manager._state.pending_events())
 
     def test_confirmed_then_reject_response_becomes_rejected(self):
-        """Cancel/abort path: a CONFIRMED target flips to REJECTED on a later
+        """Cancel/abort path: a CONFIRMED POI flips to REJECTED on a later
         negative response (CONFIRMED -> REJECTED stays allowed).
 
         Exercises the REAL production lifecycle, not a synthetic token
@@ -476,17 +476,17 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.is_auto_confirm = False
         self.mock_nav_args.confirm_wait_time_sec = 1.0
-        target = self.detected_targets[0]
-        task_id = target.identity.obj_id
+        poi = self.detected_pois[0]
+        task_id = poi.identity.obj_id
 
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         sleep(0.05)
 
         # Approve: consumes the one live token, CONFIRMING -> CONFIRMED.
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1, task_id=task_id, is_confirmed=True,
         ))
-        self.assertEqual(self.confirmation_manager.get_status(target), ConfirmationStatus.CONFIRMED)
+        self.assertEqual(self.confirmation_manager.get_status(poi), ConfirmationStatus.CONFIRMED)
         self.assertNotIn(task_id, self.confirmation_manager._state.pending_events())
 
         # Cancel: a later, separate operator decision. No live token exists
@@ -496,59 +496,59 @@ class ConfirmationManagerTests(unittest.TestCase):
         ))
 
         self.assertEqual(
-            self.confirmation_manager.get_status(target),
+            self.confirmation_manager.get_status(poi),
             ConfirmationStatus.REJECTED,
-            "A no-token negative response after approval must recall (REJECT) the target.",
+            "A no-token negative response after approval must recall (REJECT) the POI.",
         )
 
-    def test_no_token_positive_response_is_ignored_for_confirming_target(self):
-        """A no-token positive response for a still-CONFIRMING target (no
+    def test_no_token_positive_response_is_ignored_for_confirming_poi(self):
+        """A no-token positive response for a still-CONFIRMING POI (no
         approve has happened yet) must not confirm it -- only a live-token
         response resolves the original confirm request."""
-        target = self.detected_targets[0]
-        task_id = target.identity.obj_id
-        self.confirmation_manager.update_status(target, ConfirmationStatus.CONFIRMING)
+        poi = self.detected_pois[0]
+        task_id = poi.identity.obj_id
+        self.confirmation_manager.update_status(poi, ConfirmationStatus.CONFIRMING)
 
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1, task_id=task_id, is_confirmed=True,
         ))
 
-        self.assertEqual(self.confirmation_manager.get_status(target), ConfirmationStatus.CONFIRMING)
+        self.assertEqual(self.confirmation_manager.get_status(poi), ConfirmationStatus.CONFIRMING)
 
-    def test_no_token_positive_response_is_ignored_for_rejected_target(self):
-        """A no-token positive response for an already-REJECTED target must
+    def test_no_token_positive_response_is_ignored_for_rejected_poi(self):
+        """A no-token positive response for an already-REJECTED POI must
         not un-reject it (monotonic guard also holds outside a live token)."""
-        target = self.detected_targets[0]
-        task_id = target.identity.obj_id
-        self.confirmation_manager.update_status(target, ConfirmationStatus.REJECTED)
+        poi = self.detected_pois[0]
+        task_id = poi.identity.obj_id
+        self.confirmation_manager.update_status(poi, ConfirmationStatus.REJECTED)
 
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1, task_id=task_id, is_confirmed=True,
         ))
 
-        self.assertEqual(self.confirmation_manager.get_status(target), ConfirmationStatus.REJECTED)
+        self.assertEqual(self.confirmation_manager.get_status(poi), ConfirmationStatus.REJECTED)
 
-    def test_rejected_target_not_reconfirmed_by_late_approve(self):
+    def test_rejected_poi_not_reconfirmed_by_late_approve(self):
         """Monotonic guard: a late/duplicate approve must NOT un-reject a
-        recalled target, but it must still wake any waiting confirm thread."""
+        recalled POI, but it must still wake any waiting confirm thread."""
         import threading
 
-        from navpy.modules.vision.target_identity import get_target_task_id
+        from navpy.modules.vision.poi_identity import get_poi_task_id
 
-        target = self.detected_targets[0]
-        task_id = get_target_task_id(target)
+        poi = self.detected_pois[0]
+        task_id = get_poi_task_id(poi)
         event = threading.Event()
-        self._install_response_round(target, event)
-        self.confirmation_manager.update_status(target, ConfirmationStatus.REJECTED)
+        self._install_response_round(poi, event)
+        self.confirmation_manager.update_status(poi, ConfirmationStatus.REJECTED)
 
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1, task_id=task_id, is_confirmed=True,
         ))
 
         self.assertEqual(
-            self.confirmation_manager.get_status(target),
+            self.confirmation_manager.get_status(poi),
             ConfirmationStatus.REJECTED,
-            "A late approve must not un-reject a recalled target.",
+            "A late approve must not un-reject a recalled POI.",
         )
         self.assertTrue(
             event.is_set(),
@@ -566,22 +566,22 @@ class ConfirmationManagerTests(unittest.TestCase):
         """
         import threading
 
-        from navpy.modules.vision.target_identity import get_target_task_id
+        from navpy.modules.vision.poi_identity import get_poi_task_id
 
-        target = self.detected_targets[0]
-        task_id = get_target_task_id(target)
-        self.confirmation_manager.update_status(target, ConfirmationStatus.REJECTED)
+        poi = self.detected_pois[0]
+        task_id = get_poi_task_id(poi)
+        self.confirmation_manager.update_status(poi, ConfirmationStatus.REJECTED)
         event = threading.Event()
-        self._install_response_round(target, event)
+        self._install_response_round(poi, event)
 
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1, task_id=task_id, is_confirmed=True,
         ))
 
         self.assertEqual(
-            self.confirmation_manager.get_status(target),
+            self.confirmation_manager.get_status(poi),
             ConfirmationStatus.CONFIRMED,
-            "A re-reviewed (CONFIRMING) target must be confirmable again.",
+            "A re-reviewed (CONFIRMING) POI must be confirmable again.",
         )
         self.assertTrue(event.is_set())
 
@@ -589,40 +589,40 @@ class ConfirmationManagerTests(unittest.TestCase):
         """A duplicate negative response leaves REJECTED and wakes waiters."""
         import threading
 
-        from navpy.modules.vision.target_identity import get_target_task_id
+        from navpy.modules.vision.poi_identity import get_poi_task_id
 
-        target = self.detected_targets[0]
-        task_id = get_target_task_id(target)
+        poi = self.detected_pois[0]
+        task_id = get_poi_task_id(poi)
         event = threading.Event()
-        self._install_response_round(target, event)
-        self.confirmation_manager.update_status(target, ConfirmationStatus.REJECTED)
+        self._install_response_round(poi, event)
+        self.confirmation_manager.update_status(poi, ConfirmationStatus.REJECTED)
 
         self.confirmation_manager.on_message(TaskConfirmResponseMsg(
             receiver_id=1, task_id=task_id, is_confirmed=False,
         ))
 
-        self.assertEqual(self.confirmation_manager.get_status(target), ConfirmationStatus.REJECTED)
+        self.assertEqual(self.confirmation_manager.get_status(poi), ConfirmationStatus.REJECTED)
         self.assertTrue(event.is_set())
 
     def test_reset_clears_data(self):
         """
         Ensure reset() clears the stored statuses and pending confirmations.
         """
-        for t in self.detected_targets:
+        for t in self.detected_pois:
             self.confirmation_manager.update_status(t, ConfirmationStatus.CONFIRMING)
 
-        for t in self.detected_targets:
+        for t in self.detected_pois:
             self.assertEqual(
                 self.confirmation_manager.get_status(t),
                 ConfirmationStatus.CONFIRMING,
-                f"Target {t.identity.obj_id} should be in CONFIRMING status before reset.",
+                f"POI {t.identity.obj_id} should be in CONFIRMING status before reset.",
             )
 
         self.confirmation_manager.reset()
-        for t in self.detected_targets:
+        for t in self.detected_pois:
             self.assertIsNone(
                 self.confirmation_manager.get_status(t),
-                "Target status should be cleared after reset."
+                "POI status should be cleared after reset."
             )
 
     def test_reset_cancels_worker_blocked_before_registration(self):
@@ -630,7 +630,7 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.is_auto_confirm = False
         self.mock_nav_args.is_confirm_on_fail = True
-        target = self.detected_targets[0]
+        poi = self.detected_pois[0]
 
         queued = []
         thread = MagicMock()
@@ -640,14 +640,14 @@ class ConfirmationManagerTests(unittest.TestCase):
             return thread
 
         self.confirmation_manager._coordinator._thread_factory = capture_thread
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         self.assertEqual(len(queued), 1)
         self.confirmation_manager.reset()
         queued[0]["target"](*queued[0]["args"])
 
         self.mock_network.broadcast.assert_not_called()
-        self.assertIsNone(self.confirmation_manager.get_status(target))
-        self.assertNotIn(target.identity.obj_id, self.confirmation_manager._state.pending_events())
+        self.assertIsNone(self.confirmation_manager.get_status(poi))
+        self.assertNotIn(poi.identity.obj_id, self.confirmation_manager._state.pending_events())
         self.assertEqual(self.confirmation_manager._state.active_worker_count, 0)
 
     def test_reset_after_cancel_check_skips_registration_and_status(self):
@@ -657,20 +657,20 @@ class ConfirmationManagerTests(unittest.TestCase):
         This closes the window the initial-check test does not: reset()'s
         cancel is set under the lock and the worker's registration re-checks it
         under the same lock, so the timeout path (status_on_fail) can never run
-        for an abandoned target. The worker is stalled inside the
+        for an abandoned POI. The worker is stalled inside the
         self-assignment broadcast (after the initial check) so reset() lands in
         exactly that post-check window.
         """
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.is_auto_confirm = False
         self.mock_nav_args.is_confirm_on_fail = True
-        target = self.detected_targets[0]
-        task_id = target.identity.task_id
+        poi = self.detected_pois[0]
+        task_id = poi.identity.task_id
 
         gate = threading.Event()
         entered = threading.Event()
 
-        def gated_broadcast(_target):
+        def gated_broadcast(_poi):
             entered.set()
             gate.wait(1.0)
 
@@ -679,7 +679,7 @@ class ConfirmationManagerTests(unittest.TestCase):
             "publish",
             side_effect=gated_broadcast,
         ):
-            self.confirmation_manager.review([target])
+            self.confirmation_manager.review([poi])
             self.assertTrue(entered.wait(1.0), "worker never reached broadcast")
             # reset() fires in the post-check window while the worker is stalled.
             self.confirmation_manager.reset()
@@ -692,13 +692,13 @@ class ConfirmationManagerTests(unittest.TestCase):
         # No fresh confirmation registered, no status recreated, no confirm
         # REQUEST sent (the self-assignment was patched out).
         self.assertNotIn(task_id, self.confirmation_manager._state.pending_events())
-        self.assertIsNone(self.confirmation_manager.get_status(target))
+        self.assertIsNone(self.confirmation_manager.get_status(poi))
         self.mock_network.broadcast.assert_not_called()
         self.assertEqual(self.confirmation_manager._state.active_worker_count, 0)
 
     def test_status_map_uses_task_id_not_local_obj_id(self):
-        """Targets with the same local obj_id keep separate statuses by task_id."""
-        target_a = make_detected_target(
+        """POIs with the same local obj_id keep separate statuses by task_id."""
+        poi_a = make_detected_poi(
             obj_id=7,
             task_id=101,
             size_class=DetectionSizeClass.S,
@@ -709,7 +709,7 @@ class ConfirmationManagerTests(unittest.TestCase):
             g_data=None,
             uas_att=None,
         )
-        target_b = make_detected_target(
+        poi_b = make_detected_poi(
             obj_id=7,
             task_id=202,
             size_class=DetectionSizeClass.M,
@@ -721,29 +721,29 @@ class ConfirmationManagerTests(unittest.TestCase):
             uas_att=None,
         )
 
-        self.confirmation_manager.update_status(target_a, ConfirmationStatus.CONFIRMED)
+        self.confirmation_manager.update_status(poi_a, ConfirmationStatus.CONFIRMED)
 
-        self.assertEqual(self.confirmation_manager.get_status(target_a), ConfirmationStatus.CONFIRMED)
-        self.assertIsNone(self.confirmation_manager.get_status(target_b))
+        self.assertEqual(self.confirmation_manager.get_status(poi_a), ConfirmationStatus.CONFIRMED)
+        self.assertIsNone(self.confirmation_manager.get_status(poi_b))
 
 
     def test_auto_confirm_broadcasts_self_assignment(self):
         """
         Auto-confirm with network sends a self-assignment TaskAssignRequestMsg
-        for each target (no confirm request in this path).
+        for each POI (no confirm request in this path).
         """
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.is_auto_confirm = True
 
-        self.confirmation_manager.review(self.detected_targets)
+        self.confirmation_manager.review(self.detected_pois)
         sleep(0.1)
 
         # Only self-assignments — no confirm requests in auto-confirm path
         call_count = self.mock_network.broadcast.call_count
         self.assertEqual(
             call_count,
-            len(self.detected_targets),
-            f"Expected {len(self.detected_targets)} self-assignment broadcasts, got {call_count}",
+            len(self.detected_pois),
+            f"Expected {len(self.detected_pois)} self-assignment broadcasts, got {call_count}",
         )
         # All broadcasts should be TaskAssignRequestMsg
         for call in self.mock_network.broadcast.call_args_list:
@@ -766,13 +766,13 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.is_auto_confirm = True
 
-        target = self.detected_targets[0]
-        target.replace_geo(replace(
-            target.geo,
-            truth_target_location=Location(lat=55.5, lng=37.7, alt=200),
+        poi = self.detected_pois[0]
+        poi.replace_geo(replace(
+            poi.geo,
+            truth_poi_location=Location(lat=55.5, lng=37.7, alt=200),
         ))
 
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         sleep(0.1)
 
         msg = self.mock_network.broadcast.call_args_list[0][0][0]
@@ -789,13 +789,13 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.is_auto_confirm = True
 
-        target = self.detected_targets[0]
-        target.replace_geo(replace(
-            target.geo,
-            truth_target_location=Location(lat=55.5, lng=37.7, alt=200),
+        poi = self.detected_pois[0]
+        poi.replace_geo(replace(
+            poi.geo,
+            truth_poi_location=Location(lat=55.5, lng=37.7, alt=200),
         ))
 
-        self.confirmation_manager.review([target])
+        self.confirmation_manager.review([poi])
         sleep(0.1)
 
         msg = self.mock_network.broadcast.call_args_list[0][0][0]
@@ -811,15 +811,15 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.confirmation_manager._network = None
         self.mock_nav_args.is_auto_confirm = False
 
-        self.confirmation_manager.review(self.detected_targets)
+        self.confirmation_manager.review(self.detected_pois)
         sleep(0.1)
 
         self.mock_network.broadcast.assert_not_called()
 
-        # Targets should still be confirmed (no-network fallback)
-        for target in self.detected_targets:
+        # POIs should still be confirmed (no-network fallback)
+        for poi in self.detected_pois:
             self.assertEqual(
-                self.confirmation_manager.get_status(target),
+                self.confirmation_manager.get_status(poi),
                 ConfirmationStatus.CONFIRMED,
             )
 
@@ -830,8 +830,8 @@ class TestConfirmationImagePropagation(unittest.TestCase):
     These cover behaviour not otherwise testable in isolation: neither
     ``create_confirmation_thumbnail`` (tested elsewhere) nor the runtime
     ``_act_confirm`` gates prove that ``confirmation_manager`` actually forwards
-    ``target.confirmation_degraded`` to the thumbnail builder, or that the
-    call site leaves the default target-centered crop enabled for operator
+    ``poi.confirmation_degraded`` to the thumbnail builder, or that the
+    call site leaves the default POI-centered crop enabled for operator
     recognition.
     """
 
@@ -857,30 +857,30 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         self.confirmation_manager.set_network(self.mock_network)
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        self.target = make_detected_target(
+        self.poi = make_detected_poi(
             obj_id=303,
             size_class=DetectionSizeClass.S,
             x_error=0, y_error=0,
             reference_height_m=0, k=0,
             g_data=None, uas_att=None,
         )
-        self.target.set_p_t_g_loc(Location(lat=10, lng=20, alt=100))
-        self.target.capture_confirmation(ConfirmationEvidence.capture(
+        self.poi.set_p_t_g_loc(Location(lat=10, lng=20, alt=100))
+        self.poi.capture_confirmation(ConfirmationEvidence.capture(
             frame,
             (320.0, 240.0, 100.0, 80.0),
             None,
         ))
 
     def test_degraded_flag_forwarded_to_thumbnail_builder(self):
-        """target.confirmation_degraded=True must reach create_confirmation_thumbnail."""
+        """poi.confirmation_degraded=True must reach create_confirmation_thumbnail."""
         from unittest.mock import patch
 
-        self.target.set_confirmation_degraded(True)
+        self.poi.set_confirmation_degraded(True)
         with patch(
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ) as spy:
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
         self.assertTrue(spy.called)
@@ -888,14 +888,14 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         self.assertTrue(kwargs.get("degraded"), "degraded kwarg must be True")
 
     def test_degraded_flag_defaults_false_when_not_set(self):
-        """Fresh targets without the flag still produce a non-degraded image."""
+        """Fresh POIs without the flag still produce a non-degraded image."""
         from unittest.mock import patch
 
         with patch(
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ) as spy:
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
         self.assertTrue(spy.called)
@@ -903,21 +903,21 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         self.assertFalse(kwargs.get("degraded"), "degraded kwarg must be False by default")
 
     def test_confirmation_thumbnail_uses_fallback_delivery_location_crop(self):
-        """ConfirmationManager must not disable target-centered thumbnail crop."""
+        """ConfirmationManager must not disable POI-centered thumbnail crop."""
         from unittest.mock import patch
 
         with patch(
             "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ) as spy:
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
         self.assertTrue(spy.called)
         _, kwargs = spy.call_args
         self.assertNotIn(
-            "crop_to_target", kwargs,
-            "ConfirmationManager should leave crop_to_target at the thumbnail default",
+            "crop_to_poi", kwargs,
+            "ConfirmationManager should leave crop_to_poi at the thumbnail default",
         )
 
     def test_confirmation_artifacts_saved_after_image_send(self):
@@ -925,9 +925,9 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         from unittest.mock import patch
 
         self.mock_logger.log_path = "C:\\logs\\session"
-        self.target.capture_confirmation(ConfirmationEvidence.capture(
-            self.target.confirmation.frame,
-            self.target.confirmation.bbox_cxcywh,
+        self.poi.capture_confirmation(ConfirmationEvidence.capture(
+            self.poi.confirmation.frame,
+            self.poi.confirmation.bbox_cxcywh,
             [(320.0, 240.0, 100.0, 80.0)],
             degraded=True,
         ))
@@ -938,7 +938,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         ), patch(
             "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
         ) as save_spy:
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
         self.mock_network.send_image.assert_called_once_with(303, "b64-image")
@@ -946,11 +946,11 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         kwargs = save_spy.call_args.kwargs
         self.assertEqual(kwargs["log_path"], "C:\\logs\\session")
         self.assertEqual(kwargs["sys_id"], 1)
-        self.assertEqual(kwargs["target_id"], 303)
-        self.assertIs(kwargs["source_frame"], self.target.confirmation.frame)
+        self.assertEqual(kwargs["poi_id"], 303)
+        self.assertIs(kwargs["source_frame"], self.poi.confirmation.frame)
         self.assertEqual(kwargs["sent_image_b64"], "b64-image")
-        self.assertEqual(kwargs["bbox_cxcywh"], self.target.confirmation.bbox_cxcywh)
-        self.assertEqual(kwargs["frame_bboxes"], self.target.confirmation.frame_bboxes)
+        self.assertEqual(kwargs["bbox_cxcywh"], self.poi.confirmation.bbox_cxcywh)
+        self.assertEqual(kwargs["frame_bboxes"], self.poi.confirmation.frame_bboxes)
         self.assertTrue(kwargs["confirmation_degraded"])
 
     def test_artifacts_use_the_single_vehicle_sys_id(self):
@@ -975,7 +975,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         ), patch(
             "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
         ) as save_spy:
-            manager.review([self.target])
+            manager.review([self.poi])
             sleep(0.2)
 
         save_spy.assert_called_once()
@@ -993,7 +993,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         ), patch(
             "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
         ) as save_spy:
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
         self.mock_network.send_image.assert_not_called()
@@ -1012,16 +1012,16 @@ class TestConfirmationImagePropagation(unittest.TestCase):
             "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
             side_effect=OSError("disk full"),
         ):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
         self.mock_network.send_image.assert_called_once_with(303, "b64-image")
-        self.assertEqual(self.confirmation_manager.get_status(self.target), ConfirmationStatus.TIMEOUT_REJECTED)
+        self.assertEqual(self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED)
         warning_messages = [
             call.args[0] for call in self.mock_logger.warning.call_args_list
         ]
         self.assertTrue(
-            any("Failed to save confirmation image artifacts for T303" in msg for msg in warning_messages)
+            any("Failed to save confirmation image artifacts for P303" in msg for msg in warning_messages)
         )
 
     def test_confirmation_artifacts_saved_when_image_send_raises(self):
@@ -1037,12 +1037,12 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         ), patch(
             "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
         ) as save_spy:
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
         self.mock_network.send_image.assert_called_once_with(303, "b64-image")
         save_spy.assert_called_once()
-        self.assertEqual(self.confirmation_manager.get_status(self.target), ConfirmationStatus.TIMEOUT_REJECTED)
+        self.assertEqual(self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED)
 
     def test_artifact_failure_does_not_mask_image_send_failure(self):
         """If both send and artifact save fail, the send failure remains visible."""
@@ -1058,11 +1058,11 @@ class TestConfirmationImagePropagation(unittest.TestCase):
             "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
             side_effect=OSError("disk full"),
         ):
-            self.confirmation_manager.review([self.target])
+            self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
         self.mock_network.send_image.assert_called_once_with(303, "b64-image")
-        self.assertEqual(self.confirmation_manager.get_status(self.target), ConfirmationStatus.TIMEOUT_REJECTED)
+        self.assertEqual(self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED)
 
         error_messages = [
             call.args[0] for call in self.mock_logger.error.call_args_list

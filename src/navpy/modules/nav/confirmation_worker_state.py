@@ -16,28 +16,28 @@ class ConfirmationWorkerState:
         self._lock = lock
         self._generation = 0
         self._workers: set[ConfirmationWorkerLease] = set()
-        self._current_by_target: dict[int, ConfirmationWorkerLease] = {}
+        self._current_by_poi: dict[int, ConfirmationWorkerLease] = {}
 
     def start(
         self,
-        target_id: Optional[int],
+        poi_id: Optional[int],
         event_factory: Callable[[], threading.Event],
     ) -> ConfirmationWorkerLease:
         with self._lock:
             previous = (
-                None if target_id is None else self._current_by_target.get(target_id)
+                None if poi_id is None else self._current_by_poi.get(poi_id)
             )
             if previous is not None:
                 previous.cancel_event.set()
                 self._workers.discard(previous)
             lease = ConfirmationWorkerLease(
-                target_id,
+                poi_id,
                 self._generation,
                 event_factory(),
             )
             self._workers.add(lease)
-            if target_id is not None:
-                self._current_by_target[target_id] = lease
+            if poi_id is not None:
+                self._current_by_poi[poi_id] = lease
             return lease
 
     def is_current(self, lease: ConfirmationWorkerLease) -> bool:
@@ -47,8 +47,8 @@ class ConfirmationWorkerState:
                 and lease in self._workers
                 and not lease.cancel_event.is_set()
                 and (
-                    lease.target_id is None
-                    or self._current_by_target.get(lease.target_id) is lease
+                    lease.poi_id is None
+                    or self._current_by_poi.get(lease.poi_id) is lease
                 )
             )
 
@@ -56,17 +56,17 @@ class ConfirmationWorkerState:
         with self._lock:
             self._workers.discard(lease)
             if (
-                lease.target_id is not None
-                and self._current_by_target.get(lease.target_id) is lease
+                lease.poi_id is not None
+                and self._current_by_poi.get(lease.poi_id) is lease
             ):
-                self._current_by_target.pop(lease.target_id, None)
+                self._current_by_poi.pop(lease.poi_id, None)
 
     def reset(self) -> None:
         with self._lock:
             self._generation += 1
             workers = tuple(self._workers)
             self._workers.clear()
-            self._current_by_target.clear()
+            self._current_by_poi.clear()
             for worker in workers:
                 worker.cancel_event.set()
 

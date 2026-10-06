@@ -28,7 +28,7 @@ def report_dict(report: RunReport) -> dict[str, JsonValue]:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Exact source-driven three-UAV GCS terminal regression"
+        description="Exact source-driven three-UAV GCS final-approach regression"
     )
     parser.add_argument(
         "--analyze-only",

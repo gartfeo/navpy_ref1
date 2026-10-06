@@ -22,7 +22,7 @@ from navpy.modules.vision.gimbal_rate_types import (
     GimbalTrackResult,
     TrackingState,
 )
-from navpy.modules.vision.gimbal_tracking_sample import GimbalTargetProjector
+from navpy.modules.vision.gimbal_tracking_sample import GimbalPoiProjector
 from navpy.modules.vision.models.detect_data import DetectedObject
 
 
@@ -33,11 +33,11 @@ class _VisualSession:
     holding: bool
     last_track_time: float | None
     cached_for_zoom: DetectedObject | None
-    terminal_zoom_frozen: bool
+    final_approach_zoom_frozen: bool
 
 
 class GimbalVisualTracking:
-    """Consume visual targets and commit only to the current session."""
+    """Consume visual POIs and commit only to the current session."""
 
     def __init__(
         self,
@@ -57,25 +57,25 @@ class GimbalVisualTracking:
 
     def update(
         self,
-        target: DetectedObject | None,
+        poi: DetectedObject | None,
         now: float | None = None,
         principal_point: tuple[float, float] | None = None,
     ) -> None:
-        measurement_time, loss_time = _observation_times(target, now)
+        measurement_time, loss_time = _observation_times(poi, now)
         with self._gate.lock:
             session = self._snapshot()
             if session is None:
                 return
             disposition, pointing = self._update_rate(
-                target,
+                poi,
                 measurement_time,
                 principal_point,
                 session,
             )
             if disposition is GimbalObservationDisposition.STALE_NOOP:
                 return
-            effective_target = (
-                target
+            effective_poi = (
+                poi
                 if disposition is GimbalObservationDisposition.ACCEPTED
                 else None
             )
@@ -88,9 +88,9 @@ class GimbalVisualTracking:
                 return
             pointing = _loss_pointing(pointing, recovery)
             cached_for_zoom = self._zoom.update(
-                effective_target,
+                effective_poi,
                 session.cached_for_zoom,
-                session.terminal_zoom_frozen,
+                session.final_approach_zoom_frozen,
                 pointing,
             )
             self._commit(session, recovery, cached_for_zoom)
@@ -105,12 +105,12 @@ class GimbalVisualTracking:
                 self._detection.holding,
                 self._detection.last_track_time,
                 self._detection.last_tracked_for_zoom,
-                self._detection.terminal_zoom_frozen_at_min,
+                self._detection.final_approach_zoom_frozen_at_min,
             )
 
     def _update_rate(
         self,
-        target: DetectedObject | None,
+        poi: DetectedObject | None,
         measurement_time: float | None,
         principal_point: tuple[float, float] | None,
         session: _VisualSession,
@@ -119,14 +119,14 @@ class GimbalVisualTracking:
         if tracker is None:
             disposition = (
                 GimbalObservationDisposition.ACCEPTED
-                if target is not None and measurement_time is not None
+                if poi is not None and measurement_time is not None
                 else GimbalObservationDisposition.NO_OBSERVATION
             )
             return disposition, None
-        if target is None or measurement_time is None:
+        if poi is None or measurement_time is None:
             return GimbalObservationDisposition.NO_OBSERVATION, tracker.last_result
-        sample = GimbalTargetProjector.project(
-            target,
+        sample = GimbalPoiProjector.project(
+            poi,
             measurement_time,
             principal_point,
         )
@@ -160,7 +160,7 @@ class GimbalVisualTracking:
                 TrackingState.TRACKING,
             )
         if disposition is GimbalObservationDisposition.ACCEPTED:
-            return self._loss_recovery.accept_target(now, session.holding)
+            return self._loss_recovery.accept_poi(now, session.holding)
         if disposition is GimbalObservationDisposition.NO_OBSERVATION:
             return self._loss_recovery.advance_loss(
                 now,
@@ -189,37 +189,37 @@ class GimbalVisualTracking:
 
 
 def _observation_times(
-    target: DetectedObject | None,
+    poi: DetectedObject | None,
     now: float | None,
 ) -> tuple[float | None, float]:
     explicit_time = _finite_time(now)
     target_time = _finite_time(
         None
-        if target is None
+        if poi is None
         else (
-            target.timing.detection_timestamp_s
-            if isinstance(target, DetectedObject)
-            else getattr(target, "timestamp", None)
+            poi.timing.detection_timestamp_s
+            if isinstance(poi, DetectedObject)
+            else getattr(poi, "timestamp", None)
         )
     )
-    target_now = _clock_time(
+    poi_now = _clock_time(
         None
-        if target is None
+        if poi is None
         else (
-            target.timing.detection_now_s
-            if isinstance(target, DetectedObject)
-            else getattr(target, "timestamp_now_s", None)
+            poi.timing.detection_now_s
+            if isinstance(poi, DetectedObject)
+            else getattr(poi, "timestamp_now_s", None)
         )
     )
     measurement_time = (
         target_time if target_time is not None else explicit_time
     )
-    if target is None:
+    if poi is None:
         measurement_time = None
     loss_time = next(
         (
             value
-            for value in (explicit_time, target_now, target_time)
+            for value in (explicit_time, poi_now, target_time)
             if value is not None
         ),
         time.time(),
@@ -252,7 +252,7 @@ def _loss_pointing(
     return replace(
         pointing,
         state=recovery.pointing_state,
-        has_target=False,
+        has_poi=False,
     )
 
 

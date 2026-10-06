@@ -42,7 +42,7 @@ class NavInvalidReason(Enum):
     ZOOM_SLEWING = "ZOOM_SLEWING"
     EKF_DIVERGED = "EKF_DIVERGED"
     DETECTION_LOST = "DETECTION_LOST"
-    TARGET_VELOCITY_INVALID = "TARGET_VELOCITY_INVALID"
+    POI_VELOCITY_INVALID = "POI_VELOCITY_INVALID"
 
 
 @dataclass
@@ -115,7 +115,7 @@ class NavContext:
     current_loc: Location
     next_loc: Location
     target_bearing_cd: float
-    target_ned: np.ndarray
+    poi_ned: np.ndarray
     pitch_error: float
     distance: Optional[float]
 

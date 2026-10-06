@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from navpy.modules.navigation.navigation_terminal import TerminalNavigationService
+from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
 from navpy.modules.navigation.navigation_source_dispatch import (
     BindSourceDispatch,
 )
@@ -15,19 +15,19 @@ from navpy.modules.nav.approach_planner import ApproachPlanner
 from navpy.modules.nav.confirmation_action import ConfirmationAction
 from navpy.modules.nav.confirmation_policy import (
     ConfirmationTimingPolicy,
-    TargetRetryPolicy,
+    PoiRetryPolicy,
 )
 from navpy.modules.nav.confirmation_reporting import (
     ConfirmBlockedReporter,
     ConfirmDebugReporter,
 )
-from navpy.modules.nav.terminal_record_deadline import TerminalRecordDeadline
-from navpy.modules.nav.terminal_release_gate import TerminalReleaseGate
+from navpy.modules.nav.final_approach_record_deadline import FinalApproachRecordDeadline
+from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.modules.nav.detection_freshness import DetectionFreshnessPolicy
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.modules.nav.navigation_task_action import NavigationTaskAction
-from navpy.modules.nav.peer_target_notification import PeerTargetNotifier
-from navpy.modules.nav.target_selection import TargetSelector
+from navpy.modules.nav.peer_poi_notification import PeerPoiNotifier
+from navpy.modules.nav.poi_selection import PoiSelector
 from navpy.modules.nav.navigation_task_reset import (
     AutoMissionResume,
     NavigationTaskResetTransaction,
@@ -47,7 +47,7 @@ from navpy.modules.nav.nav_state import (
     GeoHoldState,
     NavigationFailureLatch,
     NavPhaseState,
-    TerminalNavState,
+    FinalApproachNavState,
 )
 from navpy.modules.nav.nav_status import NavigationStatusReporter
 from navpy.modules.nav.navigation_decision import NavigationDecision
@@ -56,12 +56,12 @@ from navpy.modules.nav.pass_tracker import LegacyPassTracker
 from navpy.modules.nav.peer_geo import PeerGeoAcquisition
 from navpy.modules.nav.recovery import RecoveryAction
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.target_retry import TargetRetryState
-from navpy.modules.nav.target_status_decision import ConfirmationStatusDecision
-from navpy.modules.nav.terminal_source_admission import TerminalSourceAdmission
-from navpy.modules.nav.terminal_source_session import TerminalSourceSession
-from navpy.modules.nav.terminal_publication_admission import (
-    TerminalPublicationAdmission,
+from navpy.modules.nav.poi_retry import PoiRetryState
+from navpy.modules.nav.poi_status_decision import ConfirmationStatusDecision
+from navpy.modules.nav.final_approach_source_admission import FinalApproachSourceAdmission
+from navpy.modules.nav.final_approach_source_session import FinalApproachSourceSession
+from navpy.modules.nav.final_approach_publication_admission import (
+    FinalApproachPublicationAdmission,
 )
 from navpy.modules.nav.vehicle_navigation import (
     LoiterRadiusLease,
@@ -75,8 +75,8 @@ from navpy.modules.vision.models.detect_data import DetectedObject
 class NavCapabilities:
     """Only the focused navigation capabilities consumed by navigation."""
 
-    terminal: TerminalNavigationService
-    legacy_targets: LegacyDestinationResolver
+    final_approach: FinalApproachNavigationService
+    legacy_pois: LegacyDestinationResolver
     vehicle_commands: NavigationVehicleCommands
     init: Callable[[], None]
     reset: Callable[[], object]
@@ -95,21 +95,21 @@ class NavStateOwnership:
     detections: DetectionSnapshot
     navigation_task: NavigationTaskState
     navigation_failures: NavigationFailureLatch
-    terminal: TerminalNavState
+    final_approach: FinalApproachNavState
     geo_hold: GeoHoldState
     confirm: ConfirmGateState
     overrides: ConfirmOverrideInbox
 
 
 @dataclass(frozen=True)
-class TargetMissionOwnership:
-    """Target identity, retry, source-session, and mission state owners."""
+class PoiMissionOwnership:
+    """POI identity, retry, source-session, and mission state owners."""
 
     mission: MissionCatalog
     pass_tracker: LegacyPassTracker
-    retry_state: TargetRetryState
+    retry_state: PoiRetryState
     confirmation_manager: ConfirmationManager
-    source_session: TerminalSourceSession
+    source_session: FinalApproachSourceSession
 
 
 @dataclass(frozen=True)
@@ -127,10 +127,10 @@ class DetectionReviewOwnership:
     """Detection admission, review policy, status, and network ownership."""
 
     network: NavNetworkRuntime
-    source: TerminalSourceAdmission
-    publication_admission: TerminalPublicationAdmission
+    source: FinalApproachSourceAdmission
+    publication_admission: FinalApproachPublicationAdmission
     freshness: DetectionFreshnessPolicy
-    retry: TargetRetryPolicy
+    retry: PoiRetryPolicy
     status: NavigationStatusReporter
     debug: ConfirmDebugReporter
     blocked: ConfirmBlockedReporter
@@ -149,8 +149,8 @@ class MissionNavigationOwnership:
 class NavigationTaskWorkflows:
     mission_navigation: MissionNavigationOwnership
     peer_geo_acquisition: PeerGeoAcquisition
-    selector: TargetSelector
-    peer_notifier: PeerTargetNotifier
+    selector: PoiSelector
+    peer_notifier: PeerPoiNotifier
     navigation_task_action: NavigationTaskAction
 
 
@@ -169,16 +169,16 @@ class TrackRecoveryWorkflows:
 @dataclass(frozen=True)
 class ConfirmationAdmissionWorkflows:
     action: ConfirmationAction
-    release: TerminalReleaseGate
-    deadline: TerminalRecordDeadline
+    release: FinalApproachReleaseGate
+    deadline: FinalApproachRecordDeadline
 
 
 @dataclass(frozen=True)
 class ConfirmationWorkflows:
     reset: ResetWorkflows
     confirmation_action: ConfirmationAction
-    target_status: ConfirmationStatusDecision
-    deadline: TerminalRecordDeadline
+    poi_status: ConfirmationStatusDecision
+    deadline: FinalApproachRecordDeadline
 
 
 @dataclass(frozen=True)
@@ -197,7 +197,7 @@ __all__ = [
     "NavCapabilities",
     "NavStateOwnership",
     "ResetWorkflows",
-    "TargetMissionOwnership",
+    "PoiMissionOwnership",
     "TrackRecoveryWorkflows",
     "VehicleApproachOwnership",
 ]

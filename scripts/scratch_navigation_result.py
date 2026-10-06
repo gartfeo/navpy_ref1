@@ -49,7 +49,7 @@ def classification_errors(
 
     ONLY a completed pass measures a closest approach. Every other outcome still
     leaves a `miss_m` in the record -- the smallest range reached before the run
-    stopped -- and that number is not a miss distance. It is where the aircraft
+    stopped -- and that number is not an approach error. It is where the aircraft
     happened to be when it ran out of simulated time or patience, and reading it
     as a score would rank a run that quit early ABOVE one that flew the
     scoring interval out. So anything but a pass is an error, and the exit code is
@@ -63,7 +63,7 @@ def classification_errors(
         errors.append(f"pose feed not certified: {certification}")
     if scoring_end != "passed":
         errors.append(
-            f"engagement did not complete: {scoring_end} -- 'miss_m' is the "
+            f"scoring window did not complete: {scoring_end} -- 'miss_m' is the "
             "closest range reached before stopping, not a closest approach"
         )
     if miss_m is None:
@@ -116,7 +116,7 @@ def initial_result(
         "connection": options.connection,
         # Overwritten with the RESOLVED coordinates once the scoring interval
         # starts. Null here means the run never got far enough to place one.
-        "target": None,
+        "poi": None,
         # Recorded because the arms are only comparable against each other, and
         # a result that does not say which arm produced it cannot be compared
         # to anything.
@@ -154,7 +154,7 @@ def entry_state(pose: "TruthPose", airspeed_mps: "float | None",
                 path_angle_deg: "float | None" = None,
                 ground_speed_mps: "float | None" = None,
                 course_deg: "float | None" = None) -> dict:
-    """THE WHOLE SCORING ENTRY STATE, not just the target-placement fields.
+    """THE WHOLE SCORING ENTRY STATE, not just the POI-placement fields.
 
     Five groups of runs were once compared as repeats of an identical start
     when only four pose fields had been recorded -- entry pitch, roll,
@@ -163,7 +163,7 @@ def entry_state(pose: "TruthPose", airspeed_mps: "float | None",
     determinant of which regime the run enters.
 
     `path_angle_deg` is the GROUND-frame flight-path angle, recorded so a
-    level-target cell's claim of a level entry is a checkable fact of each
+    level-POI cell's claim of a level entry is a checkable fact of each
     artifact rather than an assumption about the level-off phase: pitch at
     trim does not by itself mean the aircraft has stopped climbing.
 

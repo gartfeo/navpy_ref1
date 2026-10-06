@@ -177,32 +177,32 @@ class CameraMountLifecycleFacet:
         self._parts.lifecycle.raise_if_failed()
 
 
-class CameraMountTargetZoomFacet:
+class CameraMountPoiZoomFacet:
     _parts: CameraMountParts
 
     def zoom_actuator_identity(self) -> object:
         return self._parts.camera.identity, self._parts.gimbal.identity
 
     def supports_absolute_zoom(self) -> bool:
-        return self._parts.gimbal_target_zoom.supports_absolute_zoom()
+        return self._parts.gimbal_poi_zoom.supports_absolute_zoom()
 
     def supports_continuous_zoom(self) -> bool:
-        return self._parts.gimbal_target_zoom.supports_continuous_zoom()
+        return self._parts.gimbal_poi_zoom.supports_continuous_zoom()
 
     def start_continuous_zoom(self, direction: ZoomTrackingState) -> bool:
         if direction is ZoomTrackingState.ZOOMING_IN:
-            return self._parts.gimbal_target_zoom.zoom_in()
-        return self._parts.gimbal_target_zoom.zoom_out()
+            return self._parts.gimbal_poi_zoom.zoom_in()
+        return self._parts.gimbal_poi_zoom.zoom_out()
 
     def hold_zoom(self) -> bool:
-        return self._parts.gimbal_target_zoom.zoom_hold()
+        return self._parts.gimbal_poi_zoom.zoom_hold()
 
 
 __all__ = [
     "CameraMountFrameFacet",
     "CameraMountLifecycleFacet",
     "CameraMountOpticsFacet",
-    "CameraMountTargetZoomFacet",
+    "CameraMountPoiZoomFacet",
     "CameraMountZoomControlFacet",
     "CameraMountZoomReadbackFacet",
 ]

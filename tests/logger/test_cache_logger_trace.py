@@ -178,13 +178,13 @@ def test_info_is_cached_by_key_and_message(monkeypatch):
     _fresh_tracer(monkeypatch)
     sink = _RecordingLogger()
     cl = _cache_logger(logger=sink)
-    cl.info("PEER_GEO_ACQ: target=1 reason=out_of_fov", key="peer_geo_acq")
-    cl.info("PEER_GEO_ACQ: target=1 reason=out_of_fov", key="peer_geo_acq")
+    cl.info("PEER_GEO_ACQ: poi=1 reason=out_of_fov", key="peer_geo_acq")
+    cl.info("PEER_GEO_ACQ: poi=1 reason=out_of_fov", key="peer_geo_acq")
     cl.close()
     _OPEN_LOGGERS.remove(cl)
 
     assert sink.info_messages.count(
-        "PEER_GEO_ACQ: target=1 reason=out_of_fov"
+        "PEER_GEO_ACQ: poi=1 reason=out_of_fov"
     ) == 1
 
 

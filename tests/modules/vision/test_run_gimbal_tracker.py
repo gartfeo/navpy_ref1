@@ -12,7 +12,7 @@ from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalTrackingSetup,
 )
 from navpy.modules.vision.gimbal_rate_types import GimbalRateTrackerConfig
-from navpy.modules.vision.target_zoom_tracker import TargetZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_tracker import PoiZoomTrackerConfig
 from scripts.python import run_gimbal_tracker_assembly as runner_assembly
 from scripts.python import run_gimbal_tracker_commands as runner_commands
 
@@ -52,7 +52,7 @@ class TestRunGimbalTracker(unittest.TestCase):
     def test_runner_uses_detector_as_single_tracking_source(self):
         source = Path(runner_assembly.__file__).read_text(encoding="utf-8")
 
-        self.assertIn("auto_target_lock=False", source)
+        self.assertIn("auto_poi_lock=False", source)
         self.assertNotIn("TrackerCSRT", source)
         self.assertNotIn("TrackerKCF", source)
         self.assertNotIn("vis_tracker", source)
@@ -285,7 +285,7 @@ class TestRunGimbalTracker(unittest.TestCase):
             GimbalRateTrackerConfig(correction_bw=1.75, max_rate=50.0),
             GimbalLossPolicy(repoint_sec=3.0),
         )
-        zoom_config = TargetZoomTrackerConfig(
+        zoom_config = PoiZoomTrackerConfig(
             target_pixels={"0": 36.0, "default": 20.0}
         )
         with patch.object(runner_assembly, "GimbalNavigation") as navigation_cls:
@@ -336,7 +336,7 @@ class TestRunGimbalTracker(unittest.TestCase):
             config.model.appearance,
             {"enabled": True, "reid_device": "auto"},
         )
-        self.assertFalse(config.pipeline.auto_target_lock)
+        self.assertFalse(config.pipeline.auto_poi_lock)
 
     def test_operator_zoom_only_sets_initial_hardware_zoom(self):
         from navpy.modules.common.models.attitude import Attitude
@@ -421,7 +421,7 @@ class TestPickNextId(unittest.TestCase):
         self.assertEqual(runner_commands.pick_next_id([3, 7, 9], 9), 3)
 
     def test_current_not_in_list_picks_first(self):
-        # Target lost, list rebuilt with new ids → start fresh.
+        # POI lost, list rebuilt with new ids → start fresh.
         self.assertEqual(runner_commands.pick_next_id([3, 7, 9], 42), 3)
 
     def test_single_item_returns_itself(self):

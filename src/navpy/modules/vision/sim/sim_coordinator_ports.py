@@ -92,7 +92,7 @@ class FrameTransactionCoordinatorPort(Protocol):
     def publish_detection(
         self,
         slot: PublicationSlot,
-        targets: Sequence[DetectedObject],
+        pois: Sequence[DetectedObject],
         *,
         source_timestamp_s: float,
         source_receipt_timestamp_s: Optional[float],

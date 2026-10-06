@@ -66,7 +66,7 @@ def all_have_snap(log_dir: Path, sys_ids: tuple[int, int, int]) -> bool:
     return all(_has_snap(log_dir, sys_id) for sys_id in sys_ids)
 
 
-def terminal_nav_started(log_dir: Path, sys_id: int) -> bool:
+def final_approach_nav_started(log_dir: Path, sys_id: int) -> bool:
     try:
         text = navigation_log(log_dir, sys_id).read_text(
             encoding="utf-8",
@@ -152,7 +152,7 @@ def approve_requests_until_snap(
         observed_sys_ids.add(request.sys_id)
 
     def before_approve(request: ConfirmationRequest) -> None:
-        if terminal_nav_started(log_dir, request.sys_id):
+        if final_approach_nav_started(log_dir, request.sys_id):
             raise RegressionError(
                 f"vehicle {request.sys_id} entered NAV before delayed operator "
                 f"approval for local task {request.local_task_id}"
@@ -292,6 +292,6 @@ __all__ = [
     "prepare_container_launch",
     "resolve_live_plan",
     "run_mission",
-    "terminal_nav_started",
+    "final_approach_nav_started",
     "trigger_all",
 ]

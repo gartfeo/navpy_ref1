@@ -50,9 +50,9 @@ TASK_FORCE_CONFIRM_RESEND_GAP_S = 0.25
 @router.post("/task_force_confirm")
 async def force_confirm_override(req: TaskForceConfirmRequest):
     """Force one confirm request past the recognition gate for a single
-    target (D-18). Deliberate one-shot: the drone consumes the force flag
+    POI (D-18). Deliberate one-shot: the drone consumes the force flag
     the instant it bypasses the gate for this task_id; the gate stays on
-    for every other/future target.
+    for every other/future POI.
     """
     entry = vehicle_mgr.get_vehicle(req.sys_id)
     if not entry:

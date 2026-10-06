@@ -189,7 +189,7 @@ class TestMavFtpBridgeMaster(unittest.TestCase):
         self.assertEqual(master.source_system, 255)
         self.assertEqual(master.source_component, 0)
 
-    def test_reset_sessions_ack_targeted_to_local_source_is_accepted(self):
+    def test_reset_sessions_ack_poied_to_local_source_is_accepted(self):
         ftp = MAVFTP.__new__(MAVFTP)
         ftp.master = SimpleNamespace(source_system=255, source_component=0)
         ftp.ftp_settings = SimpleNamespace(debug=0, pkt_loss_rx=0)

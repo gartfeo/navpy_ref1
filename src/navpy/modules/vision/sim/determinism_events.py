@@ -112,7 +112,7 @@ DISCARD_PENDING_OVERWRITTEN = "pending_overwritten"
 DISCARD_PUBLISH_OVERWRITTEN = "publish_overwritten"
 DISCARD_UNBRACKETABLE = "unbracketable"
 # A leg boundary emptied both slots. Not a timing effect either, but it must be
-# recorded: W5 requires the engagement boundary to be VISIBLE, and without
+# recorded: W5 requires the scoring-window boundary to be VISIBLE, and without
 # these rows a frame that activate() dropped simply vanishes from the ledger.
 DISCARD_PENDING_LEG_ENDED = "pending_leg_ended"
 DISCARD_PUBLISH_LEG_ENDED = "publish_leg_ended"

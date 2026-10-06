@@ -14,7 +14,7 @@ def _create_mock_vehicle():
     vehicle.attitude = Attitude(0, 0, 0)
     vehicle.home_location = None
     vehicle.mission_items_count = 0
-    # NavigationTargetArgs uses get_param_or_default
+    # NavigationPoiArgs uses get_param_or_default
     vehicle.get_param_or_default = Mock(side_effect=lambda name, default: default)
     vehicle.source_system = 1
     return vehicle
@@ -1079,8 +1079,8 @@ class TestVisionControllerRealDetector(unittest.TestCase):
         self.logger = Mock()
         self.args = create_mock_args()
 
-    def test_create_real_detector_enables_target_lock(self):
-        """Real detector creation explicitly enables target lock."""
+    def test_create_real_detector_enables_poi_lock(self):
+        """Real detector creation explicitly enables POI lock."""
         from navpy.modules.vision.real_detector_factory import RealDetectorFactory
         from navpy.modules.vision.vision_profiles import CameraMountSpec
 
@@ -1107,7 +1107,7 @@ class TestVisionControllerRealDetector(unittest.TestCase):
         dependencies, config = detector_ctor.call_args.args
         self.assertIs(dependencies.vehicle, self.vehicle)
         self.assertEqual(config.pipeline.output_mode, "all")
-        self.assertTrue(config.pipeline.use_target_lock)
+        self.assertTrue(config.pipeline.use_poi_lock)
 
 
 class TestVisionControllerAdapter(unittest.TestCase):

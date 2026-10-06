@@ -252,10 +252,10 @@ export default function usePlanGeneration({
   }, [plannerReady, settingsVersion]);
 
   // Re-analyze when dock classes change
-  const handleTargetChange = useCallback(
-    (newTargets) => {
+  const handlePoiChange = useCallback(
+    (newPois) => {
       if (polygon.length >= 3) {
-        localAnalyze(polygon, newTargets);
+        localAnalyze(polygon, newPois);
       }
     },
     [polygon, localAnalyze]
@@ -268,6 +268,6 @@ export default function usePlanGeneration({
     localGenerate,
     approachPoint,
     corridorPath,
-    handleTargetChange,
+    handlePoiChange,
   };
 }

@@ -42,8 +42,8 @@ def test_production_logger_persists_exact_sequences_after_close(monkeypatch, tmp
     args.log_level = CacheLogLevel.DEBUG
     logger = initialize_logger(args, 202)
     records = []
-    projector, _, _, _, loc, target, *_ = rig(records.append)
-    projector.detect(loc, target, Attitude(0, 40, 0), timestamp_s=12.5)
+    projector, _, _, _, loc, poi, *_ = rig(records.append)
+    projector.detect(loc, poi, Attitude(0, 40, 0), timestamp_s=12.5)
     sink = projection_log_sink(logger.debug, 202)
     try:
         for _ in range(1000):

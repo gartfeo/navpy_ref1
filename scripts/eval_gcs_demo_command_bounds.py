@@ -1,4 +1,4 @@
-"""Captured autopilot command bounds for terminal-evidence validation."""
+"""Captured autopilot command bounds for final-approach-evidence validation."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from scripts.eval_gcs_demo_models import TerminalCommand, ThreeUavIds, positive_int
+from scripts.eval_gcs_demo_models import FinalApproachCommand, ThreeUavIds, positive_int
 from scripts.eval_gcs_demo_ports import JsonValue
 
 
@@ -118,7 +118,7 @@ def command_bounds_from_snapshot(
 
 
 def command_bounds_errors(
-    commands: list[TerminalCommand],
+    commands: list[FinalApproachCommand],
     bounds: VehicleCommandBounds,
 ) -> list[str]:
     errors: list[str] = []
@@ -147,14 +147,14 @@ def command_bounds_errors(
     ]
     if outside_roll:
         errors.append(
-            "terminal roll command exceeds configured ROLL_LIMIT_DEG: "
+            "final-approach roll command exceeds configured ROLL_LIMIT_DEG: "
             f"{outside_roll}"
         )
     if outside_pitch:
-        errors.append(f"terminal pitch command exceeds captured bounds: {outside_pitch}")
+        errors.append(f"final-approach pitch command exceeds captured bounds: {outside_pitch}")
     if wrong_throttle:
         errors.append(
-            "terminal throttle command differs from captured runtime value: "
+            "final-approach throttle command differs from captured runtime value: "
             f"{wrong_throttle}"
         )
     return errors

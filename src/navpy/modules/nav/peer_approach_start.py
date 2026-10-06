@@ -14,30 +14,30 @@ from navpy.modules.nav.nav_state import NavigationTaskState, GeoHoldState
 from navpy.modules.nav.peer_geo import PeerGeoTracker
 
 
-class PeerSimulationTargetSetup:
-    """Seed a simulator target only for a simulated detector session."""
+class PeerSimulationPoiSetup:
+    """Seed a simulator POI only for a simulated detector session."""
 
     def __init__(
         self,
         is_simulation: Callable[[], bool],
-        set_sim_target: Callable[[int, Location], None],
+        set_sim_poi: Callable[[int, Location], None],
         mission_item_count: Callable[[], int],
     ) -> None:
         self._is_simulation = is_simulation
-        self._set_sim_target = set_sim_target
+        self._set_sim_poi = set_sim_poi
         self._mission_item_count = mission_item_count
 
-    def apply(self, target: Location) -> None:
+    def apply(self, poi: Location) -> None:
         if self._is_simulation():
-            self._set_sim_target(
+            self._set_sim_poi(
                 self._mission_item_count() - 2,
-                Location(target.lat, target.lng, 0),
+                Location(poi.lat, poi.lng, 0),
             )
 
 
 @dataclass(frozen=True)
 class PeerAssignmentPorts:
-    selected_target: Callable[[], TaskAssignMsgData | None]
+    selected_poi: Callable[[], TaskAssignMsgData | None]
     absolute_location: Callable[[Location | None], Location | None]
 
 
@@ -49,7 +49,7 @@ class PeerAssignmentSetup:
         ports: PeerAssignmentPorts,
         navigation_task: NavigationTaskState,
         geo_hold: GeoHoldState,
-        simulation: PeerSimulationTargetSetup,
+        simulation: PeerSimulationPoiSetup,
     ) -> None:
         self._ports = ports
         self._navigation_task = navigation_task
@@ -57,12 +57,12 @@ class PeerAssignmentSetup:
         self._simulation = simulation
 
     def prepare(self) -> tuple[TaskAssignMsgData, Location] | None:
-        selected = self._ports.selected_target()
+        selected = self._ports.selected_poi()
         if selected is None:
             return None
         self._navigation_task.peer_navigation = True
-        self._navigation_task.peer_target_location = None
-        self._geo_hold.target_location = None
+        self._navigation_task.peer_poi_location = None
+        self._geo_hold.poi_location = None
         self._geo_hold.acquisition_log_bucket = None
         location = selected.location
         navigation_location = Location(
@@ -71,7 +71,7 @@ class PeerAssignmentSetup:
             location.alt,
             is_absolute=True,
         )
-        self._navigation_task.navigation_target_location = (
+        self._navigation_task.navigation_poi_location = (
             self._ports.absolute_location(navigation_location)
         )
         self._simulation.apply(navigation_location)
@@ -95,13 +95,13 @@ class PeerApproachStarter:
         ports: PeerApproachPorts,
         navigation_task: NavigationTaskState,
         geo_tracker: PeerGeoTracker,
-        terminal_active: Callable[[], bool],
+        final_approach_active: Callable[[], bool],
         logger: ILogger,
     ) -> None:
         self._ports = ports
         self._navigation_task = navigation_task
         self._geo_tracker = geo_tracker
-        self._terminal_active = terminal_active
+        self._final_approach_active = final_approach_active
         self._logger = logger
 
     def start(
@@ -125,7 +125,7 @@ class PeerApproachStarter:
             )
         self._ports.request_guided()
         geo_armed = False
-        if plan.kind == ApproachKind.ORBIT and not self._terminal_active():
+        if plan.kind == ApproachKind.ORBIT and not self._final_approach_active():
             geo_armed = self._geo_tracker.start(navigation_location)
             if geo_armed:
                 geo_armed = self._geo_tracker.prime()
@@ -153,5 +153,5 @@ __all__ = [
     "PeerApproachStarter",
     "PeerAssignmentPorts",
     "PeerAssignmentSetup",
-    "PeerSimulationTargetSetup",
+    "PeerSimulationPoiSetup",
 ]

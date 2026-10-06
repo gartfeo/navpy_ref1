@@ -121,7 +121,7 @@ def test_a_cell_carries_its_own_geometry_and_throttle():
     import pathlib
 
     options = parent._parser().parse_args([])
-    options.target_off_boresight_deg = 30.0
+    options.poi_off_boresight_deg = 30.0
     options.throttle = 0.55
 
     stated = parent.parse_cells("astern:0:0::::::180:0.7")[0]
@@ -129,17 +129,17 @@ def test_a_cell_carries_its_own_geometry_and_throttle():
     assert stated.throttle == 0.7
     emitted = " ".join(
         parent._child_args(options, 1, pathlib.Path("."), stated))
-    assert "--target-off-boresight-deg 180.0" in emitted
+    assert "--poi-off-boresight-deg 180.0" in emitted
     assert "--throttle 0.7" in emitted
 
     silent = parent.parse_cells("calm:0:0")[0]
     emitted = " ".join(
         parent._child_args(options, 1, pathlib.Path("."), silent))
-    assert "--target-off-boresight-deg 30.0" in emitted
+    assert "--poi-off-boresight-deg 30.0" in emitted
     assert "--throttle 0.55" in emitted
     # One value per flag: a duplicated flag makes the run depend on argparse
     # precedence rather than on the cell.
-    assert emitted.count("--target-off-boresight-deg") == 1
+    assert emitted.count("--poi-off-boresight-deg") == 1
     assert emitted.count("--throttle") == 1
 
 
@@ -219,7 +219,7 @@ def test_the_timeout_covers_the_level_settle_phase():
 
     The budget lists every phase the child runs, `written the same way so the
     two cannot disagree`. A level-settle outside that list dies at the parent's
-    deadline in exactly the runs that use it -- the level-target cells -- while
+    deadline in exactly the runs that use it -- the level-POI cells -- while
     every dive cell, which flies with 0, stays green.
     """
     options = parent._parser().parse_args([])
@@ -253,7 +253,7 @@ def test_a_run_records_which_law_source_flew():
 
     options = uav._parser().parse_args(
         ["--connection", "udp:127.0.0.1:14550",
-         "--target-range-m", "3000", "--target-below-m", "350"])
+         "--poi-range-m", "3000", "--poi-below-m", "350"])
     artifact = uav.initial_result(options, uav.law_source_path())
 
     imported = pathlib.Path(

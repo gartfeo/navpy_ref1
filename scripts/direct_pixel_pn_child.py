@@ -1,4 +1,4 @@
-"""Run pure-vision PN from a known target rendered as ideal pixels."""
+"""Run pure-vision PN from a known POI rendered as ideal pixels."""
 
 from __future__ import annotations
 
@@ -36,28 +36,28 @@ from navpy.modules.vision.models.detect_data import DetectedObject  # noqa: E402
 from navpy.modules.vision.sim.direct_pixel_trace import (  # noqa: E402
     command_loop_observer,
 )
-from navpy.modules.vision.sim.direct_target_pixel_source import (  # noqa: E402
-    DirectTargetPixelSource,
+from navpy.modules.vision.sim.direct_poi_pixel_source import (  # noqa: E402
+    DirectPoiPixelSource,
 )
 from pixel_pn_admission_ledger import subscribe_admission_ledger  # noqa: E402
 from pixel_pn_child_teardown import finish_child  # noqa: E402
 from pixel_pn_failure_report import failure_payload  # noqa: E402
 from pixel_pn_flight_control_trace import FlightControlTrace  # noqa: E402
 from pixel_pn_run_identity import start_identity  # noqa: E402
-from pixel_pn_terminal_speed import settle_terminal_speed  # noqa: E402
+from pixel_pn_final_approach_speed import settle_final_approach_speed  # noqa: E402
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connection", required=True)
     parser.add_argument("--sysid", required=True, type=int)
-    parser.add_argument("--target-lat", required=True, type=float)
-    parser.add_argument("--target-lon", required=True, type=float)
-    parser.add_argument("--target-alt", required=True, type=float)
-    parser.add_argument("--engage-seq", required=True, type=int, dest='scoring_start_seq')
+    parser.add_argument("--poi-lat", required=True, type=float)
+    parser.add_argument("--poi-lon", required=True, type=float)
+    parser.add_argument("--poi-alt", required=True, type=float)
+    parser.add_argument("--scoring-start-seq", required=True, type=int, dest='scoring_start_seq')
     parser.add_argument("--timeout", required=True, type=float)
     parser.add_argument("--result", required=True, type=Path)
-    parser.add_argument("--engaged", required=True, type=Path, dest='scoring_active')
+    parser.add_argument("--scoring-active", required=True, type=Path, dest='scoring_active')
     # Cruise-to-gate at one speed, fly the scored leg at another. Both default
     # to off, which leaves the flight at whatever speed SITL was launched with.
     parser.add_argument("--del-speedup", type=float, default=0.0)
@@ -100,7 +100,7 @@ def _wait_for_scoring_interval(
     vehicle: IVehicle,
     scoring_start_seq: int,
     timeout_s: float,
-    purpose: str = "engagement",
+    purpose: str = "scoring window",
 ) -> None:
     deadline_s = time.monotonic() + timeout_s
     while time.monotonic() < deadline_s:
@@ -115,7 +115,7 @@ def _wait_for_scoring_interval(
     )
 
 
-def _step_to_terminal_speed(
+def _step_to_final_approach_speed(
     vehicle: IVehicle, options: argparse.Namespace
 ) -> None:
     """Cruise fast, then fly the scored leg at the speed the run claims."""
@@ -124,13 +124,13 @@ def _step_to_terminal_speed(
     _wait_for_scoring_interval(
         vehicle, options.slow_seq, options.timeout, purpose="speed step-down"
     )
-    change = settle_terminal_speed(vehicle, options.del_speedup)
+    change = settle_final_approach_speed(vehicle, options.del_speedup)
     print(f"DIRECT_PIXEL_SPEED {change.describe()}", flush=True)
     if not change.settled:
         # Refused here rather than scored later: a scored leg flown at cruise
         # speed is indistinguishable from a normal run until the freshness
         # gate rejects it minutes afterwards.
-        raise RuntimeError(f"terminal speed did not settle: {change.describe()}")
+        raise RuntimeError(f"final-approach speed did not settle: {change.describe()}")
 
 
 def _wait_for_mode(vehicle: IVehicle, mode: FlightMode, timeout_s: float) -> None:
@@ -143,7 +143,7 @@ def _wait_for_mode(vehicle: IVehicle, mode: FlightMode, timeout_s: float) -> Non
 
 
 def _result_payload(
-    passed: bool, snap: ClosestSnap, source: DirectTargetPixelSource
+    passed: bool, snap: ClosestSnap, source: DirectPoiPixelSource
 ) -> dict[str, object]:
     metrics = source.metrics
     return {
@@ -181,7 +181,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
     navigation = None
     source = None
     admission = None
-    terminal_recorded = False
+    final_approach_recorded = False
     trace = FlightControlTrace(options.result.parent / "flight_control_trace.csv")
     try:
         vehicle = create_vehicle(ConnArgs(args), logger)
@@ -197,31 +197,31 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             navigation_args,
             scheduler_cadence=cadence,
         )
-        target = Location(
-            options.target_lat,
-            options.target_lon,
-            options.target_alt,
+        poi = Location(
+            options.poi_lat,
+            options.poi_lon,
+            options.poi_alt,
             is_absolute=True,
         )
-        def deliver(target_detection: DetectedObject) -> bool:
-            nonlocal terminal_recorded
-            if not terminal_recorded:
-                terminal_recorded = navigation.terminal.record_confirmed_detection(
-                    target_detection
+        def deliver(poi_detection: DetectedObject) -> bool:
+            nonlocal final_approach_recorded
+            if not final_approach_recorded:
+                final_approach_recorded = navigation.final_approach.record_confirmed_detection(
+                    poi_detection
                 )
-                if not terminal_recorded:
+                if not final_approach_recorded:
                     return False
-            return navigation.nav(target_detection)
+            return navigation.nav(poi_detection)
 
-        source = DirectTargetPixelSource(
+        source = DirectPoiPixelSource(
             vehicle,
-            target,
+            poi,
             cadence,
             aircraft_sequence=geo_ref.uas_seq,
             aircraft_degrees=geo_ref.degrees,
             deliver=deliver,
         )
-        navigation.bind_terminal_source_dispatch(
+        navigation.bind_final_approach_source_dispatch(
             source.dispatch_available,
             # Record-only. None when tracing is off, and the worker holds
             # a no-op observer in that case rather than a branch.
@@ -234,7 +234,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         source.start()
         navigation.start()
         print("DIRECT_PIXEL_READY", flush=True)
-        _step_to_terminal_speed(vehicle, options)
+        _step_to_final_approach_speed(vehicle, options)
         _wait_for_scoring_interval(vehicle, options.scoring_start_seq, options.timeout)
         if not vehicle.set_mode(FlightMode.GUIDED):
             raise RuntimeError("GUIDED mode request was rejected")
@@ -247,7 +247,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         while time.monotonic() < deadline_s:
             navigation.raise_if_failed()
             trace.sample(vehicle)
-            if navigation.terminal.target_passed_override() is True:
+            if navigation.final_approach.poi_passed_override() is True:
                 snap = navigation.reset()
                 return _result_payload(True, snap, source)
             time.sleep(0.01)

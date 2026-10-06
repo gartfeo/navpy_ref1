@@ -12,7 +12,7 @@ from navpy.modules.vision.simulation_object import SimulationObject
 
 
 class ObservedProjector(Protocol):
-    def __call__(self, location: Location, target: SimulationObject, attitude: Attitude, *,
+    def __call__(self, location: Location, poi: SimulationObject, attitude: Attitude, *,
                  timestamp_s: Optional[float], uas_body_rates_rad_s: Optional[tuple[float, float, float]],
                  _evidence: ProjectionCapture) -> Optional[DetectedObject]: ...
 
@@ -30,13 +30,13 @@ class FiniteProjectionObserver:
             return self._failures
 
     def detect(self, project: ObservedProjector, pixel_valid: PixelValidator,
-               frame_size: FrameSize, location: Location, target: SimulationObject,
+               frame_size: FrameSize, location: Location, poi: SimulationObject,
                attitude: Attitude, timestamp: Optional[float],
                body_rates: Optional[tuple[float, float, float]]) -> DetectResult:
         capture = ProjectionCapture()
-        capture.observe(capture.inputs, target, location, attitude, timestamp, body_rates, frame_size)
+        capture.observe(capture.inputs, poi, location, attitude, timestamp, body_rates, frame_size)
         try:
-            projected = project(location, target, attitude, timestamp_s=timestamp,
+            projected = project(location, poi, attitude, timestamp_s=timestamp,
                                 uas_body_rates_rad_s=body_rates, _evidence=capture)
             if projected is None:
                 self._emit(capture, capture.early_outcome or 'no_projection')

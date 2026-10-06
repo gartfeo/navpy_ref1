@@ -1,4 +1,4 @@
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,
@@ -6,7 +6,7 @@ from navpy.modules.navigation.nav.vision_nav.source_epoch import (
 
 
 def _frame(source="a", generation=0, task=1, obj=2, timestamp=1.0):
-    return TerminalVisionFrame(
+    return FinalApproachVisionFrame(
         source, generation, task, obj, timestamp,
         1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
     )

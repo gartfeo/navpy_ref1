@@ -22,8 +22,8 @@ from navpy.modules.vision.real_detector_state import (
 from navpy.modules.vision.real_frame_association import RealFrameAssociation
 from navpy.modules.vision.real_inference import DeepSearchChannel
 from navpy.modules.vision.real_detection_mapper import DetectedObjectMapper
-from navpy.modules.vision.target_lock import TargetLock
-from navpy.modules.vision.target_priority import find_target_by_id
+from navpy.modules.vision.poi_lock import PoiLock
+from navpy.modules.vision.poi_priority import find_poi_by_id
 from navpy.modules.vision.track_identity import TrackIdentityResolver
 from navpy.modules.vision.tracker_backends import TrackerBackend
 
@@ -35,7 +35,7 @@ class TrackingRecoveryPort(Protocol):
         frame: np.ndarray | None,
     ) -> dict[int, np.ndarray] | None: ...
 
-    def bridge_locked_target(
+    def bridge_locked_poi(
         self,
         tracks: Sequence[TrackedObject],
         frame: np.ndarray,
@@ -46,14 +46,14 @@ class TrackingRecoveryPort(Protocol):
 
 
 class TrackingNavigationPort(Protocol):
-    def update(self, targets: Sequence[DetectedObject]) -> None: ...
+    def update(self, pois: Sequence[DetectedObject]) -> None: ...
 
 
 @dataclass(frozen=True)
 class TrackingModels:
     tracker: TrackerBackend
     identity: TrackIdentityResolver
-    target_lock: TargetLock
+    poi_lock: PoiLock
 
 
 @dataclass(frozen=True)
@@ -70,7 +70,7 @@ class TrackingAssociationResult:
 
 
 class TrackingAssociationProcessor:
-    """Admit one frame and resolve stable track identities and target lock."""
+    """Admit one frame and resolve stable track identities and POI lock."""
 
     def __init__(
         self,
@@ -79,14 +79,14 @@ class TrackingAssociationProcessor:
         deep_search: DeepSearchChannel,
         metrics: RuntimeMetrics,
         inference_generation: InferenceGeneration,
-        use_target_lock: bool,
+        use_poi_lock: bool,
     ) -> None:
         self._models = models
         self._recovery = recovery
         self._deep_search = deep_search
         self._metrics = metrics
         self._inference_generation = inference_generation
-        self._use_target_lock = bool(use_target_lock)
+        self._use_poi_lock = bool(use_poi_lock)
 
     def process(
         self,
@@ -119,7 +119,7 @@ class TrackingAssociationProcessor:
             frame=frame,
         )
         embeddings = self._recovery.compute_embeddings(raw_tracks, frame)
-        self._recovery.bridge_locked_target(
+        self._recovery.bridge_locked_poi(
             raw_tracks,
             frame,
             frame_width,
@@ -134,13 +134,13 @@ class TrackingAssociationProcessor:
             embeddings=embeddings,
         )
         locked = (
-            self._models.target_lock.select(tracks, frame_width, frame_height)
-            if self._use_target_lock
+            self._models.poi_lock.select(tracks, frame_width, frame_height)
+            if self._use_poi_lock
             else None
         )
         pinned = (
-            self._models.target_lock.locked_id
-            if self._use_target_lock
+            self._models.poi_lock.locked_id
+            if self._use_poi_lock
             else None
         )
         self._models.identity.pin(pinned)
@@ -162,18 +162,18 @@ class TrackingResultPublisher:
         self._navigation = navigation
 
     def publish(self, result: TrackingAssociationResult) -> None:
-        targets = self._mapper.convert(
+        pois = self._mapper.convert(
             list(result.tracks),
             result.locked,
             result.frame,
         )
-        primary = find_target_by_id(
-            targets,
+        primary = find_poi_by_id(
+            pois,
             result.locked.id if result.locked is not None else None,
         )
-        self._publications.results.publish(targets, primary)
+        self._publications.results.publish(pois, primary)
         self._publications.overlays.publish(result.tracks, result.locked)
-        self._navigation.update(targets)
+        self._navigation.update(pois)
 
 
 class TrackingBatchProcessor:

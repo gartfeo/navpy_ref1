@@ -29,19 +29,19 @@ from navpy.modules.navigation.navigation_mode import (
     NavigationModeBuilder,
     NavigationModeSelector,
     NavigationModeState,
-    NavigationTerminalCapabilities,
+    NavigationFinalApproachCapabilities,
     RuntimeBuildResult,
 )
 from navpy.modules.navigation.navigation_runtime import LegacyNavigationRuntime
-from navpy.modules.navigation.navigation_terminal import TerminalNavigationService
+from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
 from navpy.modules.navigation.legacy_destination_resolver import (
     LegacyNavigationState,
     LegacyDestinationResolver,
-    geodetic_target_ned,
+    geodetic_poi_ned,
 )
-from navpy.modules.navigation.legacy_terminal_command import (
-    LegacyTerminalCommand,
-    LegacyTerminalCommandPorts,
+from navpy.modules.navigation.legacy_final_approach_command import (
+    LegacyFinalApproachCommand,
+    LegacyFinalApproachCommandPorts,
 )
 from navpy.modules.navigation.nav.nav_law import NavCommand, NavCommandMode
 from navpy.modules.navigation.nav.nav_law_factory import (
@@ -49,11 +49,11 @@ from navpy.modules.navigation.nav.nav_law_factory import (
     get_nav_algorithm_spec,
 )
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 def _detection(*, simulation: bool = False):
-    return make_detected_target(
+    return make_detected_poi(
         x_error=12.0,
         y_error=34.0,
         k=np.eye(3),
@@ -70,78 +70,78 @@ def _active_mode(
     algorithm: str,
     *,
     runtime=None,
-    terminal=None,
+    final_approach=None,
 ) -> ActiveNavigationMode:
     return ActiveNavigationMode(
         spec=get_nav_algorithm_spec(algorithm),
         runtime=runtime or Mock(),
-        terminal=terminal,
+        final_approach=final_approach,
     )
 
 
-def test_target_resolver_locks_the_projected_pixel_target():
+def test_poi_resolver_locks_the_projected_pixel_poi():
     vehicle = Mock()
-    args = SimpleNamespace(use_direct_target=False)
+    args = SimpleNamespace(use_direct_poi=False)
     pixel_ned = np.array([0.8, 0.1, 0.2])
     geo_ref = Mock(calc_ned=Mock(return_value=pixel_ned))
-    projected_target = Location(40.003, 44.004, 850.0, is_absolute=True)
-    zc_util = Mock(ray_to_terrain_ned=Mock(return_value=projected_target))
+    projected_poi = Location(40.003, 44.004, 850.0, is_absolute=True)
+    zc_util = Mock(ray_to_terrain_ned=Mock(return_value=projected_poi))
     state = LegacyNavigationState()
-    target_resolver = LegacyDestinationResolver(vehicle, args, geo_ref, zc_util, state)
+    poi_resolver = LegacyDestinationResolver(vehicle, args, geo_ref, zc_util, state)
 
     detection = _detection()
-    target_ned, attitude = target_resolver.resolve(detection)
+    poi_ned, attitude = poi_resolver.resolve(detection)
 
-    assert target_ned is pixel_ned
+    assert poi_ned is pixel_ned
     assert attitude is detection.pose.aircraft_attitude
     zc_util.ray_to_terrain_ned.assert_called_once()
-    assert target_resolver.locked_target is projected_target
+    assert poi_resolver.locked_poi is projected_poi
 
 
-def test_real_detection_never_uses_debug_target_for_direct_target_resolution():
+def test_real_detection_never_uses_debug_poi_for_direct_poi_resolution():
     vehicle = Mock()
-    args = SimpleNamespace(use_direct_target=True)
+    args = SimpleNamespace(use_direct_poi=True)
     pixel_ned = np.array([0.7, -0.2, 0.3])
     geo_ref = Mock(calc_ned=Mock(return_value=pixel_ned))
     state = LegacyNavigationState()
-    state.set_locked_target(Location(
+    state.set_locked_poi(Location(
         40.01,
         44.01,
         800.0,
         is_absolute=True,
     ))
-    target_resolver = LegacyDestinationResolver(vehicle, args, geo_ref, Mock(), state)
+    poi_resolver = LegacyDestinationResolver(vehicle, args, geo_ref, Mock(), state)
 
-    target_ned, _ = target_resolver.resolve(_detection(simulation=False))
+    poi_ned, _ = poi_resolver.resolve(_detection(simulation=False))
 
-    assert target_ned is pixel_ned
+    assert poi_ned is pixel_ned
     geo_ref.calc_ned.assert_called_once()
     vehicle.location.assert_not_called()
 
 
-def test_sim_detection_uses_truth_for_explicit_legacy_direct_target():
+def test_sim_detection_uses_truth_for_explicit_legacy_direct_poi():
     vehicle = Mock()
     current = Location(40.0, 44.0, 900.0, is_absolute=True)
     vehicle.location.return_value = current
-    target_resolver = LegacyDestinationResolver(
+    poi_resolver = LegacyDestinationResolver(
         vehicle,
-        SimpleNamespace(use_direct_target=True),
+        SimpleNamespace(use_direct_poi=True),
         Mock(),
         Mock(),
         LegacyNavigationState(),
     )
     detection = _detection(simulation=True)
 
-    target_ned, attitude = target_resolver.resolve(detection)
+    poi_ned, attitude = poi_resolver.resolve(detection)
 
     assert np.allclose(
-        target_ned,
-        geodetic_target_ned(current, detection.geo.truth_target_location),
+        poi_ned,
+        geodetic_poi_ned(current, detection.geo.truth_poi_location),
     )
     assert attitude is detection.pose.aircraft_attitude
 
 
-def test_legacy_terminal_command_preserves_command_before_log_order():
+def test_legacy_final_approach_command_preserves_command_before_log_order():
     order: list[str] = []
     current = Location(40.0, 44.0, 1000.0, is_absolute=True)
     locked = Location(40.001, 44.0, 900.0, is_absolute=True)
@@ -166,19 +166,19 @@ def test_legacy_terminal_command_preserves_command_before_log_order():
     )
     navigation_logger = Mock()
     navigation_logger.log = Mock(side_effect=lambda **kwargs: order.append("log"))
-    ports = LegacyTerminalCommandPorts(
+    ports = LegacyFinalApproachCommandPorts(
         vehicle=vehicle,
         geo_ref=geo_ref,
         logger=Mock(),
         navigation_logger=navigation_logger,
         nav=nav,
-        get_locked_target=Mock(return_value=locked),
+        get_locked_poi=Mock(return_value=locked),
         adjust_nav=Mock(side_effect=lambda *args: order.append("adjust") or False),
         is_adjusted=Mock(return_value=False),
-        calc_nav_target=Mock(return_value=locked),
+        calc_nav_poi=Mock(return_value=locked),
     )
 
-    result = LegacyTerminalCommand(ports).execute(
+    result = LegacyFinalApproachCommand(ports).execute(
         np.array([1.0, 0.0, 0.1]),
         _detection(simulation=False),
     )
@@ -275,7 +275,7 @@ def test_finish_failure_cannot_strand_prepared_postprocess():
 
     assert postprocessed.is_set()
     assert any(
-        "Error finishing termination work" in call.args[0]
+        "Error finishing final-approach work" in call.args[0]
         for call in logger.error.call_args_list
     )
 
@@ -951,12 +951,12 @@ def test_command_slot_stale_finish_cannot_clear_a_newer_lease():
 def test_legacy_runtime_clears_wake_signal_before_retained_stream_work():
     event = threading.Event()
     slot = NavigationCommandSlot(threading.RLock(), event)
-    target_ned = np.array([1.0, 0.0, 0.0])
+    poi_ned = np.array([1.0, 0.0, 0.0])
     detection = _detection()
     runtime = LegacyNavigationRuntime(
         command_slot=slot,
-        target_resolver=Mock(return_value=(
-            target_ned,
+        poi_resolver=Mock(return_value=(
+            poi_ned,
             detection.pose.aircraft_attitude,
         )),
         command_executor=Mock(),
@@ -967,7 +967,7 @@ def test_legacy_runtime_clears_wake_signal_before_retained_stream_work():
     assert event.is_set()
     first = runtime.take_work()
 
-    assert first[0] is target_ned
+    assert first[0] is poi_ned
     assert first[1] is detection
     assert not event.is_set()
     assert runtime.take_work() is first
@@ -1096,13 +1096,13 @@ def test_mode_switch_resets_before_publish_and_blocks_navigation_ingress():
     candidate_runtime.nav.assert_called_once()
 
 
-def test_terminal_call_uses_one_mode_session_during_switch():
+def test_final_approach_call_uses_one_mode_session_during_switch():
     state = NavigationModeState()
-    old_terminal = NavigationTerminalCapabilities(
+    old_final_approach = NavigationFinalApproachCapabilities(
         status=Mock(),
         confirmation=Mock(),
     )
-    old = _active_mode("pn", terminal=old_terminal)
+    old = _active_mode("pn", final_approach=old_final_approach)
     state.install_initialized(old, expected_previous=None)
 
     reset_entered = threading.Event()
@@ -1113,14 +1113,14 @@ def test_terminal_call_uses_one_mode_session_during_switch():
         assert release_reset.wait(timeout=2.0)
 
     old.runtime.invalidate_commands.side_effect = invalidate_old
-    candidate_terminal = NavigationTerminalCapabilities(
+    candidate_final_approach = NavigationFinalApproachCapabilities(
         status=Mock(),
         confirmation=Mock(),
     )
-    candidate_terminal.confirmation.can_confirm_detection.return_value = True
+    candidate_final_approach.confirmation.can_confirm_detection.return_value = True
     candidate = _active_mode(
         "vision-nav-pn",
-        terminal=candidate_terminal,
+        final_approach=candidate_final_approach,
     )
     switch_thread = threading.Thread(
         target=lambda: state.install_initialized(
@@ -1132,28 +1132,28 @@ def test_terminal_call_uses_one_mode_session_during_switch():
     assert reset_entered.wait(timeout=2.0)
 
     result = []
-    terminal_call_finished = threading.Event()
+    final_approach_call_finished = threading.Event()
 
-    def call_terminal() -> None:
+    def call_final_approach() -> None:
         result.append(
-            TerminalNavigationService(state).can_confirm_detection(_detection())
+            FinalApproachNavigationService(state).can_confirm_detection(_detection())
         )
-        terminal_call_finished.set()
+        final_approach_call_finished.set()
 
-    terminal_thread = threading.Thread(target=call_terminal)
-    terminal_thread.start()
-    assert not terminal_call_finished.wait(timeout=0.05)
-    old_terminal.confirmation.can_confirm_detection.assert_not_called()
-    candidate_terminal.confirmation.can_confirm_detection.assert_not_called()
+    final_approach_thread = threading.Thread(target=call_final_approach)
+    final_approach_thread.start()
+    assert not final_approach_call_finished.wait(timeout=0.05)
+    old_final_approach.confirmation.can_confirm_detection.assert_not_called()
+    candidate_final_approach.confirmation.can_confirm_detection.assert_not_called()
 
     release_reset.set()
     switch_thread.join(timeout=2.0)
-    terminal_thread.join(timeout=2.0)
+    final_approach_thread.join(timeout=2.0)
 
     assert not switch_thread.is_alive()
-    assert not terminal_thread.is_alive()
+    assert not final_approach_thread.is_alive()
     assert result == [True]
-    candidate_terminal.confirmation.can_confirm_detection.assert_called_once()
+    candidate_final_approach.confirmation.can_confirm_detection.assert_called_once()
 
 
 def test_navigation_only_admits_work_for_the_command_worker():
@@ -1175,7 +1175,7 @@ def test_navigation_only_admits_work_for_the_command_worker():
     runtime.finish_work.assert_not_called()
 
 
-def test_terminal_navigation_ingress_remains_serialized_with_command_runtime():
+def test_final_approach_navigation_ingress_remains_serialized_with_command_runtime():
     state = NavigationModeState()
     nav_entered = threading.Event()
     release_nav = threading.Event()
@@ -1187,12 +1187,12 @@ def test_terminal_navigation_ingress_remains_serialized_with_command_runtime():
         return True
 
     runtime.nav.side_effect = block_nav
-    terminal = NavigationTerminalCapabilities(status=Mock(), confirmation=Mock())
+    final_approach = NavigationFinalApproachCapabilities(status=Mock(), confirmation=Mock())
     state.install_initialized(
         _active_mode(
             "vision-nav-pn",
             runtime=runtime,
-            terminal=terminal,
+            final_approach=final_approach,
         ),
         expected_previous=None,
     )
@@ -1228,8 +1228,8 @@ def test_navigation_construction_defers_worker_start_until_explicit_start():
     composition = SimpleNamespace(
         lifecycle=lifecycle,
         mode_state=Mock(),
-        terminal=Mock(),
-        legacy_targets=Mock(),
+        final_approach=Mock(),
+        legacy_pois=Mock(),
         vehicle_commands=Mock(),
         bind_source_dispatch=Mock(),
     )
@@ -1254,7 +1254,7 @@ def test_navigation_construction_defers_worker_start_until_explicit_start():
     lifecycle.start.assert_called_once_with()
 
     callback = Mock(return_value=False)
-    navigation.bind_terminal_source_dispatch(callback)
+    navigation.bind_final_approach_source_dispatch(callback)
     # The observer travels with the callback because it belongs to the same
     # owner. A source without one publishes None, and the worker keeps the
     # no-op observer it was constructed with.
@@ -1266,7 +1266,7 @@ def test_mode_switch_invalidates_old_slot_before_candidate_reset_and_publish():
     slot = NavigationCommandSlot(threading.RLock(), event)
     old_runtime = LegacyNavigationRuntime(
         command_slot=slot,
-        target_resolver=Mock(),
+        poi_resolver=Mock(),
         command_executor=Mock(),
         reset_law=Mock(),
     )

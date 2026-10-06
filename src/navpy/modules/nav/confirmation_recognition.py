@@ -16,7 +16,7 @@ from navpy.modules.nav.confirmation_reporting import (
 from navpy.modules.nav.confirmation_review import ConfirmationReview
 from navpy.modules.nav.nav_state import ConfirmOverrideInbox
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_identity import get_target_task_id
+from navpy.modules.vision.poi_identity import get_poi_task_id
 from navpy.modules.vision.vision_class_profile import get_min_pixels_for_class
 
 
@@ -45,21 +45,21 @@ class RecognitionGate:
         self._debug = debug
         self._blocked = blocked
 
-    def request(self, target: DetectedObject) -> None:
+    def request(self, poi: DetectedObject) -> None:
         self._timing.refresh_timer_on_reacquire()
-        source_size = extract_confirmation_size(target)
+        source_size = extract_confirmation_size(poi)
         min_pixels = get_min_pixels_for_class(
             self._ports.vision_profile,
-            target.classification.class_id,
+            poi.classification.class_id,
         )
         pixels_ok = source_size is None or source_size >= min_pixels
-        zoom_result = self._timing.active_zoom_result(target)
+        zoom_result = self._timing.active_zoom_result(poi)
         zoom_ok = self._timing.active_zoom_stable(zoom_result)
         at_max_zoom = bool(getattr(zoom_result, "at_max_zoom", False))
         best_available = not pixels_ok and at_max_zoom
 
         if self._consume_override(
-            target,
+            poi,
             source_size,
             min_pixels,
             pixels_ok,
@@ -68,25 +68,25 @@ class RecognitionGate:
         ):
             return
         if best_available:
-            target.set_confirmation_degraded(False)
+            poi.set_confirmation_degraded(False)
             self._ports.logger.info(
                 "CONFIRM gate best available at max zoom for "
-                f"T{get_target_task_id(target)} "
+                f"P{get_poi_task_id(poi)} "
                 f"(source_sz={source_size:.1f}/{min_pixels:.1f})",
                 key="nav",
                 dest=LogStatusDest.DRONE,
             )
         elif not (pixels_ok and zoom_ok):
-            if self._is_blocked(target, source_size, min_pixels, pixels_ok):
+            if self._is_blocked(poi, source_size, min_pixels, pixels_ok):
                 return
         else:
-            target.set_confirmation_degraded(False)
+            poi.set_confirmation_degraded(False)
         self._blocked.clear()
-        self._review.request_operator_review(target)
+        self._review.request_operator_review(poi)
 
     def _consume_override(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
         source_size: Optional[float],
         min_pixels: float,
         pixels_ok: bool,
@@ -95,61 +95,61 @@ class RecognitionGate:
     ) -> bool:
         if best_available or (pixels_ok and zoom_ok):
             return False
-        target_id = get_target_task_id(target)
-        if not self._overrides.consume(target_id):
+        poi_id = get_poi_task_id(poi)
+        if not self._overrides.consume(poi_id):
             return False
-        target.set_confirmation_degraded(True)
+        poi.set_confirmation_degraded(True)
         self._ports.logger.warning(
-            f"CONFIRM gate override (Ask me anyway) for T{target_id} "
+            f"CONFIRM gate override (Ask me anyway) for P{poi_id} "
             f"(source_sz={source_size}, min={min_pixels}, zoom_ok={zoom_ok})",
             key="nav",
             dest=LogStatusDest.DRONE,
         )
         self._blocked.clear()
-        self._review.request_operator_review(target)
+        self._review.request_operator_review(poi)
         return True
 
     def _is_blocked(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
         source_size: Optional[float],
         min_pixels: float,
         pixels_ok: bool,
     ) -> bool:
-        target_id = get_target_task_id(target)
+        poi_id = get_poi_task_id(poi)
         if self._timing.gate_timed_out():
             if not pixels_ok:
                 self._debug.log(
-                    f"timeout_pixels_blocked obj={target.identity.obj_id} "
+                    f"timeout_pixels_blocked obj={poi.identity.obj_id} "
                     f"source_sz={source_size:.0f}/{min_pixels:.0f}"
                 )
                 self._blocked.emit(
-                    target_id,
+                    poi_id,
                     "pixels",
                     f"{source_size:.0f}/{min_pixels:.0f}",
                 )
                 return True
             self._ports.logger.warning(
                 "CONFIRM gate timeout (zoom): sending recognition-sized "
-                f"image for T{target_id} (source_sz={source_size})",
+                f"image for P{poi_id} (source_sz={source_size})",
                 key="nav",
                 dest=LogStatusDest.DRONE,
             )
-            target.set_confirmation_degraded(False)
+            poi.set_confirmation_degraded(False)
             return False
         if not pixels_ok:
             self._debug.log(
-                f"source_pixels_insufficient obj={target.identity.obj_id} "
+                f"source_pixels_insufficient obj={poi.identity.obj_id} "
                 f"source_sz={source_size:.0f}/{min_pixels:.0f}"
             )
             self._blocked.emit(
-                target_id,
+                poi_id,
                 "pixels",
                 f"{source_size:.0f}/{min_pixels:.0f}",
             )
         else:
-            self._debug.log(f"zoom_not_stable obj={target.identity.obj_id}")
-            self._blocked.emit(target_id, "zoom")
+            self._debug.log(f"zoom_not_stable obj={poi.identity.obj_id}")
+            self._blocked.emit(poi_id, "zoom")
         return True
 
 

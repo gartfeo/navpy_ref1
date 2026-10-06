@@ -21,15 +21,15 @@ from navpy.modules.vision.sim.sim_detection_pipeline import SimDetectionPipeline
 from navpy.modules.vision.sim.sim_detector_controls import (
     SimDetectorIdentity,
     SimGeoControls,
-    SimTargetControls,
+    SimPoiControls,
     SimTrackingControls,
     SimZoomControls,
 )
 from navpy.modules.vision.sim.sim_detector_lifecycle import SimDetectorLifecycle
 from navpy.modules.vision.sim.sim_detector_loop import SimDetectorWorker
 from navpy.modules.vision.sim.sim_runtime_ports import ConfirmationFrameFactory
-from navpy.modules.vision.sim.sim_target_projector import SimTargetProjector
-from navpy.modules.vision.target_zoom_types import TargetZoomTrackerConfig
+from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class SimDetectorDependencies:
 class SimDetectorOptions:
     sim_assets_path: Optional[str]
     tracking_config: Optional[GimbalTrackingSetup]
-    zoom_config: Optional[TargetZoomTrackerConfig]
+    zoom_config: Optional[PoiZoomTrackerConfig]
     ideal_360: bool
     frame_generator_factory: ConfirmationFrameFactory
 
@@ -59,11 +59,11 @@ class SimDetectorPorts:
     tracking: SimTrackingControls
     zoom: SimZoomControls
     geo: SimGeoControls
-    simulation: SimTargetControls
+    simulation: SimPoiControls
     lifecycle: SimDetectorLifecycle
     cadence: SimDetectorWorker
     renderer: SimDetectionPipeline
-    projector: SimTargetProjector
+    projector: SimPoiProjector
     navigation: Optional[GimbalNavigation]
 
 

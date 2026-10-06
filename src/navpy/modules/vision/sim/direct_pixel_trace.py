@@ -124,7 +124,7 @@ class DirectPixelTrace:
     def leg_ended(self, boundary: LegBoundary) -> None:
         """The boundary, then what it threw away, all at the ENDING epoch.
 
-        W5: the engagement boundary has to be visible in the row stream, not
+        W5: the scoring-window boundary has to be visible in the row stream, not
         inferred from an epoch that changed between two rows. So its row is
         written even when both slots were empty, and FIRST, so a reader meets
         the boundary before what it cost.

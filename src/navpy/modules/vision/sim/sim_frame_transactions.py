@@ -20,7 +20,7 @@ class PublicationCommitter(Protocol):
         self,
         slot: PublicationSlot,
         frame: FrameContext,
-        targets: Sequence[DetectedObject],
+        pois: Sequence[DetectedObject],
     ) -> bool: ...
 
 
@@ -40,7 +40,7 @@ class PendingPublicationPort(Protocol):
     @property
     def published(self) -> bool: ...
 
-    def publish(self, targets: list[DetectedObject]) -> bool: ...
+    def publish(self, pois: list[DetectedObject]) -> bool: ...
 
     def reject(self) -> None: ...
 
@@ -88,8 +88,8 @@ class PendingDetectionPublication:
     def published(self) -> bool:
         return self._published
 
-    def publish(self, targets: list[DetectedObject]) -> bool:
-        self._published = self._publish(self._slot, self._frame, targets)
+    def publish(self, pois: list[DetectedObject]) -> bool:
+        self._published = self._publish(self._slot, self._frame, pois)
         return self._published
 
     def abandon(self) -> None:
@@ -164,14 +164,14 @@ class DetectionFrameTransactions:
         self,
         slot: PublicationSlot,
         frame: FrameContext,
-        targets: Sequence[DetectedObject],
+        pois: Sequence[DetectedObject],
     ) -> bool:
         return self._coordinator.publish_detection(
             slot,
-            targets,
+            pois,
             source_timestamp_s=frame.timestamp_s,
             source_receipt_timestamp_s=frame.receipt_timestamp_s,
-            source_name=self._source_name(targets),
+            source_name=self._source_name(pois),
             source_discontinuity=frame.source_discontinuity,
         )
 

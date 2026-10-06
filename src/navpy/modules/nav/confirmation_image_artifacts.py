@@ -22,7 +22,7 @@ def save_confirmation_image_artifacts(
         *,
         log_path: str | Path | None,
         sys_id: int,
-        target_id: int,
+        poi_id: int,
         source_frame: np.ndarray,
         sent_image_b64: str,
         bbox_cxcywh: Sequence[float],
@@ -43,7 +43,7 @@ def save_confirmation_image_artifacts(
     log_dir.mkdir(parents=True, exist_ok=True)
 
     ts = (timestamp or datetime.now()).strftime("%H%M%S%f")
-    prefix = f"uav_{int(sys_id)}_confirmation_t{int(target_id)}_{ts}"
+    prefix = f"uav_{int(sys_id)}_confirmation_t{int(poi_id)}_{ts}"
     source_path = log_dir / f"{prefix}_source.png"
     sent_thumbnail_path = log_dir / f"{prefix}_sent_thumb.jpg"
     metadata_path = log_dir / f"{prefix}_meta.json"
@@ -61,7 +61,7 @@ def save_confirmation_image_artifacts(
 
     metadata = {
         "sys_id": int(sys_id),
-        "target_id": int(target_id),
+        "poi_id": int(poi_id),
         "class_id": _json_optional_int(class_id),
         "class_name": class_name,
         "confidence": _json_optional_float(confidence),

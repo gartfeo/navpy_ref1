@@ -24,7 +24,7 @@ class PitchController(ABC):
     @abstractmethod
     def calc(
         self,
-        target_ned: np.ndarray,
+        poi_ned: np.ndarray,
         pitch_error: float,
         current_pitch: float,
     ) -> float:
@@ -46,12 +46,12 @@ class PitchPidController(PitchController):
 
     def calc(
         self,
-        target_ned: np.ndarray,
+        poi_ned: np.ndarray,
         pitch_error: float,
         current_pitch: float,
     ) -> float:
         del current_pitch
-        n, e, d = target_ned
+        n, e, d = poi_ned
         los_rad = math.atan2(d, math.hypot(n, e))
         feedforward = -math.degrees(los_rad)
         correction = self._pid.calc(pitch_error)
@@ -77,11 +77,11 @@ class PitchPnController(PitchController):
 
     def calc(
         self,
-        target_ned: np.ndarray,
+        poi_ned: np.ndarray,
         pitch_error: float,
         current_pitch: float,
     ) -> float:
-        return self._pitch_pn.calc(target_ned, pitch_error, current_pitch)
+        return self._pitch_pn.calc(poi_ned, pitch_error, current_pitch)
 
     def reset(self, min_pitch: float, max_pitch: float) -> None:
         self._pitch_pn.reset(
@@ -179,13 +179,13 @@ class RollL1PitchNav:
         current_loc: Location,
         next_loc: Location,
         target_bearing_cd: float,
-        target_ned: np.ndarray,
+        poi_ned: np.ndarray,
         pitch_error: float,
         distance: float | None,
     ) -> tuple[float, float, float | None]:
         attitude = self._attitude()
         cmd_pitch = self._pitch_controller.calc(
-            target_ned,
+            poi_ned,
             pitch_error,
             attitude.pitch_deg,
         )

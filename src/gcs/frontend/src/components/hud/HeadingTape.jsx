@@ -15,14 +15,14 @@ function lerpHeading(current, target) {
 
 export default React.memo(function HeadingTape({ heading = 0, width = 300, height = 36 }) {
   const canvasRef = useRef(null);
-  const targetRef = useRef(0);
+  const poiRef = useRef(0);
   const displayRef = useRef(0);
-  targetRef.current = heading || 0;
+  poiRef.current = heading || 0;
 
   useEffect(() => {
     const id = 'heading';
     scheduleRaf(id, () => {
-      displayRef.current = lerpHeading(displayRef.current, targetRef.current);
+      displayRef.current = lerpHeading(displayRef.current, poiRef.current);
       draw(canvasRef.current, displayRef.current, width, height);
     });
     return () => cancelRaf(id);

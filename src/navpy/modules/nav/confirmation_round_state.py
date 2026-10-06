@@ -39,19 +39,19 @@ class ConfirmationRoundState:
         self._responses = ConfirmationResponseLedger(registry)
         self._sends = ConfirmationSendGate(lock, workers, self._rounds)
 
-    def start_review(self, target_id: int) -> None:
+    def start_review(self, poi_id: int) -> None:
         with self._lock:
-            self._responses.start_review(target_id)
+            self._responses.start_review(poi_id)
 
     def begin(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
         lease: ConfirmationWorkerLease,
         event_factory: Callable[[], threading.Event],
         request_ref: Optional[ConfirmationRequestRef] = None,
     ) -> Optional[ConfirmationRound]:
-        target_id = lease.target_id
-        if target_id is None:
+        poi_id = lease.poi_id
+        if poi_id is None:
             return None
         confirmation: Optional[ConfirmationRound] = None
         while True:
@@ -60,28 +60,28 @@ class ConfirmationRoundState:
                     return None
                 if confirmation is None:
                     confirmation = ConfirmationRound(
-                        target_id,
+                        poi_id,
                         lease.generation,
                         event_factory(),
-                        target,
+                        poi,
                         lease,
                         request_ref,
-                        self._responses.legacy_allowed(target_id),
+                        self._responses.legacy_allowed(poi_id),
                     )
-                previous = self._rounds.get(target_id)
+                previous = self._rounds.get(poi_id)
                 if previous is None:
-                    self._rounds[target_id] = confirmation
-                    self._responses.install(target_id)
+                    self._rounds[poi_id] = confirmation
+                    self._responses.install(poi_id)
                     return confirmation
 
             def replace_previous() -> Optional[bool]:
                 with self._lock:
                     if not self._workers.is_current(lease):
                         return False
-                    if self._rounds.get(target_id) is not previous:
+                    if self._rounds.get(poi_id) is not previous:
                         return None
-                    self._rounds[target_id] = confirmation
-                    self._responses.install(target_id)
+                    self._rounds[poi_id] = confirmation
+                    self._responses.install(poi_id)
                 previous.response_event.set()
                 return True
 
@@ -94,7 +94,7 @@ class ConfirmationRoundState:
     def retire_worker(self, lease: ConfirmationWorkerLease) -> None:
         with self._lock:
             confirmation = (
-                None if lease.target_id is None else self._rounds.get(lease.target_id)
+                None if lease.poi_id is None else self._rounds.get(lease.poi_id)
             )
             if confirmation is not None and confirmation.worker is not lease:
                 confirmation = None
@@ -108,12 +108,12 @@ class ConfirmationRoundState:
     ) -> bool:
         def complete_exact() -> bool:
             with self._lock:
-                if self._rounds.get(confirmation.target_id) is not confirmation:
+                if self._rounds.get(confirmation.poi_id) is not confirmation:
                     return False
                 if not self._workers.is_current(confirmation.worker):
                     return False
-                self._rounds.pop(confirmation.target_id)
-                self._registry.set_status(confirmation.target_id, status)
+                self._rounds.pop(confirmation.poi_id)
+                self._registry.set_status(confirmation.poi_id, status)
                 self._responses.remember_completion(confirmation, status)
             confirmation.response_event.set()
             return True
@@ -130,47 +130,47 @@ class ConfirmationRoundState:
     ) -> bool:
         return self._sends.send_round(confirmation, send)
 
-    def pending_target(self, target_id: int) -> Optional[DetectedObject]:
+    def pending_poi(self, poi_id: int) -> Optional[DetectedObject]:
         with self._lock:
-            confirmation = self._rounds.get(target_id)
-            return confirmation.target if confirmation is not None else None
+            confirmation = self._rounds.get(poi_id)
+            return confirmation.poi if confirmation is not None else None
 
     def send_pending_if_current(
         self,
-        target_id: int,
-        target: DetectedObject,
+        poi_id: int,
+        poi: DetectedObject,
         request_ref: Optional[ConfirmationRequestRef],
         send: Callable[[], None],
     ) -> bool:
-        return self._sends.send_pending(target_id, target, request_ref, send)
+        return self._sends.send_pending(poi_id, poi, request_ref, send)
 
     def resolve_response(
         self,
-        target_id: int,
+        poi_id: int,
         is_confirmed: bool,
         response_ref: Optional[ConfirmationRequestRef] = None,
     ) -> ConfirmationResponseKind:
         while True:
             with self._lock:
-                confirmation = self._rounds.get(target_id)
+                confirmation = self._rounds.get(poi_id)
                 if confirmation is None:
                     return self._responses.resolve_without_round(
-                        target_id,
+                        poi_id,
                         is_confirmed,
                         response_ref,
                     )
 
             def resolve_exact() -> Optional[ConfirmationResponseKind]:
                 with self._lock:
-                    if self._rounds.get(target_id) is not confirmation:
+                    if self._rounds.get(poi_id) is not confirmation:
                         return None
                     if not matches_round(confirmation, response_ref):
                         return ConfirmationResponseKind.LATE_OR_DUPLICATE
-                    self._rounds.pop(target_id)
+                    self._rounds.pop(poi_id)
                     result = (
                         response_for_current_round(
                             self._registry,
-                            target_id,
+                            poi_id,
                             is_confirmed,
                         )
                         if self._workers.is_current(confirmation.worker)
@@ -199,16 +199,16 @@ class ConfirmationRoundState:
     def pending_events(self) -> dict[int, threading.Event]:
         with self._lock:
             return {
-                target_id: confirmation.response_event
-                for target_id, confirmation in self._rounds.items()
+                poi_id: confirmation.response_event
+                for poi_id, confirmation in self._rounds.items()
             }
 
     def _retire_exact(self, confirmation: ConfirmationRound) -> bool:
         def retire() -> bool:
             with self._lock:
-                if self._rounds.get(confirmation.target_id) is not confirmation:
+                if self._rounds.get(confirmation.poi_id) is not confirmation:
                     return False
-                self._rounds.pop(confirmation.target_id)
+                self._rounds.pop(confirmation.poi_id)
             confirmation.response_event.set()
             return True
 

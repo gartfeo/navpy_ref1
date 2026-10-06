@@ -16,11 +16,11 @@ from navpy.modules.nav.nav_constants import (
 )
 from navpy.modules.nav.nav_state import ConfirmGateState, GeoHoldState
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.target_retry import TargetRetryState
+from navpy.modules.nav.poi_retry import PoiRetryState
 from navpy.modules.vision.detector_ports import ZoomControlPort
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_identity import get_target_task_id
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_identity import get_poi_task_id
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class ConfirmationTimingPolicy:
@@ -92,10 +92,10 @@ class ConfirmationTimingPolicy:
 
     def active_zoom_result(
         self,
-        target: DetectedObject | None = None,
+        poi: DetectedObject | None = None,
     ) -> ZoomTrackResult | None:
-        active = target or self._confirmation_manager.active_target
-        obj_id = get_target_task_id(active) if active is not None else None
+        active = poi or self._confirmation_manager.active_poi
+        obj_id = get_poi_task_id(active) if active is not None else None
         return self._zoom.get_zoom_result(obj_id)
 
     def active_zoom_stable(
@@ -110,13 +110,13 @@ class ConfirmationTimingPolicy:
         result = self.active_zoom_result()
         if result is None:
             return
-        has_target = result.has_target
-        if has_target and not self._state.zoom_had_target:
+        has_poi = result.has_poi
+        if has_poi and not self._state.zoom_had_poi:
             self._handle_zoom_acquired()
-        self._state.zoom_had_target = has_target
+        self._state.zoom_had_poi = has_poi
 
     def _handle_zoom_acquired(self) -> None:
-        if self._state.zoom_seen_target:
+        if self._state.zoom_seen_poi:
             if self._state.resets_used < MAX_CONFIRM_GATE_RESETS:
                 self._state.entered_at = self._clock_s()
                 self._state.resets_used += 1
@@ -133,41 +133,41 @@ class ConfirmationTimingPolicy:
                     key="nav",
                     dest=LogStatusDest.DRONE,
                 )
-        self._state.zoom_seen_target = True
+        self._state.zoom_seen_poi = True
 
 
-class TargetRetryPolicy:
+class PoiRetryPolicy:
     """Join the retry state owner to ConfirmationManager status reopening."""
 
     def __init__(
         self,
-        retry: TargetRetryState,
+        retry: PoiRetryState,
         confirmation_manager: ConfirmationManager,
     ) -> None:
         self._retry = retry
         self._confirmation_manager = confirmation_manager
 
-    def target_cooldown_key(
+    def poi_cooldown_key(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
     ) -> tuple[object, ...] | None:
-        return self._retry.identity_key(target)
+        return self._retry.identity_key(poi)
 
-    def register_target_cooldown(self, target: DetectedObject) -> None:
-        self._retry.register_cooldown(target)
+    def register_poi_cooldown(self, poi: DetectedObject) -> None:
+        self._retry.register_cooldown(poi)
 
-    def is_in_target_cooldown(self, target: DetectedObject) -> bool:
-        return self._retry.is_cooling_down(target)
+    def is_in_poi_cooldown(self, poi: DetectedObject) -> bool:
+        return self._retry.is_cooling_down(poi)
 
-    def can_reask(self, target: DetectedObject) -> bool:
-        return self._retry.can_reask(target)
+    def can_reask(self, poi: DetectedObject) -> bool:
+        return self._retry.can_reask(poi)
 
-    def begin_reask(self, target: DetectedObject) -> None:
-        self._retry.begin_reask(target)
-        self._confirmation_manager.clear_status(target)
+    def begin_reask(self, poi: DetectedObject) -> None:
+        self._retry.begin_reask(poi)
+        self._confirmation_manager.clear_status(poi)
 
-    def clear_reask(self, target_id: int | None) -> None:
-        self._retry.clear_reask(target_id)
+    def clear_reask(self, poi_id: int | None) -> None:
+        self._retry.clear_reask(poi_id)
 
 
-__all__ = ["ConfirmationTimingPolicy", "TargetRetryPolicy"]
+__all__ = ["ConfirmationTimingPolicy", "PoiRetryPolicy"]

@@ -172,7 +172,7 @@ class MountGimbalZoomReadbackHardware:
         return bool(provider())
 
 
-class MountGimbalTargetZoomHardware:
+class MountGimbalPoiZoomHardware:
     """Expose only continuous and absolute target-zoom capabilities."""
 
     def __init__(self, source: Callable[[], object]) -> None:
@@ -203,6 +203,6 @@ __all__ = [
     "FrameStateCapabilityUnavailable",
     "MountCameraHardware",
     "MountGimbalHardware",
-    "MountGimbalTargetZoomHardware",
+    "MountGimbalPoiZoomHardware",
     "MountGimbalZoomReadbackHardware",
 ]

@@ -11,7 +11,7 @@ from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPla
 from navpy.modules.nav.approach_planner import ApproachPlanner
 from navpy.modules.nav.confirmation_policy import (
     ConfirmationTimingPolicy,
-    TargetRetryPolicy,
+    PoiRetryPolicy,
 )
 from navpy.modules.nav.confirmation_reporting import (
     ConfirmBlockedReporter,
@@ -29,7 +29,7 @@ from navpy.modules.nav.nav_composition_types import (
     DetectionReviewOwnership,
     NavCapabilities,
     NavStateOwnership,
-    TargetMissionOwnership,
+    PoiMissionOwnership,
     VehicleApproachOwnership,
 )
 from navpy.modules.nav.nav_constants import (
@@ -37,9 +37,9 @@ from navpy.modules.nav.nav_constants import (
     CONFIRM_REASK_MAX_ATTEMPTS,
     DIST_EPS,
     DIST_INC_MAX,
-    PASSED_TARGET_BEHIND_MIN_DEG,
-    TARGET_CLOSE_DIST,
-    TARGET_REACQUIRE_COOLDOWN_SEC,
+    PASSED_POI_BEHIND_MIN_DEG,
+    POI_CLOSE_DIST,
+    POI_REACQUIRE_COOLDOWN_SEC,
 )
 from navpy.modules.nav.nav_network import NavNetworkRuntime
 from navpy.modules.nav.nav_state import (
@@ -49,22 +49,22 @@ from navpy.modules.nav.nav_state import (
     GeoHoldState,
     NavigationFailureLatch,
     NavPhaseState,
-    TerminalNavState,
+    FinalApproachNavState,
 )
 from navpy.modules.nav.nav_status import NavigationStatusReporter
 from navpy.modules.nav.navigation_zoom import ZoomController
 from navpy.modules.nav.pass_tracker import LegacyPassTracker
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.target_retry import TargetRetryState
-from navpy.modules.nav.terminal_source_admission import (
-    TerminalSourceAdmission,
-    TerminalSourcePorts,
+from navpy.modules.nav.poi_retry import PoiRetryState
+from navpy.modules.nav.final_approach_source_admission import (
+    FinalApproachSourceAdmission,
+    FinalApproachSourcePorts,
 )
-from navpy.modules.nav.terminal_publication_admission import (
-    TerminalPublicationAdmission,
-    TerminalPublicationAdmissionPorts,
+from navpy.modules.nav.final_approach_publication_admission import (
+    FinalApproachPublicationAdmission,
+    FinalApproachPublicationAdmissionPorts,
 )
-from navpy.modules.nav.terminal_source_session import TerminalSourceSession
+from navpy.modules.nav.final_approach_source_session import FinalApproachSourceSession
 from navpy.modules.nav.vehicle_navigation import (
     ApproachCommandPorts,
     LoiterRadiusLease,
@@ -86,31 +86,31 @@ def compose_state_ownership(
         detections=DetectionSnapshot(),
         navigation_task=NavigationTaskState(),
         navigation_failures=NavigationFailureLatch(),
-        terminal=TerminalNavState(),
+        final_approach=FinalApproachNavState(),
         geo_hold=GeoHoldState(),
         confirm=ConfirmGateState(),
         overrides=ConfirmOverrideInbox(),
     )
 
 
-def compose_target_mission_ownership(
+def compose_poi_mission_ownership(
     vehicle: IVehicle,
     detection: DetectionCoordination,
     args: NavArgs,
     logger: ILogger,
     state: NavStateOwnership,
-) -> TargetMissionOwnership:
+) -> PoiMissionOwnership:
     mission = MissionCatalog(vehicle)
     mission.refresh()
     pass_tracker = LegacyPassTracker(
-        close_distance_m=TARGET_CLOSE_DIST,
+        close_distance_m=POI_CLOSE_DIST,
         distance_epsilon_m=DIST_EPS,
         increase_samples=DIST_INC_MAX,
-        behind_bearing_deg=PASSED_TARGET_BEHIND_MIN_DEG,
+        behind_bearing_deg=PASSED_POI_BEHIND_MIN_DEG,
     )
-    retry_state = TargetRetryState(
+    retry_state = PoiRetryState(
         wall_clock_s=lambda: state.clock.wall_s(),
-        cooldown_s=TARGET_REACQUIRE_COOLDOWN_SEC,
+        cooldown_s=POI_REACQUIRE_COOLDOWN_SEC,
         max_reask_attempts=CONFIRM_REASK_MAX_ATTEMPTS,
     )
     confirmation_manager = ConfirmationManager(
@@ -119,12 +119,12 @@ def compose_target_mission_ownership(
         logger,
         is_simulation=detection.simulation.is_simulation,
     )
-    return TargetMissionOwnership(
+    return PoiMissionOwnership(
         mission=mission,
         pass_tracker=pass_tracker,
         retry_state=retry_state,
         confirmation_manager=confirmation_manager,
-        source_session=TerminalSourceSession(detection.events),
+        source_session=FinalApproachSourceSession(detection.events),
     )
 
 
@@ -142,7 +142,7 @@ def compose_vehicle_approach_ownership(
     planner = ApproachPlanner(
         vehicle,
         lambda: detection.mounts.mounts,
-        lambda: navigation.terminal.is_active,
+        lambda: navigation.final_approach.is_active,
         profile,
         logger,
         calculate_approach,
@@ -151,8 +151,8 @@ def compose_vehicle_approach_ownership(
     commands = VehicleNavigationCommands(
         vehicle=vehicle,
         commands=ApproachCommandPorts(
-            goto_target=navigation.vehicle_commands.peer_target,
-            loiter_target=navigation.vehicle_commands.peer_target_loiter,
+            goto_poi=navigation.vehicle_commands.peer_poi,
+            loiter_poi=navigation.vehicle_commands.peer_poi_loiter,
         ),
         approach_planner=planner,
         loiter_radius=loiter_radius,
@@ -182,32 +182,32 @@ def compose_detection_review_ownership(
     logger: ILogger,
     profile: dict,
     state: NavStateOwnership,
-    target: TargetMissionOwnership,
+    poi: PoiMissionOwnership,
     navigation: NavCapabilities,
 ) -> DetectionReviewOwnership:
     network = NavNetworkRuntime(
         vehicle,
         detection.simulation,
-        navigation.legacy_targets.ground_location,
-        target.confirmation_manager,
+        navigation.legacy_pois.ground_location,
+        poi.confirmation_manager,
         state.overrides,
         logger,
     )
-    publication_admission = TerminalPublicationAdmission(
-        TerminalPublicationAdmissionPorts(
+    publication_admission = FinalApproachPublicationAdmission(
+        FinalApproachPublicationAdmissionPorts(
             clear_discontinuity=(
-                navigation.terminal.clear_source_discontinuity
+                navigation.final_approach.clear_source_discontinuity
             ),
             mark_failed=state.navigation_failures.mark_failed,
             logger=logger,
         )
     )
-    source = TerminalSourceAdmission(
-        TerminalSourcePorts(
-            source_session=target.source_session,
-            active_target=lambda: target.confirmation_manager.active_target,
+    source = FinalApproachSourceAdmission(
+        FinalApproachSourcePorts(
+            source_session=poi.source_session,
+            active_poi=lambda: poi.confirmation_manager.active_poi,
             event_inbox=state.detections,
-            detections=state.detections.targets,
+            detections=state.detections.pois,
         ),
         publication_admission,
     )
@@ -219,8 +219,8 @@ def compose_detection_review_ownership(
             CONFIRM_FRESH_DETECTION_MAX_AGE_S
         ),
     )
-    target.confirmation_manager.set_target_freshness_check(
-        freshness.is_target_fresh_for_confirm
+    poi.confirmation_manager.set_poi_freshness_check(
+        freshness.is_poi_fresh_for_confirm
     )
     status = NavigationStatusReporter(
         logger,
@@ -235,7 +235,7 @@ def compose_detection_review_ownership(
         source=source,
         publication_admission=publication_admission,
         freshness=freshness,
-        retry=TargetRetryPolicy(target.retry_state, target.confirmation_manager),
+        retry=PoiRetryPolicy(poi.retry_state, poi.confirmation_manager),
         status=status,
         debug=debug,
         blocked=blocked,
@@ -244,7 +244,7 @@ def compose_detection_review_ownership(
             state.geo_hold,
             args,
             detection.zoom,
-            target.confirmation_manager,
+            poi.confirmation_manager,
             logger,
             lambda: state.clock.decision_s(),
         ),
@@ -257,6 +257,6 @@ __all__ = [
     "ApproachCalculator",
     "compose_detection_review_ownership",
     "compose_state_ownership",
-    "compose_target_mission_ownership",
+    "compose_poi_mission_ownership",
     "compose_vehicle_approach_ownership",
 ]

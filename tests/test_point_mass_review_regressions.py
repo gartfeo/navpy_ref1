@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.vision.models.pixel_observation import VisualDetection
 from scripts import vision_static_point_mass as point_mass
 from scripts import vision_static_point_mass_run as point_mass_run
@@ -23,8 +23,8 @@ def _case() -> point_mass.StaticPointMassCase:
     )
 
 
-def test_point_mass_rejects_prebuilt_terminal_frame_factory() -> None:
-    frame = TerminalVisionFrame(
+def test_point_mass_rejects_prebuilt_final_approach_frame_factory() -> None:
+    frame = FinalApproachVisionFrame(
         "injected",
         0,
         1,
@@ -64,7 +64,7 @@ def test_point_mass_runner_accepts_only_visual_detection_injection() -> None:
     )
 
 
-def test_point_mass_runner_owns_terminal_projection_boundary() -> None:
+def test_point_mass_runner_owns_final_approach_projection_boundary() -> None:
     run_source = Path(point_mass_run.__file__).read_text(encoding="utf-8")
     sensor_source = Path(point_mass_sensor.__file__).read_text(encoding="utf-8")
     run_tree = ast.parse(run_source)
@@ -76,9 +76,9 @@ def test_point_mass_runner_owns_terminal_projection_boundary() -> None:
         node.id for node in ast.walk(sensor_tree) if isinstance(node, ast.Name)
     }
 
-    assert "TerminalVisionFrame" not in run_names
-    assert "TerminalFrameProjector" in run_names
-    assert "TerminalFrameProjector" not in sensor_names
+    assert "FinalApproachVisionFrame" not in run_names
+    assert "FinalApproachFrameProjector" in run_names
+    assert "FinalApproachFrameProjector" not in sensor_names
     assert "VisualDetection" in sensor_names
     assert hasattr(point_mass_sensor, "build_static_detection")
     assert not hasattr(point_mass_sensor, "build_static_observation")

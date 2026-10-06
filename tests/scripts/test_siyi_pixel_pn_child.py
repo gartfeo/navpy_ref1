@@ -4,7 +4,7 @@ from unittest.mock import Mock, call, patch
 from scripts import siyi_pixel_pn_child as child
 
 
-def test_terminal_reset_precedes_confirmation_that_seeds_siyi_handoff() -> None:
+def test_final_approach_reset_precedes_confirmation_that_seeds_siyi_handoff() -> None:
     navigation = Mock()
     source = Mock()
     order = Mock()
@@ -23,8 +23,8 @@ def test_terminal_reset_precedes_confirmation_that_seeds_siyi_handoff() -> None:
 def test_pixel_navigation_isolation_does_not_command_a_geo_flight_path() -> None:
     run_source = inspect.getsource(child.run)
 
-    assert "_command_target_loiter" not in run_source
-    assert "_command_target_approach" not in run_source
+    assert "_command_poi_loiter" not in run_source
+    assert "_command_poi_approach" not in run_source
 
 
 def test_siyi_acquisition_precedes_guided_mode_handoff() -> None:

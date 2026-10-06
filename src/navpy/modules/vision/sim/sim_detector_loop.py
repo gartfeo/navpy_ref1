@@ -30,7 +30,7 @@ class SimDetectorWorker:
         cadence_lease: SchedulerCadenceLease,
         scheduler_period_s: float,
         ideal_360: bool,
-        detect_targets: DetectFramePort,
+        detect_pois: DetectFramePort,
         record_outcome: FrameOutcomeSink,
     ) -> None:
         self._execution = SimDetectorExecution(
@@ -40,7 +40,7 @@ class SimDetectorWorker:
             cadence_lease=cadence_lease,
             scheduler_period_s=scheduler_period_s,
             ideal_360=ideal_360,
-            detect_targets=detect_targets,
+            detect_pois=detect_pois,
             record_outcome=record_outcome,
         )
         self._coordinator = coordinator

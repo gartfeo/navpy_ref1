@@ -686,7 +686,7 @@ class TestComputeMaxDetectDist(unittest.TestCase):
             console.log(JSON.stringify(d));
         """)
         # The CONFIRM-range base; ProfileSelector ×detectRangeScale converts it to
-        # the selected target's detection range before the diagram renders it.
+        # the selected POI's detection range before the diagram renders it.
         expected = 2000 * CLASS_4_SIZE / 20
         self.assertAlmostEqual(result, expected, places=2)
 
@@ -1309,7 +1309,7 @@ class TestCameraHitsGround(unittest.TestCase):
 class TestDiagramRangeComposition(unittest.TestCase):
     """Regression guard: the DetectionRangeDiagram's effective range is
     computeMaxDetectDist (CONFIRM base) × detectRangeScale, and that product MUST
-    equal the DETECTION range of the selected target (fy·targetSize/MIN_DETECT_PIXELS)
+    equal the DETECTION range of the selected POI (fy·poiSize/MIN_DETECT_PIXELS)
     — the same range the live map footprint uses. computeMaxDetectDist must stay on
     MIN_CONFIRM_PIXELS or this product double-counts the 20/8 factor (2.5× too far)."""
 
@@ -1323,7 +1323,7 @@ class TestDiagramRangeComposition(unittest.TestCase):
             const scale = detectRangeScale({medium}, getMinClassSize());     // selected = Medium
             console.log(JSON.stringify({{ composed: base * scale }}));
         """)
-        # Must equal the detection range of the SELECTED target (Medium), ÷8.
+        # Must equal the detection range of the SELECTED POI (Medium), ÷8.
         self.assertAlmostEqual(result["composed"], 2000 * medium / 8, places=2)
         # And NOT the 2.5× double-counted value the reverted ÷8 change produced.
         self.assertNotAlmostEqual(result["composed"], 2000 * medium / 8 * 20 / 8, places=1)

@@ -1,4 +1,4 @@
-"""Raw producer-clock freshness policy for terminal commands."""
+"""Raw producer-clock freshness policy for final-approach commands."""
 
 from __future__ import annotations
 
@@ -9,28 +9,28 @@ from dataclasses import dataclass
 from navpy.modules.navigation.nav.vision_nav.source_time_ports import SourceNow
 
 
-TERMINAL_COMMAND_MAX_SOURCE_AGE_S = 1.0
+FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S = 1.0
 
 
 @dataclass(frozen=True)
-class TerminalCommandTiming:
+class FinalApproachCommandTiming:
     source_timestamp_s: float
     source_now_s: SourceNow | None
     receipt_timestamp_s: float | None
     receipt_now_s: SourceNow | None
 
 
-class TerminalCommandFreshness:
+class FinalApproachCommandFreshness:
     """Require both producer progress and speedup-aware receipt liveness."""
 
     def __init__(self, wall_period_s: Callable[[float], float]) -> None:
         self._wall_period_s = wall_period_s
 
-    def is_fresh(self, timing: TerminalCommandTiming) -> bool:
+    def is_fresh(self, timing: FinalApproachCommandTiming) -> bool:
         return _age_is_fresh(
             timing.source_timestamp_s,
             timing.source_now_s,
-            TERMINAL_COMMAND_MAX_SOURCE_AGE_S,
+            FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
         ) and _age_is_fresh(
             timing.receipt_timestamp_s,
             timing.receipt_now_s,
@@ -40,7 +40,7 @@ class TerminalCommandFreshness:
     def _receipt_max_age_s(self) -> float:
         try:
             allowance_s = float(
-                self._wall_period_s(TERMINAL_COMMAND_MAX_SOURCE_AGE_S)
+                self._wall_period_s(FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S)
             )
         except Exception:  # noqa: BLE001 - invalid cadence fails closed
             return math.nan
@@ -79,7 +79,7 @@ def _age_is_fresh(
 
 
 __all__ = [
-    "TERMINAL_COMMAND_MAX_SOURCE_AGE_S",
-    "TerminalCommandFreshness",
-    "TerminalCommandTiming",
+    "FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S",
+    "FinalApproachCommandFreshness",
+    "FinalApproachCommandTiming",
 ]

@@ -61,8 +61,8 @@ async def respond_to_task_confirm(req: TaskConfirmResponseRequest):
     """Send approve/deny/cancel response for a task confirmation request.
 
     ``action`` records operator intent for the UI/audit; ``is_confirmed`` is
-    what the vehicle acts on. ``cancel`` recalls an already-approved target
-    (recoverable); the vehicle treats any negative response as a target reject.
+    what the vehicle acts on. ``cancel`` recalls an already-approved POI
+    (recoverable); the vehicle treats any negative response as a POI reject.
     """
     if req.action is not None:
         if req.action not in _ACTION_CONFIRMED:
@@ -107,7 +107,7 @@ async def respond_to_task_confirm(req: TaskConfirmResponseRequest):
     # thumbnail-fetch bookkeeping AND record the decision. All three copies
     # above can be lost, and the companion then keeps resending its request;
     # the listener answers those repeats with this stored decision instead of
-    # re-opening a popup for a target the operator already settled.
+    # re-opening a popup for a POI the operator already settled.
     #
     # req.round_uid identifies the round the operator was shown. It matters
     # that the decision is bound to THAT round and not to whatever is open
@@ -124,7 +124,7 @@ async def respond_to_task_confirm(req: TaskConfirmResponseRequest):
         "task_id": req.task_id,
         "is_confirmed": req.is_confirmed,
         "action": action,
-        # The round this answers. Every client needs it: the same target can
+        # The round this answers. Every client needs it: the same POI can
         # be asked again while this response is still going out, and that new
         # round's card must not be marked decided by this one.
         "round_uid": req.round_uid,

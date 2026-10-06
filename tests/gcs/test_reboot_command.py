@@ -64,7 +64,7 @@ class TestHandleReboot(unittest.TestCase):
         entry.vehicle.set_mode.assert_not_called()
 
     @patch("gcs.backend.routes.control.vehicle_mgr")
-    def test_reboot_mixed_targets(self, mock_mgr):
+    def test_reboot_mixed_pois(self, mock_mgr):
         """Disarmed reboots, armed is refused, missing is not_connected."""
         disarmed = MagicMock()
         disarmed.vehicle.is_armed = False

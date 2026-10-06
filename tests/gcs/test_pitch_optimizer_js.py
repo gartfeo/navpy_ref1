@@ -442,7 +442,7 @@ class TestOptimizePitches(unittest.TestCase):
             console.log(JSON.stringify(r));
         """)
         # With detection weighting, the optimizer should NOT pick the maximum
-        # altitude because targets become barely detectable at long slant ranges
+        # altitude because POIs become barely detectable at long slant ranges
         self.assertLess(result["altitude"], 500,
                         msg=f"Expected altitude < max (500), got {result['altitude']}")
 

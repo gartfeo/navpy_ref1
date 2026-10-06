@@ -5,7 +5,7 @@ from __future__ import annotations
 import heapq
 import math
 
-from eval_navigation_models import ClosestApproach, PositionSample, TargetLocation
+from eval_navigation_models import ClosestApproach, PositionSample, PoiLocation
 
 
 EARTH_RADIUS_M = 6_371_008.8
@@ -40,15 +40,15 @@ def horizontal_distance_m(
 
 def _local_vector(
     sample: PositionSample,
-    target: TargetLocation,
+    poi: PoiLocation,
 ) -> tuple[float, float, float]:
-    north = math.radians(sample.lat_deg - target.lat_deg) * EARTH_RADIUS_M
+    north = math.radians(sample.lat_deg - poi.lat_deg) * EARTH_RADIUS_M
     east = (
-        math.radians(sample.lon_deg - target.lon_deg)
+        math.radians(sample.lon_deg - poi.lon_deg)
         * EARTH_RADIUS_M
-        * math.cos(math.radians(target.lat_deg))
+        * math.cos(math.radians(poi.lat_deg))
     )
-    return north, east, sample.abs_alt_m - target.abs_alt_m
+    return north, east, sample.abs_alt_m - poi.abs_alt_m
 
 
 def _closest_on_segment(
@@ -91,8 +91,8 @@ def _same_position(first: PositionSample, second: PositionSample) -> bool:
 class CoordinateScorer:
     """Score source-time-ordered telemetry against one requested coordinate."""
 
-    def __init__(self, target: TargetLocation) -> None:
-        self._target = target
+    def __init__(self, poi: PoiLocation) -> None:
+        self._poi = poi
         self._pending: list[tuple[float, int, PositionSample]] = []
         self._arrival_seq = 0
         self._max_seen_source_s: float | None = None
@@ -207,7 +207,7 @@ class CoordinateScorer:
         if self._watermark_s is not None and source <= self._watermark_s:
             self._handle_old_sample(sample, source)
             return
-        current = _local_vector(sample, self._target)
+        current = _local_vector(sample, self._poi)
         candidate = self._candidate(current, source)
         if self._best is None or candidate.dist_3d_m < self._best.dist_3d_m:
             self._best = candidate

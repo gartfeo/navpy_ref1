@@ -73,11 +73,11 @@ def _rig(initial_zoom: str) -> SimpleNamespace:
     )
 
 
-def _sample(rig: SimpleNamespace, uav: Location, target: Location) -> tuple:
+def _sample(rig: SimpleNamespace, uav: Location, poi: Location) -> tuple:
     ned = pymap3d.geodetic2ned(
-        target.lat,
-        target.lng,
-        target.alt,
+        poi.lat,
+        poi.lng,
+        poi.alt,
         uav.lat,
         uav.lng,
         uav.alt,
@@ -110,7 +110,7 @@ def _wait_for_zoom(rig: SimpleNamespace, expected: float) -> None:
 def _drive_until_centered(
     rig: SimpleNamespace,
     uav: Location,
-    target: Location,
+    poi: Location,
 ) -> None:
     deadline_s = time.monotonic() + 5.0
     while time.monotonic() < deadline_s:
@@ -122,17 +122,17 @@ def _drive_until_centered(
             min_pixels=get_min_pixels_for_class(rig.profile, 0),
         )
         try:
-            _uv, error_px = _sample(rig, uav, target)
+            _uv, error_px = _sample(rig, uav, poi)
         except TypeError:
             error_px = float("inf")
         if error_px < 5.0 and rig.navigation.status.geo.zoom_key == "5":
             return
         time.sleep(0.02)
-    raise AssertionError("SIYI geo tracking did not center the target")
+    raise AssertionError("SIYI geo tracking did not center the POI")
 
 
 def test_geo_tracking_recenters_and_normalizes_zoom_from_different_histories() -> None:
-    target = Location(40.0, 44.0, 100.0, is_absolute=True)
+    poi = Location(40.0, 44.0, 100.0, is_absolute=True)
     uav = Location(*pymap3d.ned2geodetic(500.0, 0.0, -100.0, 40.0, 44.0, 100.0),
                    is_absolute=True)
     rigs = [_rig("2"), _rig("8")]
@@ -141,15 +141,15 @@ def test_geo_tracking_recenters_and_normalizes_zoom_from_different_histories() -
             rig.mount.start()
             assert rig.mount.set_zoom(rig.initial_zoom)
             time.sleep(1.5)
-            rig.navigation.start_geo_tracking(target, rig.geo_ref)
-            _drive_until_centered(rig, uav, target)
+            rig.navigation.start_geo_tracking(poi, rig.geo_ref)
+            _drive_until_centered(rig, uav, poi)
             _wait_for_zoom(rig, 5.0)
 
         evidence = []
         for rig in rigs:
-            uv, error_px = _sample(rig, uav, target)
+            uv, error_px = _sample(rig, uav, poi)
             slant_m = float(np.linalg.norm(pymap3d.geodetic2ned(
-                target.lat, target.lng, target.alt, uav.lat, uav.lng, uav.alt,
+                poi.lat, poi.lng, poi.alt, uav.lat, uav.lng, uav.alt,
             )))
             projected_px = (
                 float(rig.mount.get_k()[1, 1])

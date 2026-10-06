@@ -1,8 +1,8 @@
 """Compute approach points for peer-assigned or fallback delivery location navigation based on camera geometry.
 
 Two strategies (see ``approach_strategy.py``):
-- OFFSET: offset point behind target, bank-corrected for fixed cameras.
-- ORBIT: orbit directly around target. With a zoom mount and navigation
+- OFFSET: offset point behind POI, bank-corrected for fixed cameras.
+- ORBIT: orbit directly around POI. With a zoom mount and navigation
   limits, the radius is the FURTHEST standoff that still tracks at 1x and
   confirms at max zoom (``min`` of the two camera-pixel bounds), floored by
   the dive-feasibility minimum (``orbit_geometry.r_nav_min``); otherwise
@@ -69,7 +69,7 @@ def select_approach_mount(mounts: List[CameraMount]) -> Optional[CameraMount]:
 
 
 def calc_peer_approach_offset(
-    target: Location,
+    poi: Location,
     drone_loc: Location,
     mounts: List[CameraMount],
     class_id: int = 0,
@@ -82,7 +82,7 @@ def calc_peer_approach_offset(
 
     Parameters
     ----------
-    target : Location
+    poi : Location
         Peer-assigned or fallback delivery location position.
     drone_loc : Location
         Current drone position (used for approach bearing and altitude).
@@ -111,24 +111,24 @@ def calc_peer_approach_offset(
     """
     mount = select_approach_mount(mounts)
     if mount is None:
-        return ApproachPlan(kind=kind, approach_location=target, offset_distance=0.0)
+        return ApproachPlan(kind=kind, approach_location=poi, offset_distance=0.0)
 
     pitch_deg = mount.get_gimbal_data().att.pitch
-    alt_diff = drone_loc.alt - target.alt
+    alt_diff = drone_loc.alt - poi.alt
     alt = alt_diff if alt_diff > 10 else drone_loc.alt
     if alt <= 0:
-        return ApproachPlan(kind=kind, approach_location=target, offset_distance=0.0)
+        return ApproachPlan(kind=kind, approach_location=poi, offset_distance=0.0)
 
     if kind == ApproachKind.ORBIT:
         return _compute_orbit_plan(
-            target, mount, alt, class_id, orbit_limits, recognition_px,
+            poi, mount, alt, class_id, orbit_limits, recognition_px,
         )
 
-    return _compute_offset_plan(target, drone_loc, mount, alt, pitch_deg, class_id)
+    return _compute_offset_plan(poi, drone_loc, mount, alt, pitch_deg, class_id)
 
 
 def _compute_offset_plan(
-    target: Location, drone_loc: Location, mount: CameraMount,
+    poi: Location, drone_loc: Location, mount: CameraMount,
     alt: float, pitch_deg: float, class_id: int,
 ) -> ApproachPlan:
     """Compute bank-corrected offset point for fixed cameras."""
@@ -170,12 +170,12 @@ def _compute_offset_plan(
         else:
             return ApproachPlan(
                 kind=ApproachKind.OFFSET,
-                approach_location=target,
+                approach_location=poi,
                 offset_distance=0.0,
                 orbit_radius=OFFSET_LOITER_RADIUS_M,
             )
         _log.info(f"OFFSET(fallback): alt={alt:.0f}m max_detect={max_detect:.0f}m → offset={offset_dist:.0f}m")
-        offset_loc = _offset_location(target, drone_loc, offset_dist)
+        offset_loc = _offset_location(poi, drone_loc, offset_dist)
         return ApproachPlan(
             kind=ApproachKind.OFFSET,
             approach_location=offset_loc,
@@ -188,7 +188,7 @@ def _compute_offset_plan(
         f"OFFSET: alt={alt:.0f}m pitch={pitch_deg:.0f}° fy={fy:.0f} "
         f"{interval_str}→ offset={offset_dist:.0f}m loiter_r={OFFSET_LOITER_RADIUS_M:.0f}m"
     )
-    offset_loc = _offset_location(target, drone_loc, offset_dist)
+    offset_loc = _offset_location(poi, drone_loc, offset_dist)
     # Carry the fixed-camera radius so navigation cannot retain a much larger
     # radius from a preceding ORBIT navigation_task.
     return ApproachPlan(
@@ -200,7 +200,7 @@ def _compute_offset_plan(
 
 
 def _compute_orbit_plan(
-    target: Location,
+    poi: Location,
     mount: CameraMount,
     alt: float,
     class_id: int,
@@ -209,7 +209,7 @@ def _compute_orbit_plan(
 ) -> ApproachPlan:
     """Compatibility wrapper over the focused orbit planner."""
     return compute_orbit_plan(
-        target,
+        poi,
         mount,
         alt,
         class_id,
@@ -221,23 +221,23 @@ def _compute_orbit_plan(
 
 
 def _offset_location(
-    target: Location,
+    poi: Location,
     drone_loc: Location,
     offset_dist: float,
 ) -> Location:
-    """Compute offset point behind target along approach bearing."""
+    """Compute offset point behind POI along approach bearing."""
     az, _, _ = pymap3d.geodetic2aer(
-        target.lat,
-        target.lng,
+        poi.lat,
+        poi.lng,
         0,
         drone_loc.lat,
         drone_loc.lng,
         drone_loc.alt,
     )
     back_bearing = (az + 180) % 360
-    origin = (target.lat, target.lng)
+    origin = (poi.lat, poi.lng)
     dest = geodesic(meters=offset_dist).destination(
         origin,
         bearing=back_bearing,
     )
-    return Location(dest.latitude, dest.longitude, target.alt)
+    return Location(dest.latitude, dest.longitude, poi.alt)

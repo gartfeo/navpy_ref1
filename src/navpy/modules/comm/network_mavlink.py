@@ -103,12 +103,12 @@ class NetworkMavlink(NetworkAbc):
                 self._message_filter.metrics.increment_decode_error()
                 self.logger.error(f"Failed to process MAVLink message: {e}")
 
-    def _send_image_header(self, target_id: int, total_size: int, num_chunks: int) -> None:
+    def _send_image_header(self, poi_id: int, total_size: int, num_chunks: int) -> None:
         """Send MAVLink DATA_TRANSMISSION_HANDSHAKE for image transfer."""
         msg = MAVLink_data_transmission_handshake_message(
-            type=ImageTransferType.TARGET_CONFIRMATION,
+            type=ImageTransferType.POI_CONFIRMATION,
             size=total_size,
-            width=target_id,  # Store target_id in width field
+            width=poi_id,  # Store poi_id in width field
             height=480,
             packets=num_chunks,
             payload=MAVLINK_CHUNK_SIZE,
@@ -116,7 +116,7 @@ class NetworkMavlink(NetworkAbc):
         )
         self._vehicle.send_mavlink_message(msg)
 
-    def _send_image_chunk(self, target_id: int, sequence: int, data: bytes) -> None:
+    def _send_image_chunk(self, poi_id: int, sequence: int, data: bytes) -> None:
         """Send MAVLink ENCAPSULATED_DATA chunk."""
         # Pad to chunk size if needed
         if len(data) < MAVLINK_CHUNK_SIZE:

@@ -69,7 +69,7 @@ IMPORT_ONLY_MODULES = [
     "pixel_pn_determinism_summary",
     "pixel_pn_failure_report",
     "pixel_pn_run_identity",
-    "pixel_pn_terminal_speed",
+    "pixel_pn_final_approach_speed",
     "scratch_navigation_arms",
     "scratch_navigation_cells",
     "scratch_navigation_launch",

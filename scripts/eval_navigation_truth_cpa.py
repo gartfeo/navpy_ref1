@@ -24,7 +24,7 @@ _SCRIPTS = str(Path(__file__).resolve().parent)
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
-from eval_navigation_models import PositionSample, TargetLocation  # noqa: E402
+from eval_navigation_models import PositionSample, PoiLocation  # noqa: E402
 from eval_navigation_scoring import _local_vector  # noqa: E402
 
 
@@ -56,7 +56,7 @@ class SegmentCpa:
 
 def segment_cpa(
     samples: Sequence[PositionSample],
-    target: TargetLocation,
+    poi: PoiLocation,
 ) -> SegmentCpa | None:
     """Exact minimum of the piecewise-linear track, with its source time.
 
@@ -66,7 +66,7 @@ def segment_cpa(
     """
     if not samples:
         return None
-    vectors = [_local_vector(sample, target) for sample in samples]
+    vectors = [_local_vector(sample, poi) for sample in samples]
     best: SegmentCpa | None = None
     for index, vector in enumerate(vectors):
         if index == 0:
@@ -104,10 +104,10 @@ def segment_cpa(
 
 def closure_evidence(
     samples: Sequence[PositionSample],
-    target: TargetLocation,
+    poi: PoiLocation,
 ) -> tuple[int, float, SegmentCpa | None]:
     """Post-CPA sample count and distance rise, on the canonical sequence."""
-    cpa = segment_cpa(samples, target)
+    cpa = segment_cpa(samples, poi)
     if cpa is None:
         return 0, 0.0, None
     # fraction 1.0 means the minimum IS the segment's end sample, so the tail
@@ -115,7 +115,7 @@ def closure_evidence(
     # sample itself would let certification pass one sample short.
     tail_start = cpa.segment_index + (2 if cpa.fraction >= 1.0 else 1)
     distances = [
-        math.sqrt(sum(c * c for c in _local_vector(sample, target)))
+        math.sqrt(sum(c * c for c in _local_vector(sample, poi)))
         for sample in samples[tail_start:]
     ]
     rise = max(distances, default=cpa.dist_3d_m) - cpa.dist_3d_m

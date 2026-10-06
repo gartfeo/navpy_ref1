@@ -56,9 +56,9 @@ def create_test_camera(
 
 
 def create_mock_args():
-    """Create mock args with required attributes for NavigationTargetArgs."""
+    """Create mock args with required attributes for NavigationPoiArgs."""
     args = SimpleNamespace()
-    # NavigationTargetArgs.PARAMS defaults
+    # NavigationPoiArgs.PARAMS defaults
     args.AAS_TARG_WPS = '4'
     args.AAS_TARG_ALT = 150
     args.use_terrain = False

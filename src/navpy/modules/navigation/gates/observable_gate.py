@@ -2,7 +2,7 @@
 
 Introduced in Step 2 of the observable-only navigation redesign. This module
 defines the gate contract only; no production wiring, no observables, and no
-navigation behavior change. Later steps add concrete gates (passed-target,
+navigation behavior change. Later steps add concrete gates (passed-POI,
 handoff, freeze) parameterised over a real observables context.
 """
 from __future__ import annotations

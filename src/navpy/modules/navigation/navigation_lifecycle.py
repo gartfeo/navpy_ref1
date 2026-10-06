@@ -15,7 +15,7 @@ from navpy.modules.navigation.legacy_destination_resolver import LegacyNavigatio
 
 
 class NavigationLifecycle:
-    """Coordinate phase resets without owning algorithm or target behavior."""
+    """Coordinate phase resets without owning algorithm or POI behavior."""
 
     def __init__(
         self,

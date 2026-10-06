@@ -58,12 +58,12 @@ def feed_navigation(
     response = detector.get_detect_data(
         DetectRequest(force_lock_bbox_cxcywh=force_bbox)
     )
-    if not response.detected_targets:
+    if not response.detected_pois:
         navigation.update(None, now=time.time())
         return
-    target = response.detected_targets[0]
-    state.controls.last_locked_id = target.identity.obj_id
-    bbox = target.tracking.bbox_cxcywh or target.confirmation.bbox_cxcywh
+    poi = response.detected_pois[0]
+    state.controls.last_locked_id = poi.identity.obj_id
+    bbox = poi.tracking.bbox_cxcywh or poi.confirmation.bbox_cxcywh
     half_size = 0.0 if bbox is None else max(bbox[2], bbox[3]) / 2.0
     frame = detector.get_raw_frame()
     height, width = (
@@ -72,7 +72,7 @@ def feed_navigation(
         else (mount.image_height or 1080, mount.image_width or 1920)
     )
     anchored = build_anchor_k(
-        target.pixel.calibration.matrix(),
+        poi.pixel.calibration.matrix(),
         mount.get_dist(),
         state.controls.anchor,
         width,
@@ -80,13 +80,13 @@ def feed_navigation(
         half_size,
         half_size,
     )
-    timestamp_s = target.timing.detection_timestamp_s
+    timestamp_s = poi.timing.detection_timestamp_s
     if timestamp_s is None or timestamp_s == state.last_source_timestamp_s:
         navigation.update(None, now=time.time())
         return
     state.last_source_timestamp_s = float(timestamp_s)
     navigation.update(
-        target,
+        poi,
         now=float(timestamp_s),
         principal_point=(float(anchored[0, 2]), float(anchored[1, 2])),
     )

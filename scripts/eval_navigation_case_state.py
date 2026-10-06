@@ -15,7 +15,7 @@ from eval_navigation_models import (
     LaunchVerdict,
     PositionStreamAnchor,
     SelectionEvidence,
-    TargetExpectation,
+    PoiExpectation,
 )
 from eval_navigation_scoring import CoordinateScorer
 
@@ -48,7 +48,7 @@ class ScoringIntervalWindow:
 
 @dataclass
 class CaseEvidence:
-    expectation: TargetExpectation | None = None
+    expectation: PoiExpectation | None = None
     home_abs_alt_m: float | None = None
     selection: SelectionEvidence | None = None
     gate: EvidenceGateResult | None = None
@@ -65,7 +65,7 @@ class CaseEvidence:
 @dataclass
 class CaseState:
     name: str
-    target_rel_alt_m: float
+    poi_rel_alt_m: float
     certificate: bool
     paths: CasePaths
     processes: CaseProcesses = field(default_factory=CaseProcesses)

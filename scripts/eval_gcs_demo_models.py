@@ -52,7 +52,7 @@ class ThreeUavIds:
 
 
 @dataclass(frozen=True)
-class TerminalCommand:
+class FinalApproachCommand:
     """Immutable passive copy of one atomic TERMINAL_CMD payload."""
 
     wall_s: float
@@ -75,7 +75,7 @@ class TerminalCommand:
 
 
 @dataclass(frozen=True)
-class TerminalTiming:
+class FinalApproachTiming:
     median_wall_gap_s: float | None = None
     max_wall_gap_s: float | None = None
     max_source_gap_s: float | None = None
@@ -83,7 +83,7 @@ class TerminalTiming:
 
 
 @dataclass(frozen=True)
-class TerminalScore:
+class FinalApproachScore:
     sample_count: int = 0
     significant_reversals: int = 0
     saturation_fraction: float = 0.0
@@ -173,9 +173,9 @@ __all__ = [
     "RunReport",
     "RollQualityLimits",
     "StackContext",
-    "TerminalCommand",
-    "TerminalScore",
-    "TerminalTiming",
+    "FinalApproachCommand",
+    "FinalApproachScore",
+    "FinalApproachTiming",
     "ThreeUavIds",
     "TruthLimits",
     "VehicleReport",

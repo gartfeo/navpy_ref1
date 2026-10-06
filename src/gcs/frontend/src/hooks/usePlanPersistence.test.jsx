@@ -103,8 +103,8 @@ describe('current development plan files', () => {
     expect(data.dock_classes).toEqual(io.props.dockClasses);
     expect(data.per_uav_dock_classes).toEqual(io.props.perUavDockClasses);
     expect(data.fallback_delivery_locations).toEqual(io.props.settings.fallback_delivery_locations);
-    for (const key of ['target_classes','per_uav_target_classes','objects_of_interest',
-      'ooi_assignments','sim_target_wps','plan_format_version','launch_point','corridor']) {
+    for (const key of ['poi_classes','per_uav_poi_classes','objects_of_interest',
+      'ooi_assignments','sim_poi_wps','plan_format_version','launch_point','corridor']) {
       expect(Object.hasOwn(data, key)).toBe(false);
     }
     io.load(data);
@@ -119,7 +119,7 @@ describe('current development plan files', () => {
     expect(io.props.setSetCorridorPoints).toHaveBeenCalledWith(data.set_corridors);
   });
 
-  it.each([null, 7, [], { polygon: [], target_classes: ['old'] }, { dock_classes: [] }, { polygon: [], dock_classes: [], delivery_docks: [] }, { polygon: [], dock_classes: [], delivery_dock_assignments: [] },
+  it.each([null, 7, [], { polygon: [], poi_classes: ['old'] }, { dock_classes: [] }, { polygon: [], dock_classes: [], delivery_docks: [] }, { polygon: [], dock_classes: [], delivery_dock_assignments: [] },
     { polygon: [], dock_classes: [], tactic: 'corridor' },
     { polygon: [], dock_classes: [], tactic: 'corridor', search_pattern: 'distributed' },
   ].map(data => [data]))(

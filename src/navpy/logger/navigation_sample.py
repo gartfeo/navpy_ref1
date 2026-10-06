@@ -15,7 +15,7 @@ class NavigationSample:
     """Data carried from the public logger API to its sample recorder."""
 
     current_location: Optional[Location]
-    target_location: Optional[Location]
+    poi_location: Optional[Location]
     distance: float
     command_roll: Optional[float]
     command_pitch: Optional[float]
@@ -25,8 +25,8 @@ class NavigationSample:
     actual_pitch: Optional[float]
     x_error: Optional[int]
     y_error: Optional[int]
-    terminal_angle: Optional[float]
+    final_approach_angle: Optional[float]
     detected_current_location: Optional[Location]
-    detected_target_location: Optional[Location]
+    detected_poi_location: Optional[Location]
     camera_matrix: Optional[np.ndarray]
     gimbal_attitude: object

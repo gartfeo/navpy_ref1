@@ -92,8 +92,8 @@ export default function useTaskConfirmation() {
   }, []);
 
   // ---- CONF-03 "Ask me anyway" one-shot override (D-18/D-19/D-20) ----
-  // forcedConfirms is { [sysId]: taskId } -- the GCS marks a forced target
-  // locally (no new wire field needed; the GCS already knows which target
+  // forcedConfirms is { [sysId]: taskId } -- the GCS marks a forced POI
+  // locally (no new wire field needed; the GCS already knows which POI
   // it forced). Only one card is pending per sysId at a time, so a single
   // taskId per sysId is enough; a later confirm round for a DIFFERENT
   // taskId simply fails a `forcedConfirms[sysId] === taskId` equality check
@@ -165,7 +165,7 @@ export default function useTaskConfirmation() {
     setPendingConfirms((prev) => confirmResponse(prev, {
       sys_id: sysId, task_id: taskId, is_confirmed: isConfirmed, action,
       // The round captured when the operator acted: by the time this resolves
-      // the card may already show a NEW round for the same target, which this
+      // the card may already show a NEW round for the same POI, which this
       // decision does not answer.
       round_uid: roundUid, at: Date.now(),
     }));

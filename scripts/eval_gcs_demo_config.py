@@ -13,7 +13,7 @@ from scripts.eval_gcs_demo_constants import (
     GCS_LAUNCH,
     GCS_STOP,
     SIM_SPEEDUP,
-    TERMINAL_ROLL_LIMIT_DEG,
+    FINAL_APPROACH_ROLL_LIMIT_DEG,
     VISION_PROFILE,
 )
 from scripts.eval_gcs_demo_models import finite_number, positive_int
@@ -21,7 +21,7 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, load_scenario_manifest
 from scripts.eval_certificate_source_time import SOURCE_TIME_ENV, SOURCE_TIME_SUBDIR
 
-from navpy.args.navigation_target_args import encode_wp_bitmask
+from navpy.args.navigation_poi_args import encode_wp_bitmask
 
 
 NAVIGATION_SPEEDUP_ENV = "GCS_SIM_NAVIGATION_SPEEDUP"
@@ -74,12 +74,12 @@ def build_settings(esp32_port: int) -> dict[str, JsonValue]:
     }
 
 
-def _base_aas_params(target_mask: int) -> dict[str, JsonValue]:
+def _base_aas_params(poi_mask: int) -> dict[str, JsonValue]:
     return {
         "del_ctrl": 2,
         "del_dir": True,
         "use_trn": True,
-        "targ_wps": target_mask,
+        "targ_wps": poi_mask,
         "targ_alt": 0.0,
         "nav_last_wp": EXPECTED_NAV_LAST_WP_ORDINAL,
         "nav_auto_cm": False,
@@ -94,8 +94,8 @@ def aas_params_for(sys_id: int, owner_sys_id: int) -> dict[str, JsonValue]:
     checked_sys_id = positive_int("sys_id", sys_id)
     checked_owner = positive_int("owner_sys_id", owner_sys_id)
     scenario = load_scenario_manifest()
-    target_mask = encode_wp_bitmask(list(scenario.target_nav_waypoint_ordinals))
-    return _base_aas_params(target_mask if checked_sys_id == checked_owner else 0)
+    poi_mask = encode_wp_bitmask(list(scenario.poi_nav_waypoint_ordinals))
+    return _base_aas_params(poi_mask if checked_sys_id == checked_owner else 0)
 
 
 def aas_params_for_plan(sys_id: int, plan: DemoMissionPlan) -> dict[str, JsonValue]:
@@ -107,7 +107,7 @@ def aas_params_for_plan(sys_id: int, plan: DemoMissionPlan) -> dict[str, JsonVal
 
 def full_param_changes() -> list[dict[str, float | str]]:
     return [
-        {"name": "ROLL_LIMIT_DEG", "value": TERMINAL_ROLL_LIMIT_DEG},
+        {"name": "ROLL_LIMIT_DEG", "value": FINAL_APPROACH_ROLL_LIMIT_DEG},
         {"name": "SIM_SPEEDUP", "value": SIM_SPEEDUP},
     ]
 

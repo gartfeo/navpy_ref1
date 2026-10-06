@@ -117,7 +117,7 @@ def test_set_network_owns_peer_worker_before_start_failure() -> None:
         "navpy.modules.nav.nav_network.ConfirmOverrideListener",
         return_value=listener,
     ), patch(
-        "navpy.modules.nav.nav_network.PeerTargetDispatchWorker",
+        "navpy.modules.nav.nav_network.PeerPoiDispatchWorker",
         return_value=worker,
     ):
         with pytest.raises(RuntimeError) as raised:

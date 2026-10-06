@@ -1,16 +1,16 @@
 """Per-case SIM_CPA module configuration for the single-UAV driver.
 
-Derives the module's decimal-chunked target parameters from the case's
-resolved target and pushes them with exact-echo checks -- the shared
+Derives the module's decimal-chunked POI parameters from the case's
+resolved POI and pushes them with exact-echo checks -- the shared
 ``set_param`` helper accepts echoes within 1%, which cannot certify chunk
-identity (a one-unit LAT_LO error is a centimetre of target).  The SCPC
+identity (a one-unit LAT_LO error is a centimetre of POI).  The SCPC
 rows in the BIN remain the configuration authority; the echoes only gate
 whether the flight proceeds with the module armed.
 
 Policy (R1/R2): the operator may
 disable the cross-check (``--sim-cpa off``, or the legacy
 ``--sitl-param SIM_CPA_ENABLE=0`` spelling) but may never redirect its
-target -- any other explicit ``SIM_CPA_*`` override is rejected before
+POI -- any other explicit ``SIM_CPA_*`` override is rejected before
 launch.  A binary without the parameter set is recorded as unsupported
 and the flight continues stream-scored; coverage is enforced by A/B
 eligibility, not by crashing the case.
@@ -52,10 +52,10 @@ CONFIG_RECORD_NAME = "sim_cpa_config.json"
 _MAX_ALT_CM = 1_000_000
 
 
-def target_ints(
+def poi_ints(
     lat_deg: float, lon_deg: float, abs_alt_m: float
 ) -> tuple[int, int, int]:
-    """The integer target the module scores against, from the case target."""
+    """The integer POI the module scores against, from the case POI."""
     return (
         round(lat_deg * 1e7),
         round(lon_deg * 1e7),
@@ -73,14 +73,14 @@ def derive_params(
     lat_deg: float, lon_deg: float, abs_alt_m: float
 ) -> list[tuple[str, int]]:
     """The full push list, chunks first and ENABLE last (module contract)."""
-    lat_e7, lng_e7, alt_cm = target_ints(lat_deg, lon_deg, abs_alt_m)
+    lat_e7, lng_e7, alt_cm = poi_ints(lat_deg, lon_deg, abs_alt_m)
     if abs(lat_e7) > 90 * 10**7 or abs(lng_e7) > 180 * 10**7:
         raise ValueError(
-            f"target out of coordinate range: lat_e7={lat_e7} lng_e7={lng_e7}"
+            f"POI out of coordinate range: lat_e7={lat_e7} lng_e7={lng_e7}"
         )
     if abs(alt_cm) > _MAX_ALT_CM:
         raise ValueError(
-            f"target altitude outside the module's exact range: {alt_cm}cm"
+            f"POI altitude outside the module's exact range: {alt_cm}cm"
         )
     lat_hi, lat_lo = chunk(lat_e7)
     lng_hi, lng_lo = chunk(lng_e7)
@@ -116,7 +116,7 @@ def resolve_mode(
             continue
         raise ValueError(
             f"--sitl-param {name} would redirect the SIM_CPA cross-check; "
-            "the module target always comes from the case target "
+            "the module POI always comes from the case POI "
             "(disable with --sim-cpa off if the module must stay dark)"
         )
     if sim_cpa_arg is None:
@@ -198,8 +198,8 @@ def configure_sim_cpa(
         set_exact = set_param_exact
     record = default_configuration()
     record["mode"] = mode
-    lat_e7, lng_e7, alt_cm = target_ints(lat_deg, lon_deg, abs_alt_m)
-    record["expected_target"] = {
+    lat_e7, lng_e7, alt_cm = poi_ints(lat_deg, lon_deg, abs_alt_m)
+    record["expected_poi"] = {
         "lat_e7": lat_e7, "lng_e7": lng_e7, "alt_cm": alt_cm,
     }
     try:
@@ -221,7 +221,7 @@ def configure_sim_cpa(
         push_list: list[tuple[str, int]] = []
         if float(probe) != 0.0:
             # A stale template EEPROM can boot with the module armed on an
-            # old target; disarm before touching chunks so no interval is
+            # old POI; disarm before touching chunks so no interval is
             # ever scored against a half-written configuration.
             push_list.append((ENABLE_PARAM, 0))
         push_list.extend(derive_params(lat_deg, lon_deg, abs_alt_m))
@@ -266,5 +266,5 @@ __all__ = [
     "derive_params",
     "resolve_mode",
     "set_param_exact",
-    "target_ints",
+    "poi_ints",
 ]

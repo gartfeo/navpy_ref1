@@ -59,8 +59,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--home", default=None)
     parser.add_argument("--mission-alt", type=float, default=None)
     parser.add_argument("--gate-offset", type=float, default=None)
-    parser.add_argument("--target-offset", type=float, default=None)
-    parser.add_argument("--engage-wp", type=int, default=2, dest='scoring_start_wp')
+    parser.add_argument("--poi-offset", type=float, default=None)
+    parser.add_argument("--scoring-start-wp", type=int, default=2, dest='scoring_start_wp')
     return parser
 
 
@@ -73,7 +73,7 @@ def _case_args(args: argparse.Namespace) -> argparse.Namespace:
         "throttle", "level_s", "hold_s", "timeout", "scoring_start_wp",
     ):
         setattr(defaults, name, getattr(args, name))
-    for name in ("home", "mission_alt", "gate_offset", "target_offset"):
+    for name in ("home", "mission_alt", "gate_offset", "poi_offset"):
         value = getattr(args, name)
         if value is not None:
             setattr(defaults, name, value)

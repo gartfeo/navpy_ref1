@@ -20,7 +20,7 @@ from navpy.modules.navigation.navigation_mode import (
     NavigationModeBuilder,
     NavigationModeSelector,
     NavigationModeState,
-    NavigationTerminalCapabilities,
+    NavigationFinalApproachCapabilities,
     RuntimeBuildResult,
 )
 from navpy.modules.navigation.navigation_runtime import LegacyNavigationRuntime
@@ -28,17 +28,17 @@ from navpy.modules.navigation.navigation_source_dispatch import (
     BindSourceDispatch,
     NavigationSourceDispatchSlot,
 )
-from navpy.modules.navigation.navigation_terminal import TerminalNavigationService
+from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
 from navpy.modules.navigation.navigation_vehicle_commands import NavigationVehicleCommands
 from navpy.modules.navigation.legacy_destination_resolver import (
     LegacyNavigationState,
     LegacyDestinationResolver,
-    navigation_target_location,
+    navigation_poi_location,
 )
 from navpy.modules.navigation.legacy_nav_adjustment import LegacyNavAdjustment
-from navpy.modules.navigation.legacy_terminal_command import (
-    LegacyTerminalCommand,
-    LegacyTerminalCommandPorts,
+from navpy.modules.navigation.legacy_final_approach_command import (
+    LegacyFinalApproachCommand,
+    LegacyFinalApproachCommandPorts,
 )
 from navpy.modules.navigation.mission_planner import MissionPlanner
 from navpy.modules.navigation.nav.nav_law import NavLaw
@@ -48,9 +48,9 @@ from navpy.modules.navigation.nav.nav_law_factory import (
 )
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.modules.navigation.nav.vision_nav.runtime_composition import (
-    TerminalVehicleActuator,
-    TerminalVehicleDiagnosticReader,
-    compose_terminal_runtime,
+    FinalApproachVehicleActuator,
+    FinalApproachVehicleDiagnosticReader,
+    compose_final_approach_runtime,
 )
 from navpy.modules.vehicle.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
@@ -62,8 +62,8 @@ from navpy.modules.vehicle.vehicle_interface import IVehicle
 class NavigationComposition:
     lifecycle: NavigationLifecycle
     mode_state: NavigationModeState
-    terminal: TerminalNavigationService
-    legacy_targets: LegacyDestinationResolver
+    final_approach: FinalApproachNavigationService
+    legacy_pois: LegacyDestinationResolver
     vehicle_commands: NavigationVehicleCommands
     bind_source_dispatch: BindSourceDispatch
 
@@ -79,26 +79,26 @@ def _legacy_runtime_factory(
     geo_ref: GeoRefCalc,
     logger: ILogger,
     navigation_logger: NavigationLogger,
-    target_resolver: LegacyDestinationResolver,
+    poi_resolver: LegacyDestinationResolver,
     legacy_state: LegacyNavigationState,
     adjustment: LegacyNavAdjustment,
 ) -> Callable[[NavigationLawLifecycle], RuntimeBuildResult]:
     def build(selected_law: NavigationLawLifecycle) -> RuntimeBuildResult:
         nav = cast(NavLaw, selected_law)
-        command = LegacyTerminalCommand(LegacyTerminalCommandPorts(
+        command = LegacyFinalApproachCommand(LegacyFinalApproachCommandPorts(
             vehicle=vehicle,
             geo_ref=geo_ref,
             logger=logger,
             navigation_logger=navigation_logger,
             nav=nav,
-            get_locked_target=legacy_state.locked_target,
+            get_locked_poi=legacy_state.locked_poi,
             adjust_nav=adjustment.adjust,
             is_adjusted=legacy_state.is_adjusted,
-            calc_nav_target=navigation_target_location,
+            calc_nav_poi=navigation_poi_location,
         ))
         runtime = LegacyNavigationRuntime(
             command_slot=command_slot,
-            target_resolver=target_resolver.resolve,
+            poi_resolver=poi_resolver.resolve,
             command_executor=command.execute,
             reset_law=nav.reset,
         )
@@ -118,12 +118,12 @@ def _vision_runtime_factory(
 ) -> Callable[[NavigationLawLifecycle], RuntimeBuildResult]:
     def build(selected_law: NavigationLawLifecycle) -> RuntimeBuildResult:
         law = cast(VisionNavLaw, selected_law)
-        built = compose_terminal_runtime(
+        built = compose_final_approach_runtime(
             lock=lock,
             slot=command_slot,
             sys_id=vehicle.target_system,
-            actuator=TerminalVehicleActuator(vehicle.set_attitude),
-            diagnostic_reader=TerminalVehicleDiagnosticReader(
+            actuator=FinalApproachVehicleActuator(vehicle.set_attitude),
+            diagnostic_reader=FinalApproachVehicleDiagnosticReader(
                 lambda: vehicle.attitude,
                 lambda: vehicle.location(False),
             ),
@@ -136,11 +136,11 @@ def _vision_runtime_factory(
             navigation_logger=navigation_logger,
             wall_period_s=wall_period_s,
         )
-        terminal = NavigationTerminalCapabilities(
+        final_approach = NavigationFinalApproachCapabilities(
             status=built.runtime,
             confirmation=built.confirmation,
         )
-        return RuntimeBuildResult(runtime=built.runtime, terminal=terminal)
+        return RuntimeBuildResult(runtime=built.runtime, final_approach=final_approach)
 
     return build
 
@@ -176,7 +176,7 @@ def compose_navigation(
         cadence_interval=(wall_period if scheduler_cadence is not None else None),
     )
     legacy_state = LegacyNavigationState()
-    target_resolver = LegacyDestinationResolver(vehicle, args, geo_ref, zc_util, legacy_state)
+    poi_resolver = LegacyDestinationResolver(vehicle, args, geo_ref, zc_util, legacy_state)
     adjustment = LegacyNavAdjustment(vehicle, mission_planner, legacy_state)
     legacy_factory = _legacy_runtime_factory(
         command_slot=command_slot,
@@ -184,7 +184,7 @@ def compose_navigation(
         geo_ref=geo_ref,
         logger=logger,
         navigation_logger=navigation_logger,
-        target_resolver=target_resolver,
+        poi_resolver=poi_resolver,
         legacy_state=legacy_state,
         adjustment=adjustment,
     )
@@ -236,8 +236,8 @@ def compose_navigation(
     return NavigationComposition(
         lifecycle=lifecycle,
         mode_state=mode_state,
-        terminal=TerminalNavigationService(mode_state),
-        legacy_targets=target_resolver,
+        final_approach=FinalApproachNavigationService(mode_state),
+        legacy_pois=poi_resolver,
         vehicle_commands=NavigationVehicleCommands(vehicle),
         bind_source_dispatch=source_dispatch.bind,
     )

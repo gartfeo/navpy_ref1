@@ -103,7 +103,7 @@ class TestManualPreflightCal:
         res = _cmd(tc, [99])
         assert res.json()["results"]["99"] == "not_connected"
 
-    def test_mixed_targets(self, client):
+    def test_mixed_pois(self, client):
         tc, entries = client
         res = _cmd(tc, [1, 2])
         results = res.json()["results"]

@@ -440,15 +440,15 @@ async function main() {
   assert.strictEqual(rawZones[0].track.length, 2, 'raw corridor waypoints remain available to parameter mapping');
 
   // Concurrent mission completions retain fleet metadata by sys_id rather than
-  // rebuilding earlier targets from a stale React closure.
+  // rebuilding earlier POIs from a stale React closure.
   const metadataRun = { missionFallbackLocationsBySysId: new Map() };
-  const target1 = { lat: 1, lon: 1 };
-  const target2 = { lat: 2, lon: 2 };
-  metadataRun.missionFallbackLocationsBySysId.set(2, target2); // completion order differs
-  metadataRun.missionFallbackLocationsBySysId.set(1, target1);
+  const poi1 = { lat: 1, lon: 1 };
+  const poi2 = { lat: 2, lon: 2 };
+  metadataRun.missionFallbackLocationsBySysId.set(2, poi2); // completion order differs
+  metadataRun.missionFallbackLocationsBySysId.set(1, poi1);
   assert.deepStrictEqual(
     startupMissionFallbackLocationsForZones(metadataRun, [{ sys_id: 1 }, { sys_id: 2 }, { sys_id: 3 }]),
-    [target1, target2, null],
+    [poi1, poi2, null],
     'fallback locations accumulate in zone order regardless of completion order',
   );
 

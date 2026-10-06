@@ -113,10 +113,10 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connection", required=True)
     parser.add_argument("--sysid", required=True, type=int)
-    parser.add_argument("--engage-seq", required=True, type=int, dest='scoring_start_seq')
+    parser.add_argument("--scoring-start-seq", required=True, type=int, dest='scoring_start_seq')
     parser.add_argument("--timeout", required=True, type=float)
     parser.add_argument("--result", required=True, type=Path)
-    parser.add_argument("--engaged", required=True, type=Path, dest='scoring_active')
+    parser.add_argument("--scoring-active", required=True, type=Path, dest='scoring_active')
     parser.add_argument("--pitch-deg", required=True, type=float)
     parser.add_argument("--roll-deg", default=0.0, type=float)
     parser.add_argument("--throttle", default=0.55, type=float)
@@ -152,7 +152,7 @@ def _wait_for_scoring_interval(vehicle: IVehicle, scoring_start_seq: int, timeou
         ):
             return
         time.sleep(0.02)
-    raise TimeoutError(f"mission did not reach engagement sequence {scoring_start_seq}")
+    raise TimeoutError(f"mission did not reach scoring start sequence {scoring_start_seq}")
 
 
 def _wait_for_mode(vehicle: IVehicle, mode: FlightMode, timeout_s: float) -> None:

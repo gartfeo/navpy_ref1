@@ -71,7 +71,7 @@ export default function useMissionState() {
   const [fallbackLocationAssignments, setFallbackLocationAssignments] = useState([]);
   const [manualFallbackLocationEdit, setManualFallbackLocationEdit] = useState(false);
 
-  // Sim target waypoints (plan-local, snapshotted)
+  // Sim POI waypoints (plan-local, snapshotted)
   // simDockWps:   { zoneIndex → [wpIndex, ...] } — 0-based track indices
   // detectAfterWps: { zoneIndex → wpIndex }        — single per zone
   const [simDockWps, setSimDockWps] = useState({});
@@ -254,7 +254,7 @@ export default function useMissionState() {
     fallbackLocationAssignments, setFallbackLocationAssignments,
     manualFallbackLocationEdit, setManualFallbackLocationEdit,
 
-    // Sim targets
+    // Sim POIs
     simDockWps, setSimDockWps,
     detectAfterWps, setDetectAfterWps,
 

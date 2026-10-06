@@ -7,16 +7,16 @@ view. If the law misses here, the law is wrong.
 
 WHAT THE LAW IS ALLOWED TO SEE
 ------------------------------
-Simulator truth is used to work out WHERE THE TARGET APPEARS, and is then
-discarded. What comes out is a TerminalVisionFrame: two UNIT rays plus the
+Simulator truth is used to work out WHERE THE POI APPEARS, and is then
+discarded. What comes out is a FinalApproachVisionFrame: two UNIT rays plus the
 aircraft's own pitch, roll, airspeed and yaw rate. A unit ray carries direction
-and nothing else, so no range, no target position and no altitude can travel
+and nothing else, so no range, no POI position and no altitude can travel
 inside it -- the law cannot recover them from what it is handed.
 
 Yaw needs care, because the project rule bans compass yaw from the command path.
 Two different things are called yaw here:
 
-  * Truth yaw is needed to know where the target sits relative to the nose. A
+  * Truth yaw is needed to know where the POI sits relative to the nose. A
     real camera answers that question by looking; a simulator has to compute it.
     It must be SIMULATOR TRUTH and never the ATTITUDE message, whose yaw is the
     compass-derived estimate -- feeding that in would rotate every ray by the
@@ -36,11 +36,11 @@ import math
 import numpy as np
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.utils.euler_utils import get_euler_by_sequence
 from navpy.utils.simple_rotation import Rotation
 
-# Matches every other construction of TerminalProjectionConfig in the tree
+# Matches every other construction of FinalApproachProjectionConfig in the tree
 # (scripts/vision_static_point_mass_run.py:55, tests/.../vision_nav_camera_loop.py:54).
 AIRCRAFT_SEQUENCE = "ZYX"
 
@@ -76,30 +76,30 @@ def _radii(lat_deg: float, height_m: float = 0.0) -> tuple[float, float]:
     return meridional + height_m, transverse + height_m
 
 
-def target_offset_ned_m(
+def poi_offset_ned_m(
     *,
     lat_deg: float,
     lon_deg: float,
     alt_m: float,
-    target_lat_deg: float,
-    target_lon_deg: float,
-    target_alt_m: float,
+    poi_lat_deg: float,
+    poi_lon_deg: float,
+    poi_alt_m: float,
 ) -> np.ndarray:
-    """Vector from the aircraft to the target, in local NED metres.
+    """Vector from the aircraft to the POI, in local NED metres.
 
     A local tangent plane, not a full geodesic. Over the few kilometres a
-    terminal scoring interval covers, the curvature error is far below the metre the
+    final-approach scoring interval covers, the curvature error is far below the metre the
     score is quoted in; over hundreds of kilometres it would not be, which is
     why the radii are evaluated at the AIRCRAFT's latitude rather than assuming
     a sphere.
     """
     meridional, transverse = _radii(lat_deg, alt_m)
-    north = math.radians(target_lat_deg - lat_deg) * meridional
-    east = math.radians(target_lon_deg - lon_deg) * transverse * math.cos(
+    north = math.radians(poi_lat_deg - lat_deg) * meridional
+    east = math.radians(poi_lon_deg - lon_deg) * transverse * math.cos(
         math.radians(lat_deg)
     )
-    # NED: down is positive, so a target BELOW the aircraft is a positive down.
-    down = alt_m - target_alt_m
+    # NED: down is positive, so a POI BELOW the aircraft is a positive down.
+    down = alt_m - poi_alt_m
     return np.array([north, east, down], dtype=float)
 
 
@@ -110,20 +110,20 @@ def coordinates_from_offset_ned(
     alt_m: float,
     offset_ned_m: np.ndarray,
 ) -> tuple[float, float, float]:
-    """Exact inverse of `target_offset_ned_m`, on the same tangent plane.
+    """Exact inverse of `poi_offset_ned_m`, on the same tangent plane.
 
     Used once per run to turn a range/bearing placement into the fixed absolute
-    target the scoring interval is flown against. It is the inverse of the forward
+    POI the scoring interval is flown against. It is the inverse of the forward
     conversion and not a second approximation of it, so the coordinates it
     returns reproduce the offset that was asked for.
     """
     meridional, transverse = _radii(lat_deg, alt_m)
     north, east, down = (float(value) for value in offset_ned_m)
-    target_lat = lat_deg + math.degrees(north / meridional)
-    target_lon = lon_deg + math.degrees(
+    poi_lat = lat_deg + math.degrees(north / meridional)
+    poi_lon = lon_deg + math.degrees(
         east / (transverse * math.cos(math.radians(lat_deg)))
     )
-    return target_lat, target_lon, alt_m - down
+    return poi_lat, poi_lon, alt_m - down
 
 
 def _unit(vector: np.ndarray) -> np.ndarray:
@@ -157,7 +157,7 @@ def build_frame(
     task_id: int = 1,
     obj_id: int = 1,
     source_name: str = "truth_los",
-) -> TerminalVisionFrame:
+) -> FinalApproachVisionFrame:
     """One frame-local line of sight, as an ideal body-fixed camera would see it.
 
     `offset_ned_m` may be any length; only its direction survives, which is the
@@ -166,15 +166,15 @@ def build_frame(
     Two attitudes go in and they are not interchangeable, and the split is not
     just about which numbers the law reads:
 
-      * `truth_*` AIMS the ray. Where the target appears is a fact about the
+      * `truth_*` AIMS the ray. Where the POI appears is a fact about the
         world -- the question a camera answers by looking, and one a simulator
         can only answer from truth.
       * `est_*` INTERPRETS it. De-rotating the camera into the command frame,
         and every attitude scalar the law reads, come from what the aircraft
         believes about itself, because that is all a real aircraft has.
 
-    So an attitude estimate error does not move the target, but it does move
-    where the law thinks the target is -- which is exactly what it does in
+    So an attitude estimate error does not move the POI, but it does move
+    where the law thinks the POI is -- which is exactly what it does in
     flight. Where an estimate is not supplied the truth value stands in, which
     is right for an offline check with no estimator but must NOT be relied on
     when flying against SITL: it would quietly hand the law a perfect attitude.
@@ -205,7 +205,7 @@ def build_frame(
     control_ray = _unit(
         _rotation(reported_pitch, 0.0, reported_roll) @ body_ray
     )
-    return TerminalVisionFrame(
+    return FinalApproachVisionFrame(
         source_name=source_name,
         source_generation=source_generation,
         task_id=task_id,
@@ -228,7 +228,7 @@ def build_frame(
 class ClosestApproach:
     """Smallest distance the aircraft ever reached, found between samples too.
 
-    Position arrives at a finite rate, so the sample nearest the target is
+    Position arrives at a finite rate, so the sample nearest the POI is
     almost never the closest the aircraft actually came. At 35 m/s and 50 Hz the
     aircraft moves 0.7 m per sample, so reading the miss straight off the
     samples would quote a number whose error is a large fraction of the miss
@@ -248,13 +248,13 @@ class ClosestApproach:
         #
         # HORIZONTAL IS ITS OWN MINIMISATION over the north-east track, not
         # the horizontal component at the 3D closest point. Found in review:
-        # a dive through [10,0,100] -> [-10,0,0] crosses the target's ground
+        # a dive through [10,0,100] -> [-10,0,0] crosses the POI's ground
         # position exactly, yet at the 3D closest point -- pinned near the
         # low end by the altitude term -- the horizontal component reads
         # 9.6 m. A roll law scored that way answers for the pitch law's
         # timing. Vertical stays the component at the 3D closest point: an
         # independent vertical minimum would read near zero whenever the
-        # path crosses the target's altitude anywhere.
+        # path crosses the POI's altitude anywhere.
         self.miss_horizontal_m: float | None = None
         self.miss_vertical_m: float | None = None
         self._previous: tuple[float, np.ndarray] | None = None
@@ -292,7 +292,7 @@ def _segment_minimum(
     if length_sq <= 0.0:
         return float(np.linalg.norm(a)), t0, a
     # Fraction along the segment of the foot of the perpendicular, clamped so a
-    # target passed before this segment is not reported as a future approach.
+    # POI passed before this segment is not reported as a future approach.
     fraction = max(0.0, min(1.0, float(-(a @ travel) / length_sq)))
     closest = a + travel * fraction
     return float(np.linalg.norm(closest)), t0 + (t1 - t0) * fraction, closest

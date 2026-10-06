@@ -2,17 +2,17 @@ import math
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.law import (
-    FixedTerminalLawConfigProvider,
+    FixedFinalApproachLawConfigProvider,
     PITCH_CEILING_DEG,
     ROLL_LIMIT_CAP_DEG,
-    TerminalLawConfig,
+    FinalApproachLawConfig,
     VERTICAL_PN_NAVIGATION_CONSTANT,
     VERTICAL_RATE_FILTER_TAU_S,
     VisionNavLaw,
 )
-from navpy.modules.navigation.nav.nav_law_factory import VehicleTerminalLawConfigProvider
+from navpy.modules.navigation.nav.nav_law_factory import VehicleFinalApproachLawConfigProvider
 
 
 def _frame(
@@ -25,7 +25,7 @@ def _frame(
     yaw_rate=0.0,
     pitch=0.0,
 ):
-    return TerminalVisionFrame(
+    return FinalApproachVisionFrame(
         "cam", 0, 7, 9, ts, *body, *control, roll, airspeed, yaw_rate, pitch
     )
 
@@ -38,17 +38,17 @@ def _unit(angle_y_deg=0.0, angle_z_deg=0.0):
 
 
 def _law(tau=0.5, throttle=None):
-    return VisionNavLaw(FixedTerminalLawConfigProvider(
-        TerminalLawConfig(-55.0, 25.0, 45.0, tau, throttle)
+    return VisionNavLaw(FixedFinalApproachLawConfigProvider(
+        FinalApproachLawConfig(-55.0, 25.0, 45.0, tau, throttle)
     ))
 
 
 def test_steady_nonzero_bearing_without_los_rate_commands_no_roll():
     # INTENDED BEHAVIOUR CHANGE.  This test previously asserted the opposite --
     # that a 10 deg bearing produced sin(10 deg) of roll -- because the law
-    # carried a proportional bearing term.  In wind the collision course is
+    # carried a proportional bearing term.  In wind the constant-bearing course is
     # crabbed, so a steady non-zero bearing IS the converged geometry: rolling
-    # to null it turns the aircraft off the collision course and can only reach
+    # to null it turns the aircraft off the constant-bearing course and can only reach
     # equilibrium with a standing LOS drift.  Zero LOS rate must mean zero roll.
     law = _law(tau=None)
     first = _frame(ts=1.0, control=_unit(angle_y_deg=10.0))
@@ -97,7 +97,7 @@ def test_preview_before_seed_yields_a_flyable_plan_and_does_not_advance():
 
 
 def test_seed_without_issuing_a_command_still_anchors_a_clamped_value():
-    # record_terminal_confirmed_detection seeds the law WITHOUT issuing a
+    # record_final_approach_confirmed_detection seeds the law WITHOUT issuing a
     # command, so the seeded anchor is what the first real command integrates
     # from. Seeding at -80 deg against a -55 deg limit previously left the raw
     # -80 in the anchor, and the first issued command came out -44.601249.
@@ -347,7 +347,7 @@ def test_the_tighter_of_autopilot_limit_and_law_cap_clips_the_command():
     ("configured_throttle", "trim_throttle"),
     [(150.0, 40.0), (None, 150.0)],
 )
-def test_terminal_throttle_is_clamped_to_the_mavlink_fraction_range(
+def test_final_approach_throttle_is_clamped_to_the_mavlink_fraction_range(
     configured_throttle,
     trim_throttle,
 ):
@@ -365,7 +365,7 @@ def test_terminal_throttle_is_clamped_to_the_mavlink_fraction_range(
             return self.params.get(name)
 
     args = type("Args", (), {"delivery_throttle": configured_throttle})()
-    law = VisionNavLaw(VehicleTerminalLawConfigProvider(Vehicle(), args))
+    law = VisionNavLaw(VehicleFinalApproachLawConfigProvider(Vehicle(), args))
 
     assert law.preview(_frame()).command.cmd_thr == 1.0
 
@@ -422,7 +422,7 @@ def test_actual_parameter_absence_never_defaults_tau_or_throttle():
             return self.params.get(name)
 
     args = type("Args", (), {"delivery_throttle": None})()
-    config = VehicleTerminalLawConfigProvider(Vehicle(), args).read()
+    config = VehicleFinalApproachLawConfigProvider(Vehicle(), args).read()
     assert config is not None
     assert config.pitch_time_constant_s is None
     assert config.throttle is None
@@ -440,7 +440,7 @@ def test_actual_parameter_absence_never_defaults_tau_or_throttle():
         {"ROLL_LIMIT_DEG": -1.0},
     ],
 )
-def test_invalid_actual_limits_make_terminal_config_unavailable(updates):
+def test_invalid_actual_limits_make_final_approach_config_unavailable(updates):
     params = {
         "PTCH_LIM_MIN_DEG": -35.0,
         "PTCH_LIM_MAX_DEG": 18.0,
@@ -454,7 +454,7 @@ def test_invalid_actual_limits_make_terminal_config_unavailable(updates):
     )()
     args = type("Args", (), {"delivery_throttle": None})()
 
-    assert VehicleTerminalLawConfigProvider(vehicle, args).read() is None
+    assert VehicleFinalApproachLawConfigProvider(vehicle, args).read() is None
 
 
 def test_raw_autopilot_limits_are_the_exact_clipping_authority():
@@ -477,7 +477,7 @@ def test_raw_autopilot_limits_are_the_exact_clipping_authority():
             return self.params.get(name)
 
     args = type("Args", (), {"delivery_throttle": None})()
-    law = VisionNavLaw(VehicleTerminalLawConfigProvider(Vehicle(), args))
+    law = VisionNavLaw(VehicleFinalApproachLawConfigProvider(Vehicle(), args))
     seed = _frame(ts=0.9, control=_unit(angle_z_deg=10.0), pitch=-30.0)
     law.seed(seed)
     law.commit(law.plan(seed))
@@ -514,7 +514,7 @@ def test_config_provider_refreshes_actual_parameters_on_law_reset():
 
     vehicle = Vehicle()
     args = type("Args", (), {"delivery_throttle": None})()
-    law = VisionNavLaw(VehicleTerminalLawConfigProvider(vehicle, args))
+    law = VisionNavLaw(VehicleFinalApproachLawConfigProvider(vehicle, args))
     assert law.preview(_frame()).command.cmd_thr == 0.25
     vehicle.params["PTCH_LIM_MIN_DEG"] = None
     law.reset()

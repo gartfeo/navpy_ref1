@@ -77,7 +77,7 @@ def test_final_parser_reads_signed_lateral_and_resolves_compact(tmp_path):
     assert cases[0].compact == compact.resolve()
 
 
-def test_terminal_features_integral_sign_flips_and_saturation():
+def test_final_approach_features_integral_sign_flips_and_saturation():
     samples = [
         replay.CompactSample("0", 0.0, 400, 5, 0, 0, None, None),
         replay.CompactSample("1", 1.0, 250, 2, 45, 40, None, None),
@@ -85,7 +85,7 @@ def test_terminal_features_integral_sign_flips_and_saturation():
         replay.CompactSample("3", 3.0, 50, 4, 10, 8, None, None),
     ]
 
-    features = replay.compute_terminal_features(samples, terminal_dist_m=300)
+    features = replay.compute_final_approach_features(samples, final_approach_dist_m=300)
 
     assert features.count == 3
     assert features.yaw_mean_deg == 1

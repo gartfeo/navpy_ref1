@@ -123,13 +123,13 @@ class NavigationTaskState:
     peer_approach_distance_m: float = 500.0
     orbit_radius_m: float = 0.0
     orbit_approach_alt_rel_m: Optional[float] = None
-    peer_target_location: Optional[Location] = None
-    navigation_target_location: Optional[Location] = None
+    peer_poi_location: Optional[Location] = None
+    navigation_poi_location: Optional[Location] = None
     nav_mode_observed: bool = False
     guided_last_attempt_at: Optional[float] = None
     guided_request_started_at: Optional[float] = None
-    terminal_navigation_active: bool = False
-    terminal_nav_completed: bool = False
+    final_approach_navigation_active: bool = False
+    final_approach_nav_completed: bool = False
 
 
 class NavigationFailureLatch:
@@ -160,7 +160,7 @@ class NavigationFailureLatch:
 
 
 @dataclass
-class TerminalNavState:
+class FinalApproachNavState:
     """Vision-nav record state for the current NAV episode."""
 
     confirmed_recorded: bool = False
@@ -173,11 +173,11 @@ class TerminalNavState:
 
 @dataclass
 class GeoHoldState:
-    """Geo-follow recovery state, isolated from pure-terminal commands."""
+    """Geo-follow recovery state, isolated from pure-final-approach commands."""
 
     active: bool = False
-    target_location: Optional[Location] = None
-    last_own_target_geo: Optional[Location] = None
+    poi_location: Optional[Location] = None
+    last_own_poi_geo: Optional[Location] = None
     acquisition_log_bucket: Optional[tuple[str, ...]] = None
 
 
@@ -186,8 +186,8 @@ class ConfirmGateState:
     """Recognition and review timing state for one CONFIRM episode."""
 
     entered_at: Optional[float] = None
-    zoom_had_target: bool = False
-    zoom_seen_target: bool = False
+    zoom_had_poi: bool = False
+    zoom_seen_poi: bool = False
     resets_used: int = 0
     loss_started_at: Optional[float] = None
     review_started_at: Optional[float] = None
@@ -226,5 +226,5 @@ __all__ = [
     "NavPhaseState",
     "NavPhaseSnapshot",
     "NavState",
-    "TerminalNavState",
+    "FinalApproachNavState",
 ]

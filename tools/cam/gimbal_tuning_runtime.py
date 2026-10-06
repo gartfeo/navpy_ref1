@@ -34,7 +34,7 @@ from .gimbal_tuning_geometry import (
 from .gimbal_tuning_overlay import HotkeyAction, decode_hotkey, draw_overlay
 from .gimbal_tuning_sample import (
     TuningTrackerPort,
-    build_overlay_target,
+    build_overlay_poi,
     tick_gimbal_tracker,
     tracking_bbox,
 )
@@ -121,26 +121,26 @@ def _run_loop(
 ) -> None:
     while True:
         response = detector.get_detect_data(DetectRequest())
-        target = response.primary_target
-        if target is None and response.detected_targets:
-            target = response.detected_targets[0]
+        poi = response.primary_poi
+        if poi is None and response.detected_pois:
+            poi = response.detected_pois[0]
         command = (
             None
-            if target is None
+            if poi is None
             else build_bbox_tracking_command(
-                tracking_bbox(target),
+                tracking_bbox(poi),
                 state.intrinsics,
                 state.anchor,
                 mount.image_width or 1920,
                 mount.image_height or 1080,
             )
         )
-        result = tick_gimbal_tracker(tracker, command, target)
+        result = tick_gimbal_tracker(tracker, command, poi)
         frame = detector.get_debug_frame()
         if frame is not None:
             display = draw_overlay(
                 frame,
-                build_overlay_target(target),
+                build_overlay_poi(poi),
                 command,
                 result,
                 state.anchor,

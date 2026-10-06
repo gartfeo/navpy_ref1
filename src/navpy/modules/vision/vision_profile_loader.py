@@ -30,8 +30,8 @@ def load_profiles() -> tuple[dict, str, Path]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, Mapping):
         raise ValueError("Vision profiles root must be a JSON object")
-    if "target_classes" in data:
-        raise ValueError(f"{path}: retired profile field target_classes; use detector_class_dimensions")
+    if "poi_classes" in data:
+        raise ValueError(f"{path}: retired profile field poi_classes; use detector_class_dimensions")
     profiles = _resolve_profile_definitions(data.get("profiles", {}))
     for name, profile in profiles.items():
         detector = profile.get("detector")
@@ -40,8 +40,8 @@ def load_profiles() -> tuple[dict, str, Path]:
         if not isinstance(detector, Mapping):
             raise ValueError(f"{path}: profile {name!r} detector must be a mapping")
         validate_detector_settings_keys(detector)
-        if "target_presets" in detector:
-            raise ValueError(f"{path}: profile {name!r} has retired profile field target_presets; use dock_presets")
+        if "poi_presets" in detector:
+            raise ValueError(f"{path}: profile {name!r} has retired profile field poi_presets; use dock_presets")
         presets = detector.get("dock_presets")
         if presets is None:
             continue

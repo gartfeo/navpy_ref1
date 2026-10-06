@@ -35,21 +35,21 @@ class NetworkSerial(NetworkAbc, ISerialListener):
     def broadcast_data(self, data):
         self.serial_com.send_data(data)
 
-    def _send_image_header(self, target_id: int, total_size: int, num_chunks: int) -> None:
+    def _send_image_header(self, poi_id: int, total_size: int, num_chunks: int) -> None:
         """Send image header as JSON message."""
         header = {
             'type': 'img_header',
-            'tid': target_id,
+            'tid': poi_id,
             'size': total_size,
             'chunks': num_chunks,
         }
         self.serial_com.send_data(json.dumps(header).encode('utf-8'))
 
-    def _send_image_chunk(self, target_id: int, sequence: int, data: bytes) -> None:
+    def _send_image_chunk(self, poi_id: int, sequence: int, data: bytes) -> None:
         """Send image chunk as JSON message with base64 encoded data."""
         chunk = {
             'type': 'img_chunk',
-            'tid': target_id,
+            'tid': poi_id,
             'seq': sequence,
             'data': base64.b64encode(data).decode('utf-8'),
         }

@@ -25,18 +25,18 @@ from scripts import eval_direct_pixel_pn_three_uav as three
 # resolve: pn imports it top-level (scripts/ is on sys.path), and importing
 # it as scripts.eval_sim_cpa_stage here would patch a second, unused copy.
 stage = importlib.import_module(pn.SimCpaStage.__module__)
-from scripts.eval_navigation_models import TargetLocation
+from scripts.eval_navigation_models import PoiLocation
 from scripts.pixel_pn_case_manifest import (
     MANIFEST_NAME as CASE_MANIFEST,
     case_definition,
     definition_sha256,
 )
-from scripts.pixel_pn_terminal_speed import TerminalSpeedPlan
+from scripts.pixel_pn_final_approach_speed import FinalApproachSpeedPlan
 
 from pymavlink import mavutil
 
 
-TARGET = TargetLocation(
+POI = PoiLocation(
     lat_deg=43.0, lon_deg=34.0, rel_alt_m=60.0, abs_alt_m=500.0
 )
 
@@ -59,8 +59,8 @@ def test_three_uav_parser_is_pinned_to_the_estimate_policy() -> None:
 
 
 class _FakeTruthRecorder:
-    def __init__(self, target: TargetLocation, home_abs_alt_m: float) -> None:
-        self.target = target
+    def __init__(self, poi: PoiLocation, home_abs_alt_m: float) -> None:
+        self.poi = poi
         self.home_abs_alt_m = home_abs_alt_m
         self.finalized = False
         self.track_path: Path | None = None
@@ -110,14 +110,14 @@ def _stub_run_case(monkeypatch, tmp_path: Path) -> dict[str, object]:
         pn, "resolve_home_abs_alt_m", lambda m, timeout_s: 440.0
     )
     monkeypatch.setattr(
-        pn, "resolve_target_expectation",
-        lambda *a, **k: SimpleNamespace(location=TARGET, mission_seq=3),
+        pn, "resolve_poi_expectation",
+        lambda *a, **k: SimpleNamespace(location=POI, mission_seq=3),
     )
     monkeypatch.setattr(pn, "sim_parameters", lambda args: [])
     monkeypatch.setattr(
         pn, "_source_identity", lambda: {"sha256": "0" * 64, "files": 1}
     )
-    monkeypatch.setattr(pn, "terminal_speed_plan", lambda *a, **k: None)
+    monkeypatch.setattr(pn, "final_approach_speed_plan", lambda *a, **k: None)
     monkeypatch.setattr(pn, "write_case_manifest", lambda *a, **k: None)
     monkeypatch.setattr(
         pn, "_launch_child", lambda *a, **k: SimpleNamespace(poll=lambda: 0)
@@ -125,8 +125,8 @@ def _stub_run_case(monkeypatch, tmp_path: Path) -> dict[str, object]:
     monkeypatch.setattr(pn, "_wait_ready", lambda *a, **k: None)
     monkeypatch.setattr(pn, "_start_mission", lambda m: None)
 
-    def _recorder(target, home_abs_alt_m):
-        recorder = _FakeTruthRecorder(target, home_abs_alt_m)
+    def _recorder(poi, home_abs_alt_m):
+        recorder = _FakeTruthRecorder(poi, home_abs_alt_m)
         calls["recorders"].append(recorder)
         return recorder
 
@@ -166,7 +166,7 @@ def test_run_case_wires_truth_from_request_to_verdict(
     ]
     assert len(calls["recorders"]) == 1
     recorder = calls["recorders"][0]
-    assert recorder.target == TARGET
+    assert recorder.poi == POI
     assert recorder.home_abs_alt_m == 440.0
     assert calls["fly_kwargs"]["truth"] is recorder
     assert recorder.finalized
@@ -251,7 +251,7 @@ def test_run_case_post_flight_failure_keeps_child_and_coordinate_evidence(
     closest = ClosestApproach(0.3, 0.25, 0.15)
 
     class _FakeScorer:
-        def __init__(self, target) -> None:
+        def __init__(self, poi) -> None:
             self.result = closest
             self.sample_count = 42
 
@@ -343,7 +343,7 @@ def test_run_case_names_only_a_traced_case(
     _stub_run_case(monkeypatch, tmp_path)
     monkeypatch.setattr(pn, "write_case_manifest", real_writer)
     monkeypatch.setattr(
-        pn, "terminal_speed_plan", lambda *a, **k: TerminalSpeedPlan()
+        pn, "final_approach_speed_plan", lambda *a, **k: FinalApproachSpeedPlan()
     )
     monkeypatch.setattr(determinism_trace, "ENABLED", traced)
     args = pn._parser(scoring_policy=True).parse_args([])
@@ -417,7 +417,7 @@ def _event_recorder(monkeypatch, calls: dict[str, object]) -> list[str]:
         stage, "configure_sim_cpa",
         lambda master, **k: events.append("configure") or {
             "mode": k["mode"], "status": "configured",
-            "expected_target": None, "requested_params": [],
+            "expected_poi": None, "requested_params": [],
             "acknowledged_params": [], "failed_param": None, "error": None,
         },
     )
@@ -563,7 +563,7 @@ def test_run_case_sim_cpa_off_mode_skips_binding_and_scoring(
         stage, "configure_sim_cpa",
         lambda master, **k: events.append("configure") or {
             "mode": k["mode"], "status": "disabled_by_operator",
-            "expected_target": None, "requested_params": [],
+            "expected_poi": None, "requested_params": [],
             "acknowledged_params": [], "failed_param": None, "error": None,
         },
     )
@@ -612,7 +612,7 @@ def _fly_setup(tmp_path: Path, monkeypatch) -> tuple[list[dict], Path]:
         })
 
     monkeypatch.setattr(pn, "drain_position_messages", _drain)
-    (tmp_path / "engaged.marker").write_text("", encoding="utf-8")
+    (tmp_path / "scoring_active.marker").write_text("", encoding="utf-8")
     (tmp_path / "result.json").write_text(
         json.dumps({"snap_3d_m": 0.4}), encoding="utf-8"
     )

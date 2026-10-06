@@ -70,7 +70,7 @@ def test_default_route_is_accepted() -> None:
 
 
 def test_loader_orders_every_navigated_point_northward() -> None:
-    """Loiter, gate and target must increase in latitude or the route reverses."""
+    """Loiter, gate and POI must increase in latitude or the route reverses."""
     loader = uploader.build_loader((43.0, 34.0), 1000.0, 2700.0, 400.0, 400.0, 109)
 
     latitudes = [loader.wp(index).x for index in range(2, loader.count())]
@@ -106,13 +106,13 @@ def test_loader_emits_the_loiter_between_takeoff_and_the_gate() -> None:
 def _resolved(ordinal: int):
     """Resolve an ordinal through the evaluator's own selector.
 
-    Deliberately uses resolve_target_expectation rather than re-counting
+    Deliberately uses resolve_poi_expectation rather than re-counting
     NAV_WAYPOINTs here: a local reimplementation would only prove this test
-    agrees with itself, which is exactly how the gate/target mix-up survived.
+    agrees with itself, which is exactly how the gate/POI mix-up survived.
     """
     from scripts.eval_navigation_mission import (
         mission_item_from_message,
-        resolve_target_expectation,
+        resolve_poi_expectation,
     )
 
     loader = uploader.build_loader(
@@ -141,22 +141,22 @@ def _resolved(ordinal: int):
         mission_item_from_message(_AsVehicleReportsIt(loader.wp(index)))
         for index in range(loader.count())
     ]
-    return resolve_target_expectation(
-        mission, target_wp=ordinal, target_rel_alt_m=60.0, home_abs_alt_m=0.0
+    return resolve_poi_expectation(
+        mission, poi_wp=ordinal, poi_rel_alt_m=60.0, home_abs_alt_m=0.0
     )
 
 
-def test_evaluator_defaults_select_the_target_not_the_gate() -> None:
+def test_evaluator_defaults_select_the_poi_not_the_gate() -> None:
     """Ordinal 1 is the handover gate; scoring it would discard the scored leg."""
     from scripts import eval_direct_pixel_pn as evaluator
 
     args = evaluator._parser().parse_args([])
-    target = _resolved(args.target_wp)
+    poi = _resolved(args.poi_wp)
     run_navigation_episode = _resolved(args.scoring_start_wp)
 
-    assert target.mission_seq == 4, "target must be the final NAV_WAYPOINT"
+    assert poi.mission_seq == 4, "POI must be the final NAV_WAYPOINT"
     assert run_navigation_episode.mission_seq == 4
-    north_m = (target.location.lat_deg - 43.0) * uploader.METRES_PER_DEG_LAT
+    north_m = (poi.location.lat_deg - 43.0) * uploader.METRES_PER_DEG_LAT
     assert north_m == pytest.approx(uploader.DEFAULT_WAYPOINT_OFFSET_M, abs=1.0)
 
 
@@ -168,12 +168,12 @@ def test_gate_is_ordinal_one_and_loiter_is_not_counted() -> None:
     assert north_m == pytest.approx(uploader.DEFAULT_GATE_OFFSET_M, abs=1.0)
 
 
-def test_scoring_active_leg_is_gate_to_target_and_fixed() -> None:
+def test_scoring_active_leg_is_gate_to_poi_and_fixed() -> None:
     leg_m = uploader.DEFAULT_WAYPOINT_OFFSET_M - uploader.DEFAULT_GATE_OFFSET_M
 
     assert leg_m == pytest.approx(900.0)
 
 
-def test_target_south_of_the_gate_is_refused() -> None:
+def test_poi_south_of_the_gate_is_refused() -> None:
     with pytest.raises(ValueError, match="must be north of the gate"):
         uploader.check_offsets(1000.0, 1500.0)

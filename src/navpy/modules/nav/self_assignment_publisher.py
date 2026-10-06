@@ -1,4 +1,4 @@
-"""Network publication of this UAV's selected target."""
+"""Network publication of this UAV's selected POI."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.types import class_to_task_type
 from navpy.modules.nav.confirmation_ports import ConfirmationMessageBroadcaster
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_identity import get_target_task_id
+from navpy.modules.vision.poi_identity import get_poi_task_id
 
 
 class SelfAssignmentPublisher:
-    """Publish this UAV's selected target independently of review policy."""
+    """Publish this UAV's selected POI independently of review policy."""
 
     def __init__(
         self,
@@ -30,22 +30,22 @@ class SelfAssignmentPublisher:
         self._network = network
         self._logger = logger
 
-    def publish(self, target: DetectedObject) -> None:
-        target_id = get_target_task_id(target)
+    def publish(self, poi: DetectedObject) -> None:
+        poi_id = get_poi_task_id(poi)
         network = self._network()
-        if target_id is None or network is None:
+        if poi_id is None or network is None:
             return
-        source = target.geo.projected_target_location
-        if self._is_simulation and target.geo.truth_target_location is not None:
-            source = target.geo.truth_target_location
+        source = poi.geo.projected_poi_location
+        if self._is_simulation and poi.geo.truth_poi_location is not None:
+            source = poi.geo.truth_poi_location
         location = (
             LocationMsgData(source.lat, source.lng, source.alt)
             if source is not None
             else LocationMsgData(0.0, 0.0, 0.0)
         )
-        class_id = target.classification.class_id
+        class_id = poi.classification.class_id
         task = TaskAssignMsgData(
-            task_id=target_id,
+            task_id=poi_id,
             task_type=class_to_task_type(class_id),
             location=location,
             class_id=class_id,
@@ -59,7 +59,7 @@ class SelfAssignmentPublisher:
             network.broadcast(message)
         except OSError as exc:
             self._logger.error(
-                f"Failed to broadcast self-assignment for T{target_id}: {exc}",
+                f"Failed to broadcast self-assignment for P{poi_id}: {exc}",
                 exc,
             )
 

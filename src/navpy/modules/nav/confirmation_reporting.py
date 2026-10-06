@@ -39,29 +39,29 @@ class ConfirmBlockedReporter:
         self._logger = logger
         self._clock_s = clock_s
         self.reason: Optional[str] = None
-        self.target_id: Optional[int] = None
+        self.poi_id: Optional[int] = None
         self.last_emit_s = 0.0
 
     def emit(
         self,
-        target_id: int,
+        poi_id: int,
         reason: str,
         detail: str = "",
     ) -> None:
-        target_changed = target_id != self.target_id
+        poi_changed = poi_id != self.poi_id
         reason_changed = reason != self.reason
-        self.target_id = target_id
+        self.poi_id = poi_id
         self.reason = reason
         now_s = self._clock_s()
         if (
-            not target_changed
+            not poi_changed
             and not reason_changed
             and now_s - self.last_emit_s < 1.0
         ):
             return
         self.last_emit_s = now_s
         self._logger.info(
-            f"CONFIRM_BLOCKED:{reason}|{detail}|{target_id}",
+            f"CONFIRM_BLOCKED:{reason}|{detail}|{poi_id}",
             key="nav",
             dest=LogStatusDest.DRONE,
         )
@@ -70,7 +70,7 @@ class ConfirmBlockedReporter:
         if self.reason is None:
             return
         self.reason = None
-        self.target_id = None
+        self.poi_id = None
         self.last_emit_s = 0.0
         self._logger.info(
             "CONFIRM_BLOCKED:clear",

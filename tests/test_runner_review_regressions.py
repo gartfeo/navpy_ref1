@@ -9,7 +9,7 @@ import pytest
 
 from navpy.exception_groups import BaseExceptionGroup
 from scripts.python import run_gimbal_tracker_runtime as runner_runtime
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 class _SilentLog:
@@ -32,16 +32,16 @@ class _NavigationProbe:
 
     def update(
         self,
-        target: object,
+        poi: object,
         *,
         now: float,
         principal_point: tuple[float, float],
     ) -> None:
-        self.updates.append((target, now, principal_point))
+        self.updates.append((poi, now, principal_point))
 
 
-def test_feed_navigation_accepts_real_grouped_target_pixel_calibration() -> None:
-    target = make_detected_target(
+def test_feed_navigation_accepts_real_grouped_poi_pixel_calibration() -> None:
+    poi = make_detected_poi(
         obj_id=7,
         task_id=8,
         timestamp=12.5,
@@ -50,7 +50,7 @@ def test_feed_navigation_accepts_real_grouped_target_pixel_calibration() -> None
     )
     detector = SimpleNamespace(
         get_detect_data=lambda _request: SimpleNamespace(
-            detected_targets=[target]
+            detected_pois=[poi]
         ),
         get_raw_frame=lambda: np.zeros((480, 640, 3), dtype=np.uint8),
     )
@@ -64,7 +64,7 @@ def test_feed_navigation_accepts_real_grouped_target_pixel_calibration() -> None
 
     runner_runtime.feed_navigation(state, detector, navigation, mount)
 
-    assert navigation.updates == [(target, 12.5, (320.0, 240.0))]
+    assert navigation.updates == [(poi, 12.5, (320.0, 240.0))]
 
 
 def _runner_args() -> SimpleNamespace:

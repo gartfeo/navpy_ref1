@@ -45,17 +45,17 @@ class GeoRefCalc:
     def calc_uv(self, p_ned, k, g_data: GimbalData, uas_att: Attitude):
         return self._camera_projector.calc_uv(p_ned, k, g_data, uas_att)
 
-    def calc_yaw_pitch_proj_att(self, target_att, uas_att: Attitude):
-        return self._los_angles.calc_yaw_pitch_proj_att(target_att, uas_att)
+    def calc_yaw_pitch_proj_att(self, poi_att, uas_att: Attitude):
+        return self._los_angles.calc_yaw_pitch_proj_att(poi_att, uas_att)
 
-    def calc_yaw_pitch_proj(self, target_ned, uas_att: Attitude):
-        return self._los_angles.calc_yaw_pitch_proj(target_ned, uas_att)
+    def calc_yaw_pitch_proj(self, poi_ned, uas_att: Attitude):
+        return self._los_angles.calc_yaw_pitch_proj(poi_ned, uas_att)
 
-    def calc_pitch_los(self, target_ned, uas_att: Attitude):
-        return self._los_angles.calc_pitch_los(target_ned, uas_att)
+    def calc_pitch_los(self, poi_ned, uas_att: Attitude):
+        return self._los_angles.calc_pitch_los(poi_ned, uas_att)
 
-    def calc_yaw_pitch(self, target_ned, uas_att: Attitude):
-        return self._los_angles.calc_yaw_pitch(target_ned, uas_att)
+    def calc_yaw_pitch(self, poi_ned, uas_att: Attitude):
+        return self._los_angles.calc_yaw_pitch(poi_ned, uas_att)
 
     def calc_uas_ned(self, att: Attitude):
         return self._los_angles.calc_uas_ned(att)
@@ -63,36 +63,36 @@ class GeoRefCalc:
     def calc_yaw_pitch_loc(
         self,
         current_loc: Location,
-        target_loc: Location,
+        poi_loc: Location,
         uas_att: Attitude,
     ):
         return self._los_angles.calc_yaw_pitch_loc(
             current_loc,
-            target_loc,
+            poi_loc,
             uas_att,
         )
 
     def calc_gimbal_lock_att_loc(
         self,
         current_loc: Location,
-        target_loc: Location,
+        poi_loc: Location,
         uas_att: Attitude,
         g_data: GimbalData,
     ) -> Attitude:
         return self._gimbal_lock.calc_att_loc(
             current_loc,
-            target_loc,
+            poi_loc,
             uas_att,
             g_data,
         )
 
     def calc_gimbal_lock_att_ned(
         self,
-        target_ned,
+        poi_ned,
         uas_att: Attitude,
         g_data: GimbalData,
     ) -> Attitude:
-        return self._gimbal_lock.calc_att_ned(target_ned, uas_att, g_data)
+        return self._gimbal_lock.calc_att_ned(poi_ned, uas_att, g_data)
 
     def calc_gimbal_lock_readback(
         self,
@@ -105,10 +105,10 @@ class GeoRefCalc:
     @staticmethod
     def calculate_distance(
         current_loc: Location | None,
-        target_loc: Location | None,
+        poi_loc: Location | None,
     ):
-        return calculate_distance(current_loc, target_loc)
+        return calculate_distance(current_loc, poi_loc)
 
     @staticmethod
-    def calculate_bearing(current_loc: Location, target_loc: Location):
-        return calculate_bearing(current_loc, target_loc)
+    def calculate_bearing(current_loc: Location, poi_loc: Location):
+        return calculate_bearing(current_loc, poi_loc)

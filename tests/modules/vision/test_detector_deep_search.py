@@ -83,19 +83,19 @@ def _track(obj_id, missed, timestamp=100.0):
 
 def _deep_search_channel(now_s=100.0):
     clock = {"now": now_s}
-    target_lock = SimpleNamespace(locked_id=7)
+    poi_lock = SimpleNamespace(locked_id=7)
     overlays = OverlayStore()
     generation = InferenceGeneration(DetectionBatchInbox(), DeepSearchInbox())
     channel = DeepSearchChannel(
         True,
         SimpleNamespace(stale_seconds=0.5),
-        target_lock,
+        poi_lock,
         overlays,
         FreshnessPolicy(1.0 / 60.0),
         generation,
         LoopTiming(monotonic=lambda: clock["now"]),
     )
-    return channel, target_lock, overlays, clock, generation
+    return channel, poi_lock, overlays, clock, generation
 
 
 def _tracking_processor(
@@ -108,7 +108,7 @@ def _tracking_processor(
     metrics,
     mutation_gate,
     generation,
-    use_target_lock,
+    use_poi_lock,
 ):
     return TrackingBatchProcessor(
         mutation_gate,
@@ -118,7 +118,7 @@ def _tracking_processor(
             deep_search,
             metrics,
             generation,
-            use_target_lock,
+            use_poi_lock,
         ),
         TrackingResultPublisher(mapper, publications, navigation),
     )
@@ -126,8 +126,8 @@ def _tracking_processor(
 
 class TestDetectorDeepSearch(unittest.TestCase):
     def test_deep_search_does_not_run_without_selected_lock(self):
-        channel, target_lock, _, _, _ = _deep_search_channel()
-        target_lock.locked_id = None
+        channel, poi_lock, _, _, _ = _deep_search_channel()
+        poi_lock.locked_id = None
 
         self.assertFalse(channel.should_run())
 
@@ -245,7 +245,7 @@ class TestDetectionBatchSequencing(unittest.TestCase):
         identity = Mock()
         identity.update.return_value = [track]
         identity.stable_of.return_value = 7
-        target_lock = SimpleNamespace(
+        poi_lock = SimpleNamespace(
             select=Mock(return_value=track),
             locked_id=7,
         )
@@ -262,7 +262,7 @@ class TestDetectionBatchSequencing(unittest.TestCase):
             DeepSearchInbox(),
         )
         processor = _tracking_processor(
-            TrackingModels(tracker, identity, target_lock),
+            TrackingModels(tracker, identity, poi_lock),
             TrackingPublications(results, overlays),
             mapper,
             recovery,
@@ -384,9 +384,9 @@ class TestDetectionBatchSequencing(unittest.TestCase):
         tracker.reset.side_effect = reset_called.set
         identity = Mock()
         identity.update.return_value = []
-        target_lock = Mock()
-        target_lock.select.return_value = None
-        target_lock.locked_id = None
+        poi_lock = Mock()
+        poi_lock.select.return_value = None
+        poi_lock.locked_id = None
         results = DetectionResultStore()
         overlays = OverlayStore()
         mapper = Mock()
@@ -399,7 +399,7 @@ class TestDetectionBatchSequencing(unittest.TestCase):
         deep_inbox = DeepSearchInbox()
         generation = InferenceGeneration(detection_inbox, deep_inbox)
         processor = _tracking_processor(
-            TrackingModels(tracker, identity, target_lock),
+            TrackingModels(tracker, identity, poi_lock),
             TrackingPublications(results, overlays),
             mapper,
             recovery,
@@ -418,7 +418,7 @@ class TestDetectionBatchSequencing(unittest.TestCase):
             ConfirmationFrameStore(),
             tracker,
             identity,
-            target_lock,
+            poi_lock,
             Mock(),
             gate,
         )
@@ -464,7 +464,7 @@ class TestDetectionBatchSequencing(unittest.TestCase):
 
 class TestInferenceGenerationBarrier(unittest.TestCase):
     @staticmethod
-    def _reset(generation, gate, tracker=None, target_lock=None):
+    def _reset(generation, gate, tracker=None, poi_lock=None):
         return DetectorResetController(
             DetectorRunState(),
             DetectionResultStore(),
@@ -472,7 +472,7 @@ class TestInferenceGenerationBarrier(unittest.TestCase):
             ConfirmationFrameStore(),
             tracker or Mock(),
             Mock(),
-            target_lock or Mock(),
+            poi_lock or Mock(),
             Mock(),
             gate,
         )
@@ -543,10 +543,10 @@ class TestInferenceGenerationBarrier(unittest.TestCase):
         batch = inbox.take_next()
         gate = PipelineMutationGate()
         tracker = Mock()
-        target_lock = Mock()
-        target_lock.locked_id = None
+        poi_lock = Mock()
+        poi_lock.locked_id = None
         processor = _tracking_processor(
-            TrackingModels(tracker, Mock(), target_lock),
+            TrackingModels(tracker, Mock(), poi_lock),
             TrackingPublications(DetectionResultStore(), OverlayStore()),
             Mock(),
             Mock(),
@@ -558,7 +558,7 @@ class TestInferenceGenerationBarrier(unittest.TestCase):
             True,
         )
 
-        self._reset(generation, gate, tracker, target_lock).refresh()
+        self._reset(generation, gate, tracker, poi_lock).refresh()
         processor.process(batch, now_s=1.0)
 
         tracker.update.assert_not_called()
@@ -585,8 +585,8 @@ class TestInferenceGenerationBarrier(unittest.TestCase):
             return [Detection(4, 5, 2, 3, 0.8, 1)]
 
         detector.detect.side_effect = detect
-        target_lock = Mock()
-        target_lock.locked_id = 7
+        poi_lock = Mock()
+        poi_lock.locked_id = 7
         generation = InferenceGeneration(
             DetectionBatchInbox(),
             DeepSearchInbox(),
@@ -595,7 +595,7 @@ class TestInferenceGenerationBarrier(unittest.TestCase):
         channel = DeepSearchChannel(
             True,
             config,
-            target_lock,
+            poi_lock,
             OverlayStore(),
             FreshnessPolicy(1.0 / 60.0),
             generation,
@@ -620,7 +620,7 @@ class TestInferenceGenerationBarrier(unittest.TestCase):
         self._reset(
             generation,
             PipelineMutationGate(),
-            target_lock=target_lock,
+            poi_lock=poi_lock,
         ).refresh()
         release.set()
         thread.join(timeout=1.0)
@@ -653,10 +653,10 @@ class TestRealDetectorFleetCapabilities(unittest.TestCase):
         self.assertEqual(detector.source_name, "gimbal_0")
         self.assertFalse(detector.is_simulation)
         self.assertFalse(detector.has_source_driven_detection_events)
-        self.assertFalse(detector.target_uses_source_driven_events(Mock()))
+        self.assertFalse(detector.poi_uses_source_driven_events(Mock()))
         self.assertEqual(detector.drain_detection_events(Mock()), [])
         self.assertEqual(detector.wall_period_for_scheduler_period(0.125), 0.125)
-        self.assertIsNone(detector.set_sim_target(3, Mock(), location_type="vehicle"))
+        self.assertIsNone(detector.set_sim_poi(3, Mock(), location_type="vehicle"))
 
 
 class TestDetectorLifecycle(unittest.TestCase):
@@ -1108,7 +1108,7 @@ class TestDetectorLifecycle(unittest.TestCase):
             self.assertIs(raised.exception, failure)
         lifecycle.stop()
 
-    def test_stop_retries_provider_before_terminal_cleanup_failures(self):
+    def test_stop_retries_provider_before_final_approach_cleanup_failures(self):
         provider_error = RuntimeError("provider stop failed")
         resource_error = RuntimeError("resource close failed")
         diagnostics_error = RuntimeError("diagnostics close failed")

@@ -69,7 +69,7 @@ def _collect(
                 break
             sys_id = int(message.get_srcSystem())
             directory = directories.get(sys_id)
-            if directory is not None and (directory / "engaged.marker").exists():
+            if directory is not None and (directory / "scoring_active.marker").exists():
                 scorers[sys_id].add(position_sample_from_message(message, time.time()))
                 # Same message, velocity fields the scorer's PositionSample drops.
                 tracks[sys_id].add(message)
@@ -103,13 +103,13 @@ def _verdict(
     source = child_result.get("source")
     errors: list[str] = []
     if child_result.get("passed") is not True:
-        errors.append(f"target pass false: {child_result.get('error', '')}")
+        errors.append(f"POI pass false: {child_result.get('error', '')}")
     if not isinstance(source, dict):
         errors.append("direct pixel source metrics missing")
     else:
         if source.get("projection_failures") != 0:
             errors.append(
-                f"target left renderable sight: {source.get('projection_failures')} failures"
+                f"POI left renderable sight: {source.get('projection_failures')} failures"
             )
         if not isinstance(source.get("delivered_frames"), int) or source["delivered_frames"] < 10:
             errors.append(f"insufficient direct pixel deliveries: {source.get('delivered_frames')!r}")
@@ -158,7 +158,7 @@ def _verdict(
             f"{one.MAX_MIDCOURSE_PITCH_STEP_DEG:.3f}deg"
         )
     if stability is not None:
-        # label, stability key, limit -- one row per terminal alignment gate.
+        # label, stability key, limit -- one row per final-approach alignment gate.
         alignment_limits = (
             ("body bearing", "alignment_bearing_mean_abs_deg",
              one.MAX_ALIGNMENT_MEAN_ABS_BEARING_DEG),
@@ -171,7 +171,7 @@ def _verdict(
             measured = stability[key]
             if measured > limit:
                 errors.append(
-                    f"terminal {label} mean abs {measured:.3f}deg exceeds "
+                    f"final-approach {label} mean abs {measured:.3f}deg exceeds "
                     f"{limit:.3f}deg"
                 )
     return {
@@ -203,11 +203,11 @@ def run_case(
     repetition: int,
     args: argparse.Namespace,
 ) -> dict[str, object]:
-    if args.target_alt < one.MIN_SAFE_TARGET_REL_ALT_M:
+    if args.poi_alt < one.MIN_SAFE_POI_REL_ALT_M:
         raise ValueError(
-            f"target altitude must be at least {one.MIN_SAFE_TARGET_REL_ALT_M:g}m"
+            f"POI altitude must be at least {one.MIN_SAFE_POI_REL_ALT_M:g}m"
         )
-    if (args.loiter_offset, args.gate_offset, args.target_offset) != (
+    if (args.loiter_offset, args.gate_offset, args.poi_offset) != (
             one.DEFAULT_LOITER_OFFSET_M, one.DEFAULT_GATE_OFFSET_M,
             one.DEFAULT_WAYPOINT_OFFSET_M):
         raise ValueError("three-UAV runs cannot apply geometry flags")
@@ -237,20 +237,20 @@ def run_case(
             home=one._home_lat_lon(args.home),
             loiter_offset=args.loiter_offset,
             gate_offset=args.gate_offset,
-            waypoint_offset=args.target_offset,
+            waypoint_offset=args.poi_offset,
             alt_m=args.mission_alt,
             case_dir=case_dir,
         )
         master = wait_for_heartbeat(ip.monitor_device(chat), 120.0)
         if master is None:
             raise RuntimeError("no evaluator heartbeat")
-        targets, scoring_start_sequences = prepare_vehicles(
+        pois, scoring_start_sequences = prepare_vehicles(
             master,
             sys_ids,
             select=_select,
-            target_wp=args.target_wp,
+            poi_wp=args.poi_wp,
             scoring_start_wp=args.scoring_start_wp,
-            target_rel_alt_m=args.target_alt,
+            poi_rel_alt_m=args.poi_alt,
             parameters=sim_parameters(args),
         )
         directories = {sys_id: case_dir / f"uav-{sys_id}" for sys_id in sys_ids}
@@ -262,7 +262,7 @@ def run_case(
                 directories[sys_id],
                 device=ip.companion_device(sys_id),
                 sysid=sys_id,
-                target=targets[sys_id],
+                poi=pois[sys_id],
                 scoring_start_seq=scoring_start_sequences[sys_id],
                 timeout_s=args.timeout,
             )
@@ -271,8 +271,8 @@ def run_case(
         for sys_id, child in children.items():
             one._wait_ready(directories[sys_id] / "child.out.log", child, 90.0)
         _start_missions(master, sys_ids)
-        scorers = {sys_id: CoordinateScorer(targets[sys_id]) for sys_id in sys_ids}
-        tracks = {sys_id: GroundTrackRecorder(targets[sys_id]) for sys_id in sys_ids}
+        scorers = {sys_id: CoordinateScorer(pois[sys_id]) for sys_id in sys_ids}
+        tracks = {sys_id: GroundTrackRecorder(pois[sys_id]) for sys_id in sys_ids}
         child_results = _collect(
             master, children, directories, scorers, tracks, args.timeout
         )

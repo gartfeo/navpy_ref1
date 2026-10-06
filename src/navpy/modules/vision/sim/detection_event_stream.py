@@ -138,7 +138,7 @@ class DetectionEventStream:
         self._discontinuity_pending = False
         if discontinuity != publication.source_discontinuity:
             publication = DetectionPublication(
-                publication.detected_targets,
+                publication.detected_pois,
                 publication.source_timestamp_s,
                 publication.source_receipt_timestamp_s,
                 publication.source_name,

@@ -89,7 +89,7 @@ export default function VirtualParamGrid({
     return () => ro.disconnect();
   }, []);
 
-  const onScroll = (e) => setScrollTop(e.currentTarget.scrollTop);
+  const onScroll = (e) => setScrollTop(e.currentPoi.scrollTop);
 
   const range = useMemo(
     () => computeVisibleRange(scrollTop, viewportHeight, ROW_HEIGHT, rowNames.length, 6),

@@ -29,28 +29,28 @@ class FlightEstimateTelemetry(Protocol):
 
 class FlyEstimator:
     """
-    Estimates the time required for a vehicle to fly to a target location,
+    Estimates the time required for a vehicle to fly to a POI location,
     considering various factors like battery level, wind conditions, and vehicle specifications.
     """
 
     @staticmethod
     def time_to_fly(
             vehicle: FlightEstimateTelemetry,
-            target_location: Location
+            poi_location: Location
     ) -> Optional[float]:
         """
-        Calculates the estimated time in minutes for the vehicle to fly to the target location.
+        Calculates the estimated time in minutes for the vehicle to fly to the POI location.
 
         :param vehicle: The vehicle instance implementing IDrone interface.
-        :param target_location: The target location to which the vehicle needs to fly.
+        :param poi_location: The POI location to which the vehicle needs to fly.
         :return: Estimated time in minutes, or None if the vehicle cannot make the flight safely.
         """
         vehicle_location = vehicle.location(False)
-        if not vehicle_location or not target_location:
+        if not vehicle_location or not poi_location:
             return -1
 
-        # Calculate the straight-line distance to the target in meters
-        distance_m = GeoRefCalc.calculate_distance(vehicle_location, target_location)
+        # Calculate the straight-line distance to the POI in meters
+        distance_m = GeoRefCalc.calculate_distance(vehicle_location, poi_location)
 
         # Get the vehicle's airspeed in m/s (without wind)
         airspeed_m_s = vehicle.ground_speed or 0.0
@@ -61,21 +61,21 @@ class FlyEstimator:
         wind_speed_m_s = vehicle.wind.speed or 0.0  # Wind speed in m/s
         wind_direction_deg = vehicle.wind.direction or 0.0  # Wind direction in degrees FROM which the wind is coming
 
-        # Calculate the heading from the vehicle to the target
-        heading_to_target_deg = GeoRefCalc.calculate_bearing(vehicle_location, target_location)
+        # Calculate the heading from the vehicle to the POI
+        heading_to_poi_deg = GeoRefCalc.calculate_bearing(vehicle_location, poi_location)
 
-        # Adjust airspeed for wind to get ground speed towards the target
+        # Adjust airspeed for wind to get ground speed towards the POI
         adjusted_ground_speed_m_s = FlyEstimator.calculate_ground_speed(
             airspeed_m_s,
-            heading_to_target_deg,
+            heading_to_poi_deg,
             wind_speed_m_s,
             wind_direction_deg
         )
         if adjusted_ground_speed_m_s <= 0:
-            return -1  # Vehicle cannot make progress towards the target
+            return -1  # Vehicle cannot make progress towards the POI
 
-        # Estimate the time to fly to the target (in seconds)
-        target_time_to_fly_sec = distance_m / adjusted_ground_speed_m_s
+        # Estimate the time to fly to the POI (in seconds)
+        poi_time_to_fly_sec = distance_m / adjusted_ground_speed_m_s
 
         # Get the vehicle's battery level (%)
         battery_level = vehicle.battery_level
@@ -95,12 +95,12 @@ class FlyEstimator:
         # Include safety margin
         remaining_time_with_margin_sec = remaining_time_to_fly_sec * (1 - DRONE_SAFETY_MARGIN)
 
-        # Check if the vehicle can reach the target location safely
-        if target_time_to_fly_sec > remaining_time_with_margin_sec:
-            return -1  # Not enough battery to reach the target safely
+        # Check if the vehicle can reach the POI location safely
+        if poi_time_to_fly_sec > remaining_time_with_margin_sec:
+            return -1  # Not enough battery to reach the POI safely
 
         # Return the estimated time in minutes, rounded to two decimal places
-        return round(target_time_to_fly_sec / 60, 2)
+        return round(poi_time_to_fly_sec / 60, 2)
 
     @staticmethod
     def calculate_ground_speed(
@@ -110,13 +110,13 @@ class FlyEstimator:
             wind_direction_deg: float
     ) -> float:
         """
-        Calculates the ground speed of the vehicle towards the target, considering wind.
+        Calculates the ground speed of the vehicle towards the POI, considering wind.
 
         :param airspeed_m_s: Vehicle's airspeed in m/s.
-        :param heading_deg: Heading from the vehicle to the target in degrees.
+        :param heading_deg: Heading from the vehicle to the POI in degrees.
         :param wind_speed_m_s: Wind speed in m/s.
         :param wind_direction_deg: Wind direction in degrees FROM which the wind is coming.
-        :return: Ground speed towards the target in m/s.
+        :return: Ground speed towards the POI in m/s.
         """
         # Convert degrees to radians
         heading_rad = math.radians(heading_deg)
@@ -137,10 +137,10 @@ class FlyEstimator:
         ground_speed_x = airspeed_x + wind_velocity_x
         ground_speed_y = airspeed_y + wind_velocity_y
 
-        # Calculate the ground speed in the direction towards the target
+        # Calculate the ground speed in the direction towards the POI
         # Project ground speed vector onto the heading direction
-        ground_speed_towards_target = (
+        ground_speed_towards_poi = (
                 ground_speed_x * math.sin(heading_rad) + ground_speed_y * math.cos(heading_rad)
         )
 
-        return max(ground_speed_towards_target, 0.0)  # Ground speed cannot be negative
+        return max(ground_speed_towards_poi, 0.0)  # Ground speed cannot be negative

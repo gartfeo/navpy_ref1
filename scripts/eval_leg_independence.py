@@ -1,21 +1,21 @@
 """Vary only the scored leg length, holding the approach geometry constant.
 
-A converging terminal law should return the same miss from a short leg as from
+A converging final-approach law should return the same miss from a short leg as from
 a long one.  If the miss tracks leg length instead, the law is not nulling the
 error -- it is decaying towards it, and the result is whatever the clock
 happened to reach.  That is the claim this measures.
 
 Three things have to be controlled for the answer to mean anything:
 
-1. Glide angle.  Shortening the leg with the target altitude fixed steepens the
+1. Glide angle.  Shortening the leg with the POI altitude fixed steepens the
    required descent (340 m over 600 m is 29.5 deg; over 1300 m it is 14.7 deg),
    so leg length and glide geometry would move together and the result could
-   not be attributed to either.  The target altitude is therefore scaled with
+   not be attributed to either.  The POI altitude is therefore scaled with
    the leg to hold ``atan(drop / leg)`` fixed.
 
 2. Gate placement.  The evaluator's ``--gate-offset`` is metres north of home,
    not the scored leg, and the gate must stay north of the loiter, so a leg is
-   converted here: ``gate_offset = target_offset - leg``.  Passing a leg length
+   converted here: ``gate_offset = poi_offset - leg``.  Passing a leg length
    straight through as a gate offset is rejected by check_offsets.
 
 3. Wind.  The lateral law consumes visual bearing and LOS rate, and is not
@@ -42,16 +42,16 @@ SCRIPTS = WORKTREE / "scripts"
 sys.path[:0] = [str(WORKTREE / "src"), str(WORKTREE), str(SCRIPTS)]
 
 from eval_descent_deferral import deferral  # noqa: E402
-from eval_direct_pixel_pn import MIN_SAFE_TARGET_REL_ALT_M  # noqa: E402
+from eval_direct_pixel_pn import MIN_SAFE_POI_REL_ALT_M  # noqa: E402
 from eval_sim_cpa_block import ab_eligible  # noqa: E402
 from upload_north_line_mission import (  # noqa: E402
     DEFAULT_ALT_M,
     DEFAULT_WAYPOINT_OFFSET_M,
 )
 
-# Holding the glide angle fixed makes the target altitude fall as the leg
+# Holding the glide angle fixed makes the POI altitude fall as the leg
 # grows, so the longest usable leg is set by the mission altitude:
-# target_alt = mission_alt - 0.378 * leg must stay above the evaluator's floor.
+# poi_alt = mission_alt - 0.378 * leg must stay above the evaluator's floor.
 # At the default 400 m mission altitude that caps the leg at 900 m, which is
 # why these legs are shorter rather than spread either side of it.
 DEFAULT_LEGS_M = (500.0, 700.0, 900.0)
@@ -61,8 +61,8 @@ REFERENCE_LEG_M = 900.0
 REFERENCE_DROP_M = DEFAULT_ALT_M - 60.0
 
 
-def target_alt_for(leg_m: float, mission_alt_m: float) -> float:
-    """Target altitude that keeps the required glide angle constant.
+def poi_alt_for(leg_m: float, mission_alt_m: float) -> float:
+    """POI altitude that keeps the required glide angle constant.
 
     Same drop-per-metre as the reference case, so a short leg is not silently
     also a steeper dive.
@@ -75,8 +75,8 @@ def _case(
     leg_m: float,
     args: argparse.Namespace,
 ) -> list[str]:
-    gate_offset = args.target_offset - leg_m
-    target_alt = target_alt_for(leg_m, args.mission_alt)
+    gate_offset = args.poi_offset - leg_m
+    poi_alt = poi_alt_for(leg_m, args.mission_alt)
     return [
         str(python),
         str(SCRIPTS / "eval_direct_pixel_pn.py"),
@@ -86,8 +86,8 @@ def _case(
         "--wind-dir", str(args.wind_dir),
         "--mission-alt", str(args.mission_alt),
         "--gate-offset", str(gate_offset),
-        "--target-offset", str(args.target_offset),
-        "--target-alt", str(target_alt),
+        "--poi-offset", str(args.poi_offset),
+        "--poi-alt", str(poi_alt),
         "--timeout", str(args.timeout),
     ]
 
@@ -113,7 +113,7 @@ def _artifact(stdout: str) -> Path | None:
     return None
 
 
-def _report(root: Path, leg_m: float, target_alt: float) -> dict[str, object]:
+def _report(root: Path, leg_m: float, poi_alt: float) -> dict[str, object]:
     summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
     misses: list[float] = []
     unscored = 0
@@ -145,7 +145,7 @@ def _report(root: Path, leg_m: float, target_alt: float) -> dict[str, object]:
         deferrals.append(measured.worst_deferral)
     return {
         "leg_m": leg_m,
-        "target_alt_m": target_alt,
+        "poi_alt_m": poi_alt,
         "misses_m": misses,
         "unscored_runs": unscored,
         "deferral": deferrals,
@@ -159,12 +159,12 @@ def main() -> int:
     parser.add_argument(
         "--legs",
         default=",".join(f"{leg:g}" for leg in DEFAULT_LEGS_M),
-        help="engaged leg lengths in metres, gate-to-target",
+        help="scored leg lengths in metres, gate-to-POI",
     )
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--mission-alt", type=float, default=DEFAULT_ALT_M)
     parser.add_argument(
-        "--target-offset", type=float, default=DEFAULT_WAYPOINT_OFFSET_M
+        "--poi-offset", type=float, default=DEFAULT_WAYPOINT_OFFSET_M
     )
     parser.add_argument("--wind-speed", type=float, default=10.0)
     parser.add_argument(
@@ -181,32 +181,32 @@ def main() -> int:
 
     legs = [float(piece) for piece in args.legs.split(",") if piece.strip()]
     for leg_m in legs:
-        target_alt = target_alt_for(leg_m, args.mission_alt)
-        if target_alt < MIN_SAFE_TARGET_REL_ALT_M:
+        poi_alt = poi_alt_for(leg_m, args.mission_alt)
+        if poi_alt < MIN_SAFE_POI_REL_ALT_M:
             print(
-                f"leg {leg_m:g} m needs target altitude {target_alt:.1f} m to "
-                f"hold the glide angle, below the {MIN_SAFE_TARGET_REL_ALT_M:g} m "
+                f"leg {leg_m:g} m needs POI altitude {poi_alt:.1f} m to "
+                f"hold the glide angle, below the {MIN_SAFE_POI_REL_ALT_M:g} m "
                 f"floor. Raise --mission-alt to at least "
-                f"{MIN_SAFE_TARGET_REL_ALT_M + REFERENCE_DROP_M * leg_m / REFERENCE_LEG_M:.0f}"
+                f"{MIN_SAFE_POI_REL_ALT_M + REFERENCE_DROP_M * leg_m / REFERENCE_LEG_M:.0f}"
                 " m, or use a shorter leg.",
                 file=sys.stderr,
             )
             return 2
-        if args.target_offset - leg_m <= 0.0:
+        if args.poi_offset - leg_m <= 0.0:
             print(
-                f"leg {leg_m:g} m exceeds the target offset "
-                f"{args.target_offset:g} m, so the gate would sit south of home",
+                f"leg {leg_m:g} m exceeds the POI offset "
+                f"{args.poi_offset:g} m, so the gate would sit south of home",
                 file=sys.stderr,
             )
             return 2
     rows: list[dict[str, object]] = []
     launch_failures = 0
     for leg_m in legs:
-        gate_offset = args.target_offset - leg_m
-        target_alt = target_alt_for(leg_m, args.mission_alt)
+        gate_offset = args.poi_offset - leg_m
+        poi_alt = poi_alt_for(leg_m, args.mission_alt)
         print(
-            f"leg {leg_m:g} m -> gate {gate_offset:g} m, target alt "
-            f"{target_alt:.1f} m (glide held at "
+            f"leg {leg_m:g} m -> gate {gate_offset:g} m, POI alt "
+            f"{poi_alt:.1f} m (glide held at "
             f"{REFERENCE_DROP_M / REFERENCE_LEG_M:.3f} m per m)",
             flush=True,
         )
@@ -227,7 +227,7 @@ def main() -> int:
             print(f"  no artifact for leg {leg_m:g}", file=sys.stderr)
             launch_failures += 1
             continue
-        rows.append(_report(root, leg_m, target_alt))
+        rows.append(_report(root, leg_m, poi_alt))
         print(
             f"  truth misses {rows[-1]['misses_m']}"
             f" ({rows[-1]['unscored_runs']} unscored)",
@@ -235,12 +235,12 @@ def main() -> int:
         )
 
     print()
-    print(f"{'leg m':>8}{'target alt':>12}{'truth miss m':>28}"
+    print(f"{'leg m':>8}{'POI alt':>12}{'truth miss m':>28}"
           f"{'unscored':>10}{'worst deferral':>20}")
     for row in rows:
         misses = ", ".join(f"{value:.3f}" for value in row["misses_m"])
         excess = ", ".join(f"{value:.2f}" for value in row["deferral"])
-        print(f"{row['leg_m']:>8.0f}{row['target_alt_m']:>12.1f}"
+        print(f"{row['leg_m']:>8.0f}{row['poi_alt_m']:>12.1f}"
               f"{misses:>28}{row['unscored_runs']:>10}{excess:>20}")
     return _exit_code(rows, launch_failures)
 

@@ -1,6 +1,6 @@
 """Navigation-feasibility orbit radius (R_nav_min).
 
-The closest standoff from which the terminal NAV dive can still
+The closest standoff from which the final-approach NAV dive can still
 reach the selected delivery reference geometrically. This is an approach
 constraint, not a physical docking or safe-handover test. Two binding
 constraints, whichever dominates:
@@ -10,7 +10,7 @@ constraints, whichever dominates:
   ``kappa * V^2 / (g * tan(phi_max))``.
 * descent geometry (usually dominant): the airframe pitch limit must
   convert the orbit altitude into closing range, else the dive rails at
-  ``min_pitch``, overflies, and trips the passed-target reset —
+  ``min_pitch``, overflies, and trips the passed-POI reset —
   ``h / tan(eta * |min_pitch|)``.
 
 Orbiting at this radius keeps the camera zoom minimal (widest FOV for

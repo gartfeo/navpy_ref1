@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from navpy.modules.vision.vision_debug_hud import SimTrackerHudRenderer
-from navpy.modules.vision.vision_debug_targets import SimTargetOverlayRenderer
+from navpy.modules.vision.vision_debug_pois import SimPoiOverlayRenderer
 from navpy.modules.vision.vision_ui_ports import (
     AircraftAttitudeReader,
     SimDebugSnapshot,
@@ -18,11 +18,11 @@ class SimPanelRenderer:
         self,
         attitude: AircraftAttitudeReader,
         tracker_hud: SimTrackerHudRenderer,
-        targets: SimTargetOverlayRenderer,
+        pois: SimPoiOverlayRenderer,
     ) -> None:
         self._attitude = attitude
         self._tracker_hud = tracker_hud
-        self._targets = targets
+        self._pois = pois
 
     def draw(
         self,
@@ -78,7 +78,7 @@ class SimPanelRenderer:
             scale_y,
             camera_pitch_deg,
         )
-        self._targets.draw(
+        self._pois.draw(
             image,
             y_offset,
             scale_x,

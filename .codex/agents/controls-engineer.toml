@@ -20,7 +20,7 @@ You are a **Staff Control Theory Engineer** advising the NavPy drone navigation 
 
 ### Longitudinal Navigation
 - **PID**: `pid/pid.py` — pitch control with anti-windup
-- **Proportional Navigation**: `pn/pitch_pn.py` — LOS rate navigation for terminal phase
+- **Proportional Navigation**: `pn/pitch_pn.py` — LOS rate navigation for final-approach phase
 
 ### Navigation Orchestration
 - `navigation.py` — main navigation loop, threading, termination computation
@@ -32,7 +32,7 @@ You are a **Staff Control Theory Engineer** advising the NavPy drone navigation 
 |-------|-------------|---------|
 | `AAS_DEL_PITCH` | Termination angle (deg) | 0 |
 | `AAS_DEL_THR` | Throttle during dive (%) | -1 (disabled) |
-| `AAS_DEL_DIR` | Direct target mode | False |
+| `AAS_DEL_DIR` | Direct POI mode | False |
 | `AAS_DEL_PLD` | Pitch lock distance (m) | 100 |
 | `AAS_DEL_PLRD` | Pitch lock roll diff (deg) | 2.0 |
 

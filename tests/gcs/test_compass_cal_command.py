@@ -79,7 +79,7 @@ class TestCompassCalStart(unittest.TestCase):
         entry.vehicle.send_command_long.assert_not_called()
 
     @patch("gcs.backend.routes.control.vehicle_mgr")
-    def test_start_multiple_targets(self, mock_mgr):
+    def test_start_multiple_pois(self, mock_mgr):
         entry1, entry2 = _disarmed_entry(), _disarmed_entry()
         mock_mgr.get_vehicle.side_effect = [entry1, entry2]
 

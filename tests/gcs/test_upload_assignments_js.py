@@ -152,7 +152,7 @@ class TestResolveUploadAssignments(unittest.TestCase):
 
     def test_auto_regenerated_trackless_zone_is_missing(self):
         """autoAssignFallbackLocations returns null for a zone with no track endpoint;
-        the helper reports it rather than uploading a null target."""
+        the helper reports it rather than uploading a null POI."""
         r = _run_js("""
         const zones = [
           {track: [], set_index: 0},

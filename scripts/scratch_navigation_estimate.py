@@ -91,7 +91,7 @@ def de_rotating_attitude(
     # A HISTORY SHORTER THAN THE DELAY IS NOT A SHALLOWER DELAY, it is no
     # delay yet. `estimates[0]` is the oldest RETAINED pose, so a partly-filled
     # deque hands back a delay that ramps 0, 1, ... N over the first N poses --
-    # and the scoring interval clock, the target placement and the scoring all start
+    # and the scoring interval clock, the POI placement and the scoring all start
     # inside that ramp. The continuous-lag arm already refuses this case (its
     # sampler returns None when the interval is unbracketed); returning None
     # here puts the pose-delay arm on the SAME warm-up path, so both treatments

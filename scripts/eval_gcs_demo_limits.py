@@ -27,7 +27,7 @@ def _non_negative_int(name: str, value: object) -> int:
 
 @dataclass(frozen=True)
 class CadenceLimits:
-    """Terminal-event count, wall cadence, and clock-ratio gates."""
+    """Final-approach-event count, wall cadence, and clock-ratio gates."""
 
     min_observations: int = 10
     max_median_wall_gap_s: float = 0.20

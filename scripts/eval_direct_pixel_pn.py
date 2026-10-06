@@ -46,7 +46,7 @@ def _source_identity() -> dict[str, object]:
 
 from eval_navigation_cases import (  # noqa: E402
     CoordinateScorer, command_long, download_mission, request_coordinate_score_stream,
-    require_nav_solution, resolve_home_abs_alt_m, resolve_target_expectation, set_param,
+    require_nav_solution, resolve_home_abs_alt_m, resolve_poi_expectation, set_param,
     stop_own_stack, wait_for_heartbeat,
 )
 from eval_direct_pixel_stability import (  # noqa: E402
@@ -86,14 +86,14 @@ from pixel_pn_child_process import (  # noqa: E402
     terminate as _terminate,
     wait_ready as _wait_ready,
 )
-from pixel_pn_terminal_speed import launch_speedup, terminal_speed_plan
+from pixel_pn_final_approach_speed import launch_speedup, final_approach_speed_plan
 from upload_north_line_mission import (  # noqa: E402
     DEFAULT_ALT_M, DEFAULT_GATE_OFFSET_M, DEFAULT_LOITER_OFFSET_M,
     DEFAULT_WAYPOINT_OFFSET_M, upload_north_line,
 )
 
 
-MIN_SAFE_TARGET_REL_ALT_M = 60.0
+MIN_SAFE_POI_REL_ALT_M = 60.0
 # How long the flight loop keeps draining after the child's result appears,
 # waiting for the truth recorder's post-CPA closure evidence.
 TRUTH_CLOSURE_DRAIN_TIMEOUT_S = 5.0
@@ -105,7 +105,7 @@ TRUTH_CLOSURE_DRAIN_TIMEOUT_S = 5.0
 # empty the worker reissues the previous command as a held primitive.  So a run
 # that starves the law of fresh observations still emits commands at the full
 # nominal rate, and every command-side cadence measure looks healthy while the
-# commands themselves carry stale information.  The terminal LOS-rate filter
+# commands themselves carry stale information.  The final-approach LOS-rate filter
 # differentiates successive observations, so its usable bandwidth follows the
 # fresh-observation rate, not the command rate.
 #
@@ -225,7 +225,7 @@ def _fly(
     deadline_s = time.monotonic() + timeout_s
     result_path = case_dir / "result.json"
     while time.monotonic() < deadline_s:
-        now_scoring_active = (case_dir / "engaged.marker").exists()
+        now_scoring_active = (case_dir / "scoring_active.marker").exists()
         scoring_interval_seen = scoring_interval_seen or now_scoring_active
         drain_position_messages(
             master,
@@ -284,12 +284,12 @@ def run_case(
     args: argparse.Namespace,
     baseline_identity: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    if args.target_alt < MIN_SAFE_TARGET_REL_ALT_M:
+    if args.poi_alt < MIN_SAFE_POI_REL_ALT_M:
         return unscored_result(
             [
-                "direct target relative altitude must be at least "
-                f"{MIN_SAFE_TARGET_REL_ALT_M:g}m for terrain-safe isolation; "
-                f"got {args.target_alt:g}m"
+                "direct POI relative altitude must be at least "
+                f"{MIN_SAFE_POI_REL_ALT_M:g}m for terrain-safe isolation; "
+                f"got {args.poi_alt:g}m"
             ],
             scoring_policy=args.scoring_policy,
         )
@@ -331,7 +331,7 @@ def run_case(
             home=_home_lat_lon(args.home),
             loiter_offset=args.loiter_offset,
             gate_offset=args.gate_offset,
-            waypoint_offset=args.target_offset,
+            waypoint_offset=args.poi_offset,
             alt_m=args.mission_alt,
             echo=lambda line: (case_dir / "mission.log").open(
                 "a", encoding="utf-8").write(f"{line}\n"),
@@ -352,16 +352,16 @@ def run_case(
             )
         mission = download_mission(master)
         home_alt = resolve_home_abs_alt_m(master, timeout_s=30.0)
-        target = resolve_target_expectation(
+        poi = resolve_poi_expectation(
             mission,
-            target_wp=args.target_wp,
-            target_rel_alt_m=args.target_alt,
+            poi_wp=args.poi_wp,
+            poi_rel_alt_m=args.poi_alt,
             home_abs_alt_m=home_alt,
         ).location
-        run_navigation_episode = resolve_target_expectation(
+        run_navigation_episode = resolve_poi_expectation(
             mission,
-            target_wp=args.scoring_start_wp,
-            target_rel_alt_m=args.target_alt,
+            poi_wp=args.scoring_start_wp,
+            poi_rel_alt_m=args.poi_alt,
             home_abs_alt_m=home_alt,
         )
         # Checked HERE, not only before the case: SITL bring-up, mission upload
@@ -375,7 +375,7 @@ def run_case(
                 f"({baseline_identity['sha256'][:12]} -> "
                 f"{case_identity['sha256'][:12]})"
             )
-        speed_plan = terminal_speed_plan(args, speedup, mission, home_alt)
+        speed_plan = final_approach_speed_plan(args, speedup, mission, home_alt)
         # The manifest lands BEFORE any parameter push: a case that dies on
         # an unserved parameter (an old binary, a transport fault) must
         # still leave the record of what it was configured to fly
@@ -385,7 +385,7 @@ def run_case(
             speedup=speedup,
             launch_speedup=launch_speedup(args.cruise_speedup, speedup),
             repetition=repetition,
-            target=target,
+            poi=poi,
             scoring_start_seq=run_navigation_episode.mission_seq,
             identity=case_identity,
             speed_plan=speed_plan,
@@ -396,24 +396,24 @@ def run_case(
             if not set_param(master, name, value):
                 raise RuntimeError(f"parameter echo failed: {name}")
         sim_cpa.pre_flight(
-            master, sysid=sysid, target=target, case_dir=case_dir
+            master, sysid=sysid, poi=poi, case_dir=case_dir
         )
         child = _launch_child(
             python,
             case_dir,
             device=ip.companion_device(sysid),
             sysid=sysid,
-            target=target,
+            poi=poi,
             scoring_start_seq=run_navigation_episode.mission_seq,
             timeout_s=args.timeout,
             speed_plan=speed_plan,
         )
         _wait_ready(case_dir / "child.out.log", child, 90.0)
         _start_mission(master)
-        scorer = CoordinateScorer(target)
-        track = GroundTrackRecorder(target)
+        scorer = CoordinateScorer(poi)
+        track = GroundTrackRecorder(poi)
         if args.scoring_policy == SCORING_POLICY_SITL_TRUTH:
-            truth_recorder = TruthRecorder(target, home_alt)
+            truth_recorder = TruthRecorder(poi, home_alt)
         child_result = _fly(
             master,
             child,
@@ -495,7 +495,7 @@ def run_case(
 def main() -> int:
     args = _parser(scoring_policy=True, sim_cpa=True).parse_args()
     # Resolved (and override-validated) BEFORE anything launches: a
-    # redirected cross-check target must die here, not minutes into a case.
+    # redirected cross-check POI must die here, not minutes into a case.
     args.sim_cpa_mode = resolve_mode(args.sim_cpa, args.sitl_param)
     python = args.python.resolve()
     speeds = _speeds(args.speedups)

@@ -23,12 +23,12 @@ from navpy.modules.nav.nav_task_composition import (
 from navpy.modules.nav.nav_foundation_composition import (
     compose_detection_review_ownership,
     compose_state_ownership,
-    compose_target_mission_ownership,
+    compose_poi_mission_ownership,
     compose_vehicle_approach_ownership,
 )
 from navpy.modules.nav.nav_runtime_composition import compose_nav_application
-from navpy.modules.nav.nav_terminal_composition import (
-    compose_terminal_workflows,
+from navpy.modules.nav.nav_final_approach_composition import (
+    compose_final_approach_workflows,
 )
 from navpy.modules.vehicle.vehicle_interface import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
@@ -48,18 +48,18 @@ def create_nav_application(
 
     profile = vision_profile or {}
     navigation_capabilities = NavCapabilities(
-        terminal=navigation.terminal,
-        legacy_targets=navigation.legacy_targets,
+        final_approach=navigation.final_approach,
+        legacy_pois=navigation.legacy_pois,
         vehicle_commands=navigation.vehicle_commands,
         init=navigation.init,
         reset=navigation.reset,
-        pause=navigation.pause_terminate,
+        pause=navigation.pause_final_approach,
         nav=navigation.nav,
-        bind_source_dispatch=navigation.bind_terminal_source_dispatch,
+        bind_source_dispatch=navigation.bind_final_approach_source_dispatch,
         algorithm_info=lambda: navigation.algorithm_info,
     )
     state = compose_state_ownership(scheduler_cadence)
-    target = compose_target_mission_ownership(
+    poi = compose_poi_mission_ownership(
         vehicle,
         detection,
         args,
@@ -84,7 +84,7 @@ def create_nav_application(
         logger,
         profile,
         state,
-        target,
+        poi,
         navigation_capabilities,
     )
     mission_navigation = compose_mission_navigation_ownership(
@@ -94,7 +94,7 @@ def create_nav_application(
         logger,
         approach_kind,
         state,
-        target,
+        poi,
         approach,
         navigation_capabilities,
     )
@@ -105,20 +105,20 @@ def create_nav_application(
         profile,
         approach_kind,
         state,
-        target,
+        poi,
         approach,
         observation,
         navigation_capabilities,
         mission_navigation,
     )
-    terminal = compose_terminal_workflows(
+    final_approach = compose_final_approach_workflows(
         vehicle,
         detection,
         args,
         logger,
         approach_kind,
         state,
-        target,
+        poi,
         approach,
         observation,
         navigation_workflows,
@@ -128,11 +128,11 @@ def create_nav_application(
         detection,
         logger,
         state,
-        target,
+        poi,
         approach,
         observation,
-        terminal.admission,
-        terminal.reset,
+        final_approach.admission,
+        final_approach.reset,
         navigation_capabilities,
     )
     decision = compose_decision_workflows(
@@ -141,7 +141,7 @@ def create_nav_application(
         args,
         logger,
         state,
-        target,
+        poi,
         approach,
         observation,
         navigation_workflows,
@@ -154,14 +154,14 @@ def create_nav_application(
         args,
         logger,
         state,
-        target,
+        poi,
         approach,
         observation,
         navigation_workflows,
         confirmation,
         decision,
         navigation_capabilities,
-        terminal.nav,
+        final_approach.nav,
     )
 
 

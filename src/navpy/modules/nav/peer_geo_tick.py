@@ -1,4 +1,4 @@
-"""Non-terminal peer geo pre-acquisition tick."""
+"""Non-final-approach peer geo pre-acquisition tick."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class PeerGeoTick:
         geo_hold: GeoHoldState,
         pointing: DetectPointingPorts,
         acquisition: PeerGeoAcquisition,
-        terminal_active: Callable[[], bool],
+        final_approach_active: Callable[[], bool],
         current_location: Callable[[], Location | None],
         current_attitude: Callable[[], Attitude | None],
     ) -> None:
@@ -35,15 +35,15 @@ class PeerGeoTick:
         self._geo_hold = geo_hold
         self._pointing = pointing
         self._acquisition = acquisition
-        self._terminal_active = terminal_active
+        self._final_approach_active = final_approach_active
         self._current_location = current_location
         self._current_attitude = current_attitude
 
     def update(self) -> None:
         if (
-            self._terminal_active()
+            self._final_approach_active()
             or not self._navigation_task.peer_navigation
-            or self._geo_hold.target_location is None
+            or self._geo_hold.poi_location is None
             or self._pointing.is_detection_armed()
         ):
             return

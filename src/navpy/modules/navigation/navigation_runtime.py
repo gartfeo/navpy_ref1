@@ -1,7 +1,7 @@
 """Runtime strategies used by ``Navigation``.
 
 The selected navigation algorithm owns the runtime behavior needed by the
-termination worker. Legacy geo-assisted laws enqueue target NED work, while
+final-approach worker. Legacy geo-assisted laws enqueue POI NED work, while
 vision-nav laws provide their own observation pipeline in the
 vision-nav package.
 """
@@ -81,7 +81,7 @@ class LegacyNavigationRuntime(NavigationRuntime):
             self,
             *,
             command_slot: NavigationCommandSlot,
-            target_resolver: Callable[
+            poi_resolver: Callable[
                 [DetectedObject | None],
                 tuple[np.ndarray | None, Attitude | None],
             ],
@@ -92,7 +92,7 @@ class LegacyNavigationRuntime(NavigationRuntime):
             reset_law: Callable[[], None],
     ) -> None:
         self._command_slot = command_slot
-        self._target_resolver = target_resolver
+        self._poi_resolver = poi_resolver
         self._command_executor = command_executor
         self._reset_law = reset_law
 
@@ -117,16 +117,16 @@ class LegacyNavigationRuntime(NavigationRuntime):
         return self._command_slot.peek() is not None
 
     def nav(self, detect_data: DetectedObject) -> bool:
-        d_target_ned, _ = self._target_resolver(detect_data)
-        if d_target_ned is None:
+        d_poi_ned, _ = self._poi_resolver(detect_data)
+        if d_poi_ned is None:
             return False
 
-        self._command_slot.replace((d_target_ned, detect_data))
+        self._command_slot.replace((d_poi_ned, detect_data))
         self._command_slot.signal_pending()
         return True
 
     def take_work(self) -> Optional[Any]:
-        # Peek, do not consume: the legacy PN/PID terminate loop streams
+        # Peek, do not consume: the legacy PN/PID final-approach loop streams
         # commands continuously from the freshest detection between frames
         # (detections can arrive slower than the command loop). Consuming
         # here turns the loop one-shot and starves the autopilot of attitude

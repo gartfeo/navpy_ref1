@@ -34,11 +34,11 @@ def frame(i):
 def test_retains_16000_actual_projection_records_and_both_publication_outcomes(tmp_path):
     file = output(tmp_path)
     recorder = ProjectionRunRecorder(file)
-    projector, _, _, _, loc, target, *_ = rig(recorder, valid=True, pixels=(640, 360))
+    projector, _, _, _, loc, poi, *_ = rig(recorder, valid=True, pixels=(640, 360))
     for i in range(2):
         with recorder.frame(frame(i), 4) as association:
             for _ in range(8000):
-                projector.detect(loc, target, Attitude(0, 40, 0), timestamp_s=float(i))
+                projector.detect(loc, poi, Attitude(0, 40, 0), timestamp_s=float(i))
             association.published(i == 0, 1)
     recorder.close()
     rows, manifest = read_capture(file)
@@ -164,8 +164,8 @@ def test_concurrent_frames_keep_context_and_file_sequence_order(tmp_path):
     file = output(tmp_path)
     recorder = ProjectionRunRecorder(file)
     records = []
-    projector, _, _, _, loc, target, *_ = rig(records.append, valid=True, pixels=(640, 360))
-    projector.detect(loc, target, Attitude(0, 40, 0), timestamp_s=12.5)
+    projector, _, _, _, loc, poi, *_ = rig(records.append, valid=True, pixels=(640, 360))
+    projector.detect(loc, poi, Attitude(0, 40, 0), timestamp_s=12.5)
     barrier = threading.Barrier(8)
     def produce(i):
         with recorder.frame(frame(i), 4) as association:
@@ -195,9 +195,9 @@ def test_disabled_and_ideal_paths_require_no_configuration_or_files(monkeypatch,
 def test_unassociated_projection_invalidates_capture_and_preserves_detection(tmp_path):
     file = output(tmp_path)
     recorder = ProjectionRunRecorder(file)
-    projector, _, _, _, loc, target, *_ = rig(recorder, valid=True, pixels=(640, 360))
-    result = projector.detect(loc, target, Attitude(0, 40, 0), timestamp_s=12.5)
-    assert result.target is not None and projector.evidence_failures == 1
+    projector, _, _, _, loc, poi, *_ = rig(recorder, valid=True, pixels=(640, 360))
+    result = projector.detect(loc, poi, Attitude(0, 40, 0), timestamp_s=12.5)
+    assert result.poi is not None and projector.evidence_failures == 1
     recorder.close()
     assert not file.status['complete']
 
@@ -215,9 +215,9 @@ def test_close_with_active_frame_is_invalid_and_retriable_after_frame_finishes(t
 def test_missing_manifest_or_tampered_data_never_pass_integrity_gate(tmp_path):
     file = output(tmp_path)
     recorder = ProjectionRunRecorder(file)
-    projector, _, _, _, loc, target, *_ = rig(recorder,valid=True,pixels=(640,360))
+    projector, _, _, _, loc, poi, *_ = rig(recorder,valid=True,pixels=(640,360))
     with recorder.frame(frame(1),4) as association:
-        projector.detect(loc,target,Attitude(0,40,0),timestamp_s=1.)
+        projector.detect(loc,poi,Attitude(0,40,0),timestamp_s=1.)
         association.published(True,1)
     assert not check_projection_capture(file.path)['valid']
     recorder.close()
@@ -230,9 +230,9 @@ def test_missing_manifest_or_tampered_data_never_pass_integrity_gate(tmp_path):
 def test_timestamp_mismatch_keeps_original_detection_but_invalidates_capture(tmp_path):
     file = output(tmp_path)
     recorder = ProjectionRunRecorder(file)
-    projector, _, _, _, loc, target, *_ = rig(recorder,valid=True,pixels=(640,360))
+    projector, _, _, _, loc, poi, *_ = rig(recorder,valid=True,pixels=(640,360))
     with recorder.frame(frame(1),4):
-        assert projector.detect(loc,target,Attitude(0,40,0),timestamp_s=2.).target is not None
+        assert projector.detect(loc,poi,Attitude(0,40,0),timestamp_s=2.).poi is not None
     recorder.close()
     assert not file.status['complete'] and projector.evidence_failures == 1
     checked = check_projection_capture(file.path)

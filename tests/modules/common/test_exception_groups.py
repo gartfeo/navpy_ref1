@@ -73,9 +73,9 @@ def test_python_310_fallback_supports_base_exception_cleanup_failures():
         _FallbackBaseExceptionGroup("empty", ())
 
 
-def test_detected_target_remains_weak_referenceable_without_python_311_slot_api():
+def test_detected_poi_remains_weak_referenceable_without_python_311_slot_api():
     calibration = PixelCalibration(1.0, 1.0, 0.0, 0.0)
-    target = DetectedObject(
+    poi = DetectedObject(
         DetectionIdentity(1, 2),
         DetectionClassification(DetectionSizeClass.S),
         PixelObservation(
@@ -100,5 +100,5 @@ def test_detected_target_remains_weak_referenceable_without_python_311_slot_api(
         DetectionGeoDiagnostics(),
     )
 
-    assert weakref.ref(target)() is target
-    assert not hasattr(target, "__dict__")
+    assert weakref.ref(poi)() is poi
+    assert not hasattr(poi, "__dict__")

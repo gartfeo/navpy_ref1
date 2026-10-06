@@ -5,9 +5,9 @@ from tests.modules.navigation.nav.vision_nav_camera_loop import (
 )
 
 
-def test_siyi_finite_fov_log_153922_closed_loop_hits_target() -> None:
+def test_siyi_finite_fov_log_153922_closed_loop_hits_poi() -> None:
     result = run_siyi_camera_loop()
-    assert result.miss.passed_target
+    assert result.miss.passed_poi
     assert not result.miss.timed_out
     assert result.miss.slant_m < 0.5
     assert result.first_fov_loss_m is None or result.first_fov_loss_m < 0.5

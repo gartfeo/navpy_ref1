@@ -12,13 +12,13 @@ from navpy.modules.vision.models.detect_data import DetectedObject
 class DetectionPublication:
     """One admitted source frame and its detection result.
 
-    The envelope owns publication metadata and ordering. Targets are retained
+    The envelope owns publication metadata and ordering. POIs are retained
     by reference because task-id allocation still belongs to the coordinator;
-    pure final approach converts the chosen target to its own immutable,
+    pure final approach converts the chosen POI to its own immutable,
     truth-redacted observation before forming a command.
     """
 
-    detected_targets: tuple[DetectedObject, ...]
+    detected_pois: tuple[DetectedObject, ...]
     source_timestamp_s: Optional[float]
     source_receipt_timestamp_s: Optional[float]
     source_name: Optional[str]
@@ -27,8 +27,8 @@ class DetectionPublication:
     def __post_init__(self) -> None:
         object.__setattr__(
             self,
-            "detected_targets",
-            tuple(self.detected_targets),
+            "detected_pois",
+            tuple(self.detected_pois),
         )
         object.__setattr__(
             self,
@@ -37,18 +37,18 @@ class DetectionPublication:
         )
 
     @property
-    def primary_target(self) -> Optional[DetectedObject]:
-        """The first target is the publication's single canonical primary."""
-        return self.detected_targets[0] if self.detected_targets else None
+    def primary_poi(self) -> Optional[DetectedObject]:
+        """The first POI is the publication's single canonical primary."""
+        return self.detected_pois[0] if self.detected_pois else None
 
-    def with_targets(
+    def with_pois(
             self,
-            targets: Iterable[DetectedObject],
+            pois: Iterable[DetectedObject],
     ) -> "DetectionPublication":
-        """Return this publication with a new canonical target ordering."""
+        """Return this publication with a new canonical POI ordering."""
         return replace(
             self,
-            detected_targets=tuple(targets),
+            detected_pois=tuple(pois),
         )
 
 

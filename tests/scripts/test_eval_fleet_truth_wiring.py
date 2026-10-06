@@ -34,9 +34,9 @@ from scripts.eval_sim_parameters import sim_parameters
 def _args(policy: str) -> argparse.Namespace:
     return argparse.Namespace(
         scoring_policy=policy,
-        target_wp=2,
+        poi_wp=2,
         scoring_start_wp=2,
-        target_alt=60.0,
+        poi_alt=60.0,
         wind_speed=0.0,
         wind_dir=0.0,
         sitl_param=None,
@@ -72,9 +72,9 @@ def _wire_setup(monkeypatch, events: list, *, truth_ack: bool = True) -> None:
     )
     monkeypatch.setattr(
         setup,
-        "resolve_target_expectation",
-        lambda mission, *, target_wp, target_rel_alt_m, home_abs_alt_m: (
-            SimpleNamespace(location=("target", mission), mission_seq=4)
+        "resolve_poi_expectation",
+        lambda mission, *, poi_wp, poi_rel_alt_m, home_abs_alt_m: (
+            SimpleNamespace(location=("poi", mission), mission_seq=4)
         ),
     )
 
@@ -90,7 +90,7 @@ def _wire_setup(monkeypatch, events: list, *, truth_ack: bool = True) -> None:
     )
     monkeypatch.setattr(
         setup,
-        "terminal_speed_plan",
+        "final_approach_speed_plan",
         lambda args, speedup, mission, home_alt: ("plan", mission),
     )
 
@@ -103,8 +103,8 @@ class _Stage:
     def __init__(self, events: list) -> None:
         self._events = events
 
-    def pre_flight(self, master, *, sysid, target, case_dir) -> None:
-        self._events.append(("pre_flight", sysid, (target, case_dir)))
+    def pre_flight(self, master, *, sysid, poi, case_dir) -> None:
+        self._events.append(("pre_flight", sysid, (poi, case_dir)))
 
 
 def test_each_aircraft_gets_the_full_certified_tuple_with_its_cells_wind(
@@ -209,7 +209,7 @@ def test_the_cross_check_binds_after_that_aircrafts_parameters(
     stage_calls = {
         sys_id: payload for kind, sys_id, payload in events if kind == "pre_flight"
     }
-    assert stage_calls[121] == (("target", "mission-121"), directories[121])
+    assert stage_calls[121] == (("poi", "mission-121"), directories[121])
 
 
 # --- the routing drain -------------------------------------------------------
@@ -272,7 +272,7 @@ def _fleet_dirs(tmp_path: Path, sys_ids, *, scoring_active, finished) -> dict[in
         directory = tmp_path / f"uav-{sys_id}"
         directory.mkdir()
         if sys_id in scoring_active:
-            (directory / "engaged.marker").touch()
+            (directory / "scoring_active.marker").touch()
         if sys_id in finished:
             (directory / "result.json").write_text(
                 f'{{"passed": true, "sysid": {sys_id}}}', encoding="utf-8"
@@ -309,7 +309,7 @@ def test_the_drain_routes_by_srcsystem_not_by_a_single_sysid_filter(
         _position(121),   # scored -> scored
         _position(122),   # not scored -> dropped
         _sim_state(121),  # truth, filed scored
-        _sim_state(122),  # truth, filed unengaged
+        _sim_state(122),  # truth, filed outside the scoring window
         _sim_state(999),  # not ours -> dropped
     ])
 
@@ -617,17 +617,17 @@ def test_the_fleet_parser_defaults_to_certified_truth_scoring() -> None:
 
 def test_truth_recorders_bind_each_aircraft_to_its_own_home(monkeypatch) -> None:
     """Co-located starts hide this today; a grid layout must not break it."""
-    monkeypatch.setattr(score, "TruthRecorder", lambda target, home: (target, home))
+    monkeypatch.setattr(score, "TruthRecorder", lambda poi, home: (poi, home))
     plan = SimpleNamespace(home_alts={121: 621.0, 122: 622.0})
-    targets = {121: "t1", 122: "t2"}
+    pois = {121: "t1", 122: "t2"}
 
     recorders = score.truth_recorders(
-        [121, 122], targets, plan, _args(SCORING_POLICY_SITL_TRUTH)
+        [121, 122], pois, plan, _args(SCORING_POLICY_SITL_TRUTH)
     )
 
     assert recorders == {121: ("t1", 621.0), 122: ("t2", 622.0)}
     assert score.truth_recorders(
-        [121, 122], targets, plan, _args(SCORING_POLICY_VEHICLE_ESTIMATE)
+        [121, 122], pois, plan, _args(SCORING_POLICY_VEHICLE_ESTIMATE)
     ) == {}
 
 
@@ -677,7 +677,7 @@ def test_each_aircraft_writes_the_certified_case_manifest_before_its_params(
         setup,
         "write_case_manifest",
         lambda case_dir, **fields: (
-            events.append(("manifest", fields["target"][1][-3:], None)),
+            events.append(("manifest", fields["poi"][1][-3:], None)),
             manifests.append((case_dir, fields)),
         ),
     )

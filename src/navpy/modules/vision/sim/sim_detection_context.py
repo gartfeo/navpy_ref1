@@ -18,8 +18,8 @@ from navpy.modules.vision.sim.sim_frame_transactions import (
 )
 from navpy.modules.vision.sim.sim_frame_types import FrameContext
 from navpy.modules.vision.sim.sim_runtime_ports import (
-    TargetProjectorPort,
-    TargetSnapshotReader,
+    PoiProjectorPort,
+    PoiSnapshotReader,
 )
 from navpy.modules.vision.simulation_object import SimulationObject
 
@@ -30,8 +30,8 @@ class SimDetectionContext:
 
     ideal_360: bool
     sync_camera_zoom: ZoomSynchronizer
-    target_snapshot: TargetSnapshotReader
-    project_target: TargetProjectorPort
+    poi_snapshot: PoiSnapshotReader
+    project_poi: PoiProjectorPort
     timestamps: FrameTimestampPort
     transactions: DetectionFrameTransactionsPort
 
@@ -49,22 +49,22 @@ class SimDetectionContext:
     ) -> Optional[float]:
         return self.timestamps.resolve(attitude_time_boot_s, frame_timestamp_s)
 
-    def targets(self) -> tuple[SimulationObject, ...]:
-        return self.target_snapshot()
+    def pois(self) -> tuple[SimulationObject, ...]:
+        return self.poi_snapshot()
 
     def update(
         self,
         camera_location: Location,
-        target: SimulationObject,
+        poi: SimulationObject,
         uas_attitude: Attitude,
         *,
         timestamp_s: Optional[float],
         uas_body_rates_rad_s: Optional[Tuple[float, float, float]],
         navigation_attitude: Optional[Attitude],
     ) -> Optional[DetectedObject]:
-        return self.project_target(
+        return self.project_poi(
             camera_location,
-            target,
+            poi,
             uas_attitude,
             timestamp_s=timestamp_s,
             uas_body_rates_rad_s=uas_body_rates_rad_s,

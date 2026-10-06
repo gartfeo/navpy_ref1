@@ -170,12 +170,12 @@ def test_build_stack_keeps_production_backends_and_thresholds() -> None:
         ) as embedder,
         patch.object(
             runtime,
-            "TargetLock",
+            "PoiLock",
             return_value=components[3],
-        ) as target_lock,
+        ) as poi_lock,
         patch.object(
             runtime,
-            "LostTargetBridge",
+            "LostPoiBridge",
             return_value=components[4],
         ),
     ):
@@ -215,7 +215,7 @@ def test_build_stack_keeps_production_backends_and_thresholds() -> None:
         detector_device="cuda:0",
         logger=logger,
     )
-    target_lock.assert_called_once_with(
+    poi_lock.assert_called_once_with(
         max_lost_frames=120,
         auto_lock=False,
     )

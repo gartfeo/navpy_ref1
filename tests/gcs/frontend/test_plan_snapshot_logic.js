@@ -192,7 +192,7 @@ test('buildPlanSnapshot: deep-copies analysis; null -> null', () => {
   assert.strictEqual(nullSnap.analysis, null);
 });
 
-test('buildPlanSnapshot: deep-copies DOCK/sim-target/detect-after state', () => {
+test('buildPlanSnapshot: deep-copies DOCK/sim-POI/detect-after state', () => {
   const state = makeBaseline();
   const snap = buildPlanSnapshot(state);
   state.fallbackLocationAssignments.push(5);

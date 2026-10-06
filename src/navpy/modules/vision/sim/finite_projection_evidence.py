@@ -52,11 +52,11 @@ class GimbalSnapshot:
 
 @dataclass(frozen=True)
 class ProjectionSource:
-    target_uid: Optional[int] = None
+    poi_uid: Optional[int] = None
     source_timestamp_s: Optional[float] = None
     frame_timestamp_provided: bool = False
     camera_location: Optional[LocationValues] = None
-    target_location: Optional[LocationValues] = None
+    poi_location: Optional[LocationValues] = None
     aircraft_attitude: Optional[AttitudeValues] = None
     body_rates_rad_s: Optional[tuple[float, ...]] = None
     configured_frame_size: Optional[tuple[int, int]] = None
@@ -126,13 +126,13 @@ class ProjectionCapture:
             self.complete = False
 
     @staticmethod
-    def inputs(target: SimulationObject, location: Location, attitude: Attitude,
+    def inputs(poi: SimulationObject, location: Location, attitude: Attitude,
                timestamp: Optional[float], body_rates: Optional[tuple[float, ...]],
                frame_size: FrameSize) -> dict[str, Any]:
-        return dict(target_uid=int(target.uid),
+        return dict(poi_uid=int(poi.uid),
                     source_timestamp_s=None if timestamp is None else float(timestamp),
                     frame_timestamp_provided=timestamp is not None and not isinstance(timestamp, bool),
-                    camera_location=location_values(location), target_location=location_values(target.g_loc),
+                    camera_location=location_values(location), poi_location=location_values(poi.g_loc),
                     aircraft_attitude=attitude_values(attitude),
                     body_rates_rad_s=None if body_rates is None else tuple(map(float, body_rates)),
                     configured_frame_size=(frame_size.width_px, frame_size.height_px))

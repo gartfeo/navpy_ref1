@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts.direct_pixel_pn_child import _step_to_terminal_speed
+from scripts.direct_pixel_pn_child import _step_to_final_approach_speed
 
 
 class Vehicle:
@@ -50,7 +50,7 @@ def _options(**overrides: object) -> argparse.Namespace:
 @pytest.mark.parametrize(
     "options",
     [_options(del_speedup=0.0), _options(slow_seq=0)],
-    ids=["no terminal speed", "nowhere to step down"],
+    ids=["no final-approach speed", "nowhere to step down"],
 )
 def test_a_run_that_asked_for_nothing_never_touches_the_clock(
     options: argparse.Namespace,
@@ -58,7 +58,7 @@ def test_a_run_that_asked_for_nothing_never_touches_the_clock(
     """Every earlier run took this path, so it must not write a parameter."""
     vehicle = Vehicle(1.0)
 
-    _step_to_terminal_speed(vehicle, options)
+    _step_to_final_approach_speed(vehicle, options)
 
     assert vehicle.parameter_sets == []
 
@@ -66,7 +66,7 @@ def test_a_run_that_asked_for_nothing_never_touches_the_clock(
 def test_a_clock_that_slowed_lets_the_flight_continue() -> None:
     vehicle = Vehicle(1.0)
 
-    _step_to_terminal_speed(vehicle, _options())
+    _step_to_final_approach_speed(vehicle, _options())
 
     assert vehicle.parameter_sets == [("SIM_SPEEDUP", 1.0)]
 
@@ -75,5 +75,5 @@ def test_a_clock_that_stayed_fast_stops_the_flight_before_scoring_interval() -> 
     """The autopilot accepts the parameter and keeps running at 20x anyway."""
     vehicle = Vehicle(20.0)
 
-    with pytest.raises(RuntimeError, match="terminal speed did not settle"):
-        _step_to_terminal_speed(vehicle, _options())
+    with pytest.raises(RuntimeError, match="final-approach speed did not settle"):
+        _step_to_final_approach_speed(vehicle, _options())

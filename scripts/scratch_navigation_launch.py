@@ -52,19 +52,19 @@ def _child_args(options: argparse.Namespace, sysid: int,
         "--connection", ip.companion_device(sysid),
         "--sysid", str(sysid),
         "--out", str(directory / "result.json"),
-        "--target-range-m", repr(options.target_range_m),
-        "--target-below-m", repr(options.target_below_m),
+        "--poi-range-m", repr(options.poi_range_m),
+        "--poi-below-m", repr(options.poi_below_m),
         "--settle-s", repr(options.settle_s),
         "--climb-to-m", repr(options.climb_to_m),
         "--level-settle-s", repr(options.level_settle_s),
-        "--engage-s", repr(options.scoring_duration_s),
+        "--scoring-duration-s", repr(options.scoring_duration_s),
         "--speedup", repr(options.speedup),
     ]
     # GEOMETRY and ENERGY, cell first. Both were launch-wide only, so an angle
     # sweep cost one launch per angle and every comparison across them carried
     # the batch spread this bench exists to avoid.
-    args += ["--target-off-boresight-deg", repr(
-        options.target_off_boresight_deg
+    args += ["--poi-off-boresight-deg", repr(
+        options.poi_off_boresight_deg
         if (cell is None or cell.off_boresight_deg is None)
         else cell.off_boresight_deg)]
     args += ["--throttle", repr(
@@ -225,7 +225,7 @@ def _row(sysid: int, result: dict, cell: "Cell | None" = None,
         f" rejected={result.get('rejected_frames')}"
         f" saturated={result.get('saturated_commands')}"
         f" reversals={result.get('roll_reversals')}"
-        f" engage={result.get('engage_s')}s"
+        f" scoring={result.get('engage_s')}s"
         f" clock={result.get('measured_speedup')}x"
         f" errors={len(result.get('errors') or [])}"
     )

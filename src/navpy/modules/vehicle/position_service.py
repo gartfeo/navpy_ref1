@@ -76,7 +76,7 @@ class PositionService:
             sample = self._messages.wait_after(
                 "HOME_POSITION",
                 cursor,
-                self._from_target,
+                self._from_poi,
                 deadline=time.monotonic() + 1.0,
             )
             home = sample.message if sample else None
@@ -183,7 +183,7 @@ class PositionService:
         )
         return home
 
-    def _from_target(self, message: MAVLink_message) -> bool:
+    def _from_poi(self, message: MAVLink_message) -> bool:
         try:
             return message.get_srcSystem() == self._identity.target_system
         except Exception:
@@ -196,7 +196,7 @@ class PositionService:
         longitude: int,
     ) -> bool:
         return (
-            self._from_target(message)
+            self._from_poi(message)
             and abs(int(getattr(message, "lat", 0)) - latitude) <= 2
             and abs(int(getattr(message, "lon", 0)) - longitude) <= 2
         )

@@ -15,7 +15,7 @@ from navpy.modules.vision.camera_mount_frame_state import MountFrameStateCapture
 from navpy.modules.vision.camera_mount_hardware import (
     MountCameraHardware,
     MountGimbalHardware,
-    MountGimbalTargetZoomHardware,
+    MountGimbalPoiZoomHardware,
     MountGimbalZoomReadbackHardware,
 )
 from navpy.modules.vision.camera_mount_optics import (
@@ -35,7 +35,7 @@ class CameraMountParts:
     camera: MountCameraHardware
     gimbal: MountGimbalHardware
     gimbal_readback: MountGimbalZoomReadbackHardware
-    gimbal_target_zoom: MountGimbalTargetZoomHardware
+    gimbal_poi_zoom: MountGimbalPoiZoomHardware
     optics: MountOpticsReader
     calibration: MountCalibrationSummary
     readback: MountZoomReadback
@@ -54,7 +54,7 @@ def build_camera_mount_parts(
     camera = MountCameraHardware(camera_source)
     gimbal = MountGimbalHardware(gimbal_source)
     gimbal_readback = MountGimbalZoomReadbackHardware(gimbal_source)
-    gimbal_target_zoom = MountGimbalTargetZoomHardware(gimbal_source)
+    gimbal_poi_zoom = MountGimbalPoiZoomHardware(gimbal_source)
     optics = MountOpticsReader(camera, lock)
     calibration = MountCalibrationSummary(camera)
     readback = MountZoomReadback(camera, gimbal_readback, calibration_source)
@@ -73,7 +73,7 @@ def build_camera_mount_parts(
         camera=camera,
         gimbal=gimbal,
         gimbal_readback=gimbal_readback,
-        gimbal_target_zoom=gimbal_target_zoom,
+        gimbal_poi_zoom=gimbal_poi_zoom,
         optics=optics,
         calibration=calibration,
         readback=readback,

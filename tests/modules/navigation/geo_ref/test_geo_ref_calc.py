@@ -79,20 +79,20 @@ class GeoRefCalcTest(unittest.TestCase):
 
         current_loc = Location(40.311347, 44.452192, 1566.9)
 
-        target_loc = Location(40.312205, 44.455597, 1293.0)
-        target = SimulationObject(1, target_loc, 0)
+        poi_loc = Location(40.312205, 44.455597, 1293.0)
+        poi = SimulationObject(1, poi_loc, 0)
 
         uas_att = Attitude(-0.2655273659243745, 57.745888979386166, -25.837936271619576)
         g_att = Attitude(-40, 0, 0)
 
         gimbal.set_att(g_att)
-        detect_data = detector.update(current_loc, target, uas_att)
+        detect_data = detector.update(current_loc, poi, uas_att)
 
         self.assertIsNotNone(detect_data)
         self.assertIsNotNone(detect_data.pixel.u_px)
         self.assertIsNotNone(detect_data.pixel.v_px)
 
-        expected_ned = pymap3d.geodetic2ned(target_loc.lat, target_loc.lng, target_loc.alt,
+        expected_ned = pymap3d.geodetic2ned(poi_loc.lat, poi_loc.lng, poi_loc.alt,
                                             current_loc.lat, current_loc.lng, current_loc.alt)
         g_data = GimbalData(att=g_att)
         actual_ned = geo_ref.calc_ned(
@@ -265,9 +265,9 @@ class GeoRefCalcTest(unittest.TestCase):
         self.assertIsNone(u)
         self.assertIsNone(v)
 
-    def test_lock_command_projects_target_to_center_with_siyi_mount(self):
+    def test_lock_command_projects_poi_to_center_with_siyi_mount(self):
         geo_ref = GeoRefCalc(UasArgs(), False)
-        target_ned = np.array([-461.8, -429.9, 158.7])
+        poi_ned = np.array([-461.8, -429.9, 158.7])
         uas_att = Attitude(-2.0, -48.0, 5.0)
         g_data = GimbalData(att=Attitude(0.0, 0.0, 0.0))
         k = np.array([
@@ -276,42 +276,42 @@ class GeoRefCalcTest(unittest.TestCase):
             [0.0, 0.0, 1.0],
         ])
 
-        command = geo_ref.calc_gimbal_lock_att_ned(target_ned, uas_att, g_data)
+        command = geo_ref.calc_gimbal_lock_att_ned(poi_ned, uas_att, g_data)
 
         self.assertAlmostEqual(
             command.yaw,
-            math.degrees(math.atan2(target_ned[1], target_ned[0])),
+            math.degrees(math.atan2(poi_ned[1], poi_ned[0])),
             places=2,
         )
         self.assertLess(command.pitch, 0.0)
 
         readback = geo_ref.calc_gimbal_lock_readback(command, uas_att, g_data)
-        uv = geo_ref.calc_uv(target_ned, k, readback, uas_att)
+        uv = geo_ref.calc_uv(poi_ned, k, readback, uas_att)
         assert_allclose(uv, (960.0, 540.0), atol=1.0)
 
         axis_ned = geo_ref.calc_ned(960.0, 540.0, k, readback, uas_att)
-        assert_allclose(normalize(axis_ned), normalize(target_ned), atol=1e-6)
+        assert_allclose(normalize(axis_ned), normalize(poi_ned), atol=1e-6)
 
     def test_lock_command_location_path_uses_world_yaw(self):
         geo_ref = GeoRefCalc(UasArgs(), False)
         current_loc = Location(40.0, 44.0, 1000.0)
-        target_ned = np.array([0.0, 100.0, 20.0])
-        target_lat, target_lng, target_alt = pymap3d.ned2geodetic(
-            target_ned[0], target_ned[1], target_ned[2],
+        poi_ned = np.array([0.0, 100.0, 20.0])
+        poi_lat, poi_lng, poi_alt = pymap3d.ned2geodetic(
+            poi_ned[0], poi_ned[1], poi_ned[2],
             current_loc.lat, current_loc.lng, current_loc.alt,
         )
-        target_loc = Location(target_lat, target_lng, target_alt)
+        poi_loc = Location(poi_lat, poi_lng, poi_alt)
         uas_att = Attitude(0.0, 80.0, 0.0)
         g_data = GimbalData(att=Attitude(0.0, 0.0, 0.0))
 
         command = geo_ref.calc_gimbal_lock_att_loc(
-            current_loc, target_loc, uas_att, g_data,
+            current_loc, poi_loc, uas_att, g_data,
         )
 
         self.assertAlmostEqual(command.yaw, 90.0, places=2)
         self.assertAlmostEqual(
             command.pitch,
-            -math.degrees(math.atan2(target_ned[2], np.linalg.norm(target_ned[:2]))),
+            -math.degrees(math.atan2(poi_ned[2], np.linalg.norm(poi_ned[:2]))),
             places=2,
         )
 
@@ -352,7 +352,7 @@ class GeoRefCalcTest(unittest.TestCase):
     #  --t_n: [ 1.1621353  -0.45734057  0.32199172]--, s_l: lat=-35.324239,lon=149.154233,alt=-21.7,
     #  g: p=-30,y=0,r=0, u: p=-3.5138862277180283,y=21.933030038211367,r=12.336559612830094,
     #  actual_diff: 4443.6, pitch_diff: 195.43, yaw_diff: 2.97
-    def test_back_target(self):
+    def test_back_poi(self):
         c_l = Location(-35.341213, 149.162383, 500)
         t_l = Location(-35.363262, 149.165237, 0.4)
         u = Attitude(-3.5138862277180283, 21.933030038211367, 12.336559612830094)
@@ -384,22 +384,22 @@ class GeoRefCalcTest(unittest.TestCase):
         geo_ref = GeoRefCalc(UasArgs(), enable_log=False)
 
         for yaw in [0, 180]:
-            target_att_u = Attitude(70, yaw, 0)
-            target_att_d = Attitude(-70, yaw, 0)
+            poi_att_u = Attitude(70, yaw, 0)
+            poi_att_d = Attitude(-70, yaw, 0)
 
             uas_att_u = Attitude(30, yaw, 0)
             uas_att_d = Attitude(-30, yaw, 0)
 
-            _, pitch = geo_ref.calc_yaw_pitch_proj_att(target_att_u, uas_att_u)
+            _, pitch = geo_ref.calc_yaw_pitch_proj_att(poi_att_u, uas_att_u)
             self.assertAlmostEqual(pitch, -40, msg=f'Yaw: {yaw}, pitch: {pitch}')
 
-            _, pitch = geo_ref.calc_yaw_pitch_proj_att(target_att_u, uas_att_d)
+            _, pitch = geo_ref.calc_yaw_pitch_proj_att(poi_att_u, uas_att_d)
             self.assertAlmostEqual(pitch, -100, msg=f'Yaw: {yaw}, pitch: {pitch}')
 
-            _, pitch = geo_ref.calc_yaw_pitch_proj_att(target_att_d, uas_att_u)
+            _, pitch = geo_ref.calc_yaw_pitch_proj_att(poi_att_d, uas_att_u)
             self.assertAlmostEqual(pitch, 100, msg=f'Yaw: {yaw}, pitch: {pitch}')
 
-            _, pitch = geo_ref.calc_yaw_pitch_proj_att(target_att_d, uas_att_d)
+            _, pitch = geo_ref.calc_yaw_pitch_proj_att(poi_att_d, uas_att_d)
             self.assertAlmostEqual(pitch, 40, msg=f'Yaw: {yaw}, pitch: {pitch}')
 
     def test_calc_yaw_pitch_yaw_pitch_45(self):
@@ -445,8 +445,8 @@ class GeoRefCalcTest(unittest.TestCase):
         target_pitch = 0
 
         curr_att = Attitude(0, 0, 0)
-        target_att = Attitude(91, 0, 0)
-        yaw, pitch = GeoRefCalc(UasArgs(), enable_log=False).calc_yaw_pitch_proj_att(curr_att, target_att)
+        poi_att = Attitude(91, 0, 0)
+        yaw, pitch = GeoRefCalc(UasArgs(), enable_log=False).calc_yaw_pitch_proj_att(curr_att, poi_att)
 
         if (not np.isclose(yaw, target_yaw)
                 or not np.isclose(pitch, target_pitch)):
@@ -460,8 +460,8 @@ class GeoRefCalcTest(unittest.TestCase):
         target_pitch = 180
 
         curr_att = Attitude(0, 150, 0)
-        target_att = Attitude(0, -30, 0)
-        yaw, pitch = GeoRefCalc(UasArgs(), enable_log=False).calc_yaw_pitch_proj_att(curr_att, target_att)
+        poi_att = Attitude(0, -30, 0)
+        yaw, pitch = GeoRefCalc(UasArgs(), enable_log=False).calc_yaw_pitch_proj_att(curr_att, poi_att)
 
         if (not np.isclose(yaw, target_yaw)
                 or not np.isclose(pitch, target_pitch)):
@@ -497,9 +497,9 @@ class GeoRefCalcTest(unittest.TestCase):
             for angle in range(-180, 181, 30):
                 # check pitch
                 target_pitch = wrap_180(angle - initial_pitch)
-                target_ned = Rotation.from_euler('Y', initial_pitch, degrees=True).apply([1, 0, 0])
+                poi_ned = Rotation.from_euler('Y', initial_pitch, degrees=True).apply([1, 0, 0])
                 uas_att = Attitude(angle, 0, 0)
-                yaw, pitch = GeoRefCalc(UasArgs(), enable_log=False).calc_yaw_pitch_proj(target_ned, uas_att)
+                yaw, pitch = GeoRefCalc(UasArgs(), enable_log=False).calc_yaw_pitch_proj(poi_ned, uas_att)
 
                 if not np.isclose(pitch, target_pitch) or not np.isclose(yaw, 0):
                     print(f'initial: {initial_pitch},{angle}, '
@@ -511,9 +511,9 @@ class GeoRefCalcTest(unittest.TestCase):
             for angle in range(-180, 181, 30):
                 # check pitch
                 target_yaw = wrap_180(angle - initial_yaw)
-                target_ned = Rotation.from_euler('Z', initial_yaw, degrees=True).apply([1, 0, 0])
+                poi_ned = Rotation.from_euler('Z', initial_yaw, degrees=True).apply([1, 0, 0])
                 uas_att = Attitude(0, angle, 0)
-                yaw, pitch = GeoRefCalc(UasArgs(), enable_log=False).calc_yaw_pitch_proj(target_ned, uas_att)
+                yaw, pitch = GeoRefCalc(UasArgs(), enable_log=False).calc_yaw_pitch_proj(poi_ned, uas_att)
 
                 if not np.isclose(yaw, target_yaw) or not np.isclose(pitch, 0):
                     print(f'initial: {initial_yaw},{angle}, '
@@ -527,51 +527,51 @@ class CalcPitchLosTest(unittest.TestCase):
     def setUp(self):
         self._geo_ref = GeoRefCalc(UasArgs(), enable_log=False)
 
-    def test_matches_projection_when_nose_on_target(self):
+    def test_matches_projection_when_nose_on_poi(self):
         # With zero heading error the body-XZ projection IS the LOS
         # elevation relative to body pitch: both formulations must agree.
         for elevation_deg in (5.0, 9.3, 20.0, 45.0):
             for uas_pitch in (0.0, -10.0, -36.8):
                 horizontal = math.cos(math.radians(elevation_deg))
                 down = math.sin(math.radians(elevation_deg))
-                target_ned = np.array([horizontal, 0.0, down])
+                poi_ned = np.array([horizontal, 0.0, down])
                 uas_att = Attitude(uas_pitch, 0.0, 0.0)
 
-                _, proj_pitch = self._geo_ref.calc_yaw_pitch_proj(target_ned, uas_att)
-                los_pitch = self._geo_ref.calc_pitch_los(target_ned, uas_att)
+                _, proj_pitch = self._geo_ref.calc_yaw_pitch_proj(poi_ned, uas_att)
+                los_pitch = self._geo_ref.calc_pitch_los(poi_ned, uas_att)
 
                 self.assertAlmostEqual(
                     los_pitch, proj_pitch, places=5,
                     msg=f"elev={elevation_deg} pitch={uas_pitch}",
                 )
 
-    def test_bounded_when_target_behind(self):
-        # Field geometry of the 2026-06-12 NAV-entry aborts: target
+    def test_bounded_when_poi_behind(self):
+        # Field geometry of the 2026-06-12 NAV-entry aborts: poi
         # ~9.3 deg below the horizon but ~97 deg off the nose. The XZ
         # projection exceeds 90 deg and railed the dive; the LOS pitch
         # must stay shallow (|los + pitch| bounded by real geometry).
         elevation = math.radians(9.3)
         bearing = math.radians(97.0)
-        target_ned = np.array([
+        poi_ned = np.array([
             math.cos(elevation) * math.cos(bearing),
             math.cos(elevation) * math.sin(bearing),
             math.sin(elevation),
         ])
         uas_att = Attitude(-36.8, 0.0, 0.0)
 
-        _, proj_pitch = self._geo_ref.calc_yaw_pitch_proj(target_ned, uas_att)
-        los_pitch = self._geo_ref.calc_pitch_los(target_ned, uas_att)
+        _, proj_pitch = self._geo_ref.calc_yaw_pitch_proj(poi_ned, uas_att)
+        los_pitch = self._geo_ref.calc_pitch_los(poi_ned, uas_att)
 
         # The projection reports a near-vertical (~90 deg) nose-down
-        # rotation for a 9.3 deg elevation target — the dive-railing
+        # rotation for a 9.3 deg elevation POI — the dive-railing
         # artifact. The LOS pitch reports the real geometry.
         self.assertGreater(abs(proj_pitch), 80.0)
         self.assertAlmostEqual(los_pitch, 9.3 + (-36.8), places=3)
 
     def test_sign_conventions(self):
         level = Attitude(0.0, 0.0, 0.0)
-        below = np.array([1.0, 0.0, 0.2])   # target below the horizon
-        above = np.array([1.0, 0.0, -0.2])  # target above the horizon
+        below = np.array([1.0, 0.0, 0.2])   # POI below the horizon
+        above = np.array([1.0, 0.0, -0.2])  # POI above the horizon
 
         # Positive = nose-down rotation needed.
         self.assertGreater(self._geo_ref.calc_pitch_los(below, level), 0.0)
@@ -585,8 +585,8 @@ class CalcPitchLosTest(unittest.TestCase):
         )
 
     def test_straight_down_is_bounded(self):
-        target_ned = np.array([0.0, 0.0, 1.0])
-        result = self._geo_ref.calc_pitch_los(target_ned, Attitude(0.0, 0.0, 0.0))
+        poi_ned = np.array([0.0, 0.0, 1.0])
+        result = self._geo_ref.calc_pitch_los(poi_ned, Attitude(0.0, 0.0, 0.0))
         self.assertAlmostEqual(result, 90.0, places=3)
 
 

@@ -18,14 +18,14 @@ const NAV_CALLS = [
 function readyResult() {
   return {
     status: 'ready',
-    instances: TARG_CALLS.map((target, index) => ({
-      sys_id: target.sys_id,
+    instances: TARG_CALLS.map((poi, index) => ({
+      sys_id: poi.sys_id,
       status: 'ready',
       old_pid: 100 + index,
       pid: 200 + index,
       runtime: {
         mission_items: 10,
-        targ_wps: target.targ_wps,
+        targ_wps: poi.targ_wps,
         nav_last_wp: NAV_CALLS[index].nav_last_wp,
       },
     })),

@@ -22,10 +22,10 @@ from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.modules.navigation.nav.vision_nav.law_config import (
-    FixedTerminalLawConfigProvider,
+    FixedFinalApproachLawConfigProvider,
 )
 from navpy.modules.navigation.nav.vision_nav.runtime_composition import (
-    TerminalVehicleActuator, TerminalVehicleDiagnosticReader, compose_terminal_runtime,
+    FinalApproachVehicleActuator, FinalApproachVehicleDiagnosticReader, compose_final_approach_runtime,
 )
 from navpy.modules.vehicle.attitude_command import euler_to_quaternion
 from navpy.modules.vision.sim.direct_pixel_render import DirectPixelRenderer
@@ -102,12 +102,12 @@ class SynchronousNavigation:
             time_source=lambda: self._source_s, wall_time=self._wall_now,
             timestamp=lambda: f"{self._source_s:.6f}", streams=streams)
         lock = threading.RLock()
-        self._composition = compose_terminal_runtime(
+        self._composition = compose_final_approach_runtime(
             lock=lock, slot=NavigationCommandSlot(lock, threading.Event()),
             sys_id=snapshot.identity.vehicle,
-            actuator=TerminalVehicleActuator(self._actuator.set_attitude),
-            diagnostic_reader=TerminalVehicleDiagnosticReader(lambda: None, lambda: None),
-            law=VisionNavLaw(FixedTerminalLawConfigProvider(config)),
+            actuator=FinalApproachVehicleActuator(self._actuator.set_attitude),
+            diagnostic_reader=FinalApproachVehicleDiagnosticReader(lambda: None, lambda: None),
+            law=VisionNavLaw(FixedFinalApproachLawConfigProvider(config)),
             aircraft_roll_deg=lambda: 0., aircraft_sequence="ZYX", aircraft_degrees=True,
             navigation_logger=self._logger, wall_period_s=lambda period: period / self._speedup)
 
@@ -144,7 +144,7 @@ class SynchronousNavigation:
                 raise ValueError("camera geometry unavailable")
             evidence["pixels"] = [detection.pixel.u_px, detection.pixel.v_px]
             if self.seed_step is None:
-                if not self._composition.confirmation.record_terminal_confirmed_detection(detection):
+                if not self._composition.confirmation.record_final_approach_confirmed_detection(detection):
                     raise ValueError("confirmation seed unavailable")
                 self.seed_step = snapshot.identity.step
             if not runtime.nav(detection):
@@ -160,7 +160,7 @@ class SynchronousNavigation:
                 runtime.finish_work(work)
         if runtime.consume_command_liveness_failure():
             raise ValueError("runtime receipt liveness failure")
-        evidence["passed"] = runtime.target_passed_override()
+        evidence["passed"] = runtime.poi_passed_override()
         if self._actuator.command.kind == ATTITUDE:
             self.command_count += 1
         return self._actuator.command, evidence
@@ -177,6 +177,6 @@ class SynchronousNavigation:
         evidence = {"active": self._composition is not None, "captured": False,
                     "draining": True}
         if self._composition is not None:
-            evidence["passed"] = self._composition.runtime.target_passed_override()
+            evidence["passed"] = self._composition.runtime.poi_passed_override()
             self._composition.runtime.invalidate_commands()
         return evidence

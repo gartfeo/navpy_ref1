@@ -12,7 +12,7 @@ class PitchPn:
                     \_________/   \_____________________________/
                     feedforward        closed-loop (like PID)
 
-    The feedforward term points at target based on NED geometry.
+    The feedforward term points at POI based on NED geometry.
     The Kp term provides closed-loop wind rejection (same as PID).
     """
 
@@ -26,12 +26,12 @@ class PitchPn:
         self._out_min = out_min
         self._out_max = out_max
 
-    def calc(self, target_ned: np.ndarray, pitch_error: float, current_pitch: float) -> float:
+    def calc(self, poi_ned: np.ndarray, pitch_error: float, current_pitch: float) -> float:
         """
         Calculate pitch command.
 
         Args:
-            target_ned: Normalized NED direction vector to target
+            poi_ned: Normalized NED direction vector to POI
             pitch_error: Vision-based pitch error (deg)
             current_pitch: Current aircraft pitch (deg)
 
@@ -39,11 +39,11 @@ class PitchPn:
             Commanded pitch (deg, negative = nose down)
         """
         # LOS elevation angle from NED vector (rad)
-        n, e, d = target_ned
+        n, e, d = poi_ned
         horiz = math.sqrt(n * n + e * e)
         los_angle = math.atan2(d, max(horiz, 1e-6))
 
-        # Feedforward: point at target
+        # Feedforward: point at POI
         pitch_cmd_rad = -los_angle
 
         # Closed-loop: Kp correction for wind rejection

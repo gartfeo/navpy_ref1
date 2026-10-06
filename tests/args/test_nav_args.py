@@ -70,7 +70,7 @@ class TestMinWpOrdinalResolution:
 class TestConfirmOnFailDefault:
     def test_default_is_reject(self):
         """MISS-04: confirm-on-fail defaults to REJECT — a confirm window that
-        expires without an operator response must never auto-commit the target
+        expires without an operator response must never auto-commit the POI
         unless CONFIRM was explicitly configured (CLI -tcfc or AAS_NAV_CM_FL)."""
         na = NavArgs(_make_args(), _make_vehicle())
         assert NavArgs.PARAMS['AAS_NAV_CM_FL'] is False

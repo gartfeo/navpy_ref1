@@ -7,10 +7,10 @@ from types import SimpleNamespace
 import pytest
 
 from scripts.eval_ground_track import GroundTrackRecorder
-from scripts.eval_navigation_models import TargetLocation
+from scripts.eval_navigation_models import PoiLocation
 
 
-TARGET = TargetLocation(
+POI = PoiLocation(
     lat_deg=40.0, lon_deg=44.0, rel_alt_m=60.0, abs_alt_m=1000.0
 )
 
@@ -41,7 +41,7 @@ def _feed(recorder: GroundTrackRecorder, count: int, **kwargs: float) -> None:
 
 
 def test_track_is_the_measured_direction_of_motion() -> None:
-    recorder = GroundTrackRecorder(TARGET)
+    recorder = GroundTrackRecorder(POI)
     # Due east at 20 m/s.
     _feed(recorder, 10, vn=0.0, ve=20.0)
 
@@ -53,7 +53,7 @@ def test_track_is_the_measured_direction_of_motion() -> None:
 
 def test_headwind_is_positive_and_tailwind_negative() -> None:
     """ArduPilot wind_dir is the direction the wind blows FROM."""
-    recorder = GroundTrackRecorder(TARGET)
+    recorder = GroundTrackRecorder(POI)
     _feed(recorder, 10, vn=20.0, ve=0.0)  # tracking due north
 
     head = recorder.summary(10.0, 0.0)  # wind from the north = head-on
@@ -65,7 +65,7 @@ def test_headwind_is_positive_and_tailwind_negative() -> None:
 
 
 def test_crosswind_is_positive_from_the_right() -> None:
-    recorder = GroundTrackRecorder(TARGET)
+    recorder = GroundTrackRecorder(POI)
     _feed(recorder, 10, vn=20.0, ve=0.0)  # tracking due north
 
     summary = recorder.summary(10.0, 90.0)  # wind from the east
@@ -76,9 +76,9 @@ def test_crosswind_is_positive_from_the_right() -> None:
 
 def test_same_world_wind_is_head_for_one_track_and_tail_for_another() -> None:
     """The reason this exists: peers approach from any bearing."""
-    north = GroundTrackRecorder(TARGET)
+    north = GroundTrackRecorder(POI)
     _feed(north, 10, vn=20.0, ve=0.0)
-    south = GroundTrackRecorder(TARGET)
+    south = GroundTrackRecorder(POI)
     _feed(south, 10, vn=-20.0, ve=0.0)
 
     wind_from_north = (10.0, 0.0)
@@ -89,7 +89,7 @@ def test_same_world_wind_is_head_for_one_track_and_tail_for_another() -> None:
 
 def test_track_averages_the_vector_not_the_heading_across_the_wrap() -> None:
     """Scalar-averaging headings either side of north gives 180 deg wrong."""
-    recorder = GroundTrackRecorder(TARGET)
+    recorder = GroundTrackRecorder(POI)
     # Alternating 350 deg and 10 deg: the true mean track is due north.
     _feed(recorder, 5, vn=19.70, ve=-3.47)
     _feed(recorder, 5, vn=19.70, ve=3.47)
@@ -101,9 +101,9 @@ def test_track_averages_the_vector_not_the_heading_across_the_wrap() -> None:
     )
 
 
-def test_terminal_window_prefers_samples_near_the_target() -> None:
-    recorder = GroundTrackRecorder(TARGET)
-    # Far away heading east, then committed to a northward terminal run.
+def test_final_approach_window_prefers_samples_near_the_poi() -> None:
+    recorder = GroundTrackRecorder(POI)
+    # Far away heading east, then committed to a northward final-approach run.
     _feed(recorder, 20, vn=0.0, ve=20.0, lat=40.05)
     _feed(recorder, 5, vn=20.0, ve=0.0, lat=40.0005)
 
@@ -117,13 +117,13 @@ def test_terminal_window_prefers_samples_near_the_target() -> None:
 def test_a_level_fly_by_is_scored_on_the_run_in_not_the_departure() -> None:
     """The window is a range band, and a level pass re-enters it outbound.
 
-    Measured on a clean 0.08 m intercept flown due north: samples averaging
+    Measured on a clean 0.08 m approach flown due north: samples averaging
     18.10 m/s of ground speed produced a 1.80 m/s resultant pointing 284 deg,
     because the departure was averaged in with the approach. The wind was then
     resolved against a track the aircraft never flew and a pure crosswind cell
     was reported as a headwind.
     """
-    recorder = GroundTrackRecorder(TARGET)
+    recorder = GroundTrackRecorder(POI)
     for lat in (39.9985, 39.9990, 39.9995, 40.0000):
         recorder.add(_message(vn=20.0, ve=0.0, lat=lat))
     # Turns back and leaves, for longer than the run-in lasted: averaging the
@@ -141,7 +141,7 @@ def test_a_level_fly_by_is_scored_on_the_run_in_not_the_departure() -> None:
 
 def test_out_and_back_samples_do_not_define_a_track() -> None:
     """Every sample moves, but the resultant cancels: refuse, don't invent."""
-    recorder = GroundTrackRecorder(TARGET)
+    recorder = GroundTrackRecorder(POI)
     _feed(recorder, 5, vn=20.0, ve=0.0)
     _feed(recorder, 5, vn=-20.0, ve=0.0)
 
@@ -150,7 +150,7 @@ def test_out_and_back_samples_do_not_define_a_track() -> None:
 
 
 def test_stationary_samples_do_not_define_a_track() -> None:
-    recorder = GroundTrackRecorder(TARGET)
+    recorder = GroundTrackRecorder(POI)
     _feed(recorder, 10, vn=0.0, ve=0.0)
 
     with pytest.raises(RuntimeError, match="no moving ground-track samples"):
@@ -158,14 +158,14 @@ def test_stationary_samples_do_not_define_a_track() -> None:
 
 
 def test_malformed_message_is_rejected_without_recording() -> None:
-    recorder = GroundTrackRecorder(TARGET)
+    recorder = GroundTrackRecorder(POI)
 
     assert recorder.add(SimpleNamespace()) is False
     assert recorder.sample_count == 0
 
 
 def test_write_emits_the_velocity_vector_per_sample(tmp_path: Path) -> None:
-    recorder = GroundTrackRecorder(TARGET)
+    recorder = GroundTrackRecorder(POI)
     _feed(recorder, 3, vn=12.0, ve=-5.0)
 
     recorder.write(tmp_path / "ground_track.csv")

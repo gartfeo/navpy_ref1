@@ -13,7 +13,7 @@ from navpy.modules.vision.multi_object_tracker import TrackedObject
 
 @dataclass(frozen=True)
 class MappedTrackObservation:
-    """Undistorted target center plus tracking-frame geometry."""
+    """Undistorted POI center plus tracking-frame geometry."""
 
     u_px: float
     v_px: float

@@ -98,7 +98,7 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
     const viewer = viewerRef.current;
     if (!Cesium || !viewer || !showCoverage) return;
     // Coverage footprints depend on planner config (vision profiles + per-class
-    // target sizes); getDeviceConfigs() stays empty until it loads. Skip
+    // POI sizes); getDeviceConfigs() stays empty until it loads. Skip
     // accumulation until ready so we never render against incomplete config.
     if (!plannerReady) {
       return;

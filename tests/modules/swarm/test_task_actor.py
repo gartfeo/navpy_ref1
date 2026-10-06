@@ -16,7 +16,7 @@ from navpy.modules.comm.messages.types import TaskDispatchStatus, TaskTypeMsgDat
 from navpy.modules.common.models.location import Location
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.vehicle.vehicle_interface import IVehicle
 from navpy.modules.swarm.task_actor import TaskActor
@@ -76,13 +76,13 @@ class TaskActorTest(unittest.TestCase):
             self.task_actor._auction_state.current_generation(),
         )
 
-    def test_notify_targets(self):
+    def test_notify_pois(self):
         # Arrange
         gimbal_data = Mock(spec=GimbalData)
         vehicle_attitude = Mock(spec=Attitude)
 
-        detected_targets = [
-            make_detected_target(
+        detected_pois = [
+            make_detected_poi(
                 obj_id=1,
                 x_error=0.0,
                 y_error=0.0,
@@ -92,7 +92,7 @@ class TaskActorTest(unittest.TestCase):
                 uas_att=vehicle_attitude,
                 t_g_loc_debug=Location(12.34, 56.78, 90.0)
             ),
-            make_detected_target(
+            make_detected_poi(
                 obj_id=2,
                 x_error=0.0,
                 y_error=0.0,
@@ -105,38 +105,38 @@ class TaskActorTest(unittest.TestCase):
         ]
 
         # Manually set the size_class
-        detected_targets[0].replace_classification(replace(
-            detected_targets[0].classification,
+        detected_pois[0].replace_classification(replace(
+            detected_pois[0].classification,
             size_class=DetectionSizeClass.S,
         ))
-        detected_targets[1].replace_classification(replace(
-            detected_targets[1].classification,
+        detected_pois[1].replace_classification(replace(
+            detected_pois[1].classification,
             size_class=DetectionSizeClass.M,
         ))
 
-        # Manually set the predicted target location if not set
-        detected_targets[0].set_p_t_g_loc(
-            detected_targets[0].geo.truth_target_location,
+        # Manually set the predicted POI location if not set
+        detected_pois[0].set_p_t_g_loc(
+            detected_pois[0].geo.truth_poi_location,
         )
-        detected_targets[1].set_p_t_g_loc(
-            detected_targets[1].geo.truth_target_location,
+        detected_pois[1].set_p_t_g_loc(
+            detected_pois[1].geo.truth_poi_location,
         )
 
         # Act
-        self.task_actor.notify_targets(detected_targets)
+        self.task_actor.notify_pois(detected_pois)
 
         # Assert
         self.assertEqual(len(self.task_actor._auction_state.task_ids()), 2)
         self.network.broadcast.assert_called()
         self.logger.info.assert_called()
 
-    def test_notify_targets_uses_task_id_for_dispatch_identity(self):
-        """Targets with the same local obj_id stay distinct when task IDs differ."""
+    def test_notify_pois_uses_task_id_for_dispatch_identity(self):
+        """POIs with the same local obj_id stay distinct when task IDs differ."""
         gimbal_data = Mock(spec=GimbalData)
         vehicle_attitude = Mock(spec=Attitude)
 
-        detected_targets = [
-            make_detected_target(
+        detected_pois = [
+            make_detected_poi(
                 obj_id=1,
                 task_id=101,
                 x_error=0.0,
@@ -147,7 +147,7 @@ class TaskActorTest(unittest.TestCase):
                 uas_att=vehicle_attitude,
                 t_g_loc_debug=Location(12.34, 56.78, 90.0),
             ),
-            make_detected_target(
+            make_detected_poi(
                 obj_id=1,
                 task_id=202,
                 x_error=0.0,
@@ -160,14 +160,14 @@ class TaskActorTest(unittest.TestCase):
             ),
         ]
 
-        detected_targets[0].set_p_t_g_loc(
-            detected_targets[0].geo.truth_target_location,
+        detected_pois[0].set_p_t_g_loc(
+            detected_pois[0].geo.truth_poi_location,
         )
-        detected_targets[1].set_p_t_g_loc(
-            detected_targets[1].geo.truth_target_location,
+        detected_pois[1].set_p_t_g_loc(
+            detected_pois[1].geo.truth_poi_location,
         )
 
-        self.task_actor.notify_targets(detected_targets)
+        self.task_actor.notify_pois(detected_pois)
 
         self.assertCountEqual(
             self.task_actor._auction_state.task_ids(),
@@ -428,7 +428,7 @@ class TaskActorTest(unittest.TestCase):
 
         self.task_actor.on_message(message)
 
-        self.assertIsNone(self.task_actor.selected_target())
+        self.assertIsNone(self.task_actor.selected_poi())
         self.network.broadcast.assert_not_called()
         self.logger.warning.assert_called_with(
             "Ignoring TASK_ASSIGN_REQUEST from unadmitted peer 4."
@@ -978,7 +978,7 @@ class TaskActorTest(unittest.TestCase):
 
         # Assert — actor state cleared
         self.assertEqual(len(self.task_actor._rebroadcast.known_peers()), 0)
-        self.assertIsNone(self.task_actor.selected_target())
+        self.assertIsNone(self.task_actor.selected_poi())
         self.assertEqual(len(self.task_actor._auction_state.task_ids()), 0)
         self.assertFalse(self.task_actor._presence.is_started())
 
@@ -1017,7 +1017,7 @@ class TaskActorTest(unittest.TestCase):
         self.assertIs(self.task_actor.vehicle, self.vehicle)
         self.assertIs(self.task_actor.network, self.network)
         self.assertIs(self.task_actor.logger, self.logger)
-        self.assertFalse(self.task_actor.has_selected_targets())
+        self.assertFalse(self.task_actor.has_selected_pois())
 
         selected = TaskAssignMsgData(
             task_id=7,
@@ -1025,7 +1025,7 @@ class TaskActorTest(unittest.TestCase):
             location=LocationMsgData(1.0, 2.0, 3.0),
         )
         self.assertTrue(self.task_actor._selection.try_accept(selected))
-        self.assertTrue(self.task_actor.has_selected_targets())
+        self.assertTrue(self.task_actor.has_selected_pois())
 
     def test_shutdown_stops_auctions_when_checkout_raises(self):
         # _presence.stop is mocked below, so neither shutdown() nor tearDown's
@@ -1059,9 +1059,9 @@ class TaskActorTest(unittest.TestCase):
     def test_full_cycle_detect_assign_navigate_reset_repeat(self):
         """
         Full realistic cycle:
-        1. Detect target → broadcast → peer responds → assign → peer accepts (navigates)
+        1. Detect POI → broadcast → peer responds → assign → peer accepts (navigates)
         2. Reset all
-        3. Detect NEW target → broadcast → peer responds → assign → peer accepts
+        3. Detect NEW POI → broadcast → peer responds → assign → peer accepts
         Verifies no stale state blocks the second cycle.
         """
         msg_filter = MessageFilter()
@@ -1070,26 +1070,26 @@ class TaskActorTest(unittest.TestCase):
         gimbal_data = Mock(spec=GimbalData)
         vehicle_attitude = Mock(spec=Attitude)
 
-        # ---- Phase 1: detect target, peer navigates ----
+        # ---- Phase 1: detect POI, peer navigates ----
 
         # Peer 5 announces via heartbeat
         self._discover(5, 6)
         self.assertEqual(self.task_actor._rebroadcast.known_peers(), {5, 6})
 
-        # Detect target (realistic entry point)
-        target1 = make_detected_target(
+        # Detect POI (realistic entry point)
+        poi1 = make_detected_poi(
             obj_id=1, x_error=0.0, y_error=0.0,
             reference_height_m=1.0, k=1.0,
             g_data=gimbal_data, uas_att=vehicle_attitude,
             t_g_loc_debug=Location(12.34, 56.78, 90.0),
         )
-        target1.replace_classification(replace(
-            target1.classification,
+        poi1.replace_classification(replace(
+            poi1.classification,
             size_class=DetectionSizeClass.S,
         ))
-        target1.set_p_t_g_loc(target1.geo.truth_target_location)
+        poi1.set_p_t_g_loc(poi1.geo.truth_poi_location)
 
-        self.task_actor.notify_targets([target1])
+        self.task_actor.notify_pois([poi1])
         self.assertIn(1, self.task_actor._auction_state.task_ids())
         td1 = self._dispatch(1)
         td1.cancel_rebroadcast()  # prevent timer threads in test
@@ -1118,30 +1118,30 @@ class TaskActorTest(unittest.TestCase):
 
         # Verify clean slate
         self.assertEqual(len(self.task_actor._auction_state.task_ids()), 0)
-        self.assertIsNone(self.task_actor.selected_target())
+        self.assertIsNone(self.task_actor.selected_poi())
         self.assertEqual(len(self.task_actor._rebroadcast.known_peers()), 0)
         self.assertFalse(self.task_actor._presence.is_started())
         self.assertIsNone(msg_filter.offset_estimator.get_offset(5))
 
-        # ---- Phase 2: start fresh, detect new target, assign again ----
+        # ---- Phase 2: start fresh, detect new POI, assign again ----
         self.task_actor.start()
 
-        # Detect NEW target BEFORE any heartbeats arrive (the post-reset scenario)
-        target2 = make_detected_target(
+        # Detect NEW POI BEFORE any heartbeats arrive (the post-reset scenario)
+        poi2 = make_detected_poi(
             obj_id=2, x_error=0.0, y_error=0.0,
             reference_height_m=1.0, k=1.0,
             g_data=gimbal_data, uas_att=vehicle_attitude,
             t_g_loc_debug=Location(23.45, 67.89, 100.0),
         )
-        target2.replace_classification(replace(
-            target2.classification,
+        poi2.replace_classification(replace(
+            poi2.classification,
             size_class=DetectionSizeClass.M,
         ))
-        target2.set_p_t_g_loc(target2.geo.truth_target_location)
+        poi2.set_p_t_g_loc(poi2.geo.truth_poi_location)
 
         self.logger.info.reset_mock()
         self.network.broadcast.reset_mock()
-        self.task_actor.notify_targets([target2])
+        self.task_actor.notify_pois([poi2])
         self.assertIn(2, self.task_actor._auction_state.task_ids())
         td2 = self._dispatch(2)
 

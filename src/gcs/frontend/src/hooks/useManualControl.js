@@ -82,7 +82,7 @@ export default function useManualControl(sendWsMessage, storeRef, setModeRef) {
    * Release RC control for a vehicle and restore its previous safe mode.
    * Returns the restored mode name if a mode change was made, or null.
    */
-  const releaseTarget = useCallback((sysId) => {
+  const releasePoi = useCallback((sysId) => {
     if (sysId == null) return null;
     sendWsMessage({ type: 'manual_control_stop', sys_id: sysId });
 
@@ -98,7 +98,7 @@ export default function useManualControl(sendWsMessage, storeRef, setModeRef) {
   const toggleManualControl = useCallback(() => {
     setManualControlEnabled((prev) => {
       if (prev) {
-        // Disabling — reset joystick state (caller handles releaseTarget)
+        // Disabling — reset joystick state (caller handles releasePoi)
         leftRef.current = { x: 0, y: -1 };
         rightRef.current = { x: 0, y: 0 };
         lastSentRef.current = null;
@@ -116,6 +116,6 @@ export default function useManualControl(sendWsMessage, storeRef, setModeRef) {
     handleRightMove,
     capturePrevMode,
     peekRestoreMode,
-    releaseTarget,
+    releasePoi,
   };
 }

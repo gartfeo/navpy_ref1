@@ -1,4 +1,4 @@
-"""Post-leg reduction of a determinism trace. Never call during an engagement.
+"""Post-leg reduction of a determinism trace. Never call during a scoring window.
 
 Kept out of the recorder because it is a READER: it walks rows and does
 arithmetic, none of which may ever run on the message path.

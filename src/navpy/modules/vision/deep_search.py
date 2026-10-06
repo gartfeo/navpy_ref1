@@ -1,4 +1,4 @@
-"""Low-rate deep detector support for selected-target reacquisition."""
+"""Low-rate deep detector support for selected-POI reacquisition."""
 from __future__ import annotations
 
 from dataclasses import dataclass

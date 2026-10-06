@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class MatrixCase:
-    target_alt_m: int
+    poi_alt_m: int
     speedup: float
     navigation_speedup: float
     wind_speed_mps: float
@@ -32,7 +32,7 @@ class MissionItem:
 
 
 @dataclass(frozen=True)
-class TargetLocation:
+class PoiLocation:
     lat_deg: float
     lon_deg: float
     rel_alt_m: float
@@ -40,12 +40,12 @@ class TargetLocation:
 
 
 @dataclass(frozen=True)
-class TargetExpectation:
-    target_wp: int
+class PoiExpectation:
+    poi_wp: int
     mission_seq: int
     expected_task_id: int
     expected_obj_id: int
-    location: TargetLocation
+    location: PoiLocation
 
 
 @dataclass(frozen=True)
@@ -56,9 +56,9 @@ class SelectionEvidence:
     obj_id: int | None
     fallback_location_registered: bool
     event_wall_time_s: float | None
-    target_lat_deg: float | None
-    target_lon_deg: float | None
-    target_abs_alt_m: float | None
+    poi_lat_deg: float | None
+    poi_lon_deg: float | None
+    poi_abs_alt_m: float | None
 
     def to_record(self) -> dict[str, object]:
         """Keep the established evidence format at its serialization boundary."""
@@ -69,9 +69,9 @@ class SelectionEvidence:
             "obj_id": self.obj_id,
             "default_ooi_registered": self.fallback_location_registered,
             "event_wall_time_s": self.event_wall_time_s,
-            "target_lat_deg": self.target_lat_deg,
-            "target_lon_deg": self.target_lon_deg,
-            "target_abs_alt_m": self.target_abs_alt_m,
+            "poi_lat_deg": self.poi_lat_deg,
+            "poi_lon_deg": self.poi_lon_deg,
+            "poi_abs_alt_m": self.poi_abs_alt_m,
         }
 
 

@@ -18,7 +18,7 @@ from navpy.modules.nav.nav_composition_types import (
     NavCapabilities,
     NavStateOwnership,
     ResetWorkflows,
-    TargetMissionOwnership,
+    PoiMissionOwnership,
     VehicleApproachOwnership,
 )
 from navpy.modules.vehicle.vehicle_interface import IVehicle
@@ -30,11 +30,11 @@ def compose_reset_workflows(
     detection: DetectionCoordination,
     args: NavArgs,
     state: NavStateOwnership,
-    target: TargetMissionOwnership,
+    poi: PoiMissionOwnership,
     approach: VehicleApproachOwnership,
     observation: DetectionReviewOwnership,
     navigation: NavCapabilities,
-    close_terminal_source: Callable[[], None],
+    close_final_approach_source: Callable[[], None],
 ) -> ResetWorkflows:
     state_reset = NavigationTaskStateReset(
         state.navigation_task,
@@ -42,20 +42,20 @@ def compose_reset_workflows(
         state.geo_hold,
         state.confirm,
         state.detections,
-        target.mission,
-        target.retry_state,
-        target.pass_tracker,
+        poi.mission,
+        poi.retry_state,
+        poi.pass_tracker,
     )
     resource_reset = NavigationTaskResourceReset(
         NavigationTaskResourcePorts(
             reset_peer_dispatch=observation.network.reset_peer_dispatch,
             reset_task_actor=observation.network.reset_task_actor,
-            refresh_mission=target.mission.refresh,
+            refresh_mission=poi.mission.refresh,
         ),
         detection.tracking_commands,
         detection.geo_pointing,
         detection.reset,
-        target.confirmation_manager,
+        poi.confirmation_manager,
         approach.loiter_radius,
         approach.speedup,
         args,
@@ -63,13 +63,13 @@ def compose_reset_workflows(
     reset = NavigationTaskResetTransaction(
         state_reset,
         resource_reset,
-        close_terminal_source,
+        close_final_approach_source,
     )
     resume_auto = AutoMissionResume(
         AutoMissionResumePorts(
-            close_terminal_source=close_terminal_source,
+            close_final_approach_source=close_final_approach_source,
             pause_navigation=navigation.pause,
-            clear_selected_target=observation.network.clear_selected_target,
+            clear_selected_poi=observation.network.clear_selected_poi,
         ),
         vehicle,
         detection.geo_pointing,
@@ -77,8 +77,8 @@ def compose_reset_workflows(
         state.geo_hold,
         state.confirm,
         state.detections,
-        target.mission,
-        target.pass_tracker,
+        poi.mission,
+        poi.pass_tracker,
         approach.loiter_radius,
     )
     return ResetWorkflows(reset, resume_auto)

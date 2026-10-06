@@ -7,9 +7,9 @@ from collections.abc import Callable, Mapping
 from navpy.args.navigation_args import NavigationAlgorithm, NavigationArgs
 from navpy.modules.navigation.nav.nav_law_factory import NavigationLawLifecycle
 from navpy.modules.navigation.nav.roll_l1_composition import compose_roll_l1_law
-from navpy.modules.navigation.nav.terminal_airframe_config import (
-    TerminalAirframeConfigProvider,
-    TerminalParameterPort,
+from navpy.modules.navigation.nav.final_approach_airframe_config import (
+    FinalApproachAirframeConfigProvider,
+    FinalApproachParameterPort,
 )
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.modules.vehicle.vehicle_interface import IVehicle
@@ -22,8 +22,8 @@ def compose_law_builders(
     vehicle: IVehicle,
     args: NavigationArgs,
 ) -> Mapping[NavigationAlgorithm, LawBuilder]:
-    terminal_config = TerminalAirframeConfigProvider(
-        TerminalParameterPort(
+    final_approach_config = FinalApproachAirframeConfigProvider(
+        FinalApproachParameterPort(
             lambda name: vehicle.get_parameter(name, quiet=True)
         ),
         lambda: args.delivery_throttle,
@@ -32,7 +32,7 @@ def compose_law_builders(
         NavigationAlgorithm.PID: lambda: compose_roll_l1_law(vehicle, args),
         NavigationAlgorithm.PN: lambda: compose_roll_l1_law(vehicle, args),
         NavigationAlgorithm.VISION_NAV_PN: (
-            lambda: VisionNavLaw(terminal_config)
+            lambda: VisionNavLaw(final_approach_config)
         ),
     }
 

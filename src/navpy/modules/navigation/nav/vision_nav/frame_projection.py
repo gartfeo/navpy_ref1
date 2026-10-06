@@ -1,4 +1,4 @@
-"""Convert a narrow pixel observation into the primitive terminal DTO."""
+"""Convert a narrow pixel observation into the primitive final-approach DTO."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.vision.models.pixel_observation import VisualDetection
 from navpy.modules.vision.visual_ray_projection import observation_body_ray, unit_vector
 from navpy.utils.euler_utils import get_euler_by_sequence
@@ -16,15 +16,15 @@ from navpy.utils.simple_rotation import Rotation
 
 
 @dataclass(frozen=True)
-class TerminalProjectionConfig:
+class FinalApproachProjectionConfig:
     aircraft_sequence: str
     aircraft_degrees: bool
 
 
-class TerminalFrameProjector:
+class FinalApproachFrameProjector:
     """Accept only frame-local pixels and immutable camera state."""
 
-    def __init__(self, config: TerminalProjectionConfig) -> None:
+    def __init__(self, config: FinalApproachProjectionConfig) -> None:
         self._config = config
 
     @staticmethod
@@ -37,7 +37,7 @@ class TerminalFrameProjector:
         detection: VisualDetection,
         source_generation: int,
         air_speed_mps: float | None = 25.0,
-    ) -> TerminalVisionFrame | None:
+    ) -> FinalApproachVisionFrame | None:
         observation = detection.observation
         if observation.pose_is_frame_atomic is not True:
             return None
@@ -78,7 +78,7 @@ class TerminalFrameProjector:
         except (TypeError, ValueError):
             return None
         task_id, obj_id = identity
-        return TerminalVisionFrame(
+        return FinalApproachVisionFrame(
             source_name=source_name,
             source_generation=source_generation,
             task_id=task_id,
@@ -107,7 +107,7 @@ def _identity(detection: VisualDetection) -> tuple[int, int] | None:
 def _control_ray(
     body_ray: np.ndarray,
     attitude: Attitude,
-    config: TerminalProjectionConfig,
+    config: FinalApproachProjectionConfig,
 ) -> np.ndarray:
     rotation = Rotation.from_euler(
         config.aircraft_sequence,
@@ -126,4 +126,4 @@ def _finite(value: object) -> float:
     return number
 
 
-__all__ = ["TerminalFrameProjector", "TerminalProjectionConfig"]
+__all__ = ["FinalApproachFrameProjector", "FinalApproachProjectionConfig"]

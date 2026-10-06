@@ -11,7 +11,7 @@ from scripts.eval_sim_cpa_block import sim_cpa_block
 
 def _configured() -> dict:
     return {
-        "mode": "auto", "status": "configured", "expected_target": None,
+        "mode": "auto", "status": "configured", "expected_poi": None,
         "requested_params": [], "acknowledged_params": [],
         "failed_param": None, "error": None,
     }
@@ -111,7 +111,7 @@ def test_uncertified_stream_yields_no_comparison(
     """Module evidence against an uncertified stream is diagnostic only:
     the evidence layer stays, the comparison refuses (R/g)."""
     (tmp_path / "case.json").write_text(json.dumps({
-        "target": {
+        "poi": {
             "lat_deg": 43.0, "lon_deg": 34.0,
             "rel_alt_m": 60.0, "abs_alt_m": 500.0,
         },
@@ -139,7 +139,7 @@ def test_offline_rescore_preserves_config_and_provenance_layers(
     tmp_path, monkeypatch
 ) -> None:
     (tmp_path / "case.json").write_text(json.dumps({
-        "target": {
+        "poi": {
             "lat_deg": 43.0, "lon_deg": 34.0,
             "rel_alt_m": 60.0, "abs_alt_m": 500.0,
         },

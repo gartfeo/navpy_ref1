@@ -73,7 +73,7 @@ class TestGimbalRateTrackerThreadSafety(unittest.TestCase):
 
 
 class TestDetectorSimTracking(unittest.TestCase):
-    """Test DetectorSim start/stop_tracking and detect_targets integration."""
+    """Test DetectorSim start/stop_tracking and detect_pois integration."""
 
     def _make_detector(self, with_tracker=True):
         from navpy.modules.vision.sim.detector_sim import DetectorSim
@@ -143,14 +143,14 @@ class TestDetectorSimTracking(unittest.TestCase):
         detector, _ = self._make_detector()
         rate_tracker = detector.navigation._parts.status._trackers.rate
 
-        detector.set_sim_target(
+        detector.set_sim_poi(
             0,
             Location(32.004, 34.8, 0.0, is_absolute=True),
         )
         rate_tracker.update = Mock(wraps=rate_tracker.update)
 
         # Not tracking — tracker not called
-        detector.detect_targets(
+        detector.detect_pois(
             Location(32.0, 34.8, 200.0, is_absolute=True),
             Attitude(0, 0, 0),
             frame_timestamp_s=1.0,
@@ -159,7 +159,7 @@ class TestDetectorSimTracking(unittest.TestCase):
 
         # Start tracking — tracker called with non-None
         detector.start_tracking(0)
-        detector.detect_targets(
+        detector.detect_pois(
             Location(32.0, 34.8, 200.0, is_absolute=True),
             Attitude(0, 0, 0),
             frame_timestamp_s=2.0,
@@ -167,14 +167,14 @@ class TestDetectorSimTracking(unittest.TestCase):
         rate_tracker.update.assert_called_once()
         self.assertIsNotNone(rate_tracker.update.call_args[0][0])
 
-    def test_tracker_does_not_own_loss_when_target_not_visible(self):
+    def test_tracker_does_not_own_loss_when_poi_not_visible(self):
         detector, _ = self._make_detector()
         rate_tracker = detector.navigation._parts.status._trackers.rate
 
         rate_tracker.update = Mock(wraps=rate_tracker.update)
 
         detector.start_tracking(99)
-        detector.detect_targets(
+        detector.detect_pois(
             Location(32.0, 34.8, 200.0, is_absolute=True),
             Attitude(0, 0, 0),
             frame_timestamp_s=1.0,
@@ -182,25 +182,25 @@ class TestDetectorSimTracking(unittest.TestCase):
         rate_tracker.update.assert_not_called()
 
 
-class TestProjectTarget(unittest.TestCase):
-    """Test project_target vs detect separation."""
+class TestProjectPoi(unittest.TestCase):
+    """Test project_poi vs detect separation."""
 
-    def test_project_target_ignores_is_valid(self):
+    def test_project_poi_ignores_is_valid(self):
         from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
         from navpy.modules.vision.simulation_object import SimulationObject
         from navpy.args.uas_args import UasArgs
         from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-        from navpy.modules.vision.sim.finite_target_projector import FiniteTargetProjector
+        from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
         from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
-        from navpy.modules.vision.sim.ideal_target_projector import (
-            IdealTargetProjector,
+        from navpy.modules.vision.sim.ideal_poi_projector import (
+            IdealPoiProjector,
             UasFrameConvention,
         )
         from navpy.modules.vision.sim.sim_camera_ports import (
             FrameSize,
             ProjectionCameraPort,
         )
-        from navpy.modules.vision.sim.sim_target_projector import SimTargetProjector
+        from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
 
         mount = Mock()
         mount.image_width = 1920
@@ -216,7 +216,7 @@ class TestProjectTarget(unittest.TestCase):
 
         geo_ref = GeoRefCalc(UasArgs())
         frame_size = FrameSize(1920, 1080)
-        finite = FiniteTargetProjector(
+        finite = FinitePoiProjector(
             ProjectionCameraPort(
                 mount.get_k,
                 mount.get_gimbal_data,
@@ -227,18 +227,18 @@ class TestProjectTarget(unittest.TestCase):
             lambda: (),
             lambda: 1.0,
         )
-        ideal = IdealTargetProjector(
+        ideal = IdealPoiProjector(
             IdealCameraState(mount.get_gimbal_data),
             frame_size,
             UasFrameConvention(geo_ref.uas_seq, geo_ref.degrees),
             lambda: 1.0,
         )
-        projector = SimTargetProjector(False, finite, ideal)
+        projector = SimPoiProjector(False, finite, ideal)
 
-        target = SimulationObject(0, Location(32.004, 34.8, 0.0, is_absolute=True), 2.0)
-        result = projector.project_target(
+        poi = SimulationObject(0, Location(32.004, 34.8, 0.0, is_absolute=True), 2.0)
+        result = projector.project_poi(
             Location(32.0, 34.8, 200.0, is_absolute=True),
-            target,
+            poi,
             Attitude(0, 0, 0),
         )
         self.assertIsNotNone(result)
@@ -246,7 +246,7 @@ class TestProjectTarget(unittest.TestCase):
         from navpy.modules.vision.models.detect_data import DetectStatus
         detect_result = projector.detect(
             Location(32.0, 34.8, 200.0, is_absolute=True),
-            target,
+            poi,
             Attitude(0, 0, 0),
         )
         self.assertNotEqual(detect_result.status, DetectStatus.DETECTED)
@@ -356,12 +356,12 @@ class TestRealDetectorStartTracking(unittest.TestCase):
             DetectorTrackingControl,
         )
 
-        target_lock = Mock()
-        control = DetectorTrackingControl(None, target_lock)
+        poi_lock = Mock()
+        control = DetectorTrackingControl(None, poi_lock)
 
         with self.assertRaises(ValueError):
             control.start_tracking(-1)
-        target_lock.force_lock.assert_not_called()
+        poi_lock.force_lock.assert_not_called()
 
 
 class _FakeGeoRef:
@@ -372,7 +372,7 @@ class _FakeGeoRef:
     def __init__(self, att: Attitude):
         self._att = att
 
-    def calc_gimbal_lock_att_loc(self, uav_loc, target_loc, uav_att, g_data):
+    def calc_gimbal_lock_att_loc(self, uav_loc, poi_loc, uav_att, g_data):
         return self._att
 
 
@@ -381,10 +381,10 @@ class TestSecondLaunchGeoPointing(unittest.TestCase):
     pixel-tracking session leaves the sim's stale-RATE guard armed
     (``_last_rate_wall`` set by ``set_rate``); on a SECOND launch the
     geo-pointing path (``start_geo_tracking`` -> ``update_geo`` -> ``set_att``)
-    must re-point the gimbal at the target and NOT be canceled by that guard.
+    must re-point the gimbal at the POI and NOT be canceled by that guard.
 
     This is the field scenario the user reported (peers aiming opposite the
-    target / ``behind_cam`` on the second mission launch). Without the
+    POI / ``behind_cam`` on the second mission launch). Without the
     ``set_att`` ``_last_rate_wall`` reset, the 50 Hz guard fires every tick on
     launch 2 and the gimbal stays frozen at its launch-1 attitude.
     """
@@ -441,11 +441,11 @@ class TestSecondLaunchGeoPointing(unittest.TestCase):
                 "precondition: launch-1 pixel slew should leave negative yaw",
             )
 
-            # --- Launch 2: geo-point at a target that requires +60deg world yaw.
+            # --- Launch 2: geo-point at a POI that requires +60deg world yaw.
             geo_ref = _FakeGeoRef(Attitude(-30, 60, 0))
-            target = Location(40.30, 44.43, 1280.0, is_absolute=True)
+            poi = Location(40.30, 44.43, 1280.0, is_absolute=True)
             uav_loc = Location(40.29, 44.43, 1480.0, is_absolute=True)
-            navigation.start_geo_tracking(target, geo_ref)
+            navigation.start_geo_tracking(poi, geo_ref)
             for _ in range(12):
                 navigation.update_geo(uav_loc, vehicle.attitude)
                 time.sleep(0.05)

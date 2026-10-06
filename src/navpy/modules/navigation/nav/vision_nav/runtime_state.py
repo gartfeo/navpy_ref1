@@ -1,19 +1,19 @@
-"""Small read-only terminal status owner."""
+"""Small read-only final-approach status owner."""
 
 from __future__ import annotations
 
 import math
 import threading
 
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 
 
-class TerminalRuntimeStatus:
+class FinalApproachRuntimeStatus:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._last_body_bearing_deg: float | None = None
 
-    def record(self, frame: TerminalVisionFrame) -> None:
+    def record(self, frame: FinalApproachVisionFrame) -> None:
         with self._lock:
             self._last_body_bearing_deg = math.degrees(
                 math.atan2(frame.body_y, frame.body_x)
@@ -28,4 +28,4 @@ class TerminalRuntimeStatus:
             return self._last_body_bearing_deg
 
 
-__all__ = ["TerminalRuntimeStatus"]
+__all__ = ["FinalApproachRuntimeStatus"]

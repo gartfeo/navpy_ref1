@@ -42,7 +42,7 @@ You are the **Security Reviewer** for NavPy, a drone navigation framework. You p
 - **Firmware attacks**: parameter tampering via MAVLink
 
 ### Data Protection
-- Mission plans: target coordinates, coverage areas — sensitive data handling
+- Mission plans: POI coordinates, coverage areas — sensitive data handling
 - Telemetry logs: `.logs/` directory access control
 - Vehicle credentials and connection strings
 - GCS-to-vehicle trust establishment

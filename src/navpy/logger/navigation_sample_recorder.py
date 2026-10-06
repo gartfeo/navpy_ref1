@@ -48,11 +48,11 @@ class NavigationSampleRecorder:
     ) -> bool:
         h_dist, v_dist = calc_h_v_dist(
             sample.current_location,
-            sample.detected_target_location,
+            sample.detected_poi_location,
         )
         self._snap_session.sample(
             sample.current_location,
-            sample.detected_target_location,
+            sample.detected_poi_location,
         )
         should_write, next_log_time = primary_log_gate(
             rate_gate=rate_gate,

@@ -50,18 +50,18 @@ from navpy.modules.vision.sim.determinism_slots import (
     frame_digest,
 )
 from navpy.modules.vision.sim.direct_pixel_trace import command_loop_observer
-from navpy.modules.vision.sim.direct_target_pixel_source import (
-    DirectTargetPixelSource,
+from navpy.modules.vision.sim.direct_poi_pixel_source import (
+    DirectPoiPixelSource,
 )
 from tests.modules.vision import determinism_case_factory as factory
 from tests.modules.vision.direct_pixel_router_bench import (
-    TARGET,
+    POI,
     RouterVehicle,
     attitude_message,
     sim_state_message,
 )
 
-# The source test's neutrality schedule (test_direct_target_pixel_source.py)
+# The source test's neutrality schedule (test_direct_poi_pixel_source.py)
 # with one stale ATTITUDE, ``a``, that the router rejects: one clean frame; a
 # refused association; two renders with only one dispatch between; then a
 # dispatch with nothing to take. T is a truth sample, A an ATTITUDE just after
@@ -200,9 +200,9 @@ def _arm(monkeypatch, *, tracing: bool) -> dict[str, Any]:
     queue: list = []
     executed: list = []
     law = _ProxyLaw(queue)
-    source = DirectTargetPixelSource(
+    source = DirectPoiPixelSource(
         vehicle,
-        TARGET,
+        POI,
         SimpleNamespace(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,

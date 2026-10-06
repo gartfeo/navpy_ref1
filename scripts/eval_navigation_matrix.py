@@ -25,7 +25,7 @@ def parse_int_list(raw: str) -> list[int]:
     return values
 
 
-def parse_target_alts(raw: str) -> list[int]:
+def parse_poi_alts(raw: str) -> list[int]:
     result: list[int] = []
     for token in (part.strip() for part in raw.split(",")):
         if not token:
@@ -34,24 +34,24 @@ def parse_target_alts(raw: str) -> list[int]:
             value = float(token)
         except ValueError as exc:
             raise argparse.ArgumentTypeError(
-                f"invalid --target-alts value {token!r}"
+                f"invalid --poi-alts value {token!r}"
             ) from exc
         if not math.isfinite(value):
-            raise argparse.ArgumentTypeError("--target-alts values must be finite")
+            raise argparse.ArgumentTypeError("--poi-alts values must be finite")
         if value < 0:
             raise argparse.ArgumentTypeError(
-                "--target-alts values must be non-negative"
+                "--poi-alts values must be non-negative"
             )
         if not math.isclose(value, round(value), abs_tol=1e-9):
             raise argparse.ArgumentTypeError(
-                "--target-alts must be whole numbers "
+                "--poi-alts must be whole numbers "
                 "(NavPy AAS_TARG_ALT is integer)"
             )
         altitude = int(round(value))
         if altitude not in result:
             result.append(altitude)
     if not result:
-        raise argparse.ArgumentTypeError("at least one target altitude is required")
+        raise argparse.ArgumentTypeError("at least one POI altitude is required")
     return result
 
 
@@ -65,20 +65,20 @@ def parse_navigation_speedups(raw: str) -> list[float] | None:
 
 
 def matrix_cases(
-    target_alts: Sequence[int],
+    poi_alts: Sequence[int],
     speedups: Sequence[float],
     navigation_speedups: Sequence[float] | None,
     winds: Sequence[float],
     directions: Sequence[int],
 ) -> Iterable[MatrixCase]:
-    for target_altitude in target_alts:
+    for poi_altitude in poi_alts:
         for speedup in speedups:
             nav_rates = navigation_speedups or [float(speedup)]
             for navigation_speedup in nav_rates:
                 for wind in winds:
                     if abs(wind) < 1e-9:
                         yield MatrixCase(
-                            target_altitude,
+                            poi_altitude,
                             speedup,
                             float(navigation_speedup),
                             0.0,
@@ -87,7 +87,7 @@ def matrix_cases(
                         continue
                     for direction in directions:
                         yield MatrixCase(
-                            target_altitude,
+                            poi_altitude,
                             speedup,
                             float(navigation_speedup),
                             wind,

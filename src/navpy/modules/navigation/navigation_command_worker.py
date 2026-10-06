@@ -137,7 +137,7 @@ class NavigationCommandWorker:
                             raised = False
                         except Exception as exc:
                             ports.logger.error(
-                                f"Error in termination loop: {exc}", exc
+                                f"Error in final-approach loop: {exc}", exc
                             )
                         finally:
                             # The object execute_work RETURNED, digested
@@ -148,13 +148,13 @@ class NavigationCommandWorker:
                             # Capture the immutable evidence closure before the
                             # lease is released, but execute it only after leaving
                             # the runtime session.  Attempt both operations even
-                            # if one cleanup fails so a terminal postprocess fence
+                            # if one cleanup fails so a final-approach postprocess fence
                             # cannot be stranded by a lease-release error.
                             try:
                                 postprocess_job = runtime.postprocess_job(work)
                             except Exception as exc:
                                 ports.logger.error(
-                                    "Error preparing termination postprocess: "
+                                    "Error preparing final-approach postprocess: "
                                     f"{exc}",
                                     exc,
                                 )
@@ -162,7 +162,7 @@ class NavigationCommandWorker:
                                 runtime.finish_work(work)
                             except Exception as exc:
                                 ports.logger.error(
-                                    f"Error finishing termination work: {exc}",
+                                    f"Error finishing final-approach work: {exc}",
                                     exc,
                                 )
                     continuing_work = (
@@ -174,7 +174,7 @@ class NavigationCommandWorker:
                         ports.postprocess_submit(postprocess_job)
                     except Exception as exc:
                         ports.logger.error(
-                            f"Error in termination postprocess: {exc}",
+                            f"Error in final-approach postprocess: {exc}",
                             exc,
                         )
 
@@ -189,7 +189,7 @@ class NavigationCommandWorker:
                         source_work_taken = bool(ports.source_dispatch())
                     except Exception as exc:
                         ports.logger.error(
-                            f"Error dispatching terminal source: {exc}",
+                            f"Error dispatching final-approach source: {exc}",
                             exc,
                         )
 

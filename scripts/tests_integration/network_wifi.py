@@ -56,7 +56,7 @@ def main(args):
             actor2.checkin()
 
         # for i in range(args.retry_count):
-        #     actor1.notify_targets([
+        #     actor1.notify_pois([
         #         DetectedObject(2, 1, 1, 0, None, None, None, LocationAbc(1, 1, 1), LocationAbc(1, 1, 1)),
         #         DetectedObject(3, 1, 1, 0, None, None, None, LocationAbc(2, 2, 2), LocationAbc(2, 2, 2)),
         #     ])

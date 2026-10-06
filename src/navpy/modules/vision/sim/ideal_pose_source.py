@@ -1,6 +1,6 @@
 """Callback-driven ideal simulator pose source.
 
-Target truth is retained only long enough to render a frame-local visual ray.
+POI truth is retained only long enough to render a frame-local visual ray.
 The paired navigation attitude is yaw-redacted before it leaves this source.
 """
 

@@ -1,4 +1,4 @@
-"""Worker lifetime coordination for target confirmation."""
+"""Worker lifetime coordination for POI confirmation."""
 
 from __future__ import annotations
 
@@ -44,25 +44,25 @@ class ConfirmationCoordinator:
         self._event_factory = event_factory
         self._thread_factory = thread_factory
 
-    def review(self, targets: list[DetectedObject]) -> None:
-        for target in targets:
-            worker = self._state.start_review(target, self._event_factory)
+    def review(self, pois: list[DetectedObject]) -> None:
+        for poi in pois:
+            worker = self._state.start_review(poi, self._event_factory)
             self._thread_factory(
                 target=self._run,
-                args=(target, worker),
+                args=(poi, worker),
                 daemon=True,
             ).start()
 
     def _run(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
         worker: ConfirmationWorkerLease,
     ) -> None:
         try:
-            target_id = worker.target_id
-            if target_id is None or not self._state.worker_is_current(worker):
+            poi_id = worker.poi_id
+            if poi_id is None or not self._state.worker_is_current(worker):
                 return
-            self._assignment.publish(target)
+            self._assignment.publish(poi)
             network = self._network()
             if self._auto_confirm() or network is None:
                 if not self._state.set_worker_status(
@@ -72,18 +72,18 @@ class ConfirmationCoordinator:
                     return
                 reason = "auto-confirmed" if self._auto_confirm() else "no network"
                 self._logger.info(
-                    f"T{target_id} confirmed ({reason}).",
+                    f"P{poi_id} confirmed ({reason}).",
                     key="nav_state",
                     dest=LogStatusDest.DRONE,
                 )
                 return
             self._logger.info(
-                f"Asking confirmation for: {target_id}",
+                f"Asking confirmation for: {poi_id}",
                 key="nav_state",
-                status=f"T{target_id} confirming",
+                status=f"P{poi_id} confirming",
                 dest=LogStatusDest.DRONE,
             )
-            self._round_runner.run(target, worker)
+            self._round_runner.run(poi, worker)
         finally:
             self._state.finish_worker(worker)
 

@@ -1,4 +1,4 @@
-"""Tests for DOCK-preserving target reconstruction in handleConnect.
+"""Tests for DOCK-preserving POI reconstruction in handleConnect.
 
 Runs test_connect_dock_logic.js via Node.js subprocess to verify that
 existing zones preserve their DOCK assignments while the newly connected

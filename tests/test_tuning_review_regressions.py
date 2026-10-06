@@ -17,7 +17,7 @@ from navpy.modules.vision.gimbal_rate_types import (
     TrackingState,
     idle_result,
 )
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 from tools.cam import gimbal_controller
 from tools.cam import gimbal_tuning_assembly as tuning_assembly
 from tools.cam import gimbal_tuning_sample as tuning_sample
@@ -57,7 +57,7 @@ class _TrackingPort:
             GimbalObservationDisposition.ACCEPTED,
         )
 
-    def lose_target(self) -> GimbalTrackResult:
+    def lose_poi(self) -> GimbalTrackResult:
         self.loss_count += 1
         self._result = idle_result()
         return self._result
@@ -86,7 +86,7 @@ def test_tuning_loss_or_invalid_timestamp_zeros_and_returns_idle(
     timestamp: float | None,
 ) -> None:
     tracker = _TrackingPort()
-    detected = make_detected_target(
+    detected = make_detected_poi(
         timestamp=1.0,
         tracking_bbox_cxcywh=(350.0, 220.0, 40.0, 30.0),
     )
@@ -97,16 +97,16 @@ def test_tuning_loss_or_invalid_timestamp_zeros_and_returns_idle(
     )
     assert tracked.state is TrackingState.TRACKING
 
-    lost_target = (
+    lost_poi = (
         None
         if timestamp is None
-        else make_detected_target(
+        else make_detected_poi(
             timestamp=timestamp,
             tracking_bbox_cxcywh=(350.0, 220.0, 40.0, 30.0),
         )
     )
-    command = None if lost_target is None else _tracking_command()
-    result = tuning_sample.tick_gimbal_tracker(tracker, command, lost_target)
+    command = None if lost_poi is None else _tracking_command()
+    result = tuning_sample.tick_gimbal_tracker(tracker, command, lost_poi)
 
     assert tracker.loss_count == 1
     assert tracker.stop_count == 0
@@ -125,7 +125,7 @@ def test_repeated_tuning_loss_emits_one_zero_but_cleanup_forces_final_zero() -> 
         _SilentLog(),
         GimbalRateTrackerConfig(),
     )
-    detected = make_detected_target(timestamp=1.0)
+    detected = make_detected_poi(timestamp=1.0)
     tuning_sample.tick_gimbal_tracker(tracker, _tracking_command(), detected)
 
     first_loss = tuning_sample.tick_gimbal_tracker(tracker, None, None)
@@ -139,18 +139,18 @@ def test_repeated_tuning_loss_emits_one_zero_but_cleanup_forces_final_zero() -> 
     assert commands.count((0.0, 0.0)) == 2
 
 
-def test_tuning_sample_uses_current_grouped_target_schema() -> None:
-    target = make_detected_target(
+def test_tuning_sample_uses_current_grouped_poi_schema() -> None:
+    poi = make_detected_poi(
         obj_id=42,
         timestamp=8.5,
         tracking_bbox_cxcywh=(500.0, 400.0, 80.0, 60.0),
         bbox_cxcywh=(100.0, 100.0, 20.0, 20.0),
     )
-    assert tuning_sample.tracking_bbox(target) == pytest.approx(
+    assert tuning_sample.tracking_bbox(poi) == pytest.approx(
         (500.0, 400.0, 80.0, 60.0)
     )
-    assert tuning_sample.source_timestamp(target) == pytest.approx(8.5)
-    overlay = tuning_sample.build_overlay_target(target)
+    assert tuning_sample.source_timestamp(poi) == pytest.approx(8.5)
+    overlay = tuning_sample.build_overlay_poi(poi)
     assert overlay is not None
     assert overlay.obj_id == 42
 

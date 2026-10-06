@@ -318,7 +318,7 @@
     },
     "aas": {
       "sections": {
-        "terminalNavigation": "Final Approach",
+        "finalApproach": "Final Approach",
         "control": "Control",
         "logging": "Logging",
         "confirmation": "Confirmation",
@@ -637,11 +637,11 @@
     "noChanges": "No changes to upload",
     "uploadError": "Upload error",
     "simulation": "Simulation",
-    "editTargets": "Edit simulation docks",
+    "editPois": "Edit simulation docks",
     "replaceWaypoints": "Replace displayed waypoints?",
     "noMissionLoaded": "No mission loaded",
     "downloadMissions": "Download missions",
-    "simulatedTargetSelection": "Simulation dock selection",
+    "simulatedPoiSelection": "Simulation dock selection",
     "scrollZoomDragPan": "Scroll to zoom, drag to pan",
     "detectAfter": "Detect After",
     "confirmBlockedPixels": "Detection too small ({{detail}} px)",

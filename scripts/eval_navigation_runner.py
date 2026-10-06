@@ -58,7 +58,7 @@ def main(
     args = parse_args(argv)
     cases = list(
         matrix_cases(
-            args.target_alts,
+            args.poi_alts,
             args.speedups,
             args.navigation_speedups,
             args.winds,
@@ -216,8 +216,8 @@ def _record_row(
     write_csv(artifacts.attempts_csv, artifacts.all_rows)
     status = "PASS" if row["passed"] else "FAIL"
     print(
-        f"CASE {index + 1}/{len(cases)} talt={case.target_alt_m} "
-        f"wp={args.target_wp} s={case.speedup} gsu={case.navigation_speedup:g} "
+        f"CASE {index + 1}/{len(cases)} talt={case.poi_alt_m} "
+        f"wp={args.poi_wp} s={case.speedup} gsu={case.navigation_speedup:g} "
         f"w={case.wind_speed_mps:g} d={case.wind_direction_deg} "
         f"{label} {status} snap={row.get('dist_3d_m', 'NA')} "
         f"coordinate={row.get('coordinate_dist_3d_m', 'NA')} "

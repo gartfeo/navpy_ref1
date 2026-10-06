@@ -20,7 +20,7 @@ from eval_navigation_logs import navpy_log_paths, wait_for_ready_text
 from eval_navigation_mission import (
     download_mission,
     resolve_home_abs_alt_m,
-    resolve_target_expectation,
+    resolve_poi_expectation,
 )
 from eval_navigation_models import MatrixCase, MissionItem
 from eval_navigation_telemetry import (
@@ -52,10 +52,10 @@ def prepare_case(
         timeout_s=args.heartbeat_timeout,
     )
     state.evidence.home_abs_alt_m = home_abs_alt_m
-    state.evidence.expectation = resolve_target_expectation(
+    state.evidence.expectation = resolve_poi_expectation(
         mission,
-        target_wp=args.target_wp,
-        target_rel_alt_m=state.target_rel_alt_m,
+        poi_wp=args.poi_wp,
+        poi_rel_alt_m=state.poi_rel_alt_m,
         home_abs_alt_m=home_abs_alt_m,
     )
     required, optional, certificate_readback = _configure_vehicle(
@@ -222,8 +222,8 @@ def _write_metadata(
         "sysid": state.processes.sysid,
         "vision_profile": args.vision_profile,
         "detector_type": args.detector_type,
-        "target_expectation": asdict(expectation),
-        "configured_target_rel_alt_m": state.target_rel_alt_m,
+        "poi_expectation": asdict(expectation),
+        "configured_poi_rel_alt_m": state.poi_rel_alt_m,
         "coordinate_stream_acknowledged": (
             state.evidence.coordinate_stream_acknowledged
         ),
@@ -260,8 +260,8 @@ def _start_navpy_mission(
         nav_device=ip.companion_device(processes.sysid),
         speedup=case.speedup,
         navigation_speedup=case.navigation_speedup,
-        target_wp=args.target_wp,
-        target_rel_alt_m=state.target_rel_alt_m,
+        poi_wp=args.poi_wp,
+        poi_rel_alt_m=state.poi_rel_alt_m,
         args=args,
     )
     if not wait_for_ready_text(state.paths.case_dir / "navpy.err.log", 90):

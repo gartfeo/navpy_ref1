@@ -1,7 +1,7 @@
 """Closed-loop integration test: DetectorSim → GimbalRateTracker → GimbalSiyiSim.
 
 Verifies that when tracking is enabled, the gimbal actively moves to center
-the target, reducing pixel errors over successive detection cycles.
+the POI, reducing pixel errors over successive detection cycles.
 """
 
 import time
@@ -84,12 +84,12 @@ class TestClosedLoopTracking(unittest.TestCase):
     """End-to-end: pixel errors converge as gimbal tracks."""
 
     def test_gimbal_reduces_pixel_error(self):
-        """Tracking an off-center target should move gimbal to reduce error."""
+        """Tracking an off-center POI should move gimbal to reduce error."""
         vehicle = _make_vehicle()
         mount = _make_mount(vehicle)
 
-        # Target ~500m north, on the ground → will appear off-center
-        target_loc = Location(32.004, 34.8, 0.0, is_absolute=True)
+        # POI ~500m north, on the ground → will appear off-center
+        poi_loc = Location(32.004, 34.8, 0.0, is_absolute=True)
 
         config = GimbalRateTrackerConfig(
             correction_bw=1.0,
@@ -102,7 +102,7 @@ class TestClosedLoopTracking(unittest.TestCase):
             mount,
             GimbalTrackingSetup(rate=config),
         )
-        detector.set_sim_target(0, target_loc)
+        detector.set_sim_poi(0, poi_loc)
 
         # Start gimbal physics thread
         mount.start()
@@ -112,36 +112,36 @@ class TestClosedLoopTracking(unittest.TestCase):
             # First detection — capture initial pixel errors
             c_g_loc = vehicle.location(False)
             uas_att = vehicle.attitude
-            detector.detect_targets(
+            detector.detect_pois(
                 c_g_loc,
                 uas_att,
                 frame_timestamp_s=1.0,
             )
 
-            initial_targets = detector.get_latest_detections()
-            if not initial_targets:
-                self.skipTest("Target not visible at initial geometry")
+            initial_pois = detector.get_latest_detections()
+            if not initial_pois:
+                self.skipTest("POI not visible at initial geometry")
 
-            initial_x = initial_targets[0].pixel.u_px
-            initial_y = initial_targets[0].pixel.v_px
+            initial_x = initial_pois[0].pixel.u_px
+            initial_y = initial_pois[0].pixel.v_px
 
             # Enable tracking
             detector.start_tracking(0)
 
             # Run detection loop with sleeps to let gimbal physics tick
             for index in range(30):
-                detector.detect_targets(
+                detector.detect_pois(
                     c_g_loc,
                     uas_att,
                     frame_timestamp_s=1.05 + index * 0.05,
                 )
                 time.sleep(0.05)  # 50ms → gimbal ticks ~2.5 times
 
-            final_targets = detector.get_latest_detections()
-            self.assertTrue(len(final_targets) > 0, "Target lost during tracking")
+            final_pois = detector.get_latest_detections()
+            self.assertTrue(len(final_pois) > 0, "POI lost during tracking")
 
-            final_x = final_targets[0].pixel.u_px
-            final_y = final_targets[0].pixel.v_px
+            final_x = final_pois[0].pixel.u_px
+            final_y = final_pois[0].pixel.v_px
 
             # Image center
             cx = 1199.61
@@ -172,9 +172,9 @@ class TestClosedLoopTracking(unittest.TestCase):
             GimbalTrackingSetup(rate=config),
         )
 
-        # Start tracking, run one detection cycle (no targets → loss), then stop
+        # Start tracking, run one detection cycle (no POIs → loss), then stop
         detector.start_tracking(1)
-        detector.detect_targets(
+        detector.detect_pois(
             Location(32.0, 34.8, 200.0, is_absolute=True),
             Attitude(0, 0, 0),
             frame_timestamp_s=1.0,
@@ -188,22 +188,22 @@ class TestClosedLoopTracking(unittest.TestCase):
 
 
 class TestMultiCameraObjIdInvariant(unittest.TestCase):
-    """Regression test: Target uid assignment is deterministic by insertion order."""
+    """Regression test: POI uid assignment is deterministic by insertion order."""
 
-    def test_sequential_targets_get_sequential_uids(self):
-        """Targets created in the same order get the same uids."""
+    def test_sequential_pois_get_sequential_uids(self):
+        """POIs created in the same order get the same uids."""
         from navpy.modules.vision.simulation_object import SimulationObject
 
         loc1 = Location(32.001, 34.801, 0.0)
         loc2 = Location(32.002, 34.802, 0.0)
 
-        # Simulate two target providers adding targets in the same order
-        targets_a = [SimulationObject(0, loc1, 2.0), SimulationObject(1, loc2, 2.0)]
-        targets_b = [SimulationObject(0, loc1, 2.0), SimulationObject(1, loc2, 2.0)]
+        # Simulate two POI providers adding POIs in the same order
+        pois_a = [SimulationObject(0, loc1, 2.0), SimulationObject(1, loc2, 2.0)]
+        pois_b = [SimulationObject(0, loc1, 2.0), SimulationObject(1, loc2, 2.0)]
 
-        self.assertEqual(targets_a[0].uid, targets_b[0].uid)
-        self.assertEqual(targets_a[1].uid, targets_b[1].uid)
-        self.assertNotEqual(targets_a[0].uid, targets_a[1].uid)
+        self.assertEqual(pois_a[0].uid, pois_b[0].uid)
+        self.assertEqual(pois_a[1].uid, pois_b[1].uid)
+        self.assertNotEqual(pois_a[0].uid, pois_a[1].uid)
 
 
 if __name__ == '__main__':

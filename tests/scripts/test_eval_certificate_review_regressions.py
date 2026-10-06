@@ -91,12 +91,12 @@ def test_present_source_csv_read_error_is_not_reported_as_empty(monkeypatch, tmp
     path.write_text("wall_start_s,source,obs_ts,src_now_s\n", encoding="utf-8")
     original_open = Path.open
 
-    def fail_target(candidate: Path, *args, **kwargs):
+    def fail_poi(candidate: Path, *args, **kwargs):
         if candidate == path:
             raise PermissionError("denied by regression test")
         return original_open(candidate, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "open", fail_target)
+    monkeypatch.setattr(Path, "open", fail_poi)
 
     with pytest.raises(PermissionError, match="denied by regression test"):
         cert.source_time_summary(tmp_path)

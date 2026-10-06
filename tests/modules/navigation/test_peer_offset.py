@@ -88,104 +88,104 @@ class TestCalcPeerApproachOffset(unittest.TestCase):
 
     def test_valid_interval_returns_approach(self):
         """Steep camera with high fy returns a valid approach distance."""
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=200)
         mount = _make_mount(-30, fy=3000)
 
-        plan = calc_peer_approach_offset(target, drone, [mount])
+        plan = calc_peer_approach_offset(poi, drone, [mount])
 
         self.assertGreater(plan.offset_distance, 0)
-        self.assertGreater(target.distance_to(plan.approach_location), 50)
+        self.assertGreater(poi.distance_to(plan.approach_location), 50)
 
     def test_offset_direction_along_approach(self):
-        """Offset point should be between drone and target."""
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        """Offset point should be between drone and POI."""
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=200)
         mount = _make_mount(-30, fy=3000)
 
-        plan = calc_peer_approach_offset(target, drone, [mount])
+        plan = calc_peer_approach_offset(poi, drone, [mount])
 
-        self.assertGreater(plan.approach_location.lat, target.lat)
+        self.assertGreater(plan.approach_location.lat, poi.lat)
         self.assertLess(plan.approach_location.lat, drone.lat)
 
     def test_no_interval_uses_half_max_slant(self):
         """When no valid interval, falls back to half max detection slant range."""
-        target = Location(lat=32.0, lng=34.0, alt=5000)
+        poi = Location(lat=32.0, lng=34.0, alt=5000)
         drone = Location(lat=32.1, lng=34.0, alt=5000)
         mount = _make_mount(-5)
 
-        plan = calc_peer_approach_offset(target, drone, [mount])
+        plan = calc_peer_approach_offset(poi, drone, [mount])
 
         self.assertGreater(plan.offset_distance, 0)
-        self.assertNotEqual(plan.approach_location.lat, target.lat)
+        self.assertNotEqual(plan.approach_location.lat, poi.lat)
 
-    def test_no_mount_returns_target(self):
-        """Fallback when no downward camera — returns original target."""
-        target = Location(lat=32.0, lng=34.0, alt=250)
+    def test_no_mount_returns_poi(self):
+        """Fallback when no downward camera — returns original POI."""
+        poi = Location(lat=32.0, lng=34.0, alt=250)
         drone = Location(lat=32.1, lng=34.0, alt=250)
 
-        plan = calc_peer_approach_offset(target, drone, [])
+        plan = calc_peer_approach_offset(poi, drone, [])
 
-        self.assertIs(plan.approach_location, target)
+        self.assertIs(plan.approach_location, poi)
         self.assertEqual(plan.offset_distance, 0.0)
 
     def test_steeper_pitch_allows_closer_approach(self):
         """Steep pitch gives wider interval and closer approach."""
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=200)
 
-        plan_moderate = calc_peer_approach_offset(target, drone, [_make_mount(-20, fy=3000)])
-        plan_steep = calc_peer_approach_offset(target, drone, [_make_mount(-45, fy=3000)])
+        plan_moderate = calc_peer_approach_offset(poi, drone, [_make_mount(-20, fy=3000)])
+        plan_steep = calc_peer_approach_offset(poi, drone, [_make_mount(-45, fy=3000)])
 
         if plan_moderate.offset_distance > 0 and plan_steep.offset_distance > 0:
             self.assertGreater(plan_moderate.offset_distance, plan_steep.offset_distance)
 
-    def test_zero_altitude_returns_target(self):
+    def test_zero_altitude_returns_poi(self):
         """Zero altitude → no offset possible."""
-        target = Location(lat=32.0, lng=34.0, alt=0)
+        poi = Location(lat=32.0, lng=34.0, alt=0)
         drone = Location(lat=32.1, lng=34.0, alt=0)
         mount = _make_mount(-14)
 
-        plan = calc_peer_approach_offset(target, drone, [mount])
+        plan = calc_peer_approach_offset(poi, drone, [mount])
 
-        self.assertIs(plan.approach_location, target)
+        self.assertIs(plan.approach_location, poi)
         self.assertEqual(plan.offset_distance, 0.0)
 
-    def test_all_upward_mounts_returns_target(self):
-        """All mounts looking up — fallback to target."""
-        target = Location(lat=32.0, lng=34.0, alt=250)
+    def test_all_upward_mounts_returns_poi(self):
+        """All mounts looking up — fallback to POI."""
+        poi = Location(lat=32.0, lng=34.0, alt=250)
         drone = Location(lat=32.1, lng=34.0, alt=250)
         m1 = _make_mount(0)
         m2 = _make_mount(10)
 
-        plan = calc_peer_approach_offset(target, drone, [m1, m2])
+        plan = calc_peer_approach_offset(poi, drone, [m1, m2])
 
-        self.assertIs(plan.approach_location, target)
+        self.assertIs(plan.approach_location, poi)
         self.assertEqual(plan.offset_distance, 0.0)
 
-    def test_offset_preserves_target_alt(self):
-        """Offset location keeps the same altitude as target."""
-        target = Location(lat=32.0, lng=34.0, alt=300)
+    def test_offset_preserves_poi_alt(self):
+        """Offset location keeps the same altitude as POI."""
+        poi = Location(lat=32.0, lng=34.0, alt=300)
         drone = Location(lat=32.1, lng=34.0, alt=250)
         mount = _make_mount(-14)
 
-        plan = calc_peer_approach_offset(target, drone, [mount])
+        plan = calc_peer_approach_offset(poi, drone, [mount])
 
-        self.assertEqual(plan.approach_location.alt, target.alt)
+        self.assertEqual(plan.approach_location.alt, poi.alt)
 
-    def test_orbit_returns_target_as_approach(self):
-        """ORBIT places the approach point at the target itself."""
-        target = Location(lat=32.0, lng=34.0, alt=200)
+    def test_orbit_returns_poi_as_approach(self):
+        """ORBIT places the approach point at the POI itself."""
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
         mount = _make_mount(-24, fy=2262)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
         )
 
         self.assertEqual(plan.kind, ApproachKind.ORBIT)
-        self.assertEqual(plan.approach_location.lat, target.lat)
-        self.assertEqual(plan.approach_location.lng, target.lng)
+        self.assertEqual(plan.approach_location.lat, poi.lat)
+        self.assertEqual(plan.approach_location.lng, poi.lng)
         self.assertEqual(plan.offset_distance, 0.0)
         self.assertIsNotNone(plan.orbit_radius)
         self.assertGreater(plan.orbit_radius, 50)
@@ -194,16 +194,16 @@ class TestCalcPeerApproachOffset(unittest.TestCase):
         """Orbit radius derived from fy, class_size, MIN_DETECT_PIXELS with 10% margin."""
         from navpy.modules.vision.vision_profiles import MIN_DETECT_PIXELS, get_class_detect_size
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
         fy = 2262.0
         mount = _make_mount(-24, fy=fy)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
         )
 
-        alt = 100.0  # drone 300 - target 200
+        alt = 100.0  # drone 300 - POI 200
         class_size = get_class_detect_size(0)  # Class 0 diagonal = sqrt(3.5^2+2.5^2)
         detect_slant = fy * class_size / MIN_DETECT_PIXELS * 0.9
         expected_radius = math.sqrt(detect_slant ** 2 - alt ** 2)
@@ -211,31 +211,31 @@ class TestCalcPeerApproachOffset(unittest.TestCase):
 
     def test_orbit_radius_independent_of_gimbal_pitch(self):
         """Different gimbal pitches produce the same orbit radius."""
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
 
         plan_15 = calc_peer_approach_offset(
-            target, drone, [_make_mount(-15, fy=2000)],
+            poi, drone, [_make_mount(-15, fy=2000)],
             kind=ApproachKind.ORBIT,
         )
         plan_45 = calc_peer_approach_offset(
-            target, drone, [_make_mount(-45, fy=2000)],
+            poi, drone, [_make_mount(-45, fy=2000)],
             kind=ApproachKind.ORBIT,
         )
 
         self.assertAlmostEqual(plan_15.orbit_radius, plan_45.orbit_radius, places=1)
 
     def test_orbit_detection_possible_at_orbit_distance(self):
-        """Target must have >= MIN_DETECT_PIXELS at the orbit slant range."""
+        """POI must have >= MIN_DETECT_PIXELS at the orbit slant range."""
         from navpy.modules.vision.vision_profiles import MIN_DETECT_PIXELS, get_class_detect_size
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
         fy = 2262.0
         mount = _make_mount(-24, fy=fy)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
         )
 
         alt = 100.0
@@ -243,15 +243,15 @@ class TestCalcPeerApproachOffset(unittest.TestCase):
         class_size = get_class_detect_size(0)  # Detection class 0
         pixels_at_orbit = fy * class_size / orbit_slant
         self.assertGreaterEqual(pixels_at_orbit, MIN_DETECT_PIXELS,
-                                f"Target has {pixels_at_orbit:.1f}px at orbit, need {MIN_DETECT_PIXELS}")
+                                f"POI has {pixels_at_orbit:.1f}px at orbit, need {MIN_DETECT_PIXELS}")
 
     def test_orbit_large_fy_produces_far_orbit(self):
         """High focal length camera produces far orbit radius."""
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=400)  # alt diff = 200m
 
         plan = calc_peer_approach_offset(
-            target, drone, [_make_mount(-15, fy=5000)],
+            poi, drone, [_make_mount(-15, fy=5000)],
             kind=ApproachKind.ORBIT,
         )
 
@@ -264,13 +264,13 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
     def test_zoom_mount_orbits_at_detect_slant(self):
         from navpy.modules.vision.vision_profiles import MIN_DETECT_PIXELS, get_class_detect_size
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
         fy = 2262.0
         mount = _make_mount(-24, fy=fy, has_zoom=True)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
         )
 
         alt = 100.0
@@ -283,13 +283,13 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         """Without zoom, the drone must orbit closer — at the confirm slant."""
         from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS, get_class_detect_size
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
         fy = 2262.0
         mount = _make_mount(-24, fy=fy, has_zoom=False)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
         )
 
         alt = 100.0
@@ -302,17 +302,17 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
 
     def test_fixed_mount_orbit_radius_smaller_than_zoom_mount(self):
         """Sanity: no-zoom orbit is strictly smaller than with-zoom orbit."""
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
         fy = 2262.0
         zoom_mount = _make_mount(-24, fy=fy, has_zoom=True)
         fixed_mount = _make_mount(-24, fy=fy, has_zoom=False)
 
         zoom_plan = calc_peer_approach_offset(
-            target, drone, [zoom_mount], kind=ApproachKind.ORBIT,
+            poi, drone, [zoom_mount], kind=ApproachKind.ORBIT,
         )
         fixed_plan = calc_peer_approach_offset(
-            target, drone, [fixed_mount], kind=ApproachKind.ORBIT,
+            poi, drone, [fixed_mount], kind=ApproachKind.ORBIT,
         )
 
         self.assertLess(fixed_plan.orbit_radius, zoom_plan.orbit_radius)
@@ -320,7 +320,7 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
     def test_zoom_orbit_furthest_recognition_binds(self):
         """Zoom mount + limits: orbit at the FURTHEST standoff bounded by
         max-zoom recognition (the binding constraint for a high-recognition
-        target), well above the dive-feasibility floor."""
+        POI), well above the dive-feasibility floor."""
         from navpy.modules.navigation.orbit_geometry import (
             OrbitNavigationLimits, r_nav_min,
         )
@@ -329,14 +329,14 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         )
         from navpy.modules.vision.vision_profiles import get_class_detect_size
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
-        drone = Location(lat=32.1, lng=34.0, alt=350)  # alt above target = 150
+        poi = Location(lat=32.0, lng=34.0, alt=200)
+        drone = Location(lat=32.1, lng=34.0, alt=350)  # alt above POI = 150
         fy, zoom_ratio, recog_px = 2262.0, 10.0, 150.0
         mount = _make_mount(-24, fy=fy, has_zoom=True, zoom_ratio=zoom_ratio)
         limits = OrbitNavigationLimits(25.0, 45.0, -40.0)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
             orbit_limits=limits, recognition_px=recog_px,
         )
 
@@ -359,13 +359,13 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         )
         from navpy.modules.vision.vision_profiles import get_class_detect_size
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=350)  # alt = 150
         fy, zoom_ratio, recog_px = 2262.0, 10.0, 20.0
         mount = _make_mount(-24, fy=fy, has_zoom=True, zoom_ratio=zoom_ratio)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
             orbit_limits=OrbitNavigationLimits(25.0, 45.0, -40.0),
             recognition_px=recog_px,
         )
@@ -387,13 +387,13 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         )
         from navpy.modules.navigation.peer_offset import MIN_APPROACH_STANDOFF_M
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=350)  # alt = 150
         mount = _make_mount(-24, fy=2262.0, has_zoom=True, zoom_ratio=10.0)
         limits = OrbitNavigationLimits(25.0, 45.0, -40.0)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
             orbit_limits=limits, recognition_px=500.0,
         )
 
@@ -408,7 +408,7 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         )
         from navpy.modules.navigation.peer_offset import MIN_APPROACH_STANDOFF_M
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=350)  # alt = 150
         mount = _make_mount(-24, has_zoom=True)
         mount.base_fy = None
@@ -416,7 +416,7 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         limits = OrbitNavigationLimits(25.0, 45.0, -40.0)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
             orbit_limits=limits,
         )
 
@@ -428,14 +428,14 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         range, a floor-violation warning names the recognition bound."""
         from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=350)  # alt = 150
         mount = _make_mount(-24, fy=2262.0, has_zoom=True, zoom_ratio=10.0)
 
         with self.assertLogs(
                 "navpy.modules.navigation.peer_offset", level="WARNING") as cm:
             calc_peer_approach_offset(
-                target, drone, [mount], kind=ApproachKind.ORBIT,
+                poi, drone, [mount], kind=ApproachKind.ORBIT,
                 orbit_limits=OrbitNavigationLimits(25.0, 45.0, -40.0),
                 recognition_px=500.0,
             )
@@ -451,13 +451,13 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
         from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS, get_class_detect_size
 
-        target = Location(lat=32.0, lng=34.0, alt=200)
+        poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)  # alt = 100
         fy = 2262.0
         mount = _make_mount(-24, fy=fy, has_zoom=False)
 
         plan = calc_peer_approach_offset(
-            target, drone, [mount], kind=ApproachKind.ORBIT,
+            poi, drone, [mount], kind=ApproachKind.ORBIT,
             orbit_limits=OrbitNavigationLimits(25.0, 45.0, -40.0),
         )
 

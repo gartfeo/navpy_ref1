@@ -22,7 +22,7 @@ class ConfirmationMessageBroadcaster(Protocol):
 
 
 class ConfirmationImageSender(Protocol):
-    def send_image(self, target_id: int, image_b64: str) -> int: ...
+    def send_image(self, poi_id: int, image_b64: str) -> int: ...
 
 
 class ConfirmationNetworkPort(
@@ -36,7 +36,7 @@ class ConfirmationNetworkPort(
 class ConfirmationWorkerStatePort(Protocol):
     def start_review(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
         event_factory: Callable[[], threading.Event],
     ) -> ConfirmationWorkerLease: ...
 
@@ -60,7 +60,7 @@ class ConfirmationRoundStatePort(Protocol):
 
     def begin_round(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
         lease: ConfirmationWorkerLease,
         event_factory: Callable[[], threading.Event],
         request_ref: Optional[ConfirmationRequestRef] = None,
@@ -82,19 +82,19 @@ class ConfirmationRoundStatePort(Protocol):
 
 
 class ConfirmationInboundStatePort(Protocol):
-    def pending_target(self, target_id: int) -> Optional[DetectedObject]: ...
+    def pending_poi(self, poi_id: int) -> Optional[DetectedObject]: ...
 
     def send_pending_if_current(
         self,
-        target_id: int,
-        target: DetectedObject,
+        poi_id: int,
+        poi: DetectedObject,
         request_ref: Optional[ConfirmationRequestRef],
         send: Callable[[], None],
     ) -> bool: ...
 
     def resolve_response(
         self,
-        target_id: int,
+        poi_id: int,
         is_confirmed: bool,
         response_ref: Optional[ConfirmationRequestRef] = None,
     ) -> ConfirmationResponseKind: ...

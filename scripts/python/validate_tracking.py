@@ -45,8 +45,8 @@ _METRICS = METRICS_PATH
 from navpy.modules.vision.appearance import create_appearance_embedder
 from navpy.modules.vision.frame_provider import FrameProvider
 from navpy.modules.vision.geometry import cxcywh_to_xyxy
-from navpy.modules.vision.lost_target_bridge import LostTargetBridge
-from navpy.modules.vision.target_lock import TargetLock
+from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
+from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.track_identity import TrackIdentityResolver
 from navpy.modules.vision.tracker_backends import create_tracker_backend
 from navpy.modules.vision.yolo_detector import YoloDetector

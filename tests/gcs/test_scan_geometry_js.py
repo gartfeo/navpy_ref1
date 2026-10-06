@@ -2,7 +2,7 @@
 
 The optimizer is now pure geometry: the operator's pitch in, the far-edge-at-R_det
 altitude out, NO clamping (the floor / ceiling / recognition caps live in the React
-wiring). Target sizes come from the backend single source (get_class_detect_size).
+wiring). POI sizes come from the backend single source (get_class_detect_size).
 """
 import json
 import math
@@ -53,11 +53,11 @@ FY1 = 2082.84   # ZR10 1×
 IMG_H = 1440
 
 
-def _opt(target, boresight=45, fy=FY1, detect_px=None):
+def _opt(poi, boresight=45, fy=FY1, detect_px=None):
     extra = f", detectPx: {detect_px}" if detect_px else ""
     return _run_js(f"""
         console.log(JSON.stringify(optimizeScanGeometry({{
-            fy: {fy}, imageHeight: {IMG_H}, targetSizeM: {target},
+            fy: {fy}, imageHeight: {IMG_H}, poiSizeM: {poi},
             boresightDeg: {boresight}{extra}}})));
     """)
 
@@ -75,7 +75,7 @@ class ScanGeometryTest(unittest.TestCase):
         # far edge lies on the detection circle: alt² + reach² == R_det²
         self.assertAlmostEqual(math.hypot(r["altitudeM"], r["reachM"]), r_det, delta=1)
 
-    def test_smaller_target_lowers_altitude(self):
+    def test_smaller_poi_lowers_altitude(self):
         self.assertLess(_opt(CLASS_4_SIZE)["altitudeM"], _opt(CLASS_0_SIZE)["altitudeM"])
 
     def test_steeper_pitch_more_altitude_less_reach(self):
@@ -96,21 +96,21 @@ class ScanGeometryTest(unittest.TestCase):
     def test_fail_closed_on_bad_inputs(self):
         self.assertIsNone(_run_js(
             "console.log(JSON.stringify(optimizeScanGeometry("
-            "{fy:0, imageHeight:1440, targetSizeM:4, boresightDeg:45})));"))
+            "{fy:0, imageHeight:1440, poiSizeM:4, boresightDeg:45})));"))
 
     def test_non_finite_geometry_inputs_fail_closed(self):
-        for bad in ("fy: Infinity", "targetSizeM: Infinity", "imageHeight: NaN", "detectPx: Infinity"):
+        for bad in ("fy: Infinity", "poiSizeM: Infinity", "imageHeight: NaN", "detectPx: Infinity"):
             with self.subTest(bad=bad):
                 self.assertIsNone(_run_js(f"""
                     console.log(JSON.stringify(optimizeScanGeometry({{
-                        fy: 2082, imageHeight: 1440, targetSizeM: 4.3, boresightDeg: 45, {bad}}})));
+                        fy: 2082, imageHeight: 1440, poiSizeM: 4.3, boresightDeg: 45, {bad}}})));
                 """))
 
     def test_non_finite_pitch_falls_back_to_45(self):
         nan_p = _run_js("console.log(JSON.stringify(optimizeScanGeometry("
-                        "{fy:2082,imageHeight:1440,targetSizeM:4.3,boresightDeg:NaN})));")
+                        "{fy:2082,imageHeight:1440,poiSizeM:4.3,boresightDeg:NaN})));")
         bal = _run_js("console.log(JSON.stringify(optimizeScanGeometry("
-                      "{fy:2082,imageHeight:1440,targetSizeM:4.3,boresightDeg:45})));")
+                      "{fy:2082,imageHeight:1440,poiSizeM:4.3,boresightDeg:45})));")
         self.assertIsNotNone(nan_p)
         self.assertAlmostEqual(nan_p["altitudeM"], bal["altitudeM"], delta=0.01)
 
@@ -137,7 +137,7 @@ class ScanGeometryTest(unittest.TestCase):
 
     def test_zoom_level_passes_through(self):
         r = _run_js(f"""console.log(JSON.stringify(optimizeScanGeometry({{
-            fy: {FY1 * 2}, imageHeight: {IMG_H}, targetSizeM: {CLASS_0_SIZE}, boresightDeg: 45, zoom: 2}})));""")
+            fy: {FY1 * 2}, imageHeight: {IMG_H}, poiSizeM: {CLASS_0_SIZE}, boresightDeg: 45, zoom: 2}})));""")
         self.assertEqual(r["zoom"], 2)
 
     def test_custom_detect_px_shrinks_rdet(self):

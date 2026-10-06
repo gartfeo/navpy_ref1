@@ -20,8 +20,8 @@ from navpy.modules.navigation.gimbal_tracking_constants import (
 )
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
-from navpy.modules.vision.target_zoom_orchestrator import TargetZoomTracker
-from navpy.modules.vision.target_zoom_types import TargetZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
 
 
 class GimbalNavigation(
@@ -38,10 +38,10 @@ class GimbalNavigation(
         mount: CameraMount,
         logger: ILogger,
         tracking: GimbalTrackingSetup | None = None,
-        zoom_config: TargetZoomTrackerConfig | None = None,
+        zoom_config: PoiZoomTrackerConfig | None = None,
         *,
         rate_tracker: GimbalRateTracker | None = None,
-        zoom_tracker: TargetZoomTracker | None = None,
+        zoom_tracker: PoiZoomTracker | None = None,
         neutral_pitch_deg: float | None = None,
     ) -> None:
         self._parts = build_gimbal_navigation(

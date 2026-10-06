@@ -1,7 +1,7 @@
 """Verify every logged direct-pixel command from its visual law terms.
 
 The point is to prove each command is fully explained by frame-local visual
-terms plus the previous command -- that no target truth, range, ground speed or
+terms plus the previous command -- that no POI truth, range, ground speed or
 compass heading leaked into the command path. A residual here means the command
 came from somewhere the log does not account for.
 
@@ -120,7 +120,7 @@ def _expected_raw_roll(sample: dict) -> float:
     """Roll from the law: a held anchor, or pure PN on the inertial LOS rate.
 
     No bearing term. A steady non-zero bearing IS the converged geometry in
-    wind, so rolling to null it would leave the collision course; the law drops
+    wind, so rolling to null it would leave the constant-bearing course; the law drops
     that term deliberately.
     """
     if sample["plan_reason"] in BOTH_AXES_HELD or (

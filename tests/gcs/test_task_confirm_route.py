@@ -99,7 +99,7 @@ class TestDecisionRecordedOnListener:
 
     All 3 response copies can be lost; the companion then keeps resending its
     request and the listener answers those repeats with this record instead
-    of re-opening a popup for a target the operator already settled.
+    of re-opening a popup for a POI the operator already settled.
     """
 
     def test_approve_records_the_decision_against_its_round(self, client):
@@ -122,7 +122,7 @@ class TestDecisionRecordedOnListener:
             .assert_called_once_with(1, 5, False, "424242:11")
 
     def test_broadcast_carries_the_round_uid(self, client):
-        """Every client needs the uid: the same target can be asked again
+        """Every client needs the uid: the same POI can be asked again
         while this response is going out, and the new round's card must not
         be marked decided (and its countdown stopped) by this one."""
         tc, mock_mgr, mock_ws = client

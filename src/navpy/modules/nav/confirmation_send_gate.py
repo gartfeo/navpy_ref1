@@ -34,7 +34,7 @@ class ConfirmationSendGate:
         def transaction() -> bool:
             with self._lock:
                 if (
-                    self._rounds.get(confirmation.target_id) is not confirmation
+                    self._rounds.get(confirmation.poi_id) is not confirmation
                     or confirmation.response_event.is_set()
                     or not self._workers.is_current(confirmation.worker)
                 ):
@@ -46,21 +46,21 @@ class ConfirmationSendGate:
 
     def send_pending(
         self,
-        target_id: int,
-        target: DetectedObject,
+        poi_id: int,
+        poi: DetectedObject,
         request_ref: Optional[ConfirmationRequestRef],
         send: Callable[[], None],
     ) -> bool:
         with self._lock:
-            confirmation = self._rounds.get(target_id)
+            confirmation = self._rounds.get(poi_id)
         if confirmation is None:
             return False
 
         def transaction() -> bool:
             with self._lock:
                 if (
-                    self._rounds.get(target_id) is not confirmation
-                    or confirmation.target is not target
+                    self._rounds.get(poi_id) is not confirmation
+                    or confirmation.poi is not poi
                     or confirmation.response_event.is_set()
                     or not self._workers.is_current(confirmation.worker)
                     or not matches_round(confirmation, request_ref)

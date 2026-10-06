@@ -7,9 +7,9 @@ from collections.abc import Sequence
 
 from scripts.eval_gcs_demo_evidence import positive_deltas
 from scripts.eval_gcs_demo_models import (
-    TerminalCommand,
-    TerminalScore,
-    TerminalTiming,
+    FinalApproachCommand,
+    FinalApproachScore,
+    FinalApproachTiming,
     finite_number,
 )
 
@@ -28,12 +28,12 @@ def _significant_reversals(rolls: Sequence[float], threshold: float) -> int:
     return sum(left != right for left, right in zip(signs, signs[1:]))
 
 
-def _validated_episode(commands: Sequence[TerminalCommand]) -> list[TerminalCommand]:
+def _validated_episode(commands: Sequence[FinalApproachCommand]) -> list[FinalApproachCommand]:
     episode = list(commands)
     if not episode:
         return episode
     if len({command.source_key for command in episode}) != 1:
-        raise ValueError("terminal episode changed atomic source identity")
+        raise ValueError("final-approach episode changed atomic source identity")
     pass_indices = [index for index, command in enumerate(episode) if command.passed]
     expected_pass_indices = (
         list(range(pass_indices[0], len(episode))) if pass_indices else []
@@ -42,12 +42,12 @@ def _validated_episode(commands: Sequence[TerminalCommand]) -> list[TerminalComm
         command.issued for command in episode[pass_indices[0]:]
     ):
         raise ValueError(
-            "terminal episode requires trailing pass-suppressed rows"
+            "final-approach episode requires trailing pass-suppressed rows"
         )
     return episode
 
 
-def terminal_timing(commands: Sequence[TerminalCommand]) -> TerminalTiming:
+def final_approach_timing(commands: Sequence[FinalApproachCommand]) -> FinalApproachTiming:
     episode = _validated_episode(commands)
     first_pass = next(
         (index for index, command in enumerate(episode) if command.passed),
@@ -60,15 +60,15 @@ def terminal_timing(commands: Sequence[TerminalCommand]) -> TerminalTiming:
     wall_gaps = positive_deltas(command.wall_s for command in timed_episode)
     source_gaps = positive_deltas(command.obs_ts for command in timed_episode)
     if any(gap <= 0.0 for gap in wall_gaps):
-        raise ValueError("terminal wall timestamps must be strictly increasing")
+        raise ValueError("final-approach wall timestamps must be strictly increasing")
     if any(gap <= 0.0 for gap in source_gaps):
-        raise ValueError("terminal source timestamps must be strictly increasing")
+        raise ValueError("final-approach source timestamps must be strictly increasing")
     ratios = [
         source_gap / wall_gap
         for source_gap, wall_gap in zip(source_gaps, wall_gaps)
         if source_gap > 0.0 and wall_gap > 0.0
     ]
-    return TerminalTiming(
+    return FinalApproachTiming(
         median_wall_gap_s=statistics.median(wall_gaps) if wall_gaps else None,
         max_wall_gap_s=max(wall_gaps) if wall_gaps else None,
         max_source_gap_s=max(source_gaps) if source_gaps else None,
@@ -76,19 +76,19 @@ def terminal_timing(commands: Sequence[TerminalCommand]) -> TerminalTiming:
     )
 
 
-def score_terminal_commands(
-    commands: Sequence[TerminalCommand],
+def score_final_approach_commands(
+    commands: Sequence[FinalApproachCommand],
     *,
     roll_limit_deg: float,
     saturation_margin_deg: float,
     significant_roll_deg: float,
-) -> TerminalScore:
+) -> FinalApproachScore:
     limit = finite_number("roll_limit_deg", roll_limit_deg)
     margin = finite_number("saturation_margin_deg", saturation_margin_deg)
     threshold = finite_number("significant_roll_deg", significant_roll_deg)
     if limit <= 0.0 or margin > limit:
         raise ValueError("roll limit must be positive and margin <= limit")
-    issued: list[TerminalCommand] = []
+    issued: list[FinalApproachCommand] = []
     for command in _validated_episode(commands):
         if command.issued:
             issued.append(command)
@@ -96,10 +96,10 @@ def score_terminal_commands(
             break
     rolls = [command.cmd_roll for command in issued if command.cmd_roll is not None]
     if len(rolls) != len(issued):
-        raise ValueError("issued terminal command is missing roll evidence")
+        raise ValueError("issued final-approach command is missing roll evidence")
     saturation = [abs(roll) >= limit - margin for roll in rolls]
     roll_steps = [abs(right - left) for left, right in zip(rolls, rolls[1:])]
-    return TerminalScore(
+    return FinalApproachScore(
         sample_count=len(rolls),
         significant_reversals=_significant_reversals(rolls, threshold),
         saturation_fraction=(sum(saturation) / len(saturation)) if saturation else 0.0,
@@ -108,4 +108,4 @@ def score_terminal_commands(
     )
 
 
-__all__ = ["score_terminal_commands", "terminal_timing"]
+__all__ = ["score_final_approach_commands", "final_approach_timing"]

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class GeoPointingMember(Protocol):
-    def start_geo_tracking(self, target_loc: "Location", geo_ref: "GeoRefCalc") -> None: ...
+    def start_geo_tracking(self, poi_loc: "Location", geo_ref: "GeoRefCalc") -> None: ...
 
     def update_geo(self, uav_loc: "Location", uav_att: "Attitude") -> None: ...
 
@@ -40,17 +40,17 @@ class GeoPointingFleet:
         self._members = tuple(members)
         self._logger = logger
 
-    def start_geo_tracking(self, target_loc: "Location", geo_ref: "GeoRefCalc") -> None:
+    def start_geo_tracking(self, poi_loc: "Location", geo_ref: "GeoRefCalc") -> None:
         started: list[GeoPointingMember] = []
         try:
             for member in self._members:
-                member.start_geo_tracking(target_loc, geo_ref)
+                member.start_geo_tracking(poi_loc, geo_ref)
                 started.append(member)
         except Exception:
             self._rollback(started)
             raise
         self._logger.info(
-            f"DetectionCoordinator: start_geo_tracking target={target_loc} "
+            f"DetectionCoordinator: start_geo_tracking poi={poi_loc} "
             f"started={len(started)}/{len(self._members)}"
         )
 

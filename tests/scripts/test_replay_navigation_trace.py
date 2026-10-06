@@ -124,7 +124,7 @@ def test_offline_event_is_written_before_return(monkeypatch):
     logger = FullRateLogger(1, ConsoleLogger(CacheLogLevel.ERROR),
                            streams=streams.NavigationLogStreams(None, debug))
     try:
-        logger.log_event(LogEvent.TERMINAL_CMD, {"probe": "fenced"})
+        logger.log_event(LogEvent.FINAL_APPROACH_CMD, {"probe": "fenced"})
         assert "probe=fenced" in debug.getvalue()
     finally:
         logger.close()

@@ -8,7 +8,7 @@ cross-check's touchpoints in that lifecycle, in the reconciled order
   exists: successor binding and the binary hash are read BEFORE the
   module is configured and long before arming -- LASTLOG only advances
   when logging starts, so this is the last point the pre-flight number
-  is unambiguous -- then the module is configured from the case target.
+  is unambiguous -- then the module is configured from the case POI.
 - post_teardown, only after the chat's SITL stack was stopped: score the
   bound BIN.  A crash inside module scoring lands in the returned block;
   the cross-check may never cost the case its stream verdict.
@@ -29,7 +29,7 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 from eval_direct_pixel_verdict import SCORING_POLICY_SITL_TRUTH  # noqa: E402
-from eval_navigation_models import TargetLocation  # noqa: E402
+from eval_navigation_models import PoiLocation  # noqa: E402
 from eval_sim_cpa_artifact import binding_pre_flight  # noqa: E402
 from eval_sim_cpa_block import (  # noqa: E402
     CONFIG_INTERNAL_ERROR, EVIDENCE_INTERNAL_ERROR, default_configuration,
@@ -61,7 +61,7 @@ class SimCpaStage:
         master: Any,
         *,
         sysid: int,
-        target: TargetLocation,
+        poi: PoiLocation,
         case_dir: Path,
     ) -> None:
         """Arm binding, hash the binary, configure the module.
@@ -80,9 +80,9 @@ class SimCpaStage:
             self.configuration = configure_sim_cpa(
                 master,
                 mode=self.mode,
-                lat_deg=target.lat_deg,
-                lon_deg=target.lon_deg,
-                abs_alt_m=target.abs_alt_m,
+                lat_deg=poi.lat_deg,
+                lon_deg=poi.lon_deg,
+                abs_alt_m=poi.abs_alt_m,
                 case_dir=case_dir,
             )
         except Exception as error:

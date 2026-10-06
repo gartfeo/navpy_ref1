@@ -26,7 +26,7 @@ def run_case(
 ) -> dict[str, Any]:
     """Prepare, fly, tear down, and summarize one isolated case."""
     name = (
-        f"eval-nav-a{case.target_alt_m}-s{case.speedup}"
+        f"eval-nav-a{case.poi_alt_m}-s{case.speedup}"
         f"-g{case.navigation_speedup:g}-w{case.wind_speed_mps:g}"
         f"-d{case.wind_direction_deg}-i{index}-a{attempt}"
     )
@@ -34,7 +34,7 @@ def run_case(
     case_dir.mkdir(parents=True, exist_ok=True)
     state = CaseState(
         name=name,
-        target_rel_alt_m=float(case.target_alt_m),
+        poi_rel_alt_m=float(case.poi_alt_m),
         certificate=bool(getattr(args, "repetitions", None)),
         paths=CasePaths(case_dir),
     )

@@ -32,7 +32,7 @@ class TestPreflightReadinessHasReboot(unittest.TestCase):
         self.assertIn("confirm.confirmReboot", self.src)
         self.assertIn('tone="caution"', self.src)
         # Confirm fires the handler with the chosen vehicle's sys_id.
-        self.assertIn("onReboot(rebootTarget.sysId)", self.src)
+        self.assertIn("onReboot(rebootPoi.sysId)", self.src)
 
     def test_button_disabled_when_armed_or_link_down(self):
         self.assertIn("linkDown || v.armed", self.src)

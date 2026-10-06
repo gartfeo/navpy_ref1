@@ -7,11 +7,11 @@ from typing import Optional
 
 from navpy.modules.nav.confirmation_reporting import ConfirmDebugReporter
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_size import characteristic_pixels
+from navpy.modules.vision.poi_size import characteristic_pixels
 
 
-def extract_confirmation_size(target: DetectedObject) -> Optional[float]:
-    bbox = target.confirmation.bbox_cxcywh
+def extract_confirmation_size(poi: DetectedObject) -> Optional[float]:
+    bbox = poi.confirmation.bbox_cxcywh
     if bbox is None or len(bbox) < 4:
         return None
     try:
@@ -30,15 +30,15 @@ class ConfirmationFramePolicy:
     def __init__(self, debug: ConfirmDebugReporter) -> None:
         self._debug = debug
 
-    def is_ready(self, target: DetectedObject) -> bool:
+    def is_ready(self, poi: DetectedObject) -> bool:
         if (
-            target.confirmation.frame is not None
-            or not target.confirmation.supports_frame
+            poi.confirmation.frame is not None
+            or not poi.confirmation.supports_frame
         ):
             return True
         self._debug.log(
-            f"no_frame obj={target.identity.obj_id} "
-            f"px=({target.pixel.u_px:.0f},{target.pixel.v_px:.0f})"
+            f"no_frame obj={poi.identity.obj_id} "
+            f"px=({poi.pixel.u_px:.0f},{poi.pixel.v_px:.0f})"
         )
         return False
 

@@ -31,7 +31,7 @@ from scripts.eval_navigation_truth import TruthRecorder, salvage_truth  # noqa: 
 
 def truth_recorders(
     sys_ids: list[int],
-    targets: dict[int, object],
+    pois: dict[int, object],
     plan: FleetPlan,
     args: argparse.Namespace,
 ) -> dict[int, TruthRecorder]:
@@ -43,7 +43,7 @@ def truth_recorders(
     if args.scoring_policy != SCORING_POLICY_SITL_TRUTH:
         return {}
     return {
-        sys_id: TruthRecorder(targets[sys_id], plan.home_alts[sys_id])
+        sys_id: TruthRecorder(pois[sys_id], plan.home_alts[sys_id])
         for sys_id in sys_ids
     }
 

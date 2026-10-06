@@ -118,7 +118,7 @@ def test_actual_operator_delay_is_an_input_difference(runs):
     assert report["comparisons"][0]["recorded_inputs"]["status"] == "different"
 
 
-def test_changed_target_is_an_input_mismatch_without_coordinate_tolerance(runs):
+def test_changed_poi_is_an_input_mismatch_without_coordinate_tolerance(runs):
     replace(runs[1] / "demo_mission_plan.json", "40.1,", "40.10000001,")
     report = compare_runs(runs)
     assert report["comparisons"][0]["recorded_inputs"]["status"] == "different"

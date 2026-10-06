@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Iterable
 
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 
 
 class FrameAdmission(Enum):
@@ -40,7 +40,7 @@ class SourceEpochLedger:
         })
         return ordered_names
 
-    def classify(self, frame: TerminalVisionFrame) -> FrameAdmission:
+    def classify(self, frame: FinalApproachVisionFrame) -> FrameAdmission:
         previous = self._timestamps.get(frame.continuity_key)
         if previous is None or frame.source_timestamp_s > previous:
             return FrameAdmission.FRESH
@@ -48,7 +48,7 @@ class SourceEpochLedger:
             return FrameAdmission.DUPLICATE
         return FrameAdmission.REGRESSION
 
-    def admit(self, frame: TerminalVisionFrame) -> FrameAdmission:
+    def admit(self, frame: FinalApproachVisionFrame) -> FrameAdmission:
         result = self.classify(frame)
         if result is FrameAdmission.FRESH:
             self._timestamps[frame.continuity_key] = frame.source_timestamp_s

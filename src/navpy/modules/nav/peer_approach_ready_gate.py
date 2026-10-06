@@ -15,7 +15,7 @@ from navpy.modules.nav.nav_state import NavigationTaskState
 
 @dataclass(frozen=True)
 class PeerApproachReadyPorts:
-    selected_target: Callable[[], TaskAssignMsgData | None]
+    selected_poi: Callable[[], TaskAssignMsgData | None]
     current_absolute: Callable[[], Location | None]
     current_relative: Callable[[], Location | None]
 
@@ -36,14 +36,14 @@ class PeerApproachReadyGate:
         self._logger = logger
 
     def has_assignment(self) -> bool:
-        return self._ports.selected_target() is not None
+        return self._ports.selected_poi() is not None
 
     def is_ready(self) -> bool:
-        selected = self._ports.selected_target()
+        selected = self._ports.selected_poi()
         if selected is None:
             return False
         location = selected.location
-        target = Location(
+        poi = Location(
             location.lat,
             location.lng,
             location.alt,
@@ -52,7 +52,7 @@ class PeerApproachReadyGate:
         current = self._ports.current_absolute()
         if current is None:
             return False
-        actual_distance = current.distance_to(target)
+        actual_distance = current.distance_to(poi)
         approach_ready_distance = self._approach_ready_distance()
         near = actual_distance <= approach_ready_distance
         if near and self._navigation_task.orbit_approach_alt_rel_m is not None:

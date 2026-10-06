@@ -31,7 +31,7 @@ class PeerNavigationCoordinator:
     def has_assignment(self) -> bool:
         return self._approach_ready_gate.has_assignment()
 
-    def near_target(self) -> bool:
+    def near_poi(self) -> bool:
         return self._approach_ready_gate.is_ready()
 
 

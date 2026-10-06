@@ -133,7 +133,7 @@ class GimbalAngularPlant:
         self._enforce_limits()
         old_yaw, old_pitch = state.yaw, state.pitch
         if state.target_yaw is not None and state.target_pitch is not None:
-            self._advance_target(dt_s)
+            self._advance_poi(dt_s)
         else:
             state.yaw += state.yaw_command / 100.0 * MAX_SLEW_RATE * dt_s
             state.pitch += state.pitch_command / 100.0 * MAX_SLEW_RATE * dt_s
@@ -147,7 +147,7 @@ class GimbalAngularPlant:
         state.pitch_speed = (state.pitch - old_pitch) / dt_s
         state.roll_speed = 0.0
 
-    def _advance_target(self, dt_s: float) -> None:
+    def _advance_poi(self, dt_s: float) -> None:
         state = self._state
         assert state.target_yaw is not None
         assert state.target_pitch is not None

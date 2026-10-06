@@ -3,7 +3,7 @@
 Archived runs have been found differing by 10x with nothing in the artefacts to
 say why, and a fleet adds more ways for that to happen than a single-aircraft
 run: two clocks, a randomised cell assignment, a sysid span that reaches past
-the chat it launched on. None of those are visible in a miss distance, so each
+the chat it launched on. None of those are visible in an approach error, so each
 one is written down beside it.
 """
 

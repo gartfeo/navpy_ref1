@@ -14,7 +14,7 @@ PUBLIC_ADAPTERS = {
     "src/navpy/modules/vision/detection_coordinator.py": "DetectionCoordinator",
     "src/navpy/modules/vision/peripheral/siyi/sim/gimbal_physics.py": "GimbalPhysics",
     "src/navpy/modules/vision/peripheral/siyi/sim/gimbal_siyi_sim.py": "GimbalSiyiSim",
-    "src/navpy/modules/vision/target_zoom_orchestrator.py": "TargetZoomTracker",
+    "src/navpy/modules/vision/poi_zoom_orchestrator.py": "PoiZoomTracker",
 }
 
 

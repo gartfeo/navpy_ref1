@@ -25,7 +25,7 @@ from navpy.modules.nav.nav_state import (
 from navpy.modules.nav.nav_status import NavigationStatusReporter
 from navpy.modules.nav.recovery import RecoveryAction
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.target_status_decision import ConfirmationStatusDecision
+from navpy.modules.nav.poi_status_decision import ConfirmationStatusDecision
 from navpy.modules.nav.vehicle_navigation import LoiterRadiusLease
 from navpy.modules.vehicle.flight_mode import FlightMode
 
@@ -67,8 +67,8 @@ class InactiveNavigationGuard:
         has_active_task = (
             self._loiter_radius.original is not None
             or self._confirm.hold_active
-            or self._confirmation_manager.active_target is not None
-            or self._navigation_task.navigation_target_location is not None
+            or self._confirmation_manager.active_poi is not None
+            or self._navigation_task.navigation_poi_location is not None
             or self._navigation_task.peer_navigation
             or self._mission.fallback_delivery_location_active
         )
@@ -100,7 +100,7 @@ class NavDecisionPorts:
     clock_s: Callable[[], float]
     clear_navigation_task: Callable[[], None]
     request_guided: Callable[[], None]
-    terminal_active: Callable[[], bool]
+    final_approach_active: Callable[[], bool]
 
 
 class NavStateDecision:
@@ -132,7 +132,7 @@ class NavStateDecision:
                 return True
             if (
                 self._navigation_task.nav_mode_observed
-                and self._pass_policy.passed_target()
+                and self._pass_policy.passed_poi()
             ):
                 self._mark_passed()
                 return True
@@ -141,21 +141,21 @@ class NavStateDecision:
         if (
             self._phase.current == NavState.NAV
             and (
-                self._ports.terminal_active()
+                self._ports.final_approach_active()
                 or self._pass_policy.close_observed
             )
             and self._pass_policy.has_completion_evidence()
         ):
             self._mark_passed()
             return True
-        self._confirmation_manager.clear_active_target()
+        self._confirmation_manager.clear_active_poi()
         self._phase.request(NavState.RESET)
         return True
 
     def _await_guided(self, mode: FlightMode) -> bool:
         if mode == FlightMode.GUIDED:
             self._navigation_task.nav_mode_observed = True
-            self._navigation_task.terminal_navigation_active = True
+            self._navigation_task.final_approach_navigation_active = True
             self._clear_guided_wait()
             return False
         if self._navigation_task.nav_mode_observed:
@@ -191,8 +191,8 @@ class NavStateDecision:
         self._navigation_task.guided_request_started_at = None
 
     def _mark_passed(self) -> None:
-        self._navigation_task.terminal_nav_completed = True
-        self._status.ignore(2, "RESET: PASSED TARGET")
+        self._navigation_task.final_approach_nav_completed = True
+        self._status.ignore(2, "RESET: PASSED POI")
         self._phase.request(NavState.RESET)
 
 
@@ -213,7 +213,7 @@ class NavigationDecision:
         inactive: InactiveNavigationGuard,
         recovery: RecoveryAction,
         nav: NavStateDecision,
-        target_status: ConfirmationStatusDecision,
+        poi_status: ConfirmationStatusDecision,
         args: NavArgs,
         mission: MissionCatalog,
     ) -> None:
@@ -222,7 +222,7 @@ class NavigationDecision:
         self._inactive = inactive
         self._recovery = recovery
         self._nav = nav
-        self._target_status = target_status
+        self._poi_status = poi_status
         self._args = args
         self._mission = mission
 
@@ -236,7 +236,7 @@ class NavigationDecision:
             return
         if self._nav.advance(mode):
             return
-        if self._target_status.dispatch():
+        if self._poi_status.dispatch():
             return
         self._refresh_onhold(previous)
 

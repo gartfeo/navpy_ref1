@@ -29,7 +29,7 @@ def test_chunks_reconstruct_and_survive_float32_transport() -> None:
 
 
 def test_derive_params_matches_the_flight_validated_values() -> None:
-    # The 2026-09-03 validation target, chunk-for-chunk.
+    # The 2026-09-03 validation POI, chunk-for-chunk.
     assert config.derive_params(43.0242544, 34.0, 60.1) == [
         ("SIM_CPA_LAT_HI", 43024),
         ("SIM_CPA_LAT_LO", 2544),
@@ -64,7 +64,7 @@ def test_resolve_mode_legacy_enable_zero_normalizes_to_off() -> None:
         config.resolve_mode("auto", ["SIM_CPA_ENABLE=0"])
 
 
-def test_resolve_mode_rejects_every_target_override() -> None:
+def test_resolve_mode_rejects_every_poi_override() -> None:
     for raw in (
         "SIM_CPA_LAT_HI=43024",
         "SIM_CPA_LAT_LO=1",
@@ -134,7 +134,7 @@ def test_configure_off_pushes_only_the_disable(tmp_path: Path) -> None:
 
 def test_configure_auto_disarms_a_stale_enable_before_chunks() -> None:
     """The launcher syncs EEPROM from a mutable template, so the module can
-    boot already armed on an old target; chunks must never change under an
+    boot already armed on an old POI; chunks must never change under an
     active epoch."""
     master = _FakeMaster(probe=1.0)
     record = _configure(master, "auto")

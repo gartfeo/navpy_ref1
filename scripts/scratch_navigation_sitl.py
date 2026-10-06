@@ -71,7 +71,7 @@ READY_TIMEOUT_S = float(_CHILD_DEFAULTS["ready_timeout"])
 
 # The launcher's own default start point, from run_swarm.sh:103. Stated rather
 # than inherited: the default has been seen to shift with the slot index, and
-# this harness places the target relative to where the aircraft actually is, so
+# this harness places the POI relative to where the aircraft actually is, so
 # a start point that moved between runs would silently change the scoring interval.
 DEFAULT_HOME = "40.3117414,44.455211099999985,1294.86,0.0"
 
@@ -92,13 +92,13 @@ def _parser() -> argparse.ArgumentParser:
              "the child's own limits, the only value that cannot be wrong",
     )
     # Passed straight through to the child.
-    parser.add_argument("--target-range-m", type=float, default=3000.0)
-    parser.add_argument("--target-below-m", type=float, default=350.0)
-    parser.add_argument("--target-off-boresight-deg", type=float, default=0.0)
+    parser.add_argument("--poi-range-m", type=float, default=3000.0)
+    parser.add_argument("--poi-below-m", type=float, default=350.0)
+    parser.add_argument("--poi-off-boresight-deg", type=float, default=0.0)
     parser.add_argument("--settle-s", type=float, default=20.0)
     parser.add_argument("--climb-to-m", type=float, default=400.0)
     parser.add_argument("--level-settle-s", type=float, default=0.0)
-    parser.add_argument("--engage-s", type=float, default=180.0, dest='scoring_duration_s')
+    parser.add_argument("--scoring-duration-s", type=float, default=180.0, dest='scoring_duration_s')
     parser.add_argument("--throttle", type=float, default=0.55)
     parser.add_argument("--wind-speed", type=float, default=None)
     parser.add_argument("--wind-dir", type=float, default=0.0)

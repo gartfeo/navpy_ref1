@@ -1,4 +1,4 @@
-"""Mission download and target-coordinate resolution."""
+"""Mission download and POI-coordinate resolution."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from typing import Any
 
 from pymavlink import mavutil
 
-from eval_navigation_models import MissionItem, TargetExpectation, TargetLocation
-from eval_navigation_telemetry import command_long, message_from_target, recv_target_message
+from eval_navigation_models import MissionItem, PoiExpectation, PoiLocation
+from eval_navigation_telemetry import command_long, message_from_poi, recv_poi_message
 
 
 def mission_item_from_message(message: Any) -> MissionItem:
@@ -57,38 +57,38 @@ def mission_item_from_message(message: Any) -> MissionItem:
     )
 
 
-def resolve_target_expectation(
+def resolve_poi_expectation(
     mission: Sequence[MissionItem],
     *,
-    target_wp: int,
-    target_rel_alt_m: float,
+    poi_wp: int,
+    poi_rel_alt_m: float,
     home_abs_alt_m: float,
-) -> TargetExpectation:
-    """Resolve the requested NAV_WAYPOINT ordinal to detector-local target zero."""
+) -> PoiExpectation:
+    """Resolve the requested NAV_WAYPOINT ordinal to detector-local POI zero."""
     nav_items = [
         item
         for item in mission
         if item.seq > 0
         and item.command == mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
     ]
-    if target_wp < 1 or target_wp > len(nav_items):
+    if poi_wp < 1 or poi_wp > len(nav_items):
         raise ValueError(
-            f"target WP {target_wp} is unavailable; mission has "
+            f"POI WP {poi_wp} is unavailable; mission has "
             f"{len(nav_items)} NAV_WAYPOINT items"
         )
-    selected = nav_items[target_wp - 1]
+    selected = nav_items[poi_wp - 1]
     if selected.lat_deg is None or selected.lon_deg is None:
         raise ValueError(
-            f"target WP {target_wp} (mission seq {selected.seq}) "
+            f"POI WP {poi_wp} (mission seq {selected.seq}) "
             "has no coordinates"
         )
-    location = TargetLocation(
+    location = PoiLocation(
         lat_deg=selected.lat_deg,
         lon_deg=selected.lon_deg,
-        rel_alt_m=float(target_rel_alt_m),
-        abs_alt_m=float(home_abs_alt_m) + float(target_rel_alt_m),
+        rel_alt_m=float(poi_rel_alt_m),
+        abs_alt_m=float(home_abs_alt_m) + float(poi_rel_alt_m),
     )
-    return TargetExpectation(target_wp, selected.seq, 1, 0, location)
+    return PoiExpectation(poi_wp, selected.seq, 1, 0, location)
 
 
 def download_mission(
@@ -101,7 +101,7 @@ def download_mission(
     count_message = None
     for _ in range(retries):
         master.mav.mission_request_list_send(master.target_system, 0)
-        count_message = recv_target_message(master, "MISSION_COUNT", timeout_s)
+        count_message = recv_poi_message(master, "MISSION_COUNT", timeout_s)
         if count_message is not None:
             break
     if count_message is None:
@@ -128,7 +128,7 @@ def _download_item(
                 blocking=True,
                 timeout=0.5,
             )
-            if candidate is None or not message_from_target(
+            if candidate is None or not message_from_poi(
                 candidate, master.target_system
             ):
                 continue
@@ -148,7 +148,7 @@ def resolve_home_abs_alt_m(
     deadline_s = time.monotonic() + timeout_s
     while time.monotonic() < deadline_s:
         remaining_s = deadline_s - time.monotonic()
-        gps = recv_target_message(
+        gps = recv_poi_message(
             master,
             "GPS_RAW_INT",
             min(0.5, max(0.0, remaining_s)),

@@ -20,7 +20,7 @@ def _network(node_id: int):
     return network, vehicle
 
 
-def test_companion_targeted_confirm_response_keeps_wire_id():
+def test_companion_poied_confirm_response_keeps_wire_id():
     network, _ = _network(101)
     listener = MagicMock()
     network.set_listener(listener)

@@ -16,7 +16,7 @@ function isRawTrack(zone) {
 }
 
 /**
- * Resolve simulation target positions from plan data and per-vehicle targ_wps.
+ * Resolve simulation POI positions from plan data and per-vehicle targ_wps.
  *
  * Waypoint ordering per vehicle mission:
  *   - Non-corridor: [...corridorPts, ...zoneTrack]
@@ -29,7 +29,7 @@ function isRawTrack(zone) {
  * @param {object|null} plan - Plan with zones[].track, zones[].set_index, zones[].sys_id
  * @param {Array<Array<{lat,lon}>>} corridorPointsArr - Corridor points per set
  * @param {string} searchPattern - "corridor" | "distributed"
- * @param {Object<number,number>} vehicleTargWps - { sys_id: bitmask } per-vehicle target WPs
+ * @param {Object<number,number>} vehicleTargWps - { sys_id: bitmask } per-vehicle POI WPs
  * @param {Array<{sys_id}>} vehicleList - Ordered vehicle list (zone i → vehicleList[i])
  * @returns {Array<{lat, lon, zoneIndex, wpNumber}>}
  */
@@ -37,7 +37,7 @@ export function resolveSimDocks(plan, corridorPointsArr, searchPattern, vehicleT
   if (!plan?.zones?.length) return [];
   if (!vehicleTargWps || Object.keys(vehicleTargWps).length === 0) return [];
 
-  const targets = [];
+  const pois = [];
 
   for (let zi = 0; zi < plan.zones.length; zi++) {
     const zone = plan.zones[zi];
@@ -66,7 +66,7 @@ export function resolveSimDocks(plan, corridorPointsArr, searchPattern, vehicleT
       const idx = wpNum - 1;
       if (idx >= 0 && idx < wps.length) {
         const pt = wps[idx];
-        targets.push({
+        pois.push({
           lat: pt.lat,
           lon: pt.lon ?? pt.lng,
           zoneIndex: zone.zone_index ?? 0,
@@ -77,11 +77,11 @@ export function resolveSimDocks(plan, corridorPointsArr, searchPattern, vehicleT
     }
   }
 
-  return targets;
+  return pois;
 }
 
 /**
- * Resolve sim target positions from plan data and user-selected track waypoints
+ * Resolve sim POI positions from plan data and user-selected track waypoints
  * (planning mode — before upload, no vehicle bitmask needed).
  *
  * @param {object|null} plan - Plan with zones[].track
@@ -90,14 +90,14 @@ export function resolveSimDocks(plan, corridorPointsArr, searchPattern, vehicleT
  */
 export function resolveSimDocksFromPlan(plan, simDockWps) {
   if (!plan?.zones?.length || !simDockWps) return [];
-  const targets = [];
+  const pois = [];
   for (let zi = 0; zi < plan.zones.length; zi++) {
     const wpIndices = simDockWps[zi];
     if (!wpIndices?.length) continue;
     const track = plan.zones[zi].track || [];
     for (const wi of wpIndices) {
       if (wi >= 0 && wi < track.length) {
-        targets.push({
+        pois.push({
           lat: track[wi].lat,
           lon: track[wi].lon ?? track[wi].lng,
           zoneIndex: plan.zones[zi].zone_index ?? zi,
@@ -106,7 +106,7 @@ export function resolveSimDocksFromPlan(plan, simDockWps) {
       }
     }
   }
-  return targets;
+  return pois;
 }
 
 /**

@@ -19,7 +19,7 @@ if _SCRIPTS not in sys.path:
 from eval_navigation_telemetry import (  # noqa: E402
     MESSAGE_INTERVAL_ACK_TIMEOUT_S,
     RECV_SLICE_S,
-    recv_target_message,
+    recv_poi_message,
     request_message_interval_stream,
 )
 
@@ -99,7 +99,7 @@ def wait_for_nav_solution(
         remaining = deadline - time.monotonic()
         if remaining <= 0.0:
             return False
-        message = recv_target_message(
+        message = recv_poi_message(
             master, "EKF_STATUS_REPORT", min(NAV_SOLUTION_POLL_S, remaining)
         )
         if message is not None and nav_solution_ready(

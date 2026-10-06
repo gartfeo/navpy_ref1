@@ -1,6 +1,6 @@
 """Turn one associated pose into a rendered detection.
 
-Split from ``direct_target_pixel_source``, which owns the message plumbing,
+Split from ``direct_poi_pixel_source``, which owns the message plumbing,
 the lock, and the publish slot. This owns the optics: which pose the ray is
 built from, which attitude de-rotates it, and how the result is stamped.
 
@@ -21,8 +21,8 @@ from navpy.modules.common.models.location import Location
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
-from navpy.modules.vision.sim.ideal_target_projector import (
-    IdealTargetProjector,
+from navpy.modules.vision.sim.ideal_poi_projector import (
+    IdealPoiProjector,
     UasFrameConvention,
 )
 from navpy.modules.vision.sim.pose_associator import AssociatedPose
@@ -39,11 +39,11 @@ def _static_camera(name: str) -> Callable[[], GimbalData]:
 
 
 class DirectPixelRenderer:
-    """Project the known target from a supplied pose, at a supplied clock."""
+    """Project the known POI from a supplied pose, at a supplied clock."""
 
     def __init__(
         self,
-        target: Location,
+        poi: Location,
         *,
         source_name: str,
         aircraft_sequence: str,
@@ -52,11 +52,11 @@ class DirectPixelRenderer:
         source_now_s: Callable[[], float],
         wall_now_s: Callable[[], float] = time.time,
     ) -> None:
-        self._target = SimulationObject(1, target, 2)
+        self._poi = SimulationObject(1, poi, 2)
         self._wall_now_s = wall_now_s
         camera = IdealCameraState(_static_camera(source_name))
         camera.prepare()
-        self._projector = IdealTargetProjector(
+        self._projector = IdealPoiProjector(
             camera,
             frame_size,
             UasFrameConvention(aircraft_sequence, aircraft_degrees),
@@ -68,12 +68,12 @@ class DirectPixelRenderer:
         associated: AssociatedPose,
         pose: tuple[Location, Attitude],
     ) -> DetectedObject | None:
-        """Project the target, or None if the geometry has no answer."""
+        """Project the POI, or None if the geometry has no answer."""
         location, render_attitude = pose
         navigation_attitude = associated.attitude_sample.attitude
         projected = self._projector.project(
             location,
-            self._target,
+            self._poi,
             render_attitude,
             timestamp_s=associated.attitude_timestamp_s,
             # Yaw is ZEROED, not passed: the ray is already built in truth

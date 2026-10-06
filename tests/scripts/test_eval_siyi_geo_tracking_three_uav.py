@@ -32,13 +32,13 @@ def test_wait_ready_reports_child_exit(tmp_path: Path) -> None:
         raise AssertionError("child exit was not reported")
 
 
-def test_child_commands_target_centered_loiter_at_current_altitude() -> None:
+def test_child_commands_poi_centered_loiter_at_current_altitude() -> None:
     vehicle = Mock()
     vehicle.location.return_value = Location(1.0, 2.0, 140.0, False)
     vehicle.get_param_or_default.return_value = 90.0
-    target = Location(3.0, 4.0, 60.0, True)
+    poi = Location(3.0, 4.0, 60.0, True)
 
-    child._command_target_loiter(vehicle, target)
+    child._command_poi_loiter(vehicle, poi)
 
     vehicle.get_param_or_default.assert_called_once_with("WP_LOITER_RAD", 90.0)
     commanded, radius = vehicle.goto_loiter.call_args.args
@@ -52,7 +52,7 @@ def test_child_rejects_invalid_autopilot_loiter_radius() -> None:
     vehicle.get_param_or_default.return_value = 0.0
 
     try:
-        child._command_target_loiter(vehicle, Location(3.0, 4.0, 60.0, True))
+        child._command_poi_loiter(vehicle, Location(3.0, 4.0, 60.0, True))
     except RuntimeError as error:
         assert "WP_LOITER_RAD" in str(error)
     else:

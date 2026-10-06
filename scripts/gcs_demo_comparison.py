@@ -12,7 +12,7 @@ from typing import Any
 
 from scripts.eval_gcs_demo_analysis import analyze_run
 from scripts.eval_gcs_demo_audit import load_approval_records
-from scripts.eval_gcs_demo_evidence import parse_terminal_command_episodes
+from scripts.eval_gcs_demo_evidence import parse_final_approach_command_episodes
 from scripts.eval_gcs_demo_models import GateLimits
 from scripts.eval_gcs_demo_scenario import load_resolved_plan
 
@@ -144,7 +144,7 @@ def read_run(run_dir: Path) -> dict:
         result["wall_timestamps"] = {}
         for vehicle in plan.vehicles:
             try:
-                episodes = parse_terminal_command_episodes(
+                episodes = parse_final_approach_command_episodes(
                     run_dir / f"uav_{vehicle.sys_id}_navigation_debug.csv"
                 )
                 if not episodes:

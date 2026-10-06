@@ -15,23 +15,23 @@ class GimbalAngularSample:
     source_timestamp_s: float
 
 
-class GimbalTargetProjector:
+class GimbalPoiProjector:
     """Project one rich detection into an immutable angular sample."""
 
     @staticmethod
     def project(
-        target: DetectedObject,
+        poi: DetectedObject,
         source_timestamp_s: float,
         principal_point: tuple[float, float] | None = None,
     ) -> GimbalAngularSample | None:
         try:
-            calibration = target.pixel.calibration
+            calibration = poi.pixel.calibration
             focal_x = float(calibration.fx_px)
             focal_y = float(calibration.fy_px)
             center_x = float(calibration.cx_px)
             center_y = float(calibration.cy_px)
-            pixel_x = float(target.pixel.u_px)
-            pixel_y = float(target.pixel.v_px)
+            pixel_x = float(poi.pixel.u_px)
+            pixel_y = float(poi.pixel.v_px)
             timestamp_s = float(source_timestamp_s)
             if principal_point is not None:
                 center_x = float(principal_point[0])
@@ -60,4 +60,4 @@ class GimbalTargetProjector:
         )
 
 
-__all__ = ["GimbalAngularSample", "GimbalTargetProjector"]
+__all__ = ["GimbalAngularSample", "GimbalPoiProjector"]

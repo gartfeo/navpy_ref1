@@ -61,7 +61,7 @@ export function partitionPolygon(polygon, nParts, angleRad) {
   let remaining = polygon;
   for (let i = 0; i < nParts - 1; i++) {
     const partsLeft = nParts - i;
-    const targetArea = polygonAreaM2(remaining) / partsLeft;
+    const poiArea = polygonAreaM2(remaining) / partsLeft;
     const rProjs = projectAlongPerp(remaining, angleRad);
     const rMin = Math.min(...rProjs);
     let lo = rMin, hi = Math.max(...rProjs);
@@ -69,7 +69,7 @@ export function partitionPolygon(polygon, nParts, angleRad) {
     for (let iter = 0; iter < 50; iter++) {
       const mid = (lo + hi) / 2;
       const leftPart = clipPolygonByStrip(remaining, angleRad, rMin, mid);
-      if (polygonAreaM2(leftPart) < targetArea) lo = mid;
+      if (polygonAreaM2(leftPart) < poiArea) lo = mid;
       else hi = mid;
     }
 

@@ -1,4 +1,4 @@
-"""Narrow primitive ports for terminal source-time diagnostics."""
+"""Narrow primitive ports for final-approach source-time diagnostics."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ ObservationOutcome = Literal[
 CommandOutcome = Literal["fresh", "held"]
 
 
-class TerminalObservationSourceTimeObserver(Protocol):
+class FinalApproachObservationSourceTimeObserver(Protocol):
     """Nonthrowing observation-hop diagnostic boundary."""
 
     def record_observation(
@@ -29,7 +29,7 @@ class TerminalObservationSourceTimeObserver(Protocol):
     ) -> None: ...
 
 
-class TerminalCommandSourceTimeObserver(Protocol):
+class FinalApproachCommandSourceTimeObserver(Protocol):
     """Nonthrowing issued-command diagnostic boundary."""
 
     def record_command(
@@ -47,6 +47,6 @@ __all__ = [
     "ObservationOutcome",
     "CommandOutcome",
     "SourceNow",
-    "TerminalCommandSourceTimeObserver",
-    "TerminalObservationSourceTimeObserver",
+    "FinalApproachCommandSourceTimeObserver",
+    "FinalApproachObservationSourceTimeObserver",
 ]

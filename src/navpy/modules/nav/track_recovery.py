@@ -12,7 +12,7 @@ from navpy.args.logger_args import LogStatusDest
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.nav.confirmation_policy import TargetRetryPolicy
+from navpy.modules.nav.confirmation_policy import PoiRetryPolicy
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.modules.nav.navigation_task_reset import AutoMissionResume
 from navpy.modules.nav.nav_constants import (
@@ -28,12 +28,12 @@ from navpy.modules.nav.nav_state import (
 from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
 from navpy.modules.vision.detector_ports import (
     GeoPointingPort,
-    TargetIdentityPort,
+    PoiIdentityPort,
     TrackingCommandPort,
     TrackingStatusPort,
 )
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_identity import get_target_task_id
+from navpy.modules.vision.poi_identity import get_poi_task_id
 
 
 class TrackRecovery:
@@ -46,7 +46,7 @@ class TrackRecovery:
         confirm: ConfirmGateState,
         tracking: TrackingCommandPort,
         confirmation_manager: ConfirmationManager,
-        retry: TargetRetryPolicy,
+        retry: PoiRetryPolicy,
         resume_auto: AutoMissionResume,
         logger: ILogger,
     ) -> None:
@@ -59,19 +59,19 @@ class TrackRecovery:
         self._resume_auto = resume_auto
         self._logger = logger
 
-    def held_target_geo(self, assigned: Optional[Location]) -> Optional[Location]:
-        return self._geo_hold.last_own_target_geo or assigned
+    def held_poi_geo(self, assigned: Optional[Location]) -> Optional[Location]:
+        return self._geo_hold.last_own_poi_geo or assigned
 
     def abort_untracked_navigation_task(self, active: DetectedObject) -> None:
         self._geo_hold.active = False
-        self._geo_hold.target_location = None
+        self._geo_hold.poi_location = None
         self._confirm.loss_started_at = None
-        self._retry.register_target_cooldown(active)
-        self._confirmation_manager.clear_active_target()
+        self._retry.register_poi_cooldown(active)
+        self._confirmation_manager.clear_active_poi()
         self._tracking.stop_tracking()
         self._phase.request(NavState.DETECT)
         self._logger.info(
-            f"GEO-HOLD abort: T{get_target_task_id(active)} navigation task torn "
+            f"GEO-HOLD abort: P{get_poi_task_id(active)} navigation task torn "
             "down to DETECT (no tracking armed), resuming AUTO mission",
             key="nav",
             dest=LogStatusDest.DRONE,
@@ -83,12 +83,12 @@ class TrackRecovery:
         active: DetectedObject,
         context: str,
     ) -> bool:
-        task_id = get_target_task_id(active)
+        task_id = get_poi_task_id(active)
         try:
             self._tracking.start_tracking(task_id)
         except Exception as error:  # noqa: BLE001 - fail closed
             self._logger.warning(
-                f"GEO-HOLD {context}: detection re-arm for T{task_id} also "
+                f"GEO-HOLD {context}: detection re-arm for P{task_id} also "
                 f"failed ({error}) — aborting navigation task",
                 key="nav",
                 dest=LogStatusDest.DRONE,
@@ -96,7 +96,7 @@ class TrackRecovery:
             self.abort_untracked_navigation_task(active)
             return True
         self._logger.warning(
-            f"GEO-HOLD {context}: detection tracking restored for T{task_id} "
+            f"GEO-HOLD {context}: detection tracking restored for P{task_id} "
             "— legacy abort stays in charge",
             key="nav",
             dest=LogStatusDest.DRONE,
@@ -104,12 +104,12 @@ class TrackRecovery:
         return False
 
     def reacquire_geo_hold(self, active: DetectedObject) -> bool:
-        task_id = get_target_task_id(active)
+        task_id = get_poi_task_id(active)
         try:
             self._tracking.start_tracking(task_id)
         except Exception as error:  # noqa: BLE001 - fail closed
             self._logger.warning(
-                f"GEO-HOLD: T{task_id} reacquire re-arm failed ({error}) — "
+                f"GEO-HOLD: P{task_id} reacquire re-arm failed ({error}) — "
                 "aborting navigation task (rearm-or-abort, fail closed)",
                 key="nav",
                 dest=LogStatusDest.DRONE,
@@ -117,10 +117,10 @@ class TrackRecovery:
             self.abort_untracked_navigation_task(active)
             return False
         self._geo_hold.active = False
-        self._geo_hold.target_location = None
+        self._geo_hold.poi_location = None
         self._confirm.loss_started_at = None
         self._logger.info(
-            f"GEO-HOLD: T{task_id} reacquired, resuming detection tracking",
+            f"GEO-HOLD: P{task_id} reacquired, resuming detection tracking",
             key="nav",
             dest=LogStatusDest.DRONE,
         )
@@ -141,31 +141,31 @@ class IdentityReacquisition:
         ports: IdentityReacquisitionPorts,
         geo_hold: GeoHoldState,
         detections: DetectionSnapshot,
-        target_identity: TargetIdentityPort,
-        retry: TargetRetryPolicy,
+        poi_identity: PoiIdentityPort,
+        retry: PoiRetryPolicy,
         recovery: TrackRecovery,
         logger: ILogger,
     ) -> None:
         self._ports = ports
         self._geo_hold = geo_hold
         self._detections = detections
-        self._target_identity = target_identity
+        self._poi_identity = poi_identity
         self._retry = retry
         self._recovery = recovery
         self._logger = logger
 
     def try_reacquire(self, active: DetectedObject) -> bool:
-        held = self._geo_hold.target_location
+        held = self._geo_hold.poi_location
         if held is None:
             return False
         active_class_id = active.classification.class_id
-        held_task_id = get_target_task_id(active)
-        for candidate in self._detections.targets():
+        held_task_id = get_poi_task_id(active)
+        for candidate in self._detections.pois():
             if candidate.classification.class_id != active_class_id:
                 continue
-            if self._retry.is_in_target_cooldown(candidate):
+            if self._retry.is_in_poi_cooldown(candidate):
                 continue
-            candidate_geo = candidate.geo.projected_target_location
+            candidate_geo = candidate.geo.projected_poi_location
             if candidate_geo is None:
                 candidate_geo = self._ports.ground_location(
                     candidate,
@@ -178,10 +178,10 @@ class IdentityReacquisition:
             if distance is None or distance > TRACK_REACQUIRE_GATE_RADIUS_M:
                 continue
             old_local_id = candidate.identity.obj_id
-            if not self._target_identity.rebind_task_id(held_task_id, candidate):
+            if not self._poi_identity.rebind_task_id(held_task_id, candidate):
                 continue
             self._logger.info(
-                f"GEO-HOLD: T{held_task_id} identity-expiry re-bind — "
+                f"GEO-HOLD: P{held_task_id} identity-expiry re-bind — "
                 f"old local id={old_local_id} distance={distance:.1f}m",
                 key="nav",
                 dest=LogStatusDest.DRONE,
@@ -191,7 +191,7 @@ class IdentityReacquisition:
 
 
 class GeoHoldCoordinator:
-    """Enter or leave bounded non-terminal geo hold."""
+    """Enter or leave bounded non-final-approach geo hold."""
 
     def __init__(
         self,
@@ -200,7 +200,7 @@ class GeoHoldCoordinator:
         tracking: TrackingCommandPort,
         tracking_status: TrackingStatusPort,
         geo_pointing: GeoPointingPort,
-        terminal_active: Callable[[], bool],
+        final_approach_active: Callable[[], bool],
         clock_s: Callable[[], float],
         assigned_location: Callable[[], Optional[Location]],
         recovery: TrackRecovery,
@@ -213,7 +213,7 @@ class GeoHoldCoordinator:
         self._tracking = tracking
         self._tracking_status = tracking_status
         self._geo_pointing = geo_pointing
-        self._terminal_active = terminal_active
+        self._final_approach_active = final_approach_active
         self._clock_s = clock_s
         self._assigned_location = assigned_location
         self._recovery = recovery
@@ -237,14 +237,14 @@ class GeoHoldCoordinator:
             ConfirmationStatus.TIMEOUT_REJECTED,
         }:
             return False
-        if self._terminal_active():
+        if self._final_approach_active():
             return False
         loss_hold_s = self._tracking_status.loss_hold_sec
         if loss_hold_s is None or self._confirm.loss_started_at is None:
             return False
         if self._clock_s() - self._confirm.loss_started_at < loss_hold_s:
             return False
-        held = self._recovery.held_target_geo(self._assigned_location())
+        held = self._recovery.held_poi_geo(self._assigned_location())
         if held is None:
             return False
         try:
@@ -252,8 +252,8 @@ class GeoHoldCoordinator:
             self._geo_pointing.start_geo_tracking(held, self._geo_ref)
         except Exception as error:  # noqa: BLE001 - rearm or abort
             self._logger.warning(
-                f"GEO-HOLD arm failed for T{get_target_task_id(active)} "
-                f"target={held}: {error}",
+                f"GEO-HOLD arm failed for P{get_poi_task_id(active)} "
+                f"poi={held}: {error}",
                 key="nav",
                 dest=LogStatusDest.DRONE,
             )
@@ -263,8 +263,8 @@ class GeoHoldCoordinator:
             )
         if not self._geo_pointing.is_geo_armed:
             self._logger.warning(
-                f"GEO-HOLD arm declined for T{get_target_task_id(active)} "
-                f"target={held}: detector did not arm geo tracking",
+                f"GEO-HOLD arm declined for P{get_poi_task_id(active)} "
+                f"poi={held}: detector did not arm geo tracking",
                 key="nav",
                 dest=LogStatusDest.DRONE,
             )
@@ -273,10 +273,10 @@ class GeoHoldCoordinator:
                 "entry arm declined",
             )
         self._geo_hold.active = True
-        self._geo_hold.target_location = held
+        self._geo_hold.poi_location = held
         self._logger.info(
-            f"GEO-HOLD: T{get_target_task_id(active)} entered geo-hold "
-            f"target={held} timeout={TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC:.0f}s",
+            f"GEO-HOLD: P{get_poi_task_id(active)} entered geo-hold "
+            f"poi={held} timeout={TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC:.0f}s",
             key="nav",
             dest=LogStatusDest.DRONE,
         )

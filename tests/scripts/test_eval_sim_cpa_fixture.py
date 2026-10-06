@@ -15,7 +15,7 @@ from scripts.eval_sim_cpa_bin import (
     EV_ENABLE, certify_epoch, parse_sim_cpa_records,
 )
 from scripts.eval_sim_cpa_block import (
-    EVIDENCE_ACCEPTED, EVIDENCE_TARGET_MISMATCH,
+    EVIDENCE_ACCEPTED, EVIDENCE_POI_MISMATCH,
 )
 from scripts.eval_sim_cpa_compare import common_episode, module_window_score
 
@@ -23,8 +23,8 @@ FIXTURE = (
     Path(__file__).resolve().parent.parent
     / "fixtures" / "sim_cpa" / "valA_370_prefix.BIN"
 )
-# The 2026-09-03 validation target, bit-for-bit.
-TARGET = (430242544, 340000000, 6010)
+# The 2026-09-03 validation POI, bit-for-bit.
+POI = (430242544, 340000000, 6010)
 
 
 def test_real_prefix_parses_scpc_and_scpa() -> None:
@@ -32,7 +32,7 @@ def test_real_prefix_parses_scpc_and_scpa() -> None:
     assert len(scpc) == 1
     event = scpc[0]
     assert event["Ev"] == EV_ENABLE
-    assert (event["LatE7"], event["LngE7"], event["AltCM"]) == TARGET
+    assert (event["LatE7"], event["LngE7"], event["AltCM"]) == POI
     assert len(scpa) == 246
     # Real rows honor the contract fields this harness certifies on.
     sequences = [row["Seq"] for row in scpa]
@@ -42,25 +42,25 @@ def test_real_prefix_parses_scpc_and_scpa() -> None:
 
 def test_real_prefix_certifies_with_real_interval_arithmetic() -> None:
     scpc, scpa = parse_sim_cpa_records(FIXTURE)
-    evidence = certify_epoch(scpc, scpa, TARGET)
+    evidence = certify_epoch(scpc, scpa, POI)
     assert evidence.status == EVIDENCE_ACCEPTED
     assert evidence.missing_seqs == ()
     assert evidence.epoch_us == scpc[0]["EpUS"]
     assert len(evidence.rows) == 246
 
 
-def test_real_prefix_target_mismatch_still_fails_closed() -> None:
+def test_real_prefix_poi_mismatch_still_fails_closed() -> None:
     scpc, scpa = parse_sim_cpa_records(FIXTURE)
-    wrong = (TARGET[0] + 1, TARGET[1], TARGET[2])
+    wrong = (POI[0] + 1, POI[1], POI[2])
     evidence = certify_epoch(scpc, scpa, wrong)
-    assert evidence.status == EVIDENCE_TARGET_MISMATCH
+    assert evidence.status == EVIDENCE_POI_MISMATCH
 
 
 def test_prefix_coverage_reads_as_incomplete_never_truncated() -> None:
     """R15: a prefix has incomplete episode coverage; nothing may claim
     detected truncation from pymavlink's silence about the missing tail."""
     scpc, scpa = parse_sim_cpa_records(FIXTURE)
-    evidence = certify_epoch(scpc, scpa, TARGET)
+    evidence = certify_epoch(scpc, scpa, POI)
     # An scored window beyond the prefix's rows yields missing interval
     # rows -- reported as exactly that, never as a torn or truncated file.
     last_row_end_us = evidence.epoch_us + (evidence.last_seq + 1) * 20_000

@@ -18,7 +18,7 @@ from scripts.scratch_navigation_oracle import (
     substitute_speed,
 )
 
-# Target due north, so the LOS unit vector is (1, 0) and every projection below
+# POI due north, so the LOS unit vector is (1, 0) and every projection below
 # can be read by eye.
 NORTH_OFFSET = (3000.0, 0.0, 0.0)
 CHANNEL = 22.57
@@ -127,7 +127,7 @@ def test_no_singularity_or_sign_flip_across_the_forward_sector() -> None:
 
 
 def test_falls_back_and_is_counted_when_barely_closing() -> None:
-    # Target abeam: almost none of the velocity is along the LOS, so the ratio
+    # POI abeam: almost none of the velocity is along the LOS, so the ratio
     # has a near-zero denominator. Falling back must be visible in the result,
     # never silent.
     gain = call("tpn", offset_ned_m=(1.0, 3000.0, 0.0))

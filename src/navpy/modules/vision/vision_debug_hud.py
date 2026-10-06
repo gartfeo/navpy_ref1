@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from navpy.modules.vision.gimbal_rate_tracker import GimbalTrackResult
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 from navpy.modules.vision.vision_ui_ports import SimDebugSnapshot
 
 
@@ -106,11 +106,11 @@ class SimTrackerHudRenderer:
         }.get(state_name, (150, 150, 150))
         text = f"zoom:{state_name}"
         if result.size_px is not None:
-            target_px = target_pixels or 0.0
-            ratio = result.size_px / target_px if target_px > 0 else 0.0
+            poi_px = target_pixels or 0.0
+            ratio = result.size_px / poi_px if poi_px > 0 else 0.0
             text = (
                 f"zoom:{state_name}  size:{result.size_px:.0f}/"
-                f"{target_px:.0f}px ({ratio:.2f}x)"
+                f"{poi_px:.0f}px ({ratio:.2f}x)"
             )
         cv2.putText(
             image,

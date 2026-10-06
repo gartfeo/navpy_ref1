@@ -9,15 +9,15 @@ from navpy.modules.nav.confirmation_recognition import (
     RecognitionGatePorts,
 )
 from navpy.modules.nav.confirmation_review import ConfirmationReview
-from navpy.modules.nav.terminal_record_deadline import TerminalRecordDeadline
-from navpy.modules.nav.terminal_release_gate import TerminalReleaseGate
+from navpy.modules.nav.final_approach_record_deadline import FinalApproachRecordDeadline
+from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
 
 __all__ = [
     "ConfirmationFramePolicy",
     "ConfirmationReview",
     "RecognitionGate",
     "RecognitionGatePorts",
-    "TerminalRecordDeadline",
-    "TerminalReleaseGate",
+    "FinalApproachRecordDeadline",
+    "FinalApproachReleaseGate",
     "extract_confirmation_size",
 ]

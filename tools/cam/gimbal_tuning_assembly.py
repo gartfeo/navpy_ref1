@@ -164,7 +164,7 @@ def build_detector(
                 detect_hz=detector_settings.get("detect_hz", 20.0),
                 track_hz=detector_settings.get("track_hz", 60.0),
                 reference_height_m=detector_settings.get("reference_height_m", 2.0),
-                use_target_lock=True,
+                use_poi_lock=True,
                 output_mode="locked",
                 frame_source=frame_source,
             ),

@@ -48,8 +48,8 @@ class Navigation:
         )
         self._lifecycle = composition.lifecycle
         self._mode_state = composition.mode_state
-        self.terminal = composition.terminal
-        self.legacy_targets = composition.legacy_targets
+        self.final_approach = composition.final_approach
+        self.legacy_pois = composition.legacy_pois
         self.vehicle_commands = composition.vehicle_commands
         self._bind_source_dispatch = composition.bind_source_dispatch
 
@@ -65,7 +65,7 @@ class Navigation:
     def stop(self) -> None:
         self._lifecycle.stop()
 
-    def pause_terminate(self) -> None:
+    def pause_final_approach(self) -> None:
         self._lifecycle.pause()
 
     def raise_if_failed(self) -> None:
@@ -75,12 +75,12 @@ class Navigation:
         with self._mode_state.runtime_session() as runtime:
             return runtime.nav(detect_data)
 
-    def bind_terminal_source_dispatch(
+    def bind_final_approach_source_dispatch(
         self,
         callback: SourceDispatch,
         observer: CommandLoopObserver | None = None,
     ) -> None:
-        """Publish the terminal source's dispatch, and its observer if it
+        """Publish the final-approach source's dispatch, and its observer if it
         has one. The observer is record-only; nothing reads it back."""
         self._bind_source_dispatch(callback, observer)
 

@@ -1,4 +1,4 @@
-"""Tracked-object to public target conversion for the real detector."""
+"""Tracked-object to public POI conversion for the real detector."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ class DetectedObjectMapper:
         self._confirmation_frames = ConfirmationFrameSelector(
             confirmation_frames,
         )
-        self._target_builder = DetectedObjectBuilder(config.reference_height_m)
+        self._poi_builder = DetectedObjectBuilder(config.reference_height_m)
 
     def convert(
             self,
@@ -62,7 +62,7 @@ class DetectedObjectMapper:
         if tracks_to_emit is None:
             return []
 
-        targets: list[DetectedObject] = []
+        pois: list[DetectedObject] = []
         visual_attitude = visual_attitude_components(
             association,
         )
@@ -80,7 +80,7 @@ class DetectedObjectMapper:
                 observation.bbox_cxcywh,
                 observation.center_score,
             )
-            targets.append(self._target_builder.build(
+            pois.append(self._poi_builder.build(
                 track,
                 observation,
                 confirmation,
@@ -90,7 +90,7 @@ class DetectedObjectMapper:
             ))
 
         self._confirmation_frames.evict_except({track.id for track in tracks})
-        return targets
+        return pois
 
 
 def _select_tracks(

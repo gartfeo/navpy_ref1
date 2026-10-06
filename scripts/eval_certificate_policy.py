@@ -41,12 +41,12 @@ def certificate_rate_error(rate: Any, requested: Any) -> str | None:
         return "no requested speedup to check the measured rate against"
     measured = finite_number(rate)
     if measured is None:
-        return "engagement clock rate was not measured"
+        return "scoring-window clock rate was not measured"
     low = wanted * (1.0 - CERTIFICATE_RATE_TOLERANCE)
     high = wanted * (1.0 + CERTIFICATE_RATE_TOLERANCE)
     if not low <= measured <= high:
         return (
-            f"engagement clock rate {measured:.2f}x is outside "
+            f"scoring-window clock rate {measured:.2f}x is outside "
             f"{low:.2f}-{high:.2f}x for a {wanted:g}x certificate"
         )
     return None

@@ -19,18 +19,18 @@ function indexedCalls(calls, valueKey, label) {
 
 
 function configuredInstances(targWpsCalls, navLastWpCalls) {
-  const targets = indexedCalls(targWpsCalls, 'targ_wps', 'targ_wps');
+  const pois = indexedCalls(targWpsCalls, 'targ_wps', 'targ_wps');
   const nav = indexedCalls(navLastWpCalls, 'nav_last_wp', 'nav_last_wp');
-  const targetIds = [...targets.keys()].sort((a, b) => a - b);
+  const poiIds = [...pois.keys()].sort((a, b) => a - b);
   const navIds = [...nav.keys()].sort((a, b) => a - b);
-  if (targetIds.length !== navIds.length
-      || targetIds.some((sysId, index) => sysId !== navIds[index])) {
+  if (poiIds.length !== navIds.length
+      || poiIds.some((sysId, index) => sysId !== navIds[index])) {
     throw new Error('targ_wps and nav_last_wp sys_id sets do not match');
   }
-  return targetIds.map((sysId) => ({
+  return poiIds.map((sysId) => ({
     sys_id: sysId,
     params: {
-      targ_wps: targets.get(sysId),
+      targ_wps: pois.get(sysId),
       nav_last_wp: nav.get(sysId),
     },
   }));

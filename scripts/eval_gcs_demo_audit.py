@@ -169,7 +169,7 @@ def navigation_speedup_errors(
             f"{launch_value}"
         )
     if snap_at < 0:
-        errors.append("missing terminal SNAP after navigation speedup restore")
+        errors.append("missing final-approach SNAP after navigation speedup restore")
     elif matching_args and not matching_args[0] < apply.at < restore.at < snap_at:
         errors.append("navigation speedup evidence is not argument -> apply -> restore -> SNAP")
     return errors

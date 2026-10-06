@@ -85,12 +85,12 @@ export const formatPrearmWarning = (warning, t) => {
 export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmSeverity, prearmWarnings, altRel, sysId, onSetMode, onArmDisarm, onToggleManualControl }) {
   const { t } = useTranslation();
   const [showOther, setShowOther] = useState(false);
-  const hasTarget = sysId != null;
+  const hasPoi = sysId != null;
 
   const { requiresLongPress, hint, force } = getArmAction({ armed, prearmSeverity, altRel });
 
   const longPressComplete = useCallback(() => {
-    if (!hasTarget) return;
+    if (!hasPoi) return;
     const msg = armed
       ? t('flightMode.forceDisarm', { sysId })
       : (force ? t('flightMode.forceArm', { sysId }) : t('flightMode.armVehicle', { sysId }));
@@ -100,21 +100,21 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
     } else {
       onArmDisarm(sysId, true, force ? { force: true } : undefined);
     }
-  }, [hasTarget, armed, sysId, force, onArmDisarm, t]);
+  }, [hasPoi, armed, sysId, force, onArmDisarm, t]);
 
   const { handlers, progress } = useLongPress({
     onComplete: longPressComplete,
     duration: LONG_PRESS_MS,
-    enabled: hasTarget && requiresLongPress,
+    enabled: hasPoi && requiresLongPress,
   });
 
   const handleSelect = useCallback((mode) => {
-    if (!hasTarget || mode === currentMode) return;
+    if (!hasPoi || mode === currentMode) return;
     onSetMode(sysId, mode);
     setShowOther(false);
-  }, [hasTarget, currentMode, sysId, onSetMode]);
+  }, [hasPoi, currentMode, sysId, onSetMode]);
 
-  const isOtherActive = hasTarget && OTHER_MODES.includes(currentMode);
+  const isOtherActive = hasPoi && OTHER_MODES.includes(currentMode);
 
   return (
     <div style={{
@@ -156,9 +156,9 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
       {QUICK_MODES.map((mode) => (
         <button
           key={mode}
-          disabled={!hasTarget}
+          disabled={!hasPoi}
           onClick={() => handleSelect(mode)}
-          style={!hasTarget ? disabledBtn
+          style={!hasPoi ? disabledBtn
             : mode === currentMode ? activeBtn : btnBase}
         >
           {mode}
@@ -170,12 +170,12 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
       {/* "Other" button with right-side dropdown */}
       <div style={{ position: 'relative' }}>
         <button
-          disabled={!hasTarget}
-          onClick={() => hasTarget && setShowOther((v) => !v)}
+          disabled={!hasPoi}
+          onClick={() => hasPoi && setShowOther((v) => !v)}
           style={{
-            ...(hasTarget ? btnBase : disabledBtn),
+            ...(hasPoi ? btnBase : disabledBtn),
             fontSize: 11,
-            color: !hasTarget ? colors.textDim
+            color: !hasPoi ? colors.textDim
               : isOtherActive ? colors.accent : colors.textDim,
             borderColor: isOtherActive ? colors.accent : colors.border,
           }}
@@ -183,7 +183,7 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
           {isOtherActive ? currentMode : t('flightMode.other')}
           <span style={{ marginLeft: 3, fontSize: 8 }}>{showOther ? '◀' : '▶'}</span>
         </button>
-        {showOther && hasTarget && (
+        {showOther && hasPoi && (
           <div style={dropdownStyle}>
             {OTHER_MODES.map((mode) => (
               <button
@@ -212,9 +212,9 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
 
       {/* ARM / DISARM toggle */}
       <button
-        disabled={!hasTarget}
+        disabled={!hasPoi}
         onClick={() => {
-          if (!hasTarget || requiresLongPress) return;
+          if (!hasPoi || requiresLongPress) return;
           if (armed) {
             onArmDisarm(sysId, false);
           } else {
@@ -223,12 +223,12 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
         }}
         {...handlers}
         style={(() => {
-          const base = { ...(!hasTarget ? disabledBtn : btnBase), minHeight: 32, fontWeight: 700 };
-          if (hasTarget && armed) {
+          const base = { ...(!hasPoi ? disabledBtn : btnBase), minHeight: 32, fontWeight: 700 };
+          if (hasPoi && armed) {
             const airborne = requiresLongPress;
             const armColor = airborne ? colors.error : colors.success;
             Object.assign(base, { background: armColor, color: '#000', borderColor: armColor });
-          } else if (hasTarget) {
+          } else if (hasPoi) {
             Object.assign(base, { color: armSeverityColor(prearmSeverity), borderColor: armSeverityColor(prearmSeverity) });
           }
           if (progress > 0) {
@@ -242,7 +242,7 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
         {armed ? t('flightMode.disarm') : t('flightMode.arm')}
       </button>
       {/* Pre-arm warnings */}
-      {hasTarget && !armed && prearmWarnings && prearmWarnings.length > 0 && (
+      {hasPoi && !armed && prearmWarnings && prearmWarnings.length > 0 && (
         <div style={{
           fontFamily: 'monospace',
           fontSize: 10,

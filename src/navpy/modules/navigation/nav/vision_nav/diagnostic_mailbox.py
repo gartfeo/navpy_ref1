@@ -6,41 +6,41 @@ import threading
 from dataclasses import dataclass
 
 from navpy.modules.navigation.nav.vision_nav.command_freshness import (
-    TerminalCommandTiming,
+    FinalApproachCommandTiming,
 )
 from navpy.modules.vision.models.detect_data import DetectedObject
 
 
 @dataclass(frozen=True)
-class TerminalDiagnosticEntry:
-    target: DetectedObject
-    timing: TerminalCommandTiming
+class FinalApproachDiagnosticEntry:
+    poi: DetectedObject
+    timing: FinalApproachCommandTiming
 
 
-class TerminalDiagnosticMailbox:
-    """Keep rich targets out of queued and command-fence payloads."""
+class FinalApproachDiagnosticMailbox:
+    """Keep rich POIs out of queued and command-fence payloads."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._next_token = 1
-        self._entries: dict[int, TerminalDiagnosticEntry] = {}
+        self._entries: dict[int, FinalApproachDiagnosticEntry] = {}
 
     def put(
         self,
-        target: DetectedObject,
-        timing: TerminalCommandTiming,
+        poi: DetectedObject,
+        timing: FinalApproachCommandTiming,
     ) -> int:
         with self._lock:
             token = self._next_token
             self._next_token += 1
-            self._entries[token] = TerminalDiagnosticEntry(target, timing)
+            self._entries[token] = FinalApproachDiagnosticEntry(poi, timing)
             return token
 
-    def pop(self, token: int) -> TerminalDiagnosticEntry | None:
+    def pop(self, token: int) -> FinalApproachDiagnosticEntry | None:
         with self._lock:
             return self._entries.pop(token, None)
 
-    def timing(self, token: int) -> TerminalCommandTiming | None:
+    def timing(self, token: int) -> FinalApproachCommandTiming | None:
         with self._lock:
             entry = self._entries.get(token)
             return None if entry is None else entry.timing
@@ -54,4 +54,4 @@ class TerminalDiagnosticMailbox:
             return len(self._entries)
 
 
-__all__ = ["TerminalDiagnosticEntry", "TerminalDiagnosticMailbox"]
+__all__ = ["FinalApproachDiagnosticEntry", "FinalApproachDiagnosticMailbox"]

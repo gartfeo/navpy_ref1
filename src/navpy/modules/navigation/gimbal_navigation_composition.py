@@ -37,8 +37,8 @@ from navpy.modules.vision.gimbal_rate_tracker import (
     GimbalRateTracker,
     GimbalRateTrackerConfig,
 )
-from navpy.modules.vision.target_zoom_orchestrator import TargetZoomTracker
-from navpy.modules.vision.target_zoom_types import TargetZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
 from navpy.modules.vision.vision_camera_calibration import (
     read_camera_zoom_calibration,
 )
@@ -58,9 +58,9 @@ def _build_trackers(
     mount: CameraMount,
     logger: ILogger,
     tracking: GimbalTrackingSetup | None,
-    zoom_config: TargetZoomTrackerConfig | None,
+    zoom_config: PoiZoomTrackerConfig | None,
     rate_tracker: GimbalRateTracker | None,
-    zoom_tracker: TargetZoomTracker | None,
+    zoom_tracker: PoiZoomTracker | None,
 ) -> tuple[GimbalTrackingSetup, GimbalHardware, GimbalTrackers]:
     active_tracking = tracking or GimbalTrackingSetup(
         GimbalRateTrackerConfig()
@@ -74,7 +74,7 @@ def _build_trackers(
             f"max_rate={tracking.rate.max_rate})"
         )
     if zoom_tracker is None and zoom_config is not None:
-        zoom_tracker = TargetZoomTracker(mount, logger, zoom_config)
+        zoom_tracker = PoiZoomTracker(mount, logger, zoom_config)
         logger.info(
             f"GimbalNavigation({mount.name}): Zoom tracking enabled "
             f"(min_zoom={zoom_tracker.min_zoom}, "
@@ -146,10 +146,10 @@ def build_gimbal_navigation(
     mount: CameraMount,
     logger: ILogger,
     tracking: GimbalTrackingSetup | None,
-    zoom_config: TargetZoomTrackerConfig | None,
+    zoom_config: PoiZoomTrackerConfig | None,
     *,
     rate_tracker: GimbalRateTracker | None,
-    zoom_tracker: TargetZoomTracker | None,
+    zoom_tracker: PoiZoomTracker | None,
     neutral_pitch_deg: float | None,
 ) -> GimbalNavigationParts:
     active, hardware, trackers = _build_trackers(

@@ -166,10 +166,10 @@ export default function AasTab({ vehicleList, onOpenConnect, onClose, vehicleMis
     if (preResetRef) preResetRef.current = null;
   }, [preSaveRef, preResetRef]);
 
-  const targetsMap = {};
+  const poisMap = {};
   const navLastWpMap = {};
   for (const sid of selIds) {
-    targetsMap[sid] = parseInt(getVal(sid, 'targ_wps')) || 0;
+    poisMap[sid] = parseInt(getVal(sid, 'targ_wps')) || 0;
     navLastWpMap[sid] = parseInt(getVal(sid, 'nav_last_wp')) || 0;
   }
 
@@ -198,7 +198,7 @@ export default function AasTab({ vehicleList, onOpenConnect, onClose, vehicleMis
 
   const handleToggleWp = (sysId, idx) => {
     if (idx > 23) return;
-    const curMask = targetsMap[sysId] || 0;
+    const curMask = poisMap[sysId] || 0;
     setVal(sysId, 'targ_wps', curMask ^ (1 << idx));
   };
 
@@ -447,7 +447,7 @@ export default function AasTab({ vehicleList, onOpenConnect, onClose, vehicleMis
                   cursor: selIds.some((sid) => isLoaded(sid)) ? 'pointer' : 'not-allowed',
                 }}
               >
-                {t('vehicle.editTargets')}
+                {t('vehicle.editPois')}
               </button>
             </div>
           )}
@@ -456,7 +456,7 @@ export default function AasTab({ vehicleList, onOpenConnect, onClose, vehicleMis
               vehicleMissions={vehicleMissions}
               vehicleList={vehicles}
               selectedVehicles={selectedVehicles}
-              targetsMap={targetsMap}
+              poisMap={poisMap}
               navLastWpMap={navLastWpMap}
               onPerVehicleNavLastWpChange={handlePerVehicleNavLastWpChange}
               vehicleParams={draftByVehicle}

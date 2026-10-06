@@ -99,7 +99,7 @@ def main():
                 track_hz=det_settings.get("track_hz", 60.0),
                 reference_height_m=det_settings.get("reference_height_m", 2.0),
                 frame_source=_parse_source(args.camera),
-                use_target_lock=True,
+                use_poi_lock=True,
                 output_mode="all",
             ),
             debug=DetectorDebugConfig(
@@ -122,11 +122,11 @@ def main():
             if now - last_print > 0.5:
                 last_print = now
                 resp = det.get_detect_data(DetectRequest())
-                if resp.detected_targets:
-                    print("targets:",
+                if resp.detected_pois:
+                    print("POIs:",
                           [(t.identity.obj_id, t.classification.class_id,
                             float(round(t.pixel.u_px, 1)), float(round(t.pixel.v_px, 1)))
-                           for t in resp.detected_targets])
+                           for t in resp.detected_pois])
 
             time.sleep(0.005)
 

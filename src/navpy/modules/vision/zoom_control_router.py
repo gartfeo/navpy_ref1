@@ -1,12 +1,12 @@
-"""Route target-local zoom queries and fleet-wide zoom policy commands."""
+"""Route POI-local zoom queries and fleet-wide zoom policy commands."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, Sequence
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.target_identity import TargetIdentity
-    from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+    from navpy.modules.vision.poi_identity import PoiIdentity
+    from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class ZoomMember(Protocol):
@@ -26,11 +26,11 @@ class ZoomMember(Protocol):
 
     def set_zoom_size_demand(self, enabled: bool) -> None: ...
 
-    def freeze_terminal_zoom_at_min(self) -> bool: ...
+    def freeze_final_approach_zoom_at_min(self) -> bool: ...
 
 
 class ZoomIdentityResolver(Protocol):
-    def identity_for_task(self, task_id: int) -> "TargetIdentity | None": ...
+    def identity_for_task(self, task_id: int) -> "PoiIdentity | None": ...
 
 
 class ZoomControlRouter:
@@ -68,9 +68,9 @@ class ZoomControlRouter:
         for member in self._members:
             member.set_zoom_size_demand(enabled)
 
-    def freeze_terminal_zoom_at_min(self) -> bool:
+    def freeze_final_approach_zoom_at_min(self) -> bool:
         results = [
-            member.freeze_terminal_zoom_at_min()
+            member.freeze_final_approach_zoom_at_min()
             for member in self._members
         ]
         return all(results)

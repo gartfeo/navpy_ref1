@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Fly one SITL aircraft at a fixed target using the terminal law and no vision.
+"""Fly one SITL aircraft at a fixed POI using the final-approach law and no vision.
 
 WHAT THIS ISOLATES
 ------------------
@@ -46,7 +46,7 @@ altitude is still recorded at ground contact, purely as a report field.
 WHAT IT CANNOT TELL YOU
 -----------------------
 A pass here is necessary, not sufficient. There is no field of view, so the law
-can never lose the target; no detection dropout or latency; no gimbal dynamics;
+can never lose the POI; no detection dropout or latency; no gimbal dynamics;
 no false or swapped tracks; and the line of sight is exact. A law that passes
 here can still fail the moment a real sensor is put in front of it.
 """
@@ -76,8 +76,8 @@ if not __package__:
         sys.path.insert(0, import_path)
 
 from navpy.modules.navigation.nav.vision_nav.law import (  # noqa: E402
-    FixedTerminalLawConfigProvider,
-    TerminalLawConfig,
+    FixedFinalApproachLawConfigProvider,
+    FinalApproachLawConfig,
     VisionNavLaw,
 )
 from navpy.modules.vision.models.pixel_observation import (  # noqa: E402
@@ -103,9 +103,9 @@ from scripts.scratch_navigation_result import (  # noqa: E402,F401
     entry_state,
     initial_result,
 )
-from scripts.scratch_navigation_terminal import (  # noqa: E402,F401
+from scripts.scratch_navigation_final_approach import (  # noqa: E402,F401
     RollRecord,
-    TerminalGeometry,
+    FinalApproachGeometry,
 )
 from scripts.scratch_navigation_oracle import (  # noqa: E402
     MODES as ORACLE_MODES,
@@ -115,7 +115,7 @@ from scripts.navigation_truth_sensor import (  # noqa: E402
     ClosestApproach,
     build_frame,
     coordinates_from_offset_ned,
-    target_offset_ned_m,
+    poi_offset_ned_m,
 )
 from scripts.scratch_sitl_uav import (  # noqa: E402
     ATTITUDE_HOLD_MASK,
@@ -194,8 +194,8 @@ ESTIMATE_SOURCES = ("attitude", "truth")
 
 # The pass is detected from the LINE OF SIGHT, not from range.
 #
-# The forward component of the body ray says where the target sits relative to
-# the nose: near +1 is dead ahead, 0 is abeam, negative is behind. A target that
+# The forward component of the body ray says where the POI sits relative to
+# the nose: near +1 is dead ahead, 0 is abeam, negative is behind. A POI that
 # was clearly ahead and is now clearly behind has been passed, and the closest
 # approach is in the past. This is the sensor's own output -- the identical
 # quantity the law reads -- so terminating on it uses nothing the real aircraft
@@ -208,13 +208,13 @@ ESTIMATE_SOURCES = ("attitude", "truth")
 # input closes it.
 #
 # PASSED_AHEAD_MIN is deliberately loose -- 0.5 is anywhere within 60 degrees of
-# the nose -- because it only has to establish that the target really was in
+# the nose -- because it only has to establish that the POI really was in
 # front before it went behind, not that the run was well aimed.
 #
 # PASSED_BEHIND_MAX is NOT zero. Zero is abeam, roughly where the closest
 # approach happens, so stopping there would leave the minimum at the last
 # sample and _segment_minimum would clamp to that endpoint instead of the true
-# miss. Requiring the target clearly behind keeps the closest approach
+# miss. Requiring the POI clearly behind keeps the closest approach
 # BRACKETED. At 35 m/s and 50 Hz that costs a few tens of milliseconds.
 PASSED_AHEAD_MIN = 0.5
 PASSED_BEHIND_MAX = -0.2
@@ -225,37 +225,37 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--connection", required=True)
     parser.add_argument("--sysid", type=int, default=1)
-    # Two ways to say where the target is, and exactly one must be used.
+    # Two ways to say where the POI is, and exactly one must be used.
     #
     # Absolute coordinates are the reproducible form: the same three numbers fly
     # the same scoring interval every time. But they are hard to CHOOSE, because they
     # have to be picked before the run and the aircraft's position at the end of
-    # its climb is not known in advance -- guess short and the target is already
+    # its climb is not known in advance -- guess short and the POI is already
     # behind the aircraft when navigation starts, which is the one geometry the
     # law cannot recover from.
     #
     # So the placement form exists: range, off-boresight angle and height below,
     # resolved ONCE against the first pose of the scoring interval and then frozen.
     # Every run writes the absolute coordinates it resolved into its result, so
-    # any run can be repeated exactly by feeding those back in as --target-lat/
+    # any run can be repeated exactly by feeding those back in as --poi-lat/
     # lon/alt.
-    parser.add_argument("--target-lat", type=float, default=None)
-    parser.add_argument("--target-lon", type=float, default=None)
+    parser.add_argument("--poi-lat", type=float, default=None)
+    parser.add_argument("--poi-lon", type=float, default=None)
     parser.add_argument(
-        "--target-alt", type=float, default=None,
-        help="target altitude in metres AMSL, the same datum SIM_STATE reports",
+        "--poi-alt", type=float, default=None,
+        help="POI altitude in metres AMSL, the same datum SIM_STATE reports",
     )
     parser.add_argument(
-        "--target-range-m", type=float, default=None,
-        help="place the target this far from the aircraft at engagement start",
+        "--poi-range-m", type=float, default=None,
+        help="place the POI this far from the aircraft at scoring start",
     )
     parser.add_argument(
-        "--target-off-boresight-deg", type=float, default=0.0,
+        "--poi-off-boresight-deg", type=float, default=0.0,
         help="placement angle from the nose, positive right. 0 is dead ahead",
     )
     parser.add_argument(
-        "--target-below-m", type=float, default=None,
-        help="place the target this far below the aircraft at engagement start",
+        "--poi-below-m", type=float, default=None,
+        help="place the POI this far below the aircraft at scoring start",
     )
     parser.add_argument(
         "--settle-s", type=float, default=20.0,
@@ -265,9 +265,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--level-settle-s", type=float, default=0.0,
         help="aircraft-seconds of commanded-level flight between the climb and "
-             "the engagement. The climb ends at CLIMB_PITCH_DEG the instant the "
-             "altitude test passes, so an engagement starting there inherits a "
-             "+15 deg transient: a level-target cell meant to isolate the roll "
+             "the scoring window. The climb ends at CLIMB_PITCH_DEG the instant the "
+             "altitude test passes, so an scoring starting there inherits a "
+             "+15 deg transient: a level-POI cell meant to isolate the roll "
              "channel is not level until this has run. 0 keeps the entry every "
              "dive artifact was flown with",
     )
@@ -276,7 +276,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--pitch-max-deg", type=float, default=3.0)
     parser.add_argument("--roll-limit-deg", type=float, default=35.0)
     parser.add_argument(
-        "--engage-s", type=float, default=180.0,
+        "--scoring-duration-s", type=float, default=180.0,
         help="maximum SIMULATED seconds of navigation before the run is abandoned",
      dest='scoring_duration_s')
     parser.add_argument(
@@ -450,8 +450,8 @@ def worst_case_wall_s(options: argparse.Namespace) -> float:
     )
 
 
-ABSOLUTE = ("target_lat", "target_lon", "target_alt")
-PLACEMENT = ("target_range_m", "target_below_m")
+ABSOLUTE = ("poi_lat", "poi_lon", "poi_alt")
+PLACEMENT = ("poi_range_m", "poi_below_m")
 
 
 def say(message: str) -> None:
@@ -494,8 +494,8 @@ def check_law_source(options: argparse.Namespace) -> None:
         raise SystemExit(str(mismatch)) from mismatch
 
 
-def check_target_options(options: argparse.Namespace) -> None:
-    """Exactly one way of saying where the target is. Refuse a mixture."""
+def check_poi_options(options: argparse.Namespace) -> None:
+    """Exactly one way of saying where the POI is. Refuse a mixture."""
     absolute = [name for name in ABSOLUTE if getattr(options, name) is not None]
     placement = [name for name in PLACEMENT if getattr(options, name) is not None]
     if absolute and placement:
@@ -513,24 +513,24 @@ def check_target_options(options: argparse.Namespace) -> None:
         )
     if not absolute and not placement:
         raise SystemExit(
-            "no target: give --target-lat/--target-lon/--target-alt, or "
-            "--target-range-m/--target-below-m"
+            "no POI: give --poi-lat/--poi-lon/--poi-alt, or "
+            "--poi-range-m/--poi-below-m"
         )
     if placement:
         # `below` is one leg of a right triangle whose hypotenuse is `range`, so
         # it cannot be the longer of the two. Asked for a 100 m range 500 m
         # below, the geometry has no solution -- and the arithmetic silently
-        # produced a target 500 m away, five times the range requested, with
+        # produced a POI 500 m away, five times the range requested, with
         # nothing in the result saying so.
-        if options.target_range_m <= 0.0:
+        if options.poi_range_m <= 0.0:
             raise SystemExit(
-                f"--target-range-m must be positive, got {options.target_range_m}"
+                f"--poi-range-m must be positive, got {options.poi_range_m}"
             )
-        if abs(options.target_below_m) >= options.target_range_m:
+        if abs(options.poi_below_m) >= options.poi_range_m:
             raise SystemExit(
-                f"--target-below-m {options.target_below_m} is not below a range "
-                f"of {options.target_range_m}: the drop cannot equal or exceed "
-                "the slant range, so no target position satisfies both"
+                f"--poi-below-m {options.poi_below_m} is not below a range "
+                f"of {options.poi_range_m}: the drop cannot equal or exceed "
+                "the slant range, so no POI position satisfies both"
             )
     check_estimate_options(options)
 
@@ -558,32 +558,32 @@ def check_estimate_options(options: argparse.Namespace) -> None:
         )
 
 
-def resolve_target(
+def resolve_poi(
     options: argparse.Namespace, pose: TruthPose,
 ) -> tuple[float, float, float]:
-    """Where the target is, decided once and never revisited.
+    """Where the POI is, decided once and never revisited.
 
     Truth heading appears here and nowhere else. This is the harness CHOOSING
-    where to put a target before the scoring interval begins, not the aircraft
+    where to put a POI before the scoring interval begins, not the aircraft
     working out where one is: the resolved coordinates are three constants from
     the first pose onward, and every line of sight after this is built from
-    them. Placing a target relative to the nose is what makes a run repeatable
+    them. Placing a POI relative to the nose is what makes a run repeatable
     across aircraft that finished their climb in different places, which is the
     whole reason this is not a fixed coordinate chosen up front.
     """
-    if options.target_lat is not None:
-        return options.target_lat, options.target_lon, options.target_alt
-    bearing = math.radians(pose.yaw_deg + options.target_off_boresight_deg)
+    if options.poi_lat is not None:
+        return options.poi_lat, options.poi_lon, options.poi_alt
+    bearing = math.radians(pose.yaw_deg + options.poi_off_boresight_deg)
     # No clamp. An earlier version wrote `max(..., 0.0)` here, which turned an
     # impossible geometry into a silently different one -- range 100 with a
-    # 500 m drop resolved to a target 500 m away and reported nothing.
-    # check_target_options refuses that at the command line; this raises for any
-    # caller that skipped it, because a wrong target is not recoverable later.
-    squared = options.target_range_m ** 2 - options.target_below_m ** 2
+    # 500 m drop resolved to a POI 500 m away and reported nothing.
+    # check_poi_options refuses that at the command line; this raises for any
+    # caller that skipped it, because a wrong POI is not recoverable later.
+    squared = options.poi_range_m ** 2 - options.poi_below_m ** 2
     if squared <= 0.0:
         raise ValueError(
-            f"range {options.target_range_m} cannot contain a drop of "
-            f"{options.target_below_m}"
+            f"range {options.poi_range_m} cannot contain a drop of "
+            f"{options.poi_below_m}"
         )
     horizontal = math.sqrt(squared)
     return coordinates_from_offset_ned(
@@ -591,15 +591,15 @@ def resolve_target(
         offset_ned_m=np.array([
             horizontal * math.cos(bearing),
             horizontal * math.sin(bearing),
-            options.target_below_m,
+            options.poi_below_m,
         ]),
     )
 
 
 def _law(options: argparse.Namespace) -> VisionNavLaw:
     return VisionNavLaw(
-        FixedTerminalLawConfigProvider(
-            TerminalLawConfig(
+        FixedFinalApproachLawConfigProvider(
+            FinalApproachLawConfig(
                 pitch_min_deg=options.pitch_min_deg,
                 pitch_max_deg=options.pitch_max_deg,
                 roll_limit_deg=options.roll_limit_deg,
@@ -642,7 +642,7 @@ def _record_exit_evidence(
 
 def run_navigation_episode(link: MavlinkLink, options: argparse.Namespace, flight: Flight,
            result: dict) -> str:
-    """Navigate until the target goes behind, or simulated time runs out.
+    """Navigate until the POI goes behind, or simulated time runs out.
 
     Returns why it stopped. The reason matters as much as the miss: a run that
     stopped on the clock did not measure a closest approach, it measured where
@@ -666,7 +666,7 @@ def run_navigation_episode(link: MavlinkLink, options: argparse.Namespace, fligh
     )
     approach = ClosestApproach()
     commanded = {"pitch": 0.0, "roll": 0.0}
-    target: tuple[float, float, float] | None = None
+    poi: tuple[float, float, float] | None = None
     started_t_s: float | None = None
     started_wall_s: float | None = None
     next_command_t_s: float | None = None
@@ -746,23 +746,23 @@ def run_navigation_episode(link: MavlinkLink, options: argparse.Namespace, fligh
             warmup_unbracketed = lag_sampler.unbracketed
             started_t_s = pose.t_s
             started_wall_s = time.monotonic()
-            say(f"  engagement start: t={pose.t_s:.1f}s "
+            say(f"  scoring start: t={pose.t_s:.1f}s "
                 f"alt={pose.alt_m:.0f}m yaw={pose.yaw_deg:.0f}deg")
             next_command_t_s = None
             # Resolved from the FIRST pose and then constant. Recorded in full
             # so the run can be repeated exactly with absolute coordinates.
-            target = resolve_target(options, pose)
-            result["target"] = list(target)
-            result["target_from"] = entry_state(
+            poi = resolve_poi(options, pose)
+            result["poi"] = list(poi)
+            result["poi_from"] = entry_state(
                 pose, flight.airspeed_now, flight.path_angle_now_deg,
                 flight.ground_speed_now, flight.course_now_deg)
         elapsed_s = pose.t_s - started_t_s
 
-        offset = target_offset_ned_m(
+        offset = poi_offset_ned_m(
             lat_deg=pose.lat_deg, lon_deg=pose.lon_deg, alt_m=pose.alt_m,
-            target_lat_deg=target[0],
-            target_lon_deg=target[1],
-            target_alt_m=target[2],
+            poi_lat_deg=poi[0],
+            poi_lon_deg=poi[1],
+            poi_alt_m=poi[2],
         )
         approach.observe(pose.t_s, offset)
         range_m = float(np.linalg.norm(offset))
@@ -772,7 +772,7 @@ def run_navigation_episode(link: MavlinkLink, options: argparse.Namespace, fligh
         # because it is also the pass detector. One frame, built once, read by
         # both: the law and the termination test therefore see the identical
         # view a camera would have produced, and cannot silently disagree about
-        # where the target is.
+        # where the POI is.
         #
         # TRUTH builds the ray, because that is the camera's job and a camera is
         # never wrong about where a thing appears. The ESTIMATE supplies
@@ -820,10 +820,10 @@ def run_navigation_episode(link: MavlinkLink, options: argparse.Namespace, fligh
             est_roll_deg = de_rotation.roll_deg
             latest_frame = build_frame(
                 offset_ned_m=offset if observed is pose else
-                target_offset_ned_m(
+                poi_offset_ned_m(
                     lat_deg=observed.lat_deg, lon_deg=observed.lon_deg,
-                    alt_m=observed.alt_m, target_lat_deg=target[0],
-                    target_lon_deg=target[1], target_alt_m=target[2]),
+                    alt_m=observed.alt_m, poi_lat_deg=poi[0],
+                    poi_lon_deg=poi[1], poi_alt_m=poi[2]),
                 truth_pitch_deg=observed.pitch_deg,
                 truth_roll_deg=observed.roll_deg,
                 truth_yaw_deg=observed.yaw_deg,
@@ -947,7 +947,7 @@ def run_navigation_episode(link: MavlinkLink, options: argparse.Namespace, fligh
         #
         # The fix is not ordering, it is the input. The forward component of the
         # body ray is the sensor's own output -- literally the field the law
-        # reads -- so a target that was ahead and is now behind is a pass
+        # reads -- so a POI that was ahead and is now behind is a pass
         # detected from vision alone. Time is the simulated clock, which the law
         # also uses. Neither requires anything the aircraft lacks.
         #
@@ -1053,7 +1053,7 @@ def run(options: argparse.Namespace) -> dict:
         # (scratch_sitl_uav.py:572-594). An earlier version armed straight into
         # GUIDED on the runway: ArduPlane has no launch in GUIDED, so the
         # aircraft sat still for the whole climb limit and the scoring interval began
-        # at ground level, with the target placed below the terrain. The run
+        # at ground level, with the POI placed below the terrain. The run
         # looked healthy the whole way -- armed, commanded, telemetry flowing.
         #
         #   TAKEOFF gives the aircraft a launch.
@@ -1103,7 +1103,7 @@ def run(options: argparse.Namespace) -> dict:
                 lambda: False)
         scoring_end = run_navigation_episode(link, options, flight, result)
         result["engage_end"] = scoring_end
-        say(f"  engagement {scoring_end}: miss={result.get('miss_m')}m "
+        say(f"  scoring window {scoring_end}: miss={result.get('miss_m')}m "
             f"commands={result.get('commands')} "
             f"clock={result.get('measured_speedup')}x")
         result["statustext"] = chatter.lines
@@ -1123,7 +1123,7 @@ def run(options: argparse.Namespace) -> dict:
 def main() -> int:
     options = _parser().parse_args()
     check_law_source(options)
-    check_target_options(options)
+    check_poi_options(options)
     result = run(options)
     text = json.dumps(result, indent=2, sort_keys=True)
     if options.out is not None:

@@ -20,7 +20,7 @@ def test_saves_source_thumbnail_and_metadata(tmp_path):
     artifacts = save_confirmation_image_artifacts(
         log_path=tmp_path,
         sys_id=7,
-        target_id=303,
+        poi_id=303,
         source_frame=source_frame,
         sent_image_b64=base64.b64encode(sent_bytes).decode("utf-8"),
         bbox_cxcywh=(11.0, 12.0, 30.0, 40.0),
@@ -44,7 +44,7 @@ def test_saves_source_thumbnail_and_metadata(tmp_path):
 
     metadata = json.loads(artifacts.metadata_path.read_text(encoding="utf-8"))
     assert metadata["sys_id"] == 7
-    assert metadata["target_id"] == 303
+    assert metadata["poi_id"] == 303
     assert metadata["class_id"] == 2
     assert metadata["class_name"] == "vehicle"
     assert metadata["confidence"] == float(np.float32(0.875))
@@ -64,12 +64,12 @@ def test_returns_none_without_log_path(tmp_path):
     artifacts = save_confirmation_image_artifacts(
         log_path=None,
         sys_id=1,
-        target_id=2,
+        poi_id=2,
         source_frame=frame,
         sent_image_b64=base64.b64encode(b"jpeg bytes").decode("utf-8"),
         bbox_cxcywh=(1.0, 2.0, 3.0, 4.0),
         class_id=0,
-        class_name="target",
+        class_name="poi",
         confidence=1.0,
         frame_bboxes=None,
         confirmation_degraded=False,

@@ -10,7 +10,7 @@ from typing import Protocol
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.modules.vision.target_zoom_tracker import TargetZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_tracker import PoiZoomTrackerConfig
 from navpy.modules.vision.vision_profiles import (
     build_camera_model,
     build_gimbal_data,
@@ -39,7 +39,7 @@ class SiyiRunnerProfile:
     device: dict[str, object]
     detector: dict[str, object]
     tracking_setup: GimbalTrackingSetup | None
-    zoom_config: TargetZoomTrackerConfig | None
+    zoom_config: PoiZoomTrackerConfig | None
     camera: CameraIntrinsics
     gimbal_data: GimbalData
     zoom_calibration: ZoomCalibrationTable | None

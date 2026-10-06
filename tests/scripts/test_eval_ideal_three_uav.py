@@ -170,8 +170,8 @@ def test_mission_translation_changes_digest_and_every_coordinate():
     assert shifted[0]["launch_point"]["lat"] == 40.0002
     assert original[0]["waypoints"][0]["lat"] == 40.0
     assert original[0]["dock_classes"] == mission["dock_classes"]
-    assert "target_classes" not in original[0]
-    assert "default_target" not in original[0]
+    assert "poi_classes" not in original[0]
+    assert "default_poi" not in original[0]
     assert original[0]["fallback_delivery_location"] == mission["fallback_delivery_location"]
     assert shifted[0]["fallback_delivery_location"] == {"lat": 40.0002, "lon": 43.9998, "type": "other"}
 
@@ -405,7 +405,7 @@ def test_ideal_analysis_accepts_isolated_fixed_grid_phase_compression(tmp_path):
     assert report.passed is True, owner.errors
 
 
-def test_ideal_analysis_binds_audited_approval_to_terminal_target(tmp_path):
+def test_ideal_analysis_binds_audited_approval_to_final_approach_poi(tmp_path):
     approvals = _write_ideal_run(tmp_path)
     approvals[1]["task_id"] = 99
 
@@ -417,7 +417,7 @@ def test_ideal_analysis_binds_audited_approval_to_terminal_target(tmp_path):
 
     assert report.passed is False
     assert any(
-        "local target identity chain differs" in error
+        "local POI identity chain differs" in error
         for error in report.errors
     )
 
@@ -482,8 +482,8 @@ def test_ideal_analysis_fails_slow_active_command_cadence(tmp_path):
     ("stream", "expected_error"),
     [
         ("detector_pose", "ideal frame maximum source gap"),
-        ("observation", "terminal observation maximum source gap"),
-        ("worker", "fresh terminal command maximum source gap"),
+        ("observation", "final-approach observation maximum source gap"),
+        ("worker", "fresh final-approach command maximum source gap"),
     ],
 )
 def test_ideal_analysis_rejects_ten_second_source_stage_gaps(
@@ -550,7 +550,7 @@ def test_ideal_analysis_requires_ten_fresh_observations(tmp_path):
 
     vehicle = next(item for item in report.vehicles if item.sys_id == 4)
     assert report.passed is False
-    assert any("fresh terminal observations 1 < 10" in error for error in vehicle.errors)
+    assert any("fresh final-approach observations 1 < 10" in error for error in vehicle.errors)
 
 
 def test_ideal_analysis_rejects_zero_command_wall_gaps(tmp_path):

@@ -8,7 +8,7 @@ This module owns ALL vision-related functionality:
 - Gimbal interfaces and simulation
 - Visual-reference models and simulator delivery-reference providers
 
-Target-prefixed exports retain compatible names. A detector observation or
+POI-prefixed exports retain compatible names. A detector observation or
 stable track is not authenticated recipient identification.
 
 Usage:
@@ -47,19 +47,19 @@ from navpy.modules.vision.gimbal_rate_tracker import (
     GimbalTrackResult,
     TrackingState,
 )
-from navpy.modules.vision.target_zoom_tracker import (
-    TargetZoomTracker,
-    TargetZoomTrackerConfig,
+from navpy.modules.vision.poi_zoom_tracker import (
+    PoiZoomTracker,
+    PoiZoomTrackerConfig,
     ZoomTrackResult,
     ZoomTrackingState,
 )
-from navpy.modules.vision.target_angle_estimator import (
-    TargetAngleEstimator,
-    TargetAngleEstimatorConfig,
+from navpy.modules.vision.poi_angle_estimator import (
+    PoiAngleEstimator,
+    PoiAngleEstimatorConfig,
 )
 # Models
 from navpy.modules.vision.simulation_object import SimulationObject
-from navpy.modules.vision.target_provider import TargetProvider
+from navpy.modules.vision.poi_provider import PoiProvider
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectResult, DetectStatus
 from navpy.modules.vision.models.detect_request import DetectRequest
 from navpy.modules.vision.models.detect_response import DetectResponse
@@ -87,15 +87,15 @@ __all__ = [
     "GimbalRateTrackerConfig",
     "GimbalTrackResult",
     "TrackingState",
-    "TargetZoomTracker",
-    "TargetZoomTrackerConfig",
+    "PoiZoomTracker",
+    "PoiZoomTrackerConfig",
     "ZoomTrackResult",
     "ZoomTrackingState",
-    "TargetAngleEstimator",
-    "TargetAngleEstimatorConfig",
+    "PoiAngleEstimator",
+    "PoiAngleEstimatorConfig",
     # Models
     "SimulationObject",
-    "TargetProvider",
+    "PoiProvider",
     "DetectedObject",
     "DetectResult",
     "DetectStatus",

@@ -26,7 +26,7 @@ DEFAULT_NAVIGATION_ALGORITHM = NavigationAlgorithm.PN
 
 
 def resolve_navigation_algorithm(value, logger: Optional[ILogger] = None) -> NavigationAlgorithm:
-    """Resolve CLI/MAVLink terminal controller selection to a known algorithm."""
+    """Resolve CLI/MAVLink final-approach controller selection to a known algorithm."""
     if isinstance(value, NavigationAlgorithm):
         return value
     if isinstance(value, str):
@@ -65,7 +65,7 @@ class NavigationArgs(object):
     }
 
     def __init__(self, args, vehicle: NavigationParameterReader, logger: ILogger):
-        self.use_direct_target = None
+        self.use_direct_poi = None
         self.use_terrain = None
         self.delivery_throttle = None
         self.delivery_angle = None
@@ -97,7 +97,7 @@ class NavigationArgs(object):
         old_delivery_angle = self.delivery_angle
         old_delivery_throttle = self.delivery_throttle
 
-        self.use_direct_target = bool(self._get_param('AAS_DEL_DIR'))
+        self.use_direct_poi = bool(self._get_param('AAS_DEL_DIR'))
         desired_delivery_angle = float(self._get_param('AAS_DEL_PITCH'))
         throttle = self._get_param('AAS_DEL_THR')
         self.delivery_throttle = throttle if throttle is not None and throttle >= 0 else None

@@ -36,7 +36,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     print(
         "name,wind_speed,wind_dir,lateral_m,longitudinal_m,vertical_m,"
-        "slant_m,t_s,passed_target,timed_out"
+        "slant_m,t_s,passed_poi,timed_out"
     )
     for case in cases:
         miss = run_case(case)
@@ -44,7 +44,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"{case.name},{case.wind_speed_mps:g},{case.wind_dir_from_deg:g},"
             f"{miss.lateral_m:.6f},{miss.longitudinal_m:.6f},"
             f"{miss.vertical_m:.6f},{miss.slant_m:.6f},{miss.t_s:.3f},"
-            f"{int(miss.passed_target)},{int(miss.timed_out)}"
+            f"{int(miss.passed_poi)},{int(miss.timed_out)}"
         )
     return 0
 

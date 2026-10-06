@@ -14,14 +14,14 @@ import math
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.lateral_rate import LateralRateFilter
 
 
-def _frame(timestamp_s: float, bearing_rad: float) -> TerminalVisionFrame:
+def _frame(timestamp_s: float, bearing_rad: float) -> FinalApproachVisionFrame:
     # Unit control ray in the horizontal plane at the requested bearing; body
     # ray is any fixed unit vector (the filter reads only the control bearing).
-    return TerminalVisionFrame(
+    return FinalApproachVisionFrame(
         source_name="test",
         source_generation=0,
         task_id=1,

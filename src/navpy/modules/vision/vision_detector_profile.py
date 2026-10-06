@@ -18,8 +18,8 @@ DEFAULT_DETECTOR_SETTINGS = {
 
 def validate_detector_settings_keys(settings: Mapping[str, object]) -> None:
     """Reject retired field spellings before they can select defaults."""
-    if "target_height" in settings:
-        raise ValueError("retired detector field target_height; use reference_height_m")
+    if "poi_height" in settings:
+        raise ValueError("retired detector field poi_height; use reference_height_m")
 
 
 def get_detector_settings(profile: Mapping[str, object]) -> dict:

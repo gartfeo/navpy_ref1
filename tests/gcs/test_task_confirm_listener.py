@@ -134,12 +134,12 @@ class TestOnNavlink:
 
 class TestImageReassembly:
     @patch("gcs.backend.task_confirm_listener.ws_manager")
-    def test_handshake_sets_current_target(self, mock_ws, listener, mock_vehicle):
+    def test_handshake_sets_current_poi(self, mock_ws, listener, mock_vehicle):
         listener.register_vehicle(1, mock_vehicle)
 
         handshake = MagicMock()
-        handshake.type = ImageTransferType.TARGET_CONFIRMATION
-        handshake.width = 5  # target_id stored in width
+        handshake.type = ImageTransferType.POI_CONFIRMATION
+        handshake.width = 5  # poi_id stored in width
         handshake.size = 100
         handshake.packets = 1
         handshake.payload = CHUNK_SIZE
@@ -150,21 +150,21 @@ class TestImageReassembly:
         listener._on_handshake(1, handshake)
         # The active transfer now also carries the round it belongs to, so a
         # late completion cannot land on a later round's card.
-        active = listener._images.current_targets.get(1)
+        active = listener._images.current_pois.get(1)
         assert active is not None
-        assert active.target_id == 5
+        assert active.poi_id == 5
 
     @patch("gcs.backend.task_confirm_listener.ws_manager")
     def test_ignores_non_confirmation_handshake(self, mock_ws, listener, mock_vehicle):
         listener.register_vehicle(1, mock_vehicle)
 
         handshake = MagicMock()
-        handshake.type = 0  # Not TARGET_CONFIRMATION
+        handshake.type = 0  # Not POI_CONFIRMATION
         handshake.get_srcSystem.return_value = 1
         handshake.get_srcComponent.return_value = COMPANION_COMPONENT_ID
 
         listener._on_handshake(1, handshake)
-        assert 1 not in listener._images.current_targets
+        assert 1 not in listener._images.current_pois
 
     @patch("gcs.backend.task_confirm_listener.ws_manager")
     def test_complete_image_broadcasts(self, mock_ws, listener, mock_vehicle, loop):
@@ -174,7 +174,7 @@ class TestImageReassembly:
 
         # Send handshake
         handshake = MagicMock()
-        handshake.type = ImageTransferType.TARGET_CONFIRMATION
+        handshake.type = ImageTransferType.POI_CONFIRMATION
         handshake.width = 3
         handshake.size = 10  # small image
         handshake.packets = 1
@@ -205,7 +205,7 @@ class TestImageReassembly:
             self, listener, mock_vehicle):
         listener.register_vehicle(1, mock_vehicle)
         handshake = MagicMock()
-        handshake.type = ImageTransferType.TARGET_CONFIRMATION
+        handshake.type = ImageTransferType.POI_CONFIRMATION
         handshake.width = 5
         handshake.size = 100
         handshake.packets = 1
@@ -216,4 +216,4 @@ class TestImageReassembly:
 
         listener._on_handshake(1, handshake)
 
-        assert 1 not in listener._images.current_targets
+        assert 1 not in listener._images.current_pois

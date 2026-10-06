@@ -1,4 +1,4 @@
-"""In-flight target gating, SNAP observation, and exact resource teardown."""
+"""In-flight POI gating, SNAP observation, and exact resource teardown."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from scripts import eval_certificate as cert
 from eval_navigation_case_ports import CaseProcessPorts
 from eval_navigation_case_state import CaseState, ScoringIntervalWindow
 from eval_navigation_evidence import (
-    await_target_snap_binding,
+    await_poi_snap_binding,
     parse_selection_evidence,
     selected_location_from_evidence,
     validate_pre_snap_evidence,
@@ -27,7 +27,7 @@ from eval_navigation_telemetry import (
 
 
 def fly_case(state: CaseState, args: argparse.Namespace) -> None:
-    """Observe the terminal scoring interval until one fully bound SNAP is present."""
+    """Observe the final-approach scoring interval until one fully bound SNAP is present."""
     processes = state.processes
     assert processes.master is not None and processes.sysid is not None
     deadline = time.time() + args.timeout
@@ -43,7 +43,7 @@ def fly_case(state: CaseState, args: argparse.Namespace) -> None:
             rate_tracker=scoring_interval.rate_tracker if scoring_interval else None,
         )
         if state.evidence.gate is None:
-            _try_accept_target(state, args)
+            _try_accept_poi(state, args)
         if snap_from_compact(state.paths.compact):
             _validate_snap(state)
             return
@@ -51,7 +51,7 @@ def fly_case(state: CaseState, args: argparse.Namespace) -> None:
     raise RuntimeError("no SNAP found before timeout")
 
 
-def _try_accept_target(state: CaseState, args: argparse.Namespace) -> None:
+def _try_accept_poi(state: CaseState, args: argparse.Namespace) -> None:
     navigation_path = state.paths.navigation
     if navigation_path is None or not navigation_path.exists():
         return
@@ -59,9 +59,9 @@ def _try_accept_target(state: CaseState, args: argparse.Namespace) -> None:
     evidence = parse_selection_evidence(log_text)
     if (
         evidence.obj_id is None
-        or evidence.target_lat_deg is None
-        or evidence.target_lon_deg is None
-        or evidence.target_abs_alt_m is None
+        or evidence.poi_lat_deg is None
+        or evidence.poi_lon_deg is None
+        or evidence.poi_abs_alt_m is None
     ):
         return
     expectation = state.evidence.expectation
@@ -75,13 +75,13 @@ def _try_accept_target(state: CaseState, args: argparse.Namespace) -> None:
         expectation,
         evidence,
         selected_location,
-        configured_rel_alt_m=state.target_rel_alt_m,
+        configured_rel_alt_m=state.poi_rel_alt_m,
         coordinate_tolerance_m=args.coordinate_tolerance_m,
         altitude_tolerance_m=args.altitude_tolerance_m,
     )
     state.evidence.selection = evidence
     state.evidence.gate = gate
-    (state.paths.case_dir / "target_evidence.json").write_text(
+    (state.paths.case_dir / "poi_evidence.json").write_text(
         json.dumps(
             {
                 "selection": evidence.to_record(),
@@ -95,7 +95,7 @@ def _try_accept_target(state: CaseState, args: argparse.Namespace) -> None:
         encoding="utf-8",
     )
     if not gate.passed:
-        raise RuntimeError("target evidence rejected: " + "; ".join(gate.errors))
+        raise RuntimeError("POI evidence rejected: " + "; ".join(gate.errors))
     state.evidence.scoring_interval = ScoringIntervalWindow(
         CoordinateScorer(expectation.location),
         cert.ClockRateTracker(),
@@ -106,7 +106,7 @@ def _validate_snap(state: CaseState) -> None:
     gate = state.evidence.gate
     if gate is None or not gate.passed:
         raise RuntimeError(
-            "SNAP observed before target identity/coordinate gate passed"
+            "SNAP observed before POI identity/coordinate gate passed"
         )
     state.evidence.coordinate_stream_live_at_snap = position_stream_is_live(
         state.evidence.live_anchors,
@@ -118,7 +118,7 @@ def _validate_snap(state: CaseState) -> None:
             "was observed"
         )
     assert state.paths.navigation is not None
-    state.evidence.episode_error = await_target_snap_binding(
+    state.evidence.episode_error = await_poi_snap_binding(
         state.paths.navigation,
         state.evidence.selection,
     )

@@ -1,4 +1,4 @@
-"""Target advertisement and missing-peer rebroadcast coordination."""
+"""POI advertisement and missing-peer rebroadcast coordination."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from navpy.modules.swarm.task_auction_state import TaskAuctionState
 from navpy.modules.swarm.task_rebroadcast_state import TaskRebroadcastState
 from navpy.modules.swarm.task_messaging import TaskMessageSender
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.target_identity import get_target_task_id
+from navpy.modules.vision.poi_identity import get_poi_task_id
 
 
 REBROADCAST_INTERVAL_S = 0.5
@@ -33,9 +33,9 @@ class TaskRebroadcastCoordinator:
         self._sender = sender
         self._logger = logger
 
-    def notify_targets(self, targets: list[DetectedObject]) -> None:
-        for target in targets:
-            task = self._task_from_detection(target)
+    def notify_pois(self, pois: list[DetectedObject]) -> None:
+        for poi in pois:
+            task = self._task_from_detection(poi)
             if task is None:
                 continue
             registered = self._auction.register(task)
@@ -88,22 +88,22 @@ class TaskRebroadcastCoordinator:
         )
 
     @staticmethod
-    def _task_from_detection(target: DetectedObject) -> TaskMsgData | None:
-        target_id = get_target_task_id(target)
-        if target_id is None:
+    def _task_from_detection(poi: DetectedObject) -> TaskMsgData | None:
+        poi_id = get_poi_task_id(poi)
+        if poi_id is None:
             return None
         location = (
             LocationMsgData(
-                target.geo.projected_target_location.lat,
-                target.geo.projected_target_location.lng,
-                target.geo.projected_target_location.alt,
+                poi.geo.projected_poi_location.lat,
+                poi.geo.projected_poi_location.lng,
+                poi.geo.projected_poi_location.alt,
             )
-            if target.geo.projected_target_location is not None
+            if poi.geo.projected_poi_location is not None
             else LocationMsgData(0.0, 0.0, 0.0)
         )
-        class_id = target.classification.class_id
+        class_id = poi.classification.class_id
         return TaskMsgData(
-            task_id=target_id,
+            task_id=poi_id,
             task_type=class_to_task_type(class_id),
             location=location,
             class_id=class_id,

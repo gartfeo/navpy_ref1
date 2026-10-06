@@ -14,7 +14,7 @@ be on stationary or moving platforms.
 The current MVP is a three-UAV delivery/docking simulator demo.
 
 Parking navigation names the vision-based final approach.
-Technical names such as `vision_nav`, `target`, and `AAS_DEL_*` do not define
+Technical names such as `vision_nav`, `poi`, and `AAS_DEL_*` do not define
 the application's purpose. Preserve actual API names, measured outcomes and
 historical evidence; approach accuracy or disarming does not establish physical
 docking or cargo receipt. Older wording is not authority for a different purpose.
@@ -40,7 +40,7 @@ through hidden aircraft compass yaw;
 `ideal_360` is a simulator-only sensor upper bound: it must keep the camera
 static relative to the aircraft, use infinite FOV, and publish the resulting
 frame-local pixel/LOS error. It must not slew, lock, or virtually point the
-camera/gimbal at the target.
+camera/gimbal at the POI.
 
 The command path also must not use vehicle ground speed or any vertical
 altitude/altitude-rate estimate. Ground-speed and altitude-derived vertical

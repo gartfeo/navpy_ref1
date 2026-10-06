@@ -1,4 +1,4 @@
-"""Simulation-only target control and fleet classification."""
+"""Simulation-only POI control and fleet classification."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ class SimulationMember(Protocol):
     @property
     def is_simulation(self) -> bool: ...
 
-    def set_sim_target(
+    def set_sim_poi(
         self,
         command_index: int,
         location: "Location",
@@ -30,14 +30,14 @@ class SimulationControlFleet:
             member.is_simulation for member in self._members
         )
 
-    def set_sim_target(
+    def set_sim_poi(
         self,
         command_index: int,
         location: "Location",
         location_type: str | None = None,
     ) -> None:
         for member in self._members:
-            member.set_sim_target(command_index, location, location_type=location_type)
+            member.set_sim_poi(command_index, location, location_type=location_type)
 
 
 __all__ = ["SimulationControlFleet"]

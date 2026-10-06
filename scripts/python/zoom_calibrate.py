@@ -3,7 +3,7 @@
 Commands each advertised calibration level, waits for the lens to
 settle, reads hardware zoom, and prints a table of (commanded -> actual)
 pairs. Use the output to inform a stepped-zoom calibration strategy in
-TargetZoomTracker (the SIYI drift between commanded and readback — e.g.
+PoiZoomTracker (the SIYI drift between commanded and readback — e.g.
 commanded 1 produces actual 1.1 — is what makes label-based stepping
 thrash).
 

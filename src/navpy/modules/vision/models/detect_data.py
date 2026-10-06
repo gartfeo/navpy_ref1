@@ -122,10 +122,10 @@ class DetectedObject(_WeakReferenceable):
         self.geo = value
 
     def set_p_t_g_loc(self, location: Location | None) -> None:
-        self.geo = replace(self.geo, projected_target_location=location)
+        self.geo = replace(self.geo, projected_poi_location=location)
 
     def to_dict(self) -> dict:
-        location = self.geo.projected_target_location
+        location = self.geo.projected_poi_location
         return {
             "obj_id": self.identity.obj_id,
             "task_id": self.identity.task_id,
@@ -149,7 +149,7 @@ class DetectedObject(_WeakReferenceable):
 @dataclass
 class DetectResult:
     status: DetectStatus
-    target: DetectedObject | None = None
+    poi: DetectedObject | None = None
 
 
 __all__ = [

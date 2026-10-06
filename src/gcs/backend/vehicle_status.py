@@ -77,7 +77,7 @@ ACCEL_CAL_ACTIVE_WINDOW_S = 180.0
 # CONF-03 recognition-gate blocked state (D-15/D-16/D-17) -------------------
 # NavController emits ``CONFIRM_BLOCKED:<reason>|<detail>|<task_id>`` (DRONE
 # dest, rate-limited to ~1 Hz while blocking) and ``CONFIRM_BLOCKED:clear`` the
-# instant the gate passes/target is lost/target changes. CONFIRM_BLOCKED_STALE_S
+# instant the gate passes/POI is lost/POI changes. CONFIRM_BLOCKED_STALE_S
 # is a safety net alongside that explicit clear signal (several missed
 # rate-limit cycles' worth of margin) in case the clear STATUSTEXT itself is
 # lost on the shared lossy link.
@@ -151,8 +151,8 @@ def _handle_confirm_blocked_statustext(entry: VehicleEntry, body: str) -> None:
     ``clear`` resets the state, otherwise ``<reason>|<detail>|<task_id>``
     (``reason`` is ``pixels`` or ``zoom``; ``detail`` carries the pixel
     counts for ``pixels`` and is empty for ``zoom``; ``task_id`` is the
-    blocked target, used to address the "Ask me anyway" override so it
-    forces the right target without guessing).
+    blocked POI, used to address the "Ask me anyway" override so it
+    forces the right POI without guessing).
     """
     body = body.strip()
     if body == "clear":

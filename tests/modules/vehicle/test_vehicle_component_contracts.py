@@ -16,7 +16,7 @@ import pytest
 from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.mission_approach_writer import MissionApproachWriter
-from navpy.modules.navigation.peer_target_mission_writer import PeerTargetMissionWriter
+from navpy.modules.navigation.peer_poi_mission_writer import PeerPoiMissionWriter
 from navpy.modules.vehicle.mav_mission import MavMission
 from navpy.modules.vehicle.mav_bus import MavBus
 from navpy.modules.vehicle.message_store import (
@@ -817,14 +817,14 @@ def test_mission_approach_writer_calls_sequence_first():
     ]
 
 
-def test_peer_target_writer_calls_sequence_first():
+def test_peer_poi_writer_calls_sequence_first():
     vehicle = MagicMock()
     vehicle.target_system = 7
     vehicle.location.return_value = Location(40.0, 44.0, 100.0, False)
     vehicle.home_location = Location(40.0, 44.0, 900.0, True)
-    target = Location(40.1, 44.1, 1000.0, True)
+    poi = Location(40.1, 44.1, 1000.0, True)
 
-    PeerTargetMissionWriter().plan(vehicle, target)
+    PeerPoiMissionWriter().plan(vehicle, poi)
 
     calls = vehicle.update_mission_item.call_args_list
     assert [call.args[0] for call in calls] == [0, 1, 2, 3]

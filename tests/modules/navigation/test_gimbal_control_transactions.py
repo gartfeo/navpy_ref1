@@ -17,7 +17,7 @@ from navpy.modules.vision.gimbal_rate_tracker import (
 )
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from tests.detection_factory import make_detected_target
+from tests.detection_factory import make_detected_poi
 
 
 def _navigation() -> tuple[GimbalNavigation, MagicMock, MagicMock]:
@@ -37,12 +37,12 @@ def _navigation() -> tuple[GimbalNavigation, MagicMock, MagicMock]:
     return navigation, mount, gimbal
 
 
-def _target(
+def _poi(
     source_time: float | None = None,
     source_now: float = 10.0,
     x_error: float = 1060.0,
 ) -> DetectedObject:
-    return make_detected_target(
+    return make_detected_poi(
         obj_id=7,
         x_error=x_error,
         y_error=540.0,
@@ -76,7 +76,7 @@ def test_stop_start_waits_for_inflight_rate_actuation() -> None:
 
     def run_update() -> None:
         try:
-            navigation.update(_target(source_time=10.0))
+            navigation.update(_poi(source_time=10.0))
         except BaseException as exc:  # pragma: no cover - reported below
             failures.append(exc)
 
@@ -112,7 +112,7 @@ def test_stop_start_waits_for_inflight_rate_actuation() -> None:
 def test_first_missing_observation_stops_rate_without_attitude_command() -> None:
     navigation, mount, gimbal = _navigation()
     navigation.start_tracking(7)
-    navigation.update(_target(source_time=10.0))
+    navigation.update(_poi(source_time=10.0))
     mount.reset_mock()
     gimbal.reset_mock()
 
@@ -128,10 +128,10 @@ def test_first_missing_observation_stops_rate_without_attitude_command() -> None
 def test_duplicate_source_sample_does_not_advance_loss() -> None:
     navigation, _, gimbal = _navigation()
     navigation.start_tracking(7)
-    navigation.update(_target(source_time=10.0, source_now=10.0))
+    navigation.update(_poi(source_time=10.0, source_now=10.0))
     gimbal.reset_mock()
 
-    navigation.update(_target(source_time=10.0, source_now=13.0))
+    navigation.update(_poi(source_time=10.0, source_now=13.0))
 
     gimbal.set_rate.assert_not_called()
     gimbal.set_motion_mode.assert_not_called()
@@ -143,10 +143,10 @@ def test_duplicate_source_sample_does_not_advance_loss() -> None:
 def test_missing_source_timestamp_is_loss_not_fabricated_measurement() -> None:
     navigation, _, gimbal = _navigation()
     navigation.start_tracking(7)
-    navigation.update(_target(source_time=10.0, source_now=10.0))
+    navigation.update(_poi(source_time=10.0, source_now=10.0))
     gimbal.reset_mock()
 
-    navigation.update(_target(source_time=float("nan"), source_now=10.1))
+    navigation.update(_poi(source_time=float("nan"), source_now=10.1))
 
     gimbal.set_rate.assert_called_once_with(0.0, 0.0)
     assert navigation.status.detection.last_track_time == 10.0
@@ -155,7 +155,7 @@ def test_missing_source_timestamp_is_loss_not_fabricated_measurement() -> None:
 def test_recentre_failure_is_retried_next_loss_tick() -> None:
     navigation, _, gimbal = _navigation()
     navigation.start_tracking(7)
-    navigation.update(_target(source_time=10.0, source_now=10.0))
+    navigation.update(_poi(source_time=10.0, source_now=10.0))
     gimbal.set_att.side_effect = RuntimeError("link down")
 
     navigation.update(None, now=12.5)
@@ -169,7 +169,7 @@ def test_recentre_failure_is_retried_next_loss_tick() -> None:
 def test_failed_stop_keeps_session_retryable_and_resets_tracker() -> None:
     navigation, _, gimbal = _navigation()
     navigation.start_tracking(7)
-    navigation.update(_target(source_time=10.0))
+    navigation.update(_poi(source_time=10.0))
     gimbal.set_rate.side_effect = RuntimeError("link down")
 
     with pytest.raises(RuntimeError, match="link down"):
@@ -185,7 +185,7 @@ def test_failed_stop_keeps_session_retryable_and_resets_tracker() -> None:
 def test_failed_rearm_preserves_prior_session_and_tracker_state() -> None:
     navigation, _, gimbal = _navigation()
     navigation.start_tracking(7)
-    navigation.update(_target(source_time=10.0))
+    navigation.update(_poi(source_time=10.0))
     prior_result = navigation.rate_result
     prior_generation = navigation.status.generation
     gimbal.set_motion_mode.side_effect = RuntimeError("link down")

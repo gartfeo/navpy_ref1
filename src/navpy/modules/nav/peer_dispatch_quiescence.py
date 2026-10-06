@@ -1,4 +1,4 @@
-"""Bounded execution-fence acquisition for peer target effects."""
+"""Bounded execution-fence acquisition for peer POI effects."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def await_peer_dispatch_quiescence(
         fence.release()
         return
     failure = TimeoutError(
-        "Peer target dispatch did not quiesce for "
+        "Peer POI dispatch did not quiesce for "
         f"{operation} within {timeout_s:.3f}s"
     )
     raise record_failure(failure)

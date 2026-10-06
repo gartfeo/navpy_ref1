@@ -1,4 +1,4 @@
-"""Segregated navigation and target-control contracts for simulator adapters."""
+"""Segregated navigation and POI-control contracts for simulator adapters."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.simulation_object import SimulationObject
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class TrackingNavigationPort(Protocol):
@@ -34,7 +34,7 @@ class TrackingNavigationPort(Protocol):
 
     def update(
         self,
-        target: Optional[DetectedObject],
+        poi: Optional[DetectedObject],
         now: Optional[float] = None,
     ) -> None: ...
 
@@ -50,14 +50,14 @@ class ZoomNavigationPort(Protocol):
 
     def set_zoom_size_demand(self, enabled: bool) -> None: ...
 
-    def freeze_terminal_zoom_at_min(self) -> bool: ...
+    def freeze_final_approach_zoom_at_min(self) -> bool: ...
 
 
 class GeoNavigationPort(Protocol):
     @property
     def is_geo_armed(self) -> bool: ...
 
-    def start_geo_tracking(self, target_loc: Location, geo_ref: GeoRefCalc) -> None: ...
+    def start_geo_tracking(self, poi_loc: Location, geo_ref: GeoRefCalc) -> None: ...
 
     def update_geo(self, uav_loc: Location, uav_att: Attitude) -> None: ...
 
@@ -72,13 +72,13 @@ class GeoNavigationPort(Protocol):
     def stop_geo_tracking(self) -> None: ...
 
 
-class TargetProviderMutationPort(Protocol):
+class PoiProviderMutationPort(Protocol):
     @property
-    def targets(self) -> Sequence[SimulationObject]: ...
+    def pois(self) -> Sequence[SimulationObject]: ...
 
     def refresh(self) -> None: ...
 
-    def set_sim_target(
+    def set_sim_poi(
         self,
         command_index: int,
         location: Location,
@@ -88,7 +88,7 @@ class TargetProviderMutationPort(Protocol):
 
 __all__ = [
     "GeoNavigationPort",
-    "TargetProviderMutationPort",
+    "PoiProviderMutationPort",
     "TrackingNavigationPort",
     "ZoomNavigationPort",
 ]

@@ -58,11 +58,11 @@ def check_projection_capture(path: Path, *, expected_projections: Optional[int] 
                     publications.add(frame['frame_id'])
                     if frame['publication'] not in ('successful','empty','rejected','abandoned'):
                         reasons.append('unknown publication outcome')
-                    published_count = frame['published_target_count']
+                    published_count = frame['published_poi_count']
                     if frame['publication'] == 'successful' and (type(published_count) is not int or published_count <= 0):
-                        reasons.append('successful publication lacks positive target count')
+                        reasons.append('successful publication lacks positive POI count')
                     if frame['publication'] == 'empty' and published_count != 0:
-                        reasons.append('empty publication has inconsistent target count')
+                        reasons.append('empty publication has inconsistent POI count')
                 else:
                     reasons.append('unknown record kind')
         if count != manifest['written'] or digest.hexdigest() != manifest['sha256']:

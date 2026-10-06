@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src/navpy"
-TERMINAL = ROOT / "src/navpy/modules/navigation/nav/vision_nav"
+FINAL_APPROACH = ROOT / "src/navpy/modules/navigation/nav/vision_nav"
 SCHEDULER = "src/navpy/modules/common/scheduler_cadence.py"
 EXECUTOR = "src/navpy/modules/navigation/nav/vision_nav/command_executor.py"
 SIM_ALIASES = {
@@ -16,15 +16,15 @@ SIM_ALIASES = {
 }
 LEGACY_APIS = {"wall_period_for_sim_period", "loop_sim_speedup"}
 CORE = {
-    "frame.py": "TerminalVisionFrame", "frame_projection.py": "TerminalFrameProjector",
-    "source_epoch.py": "SourceEpochLedger", "confirmation.py": "TerminalConfirmation",
-    "ingress.py": "TerminalIngress", "rate_filter.py": "VerticalRateFilter",
+    "frame.py": "FinalApproachVisionFrame", "frame_projection.py": "FinalApproachFrameProjector",
+    "source_epoch.py": "SourceEpochLedger", "confirmation.py": "FinalApproachConfirmation",
+    "ingress.py": "FinalApproachIngress", "rate_filter.py": "VerticalRateFilter",
     "law.py": "VisionNavLaw", "visual_pass.py": "VisualPassDetector",
-    "command_transaction.py": "TerminalCommandTransaction",
+    "command_transaction.py": "FinalApproachCommandTransaction",
     "lateral_rate.py": "LateralRateFilter",
-    "law_config.py": "TerminalLawConfig",
-    "command_anchor.py": "TerminalCommandAnchor",
-    "law_plan.py": "TerminalLawPlan",
+    "law_config.py": "FinalApproachLawConfig",
+    "command_anchor.py": "FinalApproachCommandAnchor",
+    "law_plan.py": "FinalApproachLawPlan",
 }
 COMMAND_INPUT_FILES = tuple(CORE) + (
     "command_freshness.py",
@@ -49,20 +49,21 @@ GYRO_RATE_ALLOWANCES = {
 }
 # Truth-position vocabulary. AGENTS.md allows frame-local vision LOS/pixels,
 # gimbal/camera readback as camera state, pitch/roll attitude, airspeed, wind,
-# and previous command state -- never a world-frame position of the target or
+# and previous command state -- never a world-frame position of the POI or
 # the aircraft. Abbreviations fold first, so `tgt_height` is judged as
-# `reference_height_m` and `tgt_pos` as `target_position`.
+# `reference_height_m` and `tgt_pos` as `poi_position`. The retired `target`
+# spelling folds to `poi` so older names stay caught.
 TRUTH_ALIASES = {
-    "tgt": "target", "pos": "position", "posn": "position",
+    "tgt": "poi", "target": "poi", "pos": "position", "posn": "position",
     "positions": "position", "loc": "location", "coord": "coordinate",
     "coords": "coordinate", "coordinates": "coordinate",
 }
 POSITION_WORDS = {"position", "coordinate"}
 # A pixel/image position is frame-local vision output, so it stays legal --
-# but only while it names no truth subject. `pixel_target_position` is a
-# world-frame target position wearing a frame-local prefix, not vision output.
+# but only while it names no truth subject. `pixel_poi_position` is a
+# world-frame POI position wearing a frame-local prefix, not vision output.
 FRAME_LOCAL_POSITION_WORDS = {"pixel", "pixels", "image"}
-TRUTH_SUBJECT_WORDS = {"target", "object", "detection", "vehicle", "aircraft",
+TRUTH_SUBJECT_WORDS = {"poi", "object", "detection", "vehicle", "aircraft",
                        "own"}
 # World/earth frames, world axes, and truth sources. No such token exists in
 # the command core today; each names a quantity the command path must never
@@ -73,13 +74,13 @@ WORLD_FRAME_WORDS = {
     "latlon", "latlng", "north", "northing", "east", "easting", "down",
     "gps", "home", "truth", "groundtruth", "sim", "simstate",
     # World-frame qualifiers. These catch a truth position whose position word
-    # is spelled as a raw axis tuple -- `target_world_xyz` names no banned
+    # is spelled as a raw axis tuple -- `poi_world_xyz` names no banned
     # position token, so only the frame qualifier gives it away. `inertial` is
     # deliberately NOT here: `inertial_los_rate_deg_s` and `raw_inertial_rate`
     # are frame-local LOS rates and legal command inputs.
     "world", "global", "earth", "absolute", "geodetic",
 }
-# Direct range to the target in the spellings the `range` rule alone misses.
+# Direct range to the POI in the spellings the `range` rule alone misses.
 # Unconditional, deliberately: the pre-existing `range` rule already rejects
 # `pixel_range`/`range_px` with no frame-local exemption, so exempting these
 # synonyms would rebuild the very spelling asymmetry this guard exists to
@@ -96,8 +97,8 @@ COORDINATE_UNIT_WORDS = {"deg", "degrees", "rad", "radians", "e7"}
 YAW_RATE_CONVERSION = "src/navpy/modules/vision/models/pixel_observation.py"
 YAW_RATE_PRODUCERS = (
     "src/navpy/modules/vision/real_detected_object_builder.py",
-    "src/navpy/modules/vision/sim/finite_target_projector.py",
-    "src/navpy/modules/vision/sim/ideal_target_projector.py",
+    "src/navpy/modules/vision/sim/finite_poi_projector.py",
+    "src/navpy/modules/vision/sim/ideal_poi_projector.py",
 )
 CLOCK_MODULES = {"time", "timeit", "datetime"}
 CLOCK_CALLS = {
@@ -201,7 +202,7 @@ def _is_forbidden_input(name: str, context: tuple[str, ...]) -> bool:
         bool(words & {"altitude", "agl", "amsl"}) or {"alt", "rate"} <= words,
         bool(words & {"location", "latitude", "longitude", "geo", "range"}),
         "bbox" in name.lower() or {"bounding", "box"} <= words,
-        "height" in words and bool(words & {"target", "object", "detection", "bbox"}),
+        "height" in words and bool(words & {"poi", "object", "detection", "bbox"}),
         bool(words & POSITION_WORDS) and not (
             words & FRAME_LOCAL_POSITION_WORDS and not words & TRUTH_SUBJECT_WORDS
         ),
@@ -308,14 +309,14 @@ def bad(cadence, frame, dt_s, speedup):
 """)
     assert len(_cadence_violations([("synthetic.py", bad)])) == 2
 
-def test_terminal_scope_and_primitive_frame_cannot_disappear() -> None:
+def test_final_approach_scope_and_primitive_frame_cannot_disappear() -> None:
     trees = {path.name: ast.parse(path.read_text("utf-8"))
-             for path in sorted(TERMINAL.glob("*.py"))}
+             for path in sorted(FINAL_APPROACH.glob("*.py"))}
     assert trees
     for filename, class_name in CORE.items():
         assert filename in trees
         assert _definition(trees[filename], class_name, ast.ClassDef) is not None
-    frame = _definition(trees["frame.py"], "TerminalVisionFrame", ast.ClassDef)
+    frame = _definition(trees["frame.py"], "FinalApproachVisionFrame", ast.ClassDef)
     fields = [
         (node.target.id, ast.unparse(node.annotation)) for node in frame.body
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
@@ -323,25 +324,25 @@ def test_terminal_scope_and_primitive_frame_cannot_disappear() -> None:
     assert tuple(name for name, _ in fields) == FRAME_FIELDS
     assert {annotation for _, annotation in fields} <= {"str", "int", "float"}
 
-def test_terminal_command_core_has_no_clock_or_forbidden_truth_inputs() -> None:
+def test_final_approach_command_core_has_no_clock_or_forbidden_truth_inputs() -> None:
     clocks, inputs = [], []
     for filename in CORE:
-        tree = ast.parse((TERMINAL / filename).read_text("utf-8"))
+        tree = ast.parse((FINAL_APPROACH / filename).read_text("utf-8"))
         clocks += [f"{filename}:{hit}" for hit in _clock_hits(tree)]
     for filename in COMMAND_INPUT_FILES:
-        tree = ast.parse((TERMINAL / filename).read_text("utf-8"))
+        tree = ast.parse((FINAL_APPROACH / filename).read_text("utf-8"))
         allowed = GYRO_RATE_ALLOWANCES.get(filename, frozenset())
         inputs += [f"{filename}:{hit}" for hit in _forbidden_inputs(tree, allowed)]
-    assert not clocks, "terminal clock reads:\n  " + "\n  ".join(clocks)
-    assert not inputs, "forbidden terminal inputs:\n  " + "\n  ".join(inputs)
+    assert not clocks, "final-approach clock reads:\n  " + "\n  ".join(clocks)
+    assert not inputs, "forbidden final-approach inputs:\n  " + "\n  ".join(inputs)
 
 
 def test_hold_wall_clock_is_execution_diagnostics_only() -> None:
-    tree = ast.parse((TERMINAL / "command_hold.py").read_text("utf-8"))
+    tree = ast.parse((FINAL_APPROACH / "command_hold.py").read_text("utf-8"))
     freshness_tree = ast.parse(
-        (TERMINAL / "command_freshness.py").read_text("utf-8")
+        (FINAL_APPROACH / "command_freshness.py").read_text("utf-8")
     )
-    owner = _definition(tree, "TerminalCommandHold", ast.ClassDef)
+    owner = _definition(tree, "FinalApproachCommandHold", ast.ClassDef)
     issue = _definition(owner, "issue", ast.FunctionDef)
     freshness = _definition(freshness_tree, "_age_is_fresh", ast.FunctionDef)
     assert owner is not None and issue is not None and freshness is not None
@@ -349,17 +350,17 @@ def test_hold_wall_clock_is_execution_diagnostics_only() -> None:
     clocks = _calls(issue, "_monotonic_s")
     assert len(clocks) == 2
 
-def test_terminal_guard_rejects_alias_clock_and_hidden_truth() -> None:
+def test_final_approach_guard_rejects_alias_clock_and_hidden_truth() -> None:
     bad = ast.parse("""
 import time as hidden
-def decide(vehicle, frame, target_range_m):
+def decide(vehicle, frame, poi_range_m):
     tick = hidden.monotonic()
     heading = getattr(vehicle, "heading")
-    return frame.ground_speed_ned, target_range_m, tick, heading
+    return frame.ground_speed_ned, poi_range_m, tick, heading
 """)
     assert _clock_hits(bad)
     found = {hit.split("@", 1)[0] for hit in _forbidden_inputs(bad)}
-    assert {"heading", "ground_speed_ned", "target_range_m"} <= found
+    assert {"heading", "ground_speed_ned", "poi_range_m"} <= found
 
 def test_yaw_rate_is_gyro_conversion_only() -> None:
     """Pin the provenance of `aircraft_yaw_rate_rad_s` to the body-rate gyro.
@@ -422,7 +423,7 @@ def test_gyro_rate_allowance_is_exact_and_file_scoped() -> None:
 
 def test_executor_perf_counter_is_deferred_diagnostics_only() -> None:
     tree = ast.parse((ROOT / EXECUTOR).read_text("utf-8"))
-    owner = _definition(tree, "TerminalCommandExecutor", ast.ClassDef)
+    owner = _definition(tree, "FinalApproachCommandExecutor", ast.ClassDef)
     execute = _definition(owner, "execute", ast.FunctionDef)
     execute_current = _definition(owner, "_execute_current", ast.FunctionDef)
     recorder = _definition(owner, "_record_source_time", ast.FunctionDef)
@@ -468,30 +469,30 @@ def test_executor_perf_counter_is_deferred_diagnostics_only() -> None:
     assert _path(record_call.func)[-2:] == ("source_time", "record_command")
 
 
-def test_command_input_scan_catches_injected_target_position(tmp_path) -> None:
+def test_command_input_scan_catches_injected_poi_position(tmp_path) -> None:
     """Truth position added to a command-input file must not slip the scan.
 
-    Only `TerminalVisionFrame`'s field list is frozen name-by-name. Every other
+    Only `FinalApproachVisionFrame`'s field list is frozen name-by-name. Every other
     command-input file is protected by token scanning alone, so a truth
-    position spelled `target_position` is exactly the shape a regression takes.
+    position spelled `poi_position` is exactly the shape a regression takes.
     Copy a real command-input file, splice the reference in, and re-run the
     production scan over the copy.
     """
-    original = (TERMINAL / "law.py").read_text("utf-8")
+    original = (FINAL_APPROACH / "law.py").read_text("utf-8")
     allowed = GYRO_RATE_ALLOWANCES.get("law.py", frozenset())
     assert not _forbidden_inputs(ast.parse(original), allowed)
     injected = original.replace(
         "class VisionNavLaw:",
         "class VisionNavLaw:\n"
         "    def _leak(self, frame):\n"
-        "        return frame.target_position\n",
+        "        return frame.poi_position\n",
         1,
     )
     assert injected != original
     fixture = tmp_path / "law.py"
     fixture.write_text(injected, "utf-8")
     hits = _forbidden_inputs(ast.parse(fixture.read_text("utf-8")), allowed)
-    assert [hit for hit in hits if hit.startswith("target_position@")], hits
+    assert [hit for hit in hits if hit.startswith("poi_position@")], hits
 
 
 def test_guard_rejects_truth_position_spellings() -> None:
@@ -499,27 +500,27 @@ def test_guard_rejects_truth_position_spellings() -> None:
     bad = ast.parse("""
 def leak(frame, lat_deg, tgt_pos, sim_state, dist_to_tgt):
     return (
-        frame.target_position, frame.position_ned, frame.truth_position,
+        frame.poi_position, frame.position_ned, frame.truth_position,
         frame.home_position, frame.gps_coords, frame.latlon_deg,
-        frame.lon_deg, frame.ecef_x, frame.target_coordinate,
+        frame.lon_deg, frame.ecef_x, frame.poi_coordinate,
         frame.tgt_height_px, lat_deg, tgt_pos, sim_state,
-        frame.target_north_m, frame.target_east_m, frame.target_down_m,
-        frame.distance_to_target, frame.slant_dist, frame.target_lat,
-        frame.pixel_target_position, dist_to_tgt,
-        frame.target_world_xyz, frame.world_x, frame.earth_frame_x,
-        frame.absolute_target_x,
-        getattr(frame, "target_pos"),
+        frame.poi_north_m, frame.poi_east_m, frame.poi_down_m,
+        frame.distance_to_poi, frame.slant_dist, frame.poi_lat,
+        frame.pixel_poi_position, dist_to_tgt,
+        frame.poi_world_xyz, frame.world_x, frame.earth_frame_x,
+        frame.absolute_target_x, frame.target_position, frame.target_lat,
+        getattr(frame, "poi_pos"),
     )
 """)
     hits = {hit.split("@", 1)[0] for hit in _forbidden_inputs(bad)}
     assert {
-        "target_position", "position_ned", "truth_position", "home_position",
-        "gps_coords", "latlon_deg", "lon_deg", "ecef_x", "target_coordinate",
-        "tgt_height_px", "lat_deg", "tgt_pos", "sim_state", "target_pos",
-        "target_north_m", "target_east_m", "target_down_m", "target_lat",
-        "distance_to_target", "slant_dist", "dist_to_tgt",
-        "pixel_target_position", "target_world_xyz", "world_x",
-        "earth_frame_x", "absolute_target_x",
+        "poi_position", "position_ned", "truth_position", "home_position",
+        "gps_coords", "latlon_deg", "lon_deg", "ecef_x", "poi_coordinate",
+        "tgt_height_px", "lat_deg", "tgt_pos", "sim_state", "poi_pos",
+        "poi_north_m", "poi_east_m", "poi_down_m", "poi_lat",
+        "distance_to_poi", "slant_dist", "dist_to_tgt",
+        "pixel_poi_position", "poi_world_xyz", "world_x",
+        "earth_frame_x", "absolute_target_x", "target_position", "target_lat",
     } <= hits
 
 
@@ -529,15 +530,15 @@ def test_truth_position_guard_spares_frame_local_and_lateral_names() -> None:
     `lat` is the codebase's abbreviation for LATERAL, not latitude, so it is
     forbidden only beside a coordinate unit or a truth subject. Pixel/image
     positions are frame-local vision output and stay legal per AGENTS.md --
-    the companion `pixel_target_position` case in the reject test pins that
+    the companion `pixel_poi_position` case in the reject test pins that
     the exemption does not launder a truth subject.
     """
     good = ast.parse("""
 def keep(frame, state, next_state, origin, lat_gyro_term):
     return (
         LAT_GYRO_TERM_ENV, LAT_GYRO_DELAY_ENV, resolve_lat_gyro_delay_s,
-        LateralRateState, VisualPassState, TerminalPlanOrigin, DetectedObject,
-        frame.target_passed_override, frame.pixel_position, frame.image_pos,
+        LateralRateState, VisualPassState, FinalApproachPlanOrigin, DetectedObject,
+        frame.poi_passed_override, frame.pixel_position, frame.image_pos,
         frame.body_x, frame.control_y, frame.air_speed_mps,
         frame.aircraft_pitch_deg, frame.aircraft_roll_deg,
         frame.inertial_los_rate_deg_s, frame.raw_inertial_rate_rad_s,

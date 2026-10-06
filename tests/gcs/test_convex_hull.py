@@ -628,16 +628,16 @@ class TestFenceInclusion(unittest.TestCase):
         self.assertTrue(_covers(fence, self.ZONE, [self.LONG_PATH]))
         self.assertTrue(_all_inside(self.ZONE + self.LONG_PATH, fence))
 
-    def test_target_circle_shapes_the_fence(self):
-        """A target (assigned DOCK / simulated target) contributes a circle of
+    def test_poi_circle_shapes_the_fence(self):
+        """A POI (assigned DOCK / simulated POI) contributes a circle of
         orbit radius; the margin expands on top (orbit + margin total)."""
         dock = {"lat": 32.005, "lon": 34.020}  # ~850 m east of the zone
         fence = _fence_incl(self.ZONE, [], [dock], margin=100, orbit=300)
-        # A point 350 m east of the target: inside orbit(300)+margin(100).
+        # A point 350 m east of the POI: inside orbit(300)+margin(100).
         self.assertTrue(_pip({"lat": 32.005, "lon": 34.0241}, fence))
-        # Without the target the same point is far outside the zone fence.
-        no_target = _fence_incl(self.ZONE, [], [], margin=100, orbit=300)
-        self.assertFalse(_pip({"lat": 32.005, "lon": 34.0241}, no_target))
+        # Without the POI the same point is far outside the zone fence.
+        no_poi = _fence_incl(self.ZONE, [], [], margin=100, orbit=300)
+        self.assertFalse(_pip({"lat": 32.005, "lon": 34.0241}, no_poi))
 
 
 class TestClosestEdgeIndex(unittest.TestCase):

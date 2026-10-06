@@ -8,7 +8,7 @@ from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
-from navpy.modules.vision.lost_target_bridge import LostTargetBridge
+from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
 from navpy.modules.vision.models.detect_request import DetectRequest
 from navpy.modules.vision.models.detect_response import DetectResponse
 from navpy.modules.vision.real_detector_diagnostics import (
@@ -27,23 +27,23 @@ from navpy.modules.vision.real_detector_state import (
     InferenceGeneration,
     PipelineMutationGate,
 )
-from navpy.modules.vision.target_lock import TargetLock
-from navpy.modules.vision.target_priority import prioritize_targets
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_lock import PoiLock
+from navpy.modules.vision.poi_priority import prioritize_pois
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 from navpy.modules.vision.track_identity import TrackIdentityResolver
 from navpy.modules.vision.tracker_backends import TrackerBackend
 
 
 class DetectorTrackingControl:
-    """Own target-lock and gimbal detection/zoom command forwarding."""
+    """Own POI-lock and gimbal detection/zoom command forwarding."""
 
     def __init__(
         self,
         navigation: GimbalTrackingCommandPort | None,
-        target_lock: TargetLock,
+        poi_lock: PoiLock,
     ) -> None:
         self._navigation = navigation
-        self._target_lock = target_lock
+        self._poi_lock = poi_lock
 
     @property
     def rate_result(self) -> GimbalTrackResult | None:
@@ -69,27 +69,27 @@ class DetectorTrackingControl:
         if self._navigation is not None:
             self._navigation.set_zoom_size_demand(enabled)
 
-    def freeze_terminal_zoom_at_min(self) -> bool:
+    def freeze_final_approach_zoom_at_min(self) -> bool:
         if self._navigation is None:
             return True
-        return self._navigation.freeze_terminal_zoom_at_min()
+        return self._navigation.freeze_final_approach_zoom_at_min()
 
     def start_tracking(self, obj_id: int) -> None:
         if obj_id < 0:
             raise ValueError(
                 f"Detector.start_tracking requires obj_id >= 0, got {obj_id}"
             )
-        self._target_lock.force_lock(obj_id)
+        self._poi_lock.force_lock(obj_id)
         if self._navigation is None:
             return
         try:
             self._navigation.start_tracking(obj_id)
         except Exception:
-            self._target_lock.reset()
+            self._poi_lock.reset()
             raise
 
     def stop_tracking(self, to_neutral: bool = True) -> None:
-        self._target_lock.reset()
+        self._poi_lock.reset()
         if self._navigation is not None:
             self._navigation.stop_tracking(to_neutral=to_neutral)
 
@@ -102,11 +102,11 @@ class DetectorGeoControl:
 
     def start_geo_tracking(
         self,
-        target_loc: Location,
+        poi_loc: Location,
         geo_ref: GeoRefCalc,
     ) -> None:
         if self._navigation is not None:
-            self._navigation.start_geo_tracking(target_loc, geo_ref)
+            self._navigation.start_geo_tracking(poi_loc, geo_ref)
 
     def update_geo(self, uav_loc: Location, uav_att: Attitude) -> None:
         if self._navigation is not None:
@@ -156,30 +156,30 @@ class DetectionQuery:
         self,
         results: DetectionResultStore,
         freshness: FreshnessPolicy,
-        target_lock: TargetLock,
-        use_target_lock: bool,
+        poi_lock: PoiLock,
+        use_poi_lock: bool,
     ) -> None:
         self._results = results
         self._freshness = freshness
-        self._target_lock = target_lock
-        self._use_target_lock = bool(use_target_lock)
+        self._poi_lock = poi_lock
+        self._use_poi_lock = bool(use_poi_lock)
 
     def get_detect_data(self, request: DetectRequest) -> DetectResponse:
-        if request.force_lock_id is not None and self._use_target_lock:
-            self._target_lock.force_lock(request.force_lock_id)
-        if request.force_lock_bbox_cxcywh is not None and self._use_target_lock:
-            self._target_lock.force_lock_bbox(request.force_lock_bbox_cxcywh)
-        targets, primary = self._results.snapshot()
+        if request.force_lock_id is not None and self._use_poi_lock:
+            self._poi_lock.force_lock(request.force_lock_id)
+        if request.force_lock_bbox_cxcywh is not None and self._use_poi_lock:
+            self._poi_lock.force_lock_bbox(request.force_lock_bbox_cxcywh)
+        pois, primary = self._results.snapshot()
         now_s = time.time()
-        targets = [
-            target
-            for target in targets
-            if self._freshness.is_fresh(target, now_s)
+        pois = [
+            poi
+            for poi in pois
+            if self._freshness.is_fresh(poi, now_s)
         ]
         if primary is not None and not self._freshness.is_fresh(primary, now_s):
             primary = None
-        ordered = prioritize_targets(targets, primary)
-        return DetectResponse(ordered, primary_target=primary)
+        ordered = prioritize_pois(pois, primary)
+        return DetectResponse(ordered, primary_poi=primary)
 
 
 class DetectorResetController:
@@ -193,8 +193,8 @@ class DetectorResetController:
         confirmation_frames: ConfirmationFrameStore,
         tracker: TrackerBackend,
         identity: TrackIdentityResolver,
-        target_lock: TargetLock,
-        bridge: LostTargetBridge,
+        poi_lock: PoiLock,
+        bridge: LostPoiBridge,
         mutation_gate: PipelineMutationGate,
     ) -> None:
         self._run_state = run_state
@@ -203,7 +203,7 @@ class DetectorResetController:
         self._confirmation_frames = confirmation_frames
         self._tracker = tracker
         self._identity = identity
-        self._target_lock = target_lock
+        self._poi_lock = poi_lock
         self._bridge = bridge
         self._mutation_gate = mutation_gate
 
@@ -217,7 +217,7 @@ class DetectorResetController:
             self._confirmation_frames.clear()
             self._tracker.reset()
             self._identity.reset()
-            self._target_lock.reset()
+            self._poi_lock.reset()
             self._bridge.reset()
             self._inference_generation.invalidate()
 

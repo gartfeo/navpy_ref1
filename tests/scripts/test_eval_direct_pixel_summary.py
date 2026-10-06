@@ -42,7 +42,7 @@ def test_summary_counts_goal_only_from_scored_runs() -> None:
 def test_summary_gate_counts_accuracy_not_overall_validity() -> None:
     """The live 10x case: certified truth CPA within the gate, but the run
     invalidated by the freshness floor. The gate counter is an accuracy
-    statistic -- the miss distance was measured and was inside the gate --
+    statistic -- the approach error was measured and was inside the gate --
     while overall `passed` stays False."""
     summary = summary_module.summarize(
         [_row(True, passed=False, valid=False)],

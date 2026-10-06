@@ -186,7 +186,7 @@ def test_a_pose_delay_arm_waits_for_its_full_depth_before_flying():
 
     The deque starts empty, so its oldest retained pose is the CURRENT one on
     the first call: an N=3 arm would apply 0, then 1, then 2 poses of delay
-    while the scoring interval clock started, the target was placed and scoring
+    while the scoring interval clock started, the POI was placed and scoring
     began -- the same onset contamination already fixed for the continuous-lag
     arm, still present on this path. Depth 1 is the undelayed arm and must not
     be made to wait for anything.

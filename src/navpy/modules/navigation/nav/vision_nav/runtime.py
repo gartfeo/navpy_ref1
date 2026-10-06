@@ -13,36 +13,36 @@ from navpy.modules.navigation.navigation_command_slot import (
     NavigationCommandSlot,
 )
 from navpy.modules.navigation.nav.vision_nav.command_executor import (
-    TerminalCommandExecutor,
-    TerminalCommandWork,
+    FinalApproachCommandExecutor,
+    FinalApproachCommandWork,
 )
 from navpy.modules.navigation.nav.vision_nav.command_hold import (
-    TerminalCommandHoldIssuer,
-    TerminalHeldIssue,
+    FinalApproachCommandHoldIssuer,
+    FinalApproachHeldIssue,
 )
 from navpy.modules.navigation.nav.vision_nav.command_liveness import (
-    TerminalCommandLiveness,
+    FinalApproachCommandLiveness,
 )
 from navpy.modules.navigation.nav.vision_nav.command_reset import (
-    TerminalCommandReset,
+    FinalApproachCommandReset,
 )
-from navpy.modules.navigation.nav.vision_nav.ingress import TerminalIngress
-from navpy.modules.navigation.nav.vision_nav.queued_frame import TerminalQueuedFrame
-from navpy.modules.navigation.nav.vision_nav.runtime_state import TerminalRuntimeStatus
+from navpy.modules.navigation.nav.vision_nav.ingress import FinalApproachIngress
+from navpy.modules.navigation.nav.vision_nav.queued_frame import FinalApproachQueuedFrame
+from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
 from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
 from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassDetector
 from navpy.modules.vision.models.detect_data import DetectedObject
 
 
-class TerminalCommandWorkRuntime:
+class FinalApproachCommandWorkRuntime:
     """Own command admission, leases, execution, and zero-order hold work."""
 
     def __init__(
         self,
         slot: NavigationCommandSlot,
-        ingress: TerminalIngress,
-        executor: TerminalCommandExecutor,
-        hold: TerminalCommandHoldIssuer,
+        ingress: FinalApproachIngress,
+        executor: FinalApproachCommandExecutor,
+        hold: FinalApproachCommandHoldIssuer,
     ) -> None:
         self._slot = slot
         self._ingress = ingress
@@ -55,30 +55,30 @@ class TerminalCommandWorkRuntime:
     def has_command_pending_or_in_flight(self) -> bool:
         return self._slot.has_pending_or_in_flight() or self._hold.available
 
-    def take_work(self) -> TerminalCommandWork | TerminalHeldCommandWork | None:
+    def take_work(self) -> FinalApproachCommandWork | FinalApproachHeldCommandWork | None:
         lease = self._slot.take_or_else(
             lambda: _HELD_COMMAND if self._hold.available else None
         )
         if lease is None:
             return None
         if lease.payload is _HELD_COMMAND:
-            return TerminalHeldCommandWork(lease)
-        if not isinstance(lease.payload, TerminalQueuedFrame):
+            return FinalApproachHeldCommandWork(lease)
+        if not isinstance(lease.payload, FinalApproachQueuedFrame):
             self._slot.finish(lease)
             return None
         payload = lease.payload
-        return TerminalCommandWork(payload.frame, payload.diagnostic_token, lease)
+        return FinalApproachCommandWork(payload.frame, payload.diagnostic_token, lease)
 
     def execute_work(
         self,
-        work: TerminalCommandWork | TerminalHeldCommandWork,
+        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
     ) -> CalcData | None:
-        if isinstance(work, TerminalHeldCommandWork):
+        if isinstance(work, FinalApproachHeldCommandWork):
             issue = self._slot.execute_if_current(
                 work.lease,
                 self._hold.issue,
             )
-            if not isinstance(issue, TerminalHeldIssue):
+            if not isinstance(issue, FinalApproachHeldIssue):
                 return None
             self._hold.record(issue)
             return issue.command.calc_data()
@@ -86,30 +86,30 @@ class TerminalCommandWorkRuntime:
 
     def finish_work(
         self,
-        work: TerminalCommandWork | TerminalHeldCommandWork,
+        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
     ) -> None:
         self._slot.finish(work.lease)
 
     def postprocess_job(
         self,
-        work: TerminalCommandWork | TerminalHeldCommandWork,
+        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
     ) -> Callable[[], None] | None:
-        if isinstance(work, TerminalCommandWork):
+        if isinstance(work, FinalApproachCommandWork):
             return self._executor.postprocess_job(work)
         return None
 
 
-class TerminalSessionRuntime:
-    """Own terminal lifecycle, source continuity, liveness, and status state."""
+class FinalApproachSessionRuntime:
+    """Own final-approach lifecycle, source continuity, liveness, and status state."""
 
     def __init__(
         self,
         lock: threading.RLock,
         epochs: SourceEpochLedger,
-        command_reset: TerminalCommandReset,
+        command_reset: FinalApproachCommandReset,
         visual_pass: VisualPassDetector,
-        status: TerminalRuntimeStatus,
-        liveness: TerminalCommandLiveness,
+        status: FinalApproachRuntimeStatus,
+        liveness: FinalApproachCommandLiveness,
     ) -> None:
         self._lock = lock
         self._epochs = epochs
@@ -137,7 +137,7 @@ class TerminalSessionRuntime:
             if changed:
                 self._command_reset.invalidate_commands()
 
-    def target_passed_override(self) -> bool:
+    def poi_passed_override(self) -> bool:
         with self._lock:
             return self._visual_pass.passed
 
@@ -146,12 +146,12 @@ class TerminalSessionRuntime:
 
 
 class VisionNavRuntime:
-    """Expose the two focused terminal runtime capabilities."""
+    """Expose the two focused final-approach runtime capabilities."""
 
     def __init__(
         self,
-        commands: TerminalCommandWorkRuntime,
-        session: TerminalSessionRuntime,
+        commands: FinalApproachCommandWorkRuntime,
+        session: FinalApproachSessionRuntime,
     ) -> None:
         self._commands = commands
         self._session = session
@@ -162,24 +162,24 @@ class VisionNavRuntime:
     def has_command_pending_or_in_flight(self) -> bool:
         return self._commands.has_command_pending_or_in_flight()
 
-    def take_work(self) -> TerminalCommandWork | TerminalHeldCommandWork | None:
+    def take_work(self) -> FinalApproachCommandWork | FinalApproachHeldCommandWork | None:
         return self._commands.take_work()
 
     def execute_work(
         self,
-        work: TerminalCommandWork | TerminalHeldCommandWork,
+        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
     ) -> CalcData | None:
         return self._commands.execute_work(work)
 
     def finish_work(
         self,
-        work: TerminalCommandWork | TerminalHeldCommandWork,
+        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
     ) -> None:
         self._commands.finish_work(work)
 
     def postprocess_job(
         self,
-        work: TerminalCommandWork | TerminalHeldCommandWork,
+        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
     ) -> Callable[[], None] | None:
         return self._commands.postprocess_job(work)
 
@@ -198,15 +198,15 @@ class VisionNavRuntime:
     ) -> None:
         self._session.clear_source_discontinuity_state(source_names)
 
-    def target_passed_override(self) -> bool:
-        return self._session.target_passed_override()
+    def poi_passed_override(self) -> bool:
+        return self._session.poi_passed_override()
 
     def last_measured_lateral_bearing_deg(self) -> float | None:
         return self._session.last_measured_lateral_bearing_deg()
 
 
 @dataclass(frozen=True)
-class TerminalHeldCommandWork:
+class FinalApproachHeldCommandWork:
     lease: NavigationCommandLease
 
 
@@ -214,8 +214,8 @@ _HELD_COMMAND = object()
 
 
 __all__ = [
-    "TerminalCommandWorkRuntime",
-    "TerminalHeldCommandWork",
-    "TerminalSessionRuntime",
+    "FinalApproachCommandWorkRuntime",
+    "FinalApproachHeldCommandWork",
+    "FinalApproachSessionRuntime",
     "VisionNavRuntime",
 ]

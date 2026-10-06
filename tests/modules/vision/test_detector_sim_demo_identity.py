@@ -1,4 +1,4 @@
-"""Simultaneous two-target identity through DetectorSim -> DetectionCoordinator.
+"""Simultaneous two-POI identity through DetectorSim -> DetectionCoordinator.
 
 Live run 004227 permuted the 3-UAV demo assignments because NavController's
 plain sensing request was built as ``DetectRequest(True)``: after the request
@@ -8,7 +8,7 @@ visible. With the plain ``DetectRequest()`` NavController now sends, the demo
 identity contract must hold from geometry alone when obj0 (WP2, orbit-centered)
 and obj1 (WP3, offset peer) are visible in the same frame:
 
-- the orbit-centered target obj0 is the primary/owner target,
+- the orbit-centered POI obj0 is the primary/owner POI,
 - task ids are allocated in navigation task order: obj0 -> task 1, obj1 -> task 2,
 
 which is the fixed task-to-waypoint mapping the GCS demo evaluator checks.
@@ -38,7 +38,7 @@ UAV_LNG = 44.43
 UAV_ALT = 1500.0
 
 
-class TestSimultaneousTwoTargetDemoIdentity(unittest.TestCase):
+class TestSimultaneousTwoPoiDemoIdentity(unittest.TestCase):
     """obj0 centered + obj1 offset, both in one frame, real projection path."""
 
     def setUp(self):
@@ -72,45 +72,45 @@ class TestSimultaneousTwoTargetDemoIdentity(unittest.TestCase):
             zc_util=None,
         )
 
-        # Demo frame: the owner orbits its own target, so obj0 (WP2) sits on
+        # Demo frame: the owner orbits its own POI, so obj0 (WP2) sits on
         # the camera axis (level flight, gimbal -45deg, ground 1500 m below and
         # 1500 m ahead) while obj1 (WP3) is visible but offset to the side.
-        self._detector.set_sim_target(1, self._ground_target(north_m=1500.0, east_m=0.0))
-        self._detector.set_sim_target(2, self._ground_target(north_m=1500.0, east_m=350.0))
+        self._detector.set_sim_poi(1, self._ground_poi(north_m=1500.0, east_m=0.0))
+        self._detector.set_sim_poi(2, self._ground_poi(north_m=1500.0, east_m=350.0))
 
-        self._detector.detect_targets(
+        self._detector.detect_pois(
             Location(UAV_LAT, UAV_LNG, UAV_ALT), Attitude(0, 0, 0),
             frame_timestamp_s=1.0,
         )
 
         self._coordinator = DetectionCoordinator([self._detector], Mock())
 
-    def _ground_target(self, north_m: float, east_m: float) -> Location:
+    def _ground_poi(self, north_m: float, east_m: float) -> Location:
         lat, lng, alt = pymap3d.ned2geodetic(
             north_m, east_m, UAV_ALT, UAV_LAT, UAV_LNG, UAV_ALT,
         )
         # home_location.alt is 0, so this relative altitude is also absolute.
         return Location(lat, lng, alt)
 
-    def test_plain_request_keeps_centered_target_as_owner(self):
+    def test_plain_request_keeps_centered_poi_as_owner(self):
         """The exact NavController sensing request must give owner WP2/obj0."""
         resp = self._coordinator.get_detect_data(DetectRequest())
 
-        self.assertEqual(len(resp.detected_targets), 2)
-        self.assertIsNotNone(resp.primary_target)
-        self.assertEqual(resp.primary_target.identity.obj_id, 0)
-        self.assertIs(resp.detected_targets[0], resp.primary_target)
+        self.assertEqual(len(resp.detected_pois), 2)
+        self.assertIsNotNone(resp.primary_poi)
+        self.assertEqual(resp.primary_poi.identity.obj_id, 0)
+        self.assertIs(resp.detected_pois[0], resp.primary_poi)
 
     def test_plain_request_allocates_demo_task_mapping(self):
         """Task ids must follow navigation task order: obj0->task1, obj1->task2."""
         resp = self._coordinator.get_detect_data(DetectRequest())
 
         task_by_obj = {
-            target.identity.obj_id: target.identity.task_id
-            for target in resp.detected_targets
+            poi.identity.obj_id: poi.identity.task_id
+            for poi in resp.detected_pois
         }
         self.assertEqual(task_by_obj, {0: 1, 1: 2})
-        self.assertEqual(resp.primary_target.identity.task_id, 1)
+        self.assertEqual(resp.primary_poi.identity.task_id, 1)
 
     def test_boolean_request_reproduces_the_fixed_permutation_bug(self):
         """``DetectRequest(True)`` means force_lock_id=1 and permutes the owner.
@@ -122,8 +122,8 @@ class TestSimultaneousTwoTargetDemoIdentity(unittest.TestCase):
         """
         resp = self._coordinator.get_detect_data(DetectRequest(True))
 
-        self.assertEqual(resp.primary_target.identity.obj_id, 1)
-        self.assertEqual(resp.primary_target.identity.task_id, 1)
+        self.assertEqual(resp.primary_poi.identity.obj_id, 1)
+        self.assertEqual(resp.primary_poi.identity.task_id, 1)
 
 
 if __name__ == "__main__":

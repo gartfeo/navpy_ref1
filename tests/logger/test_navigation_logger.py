@@ -54,24 +54,24 @@ def _loc_from_ned(
 
 class TestClosestHorizontalProjection(unittest.TestCase):
     def test_horizontal_projection_differs_from_3d(self):
-        target = Location(40.0, 44.0, 100.0, is_absolute=True)
+        poi = Location(40.0, 44.0, 100.0, is_absolute=True)
         start = Location(40.0001, 44.0, 150.0, is_absolute=True)
         end = Location(39.9999, 44.0, 100.0, is_absolute=True)
 
-        _, horizontal_3d, _, _, _ = closest_on_segment(start, end, target)
-        horizontal_min, _ = closest_horizontal_on_segment(start, end, target)
+        _, horizontal_3d, _, _, _ = closest_on_segment(start, end, poi)
+        horizontal_min, _ = closest_horizontal_on_segment(start, end, poi)
 
         self.assertLessEqual(horizontal_min, horizontal_3d + 0.1)
 
     def test_horizontal_min_at_segment_midpoint(self):
-        target = Location(40.0, 44.0, 100.0, is_absolute=True)
+        poi = Location(40.0, 44.0, 100.0, is_absolute=True)
         start = Location(40.001, 43.999, 150.0, is_absolute=True)
         end = Location(40.001, 44.001, 120.0, is_absolute=True)
 
         horizontal_min, _ = closest_horizontal_on_segment(
             start,
             end,
-            target,
+            poi,
         )
 
         self.assertGreater(horizontal_min, 50)
@@ -115,29 +115,29 @@ class TestClosestHorizontalProjection(unittest.TestCase):
         self.assertEqual(same.status().count("["), 1)
         self.assertIn("1.0m", different.status())
 
-    def test_3d_closest_is_uav_to_target(self):
-        target = Location(40.0, 44.0, 100.0, is_absolute=True)
+    def test_3d_closest_is_uav_to_poi(self):
+        poi = Location(40.0, 44.0, 100.0, is_absolute=True)
         start = Location(40.001, 44.0, 100.0, is_absolute=True)
         end = Location(39.999, 44.0, 100.0, is_absolute=True)
 
         closest, h_dist, v_dist, slant, _ = closest_on_segment(
             start,
             end,
-            target,
+            poi,
         )
 
         self.assertLess(slant, 5.0)
         self.assertLess(h_dist, 5.0)
         self.assertLess(v_dist, 1.0)
-        self.assertAlmostEqual(closest.lat, target.lat, places=4)
-        self.assertAlmostEqual(closest.lng, target.lng, places=4)
+        self.assertAlmostEqual(closest.lat, poi.lat, places=4)
+        self.assertAlmostEqual(closest.lng, poi.lng, places=4)
 
     def test_snap_session_updates_without_primary_log(self):
         session = _snap_session()
         current = Location(40.0001, 44.0, 100.0, is_absolute=True)
-        target = Location(40.0, 44.0, 100.0, is_absolute=True)
+        poi = Location(40.0, 44.0, 100.0, is_absolute=True)
 
-        session.sample(current, target)
+        session.sample(current, poi)
         snap = session.snapshot()
 
         self.assertLess(snap.dist, float("inf"))
@@ -146,11 +146,11 @@ class TestClosestHorizontalProjection(unittest.TestCase):
 
 class TestClosestPointComponents(unittest.TestCase):
     def test_components_are_track_frame_errors_at_3d_closest_point(self):
-        target = Location(40.0, 44.0, 100.0, is_absolute=True)
-        start = _loc_from_ned(target, -10.0, 2.0, -3.0)
-        end = _loc_from_ned(target, 10.0, 2.0, -3.0)
+        poi = Location(40.0, 44.0, 100.0, is_absolute=True)
+        start = _loc_from_ned(poi, -10.0, 2.0, -3.0)
+        end = _loc_from_ned(poi, 10.0, 2.0, -3.0)
 
-        components = closest_point_components_on_segment(start, end, target)
+        components = closest_point_components_on_segment(start, end, poi)
 
         self.assertAlmostEqual(components.lateral, 2.0, delta=0.02)
         self.assertAlmostEqual(components.longitudinal, 0.0, delta=0.02)
@@ -163,13 +163,13 @@ class TestClosestPointComponents(unittest.TestCase):
         )
 
     def test_snap_session_records_component_scores(self):
-        target = Location(40.0, 44.0, 100.0, is_absolute=True)
-        start = _loc_from_ned(target, -10.0, 2.0, -3.0)
-        end = _loc_from_ned(target, 10.0, 2.0, -3.0)
+        poi = Location(40.0, 44.0, 100.0, is_absolute=True)
+        start = _loc_from_ned(poi, -10.0, 2.0, -3.0)
+        end = _loc_from_ned(poi, 10.0, 2.0, -3.0)
         session = _snap_session()
 
-        session.sample(start, target)
-        session.sample(end, target)
+        session.sample(start, poi)
+        session.sample(end, poi)
         snap = session.snapshot()
 
         self.assertTrue(snap.has_components())

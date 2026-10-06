@@ -39,7 +39,7 @@ def test_zero_wind_ideal_vision_hits_strictly() -> None:
             wind_dir_from_deg=0.0,
         )
     )
-    assert miss.passed_target
+    assert miss.passed_poi
     assert not miss.timed_out
     assert miss.slant_m < 0.25
 
@@ -57,7 +57,7 @@ def test_visual_pn_rejects_unmodeled_flight_path_pitch_offset() -> None:
         )
     )
 
-    assert miss.passed_target
+    assert miss.passed_poi
     assert not miss.timed_out
     assert miss.slant_m < 1.0
 
@@ -72,7 +72,7 @@ def test_crosswind_challenge_is_deterministic_and_bounded() -> None:
     first = run_case(case)
     second = run_case(case)
     assert first == second
-    assert first.passed_target
+    assert first.passed_poi
     assert first.slant_m < 10.0
 
 
@@ -94,7 +94,7 @@ def test_navigation_only_variants_keep_strict_component_miss() -> None:
 
     for case in cases:
         miss = run_case(case)
-        assert miss.passed_target, case.name
+        assert miss.passed_poi, case.name
         assert not miss.timed_out, case.name
         # 0.001, not 0.002. The bound was relaxed alongside the removal of the
         # directly-astern case, but nothing here needed it: the worst lateral
@@ -106,13 +106,13 @@ def test_navigation_only_variants_keep_strict_component_miss() -> None:
         assert miss.vertical_m < 0.02, case.name
 
 
-def test_terminal_pn_does_not_claim_rear_hemisphere_acquisition() -> None:
+def test_final_approach_pn_does_not_claim_rear_hemisphere_acquisition() -> None:
     """DIRECTLY ASTERN AND RADIALLY RECEDING, which is narrower than the name.
 
     This is not a statement about the rear hemisphere. The law acquires at 118
     deg bearing and hits -- see
     `test_far_off_boresight_ideal_360_acquisition_converges` below. What it
-    cannot do is the degenerate case pinned here: a target exactly astern, on a
+    cannot do is the degenerate case pinned here: a POI exactly astern, on a
     reciprocal bearing, receding radially. PN commands on LOS RATE, and that
     geometry presents none, so there is nothing to turn on.
 
@@ -137,7 +137,7 @@ def test_terminal_pn_does_not_claim_rear_hemisphere_acquisition() -> None:
         attitude_time_constant_s=0.01,
     ))
 
-    assert not miss.passed_target
+    assert not miss.passed_poi
     assert miss.timed_out
     # Behavioral pin, not just flags: closest approach is the first command
     # interval at full starting range -- the aircraft never turned back.
@@ -162,7 +162,7 @@ def test_ideal_pixel_navigation_crosswind_is_symmetric_and_tightly_bounded() -> 
     assert right == run_case(beam_right)
     assert left == run_case(beam_left)
     assert quarter == run_case(quartering)
-    assert right.passed_target and left.passed_target and quarter.passed_target
+    assert right.passed_poi and left.passed_poi and quarter.passed_poi
     assert not right.timed_out and not left.timed_out and not quarter.timed_out
     assert right.slant_m == pytest.approx(left.slant_m, abs=1e-9)
     assert right.lateral_m == pytest.approx(left.lateral_m, abs=1e-9)
@@ -173,8 +173,8 @@ def test_ideal_pixel_navigation_crosswind_is_symmetric_and_tightly_bounded() -> 
 
 def test_far_off_boresight_ideal_360_acquisition_converges() -> None:
     horizontal_range_m = 1750.0
-    target_bearing_deg = 118.0
-    bearing_rad = math.radians(target_bearing_deg)
+    poi_bearing_deg = 118.0
+    bearing_rad = math.radians(poi_bearing_deg)
     miss = run_case(
         _case(
             "far-right-rear-ideal-360-acquisition",
@@ -188,13 +188,13 @@ def test_far_off_boresight_ideal_360_acquisition_converges() -> None:
             attitude_time_constant_s=0.5,
         )
     )
-    assert miss.passed_target
+    assert miss.passed_poi
     assert not miss.timed_out
     assert miss.lateral_m < 0.15
     assert miss.slant_m < 0.5
 
 
-def test_coaltitude_cross_track_horizon_reconstruction_hits_target() -> None:
+def test_coaltitude_cross_track_horizon_reconstruction_hits_poi() -> None:
     miss = run_case(
         _case(
             "coaltitude-cross-track-horizon",
@@ -204,6 +204,6 @@ def test_coaltitude_cross_track_horizon_reconstruction_hits_target() -> None:
             max_t_s=40.0,
         )
     )
-    assert miss.passed_target
+    assert miss.passed_poi
     assert not miss.timed_out
     assert miss.slant_m < 0.5

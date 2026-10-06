@@ -10,22 +10,22 @@ import pytest
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.nav.vision_nav.confirmation import (
-    TerminalConfirmation, TerminalConfirmationPorts,
+    FinalApproachConfirmation, FinalApproachConfirmationPorts,
 )
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
-    TerminalFrameProjector, TerminalProjectionConfig,
+    FinalApproachFrameProjector, FinalApproachProjectionConfig,
 )
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.modules.navigation.nav.vision_nav.law_config import (
-    FixedTerminalLawConfigProvider, TerminalLawConfig,
+    FixedFinalApproachLawConfigProvider, FinalApproachLawConfig,
 )
 from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.detection_publication_store import DetectionPublicationStore
 from navpy.modules.vision.sim.frame_generation_gate import FrameGenerationGate
 from navpy.modules.vision.sim.ideal_pose_source import IdealPoseSample
-from navpy.modules.vision.sim.ideal_target_projector import (
-    IdealTargetProjector, UasFrameConvention,
+from navpy.modules.vision.sim.ideal_poi_projector import (
+    IdealPoiProjector, UasFrameConvention,
 )
 from navpy.modules.vision.sim.pose_associator import PoseAssociator
 from navpy.modules.vision.sim.pose_inbox import PoseInbox
@@ -33,7 +33,7 @@ from navpy.modules.vision.sim.sim_camera_ports import FrameSize
 from navpy.modules.vision.sim.sim_detector_execution import SimDetectorExecution
 from navpy.modules.vision.sim.sim_detector_state import ForcedGapState, SimCaptureState
 from navpy.modules.vision.sim.sim_render_composition import build_pipeline
-from navpy.modules.vision.sim.sim_target_projector import SimTargetProjector
+from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
 from navpy.modules.vision.sim.source_frame_coordinator import SourceFrameCoordinator
 from navpy.modules.vision.simulation_object import SimulationObject
 
@@ -68,14 +68,14 @@ def _render_associated_frame(body_rates, compass_yaw):
         body_rates[:] = [8.0, 9.0, 10.0]
     attitude_sample.body_rates_rad_s = (11.0, 12.0, 13.0)
 
-    projector = IdealTargetProjector(
+    projector = IdealPoiProjector(
         SimpleNamespace(read=lambda: GimbalData(Attitude(0, 0, 0), name="ideal")),
         FrameSize(2560, 1440), UasFrameConvention("ZYX", True), lambda: 12.5,
     )
-    target = SimulationObject(
+    poi = SimulationObject(
         1, Location(40.001, 44.0, 900.0, is_absolute=True), 0,
     )
-    dispatcher = SimTargetProjector(True, Mock(), projector)
+    dispatcher = SimPoiProjector(True, Mock(), projector)
     store = DetectionPublicationStore(source_driven=True, capacity=4)
     coordinator = SourceFrameCoordinator(
         gate=gate, inbox=PoseInbox(4), publications=store,
@@ -96,8 +96,8 @@ def _render_associated_frame(body_rates, compass_yaw):
         SimpleNamespace(
             capture=SimCaptureState(), gap=ForcedGapState(), evidence_recorder=None,
             tracking=SimpleNamespace(tracking_obj_id=None), projector=dispatcher,
-            target_provider=SimpleNamespace(snapshot=lambda: (target,)),
-            publications=SimpleNamespace(source_name=lambda targets: "ideal"),
+            poi_provider=SimpleNamespace(snapshot=lambda: (poi,)),
+            publications=SimpleNamespace(source_name=lambda pois: "ideal"),
         ),
     )
 
@@ -108,30 +108,30 @@ def _render_associated_frame(body_rates, compass_yaw):
         ),
         polling_pose_reader=Mock(), error=errors, cadence_lease=Mock(),
         scheduler_period_s=0.02, ideal_360=True,
-        detect_targets=pipeline.detect_targets, record_outcome=Mock(),
+        detect_pois=pipeline.detect_pois, record_outcome=Mock(),
     )
     execution.run()
     errors.assert_not_called()
     publications = store.drain()
     assert len(publications) == 1
-    detections = publications[0].detected_targets
+    detections = publications[0].detected_pois
     assert len(detections) == 1
     return pose, detections[0]
 
 
 def _confirmation():
-    return TerminalConfirmation(TerminalConfirmationPorts(
+    return FinalApproachConfirmation(FinalApproachConfirmationPorts(
         lock=threading.RLock(),
-        projector=TerminalFrameProjector(TerminalProjectionConfig("ZYX", True)),
+        projector=FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True)),
         epochs=SourceEpochLedger(),
-        law=VisionNavLaw(FixedTerminalLawConfigProvider(
-            TerminalLawConfig(-55.0, 20.0, 45.0, None, 0.0),
+        law=VisionNavLaw(FixedFinalApproachLawConfigProvider(
+            FinalApproachLawConfig(-55.0, 20.0, 45.0, None, 0.0),
         )),
     ))
 
 
 @pytest.mark.parametrize("compass_yaw", [0.0, 137.0])
-def test_ideal_source_retains_frame_gyros_for_terminal_confirmation(compass_yaw):
+def test_ideal_source_retains_frame_gyros_for_final_approach_confirmation(compass_yaw):
     pose, detection = _render_associated_frame([0.1, 0.2, 0.3], compass_yaw)
     # The real confirmation gate previously refused every ideal source frame.
     confirmation = _confirmation()
@@ -140,7 +140,7 @@ def test_ideal_source_retains_frame_gyros_for_terminal_confirmation(compass_yaw)
     assert pose.body_rates_rad_s == (0.1, 0.2, 0.3)
     expected = (0.2 * math.sin(math.radians(10)) + 0.3 * math.cos(math.radians(10))) / math.cos(math.radians(2))
     assert detection.pixel.aircraft_yaw_rate_rad_s == pytest.approx(expected)
-    assert confirmation.record_terminal_confirmed_detection(detection)
+    assert confirmation.record_final_approach_confirmed_detection(detection)
 
 
 def test_ideal_source_without_frame_gyros_remains_unconfirmable():

@@ -63,17 +63,17 @@ class ConfirmationRoundRunner:
 
     def run(
         self,
-        target: DetectedObject,
+        poi: DetectedObject,
         worker: ConfirmationWorkerLease,
     ) -> None:
         network = self._network()
         if network is None:
             self._state.set_worker_status(worker, ConfirmationStatus.CONFIRMED)
             return
-        request = self._request_message(target, worker.target_id)
+        request = self._request_message(poi, worker.poi_id)
         request.set_meta_from_provider()
         confirmation = self._state.begin_round(
-            target,
+            poi,
             worker,
             self._event_factory,
             ConfirmationRequestRef.from_meta(request.meta),
@@ -83,10 +83,10 @@ class ConfirmationRoundRunner:
         try:
             try:
                 self._logger.info(
-                    f"Sending confirm request for T{confirmation.target_id}.",
+                    f"Sending confirm request for P{confirmation.poi_id}.",
                     key="nav_state",
                     status=(
-                        f"T{confirmation.target_id} requesting confirmation"
+                        f"P{confirmation.poi_id} requesting confirmation"
                     ),
                     dest=LogStatusDest.DRONE,
                 )
@@ -98,18 +98,18 @@ class ConfirmationRoundRunner:
                 first_send = self._monotonic()
                 if not self._state.send_if_current(
                     confirmation,
-                    lambda: self._media.send(target, confirmation.target_id),
+                    lambda: self._media.send(poi, confirmation.poi_id),
                 ):
                     return
             except _OUTBOUND_ERRORS as exc:
                 self._logger.error(
-                    f"Failed to send confirm request for target "
-                    f"{confirmation.target_id}: {exc}",
+                    f"Failed to send confirm request for POI "
+                    f"{confirmation.poi_id}: {exc}",
                     exc,
                 )
                 self._state.complete_round(
                     confirmation,
-                    self._failure_policy.status(confirmation.target_id),
+                    self._failure_policy.status(confirmation.poi_id),
                 )
                 return
 
@@ -120,7 +120,7 @@ class ConfirmationRoundRunner:
                     ConfirmationStatus.CONFIRMED,
                 ):
                     self._logger.warning(
-                        f"T{confirmation.target_id} Confirmed. No wait time.",
+                        f"P{confirmation.poi_id} Confirmed. No wait time.",
                         key="nav_state",
                         dest=LogStatusDest.DRONE,
                     )
@@ -128,7 +128,7 @@ class ConfirmationRoundRunner:
 
             deadline = first_send + wait_time_s
             self._wait_for_response(confirmation, request, deadline)
-            status = self._failure_policy.status(confirmation.target_id)
+            status = self._failure_policy.status(confirmation.poi_id)
             if not self._state.complete_round(confirmation, status):
                 return
             label = (
@@ -137,11 +137,11 @@ class ConfirmationRoundRunner:
                 else "auto-rejected (timeout)"
             )
             self._logger.info(
-                f"Target {confirmation.target_id} {label} after waiting "
+                f"POI {confirmation.poi_id} {label} after waiting "
                 f"{wait_time_s}s.",
                 key="nav_state",
                 status=(
-                    f"T{confirmation.target_id} {label} after "
+                    f"P{confirmation.poi_id} {label} after "
                     f"{wait_time_s}s."
                 ),
             )
@@ -175,8 +175,8 @@ class ConfirmationRoundRunner:
                 )
             except _OUTBOUND_ERRORS as exc:
                 self._logger.error(
-                    f"Failed to resend confirm request for target "
-                    f"{confirmation.target_id}: {exc}",
+                    f"Failed to resend confirm request for POI "
+                    f"{confirmation.poi_id}: {exc}",
                     exc,
                 )
                 continue
@@ -185,20 +185,20 @@ class ConfirmationRoundRunner:
 
     def _request_message(
         self,
-        target: DetectedObject,
-        target_id: Optional[int],
+        poi: DetectedObject,
+        poi_id: Optional[int],
     ) -> TaskConfirmRequestMsg:
-        if target_id is None:
-            raise ValueError("confirmation request requires a target id")
-        source = target.geo.projected_target_location
+        if poi_id is None:
+            raise ValueError("confirmation request requires a POI id")
+        source = poi.geo.projected_poi_location
         location = (
             LocationMsgData(source.lat, source.lng, source.alt)
             if source is not None
             else LocationMsgData(0.0, 0.0, 0.0)
         )
-        class_id = target.classification.class_id
+        class_id = poi.classification.class_id
         task = TaskMsgData(
-            task_id=target_id,
+            task_id=poi_id,
             task_type=class_to_task_type(class_id),
             location=location,
             class_id=class_id,

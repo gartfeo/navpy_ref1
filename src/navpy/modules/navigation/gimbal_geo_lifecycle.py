@@ -42,7 +42,7 @@ class GimbalGeoLifecycle:
 
     def start(
         self,
-        target_loc: Location | None,
+        poi_loc: Location | None,
         geo_ref: GeoRefCalc | None,
     ) -> None:
         if self._neutral is None:
@@ -51,10 +51,10 @@ class GimbalGeoLifecycle:
                 "(no neutral source for stop cleanup)"
             )
             return
-        if target_loc is None or geo_ref is None:
+        if poi_loc is None or geo_ref is None:
             self._warn(
                 "start_geo_tracking ignored - missing argument "
-                f"(target_loc={target_loc}, geo_ref={geo_ref})"
+                f"(poi_loc={poi_loc}, geo_ref={geo_ref})"
             )
             return
         with self._gate.lock:
@@ -65,12 +65,12 @@ class GimbalGeoLifecycle:
                         "start geo tracking while detection is armed "
                         f"(obj_id={self._detection.tracking_obj_id})"
                     )
-                previous_target = self._geo.target
-            is_swap = previous_target is not None
+                previous_poi = self._geo.poi
+            is_swap = previous_poi is not None
             if not is_swap:
                 self._hardware.gimbal.set_motion_mode(MODE_LOCK)
             with self._fence.lock:
-                self._geo.target = target_loc
+                self._geo.poi = poi_loc
                 self._geo.geo_ref = geo_ref
                 self._geo.zoom_key = None
                 self._geo.last_ray_log_key = None
@@ -78,19 +78,19 @@ class GimbalGeoLifecycle:
         if is_swap:
             self._log(
                 "start_geo_tracking swap "
-                f"(prev_target={previous_target}, target={target_loc})"
+                f"(prev_poi={previous_poi}, poi={poi_loc})"
             )
             return
-        self._log(f"start_geo_tracking target={target_loc} mode=LOCK")
+        self._log(f"start_geo_tracking poi={poi_loc} mode=LOCK")
 
     def stop(self) -> None:
         with self._gate.lock:
             with self._fence.lock:
-                previous_target = self._geo.target
+                previous_poi = self._geo.poi
                 reset_zoom = self._geo.zoom_key is not None
                 self._geo.clear()
                 self._fence.generation += 1
-            if previous_target is None:
+            if previous_poi is None:
                 return
             if reset_zoom:
                 self._zoom.reset_to_min()
@@ -99,7 +99,7 @@ class GimbalGeoLifecycle:
             except GIMBAL_COMMAND_ERRORS as exc:
                 self._warn(f"geo return_to_neutral failed: {exc}")
         self._log(
-            f"stop_geo_tracking prev_target={previous_target} mode=FOLLOW"
+            f"stop_geo_tracking prev_poi={previous_poi} mode=FOLLOW"
         )
 
     def _log(self, message: str) -> None:

@@ -62,7 +62,7 @@ class TestGcsStopBandResolution(unittest.TestCase):
         mstop.assert_called_once()
         self.assertEqual(mstop.call_args.args[0], self.ev["chat_index"])
 
-    def test_eval_teardown_never_targets_the_interactive_slot(self):
+    def test_eval_teardown_never_pois_the_interactive_slot(self):
         # The exact regression: eval-band teardown must not resolve/stop the
         # interactive slot in the same directory.
         _, mstop = self._run(["--eval"])

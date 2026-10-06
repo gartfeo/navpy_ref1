@@ -23,76 +23,76 @@ from navpy.modules.navigation.navigation_command_worker import (
     NavigationCommandWorkerPorts,
 )
 from navpy.modules.navigation.nav.nav_law_factory import (
-    VehicleTerminalLawConfigProvider,
+    VehicleFinalApproachLawConfigProvider,
 )
 from navpy.modules.navigation.nav.vision_nav.command_executor import (
-    TerminalCommandExecutor,
-    TerminalExecutorPorts,
+    FinalApproachCommandExecutor,
+    FinalApproachExecutorPorts,
 )
 from navpy.modules.navigation.nav.vision_nav.command_anchor import (
-    TerminalLimits,
+    FinalApproachLimits,
 )
 from navpy.modules.navigation.nav.vision_nav.command_freshness import (
-    TERMINAL_COMMAND_MAX_SOURCE_AGE_S,
-    TerminalCommandFreshness,
+    FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
+    FinalApproachCommandFreshness,
 )
-from navpy.modules.navigation.nav.vision_nav.command_hold import TerminalCommandHold
+from navpy.modules.navigation.nav.vision_nav.command_hold import FinalApproachCommandHold
 from navpy.modules.navigation.nav.vision_nav.command_liveness import (
-    TerminalCommandLiveness,
+    FinalApproachCommandLiveness,
 )
 from navpy.modules.navigation.nav.vision_nav.command_postprocess import (
-    TerminalPostprocessFence,
+    FinalApproachPostprocessFence,
 )
 from navpy.modules.navigation.nav.vision_nav.command_reset import (
-    TerminalCommandReset,
-    TerminalCommandResetPorts,
+    FinalApproachCommandReset,
+    FinalApproachCommandResetPorts,
 )
 from navpy.modules.navigation.nav.vision_nav.command_transaction import (
-    TerminalCommandOutcome,
-    TerminalCommandResult,
-    TerminalCommandTransaction,
-    TerminalLawEvidence,
+    FinalApproachCommandOutcome,
+    FinalApproachCommandResult,
+    FinalApproachCommandTransaction,
+    FinalApproachLawEvidence,
 )
 from navpy.modules.navigation.nav.vision_nav.confirmation import (
-    TerminalConfirmation,
-    TerminalConfirmationPorts,
+    FinalApproachConfirmation,
+    FinalApproachConfirmationPorts,
 )
 from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
-    TerminalDiagnosticMailbox,
+    FinalApproachDiagnosticMailbox,
 )
 from navpy.modules.navigation.nav.vision_nav.diagnostics import (
-    NavigationTerminalDiagnostics,
-    TerminalDiagnosticSnapshot,
+    NavigationFinalApproachDiagnostics,
+    FinalApproachDiagnosticSnapshot,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import TerminalVisionFrame
+from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.ingress import (
-    TerminalIngress,
-    TerminalIngressPorts,
+    FinalApproachIngress,
+    FinalApproachIngressPorts,
 )
 from navpy.modules.navigation.nav.vision_nav.law import (
-    FixedTerminalLawConfigProvider,
+    FixedFinalApproachLawConfigProvider,
     ROLL_LIMIT_CAP_DEG,
-    TerminalLawConfig,
+    FinalApproachLawConfig,
     VisionNavLaw,
 )
-from navpy.modules.navigation.nav.vision_nav.law_plan import TerminalPlanOrigin
+from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachPlanOrigin
 from navpy.modules.navigation.nav.vision_nav.runtime import (
-    TerminalCommandWorkRuntime,
-    TerminalSessionRuntime,
+    FinalApproachCommandWorkRuntime,
+    FinalApproachSessionRuntime,
     VisionNavRuntime,
 )
 from navpy.modules.navigation.nav.vision_nav.runtime_composition import (
-    TerminalVehicleDiagnosticReader,
-    compose_terminal_runtime,
+    FinalApproachVehicleDiagnosticReader,
+    compose_final_approach_runtime,
 )
-from navpy.modules.navigation.nav.vision_nav.runtime_state import TerminalRuntimeStatus
+from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
 from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
 from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassDetector
 
 
 @dataclass
-class RichTarget:
-    frame: TerminalVisionFrame
+class RichPoi:
+    frame: FinalApproachVisionFrame
     pixel: object | None = None
     optics: object = field(default_factory=lambda: _DiagnosticOptics())
     geo: object = field(default_factory=lambda: _DiagnosticGeo())
@@ -152,19 +152,19 @@ class _DiagnosticOptics:
 @dataclass(frozen=True)
 class _DiagnosticGeo:
     is_simulation: bool = False
-    truth_target_location: object | None = None
+    truth_poi_location: object | None = None
     camera_location: object | None = None
 
 
 class Projector:
     @staticmethod
-    def source_name(target):
-        return target.frame.source_name
+    def source_name(poi):
+        return poi.frame.source_name
 
     @staticmethod
-    def project(target, generation, air_speed_mps=None):
-        frame = target.frame
-        return TerminalVisionFrame(
+    def project(poi, generation, air_speed_mps=None):
+        frame = poi.frame
+        return FinalApproachVisionFrame(
             frame.source_name, generation, frame.task_id, frame.obj_id,
             frame.source_timestamp_s, *frame.body_ray, *frame.control_ray,
             frame.aircraft_roll_deg,
@@ -189,11 +189,11 @@ class Diagnostics:
         self.records = []
         self.fail = False
 
-    def capture(self, frame, target, result):
+    def capture(self, frame, poi, result):
         assert not self.lock._is_owned()
         if self.fail:
             raise ValueError("diagnostics failed")
-        return frame, target, result
+        return frame, poi, result
 
     def record(self, diagnostic):
         self.records.append(diagnostic)
@@ -220,12 +220,12 @@ def _ray(yaw_deg=0.0, down_deg=0.0):
 def _frame(ts, *, body=None, control=None, source="cam", generation=0):
     body = body or _ray()
     control = control or body
-    return TerminalVisionFrame(
+    return FinalApproachVisionFrame(
         source, generation, 1, 2, ts, *body, *control,
     )
 
 
-_DEFAULT_CONFIG = TerminalLawConfig(-55.0, 25.0, 45.0, 0.5, None)
+_DEFAULT_CONFIG = FinalApproachLawConfig(-55.0, 25.0, 45.0, 0.5, None)
 
 
 def _runtime(
@@ -238,42 +238,42 @@ def _runtime(
 ):
     lock = threading.RLock()
     slot = NavigationCommandSlot(lock, command_event or threading.Event())
-    mailbox = TerminalDiagnosticMailbox()
+    mailbox = FinalApproachDiagnosticMailbox()
     epochs = SourceEpochLedger()
     law = law_override or VisionNavLaw(
-        FixedTerminalLawConfigProvider(config)
+        FixedFinalApproachLawConfigProvider(config)
     )
     visual_pass = VisualPassDetector()
-    status = TerminalRuntimeStatus()
+    status = FinalApproachRuntimeStatus()
     actuator = Actuator()
     source_time = source_time or _SourceTimeObserver()
-    liveness = TerminalCommandLiveness()
-    postprocess_fence = TerminalPostprocessFence()
-    freshness = TerminalCommandFreshness(wall_period_s)
-    hold = TerminalCommandHold(actuator, source_time, liveness, freshness)
+    liveness = FinalApproachCommandLiveness()
+    postprocess_fence = FinalApproachPostprocessFence()
+    freshness = FinalApproachCommandFreshness(wall_period_s)
+    hold = FinalApproachCommandHold(actuator, source_time, liveness, freshness)
     diagnostics = (
         Diagnostics(lock)
         if diagnostics_factory is None
         else diagnostics_factory(lock)
     )
-    command_reset = TerminalCommandReset(TerminalCommandResetPorts(
+    command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock, slot, mailbox, hold, law, visual_pass, status, liveness,
         postprocess_fence,
     ))
-    ingress = TerminalIngress(TerminalIngressPorts(
+    ingress = FinalApproachIngress(FinalApproachIngressPorts(
         lock, slot, Projector(), epochs, mailbox, source_time, command_reset,
     ))
-    confirmation = TerminalConfirmation(TerminalConfirmationPorts(
+    confirmation = FinalApproachConfirmation(FinalApproachConfirmationPorts(
         lock, Projector(), epochs, law,
     ))
-    transaction = TerminalCommandTransaction(law, visual_pass, actuator)
-    executor = TerminalCommandExecutor(TerminalExecutorPorts(
+    transaction = FinalApproachCommandTransaction(law, visual_pass, actuator)
+    executor = FinalApproachCommandExecutor(FinalApproachExecutorPorts(
         slot, transaction, mailbox, diagnostics, status, source_time, hold,
         liveness, freshness, postprocess_fence,
     ))
     runtime = VisionNavRuntime(
-        TerminalCommandWorkRuntime(slot, ingress, executor, hold),
-        TerminalSessionRuntime(
+        FinalApproachCommandWorkRuntime(slot, ingress, executor, hold),
+        FinalApproachSessionRuntime(
             lock, epochs, command_reset, visual_pass, status, liveness,
         ),
     )
@@ -299,7 +299,7 @@ def _run_postprocess(runtime, work):
 def test_production_composition_shares_one_hold_across_command_owners():
     lock = threading.RLock()
     slot = NavigationCommandSlot(lock, threading.Event())
-    built = compose_terminal_runtime(
+    built = compose_final_approach_runtime(
         lock=lock,
         slot=slot,
         sys_id=121,
@@ -331,7 +331,7 @@ def test_production_composition_shares_one_hold_across_command_owners():
 def test_empty_autopilot_tick_reissues_cached_primitive_command():
     runtime, actuator, _diagnostics, _mailbox = _runtime()
     assert runtime.nav(
-        RichTarget(_frame(1.0, control=_ray(yaw_deg=4.0, down_deg=6.0)))
+        RichPoi(_frame(1.0, control=_ray(yaw_deg=4.0, down_deg=6.0)))
     )
     assert _execute_one(runtime) is not None
     fresh_command = actuator.calls[-1]
@@ -348,7 +348,7 @@ def test_empty_autopilot_tick_reissues_cached_primitive_command():
 
 def test_held_command_copies_primitives_from_mutable_fresh_result():
     runtime, actuator, _diagnostics, _mailbox = _runtime()
-    assert runtime.nav(RichTarget(_frame(1.0, control=_ray(yaw_deg=4.0))))
+    assert runtime.nav(RichPoi(_frame(1.0, control=_ray(yaw_deg=4.0))))
     fresh = _execute_one(runtime)
     assert fresh is not None
     issued = actuator.calls[-1]
@@ -365,15 +365,15 @@ def test_held_command_copies_primitives_from_mutable_fresh_result():
 
 def test_raw_source_age_expires_hold_and_latches_navigation_failure():
     source_now_s = [1.0]
-    target = RichTarget(
+    poi = RichPoi(
         _frame(1.0),
         timing=_DiagnosticTiming(detection_now_s=lambda: source_now_s[0]),
     )
     runtime, actuator, _diagnostics, _mailbox = _runtime()
-    assert runtime.nav(target)
+    assert runtime.nav(poi)
     assert _execute_one(runtime) is not None
 
-    source_now_s[0] = 1.0 + TERMINAL_COMMAND_MAX_SOURCE_AGE_S + 0.001
+    source_now_s[0] = 1.0 + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
     assert _execute_one(runtime) is None
 
     assert len(actuator.calls) == 1
@@ -383,14 +383,14 @@ def test_raw_source_age_expires_hold_and_latches_navigation_failure():
 
 
 def test_delayed_fresh_frame_fails_closed_before_first_actuation():
-    source_now_s = 1.0 + TERMINAL_COMMAND_MAX_SOURCE_AGE_S + 0.001
-    target = RichTarget(
+    source_now_s = 1.0 + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
+    poi = RichPoi(
         _frame(1.0),
         timing=_DiagnosticTiming(detection_now_s=lambda: source_now_s),
     )
     runtime, actuator, _diagnostics, _mailbox = _runtime()
 
-    assert runtime.nav(target)
+    assert runtime.nav(poi)
     assert _execute_one(runtime) is None
 
     assert actuator.calls == []
@@ -401,15 +401,15 @@ def test_delayed_fresh_frame_fails_closed_before_first_actuation():
 def test_each_continuously_stale_fresh_frame_relatches_liveness():
     runtime, actuator, _diagnostics, _mailbox = _runtime()
     for timestamp_s in (1.0, 2.0):
-        target = RichTarget(
+        poi = RichPoi(
             _frame(timestamp_s),
             timing=_DiagnosticTiming(
                 detection_now_s=lambda ts=timestamp_s: (
-                    ts + TERMINAL_COMMAND_MAX_SOURCE_AGE_S + 0.001
+                    ts + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
                 )
             ),
         )
-        assert runtime.nav(target)
+        assert runtime.nav(poi)
         assert _execute_one(runtime) is None
         assert runtime.consume_command_liveness_failure()
 
@@ -419,7 +419,7 @@ def test_each_continuously_stale_fresh_frame_relatches_liveness():
 @pytest.mark.parametrize("speedup", [0.5, 1.0, 3.0, 10.0])
 def test_frozen_source_clock_expires_on_speedup_scaled_receipt_age(speedup):
     receipt_now_s = [100.0]
-    target = RichTarget(
+    poi = RichPoi(
         _frame(5.0),
         timing=_DiagnosticTiming(
             detection_now_s=lambda: 5.0,
@@ -430,11 +430,11 @@ def test_frozen_source_clock_expires_on_speedup_scaled_receipt_age(speedup):
     runtime, actuator, _diagnostics, _mailbox = _runtime(
         wall_period_s=lambda period_s: period_s / speedup,
     )
-    assert runtime.nav(target)
+    assert runtime.nav(poi)
     assert _execute_one(runtime) is not None
 
     receipt_now_s[0] += (
-        TERMINAL_COMMAND_MAX_SOURCE_AGE_S / speedup + 0.001
+        FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S / speedup + 0.001
     )
     assert _execute_one(runtime) is None
 
@@ -445,7 +445,7 @@ def test_frozen_source_clock_expires_on_speedup_scaled_receipt_age(speedup):
 
 def test_hold_is_cleared_by_reset_discontinuity_and_stale_lease():
     runtime, actuator, _diagnostics, _mailbox = _runtime()
-    assert runtime.nav(RichTarget(_frame(1.0)))
+    assert runtime.nav(RichPoi(_frame(1.0)))
     assert _execute_one(runtime) is not None
 
     stale_hold = runtime.take_work()
@@ -459,7 +459,7 @@ def test_hold_is_cleared_by_reset_discontinuity_and_stale_lease():
 
 def test_held_actuator_failure_clears_the_cached_command():
     runtime, actuator, _diagnostics, _mailbox = _runtime()
-    assert runtime.nav(RichTarget(_frame(1.0)))
+    assert runtime.nav(RichPoi(_frame(1.0)))
     assert _execute_one(runtime) is not None
 
     actuator.fail = True
@@ -476,7 +476,7 @@ def test_held_actuator_failure_clears_the_cached_command():
 
 def test_reset_waits_for_held_issue_then_prevents_later_actuation():
     runtime, actuator, _diagnostics, _mailbox = _runtime()
-    assert runtime.nav(RichTarget(_frame(1.0)))
+    assert runtime.nav(RichPoi(_frame(1.0)))
     assert _execute_one(runtime) is not None
     entered = threading.Event()
     release = threading.Event()
@@ -567,7 +567,7 @@ def test_slower_source_still_calls_actuator_once_per_autopilot_slot(speedup):
         clock.now_s = math.nextafter(clock.now_s + duration_s, math.inf)
         source_now_s = clock.now_s * speedup
         while next_source_s <= source_now_s + 1e-12:
-            assert runtime.nav(RichTarget(_frame(next_source_s)))
+            assert runtime.nav(RichPoi(_frame(next_source_s)))
             next_source_s += source_period_s
 
     worker = NavigationCommandWorker(NavigationCommandWorkerPorts(
@@ -592,51 +592,51 @@ def test_slower_source_still_calls_actuator_once_per_autopilot_slot(speedup):
 
 def test_initial_aft_does_not_invent_an_acquisition_turn():
     runtime, actuator, _, _ = _runtime()
-    assert runtime.nav(RichTarget(_frame(1.0, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
+    assert runtime.nav(RichPoi(_frame(1.0, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
 
     result = _execute_one(runtime)
 
     assert result is not None
     assert actuator.calls[0][0] == 0.0
-    assert not runtime.target_passed_override()
+    assert not runtime.poi_passed_override()
 
 
 def test_duplicate_and_regressed_aft_frames_never_add_pass_evidence():
     runtime, actuator, _, _ = _runtime()
-    runtime.nav(RichTarget(_frame(1.0)))
+    runtime.nav(RichPoi(_frame(1.0)))
     _execute_one(runtime)
-    aft = RichTarget(_frame(2.0, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0)))
+    aft = RichPoi(_frame(2.0, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0)))
     runtime.nav(aft)
     assert _execute_one(runtime) is None
     assert runtime.nav(aft)
     assert runtime.take_work() is None
-    assert not runtime.nav(RichTarget(_frame(1.5, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
+    assert not runtime.nav(RichPoi(_frame(1.5, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
     assert runtime.take_work() is None
-    assert not runtime.target_passed_override()
+    assert not runtime.poi_passed_override()
     assert len(actuator.calls) == 1
 
 
 def test_second_fresh_aft_latches_pass_without_command():
     runtime, _, _, _ = _runtime()
-    runtime.nav(RichTarget(_frame(1.0)))
+    runtime.nav(RichPoi(_frame(1.0)))
     _execute_one(runtime)
     for ts in (2.0, 3.0):
-        runtime.nav(RichTarget(_frame(ts, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
+        runtime.nav(RichPoi(_frame(ts, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
         assert _execute_one(runtime) is None
-    assert runtime.target_passed_override()
+    assert runtime.poi_passed_override()
 
 
 def test_actuator_failure_mutates_neither_law_anchor_nor_pass_arm():
     runtime, actuator, _, mailbox = _runtime()
     actuator.fail = True
-    runtime.nav(RichTarget(_frame(1.0, control=_ray(down_deg=5.0))))
+    runtime.nav(RichPoi(_frame(1.0, control=_ray(down_deg=5.0))))
     with pytest.raises(RuntimeError, match="actuator failed"):
         _execute_one(runtime)
     assert mailbox.size == 0
     assert runtime.consume_command_liveness_failure()
 
     actuator.fail = False
-    runtime.nav(RichTarget(_frame(2.0, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
+    runtime.nav(RichPoi(_frame(2.0, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
     assert _execute_one(runtime) is not None
     assert len(actuator.calls) == 1
 
@@ -645,7 +645,7 @@ def test_diagnostic_failure_does_not_mask_actuator_failure():
     runtime, actuator, diagnostics, mailbox = _runtime()
     actuator.fail = True
     diagnostics.fail = True
-    runtime.nav(RichTarget(_frame(1.0)))
+    runtime.nav(RichPoi(_frame(1.0)))
 
     with pytest.raises(BaseExceptionGroup) as raised:
         _execute_one(runtime)
@@ -664,7 +664,7 @@ def test_missing_attitude_is_nonfatal_after_successful_command():
     class Reader:
         @staticmethod
         def read():
-            return TerminalDiagnosticSnapshot(attitude=None, location=None)
+            return FinalApproachDiagnosticSnapshot(attitude=None, location=None)
 
     compact = StringIO()
     debug = StringIO()
@@ -677,12 +677,12 @@ def test_missing_attitude_is_nonfatal_after_successful_command():
         streams=NavigationLogStreams(compact, debug),
     )
     runtime, actuator, _, mailbox = _runtime(
-        diagnostics_factory=lambda _lock: NavigationTerminalDiagnostics(
+        diagnostics_factory=lambda _lock: NavigationFinalApproachDiagnostics(
             navigation_logger,
             Reader(),
         )
     )
-    assert runtime.nav(RichTarget(_frame(1.0)))
+    assert runtime.nav(RichPoi(_frame(1.0)))
 
     result = _execute_one(runtime)
 
@@ -725,15 +725,15 @@ def test_telemetry_read_failures_are_independent_and_nonfatal_after_command():
         streams=NavigationLogStreams(compact, debug),
     )
     runtime, actuator, _, mailbox = _runtime(
-        diagnostics_factory=lambda _lock: NavigationTerminalDiagnostics(
+        diagnostics_factory=lambda _lock: NavigationFinalApproachDiagnostics(
             navigation_logger,
-            TerminalVehicleDiagnosticReader(
+            FinalApproachVehicleDiagnosticReader(
                 lambda: Vehicle().attitude,
                 lambda: Vehicle().location(False),
             ),
         )
     )
-    assert runtime.nav(RichTarget(_frame(1.0)))
+    assert runtime.nav(RichPoi(_frame(1.0)))
 
     result = _execute_one(runtime)
 
@@ -754,7 +754,7 @@ def test_telemetry_read_failures_are_independent_and_nonfatal_after_command():
 def test_diagnostic_failure_propagates_without_command_failure():
     runtime, actuator, diagnostics, mailbox = _runtime()
     diagnostics.fail = True
-    runtime.nav(RichTarget(_frame(1.0)))
+    runtime.nav(RichPoi(_frame(1.0)))
 
     with pytest.raises(ValueError, match="diagnostics failed"):
         _execute_one(runtime)
@@ -764,8 +764,8 @@ def test_diagnostic_failure_propagates_without_command_failure():
     assert len(actuator.calls) == 2
 
 
-def test_terminal_diagnostics_sample_every_command_but_rate_limit_compact_rows():
-    target_location = Location(40.0, 44.0, 100.0, is_absolute=True)
+def test_final_approach_diagnostics_sample_every_command_but_rate_limit_compact_rows():
+    poi_location = Location(40.0, 44.0, 100.0, is_absolute=True)
     locations = iter((
         Location(40.01, 44.0, 100.0, is_absolute=True),
         Location(40.001, 44.0, 100.0, is_absolute=True),
@@ -774,7 +774,7 @@ def test_terminal_diagnostics_sample_every_command_but_rate_limit_compact_rows()
     class Reader:
         @staticmethod
         def read():
-            return TerminalDiagnosticSnapshot(
+            return FinalApproachDiagnosticSnapshot(
                 attitude=None,
                 location=next(locations),
             )
@@ -788,23 +788,23 @@ def test_terminal_diagnostics_sample_every_command_but_rate_limit_compact_rows()
         timestamp=lambda: "12:00:00.000",
         streams=NavigationLogStreams(compact, debug),
     )
-    diagnostics = NavigationTerminalDiagnostics(navigation_logger, Reader())
-    result = TerminalCommandResult(
+    diagnostics = NavigationFinalApproachDiagnostics(navigation_logger, Reader())
+    result = FinalApproachCommandResult(
         CalcData(0.0, 0.0, 1.0, 2.0, None),
-        TerminalCommandOutcome.ISSUED,
+        FinalApproachCommandOutcome.ISSUED,
         False,
     )
-    target = RichTarget(
+    poi = RichPoi(
         _frame(1.0),
         geo=_DiagnosticGeo(
             is_simulation=True,
-            truth_target_location=target_location,
+            truth_poi_location=poi_location,
         ),
     )
 
-    diagnostics.record(diagnostics.capture(target.frame, target, result))
+    diagnostics.record(diagnostics.capture(poi.frame, poi, result))
     first_snap = navigation_logger.get_snap()
-    diagnostics.record(diagnostics.capture(target.frame, target, result))
+    diagnostics.record(diagnostics.capture(poi.frame, poi, result))
     second_snap = navigation_logger.get_snap()
 
     assert second_snap.dist < first_snap.dist
@@ -814,17 +814,17 @@ def test_terminal_diagnostics_sample_every_command_but_rate_limit_compact_rows()
     navigation_logger.close()
 
 
-def test_terminal_diagnostic_capture_is_immutable_before_async_record():
+def test_final_approach_diagnostic_capture_is_immutable_before_async_record():
     attitude = Attitude(-5.0, 12.0, 7.0)
     location = Location(40.0, 44.0, 100.0, is_absolute=True)
-    target_location = Location(40.001, 44.002, 90.0, is_absolute=True)
+    poi_location = Location(40.001, 44.002, 90.0, is_absolute=True)
     camera_location = Location(40.0, 44.0, 101.0, is_absolute=True)
     matrix = np.eye(3)
 
     class Reader:
         @staticmethod
         def read():
-            return TerminalDiagnosticSnapshot(attitude, location)
+            return FinalApproachDiagnosticSnapshot(attitude, location)
 
     class Optics:
         @staticmethod
@@ -834,26 +834,26 @@ def test_terminal_diagnostic_capture_is_immutable_before_async_record():
     logger = Mock()
     logger.capture_event_timestamp.return_value = "12:00:00.000"
     logger.log.return_value = True
-    target = RichTarget(
+    poi = RichPoi(
         _frame(1.0),
         pixel=_DiagnosticPixel(12, 34, 1.0),
         optics=Optics(),
-        geo=_DiagnosticGeo(True, target_location, camera_location),
+        geo=_DiagnosticGeo(True, poi_location, camera_location),
     )
-    result = TerminalCommandResult(
+    result = FinalApproachCommandResult(
         CalcData(0.0, 0.0, 3.0, -9.0, 0.55),
-        TerminalCommandOutcome.ISSUED,
+        FinalApproachCommandOutcome.ISSUED,
         False,
     )
-    diagnostics = NavigationTerminalDiagnostics(logger, Reader())
+    diagnostics = NavigationFinalApproachDiagnostics(logger, Reader())
 
-    captured = diagnostics.capture(target.frame, target, result)
+    captured = diagnostics.capture(poi.frame, poi, result)
     attitude.roll = 99.0
     location.lat = 50.0
-    target_location.lat = 51.0
+    poi_location.lat = 51.0
     camera_location.lat = 52.0
     matrix[0, 0] = 99.0
-    target.pixel = _DiagnosticPixel(98, 97, 1.0)
+    poi.pixel = _DiagnosticPixel(98, 97, 1.0)
     diagnostics.record(captured)
 
     sample = logger.log.call_args.kwargs
@@ -867,12 +867,12 @@ def test_terminal_diagnostic_capture_is_immutable_before_async_record():
     assert sample["k"].flags.writeable is False
 
 
-def test_terminal_diagnostics_record_separate_command_causality_event():
+def test_final_approach_diagnostics_record_separate_command_causality_event():
     logger = Mock()
     logger.capture_event_timestamp.return_value = "12:00:00.000"
     logger.log.return_value = True
-    diagnostics = NavigationTerminalDiagnostics(logger, Mock())
-    evidence = TerminalLawEvidence(
+    diagnostics = NavigationFinalApproachDiagnostics(logger, Mock())
+    evidence = FinalApproachLawEvidence(
         control_bearing_deg=3.0,
         lateral_rate_deg_s=0.0,
         aircraft_turn_rate_deg_s=0.0,
@@ -884,11 +884,11 @@ def test_terminal_diagnostics_record_separate_command_causality_event():
         control_elevation_deg=7.0,
         vertical_rate_deg_s=0.4,
         pitch_time_constant_s=0.5,
-        configured_limits=TerminalLimits(45.0, -55.0, 25.0),
-        effective_limits=TerminalLimits(35.0, -55.0, 3.0),
+        configured_limits=FinalApproachLimits(45.0, -55.0, 25.0),
+        effective_limits=FinalApproachLimits(35.0, -55.0, 3.0),
         raw_roll_deg=12.0,
         raw_pitch_deg=-7.6,
-        origin=TerminalPlanOrigin(
+        origin=FinalApproachPlanOrigin(
             reason="normal",
             anchor_cmd_roll_deg=11.0,
             anchor_cmd_pitch_deg=-7.0,
@@ -897,9 +897,9 @@ def test_terminal_diagnostics_record_separate_command_causality_event():
             vertical_nav_constant=4.0,
         ),
     )
-    result = TerminalCommandResult(
+    result = FinalApproachCommandResult(
         CalcData(0.0, 7.0, 12.0, -7.6, None),
-        TerminalCommandOutcome.ISSUED,
+        FinalApproachCommandOutcome.ISSUED,
         False,
         evidence,
     )
@@ -907,7 +907,7 @@ def test_terminal_diagnostics_record_separate_command_causality_event():
     captured = diagnostics.capture(_frame(1.0), None, result)
     diagnostics.record(captured)
 
-    assert logger.log_event.call_args_list[-1].args[0] is LogEvent.TERMINAL_RESPONSE_STATE
+    assert logger.log_event.call_args_list[-1].args[0] is LogEvent.FINAL_APPROACH_RESPONSE_STATE
     payload = logger.log_event.call_args_list[-1].args[1]
     assert payload["control_bearing_deg"] == 3.0
     assert payload["raw_roll_deg"] == 12.0
@@ -915,19 +915,19 @@ def test_terminal_diagnostics_record_separate_command_causality_event():
     assert payload["cmd_roll_deg"] == 12.0
 
 
-def test_terminal_reset_waits_for_owned_postprocess_before_state_reset():
+def test_final_approach_reset_waits_for_owned_postprocess_before_state_reset():
     lock = threading.RLock()
-    fence = TerminalPostprocessFence()
+    fence = FinalApproachPostprocessFence()
     fence.begin()
     slot = NavigationCommandSlot(lock, threading.Event())
     reset_observed = threading.Event()
     hold = Mock()
     law = Mock()
     law.reset.side_effect = reset_observed.set
-    reset = TerminalCommandReset(TerminalCommandResetPorts(
+    reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock,
         slot,
-        TerminalDiagnosticMailbox(),
+        FinalApproachDiagnosticMailbox(),
         hold,
         law,
         Mock(),
@@ -948,7 +948,7 @@ def test_terminal_reset_waits_for_owned_postprocess_before_state_reset():
 
 
 def test_pass_suppressed_frame_finishes_the_snap_segment_after_crossing():
-    target_location = Location(40.0, 44.0, 100.0, is_absolute=True)
+    poi_location = Location(40.0, 44.0, 100.0, is_absolute=True)
     locations = iter((
         Location(39.99999, 44.0, 100.0, is_absolute=True),
         Location(40.00001, 44.0, 100.0, is_absolute=True),
@@ -957,7 +957,7 @@ def test_pass_suppressed_frame_finishes_the_snap_segment_after_crossing():
     class Reader:
         @staticmethod
         def read():
-            return TerminalDiagnosticSnapshot(
+            return FinalApproachDiagnosticSnapshot(
                 attitude=None,
                 location=next(locations),
             )
@@ -972,28 +972,28 @@ def test_pass_suppressed_frame_finishes_the_snap_segment_after_crossing():
     # NavigationLogger owns a NavigationStreamWorker daemon (started on first
     # write); close it so the worker thread does not outlive the test.
     try:
-        diagnostics = NavigationTerminalDiagnostics(navigation_logger, Reader())
-        target = RichTarget(
+        diagnostics = NavigationFinalApproachDiagnostics(navigation_logger, Reader())
+        poi = RichPoi(
             _frame(1.0),
             geo=_DiagnosticGeo(
                 is_simulation=True,
-                truth_target_location=target_location,
+                truth_poi_location=poi_location,
             ),
         )
-        issued = TerminalCommandResult(
+        issued = FinalApproachCommandResult(
             CalcData(0.0, 0.0, 1.0, 2.0, None),
-            TerminalCommandOutcome.ISSUED,
+            FinalApproachCommandOutcome.ISSUED,
             False,
         )
-        suppressed = TerminalCommandResult(
+        suppressed = FinalApproachCommandResult(
             None,
-            TerminalCommandOutcome.PASS_SUPPRESSED,
+            FinalApproachCommandOutcome.PASS_SUPPRESSED,
             False,
         )
 
-        diagnostics.record(diagnostics.capture(target.frame, target, issued))
+        diagnostics.record(diagnostics.capture(poi.frame, poi, issued))
         before_crossing = navigation_logger.get_snap()
-        diagnostics.record(diagnostics.capture(target.frame, target, suppressed))
+        diagnostics.record(diagnostics.capture(poi.frame, poi, suppressed))
         after_crossing = navigation_logger.get_snap()
 
         assert before_crossing.dist > 1.0
@@ -1021,16 +1021,16 @@ def test_failed_second_command_preserves_first_raw_rate_anchor():
 
     def pitch_after(*, with_failure: bool) -> float:
         runtime, actuator, _, _ = _runtime()
-        runtime.nav(RichTarget(_frame(10.0, control=_ray(down_deg=5.0))))
+        runtime.nav(RichPoi(_frame(10.0, control=_ray(down_deg=5.0))))
         _execute_one(runtime)
         if with_failure:
             actuator.fail = True
-            runtime.nav(RichTarget(_frame(10.5, control=_ray(down_deg=30.0))))
+            runtime.nav(RichPoi(_frame(10.5, control=_ray(down_deg=30.0))))
             with pytest.raises(RuntimeError):
                 _execute_one(runtime)
             assert runtime.take_work() is None
             actuator.fail = False
-        runtime.nav(RichTarget(_frame(11.0, control=_ray(down_deg=7.0))))
+        runtime.nav(RichPoi(_frame(11.0, control=_ray(down_deg=7.0))))
         _execute_one(runtime)
         return actuator.calls[-1][1]
 
@@ -1041,13 +1041,13 @@ def test_failed_second_command_preserves_first_raw_rate_anchor():
 
 def test_mailbox_has_no_leaks_on_replace_reset_or_stale_inflight():
     runtime, _, _, mailbox = _runtime()
-    assert runtime.nav(RichTarget(_frame(1.0)))
-    assert runtime.nav(RichTarget(_frame(2.0)))
+    assert runtime.nav(RichPoi(_frame(1.0)))
+    assert runtime.nav(RichPoi(_frame(2.0)))
     assert mailbox.size == 1
     work = runtime.take_work()
     assert work is not None
     assert work.frame.source_timestamp_s == 2.0
-    runtime.nav(RichTarget(_frame(3.0)))
+    runtime.nav(RichPoi(_frame(3.0)))
     assert mailbox.size == 2
     runtime.reset_phase()
     assert mailbox.size == 1
@@ -1058,23 +1058,23 @@ def test_mailbox_has_no_leaks_on_replace_reset_or_stale_inflight():
 
 def test_runtime_discontinuity_restarts_only_named_source_epoch():
     runtime, _, _, _ = _runtime()
-    runtime.nav(RichTarget(_frame(100.0, source="a")))
+    runtime.nav(RichPoi(_frame(100.0, source="a")))
     _execute_one(runtime)
-    runtime.nav(RichTarget(_frame(100.0, source="b")))
+    runtime.nav(RichPoi(_frame(100.0, source="b")))
     _execute_one(runtime)
     runtime.clear_source_discontinuity_state("a")
 
-    assert runtime.nav(RichTarget(_frame(1.0, source="a")))
+    assert runtime.nav(RichPoi(_frame(1.0, source="a")))
     assert _execute_one(runtime) is not None
-    assert not runtime.nav(RichTarget(_frame(1.0, source="b")))
+    assert not runtime.nav(RichPoi(_frame(1.0, source="b")))
 
 
 def test_runtime_batch_discontinuity_is_unique_atomic_and_source_local():
     runtime, _, _, _ = _runtime()
     for source in ("a", "b", "c"):
-        assert runtime.nav(RichTarget(_frame(100.0, source=source)))
+        assert runtime.nav(RichPoi(_frame(100.0, source=source)))
         assert _execute_one(runtime) is not None
-    assert runtime.nav(RichTarget(_frame(101.0, source="a")))
+    assert runtime.nav(RichPoi(_frame(101.0, source="a")))
     stale_work = runtime.take_work()
     assert stale_work is not None
 
@@ -1084,19 +1084,19 @@ def test_runtime_batch_discontinuity_is_unique_atomic_and_source_local():
     runtime.finish_work(stale_work)
     _run_postprocess(runtime, stale_work)
     for source in ("a", "b"):
-        assert runtime.nav(RichTarget(_frame(1.0, source=source)))
+        assert runtime.nav(RichPoi(_frame(1.0, source=source)))
         assert _execute_one(runtime) is not None
-    assert not runtime.nav(RichTarget(_frame(1.0, source="c")))
+    assert not runtime.nav(RichPoi(_frame(1.0, source="c")))
 
 
 def test_unavailable_limits_suppress_command_and_confirmation_closed():
     runtime, actuator, _, mailbox = _runtime(config=None)
-    target = RichTarget(_frame(1.0))
+    poi = RichPoi(_frame(1.0))
 
-    assert runtime.nav(target)
+    assert runtime.nav(poi)
     assert _execute_one(runtime) is None
-    assert not runtime._test_confirmation.can_confirm_detection(target)
-    assert not runtime._test_confirmation.record_terminal_confirmed_detection(target)
+    assert not runtime._test_confirmation.can_confirm_detection(poi)
+    assert not runtime._test_confirmation.record_final_approach_confirmed_detection(poi)
     assert actuator.calls == []
     assert mailbox.size == 0
     assert runtime.consume_command_liveness_failure()
@@ -1119,10 +1119,10 @@ def test_unavailable_limits_cannot_arm_or_latch_visual_pass():
     )
 
     for frame in frames:
-        assert runtime.nav(RichTarget(frame))
+        assert runtime.nav(RichPoi(frame))
         assert _execute_one(runtime) is None
 
-    assert not runtime.target_passed_override()
+    assert not runtime.poi_passed_override()
     assert actuator.calls == []
     assert mailbox.size == 0
     assert runtime.consume_command_liveness_failure()
@@ -1156,15 +1156,15 @@ def test_parameter_read_exception_fails_closed_without_actuator(failed_name):
 
     args = type("Args", (), {"delivery_throttle": None})()
     law = VisionNavLaw(
-        VehicleTerminalLawConfigProvider(Vehicle(), args)
+        VehicleFinalApproachLawConfigProvider(Vehicle(), args)
     )
     runtime, actuator, _, mailbox = _runtime(law_override=law)
-    target = RichTarget(_frame(1.0))
+    poi = RichPoi(_frame(1.0))
 
     assert not law.available
-    assert runtime.nav(target)
+    assert runtime.nav(poi)
     assert _execute_one(runtime) is None
-    assert not runtime._test_confirmation.can_confirm_detection(target)
+    assert not runtime._test_confirmation.can_confirm_detection(poi)
     assert actuator.calls == []
     assert mailbox.size == 0
     assert runtime.consume_command_liveness_failure()
@@ -1180,12 +1180,12 @@ def test_mid_navigation_task_law_loss_clears_hold_and_latches_failure():
     provider = MutableConfigProvider()
     law = VisionNavLaw(provider)
     runtime, actuator, _, _ = _runtime(law_override=law)
-    assert runtime.nav(RichTarget(_frame(1.0)))
+    assert runtime.nav(RichPoi(_frame(1.0)))
     assert _execute_one(runtime) is not None
 
     provider.config = None
     runtime.reset_phase()
-    assert runtime.nav(RichTarget(_frame(2.0)))
+    assert runtime.nav(RichPoi(_frame(2.0)))
     assert _execute_one(runtime) is None
 
     assert len(actuator.calls) == 1
@@ -1197,7 +1197,7 @@ def test_valid_pass_suppression_does_not_require_available_limits():
     from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassState
 
     frame = _frame(1.0)
-    law = VisionNavLaw(FixedTerminalLawConfigProvider(None))
+    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(None))
     visual_pass = VisualPassDetector()
     visual_pass._state = VisualPassState(
         frame.continuity_key,
@@ -1206,12 +1206,12 @@ def test_valid_pass_suppression_does_not_require_available_limits():
         passed=True,
     )
     actuator = Actuator()
-    transaction = TerminalCommandTransaction(law, visual_pass, actuator)
+    transaction = FinalApproachCommandTransaction(law, visual_pass, actuator)
 
     result = transaction.execute(frame)
 
     assert not result.issued
-    assert result.outcome is TerminalCommandOutcome.PASS_SUPPRESSED
+    assert result.outcome is FinalApproachCommandOutcome.PASS_SUPPRESSED
     assert result.passed
     assert actuator.calls == []
 
@@ -1226,9 +1226,9 @@ def test_issued_command_carries_exact_frame_local_law_evidence():
     (`law.py:224-231`), which is why the frames now differ.
     """
     frame = _frame(2.0, control=_ray(yaw_deg=5.0, down_deg=7.0))
-    law = VisionNavLaw(FixedTerminalLawConfigProvider(_DEFAULT_CONFIG))
+    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(_DEFAULT_CONFIG))
     law.seed(_frame(1.0, control=_ray(yaw_deg=3.0, down_deg=5.0)))
-    transaction = TerminalCommandTransaction(law, VisualPassDetector(), Actuator())
+    transaction = FinalApproachCommandTransaction(law, VisualPassDetector(), Actuator())
 
     result = transaction.execute(frame)
 
@@ -1258,11 +1258,11 @@ def test_command_postprocess_preserves_frame_local_law_evidence():
     runtime, _, diagnostics, _ = _runtime()
 
     assert runtime.nav(
-        RichTarget(_frame(1.0, control=_ray(yaw_deg=3.0, down_deg=5.0)))
+        RichPoi(_frame(1.0, control=_ray(yaw_deg=3.0, down_deg=5.0)))
     )
     _execute_one(runtime)
     assert runtime.nav(
-        RichTarget(_frame(2.0, control=_ray(yaw_deg=5.0, down_deg=7.0)))
+        RichPoi(_frame(2.0, control=_ray(yaw_deg=5.0, down_deg=7.0)))
     )
     _execute_one(runtime)
 
@@ -1276,13 +1276,13 @@ def test_command_postprocess_preserves_frame_local_law_evidence():
 
 def test_confirmation_records_fresh_frame_without_command_then_nav_is_duplicate():
     runtime, actuator, _, _ = _runtime()
-    target = RichTarget(_frame(1.0, control=_ray(yaw_deg=5.0, down_deg=5.0)))
+    poi = RichPoi(_frame(1.0, control=_ray(yaw_deg=5.0, down_deg=5.0)))
     confirmation = runtime._test_confirmation
-    assert confirmation.can_confirm_detection(target)
-    assert confirmation.record_terminal_confirmed_detection(target)
-    assert not confirmation.can_confirm_detection(target)
-    assert not confirmation.record_terminal_confirmed_detection(target)
-    assert runtime.nav(target)
+    assert confirmation.can_confirm_detection(poi)
+    assert confirmation.record_final_approach_confirmed_detection(poi)
+    assert not confirmation.can_confirm_detection(poi)
+    assert not confirmation.record_final_approach_confirmed_detection(poi)
+    assert runtime.nav(poi)
     assert runtime.take_work() is None
     assert actuator.calls == []
 
@@ -1290,19 +1290,19 @@ def test_confirmation_records_fresh_frame_without_command_then_nav_is_duplicate(
 def test_delayed_confirmation_uses_the_newer_visual_command_immediately():
     runtime, actuator, _, _ = _runtime()
     confirmation = runtime._test_confirmation
-    reviewed = RichTarget(
+    reviewed = RichPoi(
         _frame(1.0, control=_ray(yaw_deg=5.0, down_deg=5.0))
     )
-    delayed = RichTarget(
+    delayed = RichPoi(
         _frame(2.0, control=_ray(yaw_deg=36.0, down_deg=5.0))
     )
 
     assert confirmation.can_confirm_detection(reviewed)
     assert confirmation.can_confirm_detection(delayed)
-    assert confirmation.record_terminal_confirmed_detection(delayed)
+    assert confirmation.record_final_approach_confirmed_detection(delayed)
     assert actuator.calls == []
 
-    next_frame = RichTarget(
+    next_frame = RichPoi(
         _frame(2.02, control=_ray(yaw_deg=35.0, down_deg=5.0))
     )
     assert runtime.nav(next_frame)
@@ -1330,7 +1330,7 @@ def test_raw_timestamp_commands_are_invariant_while_wall_cadence_scales():
         )
         runtime, actuator, _, _ = _runtime()
         for ts, down in ((1.0, 5.0), (1.2, 7.0), (1.4, 6.0)):
-            runtime.nav(RichTarget(_frame(ts, control=_ray(down_deg=down))))
+            runtime.nav(RichPoi(_frame(ts, control=_ray(down_deg=down))))
             _execute_one(runtime)
         sequences.append(tuple(actuator.calls))
         cadence.close()

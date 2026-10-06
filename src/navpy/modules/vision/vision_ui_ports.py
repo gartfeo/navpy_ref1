@@ -11,7 +11,7 @@ from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.vision.gimbal_rate_tracker import GimbalTrackResult
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.modules.vision.target_zoom_types import ZoomTrackResult
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 
 class AircraftAttitudeReader(Protocol):

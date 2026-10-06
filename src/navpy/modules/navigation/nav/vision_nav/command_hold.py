@@ -1,4 +1,4 @@
-"""Zero-order hold for primitive terminal actuator commands."""
+"""Zero-order hold for primitive final-approach actuator commands."""
 
 from __future__ import annotations
 
@@ -9,46 +9,46 @@ from typing import Callable, Protocol
 
 from navpy.modules.navigation.calc_data import CalcData
 from navpy.modules.navigation.nav.vision_nav.command_transaction import (
-    TerminalAttitudeActuator,
+    FinalApproachAttitudeActuator,
 )
 from navpy.modules.navigation.nav.vision_nav.command_freshness import (
-    TerminalCommandFreshness,
-    TerminalCommandTiming,
+    FinalApproachCommandFreshness,
+    FinalApproachCommandTiming,
 )
 from navpy.modules.navigation.nav.vision_nav.command_liveness import (
-    TerminalCommandFailureSink,
+    FinalApproachCommandFailureSink,
 )
 from navpy.modules.navigation.nav.vision_nav.source_time_ports import (
-    TerminalCommandSourceTimeObserver,
+    FinalApproachCommandSourceTimeObserver,
 )
 
 
-class TerminalCommandHoldStore(Protocol):
+class FinalApproachCommandHoldStore(Protocol):
     def remember(
         self,
         calc_data: CalcData,
         *,
-        timing: TerminalCommandTiming,
+        timing: FinalApproachCommandTiming,
     ) -> None: ...
 
     def clear(self) -> None: ...
 
 
-class TerminalCommandHoldIssuer(Protocol):
+class FinalApproachCommandHoldIssuer(Protocol):
     @property
     def available(self) -> bool: ...
 
-    def issue(self) -> "TerminalHeldIssue | None": ...
+    def issue(self) -> "FinalApproachHeldIssue | None": ...
 
-    def record(self, issue: "TerminalHeldIssue") -> None: ...
+    def record(self, issue: "FinalApproachHeldIssue") -> None: ...
 
 
 @dataclass(frozen=True)
-class TerminalHeldCommand:
+class FinalApproachHeldCommand:
     cmd_roll_deg: float
     cmd_pitch_deg: float
     throttle: float | None
-    timing: TerminalCommandTiming
+    timing: FinalApproachCommandTiming
 
     def calc_data(self) -> CalcData:
         return CalcData(
@@ -61,21 +61,21 @@ class TerminalHeldCommand:
 
 
 @dataclass(frozen=True)
-class TerminalHeldIssue:
-    command: TerminalHeldCommand
+class FinalApproachHeldIssue:
+    command: FinalApproachHeldCommand
     wall_start_s: float
     execution_ms: float
 
 
-class TerminalCommandHold:
+class FinalApproachCommandHold:
     """Reissue the last primitive output without re-running visual state."""
 
     def __init__(
         self,
-        actuator: TerminalAttitudeActuator,
-        source_time: TerminalCommandSourceTimeObserver,
-        failures: TerminalCommandFailureSink,
-        freshness: TerminalCommandFreshness,
+        actuator: FinalApproachAttitudeActuator,
+        source_time: FinalApproachCommandSourceTimeObserver,
+        failures: FinalApproachCommandFailureSink,
+        freshness: FinalApproachCommandFreshness,
         monotonic_s: Callable[[], float] = time.perf_counter,
     ) -> None:
         self._actuator = actuator
@@ -84,7 +84,7 @@ class TerminalCommandHold:
         self._freshness = freshness
         self._monotonic_s = monotonic_s
         self._lock = threading.RLock()
-        self._command: TerminalHeldCommand | None = None
+        self._command: FinalApproachHeldCommand | None = None
 
     @property
     def available(self) -> bool:
@@ -95,13 +95,13 @@ class TerminalCommandHold:
         self,
         calc_data: CalcData,
         *,
-        timing: TerminalCommandTiming,
+        timing: FinalApproachCommandTiming,
     ) -> None:
         if calc_data.cmd_roll is None or calc_data.cmd_pitch is None:
             self.clear()
             return
         with self._lock:
-            self._command = TerminalHeldCommand(
+            self._command = FinalApproachHeldCommand(
                 float(calc_data.cmd_roll),
                 float(calc_data.cmd_pitch),
                 None if calc_data.cmd_thr is None else float(calc_data.cmd_thr),
@@ -112,7 +112,7 @@ class TerminalCommandHold:
         with self._lock:
             self._command = None
 
-    def issue(self) -> TerminalHeldIssue | None:
+    def issue(self) -> FinalApproachHeldIssue | None:
         with self._lock:
             command = self._command
             if command is None:
@@ -128,7 +128,7 @@ class TerminalCommandHold:
                     command.throttle,
                 )
                 issued = True
-                return TerminalHeldIssue(
+                return FinalApproachHeldIssue(
                     command,
                     started_s,
                     (self._monotonic_s() - started_s) * 1000.0,
@@ -138,7 +138,7 @@ class TerminalCommandHold:
                     self._command = None
                     self._failures.mark_failed()
 
-    def record(self, issue: TerminalHeldIssue) -> None:
+    def record(self, issue: FinalApproachHeldIssue) -> None:
         self._source_time.record_command(
             wall_start_s=issue.wall_start_s,
             source_timestamp_s=issue.command.timing.source_timestamp_s,
@@ -149,9 +149,9 @@ class TerminalCommandHold:
 
 
 __all__ = [
-    "TerminalCommandHold",
-    "TerminalCommandHoldIssuer",
-    "TerminalCommandHoldStore",
-    "TerminalHeldCommand",
-    "TerminalHeldIssue",
+    "FinalApproachCommandHold",
+    "FinalApproachCommandHoldIssuer",
+    "FinalApproachCommandHoldStore",
+    "FinalApproachHeldCommand",
+    "FinalApproachHeldIssue",
 ]

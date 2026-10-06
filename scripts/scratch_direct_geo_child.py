@@ -1,8 +1,8 @@
 """SCRATCH DIAGNOSTIC (Step-0, Rule-1 isolation) -- DO NOT COMMIT, DELETE AFTER USE.
 
-Direct GEO target baseline: same mission/geometry/measurement as
+Direct GEO POI baseline: same mission/geometry/measurement as
 direct_pixel_pn_child.py but navigation flies the legacy 'pn' controller on the
-truth geo target (-udt true).  Purpose: isolate whether the airframe +
+truth geo POI (-udt true).  Purpose: isolate whether the airframe +
 ArduPilot attitude stack + a full-state law reach small CPA in each wind
 condition.  The legacy path may use full state (GPS, yaw, altitude); it is the
 isolation baseline, not a constraint-compliant law.
@@ -15,25 +15,25 @@ Measurement parity with direct_pixel_pn_child.py (per review):
 Differences (justified):
 - -udt true, --pitch-controller pn (the variable under test)
 - pass detection runs in this child instead of inside the vision runtime,
-  because the legacy runtime has no terminal service (terminal is None)
+  because the legacy runtime has no final-approach service (final_approach is None)
 
 WHAT AN A/B AGAINST direct_pixel_pn_child.py CANNOT SHOW.  The two children
 differ in at least FOUR variables at once, so no single-variable attribution is
 available from the comparison:
 
-1. truth target on/off -- `-udt true` here (line 87-88) vs `-udt false` in
+1. truth POI on/off -- `-udt true` here (line 87-88) vs `-udt false` in
    direct_pixel_pn_child.py:61-62
 2. law -- `--pitch-controller pn` here (line 89-90) vs `vision-nav-pn` in
    direct_pixel_pn_child.py:63-64
-3. state privileges -- the legacy path consumes truth target location and
+3. state privileges -- the legacy path consumes truth POI location and
    vehicle location (src/navpy/modules/navigation/legacy_destination_resolver.py:175-182)
-4. terminal runtime -- the vision path runs the terminal service; the legacy
+4. final-approach runtime -- the vision path runs the final-approach service; the legacy
    path has none (see the pass-detection note above)
 
 A sub-metre result from this child therefore proves ONE thing: the airframe,
 the ArduPilot attitude stack, and the mission geometry can fly that wind
 condition to sub-metre CPA.  It does NOT isolate the vision law's structure
-from the vision input path or the terminal runtime, and must not be reported as
+from the vision input path or the final-approach runtime, and must not be reported as
 if it did.  Isolating the law requires geo-derived LOS fed into the SAME vision
 law with the other three variables held fixed.
 """
@@ -72,8 +72,8 @@ from navpy.modules.vehicle.flight_mode import FlightMode  # noqa: E402
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
 from navpy.modules.vehicle.vehicle_interface import IVehicle  # noqa: E402
 from navpy.modules.vision.models.detect_data import DetectedObject  # noqa: E402
-from navpy.modules.vision.sim.direct_target_pixel_source import (  # noqa: E402
-    DirectTargetPixelSource,
+from navpy.modules.vision.sim.direct_poi_pixel_source import (  # noqa: E402
+    DirectPoiPixelSource,
 )
 from navpy.modules.vision.visual_ray_projection import (  # noqa: E402
     observation_body_ray,
@@ -85,13 +85,13 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connection", required=True)
     parser.add_argument("--sysid", required=True, type=int)
-    parser.add_argument("--target-lat", required=True, type=float)
-    parser.add_argument("--target-lon", required=True, type=float)
-    parser.add_argument("--target-alt", required=True, type=float)
-    parser.add_argument("--engage-seq", required=True, type=int, dest='scoring_start_seq')
+    parser.add_argument("--poi-lat", required=True, type=float)
+    parser.add_argument("--poi-lon", required=True, type=float)
+    parser.add_argument("--poi-alt", required=True, type=float)
+    parser.add_argument("--scoring-start-seq", required=True, type=int, dest='scoring_start_seq')
     parser.add_argument("--timeout", required=True, type=float)
     parser.add_argument("--result", required=True, type=Path)
-    parser.add_argument("--engaged", required=True, type=Path, dest='scoring_active')
+    parser.add_argument("--scoring-active", required=True, type=Path, dest='scoring_active')
     return parser
 
 
@@ -134,7 +134,7 @@ def _wait_for_scoring_interval(
             return
         time.sleep(0.02)
     raise TimeoutError(
-        f"mission did not reach engagement sequence {scoring_start_seq}"
+        f"mission did not reach scoring start sequence {scoring_start_seq}"
     )
 
 
@@ -150,7 +150,7 @@ def _wait_for_mode(
 
 
 def _result_payload(
-    passed: bool, snap: ClosestSnap, source: DirectTargetPixelSource
+    passed: bool, snap: ClosestSnap, source: DirectPoiPixelSource
 ) -> dict[str, object]:
     metrics = source.metrics
     return {
@@ -242,30 +242,30 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             navigation_args,
             scheduler_cadence=cadence,
         )
-        target = Location(
-            options.target_lat,
-            options.target_lon,
-            options.target_alt,
+        poi = Location(
+            options.poi_lat,
+            options.poi_lon,
+            options.poi_alt,
             is_absolute=True,
         )
 
-        def deliver(target_detection: DetectedObject) -> bool:
-            # Legacy mode has no vision-nav confirm gate (terminal is
+        def deliver(poi_detection: DetectedObject) -> bool:
+            # Legacy mode has no vision-nav confirm gate (final_approach is
             # None).  Mirror the vision runtime's pass handling: aft frames
             # suppress commands; the nav loop exits once passed latches.
-            if pass_gate.observe(target_detection):
+            if pass_gate.observe(poi_detection):
                 return False
-            return navigation.nav(target_detection)
+            return navigation.nav(poi_detection)
 
-        source = DirectTargetPixelSource(
+        source = DirectPoiPixelSource(
             vehicle,
-            target,
+            poi,
             cadence,
             aircraft_sequence=geo_ref.uas_seq,
             aircraft_degrees=geo_ref.degrees,
             deliver=deliver,
         )
-        navigation.bind_terminal_source_dispatch(source.dispatch_available)
+        navigation.bind_final_approach_source_dispatch(source.dispatch_available)
         source.start()
         navigation.start()
         print("DIRECT_PIXEL_READY", flush=True)

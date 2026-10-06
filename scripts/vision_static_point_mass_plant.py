@@ -123,7 +123,7 @@ def coordinated_turn_rate_deg_s(
     )
 
 
-def closest_point_to_target(
+def closest_point_to_poi(
     segment_start_ned_m: np.ndarray,
     segment_ned_m: np.ndarray,
 ) -> np.ndarray:
@@ -153,17 +153,17 @@ def component_miss(
         else track_horizontal / track_norm
     )
     lateral_unit = np.asarray([-track_unit[1], track_unit[0]], dtype=float)
-    target_from_closest = -closest_ned_m
+    poi_from_closest = -closest_ned_m
     return StaticPointMassMiss(
-        lateral_m=abs(float(np.dot(target_from_closest[:2], lateral_unit))),
-        longitudinal_m=abs(float(np.dot(target_from_closest[:2], track_unit))),
-        vertical_m=abs(float(target_from_closest[2])),
-        slant_m=float(np.linalg.norm(target_from_closest)),
+        lateral_m=abs(float(np.dot(poi_from_closest[:2], lateral_unit))),
+        longitudinal_m=abs(float(np.dot(poi_from_closest[:2], track_unit))),
+        vertical_m=abs(float(poi_from_closest[2])),
+        slant_m=float(np.linalg.norm(poi_from_closest)),
         t_s=t_s,
     )
 
 
-def has_passed_target(step: PointMassStep, dt_s: float) -> bool:
+def has_passed_poi(step: PointMassStep, dt_s: float) -> bool:
     return (
         step.state.t_s > dt_s
         and float(
@@ -172,7 +172,7 @@ def has_passed_target(step: PointMassStep, dt_s: float) -> bool:
     )
 
 
-def is_approaching_target(step: PointMassStep) -> bool:
+def is_approaching_poi(step: PointMassStep) -> bool:
     return float(
         np.dot(-step.state.position_ned_m, step.velocity_ned_mps)
     ) > 0.0
@@ -182,12 +182,12 @@ __all__ = [
     "PointMassState",
     "PointMassStep",
     "air_velocity_ned_mps",
-    "closest_point_to_target",
+    "closest_point_to_poi",
     "component_miss",
     "coordinated_turn_rate_deg_s",
-    "has_passed_target",
+    "has_passed_poi",
     "initial_state",
     "integrate_plant",
-    "is_approaching_target",
+    "is_approaching_poi",
     "wind_ned_mps",
 ]

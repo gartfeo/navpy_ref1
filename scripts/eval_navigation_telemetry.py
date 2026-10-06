@@ -36,7 +36,7 @@ RECV_SLICE_S = 0.5
 MESSAGE_INTERVAL_ACK_TIMEOUT_S = 5.0
 
 
-def message_from_target(message: Any, target_system: int) -> bool:
+def message_from_poi(message: Any, target_system: int) -> bool:
     """Return whether a decoded MAVLink message came from one target system."""
     try:
         return int(message.get_srcSystem()) == int(target_system)
@@ -44,7 +44,7 @@ def message_from_target(message: Any, target_system: int) -> bool:
         return False
 
 
-def recv_target_message(
+def recv_poi_message(
     master: Any,
     message_types: Any,
     timeout_s: float,
@@ -60,7 +60,7 @@ def recv_target_message(
             blocking=True,
             timeout=min(RECV_SLICE_S, remaining),
         )
-        if message is not None and message_from_target(
+        if message is not None and message_from_poi(
             message, master.target_system
         ):
             return message
@@ -169,7 +169,7 @@ def request_message_interval_stream(
             blocking=True,
             timeout=min(RECV_SLICE_S, remaining),
         )
-        if message is None or not message_from_target(
+        if message is None or not message_from_poi(
             message, master.target_system
         ):
             continue
@@ -240,7 +240,7 @@ def drain_position_messages(
         if message is None:
             _mark_live_edge(live_anchors, saw_sample, newest_source_s)
             return True
-        if not message_from_target(message, sysid):
+        if not message_from_poi(message, sysid):
             continue
         if message.get_type() == "SIM_STATE":
             if truth is not None:

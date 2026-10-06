@@ -200,7 +200,7 @@ class TestOptimizedAltitude(unittest.TestCase):
     def test_old_preset_request_key_is_rejected_before_writing(self):
         before = json.dumps(self._data, sort_keys=True)
         with self._patch_load(), patch("gcs.backend.routes.vision_profiles._restart_navpy_if_active_profile_changed") as restart:
-            response = self.client.put("/api/vision-profiles/profile_a", json={"target_presets": {}})
+            response = self.client.put("/api/vision-profiles/profile_a", json={"poi_presets": {}})
         self.assertEqual(response.status_code, 422)
         self.assertEqual(json.dumps(self._data, sort_keys=True), before)
         restart.assert_not_called()
