@@ -7,9 +7,10 @@ logging, and network messaging.
 
 NavPy develops autonomous navigation and fleet-coordination technology for
 cooperative UAV swarms. The swarm core is the product; mission functions are
-plug-and-play modules. Example modules are time-critical payload delivery to
-authorized recipients and fire detection and suppression (e.g. forest fire
-spots). The project is non-weaponized and is not
+plug-and-play modules, so the same swarm serves many missions: factory and
+industrial survey/inspection, agricultural spraying, border security
+surveillance, forest fire detection and suppression with special equipment,
+and time-critical medicine or payload delivery to authorized recipients. The project is non-weaponized and is not
 intended for weapons, explosives, harmful payload delivery, or hostile targeting.
 
 The intended moving-recipient delivery use case is a fixed-wing UAV transporting

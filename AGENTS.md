@@ -5,10 +5,16 @@
 NavPy develops cooperative UAV swarm technology: autonomous navigation, fleet
 coordination and vision-based final approach for multi-UAV missions. The swarm
 core is the product; mission functions are plug-and-play modules on top of it.
-Example modules: payload delivery to authorized recipients and fire
-detection/suppression (e.g. finding and stopping fire spots in forests);
-further module scope is yet to be verified. Recipient platforms,
-including moving vehicles, are cooperative participants.
+The swarm is generic and mission-agnostic; target module families include:
+- survey/inspection (e.g. factories and industrial sites),
+- agricultural spraying,
+- border security surveillance and patrol,
+- fire detection and suppression (finding fire spots in forests, then
+  dispatching UAVs carrying special suppression equipment),
+- medicine and other payload delivery to authorized recipients.
+Further modules follow the same plug-in pattern; no single module defines the
+product. Recipient platforms, including moving vehicles, are cooperative
+participants.
 For delivery, parking nets are general purpose 360 degree nets; parking nets may
 be on stationary or moving platforms.
 The current MVP is a three-UAV delivery/docking simulator demo.
