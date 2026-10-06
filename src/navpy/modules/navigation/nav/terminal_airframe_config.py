@@ -83,7 +83,7 @@ class VehicleTerminalLawConfigProvider(TerminalAirframeConfigProvider):
             TerminalParameterPort(
                 lambda name: vehicle.get_parameter(name, quiet=True)
             ),
-            lambda: args.termination_throttle,
+            lambda: args.delivery_throttle,
         )
 
 

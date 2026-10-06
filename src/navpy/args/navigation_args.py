@@ -67,8 +67,8 @@ class NavigationArgs(object):
     def __init__(self, args, vehicle: NavigationParameterReader, logger: ILogger):
         self.use_direct_target = None
         self.use_terrain = None
-        self.termination_throttle = None
-        self.termination_angle = None
+        self.delivery_throttle = None
+        self.delivery_angle = None
         self.pitch_lock_dist = None  # Min distance to lock pitch while maneuvering
         self.pitch_lock_roll_diff = None  # Roll error threshold for pitch lock
         self.navigation_algorithm = None
@@ -94,13 +94,13 @@ class NavigationArgs(object):
         return self._vehicle.get_param_or_default(param_name, default)
 
     def refresh(self):
-        old_termination_angle = self.termination_angle
-        old_termination_throttle = self.termination_throttle
+        old_delivery_angle = self.delivery_angle
+        old_delivery_throttle = self.delivery_throttle
 
         self.use_direct_target = bool(self._get_param('AAS_DEL_DIR'))
-        desired_termination_angle = float(self._get_param('AAS_DEL_PITCH'))
+        desired_delivery_angle = float(self._get_param('AAS_DEL_PITCH'))
         throttle = self._get_param('AAS_DEL_THR')
-        self.termination_throttle = throttle if throttle is not None and throttle >= 0 else None
+        self.delivery_throttle = throttle if throttle is not None and throttle >= 0 else None
         self.use_terrain = bool(self._get_param('AAS_USE_TRN'))
         self.pitch_lock_dist = float(self._get_param('AAS_DEL_PLD'))
         self.pitch_lock_roll_diff = float(self._get_param('AAS_DEL_PLRD'))
@@ -116,25 +116,25 @@ class NavigationArgs(object):
         )
 
         self.pitch_args.refresh()
-        self._calc_termination_angle(desired_termination_angle)
+        self._calc_delivery_angle(desired_delivery_angle)
 
-        if old_termination_angle != self.termination_angle or old_termination_throttle != self.termination_throttle:
-            self._logger.info(f'T: {self.termination_angle} deg, 'f'{self.termination_throttle}%')
+        if old_delivery_angle != self.delivery_angle or old_delivery_throttle != self.delivery_throttle:
+            self._logger.info(f'T: {self.delivery_angle} deg, 'f'{self.delivery_throttle}%')
 
-    def _calc_termination_angle(self, desired_termination_angle: float):
-        min_termination_angle = self._vehicle.min_pitch * 0.9
+    def _calc_delivery_angle(self, desired_delivery_angle: float):
+        min_delivery_angle = self._vehicle.min_pitch * 0.9
 
-        if desired_termination_angle < min_termination_angle:
-            if self.termination_angle is None or self.termination_angle != min_termination_angle:
+        if desired_delivery_angle < min_delivery_angle:
+            if self.delivery_angle is None or self.delivery_angle != min_delivery_angle:
                 self._logger.warning(
-                    f'Navigation: desired termination angle: {desired_termination_angle} is too low, '
-                    f'setting to {min_termination_angle} (min pitch -10%)'
+                    f'Navigation: desired delivery angle: {desired_delivery_angle} is too low, '
+                    f'setting to {min_delivery_angle} (min pitch -10%)'
                 )
-            self.termination_angle = min_termination_angle
+            self.delivery_angle = min_delivery_angle
         else:
-            if self.termination_angle is not None and self.termination_angle != desired_termination_angle:
-                self._logger.info(f'Navigation: setting termination angle to {desired_termination_angle}')
-            self.termination_angle = desired_termination_angle
+            if self.delivery_angle is not None and self.delivery_angle != desired_delivery_angle:
+                self._logger.info(f'Navigation: setting delivery angle to {desired_delivery_angle}')
+            self.delivery_angle = desired_delivery_angle
 
     @classmethod
     def add_args(cls, parser):

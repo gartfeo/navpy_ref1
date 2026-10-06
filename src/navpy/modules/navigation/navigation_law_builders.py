@@ -26,7 +26,7 @@ def compose_law_builders(
         TerminalParameterPort(
             lambda name: vehicle.get_parameter(name, quiet=True)
         ),
-        lambda: args.termination_throttle,
+        lambda: args.delivery_throttle,
     )
     return {
         NavigationAlgorithm.PID: lambda: compose_roll_l1_law(vehicle, args),

@@ -138,7 +138,7 @@ class PitchLockPolicy:
             or roll_error > settings.roll_difference_deg
         )
         should_lock = (
-            cmd_pitch > settings.termination_angle_deg and is_rolling
+            cmd_pitch > settings.delivery_angle_deg and is_rolling
         )
         far_enough = (
             settings.lock_distance_m < 0
@@ -163,14 +163,14 @@ class RollL1PitchNav:
         pitch_lock: PitchLockPolicy,
         attitude: Callable[[], RollL1AttitudeSnapshot],
         limits: Callable[[], RollL1AirframeLimits],
-        termination_throttle: Callable[[], float | None],
+        delivery_throttle: Callable[[], float | None],
     ) -> None:
         self._roll_l1 = roll_l1
         self._pitch_controller = pitch_controller
         self._pitch_lock = pitch_lock
         self._attitude = attitude
         self._limits = limits
-        self._termination_throttle = termination_throttle
+        self._delivery_throttle = delivery_throttle
         self._apply_limits(self._limits())
 
     def calc(
@@ -222,7 +222,7 @@ class RollL1PitchNav:
         self._throttle_min = limits.trim_throttle_percent
 
     def _calc_cmd_thr(self, lock_pitch: bool) -> float | None:
-        configured = self._termination_throttle()
+        configured = self._delivery_throttle()
         if lock_pitch or configured is None:
             return None
         return max(self._throttle_min, configured)
