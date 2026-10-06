@@ -1,4 +1,4 @@
-"""Tests for delivery icon SVG generators in icons.js and deliveryLocationIcons.js."""
+"""Tests for delivery icon SVG generators in icons.js and deliveryHubIcons.js."""
 import unittest
 from tests.gcs.js_runner import run_node
 import os
@@ -33,7 +33,7 @@ _ICONS_JS = _strip_es_modules(
 )
 
 _DOCK_ICONS_JS = _strip_es_modules(
-    open(os.path.join(_CONSTANTS_DIR, "deliveryLocationIcons.js"), encoding="utf-8").read()
+    open(os.path.join(_CONSTANTS_DIR, "deliveryHubIcons.js"), encoding="utf-8").read()
 )
 
 
@@ -193,52 +193,52 @@ class TestLaunchPointIcon(unittest.TestCase):
 class TestDockIcons(unittest.TestCase):
     """Neutral delivery host icons."""
 
-    DELIVERY_LOCATION_TYPES = ['building', 'vehicle', 'antenna', 'operations_site', 'bridge', 'fuel', 'other']
+    DELIVERY_HUB_TYPES = ['building', 'vehicle', 'antenna', 'operations_site', 'bridge', 'fuel', 'other']
 
     def test_all_types_return_data_url(self):
-        for t in self.DELIVERY_LOCATION_TYPES:
-            out = _run_dock_js(f'console.log(getDeliveryLocationIcon("{t}"));')
+        for t in self.DELIVERY_HUB_TYPES:
+            out = _run_dock_js(f'console.log(getDeliveryHubIcon("{t}"));')
             self.assertTrue(
                 out.startswith("data:image/svg+xml,"),
                 f"DOCK type '{t}' did not return data URL",
             )
 
     def test_all_types_contain_svg_tag(self):
-        for t in self.DELIVERY_LOCATION_TYPES:
-            out = _run_dock_js(f'console.log(getDeliveryLocationIcon("{t}"));')
+        for t in self.DELIVERY_HUB_TYPES:
+            out = _run_dock_js(f'console.log(getDeliveryHubIcon("{t}"));')
             svg = _decode_svg(out)
             self.assertIn("<svg", svg, f"DOCK type '{t}' missing <svg> tag")
 
     def test_building_has_outline_and_windows(self):
-        out = _run_dock_js('console.log(getDeliveryLocationIcon("building"));')
+        out = _run_dock_js('console.log(getDeliveryHubIcon("building"));')
         svg = _decode_svg(out)
         self.assertIn("<path", svg)
 
     def test_fuel_has_pump(self):
-        out = _run_dock_js('console.log(getDeliveryLocationIcon("fuel"));')
+        out = _run_dock_js('console.log(getDeliveryHubIcon("fuel"));')
         svg = _decode_svg(out)
         self.assertIn('<rect x="3" y="3" width="11" height="18"', svg)
 
     def test_operations_has_briefcase(self):
-        out = _run_dock_js('console.log(getDeliveryLocationIcon("operations_site"));')
+        out = _run_dock_js('console.log(getDeliveryHubIcon("operations_site"));')
         svg = _decode_svg(out)
         self.assertIn('<rect x="3" y="7" width="18" height="14"', svg)
 
     def test_other_has_dock_pad(self):
-        out = _run_dock_js('console.log(getDeliveryLocationIcon("other"));')
+        out = _run_dock_js('console.log(getDeliveryHubIcon("other"));')
         svg = _decode_svg(out)
         self.assertIn('M9 7h3a5 5 0 0 1 0 10H9z', svg)
 
     def test_host_symbols_are_distinct_and_same_size(self):
-        icons = [_decode_svg(_run_dock_js(f'console.log(getDeliveryLocationIcon("{t}"));')) for t in self.DELIVERY_LOCATION_TYPES]
-        self.assertEqual(len(set(icons)), len(self.DELIVERY_LOCATION_TYPES))
+        icons = [_decode_svg(_run_dock_js(f'console.log(getDeliveryHubIcon("{t}"));')) for t in self.DELIVERY_HUB_TYPES]
+        self.assertEqual(len(set(icons)), len(self.DELIVERY_HUB_TYPES))
         for svg in icons:
             self.assertIn('width="24"', svg)
             self.assertIn('height="24"', svg)
 
     def test_unknown_type_falls_back_to_other(self):
-        out = _run_dock_js('console.log(getDeliveryLocationIcon("nonexistent"));')
-        other = _run_dock_js('console.log(getDeliveryLocationIcon("other"));')
+        out = _run_dock_js('console.log(getDeliveryHubIcon("nonexistent"));')
+        other = _run_dock_js('console.log(getDeliveryHubIcon("other"));')
         self.assertEqual(out, other)
 
     # DOCK_TYPE_LABELS removed — labels now live in i18n locale files (en.json / hy.json)

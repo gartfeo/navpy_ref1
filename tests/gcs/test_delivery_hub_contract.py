@@ -1,20 +1,20 @@
-"""Fallback location inventory keeps coordinates and uses one current JSON format."""
+"""Delivery hub inventory keeps coordinates and uses one current JSON format."""
 from tests.gcs.test_settings import client
 
 
-def test_fallback_locations_settings_round_trip(client):
+def test_delivery_hubs_settings_round_trip(client):
     locations = [{"name": "Fallback fixture", "type": "vehicle", "lat": 0.01, "lon": 0.02}]
-    response = client.put("/api/settings", json={"fallback_delivery_locations": locations})
+    response = client.put("/api/settings", json={"default_delivery_hubs": locations})
     assert response.status_code == 200
-    assert response.json()["fallback_delivery_locations"] == locations
-    assert client.get("/api/settings").json()["fallback_delivery_locations"] == locations
+    assert response.json()["default_delivery_hubs"] == locations
+    assert client.get("/api/settings").json()["default_delivery_hubs"] == locations
 
 
-def test_fallback_locations_csv_import(client):
-    response = client.post("/api/settings/fallback-delivery-locations/import", files={
+def test_delivery_hubs_csv_import(client):
+    response = client.post("/api/settings/default-delivery-hubs/import", files={
         "file": ("locations.csv", b"name,type,lat,lon\nFallback fixture,vehicle,0.01,0.02\n", "text/csv")})
     assert response.status_code == 200
-    assert response.json()["fallback_delivery_locations"][-1] == {
+    assert response.json()["default_delivery_hubs"][-1] == {
         "name": "Fallback fixture", "type": "vehicle", "lat": 0.01, "lon": 0.02}
 
 

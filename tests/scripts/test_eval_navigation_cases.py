@@ -533,7 +533,7 @@ def test_launch_wait_is_not_bounded_by_the_heartbeat_timeout():
     assert wait.call_args.kwargs["speedup"] == 7
 
 
-def test_fallback_location_selection_is_rejected_even_when_task_id_is_one():
+def test_default_ooi_selection_is_rejected_even_when_task_id_is_one():
     expectation = _expectation(135.0)
     evidence = evaluator.parse_selection_evidence(
         "2026-07-10 15:37:28,320 INFO P1: wp:4(seq:11);\n"

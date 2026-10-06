@@ -18,7 +18,7 @@ from gcs.backend.planner.waypoint_builder import (
     META_POLYGON_VERTEX,
     META_CORRIDOR_VERTEX,
     META_LAUNCH_POINT,
-    META_FALLBACK_DELIVERY_LOCATION,
+    META_DEFAULT_DELIVERY_HUB,
 )
 from navpy.modules.nav.mission_encoding import LOCATION_TYPE_IDS
 
@@ -208,7 +208,7 @@ class TestRoundTrip(unittest.TestCase):
 
         Every DO_SET_ROI_LOCATION is a metadata item:
         - param1 = meta_type, x/y = lat/lon
-        - META_FALLBACK_DELIVERY_LOCATION z bits 8-10 = compact location type id
+        - META_DEFAULT_DELIVERY_HUB z bits 8-10 = compact location type id
         - First one marks the corridor boundary
         - Only the LAST metadata item's z carries search_pattern
         """
@@ -217,7 +217,7 @@ class TestRoundTrip(unittest.TestCase):
         polygon_vertices = []
         corridor_backbone = []
         launch_point = None
-        fallback_delivery_location = None
+        default_delivery_hub = None
         last_meta_z = 0.0
         nav_index = 0
         in_metadata = False
@@ -242,23 +242,23 @@ class TestRoundTrip(unittest.TestCase):
                     corridor_backbone.append({"lat": lat, "lon": lon})
                 elif meta_type == META_LAUNCH_POINT:
                     launch_point = {"lat": lat, "lon": lon}
-                elif meta_type == META_FALLBACK_DELIVERY_LOCATION:
-                    fallback_delivery_location = {"lat": lat, "lon": lon}
+                elif meta_type == META_DEFAULT_DELIVERY_HUB:
+                    default_delivery_hub = {"lat": lat, "lon": lon}
                     location_type = decode_location_type_from_z(wp.z)
                     if location_type:
-                        fallback_delivery_location["type"] = location_type
+                        default_delivery_hub["type"] = location_type
                 continue
             in_metadata = False
             waypoints.append({"lat": wp.x / 1e7, "lon": wp.y / 1e7})
             nav_index += 1
         search_pattern = decode_meta_z(last_meta_z)
-        # Trim the trailing fallback-location NAV_WAYPOINT (matches real download)
-        if fallback_delivery_location and waypoints:
+        # Trim the trailing default-delivery-hub NAV_WAYPOINT (matches real download)
+        if default_delivery_hub and waypoints:
             last = waypoints[-1]
-            if (abs(last["lat"] - fallback_delivery_location["lat"]) < 1e-5 and
-                    abs(last["lon"] - fallback_delivery_location["lon"]) < 1e-5):
+            if (abs(last["lat"] - default_delivery_hub["lat"]) < 1e-5 and
+                    abs(last["lon"] - default_delivery_hub["lon"]) < 1e-5):
                 waypoints.pop()
-        return waypoints, corridor_end_index, search_pattern, polygon_vertices, corridor_backbone, launch_point, fallback_delivery_location
+        return waypoints, corridor_end_index, search_pattern, polygon_vertices, corridor_backbone, launch_point, default_delivery_hub
 
     def test_round_trip_no_metadata(self):
         """No metadata → all waypoints returned, no corridor boundary detected."""
@@ -634,50 +634,50 @@ class TestMetaZOnMission(TestRoundTrip):
             build_mission(_make_track(3), 100, dock_classes=["dock"])
 
 
-class TestMissionFallbackLocation(unittest.TestCase):
-    """Fallback delivery location metadata encoding and round-trip."""
+class TestMissionDeliveryHub(unittest.TestCase):
+    """Default delivery hub metadata encoding and round-trip."""
 
-    def test_fallback_delivery_location_encoded_as_metadata(self):
-        """Fallback delivery location inserted as META_FALLBACK_DELIVERY_LOCATION metadata item."""
+    def test_default_delivery_hub_encoded_as_metadata(self):
+        """Default delivery hub inserted as META_DEFAULT_DELIVERY_HUB metadata item."""
         track = _make_track(3)
         dt = {"lat": 40.5, "lon": 44.5, "type": "bridge"}
-        wp = build_mission(track, 100, fallback_delivery_location=dt)
-        # home + takeoff + 1 meta (fallback_delivery_location) + 3 track + 1 dt NAV_WP = 7
+        wp = build_mission(track, 100, default_delivery_hub=dt)
+        # home + takeoff + 1 meta (default_delivery_hub) + 3 track + 1 dt NAV_WP = 7
         self.assertEqual(wp.count(), 7)
         meta = wp.wp(2)
         self.assertEqual(meta.command, CORRIDOR_END_MARKER)
-        self.assertEqual(int(meta.param1), META_FALLBACK_DELIVERY_LOCATION)
+        self.assertEqual(int(meta.param1), META_DEFAULT_DELIVERY_HUB)
         self.assertEqual(decode_location_type_from_z(meta.z), "bridge")
         self.assertAlmostEqual(meta.x / 1e7, 40.5, places=6)
         self.assertAlmostEqual(meta.y / 1e7, 44.5, places=6)
 
-    def test_fallback_delivery_location_with_other_metadata(self):
-        """Fallback delivery location combined with polygon and launch point."""
+    def test_default_delivery_hub_with_other_metadata(self):
+        """Default delivery hub combined with polygon and launch point."""
         track = _make_track(3)
         polygon = [{"lat": 32.0, "lon": 34.0}]
         launch = {"lat": 31.5, "lon": 33.5}
         dt = {"lat": 40.5, "lon": 44.5}
-        wp = build_mission(track, 100, polygon=polygon, launch_point=launch, fallback_delivery_location=dt)
+        wp = build_mission(track, 100, polygon=polygon, launch_point=launch, default_delivery_hub=dt)
         # home + takeoff + 3 meta (poly + launch + dt) + 3 track + 1 dt NAV_WP = 9
         self.assertEqual(wp.count(), 9)
         # Check meta types in order
         self.assertEqual(int(wp.wp(2).param1), META_POLYGON_VERTEX)
         self.assertEqual(int(wp.wp(3).param1), META_LAUNCH_POINT)
-        self.assertEqual(int(wp.wp(4).param1), META_FALLBACK_DELIVERY_LOCATION)
+        self.assertEqual(int(wp.wp(4).param1), META_DEFAULT_DELIVERY_HUB)
 
-    def test_fallback_delivery_location_last_wp_is_nav_waypoint(self):
-        """Last mission item is a NAV_WAYPOINT at fallback location coordinates with mission altitude."""
+    def test_default_delivery_hub_last_wp_is_nav_waypoint(self):
+        """Last mission item is a NAV_WAYPOINT at delivery hub coordinates with mission altitude."""
         track = _make_track(3)
         dt = {"lat": 40.5, "lon": 44.5}
-        wp = build_mission(track, 100, fallback_delivery_location=dt)
+        wp = build_mission(track, 100, default_delivery_hub=dt)
         last = wp.wp(wp.count() - 1)
         self.assertEqual(last.command, MAV_CMD_NAV_WAYPOINT)
         self.assertAlmostEqual(last.x / 1e7, 40.5, places=6)
         self.assertAlmostEqual(last.y / 1e7, 44.5, places=6)
         self.assertEqual(last.z, 100)
 
-    def test_no_fallback_delivery_location(self):
-        """No fallback_delivery_location → same as before."""
+    def test_no_default_delivery_hub(self):
+        """No default_delivery_hub → same as before."""
         track = _make_track(3)
         wp = build_mission(track, 100)
         self.assertEqual(wp.count(), 5)  # home + takeoff + 3 wps
@@ -730,22 +730,22 @@ class TestMetadataEmptyTrack(TestRoundTrip):
         self.assertNotIn(CORRIDOR_END_MARKER, commands)
 
 
-class TestMissionFallbackLocationRoundTrip(TestRoundTrip):
-    """Fallback delivery location survives build → simulate_download round-trip."""
+class TestMissionDeliveryHubRoundTrip(TestRoundTrip):
+    """Default delivery hub survives build → simulate_download round-trip."""
 
-    def test_fallback_delivery_location_round_trip(self):
-        """Fallback delivery location coordinates survive round-trip."""
+    def test_default_delivery_hub_round_trip(self):
+        """Default delivery hub coordinates survive round-trip."""
         track = _make_track(3)
         dt = {"lat": 40.5, "lon": 44.5, "type": "fuel"}
-        wp = build_mission(track, 100, fallback_delivery_location=dt)
+        wp = build_mission(track, 100, default_delivery_hub=dt)
         *_, dl_dt = self._simulate_download(wp)
         self.assertIsNotNone(dl_dt)
         self.assertAlmostEqual(dl_dt["lat"], 40.5, places=6)
         self.assertAlmostEqual(dl_dt["lon"], 44.5, places=6)
         self.assertEqual(dl_dt["type"], "fuel")
 
-    def test_fallback_delivery_location_with_all_metadata(self):
-        """Fallback delivery location + polygon + launch + corridor all survive round-trip."""
+    def test_default_delivery_hub_with_all_metadata(self):
+        """Default delivery hub + polygon + launch + corridor all survive round-trip."""
         track = _make_track(5)
         polygon = [{"lat": 32.0, "lon": 34.0}, {"lat": 32.1, "lon": 34.0}]
         backbone = [{"lat": 31.9, "lon": 33.9}]
@@ -753,7 +753,7 @@ class TestMissionFallbackLocationRoundTrip(TestRoundTrip):
         dt = {"lat": 40.5, "lon": 44.5}
         wp = build_mission(track, 100, corridor_count=2, search_pattern="corridor",
                            polygon=polygon, corridor_backbone=backbone,
-                           launch_point=launch, fallback_delivery_location=dt)
+                           launch_point=launch, default_delivery_hub=dt)
         wps, ci, search_pattern, dl_poly, dl_corr, dl_lp, dl_dt = self._simulate_download(wp)
         self.assertEqual(len(wps), 5)
         self.assertEqual(ci, 2)
@@ -764,8 +764,8 @@ class TestMissionFallbackLocationRoundTrip(TestRoundTrip):
         self.assertIsNotNone(dl_dt)
         self.assertAlmostEqual(dl_dt["lat"], 40.5, places=6)
 
-    def test_no_fallback_delivery_location_returns_none(self):
-        """Without fallback_delivery_location, download returns None."""
+    def test_no_default_delivery_hub_returns_none(self):
+        """Without default_delivery_hub, download returns None."""
         track = _make_track(3)
         wp = build_mission(track, 100)
         *_, dl_dt = self._simulate_download(wp)

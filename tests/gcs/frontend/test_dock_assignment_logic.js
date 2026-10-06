@@ -1,5 +1,5 @@
 /**
- * Node.js tests for buildFallbackLocationsFromDownload merge logic.
+ * Node.js tests for buildDeliveryHubsFromDownload merge logic.
  *
  * Verifies that downloaded POIs are matched against existing Docks by
  * coordinates, preserving type/name for matches and keeping unmatched
@@ -15,26 +15,26 @@ const path = require('path');
 async function loadModule() {
   const src = path.resolve(
     __dirname,
-    '../../../src/gcs/frontend/src/utils/fallbackLocationAssignment.js',
+    '../../../src/gcs/frontend/src/utils/deliveryHubAssignment.js',
   );
   const mod = await import(pathToFileURL(src).href);
   return mod;
 }
 
 (async () => {
-  const { buildFallbackLocationsFromDownload } = await loadModule();
+  const { buildDeliveryHubsFromDownload } = await loadModule();
 
-  // ---- Test: backward compat — no existingFallbackLocations behaves like before ----
+  // ---- Test: backward compat — no existingDeliveryHubs behaves like before ----
   (function testNoExistingDocks() {
     const pois = [
       { lat: 32.0, lon: 34.0 },
       { lat: 33.0, lon: 35.0 },
     ];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois);
-    assert.strictEqual(fallbackLocations.length, 2, 'Should create 2 Docks');
-    assert.strictEqual(fallbackLocations[0].type, 'other', 'Default type should be other');
-    assert.strictEqual(fallbackLocations[0].name, 'Fallback delivery location 1');
-    assert.strictEqual(fallbackLocations[1].name, 'Fallback delivery location 2');
+    const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(pois);
+    assert.strictEqual(deliveryHubs.length, 2, 'Should create 2 Docks');
+    assert.strictEqual(deliveryHubs[0].type, 'other', 'Default type should be other');
+    assert.strictEqual(deliveryHubs[0].name, 'Default delivery hub 1');
+    assert.strictEqual(deliveryHubs[1].name, 'Default delivery hub 2');
     assert.deepStrictEqual(assignments, [0, 1]);
   })();
 
@@ -44,10 +44,10 @@ async function loadModule() {
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
     const pois = [{ lat: 32.0, lon: 34.0 }];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
-    assert.strictEqual(fallbackLocations.length, 1, 'Should not create a duplicate');
-    assert.strictEqual(fallbackLocations[0].type, 'building', 'Type should be preserved');
-    assert.strictEqual(fallbackLocations[0].name, 'HQ', 'Name should be preserved');
+    const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(pois, existing);
+    assert.strictEqual(deliveryHubs.length, 1, 'Should not create a duplicate');
+    assert.strictEqual(deliveryHubs[0].type, 'building', 'Type should be preserved');
+    assert.strictEqual(deliveryHubs[0].name, 'HQ', 'Name should be preserved');
     assert.deepStrictEqual(assignments, [0]);
   })();
 
@@ -57,11 +57,11 @@ async function loadModule() {
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
     const pois = [{ lat: 40.0, lon: 50.0 }];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
-    assert.strictEqual(fallbackLocations.length, 2, 'Should add one new DOCK');
-    assert.strictEqual(fallbackLocations[0].name, 'HQ', 'Existing preserved');
-    assert.strictEqual(fallbackLocations[1].type, 'other', 'New DOCK should be type other');
-    assert.strictEqual(fallbackLocations[1].name, 'Fallback delivery location 2', 'Name based on total count');
+    const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(pois, existing);
+    assert.strictEqual(deliveryHubs.length, 2, 'Should add one new DOCK');
+    assert.strictEqual(deliveryHubs[0].name, 'HQ', 'Existing preserved');
+    assert.strictEqual(deliveryHubs[1].type, 'other', 'New DOCK should be type other');
+    assert.strictEqual(deliveryHubs[1].name, 'Default delivery hub 2', 'Name based on total count');
     assert.deepStrictEqual(assignments, [1]);
   })();
 
@@ -71,9 +71,9 @@ async function loadModule() {
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
     const pois = [{ lat: 40.0, lon: 50.0, type: 'bridge' }];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
-    assert.strictEqual(fallbackLocations.length, 2, 'Should add one new DOCK');
-    assert.strictEqual(fallbackLocations[1].type, 'bridge', 'Downloaded type should be preserved');
+    const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(pois, existing);
+    assert.strictEqual(deliveryHubs.length, 2, 'Should add one new DOCK');
+    assert.strictEqual(deliveryHubs[1].type, 'bridge', 'Downloaded type should be preserved');
     assert.deepStrictEqual(assignments, [1]);
   })();
 
@@ -84,11 +84,11 @@ async function loadModule() {
       { name: 'Bravo', type: 'person', lat: 30.0, lon: 40.0 },
     ];
     const pois = [{ lat: 50.0, lon: 60.0 }];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
-    assert.strictEqual(fallbackLocations.length, 3, 'Existing 2 + new 1');
-    assert.strictEqual(fallbackLocations[0].name, 'Alpha');
-    assert.strictEqual(fallbackLocations[1].name, 'Bravo');
-    assert.strictEqual(fallbackLocations[2].type, 'other');
+    const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(pois, existing);
+    assert.strictEqual(deliveryHubs.length, 3, 'Existing 2 + new 1');
+    assert.strictEqual(deliveryHubs[0].name, 'Alpha');
+    assert.strictEqual(deliveryHubs[1].name, 'Bravo');
+    assert.strictEqual(deliveryHubs[2].type, 'other');
     assert.deepStrictEqual(assignments, [2]);
   })();
 
@@ -99,19 +99,19 @@ async function loadModule() {
       { lat: 32.0, lon: 34.0 }, // duplicate
       { lat: 33.0, lon: 35.0 },
     ];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois);
-    assert.strictEqual(fallbackLocations.length, 2, 'Duplicates should be merged');
+    const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(pois);
+    assert.strictEqual(deliveryHubs.length, 2, 'Duplicates should be merged');
     assert.deepStrictEqual(assignments, [0, 0, 1]);
   })();
 
-  // ---- Test: empty missionFallbackLocations with existingFallbackLocations returns copy of existing ----
+  // ---- Test: empty missionDeliveryHubs with existingDeliveryHubs returns copy of existing ----
   (function testEmptyPoisReturnsExisting() {
     const existing = [
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload([], existing);
-    assert.strictEqual(fallbackLocations.length, 1, 'Should return existing Docks');
-    assert.strictEqual(fallbackLocations[0].name, 'HQ');
+    const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload([], existing);
+    assert.strictEqual(deliveryHubs.length, 1, 'Should return existing Docks');
+    assert.strictEqual(deliveryHubs[0].name, 'HQ');
     assert.deepStrictEqual(assignments, []);
   })();
 
@@ -121,18 +121,18 @@ async function loadModule() {
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
     const pois = [null, { lat: 32.0, lon: 34.0 }, null];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
-    assert.strictEqual(fallbackLocations.length, 1, 'Only one valid POI matches existing');
+    const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(pois, existing);
+    assert.strictEqual(deliveryHubs.length, 1, 'Only one valid POI matches existing');
     assert.deepStrictEqual(assignments, [null, 0, null]);
   })();
 
-  // ---- Test: does not mutate existingFallbackLocations input ----
+  // ---- Test: does not mutate existingDeliveryHubs input ----
   (function testDoesNotMutateInput() {
     const existing = [
       { name: 'HQ', type: 'building', lat: 32.0, lon: 34.0 },
     ];
     const pois = [{ lat: 50.0, lon: 60.0 }];
-    buildFallbackLocationsFromDownload(pois, existing);
+    buildDeliveryHubsFromDownload(pois, existing);
     assert.strictEqual(existing.length, 1, 'Original array should not be modified');
   })();
 
@@ -147,11 +147,11 @@ async function loadModule() {
       { lat: 50.0, lon: 60.0 }, // new
       { lat: 10.0, lon: 20.0 }, // matches Alpha
     ];
-    const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(pois, existing);
-    assert.strictEqual(fallbackLocations.length, 3, 'Existing 2 + new 1');
-    assert.strictEqual(fallbackLocations[0].name, 'Alpha');
-    assert.strictEqual(fallbackLocations[1].name, 'Bravo');
-    assert.strictEqual(fallbackLocations[2].type, 'other');
+    const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(pois, existing);
+    assert.strictEqual(deliveryHubs.length, 3, 'Existing 2 + new 1');
+    assert.strictEqual(deliveryHubs[0].name, 'Alpha');
+    assert.strictEqual(deliveryHubs[1].name, 'Bravo');
+    assert.strictEqual(deliveryHubs[2].type, 'other');
     assert.deepStrictEqual(assignments, [1, 2, 0]);
   })();
 

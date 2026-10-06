@@ -201,7 +201,7 @@ describe('finding 4: mission and fence failures are reported independently', () 
       launchPoint: null, corridorPoints: [],
       plan: { zones: [{ zone_index: 0, track: ring() }, { zone_index: 1, track: ring(0.1) }], altitude_m: 120 },
       setPlan: vi.fn(), setLaunchPoints: [null], setCorridorPointsArr: [[]],
-      goToMonitor: vi.fn(), fallbackLocationAssignments: [0, 0], manualFallbackLocationEdit: true,
+      goToMonitor: vi.fn(), deliveryHubAssignments: [0, 0], manualDeliveryHubEdit: true,
       simDockWps: {}, detectAfterWps: {}, setUploadProgress: vi.fn(),
     };
     const api = {
@@ -219,7 +219,7 @@ describe('finding 4: mission and fence failures are reported independently', () 
       mission, effectiveUavCount: 2,
       localGenerate: vi.fn().mockResolvedValue(null),
       vehicleList: [{ sys_id: 1 }, { sys_id: 2 }], api,
-      settings: { fallback_delivery_locations: [{ name: 'F', lat: 0.01, lon: 0.02 }],
+      settings: { default_delivery_hubs: [{ name: 'F', lat: 0.01, lon: 0.02 }],
         simulation: { sim_mode: false } },
       fence: { enabled: true, vertices: ring() },
       fenceIntentGeneration: 5, onFenceIntentResolved: vi.fn(),

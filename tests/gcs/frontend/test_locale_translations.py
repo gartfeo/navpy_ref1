@@ -9,7 +9,7 @@ SETTINGS_COMPONENT_DIR = ROOT / "src" / "gcs" / "frontend" / "src" / "components
 PLACEHOLDER_RE = re.compile(r"{{\s*([^}]+?)\s*}}")
 
 IDENTICAL_VALUE_ALLOWLIST = {
-    "settings.tabs.fallbackDeliveryLocations",  # Owner-selected FDL tab acronym.
+    "settings.tabs.defaultDeliveryHubs",  # Owner-selected DDH tab acronym.
     "mapMarkers.dock",  # D is the owner-selected international dock marker.
     # Short technical label rather than untranslated prose.
     "connectionTab.id",

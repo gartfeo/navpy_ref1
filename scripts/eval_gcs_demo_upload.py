@@ -112,9 +112,9 @@ def mission_assignment(
             mission.get("launch_point"),
             "mission launch_point",
         ),
-        "fallback_delivery_location": _optional_coordinate(
-            mission.get("fallback_delivery_location"),
-            "mission fallback_delivery_location",
+        "default_delivery_hub": _optional_coordinate(
+            mission.get("default_delivery_hub"),
+            "mission default_delivery_hub",
         ),
     }
 
@@ -204,7 +204,7 @@ def shifted_mission_assignments(
         for field in ("waypoints", "polygon", "corridor_backbone"):
             for coordinate in _list(assignment.get(field), field):
                 _shift_coordinate(_object(coordinate, field), lat_delta, lon_delta)
-        for field in ("launch_point", "fallback_delivery_location"):
+        for field in ("launch_point", "default_delivery_hub"):
             coordinate = assignment.get(field)
             if coordinate is not None:
                 _shift_coordinate(

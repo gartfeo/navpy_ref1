@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import MapIconBtn from '../MapIconBtn';
 import { colors, setColors } from '../../styles';
-import { DELIVERY_LOCATION_TYPES, getDeliveryLocationIcon } from './constants/deliveryLocationIcons.js';
+import { DELIVERY_HUB_TYPES, getDeliveryHubIcon } from './constants/deliveryHubIcons.js';
 
 export default function PlanningToolbar({
   isDrawing,
@@ -17,10 +17,10 @@ export default function PlanningToolbar({
   effectiveSets,
   activeSetIndex,
   setActiveSetIndex,
-  placingFallbackLocation,
-  onToggleFallbackLocation,
-  placingFallbackLocationType,
-  setPlacingFallbackLocationType,
+  placingDeliveryHub,
+  onToggleDeliveryHub,
+  placingDeliveryHubType,
+  setPlacingDeliveryHubType,
   fenceEnabled,
   onToggleFence,
   observedFenceMode,
@@ -191,16 +191,16 @@ export default function PlanningToolbar({
         </svg>
       </MapIconBtn>
 
-      {/* fallback location placement — location icon + type selector (opens left) */}
+      {/* delivery hub placement — location icon + type selector (opens left) */}
       <div style={{ position: 'relative' }}>
         <MapIconBtn
-          title={placingFallbackLocation ? t('planningToolbar.stopFallbackLocation') : t('planningToolbar.placeFallbackLocation')}
-          onClick={onToggleFallbackLocation}
-          active={placingFallbackLocation}
+          title={placingDeliveryHub ? t('planningToolbar.stopDeliveryHub') : t('planningToolbar.placeDeliveryHub')}
+          onClick={onToggleDeliveryHub}
+          active={placingDeliveryHub}
         >
-          <img src={getDeliveryLocationIcon('other')} width={14} height={14} alt="" />
+          <img src={getDeliveryHubIcon('other')} width={14} height={14} alt="" />
         </MapIconBtn>
-        {placingFallbackLocation && (
+        {placingDeliveryHub && (
           <div style={{
             position: 'absolute',
             right: 36,
@@ -215,28 +215,28 @@ export default function PlanningToolbar({
             backdropFilter: 'blur(4px)',
             whiteSpace: 'nowrap',
           }}>
-            {DELIVERY_LOCATION_TYPES.map((fallbackLocationType) => (
+            {DELIVERY_HUB_TYPES.map((deliveryHubType) => (
               <button
-                key={fallbackLocationType}
-                onClick={() => setPlacingFallbackLocationType(fallbackLocationType)}
-                title={t('fallbackLocation.types.' + fallbackLocationType)}
+                key={deliveryHubType}
+                onClick={() => setPlacingDeliveryHubType(deliveryHubType)}
+                title={t('deliveryHub.types.' + deliveryHubType)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
                   padding: '3px 8px 3px 4px',
-                  background: fallbackLocationType === placingFallbackLocationType ? 'rgba(0, 210, 255, 0.2)' : 'transparent',
-                  border: fallbackLocationType === placingFallbackLocationType ? `1px solid ${colors.accent}` : '1px solid transparent',
+                  background: deliveryHubType === placingDeliveryHubType ? 'rgba(0, 210, 255, 0.2)' : 'transparent',
+                  border: deliveryHubType === placingDeliveryHubType ? `1px solid ${colors.accent}` : '1px solid transparent',
                   borderRadius: 4,
                   cursor: 'pointer',
-                  color: fallbackLocationType === placingFallbackLocationType ? colors.accent : colors.textBright,
+                  color: deliveryHubType === placingDeliveryHubType ? colors.accent : colors.textBright,
                   fontSize: 11,
                   maxWidth: 120,
                 }}
               >
-                <img src={getDeliveryLocationIcon(fallbackLocationType)} width={16} height={16} alt="" style={{ flexShrink: 0 }} />
+                <img src={getDeliveryHubIcon(deliveryHubType)} width={16} height={16} alt="" style={{ flexShrink: 0 }} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t('fallbackLocation.types.' + fallbackLocationType)}
+                  {t('deliveryHub.types.' + deliveryHubType)}
                 </span>
               </button>
             ))}

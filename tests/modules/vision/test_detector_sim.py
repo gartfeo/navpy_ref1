@@ -211,7 +211,7 @@ class TestSimFrameGenerator:
         assert frame.shape == (1080, 1920, 3)
         assert len(boxes) == 1 and len(boxes[0]) == 4
 
-    def test_fallback_location_sprite_and_unknown_fallback(self):
+    def test_delivery_hub_sprite_and_unknown_fallback(self):
         generator = SimFrameGenerator.__new__(SimFrameGenerator)
         generator._frame_size = (1920, 1080)
         generator._background = np.zeros((1080, 1920, 3), dtype=np.uint8)
@@ -519,7 +519,7 @@ class TestDetectorSimAdapter:
             SimDetectorIdentity(mount).source_name
 
 
-class TestFallbackLocationTypePropagation:
+class TestDeliveryHubTypePropagation:
     def test_poi_and_detection_preserve_location_type(self):
         poi = SimulationObject(0, Location(0, 0, 0), 2, location_type="building")
         detection = make_detected_poi(

@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../../styles';
 import { SettingsSection } from './SettingsField.jsx';
-import { DELIVERY_LOCATION_TYPES } from '../map/constants/deliveryLocationIcons.js';
+import { DELIVERY_HUB_TYPES } from '../map/constants/deliveryHubIcons.js';
 
 const cellStyle = {
   padding: '4px 6px',
@@ -26,28 +26,28 @@ const cellInputStyle = {
   outline: 'none',
 };
 
-export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartPlacing }) {
+export default function DefaultDeliveryHubsTab({ draft, setDraft, onStartPlacing }) {
   const { t } = useTranslation();
-  const fallbackLocations = draft.fallback_delivery_locations || [];
+  const deliveryHubs = draft.default_delivery_hubs || [];
   const fileRef = useRef(null);
 
-  const setFallbackLocations = (newFallbackLocations) => {
-    setDraft({ ...draft, fallback_delivery_locations: newFallbackLocations });
+  const setDeliveryHubs = (newDeliveryHubs) => {
+    setDraft({ ...draft, default_delivery_hubs: newDeliveryHubs });
   };
 
-  const updateFallbackLocation = (index, field, value) => {
-    const updated = fallbackLocations.map((o, i) =>
+  const updateDeliveryHub = (index, field, value) => {
+    const updated = deliveryHubs.map((o, i) =>
       i === index ? { ...o, [field]: value } : o
     );
-    setFallbackLocations(updated);
+    setDeliveryHubs(updated);
   };
 
-  const addFallbackLocation = () => {
-    setFallbackLocations([...fallbackLocations, { name: '', type: 'other', lat: 0, lon: 0 }]);
+  const addDeliveryHub = () => {
+    setDeliveryHubs([...deliveryHubs, { name: '', type: 'other', lat: 0, lon: 0 }]);
   };
 
-  const removeFallbackLocation = (index) => {
-    setFallbackLocations(fallbackLocations.filter((_, i) => i !== index));
+  const removeDeliveryHub = (index) => {
+    setDeliveryHubs(deliveryHubs.filter((_, i) => i !== index));
   };
 
   const handleImportCsv = (e) => {
@@ -71,13 +71,13 @@ export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartP
         const t = typeIdx >= 0 ? cols[typeIdx].toLowerCase() : 'other';
         imported.push({
           name: cols[nameIdx],
-          type: DELIVERY_LOCATION_TYPES.includes(t) ? t : 'other',
+          type: DELIVERY_HUB_TYPES.includes(t) ? t : 'other',
           lat: parseFloat(cols[latIdx]),
           lon: parseFloat(cols[lonIdx]),
         });
       }
       if (imported.length > 0) {
-        setFallbackLocations([...fallbackLocations, ...imported]);
+        setDeliveryHubs([...deliveryHubs, ...imported]);
       }
     };
     reader.readAsText(file);
@@ -86,20 +86,20 @@ export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartP
 
   return (
     <>
-      <SettingsSection title={t('fallbackDeliveryLocationsTab.title')}>
+      <SettingsSection title={t('defaultDeliveryHubsTab.title')}>
         <p style={{ color: colors.textDim, fontSize: 12, marginTop: 0 }}>
-          {t('fallbackDeliveryLocationsTab.description')}
+          {t('defaultDeliveryHubsTab.description')}
         </p>
         <div style={{ marginBottom: 8, display: 'flex', gap: 8 }}>
           <button
-            onClick={addFallbackLocation}
+            onClick={addDeliveryHub}
             style={{
               padding: '4px 12px', fontSize: 12,
               background: colors.surface, border: `1px solid ${colors.border}`,
               borderRadius: 4, color: colors.textBright, cursor: 'pointer',
             }}
           >
-            {t('fallbackDeliveryLocationsTab.add')}
+            {t('defaultDeliveryHubsTab.add')}
           </button>
           <button
             onClick={() => fileRef.current?.click()}
@@ -109,7 +109,7 @@ export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartP
               borderRadius: 4, color: colors.textBright, cursor: 'pointer',
             }}
           >
-            {t('fallbackDeliveryLocationsTab.importCsv')}
+            {t('defaultDeliveryHubsTab.importCsv')}
           </button>
           {onStartPlacing && (
             <button
@@ -120,7 +120,7 @@ export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartP
                 borderRadius: 4, color: colors.textBright, cursor: 'pointer',
               }}
             >
-              {t('fallbackDeliveryLocationsTab.placeOnMap')}
+              {t('defaultDeliveryHubsTab.placeOnMap')}
             </button>
           )}
           <input
@@ -130,30 +130,30 @@ export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartP
             style={{ display: 'none' }}
             onChange={handleImportCsv}
           />
-          {fallbackLocations.length > 0 && (
+          {deliveryHubs.length > 0 && (
             <button
-              onClick={() => { if (window.confirm(t('fallbackDeliveryLocationsTab.clearConfirm'))) setFallbackLocations([]); }}
+              onClick={() => { if (window.confirm(t('defaultDeliveryHubsTab.clearConfirm'))) setDeliveryHubs([]); }}
               style={{
                 padding: '4px 12px', fontSize: 12, marginLeft: 'auto',
                 background: 'transparent', border: `1px solid ${colors.border}`,
                 borderRadius: 4, color: colors.warning, cursor: 'pointer',
               }}
             >
-              {t('fallbackDeliveryLocationsTab.clearAll')}
+              {t('defaultDeliveryHubsTab.clearAll')}
             </button>
           )}
         </div>
 
-        {fallbackLocations.length === 0 ? (
+        {deliveryHubs.length === 0 ? (
           <div style={{ color: colors.textDim, fontSize: 12, padding: 8 }}>
-            {t('fallbackDeliveryLocationsTab.noLocations')}
+            {t('defaultDeliveryHubsTab.noHubs')}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {[t('fallbackDeliveryLocationsTab.name'), t('fallbackDeliveryLocationsTab.type'), t('fallbackDeliveryLocationsTab.lat'), t('fallbackDeliveryLocationsTab.lon'), ''].map((h) => (
+                  {[t('defaultDeliveryHubsTab.name'), t('defaultDeliveryHubsTab.type'), t('defaultDeliveryHubsTab.lat'), t('defaultDeliveryHubsTab.lon'), ''].map((h) => (
                     <th key={h} style={{
                       ...cellStyle, textAlign: 'left', fontWeight: 600,
                       color: colors.textDim, fontSize: 11,
@@ -162,24 +162,24 @@ export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartP
                 </tr>
               </thead>
               <tbody>
-                {fallbackLocations.map((location, i) => (
+                {deliveryHubs.map((location, i) => (
                   <tr key={i}>
                     <td style={inputCellStyle}>
                       <input
                         value={location.name}
-                        onChange={(e) => updateFallbackLocation(i, 'name', e.target.value)}
+                        onChange={(e) => updateDeliveryHub(i, 'name', e.target.value)}
                         style={cellInputStyle}
-                        placeholder={t('fallbackDeliveryLocationsTab.name')}
+                        placeholder={t('defaultDeliveryHubsTab.name')}
                       />
                     </td>
                     <td style={inputCellStyle}>
                       <select
                         value={location.type}
-                        onChange={(e) => updateFallbackLocation(i, 'type', e.target.value)}
+                        onChange={(e) => updateDeliveryHub(i, 'type', e.target.value)}
                         style={{ ...cellInputStyle, cursor: 'pointer', background: colors.surface }}
                       >
-                        {DELIVERY_LOCATION_TYPES.map((fallbackLocationType) => (
-                          <option key={fallbackLocationType} value={fallbackLocationType} style={{ background: colors.surface, color: colors.textBright }}>{t('fallbackLocation.types.' + fallbackLocationType)}</option>
+                        {DELIVERY_HUB_TYPES.map((deliveryHubType) => (
+                          <option key={deliveryHubType} value={deliveryHubType} style={{ background: colors.surface, color: colors.textBright }}>{t('deliveryHub.types.' + deliveryHubType)}</option>
                         ))}
                       </select>
                     </td>
@@ -188,7 +188,7 @@ export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartP
                         type="number"
                         value={location.lat}
                         step={0.0001}
-                        onChange={(e) => updateFallbackLocation(i, 'lat', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => updateDeliveryHub(i, 'lat', parseFloat(e.target.value) || 0)}
                         style={{ ...cellInputStyle, width: 100 }}
                       />
                     </td>
@@ -197,19 +197,19 @@ export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartP
                         type="number"
                         value={location.lon}
                         step={0.0001}
-                        onChange={(e) => updateFallbackLocation(i, 'lon', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => updateDeliveryHub(i, 'lon', parseFloat(e.target.value) || 0)}
                         style={{ ...cellInputStyle, width: 100 }}
                       />
                     </td>
                     <td style={cellStyle}>
                       <button
-                        onClick={() => removeFallbackLocation(i)}
+                        onClick={() => removeDeliveryHub(i)}
                         style={{
                           background: 'none', border: 'none',
                           color: colors.error, cursor: 'pointer',
                           fontSize: 14, padding: '0 4px',
                         }}
-                        title={t('fallbackDeliveryLocationsTab.remove')}
+                        title={t('defaultDeliveryHubsTab.remove')}
                       >&times;</button>
                     </td>
                   </tr>
@@ -220,7 +220,7 @@ export default function FallbackDeliveryLocationsTab({ draft, setDraft, onStartP
         )}
 
         <div style={{ color: colors.textDim, fontSize: 11, marginTop: 8 }}>
-          {t('fallbackDeliveryLocationsTab.csvFormat', { types: DELIVERY_LOCATION_TYPES.join(', ') })}
+          {t('defaultDeliveryHubsTab.csvFormat', { types: DELIVERY_HUB_TYPES.join(', ') })}
         </div>
       </SettingsSection>
     </>

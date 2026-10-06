@@ -8,7 +8,7 @@ Layout per metadata DO item:
   param1 = meta_type, x = lat*1e7, y = lon*1e7, z = 0 (except last)
 Only the LAST metadata item's z is non-zero:
   z = (location_type << 8) | search_pattern      [location_type:3 | search_pattern:8]
-location_type is only set on a fallback-delivery-location item (and is 0
+location_type is only set on a default-delivery-hub item (and is 0
 otherwise). Every zone targets the single ``dock`` class, so no dock class
 is encoded on the wire.
 """
@@ -28,7 +28,7 @@ _SEARCH_PATTERN_MASK = 0xFF
 _LOCATION_TYPE_SHIFT = 8
 _LOCATION_TYPE_MASK = 0x7
 
-# Compact location type IDs stored in bits 8-10 of the fallback-location item's z.
+# Compact location type IDs stored in bits 8-10 of the default-delivery-hub item's z.
 # 0 is reserved for "not encoded".
 LOCATION_TYPE_IDS = {
     "building": 1,
@@ -45,7 +45,7 @@ LOCATION_TYPE_NAMES = {v: k for k, v in LOCATION_TYPE_IDS.items()}
 META_POLYGON_VERTEX = 0
 META_CORRIDOR_VERTEX = 1
 META_LAUNCH_POINT = 2
-META_FALLBACK_DELIVERY_LOCATION = 3
+META_DEFAULT_DELIVERY_HUB = 3
 
 def encode_meta_z(search_pattern: str) -> float:
     """Encode the search pattern into a metadata z value (bits 0-7)."""

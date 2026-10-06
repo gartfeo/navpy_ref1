@@ -10,7 +10,7 @@
  * Build a deep-copied, normalized snapshot of all plan-local state that
  * affects monitor display, vehicle upload, or saved plan behavior.
  *
- * Global settings (settings.fallback_delivery_locations, altitude, FOV) are excluded —
+ * Global settings (settings.default_delivery_hubs, altitude, FOV) are excluded —
  * they survive plan discard by design.
  */
 export function buildPlanSnapshot(current) {
@@ -24,7 +24,7 @@ export function buildPlanSnapshot(current) {
     routeOffsetM:         current.routeOffsetM ?? null,
     setLaunchPoints:      JSON.parse(JSON.stringify(current.setLaunchPoints || [null])),
     setCorridorPointsArr: JSON.parse(JSON.stringify(current.setCorridorPointsArr || [[]])),
-    fallbackLocationAssignments:       current.fallbackLocationAssignments ? [...current.fallbackLocationAssignments] : [],
+    deliveryHubAssignments:       current.deliveryHubAssignments ? [...current.deliveryHubAssignments] : [],
     simDockWps:         current.simDockWps ? JSON.parse(JSON.stringify(current.simDockWps)) : {},
     detectAfterWps:       current.detectAfterWps ? JSON.parse(JSON.stringify(current.detectAfterWps)) : {},
     // Vehicle-observable fence geometry: both ride the upload payload, so

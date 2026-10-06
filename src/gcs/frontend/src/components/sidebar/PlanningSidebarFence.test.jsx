@@ -51,7 +51,7 @@ const renderSidebar = (observedFence, over = {}) => render(
     corridorPoints={[]}
     uavCountLocked
     setUavCountLocked={vi.fn()}
-    settings={{ fallback_delivery_locations: [] }}
+    settings={{ default_delivery_hubs: [] }}
     vehicleList={[{ sys_id: 1 }, { sys_id: 2 }]}
     aasParams={{
       sessionDraft: {},
@@ -60,9 +60,9 @@ const renderSidebar = (observedFence, over = {}) => render(
       getConfirmedConsensus: () => ({ state: 'unknown', value: null }),
     }}
     setLaunchPoints={vi.fn()}
-    fallbackLocationAssignments={[]}
-    setFallbackLocationAssignments={vi.fn()}
-    setManualFallbackLocationEdit={vi.fn()}
+    deliveryHubAssignments={[]}
+    setDeliveryHubAssignments={vi.fn()}
+    setManualDeliveryHubEdit={vi.fn()}
     simDockWps={{}}
     simMode
     detectAfterWps={{}}

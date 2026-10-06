@@ -10,12 +10,12 @@ export default function usePlanSnapshot({
   // Captured values
   plan, polygon, searchPattern, analysis, uavCount,
   partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
-  fallbackLocationAssignments, simDockWps, detectAfterWps,
+  deliveryHubAssignments, simDockWps, detectAfterWps,
   fenceCustomVertices, exclusionPolygons,
   // Restore setters
   setPlan, setPolygon, setSearchPattern, setAnalysis,
   setUavCount, setPartitionAngleDeg, setRouteOffsetM, setSetLaunchPoints,
-  setSetCorridorPoints, setFallbackLocationAssignments, setSimDockWps,
+  setSetCorridorPoints, setDeliveryHubAssignments, setSimDockWps,
   setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons,
   // Side-effect deps (drawingRef avoids hook-ordering issues with useDrawing)
   drawingRef, suppressRegenRef, goToMonitor, undoRef,
@@ -28,7 +28,7 @@ export default function usePlanSnapshot({
   stateForSnapshotRef.current = {
     plan, polygon, searchPattern, analysis, uavCount,
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
-    fallbackLocationAssignments, simDockWps, detectAfterWps,
+    deliveryHubAssignments, simDockWps, detectAfterWps,
     fenceCustomVertices, exclusionPolygons,
   };
 
@@ -54,7 +54,7 @@ export default function usePlanSnapshot({
         setRouteOffsetM(snap.routeOffsetM);
         setSetLaunchPoints(snap.setLaunchPoints);
         setSetCorridorPoints(snap.setCorridorPointsArr);
-        setFallbackLocationAssignments(snap.fallbackLocationAssignments);
+        setDeliveryHubAssignments(snap.deliveryHubAssignments);
         setSimDockWps(snap.simDockWps);
         setDetectAfterWps(snap.detectAfterWps);
         setFenceCustomVertices?.(snap.fenceCustomVertices ?? null);
@@ -67,7 +67,7 @@ export default function usePlanSnapshot({
     }
     goToMonitor();
   }, [goToMonitor, setPlan, setPolygon, setSearchPattern, setAnalysis, setUavCount, setPartitionAngleDeg,
-      setRouteOffsetM, setSetLaunchPoints, setSetCorridorPoints, setFallbackLocationAssignments,
+      setRouteOffsetM, setSetLaunchPoints, setSetCorridorPoints, setDeliveryHubAssignments,
       setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons]);
 
   return { onPlanSynced, handleExitPlanning };

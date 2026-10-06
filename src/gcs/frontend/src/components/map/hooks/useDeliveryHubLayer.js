@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { getDeliveryLocationIcon } from '../constants/deliveryLocationIcons.js';
+import { getDeliveryHubIcon } from '../constants/deliveryHubIcons.js';
 import { zoneColorsSolid } from '../../../styles';
 
 /**
- * Renders fallback location markers on the Cesium map.
+ * Renders delivery hub markers on the Cesium map.
  * Shows type-specific icons with labels, and dashed assignment lines
- * from zone track endpoints (at altitude) down to their assigned fallback locations (on ground).
+ * from zone track endpoints (at altitude) down to their assigned delivery hubs (on ground).
  */
-export default function useFallbackLocationLayer(cesiumRef, viewerRef, fallbackLocations, fallbackLocationAssignments, plan, viewerReady, terrainReady, trackPosRef, terrainBaseRef, showTracks) {
+export default function useDeliveryHubLayer(cesiumRef, viewerRef, deliveryHubs, deliveryHubAssignments, plan, viewerReady, terrainReady, trackPosRef, terrainBaseRef, showTracks) {
   const entitiesRef = useRef([]);
 
   useEffect(() => {
@@ -25,23 +25,23 @@ export default function useFallbackLocationLayer(cesiumRef, viewerRef, fallbackL
       return;
     }
 
-    if (!fallbackLocations || fallbackLocations.length === 0) {
+    if (!deliveryHubs || deliveryHubs.length === 0) {
       entitiesRef.current = [];
       return;
     }
 
     const added = [];
-    for (let i = 0; i < fallbackLocations.length; i++) {
-      const location = fallbackLocations[i];
+    for (let i = 0; i < deliveryHubs.length; i++) {
+      const location = deliveryHubs[i];
       const position = Cesium.Cartesian3.fromDegrees(location.lon, location.lat, 0);
       // Billboard with type icon — tagged for picking
       const props = new Cesium.PropertyBag();
-      props.addProperty('fallbackLocationIndex', i);
+      props.addProperty('deliveryHubIndex', i);
       const e = viewer.entities.add({
         position,
         properties: props,
         billboard: {
-          image: getDeliveryLocationIcon(location.type),
+          image: getDeliveryHubIcon(location.type),
           width: 28,
           height: 28,
           heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -49,7 +49,7 @@ export default function useFallbackLocationLayer(cesiumRef, viewerRef, fallbackL
           scaleByDistance: new Cesium.NearFarScalar(500, 1.0, 20000, 0.3),
         },
         label: {
-          text: location.name || `Fallback delivery location ${i + 1}`,
+          text: location.name || `Default delivery hub ${i + 1}`,
           font: 'bold 11px sans-serif',
           fillColor: Cesium.Color.WHITE,
           outlineColor: Cesium.Color.BLACK,
@@ -66,12 +66,12 @@ export default function useFallbackLocationLayer(cesiumRef, viewerRef, fallbackL
       added.push(e);
     }
 
-    // Assignment lines: dashed polyline from zone's last track point (at altitude) to fallback location (on ground)
+    // Assignment lines: dashed polyline from zone's last track point (at altitude) to delivery hub (on ground)
     const zones = plan?.zones || [];
-    if (showTracks && fallbackLocationAssignments) {
-      for (let zi = 0; zi < fallbackLocationAssignments.length; zi++) {
-        const oi = fallbackLocationAssignments[zi];
-        if (oi == null || !fallbackLocations[oi]) continue;
+    if (showTracks && deliveryHubAssignments) {
+      for (let zi = 0; zi < deliveryHubAssignments.length; zi++) {
+        const oi = deliveryHubAssignments[zi];
+        if (oi == null || !deliveryHubs[oi]) continue;
         const zone = zones[zi];
         if (!zone?.track?.length) continue;
         const capturedZi = zi;
@@ -87,7 +87,7 @@ export default function useFallbackLocationLayer(cesiumRef, viewerRef, fallbackL
               const groundH = terrainBaseRef?.current?.[capturedZi] || 0;
               return [
                 tp[tp.length - 1],
-                Cesium.Cartesian3.fromDegrees(fallbackLocations[capturedOi].lon, fallbackLocations[capturedOi].lat, groundH),
+                Cesium.Cartesian3.fromDegrees(deliveryHubs[capturedOi].lon, deliveryHubs[capturedOi].lat, groundH),
               ];
             }, false),
             width: 2,
@@ -103,5 +103,5 @@ export default function useFallbackLocationLayer(cesiumRef, viewerRef, fallbackL
 
     entitiesRef.current = added;
     viewer.scene.requestRender();
-  }, [fallbackLocations, fallbackLocationAssignments, plan, showTracks, terrainReady]);
+  }, [deliveryHubs, deliveryHubAssignments, plan, showTracks, terrainReady]);
 }

@@ -3,7 +3,7 @@ import useDrawing from '../components/map/useDrawing';
 import usePlanGeneration from './usePlanGeneration';
 import useCorridorPath from './useCorridorPath';
 import usePlanPersistence from './usePlanPersistence';
-import useFallbackLocationPlacement from './useFallbackLocationPlacement';
+import useDeliveryHubPlacement from './useDeliveryHubPlacement';
 import usePlanSnapshot from './usePlanSnapshot';
 import usePlacementModes from './usePlacementModes';
 import usePlanDrag from './usePlanDrag';
@@ -25,8 +25,8 @@ export default function usePlanningOrchestrator({
     partitionAngleDeg, setPartitionAngleDeg,
     routeOffsetM, setRouteOffsetM,
     goToPlanning, goToMonitor,
-    fallbackLocationAssignments, setFallbackLocationAssignments,
-    manualFallbackLocationEdit, setManualFallbackLocationEdit,
+    deliveryHubAssignments, setDeliveryHubAssignments,
+    manualDeliveryHubEdit, setManualDeliveryHubEdit,
     simDockWps, setSimDockWps,
     detectAfterWps, setDetectAfterWps,
     fenceEnabled, setFenceEnabled,
@@ -49,11 +49,11 @@ export default function usePlanningOrchestrator({
   const { onPlanSynced, handleExitPlanning } = usePlanSnapshot({
     plan, polygon, searchPattern, analysis, uavCount,
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
-    fallbackLocationAssignments, simDockWps, detectAfterWps,
+    deliveryHubAssignments, simDockWps, detectAfterWps,
     fenceCustomVertices, exclusionPolygons,
     setPlan, setPolygon, setSearchPattern, setAnalysis,
     setUavCount, setPartitionAngleDeg, setRouteOffsetM, setSetLaunchPoints,
-    setSetCorridorPoints, setFallbackLocationAssignments, setSimDockWps,
+    setSetCorridorPoints, setDeliveryHubAssignments, setSimDockWps,
     setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons,
     drawingRef, suppressRegenRef, goToMonitor, undoRef,
   });
@@ -62,12 +62,12 @@ export default function usePlanningOrchestrator({
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
 
-  // ---- fallback location Placement ----
+  // ---- delivery hub Placement ----
   const {
-    placingFallbackLocation, setPlacingFallbackLocation,
-    placingFallbackLocationType, setPlacingFallbackLocationType,
-    handlePlaceFallbackLocation, handleRemoveFallbackLocation, handleMoveFallbackLocation,
-  } = useFallbackLocationPlacement({ settings, handleSaveSettings, setFallbackLocationAssignments, phase });
+    placingDeliveryHub, setPlacingDeliveryHub,
+    placingDeliveryHubType, setPlacingDeliveryHubType,
+    handlePlaceDeliveryHub, handleRemoveDeliveryHub, handleMoveDeliveryHub,
+  } = useDeliveryHubPlacement({ settings, handleSaveSettings, setDeliveryHubAssignments, phase });
 
   // ---- Plan generation ----
   const {
@@ -97,8 +97,8 @@ export default function usePlanningOrchestrator({
     settings,
     settingsVersion,
     plannerReady,
-    setFallbackLocationAssignments,
-    manualFallbackLocationEdit,
+    setDeliveryHubAssignments,
+    manualDeliveryHubEdit,
   });
 
   // ---- Drawing ----
@@ -115,11 +115,11 @@ export default function usePlanningOrchestrator({
     placingExclusion, setPlacingExclusion,
     startDrawExclusive,
     toggleCorridorPlacement,
-    toggleFallbackLocationPlacement,
+    toggleDeliveryHubPlacement,
     toggleExclusionPlacement,
-    startPlacingFallbackLocationFromSettings,
+    startPlacingDeliveryHubFromSettings,
   } = usePlacementModes({
-    drawing, placingFallbackLocation, setPlacingFallbackLocation,
+    drawing, placingDeliveryHub, setPlacingDeliveryHub,
     searchPattern, analysis, polygon,
   });
 
@@ -184,8 +184,8 @@ export default function usePlanningOrchestrator({
     localAnalyze,
     undoRef,
     suppressRegenRef,
-    fallbackLocationAssignments,
-    setFallbackLocationAssignments,
+    deliveryHubAssignments,
+    setDeliveryHubAssignments,
     simDockWps,
     setSimDockWps,
     detectAfterWps,
@@ -250,7 +250,7 @@ export default function usePlanningOrchestrator({
       undoRef.current = [];
       setPlacingLaunchPoint(false);
       setPlacingCorridor(false);
-      setPlacingFallbackLocation(false);
+      setPlacingDeliveryHub(false);
       if (drawing.isDrawing) drawing.stopDraw();
       polygonCleared = true;
       setSimDockWps({});
@@ -353,7 +353,7 @@ export default function usePlanningOrchestrator({
     setPlan(null);
     setAnalysis(null);
     setPlacingLaunchPoint(false);
-    setPlacingFallbackLocation(false);
+    setPlacingDeliveryHub(false);
     setPlacingExclusion(false);
     setPlacingCorridor(searchPattern === 'corridor');
     setSimDockWps({});
@@ -437,21 +437,21 @@ export default function usePlanningOrchestrator({
     handleSavePolygon, handleLoadPolygon,
     startDrawExclusive,
     toggleCorridorPlacement,
-    toggleFallbackLocationPlacement,
+    toggleDeliveryHubPlacement,
     toggleExclusionPlacement,
 
     // SettingsModal entrypoint
-    startPlacingFallbackLocationFromSettings,
+    startPlacingDeliveryHubFromSettings,
 
     // Placement mode state
     placingLaunchPoint, setPlacingLaunchPoint,
     placingCorridor, setPlacingCorridor,
-    placingFallbackLocation, setPlacingFallbackLocation,
-    placingFallbackLocationType, setPlacingFallbackLocationType,
+    placingDeliveryHub, setPlacingDeliveryHub,
+    placingDeliveryHubType, setPlacingDeliveryHubType,
     placingExclusion,
 
-    // fallback location handlers
-    handlePlaceFallbackLocation, handleRemoveFallbackLocation, handleMoveFallbackLocation,
+    // delivery hub handlers
+    handlePlaceDeliveryHub, handleRemoveDeliveryHub, handleMoveDeliveryHub,
 
     // Keep-out (exclusion) drawing + zone-style ring editing
     draftExclusion,

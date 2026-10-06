@@ -60,7 +60,7 @@ async function main() {
     startupMissionAuthority,
     startupPlanMetadata,
     startupPlanMetadataForOwnedPlan,
-    startupMissionFallbackLocationsForZones,
+    startupMissionDeliveryHubsForZones,
     enqueueStartupPostProcess,
   } = loadEsm('utils/planDownloadRun.js');
 
@@ -164,7 +164,7 @@ async function main() {
     requestedIds: new Set(),
     orderedIds: [],
     excludedIds: new Set(),
-    missionFallbackLocationsBySysId: new Map(),
+    missionDeliveryHubsBySysId: new Map(),
     missionsBySysId: new Map(),
     postProcessQueue: Promise.resolve(),
   };
@@ -441,15 +441,15 @@ async function main() {
 
   // Concurrent mission completions retain fleet metadata by sys_id rather than
   // rebuilding earlier POIs from a stale React closure.
-  const metadataRun = { missionFallbackLocationsBySysId: new Map() };
+  const metadataRun = { missionDeliveryHubsBySysId: new Map() };
   const poi1 = { lat: 1, lon: 1 };
   const poi2 = { lat: 2, lon: 2 };
-  metadataRun.missionFallbackLocationsBySysId.set(2, poi2); // completion order differs
-  metadataRun.missionFallbackLocationsBySysId.set(1, poi1);
+  metadataRun.missionDeliveryHubsBySysId.set(2, poi2); // completion order differs
+  metadataRun.missionDeliveryHubsBySysId.set(1, poi1);
   assert.deepStrictEqual(
-    startupMissionFallbackLocationsForZones(metadataRun, [{ sys_id: 1 }, { sys_id: 2 }, { sys_id: 3 }]),
+    startupMissionDeliveryHubsForZones(metadataRun, [{ sys_id: 1 }, { sys_id: 2 }, { sys_id: 3 }]),
     [poi1, poi2, null],
-    'fallback locations accumulate in zone order regardless of completion order',
+    'delivery hubs accumulate in zone order regardless of completion order',
   );
 
   // Side effects are serialized so a slow earlier subset cannot finish after

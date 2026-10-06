@@ -36,7 +36,7 @@ export function handleDragMove(Cesium, viewer, movement, dragState, callbacksRef
       const deg = Math.atan2(dy, dx) * 180 / Math.PI;
       cb.onPartitionAngleDrag(deg);
     }
-  } else if (dragState.type === 'fallbackLocation' && dragState.entity && cb.placingFallbackLocation) {
+  } else if (dragState.type === 'deliveryHub' && dragState.entity && cb.placingDeliveryHub) {
     // Pick terrain cartesian directly so icon sits on terrain surface
     const ray = viewer.camera.getPickRay(movement.endPosition);
     const cartesian = ray && viewer.scene.globe.pick(ray, viewer.scene);

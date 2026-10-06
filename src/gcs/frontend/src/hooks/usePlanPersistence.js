@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { analyzeArea } from '../utils/planner';
 import { convexHull } from '../utils/geo';
-import { buildFallbackLocationsFromDownload } from '../utils/fallbackLocationAssignment';
+import { buildDeliveryHubsFromDownload } from '../utils/deliveryHubAssignment';
 
 /**
  * Save/load plan geometry to/from JSON files, and derive polygon from downloaded plan tracks.
@@ -27,8 +27,8 @@ export default function usePlanPersistence({
   localAnalyze,
   undoRef,
   suppressRegenRef,
-  fallbackLocationAssignments,
-  setFallbackLocationAssignments,
+  deliveryHubAssignments,
+  setDeliveryHubAssignments,
   simDockWps,
   setSimDockWps,
   detectAfterWps,
@@ -68,7 +68,7 @@ export default function usePlanPersistence({
     const savedCps = (setCorridorPointsArr ?? [[]]).map((cp) => (cp || []).map((p) => ({ lat: p.lat, lon: p.lon })));
     if (savedLps.some((lp) => lp != null)) data.set_launch_points = savedLps;
     if (savedCps.some((cp) => cp.length > 0)) data.set_corridors = savedCps;
-    if (fallbackLocationAssignments?.length > 0) data.fallback_location_assignments = fallbackLocationAssignments;
+    if (deliveryHubAssignments?.length > 0) data.delivery_hub_assignments = deliveryHubAssignments;
     if (simDockWps && Object.keys(simDockWps).length > 0) data.sim_dock_wps = simDockWps;
     if (detectAfterWps && Object.keys(detectAfterWps).length > 0) data.detect_after_wps = detectAfterWps;
     // Geofence: settings always; the ring itself only when operator-edited
@@ -89,8 +89,8 @@ export default function usePlanPersistence({
         .filter((r) => Array.isArray(r) && r.length >= 3)
         .map((r) => r.map((p) => ({ lat: p.lat, lon: p.lon })));
     }
-    const fallbackLocations = settings?.fallback_delivery_locations || [];
-    if (fallbackLocations.length > 0) data.fallback_delivery_locations = fallbackLocations;
+    const deliveryHubs = settings?.default_delivery_hubs || [];
+    if (deliveryHubs.length > 0) data.default_delivery_hubs = deliveryHubs;
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -99,7 +99,7 @@ export default function usePlanPersistence({
     a.download = 'plan.json';
     a.click();
     URL.revokeObjectURL(url);
-  }, [polygon, launchPoint, corridorPoints, searchPattern, setLaunchPoints, setCorridorPointsArr, fallbackLocationAssignments, simDockWps, detectAfterWps, settings, fenceEnabled, fenceOffsetM, fenceTouched, fenceIntent, fenceCustomVertices, exclusionPolygons]);
+  }, [polygon, launchPoint, corridorPoints, searchPattern, setLaunchPoints, setCorridorPointsArr, deliveryHubAssignments, simDockWps, detectAfterWps, settings, fenceEnabled, fenceOffsetM, fenceTouched, fenceIntent, fenceCustomVertices, exclusionPolygons]);
 
   // Load plan geometry from file
   const handleLoadPolygon = useCallback(() => {
@@ -158,11 +158,11 @@ export default function usePlanPersistence({
             setSetCorridorPoints([[]]);
           }
           setActiveSetIndex(0);
-          if (raw.fallback_delivery_locations?.length > 0 && handleSaveSettings) {
-            handleSaveSettings({ fallback_delivery_locations: raw.fallback_delivery_locations });
+          if (raw.default_delivery_hubs?.length > 0 && handleSaveSettings) {
+            handleSaveSettings({ default_delivery_hubs: raw.default_delivery_hubs });
           }
-          if (raw.fallback_location_assignments?.length > 0 && setFallbackLocationAssignments) {
-            setFallbackLocationAssignments(raw.fallback_location_assignments);
+          if (raw.delivery_hub_assignments?.length > 0 && setDeliveryHubAssignments) {
+            setDeliveryHubAssignments(raw.delivery_hub_assignments);
           }
           if (raw.sim_dock_wps && setSimDockWps) setSimDockWps(raw.sim_dock_wps);
           if (raw.detect_after_wps && setDetectAfterWps) setDetectAfterWps(raw.detect_after_wps);
@@ -201,7 +201,7 @@ export default function usePlanPersistence({
   }, [t, setPolygon, drawing.loadVertices, localAnalyze, setSearchPattern, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations]);
 
   // Derive polygon + launch/corridor from plan tracks using corridor_end_index
-  const derivePlanPolygon = useCallback((zones, downloadedSearchPattern, downloadedPolygon, downloadedCorridorBackbone, downloadedLaunchPoint, downloadedMissionFallbackLocations) => {
+  const derivePlanPolygon = useCallback((zones, downloadedSearchPattern, downloadedPolygon, downloadedCorridorBackbone, downloadedLaunchPoint, downloadedMissionDeliveryHubs) => {
     const tracks = zones.filter((z) => z.track?.length);
     if (tracks.length === 0) return;
     undoRef.current = [];
@@ -285,13 +285,13 @@ export default function usePlanPersistence({
       setAnalysis(a);
     }
 
-    // Restore fallback locations from downloaded fallback locations
-    if (downloadedMissionFallbackLocations) {
-      const existingFallbackLocations = settings?.fallback_delivery_locations || [];
-      const { fallbackLocations, assignments } = buildFallbackLocationsFromDownload(downloadedMissionFallbackLocations, existingFallbackLocations);
-      if (fallbackLocations.length > 0) {
-        handleSaveSettings({ fallback_delivery_locations: fallbackLocations });
-        setFallbackLocationAssignments(assignments);
+    // Restore delivery hubs from downloaded delivery hubs
+    if (downloadedMissionDeliveryHubs) {
+      const existingDeliveryHubs = settings?.default_delivery_hubs || [];
+      const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(downloadedMissionDeliveryHubs, existingDeliveryHubs);
+      if (deliveryHubs.length > 0) {
+        handleSaveSettings({ default_delivery_hubs: deliveryHubs });
+        setDeliveryHubAssignments(assignments);
       }
     }
 
@@ -309,7 +309,7 @@ export default function usePlanPersistence({
       });
       return changed ? { ...prev, zones: trimmed } : prev;
     });
-  }, [plannerReady, setPolygon, drawing.loadVertices, setLaunchPoint, setCorridorPoints, setPlan, setSearchPattern, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, handleSaveSettings, setFallbackLocationAssignments, setFenceCustomVertices, notifyFenceGeometryReplaced, settings]);
+  }, [plannerReady, setPolygon, drawing.loadVertices, setLaunchPoint, setCorridorPoints, setPlan, setSearchPattern, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, handleSaveSettings, setDeliveryHubAssignments, setFenceCustomVertices, notifyFenceGeometryReplaced, settings]);
 
   return {
     handleSavePolygon,

@@ -65,7 +65,7 @@ test('single mission produces correct zone structure', () => {
     search_pattern: 'corridor',
     polygon: [{ lat: 0, lon: 0 }, { lat: 1, lon: 0 }, { lat: 0, lon: 1 }],
     launch_point: { lat: 5, lon: 5 },
-    fallback_delivery_location: { lat: 10, lon: 20 },
+    default_delivery_hub: { lat: 10, lon: 20 },
   }];
   const r = assembleMissionsFromResults(results);
   assert.strictEqual(r.zones.length, 1);
@@ -79,7 +79,7 @@ test('single mission produces correct zone structure', () => {
   assert.strictEqual(r.polygon.length, 3);
   assert.deepStrictEqual(r.launchPoint, { lat: 5, lon: 5 });
   assert.strictEqual(Object.hasOwn(r, 'dockClasses'), false);
-  assert.deepStrictEqual(r.missionFallbackLocations, [{ lat: 10, lon: 20 }]);
+  assert.deepStrictEqual(r.missionDeliveryHubs, [{ lat: 10, lon: 20 }]);
 });
 
 test('multiple missions indexed correctly', () => {

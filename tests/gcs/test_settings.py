@@ -57,7 +57,7 @@ class TestSettingsAPI:
         for body in (
             {"flight": {"cruise_speed_ms": "abc"}},
             {"map_display": {"default_zoom": "far"}},
-            {"fallback_delivery_locations": "not-a-list"},
+            {"default_delivery_hubs": "not-a-list"},
         ):
             resp = client.put("/api/settings", json=body)
             assert resp.status_code == 422, (body, resp.text)

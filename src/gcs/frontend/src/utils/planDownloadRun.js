@@ -220,11 +220,11 @@ export function startupPlanMetadataForOwnedPlan(run, plan, fallbackAltitude = 10
     : null;
 }
 
-/** Return startup mission fallback locations in the same order as plan zones. */
-export function startupMissionFallbackLocationsForZones(run, zones) {
+/** Return startup mission delivery hubs in the same order as plan zones. */
+export function startupMissionDeliveryHubsForZones(run, zones) {
   return (zones || []).map((zone) => (
-    run?.missionFallbackLocationsBySysId?.has(zone.sys_id)
-      ? run.missionFallbackLocationsBySysId.get(zone.sys_id)
+    run?.missionDeliveryHubsBySysId?.has(zone.sys_id)
+      ? run.missionDeliveryHubsBySysId.get(zone.sys_id)
       : null
   ));
 }

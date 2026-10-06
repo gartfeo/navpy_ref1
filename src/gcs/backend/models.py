@@ -10,7 +10,7 @@ class LatLon(BaseModel):
     lon: float
 
 
-class MissionFallbackLocation(LatLon):
+class MissionDeliveryHub(LatLon):
     model_config = ConfigDict(extra="forbid")
 
     type: Optional[str] = None
@@ -66,7 +66,7 @@ class VehicleAssignment(BaseModel):
     polygon: list[LatLon] = []  # original planning polygon vertices (for round-trip)
     corridor_backbone: list[LatLon] = []  # corridor backbone waypoints (for round-trip)
     launch_point: Optional[LatLon] = None  # separate launch/home position
-    fallback_delivery_location: Optional[MissionFallbackLocation] = None  # configured delivery location
+    default_delivery_hub: Optional[MissionDeliveryHub] = None  # configured delivery hub
 
 
 # Fix forward reference

@@ -137,7 +137,7 @@ def _downloaded_mission(sys_id: int) -> dict:
         "polygon": [],
         "corridor_backbone": [],
         "launch_point": {"lat": 40.0, "lon": 44.0},
-        "fallback_delivery_location": None,
+        "default_delivery_hub": None,
     }
 
 
@@ -152,7 +152,7 @@ def test_mission_translation_preserves_search_pattern(pattern):
 
 def test_mission_translation_changes_digest_and_every_coordinate():
     mission = _downloaded_mission(4)
-    mission["fallback_delivery_location"] = {"lat": 40.0, "lon": 44.0, "type": "other"}
+    mission["default_delivery_hub"] = {"lat": 40.0, "lon": 44.0, "type": "other"}
     original = [
         mission_assignment(
             mission,
@@ -171,8 +171,8 @@ def test_mission_translation_changes_digest_and_every_coordinate():
     assert "dock_classes" not in original[0]
     assert "poi_classes" not in original[0]
     assert "default_poi" not in original[0]
-    assert original[0]["fallback_delivery_location"] == mission["fallback_delivery_location"]
-    assert shifted[0]["fallback_delivery_location"] == {"lat": 40.0002, "lon": 43.9998, "type": "other"}
+    assert original[0]["default_delivery_hub"] == mission["default_delivery_hub"]
+    assert shifted[0]["default_delivery_hub"] == {"lat": 40.0002, "lon": 43.9998, "type": "other"}
 
 
 def test_candidate_digest_binds_untracked_file_content():

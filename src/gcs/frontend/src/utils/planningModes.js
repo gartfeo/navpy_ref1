@@ -11,15 +11,15 @@
  * The caller is responsible for calling drawing.startDraw()/stopDraw()
  * based on the returned shouldStartDraw/shouldStopDraw flags.
  *
- * @param {{ placingLaunchPoint: boolean, placingCorridor: boolean, placingFallbackLocation: boolean, placingExclusion: boolean, isDrawing: boolean }} current
- * @param {'startDraw' | 'toggleCorridor' | 'toggleFallbackLocation' | 'toggleExclusion' | 'startFallbackLocationFromSettings'} action
- * @returns {{ placingLaunchPoint: boolean, placingCorridor: boolean, placingFallbackLocation: boolean, placingExclusion: boolean, shouldStartDraw: boolean, shouldStopDraw: boolean }}
+ * @param {{ placingLaunchPoint: boolean, placingCorridor: boolean, placingDeliveryHub: boolean, placingExclusion: boolean, isDrawing: boolean }} current
+ * @param {'startDraw' | 'toggleCorridor' | 'toggleDeliveryHub' | 'toggleExclusion' | 'startDeliveryHubFromSettings'} action
+ * @returns {{ placingLaunchPoint: boolean, placingCorridor: boolean, placingDeliveryHub: boolean, placingExclusion: boolean, shouldStartDraw: boolean, shouldStopDraw: boolean }}
  */
 export function nextPlacementState(current, action) {
   const base = {
     placingLaunchPoint: false,
     placingCorridor: false,
-    placingFallbackLocation: false,
+    placingDeliveryHub: false,
     placingExclusion: false,
     shouldStartDraw: false,
     shouldStopDraw: false,
@@ -35,7 +35,7 @@ export function nextPlacementState(current, action) {
         return {
           placingLaunchPoint: current.placingLaunchPoint,
           placingCorridor: false,
-          placingFallbackLocation: current.placingFallbackLocation,
+          placingDeliveryHub: current.placingDeliveryHub,
           placingExclusion: current.placingExclusion,
           shouldStartDraw: false,
           shouldStopDraw: false,
@@ -47,13 +47,13 @@ export function nextPlacementState(current, action) {
         shouldStopDraw: current.isDrawing,
       };
 
-    case 'toggleFallbackLocation':
-      if (current.placingFallbackLocation) {
-        // Toggling off — only clear fallback location, leave everything else alone
+    case 'toggleDeliveryHub':
+      if (current.placingDeliveryHub) {
+        // Toggling off — only clear delivery hub, leave everything else alone
         return {
           placingLaunchPoint: current.placingLaunchPoint,
           placingCorridor: current.placingCorridor,
-          placingFallbackLocation: false,
+          placingDeliveryHub: false,
           placingExclusion: current.placingExclusion,
           shouldStartDraw: false,
           shouldStopDraw: false,
@@ -61,7 +61,7 @@ export function nextPlacementState(current, action) {
       }
       return {
         ...base,
-        placingFallbackLocation: true,
+        placingDeliveryHub: true,
         shouldStopDraw: current.isDrawing,
       };
 
@@ -71,7 +71,7 @@ export function nextPlacementState(current, action) {
         return {
           placingLaunchPoint: current.placingLaunchPoint,
           placingCorridor: current.placingCorridor,
-          placingFallbackLocation: current.placingFallbackLocation,
+          placingDeliveryHub: current.placingDeliveryHub,
           placingExclusion: false,
           shouldStartDraw: false,
           shouldStopDraw: false,
@@ -83,10 +83,10 @@ export function nextPlacementState(current, action) {
         shouldStopDraw: current.isDrawing,
       };
 
-    case 'startFallbackLocationFromSettings':
+    case 'startDeliveryHubFromSettings':
       return {
         ...base,
-        placingFallbackLocation: true,
+        placingDeliveryHub: true,
         shouldStopDraw: current.isDrawing,
       };
 

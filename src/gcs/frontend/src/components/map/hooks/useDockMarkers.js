@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { zoneColorsSolid } from '../../../styles';
-import { DOCK_ICON } from '../constants/deliveryLocationIcons.js';
+import { DOCK_ICON } from '../constants/deliveryHubIcons.js';
 
 /** Render ground-clamped dock symbols at the configured simulation coordinates. */
 export default function useDockMarkers(cesiumRef, viewerRef, entitiesRef, simDocks, viewerReady) {

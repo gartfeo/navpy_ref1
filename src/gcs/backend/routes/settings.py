@@ -10,7 +10,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import ValidationError
 
 from gcs.backend import navpy_sim_runtime as runtime
-from gcs.backend.settings_model import FallbackDeliveryLocation, DELIVERY_LOCATION_TYPES, GcsSettings
+from gcs.backend.settings_model import DefaultDeliveryHub, DELIVERY_HUB_TYPES, GcsSettings
 from gcs.backend.settings_store import settings_store
 
 log = logging.getLogger(__name__)
@@ -100,26 +100,26 @@ def _drop_injected_instance_device(body: dict) -> None:
         sim.pop("sitl_presets", None)
 
 
-@router.post("/api/settings/fallback-delivery-locations/import")
-async def import_fallback_location_csv(file: UploadFile = File(...)) -> dict:
-    """Import fallback delivery locations from a CSV file (columns: name, type, lat, lon)."""
+@router.post("/api/settings/default-delivery-hubs/import")
+async def import_delivery_hub_csv(file: UploadFile = File(...)) -> dict:
+    """Import default delivery hubs from a CSV file (columns: name, type, lat, lon)."""
     content = await file.read()
     text = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
     new_locations = []
     for row in reader:
         location_type = row.get("type", "other").strip().lower()
-        if location_type not in DELIVERY_LOCATION_TYPES:
+        if location_type not in DELIVERY_HUB_TYPES:
             location_type = "other"
-        new_locations.append(FallbackDeliveryLocation(
+        new_locations.append(DefaultDeliveryHub(
             name=row["name"].strip(),
             type=location_type,
             lat=float(row["lat"]),
             lon=float(row["lon"]),
         ))
     current = settings_store.get()
-    merged = list(current.fallback_delivery_locations) + new_locations
-    updated = settings_store.update({"fallback_delivery_locations": [o.model_dump() for o in merged]})
+    merged = list(current.default_delivery_hubs) + new_locations
+    updated = settings_store.update({"default_delivery_hubs": [o.model_dump() for o in merged]})
     return updated.model_dump()
 
 

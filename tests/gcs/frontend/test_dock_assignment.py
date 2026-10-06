@@ -1,4 +1,4 @@
-"""Tests for buildFallbackLocationsFromDownload merge logic in fallbackLocationAssignment.js.
+"""Tests for buildDeliveryHubsFromDownload merge logic in deliveryHubAssignment.js.
 
 Runs test_dock_assignment_logic.js via Node.js subprocess to verify that
 downloaded POIs are matched against existing Docks by coordinates,

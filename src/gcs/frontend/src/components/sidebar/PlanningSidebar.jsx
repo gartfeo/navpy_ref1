@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { colors, zoneColorsLabel } from '../../styles';
 import { computeSets, getUavsPerSet } from '../../utils/planner';
 import { SectionTitle, Divider, Label, InfoRow, StepBtn } from './SidebarPrimitives';
-import FallbackLocationAssignmentSection, { zoneLabel } from './FallbackLocationAssignmentSection';
+import DeliveryHubAssignmentSection, { zoneLabel } from './DeliveryHubAssignmentSection';
 import MultiSelectWps from './MultiSelectWps';
 import ConfirmSection from './ConfirmSection';
 import ExclusionSection from './ExclusionSection';
@@ -28,9 +28,9 @@ export default function PlanningSidebar({
   vehicleList,
   aasParams,
   setLaunchPoints,
-  fallbackLocationAssignments,
-  setFallbackLocationAssignments,
-  setManualFallbackLocationEdit,
+  deliveryHubAssignments,
+  setDeliveryHubAssignments,
+  setManualDeliveryHubEdit,
   simDockWps,
   simMode,
   detectAfterWps,
@@ -428,13 +428,13 @@ export default function PlanningSidebar({
 
       <Divider />
 
-      {/* Fallback delivery location assignments */}
-      <FallbackLocationAssignmentSection
+      {/* Default delivery hub assignments */}
+      <DeliveryHubAssignmentSection
         plan={plan}
         settings={settings}
-        fallbackLocationAssignments={fallbackLocationAssignments}
-        setFallbackLocationAssignments={setFallbackLocationAssignments}
-        setManualFallbackLocationEdit={setManualFallbackLocationEdit}
+        deliveryHubAssignments={deliveryHubAssignments}
+        setDeliveryHubAssignments={setDeliveryHubAssignments}
+        setManualDeliveryHubEdit={setManualDeliveryHubEdit}
       />
 
       {/* Sim POIs grid */}

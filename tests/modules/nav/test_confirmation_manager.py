@@ -902,7 +902,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         _, kwargs = spy.call_args
         self.assertFalse(kwargs.get("degraded"), "degraded kwarg must be False by default")
 
-    def test_confirmation_thumbnail_uses_fallback_delivery_location_crop(self):
+    def test_confirmation_thumbnail_uses_default_delivery_hub_crop(self):
         """ConfirmationManager must not disable POI-centered thumbnail crop."""
         from unittest.mock import patch
 

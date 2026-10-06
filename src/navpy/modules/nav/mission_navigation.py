@@ -1,4 +1,4 @@
-"""Fallback-location mission navigation and pass classification."""
+"""Default delivery hub mission navigation and pass classification."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class FallbackMissionPorts:
 
 
 class FallbackMissionNavigation:
-    """Route the aircraft to the appended fallback delivery location."""
+    """Route the aircraft to the appended default delivery hub."""
 
     def __init__(
         self,
@@ -51,14 +51,14 @@ class FallbackMissionNavigation:
 
     def should_nav_to_fallback(self) -> bool:
         if (
-            self._catalog.fallback_delivery_location is None
-            or self._catalog.fallback_delivery_location_active
+            self._catalog.default_delivery_hub is None
+            or self._catalog.default_delivery_hub_active
         ):
             return False
         return self._ports.next_waypoint() >= self._ports.mission_item_count() - 1
 
     def setup(self) -> None:
-        poi = self._catalog.fallback_delivery_location
+        poi = self._catalog.default_delivery_hub
         self._catalog.mark_fallback_active()
         self._navigation_task.navigation_poi_location = (
             self._commands.absolute_location(poi)
@@ -67,7 +67,7 @@ class FallbackMissionNavigation:
             self._ports.set_sim_poi(
                 self._ports.mission_item_count() - 1,
                 poi,
-                location_type=self._catalog.fallback_delivery_location_type,
+                location_type=self._catalog.default_delivery_hub_type,
             )
         plan, loiter_alt = self.plan_orbit_approach(
             poi,
@@ -79,14 +79,14 @@ class FallbackMissionNavigation:
         self._navigation_task.orbit_approach_alt_rel_m = loiter_alt
         if plan.orbit_radius and not self._commands.save_loiter_radius():
             self._logger.warning(
-                f"Fallback-location {plan.kind.value}: WP_LOITER_RAD save failed; "
+                f"Default delivery hub {plan.kind.value}: WP_LOITER_RAD save failed; "
                 "radius will not be restored when the navigation task ends",
                 key="nav",
             )
         self._commands.request_guided()
         self._commands.dispatch_approach(plan, loiter_alt_rel=loiter_alt)
         self._logger.info(
-            f"Fallback delivery location navigation: {poi} "
+            f"Default delivery hub navigation: {poi} "
             f"({plan.kind.value}, offset={plan.offset_distance:.0f}m"
             f"{f', orbit_r={plan.orbit_radius:.0f}m' if plan.orbit_radius else ''})",
             key="nav",

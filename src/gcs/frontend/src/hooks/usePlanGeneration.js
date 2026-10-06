@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { analyzeArea, generatePlan, computeSets, setTrackSpacingOverride } from '../utils/planner';
-import { autoAssignFallbackLocations } from '../utils/fallbackLocationAssignment';
+import { autoAssignDeliveryHubs } from '../utils/deliveryHubAssignment';
 import { PHASES } from './useMissionState';
 
 /**
@@ -29,8 +29,8 @@ export default function usePlanGeneration({
   settings,
   settingsVersion,
   plannerReady,
-  setFallbackLocationAssignments,
-  manualFallbackLocationEdit,
+  setDeliveryHubAssignments,
+  manualDeliveryHubEdit,
 }) {
   const effectiveUavCount = uavCount ?? analysis?.required_uavs ?? 3;
   const effectiveSets = computeSets(effectiveUavCount);
@@ -110,13 +110,13 @@ export default function usePlanGeneration({
       }));
     }
     setPlan(result);
-    // Auto-assign fallback locations when plan has zones and fallback locations exist (skip if manually edited)
-    const fallbackLocations = settings?.fallback_delivery_locations;
-    if (result?.zones?.length && fallbackLocations?.length && setFallbackLocationAssignments && !manualFallbackLocationEdit) {
-      setFallbackLocationAssignments(autoAssignFallbackLocations(result.zones, fallbackLocations));
+    // Auto-assign delivery hubs when plan has zones and delivery hubs exist (skip if manually edited)
+    const deliveryHubs = settings?.default_delivery_hubs;
+    if (result?.zones?.length && deliveryHubs?.length && setDeliveryHubAssignments && !manualDeliveryHubEdit) {
+      setDeliveryHubAssignments(autoAssignDeliveryHubs(result.zones, deliveryHubs));
     }
     return result;
-  }, [plannerReady, setPlan, setApproachPoints, partitionAngleDeg, settings, setFallbackLocationAssignments, manualFallbackLocationEdit]);
+  }, [plannerReady, setPlan, setApproachPoints, partitionAngleDeg, settings, setDeliveryHubAssignments, manualDeliveryHubEdit]);
 
   // Approach point for zigzag direction: last corridor point, or launch point
   const approachPoint = corridorPoints.length > 0

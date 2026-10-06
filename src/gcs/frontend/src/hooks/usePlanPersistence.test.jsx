@@ -11,14 +11,14 @@ function fixture(overrides = {}) {
     polygon: [{ lat: 0, lon: 0 }, { lat: 0, lon: 1 }, { lat: 1, lon: 0 }],
     launchPoint: null, corridorPoints: [], searchPattern: 'distributed',
     setLaunchPoints: [], setCorridorPointsArr: [[]],
-    settings: { fallback_delivery_locations: [{ name: 'Fixture', type: 'other', lat: 0, lon: 0 }] },
-    fallbackLocationAssignments: [0], simDockWps: { 0: [2] }, detectAfterWps: { 0: 1 },
+    settings: { default_delivery_hubs: [{ name: 'Fixture', type: 'other', lat: 0, lon: 0 }] },
+    deliveryHubAssignments: [0], simDockWps: { 0: [2] }, detectAfterWps: { 0: 1 },
     drawing: { loadVertices: vi.fn() }, undoRef: { current: [] },
     suppressRegenRef: { current: false }, ...overrides,
   };
   for (const key of ['setPolygon','setSearchPattern',
     'setLaunchPoint','setCorridorPoints','setSetLaunchPoints','setSetCorridorPoints',
-    'setActiveSetIndex','setAnalysis','setPlan','localAnalyze','setFallbackLocationAssignments',
+    'setActiveSetIndex','setAnalysis','setPlan','localAnalyze','setDeliveryHubAssignments',
     'setSimDockWps','setDetectAfterWps','handleSaveSettings',
     'setFenceCustomVertices','setExclusionPolygons','setFenceEnabled','setFenceTouched','setFenceOffsetM',
     'authorFenceIntent','clearFenceIntent','resetFenceObservations']) props[key] = vi.fn();
@@ -91,15 +91,15 @@ describe('current development plan files', () => {
     expect(data.search_pattern).toBe(searchPattern);
     expect(Object.hasOwn(data, 'tactic')).toBe(false);
     expect(Object.hasOwn(data, 'searchPattern')).toBe(false);
-    expect(data.fallback_delivery_locations).toEqual(io.props.settings.fallback_delivery_locations);
+    expect(data.default_delivery_hubs).toEqual(io.props.settings.default_delivery_hubs);
     for (const key of ['dock_classes','per_uav_dock_classes','poi_classes','per_uav_poi_classes','objects_of_interest',
       'ooi_assignments','sim_poi_wps','plan_format_version','launch_point','corridor']) {
       expect(Object.hasOwn(data, key)).toBe(false);
     }
     io.load(data);
     expect(io.props.setSearchPattern).toHaveBeenCalledWith(data.search_pattern);
-    expect(io.props.handleSaveSettings).toHaveBeenCalledWith({ fallback_delivery_locations: data.fallback_delivery_locations });
-    expect(io.props.setFallbackLocationAssignments).toHaveBeenCalledWith(data.fallback_location_assignments);
+    expect(io.props.handleSaveSettings).toHaveBeenCalledWith({ default_delivery_hubs: data.default_delivery_hubs });
+    expect(io.props.setDeliveryHubAssignments).toHaveBeenCalledWith(data.delivery_hub_assignments);
     expect(io.props.setSimDockWps).toHaveBeenCalledWith(data.sim_dock_wps);
     expect(io.props.setDetectAfterWps).toHaveBeenCalledWith(data.detect_after_wps);
     expect(io.props.setSetLaunchPoints).toHaveBeenCalledWith(data.set_launch_points);
@@ -126,9 +126,9 @@ describe('current development plan files', () => {
 
   it('preserves existing empty optional-array behavior', () => {
     const io = fixture();
-    io.load({ polygon: io.props.polygon, fallback_delivery_locations: [], fallback_location_assignments: [] });
+    io.load({ polygon: io.props.polygon, default_delivery_hubs: [], delivery_hub_assignments: [] });
     expect(io.props.handleSaveSettings).not.toHaveBeenCalled();
-    expect(io.props.setFallbackLocationAssignments).not.toHaveBeenCalled();
+    expect(io.props.setDeliveryHubAssignments).not.toHaveBeenCalled();
     expect(io.props.setSimDockWps).not.toHaveBeenCalled();
     expect(io.props.setDetectAfterWps).not.toHaveBeenCalled();
   });

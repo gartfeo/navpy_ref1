@@ -51,10 +51,10 @@ class MapDisplaySettings(BaseModel):
     default_zoom: float = 12.0
 
 
-DELIVERY_LOCATION_TYPES = ["building", "vehicle", "antenna", "operations_site", "bridge", "fuel", "other"]
+DELIVERY_HUB_TYPES = ["building", "vehicle", "antenna", "operations_site", "bridge", "fuel", "other"]
 
 
-class FallbackDeliveryLocation(BaseModel):
+class DefaultDeliveryHub(BaseModel):
     name: str
     type: str = "other"
     lat: float
@@ -133,4 +133,4 @@ class GcsSettings(BaseModel):
     map_display: MapDisplaySettings = Field(default_factory=MapDisplaySettings)
     launch: LaunchSettings = Field(default_factory=LaunchSettings)
     simulation: SimulationSettings = Field(default_factory=SimulationSettings)
-    fallback_delivery_locations: list[FallbackDeliveryLocation] = Field(default_factory=list)
+    default_delivery_hubs: list[DefaultDeliveryHub] = Field(default_factory=list)

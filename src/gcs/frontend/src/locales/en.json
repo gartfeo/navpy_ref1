@@ -81,7 +81,7 @@
       "map": "Map",
       "launch": "Launch",
       "calibration": "Calibration",
-      "fallbackDeliveryLocations": "FDL"
+      "defaultDeliveryHubs": "DDH"
     },
     "calibration": {
       "radio": "Radio",
@@ -439,8 +439,8 @@
     "drawKeepOut": "Draw keep-out (closes after 3 points; keep clicking to refine)",
     "stopKeepOut": "Stop drawing keep-out",
     "set": "Set {{index}}",
-    "stopFallbackLocation": "Stop placing fallback delivery locations",
-    "placeFallbackLocation": "Place fallback delivery location on map"
+    "stopDeliveryHub": "Stop placing default delivery hubs",
+    "placeDeliveryHub": "Place default delivery hub on map"
   },
   "planning": {
     "exitDirtyConfirm": "Plan has been modified but not uploaded to vehicles.\n\nClick OK to discard changes, or Cancel to go back and upload or save."
@@ -497,7 +497,7 @@
     "fenceObservedHint": "Read from the connected UAVs, not from the plan.",
     "fenceOffset": "Offset from zone",
     "takeoffRound": "Takeoff round",
-    "fenceHint": "Auto-generated from the search zone, corridor, fallback delivery locations, and simulation docks. Drag the amber handles on the map to reshape it; double-click a handle to delete it.",
+    "fenceHint": "Auto-generated from the search zone, corridor, default delivery hubs, and simulation docks. Drag the amber handles on the map to reshape it; double-click a handle to delete it.",
     "fenceRequestNone": "Next upload: no fence change — the vehicles keep their current settings.",
     "fenceRequestEnable": "Next upload: requests this fence update with the mission",
     "fenceRequestDisable": "Next upload: requests fence disable with the mission",
@@ -528,9 +528,9 @@
     "approve": "Approve",
     "deny": "Deny"
   },
-  "fallbackLocation": {
+  "deliveryHub": {
     "autoAssign": "Auto-assign",
-    "generatePlanFirst": "Generate a plan first to assign fallback delivery locations.",
+    "generatePlanFirst": "Generate a plan first to assign default delivery hubs.",
     "none": "-- None --",
     "types": {
       "building": "Building",
@@ -541,8 +541,8 @@
       "fuel": "Fuel",
       "other": "Other"
     },
-    "missionFallbackLocations": "Fallback delivery locations",
-    "noLocationsDefined": "No fallback delivery locations defined. Add at least one before uploading."
+    "missionDeliveryHubs": "Default delivery hubs",
+    "noHubsDefined": "No default delivery hubs defined. Add at least one before uploading."
   },
   "monitor": {
     "uavStatus": "UAV STATUS",
@@ -787,21 +787,21 @@
     "defaultLon": "Default longitude",
     "defaultZoom": "Default zoom"
   },
-  "fallbackDeliveryLocationsTab": {
-    "title": "Fallback Delivery Locations",
+  "defaultDeliveryHubsTab": {
+    "title": "Default Delivery Hubs",
     "add": "+ Add",
     "importCsv": "Import CSV",
     "placeOnMap": "Place on Map",
     "clearAll": "Clear All",
-    "clearConfirm": "Clear all fallback delivery locations?",
+    "clearConfirm": "Clear all default delivery hubs?",
     "name": "Name",
     "type": "Type",
     "lat": "Lat",
     "lon": "Lon",
     "remove": "Remove",
     "csvFormat": "CSV format: name,type,lat,lon. Types: {{types}}",
-    "description": "Preconfigured delivery locations used as a fallback when no suitable destination is found in the search zone.",
-    "noLocations": "No fallback delivery locations defined. Add manually or import a CSV file."
+    "description": "Preconfigured delivery hubs a UAV returns to when delivery to the main known recipient fails.",
+    "noHubs": "No default delivery hubs defined. Add manually or import a CSV file."
   },
   "launchTab": {
     "preflightCal": "Preflight Calibration",

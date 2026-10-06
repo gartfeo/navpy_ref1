@@ -1935,7 +1935,7 @@ class TestNavControllerStateTransitionHandlers(unittest.TestCase):
         self.assertIsNone(controller.confirmation_manager.get_status(poi))
         # Full cleanup should have occurred
         self.assertFalse(controller.navigation_task.peer_navigation)
-        self.assertFalse(controller.mission.fallback_delivery_location_active)
+        self.assertFalse(controller.mission.default_delivery_hub_active)
         self.assertEqual(controller.detections.detected_pois, [])
 
     def test_mode_switch_from_guided_resets_peer_navigation(self):
@@ -2048,7 +2048,7 @@ class TestNavControllerStateTransitionHandlers(unittest.TestCase):
         controller.phase.current = NavState.NAV
         controller.navigation_task.nav_mode_observed = True
         controller.navigation_task.peer_navigation = True
-        controller.mission.fallback_delivery_location_active = True
+        controller.mission.default_delivery_hub_active = True
         controller.detections.detected_pois = [_create_detected_poi(obj_id=1)]
         controller.pass_tracker.approach_started = True
         controller.pass_tracker.previous_distance_m = 100.0
@@ -2056,7 +2056,7 @@ class TestNavControllerStateTransitionHandlers(unittest.TestCase):
         controller.decision.decide()
 
         self.assertFalse(controller.navigation_task.peer_navigation)
-        self.assertFalse(controller.mission.fallback_delivery_location_active)
+        self.assertFalse(controller.mission.default_delivery_hub_active)
         self.assertEqual(controller.detections.detected_pois, [])
         self.assertFalse(controller.pass_tracker.approach_started)
         self.assertIsNone(controller.pass_tracker.previous_distance_m)
@@ -5110,8 +5110,8 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         navigation.vehicle_commands.peer_poi_loiter.assert_called_once()
         self.assertIsNone(controller.loiter_radius.original)
 
-    def test_fallback_delivery_location_proceeds_with_warning_when_save_fails(self):
-        """Fallback-location nav: same warning-and-proceed contract as peer-nav."""
+    def test_default_delivery_hub_proceeds_with_warning_when_save_fails(self):
+        """Default delivery hub nav: same warning-and-proceed contract as peer-nav."""
         from navpy.modules.navigation.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
@@ -5119,7 +5119,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         vehicle.get_parameter = Mock(return_value=None)
         navigation = _create_mock_navigation()
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
-        controller.mission.fallback_delivery_location = Location(40.001, -74.001, 100.0)
+        controller.mission.default_delivery_hub = Location(40.001, -74.001, 100.0)
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
@@ -5133,11 +5133,11 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             controller.fallback_navigation.setup()
 
         navigation.vehicle_commands.peer_poi_loiter.assert_called_once()
-        self.assertTrue(controller.mission.fallback_delivery_location_active)
+        self.assertTrue(controller.mission.default_delivery_hub_active)
         self.assertIsNone(controller.loiter_radius.original)
 
-    def test_fallback_delivery_location_pass_coordinate_is_normalized_to_absolute_altitude(self):
-        """Mission FDL altitude is home-relative; pass distance uses AMSL."""
+    def test_default_delivery_hub_pass_coordinate_is_normalized_to_absolute_altitude(self):
+        """Mission DDH altitude is home-relative; pass distance uses AMSL."""
         from navpy.modules.navigation.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
@@ -5147,10 +5147,10 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         )
         navigation = _create_mock_navigation()
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
-        controller.mission.fallback_delivery_location = Location(40.001, 44.001, 5.0)
+        controller.mission.default_delivery_hub = Location(40.001, 44.001, 5.0)
         plan = ApproachPlan(
             kind=ApproachKind.ORBIT,
-            approach_location=controller.mission.fallback_delivery_location,
+            approach_location=controller.mission.default_delivery_hub,
             offset_distance=0.0,
             orbit_radius=300.0,
         )
@@ -5736,7 +5736,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
         self.assertIsNone(controller.vehicle_navigation.orbit_limits())
 
-    def test_fallback_delivery_location_nav_passes_orbit_limits_to_planner(self):
+    def test_default_delivery_hub_nav_passes_orbit_limits_to_planner(self):
         """The orbit-sizing envelope is forwarded to calc_peer_approach_offset
         so the planner can size the navigation-feasible orbit."""
         from navpy.modules.navigation.approach_strategy import (
@@ -5752,7 +5752,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
         controller.mission.scan_altitude_rel = 150.0
-        controller.mission.fallback_delivery_location = Location(40.001, -74.001, 0.0)
+        controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
@@ -5772,7 +5772,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
                 airspeed_mps=22.0, roll_limit_deg=45.0, min_pitch_deg=-40.0),
         )
 
-    def test_fallback_delivery_location_nav_passes_recognition_px_to_planner(self):
+    def test_default_delivery_hub_nav_passes_recognition_px_to_planner(self):
         """The per-class operator-ID demand is computed in NavController and
         forwarded as recognition_px (the max-zoom recognition bound for the
         furthest-standoff ORBIT sizing) — peer_offset stays geometry-only."""
@@ -5791,7 +5791,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
         controller.mission.scan_altitude_rel = 150.0
-        controller.mission.fallback_delivery_location = Location(40.001, -74.001, 0.0)
+        controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
@@ -5807,8 +5807,8 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         expected_px = get_min_pixels_for_class(controller.vision_profile, 0)
         self.assertEqual(calc.call_args.kwargs["recognition_px"], expected_px)
 
-    def test_fallback_delivery_location_orbit_sizes_for_scan_alt_and_gates(self):
-        """Fallback-location ORBIT sizes for the scan altitude (not the
+    def test_default_delivery_hub_orbit_sizes_for_scan_alt_and_gates(self):
+        """Default delivery hub ORBIT sizes for the scan altitude (not the
         instantaneous one), records the navigation task-altitude gate, and
         commands the loiter at that altitude."""
         from navpy.modules.navigation.approach_strategy import (
@@ -5825,7 +5825,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
         controller.mission.scan_altitude_rel = 150.0
-        controller.mission.fallback_delivery_location = Location(40.001, -74.001, 0.0)
+        controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
@@ -5843,8 +5843,8 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         self.assertEqual(controller.navigation_task.orbit_approach_alt_rel_m, 150.0)
         self.assertEqual(dispatch.call_args.kwargs["loiter_alt_rel"], 150.0)
 
-    def test_fallback_delivery_location_offset_preserves_instantaneous_sizing(self):
-        """Fallback-location OFFSET keeps legacy behavior: no scan-altitude
+    def test_default_delivery_hub_offset_preserves_instantaneous_sizing(self):
+        """Default delivery hub OFFSET keeps legacy behavior: no scan-altitude
         substitution, no navigation task-altitude gate, loiter at current alt."""
         from navpy.modules.navigation.approach_strategy import (
             ApproachKind, ApproachPlan,
@@ -5860,7 +5860,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             vehicle=vehicle, approach_kind=ApproachKind.OFFSET,
         )
         controller.mission.scan_altitude_rel = 150.0
-        controller.mission.fallback_delivery_location = Location(40.001, -74.001, 0.0)
+        controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
@@ -6006,7 +6006,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         self.assertIsNotNone(calc.call_args.kwargs["orbit_limits"])
 
     def test_plan_orbit_approach_relative_poi_uses_navigation_task_rel(self):
-        # Fallback-location: a RELATIVE POI (alt 0) makes the planning pose
+        # Default delivery hub: a RELATIVE POI (alt 0) makes the planning pose
         # RELATIVE at the navigation task altitude (no home needed). Frame
         # follows the POI, not the drone_loc.
         from navpy.modules.navigation.approach_strategy import (
@@ -7357,12 +7357,12 @@ class TestNavControllerOneShot(unittest.TestCase):
         controller.navigation_task.final_approach_navigation_active = True
         controller.navigation_task.final_approach_nav_completed = True
         controller.navigation_task.peer_navigation = True
-        controller.mission.fallback_delivery_location_active = True
+        controller.mission.default_delivery_hub_active = True
 
         controller.nav_transition.exit()
 
         self.assertFalse(controller.navigation_task.peer_navigation)
-        self.assertFalse(controller.mission.fallback_delivery_location_active)
+        self.assertFalse(controller.mission.default_delivery_hub_active)
 
     def test_exit_nav_oneshot_does_not_disarm_on_stop(self):
         """_exit_nav does not disarm when stop event is set."""
@@ -7474,14 +7474,14 @@ class TestNavControllerOneShot(unittest.TestCase):
 
 
 # =============================================================================
-# Fallback Delivery Location Navigation Tests
+# Default Delivery Hub Navigation Tests
 # =============================================================================
 
-class TestNavControllerFallbackDeliveryLocation(unittest.TestCase):
-    """Tests for fallback delivery location (FDL) navigation trigger."""
+class TestNavControllerDefaultDeliveryHub(unittest.TestCase):
+    """Tests for default delivery hub (DDH) navigation trigger."""
 
     def _make_controller_with_fallback(self, next_wp=8, total=10):
-        """Create controller with a fallback delivery location and configurable mission state."""
+        """Create controller with a default delivery hub and configurable mission state."""
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=next_wp)
         vehicle.mission_items_count = total
         detector = _create_mock_detector()
@@ -7489,11 +7489,11 @@ class TestNavControllerFallbackDeliveryLocation(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, detector=detector, navigation=navigation
         )
-        controller.mission.fallback_delivery_location = Location(40.5, 44.5, 0.0)
+        controller.mission.default_delivery_hub = Location(40.5, 44.5, 0.0)
         return controller
 
     def test_should_nav_at_last_wp(self):
-        """Trigger when next_wp == total - 1 (past search, heading to FDL WP)."""
+        """Trigger when next_wp == total - 1 (past search, heading to DDH WP)."""
         controller = self._make_controller_with_fallback(next_wp=9, total=10)
         self.assertTrue(controller.fallback_navigation.should_nav_to_fallback())
 
@@ -7508,31 +7508,31 @@ class TestNavControllerFallbackDeliveryLocation(unittest.TestCase):
         self.assertFalse(controller.fallback_navigation.should_nav_to_fallback())
 
     def test_should_not_nav_without_default(self):
-        """Do not trigger when no fallback delivery location is set."""
+        """Do not trigger when no default delivery hub is set."""
         controller = self._make_controller_with_fallback(next_wp=9, total=10)
-        controller.mission.fallback_delivery_location = None
+        controller.mission.default_delivery_hub = None
         self.assertFalse(controller.fallback_navigation.should_nav_to_fallback())
 
     def test_should_not_nav_when_navigation_task_already_started(self):
-        """Do not trigger when fallback delivery location is already active."""
+        """Do not trigger when default delivery hub is already active."""
         controller = self._make_controller_with_fallback(next_wp=9, total=10)
-        controller.mission.fallback_delivery_location_active = True
+        controller.mission.default_delivery_hub_active = True
         self.assertFalse(controller.fallback_navigation.should_nav_to_fallback())
 
     def test_setup_fallback_navigation_sets_guided(self):
-        """_setup_fallback_delivery_location_navigation switches to GUIDED mode."""
+        """_setup_default_delivery_hub_navigation switches to GUIDED mode."""
         controller = self._make_controller_with_fallback(next_wp=9, total=10)
         controller.fallback_navigation.setup()
         controller.vehicle.set_mode.assert_called_with(FlightMode.GUIDED)
-        self.assertTrue(controller.mission.fallback_delivery_location_active)
+        self.assertTrue(controller.mission.default_delivery_hub_active)
 
     def test_setup_fallback_navigation_sets_sim_poi(self):
-        """_setup_fallback_delivery_location_navigation places sim POI at last WP."""
+        """_setup_default_delivery_hub_navigation places sim POI at last WP."""
         controller = self._make_controller_with_fallback(next_wp=9, total=10)
         controller.fallback_navigation.setup()
         controller.detector.set_sim_poi.assert_called_once_with(
-            9, controller.mission.fallback_delivery_location,  # mission_items_count - 1
-            location_type=controller.mission.fallback_delivery_location_type,
+            9, controller.mission.default_delivery_hub,  # mission_items_count - 1
+            location_type=controller.mission.default_delivery_hub_type,
         )
 
 
@@ -7801,11 +7801,11 @@ class TestResumeAutoMissionAfterRejection(unittest.TestCase):
         # set_mode should not be called since mode is already AUTO
         vehicle.set_mode.assert_not_called()
 
-    def test_rejection_clears_fallback_delivery_location_navigation_task_started(self):
-        """Rejection resets _fallback_delivery_location_active flag."""
+    def test_rejection_clears_default_delivery_hub_navigation_task_started(self):
+        """Rejection resets _default_delivery_hub_active flag."""
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=7)
         controller = _create_controller(vehicle=vehicle)
-        controller.mission.fallback_delivery_location_active = True
+        controller.mission.default_delivery_hub_active = True
 
         poi = _create_detected_poi(obj_id=42)
         controller.confirmation_manager.set_active_poi(poi)
@@ -7814,7 +7814,7 @@ class TestResumeAutoMissionAfterRejection(unittest.TestCase):
 
         controller.decision.decide()
 
-        self.assertFalse(controller.mission.fallback_delivery_location_active)
+        self.assertFalse(controller.mission.default_delivery_hub_active)
 
     def test_rejection_clears_last_detections(self):
         """Rejection clears cached detections so stale data is not re-processed."""
@@ -7945,7 +7945,7 @@ class TestResumeAutoMissionAfterRejection(unittest.TestCase):
     def test_rejection_does_not_refresh_detector(self):
         """Rejection must NOT refresh the detector — resetting the tracker
         causes obj_id reuse, colliding with REJECTED entries in the status map
-        and blocking FDL navigation_task."""
+        and blocking DDH navigation_task."""
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=7)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
@@ -7964,7 +7964,7 @@ class TestResumeAutoMissionAfterRejection(unittest.TestCase):
 
         Without this, the gimbal stays locked on the rejected obj_id, eventually
         recenters to FOLLOW (forward-looking), and during orbit around the next
-        FDL the camera never sees the POI at the orbit center.
+        DDH the camera never sees the POI at the orbit center.
         """
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=7)
         detector = _create_mock_detector()
@@ -7998,7 +7998,7 @@ class TestResumeAutoMissionAfterRejection(unittest.TestCase):
 
 class TestSelectPoiSkipsProcessed(unittest.TestCase):
     """_select_poi must skip REJECTED/CONFIRMED POIs so they don't
-    block the elif chain in _handle_new_poi (peer nav, FDL)."""
+    block the elif chain in _handle_new_poi (peer nav, DDH)."""
 
     def test_rejected_poi_not_returned_as_self(self):
         """A rejected POI should be skipped, not returned as self_poi."""
@@ -8034,14 +8034,14 @@ class TestSelectPoiSkipsProcessed(unittest.TestCase):
         self_t, peers = controller.selector.select([rejected, fresh])
         self.assertEqual(self_t.identity.obj_id, 20)
 
-    def test_fallback_location_reachable_after_deny(self):
-        """After deny, _handle_new_poi falls through to FDL when only
+    def test_delivery_hub_reachable_after_deny(self):
+        """After deny, _handle_new_poi falls through to DDH when only
         rejected POIs are visible."""
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=9)
         vehicle.mission_items_count = 10
         controller = _create_controller(vehicle=vehicle)
-        controller.mission.fallback_delivery_location = Location(40.0, -74.0, 0.0)
-        controller.mission.fallback_delivery_location_active = False
+        controller.mission.default_delivery_hub = Location(40.0, -74.0, 0.0)
+        controller.mission.default_delivery_hub_active = False
 
         # Simulate rejected POI still visible in detector
         rejected = _create_detected_poi(obj_id=10)
@@ -8052,18 +8052,18 @@ class TestSelectPoiSkipsProcessed(unittest.TestCase):
         self_t, _ = controller.selector.select([rejected])
         self.assertIsNone(self_t)
 
-        # handle_new_poi should fall through to FDL setup
+        # handle_new_poi should fall through to DDH setup
         controller.navigation_task_action.handle_new_poi(self_t)
-        self.assertTrue(controller.mission.fallback_delivery_location_active)
+        self.assertTrue(controller.mission.default_delivery_hub_active)
 
-    def test_full_deny_then_fallback_location_flow(self):
-        """Full flow: deny POI -> resume AUTO -> reach end of track -> fallback location selected."""
+    def test_full_deny_then_delivery_hub_flow(self):
+        """Full flow: deny POI -> resume AUTO -> reach end of track -> delivery hub selected."""
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=7)
         vehicle.mission_items_count = 10
         detector = _create_mock_detector()
         navigation = _create_mock_navigation()
         controller = _create_controller(vehicle=vehicle, detector=detector, navigation=navigation)
-        controller.mission.fallback_delivery_location = Location(40.0, -74.0, 0.0)
+        controller.mission.default_delivery_hub = Location(40.0, -74.0, 0.0)
 
         # Step 1: Deny — CONFIRM + REJECTED in GUIDED -> resume AUTO
         poi = _create_detected_poi(obj_id=42)
@@ -8077,7 +8077,7 @@ class TestSelectPoiSkipsProcessed(unittest.TestCase):
 
         # Step 2: Vehicle continues in AUTO, reaches end of track
         vehicle.get_mode = FlightMode.AUTO
-        vehicle.mission_items_next = 9  # at FDL WP (total - 1)
+        vehicle.mission_items_next = 9  # at DDH WP (total - 1)
 
         # No new detections (rejected POI out of view)
         detector.get_detect_data.return_value = DetectResponse([])
@@ -8085,9 +8085,9 @@ class TestSelectPoiSkipsProcessed(unittest.TestCase):
         controller.decision.decide()
         self.assertEqual(controller.phase.current, NavState.DETECT)
 
-        # Step 3: act_detect should fall through to FDL
+        # Step 3: act_detect should fall through to DDH
         controller.detect_action.act()
-        self.assertTrue(controller.mission.fallback_delivery_location_active)
+        self.assertTrue(controller.mission.default_delivery_hub_active)
 
 
 # =============================================================================

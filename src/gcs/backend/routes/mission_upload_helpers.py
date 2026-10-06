@@ -34,13 +34,13 @@ def assignment_geometry(
     poly = [{"lat": p.lat, "lon": p.lon} for p in assignment.polygon] if assignment.polygon else None
     corr = [{"lat": p.lat, "lon": p.lon} for p in assignment.corridor_backbone] if assignment.corridor_backbone else None
     lp = {"lat": assignment.launch_point.lat, "lon": assignment.launch_point.lon} if assignment.launch_point else None
-    if assignment.fallback_delivery_location:
+    if assignment.default_delivery_hub:
         dt = {
-            "lat": assignment.fallback_delivery_location.lat,
-            "lon": assignment.fallback_delivery_location.lon,
+            "lat": assignment.default_delivery_hub.lat,
+            "lon": assignment.default_delivery_hub.lon,
         }
-        if assignment.fallback_delivery_location.type:
-            dt["type"] = assignment.fallback_delivery_location.type
+        if assignment.default_delivery_hub.type:
+            dt["type"] = assignment.default_delivery_hub.type
     else:
         dt = None
 

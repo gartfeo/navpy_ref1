@@ -61,7 +61,7 @@ def parse_selection_evidence(log_text: str) -> SelectionEvidence:
         catalog_seq=int(catalog.group("seq")) if catalog else None,
         task_id=int(poi.group("task")) if poi else None,
         obj_id=int(poi.group("obj")) if poi else None,
-        fallback_location_registered="SimT(" in log_text,
+        default_ooi_registered="SimT(" in log_text,
         event_wall_time_s=_event_time(log_text, poi),
         poi_lat_deg=float(location.group("lat")) if location else None,
         poi_lon_deg=float(location.group("lon")) if location else None,
@@ -230,6 +230,6 @@ def _identity_errors(
             f"got P{evidence.task_id}"
         )
     if evidence.obj_id is not None and evidence.obj_id != expectation.expected_obj_id:
-        label = "default OOI was selected" if evidence.fallback_location_registered else "selected object mismatch"
+        label = "default OOI was selected" if evidence.default_ooi_registered else "selected object mismatch"
         errors.append(f"{label} (obj_id={evidence.obj_id}); expected mission POI obj_id=0")
     return errors
