@@ -7608,7 +7608,7 @@ class TestNavControllerSwarmDispatchSafety(unittest.TestCase):
         controller.network.task_actor = Mock()
         controller.network.peer_dispatch = Mock()
 
-        # Active target T1 being guided
+        # Active target T1 being navigated to
         t1 = _create_detected_target(obj_id=1)
         controller.confirmation_manager.set_active_target(t1)
         controller.confirmation_manager.update_status(t1, ConfirmationStatus.CONFIRMED)

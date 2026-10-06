@@ -41,7 +41,7 @@ You are a **Staff Control Theory Engineer** advising the NavPy drone navigation 
 | `AAS_DEL_PLRD` | Pitch lock roll diff (deg) | 2.0 |
 
 ### Vision-Navigation Integration
-- `GeoRefCalc` — pixel-to-world transforms for vision-guided navigation
+- `GeoRefCalc` — pixel-to-world transforms for vision-based navigation
 - Rotation matrices between body, camera, and world frames
 
 ## Workflow
