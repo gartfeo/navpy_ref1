@@ -1,0 +1,52 @@
+Third-party source vendored into the AAS GCS frontend
+=====================================================
+
+File:     reader.js  (MediaMTXWebRTCReader, WebRTC/WHEP reader)
+Project:  MediaMTX -- https://github.com/bluenviron/mediamtx
+Upstream: internal/servers/webrtc/reader.js
+Version:  v1.20.0
+Revision: 1b943637a4b5778bb929a7af7687b048fecaa03f
+Fetched:  https://raw.githubusercontent.com/bluenviron/mediamtx/1b943637a4b5778bb929a7af7687b048fecaa03f/internal/servers/webrtc/reader.js
+          (byte-identical to the same path at the v1.20.0 tag)
+SHA-256 of the unmodified upstream file:
+          a802f229b803c33713d4c69c4cc0d480108a5bf384947aeee4aaf04268bf85c1
+
+Why vendored: the Jetson tracking-overlay publisher already runs MediaMTX
+v1.20.0 and exposes the same stream over WHEP. Using the reader that ships
+with that exact server version keeps the browser signalling path matched to
+the deployed server instead of reimplementing WHEP.
+
+Local modifications (all marked "NavPy patch" in reader.js):
+  1. #releaseSession() -- single, idempotent DELETE of the WHEP session
+     resource, using the URL captured from the POST Location header.
+  2. close() -- releases that session, clears the restart timer, drops the
+     peer connection and queued candidates, and is safe to call twice.
+  3. #handleError() -- reuses #releaseSession() instead of its inline DELETE.
+  4. #sendOffer() -- a 201 that arrives after close() releases the session the
+     server just created, and stops the chain without arming a restart.
+  5. ES module export added alongside the upstream window global.
+
+Upstream licence, reproduced in full from the LICENSE file at the revision
+above:
+
+MIT License
+
+Copyright (c) 2019 aler9
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

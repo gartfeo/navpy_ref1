@@ -1,0 +1,24 @@
+{
+  "name": "SWARM_ACK",
+  "id": 25110,
+  "description": "Generic receipt acknowledgement of another message, referenced by that message's dedup UID (sender_id, boot_id, msg_seq). Redefines the reserved 25110 slot (formerly TASK_CONFIRM_ACK) with a generic, message-agnostic ack. Includes dedup/TTL metadata. No production sender today: the confirm-path auto-ack this was built for was removed as dead code, and the definition is kept for wire compatibility.",
+  "ttl_ms": 3000,
+  "fields": [
+    {"name": "boot_id", "type": "uint32_t", "units": null, "desc": "Random ID generated on process start, identifies sender instance."},
+    {"name": "msg_seq", "type": "uint32_t", "units": null, "desc": "Monotonic sequence counter per sender."},
+    {"name": "time_ms", "type": "uint64_t", "units": "ms", "desc": "Sender timestamp in milliseconds since epoch."},
+    {"name": "ttl_ms", "type": "uint32_t", "units": "ms", "desc": "Time-to-live validity window in milliseconds."},
+    {"name": "target_system", "type": "uint8_t", "units": null, "desc": "Target system ID this ack is addressed to."},
+    {"name": "ref_boot_id", "type": "uint32_t", "units": null, "desc": "boot_id of the message being acknowledged (dedup UID component)."},
+    {"name": "ref_msg_seq", "type": "uint32_t", "units": null, "desc": "msg_seq of the message being acknowledged (dedup UID component)."},
+    {"name": "ref_msg_type", "type": "uint16_t", "units": null, "desc": "MsgType value of the message being acknowledged."},
+    {"name": "status", "type": "uint8_t", "units": null, "desc": "Ack status (0=received, 1=processing, 2=applied)."}
+  ],
+  "navpy": {
+    "class_name": "SwarmAckMsg",
+    "msg_type_enum": "SWARM_ACK",
+    "msg_type_value": 170,
+    "receiver_field": "target_system",
+    "payload_fields": ["ref_boot_id", "ref_msg_seq", "ref_msg_type", "status"]
+  }
+}

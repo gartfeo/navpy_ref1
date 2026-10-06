@@ -1,0 +1,26 @@
+# GCS backend runtime for Termux on an Android handheld (SIYI UniRC 10 Pro).
+# Installed by scripts/termux/setup_gcs.sh, which first takes numpy, lxml and
+# opencv-python from Termux's own packages (pip cannot build them there).
+#
+# Same set as src/gcs/requirements.txt plus the navpy dependencies from
+# pyproject.toml, except:
+#   - plain uvicorn: the [standard] extras (uvloop, httptools, watchfiles)
+#     would each need another native build on the device;
+#   - numpy and opencv-python-headless: provided by Termux packages;
+#   - pytest: test-only.
+# tests/gcs/backend/test_termux_requirements.py fails if the sets drift.
+#
+# No Android wheels exist for pydantic-core, orjson or pyzmq, so pip compiles
+# them on the device (rust for the first two, libzmq for pyzmq).
+fastapi>=0.104.0
+uvicorn>=0.24.0
+orjson>=3.9.0
+pydantic>=2.5.0
+websockets>=12.0
+python-multipart>=0.0.18
+pymavlink @ git+https://github.com/gartfeo/mavlink.git@ArduPilot-4.6/navlink#egg=pymavlink&subdirectory=pymavlink
+pyserial
+geopy
+pymap3d
+pyzmq
+requests

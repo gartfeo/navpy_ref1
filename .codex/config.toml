@@ -1,0 +1,8 @@
+[mcp_servers.chrome]
+command = "cmd"
+args = [
+    "/c",
+    "npx",
+    "-y",
+    "chrome-remote-mcp@latest",
+]

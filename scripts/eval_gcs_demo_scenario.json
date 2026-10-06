@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "slots": [
+    {"name": "owner", "role": "owner"},
+    {"name": "peer-1", "role": "peer"},
+    {"name": "peer-2", "role": "peer"}
+  ],
+  "owner_slot": "owner",
+  "target_nav_waypoint_ordinals": [3, 4, 7]
+}

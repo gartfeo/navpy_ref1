@@ -1,0 +1,23 @@
+{
+  "name": "SWARM_REQUEST",
+  "id": 25111,
+  "description": "Generic on-demand request: retransmit / resource (e.g. thumbnail) / force-confirm. Includes dedup/TTL metadata.",
+  "ttl_ms": 3000,
+  "fields": [
+    {"name": "boot_id", "type": "uint32_t", "units": null, "desc": "Random ID generated on process start, identifies sender instance."},
+    {"name": "msg_seq", "type": "uint32_t", "units": null, "desc": "Monotonic sequence counter per sender."},
+    {"name": "time_ms", "type": "uint64_t", "units": "ms", "desc": "Sender timestamp in milliseconds since epoch."},
+    {"name": "ttl_ms", "type": "uint32_t", "units": "ms", "desc": "Time-to-live validity window in milliseconds."},
+    {"name": "target_system", "type": "uint8_t", "units": null, "desc": "Target system ID this request is addressed to."},
+    {"name": "request_type", "type": "uint8_t", "units": null, "desc": "Request type (0=RETRANSMIT, 1=RESOURCE, 2=FORCE_CONFIRM)."},
+    {"name": "subject_type", "type": "uint16_t", "units": null, "desc": "Subject discriminator: RETRANSMIT->wanted MsgType value; RESOURCE->resource kind (e.g. THUMBNAIL=1); FORCE_CONFIRM->unused (0)."},
+    {"name": "subject_id", "type": "uint32_t", "units": null, "desc": "Subject id: RESOURCE/FORCE_CONFIRM->target/task id; RETRANSMIT->0 or a specific seq."}
+  ],
+  "navpy": {
+    "class_name": "SwarmRequestMsg",
+    "msg_type_enum": "SWARM_REQUEST",
+    "msg_type_value": 180,
+    "receiver_field": "target_system",
+    "payload_fields": ["request_type", "subject_type", "subject_id"]
+  }
+}

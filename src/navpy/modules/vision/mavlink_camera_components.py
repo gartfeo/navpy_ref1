@@ -1,0 +1,23 @@
+from pymavlink.dialects.v20.ardupilotmega import (
+    MAV_COMP_ID_CAMERA,
+    MAV_COMP_ID_CAMERA2,
+    MAV_COMP_ID_CAMERA3,
+    MAV_COMP_ID_CAMERA4,
+    MAV_COMP_ID_CAMERA5,
+    MAV_COMP_ID_CAMERA6,
+)
+
+
+CAMERA_COMPONENT_BY_GIMBAL_DEVICE_ID = {
+    1: MAV_COMP_ID_CAMERA,
+    2: MAV_COMP_ID_CAMERA2,
+    3: MAV_COMP_ID_CAMERA3,
+    4: MAV_COMP_ID_CAMERA4,
+    5: MAV_COMP_ID_CAMERA5,
+    6: MAV_COMP_ID_CAMERA6,
+}
+
+GIMBAL_DEVICE_ID_BY_CAMERA_COMPONENT = {
+    component_id: device_id
+    for device_id, component_id in CAMERA_COMPONENT_BY_GIMBAL_DEVICE_ID.items()
+}

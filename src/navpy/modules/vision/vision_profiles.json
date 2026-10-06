@@ -1,0 +1,855 @@
+{
+  "default_profile": "siyi_zr10",
+  "detector_class_dimensions": {
+    "0": {
+      "width_m": 3.5,
+      "height_m": 2.5
+    },
+    "1": {
+      "width_m": 3.0,
+      "height_m": 2.5
+    },
+    "2": {
+      "width_m": 2.5,
+      "height_m": 3.0
+    },
+    "3": {
+      "width_m": 4.5,
+      "height_m": 1.5
+    },
+    "4": {
+      "width_m": 0.5,
+      "height_m": 1.8
+    }
+  },
+  "profiles": {
+    "novoxy_dual": {
+      "detector": {
+        "detect_hz": 15.0,
+        "track_hz": 60.0,
+        "reference_height_m": 2.0,
+        "imgsz": 640,
+        "conf": 0.35,
+        "device": "auto",
+        "min_pitch": -60,
+        "max_pitch": 20,
+        "min_altitude": 95.0,
+        "optimized_altitude": 95.0,
+        "dock_presets": {
+          "small": {
+            "altitude_m": 95.0,
+            "min_pixel_size": 42,
+            "label": "Small"
+          },
+          "medium": {
+            "altitude_m": 95.0,
+            "min_pixel_size": 45,
+            "label": "Medium"
+          },
+          "large": {
+            "altitude_m": 95.0,
+            "min_pixel_size": 48,
+            "label": "Large"
+          }
+        }
+      },
+      "devices": [
+        {
+          "name": "novoxy_10_straight",
+          "camera": {
+            "image_width": 1920,
+            "image_height": 1080,
+            "intrinsics": {
+              "zooms": {
+                "1": {
+                  "fx": 1978.6094809675315,
+                  "fy": 1984.9792498069685,
+                  "cx": 973.153608290143,
+                  "cy": 547.6963925316604,
+                  "skew": 0.0,
+                  "dist": [
+                    -0.330754371415802,
+                    0.5933893029755429,
+                    -0.0003315211688260138,
+                    0.002068635590334303,
+                    -0.6250738662670512
+                  ]
+                },
+                "2": {
+                  "fx": 3139.480661185298,
+                  "fy": 3151.9110526129684,
+                  "cx": 969.913334010455,
+                  "cy": 557.3502997030116,
+                  "skew": 0.0,
+                  "dist": [
+                    -0.3484761179341546,
+                    4.691371285453033,
+                    -0.0010356384541068632,
+                    0.0013239611930484841,
+                    -21.34360039459159
+                  ]
+                },
+                "3": {
+                  "fx": 4362.986999279911,
+                  "fy": 4363.1431134026525,
+                  "cx": 1190.5958262337895,
+                  "cy": 480.6698304601053,
+                  "skew": 0.0,
+                  "dist": [
+                    0.09171921558987346,
+                    -4.9467738122816955,
+                    -0.008347676799247248,
+                    0.017777341637982454,
+                    72.47704654450168
+                  ]
+                }
+              }
+            }
+          },
+          "gimbal": {
+            "camera_pitch": 5.0,
+            "stabilize_roll": false,
+            "stabilize_pitch": false,
+            "seq": "XYZ",
+            "setup_att": [
+              90,
+              0,
+              90
+            ],
+            "setup_seq": "XYZ",
+            "setup_dist_mm": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "novoxy_18_down",
+          "camera": {
+            "image_width": 1920,
+            "image_height": 1080,
+            "intrinsics": {
+              "zooms": {
+                "1": {
+                  "fx": 2252.628217889971,
+                  "fy": 2262.15106770444,
+                  "cx": 974.8913935910005,
+                  "cy": 503.8267925754402,
+                  "skew": 0.0,
+                  "dist": [
+                    -0.24589108643377425,
+                    -0.2662070416788739,
+                    0.0008468462845332615,
+                    0.0021357935813415664,
+                    1.7548434740659955
+                  ]
+                },
+                "2": {
+                  "fx": 4211.258420625397,
+                  "fy": 4223.852676033485,
+                  "cx": 1059.2785115184631,
+                  "cy": 559.2870551580414,
+                  "skew": 0.0,
+                  "dist": [
+                    0.11038579056444106,
+                    -11.786411998332015,
+                    -0.007268037755049425,
+                    0.003864234197898327,
+                    222.78594962100297
+                  ]
+                }
+              }
+            }
+          },
+          "gimbal": {
+            "camera_pitch": -24.0,
+            "stabilize_roll": false,
+            "stabilize_pitch": false,
+            "seq": "XYZ",
+            "setup_att": [
+              90,
+              0,
+              90
+            ],
+            "setup_seq": "XYZ",
+            "setup_dist_mm": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    "novoxy18": {
+      "detector": {
+        "detect_hz": 15.0,
+        "track_hz": 60.0,
+        "reference_height_m": 2.0,
+        "imgsz": 640,
+        "conf": 0.35,
+        "device": "auto",
+        "min_pitch": -60,
+        "max_pitch": 20,
+        "min_altitude": 95.0,
+        "optimized_altitude": 95.0,
+        "dock_presets": {
+          "small": {
+            "altitude_m": 95.0,
+            "min_pixel_size": 42,
+            "label": "Small"
+          },
+          "medium": {
+            "altitude_m": 95.0,
+            "min_pixel_size": 45,
+            "label": "Medium"
+          },
+          "large": {
+            "altitude_m": 95.0,
+            "min_pixel_size": 48,
+            "label": "Large"
+          }
+        }
+      },
+      "devices": [
+        {
+          "name": "novoxy_18_down",
+          "camera": {
+            "image_width": 1920,
+            "image_height": 1080,
+            "intrinsics": {
+              "zooms": {
+                "1": {
+                  "fx": 2252.628217889971,
+                  "fy": 2262.15106770444,
+                  "cx": 974.8913935910005,
+                  "cy": 503.8267925754402,
+                  "skew": 0.0,
+                  "dist": [
+                    -0.24589108643377425,
+                    -0.2662070416788739,
+                    0.0008468462845332615,
+                    0.0021357935813415664,
+                    1.7548434740659955
+                  ]
+                },
+                "2": {
+                  "fx": 4211.258420625397,
+                  "fy": 4223.852676033485,
+                  "cx": 1059.2785115184631,
+                  "cy": 559.2870551580414,
+                  "skew": 0.0,
+                  "dist": [
+                    0.11038579056444106,
+                    -11.786411998332015,
+                    -0.007268037755049425,
+                    0.003864234197898327,
+                    222.78594962100297
+                  ]
+                }
+              }
+            }
+          },
+          "gimbal": {
+            "camera_pitch": -8.5,
+            "stabilize_roll": false,
+            "stabilize_pitch": false,
+            "seq": "XYZ",
+            "setup_att": [
+              90,
+              0,
+              90
+            ],
+            "setup_seq": "XYZ",
+            "setup_dist_mm": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    "novoxy10": {
+      "detector": {
+        "detect_hz": 15.0,
+        "track_hz": 60.0,
+        "reference_height_m": 2.0,
+        "imgsz": 640,
+        "conf": 0.35,
+        "device": "auto",
+        "min_pitch": -60,
+        "max_pitch": 20,
+        "min_altitude": 90.0,
+        "optimized_altitude": 90.0,
+        "dock_presets": {
+          "small": {
+            "altitude_m": 90.0,
+            "min_pixel_size": 42,
+            "label": "Small"
+          },
+          "medium": {
+            "altitude_m": 90.0,
+            "min_pixel_size": 45,
+            "label": "Medium"
+          },
+          "large": {
+            "altitude_m": 90.0,
+            "min_pixel_size": 48,
+            "label": "Large"
+          }
+        }
+      },
+      "devices": [
+        {
+          "name": "novoxy_10_straight",
+          "camera": {
+            "image_width": 1920,
+            "image_height": 1080,
+            "intrinsics": {
+              "zooms": {
+                "1": {
+                  "fx": 1978.6094809675315,
+                  "fy": 1984.9792498069685,
+                  "cx": 973.153608290143,
+                  "cy": 547.6963925316604,
+                  "skew": 0.0,
+                  "dist": [
+                    -0.330754371415802,
+                    0.5933893029755429,
+                    -0.0003315211688260138,
+                    0.002068635590334303,
+                    -0.6250738662670512
+                  ]
+                },
+                "2": {
+                  "fx": 3139.480661185298,
+                  "fy": 3151.9110526129684,
+                  "cx": 969.913334010455,
+                  "cy": 557.3502997030116,
+                  "skew": 0.0,
+                  "dist": [
+                    -0.3484761179341546,
+                    4.691371285453033,
+                    -0.0010356384541068632,
+                    0.0013239611930484841,
+                    -21.34360039459159
+                  ]
+                },
+                "3": {
+                  "fx": 4362.986999279911,
+                  "fy": 4363.1431134026525,
+                  "cx": 1190.5958262337895,
+                  "cy": 480.6698304601053,
+                  "skew": 0.0,
+                  "dist": [
+                    0.09171921558987346,
+                    -4.9467738122816955,
+                    -0.008347676799247248,
+                    0.017777341637982454,
+                    72.47704654450168
+                  ]
+                }
+              }
+            }
+          },
+          "gimbal": {
+            "camera_pitch": -10.0,
+            "stabilize_roll": false,
+            "stabilize_pitch": false,
+            "seq": "XYZ",
+            "setup_att": [
+              90,
+              0,
+              90
+            ],
+            "setup_seq": "XYZ",
+            "setup_dist_mm": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    "c720hd": {
+      "detector": {
+        "detect_hz": 15.0,
+        "track_hz": 60.0,
+        "reference_height_m": 2.0,
+        "imgsz": 640,
+        "conf": 0.35,
+        "device": "auto",
+        "camera_index": 1,
+        "min_pitch": -60.0,
+        "max_pitch": 20.0,
+        "min_altitude": 60.0,
+        "optimized_altitude": 60.0,
+        "dock_presets": {
+          "small": {
+            "altitude_m": 60.0,
+            "min_pixel_size": 42,
+            "label": "Small"
+          },
+          "medium": {
+            "altitude_m": 60.0,
+            "min_pixel_size": 45,
+            "label": "Medium"
+          },
+          "large": {
+            "altitude_m": 60.0,
+            "min_pixel_size": 48,
+            "label": "Large"
+          }
+        }
+      },
+      "devices": [
+        {
+          "name": "c720hd",
+          "camera": {
+            "image_width": 1280,
+            "image_height": 720,
+            "intrinsics": {
+              "zooms": {
+                "1": {
+                  "fx": 1438.0739213046222,
+                  "fy": 1439.8475316765432,
+                  "cx": 668.7258920816765,
+                  "cy": 337.1748867314074,
+                  "skew": 0.0,
+                  "dist": [
+                    0.08082479675474503,
+                    0.2595013985597567,
+                    -0.005661798573229049,
+                    0.004904012227765421,
+                    -1.0308387612140302
+                  ]
+                }
+              }
+            }
+          },
+          "gimbal": {
+            "camera_pitch": -9.0,
+            "stabilize_roll": false,
+            "stabilize_pitch": false,
+            "seq": "XYZ",
+            "setup_att": [
+              90,
+              0,
+              90
+            ],
+            "setup_seq": "XYZ",
+            "setup_dist_mm": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    "siyi_zr10": {
+      "detector": {
+        "reference_height_m": 2.0,
+        "imgsz": 640,
+        "conf": 0.2,
+        "device": "auto",
+        "detect_hz": 30.0,
+        "track_hz": 60.0,
+        "tracker": {
+          "backend": "botsort",
+          "frame_rate": 30,
+          "max_age": 90,
+          "min_hits": 3,
+          "reid_device": "auto",
+          "half": true,
+          "cmc_method": "sof",
+          "with_reid": false,
+          "reid_weights": "clip_veri.pt"
+        },
+        "appearance": {
+          "enabled": true,
+          "reid_device": "auto",
+          "half": true,
+          "weights": "clip_veri.pt"
+        },
+        "deep_search": {
+          "enabled": true,
+          "hz": 2.0,
+          "imgsz": 960,
+          "conf": 0.12,
+          "stale_seconds": 0.75,
+          "device": "auto"
+        },
+        "min_altitude": 100.0,
+        "max_pitch": 20.0,
+        "optimized_altitude": 158.0,
+        "dock_presets": {
+          "small": {
+            "altitude_m": 158,
+            "min_pixel_size": 42,
+            "label": "Small"
+          },
+          "medium": {
+            "altitude_m": 363,
+            "min_pixel_size": 36,
+            "label": "Medium"
+          },
+          "large": {
+            "altitude_m": 363,
+            "min_pixel_size": 36,
+            "label": "Large"
+          }
+        },
+        "min_pitch": -90.0
+      },
+      "devices": [
+        {
+          "name": "siyi_zr10",
+          "camera": {
+            "image_width": 1280,
+            "image_height": 720,
+            "intrinsics": {
+              "zooms": {
+                "1": {
+                  "fx": 1407.42,
+                  "fy": 1401.91,
+                  "cx": 670.95,
+                  "cy": 369.78,
+                  "skew": 0.0,
+                  "dist": [
+                    -0.266926,
+                    0.247147,
+                    -0.000653,
+                    0.000251,
+                    -0.092969
+                  ]
+                },
+                "2": {
+                  "fx": 2066.485,
+                  "fy": 2082.845,
+                  "cx": 670.95,
+                  "cy": 369.78
+                },
+                "3": {
+                  "fx": 3099.73,
+                  "fy": 3124.265,
+                  "cx": 670.95,
+                  "cy": 369.78
+                },
+                "4": {
+                  "fx": 4132.97,
+                  "fy": 4165.685,
+                  "cx": 670.95,
+                  "cy": 369.78
+                },
+                "5": {
+                  "fx": 5166.215,
+                  "fy": 5207.11,
+                  "cx": 670.95,
+                  "cy": 369.78
+                },
+                "6": {
+                  "fx": 6199.455,
+                  "fy": 6248.53,
+                  "cx": 670.95,
+                  "cy": 369.78
+                },
+                "7": {
+                  "fx": 7232.7,
+                  "fy": 7289.95,
+                  "cx": 670.95,
+                  "cy": 369.78
+                },
+                "8": {
+                  "fx": 8265.94,
+                  "fy": 8331.375,
+                  "cx": 670.95,
+                  "cy": 369.78
+                },
+                "9": {
+                  "fx": 9299.185,
+                  "fy": 9372.795,
+                  "cx": 670.95,
+                  "cy": 369.78
+                },
+                "10": {
+                  "fx": 10332.425,
+                  "fy": 10414.215,
+                  "cx": 670.95,
+                  "cy": 369.78
+                }
+              }
+            },
+            "zoom_calibration": {
+              "1.0": 1.1,
+              "1.1": 1.1,
+              "1.2": 1.1,
+              "1.3": 1.1,
+              "1.4": 1.2,
+              "1.5": 1.3,
+              "1.6": 1.4,
+              "1.7": 1.5,
+              "1.8": 1.6,
+              "1.9": 1.7,
+              "2.0": 1.8,
+              "2.1": 1.9,
+              "2.2": 2.2,
+              "2.3": 2.1,
+              "2.4": 2.2,
+              "2.5": 2.3,
+              "2.6": 2.4,
+              "2.7": 2.5,
+              "2.8": 2.6,
+              "2.9": 2.7,
+              "3.0": 2.8,
+              "3.1": 2.9,
+              "3.2": 3.0,
+              "3.3": 3.3,
+              "3.4": 3.2,
+              "3.5": 3.3,
+              "3.6": 3.4,
+              "3.7": 3.5,
+              "3.8": 3.6,
+              "3.9": 3.7,
+              "4.0": 3.8,
+              "4.1": 3.9,
+              "4.2": 4.0,
+              "4.3": 4.1,
+              "4.4": 4.4,
+              "4.5": 4.3,
+              "4.6": 4.4,
+              "4.7": 4.5,
+              "4.8": 4.6,
+              "4.9": 4.7,
+              "5.0": 4.8,
+              "5.1": 4.9,
+              "5.2": 5.0,
+              "5.3": 5.1,
+              "5.4": 5.2,
+              "5.5": 5.5,
+              "5.6": 5.5,
+              "5.7": 5.5,
+              "5.8": 5.5,
+              "5.9": 5.6,
+              "6.0": 5.7,
+              "6.1": 5.8,
+              "6.2": 5.9,
+              "6.3": 6.0,
+              "6.4": 6.1,
+              "6.5": 6.2,
+              "6.6": 6.3,
+              "6.7": 6.6,
+              "6.8": 6.4,
+              "6.9": 6.6,
+              "7.0": 6.7,
+              "7.1": 6.8,
+              "7.2": 6.9,
+              "7.3": 7.0,
+              "7.4": 7.1,
+              "7.5": 7.2,
+              "7.6": 7.3,
+              "7.7": 7.4,
+              "7.8": 7.7,
+              "7.9": 7.5,
+              "8.0": 7.7,
+              "8.1": 7.8,
+              "8.2": 7.9,
+              "8.3": 8.0,
+              "8.4": 8.1,
+              "8.5": 8.2,
+              "8.6": 8.3,
+              "8.7": 8.4,
+              "8.8": 8.5,
+              "8.9": 8.8,
+              "9.0": 8.6,
+              "9.1": 8.8,
+              "9.2": 8.9,
+              "9.3": 9.0,
+              "9.4": 9.1,
+              "9.5": 9.2,
+              "9.6": 9.3,
+              "9.7": 9.4,
+              "9.8": 9.5,
+              "9.9": 9.6,
+              "10.0": 10.0
+            }
+          },
+          "gimbal": {
+            "type": "siyi",
+            "siyi_ip": "192.168.144.25",
+            "siyi_port": 37260,
+            "camera_pitch": -14.0,
+            "stabilize_roll": false,
+            "stabilize_pitch": false,
+            "seq": "XYZ",
+            "setup_att": [
+              90,
+              0,
+              90
+            ],
+            "setup_seq": "XYZ",
+            "setup_dist_mm": [
+              0,
+              0,
+              0
+            ],
+            "tracking": {
+              "enabled": true,
+              "correction_bw": 2.5,
+              "max_rate": 100
+            },
+            "zoom": {
+              "enabled": true
+            }
+          }
+        }
+      ]
+    },
+    "siyi_zr10_horizon": {
+      "extends": "siyi_zr10",
+      "device_overrides": {
+        "siyi_zr10": {
+          "gimbal": {
+            "camera_pitch": 0.0
+          }
+        }
+      }
+    },
+    "zenfone7pro": {
+      "detector": {
+        "detect_hz": 15.0,
+        "track_hz": 60.0,
+        "reference_height_m": 2.0,
+        "imgsz": 640,
+        "conf": 0.35,
+        "device": "auto",
+        "camera_index": 1,
+        "min_pitch": -60.0,
+        "max_pitch": 20.0,
+        "min_altitude": 75.0,
+        "optimized_altitude": 75.0,
+        "dock_presets": {
+          "small": {
+            "altitude_m": 75.0,
+            "min_pixel_size": 42,
+            "label": "Small"
+          },
+          "medium": {
+            "altitude_m": 75.0,
+            "min_pixel_size": 45,
+            "label": "Medium"
+          },
+          "large": {
+            "altitude_m": 75.0,
+            "min_pixel_size": 48,
+            "label": "Large"
+          }
+        }
+      },
+      "devices": [
+        {
+          "name": "zenfone7pro",
+          "camera": {
+            "image_width": 1080,
+            "image_height": 1080,
+            "intrinsics": {
+              "zooms": {
+                "1": {
+                  "fx": 3600.0,
+                  "fy": 3600.0,
+                  "cx": 540,
+                  "cy": 540,
+                  "skew": 0.0,
+                  "dist": []
+                }
+              }
+            }
+          },
+          "gimbal": {
+            "camera_pitch": -3.5,
+            "stabilize_roll": false,
+            "stabilize_pitch": false,
+            "seq": "XYZ",
+            "setup_att": [
+              90,
+              0,
+              90
+            ],
+            "setup_seq": "XYZ",
+            "setup_dist_mm": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    "ideal_360": {
+      "detector": {
+        "ideal_360": true,
+        "min_altitude": 60.0,
+        "max_pitch": 20.0,
+        "optimized_altitude": 60.0,
+        "dock_presets": {
+          "small": {
+            "altitude_m": 120.0,
+            "min_pixel_size": 1,
+            "label": "Small"
+          },
+          "medium": {
+            "altitude_m": 120.0,
+            "min_pixel_size": 1,
+            "label": "Medium"
+          },
+          "large": {
+            "altitude_m": 120.0,
+            "min_pixel_size": 1,
+            "label": "Large"
+          }
+        }
+      },
+      "devices": [
+        {
+          "name": "ideal_360",
+          "camera": {
+            "image_width": 2560,
+            "image_height": 1440,
+            "intrinsics": {
+              "zooms": {
+                "1": {
+                  "fx": 2066.49,
+                  "fy": 2082.84,
+                  "cx": 1280.0,
+                  "cy": 720.0,
+                  "skew": 0.0,
+                  "dist": []
+                }
+              }
+            }
+          },
+          "gimbal": {
+            "camera_pitch": 0.0,
+            "stabilize_roll": false,
+            "stabilize_pitch": false,
+            "seq": "XYZ",
+            "setup_att": [
+              90,
+              0,
+              90
+            ],
+            "setup_seq": "XYZ",
+            "setup_dist_mm": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

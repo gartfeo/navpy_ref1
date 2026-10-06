@@ -1,0 +1,120 @@
+# Pre-boot SITL defaults for the evaluation bench.
+#
+# APPENDED to run_swarm.sh's models/plane.parm by eval_preboot_profile.py;
+# this file is the delta, never the whole configuration. Every row here is
+# read at buffer-allocation or sensor-calibration time, or is wanted before
+# the first sample, so it belongs in a defaults file rather than a post-boot
+# push.
+#
+# Rows must be under 98 bytes and comments must start the line: the firmware
+# reads 98 bytes per fgets (AP_Filesystem.cpp:270) and only treats '#' as a
+# comment at line[0] (AP_Param.cpp:2263), so a cut comment tail would be
+# parsed as a parameter row.
+
+# --- estimator/simulator timing match -------------------------------------
+# The published position must not lead truth by different amounts in the
+# horizontal and vertical channels. A uniform shift relabels the same path
+# and cannot move a closest approach; a DIFFERENTIAL between the channels
+# displaces the estimate vertically by (differential x descent rate).
+
+# The driver reported 120 ms -- the u-blox value for a detected generation 7
+# or M8 (AP_GPS_UBLOX.cpp:2228). SITL's effective lag measured 80, and the
+# 40 ms over-assumption made the published position lead truth.
+GPS1_DELAY_MS 80
+
+# SITL's barometer has no delay (SIM_BARO_DELAY 0), so the 60 ms default put
+# the vertical channel at a +55 ms lead -- the SAME direction as the GPS
+# error and past it. The two largely cancelled in the differential, which is
+# why a delay scan once ranked 60 best.
+EK3_HGT_DELAY 0
+
+# --- noise off ------------------------------------------------------------
+# A navigation bench measures the navigation law. Injected noise adds error that
+# is not the law's, so the bench should not carry a term it cannot name. How
+# much it costs in miss distance is NOT established: a verified noise-free arm
+# did not miss by less.
+#
+# The four ex-literal rows below need OUR firmware. Upstream SITL hard-codes
+# them with no parameter to disable them: a sensor floor of 0.01 m/s^2 accel
+# and 0.04 deg/s gyro on every IMU sample, and an airframe disturbance of
+# 0.3 m/s^2 and 0.1 deg/s applied to the aircraft's own state. Our fork
+# replaces all four with parameters defaulting to the same values. A stock
+# binary does not have them, and the pre-boot gate fails the run rather than
+# flying unproven.
+
+# The master switch, covering every noise source on the SIM object by
+# category. A SET bit DISABLES that category, so 8191 is all thirteen off:
+# IMU, airframe, vibration, gyro drift, baro, GPS, compass, airspeed,
+# rangefinder, optical flow, wind turbulence, timing and vicon.
+#
+# It reaches sources no row below names. That is most of them: of the 51 gated
+# parameter names, this file sets twelve. Of the other 39, thirty-eight are
+# zero only because firmware and template defaults say so -- every GPS row,
+# every per-instance gyro and accel, MAG_RND, SONAR_RND, VIB_FREQ, TIME_JITTER
+# and the rest -- and one, SIM_VIB_MOT_MULT, defaults to 1.0 and contributes
+# nothing here only because the amplitudes it multiplies are already zero.
+# One upstream default turning non-zero COULD put noise back here without this
+# file changing, which is the maintenance argument for the mask; it says
+# nothing about how quiet the bench is today.
+#
+# The explicit rows are kept anyway, because the pre-boot gate verifies each of
+# those individually and cannot verify the mask.
+#
+# Be clear about what that gate can see. The mask suppresses where the value
+# is READ and never rewrites a parameter, so a readback returns whatever was
+# configured. The gate therefore proves the rows, not the mask, and nothing
+# in a run verifies suppression of a source only the mask covers. Separate
+# ground-static probes measured IMU and barometer suppression; the other
+# eleven categories rest on the accessor audit, not on a measurement. The baro
+# one, for the shape of it: seeding SIM_BARO_RND to 5 and setting ONLY the
+# baro bit (1<<4) takes the logged BARO first-difference noise from 44.38 to
+# 0.000000, while setting only the IMU bit leaves it at 44.38. It stays at
+# 0.000000 after SIM_BARO_RND is then written to 9 -- the parameter reports
+# what you set, the simulator uses zero.
+#
+# To reintroduce one calibrated source: clear that category's bit here and
+# give that category's own parameters their measured values, both in this
+# file. While a bit is set that category stays off no matter what is written
+# later, so clearing the bit is what brings the parameters back into play.
+#
+# Vibration is not independent of IMU. SETTING bit 2 zeroes the vibration
+# inputs, which is the condition upstream tests before adding gyro background
+# noise instead, at IMU amplitude. Set the IMU bit too, or that bit removes
+# structured vibration and leaves background noise running.
+SIM_NOISE_OFF 8191
+
+# Gyro drift. Default 0.05 deg/s per MINUTE. DRIFT_TIME is metadata'd as a
+# period in minutes but gyro_drift() doubles it (SITL cpp:369), so the
+# default 5 is a TEN minute cycle. Zeroing removes the term either way.
+SIM_DRIFT_SPEED 0
+SIM_DRIFT_TIME 0
+
+# Barometers, all three instances. Default 0.2 m each.
+SIM_BARO_RND 0
+SIM_BAR2_RND 0
+SIM_BAR3_RND 0
+
+# Airspeed, both instances. Default 2.0 on the first.
+SIM_ARSPD_RND 0
+SIM_ARSPD2_RND 0
+
+# Optical flow. Default 0.05. Included so the set is complete; arms F and E
+# differ in several settings, so they do not isolate this one as inert.
+SIM_FLOW_RND 0
+
+# IMU baseline noise, added on EVERY sample whatever the throttle -- distinct
+# from SIM_GYRn_RND/SIM_ACCn_RND, which only scale motor vibration. These are
+# the sensor ex-literals; defaults keep upstream behaviour, 0 removes them.
+SIM_GYR_RND_MIN 0
+SIM_ACC_RND_MIN 0
+
+# Airframe disturbance, scaled by throttle: this perturbs the aircraft's OWN
+# gyro and accel_body, so it alters simulated TRUTH rather than a reading.
+# The dominant in-flight injector -- 30x the accel floor above.
+SIM_DYN_GYR_RND 0
+SIM_DYN_ACC_RND 0
+
+# NOT ZEROED, deliberately: SIM_MAG*_OFS pairs with COMPASS_OFS and
+# SIM_ARSPD_OFS with the airspeed calibration, so zeroing one side alone
+# INTRODUCES an error. SIM_GPS_ACC is a reported accuracy, not injected
+# noise, and SIM_GPS_NOISE is already 0.

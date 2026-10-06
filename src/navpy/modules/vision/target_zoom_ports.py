@@ -1,0 +1,103 @@
+"""Narrow ports used by target-zoom leaves."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from navpy.modules.vision.target_zoom_types import (
+    FiniteReading,
+    SampleIdReading,
+    ZoomCapabilities,
+    ZoomGeometryReading,
+)
+from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
+from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
+
+
+class ZoomLogger(Protocol):
+    def info(self, message: str, *args: object) -> None: ...
+    def warning(self, message: str, *args: object) -> None: ...
+
+
+class ZoomCapabilityReader(Protocol):
+    @property
+    def capabilities(self) -> ZoomCapabilities: ...
+
+
+class ZoomActuatorIdentityReader(Protocol):
+    @property
+    def actuator_identity(self) -> object: ...
+
+
+class ZoomOpticsPort(Protocol):
+    def sync_optics(self) -> bool | None: ...
+    def geometry(self) -> ZoomGeometryReading: ...
+
+
+class ZoomReadbackPort(Protocol):
+    def current_command(self) -> FiniteReading: ...
+    def fresh_command(self) -> FiniteReading: ...
+    def current_level(self) -> FiniteReading: ...
+    def fresh_sample_id(self) -> SampleIdReading: ...
+
+
+class ZoomActuatorPort(Protocol):
+    def command_absolute(self, command: str) -> bool: ...
+    def command_discrete(self, command: str) -> bool: ...
+    def start_continuous(self, direction: ZoomTrackingState) -> bool: ...
+    def hold(self) -> bool: ...
+
+
+class ZoomMountCapabilityPort(Protocol):
+    @property
+    def image_width(self) -> int | None: ...
+
+    @property
+    def image_height(self) -> int | None: ...
+
+    @property
+    def zoom_calibration(self) -> ZoomCalibrationTable | None: ...
+
+    def get_k(self) -> object: ...
+    def get_zoom_levels(self) -> list[object]: ...
+    def supports_absolute_zoom(self) -> bool: ...
+    def supports_continuous_zoom(self) -> bool: ...
+    def zoom_actuator_identity(self) -> object: ...
+
+
+class ZoomMountReadbackPort(Protocol):
+    def sync_zoom_from_hardware(self) -> bool: ...
+    def get_current_zoom_command(self) -> object: ...
+    def get_fresh_zoom_command(self) -> object: ...
+    def get_current_zoom(self) -> object: ...
+    def get_fresh_zoom_sample_id(self) -> object: ...
+
+
+class ZoomMountActuationPort(Protocol):
+    def command_zoom(self, command: str) -> bool: ...
+    def set_zoom(self, command: str) -> bool: ...
+    def start_continuous_zoom(self, direction: ZoomTrackingState) -> bool: ...
+    def hold_zoom(self) -> bool: ...
+
+
+class ZoomMountPort(
+    ZoomMountCapabilityPort,
+    ZoomMountReadbackPort,
+    ZoomMountActuationPort,
+    Protocol,
+):
+    """Composition-only intersection of segregated mount capabilities."""
+
+
+__all__ = [
+    "ZoomActuatorPort",
+    "ZoomActuatorIdentityReader",
+    "ZoomCapabilityReader",
+    "ZoomLogger",
+    "ZoomMountActuationPort",
+    "ZoomMountCapabilityPort",
+    "ZoomMountPort",
+    "ZoomMountReadbackPort",
+    "ZoomOpticsPort",
+    "ZoomReadbackPort",
+]

@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "navpy"
+version = "5.0.0"
+description = "UAV swarm navigation and fleet-coordination framework with plug-and-play mission modules"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary - All rights reserved. Commercial use only." }
+dependencies = [
+    "pymavlink @ git+https://github.com/gartfeo/mavlink.git@ArduPilot-4.6/navlink#egg=pymavlink&subdirectory=pymavlink",
+    "pyserial",
+    "numpy",
+    "geopy",
+    "pymap3d",
+    "pyzmq",
+    "requests",
+    "pytest",
+    "opencv-python-headless",
+#    "ultralytics>=8.4,<9",
+#    "boxmot>=21,<22",
+#    "click>=8.1.8,<8.4",
+#    "huggingface-hub<1.18",
+]
+
+# Test-only. `tests/gcs` drives the FastAPI app through starlette's TestClient,
+# which imports httpx2 and raises at COLLECTION time when it is absent — so an
+# undeclared httpx2 does not fail a test, it makes 13 files uncollectable. The
+# floor is starlette's own: 1.3.1 declares httpx2>=2.0.0 in its `full` extra.
+# Not in src/gcs/requirements.txt, which is the backend's RUNTIME dependencies.
+[project.optional-dependencies]
+test = ["httpx2>=2.0.0"]
+
+[project.urls]
+Homepage = "https://armaerosystems.com"
+
+[project.scripts]
+navpy = "navpy.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["navpy*"]
+exclude = ["tests*", "scripts*", "terrain*"]
+
+# Ship non-Python data files (e.g. vision_profiles.json) inside the installed
+# package — otherwise `pip install .` drops them and navpy crashes at import
+# (FileNotFoundError: .../navpy/modules/vision/vision_profiles.json).
+[tool.setuptools.package-data]
+"*" = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--ignore=tests/gcs"
+

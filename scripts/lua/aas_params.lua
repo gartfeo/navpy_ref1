@@ -1,0 +1,27 @@
+local PARAM_TABLE_KEY = 88
+
+assert(param:add_table(PARAM_TABLE_KEY, "AAS_", 30), "Failed to add AAS parameter table")
+assert(param:add_param(PARAM_TABLE_KEY, 1,  "TERM_PITCH", 0), "Failed to add TERM_PITCH parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 2,  "TERM_THR", -1), "Failed to add TERM_THR parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 3,  "TERM_DIR", 0), "Failed to add TERM_DIR parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 4,  "TERM_P_KP", 0.35), "Failed to add TERM_P_KP parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 5,  "TERM_PLD", -1), "Failed to add TERM_PLD parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 6,  "TERM_PLRD", -1), "Failed to add TERM_PLRD parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 7,  "USE_TRN", 1), "Failed to add USE_TRN parameter")
+
+assert(param:add_param(PARAM_TABLE_KEY, 8,  "TARG_WPS", 16), "Failed to add TARG_WPS parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 9,  "TARG_ALT", 150), "Failed to add TARG_ALT parameter")
+
+assert(param:add_param(PARAM_TABLE_KEY, 10, "NAV_LAST_WP", 3), "Failed to add NAV_LAST_WP parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 11, "NAV_MIN_ALT", 150), "Failed to add NAV_MIN_ALT parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 12, "NAV_CWT", 30), "Failed to add NAV_CWT parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 13, "NAV_AUTO_CM", 1), "Failed to add NAV_AUTO_CM parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 14, "NAV_CM_FL", 1), "Failed to add NAV_CNFRM_FAIL parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 18, "NAV_ONESHOT", 0), "Failed to add NAV_ONESHOT parameter")  -- 0=repeat tasks, 1=stop after one completed navigation run; disarm only in simulation
+
+assert(param:add_param(PARAM_TABLE_KEY, 15, "LOG_DEFER", 0), "Failed to add LOG_DEFER parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 16, "LOG_RATE", 2), "Failed to add LOG_RATE parameter")
+
+assert(param:add_param(PARAM_TABLE_KEY, 17, "TERM_CTRL", 1), "Failed to add TERM_CTRL parameter")  -- 0=PID, 1=PN
+
+assert(param:add_param(PARAM_TABLE_KEY, 19, "NAV_CGT", 15), "Failed to add NAV_CGT parameter")  -- operator gate timeout (sec)

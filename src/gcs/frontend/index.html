@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AAS GCS</title>
+    <link rel="icon" href="/aas-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/aas-icon.svg">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0b1120">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+      input, textarea, select, [contenteditable] { user-select: text; -webkit-user-select: text; }
+      html, body, #root { width: 100%; height: 100dvh; height: 100vh; overflow: hidden; }
+      @supports (height: 100dvh) {
+        html, body, #root { height: 100dvh; }
+      }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+      /* Themed scrollbars — thin, dark, matching styles.js palette
+         (thumb: colors.border #2a3f5f, hover: colors.surfaceLight #1a4a7a).
+         Standard properties cover Chromium 121+/Firefox; ::-webkit-* is the
+         fallback for older Chromium. */
+      * { scrollbar-width: thin; scrollbar-color: #2a3f5f transparent; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #2a3f5f; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #1a4a7a; }
+      ::-webkit-scrollbar-corner { background: transparent; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

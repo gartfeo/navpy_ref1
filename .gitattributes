@@ -1,0 +1,3 @@
+# Scripts that run under bash on the Termux handheld must keep LF endings even
+# when checked out on Windows (core.autocrlf=true); CRLF breaks bash there.
+scripts/termux/*.sh text eol=lf
