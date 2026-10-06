@@ -22,10 +22,12 @@ let USABLE_FLIGHT_KM = FLIGHT_BUDGET_KM - SAFETY_RESERVE_KM - MIN_LAUNCH_ZONE_BU
 let ALTITUDE_SEPARATION_M = 20.0;
 let UAVS_PER_SET = 3;
 
+// Mirror of navpy.modules.vision.vision_class_profile.DOCK_PRESET_NAME: the
+// single preset every zone targets.
+export const DOCK_PRESET_NAME = 'dock';
+
 let DOCK_PRESETS = {
-  small: { altitude_m: 150.0 },
-  medium: { altitude_m: 200.0 },
-  large: { altitude_m: 250.0 },
+  [DOCK_PRESET_NAME]: { altitude_m: 200.0 },
 };
 
 // Multi-device config from backend profile catalog.
@@ -36,29 +38,31 @@ let DEVICE_CONFIGS = null;
 export const MIN_DETECT_PIXELS = 8;
 export const MIN_CONFIRM_PIXELS = 20;
 
+// Mirror of navpy.modules.vision.vision_class_profile.DOCK_DETECT_CLASS_ID:
+// the detector class id of the dock.
+export const DOCK_DETECT_CLASS_ID = 0;
+
 // Physical characteristic size per class: the bbox DIAGONAL sqrt(w^2+h^2)
 // in metres. The BACKEND owns these — the GCS catalog's top-level
 // `detector_class_dimensions` (GET /api/vision-profiles) is the single source of truth.
-// `configurePlanner` rebuilds CLASS_DETECT_SIZES / MIN_CLASS_SIZE from it.
+// `configurePlanner` rebuilds CLASS_DETECT_SIZES from it.
 //
 // The values below are only a before-fetch fallback so pure helpers
-// (computeMaxDetectDist, resolveSmallestDetectClassSize) don't return NaN
+// (computeMaxDetectDist, getDockDetectSize) don't return NaN
 // before the catalog arrives. The planner UI is gated on `plannerReady`, so
 // these defaults are not used for any operator-visible computation; they
 // mirror the backend (navpy.modules.vision.vision_profiles.get_class_detect_size)
 // purely to keep early calls numerically sane.
-const FALLBACK_CLASS_DETECT_SIZES = { 0: 4.3012, 1: 3.9051, 2: 3.9051, 3: 4.7434, 4: 1.8682 };
+const FALLBACK_CLASS_DETECT_SIZES = { [DOCK_DETECT_CLASS_ID]: 4.3012 };
 
 // Mutable: populated from the backend `detector_class_dimensions` by configurePlanner.
 let CLASS_DETECT_SIZES = { ...FALLBACK_CLASS_DETECT_SIZES };
-let MIN_CLASS_SIZE = Math.min(...Object.values(CLASS_DETECT_SIZES)); // Person
 
 // True once the backend `detector_class_dimensions` has populated CLASS_DETECT_SIZES.
 // Until then the values above are the before-fetch fallback and must NOT drive
 // operator-authoritative computations (e.g. ProfileSelector altitude optimize).
 let DETECTOR_CLASS_DIMENSIONS_CONFIGURED = false;
 
-export const DOCK_CLASS_TO_DETECT_ID = { small: 4, medium: 0, large: 0 };
 export const DEFAULT_IMGSZ = 640;         // kept for backward compat
 
 /** Per-class characteristic size (bbox diagonal) for the given detect class id. */
@@ -66,9 +70,9 @@ export function getClassDetectSize(classId) {
   return CLASS_DETECT_SIZES[classId];
 }
 
-/** Smallest characteristic size across all known detect classes (Person). */
-export function getMinClassSize() {
-  return MIN_CLASS_SIZE;
+/** Characteristic size (bbox diagonal) of the dock detect class. */
+export function getDockDetectSize() {
+  return CLASS_DETECT_SIZES[DOCK_DETECT_CLASS_ID];
 }
 
 /**
@@ -81,7 +85,7 @@ export function isDetectorClassDimensionsConfigured() {
 }
 
 /**
- * Rebuild CLASS_DETECT_SIZES / MIN_CLASS_SIZE from the backend catalog's
+ * Rebuild CLASS_DETECT_SIZES from the backend catalog's
  * top-level `detector_class_dimensions` block: { "0": { width_m, height_m, size_m }, ... }.
  * `size_m` is the per-class bbox diagonal — the single source of truth.
  * No-op (keeps the current fallback) when detector_class_dimensions is absent/empty.
@@ -95,35 +99,17 @@ export function configureDetectorClassDimensions(detectorClassDimensions) {
   }
   if (!Object.keys(next).length) return;
   CLASS_DETECT_SIZES = next;
-  MIN_CLASS_SIZE = Math.min(...Object.values(next));
   DETECTOR_CLASS_DIMENSIONS_CONFIGURED = true;
 }
 
-/** Max confirm distance (slant) — worst-case (Person) at MIN_CONFIRM_PIXELS.
+/** Max confirm distance (slant) — the dock at MIN_CONFIRM_PIXELS.
  * NOTE: this is the CONFIRM-range BASE. ProfileSelector scales it by
- * detectRangeScale(selectedPoiSize, MIN_CLASS_SIZE) = (size/minClass)·(20/8)
- * to get the DETECTION range of the selected POI before it reaches the
+ * detectRangeScale(dockSize, dockSize) = 20/8
+ * to get the DETECTION range of the dock before it reaches the
  * DetectionRangeDiagram — so the diagram already matches the live map footprint.
  * Do NOT switch this to MIN_DETECT_PIXELS: that double-counts the 20/8 factor. */
 export function computeMaxDetectDist(fy, imageWidth, imageHeight, referenceHeightM, imgsz) {
-  return fy * MIN_CLASS_SIZE / MIN_CONFIRM_PIXELS;
-}
-
-export function resolveSmallestDetectClassId(dockClasses) {
-  const classIds = Array.isArray(dockClasses)
-    ? dockClasses
-      .map((dockClass) => DOCK_CLASS_TO_DETECT_ID[dockClass])
-      .filter((classId) => classId in CLASS_DETECT_SIZES)
-    : [];
-
-  const candidates = classIds.length ? classIds : Object.keys(CLASS_DETECT_SIZES).map(Number);
-  return candidates.reduce((smallest, classId) => (
-    CLASS_DETECT_SIZES[classId] < CLASS_DETECT_SIZES[smallest] ? classId : smallest
-  ), candidates[0]);
-}
-
-export function resolveSmallestDetectClassSize(dockClasses) {
-  return CLASS_DETECT_SIZES[resolveSmallestDetectClassId(dockClasses)];
+  return fy * getDockDetectSize() / MIN_CONFIRM_PIXELS;
 }
 
 /**

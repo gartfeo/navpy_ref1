@@ -5,6 +5,7 @@ from __future__ import annotations
 from navpy.exception_groups import ExceptionGroup
 
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import Union, cast
 
 from navpy.logger.cache_logger import ILogger
@@ -19,8 +20,19 @@ from navpy.modules.vision.deep_search import (
     deep_search_config_from_settings,
 )
 from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
-from navpy.modules.vision.real_detector_config import RealDetectorConfig
-from navpy.modules.vision.real_detector_ports import ModelResourceCloser
+from navpy.modules.vision.charuco_detector import CharucoBoardDetector
+from navpy.args.detector_backend import (
+    CHARUCO_BACKEND,
+    YOLO_BACKEND,
+)
+from navpy.modules.vision.real_detector_config import (
+    DetectorModelConfig,
+    RealDetectorConfig,
+)
+from navpy.modules.vision.real_detector_ports import (
+    FrameDetector,
+    ModelResourceCloser,
+)
 from navpy.modules.vision.real_detector_state import RuntimeMetrics
 from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.track_identity import TrackIdentityResolver
@@ -33,7 +45,7 @@ from navpy.modules.vision.yolo_detector import YoloDetector
 
 @dataclass(frozen=True)
 class RealDetectorModels:
-    yolo: YoloDetector
+    frame_detector: FrameDetector
     tracker: TrackerBackend
     identity: TrackIdentityResolver
     appearance: AsyncAppearanceEmbedder | None
@@ -44,7 +56,7 @@ class RealDetectorModels:
 
 
 ModelResource = Union[
-    YoloDetector,
+    FrameDetector,
     TrackerBackend,
     ModelResourceCloser,
     AsyncAppearanceEmbedder,
@@ -79,7 +91,7 @@ def close_model_resources(
     *,
     tracker: TrackerBackend | None,
     appearance: AsyncAppearanceEmbedder | ModelResourceCloser | None,
-    yolo: YoloDetector | None,
+    frame_detector: FrameDetector | None,
     deep_search: DeepSearchDetector | None,
 ) -> tuple[Exception, ...]:
     """Attempt every model rollback and return all failures."""
@@ -89,12 +101,61 @@ def close_model_resources(
         for error in (
             _close_resource(logger, "tracker", tracker, seen),
             _close_resource(logger, "appearance", appearance, seen),
-            _close_resource(logger, "yolo", yolo, seen),
+            _close_resource(logger, "frame detector", frame_detector, seen),
             _close_resource(logger, "deep-search", deep_search, seen),
         )
         if error is not None
     )
     return errors
+
+
+def _build_yolo(model: DetectorModelConfig, logger: ILogger) -> FrameDetector:
+    return YoloDetector(
+        model.model_path,
+        imgsz=model.imgsz,
+        conf=model.conf,
+        device=model.device,
+        classes=model.classes,
+        logger=logger,
+    )
+
+
+def _build_charuco(
+    model: DetectorModelConfig,
+    logger: ILogger,
+) -> FrameDetector:
+    return CharucoBoardDetector(
+        model.charuco_board,
+        min_confidence=model.conf,
+        logger=logger,
+    )
+
+
+_FRAME_DETECTOR_BUILDERS: dict[
+    str,
+    Callable[[DetectorModelConfig, ILogger], FrameDetector],
+] = {
+    CHARUCO_BACKEND: _build_charuco,
+    YOLO_BACKEND: _build_yolo,
+}
+
+# Deep search reruns a (higher-resolution) YOLO model; a fiducial board
+# detector has no such model, so the profile's deep_search block is inert.
+_DEEP_SEARCH_BACKENDS = frozenset({YOLO_BACKEND})
+
+
+def _deep_search_config(
+    logger: ILogger,
+    model: DetectorModelConfig,
+) -> DeepSearchConfig | None:
+    deep_config = deep_search_config_from_settings(model.deep_search)
+    if deep_config is not None and model.backend not in _DEEP_SEARCH_BACKENDS:
+        logger.warning(
+            f"Detector: deep_search is YOLO-only; disabled for the "
+            f"'{model.backend}' backend"
+        )
+        return None
+    return deep_config
 
 
 def build_models(
@@ -103,29 +164,22 @@ def build_models(
     metrics: RuntimeMetrics,
 ) -> RealDetectorModels:
     model = config.model
-    yolo: YoloDetector | None = None
+    frame_detector: FrameDetector | None = None
     tracker: TrackerBackend | None = None
     embedder: AppearanceEmbedder | None = None
     appearance: AsyncAppearanceEmbedder | None = None
     deep_search: DeepSearchDetector | None = None
     try:
-        yolo = YoloDetector(
-            model.model_path,
-            imgsz=model.imgsz,
-            conf=model.conf,
-            device=model.device,
-            classes=model.classes,
-            logger=logger,
-        )
+        frame_detector = _FRAME_DETECTOR_BUILDERS[model.backend](model, logger)
         tracker = create_tracker_backend(
             model.tracker,
-            detector_device=yolo.device,
+            detector_device=frame_detector.device,
             detector_conf=model.conf,
             logger=logger,
         )
         embedder = create_appearance_embedder(
             model.appearance,
-            detector_device=yolo.device,
+            detector_device=frame_detector.device,
             logger=logger,
         )
         if embedder is not None:
@@ -136,7 +190,7 @@ def build_models(
                 logger=logger,
                 on_batch=lambda count: metrics.bump("embeddings", count),
             )
-        deep_config = deep_search_config_from_settings(model.deep_search)
+        deep_config = _deep_search_config(logger, model)
         deep_search = (
             DeepSearchDetector(
                 deep_config,
@@ -149,7 +203,7 @@ def build_models(
             else None
         )
         return RealDetectorModels(
-            yolo=yolo,
+            frame_detector=frame_detector,
             tracker=tracker,
             identity=TrackIdentityResolver(),
             appearance=appearance,
@@ -170,7 +224,7 @@ def build_models(
                 if appearance is not None
                 else cast(ModelResourceCloser | None, embedder)
             ),
-            yolo=yolo,
+            frame_detector=frame_detector,
             deep_search=deep_search,
         )
         if cleanup_errors:

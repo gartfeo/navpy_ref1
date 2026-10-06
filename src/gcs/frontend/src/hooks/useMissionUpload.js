@@ -27,7 +27,7 @@ export default function useMissionUpload({
   onFenceIntentResolved,
 }) {
   const {
-    polygon, dockClasses, perUavDockClasses, searchPattern,
+    polygon, searchPattern,
     launchPoint, corridorPoints,
     plan, setPlan,
     setLaunchPoints, setCorridorPointsArr,
@@ -62,7 +62,7 @@ export default function useMissionUpload({
     onOperatorAction?.();
     // Corridor mode uses corridor path as dummy polygon
     const polyArg = searchPattern === 'corridor' ? (polygon.length >= 3 ? polygon : corridorPath || polygon) : polygon;
-    const generated = await localGenerate(polyArg, dockClasses, searchPattern, effectiveUavCount, approachPoint, corridorPath);
+    const generated = await localGenerate(polyArg, searchPattern, effectiveUavCount, approachPoint, corridorPath);
     const activePlan = generated || plan;
     // Plan not ready (planner still loading, or area too small) — surface it
     // instead of silently leaving planning.
@@ -134,10 +134,6 @@ export default function useMissionUpload({
         polygon: polyVerts,
         corridor_backbone: corrBackbone,
         launch_point: setLp ? { lat: setLp.lat, lon: setLp.lon } : null,
-        // Per-UAV override (keyed by zone index) falls back to the mission-wide
-        // list. Each vehicle decodes its own mission's dock_classes at runtime
-        // (orbit sizing + confirm-pixel threshold), so this is per-drone.
-        dock_classes: (perUavDockClasses?.[i]?.length ? perUavDockClasses[i] : dockClasses),
         fallback_delivery_location: assignedFallbackLocation ? { lat: assignedFallbackLocation.lat, lon: assignedFallbackLocation.lon, type: assignedFallbackLocation.type } : null,
       };
     }).filter(Boolean);
@@ -147,7 +143,7 @@ export default function useMissionUpload({
       altitude_m: baseAlt + (sortedZones.length - 1 - i) * sep,
       sys_id: vehicleList[i]?.sys_id ?? zone.sys_id,
     }));
-    setPlan((prev) => prev ? { ...prev, zones: zonesWithAlt, dock_classes: dockClasses || [] } : prev);
+    setPlan((prev) => prev ? { ...prev, zones: zonesWithAlt } : prev);
 
     if (setUploadProgress) setUploadProgress({});
     setUploading(true);
@@ -223,7 +219,7 @@ export default function useMissionUpload({
     } finally {
       setUploading(false);
     }
-  }, [polygon, dockClasses, perUavDockClasses, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualFallbackLocationEdit, settings, onPlanSynced, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved]);
+  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualFallbackLocationEdit, settings, onPlanSynced, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved]);
 
   return { uploading, handleUpload };
 }

@@ -9,7 +9,6 @@ import { PHASES } from './useMissionState';
 export default function usePlanGeneration({
   polygon, setPolygon,
   searchPattern,
-  dockClasses, setDockClasses,
   analysis, setAnalysis,
   plan, setPlan,
   uavCount, setUavCount,
@@ -62,11 +61,11 @@ export default function usePlanGeneration({
     return lp;
   });
 
-  const localAnalyze = useCallback((poly, selectedDockClasses) => {
+  const localAnalyze = useCallback((poly) => {
     if (!plannerReady) { setAnalysis(null); return; }
     if (!poly || poly.length < 3) { setAnalysis(null); return; }
     const polyObj = poly.map((p) => ({ lat: p.lat, lon: p.lon }));
-    const a = analyzeArea(polyObj, selectedDockClasses);
+    const a = analyzeArea(polyObj);
     setAnalysis(a);
     if (searchPattern !== 'corridor' && poly.length >= 3) {
       let count = uavCount ?? a.required_uavs ?? 3;
@@ -78,7 +77,7 @@ export default function usePlanGeneration({
         ? corridorPoints[corridorPoints.length - 1] : launchPoint;
       const cp = null; // non-corridor — no corridor path
       const result = generatePlan(
-        polyObj, selectedDockClasses, searchPattern, count,
+        polyObj, searchPattern, count,
         ap ? { lat: ap.lat, lon: ap.lon } : null, cp,
         setApproachPoints, partitionAngleDeg,
       );
@@ -86,7 +85,7 @@ export default function usePlanGeneration({
     }
   }, [plannerReady, setAnalysis, setPlan, searchPattern, uavCount, uavCountLocked, setUavCount, launchPoint, corridorPoints, setApproachPoints, partitionAngleDeg]);
 
-  const localGenerate = useCallback((poly, selectedDockClasses, localSearchPattern, count, lp, corridor) => {
+  const localGenerate = useCallback((poly, localSearchPattern, count, lp, corridor) => {
     if (!plannerReady) return null;
     if (localSearchPattern === 'corridor') {
       if (!corridor || corridor.length < 2) return null;
@@ -96,7 +95,7 @@ export default function usePlanGeneration({
     }
     const result = generatePlan(
       poly.map((p) => ({ lat: p.lat, lon: p.lon })),
-      selectedDockClasses, localSearchPattern, count,
+      localSearchPattern, count,
       lp ? { lat: lp.lat, lon: lp.lon } : null,
       corridor?.map((p) => ({ lat: p.lat, lon: p.lon })) || null,
       setApproachPoints, partitionAngleDeg,
@@ -144,10 +143,10 @@ export default function usePlanGeneration({
     if (searchPattern === 'corridor') {
       if (corridorPath) {
         const polyArg = polygon.length >= 3 ? polygon : corridorPath;
-        localGenerate(polyArg, dockClasses, searchPattern, effectiveUavCount, approachPoint, corridorPath);
+        localGenerate(polyArg, searchPattern, effectiveUavCount, approachPoint, corridorPath);
       }
     } else if (analysis && polygon.length >= 3) {
-      localGenerate(polygon, dockClasses, searchPattern, effectiveUavCount, approachPoint, corridorPath);
+      localGenerate(polygon, searchPattern, effectiveUavCount, approachPoint, corridorPath);
     }
   }, [plannerReady, searchPattern, effectiveUavCount, partitionAngleDeg]);
 
@@ -165,10 +164,10 @@ export default function usePlanGeneration({
     if (searchPattern === 'corridor') {
       if (corridorPath) {
         const polyArg = polygon.length >= 3 ? polygon : corridorPath;
-        localGenerate(polyArg, dockClasses, searchPattern, effectiveUavCount, approachPoint, corridorPath);
+        localGenerate(polyArg, searchPattern, effectiveUavCount, approachPoint, corridorPath);
       }
     } else if (polygon.length >= 3) {
-      localAnalyze(polygon, dockClasses);
+      localAnalyze(polygon);
     }
   }, [routeOffsetM]);
 
@@ -201,11 +200,10 @@ export default function usePlanGeneration({
           // but do NOT regenerate: preserves tracks and simDockWps indices.
           const a = analyzeArea(
             polygon.map((p) => ({ lat: p.lat, lon: p.lon })),
-            dockClasses,
           );
           setAnalysis(a);
         } else {
-          localAnalyze(polygon, dockClasses);
+          localAnalyze(polygon);
         }
       }
     }
@@ -236,7 +234,7 @@ export default function usePlanGeneration({
     regenTimerRef.current = setTimeout(() => {
       regenTimerRef.current = null;
       lpThrottleRef.current = Date.now();
-      localGenerate(polyArg, dockClasses, searchPattern, effectiveUavCount, approachPoint, curCorridorPath);
+      localGenerate(polyArg, searchPattern, effectiveUavCount, approachPoint, curCorridorPath);
     }, delay);
     return () => { clearTimeout(regenTimerRef.current); regenTimerRef.current = null; };
   }, [plannerReady, launchPoint, corridorPoints, setLaunchPoints, setCorridorPointsArr]);
@@ -247,19 +245,9 @@ export default function usePlanGeneration({
     if (phaseRef.current !== PHASES.PLANNING) return;
     if (!settingsVersion) return; // skip initial mount
     if (polygon.length >= 3) {
-      localAnalyze(polygon, dockClasses);
+      localAnalyze(polygon);
     }
   }, [plannerReady, settingsVersion]);
-
-  // Re-analyze when dock classes change
-  const handlePoiChange = useCallback(
-    (newPois) => {
-      if (polygon.length >= 3) {
-        localAnalyze(polygon, newPois);
-      }
-    },
-    [polygon, localAnalyze]
-  );
 
   return {
     effectiveUavCount,
@@ -268,6 +256,5 @@ export default function usePlanGeneration({
     localGenerate,
     approachPoint,
     corridorPath,
-    handlePoiChange,
   };
 }

@@ -49,17 +49,17 @@ class TestMavlinkConversion(unittest.TestCase):
             task_id=1,
             task_type=TaskTypeMsgData.SMALL,
             location=LocationMsgData(lat=1.0, lng=2.0, alt=3.0),
-            class_id=4,  # Person — preserved exactly via class_id field
+            class_id=4,  # non-default class id preserved exactly via class_id field
         )
         self._roundtrip(AvailableTaskRequestMsg(sender_id=1, tasks=[task], meta=TEST_META))
 
-    def test_available_task_request_truck_class(self):
+    def test_available_task_request_class_2(self):
         """Detection class 2 preserved exactly instead of being collapsed to class 1."""
         task = TaskMsgData(
             task_id=1,
             task_type=TaskTypeMsgData.BIG,
             location=LocationMsgData(lat=1.0, lng=2.0, alt=3.0),
-            class_id=2,  # Truck — was lossy before, now exact
+            class_id=2,  # was lossy before, now exact
         )
         self._roundtrip(AvailableTaskRequestMsg(sender_id=1, tasks=[task], meta=TEST_META))
 
@@ -72,7 +72,7 @@ class TestMavlinkConversion(unittest.TestCase):
             task_id=1,
             task_type=TaskTypeMsgData.SMALL,
             location=LocationMsgData(lat=0.0, lng=0.0, alt=0.0),
-            class_id=4,  # Person — preserved exactly
+            class_id=4,  # preserved exactly
         )
         self._roundtrip(TaskAssignRequestMsg(sender_id=1, receiver_id=2, task=task, meta=TEST_META))
 
@@ -84,7 +84,7 @@ class TestMavlinkConversion(unittest.TestCase):
             task_id=1,
             task_type=TaskTypeMsgData.SMALL,
             location=LocationMsgData(lat=1.0, lng=2.0, alt=3.0),
-            class_id=4,  # Person — preserved exactly
+            class_id=4,  # preserved exactly
         )
         self._roundtrip(TaskConfirmRequestMsg(sender_id=1, task=task, meta=TEST_META))
 
@@ -123,9 +123,9 @@ class TestClassToTaskType(unittest.TestCase):
         from navpy.modules.comm.messages.types import class_to_task_type
         self.assertEqual(class_to_task_type(0), TaskTypeMsgData.HEAVY)   # Detection class 0
         self.assertEqual(class_to_task_type(1), TaskTypeMsgData.BIG)     # Detection class 1
-        self.assertEqual(class_to_task_type(2), TaskTypeMsgData.BIG)     # Truck
-        self.assertEqual(class_to_task_type(3), TaskTypeMsgData.MEDIUM)  # Car
-        self.assertEqual(class_to_task_type(4), TaskTypeMsgData.SMALL)   # Person
+        self.assertEqual(class_to_task_type(2), TaskTypeMsgData.BIG)     # Detection class 2
+        self.assertEqual(class_to_task_type(3), TaskTypeMsgData.MEDIUM)  # Detection class 3
+        self.assertEqual(class_to_task_type(4), TaskTypeMsgData.SMALL)   # Detection class 4
 
     def test_unknown_class_returns_big(self):
         from navpy.modules.comm.messages.types import class_to_task_type

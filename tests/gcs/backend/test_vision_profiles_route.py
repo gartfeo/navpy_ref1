@@ -131,6 +131,9 @@ class TestOptimizedAltitude(unittest.TestCase):
         tc0 = cat["detector_class_dimensions"]["0"]
         self.assertEqual((tc0["width_m"], tc0["height_m"]), _vp.get_detector_class_dimensions(0))
         self.assertAlmostEqual(tc0["size_m"], _vp.get_class_detect_size(0), places=4)
+        # The dock is the only detector class the GCS sizes against.
+        self.assertEqual(set(cat["detector_class_dimensions"]), {"0"})
+        self.assertEqual((tc0["width_m"], tc0["height_m"]), (3.5, 2.5))
 
     def test_put_optimized_altitude_persists(self):
         with self._patch_load():
@@ -171,31 +174,41 @@ class TestOptimizedAltitude(unittest.TestCase):
             resp = self.client.put(
                 "/api/vision-profiles/profile_a",
                 json={"dock_presets": {
-                    "small": {"altitude_m": 130, "min_pixel_size": 44, "label": "Small"},
+                    "dock": {"altitude_m": 130, "min_pixel_size": 44, "label": "Dock"},
                 }},
             )
         self.assertEqual(resp.status_code, 200)
         presets = self._data["profiles"]["profile_a"]["detector"]["dock_presets"]
-        self.assertEqual(presets["small"]["altitude_m"], 130)
-        self.assertEqual(presets["small"]["min_pixel_size"], 44)
+        self.assertEqual(presets["dock"]["altitude_m"], 130)
+        self.assertEqual(presets["dock"]["min_pixel_size"], 44)
         self.assertEqual(
-            resp.json()["profiles"]["profile_a"]["dock_presets"]["small"]["altitude_m"],
+            resp.json()["profiles"]["profile_a"]["dock_presets"]["dock"]["altitude_m"],
             130,
         )
 
-    def test_put_dock_presets_merges_per_class(self):
+    def test_put_dock_presets_merges_fields(self):
         """Partial preset updates merge — untouched fields are preserved."""
         self._data["profiles"]["profile_a"]["detector"]["dock_presets"] = {
-            "medium": {"altitude_m": 200, "min_pixel_size": 45, "label": "Medium"},
+            "dock": {"altitude_m": 200, "min_pixel_size": 45, "label": "Dock"},
         }
         with self._patch_load():
             self.client.put(
                 "/api/vision-profiles/profile_a",
+                json={"dock_presets": {"dock": {"altitude_m": 175}}},
+            )
+        dock = self._data["profiles"]["profile_a"]["detector"]["dock_presets"]["dock"]
+        self.assertEqual(dock["altitude_m"], 175)
+        self.assertEqual(dock["min_pixel_size"], 45)  # untouched field preserved
+
+    def test_put_retired_preset_name_is_rejected_before_writing(self):
+        before = json.dumps(self._data, sort_keys=True)
+        with self._patch_load():
+            response = self.client.put(
+                "/api/vision-profiles/profile_a",
                 json={"dock_presets": {"medium": {"altitude_m": 175}}},
             )
-        medium = self._data["profiles"]["profile_a"]["detector"]["dock_presets"]["medium"]
-        self.assertEqual(medium["altitude_m"], 175)
-        self.assertEqual(medium["min_pixel_size"], 45)  # untouched field preserved
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(json.dumps(self._data, sort_keys=True), before)
 
     def test_old_preset_request_key_is_rejected_before_writing(self):
         before = json.dumps(self._data, sort_keys=True)

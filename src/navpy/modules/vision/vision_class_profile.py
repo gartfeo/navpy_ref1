@@ -14,11 +14,11 @@ MIN_CONFIRM_PIXELS = 20
 _DEFAULT_DETECTOR_CLASS_DIMENSIONS = (2.0, 2.0)
 _DETECT_RANGE_MARGIN = 1.1
 CONFIRM_Y_BUDGET = 0.30
-DOCK_CLASS_TO_DETECT_ID = {
-    "small": 4,
-    "medium": 0,
-    "large": 0,
-}
+# The single dock class: the general-purpose 360-degree parking net. Its
+# detector class id keys ``detector_class_dimensions`` and its sizing preset
+# name keys every profile's ``detector.dock_presets``.
+DOCK_DETECT_CLASS_ID = 0
+DOCK_PRESET_NAME = "dock"
 
 
 def _diagonal_m(dims: tuple[float, float]) -> float:
@@ -63,7 +63,7 @@ def _load_detector_class_dimensions() -> dict[int, tuple[float, float]]:
             )
         dims[class_id] = (width, height)
 
-    missing = {0, 4} - dims.keys()
+    missing = {DOCK_DETECT_CLASS_ID} - dims.keys()
     if missing:
         raise ValueError(
             f"detector_class_dimensions missing required class id(s) {sorted(missing)}"
@@ -102,7 +102,11 @@ def get_min_pixels_for_class(
     profile: Mapping[str, object],
     class_id: int,
 ) -> float:
-    """Resolve the strictest valid profile confirmation gate for a class."""
+    """Resolve the profile confirmation gate (``min_pixel_size``) for a class.
+
+    Only the dock class has a sizing preset; any other class, or a missing or
+    invalid dock preset, falls back to ``MIN_CONFIRM_PIXELS``.
+    """
     if not isinstance(profile, Mapping):
         raise ValueError("vision profile must be a mapping")
     detector = _optional_mapping(profile.get("detector"), "detector")
@@ -111,23 +115,20 @@ def get_min_pixels_for_class(
         "detector.dock_presets",
     )
 
-    candidates: list[float] = []
-    for preset_name, raw_preset in presets.items():
-        if DOCK_CLASS_TO_DETECT_ID.get(preset_name) != class_id:
-            continue
-        if not isinstance(raw_preset, Mapping):
-            continue
-        raw_pixels = raw_preset.get("min_pixel_size")
-        if raw_pixels is None or isinstance(raw_pixels, bool):
-            continue
-        try:
-            pixels = float(raw_pixels)
-        except (TypeError, ValueError):
-            continue
-        if math.isfinite(pixels) and pixels > 0.0:
-            candidates.append(pixels)
-
-    return max(candidates, default=float(MIN_CONFIRM_PIXELS))
+    fallback = float(MIN_CONFIRM_PIXELS)
+    if class_id != DOCK_DETECT_CLASS_ID:
+        return fallback
+    raw_preset = presets.get(DOCK_PRESET_NAME)
+    if not isinstance(raw_preset, Mapping):
+        return fallback
+    raw_pixels = raw_preset.get("min_pixel_size")
+    if raw_pixels is None or isinstance(raw_pixels, bool):
+        return fallback
+    try:
+        pixels = float(raw_pixels)
+    except (TypeError, ValueError):
+        return fallback
+    return pixels if math.isfinite(pixels) and pixels > 0.0 else fallback
 
 
 def _positive_finite(value: object, name: str) -> float:
@@ -228,7 +229,8 @@ __all__ = [
     "MIN_CONFIRM_PIXELS",
     "MIN_DETECT_PIXELS",
     "MIN_TRACK_PIXELS",
-    "DOCK_CLASS_TO_DETECT_ID",
+    "DOCK_DETECT_CLASS_ID",
+    "DOCK_PRESET_NAME",
     "compute_approach_interval",
     "compute_confirm_slant_range",
     "compute_detect_slant_range",

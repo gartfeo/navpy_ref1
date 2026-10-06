@@ -4,10 +4,6 @@ import { analyzeArea } from '../utils/planner';
 import { convexHull } from '../utils/geo';
 import { buildFallbackLocationsFromDownload } from '../utils/fallbackLocationAssignment';
 
-const SIZING_PRESET_IDS = new Set(['small', 'medium', 'large']);
-const validPresetList = (value) => Array.isArray(value)
-  && value.every((id) => SIZING_PRESET_IDS.has(id));
-
 /**
  * Save/load plan geometry to/from JSON files, and derive polygon from downloaded plan tracks.
  */
@@ -16,12 +12,8 @@ export default function usePlanPersistence({
   launchPoint,
   corridorPoints,
   searchPattern,
-  dockClasses,
-  perUavDockClasses,
   setPolygon,
   setSearchPattern,
-  setDockClasses,
-  setPerUavDockClasses,
   setLaunchPoint,
   setCorridorPoints,
   setLaunchPoints,
@@ -70,7 +62,6 @@ export default function usePlanPersistence({
     const data = {
       polygon: polygon.map((p) => ({ lat: p.lat, lon: p.lon })),
       search_pattern: searchPattern,
-      dock_classes: dockClasses,
     };
     // Save per-set launch points and corridors
     const savedLps = setLaunchPoints.map((lp) => lp ? { lat: lp.lat, lon: lp.lon } : null);
@@ -78,7 +69,6 @@ export default function usePlanPersistence({
     if (savedLps.some((lp) => lp != null)) data.set_launch_points = savedLps;
     if (savedCps.some((cp) => cp.length > 0)) data.set_corridors = savedCps;
     if (fallbackLocationAssignments?.length > 0) data.fallback_location_assignments = fallbackLocationAssignments;
-    if (perUavDockClasses && Object.keys(perUavDockClasses).length > 0) data.per_uav_dock_classes = perUavDockClasses;
     if (simDockWps && Object.keys(simDockWps).length > 0) data.sim_dock_wps = simDockWps;
     if (detectAfterWps && Object.keys(detectAfterWps).length > 0) data.detect_after_wps = detectAfterWps;
     // Geofence: settings always; the ring itself only when operator-edited
@@ -109,7 +99,7 @@ export default function usePlanPersistence({
     a.download = 'plan.json';
     a.click();
     URL.revokeObjectURL(url);
-  }, [polygon, launchPoint, corridorPoints, searchPattern, dockClasses, perUavDockClasses, setLaunchPoints, setCorridorPointsArr, fallbackLocationAssignments, simDockWps, detectAfterWps, settings, fenceEnabled, fenceOffsetM, fenceTouched, fenceIntent, fenceCustomVertices, exclusionPolygons]);
+  }, [polygon, launchPoint, corridorPoints, searchPattern, setLaunchPoints, setCorridorPointsArr, fallbackLocationAssignments, simDockWps, detectAfterWps, settings, fenceEnabled, fenceOffsetM, fenceTouched, fenceIntent, fenceCustomVertices, exclusionPolygons]);
 
   // Load plan geometry from file
   const handleLoadPolygon = useCallback(() => {
@@ -128,12 +118,8 @@ export default function usePlanPersistence({
           window.alert(t('planFile.invalidData'));
           return;
         }
-        if (!raw || !Array.isArray(raw.polygon) || !validPresetList(raw.dock_classes)
-          || (raw.per_uav_dock_classes != null && (
-            typeof raw.per_uav_dock_classes !== 'object'
-            || Array.isArray(raw.per_uav_dock_classes)
-            || !Object.values(raw.per_uav_dock_classes).every(validPresetList)))
-          || ['delivery_docks', 'delivery_dock_assignments', 'tactic'].some((key) => Object.hasOwn(raw, key))) {
+        if (!raw || !Array.isArray(raw.polygon)
+          || ['poi_classes', 'delivery_docks', 'delivery_dock_assignments', 'tactic'].some((key) => Object.hasOwn(raw, key))) {
           window.alert(t('planFile.invalidData'));
           return;
         }
@@ -160,7 +146,6 @@ export default function usePlanPersistence({
             drawing.loadVertices(poly);
           }
           if (raw.search_pattern) setSearchPattern(raw.search_pattern);
-          setDockClasses(raw.dock_classes);
           // Restore per-set state.
           if (raw.set_launch_points?.length > 0) {
             setSetLaunchPoints(raw.set_launch_points.map((lp) => lp ? { lat: lp.lat, lon: lp.lon } : null));
@@ -179,7 +164,6 @@ export default function usePlanPersistence({
           if (raw.fallback_location_assignments?.length > 0 && setFallbackLocationAssignments) {
             setFallbackLocationAssignments(raw.fallback_location_assignments);
           }
-          if (setPerUavDockClasses) setPerUavDockClasses(raw.per_uav_dock_classes || {});
           if (raw.sim_dock_wps && setSimDockWps) setSimDockWps(raw.sim_dock_wps);
           if (raw.detect_after_wps && setDetectAfterWps) setDetectAfterWps(raw.detect_after_wps);
           if (raw.fence && setFenceEnabled) {
@@ -206,8 +190,7 @@ export default function usePlanPersistence({
           // observations no longer describe it.
           resetFenceObservations?.();
           undoRef.current = [];
-          const pois = raw.dock_classes;
-          if (poly?.length >= 3 && raw.search_pattern !== 'corridor') localAnalyze(poly, pois);
+          if (poly?.length >= 3 && raw.search_pattern !== 'corridor') localAnalyze(poly);
         } catch {
           window.alert(t('planFile.invalidData'));
         }
@@ -215,10 +198,10 @@ export default function usePlanPersistence({
       reader.readAsText(file);
     };
     input.click();
-  }, [t, setPolygon, drawing.loadVertices, localAnalyze, dockClasses, setSearchPattern, setDockClasses, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations]);
+  }, [t, setPolygon, drawing.loadVertices, localAnalyze, setSearchPattern, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations]);
 
   // Derive polygon + launch/corridor from plan tracks using corridor_end_index
-  const derivePlanPolygon = useCallback((zones, downloadedSearchPattern, downloadedPolygon, downloadedCorridorBackbone, downloadedLaunchPoint, downloadedDockClasses, downloadedMissionFallbackLocations) => {
+  const derivePlanPolygon = useCallback((zones, downloadedSearchPattern, downloadedPolygon, downloadedCorridorBackbone, downloadedLaunchPoint, downloadedMissionFallbackLocations) => {
     const tracks = zones.filter((z) => z.track?.length);
     if (tracks.length === 0) return;
     undoRef.current = [];
@@ -235,14 +218,6 @@ export default function usePlanPersistence({
     notifyFenceGeometryReplaced?.();
 
     if (downloadedSearchPattern) setSearchPattern(downloadedSearchPattern);
-    if (downloadedDockClasses?.length > 0) setDockClasses(downloadedDockClasses);
-    // A downloaded plan restores only the mission-wide list (per-mission
-    // dock_classes collapse to global in assembly), so drop any per-UAV
-    // overrides carried from a prior plan — otherwise they'd map to the new,
-    // different zones. Gated on downloadedSearchPattern so the disconnect-shrink path
-    // (which calls derivePlanPolygon with zones only, after reindexing) keeps
-    // its already-reindexed overrides.
-    if (downloadedSearchPattern && setPerUavDockClasses) setPerUavDockClasses({});
 
     const getCorridorIdx = (z) => {
       if ((z.corridor_end_index ?? 0) > 0) return z.corridor_end_index;
@@ -306,7 +281,6 @@ export default function usePlanPersistence({
     if (plannerReady && resolvedPoly && resolvedPoly.length >= 3 && downloadedSearchPattern !== 'corridor') {
       const a = analyzeArea(
         resolvedPoly.map((p) => ({ lat: p.lat, lon: p.lon })),
-        downloadedDockClasses || [],
       );
       setAnalysis(a);
     }
@@ -335,7 +309,7 @@ export default function usePlanPersistence({
       });
       return changed ? { ...prev, zones: trimmed } : prev;
     });
-  }, [plannerReady, setPolygon, drawing.loadVertices, setLaunchPoint, setCorridorPoints, setPlan, setSearchPattern, setDockClasses, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, handleSaveSettings, setFallbackLocationAssignments, setFenceCustomVertices, notifyFenceGeometryReplaced, settings]);
+  }, [plannerReady, setPolygon, drawing.loadVertices, setLaunchPoint, setCorridorPoints, setPlan, setSearchPattern, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, handleSaveSettings, setFallbackLocationAssignments, setFenceCustomVertices, notifyFenceGeometryReplaced, settings]);
 
   return {
     handleSavePolygon,

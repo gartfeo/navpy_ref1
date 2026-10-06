@@ -65,7 +65,6 @@ test('single mission produces correct zone structure', () => {
     search_pattern: 'corridor',
     polygon: [{ lat: 0, lon: 0 }, { lat: 1, lon: 0 }, { lat: 0, lon: 1 }],
     launch_point: { lat: 5, lon: 5 },
-    dock_classes: ['small'],
     fallback_delivery_location: { lat: 10, lon: 20 },
   }];
   const r = assembleMissionsFromResults(results);
@@ -79,7 +78,7 @@ test('single mission produces correct zone structure', () => {
   assert.strictEqual(r.searchPattern, 'corridor');
   assert.strictEqual(r.polygon.length, 3);
   assert.deepStrictEqual(r.launchPoint, { lat: 5, lon: 5 });
-  assert.deepStrictEqual(r.dockClasses, ['small']);
+  assert.strictEqual(Object.hasOwn(r, 'dockClasses'), false);
   assert.deepStrictEqual(r.missionFallbackLocations, [{ lat: 10, lon: 20 }]);
 });
 

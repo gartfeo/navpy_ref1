@@ -222,7 +222,7 @@ describe('finding 2: a downloaded plan replacement is not an operator edit', () 
 
   const uploadedPlan = (polygon) => ({
     waypoints: polygon.map((p) => ({ ...p, alt: 120 })),
-    search_pattern: 'distributed', altitude_m: 120, dock_classes: ['small'],
+    search_pattern: 'distributed', altitude_m: 120,
     polygon, launch_point: null, corridor_backbone: [],
   });
 

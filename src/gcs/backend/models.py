@@ -66,7 +66,6 @@ class VehicleAssignment(BaseModel):
     polygon: list[LatLon] = []  # original planning polygon vertices (for round-trip)
     corridor_backbone: list[LatLon] = []  # corridor backbone waypoints (for round-trip)
     launch_point: Optional[LatLon] = None  # separate launch/home position
-    dock_classes: list[Literal["small", "medium", "large"]] = []
     fallback_delivery_location: Optional[MissionFallbackLocation] = None  # configured delivery location
 
 

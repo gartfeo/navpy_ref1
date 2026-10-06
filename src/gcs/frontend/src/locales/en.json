@@ -467,10 +467,6 @@
   "planningSidebar": {
     "missionPlanning": "MISSION PLANNING",
     "searchPattern": "Search pattern",
-    "dockClass": "Dock class",
-    "perUavDockClass": "Per-UAV dock class",
-    "perUavReset": "reset",
-    "perUavResetHint": "Reset to mission default",
     "uavCount": "UAV Count",
     "containers": "Containers",
     "recommended": "Recommended: {{count}}",
@@ -522,16 +518,7 @@
     "fenceResetAuto": "Reset to auto",
     "fenceSlidersPaused": "Sliders resume after Reset to auto — the fence shape is operator-edited",
     "fenceCoverageWarning": "The edited fence no longer covers the full flight path (zone, takeoff round, corridor, or confirmation orbits). UAVs outside the fence will RTL — enlarge the fence or reset to auto.",
-    "dockClasses": {
-      "small": "Small",
-      "medium": "Medium",
-      "large": "Large"
-    },
-    "dockClassesShort": {
-      "small": "Small",
-      "medium": "Medium",
-      "large": "Large"
-    }
+    "dockPreset": "Dock"
   },
   "confirmSection": {
     "automatic": "Automatic",

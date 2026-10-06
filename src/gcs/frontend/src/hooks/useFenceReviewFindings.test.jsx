@@ -33,7 +33,7 @@ const fenceResponse = (over = {}) => ({
 
 const downloadedMission = {
   waypoints: [{ lat: 32, lon: 34, alt: 120 }, { lat: 32.001, lon: 34.001, alt: 120 }],
-  search_pattern: 'distributed', altitude_m: 120, dock_classes: ['small'],
+  search_pattern: 'distributed', altitude_m: 120,
 };
 
 // ---------------------------------------------------------------- finding 1
@@ -197,7 +197,7 @@ describe('finding 4: mission and fence failures are reported independently', () 
   it('reports a fence failure on one vehicle and a mission failure on another', async () => {
     const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
     const mission = {
-      polygon: ring(), dockClasses: ['small'], perUavDockClasses: {}, searchPattern: 'distributed',
+      polygon: ring(), searchPattern: 'distributed',
       launchPoint: null, corridorPoints: [],
       plan: { zones: [{ zone_index: 0, track: ring() }, { zone_index: 1, track: ring(0.1) }], altitude_m: 120 },
       setPlan: vi.fn(), setLaunchPoints: [null], setCorridorPointsArr: [[]],

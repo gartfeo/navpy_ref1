@@ -10,14 +10,13 @@ function fixture(overrides = {}) {
   const props = {
     polygon: [{ lat: 0, lon: 0 }, { lat: 0, lon: 1 }, { lat: 1, lon: 0 }],
     launchPoint: null, corridorPoints: [], searchPattern: 'distributed',
-    dockClasses: ['small', 'medium', 'large'], perUavDockClasses: { 0: ['medium'] },
     setLaunchPoints: [], setCorridorPointsArr: [[]],
     settings: { fallback_delivery_locations: [{ name: 'Fixture', type: 'other', lat: 0, lon: 0 }] },
     fallbackLocationAssignments: [0], simDockWps: { 0: [2] }, detectAfterWps: { 0: 1 },
     drawing: { loadVertices: vi.fn() }, undoRef: { current: [] },
     suppressRegenRef: { current: false }, ...overrides,
   };
-  for (const key of ['setPolygon','setSearchPattern','setDockClasses','setPerUavDockClasses',
+  for (const key of ['setPolygon','setSearchPattern',
     'setLaunchPoint','setCorridorPoints','setSetLaunchPoints','setSetCorridorPoints',
     'setActiveSetIndex','setAnalysis','setPlan','localAnalyze','setFallbackLocationAssignments',
     'setSimDockWps','setDetectAfterWps','handleSaveSettings',
@@ -56,20 +55,13 @@ function fixture(overrides = {}) {
 }
 
 describe('current development plan files', () => {
-  it.each([
-    { dock_classes: ['obsolete-preset'] },
-    { per_uav_dock_classes: { 0: ['obsolete-preset'] } },
-    { per_uav_dock_classes: [] },
-    { per_uav_dock_classes: { 0: 'small' } },
-  ])('rejects unsupported preset selections before mutation: %j', (invalid) => {
+  it('neither requires nor reads dock class selections: every zone targets the dock', () => {
     const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
     const io = fixture();
-    io.load({ polygon: io.props.polygon, dock_classes: ['small'], ...invalid });
-    for (const value of Object.values(io.props)) {
-      if (vi.isMockFunction(value)) expect(value).not.toHaveBeenCalled();
-    }
-    expect(io.props.drawing.loadVertices).not.toHaveBeenCalled();
-    expect(alert).toHaveBeenCalledWith('planFile.invalidData');
+    io.load({ polygon: io.props.polygon, dock_classes: ['small'], per_uav_dock_classes: { 0: ['large'] } });
+    expect(alert).not.toHaveBeenCalled();
+    expect(io.props.setPolygon).toHaveBeenCalledWith(io.props.polygon);
+    expect(io.props.localAnalyze).toHaveBeenCalledWith(io.props.polygon);
   });
 
   it('rejects malformed JSON before changing state', () => {
@@ -83,12 +75,11 @@ describe('current development plan files', () => {
     expect(alert).toHaveBeenCalledWith('planFile.invalidData');
   });
 
-  it('accepts corridor plans with empty polygon and class arrays', () => {
+  it('accepts corridor plans with an empty polygon', () => {
     const io = fixture();
-    io.load({ polygon: [], dock_classes: [], search_pattern: 'corridor',
+    io.load({ polygon: [], search_pattern: 'corridor',
       set_launch_points: [{ lat: 1, lon: 2 }], set_corridors: [[]] });
     expect(io.props.setSetLaunchPoints).toHaveBeenCalledWith([{ lat: 1, lon: 2 }]);
-    expect(io.props.setDockClasses).toHaveBeenCalledWith([]);
     expect(io.props.localAnalyze).not.toHaveBeenCalled();
   });
 
@@ -100,17 +91,13 @@ describe('current development plan files', () => {
     expect(data.search_pattern).toBe(searchPattern);
     expect(Object.hasOwn(data, 'tactic')).toBe(false);
     expect(Object.hasOwn(data, 'searchPattern')).toBe(false);
-    expect(data.dock_classes).toEqual(io.props.dockClasses);
-    expect(data.per_uav_dock_classes).toEqual(io.props.perUavDockClasses);
     expect(data.fallback_delivery_locations).toEqual(io.props.settings.fallback_delivery_locations);
-    for (const key of ['poi_classes','per_uav_poi_classes','objects_of_interest',
+    for (const key of ['dock_classes','per_uav_dock_classes','poi_classes','per_uav_poi_classes','objects_of_interest',
       'ooi_assignments','sim_poi_wps','plan_format_version','launch_point','corridor']) {
       expect(Object.hasOwn(data, key)).toBe(false);
     }
     io.load(data);
-    expect(io.props.setDockClasses).toHaveBeenCalledWith(data.dock_classes);
     expect(io.props.setSearchPattern).toHaveBeenCalledWith(data.search_pattern);
-    expect(io.props.setPerUavDockClasses).toHaveBeenCalledWith(data.per_uav_dock_classes);
     expect(io.props.handleSaveSettings).toHaveBeenCalledWith({ fallback_delivery_locations: data.fallback_delivery_locations });
     expect(io.props.setFallbackLocationAssignments).toHaveBeenCalledWith(data.fallback_location_assignments);
     expect(io.props.setSimDockWps).toHaveBeenCalledWith(data.sim_dock_wps);
@@ -119,9 +106,9 @@ describe('current development plan files', () => {
     expect(io.props.setSetCorridorPoints).toHaveBeenCalledWith(data.set_corridors);
   });
 
-  it.each([null, 7, [], { polygon: [], poi_classes: ['old'] }, { dock_classes: [] }, { polygon: [], dock_classes: [], delivery_docks: [] }, { polygon: [], dock_classes: [], delivery_dock_assignments: [] },
-    { polygon: [], dock_classes: [], tactic: 'corridor' },
-    { polygon: [], dock_classes: [], tactic: 'corridor', search_pattern: 'distributed' },
+  it.each([null, 7, [], { polygon: [], poi_classes: ['old'] }, {}, { polygon: [], delivery_docks: [] }, { polygon: [], delivery_dock_assignments: [] },
+    { polygon: [], tactic: 'corridor' },
+    { polygon: [], tactic: 'corridor', search_pattern: 'distributed' },
   ].map(data => [data]))(
     'rejects unsupported structure %j before any state changes', (data) => {
       const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
@@ -139,11 +126,9 @@ describe('current development plan files', () => {
 
   it('preserves existing empty optional-array behavior', () => {
     const io = fixture();
-    io.load({ polygon: io.props.polygon, dock_classes: [], fallback_delivery_locations: [], fallback_location_assignments: [] });
-    expect(io.props.setDockClasses).toHaveBeenCalledWith([]);
+    io.load({ polygon: io.props.polygon, fallback_delivery_locations: [], fallback_location_assignments: [] });
     expect(io.props.handleSaveSettings).not.toHaveBeenCalled();
     expect(io.props.setFallbackLocationAssignments).not.toHaveBeenCalled();
-    expect(io.props.setPerUavDockClasses).toHaveBeenCalledWith({});
     expect(io.props.setSimDockWps).not.toHaveBeenCalled();
     expect(io.props.setDetectAfterWps).not.toHaveBeenCalled();
   });
@@ -170,14 +155,14 @@ describe('current development plan files', () => {
 
   it('loads a legacy saved fence as authored intent, not as observation', () => {
     const io = fixture();
-    io.load({ polygon: io.props.polygon, dock_classes: [], fence: { enabled: false, offset_m: 40 } });
+    io.load({ polygon: io.props.polygon, fence: { enabled: false, offset_m: 40 } });
     expect(io.props.authorFenceIntent).toHaveBeenCalledWith(false);
     expect(io.props.setFenceOffsetM).toHaveBeenCalledWith(40);
   });
 
   it('invalidates earlier vehicle readback when a replacement plan loads', () => {
     const io = fixture();
-    io.load({ polygon: io.props.polygon, dock_classes: [] });
+    io.load({ polygon: io.props.polygon });
     expect(io.props.resetFenceObservations).toHaveBeenCalled();
   });
 
@@ -188,7 +173,7 @@ describe('current development plan files', () => {
     const io = fixture({
       fenceEnabled: true, fenceTouched: true, fenceIntent: { generation: 5, enabled: false },
     });
-    io.load({ polygon: io.props.polygon, dock_classes: [] });
+    io.load({ polygon: io.props.polygon });
     expect(io.props.clearFenceIntent).toHaveBeenCalled();
     expect(io.props.authorFenceIntent).not.toHaveBeenCalled();
     expect(io.props.setFenceEnabled).toHaveBeenCalledWith(false);
@@ -197,14 +182,14 @@ describe('current development plan files', () => {
 
   it('keeps the loaded plan\'s own fence decision instead of clearing it', () => {
     const io = fixture({ fenceIntent: { generation: 5, enabled: false } });
-    io.load({ polygon: io.props.polygon, dock_classes: [], fence: { enabled: true } });
+    io.load({ polygon: io.props.polygon, fence: { enabled: true } });
     expect(io.props.authorFenceIntent).toHaveBeenCalledWith(true);
     expect(io.props.clearFenceIntent).not.toHaveBeenCalled();
   });
 
   it('loads a simulation waypoint selection without changing omitted detection selection', () => {
     const io = fixture();
-    io.load({ polygon: io.props.polygon, dock_classes: [], sim_dock_wps: { 0: 7 } });
+    io.load({ polygon: io.props.polygon, sim_dock_wps: { 0: 7 } });
     expect(io.props.setSimDockWps).toHaveBeenCalledWith({ 0: 7 });
     expect(io.props.setDetectAfterWps).not.toHaveBeenCalled();
   });

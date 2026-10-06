@@ -1066,7 +1066,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         self.assertTrue(controller.retry_policy.is_in_poi_cooldown(poi))
 
     def test_class0_recognition_gate_relaxed_to_36(self):
-        """The class-0 (medium/large) recognition gate resolves to 36px."""
+        """The dock (class-0) recognition gate resolves to 36px."""
         from navpy.modules.vision.vision_profiles import (
             get_min_pixels_for_class,
             resolve_profile,
@@ -2282,7 +2282,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
         vision_profile = {
             "detector": {
-                "dock_presets": {"medium": {"min_pixel_size": 48.0}},
+                "dock_presets": {"dock": {"min_pixel_size": 48.0}},
             },
         }
         controller = create_nav_test_rig(
@@ -2603,8 +2603,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         vision_profile = {
             "detector": {
                 "dock_presets": {
-                    "medium": {"min_pixel_size": 150},
-                    "large": {"min_pixel_size": 150},
+                    "dock": {"min_pixel_size": 150},
                 },
             },
         }
@@ -2660,7 +2659,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         vision_profile = {
             "detector": {
-                "dock_presets": {"medium": {"min_pixel_size": 150}},
+                "dock_presets": {"dock": {"min_pixel_size": 150}},
             },
         }
         # Source bbox diagonal 90x100 -> 134 px (< 150) blocks, even though
@@ -2691,7 +2690,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         vision_profile = {
             "detector": {
-                "dock_presets": {"medium": {"min_pixel_size": 150}},
+                "dock_presets": {"dock": {"min_pixel_size": 150}},
             },
         }
         poi = _create_detected_poi(
@@ -2720,7 +2719,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         vision_profile = {
             "detector": {
-                "dock_presets": {"medium": {"min_pixel_size": 150}},
+                "dock_presets": {"dock": {"min_pixel_size": 150}},
             },
         }
         poi = _create_detected_poi(
@@ -2814,7 +2813,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         vision_profile = {
             "detector": {
-                "dock_presets": {"medium": {"min_pixel_size": 150}},
+                "dock_presets": {"dock": {"min_pixel_size": 150}},
             },
         }
         poi = _create_detected_poi(
@@ -3200,21 +3199,19 @@ class TestNavControllerActConfirm(unittest.TestCase):
         controller.confirmation_action.act()
         self.assertGreater(controller.confirm.entered_at, original_ts)
 
-    def test_act_confirm_uses_per_class_threshold_from_profile(self):
-        """Pixel gate reads the threshold from the profile's dock_presets,
-        so a larger-preset class must wait for a bigger bbox."""
+    def test_act_confirm_uses_dock_threshold_from_profile(self):
+        """Pixel gate reads the threshold from the profile's dock preset,
+        so the dock class must wait for a bbox of that size."""
         profile = {
             "detector": {
                 "dock_presets": {
-                    # class 0 requires 30 px; class 4 only 10 px.
-                    "medium": {"min_pixel_size": 30},
-                    "small": {"min_pixel_size": 10},
+                    "dock": {"min_pixel_size": 30},
                 },
             },
         }
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        # Detection class 0 POI with 20 px bbox — above the global MIN_CONFIRM_PIXELS,
-        # but below the medium-preset threshold of 30.
+        # Dock (class 0) POI with 20 px bbox — above the global MIN_CONFIRM_PIXELS,
+        # but below the dock-preset threshold of 30.
         poi = _create_detected_poi(
             obj_id=1,
             class_id=0,  # Detection class 0
@@ -4959,7 +4956,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
         self.assertTrue(controller.navigation_task.peer_navigation)
 
-    def test_final_approach_gimbal_orbit_uses_demo_standoff_for_all_dock_classes(self):
+    def test_final_approach_gimbal_orbit_uses_demo_standoff_for_dock(self):
         """SIYI final-approach owner/peers use the same verified 300 m orbit."""
         from navpy.modules.navigation.approach_strategy import (
             ApproachKind, ApproachPlan,
@@ -5123,7 +5120,6 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         navigation = _create_mock_navigation()
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
         controller.mission.fallback_delivery_location = Location(40.001, -74.001, 100.0)
-        controller.mission.smallest_class_id = 0
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
@@ -5152,7 +5148,6 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         navigation = _create_mock_navigation()
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
         controller.mission.fallback_delivery_location = Location(40.001, 44.001, 5.0)
-        controller.mission.smallest_class_id = 0
         plan = ApproachPlan(
             kind=ApproachKind.ORBIT,
             approach_location=controller.mission.fallback_delivery_location,
@@ -5758,7 +5753,6 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         )
         controller.mission.scan_altitude_rel = 150.0
         controller.mission.fallback_delivery_location = Location(40.001, -74.001, 0.0)
-        controller.mission.smallest_class_id = 0
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
@@ -5798,7 +5792,6 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         )
         controller.mission.scan_altitude_rel = 150.0
         controller.mission.fallback_delivery_location = Location(40.001, -74.001, 0.0)
-        controller.mission.smallest_class_id = 0
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
@@ -5833,7 +5826,6 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         )
         controller.mission.scan_altitude_rel = 150.0
         controller.mission.fallback_delivery_location = Location(40.001, -74.001, 0.0)
-        controller.mission.smallest_class_id = 0
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
@@ -5869,7 +5861,6 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         )
         controller.mission.scan_altitude_rel = 150.0
         controller.mission.fallback_delivery_location = Location(40.001, -74.001, 0.0)
-        controller.mission.smallest_class_id = 0
 
         with patch(
             "navpy.modules.nav.nav_composition.calc_peer_approach_offset",

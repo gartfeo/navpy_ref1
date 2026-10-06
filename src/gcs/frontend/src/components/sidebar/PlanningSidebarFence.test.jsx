@@ -43,14 +43,9 @@ const renderSidebar = (observedFence, over = {}) => render(
   <PlanningSidebar
     searchPattern="distributed"
     setSearchPattern={vi.fn()}
-    dockClasses={['small']}
-    setDockClasses={vi.fn()}
-    perUavDockClasses={{}}
-    setPerUavDockClasses={vi.fn()}
     analysis={null}
     uavCount={2}
     setUavCount={vi.fn()}
-    onPoiChange={vi.fn()}
     plan={null}
     launchPoint={null}
     corridorPoints={[]}
@@ -184,5 +179,14 @@ describe('PlanningSidebar fence request status', () => {
   ])('always shows the preserve / Off-requests-disable help on %s', (_label, obs, fenceEnabled) => {
     const { container } = renderSidebar(obs, { fenceEnabled, fenceRequestStatus: 'none' });
     expect(container.textContent).toContain('planningSidebar.fenceUploadHelp');
+  });
+});
+
+describe('PlanningSidebar dock targeting', () => {
+  it('renders no dock-class selector: every zone targets the single dock class', () => {
+    const { container } = renderSidebar(summarize([]));
+    expect(container.textContent).not.toContain('planningSidebar.dockClass');
+    expect(container.textContent).not.toContain('planningSidebar.perUavDockClass');
+    expect(container.querySelector('button[aria-pressed]')).toBeNull();
   });
 });

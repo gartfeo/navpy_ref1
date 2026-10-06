@@ -18,8 +18,6 @@ export function buildPlanSnapshot(current) {
     plan:                 current.plan ? JSON.parse(JSON.stringify(current.plan)) : null,
     polygon:              (current.polygon || []).map(p => ({ lat: p.lat, lon: p.lon })),
     searchPattern:               current.searchPattern ?? null,
-    dockClasses:        current.dockClasses ? [...current.dockClasses] : [],
-    perUavDockClasses:  current.perUavDockClasses ? JSON.parse(JSON.stringify(current.perUavDockClasses)) : {},
     analysis:             current.analysis ? JSON.parse(JSON.stringify(current.analysis)) : null,
     uavCount:             current.uavCount ?? null,
     partitionAngleDeg:    current.partitionAngleDeg ?? null,

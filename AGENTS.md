@@ -15,8 +15,9 @@ The swarm is generic and mission-agnostic; target module families include:
 Further modules follow the same plug-in pattern; no single module defines the
 product. Recipient platforms, including moving vehicles, are cooperative
 participants.
-For delivery, parking nets are general purpose 360 degree nets; parking nets may
-be on stationary or moving platforms.
+A dock is a general-purpose 360-degree net (one detector class, `dock`); docks
+may be on stationary or moving platforms. "Dock" is the single term in docs,
+code and UI.
 The current MVP is a three-UAV delivery/docking simulator demo.
 
 Parking navigation names the vision-based final approach.
@@ -32,13 +33,13 @@ aircraft compass-derived yaw/heading. Compass yaw can carry large bias and
 would contaminate navigation-quality isolation. Treat aircraft yaw/heading as
 allowed only for logs, operator display, or certification/scoring diagnostics;
 do not use it to build LOS for navigation, refresh predictions, compute
-lateral/vertical commands, or decide delivering/delivered state. Gimbal/camera yaw
+lateral/vertical commands, or decide final-approach completion state. Gimbal/camera yaw
 readback is a different source: roll-yaw-pitch readback from the gimbal/camera
 is allowed as camera-state only, so measured pixels can be converted into a
 frame-local visual ray. Allowed command inputs remain frame-local vision
 LOS/pixels/rates, gimbal/camera roll-yaw-pitch readback as camera-state only,
 pitch/roll aircraft attitude, airspeed, wind, and previous command state, with
-no park net geo/env truth, direct range, bbox-height, park net height, ground speed,
+no dock geo/env truth, direct range, bbox-height, dock height, ground speed,
 altitude-derived vertical state, or sim-truth dependency. Do not project
 world-frame wind direction into the command frame for final-approach navigation
 through hidden aircraft compass yaw; 

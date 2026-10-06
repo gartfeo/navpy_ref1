@@ -78,7 +78,7 @@ def build_workers(
             1.0 / max(1e-6, pipeline.detect_hz),
             runtime.frame_provider,
             runtime.association,
-            models.yolo,
+            models.frame_detector,
             state.inference_generation,
             state.metrics,
             dependencies.logger,
@@ -140,7 +140,7 @@ def build_resources(
     return DetectorResources(
         models.tracker,
         models.appearance,
-        models.yolo,
+        models.frame_detector,
         models.deep_search,
         state.confirmation_frames,
     )

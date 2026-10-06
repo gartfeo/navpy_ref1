@@ -6,7 +6,6 @@ import { SectionTitle, Divider, Label, InfoRow, StepBtn } from './SidebarPrimiti
 import FallbackLocationAssignmentSection, { zoneLabel } from './FallbackLocationAssignmentSection';
 import MultiSelectWps from './MultiSelectWps';
 import ConfirmSection from './ConfirmSection';
-import DockClassChips from './DockClassChips';
 import ExclusionSection from './ExclusionSection';
 
 const SEARCH_PATTERN_OPTIONS = [
@@ -17,14 +16,9 @@ const SEARCH_PATTERN_OPTIONS = [
 export default function PlanningSidebar({
   searchPattern,
   setSearchPattern,
-  dockClasses,
-  setDockClasses,
-  perUavDockClasses,
-  setPerUavDockClasses,
   analysis,
   uavCount,
   setUavCount,
-  onPoiChange,
   plan,
   launchPoint,
   corridorPoints,
@@ -65,41 +59,6 @@ export default function PlanningSidebar({
 }) {
   const { t } = useTranslation();
 
-  const togglePoi = (id) => {
-    const next = dockClasses.includes(id)
-      ? dockClasses.filter((tc) => tc !== id)
-      : [...dockClasses, id];
-    if (next.length > 0) {
-      setDockClasses(next);
-      onPoiChange(next);
-    }
-  };
-
-  const zones = plan?.zones || [];
-
-  // Per-UAV override: a zone with no entry inherits the mission-wide list. The
-  // first toggle forks the global set for that zone; a zone can never be left
-  // with zero classes (mirrors the global toggle's non-empty guard).
-  // A zone with a non-empty override list is custom; anything else (missing or
-  // empty) inherits the mission-wide list. Matches the upload-side `.length`
-  // fallback so display and payload never disagree.
-  const effectivePerUav = (zi) => (perUavDockClasses?.[zi]?.length ? perUavDockClasses[zi] : dockClasses);
-  const isPerUavCustom = (zi) => (perUavDockClasses?.[zi]?.length ?? 0) > 0;
-
-  const togglePerUavPoi = (zi, id) => {
-    const base = effectivePerUav(zi);
-    const next = base.includes(id) ? base.filter((tc) => tc !== id) : [...base, id];
-    if (next.length === 0) return;
-    setPerUavDockClasses({ ...(perUavDockClasses || {}), [zi]: next });
-  };
-
-  const resetPerUavPoi = (zi) => {
-    if (!isPerUavCustom(zi)) return;
-    const nextMap = { ...(perUavDockClasses || {}) };
-    delete nextMap[zi];
-    setPerUavDockClasses(nextMap);
-  };
-
   return (
     <div style={{ padding: 16 }}>
       <SectionTitle>{t('planningSidebar.missionPlanning')}</SectionTitle>
@@ -128,58 +87,6 @@ export default function PlanningSidebar({
           </option>
         ))}
       </select>
-
-      {/* Dock class — mission-wide default (single-row icon chips) */}
-      <Label>{t('planningSidebar.dockClass')}</Label>
-      <div style={{ marginBottom: zones.length > 0 ? 12 : 16 }}>
-        <DockClassChips selected={dockClasses} onToggle={togglePoi} />
-      </div>
-
-      {/* Per-UAV dock class override — inherits the default unless customized */}
-      {zones.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <Label>{t('planningSidebar.perUavDockClass')}</Label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {zones.map((zone, zi) => {
-              const zoneColor = zoneColorsLabel[zi % zoneColorsLabel.length];
-              const custom = isPerUavCustom(zi);
-              return (
-                <div key={zi} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{
-                    width: 9, height: 9, borderRadius: '50%',
-                    background: zoneColor, flexShrink: 0,
-                  }} />
-                  <span style={{ color: colors.textDim, fontSize: 12, minWidth: 34 }}>
-                    {zoneLabel(zones, zi)}
-                  </span>
-                  <DockClassChips
-                    selected={effectivePerUav(zi)}
-                    onToggle={(id) => togglePerUavPoi(zi, id)}
-                    compact
-                  />
-                  {custom && (
-                    <button
-                      onClick={() => resetPerUavPoi(zi)}
-                      title={t('planningSidebar.perUavResetHint')}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: colors.textDim,
-                        cursor: 'pointer',
-                        fontSize: 11,
-                        padding: '0 2px',
-                        textDecoration: 'underline',
-                      }}
-                    >
-                      {t('planningSidebar.perUavReset')}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* UAV Count */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>

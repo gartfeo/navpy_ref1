@@ -13,7 +13,7 @@ from navpy.modules.vision.vision_profile_inheritance import (
 )
 from navpy.modules.vision.vision_profile_types import VisionProfile
 from navpy.modules.vision.vision_detector_profile import validate_detector_settings_keys
-from navpy.modules.vision.vision_class_profile import DOCK_CLASS_TO_DETECT_ID
+from navpy.modules.vision.vision_class_profile import DOCK_PRESET_NAME
 
 
 def _profiles_path() -> Path:
@@ -47,7 +47,7 @@ def load_profiles() -> tuple[dict, str, Path]:
             continue
         if not isinstance(presets, Mapping):
             raise ValueError(f"{path}: profile {name!r} dock_presets must be a mapping")
-        unknown = presets.keys() - DOCK_CLASS_TO_DETECT_ID.keys()
+        unknown = presets.keys() - {DOCK_PRESET_NAME}
         if unknown:
             raise ValueError(f"{path}: profile {name!r} has unknown sizing presets: {sorted(unknown)}")
     raw_default = data.get("default_profile", "")

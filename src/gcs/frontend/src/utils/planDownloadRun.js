@@ -210,9 +210,7 @@ export function startupPlanMetadata(run, fallbackAltitude = 100) {
   for (const mission of missions) {
     if (mission.altitude_m) altitude = mission.altitude_m;
   }
-  const dockClasses = missions.find((mission) => mission.dock_classes?.length > 0)
-    ?.dock_classes || [];
-  return { altitude, dockClasses };
+  return { altitude };
 }
 
 /** Return startup metadata only while `plan` is still owned by this run. */

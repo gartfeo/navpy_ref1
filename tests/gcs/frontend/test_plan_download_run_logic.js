@@ -385,32 +385,32 @@ async function main() {
     orderedIds: [1, 2, 3],
     excludedIds: new Set(),
     missionsBySysId: new Map([
-      [1, { waypoints: [{}], altitude_m: 140, dock_classes: [] }],
-      [2, { waypoints: [{}], altitude_m: 120, dock_classes: ['medium'] }],
-      [3, { waypoints: [{}], altitude_m: 100, dock_classes: ['truck'] }],
+      [1, { waypoints: [{}], altitude_m: 140 }],
+      [2, { waypoints: [{}], altitude_m: 120 }],
+      [3, { waypoints: [{}], altitude_m: 100 }],
     ]),
   };
   assert.deepStrictEqual(
     startupPlanMetadata(planMetadataRun, 80),
-    { altitude: 100, dockClasses: ['medium'] },
-    'fleet base altitude is last ordered altitude and classes are first nonempty list',
+    { altitude: 100 },
+    'fleet base altitude is last ordered altitude',
   );
   planMetadataRun.excludedIds.add(3);
   assert.deepStrictEqual(
     startupPlanMetadata(planMetadataRun, 80),
-    { altitude: 120, dockClasses: ['medium'] },
+    { altitude: 120 },
     'fleet metadata recomputes after the lowest mission disconnects',
   );
   const metadataOwnedPlan = tagPlanForRun({ zones: [], altitude_m: 80 }, planMetadataRun);
   assert.deepStrictEqual(
     startupPlanMetadataForOwnedPlan(planMetadataRun, metadataOwnedPlan, 80),
-    { altitude: 120, dockClasses: ['medium'] },
+    { altitude: 120 },
     'startup-owned plan may receive recomputed mission metadata',
   );
   assert.strictEqual(
     startupPlanMetadataForOwnedPlan(
       planMetadataRun,
-      { zones: [{ sys_id: 99 }], altitude_m: 65, dock_classes: ['operator'] },
+      { zones: [{ sys_id: 99 }], altitude_m: 65 },
       65,
     ),
     null,

@@ -8,10 +8,9 @@ import threading
 
 from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
 from navpy.modules.vision.deep_search import DeepSearchDetector
-from navpy.modules.vision.real_detector_ports import CleanupAction
+from navpy.modules.vision.real_detector_ports import CleanupAction, FrameDetector
 from navpy.modules.vision.real_detector_state import ConfirmationFrameStore
 from navpy.modules.vision.tracker_backends import TrackerBackend
-from navpy.modules.vision.yolo_detector import YoloDetector
 
 
 def _raise_cleanup_errors(errors: tuple[BaseException, ...]) -> None:
@@ -33,7 +32,7 @@ class DetectorResources:
         self,
         tracker: TrackerBackend,
         appearance: AsyncAppearanceEmbedder | None,
-        yolo: YoloDetector,
+        frame_detector: FrameDetector,
         deep_search: DeepSearchDetector | None,
         confirmation_frames: ConfirmationFrameStore,
     ) -> None:
@@ -42,7 +41,7 @@ class DetectorResources:
             action for action in (
                 tracker.close,
                 None if appearance is None else appearance.close,
-                yolo.close,
+                frame_detector.close,
                 None if deep_search is None else deep_search.close,
                 confirmation_frames.clear,
             )

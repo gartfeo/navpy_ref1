@@ -12,7 +12,7 @@ import { closestEdgeIndex } from '../../utils/geo';
  * Uses refs for vertices/undoStack so callbacks can read current
  * values synchronously without nesting state setters inside updaters.
  */
-export default function useDrawing({ setPolygon, analyze, dockClasses }) {
+export default function useDrawing({ setPolygon, analyze }) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [vertices, setVertices] = useState([]);
   const verticesRef = useRef([]);
@@ -57,10 +57,10 @@ export default function useDrawing({ setPolygon, analyze, dockClasses }) {
       updateVertices(next);
       setPolygon(next);
       if (next.length >= 3) {
-        analyze(next, dockClasses);
+        analyze(next);
       }
     },
-    [setPolygon, analyze, dockClasses]
+    [setPolygon, analyze]
   );
 
   const undo = useCallback(() => {
@@ -78,9 +78,9 @@ export default function useDrawing({ setPolygon, analyze, dockClasses }) {
     updateVertices(next);
     setPolygon(next);
     if (next.length >= 3) {
-      analyze(next, dockClasses);
+      analyze(next);
     }
-  }, [setPolygon, analyze, dockClasses]);
+  }, [setPolygon, analyze]);
 
   const clear = useCallback(() => {
     undoStackRef.current = [];
@@ -101,10 +101,10 @@ export default function useDrawing({ setPolygon, analyze, dockClasses }) {
       updateVertices(next);
       setPolygon(next);
       if (next.length >= 3) {
-        analyze(next, dockClasses);
+        analyze(next);
       }
     },
-    [setPolygon, analyze, dockClasses]
+    [setPolygon, analyze]
   );
 
   const onVertexDelete = useCallback(
@@ -116,10 +116,10 @@ export default function useDrawing({ setPolygon, analyze, dockClasses }) {
       updateVertices(next);
       setPolygon(next);
       if (next.length >= 3) {
-        analyze(next, dockClasses);
+        analyze(next);
       }
     },
-    [setPolygon, analyze, dockClasses]
+    [setPolygon, analyze]
   );
 
   const onMidpointInsert = useCallback(
@@ -130,10 +130,10 @@ export default function useDrawing({ setPolygon, analyze, dockClasses }) {
       updateVertices(next);
       setPolygon(next);
       if (next.length >= 3) {
-        analyze(next, dockClasses);
+        analyze(next);
       }
     },
-    [setPolygon, analyze, dockClasses]
+    [setPolygon, analyze]
   );
 
   const onPolygonMove = useCallback(
@@ -146,10 +146,10 @@ export default function useDrawing({ setPolygon, analyze, dockClasses }) {
       updateVertices(next);
       setPolygon(next);
       if (next.length >= 3) {
-        analyze(next, dockClasses);
+        analyze(next);
       }
     },
-    [setPolygon, analyze, dockClasses]
+    [setPolygon, analyze]
   );
 
   // Sync internal vertices when polygon is loaded externally (file load)
@@ -163,9 +163,9 @@ export default function useDrawing({ setPolygon, analyze, dockClasses }) {
     updateVertices(poly);
     setPolygon(poly);
     if (poly.length >= 3) {
-      analyze(poly, dockClasses);
+      analyze(poly);
     }
-  }, [setPolygon, analyze, dockClasses]);
+  }, [setPolygon, analyze]);
 
   return {
     isDrawing,

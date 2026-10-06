@@ -44,7 +44,6 @@ export default function useVehicleConnection({
     setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex,
     fallbackLocationAssignments,
     setSimDockWps, setDetectAfterWps,
-    setPerUavDockClasses,
     setFenceEnabled, setFenceTouched, setFenceCustomVertices,
     setExclusionPolygons,
     beginFenceObservation, recordFenceObservation, resetFenceObservations,
@@ -245,7 +244,6 @@ export default function useVehicleConnection({
       metadataMission.polygon,
       metadataMission.corridor_backbone,
       metadataMission.launch_point,
-      planMetadata.dockClasses,
       startupMissionFallbackLocationsForZones(run, zones),
     );
     await observeFleetFence(
@@ -292,7 +290,6 @@ export default function useVehicleConnection({
           const nextPlan = tagPlanForRun({
             zones: assembled.zones,
             altitude_m: assembled.altitude,
-            dock_classes: assembled.dockClasses || [],
           }, run);
           // Claim the WHOLE roster's fence state in the same tick that
           // publishes the plan, and before it. Reserving only when the fence
@@ -307,7 +304,7 @@ export default function useVehicleConnection({
           // already queued in this tick recognizes our own plan publication.
           planRef.current = nextPlan;
           run.hasPublished = true;
-          derivePlanPolygon(assembled.zones, assembled.searchPattern, assembled.polygon, assembled.corridorBackbone, assembled.launchPoint, assembled.dockClasses, assembled.missionFallbackLocations);
+          derivePlanPolygon(assembled.zones, assembled.searchPattern, assembled.polygon, assembled.corridorBackbone, assembled.launchPoint, assembled.missionFallbackLocations);
           // Observe every vehicle's own fence. They are configured per vehicle
           // and can legitimately disagree, so the first vehicle's answer is not
           // the fleet's answer.
@@ -409,7 +406,6 @@ export default function useVehicleConnection({
       setActiveSetIndex(0);
       setSimDockWps({});
       if (setDetectAfterWps) setDetectAfterWps({});
-      if (setPerUavDockClasses) setPerUavDockClasses({});
       // Fence + keep-outs are plan geometry — clean them with the rest when
       // the last vehicle disconnects (same lifecycle as the zone). The
       // observations and any unacknowledged request belong to that plan too.
@@ -426,21 +422,14 @@ export default function useVehicleConnection({
       const nextPlan = currentPlan ? {
         ...currentPlan,
         zones: remaining,
-        ...(startupMetadata && {
-          altitude_m: startupMetadata.altitude,
-          dock_classes: startupMetadata.dockClasses,
-        }),
+        ...(startupMetadata && { altitude_m: startupMetadata.altitude }),
       } : null;
       planRef.current = nextPlan;
       setPlan(nextPlan);
-      // Reindex zone-keyed maps to match new zone positions. perUavDockClasses
-      // values are arrays (like simDockWps) so it uses 'array' mode.
+      // Reindex zone-keyed maps to match new zone positions.
       setSimDockWps((prev) => reindexZoneMap(prev, keptOldIndices, 'array'));
       if (setDetectAfterWps) {
         setDetectAfterWps((prev) => reindexZoneMap(prev, keptOldIndices, 'scalar'));
-      }
-      if (setPerUavDockClasses) {
-        setPerUavDockClasses((prev) => reindexZoneMap(prev, keptOldIndices, 'array'));
       }
       derivePlanPolygon(remaining);
       if (startupRun && planBelongsToRun(nextPlan, startupRun)) {
@@ -452,7 +441,7 @@ export default function useVehicleConnection({
         }).catch((e) => console.warn('Startup plan refresh after disconnect failed:', e));
       }
     }
-  }, [api.disconnectVehicle, applyStartupPlanEffects, cancelMissionDownloadRun, clearDownloading, removeVehicle, setPlan, setPolygon, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, derivePlanPolygon, onPlanSynced, setSimDockWps, setDetectAfterWps, setPerUavDockClasses, setFenceCustomVertices, setExclusionPolygons, setFenceEnabled, setFenceTouched, clearFenceIntent, resetFenceObservations]);
+  }, [api.disconnectVehicle, applyStartupPlanEffects, cancelMissionDownloadRun, clearDownloading, removeVehicle, setPlan, setPolygon, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, derivePlanPolygon, onPlanSynced, setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons, setFenceEnabled, setFenceTouched, clearFenceIntent, resetFenceObservations]);
 
   // Download mission for a single vehicle (background, tracked by downloadingSysIds)
   const downloadSingleMission = useCallback(async (sysId, name, startupRun = null) => {
@@ -521,7 +510,6 @@ export default function useVehicleConnection({
         ...currentPlan,
         zones: mergedZones,
         altitude_m: startupMetadata?.altitude || m.altitude_m || currentPlan?.altitude_m || 100,
-        dock_classes: startupMetadata?.dockClasses || m.dock_classes || currentPlan?.dock_classes || [],
       };
       if (startupRun) {
         nextPlan = tagPlanForRun(nextPlan, startupRun);
@@ -562,7 +550,6 @@ export default function useVehicleConnection({
           metadataMission.polygon,
           metadataMission.corridor_backbone,
           metadataMission.launch_point,
-          metadataMission.dock_classes,
           pois,
         );
         await observeFenceFromVehicle(sysId, startupRequestIsActive);

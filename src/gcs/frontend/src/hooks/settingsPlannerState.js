@@ -18,9 +18,9 @@ export function resolvePlannerState(settingsData, catalog) {
   }
 
   // The top-level detector_class_dimensions block is the single source for per-class
-  // sizes. Require a finite positive size for every detect class an operator
-  // preset maps to (medium/large -> 0, small -> 4) so the planner never
-  // silently computes off the JS fallback for any dock preset.
+  // sizes. Require a finite positive size for the dock detect class ('0',
+  // plannerConfig DOCK_DETECT_CLASS_ID) so the planner never silently computes
+  // off the JS fallback for the dock preset.
   const detectorClassDimensions = catalog.detector_class_dimensions;
   const hasValidSize = (id) => {
     const size = detectorClassDimensions?.[id]?.size_m;
@@ -29,8 +29,7 @@ export function resolvePlannerState(settingsData, catalog) {
   const detectorClassDimensionsValid = (
     detectorClassDimensions
     && typeof detectorClassDimensions === 'object'
-    && hasValidSize('0')  // medium / large
-    && hasValidSize('4')  // small (also sets MIN_CLASS_SIZE)
+    && hasValidSize('0')  // dock
   );
   if (!detectorClassDimensionsValid) {
     return {

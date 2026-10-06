@@ -134,7 +134,6 @@ def _downloaded_mission(sys_id: int) -> dict:
         "mission_count": 9,
         "corridor_end_index": None,
         "search_pattern": "distributed",
-        "dock_classes": ["medium"],
         "polygon": [],
         "corridor_backbone": [],
         "launch_point": {"lat": 40.0, "lon": 44.0},
@@ -169,7 +168,7 @@ def test_mission_translation_changes_digest_and_every_coordinate():
     assert shifted[0]["waypoints"][0]["lon"] == 43.9998
     assert shifted[0]["launch_point"]["lat"] == 40.0002
     assert original[0]["waypoints"][0]["lat"] == 40.0
-    assert original[0]["dock_classes"] == mission["dock_classes"]
+    assert "dock_classes" not in original[0]
     assert "poi_classes" not in original[0]
     assert "default_poi" not in original[0]
     assert original[0]["fallback_delivery_location"] == mission["fallback_delivery_location"]

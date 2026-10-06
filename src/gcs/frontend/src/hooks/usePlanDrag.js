@@ -9,7 +9,7 @@ import { pointInPolygon } from '../components/map/CesiumMap';
  */
 export default function usePlanDrag({
   drawing,
-  polygon, dockClasses, searchPattern,
+  polygon, searchPattern,
   launchPoint, corridorPoints,
   uavCountLocked, effectiveUavCount, approachPoint,
   plan, analysis,
@@ -39,13 +39,13 @@ export default function usePlanDrag({
     if (!plannerReady) return;
     if (!skipRegen) {
       if (polygon.length >= 3) {
-        localAnalyze(polygon, dockClasses);
+        localAnalyze(polygon);
       } else if (searchPattern === 'corridor' && launchPoint && corridorPoints.length > 0) {
         const cp = [launchPoint, ...corridorPoints];
-        localGenerate(cp, dockClasses, searchPattern, effectiveUavCount, approachPoint, cp);
+        localGenerate(cp, searchPattern, effectiveUavCount, approachPoint, cp);
       }
     }
-  }, [plannerReady, polygon, dockClasses, localAnalyze, searchPattern, launchPoint, corridorPoints, effectiveUavCount, approachPoint, localGenerate]);
+  }, [plannerReady, polygon, localAnalyze, searchPattern, launchPoint, corridorPoints, effectiveUavCount, approachPoint, localGenerate]);
 
   const handleSuppressRegen = useCallback(() => {
     suppressRegenRef.current = true;
@@ -61,12 +61,12 @@ export default function usePlanDrag({
       const candidate = polygon.map((p, i) =>
         i === index ? { lat: newLatLon.lat, lon: newLatLon.lon } : { lat: p.lat, lon: p.lon }
       );
-      if (analyzeArea(candidate, dockClasses).min_uavs > effectiveUavCount) {
+      if (analyzeArea(candidate).min_uavs > effectiveUavCount) {
         return;
       }
     }
     drawing.onVertexDrag(index, newLatLon);
-  }, [plannerReady, uavCountLocked, polygon, dockClasses, effectiveUavCount, drawing.onVertexDrag]);
+  }, [plannerReady, uavCountLocked, polygon, effectiveUavCount, drawing.onVertexDrag]);
 
   // Polygon move — reject if any vertex would exit frozen min_launch_zone
   const handlePolygonMove = useCallback((dlat, dlon) => {

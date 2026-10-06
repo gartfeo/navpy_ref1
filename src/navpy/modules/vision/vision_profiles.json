@@ -4,22 +4,6 @@
     "0": {
       "width_m": 3.5,
       "height_m": 2.5
-    },
-    "1": {
-      "width_m": 3.0,
-      "height_m": 2.5
-    },
-    "2": {
-      "width_m": 2.5,
-      "height_m": 3.0
-    },
-    "3": {
-      "width_m": 4.5,
-      "height_m": 1.5
-    },
-    "4": {
-      "width_m": 0.5,
-      "height_m": 1.8
     }
   },
   "profiles": {
@@ -36,20 +20,10 @@
         "min_altitude": 95.0,
         "optimized_altitude": 95.0,
         "dock_presets": {
-          "small": {
-            "altitude_m": 95.0,
-            "min_pixel_size": 42,
-            "label": "Small"
-          },
-          "medium": {
+          "dock": {
             "altitude_m": 95.0,
             "min_pixel_size": 45,
-            "label": "Medium"
-          },
-          "large": {
-            "altitude_m": 95.0,
-            "min_pixel_size": 48,
-            "label": "Large"
+            "label": "Dock"
           }
         }
       },
@@ -195,20 +169,10 @@
         "min_altitude": 95.0,
         "optimized_altitude": 95.0,
         "dock_presets": {
-          "small": {
-            "altitude_m": 95.0,
-            "min_pixel_size": 42,
-            "label": "Small"
-          },
-          "medium": {
+          "dock": {
             "altitude_m": 95.0,
             "min_pixel_size": 45,
-            "label": "Medium"
-          },
-          "large": {
-            "altitude_m": 95.0,
-            "min_pixel_size": 48,
-            "label": "Large"
+            "label": "Dock"
           }
         }
       },
@@ -284,20 +248,10 @@
         "min_altitude": 90.0,
         "optimized_altitude": 90.0,
         "dock_presets": {
-          "small": {
-            "altitude_m": 90.0,
-            "min_pixel_size": 42,
-            "label": "Small"
-          },
-          "medium": {
+          "dock": {
             "altitude_m": 90.0,
             "min_pixel_size": 45,
-            "label": "Medium"
-          },
-          "large": {
-            "altitude_m": 90.0,
-            "min_pixel_size": 48,
-            "label": "Large"
+            "label": "Dock"
           }
         }
       },
@@ -388,20 +342,10 @@
         "min_altitude": 60.0,
         "optimized_altitude": 60.0,
         "dock_presets": {
-          "small": {
-            "altitude_m": 60.0,
-            "min_pixel_size": 42,
-            "label": "Small"
-          },
-          "medium": {
+          "dock": {
             "altitude_m": 60.0,
             "min_pixel_size": 45,
-            "label": "Medium"
-          },
-          "large": {
-            "altitude_m": 60.0,
-            "min_pixel_size": 48,
-            "label": "Large"
+            "label": "Dock"
           }
         }
       },
@@ -487,20 +431,10 @@
         "max_pitch": 20.0,
         "optimized_altitude": 158.0,
         "dock_presets": {
-          "small": {
-            "altitude_m": 158,
-            "min_pixel_size": 42,
-            "label": "Small"
-          },
-          "medium": {
+          "dock": {
             "altitude_m": 363,
             "min_pixel_size": 36,
-            "label": "Medium"
-          },
-          "large": {
-            "altitude_m": 363,
-            "min_pixel_size": 36,
-            "label": "Large"
+            "label": "Dock"
           }
         },
         "min_pitch": -90.0
@@ -732,20 +666,10 @@
         "min_altitude": 75.0,
         "optimized_altitude": 75.0,
         "dock_presets": {
-          "small": {
-            "altitude_m": 75.0,
-            "min_pixel_size": 42,
-            "label": "Small"
-          },
-          "medium": {
+          "dock": {
             "altitude_m": 75.0,
             "min_pixel_size": 45,
-            "label": "Medium"
-          },
-          "large": {
-            "altitude_m": 75.0,
-            "min_pixel_size": 48,
-            "label": "Large"
+            "label": "Dock"
           }
         }
       },
@@ -795,20 +719,10 @@
         "max_pitch": 20.0,
         "optimized_altitude": 60.0,
         "dock_presets": {
-          "small": {
+          "dock": {
             "altitude_m": 120.0,
             "min_pixel_size": 1,
-            "label": "Small"
-          },
-          "medium": {
-            "altitude_m": 120.0,
-            "min_pixel_size": 1,
-            "label": "Medium"
-          },
-          "large": {
-            "altitude_m": 120.0,
-            "min_pixel_size": 1,
-            "label": "Large"
+            "label": "Dock"
           }
         }
       },

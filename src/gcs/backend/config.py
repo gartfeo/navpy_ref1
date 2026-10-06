@@ -32,9 +32,7 @@ FOV_VERTICAL_DEG = 2 * math.degrees(math.atan(CAMERA_IMAGE_HEIGHT / (2 * CAMERA_
 # active vision profile's ``detector.dock_presets`` in vision_profiles.json;
 # see ``_resolve_presets`` below.
 DOCK_PRESETS = {
-    "small": {"altitude_m": 150.0, "min_pixel_size": 42, "label": "Small"},
-    "medium": {"altitude_m": 200.0, "min_pixel_size": 45, "label": "Medium"},
-    "large": {"altitude_m": 250.0, "min_pixel_size": 48, "label": "Large"},
+    "dock": {"altitude_m": 200.0, "min_pixel_size": 45, "label": "Dock"},
 }
 
 # UAV set size (fixed-wing group)

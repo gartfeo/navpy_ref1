@@ -15,8 +15,6 @@ export default function usePlanningOrchestrator({
 }) {
   const {
     phase, polygon, setPolygon, searchPattern, setSearchPattern,
-    dockClasses, setDockClasses,
-    perUavDockClasses, setPerUavDockClasses,
     analysis, setAnalysis,
     plan, setPlan, launchPoint, setLaunchPoint,
     corridorPoints, setCorridorPoints,
@@ -49,11 +47,11 @@ export default function usePlanningOrchestrator({
 
   // ---- Plan snapshot (dirty-check + exit planning) ----
   const { onPlanSynced, handleExitPlanning } = usePlanSnapshot({
-    plan, polygon, searchPattern, dockClasses, perUavDockClasses, analysis, uavCount,
+    plan, polygon, searchPattern, analysis, uavCount,
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
     fallbackLocationAssignments, simDockWps, detectAfterWps,
     fenceCustomVertices, exclusionPolygons,
-    setPlan, setPolygon, setSearchPattern, setDockClasses, setPerUavDockClasses, setAnalysis,
+    setPlan, setPolygon, setSearchPattern, setAnalysis,
     setUavCount, setPartitionAngleDeg, setRouteOffsetM, setSetLaunchPoints,
     setSetCorridorPoints, setFallbackLocationAssignments, setSimDockWps,
     setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons,
@@ -76,11 +74,9 @@ export default function usePlanningOrchestrator({
     effectiveUavCount, effectiveSets,
     localAnalyze, localGenerate,
     approachPoint, corridorPath,
-    handlePoiChange,
   } = usePlanGeneration({
     polygon, setPolygon,
     searchPattern,
-    dockClasses, setDockClasses,
     analysis, setAnalysis,
     plan, setPlan,
     uavCount, setUavCount,
@@ -109,7 +105,6 @@ export default function usePlanningOrchestrator({
   const drawing = useDrawing({
     setPolygon,
     analyze: localAnalyze,
-    dockClasses,
   });
   drawingRef.current = drawing;
 
@@ -174,12 +169,8 @@ export default function usePlanningOrchestrator({
     launchPoint,
     corridorPoints,
     searchPattern,
-    dockClasses,
-    perUavDockClasses,
     setPolygon,
     setSearchPattern,
-    setDockClasses,
-    setPerUavDockClasses,
     setLaunchPoint,
     setCorridorPoints,
     setSetLaunchPoints,
@@ -228,7 +219,7 @@ export default function usePlanningOrchestrator({
     handlePartitionAngleDrag,
   } = usePlanDrag({
     drawing,
-    polygon, dockClasses, searchPattern,
+    polygon, searchPattern,
     launchPoint, corridorPoints,
     uavCountLocked, effectiveUavCount, approachPoint,
     plan, analysis,
@@ -307,9 +298,9 @@ export default function usePlanningOrchestrator({
       setPlan(null);
       setPlacingCorridor(true);
     } else if (analysis && polygon.length >= 3) {
-      localGenerate(polygon, dockClasses, searchPattern, effectiveUavCount, null, null);
+      localGenerate(polygon, searchPattern, effectiveUavCount, null, null);
     }
-  }, [analysis, polygon, dockClasses, searchPattern, effectiveUavCount, localGenerate, setPlan, setLaunchPoint, setCorridorPoints, setSetLaunchPoints, setSetCorridorPoints]);
+  }, [analysis, polygon, searchPattern, effectiveUavCount, localGenerate, setPlan, setLaunchPoint, setCorridorPoints, setSetLaunchPoints, setSetCorridorPoints]);
 
   // ---- Undo ----
   const handleUndo = useCallback(() => {
@@ -437,7 +428,6 @@ export default function usePlanningOrchestrator({
 
     // Planning-phase actions
     handleSearchPatternChange,
-    handlePoiChange,
     handleGoToPlanning,
     handleExitPlanning,
     handleToggleSimDock,

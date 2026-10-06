@@ -39,10 +39,10 @@ class ProfileUpdate(BaseModel):
     max_pitch: Optional[float] = None
     min_altitude: Optional[float] = None
     optimized_altitude: Optional[float] = None
-    # Per-class scan presets (altitude_m / min_pixel_size / label). Merged into
+    # Dock scan preset (altitude_m / min_pixel_size / label). Merged into
     # detector.dock_presets so the profile JSON is the single source of truth
-    # for the operator's altitudes + recognition sizes.
-    dock_presets: Optional[dict[Literal["small", "medium", "large"], dict]] = None
+    # for the operator's altitude + recognition size.
+    dock_presets: Optional[dict[Literal["dock"], dict]] = None
 
 
 def _build_catalog() -> dict:

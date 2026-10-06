@@ -398,8 +398,8 @@ class TestComputeMaxDetectDist(unittest.TestCase):
     def test_known_values(self):
         """compute_max_detect_dist returns detection range with 10% margin."""
         # Formula: fy * _MAX_CLASS_SIZE / MIN_DETECT_PIXELS * 1.1
-        # _MAX_CLASS_SIZE = sqrt(4.5^2 + 1.5^2) = sqrt(22.5) (Car diagonal)
-        _max_size = math.sqrt(22.5)
+        # _MAX_CLASS_SIZE = sqrt(3.5^2 + 2.5^2) = sqrt(18.5) (the only class: dock)
+        _max_size = math.sqrt(18.5)
         expected = 2000.0 * _max_size / 8 * 1.1
         result = vision_profiles.compute_max_detect_dist(fy=2000)
         self.assertAlmostEqual(result, expected, places=1)
@@ -432,8 +432,8 @@ class TestComputeMaxDetectDist(unittest.TestCase):
         data = vision_profiles.build_gimbal_data(device, 0, det_settings)
 
         # Formula: fy * _MAX_CLASS_SIZE / MIN_DETECT_PIXELS * 1.1
-        # _MAX_CLASS_SIZE = sqrt(22.5) (Car: 4.5m x 1.5m diagonal)
-        expected = 2000.0 * math.sqrt(22.5) / 8 * 1.1
+        # _MAX_CLASS_SIZE = sqrt(18.5) (dock: 3.5m x 2.5m diagonal)
+        expected = 2000.0 * math.sqrt(18.5) / 8 * 1.1
         self.assertAlmostEqual(data.max_detect_distance, expected, places=1)
 
     def test_build_gimbal_data_fallback_without_detector_settings(self):
@@ -468,8 +468,8 @@ class TestComputeMaxDetectDist(unittest.TestCase):
         data = vision_profiles.build_gimbal_data(device, 0, det_settings)
 
         # Formula: fy * _MAX_CLASS_SIZE / MIN_DETECT_PIXELS * 1.1
-        # _MAX_CLASS_SIZE = sqrt(22.5) (Car diagonal)
-        expected = 1439.8475316765432 * math.sqrt(22.5) / 8 * 1.1
+        # _MAX_CLASS_SIZE = sqrt(18.5) (dock diagonal)
+        expected = 1439.8475316765432 * math.sqrt(18.5) / 8 * 1.1
         self.assertAlmostEqual(data.max_detect_distance, expected, places=1)
 
 
@@ -482,9 +482,9 @@ class TestComputeExplicitSlantRanges(unittest.TestCase):
         self.assertAlmostEqual(result, 2000.0 * 2.96 / vision_profiles.MIN_DETECT_PIXELS, places=1)
 
     def test_compute_confirm_slant_range_uses_confirmation_gate(self):
-        """Confirmation range uses _MIN_CLASS_SIZE (Person diagonal) and MIN_CONFIRM_PIXELS."""
-        # _MIN_CLASS_SIZE = sqrt(0.5^2 + 1.8^2) = sqrt(3.49) ≈ 1.868 (Person diagonal)
-        _min_size = math.sqrt(0.5**2 + 1.8**2)
+        """Confirmation range uses _MIN_CLASS_SIZE (dock diagonal) and MIN_CONFIRM_PIXELS."""
+        # _MIN_CLASS_SIZE = sqrt(3.5^2 + 2.5^2) = sqrt(18.5) ≈ 4.301 (dock diagonal)
+        _min_size = math.sqrt(3.5**2 + 2.5**2)
         expected = 2000.0 * _min_size / vision_profiles.MIN_CONFIRM_PIXELS
         result = vision_profiles.compute_confirm_slant_range(fy=2000)
         self.assertAlmostEqual(result, expected, places=4)
@@ -686,11 +686,9 @@ class TestBuildZoomConfig(unittest.TestCase):
         derive from the profile's dock_presets via get_min_pixels_for_class."""
         _, profile, _ = vision_profiles.resolve_profile("siyi_zr10", Mock())
         presets = profile["detector"]["dock_presets"]
-        # class-0 recognition gate relaxed 48 -> 36 for the 3-UAV demo; both
-        # medium and large map to class 0, so both are 36 (the effective
-        # class-0 gate is max(medium, large)).
-        self.assertEqual(presets["medium"]["min_pixel_size"], 36)
-        self.assertEqual(presets["large"]["min_pixel_size"], 36)
+        # Dock (class-0) recognition gate relaxed 48 -> 36 for the 3-UAV demo.
+        self.assertEqual(set(presets), {"dock"})
+        self.assertEqual(presets["dock"]["min_pixel_size"], 36)
 
         devices = vision_profiles.get_devices(profile)
         config = vision_profiles.build_zoom_config(devices[0], profile)
@@ -698,14 +696,10 @@ class TestBuildZoomConfig(unittest.TestCase):
         self.assertIsNotNone(config)
         self.assertEqual(tuple(config.__dataclass_fields__), ("target_pixels",))
 
-        # Detection class 0 (class 0) should reflect the strictest recognition threshold
-        # shared by medium/large in the ZR10 profile (max of 36/36 after
-        # the demo relax from 48 -> 36).
+        # The dock class (0) reflects the ZR10 dock preset (36 after the
+        # demo relax from 48 -> 36); it is the only class-keyed threshold.
         self.assertAlmostEqual(config.target_pixels["0"], 36.0)
-        # Person (class 4) → small preset → 42.
-        self.assertAlmostEqual(config.target_pixels["4"], 42.0)
-        # Default must always be present.
-        self.assertIn("default", config.target_pixels)
+        self.assertEqual(set(config.target_pixels), {"0", "default"})
 
     def test_c720hd_returns_none(self):
         """c720hd profile has no zoom block → returns None."""
@@ -777,8 +771,7 @@ class TestBuildZoomConfig(unittest.TestCase):
         profile = {
             "detector": {
                 "dock_presets": {
-                    "medium": {"min_pixel_size": 36},
-                    "small": {"min_pixel_size": 42},
+                    "dock": {"min_pixel_size": 36},
                 }
             }
         }
@@ -786,7 +779,7 @@ class TestBuildZoomConfig(unittest.TestCase):
             {"gimbal": {"zoom": {"enabled": True}}},
             profile,
         )
-        profile["detector"]["dock_presets"]["medium"]["min_pixel_size"] = 999
+        profile["detector"]["dock_presets"]["dock"]["min_pixel_size"] = 999
 
         self.assertEqual(config.target_pixels["0"], 36.0)
         with self.assertRaises(TypeError):
@@ -796,34 +789,32 @@ class TestBuildZoomConfig(unittest.TestCase):
 class TestGetMinPixelsForClass(unittest.TestCase):
     """Tests for get_min_pixels_for_class resolver."""
 
-    def test_returns_max_for_collisions(self):
-        """Multiple presets mapping to the same class_id → strictest (max) wins."""
-        profile = {
-            "detector": {
-                "dock_presets": {
-                    "medium": {"min_pixel_size": 11},
-                    "large": {"min_pixel_size": 15},
-                    "small": {"min_pixel_size": 18},
-                },
-            },
-        }
-        # medium + large both map to class 0 → max(11, 15) = 15
+    def test_dock_class_reads_dock_preset(self):
+        """The dock class id resolves to the dock preset's min_pixel_size."""
+        from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
+
+        profile = {"detector": {"dock_presets": {"dock": {"min_pixel_size": 15}}}}
         self.assertAlmostEqual(
-            vision_profiles.get_min_pixels_for_class(profile, 0), 15.0,
-        )
-        # small → class 4 → 18
-        self.assertAlmostEqual(
-            vision_profiles.get_min_pixels_for_class(profile, 4), 18.0,
+            vision_profiles.get_min_pixels_for_class(profile, DOCK_DETECT_CLASS_ID), 15.0,
         )
 
     def test_falls_back_to_min_confirm_pixels(self):
-        """Classes with no matching preset fall back to MIN_CONFIRM_PIXELS."""
+        """Non-dock classes have no preset and fall back to MIN_CONFIRM_PIXELS."""
         from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
 
-        profile = {"detector": {"dock_presets": {"medium": {"min_pixel_size": 11}}}}
-        # Class 4 (Person) has no matching preset → fallback
+        profile = {"detector": {"dock_presets": {"dock": {"min_pixel_size": 11}}}}
         self.assertAlmostEqual(
-            vision_profiles.get_min_pixels_for_class(profile, 4),
+            vision_profiles.get_min_pixels_for_class(profile, 1),
+            float(MIN_CONFIRM_PIXELS),
+        )
+
+    def test_retired_preset_names_do_not_feed_the_dock_gate(self):
+        """Old small/medium/large keys are not read as the dock preset."""
+        from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+
+        profile = {"detector": {"dock_presets": {"medium": {"min_pixel_size": 99}}}}
+        self.assertAlmostEqual(
+            vision_profiles.get_min_pixels_for_class(profile, 0),
             float(MIN_CONFIRM_PIXELS),
         )
 
@@ -838,7 +829,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
     def test_ignores_non_numeric_values(self):
         profile = {
             "detector": {
-                "dock_presets": {"medium": {"min_pixel_size": "not-a-number"}},
+                "dock_presets": {"dock": {"min_pixel_size": "not-a-number"}},
             },
         }
         from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
@@ -856,7 +847,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
                 profile = {
                     "detector": {
                         "dock_presets": {
-                            "medium": {"min_pixel_size": value},
+                            "dock": {"min_pixel_size": value},
                         },
                     },
                 }
@@ -878,14 +869,28 @@ class TestGetMinPixelsForClass(unittest.TestCase):
 class TestGetClassDetectSize(unittest.TestCase):
     """Tests for get_class_detect_size function."""
 
-    def test_known_classes(self):
-        # Values are bbox diagonals: sqrt(w^2 + h^2) from DETECTOR_CLASS_DIMENSIONS.
-        # Detection class 0(0):   sqrt(3.5^2 + 2.5^2) = sqrt(18.5)  ≈ 4.301
-        # Car(3):    sqrt(4.5^2 + 1.5^2) = sqrt(22.5)  ≈ 4.743
-        # Person(4): sqrt(0.5^2 + 1.8^2) = sqrt(3.49)  ≈ 1.868
-        self.assertAlmostEqual(vision_profiles.get_class_detect_size(0), math.sqrt(18.5), places=4)
-        self.assertAlmostEqual(vision_profiles.get_class_detect_size(3), math.sqrt(22.5), places=4)
-        self.assertAlmostEqual(vision_profiles.get_class_detect_size(4), math.sqrt(3.49), places=4)
+    def test_dock_is_the_only_class(self):
+        # The catalog holds exactly one class: the dock, 3.5 m x 2.5 m.
+        # Its size is the bbox diagonal sqrt(3.5^2 + 2.5^2) = sqrt(18.5) ≈ 4.301.
+        from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
+
+        self.assertEqual(DOCK_DETECT_CLASS_ID, 0)
+        self.assertEqual(
+            vision_profiles.DETECTOR_CLASS_DIMENSIONS, {DOCK_DETECT_CLASS_ID: (3.5, 2.5)},
+        )
+        self.assertAlmostEqual(
+            vision_profiles.get_class_detect_size(DOCK_DETECT_CLASS_ID), math.sqrt(18.5), places=4,
+        )
+
+    def test_shipped_profiles_have_single_dock_preset(self):
+        profiles, _, _ = vision_profiles.load_profiles()
+        for name, profile in profiles.items():
+            presets = (profile.get("detector") or {}).get("dock_presets")
+            if presets is None:
+                continue
+            with self.subTest(profile=name):
+                self.assertEqual(set(presets), {"dock"})
+                self.assertEqual(presets["dock"]["label"], "Dock")
 
     def test_unknown_class_returns_default(self):
         # Default dims (2.0, 2.0) → diagonal = sqrt(8) ≈ 2.828

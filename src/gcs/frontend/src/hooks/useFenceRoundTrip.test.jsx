@@ -119,7 +119,7 @@ describe('upload payload across a round trip', () => {
   };
 
   const baseMission = (over = {}) => ({
-    polygon: ring(), dockClasses: ['small'], perUavDockClasses: {}, searchPattern: 'distributed',
+    polygon: ring(), searchPattern: 'distributed',
     launchPoint: null, corridorPoints: [],
     plan: { zones: [{ zone_index: 0, track: ring() }], altitude_m: 120 },
     setPlan: vi.fn(), setLaunchPoints: [null], setCorridorPointsArr: [[]],
@@ -192,7 +192,7 @@ describe('upload payload across a round trip', () => {
 describe('download plan -> re-upload, through the real operator path', () => {
   const downloadedMission = {
     waypoints: [{ lat: 32, lon: 34, alt: 120 }, { lat: 32.001, lon: 34.001, alt: 120 }],
-    search_pattern: 'distributed', altitude_m: 120, dock_classes: ['small'],
+    search_pattern: 'distributed', altitude_m: 120,
   };
 
   const downloadHarness = (fenceResponse) => {

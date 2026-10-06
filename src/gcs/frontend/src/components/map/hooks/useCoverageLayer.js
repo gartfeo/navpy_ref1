@@ -57,19 +57,11 @@ function signaturesEqual(a, b) {
   return true;
 }
 
-function planDockClasses(plan) {
-  return Array.isArray(plan?.dock_classes) ? plan.dock_classes : [];
-}
-
-function dockClassSignature(dockClasses) {
-  return dockClasses.length ? dockClasses.join(',') : 'none';
-}
-
-function liveEnvelopeInputs(vehicle, devices, dockClasses) {
+function liveEnvelopeInputs(vehicle, devices) {
   return devices.map((device) => {
     const telemetry = selectGimbalTelemetry(vehicle, device);
     return {
-      device: resolveLiveGimbalCameraConfig(device, telemetry, dockClasses),
+      device: resolveLiveGimbalCameraConfig(device, telemetry),
       telemetry,
     };
   });
@@ -97,8 +89,8 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
     const Cesium = cesiumRef.current;
     const viewer = viewerRef.current;
     if (!Cesium || !viewer || !showCoverage) return;
-    // Coverage footprints depend on planner config (vision profiles + per-class
-    // POI sizes); getDeviceConfigs() stays empty until it loads. Skip
+    // Coverage footprints depend on planner config (vision profiles + dock
+    // detect size); getDeviceConfigs() stays empty until it loads. Skip
     // accumulation until ready so we never render against incomplete config.
     if (!plannerReady) {
       return;
@@ -112,8 +104,6 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
       if (!vehicleList) return;
 
       const devices = getDeviceConfigs();
-      const dockClasses = planDockClasses(plan);
-      const planClassSignature = dockClassSignature(dockClasses);
 
       vehicleList.forEach((v, i) => {
         if (v.lat == null || v.lon == null) return;
@@ -125,11 +115,8 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
         const cov = coverageRef.current[i] || { entities: [], lastPos: null };
         coverageRef.current[i] = cov;
 
-        const liveInputs = liveEnvelopeInputs(v, devices, dockClasses);
-        const gimbalSignatures = [
-          planClassSignature,
-          ...liveInputs.map(({ telemetry }) => gimbalTelemetrySignature(telemetry)),
-        ];
+        const liveInputs = liveEnvelopeInputs(v, devices);
+        const gimbalSignatures = liveInputs.map(({ telemetry }) => gimbalTelemetrySignature(telemetry));
         const movedEnough = !cov.lastPos || flatDist(cov.lastPos, pos) >= COVERAGE_SAMPLE_DIST;
         const gimbalsChanged = !signaturesEqual(cov.lastAttemptedGimbalSignatures, gimbalSignatures);
         if (!movedEnough && !gimbalsChanged) return;
@@ -221,7 +208,6 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
       if (!vehicleList) return;
 
       const devices = getDeviceConfigs();
-      const dockClasses = planDockClasses(plan);
       const anim = footprintAnimRef.current;
       const seen = new Set();
 
@@ -240,7 +226,7 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
           }
 
           const liveGimbal = selectGimbalTelemetry(v, dev);
-          const liveDevice = resolveLiveGimbalCameraConfig(dev, liveGimbal, dockClasses);
+          const liveDevice = resolveLiveGimbalCameraConfig(dev, liveGimbal);
           if (!liveGimbal || !liveDevice) {
             removeEntity(liveFootprintRef.current, anim, viewer, key);
             return;

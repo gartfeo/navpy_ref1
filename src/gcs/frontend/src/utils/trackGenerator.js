@@ -3,14 +3,12 @@
  */
 
 import { projectAlongPerp } from './clipping.js';
+import { DOCK_PRESET_NAME } from './plannerConfig.js';
 
-export function computeTrackSpacing(dockClasses, config) {
+export function computeTrackSpacing(config) {
   const { DOCK_PRESETS, FOV_HORIZONTAL_DEG, FOV_VERTICAL_DEG, CAMERA_PITCH_DEG,
           OVERLAP_FRACTION, DEG2RAD } = config;
-  if (!dockClasses || !dockClasses.length) dockClasses = ['small'];
-  const alt = Math.min(
-    ...dockClasses.map((tc) => (DOCK_PRESETS[tc] || DOCK_PRESETS.small).altitude_m)
-  );
+  const alt = DOCK_PRESETS[DOCK_PRESET_NAME].altitude_m;
   const hfovRad = FOV_HORIZONTAL_DEG * DEG2RAD;
   const vfovRad = FOV_VERTICAL_DEG * DEG2RAD;
   const nadirOffset = (90 + CAMERA_PITCH_DEG) * DEG2RAD;

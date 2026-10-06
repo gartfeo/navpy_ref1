@@ -30,10 +30,6 @@ export default function useMissionState() {
   // Planning state
   const [polygon, setPolygon] = useState([]);
   const [searchPattern, setSearchPattern] = useState('distributed');
-  const [dockClasses, setDockClasses] = useState(['small', 'medium']);
-  // Per-UAV dock class override: { zoneIndex → ['small', ...] }. A zone with
-  // no entry inherits the mission-wide dockClasses; only forked zones appear here.
-  const [perUavDockClasses, setPerUavDockClasses] = useState({});
   const [analysis, setAnalysis] = useState(null);
   const [plan, setPlan] = useState(null);
   const [uavCount, setUavCount] = useState(null); // null = use analysis default
@@ -232,8 +228,6 @@ export default function useMissionState() {
     // Planning
     polygon, setPolygon,
     searchPattern, setSearchPattern,
-    dockClasses, setDockClasses,
-    perUavDockClasses, setPerUavDockClasses,
     analysis, setAnalysis,
     plan, setPlan,
     uavCount, setUavCount,

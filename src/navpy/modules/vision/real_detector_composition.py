@@ -104,7 +104,7 @@ def build_real_detector(
                 dependencies.logger,
                 tracker=models.tracker,
                 appearance=models.appearance,
-                yolo=models.yolo,
+                frame_detector=models.frame_detector,
                 deep_search=models.deep_search,
             )
         else:

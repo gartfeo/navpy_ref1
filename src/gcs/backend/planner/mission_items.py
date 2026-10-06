@@ -22,7 +22,6 @@ def build_mission(
     polygon: list[dict] | None = None,
     corridor_backbone: list[dict] | None = None,
     launch_point: dict | None = None,
-    dock_classes: list[str] | None = None,
     corridor_altitude_m: float | None = None,
     fallback_delivery_location: dict | None = None,
     takeoff_altitude_m: float | None = None,
@@ -113,12 +112,12 @@ def build_mission(
             wp.autocontinue = 1
             wp.x = int(mp["lat"] * 1e7)
             wp.y = int(mp["lon"] * 1e7)
-            # Only the last metadata item carries search_pattern + dock classes
+            # Only the last metadata item carries search_pattern
             if idx == len(meta_items) - 1:
-                wp.z = encode_meta_z(search_pattern, dock_classes)
+                wp.z = encode_meta_z(search_pattern)
             else:
                 wp.z = 0
-            # Location type encoded into z bits 11-13
+            # Location type encoded into z bits 8-10
             if meta_type == META_FALLBACK_DELIVERY_LOCATION:
                 wp.z = encode_location_type_into_z(wp.z, mp.get("type"))
 
@@ -145,7 +144,7 @@ def build_mission(
 
     # If corridor_count >= len(track_latlon) (e.g. a set whose scan track is
     # empty), the in-loop `i == corridor_count` guard never fires — emit the
-    # metadata block now so search_pattern/dock-classes/polygon are never dropped and
+    # metadata block now so search_pattern/polygon are never dropped and
     # the companion can still recover them from the mission.
     if not meta_inserted and meta_items:
         _insert_metadata()

@@ -57,8 +57,6 @@ export default function App() {
   const {
     phase,
     polygon, searchPattern,
-    dockClasses, setDockClasses,
-    perUavDockClasses, setPerUavDockClasses,
     analysis, setAnalysis,
     plan, setPlan,
     launchPoint, corridorPoints,
@@ -839,14 +837,9 @@ export default function App() {
             <PlanningSidebar
               searchPattern={searchPattern}
               setSearchPattern={planning.handleSearchPatternChange}
-              dockClasses={dockClasses}
-              setDockClasses={setDockClasses}
-              perUavDockClasses={perUavDockClasses}
-              setPerUavDockClasses={setPerUavDockClasses}
               analysis={analysis}
               uavCount={planning.effectiveUavCount}
               setUavCount={setUavCount}
-              onPoiChange={planning.handlePoiChange}
               launchPoint={launchPoint}
               corridorPoints={corridorPoints}
               plan={plan}

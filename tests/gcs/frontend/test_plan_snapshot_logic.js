@@ -40,8 +40,6 @@ function makeBaseline() {
     plan: { zones: [{ track: [[1, 2], [3, 4]], set_index: 0 }], altitude_m: 100 },
     polygon: [{ lat: 10, lon: 20 }, { lat: 11, lon: 21 }, { lat: 12, lon: 22 }],
     searchPattern: 'distributed',
-    dockClasses: ['small', 'vehicle'],
-    perUavDockClasses: { 1: ['medium'] },
     analysis: { min_uavs: 2, max_uavs: 4, sets: 1 },
     uavCount: 3,
     partitionAngleDeg: 45,
@@ -53,7 +51,7 @@ function makeBaseline() {
   };
 }
 
-// ---- isPlanDirty tests (14 cases) ----
+// ---- isPlanDirty tests (13 cases) ----
 
 test('isPlanDirty: identical baseline is not dirty', () => {
   const state = makeBaseline();
@@ -83,13 +81,6 @@ test('isPlanDirty: modified searchPattern -> dirty', () => {
   const state = makeBaseline();
   const snap = buildPlanSnapshot(state);
   state.searchPattern = 'corridor';
-  assert.strictEqual(isPlanDirty(state, snap), true);
-});
-
-test('isPlanDirty: modified dockClasses -> dirty', () => {
-  const state = makeBaseline();
-  const snap = buildPlanSnapshot(state);
-  state.dockClasses = ['large'];
   assert.strictEqual(isPlanDirty(state, snap), true);
 });
 
@@ -149,13 +140,6 @@ test('isPlanDirty: modified detectAfterWps -> dirty', () => {
   assert.strictEqual(isPlanDirty(state, snap), true);
 });
 
-test('isPlanDirty: modified perUavDockClasses -> dirty', () => {
-  const state = makeBaseline();
-  const snap = buildPlanSnapshot(state);
-  state.perUavDockClasses = { 1: ['medium', 'large'] };
-  assert.strictEqual(isPlanDirty(state, snap), true);
-});
-
 // ---- buildPlanSnapshot tests (6 cases) ----
 
 test('buildPlanSnapshot: deep-copies plan', () => {
@@ -203,22 +187,14 @@ test('buildPlanSnapshot: deep-copies DOCK/sim-POI/detect-after state', () => {
   assert.strictEqual(snap.detectAfterWps[1], undefined);
 });
 
-test('buildPlanSnapshot: deep-copies perUavDockClasses', () => {
-  const state = makeBaseline();
-  const snap = buildPlanSnapshot(state);
-  state.perUavDockClasses[1].push('large');
-  state.perUavDockClasses[2] = ['small'];
-  assert.strictEqual(snap.perUavDockClasses[1].length, 1);
-  assert.strictEqual(snap.perUavDockClasses[2], undefined);
-});
-
 test('buildPlanSnapshot: null-safe defaults for missing values', () => {
   const snap = buildPlanSnapshot({});
   assert.deepStrictEqual(snap.polygon, []);
   assert.strictEqual(snap.plan, null);
   assert.strictEqual(snap.searchPattern, null);
-  assert.deepStrictEqual(snap.dockClasses, []);
-  assert.deepStrictEqual(snap.perUavDockClasses, {});
+  // Every zone targets the single dock class; there is no class selection to snapshot.
+  assert.strictEqual(Object.hasOwn(snap, 'dockClasses'), false);
+  assert.strictEqual(Object.hasOwn(snap, 'perUavDockClasses'), false);
   assert.strictEqual(snap.analysis, null);
   assert.strictEqual(snap.uavCount, null);
   assert.strictEqual(snap.partitionAngleDeg, null);

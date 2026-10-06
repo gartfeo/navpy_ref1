@@ -8,12 +8,12 @@ import { buildPlanSnapshot, isPlanDirty } from '../utils/planSnapshot';
  */
 export default function usePlanSnapshot({
   // Captured values
-  plan, polygon, searchPattern, dockClasses, perUavDockClasses, analysis, uavCount,
+  plan, polygon, searchPattern, analysis, uavCount,
   partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
   fallbackLocationAssignments, simDockWps, detectAfterWps,
   fenceCustomVertices, exclusionPolygons,
   // Restore setters
-  setPlan, setPolygon, setSearchPattern, setDockClasses, setPerUavDockClasses, setAnalysis,
+  setPlan, setPolygon, setSearchPattern, setAnalysis,
   setUavCount, setPartitionAngleDeg, setRouteOffsetM, setSetLaunchPoints,
   setSetCorridorPoints, setFallbackLocationAssignments, setSimDockWps,
   setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons,
@@ -26,7 +26,7 @@ export default function usePlanSnapshot({
   const [snapshotTrigger, setSnapshotTrigger] = useState(0);
 
   stateForSnapshotRef.current = {
-    plan, polygon, searchPattern, dockClasses, perUavDockClasses, analysis, uavCount,
+    plan, polygon, searchPattern, analysis, uavCount,
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
     fallbackLocationAssignments, simDockWps, detectAfterWps,
     fenceCustomVertices, exclusionPolygons,
@@ -48,8 +48,6 @@ export default function usePlanSnapshot({
         setPlan(snap.plan);
         setPolygon(snap.polygon);
         setSearchPattern(snap.searchPattern);
-        setDockClasses(snap.dockClasses);
-        setPerUavDockClasses(snap.perUavDockClasses);
         setAnalysis(snap.analysis);
         setUavCount(snap.uavCount);
         setPartitionAngleDeg(snap.partitionAngleDeg);
@@ -68,8 +66,7 @@ export default function usePlanSnapshot({
       }
     }
     goToMonitor();
-  }, [goToMonitor, setPlan, setPolygon, setSearchPattern, setDockClasses,
-      setPerUavDockClasses, setAnalysis, setUavCount, setPartitionAngleDeg,
+  }, [goToMonitor, setPlan, setPolygon, setSearchPattern, setAnalysis, setUavCount, setPartitionAngleDeg,
       setRouteOffsetM, setSetLaunchPoints, setSetCorridorPoints, setFallbackLocationAssignments,
       setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons]);
 

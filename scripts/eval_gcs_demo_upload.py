@@ -94,9 +94,6 @@ def mission_assignment(
         corridor_count = corridor_end
     else:
         raise ValueError("mission corridor_end_index is invalid")
-    raw_classes = _list(mission.get("dock_classes"), "mission dock_classes")
-    if not all(type(item) is str and item for item in raw_classes):
-        raise TypeError("mission dock_classes must contain non-empty strings")
     altitude_m = _number(mission.get("altitude_m"), "mission altitude_m")
     return {
         "sys_id": expected_sys_id,
@@ -115,7 +112,6 @@ def mission_assignment(
             mission.get("launch_point"),
             "mission launch_point",
         ),
-        "dock_classes": list(raw_classes),
         "fallback_delivery_location": _optional_coordinate(
             mission.get("fallback_delivery_location"),
             "mission fallback_delivery_location",

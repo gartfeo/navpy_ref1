@@ -78,19 +78,20 @@ class TestReadFallbackDeliveryLocation(unittest.TestCase):
 class TestReadMissionMetadata(unittest.TestCase):
     """read_mission_metadata from mission waypoints built by waypoint_builder."""
 
-    def test_decodes_dock_classes(self):
-        """Mission with dock classes decodes them correctly."""
+    def test_search_pattern_and_location_type_share_last_item(self):
+        """The last metadata item packs search pattern and location type together."""
         track = _make_track(3)
+        dt = {"lat": 40.5, "lon": 44.5, "type": "fuel"}
         wp_loader = build_mission(
-            track, 120, search_pattern="distributed", dock_classes=["small", "medium"],
-            polygon=[{"lat": 32.0, "lon": 34.0}],  # needed to create metadata items
+            track, 120, search_pattern="corridor",
+            polygon=[{"lat": 32.0, "lon": 34.0}],
+            fallback_delivery_location=dt,
         )
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
         meta = read_mission_metadata(vehicle)
-        self.assertEqual(meta.search_pattern, "distributed")
-        self.assertIn("small", meta.dock_classes)
-        self.assertIn("medium", meta.dock_classes)
+        self.assertEqual(meta.search_pattern, "corridor")
+        self.assertEqual(meta.fallback_delivery_location_type, "fuel")
 
     def test_decodes_search_pattern(self):
         """Mission search_pattern is correctly decoded."""
@@ -204,32 +205,18 @@ class TestReadMissionMetadata(unittest.TestCase):
 
         meta = read_mission_metadata(vehicle)
         self.assertEqual(meta.search_pattern, "distributed")
-        self.assertEqual(meta.dock_classes, [])
         self.assertEqual(meta.waypoint_altitudes, [])
         self.assertIsNone(meta.scan_altitude_rel)
 
-    def test_detect_class_ids_mapping(self):
-        """detect_class_ids maps mission classes to detection class IDs."""
+    def test_metadata_carries_no_dock_class_selection(self):
+        """Every zone targets the single dock class, so none is decoded."""
         track = _make_track(3)
-        wp_loader = build_mission(
-            track, 100, dock_classes=["small", "medium"],
-            polygon=[{"lat": 32.0, "lon": 34.0}],
-        )
+        wp_loader = build_mission(track, 100, polygon=[{"lat": 32.0, "lon": 34.0}])
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
         meta = read_mission_metadata(vehicle)
-        ids = meta.detect_class_ids
-        self.assertIn(4, ids)  # small preset → class 4
-        self.assertIn(0, ids)  # medium preset → class 0
-
-    def test_no_classes_defaults_to_empty(self):
-        """Mission without dock classes returns empty list."""
-        track = _make_track(3)
-        wp_loader = build_mission(track, 100)
-        vehicle = _mock_vehicle_from_loader(wp_loader)
-
-        meta = read_mission_metadata(vehicle)
-        self.assertEqual(meta.dock_classes, [])
+        self.assertFalse(hasattr(meta, "dock_classes"))
+        self.assertFalse(hasattr(meta, "detect_class_ids"))
 
 
 if __name__ == "__main__":

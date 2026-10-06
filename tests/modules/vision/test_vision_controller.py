@@ -1098,6 +1098,7 @@ class TestVisionControllerRealDetector(unittest.TestCase):
             {},
             "pyproject.toml",
             False,
+            backend="yolo",
         )
 
         detector_ctor = Mock(return_value=Mock())
@@ -1243,6 +1244,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         profile.detector_settings = {}
         vision_args = Mock()
         vision_args.detector_type = "real"
+        vision_args.detector_backend = "yolo"
         vision_args.model_path = "missing-model-that-must-not-exist.pt"
         vision_args.debug_show = False
 

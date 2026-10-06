@@ -183,7 +183,7 @@ class TestDownloadMission:
 
     def test_mission_with_metadata(self, client, mock_vehicle):
         """Download a mission with polygon/corridor/launch metadata."""
-        meta_z = encode_meta_z("corridor", ["small", "medium"])
+        meta_z = encode_meta_z("corridor")
         items = [
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=32.0, lon=34.0),       # home
             _make_wp(MAV_CMD_NAV_TAKEOFF, lat=32.0, lon=34.0),        # takeoff
@@ -210,8 +210,7 @@ class TestDownloadMission:
         assert resp.status_code == 200
         data = resp.json()
         assert data["search_pattern"] == "corridor"
-        assert "small" in data["dock_classes"]
-        assert "medium" in data["dock_classes"]
+        assert "dock_classes" not in data
         assert data["corridor_end_index"] == 1  # after 1 nav wp
         assert len(data["polygon"]) == 1
         assert len(data["corridor_backbone"]) == 1
@@ -219,7 +218,7 @@ class TestDownloadMission:
 
     def test_mission_with_fallback_delivery_location(self, client, mock_vehicle):
         """Download a mission with META_FALLBACK_DELIVERY_LOCATION metadata and trailing NAV_WAYPOINT."""
-        meta_z = encode_meta_z("distributed", ["small", "medium"])
+        meta_z = encode_meta_z("distributed")
         poi_lat, poi_lon = 32.05, 34.05
         items = [
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=32.0, lon=34.0),           # home (seq 0)
@@ -255,10 +254,9 @@ class TestDownloadMission:
         assert "poi_classes" not in data
         # Trailing NAV_WAYPOINT trimmed — only track wp 1 and wp 2 remain
         assert len(data["waypoints"]) == 2
-        # search_pattern + dock_classes decoded from the same metadata item's z
+        # search_pattern + location type decoded from the same metadata item's z
         assert data["search_pattern"] == "distributed"
-        assert "small" in data["dock_classes"]
-        assert "medium" in data["dock_classes"]
+        assert "dock_classes" not in data
         # polygon vertex also decoded
         assert len(data["polygon"]) == 1
 

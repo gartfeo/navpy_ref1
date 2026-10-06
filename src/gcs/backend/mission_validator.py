@@ -97,7 +97,7 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
         if altitude_m is None:
             altitude_m = loc.alt
 
-    search_pattern, dock_classes = decode_meta_z(last_meta_z)
+    search_pattern = decode_meta_z(last_meta_z)
 
     # Trim trailing fallback-location NAV_WAYPOINT duplicate
     if fallback_delivery_location and waypoints:
@@ -113,7 +113,6 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
         "mission_count": count,
         "corridor_end_index": corridor_end_index,
         "search_pattern": search_pattern,
-        "dock_classes": dock_classes,
         "polygon": polygon_vertices,
         "corridor_backbone": corridor_backbone,
         "launch_point": launch_point,

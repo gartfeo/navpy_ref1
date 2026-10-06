@@ -16,6 +16,7 @@ from navpy.modules.nav.mission_catalog import MissionCatalog
 from navpy.modules.nav.nav_state import NavigationTaskState
 from navpy.modules.nav.pass_tracker import LegacyPassTracker
 from navpy.modules.nav.vehicle_navigation import VehicleNavigationCommands
+from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
 
 
 @dataclass(frozen=True)
@@ -70,7 +71,7 @@ class FallbackMissionNavigation:
             )
         plan, loiter_alt = self.plan_orbit_approach(
             poi,
-            self._catalog.smallest_class_id,
+            DOCK_DETECT_CLASS_ID,
             self._ports.current_relative(),
         )
         self._navigation_task.peer_approach_distance_m = plan.offset_distance
