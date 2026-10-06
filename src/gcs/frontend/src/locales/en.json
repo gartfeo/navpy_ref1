@@ -325,7 +325,7 @@
         "simulationDocks": "Simulation docks"
       },
       "fields": {
-        "delPitch": "Delivery pitch (deg)",
+        "delPitch": "Approach pitch (deg)",
         "throttleDive": "Throttle dive (%)",
         "algorithm": "Algorithm",
         "pitchKp": "Pitch Kp",

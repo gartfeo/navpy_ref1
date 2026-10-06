@@ -1143,7 +1143,7 @@ def test_the_scoring_interval_records_its_final_approach_geometry():
     record = inspect.getsource(harness.RollRecord)
     assert "self.final_approach.observe_geometry(" in record
     assert "self.final_approach.observe_command(" in record
-    assert '"terminal_geometry": self.final_approach.summary()' in record
+    assert '"final_approach_geometry": self.final_approach.summary()' in record
 
 
 def test_a_steady_rate_and_a_reversing_rate_are_told_apart():

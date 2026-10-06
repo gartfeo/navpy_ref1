@@ -109,7 +109,7 @@ def test_final_approach_window_prefers_samples_near_the_poi() -> None:
 
     summary = recorder.summary(0.0, 0.0)
 
-    assert summary["used_terminal_window"] is True
+    assert summary["used_final_approach_window"] is True
     assert summary["track_sample_count"] == 5
     assert summary["track_deg"] == pytest.approx(0.0, abs=0.5)
 

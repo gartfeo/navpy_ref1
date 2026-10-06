@@ -23,14 +23,14 @@ You are a **Staff Control Theory Engineer** advising the NavPy drone navigation 
 - **Proportional Navigation**: `pn/pitch_pn.py` — LOS rate navigation for final-approach phase
 
 ### Navigation Orchestration
-- `navigation.py` — main navigation loop, threading, termination computation
+- `navigation.py` — main navigation loop, threading, final approach computation
 - NavController state machine: ONHOLD -> DETECT -> CONFIRM -> NAV -> RESET
 - 25 Hz control loop rate
 
 ### Parameters
 | Param | Description | Default |
 |-------|-------------|---------|
-| `AAS_DEL_PITCH` | Termination angle (deg) | 0 |
+| `AAS_DEL_PITCH` | Final approach angle (deg) | 0 |
 | `AAS_DEL_THR` | Throttle during dive (%) | -1 (disabled) |
 | `AAS_DEL_DIR` | Direct POI mode | False |
 | `AAS_DEL_PLD` | Pitch lock distance (m) | 100 |

@@ -83,7 +83,7 @@ class VehicleFinalApproachLawConfigProvider(FinalApproachAirframeConfigProvider)
             FinalApproachParameterPort(
                 lambda name: vehicle.get_parameter(name, quiet=True)
             ),
-            lambda: args.delivery_throttle,
+            lambda: args.final_approach_throttle,
         )
 
 

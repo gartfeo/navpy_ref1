@@ -480,7 +480,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="500,300,200,150,100,80,60,50,40,30,20",
         help="Comma-separated distance gates for trace samples.",
     )
-    parser.add_argument("--del-dist", type=float, default=300.0, help="Delivery window distance in meters.")
+    parser.add_argument("--del-dist", type=float, default=300.0, help="Final approach window distance in meters.")
     parser.add_argument("--no-gates", action="store_true", help="Only print case and candidate summaries.")
     return parser
 

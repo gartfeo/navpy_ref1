@@ -191,7 +191,7 @@ class GroundTrackRecorder:
         return {
             "sample_count": len(self._samples),
             "track_sample_count": len(used),
-            "used_terminal_window": bool(final_approach),
+            "used_final_approach_window": bool(final_approach),
             "window_m": window_m,
             "track_deg": track_deg,
             "ground_speed_m_s": resultant_m_s,

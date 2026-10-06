@@ -21,7 +21,7 @@ docking or cargo receipt. Older wording is not authority for a different purpose
 
 ## Pure Vision Approach Constraint
 
-For vision-based delivery approach work, the navigation command path must not use
+For vision-based final approach work, the navigation command path must not use
 aircraft compass-derived yaw/heading. Compass yaw can carry large bias and
 would contaminate navigation-quality isolation. Treat aircraft yaw/heading as
 allowed only for logs, operator display, or certification/scoring diagnostics;
@@ -34,7 +34,7 @@ LOS/pixels/rates, gimbal/camera roll-yaw-pitch readback as camera-state only,
 pitch/roll aircraft attitude, airspeed, wind, and previous command state, with
 no park net geo/env truth, direct range, bbox-height, park net height, ground speed,
 altitude-derived vertical state, or sim-truth dependency. Do not project
-world-frame wind direction into the command frame for delivery navigation
+world-frame wind direction into the command frame for final-approach navigation
 through hidden aircraft compass yaw; 
 
 `ideal_360` is a simulator-only sensor upper bound: it must keep the camera

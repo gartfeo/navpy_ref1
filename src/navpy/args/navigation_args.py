@@ -67,8 +67,8 @@ class NavigationArgs(object):
     def __init__(self, args, vehicle: NavigationParameterReader, logger: ILogger):
         self.use_direct_poi = None
         self.use_terrain = None
-        self.delivery_throttle = None
-        self.delivery_angle = None
+        self.final_approach_throttle = None
+        self.final_approach_angle = None
         self.pitch_lock_dist = None  # Min distance to lock pitch while maneuvering
         self.pitch_lock_roll_diff = None  # Roll error threshold for pitch lock
         self.navigation_algorithm = None
@@ -94,13 +94,13 @@ class NavigationArgs(object):
         return self._vehicle.get_param_or_default(param_name, default)
 
     def refresh(self):
-        old_delivery_angle = self.delivery_angle
-        old_delivery_throttle = self.delivery_throttle
+        old_final_approach_angle = self.final_approach_angle
+        old_final_approach_throttle = self.final_approach_throttle
 
         self.use_direct_poi = bool(self._get_param('AAS_DEL_DIR'))
-        desired_delivery_angle = float(self._get_param('AAS_DEL_PITCH'))
+        desired_final_approach_angle = float(self._get_param('AAS_DEL_PITCH'))
         throttle = self._get_param('AAS_DEL_THR')
-        self.delivery_throttle = throttle if throttle is not None and throttle >= 0 else None
+        self.final_approach_throttle = throttle if throttle is not None and throttle >= 0 else None
         self.use_terrain = bool(self._get_param('AAS_USE_TRN'))
         self.pitch_lock_dist = float(self._get_param('AAS_DEL_PLD'))
         self.pitch_lock_roll_diff = float(self._get_param('AAS_DEL_PLRD'))
@@ -116,25 +116,25 @@ class NavigationArgs(object):
         )
 
         self.pitch_args.refresh()
-        self._calc_delivery_angle(desired_delivery_angle)
+        self._calc_final_approach_angle(desired_final_approach_angle)
 
-        if old_delivery_angle != self.delivery_angle or old_delivery_throttle != self.delivery_throttle:
-            self._logger.info(f'T: {self.delivery_angle} deg, 'f'{self.delivery_throttle}%')
+        if old_final_approach_angle != self.final_approach_angle or old_final_approach_throttle != self.final_approach_throttle:
+            self._logger.info(f'T: {self.final_approach_angle} deg, 'f'{self.final_approach_throttle}%')
 
-    def _calc_delivery_angle(self, desired_delivery_angle: float):
-        min_delivery_angle = self._vehicle.min_pitch * 0.9
+    def _calc_final_approach_angle(self, desired_final_approach_angle: float):
+        min_final_approach_angle = self._vehicle.min_pitch * 0.9
 
-        if desired_delivery_angle < min_delivery_angle:
-            if self.delivery_angle is None or self.delivery_angle != min_delivery_angle:
+        if desired_final_approach_angle < min_final_approach_angle:
+            if self.final_approach_angle is None or self.final_approach_angle != min_final_approach_angle:
                 self._logger.warning(
-                    f'Navigation: desired delivery angle: {desired_delivery_angle} is too low, '
-                    f'setting to {min_delivery_angle} (min pitch -10%)'
+                    f'Navigation: desired final approach angle: {desired_final_approach_angle} is too low, '
+                    f'setting to {min_final_approach_angle} (min pitch -10%)'
                 )
-            self.delivery_angle = min_delivery_angle
+            self.final_approach_angle = min_final_approach_angle
         else:
-            if self.delivery_angle is not None and self.delivery_angle != desired_delivery_angle:
-                self._logger.info(f'Navigation: setting delivery angle to {desired_delivery_angle}')
-            self.delivery_angle = desired_delivery_angle
+            if self.final_approach_angle is not None and self.final_approach_angle != desired_final_approach_angle:
+                self._logger.info(f'Navigation: setting final approach angle to {desired_final_approach_angle}')
+            self.final_approach_angle = desired_final_approach_angle
 
     @classmethod
     def add_args(cls, parser):
