@@ -60,7 +60,7 @@ _ANCHOR_FRACS = (
 )
 
 
-def compute_poi_positions(
+def compute_target_positions(
     img_w: int,
     img_h: int,
     margin: float = 0.15,
@@ -303,7 +303,7 @@ def measure_jacobian(
 # ---------------------------------------------------------------------------
 
 class CalibrationNavigator:
-    """Steers a gimbal to place a detected object at POI pixel positions."""
+    """Steers a gimbal to place a detected object at target pixel positions."""
 
     def __init__(
         self,
@@ -401,15 +401,15 @@ class CalibrationNavigator:
 
     def navigate_to(
         self,
-        poi_xy: tuple[float, float],
+        target_xy: tuple[float, float],
         yaw: float,
         pitch: float,
         jacobian: np.ndarray | None = None,
     ) -> NavigateResult:
-        """Iteratively steer the object to poi_xy.
+        """Iteratively steer the object to target_xy.
 
         Args:
-            poi_xy: POI pixel position (x, y).
+            target_xy: Target pixel position (x, y).
             yaw: Starting gimbal yaw (degrees).
             pitch: Starting gimbal pitch (degrees).
             jacobian: Optional Jacobian override; uses cached if None.
@@ -457,8 +457,8 @@ class CalibrationNavigator:
             last_xy = (cx, cy)
             good_yaw, good_pitch = cur_yaw, cur_pitch
 
-            err_x = poi_xy[0] - cx
-            err_y = poi_xy[1] - cy
+            err_x = target_xy[0] - cx
+            err_y = target_xy[1] - cy
             error_dist = float(np.hypot(err_x, err_y))
             last_error = error_dist
 
