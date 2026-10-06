@@ -1154,7 +1154,7 @@ def test_parameter_read_exception_fails_closed_without_actuator(failed_name):
                 raise RuntimeError(f"{name} unavailable")
             return params[name]
 
-    args = type("Args", (), {"delivery_throttle": None})()
+    args = type("Args", (), {"final_approach_throttle": None})()
     law = VisionNavLaw(
         VehicleFinalApproachLawConfigProvider(Vehicle(), args)
     )

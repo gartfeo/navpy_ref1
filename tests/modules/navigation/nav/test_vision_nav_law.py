@@ -364,7 +364,7 @@ def test_final_approach_throttle_is_clamped_to_the_mavlink_fraction_range(
             assert quiet is True
             return self.params.get(name)
 
-    args = type("Args", (), {"delivery_throttle": configured_throttle})()
+    args = type("Args", (), {"final_approach_throttle": configured_throttle})()
     law = VisionNavLaw(VehicleFinalApproachLawConfigProvider(Vehicle(), args))
 
     assert law.preview(_frame()).command.cmd_thr == 1.0
@@ -421,7 +421,7 @@ def test_actual_parameter_absence_never_defaults_tau_or_throttle():
             assert quiet is True
             return self.params.get(name)
 
-    args = type("Args", (), {"delivery_throttle": None})()
+    args = type("Args", (), {"final_approach_throttle": None})()
     config = VehicleFinalApproachLawConfigProvider(Vehicle(), args).read()
     assert config is not None
     assert config.pitch_time_constant_s is None
@@ -452,7 +452,7 @@ def test_invalid_actual_limits_make_final_approach_config_unavailable(updates):
         (),
         {"get_parameter": lambda self, name, quiet=False: params.get(name)},
     )()
-    args = type("Args", (), {"delivery_throttle": None})()
+    args = type("Args", (), {"final_approach_throttle": None})()
 
     assert VehicleFinalApproachLawConfigProvider(vehicle, args).read() is None
 
@@ -476,7 +476,7 @@ def test_raw_autopilot_limits_are_the_exact_clipping_authority():
             assert quiet is True
             return self.params.get(name)
 
-    args = type("Args", (), {"delivery_throttle": None})()
+    args = type("Args", (), {"final_approach_throttle": None})()
     law = VisionNavLaw(VehicleFinalApproachLawConfigProvider(Vehicle(), args))
     seed = _frame(ts=0.9, control=_unit(angle_z_deg=10.0), pitch=-30.0)
     law.seed(seed)
@@ -513,7 +513,7 @@ def test_config_provider_refreshes_actual_parameters_on_law_reset():
             return self.params.get(name)
 
     vehicle = Vehicle()
-    args = type("Args", (), {"delivery_throttle": None})()
+    args = type("Args", (), {"final_approach_throttle": None})()
     law = VisionNavLaw(VehicleFinalApproachLawConfigProvider(vehicle, args))
     assert law.preview(_frame()).command.cmd_thr == 0.25
     vehicle.params["PTCH_LIM_MIN_DEG"] = None

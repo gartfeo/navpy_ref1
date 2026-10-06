@@ -272,7 +272,7 @@ class RollRecord:
             "roll_tracking_error": _spread(self._tracking_errors),
             # Straightness of the final-approach path and steadiness of the command
             # that flew it -- neither is visible in a miss.
-            "terminal_geometry": self.final_approach.summary(),
+            "final_approach_geometry": self.final_approach.summary(),
         }
 
 

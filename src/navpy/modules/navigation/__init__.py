@@ -1,4 +1,4 @@
-"""Navigation module - Delivery-approach navigation and path following.
+"""Navigation module - Final-approach navigation and path following.
 
 This module owns ALL navigation-related functionality:
 - Approach geometry for a selected delivery reference
