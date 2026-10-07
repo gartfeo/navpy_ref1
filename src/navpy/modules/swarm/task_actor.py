@@ -50,7 +50,9 @@ class TaskActor(ListenerAbc):
         self.network = network
         self.logger = logger
         lock = threading.RLock()
-        selection, auction_state, rebroadcast_state = create_task_state(lock)
+        selection, auction_state, rebroadcast_state, confirmation = (
+            create_task_state(lock)
+        )
         sender = TaskMessageSender(self.id, network, logger)
         rebroadcast = TaskRebroadcastCoordinator(
             auction_state,
@@ -60,6 +62,7 @@ class TaskActor(ListenerAbc):
         )
         auction = TaskAuctionCoordinator(
             auction_state,
+            confirmation,
             MinimumEtaAssignmentPlanner(),
             sender,
             rebroadcast,

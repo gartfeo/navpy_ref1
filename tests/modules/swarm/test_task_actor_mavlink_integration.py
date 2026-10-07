@@ -6,6 +6,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from pymavlink.dialects.v20.ardupilotmega import (
+    MAVLINK_MSG_ID_TASK_ASSIGN_RESPONSE,
+)
+
 from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmHeartbeatMsg
 from navpy.modules.comm.messages.types import TaskDispatchStatus
 from navpy.modules.comm.network_mavlink import NetworkMavlink
@@ -13,12 +17,15 @@ from navpy.modules.common.models.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_dispatch import TaskDispatch
 from tests.detection_factory import make_detected_poi
+from tests.modules.swarm.test_task_assign_confirmation import FakeTimers
 
 
 class _MavlinkBus:
     def __init__(self):
         self.networks = []
         self.pending = deque()
+        # Best-effort transport: drop(sender_id, mav_msg) -> True loses it.
+        self.drop = lambda _sender_id, _mav_msg: False
 
     def enqueue(self, sender, mav_msg):
         self.pending.append((sender, mav_msg))
@@ -26,6 +33,8 @@ class _MavlinkBus:
     def drain(self):
         while self.pending:
             sender, mav_msg = self.pending.popleft()
+            if self.drop(sender.source_system, mav_msg):
+                continue
             mav_msg._header.srcSystem = sender.source_system
             for network in self.networks:
                 target_system = getattr(mav_msg, "target_system", 0)
@@ -142,6 +151,125 @@ def test_owner_dispatches_exact_second_and_third_pois_to_distinct_peers():
         assert {dispatch_2.assigned_peer, dispatch_3.assigned_peer} == {
             peer_2_id, peer_3_id,
         }
+    finally:
+        for actor in actors:
+            actor.reset()
+
+
+def _three_uav_swarm(bus, owner_loc, peer_2_loc, peer_3_loc):
+    vehicles = [
+        _Vehicle(1, owner_loc, bus),
+        _Vehicle(2, peer_2_loc, bus),
+        _Vehicle(3, peer_3_loc, bus),
+    ]
+    actors = []
+    for vehicle in vehicles:
+        logger = MagicMock()
+        network = NetworkMavlink(vehicle.source_system, vehicle, logger)
+        actor = TaskActor(vehicle, network, logger)
+        actor.start()
+        network.set_listener(actor)
+        bus.networks.append(network)
+        network.broadcast(SwarmHeartbeatMsg(actor.id))
+        actors.append(actor)
+    bus.drain()
+    return vehicles, actors
+
+
+def _is_assign_response_from(sender_id, mav_msg, peer_id):
+    return (
+        sender_id == peer_id
+        and mav_msg.get_msgId() == MAVLINK_MSG_ID_TASK_ASSIGN_RESPONSE
+    )
+
+
+def _holders(actors, task_id):
+    return {
+        actor.id
+        for actor in actors[1:]
+        if (selected := actor.selected_poi()) is not None
+        and selected.task_id == task_id
+    }
+
+
+def test_lost_assign_response_is_recovered_by_resending_the_request():
+    owner_loc = Location(40.2961244, 44.4334705, 1339.7)
+    poi = Location(40.2967648, 44.4332133, 1339.7, is_absolute=True)
+    bus = _MavlinkBus()
+    timers = FakeTimers()
+    _, actors = _three_uav_swarm(
+        bus, owner_loc, poi, Location(40.2974053, 44.4329561, 1339.7),
+    )
+    dropped = []
+
+    def drop_first_response_from_2(sender_id, mav_msg):
+        if not dropped and _is_assign_response_from(sender_id, mav_msg, 2):
+            dropped.append(mav_msg)
+            return True
+        return False
+
+    bus.drop = drop_first_response_from_2
+    try:
+        with (
+            timers.patch(),
+            patch.object(TaskDispatch, "start_rebroadcast", return_value=None),
+            patch.object(TaskDispatch, "start_peer_select_timer", return_value=None),
+        ):
+            actors[0].notify_pois([_poi(2, poi)])
+            bus.drain()
+            dispatch = actors[0]._auction_state.lookup(2)
+            assert len(dropped) == 1
+            assert dispatch.status == TaskDispatchStatus.CONFIRMING
+            assert _holders(actors, 2) == {2}
+
+            assert timers.fire_pending() == 1  # resend the assign request
+            bus.drain()
+
+        assert dispatch.status == TaskDispatchStatus.CONFIRMED
+        assert dispatch.assigned_peer == 2
+        assert _holders(actors, 2) == {2}
+        assert timers.fire_pending() == 0
+    finally:
+        for actor in actors:
+            actor.reset()
+
+
+def test_peer_stranded_by_lost_responses_releases_task_before_reassignment():
+    """Peer 2 accepted but every reply was lost; the task then goes to 3."""
+    owner_loc = Location(40.2961244, 44.4334705, 1339.7)
+    poi = Location(40.2967648, 44.4332133, 1339.7, is_absolute=True)
+    bus = _MavlinkBus()
+    timers = FakeTimers()
+    vehicles, actors = _three_uav_swarm(
+        bus, owner_loc, poi, Location(40.2974053, 44.4329561, 1339.7),
+    )
+    bus.drop = lambda sender_id, mav_msg: _is_assign_response_from(
+        sender_id, mav_msg, 2,
+    )
+    try:
+        with (
+            timers.patch(),
+            patch.object(TaskDispatch, "start_peer_select_timer", return_value=None),
+        ):
+            actors[0].notify_pois([_poi(2, poi)])
+            bus.drain()
+            dispatch = actors[0]._auction_state.lookup(2)
+            assert dispatch.assigned_peer == 2
+            assert _holders(actors, 2) == {2}
+
+            # Peer 2 is now farther away; its replies stay lost throughout.
+            vehicles[1]._location = Location(40.3261244, 44.4634705, 1339.7)
+            for _ in range(20):
+                if dispatch.status == TaskDispatchStatus.CONFIRMED:
+                    break
+                # The task is never held by two peers at once.
+                assert len(_holders(actors, 2)) <= 1
+                assert timers.fire_pending()
+                bus.drain()
+
+        assert dispatch.status == TaskDispatchStatus.CONFIRMED
+        assert dispatch.assigned_peer == 3
+        assert _holders(actors, 2) == {3}
     finally:
         for actor in actors:
             actor.reset()

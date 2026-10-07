@@ -20,8 +20,10 @@ class TaskDispatch:
         self.assigned_peer: Optional[int] = None
         self.retry_count: int = 0
         self.max_retry_attempts: int = 3
+        self.assign_request_sends: int = 0
         self._timer_event: Optional[threading.Timer] = None
         self._rebroadcast_timer: Optional[threading.Timer] = None
+        self._confirm_timer: Optional[threading.Timer] = None
         self._lock = threading.RLock()  # Changed to RLock
 
     def on_peer_available(self, peer_id: int, task_handle: TaskHandleMsgData) -> None:
@@ -72,6 +74,7 @@ class TaskDispatch:
             remaining_peers = len(self.task_handle_by_peer)
             if remaining_peers == 0:
                 self.cancel_peer_select_timer()
+            self.cancel_confirm_timer()
             self.status = TaskDispatchStatus.AVAILABLE
             return remaining_peers
 
@@ -84,6 +87,7 @@ class TaskDispatch:
             self.status = TaskDispatchStatus.CONFIRMED
             self.cancel_peer_select_timer()
             self.cancel_rebroadcast()
+            self.cancel_confirm_timer()
 
     def set_status(self, status: TaskDispatchStatus) -> None:
         """
@@ -125,9 +129,39 @@ class TaskDispatch:
                 self._rebroadcast_timer.cancel()
                 self._rebroadcast_timer = None
 
+    def start_confirm_timer(self, func: Callable[[int], None], interval: float) -> None:
+        """
+        Starts a one-shot timer that calls func(task_id) while an assign
+        request awaits its response. The callback reschedules if needed.
+        """
+        with self._lock:
+            self.cancel_confirm_timer()
+            timer: Optional[threading.Timer] = None
+
+            def confirm_and_clear() -> None:
+                with self._lock:
+                    if self._confirm_timer is not timer:
+                        return
+                    self._confirm_timer = None
+                func(self.task.task_id)
+
+            timer = threading.Timer(interval, confirm_and_clear)
+            self._confirm_timer = timer
+            self._confirm_timer.start()
+
+    def cancel_confirm_timer(self) -> None:
+        """
+        Cancels the assign-confirmation timer if running.
+        """
+        with self._lock:
+            if self._confirm_timer is not None:
+                self._confirm_timer.cancel()
+                self._confirm_timer = None
+
     def shutdown(self) -> None:
         """
         Cleans up resources.
         """
         self.cancel_peer_select_timer()
         self.cancel_rebroadcast()
+        self.cancel_confirm_timer()

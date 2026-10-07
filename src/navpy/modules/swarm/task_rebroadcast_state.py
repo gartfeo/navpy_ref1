@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from navpy.modules.comm.messages.task_message_data import TaskMsgData
 from navpy.modules.comm.messages.types import TaskDispatchStatus
 from navpy.modules.swarm.task_auction_models import (
     TaskRebroadcastPlan,
@@ -112,6 +113,32 @@ class TaskRebroadcastState:
                         lambda current_id, g=generation: callback(current_id, g),
                         0.0,
                     )
+
+    def send_if_available(
+        self,
+        tasks: list[TaskMsgData],
+        send: Callable[[list[TaskMsgData]], bool],
+    ) -> Optional[bool]:
+        """Advertise only still-AVAILABLE tasks, under the store lock.
+
+        Assign requests are also sent under this lock, so an advertisement
+        can never follow a reservation's request: a peer reads its held
+        task in an owner's advertisement as a release. Returns None when
+        nothing is AVAILABLE, else whether the send succeeded.
+        """
+        with self._store.lock:
+            if self._store.closed:
+                return None
+            available = [
+                task
+                for task in tasks
+                if (dispatch := self._store.dispatches.get(task.task_id))
+                is not None
+                and dispatch.status is TaskDispatchStatus.AVAILABLE
+            ]
+            if not available:
+                return None
+            return send(available)
 
     def peer_ids(self) -> set[int]:
         return self._store.peers.snapshot()

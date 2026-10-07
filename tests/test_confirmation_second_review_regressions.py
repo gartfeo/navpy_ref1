@@ -105,7 +105,7 @@ def _task(task_id: int) -> TaskMsgData:
 
 
 def _reserve(task_id: int = 7, peer_id: int = 2):
-    _, auction, roster = create_task_state(threading.RLock())
+    _, auction, roster, _ = create_task_state(threading.RLock())
     assert roster.discover_peer(peer_id, lambda *_: None)
     dispatch, generation = auction.register(_task(task_id))
     dispatch.on_peer_available(
@@ -121,7 +121,7 @@ def _reserve(task_id: int = 7, peer_id: int = 2):
 
 
 def test_auction_rejects_unassigned_responses() -> None:
-    _, auction, roster = create_task_state(threading.RLock())
+    _, auction, roster, _ = create_task_state(threading.RLock())
     assert roster.discover_peer(2, lambda *_: None)
     dispatch, _ = auction.register(_task(7))
 
@@ -144,7 +144,7 @@ def test_auction_rejects_wrong_reserved_peer() -> None:
 def test_auction_rejects_stale_response_after_reset_and_id_reuse() -> None:
     auction, _, _ = _reserve()
     auction.reset(Mock())
-    _, _, roster = create_task_state(threading.RLock())
+    _, _, roster, _ = create_task_state(threading.RLock())
     del roster  # control against accidentally using a different state
     assert auction._store.peers.add(3)
     dispatch, generation = auction.register(_task(7))
@@ -356,7 +356,7 @@ def test_confirmation_artifact_programmer_error_propagates() -> None:
 
 
 def test_auction_cleanup_attempts_all_and_surfaces_exception_group() -> None:
-    _, auction, _ = create_task_state(threading.RLock())
+    _, auction, _, _ = create_task_state(threading.RLock())
     first, _ = auction.register(_task(1))
     second, _ = auction.register(_task(2))
     first.shutdown = Mock(side_effect=TypeError("first"))

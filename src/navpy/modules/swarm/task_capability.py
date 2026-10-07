@@ -14,8 +14,9 @@ from navpy.modules.comm.messages.task_message_data import (
     TaskHandleMsgData,
     TaskMsgData,
 )
+from navpy.modules.comm.messages.msg_abc import MsgABC
 from navpy.modules.common.models.location import Location
-from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot
+from navpy.modules.swarm.task_actor_slots import MessageOrder, SelectedTaskSlot
 from navpy.modules.swarm.task_messaging import TaskMessageSender
 from navpy.modules.swarm.task_ports import TaskLocationReader
 
@@ -71,6 +72,7 @@ class TaskParticipationCoordinator:
     def on_available_request(self, message: AvailableTaskRequestMsg) -> None:
         if message.sender_id == self._actor_id:
             return
+        self._release_if_re_advertised(message)
         if not self._evaluator.has_current_location():
             self._logger.warning(
                 f"{self._actor_id}: Location not set. "
@@ -89,9 +91,32 @@ class TaskParticipationCoordinator:
         self._sender.available_response(message.sender_id, tasks)
 
     def on_assign_request(self, message: TaskAssignRequestMsg) -> None:
-        accepted = self._selection.try_accept(message.task)
+        accepted = self._selection.try_accept(
+            message.task,
+            message.sender_id,
+            _order(message),
+        )
         self._sender.assignment_response(
             receiver_id=message.sender_id,
             task_id=message.task.task_id,
             accepted=accepted,
         )
+
+    def _release_if_re_advertised(self, message: AvailableTaskRequestMsg) -> None:
+        # An owner advertises only tasks it holds as unassigned, so a held
+        # task in its advertisement means the owner released this peer's
+        # reservation (e.g. after our accept response was lost).
+        released = self._selection.release_if_held(
+            message.sender_id,
+            {task.task_id for task in message.tasks},
+            _order(message),
+        )
+        if released is not None:
+            self._logger.warning(
+                f"Task {released.task_id} re-advertised by owner "
+                f"{message.sender_id}; releasing local assignment."
+            )
+
+
+def _order(message: MsgABC) -> MessageOrder:
+    return message.meta.msg_uid if message.meta is not None else None
