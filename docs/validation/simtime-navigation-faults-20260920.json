@@ -1,0 +1,195 @@
+{
+  "binary_sha256": "aca9601a1d0a417e49b510cddbed804d8b21da4d4cc1889a99760dfb1ef49570",
+  "checks": [
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-151923",
+      "fault": "logger",
+      "expected_failure_verified": true,
+      "reason": "logger_not_ready",
+      "step": 2,
+      "sha256": {
+        "identity.json": "012dd1f6355992abdc814558c6c595b75a2fd52dd183d7e9b9f668d2f3aaa866",
+        "result.json": "55b11a0967ff99df8a91e6b5eeb2884a69ff4e22a703afda3af4242d6e634022",
+        "supervisor.log": "4db0cc80e7e1b48951e858affa8fcb1ce7b293812d4d367c24e98abda719b532",
+        "peer.log": "d0ad1ab9be87d70e83e4478cb0157418e0cb1068f151eb58f0f8bbc30aedb5de",
+        "teardown.log": "24565297c1bf9f3a75004fcb13f11e650cbb69c08cd0ce431e83d0118af5e3e4",
+        "peer-failure.json": "fab7357c56fbf97495b721c93ea0f9a05a51f2ee3b7564c0448fc4bce3d9760e"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-151943",
+      "fault": "boot",
+      "expected_failure_verified": true,
+      "reason": "identity_or_version",
+      "step": 5,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "91347b048e95d507068abde8fab39335b0f229a9f368719f4bb1f11ec3956446",
+        "supervisor.log": "7f57ee5a1044374fec8a3fd119dd0b20c98c8eb3161092c498e9b2100cc617be",
+        "peer.log": "d0ad1ab9be87d70e83e4478cb0157418e0cb1068f151eb58f0f8bbc30aedb5de",
+        "teardown.log": "5aa2ca8ef11ac351fd6fb6df0d142ec090e9290d3a90c76990d6fc593f8bcd1b",
+        "injection.json": "d4d67c9ee74519d65dd574aac5eb6dbd3fb29067358d95c5f88db94d545e0f8a",
+        "peer-failure.json": "fb4ce59d992c86eacd64ce53a221ed8cdcad8d0d82ac29c261a06b2228cb0aab"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152000",
+      "fault": "late",
+      "expected_failure_verified": true,
+      "reason": "apply_step",
+      "step": 5,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "fff20362c86a317a084eee5d7ae84ebbf859bdbffd099088885d674fb8de2d99",
+        "supervisor.log": "7ae974aa8c2714dc50cfbebb3457dd747fb44d0541b47c7de781db4fb79efb59",
+        "peer.log": "d0ad1ab9be87d70e83e4478cb0157418e0cb1068f151eb58f0f8bbc30aedb5de",
+        "teardown.log": "51b959ff442d7285ed3b71e68cde2fbb528a5563906c8d9f927e18607207823a",
+        "injection.json": "f8d1335a697cbb84389eadf932f53a29164572631c5d5c7a78d4c1031f77df4d",
+        "peer-failure.json": "36234e5e0b04b16d95ecf0464e6b8c8c656995a68dc21999a061c1fba53d073d"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152017",
+      "fault": "nonfinite",
+      "expected_failure_verified": true,
+      "reason": "nonfinite_command",
+      "step": 5,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "129b6f3560de9a0a0714f0e4e63d9a5e7e493ff77e4550e49d945d63cd2087d3",
+        "supervisor.log": "cf94b6f8bca7787499a67a0d30c4901d2ec70ea14e685a0dfedc19f9a375b999",
+        "peer.log": "d0ad1ab9be87d70e83e4478cb0157418e0cb1068f151eb58f0f8bbc30aedb5de",
+        "teardown.log": "3208b331c3e69333d5260de3ab2a9cbc6b36938c3070797b66f5fe4db41c0fc8",
+        "injection.json": "2666f9cda7f33c7b23ed8f3752c9455236e3274c651063e86ca4ca0b4274c729",
+        "peer-failure.json": "61a8483ca761dc4453b3739dad42e1f814c3da3de94528737d70c417507010c4"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152034",
+      "fault": "short",
+      "expected_failure_verified": true,
+      "reason": "frame_length",
+      "step": 5,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "ce0e531b3b46a8e79d42894846959da158795292f24706a617056273cd0b90b8",
+        "supervisor.log": "0f43b9d1c071fb6e9d376d347a237aa1e76105a8e6414a2f6a54b4805da2e9a9",
+        "peer.log": "d0ad1ab9be87d70e83e4478cb0157418e0cb1068f151eb58f0f8bbc30aedb5de",
+        "teardown.log": "fe74a53d5ddb53907530e03a0f899bfa7337e3cb22d73bc5c1980893803a620e",
+        "injection.json": "b3104e54cacc9843aea10488e5e9442cd286e5b3b5cdf13d80b6a8619e4ea02c",
+        "peer-failure.json": "38cf8637fb559fa01f511e624d5575acce46c73101d5b8e3aa99dd80d4e20ca7"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152052",
+      "fault": "long",
+      "expected_failure_verified": true,
+      "reason": "frame_length",
+      "step": 5,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "ce0e531b3b46a8e79d42894846959da158795292f24706a617056273cd0b90b8",
+        "supervisor.log": "dda84fed5608929753414d3f6b03fffae346d3de92b006a9fa32aee0af83908f",
+        "peer.log": "d0ad1ab9be87d70e83e4478cb0157418e0cb1068f151eb58f0f8bbc30aedb5de",
+        "teardown.log": "80c5ec1eb72c3d6e4bbd89b95875ed2e39ae1cc797790bced843a202ce0d0439",
+        "injection.json": "00472f1d76ab23987e5b39cdec47c05bedddb7cf2949797e05e4f2ed92b5a177",
+        "peer-failure.json": "bb59a2438c6ad3ccf5f84f8a47a735833678618e47d38628adafbbe5b06aaefc"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152109",
+      "fault": "duplicate",
+      "expected_failure_verified": true,
+      "reason": "identity_or_version",
+      "step": 6,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "27246c5c3e9feaa0d52b3de2740814e91c52915d409391b8c128cd33a441c82e",
+        "supervisor.log": "b2d9b460ab0ad19803f9e0ba1c3ad1f64bc4c972892227c1c3c4543809511561",
+        "peer.log": "d500d1bb764cb8f1d7b3fd96c447f3fbaf15c0e6ff045f18d579c2e53c314973",
+        "teardown.log": "143cb4c8719378f702aef78d89511a69ae18a6f0ad53a1c81bead90b575ec496",
+        "injection.json": "d2d89a3235b6c40677eab9bde1860a525e9814ab146dea4b0df1e44b95ace5fb",
+        "peer-failure.json": "203847e6d58864298aa4bfa2d9b4ac0c822c679e88ef397b698d022ea1fd6041"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152127",
+      "fault": "disconnect",
+      "expected_failure_verified": true,
+      "reason": "disconnected",
+      "step": 5,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "0fe80748eb771df2f3d649761ae860b472eee844cad0a8aa9c38440e73b8f223",
+        "supervisor.log": "536f17d88b4eed95835f5691d87190fed2d05ad13b3918a7a45aa52a7bf0311d",
+        "peer.log": "5b5e4b9846d6ca20b0ccb44f37df55e2b1f1c8978578f00eb6af6e02b168f7b6",
+        "teardown.log": "f0c966d2c113891c452a19ddbbc826bd062efa5f945c3cddc92c6bbc9ee4bb89",
+        "injection.json": "f45f51c36fdb4ce04dfcc7e59b18c5507f774b514aa54745a1dc29da77501732"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152143",
+      "fault": "timeout",
+      "expected_failure_verified": true,
+      "reason": "deadline",
+      "step": 5,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "2663c760c5c9e30abc115254ca3f7f12a9df24124f06ba113c669cac9a78e31b",
+        "supervisor.log": "d2afe0c73886b43597f6fb0dcf612ab66c0a436b150b7760c4211b10e5ee4f2b",
+        "peer.log": "5b5e4b9846d6ca20b0ccb44f37df55e2b1f1c8978578f00eb6af6e02b168f7b6",
+        "teardown.log": "d9b4ff1b949a0096b1d3b3383745aa05d47fcaf519437944e5a5d37f13922d8d",
+        "injection.json": "95b3f8c99fa1dd76775ee7fbf1341ba2018c461b6b1988d8e88fc2f20d137363"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152204",
+      "fault": "expired",
+      "expected_failure_verified": true,
+      "reason": "disconnected",
+      "step": 5,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "0fe80748eb771df2f3d649761ae860b472eee844cad0a8aa9c38440e73b8f223",
+        "supervisor.log": "602749ba177c5b1fe0d80c1eeed87d2c105540c79cde8af91fc430549fa7475d",
+        "peer.log": "43887a9bb905156a8816f7ca82334cef52d1659828fe2e2693ca86c023d6b7e4",
+        "teardown.log": "03d269e6012de6043c17ce83a23de75eaf699834ec6ee16afa8decb7a065403a",
+        "injection.json": "f46296fdfaaf0f476fc24bce4fd2ca57cb8c320135dd5063fe70332e9e2de5ae",
+        "peer-failure.json": "c3d85c9a44e7d955fc8d96e333a79bfe1f3ce68deac5635f3fb13e5443cbb973"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152221",
+      "fault": "rejected",
+      "expected_failure_verified": true,
+      "reason": "attitude_rejected",
+      "step": 6,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "a4fb2f92bfb25631655985358f0b7fcf0c38448f8c50fdbc8f9644c4814c3b13",
+        "supervisor.log": "844ab7c467954a65c565d1aa00b94ff336fb0abca725dfe96f8d4275478a0b40",
+        "peer.log": "d0ad1ab9be87d70e83e4478cb0157418e0cb1068f151eb58f0f8bbc30aedb5de",
+        "teardown.log": "f2262d8ea57f792cf51ac7d1275a4b61e57917635018f6e9c8ec8c98f092fa9a",
+        "injection.json": "44c9ce0789e87b77e892c9e1c077664f36c695f5269c03b6ac0d84dd5e953646",
+        "peer-failure.json": "ea41a0135360b5b4c7d40257516cc09ee69f79493385c31671ceeee8abd3532c"
+      }
+    },
+    {
+      "case": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\navigation-step-20260920-152240",
+      "fault": "stray",
+      "expected_failure_verified": true,
+      "reason": "stray_attitude_command",
+      "step": 8,
+      "sha256": {
+        "identity.json": "621df00327c33958dc621587ff7305484487e9f5cb1c90096700a4627b43dffd",
+        "result.json": "186e5e6fe488f6d4b3d66f2b75e48e1b1d320f84ae84bc767f3d3d418018879e",
+        "supervisor.log": "9a2a694aa45a54217848e58381e3d08edb0a8aaa258fc9c8708159628311e5f0",
+        "peer.log": "d0ad1ab9be87d70e83e4478cb0157418e0cb1068f151eb58f0f8bbc30aedb5de",
+        "teardown.log": "5fba8373cb6720a7056fb8f0276981e62cf0b18e0c659be253b0b83e34dfca27",
+        "injection.json": "013d74a805efb4fc5812bfdb960b18839192f37a4e49ab18b23ee38dc68e7e04",
+        "peer-failure.json": "a3f2768110e799b84a5759c05907458a13410ea9583faf853fcdd5a5e4915623",
+        "stray-sent.json": "afcb5cee4c632818c0ebe3345cbf7594dad763a3bb6081e86af26dff1e9a811c"
+      }
+    }
+  ]
+}

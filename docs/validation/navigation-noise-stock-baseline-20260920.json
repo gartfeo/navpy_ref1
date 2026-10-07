@@ -1,0 +1,28 @@
+{
+  "method": "compare_simtime_navigation.validate: source identity plus complete normalized history; old fleet driver is not validated",
+  "validator_sha256": "44106848c7a75880769daa90145e60ea2682ff06a84035fb9c03bbca799a712f",
+  "inputs_sha256": {
+    ".sitl-runs\\lockstep-fleet-20260920-222551-447237\\supervisor.log": "1d247e5d451af1231f86f090d19110591abb66542023315318063ffa82f8add7",
+    ".sitl-runs\\lockstep-fleet-20260920-222551-447237\\teardown.log": "0741c88957cd9273d0aa52d1c2a46906ca9b8ea7b96f1ac1eb2b22e300818256",
+    ".sitl-runs\\lockstep-fleet-20260920-222551-447237\\121\\peer.json": "cad77d30fd48049f174f43884f49c0ca66121aee8a225e25687b0ad0168bb184",
+    ".sitl-runs\\lockstep-fleet-20260920-222551-447237\\121\\identity.json": "9b093b09634802ff003c49699ed2b3d2c9fee6324cbdb6040d1de2157a0dcf2e",
+    ".sitl-runs\\lockstep-fleet-20260920-222551-447237\\121\\navpy-navigation.csv": "7e0c98c332f0e41eeae9ae2ad1fec5d670b1beaec8cfbe05e8e9768c3b6d0189",
+    ".sitl-runs\\lockstep-fleet-20260920-222551-447237\\121\\navigation-defaults.parm": "e6860684dc63ea6c34c14d9c996fb62cac969d7cf7a6c975b1f24b78dbf3bf9e",
+    ".sitl-runs\\noise-matrix-20260920-225636\\run-00\\supervisor.log": "927172e98c1f0d5488dbe9b52680d65358b051d198c2dca35b838b2f5fb3ff50",
+    ".sitl-runs\\noise-matrix-20260920-225636\\run-00\\teardown.log": "46773e3146e80c7355d559bdc8c854c92d4425d85308d87bb46cef298ec2ca0f",
+    ".sitl-runs\\noise-matrix-20260920-225636\\run-00\\121\\peer.json": "e2c8b9f146ed354c93f9ae913c041192c8f4a97ae137a06e50474f550ab80afa",
+    ".sitl-runs\\noise-matrix-20260920-225636\\run-00\\121\\identity.json": "d04cbce7de4555db8155a99168405aa066a5868e51b61fd8ecbaa88c6f53ac5e",
+    ".sitl-runs\\noise-matrix-20260920-225636\\run-00\\121\\navpy-navigation.csv": "2c060cbfeb169baf50fb51d0667e787a96e40d9095f209699c237ee46f26676e",
+    ".sitl-runs\\noise-matrix-20260920-225636\\run-00\\121\\navigation-defaults.parm": "623f0afc3f947dda42b0716e34f091d75920b06ab5dea5afa45f2c115857a325"
+  },
+  "normalized_history_sha256": [
+    "a7fc4d8dd95785f4a2b296153937a24ba8c30cc05af9862e1846890c1574468d",
+    "a7fc4d8dd95785f4a2b296153937a24ba8c30cc05af9862e1846890c1574468d"
+  ],
+  "steps": [
+    3000,
+    3000
+  ],
+  "equal": true,
+  "same_binary": true
+}

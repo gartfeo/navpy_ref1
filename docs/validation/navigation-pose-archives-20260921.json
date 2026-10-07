@@ -1,0 +1,61 @@
+[
+  {
+    "directory": "/mnt/c/Users/GARTF/NavPy-validation-evidence/20260921-pose-rounding-isolation",
+    "archive_sha256": "d9cf7ccef393e914427bb578a59b670c56969d181fe9ad52b5362e76ba7a2740",
+    "entries": 1178,
+    "frozen_replay": {
+      "exact_recorded_replay": true,
+      "exact_legacy_control": true,
+      "all_attribution_metrics_identical": true,
+      "output": "/mnt/c/Users/GARTF/AppData/Local/Temp/navpy-determinism-review-20260920/.sitl-runs/pose-archive-replay-20260921-01",
+      "result_sha256": "efb10a7e51c0de2ad702a80b3e99df7e1ad999642a7379e21e94d1b99b9e3da2"
+    },
+    "offline-tools-supplement": {
+      "reason": "Original archive preserved all flight identity files but omitted offline tools excluded from flight identity. Supplement restores them; original archive is unchanged.",
+      "files": {
+        "scripts/compare_lockstep_fleet.py": "ecd2838d1dec0debef908b581e4f62cc061a7643b5374da33def85dc03416e0c",
+        "scripts/compare_noise_matrix.py": "02ce29220329a3c03a9dd0af65e484587b676fb7b35b5202dc3e6039e509acb8",
+        "scripts/read_noise_parameters.py": "c256a29f716003b3de749943b6901248a9db16a421b2d8467e96fcd9cc6ab698",
+        "scripts/analyze_noise_profiles.py": "8c5449cf72d79233305b89e0e5c48c2ac7b4d366701ee5e5ff473fb274130c77",
+        "scripts/pose_rounding_evidence.py": "2bd41ff653a8e6c4e33aecc242e5d520cb43f2614e306d6efa5b8e3e46a98f73",
+        "scripts/pose_rounding_analysis.py": "a226b611d7220d71f91f4d4a6faf38bd2f02cc8a6b25bd2d1a615460a477ee68",
+        "scripts/replay_pose_rounding.py": "4e860966fd32ba714fc6568513e08b4d060bfad2d611c50efbe6599d5127f0aa"
+      },
+      "archive_sha256": "3c2b70e055605831f9394882db301616a38bbbbdd6fc25e9ff3c71ae99d15e00"
+    },
+    "runtime-data-supplement": {
+      "reason": "Include tracked non-Python runtime resources omitted by the flight source hash inventory.",
+      "files": {
+        "src/navpy/AGENTS.md": "a84860ae01980131a40cad4fb51d4e6593f4ad1a41d2ee389a1da99217e34b5e",
+        "src/navpy/CLAUDE.md": "b1830ef00e249df24320f716476972a47ab0545ba84f9fc09102f21693f18ac0",
+        "src/navpy/modules/vision/vision_profiles.json": "fac97f1c8c240c9f0baad705eb124f635cfc9dd3325ad742317a51458a934126"
+      },
+      "archive_sha256": "7a0b5f1836e8db768baf51907370fe9f0ca3f0c9a397f4baa290f0242186a7d0"
+    }
+  },
+  {
+    "directory": "/mnt/c/Users/GARTF/NavPy-validation-evidence/20260921-pose-precision",
+    "archive_sha256": "b5ed990469257109b6839542fffd85c72f44ee43a003e1065dfd0762e82dc0d0",
+    "entries": 1310,
+    "frozen_replay": {
+      "records": 3000,
+      "exact_replay": true,
+      "causality": {
+        "sample_count": 1128,
+        "roll_max_residual_deg": 3.552713678800501e-15,
+        "pitch_max_residual_deg": 0.0,
+        "roll_max_step_deg": 18.025057451633323,
+        "pitch_max_step_deg": 5.81588698885489,
+        "held_sample_count": 0
+      },
+      "evidence_sha256": {
+        "peer.json": "c0caf2e622f95df32cfacea68c96529b5910fdbb0cf792030e98222a7aca0a28",
+        "identity.json": "9fc65174224c77fb8ef4ef987f452cdd725bc4c9038a0d3fece4123d35a49eee",
+        "navpy-navigation.csv": "b7fe0450139580c551368ab53283e55f09c578719febeef7dbab82a228c8a704",
+        "navigation_debug.csv": "e803ccd40223e7770b6e455dc542fa78538adcbf34939c8527adb6b802ce3b94",
+        "navigation_compact.csv": "82b1753551190193ca1ee343ff1b1a04b5ef597cc28fedf5266ca154a2becbf5"
+      },
+      "report_sha256": "d7c434ee44a2e8b7f1903f55503d77d388f59e18005dbe57aca95c58afabde03"
+    }
+  }
+]

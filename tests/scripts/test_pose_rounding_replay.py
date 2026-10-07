@@ -45,10 +45,8 @@ def matrix_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(analysis, "ROOT", tmp_path)
     baseline = tmp_path / "baseline.json"
     baseline.write_text(json.dumps(dict(normalized_history_sha256="baseline")))
-    monkeypatch.setattr(analysis, "BASELINE", baseline)
     firmware = tmp_path / "firmware.json"
     firmware.write_text(json.dumps(dict(binary_sha256="reviewed", base_commit="base")))
-    monkeypatch.setattr(analysis, "FIRMWARE", firmware)
     (tmp_path / "scripts").mkdir()
     for name in ("run_pose_matrix.py", "pose_rounding_evidence.py"):
         (tmp_path / "scripts" / name).write_text(name)
@@ -69,20 +67,20 @@ def matrix_fixture(tmp_path, monkeypatch):
         pairs_method_sha256=analysis.digest(tmp_path / "scripts/pose_rounding_evidence.py"),
         baseline_sha256=analysis.digest(baseline), ledger=str(ledger),
         ledger_sha256=analysis.digest(ledger), runs=runs)
-    return analysis, report
+    return analysis, report, (baseline, firmware)
 
 
 def test_complete_matrix_is_required_before_attribution(tmp_path, monkeypatch):
-    analysis, report = matrix_fixture(tmp_path, monkeypatch)
-    analysis.require_matrix(report)
+    analysis, report, contracts = matrix_fixture(tmp_path, monkeypatch)
+    analysis.require_matrix(report, *contracts)
     report["runs"] = report["runs"][:-1]
     with pytest.raises(ValueError, match="missing cells"):
-        analysis.require_matrix(report)
+        analysis.require_matrix(report, *contracts)
 
 
 @pytest.mark.parametrize("change", ["pose", "history", "boot", "manifest", "method", "status", "firmware"])
 def test_changed_matrix_cannot_authorize_analysis(tmp_path, monkeypatch, change):
-    analysis, report = matrix_fixture(tmp_path, monkeypatch)
+    analysis, report, contracts = matrix_fixture(tmp_path, monkeypatch)
     if change == "pose": report["runs"][2]["pose_hash"] = "other"
     elif change == "history": report["runs"][2]["normalized_history_sha256"] = "other"
     elif change == "boot": report["runs"][2]["boot"] = report["runs"][1]["boot"]
@@ -91,4 +89,41 @@ def test_changed_matrix_cannot_authorize_analysis(tmp_path, monkeypatch, change)
     elif change == "status": report["passed"] = False
     elif change == "firmware": report["runs"][1]["identity"]["binary_sha256"] = "other"
     with pytest.raises(ValueError):
-        analysis.require_matrix(report)
+        analysis.require_matrix(report, *contracts)
+
+
+def test_matrix_rejects_a_different_baseline_contract(tmp_path, monkeypatch):
+    analysis, report, (baseline, firmware) = matrix_fixture(tmp_path, monkeypatch)
+    other = tmp_path / "other-baseline.json"
+    other.write_text(json.dumps(dict(normalized_history_sha256="baseline", note="edited")))
+    with pytest.raises(ValueError, match="baseline changed"):
+        analysis.require_matrix(report, other, firmware)
+
+
+@pytest.mark.parametrize("module", ["pose_rounding_analysis", "pose_precision_analysis",
+                                    "run_pose_matrix", "run_pose_precision_matrix"])
+def test_missing_validation_contract_fails_with_clear_message(tmp_path, monkeypatch, capsys, module):
+    import importlib, sys
+    script = importlib.import_module(f"scripts.{module}")
+    missing = tmp_path / "absent.json"
+    args = (["matrix.json", "--output", str(tmp_path / "out")] if module.endswith("analysis")
+            else ["--firmware-root", str(tmp_path)])
+    args += ["--baseline", str(missing)]
+    if module != "run_pose_matrix":
+        args += ["--firmware", str(missing)]
+    monkeypatch.setattr(sys, "argv", [module, *args])
+    with pytest.raises(SystemExit) as stop:
+        script.main()
+    assert stop.value.code == 2
+    assert f"validation contract not found: {missing}" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("module", ["pose_rounding_analysis", "pose_precision_analysis",
+                                    "run_pose_matrix", "run_pose_precision_matrix"])
+def test_contracts_default_to_committed_validation_files(module):
+    import importlib
+    script = importlib.import_module(f"scripts.{module}")
+    contracts = [script.BASELINE] + ([script.FIRMWARE] if hasattr(script, "FIRMWARE") else [])
+    for path in contracts:
+        assert path.parent == script.ROOT / "docs/validation" and path.is_file()
+    assert hasattr(script, "FIRMWARE") == (module != "run_pose_matrix")

@@ -49,8 +49,8 @@ property deliberately. It is the price of the disturbance rejection above, and
 it is why the rate channel is filtered (`VERTICAL_RATE_FILTER_TAU_S` in law.py)
 rather than fed raw.
 
-Full campaign record: `docs/decisions/`, and the wind matrix in
-`navpy-worktrees/_shared/knowledge/pitch-handoff-ab-2026-08-20/`.
+The full campaign record and wind matrix were kept outside this repository and are not
+available here.
 """
 
 from __future__ import annotations
