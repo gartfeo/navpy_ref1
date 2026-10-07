@@ -80,10 +80,14 @@ def test_pitch_kp_cli_override_survives_refresh_when_vehicle_param_changes():
     assert navigation_args.pitch_args.kp == 2.3
 
 
-def test_default_navigation_algorithm_is_legacy_pn():
+def test_default_navigation_algorithm_is_pure_vision():
+    # Pure Vision Approach Constraint: an unconfigured vehicle must not fly
+    # the legacy geo laws (0/1), whose Roll-L1 command reads compass yaw,
+    # heading and NED ground velocity.
     _, navigation_args = _navigation_args()
 
-    assert navigation_args.navigation_algorithm == NavigationAlgorithm.PN.value
+    assert NavigationArgs.PARAMS["AAS_DEL_CTRL"] == 2
+    assert navigation_args.navigation_algorithm == NavigationAlgorithm.VISION_NAV_PN.value
     assert navigation_args.pitch_controller == "pn"
 
 
@@ -115,7 +119,7 @@ def test_navigation_algorithm_cli_accepts_numeric_selection():
     assert navigation_args.pitch_controller == "pn"
 
 
-def test_invalid_navigation_algorithm_param_warns_and_falls_back_to_pn():
+def test_invalid_navigation_algorithm_param_warns_and_falls_back_to_pure_vision():
     args = _parse_args()
     logger = FakeLogger()
     navigation_args = NavigationArgs(
@@ -124,7 +128,7 @@ def test_invalid_navigation_algorithm_param_warns_and_falls_back_to_pn():
         logger,
     )
 
-    assert navigation_args.navigation_algorithm == NavigationAlgorithm.PN.value
+    assert navigation_args.navigation_algorithm == NavigationAlgorithm.VISION_NAV_PN.value
     assert navigation_args.pitch_controller == "pn"
     assert logger.warnings
 

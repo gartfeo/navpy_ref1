@@ -88,7 +88,7 @@ _EXPECTED_DEFAULTS = {
     "del_p_kp": 1.5,
     "del_pld": 100,
     "del_plrd": 2,
-    "del_ctrl": 1,
+    "del_ctrl": 2,
     "use_trn": True,
     "targ_wps": 16,
     "targ_alt": 150,
