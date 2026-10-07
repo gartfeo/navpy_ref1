@@ -1,3 +1,4 @@
+import threading
 import unittest
 from dataclasses import replace
 from unittest.mock import Mock, patch
@@ -26,8 +27,41 @@ from navpy.modules.swarm.task_ports import MessageClockReset
 from navpy.logger.cache_logger import ILogger
 
 
+class _IdleTimer:
+    """threading.Timer stand-in that never fires on its own."""
+
+    def __init__(self, interval, function, args=None):
+        self.interval = interval
+        self.function = function
+        self.args = args or ()
+        self._alive = False
+
+    def start(self):
+        self._alive = True
+
+    def cancel(self):
+        self._alive = False
+
+    def is_alive(self):
+        return self._alive
+
+
 class TaskActorTest(unittest.TestCase):
     def setUp(self):
+        # No wall clock: auction timers are idle fakes (tests fire what they
+        # need) and the periodic heartbeat never ticks, so no background
+        # thread can broadcast while a test counts broadcasts.
+        for target, value in (
+            ("navpy.modules.swarm.task_dispatch.threading.Timer", _IdleTimer),
+            (
+                "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+                threading.TIMEOUT_MAX,
+            ),
+        ):
+            patcher = patch(target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
         # Mocking IDrone
         self.vehicle = Mock(spec=IVehicle)
         self.vehicle.source_system = 1
@@ -703,31 +737,10 @@ class TaskActorTest(unittest.TestCase):
 
         self.network.broadcast.reset_mock()
 
-        # A no-op timer so the rebroadcast wait never starts a real
-        # threading.Timer thread that would outlive the test.
-        class _NoopTimer:
-            def __init__(self, interval, function, args=None):
-                self.interval = interval
-                self.function = function
-                self.args = args or ()
-
-            def start(self):
-                pass
-
-            def cancel(self):
-                pass
-
-            def is_alive(self):
-                return False
-
-        with patch(
-            "navpy.modules.swarm.task_dispatch.threading.Timer", _NoopTimer
-        ):
-            self._rebroadcast_task(10)
+        self._rebroadcast_task(10)
 
         self.network.broadcast.assert_called_once()
         self.logger.info.assert_any_call("Rebroadcast task 10, waiting for 1 peers")
-        available_dispatch.cancel_rebroadcast()
 
     def test_reject_restarts_available_rebroadcast_when_peer_becomes_free(self):
         class FakeTimer:
@@ -913,9 +926,8 @@ class TaskActorTest(unittest.TestCase):
 
         # Assert — rebroadcast timer started for the available task
         self.assertIsNotNone(td._rebroadcast_timer)
-
-        # Cleanup
-        td.cancel_rebroadcast()
+        self.assertEqual(td._rebroadcast_timer.interval, 0.0)
+        self.assertTrue(td._rebroadcast_timer.is_alive())
 
     def test_existing_peer_heartbeat_does_not_restart_rebroadcast(self):
         """Heartbeat from already-known peer should not restart rebroadcast."""
