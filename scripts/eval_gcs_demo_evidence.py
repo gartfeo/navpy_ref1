@@ -58,13 +58,13 @@ def _payload(payload: str) -> dict[str, str]:
     pairs: list[tuple[str, str]] = []
     for token in payload.split(";"):
         if token.count("=") != 1:
-            raise ValueError(f"malformed TERMINAL_CMD token {token!r}")
+            raise ValueError(f"malformed FINAL_APPROACH_CMD token {token!r}")
         key, value = token.split("=", 1)
         pairs.append((key, value))
     keys = tuple(key for key, _value in pairs)
     if keys != _FINAL_APPROACH_FIELDS:
         raise ValueError(
-            f"TERMINAL_CMD fields/order must be {_FINAL_APPROACH_FIELDS}, got {keys}"
+            f"FINAL_APPROACH_CMD fields/order must be {_FINAL_APPROACH_FIELDS}, got {keys}"
         )
     return dict(pairs)
 
@@ -100,11 +100,11 @@ def _boolean(name: str, value: str) -> bool:
 
 def _final_approach_command(row: list[str], line_number: int) -> FinalApproachCommand:
     if len(row) < 3:
-        raise ValueError(f"TERMINAL_CMD row {line_number} has fewer than 3 columns")
+        raise ValueError(f"FINAL_APPROACH_CMD row {line_number} has fewer than 3 columns")
     payload = _payload(row[2])
     source = payload["source"]
     if not source or source.strip() != source:
-        raise ValueError("TERMINAL_CMD source must be a non-empty exact string")
+        raise ValueError("FINAL_APPROACH_CMD source must be a non-empty exact string")
     issued = _boolean("issued", payload["issued"])
     passed = _boolean("passed", payload["passed"])
     command = FinalApproachCommand(
@@ -123,24 +123,24 @@ def _final_approach_command(row: list[str], line_number: int) -> FinalApproachCo
         passed=passed,
     )
     if issued and (command.cmd_roll is None or command.cmd_pitch is None):
-        raise ValueError("issued TERMINAL_CMD must contain roll and pitch")
+        raise ValueError("issued FINAL_APPROACH_CMD must contain roll and pitch")
     if issued and passed:
-        raise ValueError("TERMINAL_CMD cannot be both issued and passed")
+        raise ValueError("FINAL_APPROACH_CMD cannot be both issued and passed")
     if not issued and any(
         value is not None
         for value in (command.cmd_roll, command.cmd_pitch, command.cmd_thr)
     ):
-        raise ValueError("unissued TERMINAL_CMD must not contain command values")
+        raise ValueError("unissued FINAL_APPROACH_CMD must not contain command values")
     if command.dt_wall_ms is not None and command.dt_wall_ms < 0.0:
-        raise ValueError("TERMINAL_CMD dt_wall_ms must be non-negative")
+        raise ValueError("FINAL_APPROACH_CMD dt_wall_ms must be non-negative")
     if not -180.0 <= command.body_bearing_deg <= 180.0:
-        raise ValueError("TERMINAL_CMD body_bearing_deg must be in [-180, 180]")
+        raise ValueError("FINAL_APPROACH_CMD body_bearing_deg must be in [-180, 180]")
     if command.cmd_roll is not None and not -180.0 <= command.cmd_roll <= 180.0:
-        raise ValueError("TERMINAL_CMD cmd_roll must be in [-180, 180]")
+        raise ValueError("FINAL_APPROACH_CMD cmd_roll must be in [-180, 180]")
     if command.cmd_pitch is not None and not -90.0 <= command.cmd_pitch <= 90.0:
-        raise ValueError("TERMINAL_CMD cmd_pitch must be in [-90, 90]")
+        raise ValueError("FINAL_APPROACH_CMD cmd_pitch must be in [-90, 90]")
     if command.cmd_thr is not None and not 0.0 <= command.cmd_thr <= 1.0:
-        raise ValueError("TERMINAL_CMD cmd_thr must be in [0, 1]")
+        raise ValueError("FINAL_APPROACH_CMD cmd_thr must be in [0, 1]")
     return command
 
 
@@ -148,7 +148,7 @@ def parse_final_approach_commands(path: Path) -> list[FinalApproachCommand]:
     commands: list[FinalApproachCommand] = []
     with path.open("r", encoding="utf-8", errors="strict", newline="") as handle:
         for line_number, row in enumerate(csv.reader(handle), start=1):
-            if len(row) >= 2 and row[1] == "EVENT:TERMINAL_CMD":
+            if len(row) >= 2 and row[1] == "EVENT:FINAL_APPROACH_CMD":
                 commands.append(_final_approach_command(row, line_number))
     return commands
 
@@ -162,7 +162,7 @@ def parse_final_approach_command_episodes(path: Path) -> list[list[FinalApproach
     with path.open("r", encoding="utf-8", errors="strict", newline="") as handle:
         for line_number, row in enumerate(csv.reader(handle), start=1):
             event = row[1] if len(row) >= 2 else ""
-            if event == "EVENT:TERMINAL_CMD":
+            if event == "EVENT:FINAL_APPROACH_CMD":
                 command = _final_approach_command(row, line_number)
                 if source_key is None:
                     source_key = command.source_key
@@ -170,7 +170,7 @@ def parse_final_approach_command_episodes(path: Path) -> list[list[FinalApproach
                     raise ValueError("final-approach episode changed atomic source identity")
                 if passed and (command.issued or not command.passed):
                     raise ValueError(
-                        "non-pass-suppressed TERMINAL_CMD appeared after pass "
+                        "non-pass-suppressed FINAL_APPROACH_CMD appeared after pass "
                         "and before SNAP"
                     )
                 current.append(command)

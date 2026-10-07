@@ -121,7 +121,7 @@ def verify_live_rows(case: Path, output: Path) -> dict:
             first = next(iter(missing))
             raise ValueError(f"live row mismatch in {name} at source time {first.split(',')[0]}")
         if name == "navigation_debug.csv" and any(
-                ",EVENT:TERMINAL_CMD," not in row and ",EVENT:TERMINAL_RESPONSE_STATE," not in row
+                ",EVENT:FINAL_APPROACH_CMD," not in row and ",EVENT:FINAL_APPROACH_RESPONSE_STATE," not in row
                 for row in Counter(full) - Counter(live)):
             raise ValueError("replay added an event unrelated to diagnostic cadence")
         counts[name] = dict(live=len(live), replay=len(full))
@@ -147,7 +147,7 @@ def run(case: Path, lifecycle: Path, count: int, output: Path) -> dict:
     result["live_rows"] = verify_live_rows(case, output)
     result["causality"] = asdict(analyze(output / "navigation_debug.csv"))
     with (output / "navigation_debug.csv").open() as stream:
-        states = [r for r in csv.reader(stream) if len(r) > 2 and r[1] == "EVENT:TERMINAL_RESPONSE_STATE"]
+        states = [r for r in csv.reader(stream) if len(r) > 2 and r[1] == "EVENT:FINAL_APPROACH_RESPONSE_STATE"]
     if len(states) != result["commands"] - result["noncapture_reissues"]:
         raise ValueError("unexplained response-state count")
     times = [float(dict(token.split("=", 1) for token in row[2].split(";") if "=" in token)["obs_ts"])

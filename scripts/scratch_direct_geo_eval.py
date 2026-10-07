@@ -12,7 +12,7 @@ gates are the base evaluator's, imported or mirrored line for line:
   --goal-distance, same repetitions guard
 Justified differences (documented, not silent):
 - command causality check SKIPPED: it recomputes the vision-law formula from
-  TERMINAL_RESPONSE_STATE events, which the legacy law does not emit
+  FINAL_APPROACH_RESPONSE_STATE events, which the legacy law does not emit
 - midcourse pitch-step gate SKIPPED (stability numbers still recorded): the
   legacy law's scoring interval feedforward step (~25 deg) is its designed behavior,
   the 2 deg midcourse gate encodes vision-law smoothness expectations

@@ -810,7 +810,7 @@ def test_final_approach_diagnostics_sample_every_command_but_rate_limit_compact_
     assert second_snap.dist < first_snap.dist
     navigation_logger.drain()
     assert len(compact.getvalue().strip().splitlines()) == 1
-    assert debug.getvalue().count("EVENT:TERMINAL_CMD") == 1
+    assert debug.getvalue().count("EVENT:FINAL_APPROACH_CMD") == 1
     navigation_logger.close()
 
 

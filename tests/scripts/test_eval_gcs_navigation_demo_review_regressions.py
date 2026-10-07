@@ -87,7 +87,7 @@ def _final_approach_row(
             f"passed={passed}",
         )
     )
-    return f"{wall},EVENT:TERMINAL_CMD,{payload},,,,,,,,,\n"
+    return f"{wall},EVENT:FINAL_APPROACH_CMD,{payload},,,,,,,,,\n"
 
 
 def test_confirmation_ws_is_open_before_trigger_and_echoes_exact_round_uid():

@@ -103,7 +103,7 @@ def _row(
     ]
     if omit:
         fields = [f for f in fields if not f.startswith(f"{omit}=")]
-    return ("12:00:00.000,EVENT:TERMINAL_RESPONSE_STATE,"
+    return ("12:00:00.000,EVENT:FINAL_APPROACH_RESPONSE_STATE,"
             + ";".join(fields) + ",,,,,,,,,\n")
 
 

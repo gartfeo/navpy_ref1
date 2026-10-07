@@ -39,7 +39,7 @@ Event streams, keyed by ``(sys_id, stream)``:
   (fresh / duplicate / gap_mismatch / invalid).
 - ``worker`` -- one row per final-approach command actually SENT
   (``execute_final_approach_command``, every command -- not decimated like the
-  TERMINAL_CMD log event): raw observation source timestamp, matching source-
+  FINAL_APPROACH_CMD log event): raw observation source timestamp, matching source-
   clock now, diagnostic execution time, and the compatibility marker
   ``measured``, and whether the 25 Hz tick used a ``fresh`` command or a
   zero-order ``held`` primitive command. The current final-approach runtime does not

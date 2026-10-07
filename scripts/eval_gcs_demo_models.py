@@ -53,7 +53,7 @@ class ThreeUavIds:
 
 @dataclass(frozen=True)
 class FinalApproachCommand:
-    """Immutable passive copy of one atomic TERMINAL_CMD payload."""
+    """Immutable passive copy of one atomic FINAL_APPROACH_CMD payload."""
 
     wall_s: float
     source: str

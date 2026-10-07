@@ -21,7 +21,7 @@ LIMITATIONS = [
     "Recorded settings, resolved spots and command bounds are not all run inputs. "
     "Complete missions, EEPROM, firmware, dependencies, environment and fresh boot "
     "identity are not established by these artifacts.",
-    "Issued TERMINAL_CMD records are sampled by the wall-cadence logger. Equal "
+    "Issued FINAL_APPROACH_CMD records are sampled by the wall-cadence logger. Equal "
     "records do not establish equality of every executed command or trajectory.",
     "Per-run scoring limits are not cross-run tolerances. Numerical differences "
     "are reported without a tolerance waiver; their causes require investigation.",

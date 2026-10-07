@@ -1,12 +1,12 @@
 local PARAM_TABLE_KEY = 88
 
 assert(param:add_table(PARAM_TABLE_KEY, "AAS_", 30), "Failed to add AAS parameter table")
-assert(param:add_param(PARAM_TABLE_KEY, 1,  "TERM_PITCH", 0), "Failed to add TERM_PITCH parameter")
-assert(param:add_param(PARAM_TABLE_KEY, 2,  "TERM_THR", -1), "Failed to add TERM_THR parameter")
-assert(param:add_param(PARAM_TABLE_KEY, 3,  "TERM_DIR", 0), "Failed to add TERM_DIR parameter")
-assert(param:add_param(PARAM_TABLE_KEY, 4,  "TERM_P_KP", 0.35), "Failed to add TERM_P_KP parameter")
-assert(param:add_param(PARAM_TABLE_KEY, 5,  "TERM_PLD", -1), "Failed to add TERM_PLD parameter")
-assert(param:add_param(PARAM_TABLE_KEY, 6,  "TERM_PLRD", -1), "Failed to add TERM_PLRD parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 1,  "DEL_PITCH", 0), "Failed to add DEL_PITCH parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 2,  "DEL_THR", -1), "Failed to add DEL_THR parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 3,  "DEL_DIR", 0), "Failed to add DEL_DIR parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 4,  "DEL_P_KP", 0.35), "Failed to add DEL_P_KP parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 5,  "DEL_PLD", -1), "Failed to add DEL_PLD parameter")
+assert(param:add_param(PARAM_TABLE_KEY, 6,  "DEL_PLRD", -1), "Failed to add DEL_PLRD parameter")
 assert(param:add_param(PARAM_TABLE_KEY, 7,  "USE_TRN", 1), "Failed to add USE_TRN parameter")
 
 assert(param:add_param(PARAM_TABLE_KEY, 8,  "TARG_WPS", 16), "Failed to add TARG_WPS parameter")
@@ -22,6 +22,6 @@ assert(param:add_param(PARAM_TABLE_KEY, 18, "NAV_ONESHOT", 0), "Failed to add NA
 assert(param:add_param(PARAM_TABLE_KEY, 15, "LOG_DEFER", 0), "Failed to add LOG_DEFER parameter")
 assert(param:add_param(PARAM_TABLE_KEY, 16, "LOG_RATE", 2), "Failed to add LOG_RATE parameter")
 
-assert(param:add_param(PARAM_TABLE_KEY, 17, "TERM_CTRL", 1), "Failed to add TERM_CTRL parameter")  -- 0=PID, 1=PN
+assert(param:add_param(PARAM_TABLE_KEY, 17, "DEL_CTRL", 1), "Failed to add DEL_CTRL parameter")  -- 0=PID, 1=PN
 
 assert(param:add_param(PARAM_TABLE_KEY, 19, "NAV_CGT", 15), "Failed to add NAV_CGT parameter")  -- operator gate timeout (sec)

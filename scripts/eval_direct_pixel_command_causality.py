@@ -34,7 +34,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 
-EVENT = "EVENT:TERMINAL_RESPONSE_STATE"
+EVENT = "EVENT:FINAL_APPROACH_RESPONSE_STATE"
 GRAVITY_MSS = 9.80665
 TOLERANCE_DEG = 1e-6
 

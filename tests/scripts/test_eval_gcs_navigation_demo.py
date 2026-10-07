@@ -102,14 +102,14 @@ def _write_episode(
         dt = "" if index == 0 else f"{wall_step_s * 1000:.0f}"
         timestamp = _clock(index, wall_step_s)
         debug_rows.append(
-            f"{timestamp},EVENT:TERMINAL_CMD,source=camera;generation=4;"
+            f"{timestamp},EVENT:FINAL_APPROACH_CMD,source=camera;generation=4;"
             f"task=1;obj=11;obs_ts={1000 + index * source_step_s:.3f};"
             f"dt_wall_ms={dt};body_bearing_deg=2.5;cmd_roll={roll:.2f};"
             "cmd_pitch=-10;cmd_thr=0.55;issued=True;passed=False,,,,,,,,,"
         )
     pass_index = len(rolls)
     debug_rows.append(
-        f"{_clock(pass_index, wall_step_s)},EVENT:TERMINAL_CMD,"
+        f"{_clock(pass_index, wall_step_s)},EVENT:FINAL_APPROACH_CMD,"
         "source=camera;generation=4;task=1;obj=11;"
         f"obs_ts={1000 + pass_index * source_step_s:.3f};"
         f"dt_wall_ms={wall_step_s * 1000:.0f};body_bearing_deg=2.5;"
@@ -609,7 +609,7 @@ def test_legacy_pitch_state_rows_do_not_change_atomic_command_score(tmp_path):
     debug_path = tmp_path / "uav_1_navigation_debug.csv"
     debug_text = debug_path.read_text(encoding="utf-8")
     legacy_row = (
-        "12:00:00.050,EVENT:TERMINAL_PITCH_STATE,"
+        "12:00:00.050,EVENT:FINAL_APPROACH_PITCH_STATE,"
         "lateral_source=body_fixed_visual_p;pn_available=False,,,,,,,,,\n"
     )
     debug_path.write_text(
