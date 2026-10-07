@@ -1,0 +1,103 @@
+{
+  "input": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\claude\\C--repos-navpy--claude-worktrees-stoic-bell-d79710\\c70c25a2-e9ab-4ae9-8b02-77e6cf8596c1\\scratchpad\\s1_dim_restart.jsonl",
+  "meta": {
+    "argv": [
+      "/home/pf/bench/zr10-latency-20260830/measure_zr10_latency.py",
+      "--output",
+      "/home/pf/bench/s1_dim_restart.jsonl",
+      "--no-recenter",
+      "--roi-x",
+      "0",
+      "--roi-y",
+      "348",
+      "--roi-w",
+      "400",
+      "--roi-h",
+      "40",
+      "--events",
+      "400",
+      "--on-time",
+      "0.003",
+      "--interval-min",
+      "0.15",
+      "--interval-max",
+      "0.45"
+    ],
+    "roi": [
+      0,
+      348,
+      400,
+      40
+    ],
+    "versions": {
+      "python": "3.10.12",
+      "gstreamer": "GStreamer 1.20.3",
+      "glib": "2.71.3",
+      "numpy": "1.21.5",
+      "kernel": "5.15.185-tegra"
+    },
+    "random_seed": 20260830
+  },
+  "diagnostics": {
+    "frames_rejected_bad_pts": 0,
+    "frames_saturated": 0,
+    "gpio_pairs_malformed": 0,
+    "gpio_edge_span_us": {
+      "median": 29.313,
+      "max": 289.224
+    }
+  },
+  "frames": 3129,
+  "pulses_total": 400,
+  "pulses_analyzed": 398,
+  "pulses_terminal_excluded": 2,
+  "frame_period_ms": 40.0898736875,
+  "affine": {
+    "alpha": 1.2026962227299804,
+    "beta_ns": 138780067137562.4,
+    "residual_sd_ms": 5.105064271544032,
+    "block_alphas": [
+      1.2026648654632035,
+      1.2026961440366817,
+      1.2026298066030272,
+      1.2027066191127282,
+      1.202741171565995,
+      1.2027162038170172
+    ],
+    "block_map_divergence_ms": 0.808158953125
+  },
+  "classes": {
+    "single": 77,
+    "split": 4,
+    "miss": 317
+  },
+  "lit_threshold": 12.0,
+  "prior_offset_ms": 99.8,
+  "coarse_latency_ms": 94.8744,
+  "split_crossing": {
+    "insufficient": "4 split pulses; 25 required"
+  },
+  "miss_band": {
+    "band_start_ms": 30.009986703125,
+    "band_end_ms": 32.268018421875,
+    "center_ms": 31.1390025625,
+    "exposure_width_ms": 34.68737696875,
+    "misses": 317,
+    "lit_samples": 81,
+    "misses_inside_band": 12,
+    "misses_outside_band": 305,
+    "lit_samples_inside_band": 0,
+    "coherence_fraction": 0.03785488958990536,
+    "observed_miss_fraction": 0.7964824120603015,
+    "uniform_expected_miss_fraction": 0.05632424128724688,
+    "consistent": false
+  },
+  "half_session_drift_ms": null,
+  "verdict": {
+    "valid": false,
+    "failures": [
+      "miss band incoherent: 305 of 317 misses lie OUTSIDE the 2.258 ms band they set (coherence 0.038, lit samples inside 0); this miss population cannot be one stationary dead-time band - suspect sub-threshold deposits from LED misalignment or a response that changed mid-session (PROTOCOL)",
+      "no primary estimate: neither split crossing nor miss band reached its declared minimum"
+    ]
+  }
+}

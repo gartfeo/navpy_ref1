@@ -1,0 +1,64 @@
+{
+  "records": 3000,
+  "commands": 1408,
+  "noncapture_reissues": 281,
+  "captures": 1797,
+  "capture_intervals_us": {
+    "39984": 440,
+    "19992": 1334,
+    "20825": 13,
+    "40817": 9
+  },
+  "live_rows": {
+    "navigation_debug.csv": {
+      "live": 781,
+      "replay": 2923
+    },
+    "navigation_compact.csv": {
+      "live": 56,
+      "replay": 1127
+    }
+  },
+  "causality": {
+    "sample_count": 1127,
+    "roll_max_residual_deg": 7.105427357601002e-15,
+    "pitch_max_residual_deg": 0.0,
+    "roll_max_step_deg": 40.58136377042871,
+    "pitch_max_step_deg": 4.997742238474537,
+    "held_sample_count": 0
+  },
+  "case": "/mnt/c/Users/GARTF/AppData/Local/Temp/navpy-determinism-review-20260920/.sitl-runs/lockstep-fleet-20260920-215131-676303/121",
+  "evidence_sha256": {
+    "peer.json": "9b5aae56f50121889c9628222ce0a6990b6d3f935b8d169b2dd70a78c74bc5af",
+    "identity.json": "581dfa13f72e8b0ef1b3c3ca6bd8b4f19ad4c5457671d228f1f3fb059c2a7db0",
+    "navpy-navigation.csv": "460224ff33e5f8b149f0a9fe2e46c0284ae7d4345e6e99fb2dcbf82f68c5d414",
+    "navigation_debug.csv": "792b28dc5275342c4297ffb8e1200e434d3cbd8f7f716abbeaf3642aac0de61c",
+    "navigation_compact.csv": "91a37fd66ab7cd476757672c24fa54a3b2ca892bf0a893f9389daa40f0e9f8a9"
+  },
+  "lifecycle": "/mnt/c/Users/GARTF/AppData/Local/Temp/navpy-determinism-review-20260920/.sitl-runs/lockstep-fleet-20260920-215131-676303",
+  "instances": 3,
+  "fleet_bound": true,
+  "method_sha256": {
+    "replay_navigation_trace.py": "d17746644bfa2b685b78bd6465cbfcb93f8518bf73c8fb0807c4b3e8bc3cd3a8",
+    "compare_simtime_navigation.py": "44106848c7a75880769daa90145e60ea2682ff06a84035fb9c03bbca799a712f",
+    "eval_direct_pixel_command_causality.py": "8614603a81a9d29a39b9425b530ca37f91182d9b7e72eb2c601cdc97710eed24"
+  },
+  "exact_replay": true,
+  "parameter_attribution": "not available from this capture protocol",
+  "limits": "Input residuals include bias, dynamics and timing; they are not isolated noise. No spectral or causal-noise attribution.",
+  "capture_heads": {
+    "navpy_head": "56dc0dec7de34a938f71dfda859ad52640b09f04",
+    "firmware_head": "c36159f4a3107eb0c57a310c199501f999c1e345",
+    "binary_sha256": "aca9601a1d0a417e49b510cddbed804d8b21da4d4cc1889a99760dfb1ef49570"
+  },
+  "raw_replay_sha256": {
+    "report.json": "c7c8ca2429bcbb08b96243aee660104f937393d2f34a61c395756fa6f9703b32",
+    "navigation_debug.csv": "ae132378e38f0d410c1c7a866ac198a4fabb83ea1e95ffff623211256a597a4d",
+    "navigation_compact.csv": "1ad92a875257260a45b405d884c1bc77aafba42044a895f6f87d1f115e1c3332"
+  },
+  "interpretation": "Exact offline replay and command provenance; not a measured causal share for any noise source.",
+  "captured_input_phases": {
+    "before_pass": 1129,
+    "after_visual_pass": 668
+  }
+}

@@ -1,0 +1,464 @@
+{
+  "runs": [
+    {
+      "directory": ".sitl-runs/lockstep-fleet-20260921-090706-146369",
+      "run_id": "3e5ac193bfc14b40a0ab47047f82adfd",
+      "boot": [
+        1711444844533221634,
+        7651112131979154776
+      ],
+      "speedup": 10.0,
+      "delayed": false,
+      "dock": [
+        40.3207414,
+        44.4552111,
+        1324.85
+      ],
+      "home": [
+        40.311741399999995,
+        44.4552111,
+        1294.84
+      ],
+      "seed_step": 752,
+      "first_pass_step": 2309,
+      "seed_time_s": 55.026312,
+      "pass_time_s": 86.166312,
+      "last_boundary_s": 99.986312,
+      "contact_messages": [],
+      "raw_closest": {
+        "distance_m": 0.011870117049060717,
+        "time_s": 86.12078890839085,
+        "ned_m": [
+          -0.004400245643496448,
+          -0.006261525604098039,
+          -0.009073632907745228
+        ],
+        "horizontal_m": 0.007653029766954052,
+        "vertical_m": -0.009073632907745228,
+        "fraction": 0.7238454195425513,
+        "segment_start_us": 86106312,
+        "segment_end_us": 86126312,
+        "sampled_distance_m": 0.18548882637365283,
+        "sampled_time_s": 86.126312
+      },
+      "render_closest": {
+        "distance_m": 0.011879235669382327,
+        "time_s": 86.12078890119427,
+        "ned_m": [
+          -0.004404866859896717,
+          -0.006267737823688835,
+          -0.009079033572402372
+        ],
+        "horizontal_m": 0.007660769509645621,
+        "vertical_m": -0.009079033572402372,
+        "fraction": 0.7238450597133543,
+        "segment_start_us": 86106312,
+        "segment_end_us": 86126312,
+        "sampled_distance_m": 0.18548963555172918,
+        "sampled_time_s": 86.126312
+      },
+      "raw_log_intervals_us": {
+        "20000": 1557
+      },
+      "coordinate_reconstruction_max_error_m": 0.0,
+      "local_acceleration_estimate_mps2": 0.6859343277400886,
+      "linear_interpolation_error_scale_m": 3.429671638700443e-05,
+      "interpolation_limit": "Estimate from adjacent logged velocity changes, not a proven continuous-acceleration bound; raw physics substeps are not logged.",
+      "terrain_records": 102,
+      "terrain_loaded_values": [
+        0
+      ],
+      "terrain_status_values": [
+        1
+      ],
+      "terrain_model": "Flat home-plane fallback observed; real terrain unavailable.",
+      "point_height_above_model_ground_m": 30.01003417968741,
+      "minimum_raw_clearance_approach_m": 29.83516497640212,
+      "minimum_raw_clearance_after_pass_m": 21.71852802078333,
+      "navigation_entry_raw_clearance_m": 49.624583044504696,
+      "parameters": {
+        "SIM_NOISE_OFF": 8191.0,
+        "SIM_RATE_HZ": 1000.0,
+        "SIM_TERRAIN": 1.0,
+        "SIM_GND_BEHAV": -1.0,
+        "SIM_WIND_SPD": 0.0,
+        "SIM_PLD_ENABLE": 0.0,
+        "SIM_SHIP_ENABLE": 0.0,
+        "RLL2SRV_TCONST": 0.25,
+        "PTCH2SRV_TCONST": 0.25,
+        "SIM_SERVO_SPEED": 0.14000000059604645
+      },
+      "trace_hash": "fed81802d5fa8f55a0f5c846809b99d6f7fadb0697dc255349579594e79726da",
+      "raw_trace_sha256": "d8e0d36b9ea3722773535885578a93c136be980e87ca5b3eb06f9ac56501eceb",
+      "coordinate_round_trip_note": "Algebraic consistency only: origin and scale factors cancel; this does not independently validate raw home-to-origin removal.",
+      "source_identity_sha256": "5708f8a66e704d1724b167eb12220e3614de374c8ba90ce52be3fb379edb5a46",
+      "binary_sha256": "0f43433bc83b292d661b2a9ade5a8620b5b8802a7d64cec286ca8ef8882de20a",
+      "firmware_head": "584dba4a6cf6813d8601ff9e6f65cf1bc2ae3d91",
+      "evidence_sha256": {
+        "fleet.json": "e6ce892306bfc93344e14ef96587255257cba1125c4c826cdaa44752eb95b12b",
+        "121/identity.json": "a230ad36030b048f8d46cf5d71bcdcd47fe1b5f8828e13791d04540263e0ea1d",
+        "121/peer.json": "cd6b9dcdd8584d072d7e8ae3d17a7f4fc4622f1e28171cf41fb43b0e5d7cab92",
+        "121/flight.BIN": "88d53436103ba336da40b6f209dc08bfb72982f350a4ed07e5927abcb6431af1",
+        "121/navpy-pose.csv": "c48915061991b1097f10a25c820ad85c4f44cd3820b8c736cc51151c88210172"
+      },
+      "captured_evaluator_sha256": "1312b4a015d5d342ee6dbf3e5ef296e1f51e30673ca431b9c7e1c913baeedf6f"
+    },
+    {
+      "directory": ".sitl-runs/lockstep-fleet-20260921-090825-453726",
+      "run_id": "9618d171ac8146e4af681159e8a88a4b",
+      "boot": [
+        11708764553165129530,
+        5655040282738890710
+      ],
+      "speedup": 1.0,
+      "delayed": true,
+      "dock": [
+        40.3207414,
+        44.4552111,
+        1324.85
+      ],
+      "home": [
+        40.311741399999995,
+        44.4552111,
+        1294.84
+      ],
+      "seed_step": 752,
+      "first_pass_step": 2309,
+      "seed_time_s": 55.026312,
+      "pass_time_s": 86.166312,
+      "last_boundary_s": 99.986312,
+      "contact_messages": [],
+      "raw_closest": {
+        "distance_m": 0.011870117049060717,
+        "time_s": 86.12078890839085,
+        "ned_m": [
+          -0.004400245643496448,
+          -0.006261525604098039,
+          -0.009073632907745228
+        ],
+        "horizontal_m": 0.007653029766954052,
+        "vertical_m": -0.009073632907745228,
+        "fraction": 0.7238454195425513,
+        "segment_start_us": 86106312,
+        "segment_end_us": 86126312,
+        "sampled_distance_m": 0.18548882637365283,
+        "sampled_time_s": 86.126312
+      },
+      "render_closest": {
+        "distance_m": 0.011879235669382327,
+        "time_s": 86.12078890119427,
+        "ned_m": [
+          -0.004404866859896717,
+          -0.006267737823688835,
+          -0.009079033572402372
+        ],
+        "horizontal_m": 0.007660769509645621,
+        "vertical_m": -0.009079033572402372,
+        "fraction": 0.7238450597133543,
+        "segment_start_us": 86106312,
+        "segment_end_us": 86126312,
+        "sampled_distance_m": 0.18548963555172918,
+        "sampled_time_s": 86.126312
+      },
+      "raw_log_intervals_us": {
+        "20000": 1557
+      },
+      "coordinate_reconstruction_max_error_m": 0.0,
+      "local_acceleration_estimate_mps2": 0.6859343277400886,
+      "linear_interpolation_error_scale_m": 3.429671638700443e-05,
+      "interpolation_limit": "Estimate from adjacent logged velocity changes, not a proven continuous-acceleration bound; raw physics substeps are not logged.",
+      "terrain_records": 92,
+      "terrain_loaded_values": [
+        0
+      ],
+      "terrain_status_values": [
+        1
+      ],
+      "terrain_model": "Flat home-plane fallback observed; real terrain unavailable.",
+      "point_height_above_model_ground_m": 30.01003417968741,
+      "minimum_raw_clearance_approach_m": 29.83516497640212,
+      "minimum_raw_clearance_after_pass_m": 21.71852802078333,
+      "navigation_entry_raw_clearance_m": 49.624583044504696,
+      "parameters": {
+        "SIM_NOISE_OFF": 8191.0,
+        "SIM_RATE_HZ": 1000.0,
+        "SIM_TERRAIN": 1.0,
+        "SIM_GND_BEHAV": -1.0,
+        "SIM_WIND_SPD": 0.0,
+        "SIM_PLD_ENABLE": 0.0,
+        "SIM_SHIP_ENABLE": 0.0,
+        "RLL2SRV_TCONST": 0.25,
+        "PTCH2SRV_TCONST": 0.25,
+        "SIM_SERVO_SPEED": 0.14000000059604645
+      },
+      "trace_hash": "fed81802d5fa8f55a0f5c846809b99d6f7fadb0697dc255349579594e79726da",
+      "raw_trace_sha256": "d8e0d36b9ea3722773535885578a93c136be980e87ca5b3eb06f9ac56501eceb",
+      "coordinate_round_trip_note": "Algebraic consistency only: origin and scale factors cancel; this does not independently validate raw home-to-origin removal.",
+      "source_identity_sha256": "5708f8a66e704d1724b167eb12220e3614de374c8ba90ce52be3fb379edb5a46",
+      "binary_sha256": "0f43433bc83b292d661b2a9ade5a8620b5b8802a7d64cec286ca8ef8882de20a",
+      "firmware_head": "584dba4a6cf6813d8601ff9e6f65cf1bc2ae3d91",
+      "evidence_sha256": {
+        "fleet.json": "82b5ed7e966d720cbd4657a15895eda89873574232d4168146ba5d0ed6d02030",
+        "121/identity.json": "a230ad36030b048f8d46cf5d71bcdcd47fe1b5f8828e13791d04540263e0ea1d",
+        "121/peer.json": "2a6b5d804d2120a2de1d989586738c79f50d6e8e78cb39d1082924be6a2a5272",
+        "121/flight.BIN": "019b86323f6304464c95d1988337a908ef712235fafb898fb8e3be881d124392",
+        "121/navpy-pose.csv": "e339b07a1e24bb7473d1e784c669db60f0d3e5ff404b23c27a94ec1d21991c7d"
+      },
+      "captured_evaluator_sha256": "1312b4a015d5d342ee6dbf3e5ef296e1f51e30673ca431b9c7e1c913baeedf6f"
+    }
+  ],
+  "history_equal": true,
+  "original_pair_total_control_steps": 6000,
+  "control_steps_per_run": 3000,
+  "final_runtime_confirmation": {
+    "directory": ".sitl-runs/lockstep-fleet-20260921-092404-811897",
+    "run_id": "9aecb015d24e4d7f9b5f3c41fd4efe55",
+    "boot": [
+      2271634689921948889,
+      5448796564860556544
+    ],
+    "speedup": 10.0,
+    "delayed": false,
+    "dock": [
+      40.3207414,
+      44.4552111,
+      1324.85
+    ],
+    "home": [
+      40.311741399999995,
+      44.4552111,
+      1294.84
+    ],
+    "seed_step": 752,
+    "first_pass_step": 2309,
+    "seed_time_s": 55.026312,
+    "pass_time_s": 86.166312,
+    "last_boundary_s": 99.986312,
+    "contact_messages": [],
+    "raw_closest": {
+      "distance_m": 0.011870117049060717,
+      "time_s": 86.12078890839085,
+      "ned_m": [
+        -0.004400245643496448,
+        -0.006261525604098039,
+        -0.009073632907745228
+      ],
+      "horizontal_m": 0.007653029766954052,
+      "vertical_m": -0.009073632907745228,
+      "fraction": 0.7238454195425513,
+      "segment_start_us": 86106312,
+      "segment_end_us": 86126312,
+      "sampled_distance_m": 0.18548882637365283,
+      "sampled_time_s": 86.126312
+    },
+    "render_closest": {
+      "distance_m": 0.011879235669382327,
+      "time_s": 86.12078890119427,
+      "ned_m": [
+        -0.004404866859896717,
+        -0.006267737823688835,
+        -0.009079033572402372
+      ],
+      "horizontal_m": 0.007660769509645621,
+      "vertical_m": -0.009079033572402372,
+      "fraction": 0.7238450597133543,
+      "segment_start_us": 86106312,
+      "segment_end_us": 86126312,
+      "sampled_distance_m": 0.18548963555172918,
+      "sampled_time_s": 86.126312
+    },
+    "raw_log_intervals_us": {
+      "20000": 1557
+    },
+    "coordinate_reconstruction_max_error_m": 0.0,
+    "local_acceleration_estimate_mps2": 0.6859343277400886,
+    "linear_interpolation_error_scale_m": 3.429671638700443e-05,
+    "interpolation_limit": "Estimate from adjacent logged velocity changes, not a proven continuous-acceleration bound; raw physics substeps are not logged.",
+    "terrain_records": 101,
+    "terrain_loaded_values": [
+      0
+    ],
+    "terrain_status_values": [
+      1
+    ],
+    "terrain_model": "Flat home-plane fallback observed; real terrain unavailable.",
+    "point_height_above_model_ground_m": 30.01003417968741,
+    "minimum_raw_clearance_approach_m": 29.83516497640212,
+    "minimum_raw_clearance_after_pass_m": 21.71852802078333,
+    "navigation_entry_raw_clearance_m": 49.624583044504696,
+    "parameters": {
+      "SIM_NOISE_OFF": 8191.0,
+      "SIM_RATE_HZ": 1000.0,
+      "SIM_TERRAIN": 1.0,
+      "SIM_GND_BEHAV": -1.0,
+      "SIM_WIND_SPD": 0.0,
+      "SIM_PLD_ENABLE": 0.0,
+      "SIM_SHIP_ENABLE": 0.0,
+      "RLL2SRV_TCONST": 0.25,
+      "PTCH2SRV_TCONST": 0.25,
+      "SIM_SERVO_SPEED": 0.14000000059604645
+    },
+    "trace_hash": "fed81802d5fa8f55a0f5c846809b99d6f7fadb0697dc255349579594e79726da",
+    "raw_trace_sha256": "d8e0d36b9ea3722773535885578a93c136be980e87ca5b3eb06f9ac56501eceb",
+    "coordinate_round_trip_note": "Algebraic consistency only: origin and scale factors cancel; this does not independently validate raw home-to-origin removal.",
+    "source_identity_sha256": "9804cf5b0f9b67b647d41dc72f79ed40862be7bc0b8afe2992a2f976c2ae07c9",
+    "binary_sha256": "0f43433bc83b292d661b2a9ade5a8620b5b8802a7d64cec286ca8ef8882de20a",
+    "firmware_head": "584dba4a6cf6813d8601ff9e6f65cf1bc2ae3d91",
+    "evidence_sha256": {
+      "fleet.json": "2888998c900462a76f133b543298af99b336771d90fc1f0cda89ce2af6e88aff",
+      "121/identity.json": "c0844928546d5daa0f47e6b6538acd6a6fd7636d58ebe690492b999a4ab2458f",
+      "121/peer.json": "f52dd866fc0699a5e7b7d198fefffb02d6fe19c126da9ea4777c6016045f3ceb",
+      "121/flight.BIN": "e87fdf4e1cc961bc47f6c95f0957504de43387aa023053ad3cc399fde3430496",
+      "121/navpy-pose.csv": "442db5ffd338f9f50d4ecbcd8eb41fa3dec1c9f3b658693928f3bd97d6c239c6"
+    },
+    "captured_evaluator_sha256": "63eb9b217cae18a19bc24db9b68e331d29db63e912dc9c58941c453427ff8d8a"
+  },
+  "total_captured_control_steps": 9000,
+  "interpretation": "One noise-off initial-state accuracy case, repeated across speed/host delays, plus final formatting-fix confirmation; interpolated raw miss, not exact physics-substep distance or physical docking.",
+  "navpy_base": "c18b9ed6a424fced4fd31364c1d2c9375d11f8e1",
+  "changed_runtime_files": [
+    "scripts/eval_lockstep_fleet.py"
+  ],
+  "entry_geometry": {
+    "entry": {
+      "source_s": "55.026312",
+      "phase": "approach",
+      "north_m": "294.3420931643197",
+      "east_m": "-47.240693775152664",
+      "down_m": "-49.72454886481705",
+      "raw_lat": "40.31438553534254",
+      "raw_lon": "44.45465456081639",
+      "raw_alt_m": "1344.5645488648172",
+      "raw_clearance_m": "49.624583044504696",
+      "relative_north_m": "-705.908927236196",
+      "relative_east_m": "-47.31631616002784",
+      "relative_down_m": "-19.675220146594086",
+      "distance_m": "707.7664597976719",
+      "vn": "13.490401268005371",
+      "ve": "22.142742156982422",
+      "vd": "0.20048482716083527",
+      "pose_age_us": "0"
+    },
+    "pose_age_us": [
+      0.0
+    ],
+    "max_adjacent_reconstructed_displacement_m": 0.7296601992821826,
+    "max_displacement_minus_mean_velocity_dt_m": 0.0017506910018388864,
+    "true_roll_deg": 46.8427734375,
+    "true_heading_deg": 55.37202072143555,
+    "source": {
+      "run_id": "3e5ac193bfc14b40a0ab47047f82adfd",
+      "message": "NVGUID03 captured snapshot truth; attitude diagnostics only",
+      "step": 752,
+      "source_us": 55026312,
+      "peer_sha256": "cd6b9dcdd8584d072d7e8ae3d17a7f4fc4622f1e28171cf41fb43b0e5d7cab92",
+      "raw_trace_sha256": "d222a41749ff72618857995ef5800fae566c817112c59524905bb61e9c2f44f4",
+      "raw_trace_run_id": "9aecb015d24e4d7f9b5f3c41fd4efe55",
+      "equivalence": "All 3000 truth and observation snapshots equal to original replay run; original raw trace rows identical before correction."
+    }
+  },
+  "final_runtime_identity_differences": {
+    "navpy_head": {
+      "original": "c18b9ed6a424fced4fd31364c1d2c9375d11f8e1",
+      "final": "14371b476d2ce949d49d82cfa35fbe1c235467e4"
+    }
+  },
+  "navigation_source_hashes_equal_across_all_three_runs": true,
+  "generation_input_sha256": {
+    "airborne-results-original-pair.json": "e66f06c4f91b31c715774662212d324caafa9106a97d4e72e0efeadf32bf548d",
+    "final-runtime-result.json": "13adf85afa95d23b176da22ff83af5f7c887a10dafc018a6c044a2ed2cee40be",
+    "geometry-continuity.json": "032a13a8bb2cb3a525af2d942f9d2273a1c98961728050d045fa6c6a7803a661",
+    "helper-build.json": "3795eb095e11b967ebe500a0b9fa14bdd055565456cade848e0ef72a8b956e59"
+  },
+  "source_hash_coverage": {
+    "method": "scripts/simtime_navigation_identity.py:source_hashes",
+    "patterns": [
+      "scripts/*simtime*navigation*.py",
+      "scripts/simtime_step_artifacts.py",
+      "src/navpy/**/*.py"
+    ],
+    "file_count": 749,
+    "navigation_law_files": {
+      "src/navpy/modules/guid/nav/vision_terminal/__init__.py": "84f5ca9086a01c768fc9d33db6522023dc41231aa071657ec0c8c9d02bdc96ee",
+      "src/navpy/modules/guid/nav/vision_terminal/command_anchor.py": "b73fec49f340a78d06cb146f840b24110b3b55b6dc610a8310c1f2d3ee3e42ec",
+      "src/navpy/modules/guid/nav/vision_terminal/command_executor.py": "8e8092b4edd4935c7c5ad62201194ce4c1024ce7e21f6c759cdc0031b3920e9d",
+      "src/navpy/modules/guid/nav/vision_terminal/command_freshness.py": "60b114707637b3eb9bddfc3d3f75f31ce54c369aa436f24ec02836f226297c2a",
+      "src/navpy/modules/guid/nav/vision_terminal/command_hold.py": "2b6e29d9b9c1735b6710bf5c0da37c8430b798b2c31eb65c25bc172be8bcc397",
+      "src/navpy/modules/guid/nav/vision_terminal/command_liveness.py": "c9a87dff6bb68a58f1064e7e05d27c90527281b640cb6fe2895c744311d50ac2",
+      "src/navpy/modules/guid/nav/vision_terminal/command_postprocess.py": "f70a531d39fa3365ae347bd7d97b3ed8b03b2a282ee03dac8fc7fe8d717e5810",
+      "src/navpy/modules/guid/nav/vision_terminal/command_reset.py": "6e52e5c9b99c783889822d6156c4606dc3a0bc00ce8b9af88bbb6fce33369039",
+      "src/navpy/modules/guid/nav/vision_terminal/command_transaction.py": "a608dbf338b0ced1dccf00994a766ed318c7fbb96608086360cbc4dac178354c",
+      "src/navpy/modules/guid/nav/vision_terminal/confirmation.py": "785daf6349797dbe42a14bfa65e7cfae1e3356ddcb10eaeedf9bb0fd37bb45f6",
+      "src/navpy/modules/guid/nav/vision_terminal/diagnostic_capture.py": "a538aa960a894bed892fe978922b4cb4d774ad0592921ed2b4be359dbb604467",
+      "src/navpy/modules/guid/nav/vision_terminal/diagnostic_mailbox.py": "a62fdb8080fdd91963f8912a4f8d5b02f883132a77f59ee59cabfc8e7926446b",
+      "src/navpy/modules/guid/nav/vision_terminal/diagnostics.py": "af4ba8a3019b7e01e88ccebf7aff8678a3bc02d7c2f619f8b187875207b0c25a",
+      "src/navpy/modules/guid/nav/vision_terminal/frame.py": "2fc0b431222a92a0a67fa054670f84e9c3c06b73c1111017af89a4b01bdd589b",
+      "src/navpy/modules/guid/nav/vision_terminal/frame_projection.py": "fb4a3070a611ed5a44140983b49a4e46a26e81a74dfebf5c0f725a5e9758c739",
+      "src/navpy/modules/guid/nav/vision_terminal/ingress.py": "29ad5f12bb9546e9f9dadc19dfa335e762b5b30a93e94b665becdb6823d948cc",
+      "src/navpy/modules/guid/nav/vision_terminal/lateral_rate.py": "0150bfc51bb2d01aa5da79b1b249f840156a4ecd4cdebe57a972f0620b0429dc",
+      "src/navpy/modules/guid/nav/vision_terminal/law.py": "b6ecbeadb91cda3161c22846452e44aeb68c81595ce9b83eb44ce95a77651a0f",
+      "src/navpy/modules/guid/nav/vision_terminal/law_config.py": "cd90d29d983f91fcdea3d95a46e0740cf34f787e2e730fc86c523f0539ebf586",
+      "src/navpy/modules/guid/nav/vision_terminal/law_plan.py": "f255686947eb95a3aaf14a12f78a02ee4165d12389622e5938a0a1205ad258a6",
+      "src/navpy/modules/guid/nav/vision_terminal/pitch_law.py": "82d52468c2684f8caa77edb8d68c65322b7cfba27ba168c9057536fc1f4b52fb",
+      "src/navpy/modules/guid/nav/vision_terminal/queued_frame.py": "343572bad2d02f6b2edb44f9a8a3e5cbe668714ba7b4a869208214d7577d10e1",
+      "src/navpy/modules/guid/nav/vision_terminal/rate_filter.py": "cdad6978a527c79fc7a3e61e0ef2ef3b88d760fad42c891da86a08dba20f4e97",
+      "src/navpy/modules/guid/nav/vision_terminal/runtime.py": "804fd25e12fbe83036bb0ee689cd0413d6203ebc2ebce11f611062189ebe82bd",
+      "src/navpy/modules/guid/nav/vision_terminal/runtime_api.py": "dc266eca2ead5a83443da2cf458aeaf7aa092c532478710fdbfa7132ff416355",
+      "src/navpy/modules/guid/nav/vision_terminal/runtime_composition.py": "de2f778d3bb71324e9667c3fc094e8064b240bd43bf78238124bbc2a69724d85",
+      "src/navpy/modules/guid/nav/vision_terminal/runtime_state.py": "4eeaa4f09da5479d06de322c2ea597c4fc56ba9cac997ef2d30f03f1af078ec7",
+      "src/navpy/modules/guid/nav/vision_terminal/source_epoch.py": "3950237aec0a0c72d766fd9c63a89ac6a57771a494da0968259a716f4395c5ad",
+      "src/navpy/modules/guid/nav/vision_terminal/source_time_adapter.py": "6c047209cffe6c924c9fbb8dffda4b8490755996a6c7c5c895c0b1afc87ef96b",
+      "src/navpy/modules/guid/nav/vision_terminal/source_time_ports.py": "c5a024d6a60221241005549b65c6a9e6979bf1c4dbddc36799114b2f0ba939c5",
+      "src/navpy/modules/guid/nav/vision_terminal/visual_pass.py": "9a5b3a2d0d7f820e48cbd3ea24ce95a6bf5ef013be92894eeacbafc5c98c96b7"
+    }
+  },
+  "hash_note": "Captured file hashes cover executed working-copy bytes; Git blobs may normalize line endings. navpy_head records checkout commit separately from source hashes.",
+  "helper_build": {
+    "command": "g++ -O3 -fsingle-precision-constant -shared -fPIC coordinates.cpp -o coordinates.so",
+    "hashes": {
+      "coordinates.cpp": "afac76b27ff8e2b26c0a34b90583add8914cd77d318de925d680b1993bafd52b",
+      "coordinates.so": "9671c294e1f1ffd61d5238a15ef4b56c983bee7c20869290784690c96d3237d6"
+    }
+  },
+  "audit_method_sha256": {
+    "analyze_airborne.py": "4d1de96bce1be442bf4d0b49c6d364bdee80a3534fadbb20689b87f0c5ee1be4",
+    "generate_record.py": "35e76b8f4601a877c4ccb75ef28e1f5ca598bc553309cfdf2606cda7d81ba340",
+    "coordinates.cpp": "afac76b27ff8e2b26c0a34b90583add8914cd77d318de925d680b1993bafd52b"
+  },
+  "scoring_correction": {
+    "reason": "First moving origin is not fixed simulator startup home. SIM2 positions are relative to fixed home; parse launcher home using native truncation. No flight or navigation changes.",
+    "superseded_raw_closest": {
+      "distance_m": 0.016952448428240605,
+      "time_s": 86.12104662819526,
+      "ned_m": [
+        -0.008789080375823821,
+        -0.01167047101338975,
+        -0.00859870223842503
+      ],
+      "horizontal_m": 0.014609853781850856,
+      "vertical_m": -0.00859870223842503,
+      "fraction": 0.7367314097630997,
+      "segment_start_us": 86106312,
+      "segment_end_us": 86126312,
+      "sampled_distance_m": 0.17728343454381792,
+      "sampled_time_s": 86.126312
+    },
+    "first_moving_origin_lat_int": 403117413,
+    "fixed_startup_home_lat_int": 403117414,
+    "original_pair_transfer_basis": "All archived raw trace rows identical to final-runtime confirmation; home arguments identical. Final-runtime and postmerge boots independently rescored with read_run/read_precision checks.",
+    "postmerge_confirmation_run_id": "c6d0844455f34f4bb9b5385175c8d7df",
+    "corrected_raw_trace_sha256": "d8e0d36b9ea3722773535885578a93c136be980e87ca5b3eb06f9ac56501eceb",
+    "audit_sha256": {
+      "score_corrected.py": "8a1b5931e4c1792327ffdf62904c0e5d1ac194666bf9c9b3b359320e9b48b603",
+      "home-parser.cpp": "e8484c59b5930bf92b4231ccee694a33d37a01d709fc56a6f0006f6c7caa4052",
+      "coordinates.cpp": "afac76b27ff8e2b26c0a34b90583add8914cd77d318de925d680b1993bafd52b",
+      "analyze.py": "0e73f84514ca5dbb09ac8a9be91a4b39c5ebb5f779bc2264e557ef5257b6fcd6",
+      "summary.json": "01d725cd2b1f6b8f70ccd196579a9c101ca79b50b5598849c9ddc54e42495d9f",
+      "finish_correction.py": "bf3707b08b7fec0dafb1dd9fb8c897320c14c72d71331b0e6b15ed55537db27d",
+      "verify_home.py": "5798ed45f29a8f9cf453bb3098ffa470f9dfe3342a11989824f36e001286b9c5",
+      "home-evidence.json": "30e4576615f3d6d0f7f33b330b059d6383612afd43a5a24703900b9485637e12",
+      "command-timing.json": "d6ec241938b83be2e9fc94c09f4117c0b75ff4ccf99884870aed13558f7a3fde"
+    },
+    "original_generation_note": "Original generation_input_sha256 and audit_method_sha256 identify the superseded scoring artifacts; this correction and its hashes identify the current score."
+  }
+}

@@ -1,0 +1,773 @@
+{
+  "date": "2026-09-20",
+  "scope": "identity-only stationary/disarmed simulator experiment, not flight determinism",
+  "matrix_windows": 18,
+  "matrix_control_steps": 18000,
+  "within_speed_exact_comparisons": 72,
+  "firmware_base": "4c23c0a1ff8cea83ac89cbbe97b29e6c3bfada68",
+  "mavlink_dependency": "a38fe8ab2e596d1e76b302f173df74ad676c20f9",
+  "firmware_binary_sha256": "325f48bc2a8abe7edcb973940d83b55642e1f0426afe02ce3de8f79ca31b619e",
+  "runs": [
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-1-delayed-1-none",
+      "result": {
+        "speed": 1,
+        "mode": "delayed",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 60.812999999994645,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=e627db446aee8be0c9d7d534981d7f15,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 0.9998699336166001,
+        "max_wait_us": 7008,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "f01ea90765156cd9d0b46f54cf912389951d66513d353b426e3cc4079f341141",
+        "peer.json": "1464e6e38dc55c672c482878f4769d0e65a50d4e6860bea8e06a20b4c68fd147",
+        "supervisor.log": "b7b5093f40ee1930049621b08d7279fe60ba87ce6f15ea9fcb951fbb8ba500ec",
+        "teardown.log": "ef673c2452538c20c3250bb42a6604600a9ebfacd6b0c1833f56efe5e2c8421e",
+        "command.json": "a12547ff2c4c4292f8149e7c48f92c8ea9d57bfd3bd4453ad6df2d9316519085"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-1-delayed-2-none",
+      "result": {
+        "speed": 1,
+        "mode": "delayed",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 60.703000000008615,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=9103a2a1ad5d009f98104efd6f7d795b,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 0.9999890889378196,
+        "max_wait_us": 7016,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "801666cedadf1aabf099b0fca8c390d2c97e27ca9b3b35566ab7f73370f22a9b",
+        "peer.json": "0f1bff5721b51dcad336c53184c3c79cbadaa597e45bdaec303ca9f7ceff5293",
+        "supervisor.log": "d7b09a2000b6205f5d63f8cca6293582ad6795958e15dc5db73bf4fad286ad7c",
+        "teardown.log": "0dffa2c853248fe05cdc7c1aeac6a799811a689610c0a1ebe5ca97ae44da19a1",
+        "command.json": "9ea22c7a865418ac3780b1d452ef8b4fdaabe46603f6f9ed03d856b7d4e2173d"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-1-delayed-3-none",
+      "result": {
+        "speed": 1,
+        "mode": "delayed",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 60.51500000001397,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=47e41b927a776648b6e11355e084fb87,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 0.999944946611977,
+        "max_wait_us": 7201,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "c1675cce160352faebb4a5aa66dd6e98a2f5169bd2f95c23f050254721caae54",
+        "peer.json": "0a4c146e3ced456354aa2d41eae3079c7511d1ffcf70a7472de90f2cce20d797",
+        "supervisor.log": "fb97a1220dbcc9acd6ceee10c1821f4200194eeec02838a2dbb1d886b4539d32",
+        "teardown.log": "2482e2c4238a58d946ef8f703f7f1b17fed5d1aa40bc2070ab57e55ca31f0cf5",
+        "command.json": "66915cdccc842a1d1c05fbefff036e42b23e46a8c0afff9f171c0052c55835e2"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-1-immediate-1-none",
+      "result": {
+        "speed": 1,
+        "mode": "immediate",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 60.828000000008615,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=03ba50ccca14e2cd78a642ef2c4ff5ce,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 0.9997759705748334,
+        "max_wait_us": 1259,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "9d5c9fa455567d8ac3a8a0f4c619ec3b0c1e749e43fca0fa1e0174387db4edab",
+        "peer.json": "e54a1818d1e70f89a2078693dc607f1564d6b91022248f7b0ee3056dc0765ee2",
+        "supervisor.log": "fb97a1220dbcc9acd6ceee10c1821f4200194eeec02838a2dbb1d886b4539d32",
+        "teardown.log": "5dceb05df9ebd4989417fd1a1ed8554aa43941b44427fd03105e2ef614e94607",
+        "command.json": "45d03a8214cb9be6f06f27c8fe66702b6ec3132648a71250a0ee90d98b8fa4d4"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-1-immediate-2-none",
+      "result": {
+        "speed": 1,
+        "mode": "immediate",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 60.828000000008615,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=c380918d21de2de90f48a2d845312855,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 0.9998611269584852,
+        "max_wait_us": 13196,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "57a88011f051997cc764fe8a10764ea768a02bd617c1e3823ebc18b55b6e1c7f",
+        "peer.json": "be54103c59d5e598dbcaed9143e4bb3d739462b01cc755ca5d3d2f00e8df4606",
+        "supervisor.log": "23137432bed5c2895abc582572fac75a1e2cf3faab7050a8090971c439caefe2",
+        "teardown.log": "142253f902cc3c5e87442cb3b1c6485802bb19f43fc6bae241ba2021107f79cb",
+        "command.json": "25e09833a2c9a19e82f5698cacc980af73151b45ae2d9d7ebab6186ceccd5762"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-1-immediate-3-none",
+      "result": {
+        "speed": 1,
+        "mode": "immediate",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 60.64000000001397,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=bb6424614b835c14100483656838fe7e,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 1.0001289487488292,
+        "max_wait_us": 1675,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "e0166c71532fc25c5b59866981fdc0491fc147b3582727c1bd3a3ee00b3677b6",
+        "peer.json": "7ea022db9a1d7fcf20093170082b92a449747c31d9b63ce2812f948107ea58c8",
+        "supervisor.log": "fb97a1220dbcc9acd6ceee10c1821f4200194eeec02838a2dbb1d886b4539d32",
+        "teardown.log": "939d6a653d4a50b24e72d7ad8085a1c7fbad7e9d6d4d8b95917497d17349d127",
+        "command.json": "a79eecfd26cf1bd9cc155108d736e3776e27097187248a9b1b97ffeeec738789"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-1-observe-1-none",
+      "result": {
+        "speed": 1,
+        "mode": "observe",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 60.92200000002049,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=20b2e42e8867c3997cd1a00e23bca9de,handshake=0,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 0.9999853351870724,
+        "max_wait_us": 1,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "06facb0487e135c032d7b75927abd6033ed74a75d8688414cebcd735ae52198f",
+        "supervisor.log": "06d5804a3ab31df7bda5f966eea11ba711f618d510e0933f4cf50d77bd65ee2b",
+        "teardown.log": "e98c8bc150f1871addbf763177535a9d80c71fcda8b69be92f7f5c7ebadaace7",
+        "command.json": "728fe07a0143b4dba3616d532c6c3441871c26155e8db690bf7c7e55b1e0fabd"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-1-observe-2-none",
+      "result": {
+        "speed": 1,
+        "mode": "observe",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 60.905999999988126,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=99518fa9d978a996bf2d2912b9740b61,handshake=0,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 0.999854822287166,
+        "max_wait_us": 1,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "025f155c099cb03f12ef8820b99f0caa7fdd5b117d6fbc73f0c144963b4fc314",
+        "supervisor.log": "fb97a1220dbcc9acd6ceee10c1821f4200194eeec02838a2dbb1d886b4539d32",
+        "teardown.log": "ef61153b34b60dc18162a79b3149a6490d12f5027829f6b148c2b70538d67335",
+        "command.json": "e587ba8bebaf0cb73a1d91e9b7560c32204a5e4c28c867bcab780271a5fb43a1"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-1-observe-3-none",
+      "result": {
+        "speed": 1,
+        "mode": "observe",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 60.65600000001723,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=cc2ff8da8e081e943df5ebc022677ce9,handshake=0,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 0.9999849848384406,
+        "max_wait_us": 1,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "0000b429181e7a2202ec340501c7b84e0ffcdd4fd1403da9b4f1f045d7ae00a1",
+        "supervisor.log": "086319f124264636b50ebe983696ddeae1e0dfcb213fbb382e8d56202ecc3c2d",
+        "teardown.log": "d7e6e12627469d36c45036a0d5b5a20ac8f73b0a21c139fc390d2e9592f82230",
+        "command.json": "ca9208dbb240337dd3ab7ef39848e7e62432bbe603b3b2c780798aa4b0976399"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-10-delayed-1-none",
+      "result": {
+        "speed": 10,
+        "mode": "delayed",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.76600000000326,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=74731e2e3977483f96e0bec4333bb9d0,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 8.597739745392156,
+        "max_wait_us": 7891,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "d4e985e57cd800c356f1aebfc32f331e9f945067ca80897e920b4c027e3305dd",
+        "peer.json": "2736774f825fd7a3ec56f351b42731c7e9c71224815b5c20f64126028cf05083",
+        "supervisor.log": "ce179bf34926932becee8ff9611287310996a6156d3452a47181e89ed821a272",
+        "teardown.log": "86062940eb3e43d6ed08137359340516e5047150652550aa42f7cb2f521f7c7c",
+        "command.json": "1891de20f2644124731b7c6208078dbf78505462a0f188423b1763e96f389a1d"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-10-delayed-2-none",
+      "result": {
+        "speed": 10,
+        "mode": "delayed",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.655999999988126,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=280257fe0484c90d5545a17c06eda42e,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 8.646845511059407,
+        "max_wait_us": 6696,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "835d508f32d0df09ac901d120511908182dfc31dd62a66a13d6e67c5bb8aebc5",
+        "peer.json": "265cc6f9ea0f6f0448f8ec93eee616a4d0cada3e83cfd239f6e91bfe51470145",
+        "supervisor.log": "8af7b9d35eedba78e2521115b38cad8799ba31522fadc3a4ebf7a722066095c7",
+        "teardown.log": "d43aab5166dca04ce3a41f81de643a95f93df061c51ab15e795f4a48f8395328",
+        "command.json": "2354ba075ae37d8516e34827c368826137760b0646dffbac18b21a0359b8d437"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-10-delayed-3-none",
+      "result": {
+        "speed": 10,
+        "mode": "delayed",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.671999999991385,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=9755833da3d85c3ee6a328adad44ad54,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 8.76983357094699,
+        "max_wait_us": 6651,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "c78bd0870400f7d874205db8c995839acc4965f5107a80a59cb8dd818d541afe",
+        "peer.json": "b61c3b7aba2b44b16f9f484dabed6366d5d4724c5b0965514d468feed2f6c169",
+        "supervisor.log": "99a135989307b14fef05283db962490d9412fe03d4c0ffb3c22bc30a1949f2f8",
+        "teardown.log": "118b6d9766f4c03a58d8428c5d12c7a29a53e782e74312605d96d2b50102df15",
+        "command.json": "fbf48771f86027136266c255044e39e3dc0eb76dc2ec0e69a06db791336307eb"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-10-immediate-1-none",
+      "result": {
+        "speed": 10,
+        "mode": "immediate",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.344000000011874,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=f293812771e8d59d2c7864cfef5066e1,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 10.03695630550479,
+        "max_wait_us": 988,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "b6c3e6e30d1c39a3ee1c75e6329fa36b41e84a72d65f1e0155007b9ffc4ebdd2",
+        "peer.json": "aa9ed56bb10ef87e5f88db11f703013d25b779ad98c1609610af8f912d2304e7",
+        "supervisor.log": "2c3abc16a23b1267b9ebe37d86d0402f3aee4814b150ef8a7234114b69e87dbe",
+        "teardown.log": "f9c929d215dee68df37e39fcfe24cc493308dcdc171574693bf5ed52d25df21a",
+        "command.json": "690e147d2d41f380b981eb3d98627ef99d1e6962ccad6a917155a3dbee047baa"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-10-immediate-2-none",
+      "result": {
+        "speed": 10,
+        "mode": "immediate",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.26600000000326,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=549f7ab07dea1882f53bd6448147f867,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 10.035585016771597,
+        "max_wait_us": 1253,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "51e33982b052eb120665185b1c3a43cf0277706103b1252cdf3e29e8786ab6a5",
+        "peer.json": "86c33f3c117216e33ff47c240c2808b65bed977c1560a497e965bd9e31ede60c",
+        "supervisor.log": "ab27a1f052add209b4528f3906e2561e1462d31de10e76d3b0dc58608772cdfb",
+        "teardown.log": "7982da6b13f40d2070692ba83eb075fbac06c348b6cbfeef7bfc1497887e94e2",
+        "command.json": "043a332628805d0ca8e4fe11b20d23ed6901b3d704fecd83d39f5caa5cb7a57e"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-10-immediate-3-none",
+      "result": {
+        "speed": 10,
+        "mode": "immediate",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.453000000008615,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=f91af62c06737c016a0763cc552f5cac,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 10.007029636667706,
+        "max_wait_us": 964,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "c14eba6eaa215009b43635924693c32cfad969edc2aa67e44b71635e1eb4e5e3",
+        "peer.json": "7b67a0bbcfbcd47c537b570646340a56081178c9e39518640721a55b5699e7a2",
+        "supervisor.log": "2c3abc16a23b1267b9ebe37d86d0402f3aee4814b150ef8a7234114b69e87dbe",
+        "teardown.log": "bbd5593826451d6e37fd9ef1e436ca6301294ba2e2f42d9bac633fe0283af7b2",
+        "command.json": "24f4b95ebfc37d889c0fab17a0a06c976b585dd68cf76c20bcc266ee7ebd1028"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-10-observe-1-none",
+      "result": {
+        "speed": 10,
+        "mode": "observe",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.35899999999674,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=24aeb91a1211113a74bbc2b7e3103910,handshake=0,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 10.029403747716598,
+        "max_wait_us": 1,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "c1ae11eeace25eebf17c58a4f36601ebdbbc00aaf9833705e95dc97eb9954a2c",
+        "supervisor.log": "2c3abc16a23b1267b9ebe37d86d0402f3aee4814b150ef8a7234114b69e87dbe",
+        "teardown.log": "e5d31f7352bd96fe17bf38a1a51812f167890b13b0c3cbc433ef0851cf13d79e",
+        "command.json": "bcfaf9a55205cbfc25af35165abf766383621d4a8e0801d776b1fa17076b4396"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-10-observe-2-none",
+      "result": {
+        "speed": 10,
+        "mode": "observe",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.35999999998603,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=817e10fdc667a27332ad766546700a54,handshake=0,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 10.012887276051316,
+        "max_wait_us": 1,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "9e2573714699385bedc5b2cda48fdd83abda0c93c06c810f64f0c826888c9c2d",
+        "supervisor.log": "2c3abc16a23b1267b9ebe37d86d0402f3aee4814b150ef8a7234114b69e87dbe",
+        "teardown.log": "76beaaa4c9ccc67fafba1508b41a6388110420f4a8ce118aab9122131020bb4b",
+        "command.json": "9769959c23bd0145ad1869d7d69c7fcdeea2d06158fc3759fd91f42235cb52d5"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-111644/speed-10-observe-3-none",
+      "result": {
+        "speed": 10,
+        "mode": "observe",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.359000000025844,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=2b0e8b85954aa9025f0bc9a428a67011,handshake=0,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 10.037924499673935,
+        "max_wait_us": 1,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "427ab1a1781475553be559fb63f356aa648b6a699262d9feb0ea1c4b987c5f14",
+        "supervisor.log": "2c3abc16a23b1267b9ebe37d86d0402f3aee4814b150ef8a7234114b69e87dbe",
+        "teardown.log": "7885f249054bb2240f8386eeb6f4afd089b9e1fdd8820c220002a7d63f6471e2",
+        "command.json": "c21bbbf252f234f7d77d897c19540d1ec30950a3cabe2971e93506ac7734e23c"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113601/speed-10-immediate-1-boot",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "boot",
+        "vehicle": 121,
+        "wall_s": 6.453000000008615,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "identity_or_version",
+        "failed_step": 5,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "75821167ef44676ff9d908aafa1619216f5a7930ac89ed0bfd72dbb5acc9c82e",
+        "supervisor.log": "4f4b470ad3aa8afe52792c4d9fd86a91c41c437169541d4e829a3d3511c61478",
+        "teardown.log": "b282023763dd6c6822c90dc87298acfc4fda565d3da35afe8c97897644d202b1",
+        "command.json": "2919047ce15cfee894fa9dedeac9151f9331539b3dc95139170231262d779fc1"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113616/speed-10-immediate-1-step",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "step",
+        "vehicle": 121,
+        "wall_s": 6.3439999999827705,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "identity_or_version",
+        "failed_step": 5,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "fd2c75dc38c147d946cad6d2eaba192244bd16d62bfcd5d4016b7f1fa6150dfa",
+        "supervisor.log": "f3ef2cf33a0b5a9f7dbc27c5e76163a63a5337dc6e8ccfa600e61d4617945880",
+        "teardown.log": "5337859e2b0b7f89fb54eca4f58fb3dcc6536c4080600010f576290db50e57c0",
+        "command.json": "86df73820eaebe1ec3e3688b1856618cc8e0b4dd53657ca5b2fc6b2cae49d136"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113629/speed-10-immediate-1-version",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "version",
+        "vehicle": 121,
+        "wall_s": 6.25,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "identity_or_version",
+        "failed_step": 5,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "72453c92c79e2ec90aa4f946be29b9bd14faf887a8a5a6d2df48da59ee99f017",
+        "supervisor.log": "062634027c9778ddefd18e9bcac810265175f50cbfc58ed3465e7a370fdb4462",
+        "teardown.log": "7d6a85fef1d971786e12de7855a195c2c1891c37501af635a2ac615d5ce3fb52",
+        "command.json": "3d7096e1615423f308e319e495b30cdacbda8471a1769c5171dd7585a8f80d66"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113642/speed-10-immediate-1-truncated",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "truncated",
+        "vehicle": 121,
+        "wall_s": 6.453000000008615,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "frame_length",
+        "failed_step": 5,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "a82645a8c9f3bd44ce217488e3a6309b2c79fdd54b5d06021a93340132e96eda",
+        "supervisor.log": "e3056c191c958bd3c9481820b5cb34b238a4998caa7a49bb65b506fd54fa4f83",
+        "teardown.log": "b005f28d22a992d2c4206f4e94a689209176f2ba1bc2b7e99a70b7f052a1a941",
+        "command.json": "c2b2a438a70c59467cb4ebd303f63115cf0b9dcbea08b2ed0a14233c8fe1d675"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113655/speed-10-immediate-1-oversized",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "oversized",
+        "vehicle": 121,
+        "wall_s": 6.452999999979511,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "frame_length",
+        "failed_step": 5,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "ad9aeb5b4d50dd5e84637656972c5b7dbb931eb631672cd07c8b8aaca02f4aae",
+        "supervisor.log": "97be46ed8744f9d4ed79bcedef385615eb2c3cc25865d835abb035e2e4517168",
+        "teardown.log": "3e3f713c9e3052c2f906a2650d09b1174c8219b24641bb59553df7ba2996cec8",
+        "command.json": "2592c0cab9f6e2470f4c4d9d3fa7d014b58746f850a1ed611bf581081b64866b"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113708/speed-10-immediate-1-duplicate",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "duplicate",
+        "vehicle": 121,
+        "wall_s": 6.452999999979511,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "identity_or_version",
+        "failed_step": 6,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "8a7a1fafbda1aa49b01f7ee6062a82a9eb63e2ef73616f71f7ad1f34ed43a2a4",
+        "supervisor.log": "19784272cd621c35519434eaca474f1bba4f953c548692e941f3ef98acd27e70",
+        "teardown.log": "94116832d6add26f8fbd41b58e0ea921d691764b959c7477f9235569d331d3c7",
+        "command.json": "b7a0859f91c994be91ff703aa034509a8f1c2f625c15acecffaa43bd64073f54"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113721/speed-10-immediate-1-disconnect",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "disconnect",
+        "vehicle": 121,
+        "wall_s": 6.452999999979511,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "disconnected",
+        "failed_step": 5,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "da6d274844bf5660edfd3d82e86695fa119d71f09873dcb69fd2f9940e76ec91",
+        "supervisor.log": "5640cdc257e57d807f7b196bc615ffa5cdc0296c773275e615abb6519544cc16",
+        "teardown.log": "366e74b1321f7388ea76d154eec07e7ac76519f579397bade1d0f06ccce05a21",
+        "command.json": "f5dc3d243fa3cb97167b628090768f636bfaa572ee0da31948d0dbf8aed30c56"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113734/speed-10-immediate-1-timeout",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "timeout",
+        "vehicle": 121,
+        "wall_s": 11.187000000005355,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "deadline",
+        "failed_step": 5,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "c3196be4467c959a960a9d0e5cc650188ff497fcfedbcc35fc2556e45d0a2f9d",
+        "supervisor.log": "f3ca837c0c0a0d6260f43f478576e473a485036c811a8ed91c97d1373cbf054a",
+        "teardown.log": "d1b179ba8e1c4d989807cde061a5711608e10adcc24230b0fa9e1faaa1fe9c2e",
+        "command.json": "cd10e2bb6b896302a5ded3a774d14fec0c1a276471947ebdf6703b34d895fcd6"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113836/speed-10-delayed-1-none",
+      "result": {
+        "speed": 10.0,
+        "mode": "delayed",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.562000000005355,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=354a520671fe2d51dd19f9dcb9c3789a,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 8.888217881508846,
+        "max_wait_us": 6837,
+        "launch_attempt": 1,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "b6a7ef49ba9389140cf02e2b468c028f3ca9371260bb95cd5dc388c6eae569e2",
+        "peer.json": "be61a3922e861850c3ced27b6824043c2fb9490e31fd14787cdf560db1194320",
+        "supervisor.log": "52590c747f8ab43d685087d7a0bd5bee1476c00932590d51c67b1063bbe0406e",
+        "teardown.log": "3ffb2d73283d358b9184282f1d27bb2af59cc10f4e71806f370e3466b87ac6ca",
+        "command.json": "62e2ea53f89bc075aa12b02342f8354a416619a109f6190f19d993118c0bcd63"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113836/speed-10-immediate-1-none",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.452999999979511,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=22a0c56915df0ef9aca73fe2c1163b3e,handshake=1,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 10.02403469866945,
+        "max_wait_us": 981,
+        "launch_attempt": 1,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "4fb2bc6a96d63b641d9c900b5fd5059df14de0554735ce25927b7d43c8160501",
+        "peer.json": "3c65016f0a5f4efdaacc964bae127ccb8fd1eada1509a3044eff3590b975d753",
+        "supervisor.log": "c6aa0ac7ab29cabb42626f19eb5ca81066b7416fd86c6bfcb584e5c3b767e888",
+        "teardown.log": "5d6a2e0ed9f6af443625cb199678b64f65a5f2c0f4e8364422e30d9f8d495d60",
+        "command.json": "ab9cc50bdcb9e23bacab9768cc6dda9ee9485912f2576c0ccadc7ff5c4988424"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113836/speed-10-observe-1-none",
+      "result": {
+        "speed": 10.0,
+        "mode": "observe",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.469000000011874,
+        "marker": "NAVPY_STEP_COMPLETE",
+        "rows": 1000,
+        "metadata": "# NVSTEP01,boot=ba1e9adfe3c877cdda912e6e9e59667b,handshake=0,vehicle=121",
+        "first_us": 40004825,
+        "last_us": 59984330,
+        "achieved_speed": 10.017551204592746,
+        "max_wait_us": 1,
+        "launch_attempt": 1,
+        "passed": true
+      },
+      "files": {
+        "navpy-step.csv": "5468eb5a2d5e6c0c2923077ba16b11d163887aa65589b2a1b7db342786626a37",
+        "supervisor.log": "2c3abc16a23b1267b9ebe37d86d0402f3aee4814b150ef8a7234114b69e87dbe",
+        "teardown.log": "771896468383bff63203e64c4a4f69c2387bc424c15cfb8f7c1ea32f553d5097",
+        "command.json": "fabc849d18a430f2e396239a835043c3675fdc894e6b3633014637360221ab3c"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-113836/speed-10-off-1-none",
+      "result": {
+        "speed": 10.0,
+        "mode": "off",
+        "fault": "none",
+        "vehicle": 121,
+        "wall_s": 8.85899999999674,
+        "marker": "instances streaming telemetry at SIM_SPEEDUP=",
+        "observed_boot_ms": 65064,
+        "launch_attempt": 1,
+        "passed": true
+      },
+      "files": {
+        "supervisor.log": "baa58b903b0a47764d12227cf3b848f3e9a5b02d02104f1a13b804a6f7ea40ac",
+        "teardown.log": "af6330541d5b5421aee421735e36ded9d62233051e84343eefba375ed506e65e",
+        "command.json": "5a17de68157e09180dd6d8feb58220e985cc3a2d3e74e41bf6f6eb68ee867f43"
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-114446/speed-10-immediate-1-boot",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "boot",
+        "vehicle": 121,
+        "wall_s": 6.64000000001397,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "identity_or_version",
+        "failed_step": 5,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "eb10e747f73b019427d3b824fb8f7e6711834b4f50175f9a55e0a2fc2aa5d739",
+        "supervisor.log": "65d6ba422e9a46f1a9661de27a02452c2d283e4d4f57cf616acb6f1b8a5f5736",
+        "teardown.log": "20ad064ea30225784b3f4467541e0667a1640308dfead8766764c8ac25bf6ea2",
+        "command.json": "db2f8280e46572e663d8739f1738b45e811e55bbf324c2090e8348f27f1bfa2f",
+        "launch-unlock.json": "80a29d373640b6be614f62d0a5690b664f5c28282b624cdd4a4d7200d2c77c46"
+      },
+      "launch_unlock": {
+        "supervisor_pid": 39680,
+        "observed_own_lock": true,
+        "wait_s": 3.125,
+        "owner_after": null
+      }
+    },
+    {
+      "directory": ".sitl-runs/step-handshake-20260920-114502/speed-10-immediate-1-step",
+      "result": {
+        "speed": 10.0,
+        "mode": "immediate",
+        "fault": "step",
+        "vehicle": 121,
+        "wall_s": 6.25,
+        "marker": "NAVPY_STEP_INVALID",
+        "reason": "identity_or_version",
+        "failed_step": 5,
+        "passed": true
+      },
+      "files": {
+        "peer.json": "f6eec3deb465070ae78e2887a55e6a18b49aff8f910c07ca6d7e0756906af5f3",
+        "supervisor.log": "c136a103cccf45da98c053995dca3b37c7ae3cc411689108078ac9acc3283aed",
+        "teardown.log": "5945fe0b3e883c72f36e2096afb17a46098032ed71e2858a81a9c39ab103a997",
+        "command.json": "d94d2ff85114800e1844f0f01611097a99ebbd899312356cab79bfee91d200a5",
+        "launch-unlock.json": "7ae4e39e0796f4b19a809a8de94ee50c53c54c5e4a0fb7238222f2990b19d4a8"
+      },
+      "launch_unlock": {
+        "supervisor_pid": 39984,
+        "observed_own_lock": true,
+        "wait_s": 3.125,
+        "owner_after": null
+      }
+    }
+  ],
+  "firmware_commit": "62e2dc3d27",
+  "firmware_pr": "https://github.com/gartfeo/ardupilot/pull/21",
+  "final_tests": {
+    "passed": 248,
+    "subtests_passed": 30,
+    "skipped": 0
+  }
+}

@@ -1,0 +1,346 @@
+{
+  "matrix_sha256": "b4a279c7ff8c61f9496fba659309ce48813f9a9c525054a7d8685f313b7689bf",
+  "method_sha256": "8c5449cf72d79233305b89e0e5c48c2ac7b4d366701ee5e5ff473fb274130c77",
+  "profiles": {
+    "stock": {
+      "case": "/mnt/c/Users/GARTF/AppData/Local/Temp/navpy-determinism-review-20260920/.sitl-runs/noise-matrix-20260920-225636/run-00/121",
+      "metrics": {
+        "fresh_commands": 1127,
+        "duration_s": 28.140406,
+        "law_branches": {
+          "normal": 1127
+        },
+        "roll": {
+          "max_step_deg": 40.58136377042871,
+          "p95_step_deg": 4.257039266567277,
+          "total_variation_deg": 1312.6489315925915,
+          "variation_per_s": 46.64641055969809,
+          "clipped_commands": 4,
+          "clipped_fraction": 0.00354924578527063
+        },
+        "pitch": {
+          "max_step_deg": 4.997742238474537,
+          "p95_step_deg": 0.023943882893702195,
+          "total_variation_deg": 21.201866016831257,
+          "variation_per_s": 0.7534314187517855,
+          "clipped_commands": 0,
+          "clipped_fraction": 0.0
+        },
+        "largest_roll_step": {
+          "source_s": 83.085086,
+          "dt_s": 0.019992000000002008,
+          "before_deg": 7.570823912918039,
+          "after_deg": -33.01053985751067,
+          "before_branch": "normal",
+          "after_branch": "normal",
+          "visual_rate_change_deg_s": -3.211576784209864,
+          "own_turn_change_deg_s": -0.10512590890923201,
+          "sampled_range_m": 5.234735682623412,
+          "since_seed_s": 28.060438000000005
+        },
+        "seed_source_s": 55.024648,
+        "pass_source_s": 83.265014,
+        "guided_source_s": 55.004656,
+        "sampled_closest_approach_m": 0.023783828298687255,
+        "closest_source_s": 83.22503,
+        "closest_truth_s": 83.22503,
+        "closest_at_window_boundary": false,
+        "closest_window": "seed through first visual-pass snapshot inclusive",
+        "source_minus_truth_us": {
+          "0": 3000
+        },
+        "closest_since_seed_s": 28.200382,
+        "estimate_minus_truth_rms_deg": {
+          "roll": 0.26401880195789407,
+          "pitch": 0.37581953855566635
+        },
+        "rms_limit": "Residual combines bias, dynamics and timing, not isolated sensor noise.",
+        "causality": {
+          "sample_count": 1127,
+          "roll_max_residual_deg": 7.105427357601002e-15,
+          "pitch_max_residual_deg": 0.0,
+          "roll_max_step_deg": 40.58136377042871,
+          "pitch_max_step_deg": 4.997742238474537,
+          "held_sample_count": 0
+        },
+        "capture_intervals_us": {
+          "39984": 440,
+          "19992": 1334,
+          "20825": 13,
+          "40817": 9
+        },
+        "noncapture_reissues": 281
+      },
+      "evidence": {
+        "parameters": {
+          "parameters": {
+            "SIM_NOISE_OFF": {
+              "value": 0,
+              "count": 1,
+              "first_time_us": 1765127
+            },
+            "SIM_RATE_HZ": {
+              "value": 1200,
+              "count": 1,
+              "first_time_us": 1765127
+            }
+          },
+          "bad_data_records": 0,
+          "binary_sha256": "e061a5fa85fce82deecf2f9fcb4eaf7443a68336549c44d7376a65b814866658",
+          "reader_sha256": "c256a29f716003b3de749943b6901248a9db16a421b2d8467e96fcd9cc6ab698",
+          "runtime": {
+            "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+            "packages": {
+              "numpy": "2.5.3",
+              "pymap3d": "3.2.0",
+              "geopy": "2.5.0",
+              "opencv-python-headless": "5.0.0.93",
+              "pymavlink": "2.4.41"
+            }
+          }
+        },
+        "control_intervals_us": {
+          "19992": 2970,
+          "20825": 29
+        }
+      },
+      "replay_sha256": {
+        "report.json": "c932394505ed3a6bdcf5be335da07f2a17e1a9c1609694d07924f84dbe24cd10",
+        "navigation_debug.csv": "ae132378e38f0d410c1c7a866ac198a4fabb83ea1e95ffff623211256a597a4d",
+        "navigation_compact.csv": "1ad92a875257260a45b405d884c1bc77aafba42044a895f6f87d1f115e1c3332"
+      }
+    },
+    "noise-off-1000": {
+      "case": "/mnt/c/Users/GARTF/AppData/Local/Temp/navpy-determinism-review-20260920/.sitl-runs/noise-matrix-20260920-225636/run-01/121",
+      "metrics": {
+        "fresh_commands": 1128,
+        "duration_s": 28.15999999999999,
+        "law_branches": {
+          "normal": 1128
+        },
+        "roll": {
+          "max_step_deg": 70.0,
+          "p95_step_deg": 2.7321360519016644,
+          "total_variation_deg": 962.829909822222,
+          "variation_per_s": 34.191403047664146,
+          "clipped_commands": 7,
+          "clipped_fraction": 0.0062056737588652485
+        },
+        "pitch": {
+          "max_step_deg": 7.261061558239662,
+          "p95_step_deg": 0.02169016944859843,
+          "total_variation_deg": 18.211828224561234,
+          "variation_per_s": 0.6467268545653849,
+          "clipped_commands": 0,
+          "clipped_fraction": 0.0
+        },
+        "largest_roll_step": {
+          "source_s": 83.106312,
+          "dt_s": 0.01999999999999602,
+          "before_deg": 35.0,
+          "after_deg": -35.0,
+          "before_branch": "normal",
+          "after_branch": "normal",
+          "visual_rate_change_deg_s": -6.220699767537058,
+          "own_turn_change_deg_s": -0.9749137167900523,
+          "sampled_range_m": 4.757029922924426,
+          "since_seed_s": 28.080000000000005
+        },
+        "seed_source_s": 55.026312,
+        "pass_source_s": 83.286312,
+        "guided_source_s": 55.006312,
+        "sampled_closest_approach_m": 0.2664205806682925,
+        "closest_source_s": 83.226312,
+        "closest_truth_s": 83.226312,
+        "closest_at_window_boundary": false,
+        "closest_window": "seed through first visual-pass snapshot inclusive",
+        "source_minus_truth_us": {
+          "0": 3000
+        },
+        "closest_since_seed_s": 28.2,
+        "estimate_minus_truth_rms_deg": {
+          "roll": 0.3799780867940332,
+          "pitch": 0.40405837911548664
+        },
+        "rms_limit": "Residual combines bias, dynamics and timing, not isolated sensor noise.",
+        "causality": {
+          "sample_count": 1128,
+          "roll_max_residual_deg": 3.552713678800501e-15,
+          "pitch_max_residual_deg": 8.881784197001252e-16,
+          "roll_max_step_deg": 70.0,
+          "pitch_max_step_deg": 7.261061558239662,
+          "held_sample_count": 0
+        },
+        "capture_intervals_us": {
+          "40000": 449,
+          "20000": 1347
+        },
+        "noncapture_reissues": 282
+      },
+      "evidence": {
+        "parameters": {
+          "parameters": {
+            "SIM_NOISE_OFF": {
+              "value": 8191,
+              "count": 1,
+              "first_time_us": 1766312
+            },
+            "SIM_RATE_HZ": {
+              "value": 1000,
+              "count": 1,
+              "first_time_us": 1766312
+            }
+          },
+          "bad_data_records": 0,
+          "binary_sha256": "908eed5a17d578951c7a24024828f3a31837fa02678e66a9a032fdf8dd7a69bb",
+          "reader_sha256": "c256a29f716003b3de749943b6901248a9db16a421b2d8467e96fcd9cc6ab698",
+          "runtime": {
+            "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+            "packages": {
+              "numpy": "2.5.3",
+              "pymap3d": "3.2.0",
+              "geopy": "2.5.0",
+              "opencv-python-headless": "5.0.0.93",
+              "pymavlink": "2.4.41"
+            }
+          }
+        },
+        "control_intervals_us": {
+          "20000": 2999
+        }
+      },
+      "replay_sha256": {
+        "report.json": "bdb2907f9e2fbd9c01f8f43383acb8bd655d8f338548d5d6f8aaf6ab8f1832c7",
+        "navigation_debug.csv": "6d1e723b62ad51bb0e80109679013b5b659fa9a0aac42cd37b56c27dd9b3735d",
+        "navigation_compact.csv": "b6051b026b3c83a68d8d5146a6ca2caf687ec65b2c936a495b6da622511c4f6e"
+      }
+    },
+    "noise-off": {
+      "case": "/mnt/c/Users/GARTF/AppData/Local/Temp/navpy-determinism-review-20260920/.sitl-runs/noise-matrix-20260920-225636/run-02/121",
+      "metrics": {
+        "fresh_commands": 1124,
+        "duration_s": 28.06043799999999,
+        "law_branches": {
+          "normal": 1124
+        },
+        "roll": {
+          "max_step_deg": 67.90905285741437,
+          "p95_step_deg": 2.6526111206439213,
+          "total_variation_deg": 1056.1891646572892,
+          "variation_per_s": 37.639796095032075,
+          "clipped_commands": 4,
+          "clipped_fraction": 0.0035587188612099642
+        },
+        "pitch": {
+          "max_step_deg": 0.21398537625174718,
+          "p95_step_deg": 0.021749709561418213,
+          "total_variation_deg": 11.389481346939135,
+          "variation_per_s": 0.40589107507655936,
+          "clipped_commands": 0,
+          "clipped_fraction": 0.0
+        },
+        "largest_roll_step": {
+          "source_s": 83.02511,
+          "dt_s": 0.019992000000002008,
+          "before_deg": 35.0,
+          "after_deg": -32.909052857414366,
+          "before_branch": "normal",
+          "after_branch": "normal",
+          "visual_rate_change_deg_s": -6.955411304901594,
+          "own_turn_change_deg_s": 0.2718890079761531,
+          "sampled_range_m": 4.965101255670246,
+          "since_seed_s": 28.000462
+        },
+        "seed_source_s": 55.024648,
+        "pass_source_s": 83.185046,
+        "guided_source_s": 55.004656,
+        "sampled_closest_approach_m": 0.27375729187591186,
+        "closest_source_s": 83.165054,
+        "closest_truth_s": 83.165054,
+        "closest_at_window_boundary": false,
+        "closest_window": "seed through first visual-pass snapshot inclusive",
+        "source_minus_truth_us": {
+          "0": 3000
+        },
+        "closest_since_seed_s": 28.140406,
+        "estimate_minus_truth_rms_deg": {
+          "roll": 0.31451345897660365,
+          "pitch": 0.3389808173109189
+        },
+        "rms_limit": "Residual combines bias, dynamics and timing, not isolated sensor noise.",
+        "causality": {
+          "sample_count": 1124,
+          "roll_max_residual_deg": 3.552713678800501e-15,
+          "pitch_max_residual_deg": 0.0,
+          "roll_max_step_deg": 67.90905285741437,
+          "pitch_max_step_deg": 0.21398537625174718,
+          "held_sample_count": 0
+        },
+        "capture_intervals_us": {
+          "39984": 440,
+          "19992": 1334,
+          "20825": 13,
+          "40817": 9
+        },
+        "noncapture_reissues": 281
+      },
+      "evidence": {
+        "parameters": {
+          "parameters": {
+            "SIM_NOISE_OFF": {
+              "value": 8191,
+              "count": 1,
+              "first_time_us": 1765127
+            },
+            "SIM_RATE_HZ": {
+              "value": 1200,
+              "count": 1,
+              "first_time_us": 1765127
+            }
+          },
+          "bad_data_records": 0,
+          "binary_sha256": "87c613e42e83cfb8c76ef7e38097236c9649a7bb125bf89f9a07553625ee5040",
+          "reader_sha256": "c256a29f716003b3de749943b6901248a9db16a421b2d8467e96fcd9cc6ab698",
+          "runtime": {
+            "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+            "packages": {
+              "numpy": "2.5.3",
+              "pymap3d": "3.2.0",
+              "geopy": "2.5.0",
+              "opencv-python-headless": "5.0.0.93",
+              "pymavlink": "2.4.41"
+            }
+          }
+        },
+        "control_intervals_us": {
+          "19992": 2970,
+          "20825": 29
+        }
+      },
+      "replay_sha256": {
+        "report.json": "07e12c2fb6c8412b695f50fcfbe2ff18fa1ffd07374a6df55dea99f9d6fadb22",
+        "navigation_debug.csv": "01fe1d9495271b74ba8e873eae9bc8ff19f02358d300d6266e074933989a5900",
+        "navigation_compact.csv": "1531a2a2f2c059dbbdc57bf0825cdbcfcd47993efefd8f652bcf07a8eca88e1c"
+      }
+    }
+  },
+  "contrasts": [
+    {
+      "factor": "noise mask at 1200 Hz",
+      "baseline": "stock",
+      "intervention": "noise-off",
+      "closest_approach_difference_m": 0.2499734635772246,
+      "roll_variation_per_s_difference": -9.006614464666015,
+      "roll_max_step_difference_deg": 27.327689086985657
+    },
+    {
+      "factor": "simulator rate with mask 8191",
+      "baseline": "noise-off",
+      "intervention": "noise-off-1000",
+      "closest_approach_difference_m": -0.007336711207619362,
+      "roll_variation_per_s_difference": -3.4483930473679294,
+      "roll_max_step_difference_deg": 2.090947142585634
+    }
+  ],
+  "limits": "One fixed realization per profile; whole-boot effects include estimator, cadence and trajectory changes. Variation is not isolated noise. Source-time phase windows differ. Closest approach uses sampled centimetre-grid truth; it is not physical docking or cargo receipt. No spectral attribution or filter recommendation."
+}

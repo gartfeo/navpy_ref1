@@ -1,0 +1,217 @@
+[
+  {
+    "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-matrix-20260921-003725",
+    "report_sha256": "5271db3aacd55a66ee55b0a7807989dd2213e3bcae344cda0be0d86e3fa94e44",
+    "steps": 15000,
+    "passed": true,
+    "runs": [
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-matrix-20260921-003725\\run-00",
+        "run_id": "7714a828970e43f593aa24fec862fa0b",
+        "boot": [
+          8950393107079360039,
+          16307974312716964922
+        ],
+        "vehicle": 121,
+        "pose_capture": false,
+        "speedup": 10.0,
+        "delayed": false,
+        "pose_hash": null,
+        "branches": [],
+        "normalized_history_sha256": "81ae36c6bb94c4592bf505a81ee38e8ae8197700a74a8b470f97974f1a34f160",
+        "manifest_sha256": "065d21a52e37b46eaf39eaa3c33bacc4e413dac47f558834b362cad90bcd7632",
+        "steps": 3000
+      },
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-matrix-20260921-003725\\run-01",
+        "run_id": "732812de7607468e9ec1f9318dc44688",
+        "boot": [
+          5046425033407715079,
+          819006069170165377
+        ],
+        "vehicle": 121,
+        "pose_capture": true,
+        "speedup": 10.0,
+        "delayed": false,
+        "pose_hash": "5ae1303626c669b19916e584c0c587ed02d8ca68673939a8728d2e929bd58cdc",
+        "branches": [
+          2
+        ],
+        "normalized_history_sha256": "81ae36c6bb94c4592bf505a81ee38e8ae8197700a74a8b470f97974f1a34f160",
+        "manifest_sha256": "253f6a1d21a1dae74dc2799daa6b5cb713cc99fad4472eaabaf50cc0c4292a73",
+        "steps": 3000
+      },
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-matrix-20260921-003725\\run-02",
+        "run_id": "ac0d05f4c9084551ad026b1df0eb2da7",
+        "boot": [
+          7146551461825688842,
+          18309830960742194854
+        ],
+        "vehicle": 121,
+        "pose_capture": true,
+        "speedup": 10.0,
+        "delayed": true,
+        "pose_hash": "5ae1303626c669b19916e584c0c587ed02d8ca68673939a8728d2e929bd58cdc",
+        "branches": [
+          2
+        ],
+        "normalized_history_sha256": "81ae36c6bb94c4592bf505a81ee38e8ae8197700a74a8b470f97974f1a34f160",
+        "manifest_sha256": "839fc2ec412d14b3e5d597568625076ed55ca883ed425396aa283f978d4239ff",
+        "steps": 3000
+      },
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-matrix-20260921-003725\\run-03",
+        "run_id": "84b17f29bec5460798c44c24eba8b009",
+        "boot": [
+          10860775403371552337,
+          8827788524791071027
+        ],
+        "vehicle": 121,
+        "pose_capture": true,
+        "speedup": 1.0,
+        "delayed": false,
+        "pose_hash": "5ae1303626c669b19916e584c0c587ed02d8ca68673939a8728d2e929bd58cdc",
+        "branches": [
+          2
+        ],
+        "normalized_history_sha256": "81ae36c6bb94c4592bf505a81ee38e8ae8197700a74a8b470f97974f1a34f160",
+        "manifest_sha256": "f170029efd8045e2fdd5f5db55c7c92f1b449673d23a65346c346b4747204e40",
+        "steps": 3000
+      },
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-matrix-20260921-003725\\run-04",
+        "run_id": "5d7a8d71b1624fc99e04e5a4af069469",
+        "boot": [
+          2133840761093121376,
+          8744391661935035451
+        ],
+        "vehicle": 121,
+        "pose_capture": true,
+        "speedup": 1.0,
+        "delayed": true,
+        "pose_hash": "5ae1303626c669b19916e584c0c587ed02d8ca68673939a8728d2e929bd58cdc",
+        "branches": [
+          2
+        ],
+        "normalized_history_sha256": "81ae36c6bb94c4592bf505a81ee38e8ae8197700a74a8b470f97974f1a34f160",
+        "manifest_sha256": "0bdc16da7614493b7bf7989106381219bb3d766eb310b058e944bac5be6cf30c",
+        "steps": 3000
+      }
+    ],
+    "method_sha256": "9c0f5d7fca5cb451004392cb7dd74d7b0b913f8d39b4db80b3a3e178d75b347f",
+    "pairs_method_sha256": "2bd41ff653a8e6c4e33aecc242e5d520cb43f2614e306d6efa5b8e3e46a98f73",
+    "ledger_sha256": "f980faf47cec34199dc2eb6d3a4f2026a7901d4970c88a75d8fc6213aebcc295"
+  },
+  {
+    "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-precision-20260921-012223",
+    "report_sha256": "88923ac756ecf371835bc2062eb065aa9cfad315a2bc0485519c1dcd95168e14",
+    "steps": 15000,
+    "passed": true,
+    "runs": [
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-precision-20260921-012223\\run-00",
+        "run_id": "5ff7e00d20454c28892f81d5cf235cd4",
+        "boot": [
+          17498214646245985244,
+          1663475871246029797
+        ],
+        "vehicle": 121,
+        "pose_source": "rounded",
+        "speedup": 10.0,
+        "delayed": false,
+        "pose_hash": "44057c862fd3fa2ce352843dd0b4a4ab44e700ce40f6dbe1f7c1a21b6962201b",
+        "branches": [
+          2
+        ],
+        "differing_rows": 3000,
+        "normalized_history_sha256": "81ae36c6bb94c4592bf505a81ee38e8ae8197700a74a8b470f97974f1a34f160",
+        "manifest_sha256": "ecb195a8e75ae8067618c29905f809302c38f55d4d0b14ca54e797e12b8efddb",
+        "steps": 3000
+      },
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-precision-20260921-012223\\run-01",
+        "run_id": "dadc88a1382c4476b15c530ee195b368",
+        "boot": [
+          10287531595543685412,
+          5349116070684005049
+        ],
+        "vehicle": 121,
+        "pose_source": "precast",
+        "speedup": 10.0,
+        "delayed": false,
+        "pose_hash": "1b1a9efc57fb04d4100eea52ab3ec5b3e6d2892e630597f133f2dcef5076bce3",
+        "branches": [
+          2
+        ],
+        "differing_rows": 3000,
+        "normalized_history_sha256": "144d1d524d79dc22b11725fe8f799ba227abfa99b090c80177e97b8f4c85d7f5",
+        "manifest_sha256": "346bfd1a024dc0550ea6df333d2b3f063f6a43ccc865ee607dc7e4ed02d89507",
+        "steps": 3000
+      },
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-precision-20260921-012223\\run-02",
+        "run_id": "42a3e03034fb4b44831819db3f308375",
+        "boot": [
+          17032115702712109268,
+          9509521414296874450
+        ],
+        "vehicle": 121,
+        "pose_source": "precast",
+        "speedup": 10.0,
+        "delayed": true,
+        "pose_hash": "1b1a9efc57fb04d4100eea52ab3ec5b3e6d2892e630597f133f2dcef5076bce3",
+        "branches": [
+          2
+        ],
+        "differing_rows": 3000,
+        "normalized_history_sha256": "144d1d524d79dc22b11725fe8f799ba227abfa99b090c80177e97b8f4c85d7f5",
+        "manifest_sha256": "1edfb7de2c736405459db6678f337e0ee82c0c79d5819adfd01cb9bd6ad70838",
+        "steps": 3000
+      },
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-precision-20260921-012223\\run-03",
+        "run_id": "acecffac1e9d4576b34a37211044159c",
+        "boot": [
+          10636097613483811369,
+          3715039033917629911
+        ],
+        "vehicle": 121,
+        "pose_source": "precast",
+        "speedup": 1.0,
+        "delayed": false,
+        "pose_hash": "1b1a9efc57fb04d4100eea52ab3ec5b3e6d2892e630597f133f2dcef5076bce3",
+        "branches": [
+          2
+        ],
+        "differing_rows": 3000,
+        "normalized_history_sha256": "144d1d524d79dc22b11725fe8f799ba227abfa99b090c80177e97b8f4c85d7f5",
+        "manifest_sha256": "01c8cea8aef8a9a0eda4523fd6e72332c754016cc7cbd5e03a98c024364f9911",
+        "steps": 3000
+      },
+      {
+        "directory": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\navpy-determinism-review-20260920\\.sitl-runs\\pose-precision-20260921-012223\\run-04",
+        "run_id": "c806a34b598c4d96ba7d8ce7f0700929",
+        "boot": [
+          9076782666905813557,
+          210518500229102693
+        ],
+        "vehicle": 121,
+        "pose_source": "precast",
+        "speedup": 1.0,
+        "delayed": true,
+        "pose_hash": "1b1a9efc57fb04d4100eea52ab3ec5b3e6d2892e630597f133f2dcef5076bce3",
+        "branches": [
+          2
+        ],
+        "differing_rows": 3000,
+        "normalized_history_sha256": "144d1d524d79dc22b11725fe8f799ba227abfa99b090c80177e97b8f4c85d7f5",
+        "manifest_sha256": "50e49c9a9ff55df4971de16d9f77c914396a4cd818dd4fa14ce3249d932987fa",
+        "steps": 3000
+      }
+    ],
+    "method_sha256": "53adca7b023bf1dd5aa2decd3c385fb9ae4eda53d6bf282e3b2e74b6305ec2d1",
+    "pairs_method_sha256": "bb35b5518e03d0c1226e684329e777db921c4b18d11836f7668a8a56bd424a6d",
+    "ledger_sha256": "efbee25eb84553d01f1060703aa59298dec18b4e2ac9b175c8bcbdd5fc819cd3"
+  }
+]
