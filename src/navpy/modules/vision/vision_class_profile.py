@@ -14,7 +14,7 @@ MIN_CONFIRM_PIXELS = 20
 _DEFAULT_DETECTOR_CLASS_DIMENSIONS = (2.0, 2.0)
 _DETECT_RANGE_MARGIN = 1.1
 CONFIRM_Y_BUDGET = 0.30
-# The single dock class: the general-purpose 360-degree parking net. Its
+# The single dock class: the dock, a general-purpose 360-degree net. Its
 # detector class id keys ``detector_class_dimensions`` and its sizing preset
 # name keys every profile's ``detector.dock_presets``.
 DOCK_DETECT_CLASS_ID = 0

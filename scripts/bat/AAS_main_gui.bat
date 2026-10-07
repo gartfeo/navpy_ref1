@@ -10,7 +10,7 @@ call ".venv\Scripts\activate.bat" 2>nul || call "venv\Scripts\activate.bat" 2>nu
 :: Ensure required packages are installed
 python -m pip show navpy >nul 2>&1 || python -m pip install -e .
 
-set PYTHONPATH=%cd%\src\navpy;%PYTHONPATH%
+set PYTHONPATH=%cd%\src;%PYTHONPATH%
 
 :: Run the app
 python -m navpy.main_gui

@@ -61,7 +61,7 @@ Frontend:
   interactive slot); NavPy companions bind per-vehicle UDP ports
   (`udp:0.0.0.0:5760+10*(g-1)`) that SITL serial0 streams into
   (`COMPANION_UDP=1`). Do not use `gcs_launch` for eval-only runs. Manual
-  `run_swarm.sh` invocations must pass `COMPANION_UDP=1` to match
+  `run_swarm.sh` invocations (WSL, `~/ardupilot/Tools/autotest/run_swarm.sh`) must pass `COMPANION_UDP=1` to match
   launcher-started companions.
 - `--chat N` exists as an advanced manual override of the slot/band — never
   use it in chats; slots always auto-resolve by launch directory.

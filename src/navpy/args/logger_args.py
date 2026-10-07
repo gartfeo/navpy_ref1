@@ -41,9 +41,10 @@ class LoggerArgs:
                             default=CacheLogLevel.INFO,
                             help=f"Log level (one of: {_LOG_LEVEL_NAMES}). "
                                  f"Default: {CacheLogLevel.INFO.name}.")
+        log_status_dest_default = [LogStatusDest.DRONE.value, LogStatusDest.NETWORK.value]
         parser.add_argument("-lsd", "--log-status-dest", type=LogStatusDest, choices=list(LogStatusDest),
-                            nargs="+", default=[LogStatusDest.DRONE.value, LogStatusDest.NETWORK.value],
-                            help=f"Log Status Destination. Default: ['{LogStatusDest.NETWORK.value}'].")
+                            nargs="+", default=log_status_dest_default,
+                            help=f"Log Status Destination. Default: {log_status_dest_default}.")
         parser.add_argument("-lsl", "--log-status-level", type=_log_level, metavar="LEVEL",
                             default=CacheLogLevel.INFO,
                             help=f"Log status level (one of: {_LOG_LEVEL_NAMES}). "

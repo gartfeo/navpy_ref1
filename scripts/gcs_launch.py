@@ -11,7 +11,8 @@ backend, the frontend, **and** the SITL swarm for chat ``N`` (via
 ``scripts/swarm_run.py``). Pass ``--no-sitl`` to skip SITL (real hardware, or
 when you run SITL separately).
 
-The slot is reserved atomically through the shared cross-clone registry
+The slot resolves by launch directory: the slot this directory already owns is
+reused, otherwise a free one is reserved. It is reserved atomically through the shared cross-clone registry
 (``gcs.backend.instance_registry``, default ``~/.gcs/instances.json``) so two
 sessions launching at once can't grab the same slot, and each session can later
 stop **only its own** stack via ``scripts/gcs_stop.py``.
@@ -20,7 +21,6 @@ Usage (from the repo root, inside the venv)::
 
     python scripts/gcs_launch.py            # full stack (backend + frontend + SITL)
     python scripts/gcs_launch.py --no-sitl  # backend + frontend only
-    python scripts/gcs_launch.py --chat 2   # force chat index 2
     python scripts/gcs_launch.py --speedup 1  # SITL at real time (default 10x)
     python scripts/gcs_launch.py --list     # show running instances (all clones)
     python scripts/gcs_launch.py --no-browser
@@ -69,7 +69,8 @@ def _spawn(cmd, cwd, env, shell=False):
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Launch an isolated GCS stack.")
     parser.add_argument("--chat", type=int, default=None,
-                        help="force a specific chat index (default: lowest free)")
+                        help="advanced manual override of the slot; do not pass it "
+                             "normally (default: this launch directory's slot)")
     parser.add_argument("--list", action="store_true",
                         help="list running instances (across all clones) and exit")
     parser.add_argument("--no-browser", action="store_true",
