@@ -81,7 +81,7 @@ def _make_vehicle(mission_count=10, metadata_seqs=None):
 
 
 def _make_args(**overrides):
-    args = SimpleNamespace(AAS_TARG_WPS='4', AAS_TARG_ALT=150)
+    args = SimpleNamespace(**NavigationPoiArgs.PARAMS)
     for k, v in overrides.items():
         setattr(args, k, v)
     return args

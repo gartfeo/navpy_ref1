@@ -35,7 +35,7 @@ class NavigationPoiArgs:
 
     # Single source of truth: param_name -> default
     PARAMS = {
-        'AAS_TARG_WPS': '4',
+        'AAS_TARG_WPS': 16,  # WP bitmask (16 = WP 5); CLI -twps takes a WP list
         'AAS_TARG_ALT': 150,
     }
 
@@ -78,6 +78,6 @@ class NavigationPoiArgs:
         p = cls.PARAMS
         g = parser.add_argument_group("Simulator POI arguments")
         g.add_argument("-twps", dest='AAS_TARG_WPS', type=str, default=p['AAS_TARG_WPS'],
-                       help=f"Simulation POI waypoint numbers (1-based, comma-separated). Default: {p['AAS_TARG_WPS']}")
+                       help=f"Simulation POI waypoint numbers (1-based, comma-separated). Default: WP bitmask {p['AAS_TARG_WPS']}")
         g.add_argument('-talt', dest='AAS_TARG_ALT', type=int, default=p['AAS_TARG_ALT'],
                        help=f"Simulator POI altitude offset (m). Default: {p['AAS_TARG_ALT']}")

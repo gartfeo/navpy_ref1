@@ -59,7 +59,7 @@ def create_mock_args():
     """Create mock args with required attributes for NavigationPoiArgs."""
     args = SimpleNamespace()
     # NavigationPoiArgs.PARAMS defaults
-    args.AAS_TARG_WPS = '4'
+    args.AAS_TARG_WPS = 16
     args.AAS_TARG_ALT = 150
     args.use_terrain = False
     return args

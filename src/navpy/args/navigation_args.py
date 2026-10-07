@@ -60,8 +60,8 @@ class NavigationArgs(object):
         'AAS_DEL_P_KP': 1.5,
         'AAS_DEL_CTRL': 1,  # 0=PID, 1=PN, 2=vision-nav-pn
         'AAS_USE_TRN': True,
-        'AAS_DEL_PLD': 100,
-        'AAS_DEL_PLRD': 2.0,
+        'AAS_DEL_PLD': -1,  # <0 disables the pitch-lock distance gate
+        'AAS_DEL_PLRD': -1,  # <0 disables the pitch-lock roll gate
     }
 
     def __init__(self, args, vehicle: NavigationParameterReader, logger: ILogger):

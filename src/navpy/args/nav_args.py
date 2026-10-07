@@ -6,8 +6,8 @@ from navpy.utils.arg_helper import parse_boolean, StoreWithFlag, StoreTrueWithFl
 class NavArgs(object):
     # Single source of truth: param_name -> default
     PARAMS = {
-        'AAS_NAV_LAST_WP': 4,
-        'AAS_NAV_MIN_ALT': 130,
+        'AAS_NAV_LAST_WP': 3,
+        'AAS_NAV_MIN_ALT': 150,
         'AAS_NAV_CWT': 30,
         'AAS_NAV_AUTO_CM': True,
         # MISS-04: REJECT on confirm-window expiry — never auto-commit a
