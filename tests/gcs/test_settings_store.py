@@ -109,6 +109,103 @@ class TestSettingsStore:
         settings = store.get()
         assert settings.flight.cruise_speed_ms == 22.0
 
+    @pytest.mark.parametrize(
+        "bad_content",
+        [
+            "not valid json{{{",                                  # unparseable
+            json.dumps({"flight": {"cruise_speed_ms": "fast"}}),  # fails validation
+            "[]",                                                 # wrong shape
+        ],
+    )
+    def test_unloadable_file_is_backed_up_before_next_save(self, tmp_path_file, bad_content, caplog):
+        """Falling back to defaults must not destroy the operator's file: the
+        next save would otherwise overwrite it. The original bytes are kept in
+        a backup next to it and the error (with the backup path) is logged."""
+        tmp_path_file.write_text(bad_content, encoding="utf-8")
+        with caplog.at_level("ERROR", logger="gcs.backend.settings_store"):
+            store = SettingsStore(path=tmp_path_file)
+
+        backups = list(tmp_path_file.parent.glob(tmp_path_file.name + ".corrupt-*"))
+        assert len(backups) == 1
+        assert backups[0].read_text(encoding="utf-8") == bad_content
+        errors = [r for r in caplog.records if r.levelname == "ERROR"]
+        assert errors and str(backups[0]) in errors[0].getMessage()
+        assert store.load_error is not None
+
+        store.update({"flight": {"cruise_speed_ms": 30.0}})
+        assert backups[0].read_text(encoding="utf-8") == bad_content
+        assert json.loads(tmp_path_file.read_text(encoding="utf-8"))["flight"]["cruise_speed_ms"] == 30.0
+
+    def test_unloadable_file_is_not_overwritten_when_backup_fails(self, tmp_path_file, monkeypatch, caplog):
+        """If the bad file cannot be preserved, saves must refuse to replace it
+        (in-memory changes still apply) and the refusal must be logged."""
+        tmp_path_file.write_text("not valid json{{{", encoding="utf-8")
+        real_replace = Path.replace
+
+        def failing_backup(self, target):
+            if ".corrupt-" in str(target):
+                raise PermissionError("backup denied")
+            return real_replace(self, target)
+
+        monkeypatch.setattr(Path, "replace", failing_backup)
+        with caplog.at_level("ERROR", logger="gcs.backend.settings_store"):
+            store = SettingsStore(path=tmp_path_file)
+            updated = store.update({"flight": {"cruise_speed_ms": 30.0}})
+
+        assert updated.flight.cruise_speed_ms == 30.0
+        assert tmp_path_file.read_text(encoding="utf-8") == "not valid json{{{"
+        assert any("not overwriting" in r.getMessage() for r in caplog.records if r.levelname == "ERROR")
+
+    def test_unreadable_file_is_left_in_place_and_not_overwritten(self, tmp_path_file, monkeypatch, caplog):
+        """A read failure (e.g. a lock held by another process) is not
+        corruption: the file is not moved aside, and saves must not replace
+        content that was never read."""
+        tmp_path_file.write_text(json.dumps({"flight": {"cruise_speed_ms": 25.0}}), encoding="utf-8")
+        original = tmp_path_file.read_text(encoding="utf-8")
+        real_read_text = Path.read_text
+
+        def denied(self, *args, **kwargs):
+            if self == tmp_path_file:
+                raise PermissionError("locked")
+            return real_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", denied)
+        with caplog.at_level("ERROR", logger="gcs.backend.settings_store"):
+            store = SettingsStore(path=tmp_path_file)
+            store.update({"flight": {"cruise_speed_ms": 30.0}})
+        monkeypatch.undo()
+
+        assert store.load_error is not None
+        assert tmp_path_file.read_text(encoding="utf-8") == original
+        assert list(tmp_path_file.parent.glob("*.corrupt-*")) == []
+        assert any(r.levelname == "ERROR" for r in caplog.records)
+
+    def test_valid_file_has_no_load_error_and_no_backup(self, tmp_path_file):
+        tmp_path_file.write_text(json.dumps({"flight": {"cruise_speed_ms": 25.0}}), encoding="utf-8")
+        store = SettingsStore(path=tmp_path_file)
+        assert store.load_error is None
+        assert list(tmp_path_file.parent.glob("*.corrupt-*")) == []
+
+    def test_save_is_atomic(self, tmp_path_file, monkeypatch):
+        """A crash mid-save must leave the previous settings file intact."""
+        from gcs.backend import atomic_json
+
+        store = SettingsStore(path=tmp_path_file)
+        store.update({"flight": {"cruise_speed_ms": 25.0}})
+        before = tmp_path_file.read_text(encoding="utf-8")
+
+        class Crash(BaseException):
+            pass
+
+        def crash(*_args, **_kwargs):
+            raise Crash()
+
+        monkeypatch.setattr(atomic_json.os, "replace", crash)
+        with pytest.raises(Crash):
+            store.update({"flight": {"cruise_speed_ms": 30.0}})
+        assert tmp_path_file.read_text(encoding="utf-8") == before
+        assert sorted(p.name for p in tmp_path_file.parent.iterdir()) == [tmp_path_file.name]
+
     def test_bom_prefixed_file_is_loaded_not_replaced_by_defaults(self, tmp_path_file):
         """Windows PowerShell 5.1 and some editors write UTF-8 with a BOM.
         Such a file must load as written: falling back to defaults would

@@ -1,0 +1,4 @@
+# Evidence, not source. Reports and scripts pin these files' SHA-256, so git
+# must round-trip the bytes exactly; core.autocrlf=true would otherwise check
+# them out with CRLF on Windows and the recorded hashes would no longer verify.
+* -text

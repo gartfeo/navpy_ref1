@@ -124,6 +124,19 @@ PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/
 - Keep top-level controllers/components thin; put logic in focused helpers, handlers, hooks, or services.
 - No arbitrary thresholds, polling, sleeps, or special cases standing in for correct state/modeling. Domain-required thresholds must be named, centralized when shared, documented enough to explain intent, and covered by tests or verification.
 
+## Definition of Done
+
+A task is done only when every applicable item holds; otherwise report it as not done and say what is missing. The user's `/ship` walks this list, then commits, opens the PR, merges and archives the chat.
+
+- **Outcome** — works end to end, fixed at the root cause; no symptom workarounds or partial paths.
+- **Tests** — per the Testing Policy; report commands and results, and name pre-existing failures.
+- **Verified where it runs** — GCS behavior via `live-tester`; frontend also `npm test` and `npm run build` (`src/gcs/AGENTS.md`); `scripts/lua/*.lua` redeployed (CRLF stripped) to WSL `~/ardupilot/{1,2,3}/scripts` before claiming SITL results, since SITL doesn't load Lua from the repo.
+- **Evidence stated** — the level verified (unit, SITL/log, live app, hardware); simulation never proves physical docking or cargo receipt.
+- **Rules hold** — Pure Vision Approach Constraint, glossary terms, GCS launch rules.
+- **In sync** — generated files regenerated (see Agent Definitions); docs updated when commands, behavior or terms change.
+- **Scoped diff** — only the task's change; out-of-scope bugs become separate tasks.
+- **Cleanup** — remove debug code, scratch files and code the change made obsolete (no shims); keep `.logs/`. Stop what you started (GCS stack via `gcs_stop.py`, `--eval` for eval SITL, dev servers, shells) unless the user wants it running. Touch only your own work. `/cleanup` does this and sweeps what finished chats leave.
+
 ## Agent Definitions
 
 `.claude/agents/*.md` is the single source of truth. `.codex/agents/*.toml` is generated — never edit it by hand. After changing an agent's Markdown, run:

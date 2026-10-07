@@ -1,0 +1,5 @@
+# Evidence, not source. The raw log's SHA-256 is quoted in REPORT.md and
+# README.md, so git must round-trip these bytes exactly. Without -text,
+# core.autocrlf=true would check the JSONL out with CRLF on Windows and
+# the recorded hash would no longer verify.
+* -text

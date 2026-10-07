@@ -6,9 +6,11 @@ import logging
 import os
 import re
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
 from gcs.backend import instance_ports
+from gcs.backend.atomic_json import atomic_write_text
 from gcs.backend.settings_model import GcsSettings
 
 log = logging.getLogger(__name__)
@@ -71,7 +73,41 @@ class SettingsStore:
     def __init__(self, path: Path | str | None = None):
         self._path = Path(path) if path is not None else _configured_path()
         self._lock = threading.Lock()
+        # Set when the file on disk could not be loaded and defaults are in
+        # use. ``_writes_blocked`` is set when the operator's file is still in
+        # place (unreadable, or its backup failed), so saving must not
+        # overwrite it.
+        self.load_error: str | None = None
+        self._writes_blocked = False
         self._settings = self._load()
+
+    def _fall_back_to_defaults(self, reason: str) -> GcsSettings:
+        """Preserve an unloadable settings file, then use defaults.
+
+        The next save would otherwise replace the operator's file with
+        defaults (which turn sim_mode back on). The original is moved aside
+        to a timestamped ``.corrupt-*`` sibling; if that fails, saves are
+        refused for this session instead.
+        """
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        backup = self._path.with_name(f"{self._path.name}.corrupt-{stamp}")
+        try:
+            self._path.replace(backup)
+        except OSError as exc:
+            self._writes_blocked = True
+            self.load_error = f"{reason}; backup to {backup} failed: {exc}"
+            log.error(
+                "Settings file %s is unusable (%s) and could not be backed up (%s); "
+                "using defaults and not overwriting it until it is fixed",
+                self._path, reason, exc,
+            )
+        else:
+            self.load_error = f"{reason}; original kept at {backup}"
+            log.error(
+                "Settings file %s is unusable (%s); moved it to %s and using defaults",
+                self._path, reason, backup,
+            )
+        return GcsSettings()
 
     def _load(self) -> GcsSettings:
         if self._path.exists():
@@ -80,8 +116,18 @@ class SettingsStore:
                 # some editors); plain UTF-8 reads identically. A BOM must not
                 # drop the file to defaults, which turn sim_mode back on.
                 data = json.loads(self._path.read_text(encoding="utf-8-sig"))
-            except Exception as exc:
-                log.warning("Failed to read/parse settings from %s: %s", self._path, exc)
+            except (UnicodeDecodeError, ValueError) as exc:
+                return self._fall_back_to_defaults(f"parse error: {exc}")
+            except OSError as exc:
+                # Unreadable is not corrupt: leave the file where it is, but
+                # never overwrite what we could not read.
+                self._writes_blocked = True
+                self.load_error = f"read error: {exc}"
+                log.error(
+                    "Could not read settings file %s (%s); using defaults and "
+                    "not overwriting it this session",
+                    self._path, exc,
+                )
                 return GcsSettings()
             # Detect-then-pop so an explicit `"aas": null` is also pruned.
             # Guard for non-dict JSON (e.g. `[]`, `"string"`, `42`) so the
@@ -100,17 +146,13 @@ class SettingsStore:
             try:
                 settings = GcsSettings.model_validate(data)
             except Exception as exc:
-                log.warning("Failed to validate settings from %s: %s", self._path, exc)
-                return GcsSettings()
+                return self._fall_back_to_defaults(f"validation error: {exc}")
             if migrated_presets:
                 # Same eager-rewrite rationale as the aas prune below: make the
                 # migration deterministic and visible on disk; a write failure
                 # must not discard the validated in-memory settings.
                 try:
-                    self._path.write_text(
-                        settings.model_dump_json(indent=2),
-                        encoding="utf-8",
-                    )
+                    atomic_write_text(self._path, settings.model_dump_json(indent=2))
                     log.info("Migrated legacy tcp companion presets in %s", self._path)
                 except Exception as exc:
                     log.warning("Failed to rewrite %s after preset migration: %s", self._path, exc)
@@ -121,10 +163,7 @@ class SettingsStore:
                 # failure here must NOT discard the validated settings we
                 # already have in memory -- log and continue.
                 try:
-                    self._path.write_text(
-                        settings.model_dump_json(indent=2),
-                        encoding="utf-8",
-                    )
+                    atomic_write_text(self._path, settings.model_dump_json(indent=2))
                     log.info("Pruned legacy `aas` key from %s", self._path)
                 except Exception as exc:
                     log.warning("Failed to rewrite %s after pruning legacy aas: %s", self._path, exc)
@@ -132,11 +171,14 @@ class SettingsStore:
         return GcsSettings()
 
     def _save(self) -> None:
-        try:
-            self._path.write_text(
-                self._settings.model_dump_json(indent=2),
-                encoding="utf-8",
+        if self._writes_blocked:
+            log.error(
+                "Settings not saved: not overwriting unusable file %s (%s)",
+                self._path, self.load_error,
             )
+            return
+        try:
+            atomic_write_text(self._path, self._settings.model_dump_json(indent=2))
         except Exception as exc:
             log.error("Failed to save settings to %s: %s", self._path, exc)
 

@@ -1,0 +1,4 @@
+# Raw captures keep their recorded bytes; scripts stay LF for the Jetson.
+*.jsonl -text
+*.sh text eol=lf
+*.py text eol=lf

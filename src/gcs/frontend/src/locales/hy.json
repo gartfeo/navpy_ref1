@@ -347,6 +347,10 @@
       },
       "placeholders": {
         "tecsAuto": "-1 = TECS ավտո"
+      },
+      "options": {
+        "pnLegacyGeo": "PN (հնացած գեո)",
+        "pidLegacyGeo": "PID (հնացած գեո)"
       }
     }
   },

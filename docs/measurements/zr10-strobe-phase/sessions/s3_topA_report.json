@@ -1,0 +1,186 @@
+{
+  "input": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\claude\\C--repos-navpy--claude-worktrees-stoic-bell-d79710\\c70c25a2-e9ab-4ae9-8b02-77e6cf8596c1\\scratchpad\\s3_topA.jsonl",
+  "meta": {
+    "argv": [
+      "/home/pf/bench/zr10-latency-20260830/measure_zr10_latency.py",
+      "--output",
+      "/home/pf/bench/s3_topA.jsonl",
+      "--no-recenter",
+      "--roi-x",
+      "838",
+      "--roi-y",
+      "128",
+      "--roi-w",
+      "400",
+      "--roi-h",
+      "40",
+      "--events",
+      "250",
+      "--on-time",
+      "0.003",
+      "--interval-min",
+      "0.15",
+      "--interval-max",
+      "0.45"
+    ],
+    "roi": [
+      838,
+      128,
+      400,
+      40
+    ],
+    "versions": {
+      "python": "3.10.12",
+      "gstreamer": "GStreamer 1.20.3",
+      "glib": "2.71.3",
+      "numpy": "1.21.5",
+      "kernel": "5.15.185-tegra"
+    },
+    "random_seed": 20260830
+  },
+  "diagnostics": {
+    "frames_rejected_bad_pts": 0,
+    "frames_saturated": 3,
+    "gpio_pairs_malformed": 0,
+    "gpio_edge_span_us": {
+      "median": 30.497,
+      "max": 475.98
+    }
+  },
+  "frames": 1942,
+  "pulses_total": 250,
+  "pulses_analyzed": 248,
+  "pulses_terminal_excluded": 2,
+  "frame_period_ms": 40.0898226875,
+  "affine": {
+    "alpha": 1.2026946925020432,
+    "beta_ns": 136334656196476.97,
+    "residual_sd_ms": 4.207627568535994,
+    "block_alphas": [
+      1.2026419291592554,
+      1.202682695326356,
+      1.2026634219563834
+    ],
+    "block_map_divergence_ms": 0.58548825
+  },
+  "classes": {
+    "single": 214,
+    "split": 34
+  },
+  "lit_threshold": 12.0,
+  "prior_offset_ms": 99.8,
+  "coarse_latency_ms": 107.928255,
+  "split_crossing": {
+    "offset_ms": -87.018617015625,
+    "ci95_ms": [
+      -87.26465571875,
+      -86.8918960078125
+    ],
+    "ci_note": "conditional on the fitted affine map; pulses resampled as independent"
+  },
+  "linear_split_diagnostic_ms": -86.45147998092311,
+  "split_phase_balance": {
+    "below_crossing": 16,
+    "above_crossing": 18
+  },
+  "miss_band": {
+    "insufficient": "0 misses / 248 lit; need 15 / 30"
+  },
+  "half_session_drift_ms": null,
+  "canonical": {
+    "offset_wrapped_ms": 33.250851046875,
+    "source": "split"
+  },
+  "prior_scan": {
+    "rows": [
+      {
+        "step_ms": -20,
+        "classes": {
+          "single": 182,
+          "unexpected_lit": 66
+        }
+      },
+      {
+        "step_ms": -15,
+        "classes": {
+          "single": 214,
+          "unexpected_lit": 32,
+          "split": 2
+        }
+      },
+      {
+        "step_ms": -10,
+        "classes": {
+          "single": 214,
+          "split": 34
+        },
+        "offset_wrapped_ms": 33.250851046875,
+        "source": "split"
+      },
+      {
+        "step_ms": -5,
+        "classes": {
+          "single": 214,
+          "split": 34
+        },
+        "offset_wrapped_ms": 33.250851046875,
+        "source": "split"
+      },
+      {
+        "step_ms": 0,
+        "classes": {
+          "single": 214,
+          "split": 34
+        },
+        "offset_wrapped_ms": 33.250851046875,
+        "source": "split"
+      },
+      {
+        "step_ms": 5,
+        "classes": {
+          "single": 214,
+          "split": 34
+        },
+        "offset_wrapped_ms": 33.250851046875,
+        "source": "split"
+      },
+      {
+        "step_ms": 10,
+        "classes": {
+          "single": 214,
+          "split": 34
+        },
+        "offset_wrapped_ms": 33.250851046875,
+        "source": "split"
+      },
+      {
+        "step_ms": 15,
+        "classes": {
+          "single": 214,
+          "split": 34
+        },
+        "offset_wrapped_ms": 33.250851046875,
+        "source": "split"
+      },
+      {
+        "step_ms": 20,
+        "classes": {
+          "single": 214,
+          "split": 34
+        },
+        "offset_wrapped_ms": 33.250851046875,
+        "source": "split"
+      }
+    ],
+    "admissible_estimates": 7,
+    "plateau_spread_ms": 0.0,
+    "stable": true,
+    "note": "prior-assignment sensitivity only; a temporal drift common to every prior passes this - it is not a session-drift test"
+  },
+  "verdict": {
+    "valid": false,
+    "failures": [
+      "3 frame(s) saturated (roi_red_p95 >= 250.0): a clipped ROI destroys the score split; reduce LED current or diffuse (PROTOCOL)"
+    ]
+  }
+}
