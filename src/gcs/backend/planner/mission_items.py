@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from pymavlink.mavwp import MAVWPLoader
 from pymavlink.dialects.v20.ardupilotmega import (
+    MAV_CMD_DO_JUMP,
     MAV_CMD_NAV_WAYPOINT,
     MAV_CMD_NAV_TAKEOFF,
     MAV_FRAME_GLOBAL_RELATIVE_ALT,
+    MAV_FRAME_MISSION,
 )
 
 # Shared mission metadata encoding — single source of truth
@@ -101,7 +103,30 @@ def build_mission(
     if default_delivery_hub:
         meta_items.append((META_DEFAULT_DELIVERY_HUB, default_delivery_hub))
 
-    def _insert_metadata() -> None:
+    def _insert_skip_jump() -> None:
+        # ArduPilot executes DO_SET_ROI_LOCATION in AUTO (Plane points the
+        # primary mount at it), so AUTO must never reach the metadata block.
+        # A forward DO_JUMP to the item right after the block makes
+        # AP_Mission skip it for both nav and DO execution. Repeat -1 means
+        # "no limit", so the skip also holds on mission restarts.
+        seq = wp_loader.count()
+        wp_loader.add_latlonalt(0, 0, 0)
+        wp = wp_loader.wp(seq)
+        wp.frame = MAV_FRAME_MISSION
+        wp.command = MAV_CMD_DO_JUMP
+        wp.param1 = float(seq + 1 + len(meta_items))
+        wp.param2 = -1.0
+        wp.autocontinue = 1
+        wp.x = 0
+        wp.y = 0
+        wp.z = 0
+
+    def _insert_metadata(followed: bool) -> None:
+        # With nothing after the block the jump target would be past the
+        # last item; AP would then just end the mission, but we do not rely
+        # on its invalid-target handling and emit no jump instead.
+        if followed:
+            _insert_skip_jump()
         for idx, (meta_type, mp) in enumerate(meta_items):
             seq = wp_loader.count()
             wp_loader.add_latlonalt(mp["lat"], mp["lon"], 0)
@@ -124,8 +149,9 @@ def build_mission(
     meta_inserted = False
     for i, pt in enumerate(track_latlon):
         # Insert metadata between corridor and track waypoints
-        if i == corridor_count:
-            _insert_metadata()
+        if i == corridor_count and meta_items:
+            # A track waypoint always follows a block inserted in-loop.
+            _insert_metadata(followed=True)
             meta_inserted = True
 
         # Corridor approach waypoints use corridor altitude (base altitude
@@ -147,7 +173,8 @@ def build_mission(
     # metadata block now so search_pattern/polygon are never dropped and
     # the companion can still recover them from the mission.
     if not meta_inserted and meta_items:
-        _insert_metadata()
+        # Only the default-delivery-hub waypoint can still follow the block.
+        _insert_metadata(followed=default_delivery_hub is not None)
 
     # Append default delivery hub as the last NAV_WAYPOINT
     if default_delivery_hub:

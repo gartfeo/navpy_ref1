@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from pymavlink.dialects.v20.ardupilotmega import (
+    MAV_CMD_DO_JUMP,
     MAV_CMD_NAV_TAKEOFF,
     MAV_CMD_NAV_WAYPOINT,
 )
@@ -144,6 +145,35 @@ class TestValidateVehicleMission:
         assert probe.item_count == 2
         assert probe.track_count == 0
         assert cached is None
+
+
+class TestParseMissionItemsSkipJump:
+    def test_skip_jump_before_metadata_is_not_a_route_point(self):
+        """The planner's DO_JUMP over the metadata block carries no route point.
+
+        A real vehicle reports a (0, 0) location for it; it must not appear
+        as a waypoint nor shift the corridor/scan boundary.
+        """
+        meta_z = encode_meta_z("distributed")
+        items = [
+            _make_wp(MAV_CMD_NAV_WAYPOINT),                                  # home
+            _make_wp(MAV_CMD_NAV_TAKEOFF, z=100),                            # takeoff
+            _make_wp(MAV_CMD_NAV_WAYPOINT, x=int(31.9 * 1e7), y=int(33.9 * 1e7), z=120),  # corridor
+            _make_wp(MAV_CMD_DO_JUMP, param1=5.0, param2=-1.0),              # skip-jump
+            _make_wp(CORRIDOR_END_MARKER, param1=META_POLYGON_VERTEX,
+                     x=int(32.0 * 1e7), y=int(34.0 * 1e7), z=meta_z),
+            _make_wp(MAV_CMD_NAV_WAYPOINT, x=int(32.0 * 1e7), y=int(34.0 * 1e7), z=100),  # track
+        ]
+        locations = {
+            2: _make_loc(31.9, 33.9, 120),
+            3: _make_loc(0.0, 0.0, 0.0),
+            5: _make_loc(32.0, 34.0, 100),
+        }
+        parsed = parse_mission_items(_make_vehicle(items, locations), len(items), 1)
+
+        assert [wp["mission_sequence"] for wp in parsed["waypoints"]] == [2, 5]
+        assert parsed["corridor_end_index"] == 1
+        assert len(parsed["polygon"]) == 1
 
 
 class TestValidateFleetMissions:

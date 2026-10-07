@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_NAV_TAKEOFF
+from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_DO_JUMP, MAV_CMD_NAV_TAKEOFF
 from gcs.backend.planner.waypoint_builder import (
     CORRIDOR_END_MARKER,
     META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB,
@@ -56,6 +56,10 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
         if wp is None:
             continue
         if i == 0 or wp.command == MAV_CMD_NAV_TAKEOFF:
+            continue
+        if wp.command == MAV_CMD_DO_JUMP:
+            # Skip-jump the planner puts before the metadata block so AUTO
+            # never executes it; it carries no location or route meaning.
             continue
         if wp.command == CORRIDOR_END_MARKER:
             if not in_metadata:

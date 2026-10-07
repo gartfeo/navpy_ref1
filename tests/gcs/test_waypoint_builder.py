@@ -2,8 +2,10 @@
 import unittest
 
 from pymavlink.dialects.v20.ardupilotmega import (
+    MAV_CMD_DO_JUMP,
     MAV_CMD_NAV_WAYPOINT,
     MAV_CMD_NAV_TAKEOFF,
+    MAV_FRAME_MISSION,
 )
 
 from gcs.backend.planner.waypoint_builder import (
@@ -119,23 +121,25 @@ class TestCorridorWithMetadata(unittest.TestCase):
         track = _make_track(5)
         polygon = [{"lat": 32.0, "lon": 34.0}]
         wp = build_mission(track, 100, corridor_count=2, polygon=polygon)
-        # home + takeoff + 5 track wps + 1 meta = 8
-        self.assertEqual(wp.count(), 8)
+        # home + takeoff + 5 track wps + 1 jump + 1 meta = 9
+        self.assertEqual(wp.count(), 9)
         self.assertEqual(wp.wp(2).command, MAV_CMD_NAV_WAYPOINT)  # corridor 0
         self.assertEqual(wp.wp(3).command, MAV_CMD_NAV_WAYPOINT)  # corridor 1
-        self.assertEqual(wp.wp(4).command, CORRIDOR_END_MARKER)   # metadata
-        self.assertEqual(wp.wp(5).command, MAV_CMD_NAV_WAYPOINT)  # track 0
+        self.assertEqual(wp.wp(4).command, MAV_CMD_DO_JUMP)       # skip-jump
+        self.assertEqual(wp.wp(5).command, CORRIDOR_END_MARKER)   # metadata
+        self.assertEqual(wp.wp(6).command, MAV_CMD_NAV_WAYPOINT)  # track 0
 
     def test_single_corridor_with_launch_point(self):
         """corridor_count=1 with launch_point metadata."""
         track = _make_track(4)
         launch = {"lat": 31.5, "lon": 33.5}
         wp = build_mission(track, 100, corridor_count=1, launch_point=launch)
-        # home + takeoff + 4 track wps + 1 meta = 7
-        self.assertEqual(wp.count(), 7)
+        # home + takeoff + 4 track wps + 1 jump + 1 meta = 8
+        self.assertEqual(wp.count(), 8)
         self.assertEqual(wp.wp(2).command, MAV_CMD_NAV_WAYPOINT)  # corridor
-        self.assertEqual(wp.wp(3).command, CORRIDOR_END_MARKER)   # launch_point meta
-        self.assertEqual(wp.wp(4).command, MAV_CMD_NAV_WAYPOINT)  # track start
+        self.assertEqual(wp.wp(3).command, MAV_CMD_DO_JUMP)       # skip-jump
+        self.assertEqual(wp.wp(4).command, CORRIDOR_END_MARKER)   # launch_point meta
+        self.assertEqual(wp.wp(5).command, MAV_CMD_NAV_WAYPOINT)  # track start
 
     def test_waypoint_order_with_metadata(self):
         """Corridor + metadata + track preserve correct order."""
@@ -147,12 +151,13 @@ class TestCorridorWithMetadata(unittest.TestCase):
         ]
         polygon = [{"lat": 31.0, "lon": 33.0}]
         wp = build_mission(track, 100, corridor_count=2, polygon=polygon)
-        # seq 2,3 = corridor; seq 4 = meta; seq 5,6 = track
+        # seq 2,3 = corridor; seq 4 = jump; seq 5 = meta; seq 6,7 = track
         self.assertAlmostEqual(wp.wp(2).x / 1e7, 32.0, places=5)
         self.assertAlmostEqual(wp.wp(3).x / 1e7, 32.1, places=5)
-        self.assertEqual(wp.wp(4).command, CORRIDOR_END_MARKER)
-        self.assertAlmostEqual(wp.wp(5).x / 1e7, 32.2, places=5)
-        self.assertAlmostEqual(wp.wp(6).x / 1e7, 32.3, places=5)
+        self.assertEqual(wp.wp(4).command, MAV_CMD_DO_JUMP)
+        self.assertEqual(wp.wp(5).command, CORRIDOR_END_MARKER)
+        self.assertAlmostEqual(wp.wp(6).x / 1e7, 32.2, places=5)
+        self.assertAlmostEqual(wp.wp(7).x / 1e7, 32.3, places=5)
 
 
 class TestSearchPatternEncoding(unittest.TestCase):
@@ -173,24 +178,24 @@ class TestSearchPatternEncoding(unittest.TestCase):
         track = _make_track(3)
         polygon = [{"lat": 32.0, "lon": 34.0}, {"lat": 32.1, "lon": 34.0}]
         wp = build_mission(track, 100, search_pattern="distributed", polygon=polygon)
-        # First meta item (seq 2): z=0
-        self.assertEqual(wp.wp(2).z, 0)
-        # Last meta item (seq 3): z=encode_meta_z("distributed")
-        self.assertEqual(wp.wp(3).z, encode_meta_z("distributed"))
+        # First meta item (seq 3, after the skip-jump): z=0
+        self.assertEqual(wp.wp(3).z, 0)
+        # Last meta item (seq 4): z=encode_meta_z("distributed")
+        self.assertEqual(wp.wp(4).z, encode_meta_z("distributed"))
 
     def test_corridor_search_pattern_only_on_last_z(self):
         """Corridor search_pattern → z on last metadata item only."""
         track = _make_track(3)
         polygon = [{"lat": 32.0, "lon": 34.0}]
         wp = build_mission(track, 100, search_pattern="corridor", polygon=polygon)
-        self.assertEqual(wp.wp(2).z, encode_meta_z("corridor"))
+        self.assertEqual(wp.wp(3).z, encode_meta_z("corridor"))
 
     def test_unknown_search_pattern_defaults_to_distributed(self):
         """Unknown search_pattern name → defaults to distributed bitmask (1)."""
         track = _make_track(3)
         polygon = [{"lat": 32.0, "lon": 34.0}]
         wp = build_mission(track, 100, search_pattern="unknown", polygon=polygon)
-        self.assertEqual(wp.wp(2).z, encode_meta_z("unknown"))
+        self.assertEqual(wp.wp(3).z, encode_meta_z("unknown"))
 
     def test_no_metadata_no_marker(self):
         """Without metadata, no ROI items at all (search_pattern defaults on download)."""
@@ -206,6 +211,7 @@ class TestRoundTrip(unittest.TestCase):
     def _simulate_download(self, wp_loader):
         """Mimic the download endpoint logic.
 
+        The DO_JUMP before the metadata block is skipped.
         Every DO_SET_ROI_LOCATION is a metadata item:
         - param1 = meta_type, x/y = lat/lon
         - META_DEFAULT_DELIVERY_HUB z bits 8-10 = compact location type id
@@ -225,6 +231,8 @@ class TestRoundTrip(unittest.TestCase):
             wp = wp_loader.wp(i)
             if i == 0 or wp.command == MAV_CMD_NAV_TAKEOFF:
                 continue
+            if wp.command == MAV_CMD_DO_JUMP:
+                continue  # skip-jump over the metadata block
             if wp.command == CORRIDOR_END_MARKER:
                 if not in_metadata:
                     corridor_end_index = nav_index
@@ -329,21 +337,21 @@ class TestMetadataEncoding(unittest.TestCase):
             {"lat": 32.0, "lon": 34.1},
         ]
         wp = build_mission(track, 100, polygon=polygon)
-        # home + takeoff + 4 meta + 3 track = 9
-        self.assertEqual(wp.count(), 9)
+        # home + takeoff + 1 jump + 4 meta + 3 track = 10
+        self.assertEqual(wp.count(), 10)
         for j in range(4):
-            meta = wp.wp(2 + j)
+            meta = wp.wp(3 + j)
             self.assertEqual(meta.command, CORRIDOR_END_MARKER)
             self.assertEqual(int(meta.param1), META_POLYGON_VERTEX)
             self.assertAlmostEqual(meta.x / 1e7, polygon[j]["lat"], places=6)
             self.assertAlmostEqual(meta.y / 1e7, polygon[j]["lon"], places=6)
         # Only last meta item has z set, others are 0
         for j in range(3):
-            self.assertEqual(wp.wp(2 + j).z, 0)
-        self.assertEqual(wp.wp(5).z, encode_meta_z("distributed"))
-        # track waypoints follow at seq 6-8
+            self.assertEqual(wp.wp(3 + j).z, 0)
+        self.assertEqual(wp.wp(6).z, encode_meta_z("distributed"))
+        # track waypoints follow at seq 7-9
         for j in range(3):
-            self.assertEqual(wp.wp(6 + j).command, MAV_CMD_NAV_WAYPOINT)
+            self.assertEqual(wp.wp(7 + j).command, MAV_CMD_NAV_WAYPOINT)
 
     def test_corridor_backbone_encoded(self):
         """Corridor backbone vertices encoded as metadata DO items."""
@@ -353,10 +361,10 @@ class TestMetadataEncoding(unittest.TestCase):
             {"lat": 31.95, "lon": 33.95},
         ]
         wp = build_mission(track, 100, corridor_backbone=corridor_backbone)
-        # home + takeoff + 2 meta + 3 track = 7
-        self.assertEqual(wp.count(), 7)
+        # home + takeoff + 1 jump + 2 meta + 3 track = 8
+        self.assertEqual(wp.count(), 8)
         for j in range(2):
-            meta = wp.wp(2 + j)
+            meta = wp.wp(3 + j)
             self.assertEqual(int(meta.param1), META_CORRIDOR_VERTEX)
             self.assertAlmostEqual(meta.x / 1e7, corridor_backbone[j]["lat"], places=6)
             self.assertAlmostEqual(meta.y / 1e7, corridor_backbone[j]["lon"], places=6)
@@ -371,13 +379,13 @@ class TestMetadataEncoding(unittest.TestCase):
         ]
         corridor_backbone = [{"lat": 31.9, "lon": 33.9}]
         wp = build_mission(track, 100, polygon=polygon, corridor_backbone=corridor_backbone)
-        # home + takeoff + 3 poly + 1 corr + 3 track = 9
-        self.assertEqual(wp.count(), 9)
-        # polygon first (seq 2-4)
+        # home + takeoff + 1 jump + 3 poly + 1 corr + 3 track = 10
+        self.assertEqual(wp.count(), 10)
+        # polygon first (seq 3-5)
         for j in range(3):
-            self.assertEqual(int(wp.wp(2 + j).param1), META_POLYGON_VERTEX)
-        # corridor after polygon (seq 5)
-        self.assertEqual(int(wp.wp(5).param1), META_CORRIDOR_VERTEX)
+            self.assertEqual(int(wp.wp(3 + j).param1), META_POLYGON_VERTEX)
+        # corridor after polygon (seq 6)
+        self.assertEqual(int(wp.wp(6).param1), META_CORRIDOR_VERTEX)
 
     def test_no_metadata_no_roi(self):
         """No metadata → no ROI items in mission."""
@@ -486,26 +494,26 @@ class TestLaunchPoint(unittest.TestCase):
         self.assertEqual(wp.wp(1).y, int(33.5 * 1e7))
         self.assertEqual(wp.wp(1).z, 100)
         self.assertEqual(wp.wp(1).command, MAV_CMD_NAV_TAKEOFF)
-        # Launch_point meta at seq 2, track at seq 3
-        self.assertAlmostEqual(wp.wp(3).x / 1e7, 32.0, places=5)
+        # Skip-jump at seq 2, launch_point meta at seq 3, track at seq 4
+        self.assertAlmostEqual(wp.wp(4).x / 1e7, 32.0, places=5)
 
     def test_launch_point_not_in_track(self):
         """Launch point is not added as a NAV_WAYPOINT in the track."""
         launch = {"lat": 31.5, "lon": 33.5}
         track = _make_track(3)
         wp = build_mission(track, 100, launch_point=launch)
-        # home + takeoff + 1 launch_point meta + 3 track = 6
-        self.assertEqual(wp.count(), 6)
-        self.assertEqual(wp.wp(2).command, CORRIDOR_END_MARKER)
-        self.assertEqual(int(wp.wp(2).param1), META_LAUNCH_POINT)
-        self.assertEqual(wp.wp(3).command, MAV_CMD_NAV_WAYPOINT)
+        # home + takeoff + 1 jump + 1 launch_point meta + 3 track = 7
+        self.assertEqual(wp.count(), 7)
+        self.assertEqual(wp.wp(3).command, CORRIDOR_END_MARKER)
+        self.assertEqual(int(wp.wp(3).param1), META_LAUNCH_POINT)
+        self.assertEqual(wp.wp(4).command, MAV_CMD_NAV_WAYPOINT)
 
     def test_launch_point_metadata_encoded(self):
         """Launch point encoded as META_LAUNCH_POINT metadata item with search_pattern in z (last item)."""
         launch = {"lat": 31.5, "lon": 33.5}
         track = _make_track(3)
         wp = build_mission(track, 100, launch_point=launch)
-        meta = wp.wp(2)
+        meta = wp.wp(3)
         self.assertEqual(meta.command, CORRIDOR_END_MARKER)
         self.assertEqual(int(meta.param1), META_LAUNCH_POINT)
         self.assertAlmostEqual(meta.x / 1e7, 31.5, places=6)
@@ -623,10 +631,10 @@ class TestMetaZOnMission(TestRoundTrip):
         launch = {"lat": 31.5, "lon": 33.5}
         wp = build_mission(track, 100, polygon=polygon, launch_point=launch,
                            search_pattern="corridor")
-        # 3 polygon + 1 launch = 4 metadata items at seq 2-5
+        # 3 polygon + 1 launch = 4 metadata items at seq 3-6 (seq 2 = jump)
         for j in range(3):
-            self.assertEqual(wp.wp(2 + j).z, 0, f"metadata item {j} should have z=0")
-        self.assertEqual(wp.wp(5).z, encode_meta_z("corridor"))
+            self.assertEqual(wp.wp(3 + j).z, 0, f"metadata item {j} should have z=0")
+        self.assertEqual(wp.wp(6).z, encode_meta_z("corridor"))
 
     def test_build_mission_rejects_dock_classes_argument(self):
         """The dock-class selection is gone from the builder API."""
@@ -642,9 +650,9 @@ class TestMissionDeliveryHub(unittest.TestCase):
         track = _make_track(3)
         dt = {"lat": 40.5, "lon": 44.5, "type": "bridge"}
         wp = build_mission(track, 100, default_delivery_hub=dt)
-        # home + takeoff + 1 meta (default_delivery_hub) + 3 track + 1 dt NAV_WP = 7
-        self.assertEqual(wp.count(), 7)
-        meta = wp.wp(2)
+        # home + takeoff + 1 jump + 1 meta (default_delivery_hub) + 3 track + 1 dt NAV_WP = 8
+        self.assertEqual(wp.count(), 8)
+        meta = wp.wp(3)
         self.assertEqual(meta.command, CORRIDOR_END_MARKER)
         self.assertEqual(int(meta.param1), META_DEFAULT_DELIVERY_HUB)
         self.assertEqual(decode_location_type_from_z(meta.z), "bridge")
@@ -658,12 +666,12 @@ class TestMissionDeliveryHub(unittest.TestCase):
         launch = {"lat": 31.5, "lon": 33.5}
         dt = {"lat": 40.5, "lon": 44.5}
         wp = build_mission(track, 100, polygon=polygon, launch_point=launch, default_delivery_hub=dt)
-        # home + takeoff + 3 meta (poly + launch + dt) + 3 track + 1 dt NAV_WP = 9
-        self.assertEqual(wp.count(), 9)
+        # home + takeoff + 1 jump + 3 meta (poly + launch + dt) + 3 track + 1 dt NAV_WP = 10
+        self.assertEqual(wp.count(), 10)
         # Check meta types in order
-        self.assertEqual(int(wp.wp(2).param1), META_POLYGON_VERTEX)
-        self.assertEqual(int(wp.wp(3).param1), META_LAUNCH_POINT)
-        self.assertEqual(int(wp.wp(4).param1), META_DEFAULT_DELIVERY_HUB)
+        self.assertEqual(int(wp.wp(3).param1), META_POLYGON_VERTEX)
+        self.assertEqual(int(wp.wp(4).param1), META_LAUNCH_POINT)
+        self.assertEqual(int(wp.wp(5).param1), META_DEFAULT_DELIVERY_HUB)
 
     def test_default_delivery_hub_last_wp_is_nav_waypoint(self):
         """Last mission item is a NAV_WAYPOINT at delivery hub coordinates with mission altitude."""
@@ -681,6 +689,71 @@ class TestMissionDeliveryHub(unittest.TestCase):
         track = _make_track(3)
         wp = build_mission(track, 100)
         self.assertEqual(wp.count(), 5)  # home + takeoff + 3 wps
+
+
+class TestMetadataSkipJump(unittest.TestCase):
+    """AUTO must never execute the metadata block.
+
+    ArduPlane runs DO_SET_ROI_LOCATION in AUTO and points the primary mount
+    at it (GPS_POINT), so a forward DO_JUMP right before the block targets
+    the first item after it; AP_Mission then never starts the skipped items.
+    """
+
+    def _assert_skip_jump(self, wp, jump_seq, meta_count):
+        jump = wp.wp(jump_seq)
+        self.assertEqual(jump.command, MAV_CMD_DO_JUMP)
+        self.assertEqual(jump.frame, MAV_FRAME_MISSION)
+        self.assertEqual(jump.param2, -1.0)  # no repeat limit
+        self.assertEqual((jump.x, jump.y, jump.z), (0, 0, 0))
+        target = int(jump.param1)
+        self.assertEqual(target, jump_seq + 1 + meta_count)
+        for seq in range(jump_seq + 1, target):
+            self.assertEqual(wp.wp(seq).command, CORRIDOR_END_MARKER)
+        self.assertEqual(wp.wp(target).command, MAV_CMD_NAV_WAYPOINT)
+
+    def test_jump_skips_block_to_first_track_waypoint(self):
+        track = _make_track(5)
+        polygon = [{"lat": 32.0, "lon": 34.0}, {"lat": 32.1, "lon": 34.0}]
+        launch = {"lat": 31.5, "lon": 33.5}
+        hub = {"lat": 40.5, "lon": 44.5, "type": "bridge"}
+        wp = build_mission(track, 100, corridor_count=2, polygon=polygon,
+                           launch_point=launch, default_delivery_hub=hub)
+        # seq 2,3 corridor; 4 jump; 5..8 meta (2 poly + launch + hub); 9 track 0
+        self._assert_skip_jump(wp, jump_seq=4, meta_count=4)
+        self.assertAlmostEqual(wp.wp(9).x / 1e7, track[2]["lat"], places=6)
+
+    def test_every_roi_item_is_behind_a_jump(self):
+        track = _make_track(3)
+        wp = build_mission(track, 100, polygon=[{"lat": 32.0, "lon": 34.0}])
+        commands = [wp.wp(i).command for i in range(wp.count())]
+        first_meta = commands.index(CORRIDOR_END_MARKER)
+        self.assertEqual(commands[first_meta - 1], MAV_CMD_DO_JUMP)
+        self.assertEqual(commands.count(MAV_CMD_DO_JUMP), 1)
+
+    def test_empty_track_with_hub_jumps_to_hub_waypoint(self):
+        track = _make_track(2)
+        hub = {"lat": 40.5, "lon": 44.5}
+        wp = build_mission(track, 100, corridor_count=2,
+                           polygon=[{"lat": 32.0, "lon": 34.0}],
+                           default_delivery_hub=hub)
+        # seq 2,3 corridor; 4 jump; 5,6 meta (poly + hub); 7 hub NAV_WAYPOINT
+        self._assert_skip_jump(wp, jump_seq=4, meta_count=2)
+        self.assertEqual(wp.count(), 8)
+        self.assertAlmostEqual(wp.wp(7).x / 1e7, 40.5, places=6)
+
+    def test_no_jump_when_nothing_follows_block(self):
+        """No jump target exists past the last item, so no jump is emitted."""
+        track = _make_track(2)
+        wp = build_mission(track, 100, corridor_count=2,
+                           polygon=[{"lat": 32.0, "lon": 34.0}])
+        commands = [wp.wp(i).command for i in range(wp.count())]
+        self.assertNotIn(MAV_CMD_DO_JUMP, commands)
+        self.assertEqual(commands[-1], CORRIDOR_END_MARKER)
+
+    def test_no_jump_without_metadata(self):
+        wp = build_mission(_make_track(3), 100, corridor_count=1)
+        commands = [wp.wp(i).command for i in range(wp.count())]
+        self.assertNotIn(MAV_CMD_DO_JUMP, commands)
 
 
 class TestMetadataEmptyTrack(TestRoundTrip):
