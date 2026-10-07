@@ -1,0 +1,121 @@
+{
+  "input": "/home/pf/zr10_latency/zr10_latency_recentered_20260830.jsonl",
+  "stimuli": 300,
+  "matched_led_on": 300,
+  "led_on_to_first_visible": {
+    "n": 300,
+    "min_ms": 24.886447,
+    "median_ms": 99.8414415,
+    "p95_ms": 117.67581415,
+    "p99_ms": 121.54027996999997,
+    "max_ms": 154.339022,
+    "spread_ms": 129.452575,
+    "stdev_ms": 14.213862607311263
+  },
+  "last_packet_to_decoder_output": {
+    "n": 300,
+    "min_ms": 4.18706,
+    "median_ms": 5.164144,
+    "p95_ms": 6.02195025,
+    "p99_ms": 12.754287309999997,
+    "max_ms": 14.335011,
+    "spread_ms": 10.147950999999999,
+    "stdev_ms": 1.2597237948718032
+  },
+  "decoder_output_to_publication": {
+    "n": 300,
+    "min_ms": 3.802802,
+    "median_ms": 4.3350405,
+    "p95_ms": 4.491145250000001,
+    "p99_ms": 4.5579409900000005,
+    "max_ms": 4.649697,
+    "spread_ms": 0.846895,
+    "stdev_ms": 0.09028170550600714
+  },
+  "frame_cadence": {
+    "n": 7225,
+    "min_ms": 5.293163,
+    "median_ms": 41.815432,
+    "p95_ms": 46.97382700000001,
+    "p99_ms": 53.72393592000001,
+    "max_ms": 87.794687,
+    "spread_ms": 82.50152399999999,
+    "stdev_ms": 6.477921913137166
+  },
+  "rtp_sequence_packets_missing": 0,
+  "consecutive_duplicate_rtp_timestamps": 0,
+  "consecutive_duplicate_pts": 0,
+  "rtp_timestamp_step": {
+    "n": 7240,
+    "min_ms": 33.32222222222222,
+    "median_ms": 33.33333333333333,
+    "p95_ms": 33.33333333333333,
+    "p99_ms": 33.33333333333333,
+    "max_ms": 56.7,
+    "spread_ms": 23.37777777777778,
+    "stdev_ms": 0.2746275366229547
+  },
+  "stream_wall_span_s": 289.513358819,
+  "stream_pts_span_s": 240.830922222,
+  "pts_minus_wall_span_s": -48.682436597,
+  "timestamp_offset_spread": {
+    "pts": {
+      "n": 300,
+      "min_ms": -537554.506526,
+      "median_ms": -513823.577515,
+      "p95_ms": -491791.74493605,
+      "p99_ms": -489943.74343903,
+      "max_ms": -489545.315184,
+      "spread_ms": 48009.19134199998,
+      "stdev_ms": 14156.8019227127
+    },
+    "rtp": {
+      "n": 300,
+      "min_ms": 8455519.471251888,
+      "median_ms": 8479250.400262665,
+      "p95_ms": 8501282.232841505,
+      "p99_ms": 8503130.234338742,
+      "max_ms": 8503528.662593,
+      "spread_ms": 48009.19134111144,
+      "stdev_ms": 14156.801922703651
+    },
+    "packet_first": {
+      "n": 300,
+      "min_ms": 14.557117,
+      "median_ms": 88.94713,
+      "p95_ms": 107.7027097,
+      "p99_ms": 109.05451077,
+      "max_ms": 111.470094,
+      "spread_ms": 96.912977,
+      "stdev_ms": 14.565374718393409
+    },
+    "packet_last": {
+      "n": 300,
+      "min_ms": 14.557117,
+      "median_ms": 90.14220800000001,
+      "p95_ms": 108.28240445,
+      "p99_ms": 110.52924651,
+      "max_ms": 144.985076,
+      "spread_ms": 130.427959,
+      "stdev_ms": 14.102189022856365
+    },
+    "decoder_output": {
+      "n": 300,
+      "min_ms": 20.490463,
+      "median_ms": 95.462242,
+      "p95_ms": 113.35438780000001,
+      "p99_ms": 117.08549183999997,
+      "max_ms": 150.116104,
+      "spread_ms": 129.625641,
+      "stdev_ms": 14.21344600185729
+    }
+  },
+  "pipeline": "rtspsrc name=src location=\"rtsp://192.168.144.25:8554/main.264\" protocols=tcp latency=0 buffer-mode=none drop-on-latency=true do-retransmission=false ! rtph265depay name=depay ! nvv4l2decoder name=decoder disable-dpb=true enable-max-performance=true num-extra-surfaces=0 ! nvvidconv name=convert ! video/x-raw,format=BGRx ! appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true",
+  "versions": {
+    "python": "3.10.12",
+    "gstreamer": "GStreamer 1.20.3",
+    "glib": "2.71.3",
+    "numpy": "1.21.5",
+    "kernel": "5.15.185-tegra"
+  }
+}

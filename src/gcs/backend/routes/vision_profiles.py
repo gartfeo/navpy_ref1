@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
 from gcs.backend import navpy_sim_runtime as runtime
+from gcs.backend.atomic_json import atomic_write_json
 from gcs.backend.settings_store import settings_store
 from navpy.modules.vision.vision_profiles import (
     DETECTOR_CLASS_DIMENSIONS,
@@ -21,6 +23,10 @@ from navpy.modules.vision.vision_profiles import (
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+# Serializes each PUT's read-modify-write of vision_profiles.json so two
+# concurrent edits cannot rewrite stale data and drop each other's change.
+_profiles_write_lock = threading.Lock()
 
 
 class DeviceUpdate(BaseModel):
@@ -128,14 +134,15 @@ def get_vision_profiles():
 @router.put("/api/vision-profiles/default/{profile_name}")
 def set_default_profile(profile_name: str):
     """Set the default vision profile in vision_profiles.json."""
-    _, _, path = load_profiles()
-    data = json.loads(path.read_text())
+    with _profiles_write_lock:
+        _, _, path = load_profiles()
+        data = json.loads(path.read_text())
 
-    if profile_name not in data.get("profiles", {}):
-        raise HTTPException(404, detail=f"Profile '{profile_name}' not found")
+        if profile_name not in data.get("profiles", {}):
+            raise HTTPException(404, detail=f"Profile '{profile_name}' not found")
 
-    data["default_profile"] = profile_name
-    path.write_text(json.dumps(data, indent=2) + "\n")
+        data["default_profile"] = profile_name
+        atomic_write_json(path, data)
     _restart_navpy_if_active_profile_changed(profile_name)
     return _build_catalog()
 
@@ -143,40 +150,41 @@ def set_default_profile(profile_name: str):
 @router.put("/api/vision-profiles/{profile_name}/devices/{device_name}")
 def update_device_params(profile_name: str, device_name: str, body: DeviceUpdate):
     """Update device camera/gimbal parameters and persist to vision_profiles.json."""
-    _, _, path = load_profiles()
-    data = json.loads(path.read_text())
+    with _profiles_write_lock:
+        _, _, path = load_profiles()
+        data = json.loads(path.read_text())
 
-    profile = data.get("profiles", {}).get(profile_name)
-    if not profile:
-        raise HTTPException(404, detail=f"Profile '{profile_name}' not found")
+        profile = data.get("profiles", {}).get(profile_name)
+        if not profile:
+            raise HTTPException(404, detail=f"Profile '{profile_name}' not found")
 
-    device = next(
-        (d for d in profile.get("devices", []) if d["name"] == device_name), None
-    )
-    if not device:
-        raise HTTPException(404, detail=f"Device '{device_name}' not found")
+        device = next(
+            (d for d in profile.get("devices", []) if d["name"] == device_name), None
+        )
+        if not device:
+            raise HTTPException(404, detail=f"Device '{device_name}' not found")
 
-    cam = device.setdefault("camera", {})
-    intrinsics = cam.setdefault("intrinsics", {})
-    zooms = intrinsics.setdefault("zooms", {})
-    zoom_data = zooms.get(body.zoom)
-    if not zoom_data:
-        raise HTTPException(404, detail=f"Zoom '{body.zoom}' not found")
+        cam = device.setdefault("camera", {})
+        intrinsics = cam.setdefault("intrinsics", {})
+        zooms = intrinsics.setdefault("zooms", {})
+        zoom_data = zooms.get(body.zoom)
+        if not zoom_data:
+            raise HTTPException(404, detail=f"Zoom '{body.zoom}' not found")
 
-    gimbal = device.setdefault("gimbal", {})
+        gimbal = device.setdefault("gimbal", {})
 
-    if body.pitch_deg is not None:
-        gimbal["camera_pitch"] = body.pitch_deg
-    if body.fx is not None:
-        zoom_data["fx"] = body.fx
-    if body.fy is not None:
-        zoom_data["fy"] = body.fy
-    if body.image_width is not None:
-        cam["image_width"] = body.image_width
-    if body.image_height is not None:
-        cam["image_height"] = body.image_height
+        if body.pitch_deg is not None:
+            gimbal["camera_pitch"] = body.pitch_deg
+        if body.fx is not None:
+            zoom_data["fx"] = body.fx
+        if body.fy is not None:
+            zoom_data["fy"] = body.fy
+        if body.image_width is not None:
+            cam["image_width"] = body.image_width
+        if body.image_height is not None:
+            cam["image_height"] = body.image_height
 
-    path.write_text(json.dumps(data, indent=2) + "\n")
+        atomic_write_json(path, data)
     _restart_navpy_if_active_profile_changed(profile_name)
     return _build_catalog()
 
@@ -184,34 +192,35 @@ def update_device_params(profile_name: str, device_name: str, body: DeviceUpdate
 @router.put("/api/vision-profiles/{profile_name}")
 def update_profile_params(profile_name: str, body: ProfileUpdate):
     """Update profile-level detector parameters (min/max pitch) and persist."""
-    _, _, path = load_profiles()
-    data = json.loads(path.read_text())
+    with _profiles_write_lock:
+        _, _, path = load_profiles()
+        data = json.loads(path.read_text())
 
-    profile = data.get("profiles", {}).get(profile_name)
-    if not profile:
-        raise HTTPException(404, detail=f"Profile '{profile_name}' not found")
+        profile = data.get("profiles", {}).get(profile_name)
+        if not profile:
+            raise HTTPException(404, detail=f"Profile '{profile_name}' not found")
 
-    detector = profile.setdefault("detector", {})
+        detector = profile.setdefault("detector", {})
 
-    if body.min_pitch is not None:
-        detector["min_pitch"] = body.min_pitch
-    if body.max_pitch is not None:
-        detector["max_pitch"] = body.max_pitch
-    if body.min_altitude is not None:
-        detector["min_altitude"] = body.min_altitude
-    if body.optimized_altitude is not None:
-        detector["optimized_altitude"] = body.optimized_altitude
-    if body.dock_presets is not None:
-        presets = detector.setdefault("dock_presets", {})
-        for cls, vals in body.dock_presets.items():
-            if not isinstance(vals, dict):
-                continue
-            cur = presets.setdefault(cls, {})
-            for field in ("altitude_m", "min_pixel_size", "label"):
-                if vals.get(field) is not None:
-                    cur[field] = vals[field]
+        if body.min_pitch is not None:
+            detector["min_pitch"] = body.min_pitch
+        if body.max_pitch is not None:
+            detector["max_pitch"] = body.max_pitch
+        if body.min_altitude is not None:
+            detector["min_altitude"] = body.min_altitude
+        if body.optimized_altitude is not None:
+            detector["optimized_altitude"] = body.optimized_altitude
+        if body.dock_presets is not None:
+            presets = detector.setdefault("dock_presets", {})
+            for cls, vals in body.dock_presets.items():
+                if not isinstance(vals, dict):
+                    continue
+                cur = presets.setdefault(cls, {})
+                for field in ("altitude_m", "min_pixel_size", "label"):
+                    if vals.get(field) is not None:
+                        cur[field] = vals[field]
 
-    path.write_text(json.dumps(data, indent=2) + "\n")
+        atomic_write_json(path, data)
     _restart_navpy_if_active_profile_changed(profile_name)
     return _build_catalog()
 

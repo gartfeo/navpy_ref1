@@ -9,7 +9,7 @@ from compare_lockstep_fleet import read_run
 from compare_noise_matrix import verify_profile
 from eval_lockstep_fleet import ROOT, digest, run
 from pose_precision_evidence import bits, read_precision
-from run_pose_matrix import BASELINE, canonical_hash
+from run_pose_matrix import BASELINE, canonical_hash, contract_file
 from simtime_step_launch import require_base_interpreter
 
 FIRMWARE = ROOT / "docs/validation/navigation-pose-precision-firmware-20260921.json"
@@ -58,14 +58,18 @@ def check_run(directory: Path, source: str, baseline: dict, firmware: dict) -> d
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--firmware-root", required=True)
+    parser.add_argument("--baseline", default=str(BASELINE), type=contract_file,
+                        help="frozen legacy-history baseline JSON (navigation-pose-baseline)")
+    parser.add_argument("--firmware", default=str(FIRMWARE), type=contract_file,
+                        help="reviewed precision firmware contract JSON (navigation-pose-precision-firmware)")
     parser.add_argument("--peer-python", default="/home/gart/navpy-simtime-env/bin/python")
     args = parser.parse_args()
     require_base_interpreter()
     root = ROOT / ".sitl-runs" / f"pose-precision-{datetime.now():%Y%m%d-%H%M%S}"
     root.mkdir()
-    baseline, firmware = json.loads(BASELINE.read_text()), json.loads(FIRMWARE.read_text())
+    baseline, firmware = json.loads(args.baseline.read_text()), json.loads(args.firmware.read_text())
     ledger = dict(version=2, policy="one attempt per declared cell; stop on first rejection",
-        baseline_sha256=digest(BASELINE), firmware_sha256=digest(FIRMWARE),
+        baseline_sha256=digest(args.baseline), firmware_sha256=digest(args.firmware),
         validator_sha256=digest(Path(__file__)),
         attempts=[dict(cell, directory=str(root / f"run-{i:02}"), status="pending")
                   for i, cell in enumerate(cells())])
@@ -103,7 +107,7 @@ def main() -> None:
         save()
         print(json.dumps({k: result[k] for k in ("directory", "steps", "pose_source", "differing_rows")}), flush=True)
     report = dict(version=2, passed=True, ledger=str(path.resolve()), ledger_sha256=digest(path),
-        baseline_sha256=digest(BASELINE), firmware_sha256=digest(FIRMWARE),
+        baseline_sha256=digest(args.baseline), firmware_sha256=digest(args.firmware),
         method_sha256=digest(Path(__file__)),
         pairs_method_sha256=digest(ROOT / "scripts/pose_precision_evidence.py"),
         steps=sum(r["steps"] for r in checked), runs=checked,

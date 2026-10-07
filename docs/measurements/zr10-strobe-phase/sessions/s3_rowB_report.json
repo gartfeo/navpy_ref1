@@ -1,0 +1,193 @@
+{
+  "input": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\claude\\C--repos-navpy--claude-worktrees-stoic-bell-d79710\\c70c25a2-e9ab-4ae9-8b02-77e6cf8596c1\\scratchpad\\s3_rowB.jsonl",
+  "meta": {
+    "argv": [
+      "/home/pf/bench/zr10-latency-20260830/measure_zr10_latency.py",
+      "--output",
+      "/home/pf/bench/s3_rowB.jsonl",
+      "--no-recenter",
+      "--roi-x",
+      "595",
+      "--roi-y",
+      "474",
+      "--roi-w",
+      "400",
+      "--roi-h",
+      "40",
+      "--events",
+      "800",
+      "--on-time",
+      "0.010",
+      "--interval-min",
+      "0.15",
+      "--interval-max",
+      "0.45"
+    ],
+    "roi": [
+      595,
+      474,
+      400,
+      40
+    ],
+    "versions": {
+      "python": "3.10.12",
+      "gstreamer": "GStreamer 1.20.3",
+      "glib": "2.71.3",
+      "numpy": "1.21.5",
+      "kernel": "5.15.185-tegra"
+    },
+    "random_seed": 20260830
+  },
+  "diagnostics": {
+    "frames_rejected_bad_pts": 0,
+    "frames_saturated": 0,
+    "gpio_pairs_malformed": 0,
+    "gpio_edge_span_us": {
+      "median": 30.657,
+      "max": 1095.901
+    }
+  },
+  "frames": 6324,
+  "pulses_total": 800,
+  "pulses_analyzed": 798,
+  "pulses_terminal_excluded": 2,
+  "frame_period_ms": 40.08986815625,
+  "affine": {
+    "alpha": 1.2026960568473994,
+    "beta_ns": 140903927861804.4,
+    "residual_sd_ms": 4.8512558609898795,
+    "block_alphas": [
+      1.2026249401740416,
+      1.2025830583102544,
+      1.202754912322804,
+      1.202722804917054,
+      1.2026862426926235,
+      1.2026693870467402,
+      1.2027119912995854,
+      1.2027591207425938,
+      1.2026809033886585,
+      1.2027218123857615,
+      1.2027118664103704,
+      1.202704332051581
+    ],
+    "block_map_divergence_ms": 1.10009253125
+  },
+  "classes": {
+    "single": 738,
+    "split": 60
+  },
+  "lit_threshold": 12.0,
+  "prior_offset_ms": 99.8,
+  "coarse_latency_ms": 91.126613,
+  "split_crossing": {
+    "offset_ms": -70.957534953125,
+    "ci95_ms": [
+      -71.229660578125,
+      -70.914017875
+    ],
+    "ci_note": "conditional on the fitted affine map; pulses resampled as independent"
+  },
+  "linear_split_diagnostic_ms": -71.037755646212,
+  "split_phase_balance": {
+    "below_crossing": 30,
+    "above_crossing": 30
+  },
+  "miss_band": {
+    "insufficient": "0 misses / 798 lit; need 15 / 30"
+  },
+  "half_session_drift_ms": null,
+  "canonical": {
+    "offset_wrapped_ms": 9.222201359375,
+    "source": "split"
+  },
+  "prior_scan": {
+    "rows": [
+      {
+        "step_ms": -20,
+        "classes": {
+          "single": 738,
+          "split": 60
+        },
+        "offset_wrapped_ms": 9.222201359375,
+        "source": "split"
+      },
+      {
+        "step_ms": -15,
+        "classes": {
+          "single": 738,
+          "split": 60
+        },
+        "offset_wrapped_ms": 9.222201359375,
+        "source": "split"
+      },
+      {
+        "step_ms": -10,
+        "classes": {
+          "single": 738,
+          "split": 60
+        },
+        "offset_wrapped_ms": 9.222201359375,
+        "source": "split"
+      },
+      {
+        "step_ms": -5,
+        "classes": {
+          "single": 738,
+          "split": 60
+        },
+        "offset_wrapped_ms": 9.222201359375,
+        "source": "split"
+      },
+      {
+        "step_ms": 0,
+        "classes": {
+          "single": 738,
+          "split": 60
+        },
+        "offset_wrapped_ms": 9.222201359375,
+        "source": "split"
+      },
+      {
+        "step_ms": 5,
+        "classes": {
+          "single": 738,
+          "split": 60
+        },
+        "offset_wrapped_ms": 9.222201359375,
+        "source": "split"
+      },
+      {
+        "step_ms": 10,
+        "classes": {
+          "single": 738,
+          "split": 58,
+          "unexpected_lit": 2
+        }
+      },
+      {
+        "step_ms": 15,
+        "classes": {
+          "single": 689,
+          "unexpected_lit": 109
+        }
+      },
+      {
+        "step_ms": 20,
+        "classes": {
+          "single": 587,
+          "unexpected_lit": 211
+        }
+      }
+    ],
+    "admissible_estimates": 6,
+    "plateau_spread_ms": 0.0,
+    "stable": true,
+    "note": "prior-assignment sensitivity only; a temporal drift common to every prior passes this - it is not a session-drift test"
+  },
+  "verdict": {
+    "valid": false,
+    "failures": [
+      "block map divergence 1.100 ms exceeds 1 ms: the affine map is not stable within the session"
+    ]
+  }
+}

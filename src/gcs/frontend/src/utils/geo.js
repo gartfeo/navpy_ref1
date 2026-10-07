@@ -396,8 +396,8 @@ function _spliceCorridorXY(ring, isBase, pathXY, half, flip) {
  * that passes the segment-level ``fenceCoversPlan`` check; otherwise it falls
  * back to the convex hull of everything (always simple, always containing) —
  * the vehicle can never be handed a fence that leaves its flight path outside.
- * Still ONE polygon (ArduPilot AND's multiple inclusion polygons — see
- * docs/decisions/geofence-takeoff-corridor).
+ * Still ONE polygon: ArduPilot AND's multiple inclusion polygons, so a
+ * separate corridor polygon would shrink the fence instead of extending it.
  *
  * @param {Array<{lat,lon}>} zone - search polygon
  * @param {Array<Array<{lat,lon}>>} transitPaths - one [launch, ...corridor] per set
