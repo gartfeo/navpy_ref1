@@ -126,7 +126,7 @@ PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/
 
 ## Definition of Done
 
-Do not call a task done until every applicable item holds; otherwise report it as not done and name what is missing.
+Do not call a task done until every applicable item holds; otherwise report it as not done and name what is missing. The user's `/ship` skill (Claude) walks this list, then commits, opens the PR and merges.
 
 - **Outcome** — the requested behavior works end to end, fixed at the root cause (see "Diagnose Cause, Not Symptom"). A symptom workaround or a partial path is not done.
 - **Tests** — added or updated per the Testing Policy; targeted tests pass, plus the full suite when shared or safety-relevant paths changed. Report the commands and results, and name pre-existing failures instead of hiding them.
