@@ -12,10 +12,11 @@ backend, the frontend, **and** the SITL swarm for chat ``N`` (via
 when you run SITL separately).
 
 The slot resolves by launch directory: the slot this directory already owns is
-reused, otherwise a free one is reserved. It is reserved atomically through the shared cross-clone registry
-(``gcs.backend.instance_registry``, default ``~/.gcs/instances.json``) so two
-sessions launching at once can't grab the same slot, and each session can later
-stop **only its own** stack via ``scripts/gcs_stop.py``.
+reused, otherwise a free one is reserved. It is reserved atomically through the
+shared cross-clone registry (``gcs.backend.instance_registry``, default
+``~/.gcs/instances.json``) so two sessions launching at once can't grab the same
+slot, and each session can later stop **only its own** stack via
+``scripts/gcs_stop.py``.
 
 Usage (from the repo root, inside the venv)::
 
