@@ -187,7 +187,7 @@ def build_detector(
 def resolve_model_path(model_override: str | None, preset_model: str) -> str:
     if model_override is not None:
         return model_override
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = Path(__file__).resolve().parents[2]
     return str((repo_root / ".models" / preset_model).resolve())
 
 

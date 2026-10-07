@@ -211,7 +211,7 @@ def parse_source(raw: str) -> str | int:
 
 
 def default_model_path() -> str:
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = Path(__file__).resolve().parents[2]
     return str((repo_root / ".models" / "yolov8n-face-lindevs.pt").resolve())
 
 
