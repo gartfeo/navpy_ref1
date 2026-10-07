@@ -17,6 +17,12 @@ modules plug in on top (see root `AGENTS.md`). Source lives in `src/navpy/`.
 - `modules/comm`: `NetworkWifi`, `NetworkSerial`, `NetworkMavlink`
 - `modules/swarm`: `TaskActor`, `TaskDispatch`, multi-vehicle coordination
 
+`RESET` is a deliberate fresh start: it clears POI statuses, task ids,
+cooldowns and the UAV's auction state, then restarts the AUTO mission at
+waypoint 1. This repeats the search without another takeoff, so picking the
+same docks again afterwards is expected. A reset UAV may overlap a peer still
+serving a pre-RESET dock; this is an accepted corner case.
+
 Common patterns: ABC interfaces with `@abstractmethod`, args dataclasses in
 `src/navpy/args/`, factory functions such as `create_vehicle()` and
 `create_network()`.
