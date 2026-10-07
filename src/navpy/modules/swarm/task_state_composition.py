@@ -22,7 +22,7 @@ class SwarmTaskState(NamedTuple):
     confirmation: TaskAssignConfirmation
 
 
-def create_swarm_task_state(lock: threading.RLock) -> SwarmTaskState:
+def create_task_state(lock: threading.RLock) -> SwarmTaskState:
     peers = PeerRoster(lock)
     store = _TaskAuctionStore(lock=lock, peers=peers, dispatches={})
     return SwarmTaskState(
@@ -33,11 +33,4 @@ def create_swarm_task_state(lock: threading.RLock) -> SwarmTaskState:
     )
 
 
-def create_task_state(
-    lock: threading.RLock,
-) -> tuple[SelectedTaskSlot, TaskAuctionState, TaskRebroadcastState]:
-    state = create_swarm_task_state(lock)
-    return state.selection, state.auction, state.rebroadcast
-
-
-__all__ = ["SwarmTaskState", "create_swarm_task_state", "create_task_state"]
+__all__ = ["SwarmTaskState", "create_task_state"]

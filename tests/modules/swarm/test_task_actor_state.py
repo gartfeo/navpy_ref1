@@ -27,7 +27,7 @@ def _task(task_id: int) -> TaskMsgData:
 
 
 def test_reset_generation_fences_old_selection_timer_from_reused_task_id():
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     rebroadcast.discover_peer(2, lambda *_: None)
     old_dispatch, _ = auction.register(_task(7))
     callbacks = []
@@ -62,7 +62,7 @@ def test_reset_generation_fences_old_selection_timer_from_reused_task_id():
 
 
 def test_complete_bid_matrix_requires_every_free_peer_for_every_available_task():
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     rebroadcast.discover_peer(2, lambda *_: None)
     first, generation = auction.register(_task(30))
     second, _ = auction.register(_task(31))
@@ -97,7 +97,7 @@ def test_complete_bid_matrix_requires_every_free_peer_for_every_available_task()
 
 
 def test_complete_bid_matrix_only_requires_offers_from_free_peers():
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     rebroadcast.discover_peer(2, lambda *_: None)
     rebroadcast.discover_peer(3, lambda *_: None)
     available, generation = auction.register(_task(40))
@@ -124,7 +124,7 @@ def test_complete_bid_matrix_only_requires_offers_from_free_peers():
 
 
 def test_new_available_task_invalidates_complete_bid_matrix():
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     rebroadcast.discover_peer(2, lambda *_: None)
     rebroadcast.discover_peer(3, lambda *_: None)
     complete, generation = auction.register(_task(50))
@@ -150,7 +150,7 @@ def test_new_available_task_invalidates_complete_bid_matrix():
     ids=["bool", "negative", "nan", "infinite", "sentinel", "huge-int"],
 )
 def test_record_offer_rejects_invalid_eta_without_mutating_dispatch(eta):
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     rebroadcast.discover_peer(2, lambda *_: None)
     dispatch, _ = auction.register(_task(12))
     dispatch.start_peer_select_timer = Mock()
@@ -169,7 +169,7 @@ def test_record_offer_rejects_invalid_eta_without_mutating_dispatch(eta):
 
 
 def test_record_offer_rejects_late_bid_while_assignment_is_confirming():
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     rebroadcast.discover_peer(2, lambda *_: None)
     dispatch, _ = auction.register(_task(13))
     dispatch.assigned_peer = 2
@@ -188,7 +188,7 @@ def test_record_offer_rejects_late_bid_while_assignment_is_confirming():
 
 
 def test_complete_assignment_send_is_atomic_against_reset():
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     rebroadcast.discover_peer(2, lambda *_: None)
     rebroadcast.discover_peer(3, lambda *_: None)
     first, generation = auction.register(_task(60))
@@ -238,7 +238,7 @@ def test_complete_assignment_send_is_atomic_against_reset():
 
 
 def test_complete_assignment_send_failure_releases_all_unsent_reservations():
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     rebroadcast.discover_peer(2, lambda *_: None)
     rebroadcast.discover_peer(3, lambda *_: None)
     first, generation = auction.register(_task(70))
@@ -269,7 +269,7 @@ def test_complete_assignment_send_failure_releases_all_unsent_reservations():
 
 
 def test_selected_task_slot_accepts_exactly_one_concurrent_assignment():
-    selection, _, _ = create_task_state(threading.RLock())
+    selection, _, _, _ = create_task_state(threading.RLock())
     barrier = threading.Barrier(3)
     accepted: list[bool] = []
 
@@ -294,7 +294,7 @@ def test_selected_task_slot_accepts_exactly_one_concurrent_assignment():
 
 
 def test_planner_runs_without_holding_auction_state_lock() -> None:
-    _, auction, _ = create_task_state(threading.RLock())
+    _, auction, _, _ = create_task_state(threading.RLock())
     dispatch, generation = auction.register(_task(20))
     dispatch.on_peer_available(
         2,
@@ -331,7 +331,7 @@ def test_planner_runs_without_holding_auction_state_lock() -> None:
 
 
 def test_generation_change_during_planning_invalidates_snapshot() -> None:
-    _, auction, _ = create_task_state(threading.RLock())
+    _, auction, _, _ = create_task_state(threading.RLock())
     dispatch, generation = auction.register(_task(21))
     dispatch.on_peer_available(
         2,
@@ -374,7 +374,7 @@ def test_generation_change_during_planning_invalidates_snapshot() -> None:
 
 
 def test_shutdown_generation_fences_old_selection_callback() -> None:
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     rebroadcast.discover_peer(2, lambda *_: None)
     old_dispatch, generation = auction.register(_task(22))
     callbacks = []
@@ -405,7 +405,7 @@ def test_shutdown_generation_fences_old_selection_callback() -> None:
 
 
 def test_shutdown_rejects_late_registration_and_is_idempotent() -> None:
-    _, auction, rebroadcast = create_task_state(threading.RLock())
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
     dispatch, generation = auction.register(_task(23))
     dispatch.shutdown = Mock(wraps=dispatch.shutdown)
 

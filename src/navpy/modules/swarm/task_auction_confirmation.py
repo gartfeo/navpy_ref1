@@ -7,6 +7,7 @@ from typing import Optional
 
 from navpy.modules.swarm.task_auction_models import (
     AssignConfirmationPolicy,
+    AssignConfirmationPorts,
     TaskConfirmationOutcome,
     TaskReservation,
     _TaskAuctionStore,
@@ -41,8 +42,7 @@ class TaskAssignConfirmation:
     def due(
         self,
         reservation: TaskReservation,
-        send: Callable[[TaskReservation], bool],
-        on_due: Callable[[TaskReservation], None],
+        ports: AssignConfirmationPorts,
         policy: AssignConfirmationPolicy,
     ) -> TaskConfirmationOutcome:
         """Resend an unanswered assign request, or release the reservation.
@@ -50,9 +50,10 @@ class TaskAssignConfirmation:
         Only the reservation's own generation and peer are touched, so a
         stale timer cannot affect a reset or reassigned task. Release drops
         the silent peer's bid like a rejection and counts as a retry. The
-        task returns to AVAILABLE and is re-advertised; it is reassigned
-        only once every free peer has bid again, and a peer still holding
-        it bids only after that re-advertisement has released it.
+        task returns to AVAILABLE and is re-advertised in the same lock
+        section, before any later assign request can be sent; it is
+        reassigned only once every free peer has bid again, and a peer
+        still holding it bids only after that re-advertisement released it.
         """
         with self._store.lock:
             generation = self._store.generation
@@ -60,13 +61,14 @@ class TaskAssignConfirmation:
             if dispatch is None:
                 return TaskConfirmationOutcome("stale", generation)
             if dispatch.assign_request_sends < policy.max_sends:
-                send(reservation)
                 dispatch.assign_request_sends += 1
                 sends = dispatch.assign_request_sends
+                # Arm before sending so a raising send cannot end the chain.
                 dispatch.start_confirm_timer(
-                    lambda _task_id: on_due(reservation),
+                    lambda _task_id: ports.on_due(reservation),
                     policy.delay_after(sends),
                 )
+                ports.send_request(reservation)
                 return TaskConfirmationOutcome("resent", generation, sends=sends)
             sends = dispatch.assign_request_sends
             dispatch.peer_reject(reservation.peer_id)
@@ -74,6 +76,7 @@ class TaskAssignConfirmation:
             retries = dispatch.retry_count
             if dispatch.retry_count >= dispatch.max_retry_attempts:
                 dispatch.retry_count = 0
+            ports.advertise([dispatch.task])
             return TaskConfirmationOutcome(
                 "released",
                 generation,
