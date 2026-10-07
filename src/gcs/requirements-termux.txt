@@ -7,7 +7,8 @@
 #   - plain uvicorn: the [standard] extras (uvloop, httptools, watchfiles)
 #     would each need another native build on the device;
 #   - numpy and opencv-python-headless: provided by Termux packages;
-#   - pytest: test-only.
+#   - pytest: test-only;
+#   - pillow: only the tools/cam bench UI (siyi_controller_ui) imports it.
 # tests/gcs/backend/test_termux_requirements.py fails if the sets drift.
 #
 # No Android wheels exist for pydantic-core, orjson or pyzmq, so pip compiles

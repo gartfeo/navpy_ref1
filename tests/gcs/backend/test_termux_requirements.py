@@ -10,6 +10,7 @@ _REPO = Path(__file__).resolve().parents[3]
 # Deliberate differences, explained in src/gcs/requirements-termux.txt.
 _FROM_TERMUX_PACKAGES = {"numpy", "opencv-python-headless"}
 _TEST_ONLY = {"pytest"}
+_BENCH_UI_ONLY = {"pillow"}
 
 
 def _name(requirement: str) -> str:
@@ -26,7 +27,7 @@ def test_termux_requirements_cover_backend_and_navpy_dependencies():
     pyproject = tomllib.loads((_REPO / "pyproject.toml").read_text(encoding="utf-8"))
     desktop = _file_names(_REPO / "src" / "gcs" / "requirements.txt")
     desktop |= {_name(dep) for dep in pyproject["project"]["dependencies"]}
-    expected = desktop - _FROM_TERMUX_PACKAGES - _TEST_ONLY
+    expected = desktop - _FROM_TERMUX_PACKAGES - _TEST_ONLY - _BENCH_UI_ONLY
 
     termux = _file_names(_REPO / "src" / "gcs" / "requirements-termux.txt")
 
