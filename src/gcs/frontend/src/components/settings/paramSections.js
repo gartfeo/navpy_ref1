@@ -11,7 +11,7 @@ export const PARAM_SECTIONS = [
     title: 'Control',
     titleKey: 'settings.aas.sections.control',
     fields: [
-      { key: 'del_ctrl', label: 'Algorithm', labelKey: 'settings.aas.fields.algorithm', type: 'select', options: [{ value: 2, label: 'Vision PN' }, { value: 1, label: 'PN (legacy geo)' }, { value: 0, label: 'PID (legacy geo)' }] },
+      { key: 'del_ctrl', label: 'Algorithm', labelKey: 'settings.aas.fields.algorithm', type: 'select', options: [{ value: 2, label: 'Vision PN' }, { value: 1, label: 'PN (legacy geo)', labelKey: 'settings.aas.options.pnLegacyGeo' }, { value: 0, label: 'PID (legacy geo)', labelKey: 'settings.aas.options.pidLegacyGeo' }] },
       { key: 'del_p_kp', label: 'Pitch Kp', labelKey: 'settings.aas.fields.pitchKp', step: 0.1 },
       { key: 'del_pld', label: 'Pitch lock dist (m)', labelKey: 'settings.aas.fields.pitchLockDist', step: 10, min: -1 },
       { key: 'del_plrd', label: 'Pitch lock roll (deg)', labelKey: 'settings.aas.fields.pitchLockRoll', step: 1, min: -1 },
