@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Collection
 from typing import Optional
 
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
@@ -17,13 +18,37 @@ class SelectedTaskSlot:
     def __init__(self, lock: threading.RLock) -> None:
         self._lock = lock
         self._selected: Optional[TaskAssignMsgData] = None
+        self._owner_id: Optional[int] = None
 
-    def try_accept(self, task: TaskAssignMsgData) -> bool:
+    def try_accept(self, task: TaskAssignMsgData, owner_id: int) -> bool:
+        """Accept into an empty slot; re-accept a resent request idempotently."""
         with self._lock:
-            if self._selected is not None:
-                return False
-            self._selected = task
-            return True
+            if self._selected is None:
+                self._selected = task
+                self._owner_id = owner_id
+                return True
+            return (
+                self._owner_id == owner_id
+                and self._selected.task_id == task.task_id
+            )
+
+    def release_if_held(
+        self,
+        owner_id: int,
+        task_ids: Collection[int],
+    ) -> Optional[TaskAssignMsgData]:
+        """Drop the held task if its owner lists it as available again."""
+        with self._lock:
+            if (
+                self._selected is None
+                or self._owner_id != owner_id
+                or self._selected.task_id not in task_ids
+            ):
+                return None
+            released = self._selected
+            self._selected = None
+            self._owner_id = None
+            return released
 
     def selected(self) -> Optional[TaskAssignMsgData]:
         with self._lock:
@@ -32,6 +57,7 @@ class SelectedTaskSlot:
     def clear(self) -> None:
         with self._lock:
             self._selected = None
+            self._owner_id = None
 
 
 class PeerRoster:

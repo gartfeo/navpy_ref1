@@ -26,6 +26,7 @@ from navpy.modules.swarm.task_auction_planning import (
     plan_retry_reserve_and_send,
 )
 from navpy.modules.swarm.task_auction_queries import busy_peers as _busy_peers
+from navpy.modules.swarm.task_auction_queries import reserved_dispatch
 from navpy.modules.swarm.task_dispatch import TaskDispatch
 
 
@@ -150,7 +151,7 @@ class TaskAuctionState:
         with self._store.lock:
             if self._store.closed:
                 return False
-            dispatch = _reserved_dispatch(self._store, task_id, peer_id)
+            dispatch = reserved_dispatch(self._store, task_id, peer_id)
             if dispatch is None:
                 return False
             dispatch.peer_accept(peer_id)
@@ -160,7 +161,7 @@ class TaskAuctionState:
         with self._store.lock:
             if self._store.closed:
                 return TaskRejectOutcome("missing", self._store.generation)
-            dispatch = _reserved_dispatch(self._store, task_id, peer_id)
+            dispatch = reserved_dispatch(self._store, task_id, peer_id)
             if dispatch is None:
                 return TaskRejectOutcome("missing", self._store.generation)
             remaining = dispatch.peer_reject(peer_id)
@@ -188,22 +189,6 @@ class TaskAuctionState:
 
     def shutdown(self, logger: ILogger) -> None:
         self._lifecycle.shutdown(logger)
-
-
-def _reserved_dispatch(
-    store: _TaskAuctionStore,
-    task_id: int,
-    peer_id: int,
-) -> Optional[TaskDispatch]:
-    dispatch = store.dispatches.get(task_id)
-    if (
-        dispatch is None
-        or dispatch.status is not TaskDispatchStatus.CONFIRMING
-        or dispatch.assigned_peer != peer_id
-        or not store.peers.contains(peer_id)
-    ):
-        return None
-    return dispatch
 
 
 def _normalized_eta(value: object) -> Optional[float]:

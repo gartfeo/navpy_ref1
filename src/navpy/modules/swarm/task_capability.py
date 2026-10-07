@@ -71,6 +71,7 @@ class TaskParticipationCoordinator:
     def on_available_request(self, message: AvailableTaskRequestMsg) -> None:
         if message.sender_id == self._actor_id:
             return
+        self._release_if_re_advertised(message)
         if not self._evaluator.has_current_location():
             self._logger.warning(
                 f"{self._actor_id}: Location not set. "
@@ -89,9 +90,23 @@ class TaskParticipationCoordinator:
         self._sender.available_response(message.sender_id, tasks)
 
     def on_assign_request(self, message: TaskAssignRequestMsg) -> None:
-        accepted = self._selection.try_accept(message.task)
+        accepted = self._selection.try_accept(message.task, message.sender_id)
         self._sender.assignment_response(
             receiver_id=message.sender_id,
             task_id=message.task.task_id,
             accepted=accepted,
         )
+
+    def _release_if_re_advertised(self, message: AvailableTaskRequestMsg) -> None:
+        # An owner advertises only tasks it holds as unassigned, so a held
+        # task in its advertisement means the owner released this peer's
+        # reservation (e.g. after our accept response was lost).
+        released = self._selection.release_if_held(
+            message.sender_id,
+            {task.task_id for task in message.tasks},
+        )
+        if released is not None:
+            self._logger.warning(
+                f"Task {released.task_id} re-advertised by owner "
+                f"{message.sender_id}; releasing local assignment."
+            )

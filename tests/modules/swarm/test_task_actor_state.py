@@ -279,7 +279,7 @@ def test_selected_task_slot_accepts_exactly_one_concurrent_assignment():
             task_id=task_id,
             task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(1.0, 2.0, 3.0),
-        )))
+        ), owner_id=1))
 
     threads = [threading.Thread(target=attempt, args=(task_id,)) for task_id in (1, 2)]
     for thread in threads:

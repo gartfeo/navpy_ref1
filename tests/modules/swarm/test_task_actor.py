@@ -204,7 +204,7 @@ class TaskActorTest(unittest.TestCase):
         # Arrange
         self._discover(2)
         msg = AvailableTaskRequestMsg(sender_id=2, tasks=[])
-        self.task_actor._selection.try_accept(Mock())
+        self.task_actor._selection.try_accept(Mock(), owner_id=3)
 
         # Act
         self.task_actor.on_message(msg)
@@ -961,7 +961,7 @@ class TaskActorTest(unittest.TestCase):
 
         # Populate actor state
         self._discover(5, 6)
-        self.task_actor._selection.try_accept(Mock())
+        self.task_actor._selection.try_accept(Mock(), owner_id=3)
         task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                            location=LocationMsgData(1.0, 2.0, 3.0))
         self._register(task)
@@ -1024,7 +1024,7 @@ class TaskActorTest(unittest.TestCase):
             task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(1.0, 2.0, 3.0),
         )
-        self.assertTrue(self.task_actor._selection.try_accept(selected))
+        self.assertTrue(self.task_actor._selection.try_accept(selected, owner_id=3))
         self.assertTrue(self.task_actor.has_selected_pois())
 
     def test_shutdown_stops_auctions_when_checkout_raises(self):

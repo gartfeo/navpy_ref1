@@ -7,13 +7,32 @@ from navpy.modules.comm.messages.task_assignment_msg import TaskAssignResponseMs
 from navpy.modules.comm.messages.task_availability_msg import (
     AvailableTaskResponseMsg,
 )
-from navpy.modules.swarm.task_auction_models import TaskAssignmentPlanner
+from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
+from navpy.modules.comm.messages.types import MsgType
+from navpy.modules.swarm.task_auction_confirmation import (
+    TaskAssignConfirmation,
+)
+from navpy.modules.swarm.task_auction_models import (
+    AssignConfirmationPolicy,
+    TaskAssignmentPlanner,
+    TaskReservation,
+)
 from navpy.modules.swarm.task_auction_state import TaskAuctionState
 from navpy.modules.swarm.task_messaging import TaskMessageSender
 from navpy.modules.swarm.task_rebroadcast import TaskRebroadcastCoordinator
 
 
 PEER_SELECTION_DELAY_S = 2.0
+
+# TASK_ASSIGN_REQUEST/RESPONSE are best effort with no ack, so an unanswered
+# request is resent a few times, then the reservation is released once the
+# last request copy has expired at the peer (its TTL); see
+# AssignConfirmationPolicy.
+ASSIGN_CONFIRMATION = AssignConfirmationPolicy(
+    resend_interval_s=1.0,
+    max_sends=3,
+    release_delay_s=get_ttl_ms(MsgType.TASK_ASSIGN_REQUEST) / 1000.0,
+)
 
 
 class TaskAuctionCoordinator:
@@ -22,12 +41,14 @@ class TaskAuctionCoordinator:
     def __init__(
         self,
         state: TaskAuctionState,
+        confirmation: TaskAssignConfirmation,
         planner: TaskAssignmentPlanner,
         sender: TaskMessageSender,
         rebroadcast: TaskRebroadcastCoordinator,
         logger: ILogger,
     ) -> None:
         self._state = state
+        self._confirmation = confirmation
         self._planner = planner
         self._sender = sender
         self._rebroadcast = rebroadcast
@@ -97,12 +118,45 @@ class TaskAuctionCoordinator:
     def _select_peer_for_task(self, _task_id: int, generation: int) -> None:
         self._run_complete_assignment(generation)
 
+    def _send_assignment(self, reservation: TaskReservation) -> bool:
+        if not self._sender.assignment_request(reservation):
+            return False
+        self._confirmation.arm(
+            reservation,
+            self._on_confirmation_due,
+            ASSIGN_CONFIRMATION,
+        )
+        return True
+
+    def _on_confirmation_due(self, reservation: TaskReservation) -> None:
+        outcome = self._confirmation.due(
+            reservation,
+            self._sender.assignment_request,
+            self._on_confirmation_due,
+            ASSIGN_CONFIRMATION,
+        )
+        if outcome.kind == "resent":
+            self._logger.warning(
+                f"Task {reservation.task_id}: no assign response from "
+                f"{reservation.peer_id}; resent request "
+                f"({outcome.sends}/{ASSIGN_CONFIRMATION.max_sends})."
+            )
+            return
+        if outcome.kind != "released":
+            return
+        self._logger.warning(
+            f"Task {reservation.task_id}: no assign response from "
+            f"{reservation.peer_id} after {outcome.sends} requests; "
+            f"released and re-advertising (retry {outcome.retry_count})."
+        )
+        self._rebroadcast.restart(expected_generation=outcome.generation)
+
     def _run_retry_assignment(self, task_id: int, generation: int) -> None:
         sent = self._state.plan_retry_reserve_and_send(
             self._planner,
             generation,
             task_id,
-            self._sender.assignment_request,
+            self._send_assignment,
         )
         if sent is False:
             self._logger.debug(
@@ -115,7 +169,7 @@ class TaskAuctionCoordinator:
         sent = self._state.plan_reserve_and_send_if_complete(
             self._planner,
             generation,
-            self._sender.assignment_request,
+            self._send_assignment,
         )
         if sent is None:
             return

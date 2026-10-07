@@ -27,6 +27,22 @@ def busy_peers(dispatches: dict[int, TaskDispatch]) -> set[int]:
     }
 
 
+def reserved_dispatch(
+    store: _TaskAuctionStore,
+    task_id: int,
+    peer_id: int,
+) -> Optional[TaskDispatch]:
+    dispatch = store.dispatches.get(task_id)
+    if (
+        dispatch is None
+        or dispatch.status is not TaskDispatchStatus.CONFIRMING
+        or dispatch.assigned_peer != peer_id
+        or not store.peers.contains(peer_id)
+    ):
+        return None
+    return dispatch
+
+
 def complete_bid_matrix(
     store: _TaskAuctionStore,
 ) -> Optional[BidMatrixSignature]:
@@ -66,4 +82,9 @@ def complete_bid_matrix(
         )
 
 
-__all__ = ["BidMatrixSignature", "busy_peers", "complete_bid_matrix"]
+__all__ = [
+    "BidMatrixSignature",
+    "busy_peers",
+    "complete_bid_matrix",
+    "reserved_dispatch",
+]
