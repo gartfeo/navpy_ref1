@@ -135,7 +135,7 @@ Do not call a task done until every applicable item holds; otherwise report it a
 - **Rules hold** — Pure Vision Approach Constraint, glossary terms and GCS launch rules.
 - **In sync** — generated files regenerated (see Agent Definitions); docs and AGENTS files updated when commands, behavior or terms change.
 - **Scoped diff** — only the task's change, no unrelated edits. Out-of-scope bugs found along the way become separate tasks, not inline fixes.
-- **Cleanup** — remove what the task created and no longer needs: debug code, scratch files, code the change made obsolete (no compatibility shims); keep `.logs/` evidence. Stop what you started unless the user wants it running: your GCS stack via `gcs_stop.py` (eval SITL: `--eval`), dev servers, background shells. Touch only your own work — never other sessions' processes, slots or untracked files; worktree, branch and registry cleanup goes through the `janitor` subagent.
+- **Cleanup** — remove what the task created and no longer needs: debug code, scratch files, code the change made obsolete (no compatibility shims); keep `.logs/` evidence. Stop what you started unless the user wants it running: your GCS stack via `gcs_stop.py` (eval SITL: `--eval`), dev servers, background shells. Touch only your own work — never other sessions' processes, slots or untracked files. The `/cleanup` skill (Claude) runs this wrap-up and sweeps what finished chats leave behind (worktrees, branches, GCS slots).
 
 ## Agent Definitions
 
