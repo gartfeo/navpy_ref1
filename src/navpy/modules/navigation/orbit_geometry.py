@@ -1,20 +1,20 @@
 """Navigation-feasibility orbit radius (R_nav_min).
 
-The closest standoff from which the final-approach NAV dive can still
-reach the selected delivery reference geometrically. This is an approach
-constraint, not a physical docking or safe-handover test. Two binding
+The closest standoff from which the final-approach NAV descent can still
+reach the selected POI geometrically. This is an approach constraint;
+approach accuracy does not establish a mission outcome (e.g. docking, cargo receipt, coverage). Two binding
 constraints, whichever dominates:
 
 * turn-radius roll-out: the loiter velocity is tangent, so the aircraft
   must reverse ~90 deg and point inward before it can descend cleanly —
   ``kappa * V^2 / (g * tan(phi_max))``.
 * descent geometry (usually dominant): the airframe pitch limit must
-  convert the orbit altitude into closing range, else the dive rails at
+  convert the orbit altitude into closing range, else the descent rails at
   ``min_pitch``, overflies, and trips the passed-POI reset —
   ``h / tan(eta * |min_pitch|)``.
 
 Orbiting at this radius keeps the camera zoom minimal (widest FOV for
-situational awareness) while leaving the dive valid. Sizing the orbit for
+situational awareness) while leaving the descent valid. Sizing the orbit for
 camera DETECTION range instead (the prior behavior) parked the aircraft
 far enough that recognition was unreachable even at max zoom.
 """
@@ -30,7 +30,7 @@ _GRAVITY = 9.81
 # kappa covers L1 not commanding full bank instantly plus the capture
 # lead distance; eta reserves pitch authority for the PID correction and
 # wind on top of the LOS feedforward (0.65 of a -40 deg limit leaves
-# ~13 deg of reserve at a ~27 deg dive).
+# ~13 deg of reserve at a ~27 deg descent).
 _DEFAULT_KAPPA = 2.0
 _DEFAULT_ETA = 0.65
 
@@ -72,7 +72,7 @@ def r_nav_min(
             limits.kappa * v * v / (_GRAVITY * math.tan(math.radians(phi_deg)))
         )
 
-    # Descent term — only for a usable dive angle in (0, 90) deg.
+    # Descent term — only for a usable descent angle in (0, 90) deg.
     gamma_deg = float(limits.eta) * abs(float(limits.min_pitch_deg))
     if alt_agl_m > 0.0 and 0.0 < gamma_deg < 90.0:
         terms.append(float(alt_agl_m) / math.tan(math.radians(gamma_deg)))

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { nextPlacementState } from '../utils/planningModes';
 
 /**
- * Manages mutually-exclusive placement modes (draw, corridor, fallback location)
+ * Manages mutually-exclusive placement modes (draw, corridor, delivery hub)
  * and auto-cancels placement when the plan becomes invalid.
  */
 export default function usePlacementModes({
-  drawing, placingFallbackLocation, setPlacingFallbackLocation,
+  drawing, placingDeliveryHub, setPlacingDeliveryHub,
   searchPattern, analysis, polygon,
 }) {
   const [placingLaunchPoint, setPlacingLaunchPoint] = useState(false);
@@ -22,64 +22,64 @@ export default function usePlacementModes({
     if (!analysis || polygon.length < 3) {
       setPlacingLaunchPoint(false);
       setPlacingCorridor(false);
-      setPlacingFallbackLocation(false);
+      setPlacingDeliveryHub(false);
     }
   }, [analysis, polygon, searchPattern]);
 
   const startDrawExclusive = useCallback(() => {
     const result = nextPlacementState({
-      placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, isDrawing: drawing.isDrawing,
+      placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, isDrawing: drawing.isDrawing,
     }, 'startDraw');
     setPlacingLaunchPoint(result.placingLaunchPoint);
     setPlacingCorridor(result.placingCorridor);
-    setPlacingFallbackLocation(result.placingFallbackLocation);
+    setPlacingDeliveryHub(result.placingDeliveryHub);
     setPlacingExclusion(result.placingExclusion);
     if (result.shouldStartDraw) drawing.startDraw();
-  }, [placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, drawing]);
+  }, [placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, drawing]);
 
   const toggleCorridorPlacement = useCallback(() => {
     const result = nextPlacementState({
-      placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, isDrawing: drawing.isDrawing,
+      placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, isDrawing: drawing.isDrawing,
     }, 'toggleCorridor');
     setPlacingLaunchPoint(result.placingLaunchPoint);
     setPlacingCorridor(result.placingCorridor);
-    setPlacingFallbackLocation(result.placingFallbackLocation);
+    setPlacingDeliveryHub(result.placingDeliveryHub);
     setPlacingExclusion(result.placingExclusion);
     if (result.shouldStopDraw) drawing.stopDraw();
-  }, [placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, drawing]);
+  }, [placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, drawing]);
 
-  const toggleFallbackLocationPlacement = useCallback(() => {
+  const toggleDeliveryHubPlacement = useCallback(() => {
     const result = nextPlacementState({
-      placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, isDrawing: drawing.isDrawing,
-    }, 'toggleFallbackLocation');
+      placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, isDrawing: drawing.isDrawing,
+    }, 'toggleDeliveryHub');
     setPlacingLaunchPoint(result.placingLaunchPoint);
     setPlacingCorridor(result.placingCorridor);
-    setPlacingFallbackLocation(result.placingFallbackLocation);
+    setPlacingDeliveryHub(result.placingDeliveryHub);
     setPlacingExclusion(result.placingExclusion);
     if (result.shouldStopDraw) drawing.stopDraw();
-  }, [placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, drawing]);
+  }, [placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, drawing]);
 
   const toggleExclusionPlacement = useCallback(() => {
     const result = nextPlacementState({
-      placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, isDrawing: drawing.isDrawing,
+      placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, isDrawing: drawing.isDrawing,
     }, 'toggleExclusion');
     setPlacingLaunchPoint(result.placingLaunchPoint);
     setPlacingCorridor(result.placingCorridor);
-    setPlacingFallbackLocation(result.placingFallbackLocation);
+    setPlacingDeliveryHub(result.placingDeliveryHub);
     setPlacingExclusion(result.placingExclusion);
     if (result.shouldStopDraw) drawing.stopDraw();
-  }, [placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, drawing]);
+  }, [placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, drawing]);
 
-  const startPlacingFallbackLocationFromSettings = useCallback(() => {
+  const startPlacingDeliveryHubFromSettings = useCallback(() => {
     const result = nextPlacementState({
-      placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, isDrawing: drawing.isDrawing,
-    }, 'startFallbackLocationFromSettings');
+      placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, isDrawing: drawing.isDrawing,
+    }, 'startDeliveryHubFromSettings');
     setPlacingLaunchPoint(result.placingLaunchPoint);
     setPlacingCorridor(result.placingCorridor);
-    setPlacingFallbackLocation(result.placingFallbackLocation);
+    setPlacingDeliveryHub(result.placingDeliveryHub);
     setPlacingExclusion(result.placingExclusion);
     if (result.shouldStopDraw) drawing.stopDraw();
-  }, [placingLaunchPoint, placingCorridor, placingFallbackLocation, placingExclusion, drawing]);
+  }, [placingLaunchPoint, placingCorridor, placingDeliveryHub, placingExclusion, drawing]);
 
   return {
     placingLaunchPoint, setPlacingLaunchPoint,
@@ -87,8 +87,8 @@ export default function usePlacementModes({
     placingExclusion, setPlacingExclusion,
     startDrawExclusive,
     toggleCorridorPlacement,
-    toggleFallbackLocationPlacement,
+    toggleDeliveryHubPlacement,
     toggleExclusionPlacement,
-    startPlacingFallbackLocationFromSettings,
+    startPlacingDeliveryHubFromSettings,
   };
 }

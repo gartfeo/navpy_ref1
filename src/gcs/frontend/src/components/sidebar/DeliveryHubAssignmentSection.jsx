@@ -1,8 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors, zoneColorsLabel } from '../../styles';
-import { autoAssignFallbackLocations, zoneToFallbackLocationDistance } from '../../utils/fallbackLocationAssignment';
-import { DELIVERY_LOCATION_TYPES } from '../map/constants/deliveryLocationIcons.js';
+import { autoAssignDeliveryHubs, zoneToDeliveryHubDistance } from '../../utils/deliveryHubAssignment';
+import { DELIVERY_HUB_TYPES } from '../map/constants/deliveryHubIcons.js';
 import { Label } from './SidebarPrimitives';
 
 /** Compute S#U# label for a zone based on its set_index within the zones array. */
@@ -15,13 +15,13 @@ export function zoneLabel(zones, zi) {
   return `S${si + 1}U${uavNum}`;
 }
 
-export default function FallbackLocationAssignmentSection({ plan, settings, fallbackLocationAssignments, setFallbackLocationAssignments, setManualFallbackLocationEdit }) {
+export default function DeliveryHubAssignmentSection({ plan, settings, deliveryHubAssignments, setDeliveryHubAssignments, setManualDeliveryHubEdit }) {
   const { t } = useTranslation();
-  const fallbackLocations = settings?.fallback_delivery_locations || [];
+  const deliveryHubs = settings?.default_delivery_hubs || [];
   const zones = plan?.zones || [];
-  if (fallbackLocations.length === 0) return (
+  if (deliveryHubs.length === 0) return (
     <>
-      <Label>{t('fallbackLocation.missionFallbackLocations')}</Label>
+      <Label>{t('deliveryHub.missionDeliveryHubs')}</Label>
       <div style={{
         color: '#ff6b6b',
         fontSize: 12,
@@ -31,29 +31,29 @@ export default function FallbackLocationAssignmentSection({ plan, settings, fall
         border: '1px solid rgba(255, 107, 107, 0.3)',
         borderRadius: 4,
       }}>
-        {t('fallbackLocation.noLocationsDefined')}
+        {t('deliveryHub.noHubsDefined')}
       </div>
     </>
   );
 
   const handleAutoAssign = () => {
-    const result = autoAssignFallbackLocations(zones, fallbackLocations);
-    setFallbackLocationAssignments(result);
-    if (setManualFallbackLocationEdit) setManualFallbackLocationEdit(false);
+    const result = autoAssignDeliveryHubs(zones, deliveryHubs);
+    setDeliveryHubAssignments(result);
+    if (setManualDeliveryHubEdit) setManualDeliveryHubEdit(false);
   };
 
   const handleChange = (zoneIdx, value) => {
-    const next = [...(fallbackLocationAssignments || [])];
+    const next = [...(deliveryHubAssignments || [])];
     while (next.length <= zoneIdx) next.push(null);
     next[zoneIdx] = value === '' ? null : parseInt(value, 10);
-    setFallbackLocationAssignments(next);
-    if (setManualFallbackLocationEdit) setManualFallbackLocationEdit(true);
+    setDeliveryHubAssignments(next);
+    if (setManualDeliveryHubEdit) setManualDeliveryHubEdit(true);
   };
 
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Label style={{ marginBottom: 0 }}>{t('fallbackLocation.missionFallbackLocations')}</Label>
+        <Label style={{ marginBottom: 0 }}>{t('deliveryHub.missionDeliveryHubs')}</Label>
         {zones.length > 0 && (
           <button
             onClick={handleAutoAssign}
@@ -67,22 +67,22 @@ export default function FallbackLocationAssignmentSection({ plan, settings, fall
               cursor: 'pointer',
             }}
           >
-            {t('fallbackLocation.autoAssign')}
+            {t('deliveryHub.autoAssign')}
           </button>
         )}
       </div>
       {zones.length === 0 ? (
         <div style={{ color: colors.textDim, fontSize: 12, marginBottom: 8 }}>
-          {t('fallbackLocation.generatePlanFirst')}
+          {t('deliveryHub.generatePlanFirst')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
           {zones.map((zone, zi) => {
-            const assignedFallbackLocation = fallbackLocationAssignments?.[zi];
+            const assignedDeliveryHub = deliveryHubAssignments?.[zi];
             const zoneColor = zoneColorsLabel[zi % zoneColorsLabel.length];
             const label = zoneLabel(zones, zi);
-            const dist = assignedFallbackLocation != null && fallbackLocations[assignedFallbackLocation]
-              ? zoneToFallbackLocationDistance(zone, fallbackLocations[assignedFallbackLocation])
+            const dist = assignedDeliveryHub != null && deliveryHubs[assignedDeliveryHub]
+              ? zoneToDeliveryHubDistance(zone, deliveryHubs[assignedDeliveryHub])
               : null;
             return (
               <div key={zi} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
@@ -97,7 +97,7 @@ export default function FallbackLocationAssignmentSection({ plan, settings, fall
                   </span>
                 )}
                 <select
-                  value={assignedFallbackLocation ?? ''}
+                  value={assignedDeliveryHub ?? ''}
                   onChange={(e) => handleChange(zi, e.target.value)}
                   style={{
                     flex: 1,
@@ -114,10 +114,10 @@ export default function FallbackLocationAssignmentSection({ plan, settings, fall
                     overflow: 'hidden',
                   }}
                 >
-                  <option value="">{t('fallbackLocation.none')}</option>
-                  {fallbackLocations.map((location, oi) => (
+                  <option value="">{t('deliveryHub.none')}</option>
+                  {deliveryHubs.map((location, oi) => (
                     <option key={oi} value={oi}>
-                      {location.name || `Fallback delivery location ${oi + 1}`} ({t('fallbackLocation.types.' + location.type) || location.type})
+                      {location.name || `Default delivery hub ${oi + 1}`} ({t('deliveryHub.types.' + location.type) || location.type})
                     </option>
                   ))}
                 </select>

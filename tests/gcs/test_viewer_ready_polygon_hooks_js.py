@@ -8,7 +8,7 @@ their dependency arrays lacked a viewer-ready signal (unlike every sibling
 entity hook).
 
 The primary fix (PR #98/#99) covered the high-exposure hooks
-(polygon/zone/launch-zone + Ц/НП labels); see TestViewerReadyPolygonHooks.
+(polygon/zone/launch-zone + zone/detection-start labels); see TestViewerReadyPolygonHooks.
 TestViewerReadyRemainingHooks closes the class fully by asserting the same
 gating on the three lower-exposure holdouts (partition handle, sim track-wp
 markers, available-task markers) so no entity hook is left on the old
@@ -86,7 +86,7 @@ class TestViewerReadyPolygonHooks(unittest.TestCase):
         self.assertRegex(compact, r"\[simDocks,[^\]]*\bviewerReady\b[^\]]*\]")
 
     def test_detection_markers_accepts_and_depends_on_viewer_ready(self):
-        # НП observation-post labels — same fresh-load race as the polygon outline.
+        # Detection-start labels — same fresh-load race as the polygon outline.
         compact = _compact(_DETECTION_SRC)
         self.assertIn(
             "useDetectionMarkers(cesiumRef, viewerRef, entitiesRef, detectionPoints, viewerReady)",

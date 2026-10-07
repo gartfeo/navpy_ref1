@@ -11,14 +11,14 @@ class NavArgs(object):
         'AAS_NAV_CWT': 30,
         'AAS_NAV_AUTO_CM': True,
         # MISS-04: REJECT on confirm-window expiry — never auto-commit a
-        # delivery destination the operator never approved. Explicit -tcfc true (or the
+        # POI the operator never approved. Explicit -tcfc true (or the
         # AAS_NAV_CM_FL MAVLink param) re-enables confirm-on-fail.
         'AAS_NAV_CM_FL': False,
         'AAS_NAV_ONESHOT': False,
         'AAS_NAV_CGT': 15,
     }
     # Nav sim speedup (0 = disabled). Disabled by default: NavPy no longer
-    # overrides SIM_SPEEDUP during NAV, so the dive runs at whatever speed
+    # overrides SIM_SPEEDUP during NAV, so the final approach runs at whatever speed
     # the SITL launch set (no slow-to-1x). Pass -gsu <N> to re-enable.
     NAV_SIM_SPEEDUP = 0.0
 
@@ -62,13 +62,13 @@ class NavArgs(object):
                        help=f"Confirm wait time (sec). Default: {p['AAS_NAV_CWT']}")
         g.add_argument("-tac", dest='AAS_NAV_AUTO_CM', action=StoreTrueWithFlag,
                        default=p['AAS_NAV_AUTO_CM'],
-                       help=f"Automatically confirm detected delivery destinations. Default: {p['AAS_NAV_AUTO_CM']}")
+                       help=f"Automatically confirm detected POIs. Default: {p['AAS_NAV_AUTO_CM']}")
         g.add_argument("-tcfc", dest='AAS_NAV_CM_FL', type=parse_boolean, action=StoreWithFlag,
                        default=p['AAS_NAV_CM_FL'],
                        help=f"Confirm on fail. Default: {p['AAS_NAV_CM_FL']}")
         g.add_argument("-nos", dest='AAS_NAV_ONESHOT', action=StoreTrueWithFlag,
                        default=p['AAS_NAV_ONESHOT'],
-                       help="Single-run mode: stop starting new delivery attempts after navigation completion; disarm only a simulated autopilot.")
+                       help="Single-run mode: stop starting new final-approach attempts after navigation completion; disarm only a simulated autopilot.")
         g.add_argument("-cgt", dest='AAS_NAV_CGT', type=int, action=StoreWithFlag,
                        default=p['AAS_NAV_CGT'],
                        help=f"CONFIRM zoom-stability timeout (sec). Recognition-size pixels are still required;"

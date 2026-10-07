@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_NAV_TAKEOFF
 from gcs.backend.planner.waypoint_builder import (
     CORRIDOR_END_MARKER,
-    META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_FALLBACK_DELIVERY_LOCATION,
+    META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB,
     decode_meta_z, decode_location_type_from_z,
 )
 from navpy.args.navigation_poi_args import is_nav_poi_command
@@ -46,7 +46,7 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
     polygon_vertices = []
     corridor_backbone = []
     launch_point = None
-    fallback_delivery_location = None
+    default_delivery_hub = None
     last_meta_z = 0.0
     route_index = 0
     poi_ordinal = 0
@@ -72,11 +72,11 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
                 corridor_backbone.append({"lat": lat, "lon": lon})
             elif meta_type == META_LAUNCH_POINT:
                 launch_point = {"lat": lat, "lon": lon}
-            elif meta_type == META_FALLBACK_DELIVERY_LOCATION:
-                fallback_delivery_location = {"lat": lat, "lon": lon}
+            elif meta_type == META_DEFAULT_DELIVERY_HUB:
+                default_delivery_hub = {"lat": lat, "lon": lon}
                 location_type = decode_location_type_from_z(wp.z)
                 if location_type:
-                    fallback_delivery_location["type"] = location_type
+                    default_delivery_hub["type"] = location_type
             continue
         in_metadata = False
         loc = vehicle.get_mission_item_location(i)
@@ -97,13 +97,13 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
         if altitude_m is None:
             altitude_m = loc.alt
 
-    search_pattern, dock_classes = decode_meta_z(last_meta_z)
+    search_pattern = decode_meta_z(last_meta_z)
 
-    # Trim trailing fallback-location NAV_WAYPOINT duplicate
-    if fallback_delivery_location and waypoints:
+    # Trim trailing default-delivery-hub NAV_WAYPOINT duplicate
+    if default_delivery_hub and waypoints:
         last = waypoints[-1]
-        if (abs(last["lat"] - fallback_delivery_location["lat"]) < 1e-5 and
-                abs(last["lon"] - fallback_delivery_location["lon"]) < 1e-5):
+        if (abs(last["lat"] - default_delivery_hub["lat"]) < 1e-5 and
+                abs(last["lon"] - default_delivery_hub["lon"]) < 1e-5):
             waypoints.pop()
 
     return {
@@ -113,11 +113,10 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
         "mission_count": count,
         "corridor_end_index": corridor_end_index,
         "search_pattern": search_pattern,
-        "dock_classes": dock_classes,
         "polygon": polygon_vertices,
         "corridor_backbone": corridor_backbone,
         "launch_point": launch_point,
-        "fallback_delivery_location": fallback_delivery_location,
+        "default_delivery_hub": default_delivery_hub,
     }
 
 

@@ -1,5 +1,5 @@
 /**
- * Minimum-cost fallback location-to-zone assignment via bitmask DP.
+ * Minimum-cost delivery hub-to-zone assignment via bitmask DP.
  *
  * Finds the globally optimal assignment that minimises total distance,
  * which guarantees no crossing assignment lines (crossing edges always
@@ -95,18 +95,18 @@ function dpAssign(costs, k, m) {
 }
 
 /**
- * Auto-assign fallback locations to zones — globally optimal unique assignments,
- * sharing only when there are more zones tha fallback locations.
+ * Auto-assign delivery hubs to zones — globally optimal unique assignments,
+ * sharing only when there are more zones tha delivery hubs.
  *
  * @param {Array<object>} zones - Plan zones with .track arrays
- * @param {Array<{name, type, lat, lon}>} fallbackLocations - Fallback delivery locations
- * @returns {Array<number|null>} assignments[zoneIdx] = fallbackLocationIndex or null
+ * @param {Array<{name, type, lat, lon}>} deliveryHubs - Default delivery hubs
+ * @returns {Array<number|null>} assignments[zoneIdx] = deliveryHubIndex or null
  */
-export function autoAssignFallbackLocations(zones, fallbackLocations) {
-  if (!zones?.length || !fallbackLocations?.length) return zones?.map(() => null) || [];
+export function autoAssignDeliveryHubs(zones, deliveryHubs) {
+  if (!zones?.length || !deliveryHubs?.length) return zones?.map(() => null) || [];
 
   const n = zones.length;
-  const m = fallbackLocations.length;
+  const m = deliveryHubs.length;
   const assignments = new Array(n).fill(null);
 
   // Build cost matrix for valid zones only (zones with track endpoints)
@@ -116,21 +116,21 @@ export function autoAssignFallbackLocations(zones, fallbackLocations) {
     const ep = zoneEndPoint(zones[zi]);
     if (!ep) continue;
     validIdx.push(zi);
-    costs.push(fallbackLocations.map((location) => haversine(ep, location)));
+    costs.push(deliveryHubs.map((location) => haversine(ep, location)));
   }
   const vn = validIdx.length;
   if (vn === 0) return assignments;
 
   if (vn <= m) {
-    // Enough fallback locations for unique assignment — DP mask over fallback locations
+    // Enough delivery hubs for unique assignment — DP mask over delivery hubs
     const result = dpAssign(costs, vn, m);
     for (let i = 0; i < vn; i++) assignments[validIdx[i]] = result[i];
     return assignments;
   }
 
-  // More zones tha fallback locations — assign m fallback locations uniquely to m zones (optimal),
-  // then remaining zones get nearest fallback location (shared).
-  // Transpose: rows = fallback locations, cols = valid zones, DP mask over zones.
+  // More zones tha delivery hubs — assign m delivery hubs uniquely to m zones (optimal),
+  // then remaining zones get nearest delivery hub (shared).
+  // Transpose: rows = delivery hubs, cols = valid zones, DP mask over zones.
   const transposed = [];
   for (let oi = 0; oi < m; oi++) {
     transposed.push(validIdx.map((_, vi) => costs[vi][oi]));
@@ -140,76 +140,76 @@ export function autoAssignFallbackLocations(zones, fallbackLocations) {
     if (picked[oi] !== null) assignments[validIdx[picked[oi]]] = oi;
   }
 
-  // Remaining valid zones: nearest fallback location (shared)
+  // Remaining valid zones: nearest delivery hub (shared)
   for (let i = 0; i < vn; i++) {
     const zi = validIdx[i];
     if (assignments[zi] !== null) continue;
-    let bestFallbackLocation = -1;
+    let bestDeliveryHub = -1;
     let bestDist = Infinity;
     for (let oi = 0; oi < m; oi++) {
       if (costs[i][oi] < bestDist) {
         bestDist = costs[i][oi];
-        bestFallbackLocation = oi;
+        bestDeliveryHub = oi;
       }
     }
-    if (bestFallbackLocation >= 0) assignments[zi] = bestFallbackLocation;
+    if (bestDeliveryHub >= 0) assignments[zi] = bestDeliveryHub;
   }
 
   return assignments;
 }
 
 /**
- * Build fallback locations and assignments from downloaded fallback_delivery_location metadata.
+ * Build delivery hubs and assignments from downloaded default_delivery_hub metadata.
  *
  * Deduplicates POIs within 1e-7 degrees (~0.01 m) so that zones sharing
- * the same POI get a single fallback location entry with multiple assignment references.
+ * the same POI get a single delivery hub entry with multiple assignment references.
  *
- * When existingFallbackLocations is provided, downloaded POIs are matched against them
+ * When existingDeliveryHubs is provided, downloaded POIs are matched against them
  * by coordinates — preserving name/type for matches and keeping unmatched
- * existing fallback locations intact. New POIs that don't match any existing fallback location are
+ * existing delivery hubs intact. New POIs that don't match any existing delivery hub are
  * appended with the downloaded type when present, else 'other'.
  *
- * @param {Array<{lat: number, lon: number, type?: string}|null>} missionFallbackLocations - one per zone
- * @param {Array<{name, type, lat, lon}>} [existingFallbackLocations=[]] - current settings fallback locations
- * @returns {{ fallbackLocations: Array<{name: string, type: string, lat: number, lon: number}>,
+ * @param {Array<{lat: number, lon: number, type?: string}|null>} missionDeliveryHubs - one per zone
+ * @param {Array<{name, type, lat, lon}>} [existingDeliveryHubs=[]] - current settings delivery hubs
+ * @returns {{ deliveryHubs: Array<{name: string, type: string, lat: number, lon: number}>,
  *             assignments: Array<number|null> }}
  */
-export function buildFallbackLocationsFromDownload(missionFallbackLocations, existingFallbackLocations = []) {
-  if (!missionFallbackLocations?.length) return { fallbackLocations: existingFallbackLocations.map((o) => ({ ...o })), assignments: [] };
+export function buildDeliveryHubsFromDownload(missionDeliveryHubs, existingDeliveryHubs = []) {
+  if (!missionDeliveryHubs?.length) return { deliveryHubs: existingDeliveryHubs.map((o) => ({ ...o })), assignments: [] };
 
   const EPS = 1e-7;
-  const fallbackLocations = existingFallbackLocations.map((o) => ({ ...o }));
-  const assignments = missionFallbackLocations.map((t) => {
+  const deliveryHubs = existingDeliveryHubs.map((o) => ({ ...o }));
+  const assignments = missionDeliveryHubs.map((t) => {
     if (!t || t.lat == null || t.lon == null) return null;
-    const existing = fallbackLocations.findIndex(
+    const existing = deliveryHubs.findIndex(
       (o) => Math.abs(o.lat - t.lat) < EPS && Math.abs(o.lon - t.lon) < EPS,
     );
     if (existing >= 0) {
       // Plan type takes priority over settings type
       if (typeof t.type === 'string' && t.type && t.type !== 'other') {
-        fallbackLocations[existing] = { ...fallbackLocations[existing], type: t.type };
+        deliveryHubs[existing] = { ...deliveryHubs[existing], type: t.type };
       }
       return existing;
     }
-    fallbackLocations.push({
-      name: `Fallback delivery location ${fallbackLocations.length + 1}`,
+    deliveryHubs.push({
+      name: `Default delivery hub ${deliveryHubs.length + 1}`,
       type: typeof t.type === 'string' && t.type ? t.type : 'other',
       lat: t.lat,
       lon: t.lon,
     });
-    return fallbackLocations.length - 1;
+    return deliveryHubs.length - 1;
   });
 
-  return { fallbackLocations, assignments };
+  return { deliveryHubs, assignments };
 }
 
 /**
- * Get distance from a zone's last track point to a fallback location.
+ * Get distance from a zone's last track point to a delivery hub.
  * @param {object} zone - Zone with .track array
- * @param {{lat, lon}} location - Target fallback location
+ * @param {{lat, lon}} location - Target delivery hub
  * @returns {number} Distance in meters, or Infinity if no track
  */
-export function zoneToFallbackLocationDistance(zone, location) {
+export function zoneToDeliveryHubDistance(zone, location) {
   const ep = zoneEndPoint(zone);
   if (!ep) return Infinity;
   return haversine(ep, location);

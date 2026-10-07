@@ -19,7 +19,8 @@ from navpy.modules.vision.real_detector_state import (
 )
 from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
 from navpy.modules.vision.poi_lock import PoiLock
-from navpy.modules.vision.yolo_detector import Detection, YoloDetector
+from navpy.modules.vision.real_detector_ports import FrameDetector
+from navpy.modules.vision.yolo_detector import Detection
 
 
 class DeepSearchChannel:
@@ -87,7 +88,7 @@ class DeepSearchChannel:
 
 
 class DetectionLoop:
-    """Run YOLO and atomically publish detections with their frame state."""
+    """Run the frame detector and atomically publish detections with frame state."""
 
     def __init__(
             self,
@@ -95,7 +96,7 @@ class DetectionLoop:
             period_s: float,
             frame_provider: FrameProvider,
             association_builder: FrameAssociationBuilder,
-            detector: YoloDetector,
+            detector: FrameDetector,
             generation: InferenceGeneration,
             metrics: RuntimeMetrics,
             logger: ILogger,
@@ -135,7 +136,7 @@ class DetectionLoop:
                 ):
                     self._metrics.bump("detect_batches")
             except Exception as error:
-                self._logger.error(f"YOLO detect error: {error}")
+                self._logger.error(f"Frame detect error: {error}")
 
 
 class DeepSearchLoop:

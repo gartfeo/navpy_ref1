@@ -31,7 +31,7 @@ def nav_wp_indices(vehicle: MissionParameterReader) -> list[int]:
 
 
 class NavigationPoiArgs:
-    """Simulator delivery-reference settings; retain AAS_TARG_* wire names."""
+    """Simulator POI settings; retain AAS_TARG_* wire names."""
 
     # Single source of truth: param_name -> default
     PARAMS = {
@@ -76,8 +76,8 @@ class NavigationPoiArgs:
     @classmethod
     def add_args(cls, parser):
         p = cls.PARAMS
-        g = parser.add_argument_group("Simulator delivery-reference arguments")
+        g = parser.add_argument_group("Simulator POI arguments")
         g.add_argument("-twps", dest='AAS_TARG_WPS', type=str, default=p['AAS_TARG_WPS'],
-                       help=f"Delivery-reference waypoint numbers (1-based, comma-separated). Default: {p['AAS_TARG_WPS']}")
+                       help=f"Simulation POI waypoint numbers (1-based, comma-separated). Default: {p['AAS_TARG_WPS']}")
         g.add_argument('-talt', dest='AAS_TARG_ALT', type=int, default=p['AAS_TARG_ALT'],
-                       help=f"Simulator delivery-reference altitude offset (m). Default: {p['AAS_TARG_ALT']}")
+                       help=f"Simulator POI altitude offset (m). Default: {p['AAS_TARG_ALT']}")

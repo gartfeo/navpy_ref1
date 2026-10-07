@@ -11,7 +11,7 @@ from navpy.modules.vision.vision_profile_loader import load_profiles
 @pytest.mark.parametrize("current_present", [False, True])
 @pytest.mark.parametrize("scope", ["catalog", "detector"])
 def test_retired_profile_fields_fail_without_rewriting(tmp_path, scope, current_present):
-    presets = {"small": {"altitude_m": 150, "min_pixel_size": 20}}
+    presets = {"dock": {"altitude_m": 150, "min_pixel_size": 20}}
     dimensions = {"0": {"width_m": 3.5, "height_m": 2.5}}
     data = {"profiles": {"fixture": {"detector": {}}}}
     if scope == "catalog":

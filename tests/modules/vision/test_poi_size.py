@@ -13,13 +13,13 @@ class TestCharacteristicPixels(unittest.TestCase):
         self.assertAlmostEqual(characteristic_pixels(10.0, 10.0), 10.0 * math.sqrt(2))
 
     def test_tall_narrow_reads_about_height(self):
-        # A standing person (w << h): diagonal ~ height (dominant dim).
+        # A tall, narrow bbox (w << h): diagonal ~ height (dominant dim).
         size = characteristic_pixels(20.0, 180.0)
         self.assertGreater(size, 180.0)
         self.assertLess(size, 182.0)  # within ~1% of height
 
     def test_wide_poi_exceeds_height(self):
-        # A broadside medium (w > h): diagonal clearly exceeds height alone.
+        # A wide bbox (w > h): diagonal clearly exceeds height alone.
         self.assertAlmostEqual(
             characteristic_pixels(140.0, 60.0), math.sqrt(140.0**2 + 60.0**2))
         self.assertGreater(characteristic_pixels(140.0, 60.0), 60.0)

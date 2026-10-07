@@ -49,7 +49,7 @@ from navpy.modules.vision.sim.determinism_events import (
     EVENT_TRUTH,
     EVENT_VIOLATION,
     LIFECYCLE_CLOSED,
-    OUTPUT_DELIVERED,
+    OUTPUT_DISPATCHED,
     STAGE_STAGED,
     SUBSCRIPTION_CLOSED,
     SUBSCRIPTION_OPENED,
@@ -150,7 +150,7 @@ def _every_record() -> DeterminismTrace:
     PassObserver(trace.ledger, trace.command_log).note_iteration(1)
     trace.record_output(
         epoch=1,
-        outcome=OUTPUT_DELIVERED,
+        outcome=OUTPUT_DISPATCHED,
         taken_at_us=1_000_000,
         frame=_frame(1.0),
     )

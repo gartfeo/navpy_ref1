@@ -21,7 +21,7 @@ afterEach(() => {
   delete window.matchMedia;
 });
 
-// Import CSV in Settings -> Targets: a button that clicks a mounted file input.
+// Import CSV in Settings -> DDH (Default Delivery Hubs): a button that clicks a mounted file input.
 function Probe() {
   useFullscreen();
   const fileRef = useRef(null);

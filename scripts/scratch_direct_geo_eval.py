@@ -121,7 +121,7 @@ def run_case(
                     "speedup": speedup,
                     "repetition": repetition,
                     "poi": asdict(poi),
-                    "engage_seq": scoring_start_expectation.mission_seq,
+                    "scoring_start_seq": scoring_start_expectation.mission_seq,
                     "mode": "direct-geo-legacy-pn",
                 },
                 indent=2,
@@ -171,12 +171,12 @@ def run_case(
                     "POI left renderable sight: "
                     f"{source.get('projection_failures')} projection failures"
                 )
-            if not isinstance(source.get("delivered_frames"), int) or (
-                source["delivered_frames"] < 10
+            if not isinstance(source.get("dispatched_frames"), int) or (
+                source["dispatched_frames"] < 10
             ):
                 errors.append(
-                    "insufficient direct pixel deliveries: "
-                    f"{source.get('delivered_frames')!r}"
+                    "insufficient direct pixel dispatches: "
+                    f"{source.get('dispatched_frames')!r}"
                 )
         snap = child_result.get("snap_3d_m")
         if not isinstance(snap, (int, float)) or snap > args.max_distance:

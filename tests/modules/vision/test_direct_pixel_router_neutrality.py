@@ -206,7 +206,7 @@ def _arm(monkeypatch, *, tracing: bool) -> dict[str, Any]:
         SimpleNamespace(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=law,
+        dispatch=law,
         wall_now_s=lambda: 100.0,
     )
     trace = source.determinism_trace

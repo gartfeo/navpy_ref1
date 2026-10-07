@@ -6,9 +6,9 @@ export function handleDragEnd(viewer, dragState, callbacksRef) {
   viewer.scene.screenSpaceCameraController.enableRotate = true;
   const cb = callbacksRef.current;
 
-  if (dragState.type === 'fallbackLocation') {
-    if (dragState.lastLatLon && cb.onMoveFallbackLocation && cb.placingFallbackLocation) {
-      cb.onMoveFallbackLocation(dragState.index, dragState.lastLatLon);
+  if (dragState.type === 'deliveryHub') {
+    if (dragState.lastLatLon && cb.onMoveDeliveryHub && cb.placingDeliveryHub) {
+      cb.onMoveDeliveryHub(dragState.index, dragState.lastLatLon);
     }
   } else if (dragState.type === 'fenceVertex' || dragState.type === 'exclusionVertex') {
     // Fence/keep-out reshaping never affects the plan — skip the regen in onDragEnd.

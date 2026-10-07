@@ -267,7 +267,7 @@ class TestMissionWpOffset(unittest.TestCase):
     """Verify missionWpOffset matches the mission item layout from waypoint_builder."""
 
     def test_distributed_no_corridor_no_lp(self):
-        """Home + Takeoff + 1 fallback_delivery_location metadata = 3."""
+        """Home + Takeoff + 1 default_delivery_hub metadata = 3."""
         self.assertEqual(_wp_offset("distributed", 0, 0, False), 3)
 
     def test_distributed_polygon_only(self):
@@ -471,22 +471,22 @@ class TestExpandPolygon(unittest.TestCase):
         self.assertGreater(max(lons), 0.01)
 
 
-def _fence_incl(zone, paths=None, fallbackLocations=None, margin=100, takeoff=0, orbit=0):
+def _fence_incl(zone, paths=None, orbit_pois=None, margin=100, takeoff=0, orbit=0):
     """Compute fenceInclusion via Node.js against the real geo.js source."""
     opts = {"marginM": margin, "takeoffRadiusM": takeoff, "orbitRadiusM": orbit}
     return _run_node_file(
         f"console.log(JSON.stringify(fenceInclusion("
-        f"{json.dumps(zone)}, {json.dumps(paths or [])}, {json.dumps(fallbackLocations or [])}, "
+        f"{json.dumps(zone)}, {json.dumps(paths or [])}, {json.dumps(orbit_pois or [])}, "
         f"{json.dumps(opts)})));"
     )
 
 
-def _round_inside(zone, center, r, paths=None, fallbackLocations=None, margin=100, takeoff=0, orbit=0):
+def _round_inside(zone, center, r, paths=None, orbit_pois=None, margin=100, takeoff=0, orbit=0):
     """True iff a 24-point ring of radius r about center is inside the fence."""
     opts = {"marginM": margin, "takeoffRadiusM": takeoff, "orbitRadiusM": orbit}
     return _run_node_file(
         f"const f=fenceInclusion({json.dumps(zone)},{json.dumps(paths or [])},"
-        f"{json.dumps(fallbackLocations or [])},{json.dumps(opts)});"
+        f"{json.dumps(orbit_pois or [])},{json.dumps(opts)});"
         f"const ring=circlePointsLL({json.dumps(center)},{r},24);"
         f"console.log(JSON.stringify(ring.every((p)=>pointInPolygon(p,f))));"
     )
@@ -589,15 +589,15 @@ class TestFenceInclusion(unittest.TestCase):
         dock = {"lat": 32.010, "lon": 34.010}  # DOCK on the zone corner (worst case)
         self.assertTrue(_round_inside(
             self.ZONE, dock, 300,
-            fallbackLocations=[dock], margin=100, orbit=300,
+            orbit_pois=[dock], margin=100, orbit=300,
         ))
 
     def test_multi_corridor_and_docks_contained(self):
         """Two corridors + Docks are all enclosed."""
         path_west = [{"lat": 32.005, "lon": 33.988}, {"lat": 32.005, "lon": 33.996}]
-        fallbackLocations = [{"lat": 32.004, "lon": 34.004}, {"lat": 32.007, "lon": 34.007}]
-        fence = _fence_incl(self.ZONE, [self.PATH_SOUTH, path_west], fallbackLocations, margin=100)
-        self.assertTrue(_all_inside(self.PATH_SOUTH + path_west + fallbackLocations + self.ZONE, fence))
+        orbit_pois = [{"lat": 32.004, "lon": 34.004}, {"lat": 32.007, "lon": 34.007}]
+        fence = _fence_incl(self.ZONE, [self.PATH_SOUTH, path_west], orbit_pois, margin=100)
+        self.assertTrue(_all_inside(self.PATH_SOUTH + path_west + orbit_pois + self.ZONE, fence))
 
     def test_degenerate_zone_returns_copy(self):
         """A <3-point input returns a copy, never throws."""
@@ -667,12 +667,12 @@ class TestClosestEdgeIndex(unittest.TestCase):
         self.assertEqual(self._cei({"lat": 5, "lon": -1}), 3)
 
 
-def _covers(fence, zone, paths=None, fallbackLocations=None, takeoff=0, orbit=0):
+def _covers(fence, zone, paths=None, orbit_pois=None, takeoff=0, orbit=0):
     """Run fenceCoversPlan via Node.js against the real geo.js source."""
     opts = {"takeoffRadiusM": takeoff, "orbitRadiusM": orbit}
     return _run_node_file(
         f"console.log(JSON.stringify(fenceCoversPlan({json.dumps(fence)}, "
-        f"{json.dumps(zone)}, {json.dumps(paths or [])}, {json.dumps(fallbackLocations or [])}, "
+        f"{json.dumps(zone)}, {json.dumps(paths or [])}, {json.dumps(orbit_pois or [])}, "
         f"{json.dumps(opts)})));"
     )
 
@@ -819,13 +819,13 @@ class TestExclusionConflicts(unittest.TestCase):
         self.assertTrue(any(c["kind"] == "track" for c in res))
 
     def test_orbit_reaching_in_flagged(self):
-        """An DOCK whose orbit circle reaches into the keep-out is flagged,
-        even though the DOCK point itself is outside it."""
+        """A dock whose orbit circle reaches into the keep-out is flagged,
+        even though the dock point itself is outside it."""
         dock = {"lat": 32.005, "lon": 34.009}  # ~350 m east of the keep-out edge
-        res = _conflicts(deliveryPoints=[dock], orbitRadiusM=400, exclusions=[self.KEEPOUT])
+        res = _conflicts(orbitPois=[dock], orbitRadiusM=400, exclusions=[self.KEEPOUT])
         self.assertTrue(any(c["kind"] == "orbit" for c in res))
-        # The same DOCK with a tiny orbit does not reach the keep-out.
-        self.assertEqual(_conflicts(deliveryPoints=[dock], orbitRadiusM=50, exclusions=[self.KEEPOUT]), [])
+        # The same dock with a tiny orbit does not reach the keep-out.
+        self.assertEqual(_conflicts(orbitPois=[dock], orbitRadiusM=50, exclusions=[self.KEEPOUT]), [])
 
     def test_conflicts_deduped(self):
         """Multiple crossing legs of one element collapse to one entry."""

@@ -65,14 +65,14 @@ class SiyiGeoPixelSource:
         cadence: SchedulerCadence,
         *,
         min_pixels: float,
-        deliver: Callable[[DetectedObject], bool],
+        dispatch: Callable[[DetectedObject], bool],
         wall_now_s: Callable[[], float] = time.time,
     ) -> None:
         self._poi = SimulationObject(1, poi, 2)
         self._mount = mount
         self._tracker = tracker
         self._min_pixels = float(min_pixels)
-        self._deliver = deliver
+        self._dispatch = dispatch
         self._wall_now_s = wall_now_s
         self._lock = threading.RLock()
         self._state = _SiyiAcquisitionState()
@@ -127,10 +127,10 @@ class SiyiGeoPixelSource:
             poi, self._state.latest = self._state.latest, None
         if poi is None:
             return False
-        delivered = bool(self._deliver(poi))
+        dispatched = bool(self._dispatch(poi))
         with self._lock:
-            self._sight.record_delivery(delivered)
-        return delivered
+            self._sight.record_dispatch(dispatched)
+        return dispatched
 
     @property
     def metrics(self) -> SiyiPixelSourceMetrics:
@@ -201,7 +201,7 @@ class SiyiGeoPixelSource:
             # Scoped to the navigation task, like the loss counter above.
             # scripts/siyi_pixel_pn_child.py publishes this as
             # projected_frames, and eval_observation_freshness divides
-            # delivered_frames by it. Deliveries only happen from
+            # dispatched_frames by it. Dispatches only happen from
             # dispatch_available() once active, so a frame rendered while the
             # source was still acquiring can never reach the numerator; adding
             # it to the denominator alone reports an accurate run as host

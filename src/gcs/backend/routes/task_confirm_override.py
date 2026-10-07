@@ -6,7 +6,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from gcs.backend.models import TaskForceConfirmRequest
+from gcs.backend.models import TaskConfirmOverrideRequest
 from gcs.backend.vehicle_manager import vehicle_mgr
 from navpy.modules.comm.messages.swarm_request_msg import (
     REQUEST_TYPE_FORCE_CONFIRM,
@@ -43,12 +43,12 @@ router = APIRouter()
 # collapses copies 2/3 into copy 1 and ConfirmOverrideListener sees exactly
 # one delivery per logical override, restoring the one-shot invariant this
 # module's docstring already claims.
-TASK_FORCE_CONFIRM_SENDS = 3
-TASK_FORCE_CONFIRM_RESEND_GAP_S = 0.25
+TASK_CONFIRM_OVERRIDE_SENDS = 3
+TASK_CONFIRM_OVERRIDE_RESEND_GAP_S = 0.25
 
 
-@router.post("/task_force_confirm")
-async def force_confirm_override(req: TaskForceConfirmRequest):
+@router.post("/task_confirm_override")
+async def force_confirm_override(req: TaskConfirmOverrideRequest):
     """Force one confirm request past the recognition gate for a single
     POI (D-18). Deliberate one-shot: the drone consumes the force flag
     the instant it bypasses the gate for this task_id; the gate stays on
@@ -72,20 +72,20 @@ async def force_confirm_override(req: TaskForceConfirmRequest):
     # send carries the SAME boot_id/msg_seq and the receiver's dedup cache
     # collapses the 3 copies into a single delivery.
     force_msg.set_meta_from_provider()
-    for attempt in range(TASK_FORCE_CONFIRM_SENDS):
+    for attempt in range(TASK_CONFIRM_OVERRIDE_SENDS):
         entry.vehicle.send_mavlink_message(force_msg.to_mavlink())
-        if attempt < TASK_FORCE_CONFIRM_SENDS - 1:
-            await asyncio.sleep(TASK_FORCE_CONFIRM_RESEND_GAP_S)
+        if attempt < TASK_CONFIRM_OVERRIDE_SENDS - 1:
+            await asyncio.sleep(TASK_CONFIRM_OVERRIDE_RESEND_GAP_S)
 
     log.info(
         "Force-confirm override sent x%d for vehicle %d task %d (unacknowledged transport)",
-        TASK_FORCE_CONFIRM_SENDS, req.sys_id, req.task_id,
+        TASK_CONFIRM_OVERRIDE_SENDS, req.sys_id, req.task_id,
     )
 
     return {
         "status": "sent",
         "delivery": "sent",
-        "sends": TASK_FORCE_CONFIRM_SENDS,
+        "sends": TASK_CONFIRM_OVERRIDE_SENDS,
         "sys_id": req.sys_id,
         "task_id": req.task_id,
     }

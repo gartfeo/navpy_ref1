@@ -47,19 +47,19 @@ class TestMavlinkConversion(unittest.TestCase):
     def test_available_task_request(self):
         task = TaskMsgData(
             task_id=1,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(lat=1.0, lng=2.0, alt=3.0),
-            class_id=4,  # Person — preserved exactly via class_id field
+            class_id=4,  # non-default class id preserved exactly via class_id field
         )
         self._roundtrip(AvailableTaskRequestMsg(sender_id=1, tasks=[task], meta=TEST_META))
 
-    def test_available_task_request_truck_class(self):
+    def test_available_task_request_class_2(self):
         """Detection class 2 preserved exactly instead of being collapsed to class 1."""
         task = TaskMsgData(
             task_id=1,
-            task_type=TaskTypeMsgData.BIG,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(lat=1.0, lng=2.0, alt=3.0),
-            class_id=2,  # Truck — was lossy before, now exact
+            class_id=2,  # was lossy before, now exact
         )
         self._roundtrip(AvailableTaskRequestMsg(sender_id=1, tasks=[task], meta=TEST_META))
 
@@ -70,9 +70,9 @@ class TestMavlinkConversion(unittest.TestCase):
     def test_task_assign_request(self):
         task = TaskAssignMsgData(
             task_id=1,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(lat=0.0, lng=0.0, alt=0.0),
-            class_id=4,  # Person — preserved exactly
+            class_id=4,  # preserved exactly
         )
         self._roundtrip(TaskAssignRequestMsg(sender_id=1, receiver_id=2, task=task, meta=TEST_META))
 
@@ -82,16 +82,16 @@ class TestMavlinkConversion(unittest.TestCase):
     def test_task_confirm_request(self):
         task = TaskMsgData(
             task_id=1,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(lat=1.0, lng=2.0, alt=3.0),
-            class_id=4,  # Person — preserved exactly
+            class_id=4,  # preserved exactly
         )
         self._roundtrip(TaskConfirmRequestMsg(sender_id=1, task=task, meta=TEST_META))
 
     def test_task_confirm_request_from_dict_preserves_metadata(self):
         task = TaskMsgData(
             task_id=1,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(lat=1.0, lng=2.0, alt=3.0),
         )
         message = TaskConfirmRequestMsg(sender_id=1, task=task, meta=TEST_META)
@@ -119,17 +119,17 @@ class TestMavlinkConversion(unittest.TestCase):
 class TestClassToTaskType(unittest.TestCase):
     """Tests for class_to_task_type mapping."""
 
-    def test_all_known_classes(self):
+    def test_dock_class_maps_to_dock_task(self):
         from navpy.modules.comm.messages.types import class_to_task_type
-        self.assertEqual(class_to_task_type(0), TaskTypeMsgData.HEAVY)   # Detection class 0
-        self.assertEqual(class_to_task_type(1), TaskTypeMsgData.BIG)     # Detection class 1
-        self.assertEqual(class_to_task_type(2), TaskTypeMsgData.BIG)     # Truck
-        self.assertEqual(class_to_task_type(3), TaskTypeMsgData.MEDIUM)  # Car
-        self.assertEqual(class_to_task_type(4), TaskTypeMsgData.SMALL)   # Person
+        from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
+        self.assertEqual(class_to_task_type(DOCK_DETECT_CLASS_ID), TaskTypeMsgData.DOCK)
 
-    def test_unknown_class_returns_big(self):
+    def test_unknown_class_returns_unknown(self):
         from navpy.modules.comm.messages.types import class_to_task_type
-        self.assertEqual(class_to_task_type(99), TaskTypeMsgData.BIG)
+        self.assertEqual(class_to_task_type(99), TaskTypeMsgData.UNKNOWN)
+
+    def test_task_type_members_are_dock_and_unknown(self):
+        self.assertEqual({m.name for m in TaskTypeMsgData}, {"DOCK", "UNKNOWN"})
 
 
 if __name__ == "__main__":

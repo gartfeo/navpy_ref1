@@ -8,14 +8,14 @@ import { buildPlanSnapshot, isPlanDirty } from '../utils/planSnapshot';
  */
 export default function usePlanSnapshot({
   // Captured values
-  plan, polygon, searchPattern, dockClasses, perUavDockClasses, analysis, uavCount,
+  plan, polygon, searchPattern, analysis, uavCount,
   partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
-  fallbackLocationAssignments, simDockWps, detectAfterWps,
+  deliveryHubAssignments, simDockWps, detectAfterWps,
   fenceCustomVertices, exclusionPolygons,
   // Restore setters
-  setPlan, setPolygon, setSearchPattern, setDockClasses, setPerUavDockClasses, setAnalysis,
+  setPlan, setPolygon, setSearchPattern, setAnalysis,
   setUavCount, setPartitionAngleDeg, setRouteOffsetM, setSetLaunchPoints,
-  setSetCorridorPoints, setFallbackLocationAssignments, setSimDockWps,
+  setSetCorridorPoints, setDeliveryHubAssignments, setSimDockWps,
   setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons,
   // Side-effect deps (drawingRef avoids hook-ordering issues with useDrawing)
   drawingRef, suppressRegenRef, goToMonitor, undoRef,
@@ -26,9 +26,9 @@ export default function usePlanSnapshot({
   const [snapshotTrigger, setSnapshotTrigger] = useState(0);
 
   stateForSnapshotRef.current = {
-    plan, polygon, searchPattern, dockClasses, perUavDockClasses, analysis, uavCount,
+    plan, polygon, searchPattern, analysis, uavCount,
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
-    fallbackLocationAssignments, simDockWps, detectAfterWps,
+    deliveryHubAssignments, simDockWps, detectAfterWps,
     fenceCustomVertices, exclusionPolygons,
   };
 
@@ -48,15 +48,13 @@ export default function usePlanSnapshot({
         setPlan(snap.plan);
         setPolygon(snap.polygon);
         setSearchPattern(snap.searchPattern);
-        setDockClasses(snap.dockClasses);
-        setPerUavDockClasses(snap.perUavDockClasses);
         setAnalysis(snap.analysis);
         setUavCount(snap.uavCount);
         setPartitionAngleDeg(snap.partitionAngleDeg);
         setRouteOffsetM(snap.routeOffsetM);
         setSetLaunchPoints(snap.setLaunchPoints);
         setSetCorridorPoints(snap.setCorridorPointsArr);
-        setFallbackLocationAssignments(snap.fallbackLocationAssignments);
+        setDeliveryHubAssignments(snap.deliveryHubAssignments);
         setSimDockWps(snap.simDockWps);
         setDetectAfterWps(snap.detectAfterWps);
         setFenceCustomVertices?.(snap.fenceCustomVertices ?? null);
@@ -68,9 +66,8 @@ export default function usePlanSnapshot({
       }
     }
     goToMonitor();
-  }, [goToMonitor, setPlan, setPolygon, setSearchPattern, setDockClasses,
-      setPerUavDockClasses, setAnalysis, setUavCount, setPartitionAngleDeg,
-      setRouteOffsetM, setSetLaunchPoints, setSetCorridorPoints, setFallbackLocationAssignments,
+  }, [goToMonitor, setPlan, setPolygon, setSearchPattern, setAnalysis, setUavCount, setPartitionAngleDeg,
+      setRouteOffsetM, setSetLaunchPoints, setSetCorridorPoints, setDeliveryHubAssignments,
       setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons]);
 
   return { onPlanSynced, handleExitPlanning };

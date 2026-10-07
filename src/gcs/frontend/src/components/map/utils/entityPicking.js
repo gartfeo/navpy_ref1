@@ -86,8 +86,8 @@ export function pickEntity(Cesium, viewer, screenPos) {
     if (Cesium.defined(props.isTrackWp)) {
       return { type: 'trackWp', zoneIndex: props.zoneIndex.getValue(), wpIndex: props.wpIndex.getValue() };
     }
-    if (Cesium.defined(props.fallbackLocationIndex)) {
-      return { type: 'fallbackLocation', index: props.fallbackLocationIndex.getValue() };
+    if (Cesium.defined(props.deliveryHubIndex)) {
+      return { type: 'deliveryHub', index: props.deliveryHubIndex.getValue() };
     }
     if (Cesium.defined(props.isPolygonFill)) {
       polygonHit = true;

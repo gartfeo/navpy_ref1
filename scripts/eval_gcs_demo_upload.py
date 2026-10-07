@@ -94,9 +94,6 @@ def mission_assignment(
         corridor_count = corridor_end
     else:
         raise ValueError("mission corridor_end_index is invalid")
-    raw_classes = _list(mission.get("dock_classes"), "mission dock_classes")
-    if not all(type(item) is str and item for item in raw_classes):
-        raise TypeError("mission dock_classes must contain non-empty strings")
     altitude_m = _number(mission.get("altitude_m"), "mission altitude_m")
     return {
         "sys_id": expected_sys_id,
@@ -115,10 +112,9 @@ def mission_assignment(
             mission.get("launch_point"),
             "mission launch_point",
         ),
-        "dock_classes": list(raw_classes),
-        "fallback_delivery_location": _optional_coordinate(
-            mission.get("fallback_delivery_location"),
-            "mission fallback_delivery_location",
+        "default_delivery_hub": _optional_coordinate(
+            mission.get("default_delivery_hub"),
+            "mission default_delivery_hub",
         ),
     }
 
@@ -208,7 +204,7 @@ def shifted_mission_assignments(
         for field in ("waypoints", "polygon", "corridor_backbone"):
             for coordinate in _list(assignment.get(field), field):
                 _shift_coordinate(_object(coordinate, field), lat_delta, lon_delta)
-        for field in ("launch_point", "fallback_delivery_location"):
+        for field in ("launch_point", "default_delivery_hub"):
             coordinate = assignment.get(field)
             if coordinate is not None:
                 _shift_coordinate(

@@ -27,26 +27,26 @@ export default function useMissionUpload({
   onFenceIntentResolved,
 }) {
   const {
-    polygon, dockClasses, perUavDockClasses, searchPattern,
+    polygon, searchPattern,
     launchPoint, corridorPoints,
     plan, setPlan,
     setLaunchPoints, setCorridorPointsArr,
     goToMonitor,
-    fallbackLocationAssignments, manualFallbackLocationEdit,
+    deliveryHubAssignments, manualDeliveryHubEdit,
     simDockWps, detectAfterWps,
     setUploadProgress,
   } = mission;
   const [uploading, setUploading] = useState(false);
 
-  // Live mirror of fallbackLocationAssignments so handleUpload reads the latest committed
+  // Live mirror of deliveryHubAssignments so handleUpload reads the latest committed
   // assignments (not a render-stale closure) when in manual-edit mode.
-  const fallbackLocationAssignmentsRef = useRef(fallbackLocationAssignments);
-  fallbackLocationAssignmentsRef.current = fallbackLocationAssignments;
+  const deliveryHubAssignmentsRef = useRef(deliveryHubAssignments);
+  deliveryHubAssignmentsRef.current = deliveryHubAssignments;
 
   const handleUpload = useCallback(async () => {
-    const fallbackLocations = settings?.fallback_delivery_locations || [];
-    if (fallbackLocations.length === 0) {
-      window.alert('Please add at least one fallback delivery location before uploading.');
+    const deliveryHubs = settings?.default_delivery_hubs || [];
+    if (deliveryHubs.length === 0) {
+      window.alert('Please add at least one default delivery hub before uploading.');
       return;
     }
     // An enabled fence without an enforceable boundary is rejected here, before
@@ -62,7 +62,7 @@ export default function useMissionUpload({
     onOperatorAction?.();
     // Corridor mode uses corridor path as dummy polygon
     const polyArg = searchPattern === 'corridor' ? (polygon.length >= 3 ? polygon : corridorPath || polygon) : polygon;
-    const generated = await localGenerate(polyArg, dockClasses, searchPattern, effectiveUavCount, approachPoint, corridorPath);
+    const generated = await localGenerate(polyArg, searchPattern, effectiveUavCount, approachPoint, corridorPath);
     const activePlan = generated || plan;
     // Plan not ready (planner still loading, or area too small) — surface it
     // instead of silently leaving planning.
@@ -80,16 +80,16 @@ export default function useMissionUpload({
       window.alert(`Not enough connected vehicles: ${activePlan.zones.length} zone(s) but ${vehicleList.length} vehicle(s) connected.`);
       return;
     }
-    // Resolve fallback location assignments synchronously from the plan being uploaded, never
+    // Resolve delivery hub assignments synchronously from the plan being uploaded, never
     // from render-stale state — this is the first-click upload fix. Pass whether
     // the plan was just regenerated: if so the displayed assignments may not match
     // the new zones and are recomputed; otherwise they are preserved (e.g. POIs
     // restored from a downloaded plan).
     const { assignments: effectiveAssignments, missingLabels } = resolveUploadAssignments(
-      activePlan.zones, fallbackLocations, fallbackLocationAssignmentsRef.current, manualFallbackLocationEdit, generated != null,
+      activePlan.zones, deliveryHubs, deliveryHubAssignmentsRef.current, manualDeliveryHubEdit, generated != null,
     );
     if (missingLabels.length > 0) {
-      window.alert(`All zones must have a fallback delivery location assigned. Missing: ${missingLabels.join(', ')}`);
+      window.alert(`All zones must have a default delivery hub assigned. Missing: ${missingLabels.join(', ')}`);
       return;
     }
 
@@ -119,10 +119,10 @@ export default function useMissionUpload({
         ? setCp.map((p) => ({ lat: p.lat, lon: p.lon }))
         : [];
       const zoneAlt = zone.altitude_m ?? (baseAlt + (sortedZones.length - 1 - i) * sep);
-      // Look up assigned fallback location for this zone (resolved from the active plan above)
-      const fallbackLocations = settings?.fallback_delivery_locations || [];
-      const assignedFallbackLocationIdx = effectiveAssignments[i];
-      const assignedFallbackLocation = assignedFallbackLocationIdx != null ? fallbackLocations[assignedFallbackLocationIdx] : null;
+      // Look up assigned delivery hub for this zone (resolved from the active plan above)
+      const deliveryHubs = settings?.default_delivery_hubs || [];
+      const assignedDeliveryHubIdx = effectiveAssignments[i];
+      const assignedDeliveryHub = assignedDeliveryHubIdx != null ? deliveryHubs[assignedDeliveryHubIdx] : null;
       return {
         sys_id: v.sys_id,
         zone_index: zone.zone_index,
@@ -134,11 +134,7 @@ export default function useMissionUpload({
         polygon: polyVerts,
         corridor_backbone: corrBackbone,
         launch_point: setLp ? { lat: setLp.lat, lon: setLp.lon } : null,
-        // Per-UAV override (keyed by zone index) falls back to the mission-wide
-        // list. Each vehicle decodes its own mission's dock_classes at runtime
-        // (orbit sizing + confirm-pixel threshold), so this is per-drone.
-        dock_classes: (perUavDockClasses?.[i]?.length ? perUavDockClasses[i] : dockClasses),
-        fallback_delivery_location: assignedFallbackLocation ? { lat: assignedFallbackLocation.lat, lon: assignedFallbackLocation.lon, type: assignedFallbackLocation.type } : null,
+        default_delivery_hub: assignedDeliveryHub ? { lat: assignedDeliveryHub.lat, lon: assignedDeliveryHub.lon, type: assignedDeliveryHub.type } : null,
       };
     }).filter(Boolean);
 
@@ -147,7 +143,7 @@ export default function useMissionUpload({
       altitude_m: baseAlt + (sortedZones.length - 1 - i) * sep,
       sys_id: vehicleList[i]?.sys_id ?? zone.sys_id,
     }));
-    setPlan((prev) => prev ? { ...prev, zones: zonesWithAlt, dock_classes: dockClasses || [] } : prev);
+    setPlan((prev) => prev ? { ...prev, zones: zonesWithAlt } : prev);
 
     if (setUploadProgress) setUploadProgress({});
     setUploading(true);
@@ -223,7 +219,7 @@ export default function useMissionUpload({
     } finally {
       setUploading(false);
     }
-  }, [polygon, dockClasses, perUavDockClasses, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualFallbackLocationEdit, settings, onPlanSynced, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved]);
+  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved]);
 
   return { uploading, handleUpload };
 }

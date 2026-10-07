@@ -30,10 +30,6 @@ export default function useMissionState() {
   // Planning state
   const [polygon, setPolygon] = useState([]);
   const [searchPattern, setSearchPattern] = useState('distributed');
-  const [dockClasses, setDockClasses] = useState(['small', 'medium']);
-  // Per-UAV dock class override: { zoneIndex → ['small', ...] }. A zone with
-  // no entry inherits the mission-wide dockClasses; only forked zones appear here.
-  const [perUavDockClasses, setPerUavDockClasses] = useState({});
   const [analysis, setAnalysis] = useState(null);
   const [plan, setPlan] = useState(null);
   const [uavCount, setUavCount] = useState(null); // null = use analysis default
@@ -67,9 +63,9 @@ export default function useMissionState() {
     });
   }, [activeSetIndex]);
 
-  // fallback location assignments: fallbackLocationAssignments[zoneIdx] = fallbackLocationIndex | null
-  const [fallbackLocationAssignments, setFallbackLocationAssignments] = useState([]);
-  const [manualFallbackLocationEdit, setManualFallbackLocationEdit] = useState(false);
+  // delivery hub assignments: deliveryHubAssignments[zoneIdx] = deliveryHubIndex | null
+  const [deliveryHubAssignments, setDeliveryHubAssignments] = useState([]);
+  const [manualDeliveryHubEdit, setManualDeliveryHubEdit] = useState(false);
 
   // Sim POI waypoints (plan-local, snapshotted)
   // simDockWps:   { zoneIndex → [wpIndex, ...] } — 0-based track indices
@@ -203,7 +199,7 @@ export default function useMissionState() {
     if (fenceIntentRef.current != null || signature == null) return;
     setFenceAcknowledged((prev) => (prev == null ? prev : { signature }));
   }, []);
-  // Operator-edited fence ring. null = auto-derived from zone/corridor/fallback locations;
+  // Operator-edited fence ring. null = auto-derived from zone/corridor/delivery hubs;
   // set on the first vertex/midpoint edit gesture, cleared by "Reset to auto".
   const [fenceCustomVertices, setFenceCustomVertices] = useState(null);
   // Takeoff-round radius: the fence rings each launch by this much so the UAV's
@@ -232,8 +228,6 @@ export default function useMissionState() {
     // Planning
     polygon, setPolygon,
     searchPattern, setSearchPattern,
-    dockClasses, setDockClasses,
-    perUavDockClasses, setPerUavDockClasses,
     analysis, setAnalysis,
     plan, setPlan,
     uavCount, setUavCount,
@@ -250,9 +244,9 @@ export default function useMissionState() {
     launchPoint, setLaunchPoint,
     corridorPoints, setCorridorPoints,
 
-    // fallback location assignments
-    fallbackLocationAssignments, setFallbackLocationAssignments,
-    manualFallbackLocationEdit, setManualFallbackLocationEdit,
+    // delivery hub assignments
+    deliveryHubAssignments, setDeliveryHubAssignments,
+    manualDeliveryHubEdit, setManualDeliveryHubEdit,
 
     // Sim POIs
     simDockWps, setSimDockWps,

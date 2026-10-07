@@ -51,65 +51,61 @@ class TestApplyPresetEdit(unittest.TestCase):
     def test_edit_min_pixel_preserves_sibling_fields(self):
         """Editing min_pixel_size must keep the class's altitude_m + label."""
         result = _run_js("""
-            const catalog = { medium: { altitude_m: 120, min_pixel_size: 45, label: 'Medium' } };
-            const overrides = applyPresetEdit(catalog, {}, 'medium', 'min_pixel_size', 5);
+            const catalog = { dock: { altitude_m: 120, min_pixel_size: 45, label: 'Dock' } };
+            const overrides = applyPresetEdit(catalog, {}, 'dock', 'min_pixel_size', 5);
             console.log(JSON.stringify(overrides));
         """)
         self.assertEqual(
-            result["medium"],
-            {"altitude_m": 120, "min_pixel_size": 5, "label": "Medium"},
+            result["dock"],
+            {"altitude_m": 120, "min_pixel_size": 5, "label": "Dock"},
         )
 
     def test_edit_altitude_preserves_min_pixel(self):
         """Editing altitude_m must keep the class's min_pixel_size + label."""
         result = _run_js("""
-            const catalog = { medium: { altitude_m: 120, min_pixel_size: 45, label: 'Medium' } };
-            const overrides = applyPresetEdit(catalog, {}, 'medium', 'altitude_m', 300);
+            const catalog = { dock: { altitude_m: 120, min_pixel_size: 45, label: 'Dock' } };
+            const overrides = applyPresetEdit(catalog, {}, 'dock', 'altitude_m', 300);
             console.log(JSON.stringify(overrides));
         """)
         self.assertEqual(
-            result["medium"],
-            {"altitude_m": 300, "min_pixel_size": 45, "label": "Medium"},
+            result["dock"],
+            {"altitude_m": 300, "min_pixel_size": 45, "label": "Dock"},
         )
 
     def test_second_edit_same_class_keeps_prior_edit(self):
         """A second field edit on a class must not drop the first edit."""
         result = _run_js("""
-            const catalog = { medium: { altitude_m: 120, min_pixel_size: 45, label: 'Medium' } };
-            let o = applyPresetEdit(catalog, {}, 'medium', 'min_pixel_size', 5);
-            o = applyPresetEdit(catalog, o, 'medium', 'altitude_m', 300);
+            const catalog = { dock: { altitude_m: 120, min_pixel_size: 45, label: 'Dock' } };
+            let o = applyPresetEdit(catalog, {}, 'dock', 'min_pixel_size', 5);
+            o = applyPresetEdit(catalog, o, 'dock', 'altitude_m', 300);
             console.log(JSON.stringify(o));
         """)
         self.assertEqual(
-            result["medium"],
-            {"altitude_m": 300, "min_pixel_size": 5, "label": "Medium"},
+            result["dock"],
+            {"altitude_m": 300, "min_pixel_size": 5, "label": "Dock"},
         )
 
-    def test_apply_payload_carries_min_pixel_for_each_edited_class(self):
-        """The accumulated buffer IS the Apply payload (dock_presets); each
-        edited class carries its full, complete preset."""
+    def test_apply_payload_carries_complete_dock_preset(self):
+        """The accumulated buffer IS the Apply payload (dock_presets); the
+        edited dock preset is carried complete."""
         result = _run_js("""
             const catalog = {
-                medium: { altitude_m: 120, min_pixel_size: 45, label: 'Medium' },
-                small: { altitude_m: 100, min_pixel_size: 42, label: 'Small' },
+                dock: { altitude_m: 120, min_pixel_size: 45, label: 'Dock' },
             };
-            let o = applyPresetEdit(catalog, {}, 'medium', 'min_pixel_size', 5);
-            o = applyPresetEdit(catalog, o, 'small', 'min_pixel_size', 6);
+            const o = applyPresetEdit(catalog, {}, 'dock', 'min_pixel_size', 5);
             console.log(JSON.stringify(o));
         """)
-        # Only edited classes are in the buffer; each is complete.
-        self.assertEqual(set(result.keys()), {"medium", "small"})
-        self.assertEqual(result["medium"]["min_pixel_size"], 5)
-        self.assertEqual(result["medium"]["altitude_m"], 120)
-        self.assertEqual(result["small"]["min_pixel_size"], 6)
-        self.assertEqual(result["small"]["label"], "Small")
+        self.assertEqual(set(result.keys()), {"dock"})
+        self.assertEqual(result["dock"]["min_pixel_size"], 5)
+        self.assertEqual(result["dock"]["altitude_m"], 120)
+        self.assertEqual(result["dock"]["label"], "Dock")
 
     def test_edit_does_not_mutate_input_buffer(self):
         """applyPresetEdit returns a new buffer without mutating the prior one."""
         result = _run_js("""
-            const catalog = { medium: { altitude_m: 120, min_pixel_size: 45, label: 'Medium' } };
+            const catalog = { dock: { altitude_m: 120, min_pixel_size: 45, label: 'Dock' } };
             const prev = {};
-            const next = applyPresetEdit(catalog, prev, 'medium', 'min_pixel_size', 5);
+            const next = applyPresetEdit(catalog, prev, 'dock', 'min_pixel_size', 5);
             console.log(JSON.stringify({ prevKeys: Object.keys(prev), same: prev === next }));
         """)
         self.assertEqual(result["prevKeys"], [])
@@ -119,29 +115,27 @@ class TestApplyPresetEdit(unittest.TestCase):
 class TestMergeDisplayPresets(unittest.TestCase):
     def test_overrides_win_and_override_only_class_appears(self):
         result = _run_js("""
-            const catalog = { medium: { altitude_m: 120, min_pixel_size: 45, label: 'Medium' } };
+            const catalog = { dock: { altitude_m: 120, min_pixel_size: 45, label: 'Dock' } };
             const overrides = {
-                medium: { altitude_m: 120, min_pixel_size: 5, label: 'Medium' },
+                dock: { altitude_m: 120, min_pixel_size: 5, label: 'Dock' },
                 extra: { min_pixel_size: 9 },
             };
             console.log(JSON.stringify(mergeDisplayPresets(catalog, overrides)));
         """)
-        self.assertEqual(result["medium"]["min_pixel_size"], 5)
-        self.assertEqual(result["medium"]["altitude_m"], 120)
+        self.assertEqual(result["dock"]["min_pixel_size"], 5)
+        self.assertEqual(result["dock"]["altitude_m"], 120)
         self.assertEqual(result["extra"], {"min_pixel_size": 9})
 
     def test_empty_buffer_shows_catalog_unchanged(self):
         """Reset / profile switch discards the buffer -> grid reverts to catalog."""
         result = _run_js("""
             const catalog = {
-                medium: { altitude_m: 120, min_pixel_size: 45, label: 'Medium' },
-                small: { altitude_m: 100, min_pixel_size: 42, label: 'Small' },
+                dock: { altitude_m: 120, min_pixel_size: 45, label: 'Dock' },
             };
             console.log(JSON.stringify(mergeDisplayPresets(catalog, {})));
         """)
         self.assertEqual(result, {
-            "medium": {"altitude_m": 120, "min_pixel_size": 45, "label": "Medium"},
-            "small": {"altitude_m": 100, "min_pixel_size": 42, "label": "Small"},
+            "dock": {"altitude_m": 120, "min_pixel_size": 45, "label": "Dock"},
         })
 
 

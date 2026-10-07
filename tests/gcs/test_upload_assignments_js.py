@@ -4,7 +4,7 @@ Mirrors the Node-subprocess pattern used by the other *_js.py GCS tests:
 the JS util is read, ES-module syntax stripped, and the program is fed to Node
 via stdin through the shared `run_node` harness (avoids the Windows
 command-line length limit / WinError 206). resolveUploadAssignments depends on
-autoAssignFallbackLocations, so both source files are concatenated.
+autoAssignDeliveryHubs, so both source files are concatenated.
 """
 import unittest
 from tests.gcs.js_runner import run_node
@@ -39,8 +39,8 @@ def _load(name):
         return _strip_es_modules(f.read())
 
 
-# autoAssignFallbackLocations first (uploadAssignments imports it), then uploadAssignments.
-_JS = _load("fallbackLocationAssignment.js") + "\n" + _load("uploadAssignments.js")
+# autoAssignDeliveryHubs first (uploadAssignments imports it), then uploadAssignments.
+_JS = _load("deliveryHubAssignment.js") + "\n" + _load("uploadAssignments.js")
 
 
 def _run_js(script):
@@ -51,7 +51,7 @@ def _run_js(script):
     return json.loads(result.stdout.strip())
 
 
-# Two zones ending at lat 40 / 41; Docks A@40, B@41. autoAssignFallbackLocations picks the
+# Two zones ending at lat 40 / 41; Docks A@40, B@41. autoAssignDeliveryHubs picks the
 # optimal unique assignment [0, 1]; [1, 0] is the non-optimal/flipped variant.
 _TWO_ZONES = "[{track:[{lat:40,lon:44}]},{track:[{lat:41,lon:44}]}]"
 _TWO_DOCKS = "[{name:'A',lat:40,lon:44},{name:'B',lat:41,lon:44}]"
@@ -74,8 +74,8 @@ class TestResolveUploadAssignments(unittest.TestCase):
           {track: [{lat:40, lon:44}, {lat:40.05, lon:44}]},
           {track: [{lat:40, lon:44}, {lat:40.5, lon:44}]},
         ];
-        const fallbackLocations = [{name:'Near', lat:40.06, lon:44}, {name:'Far', lat:40.49, lon:44}];
-        const r = resolveUploadAssignments(zones, fallbackLocations, [], false, true);
+        const deliveryHubs = [{name:'Near', lat:40.06, lon:44}, {name:'Far', lat:40.49, lon:44}];
+        const r = resolveUploadAssignments(zones, deliveryHubs, [], false, true);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(r["assignments"], [0, 1])
@@ -129,8 +129,8 @@ class TestResolveUploadAssignments(unittest.TestCase):
           {track: [{lat:41, lon:44}], set_index: 0},
           {track: [{lat:42, lon:44}], set_index: 0},
         ];
-        const fallbackLocations = [{name:'A', lat:40, lon:44}];
-        const r = resolveUploadAssignments(zones, fallbackLocations, [0, 0], true, false);
+        const deliveryHubs = [{name:'A', lat:40, lon:44}];
+        const r = resolveUploadAssignments(zones, deliveryHubs, [0, 0], true, false);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(r["assignments"], [0, 0, None])
@@ -143,23 +143,23 @@ class TestResolveUploadAssignments(unittest.TestCase):
           {track: [{lat:40, lon:44}], set_index: 0},
           {track: [{lat:41, lon:44}], set_index: 0},
         ];
-        const fallbackLocations = [{name:'A', lat:40, lon:44}];   // only index 0 valid
-        const r = resolveUploadAssignments(zones, fallbackLocations, [0, 5], true, false);
+        const deliveryHubs = [{name:'A', lat:40, lon:44}];   // only index 0 valid
+        const r = resolveUploadAssignments(zones, deliveryHubs, [0, 5], true, false);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(r["assignments"], [0, None])
         self.assertEqual(r["missingLabels"], ["S1U2"])
 
     def test_auto_regenerated_trackless_zone_is_missing(self):
-        """autoAssignFallbackLocations returns null for a zone with no track endpoint;
+        """autoAssignDeliveryHubs returns null for a zone with no track endpoint;
         the helper reports it rather than uploading a null POI."""
         r = _run_js("""
         const zones = [
           {track: [], set_index: 0},
           {track: [{lat:40, lon:44}], set_index: 0},
         ];
-        const fallbackLocations = [{name:'A', lat:40, lon:44}];
-        const r = resolveUploadAssignments(zones, fallbackLocations, [], false, true);
+        const deliveryHubs = [{name:'A', lat:40, lon:44}];
+        const r = resolveUploadAssignments(zones, deliveryHubs, [], false, true);
         console.log(JSON.stringify(r));
         """)
         self.assertIsNone(r["assignments"][0])
@@ -174,8 +174,8 @@ class TestResolveUploadAssignments(unittest.TestCase):
           {track: [{lat:40.1, lon:44}]},
           {track: [{lat:40.2, lon:44}]},
         ];
-        const fallbackLocations = [{name:'A', lat:40, lon:44}];
-        const r = resolveUploadAssignments(zones, fallbackLocations, [], false, true);
+        const deliveryHubs = [{name:'A', lat:40, lon:44}];
+        const r = resolveUploadAssignments(zones, deliveryHubs, [], false, true);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(r["assignments"], [0, 0, 0])
@@ -189,8 +189,8 @@ class TestResolveUploadAssignments(unittest.TestCase):
           {track: [], set_index: 0},
           {track: [], set_index: 1},
         ];
-        const fallbackLocations = [{name:'A', lat:40, lon:44}];
-        const r = resolveUploadAssignments(zones, fallbackLocations, [], false, true);
+        const deliveryHubs = [{name:'A', lat:40, lon:44}];
+        const r = resolveUploadAssignments(zones, deliveryHubs, [], false, true);
         console.log(JSON.stringify(r.missingLabels));
         """)
         self.assertEqual(r, ["S1U1", "S1U2", "S2U1"])

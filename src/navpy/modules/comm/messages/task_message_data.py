@@ -1,6 +1,6 @@
 """Compatible fleet task records for availability, assignment and confirmation.
 
-Task/session correlation fields are not authenticated recipient identities.
+Task/session fields provide correlation only.
 Keep serialized keys and enums stable across network peers.
 """
 

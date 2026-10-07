@@ -219,13 +219,13 @@ def _row(sysid: int, result: dict, cell: "Cell | None" = None,
     parts = [part.name for part in (arm, cell) if part is not None]
     label = f"[{'/'.join(parts)}] " if parts else ""
     return (
-        f"  uav-{sysid}: {label}end={result.get('engage_end')!s:<8}"
-        f" miss={'--' if miss is None else f'{miss:.2f} m':>10}"
+        f"  uav-{sysid}: {label}end={result.get('scoring_end')!s:<8}"
+        f" cpa_error={'--' if miss is None else f'{miss:.2f} m':>10}"
         f" cmds={result.get('commands')}"
         f" rejected={result.get('rejected_frames')}"
         f" saturated={result.get('saturated_commands')}"
         f" reversals={result.get('roll_reversals')}"
-        f" scoring={result.get('engage_s')}s"
+        f" scoring={result.get('scoring_s')}s"
         f" clock={result.get('measured_speedup')}x"
         f" errors={len(result.get('errors') or [])}"
     )

@@ -57,8 +57,6 @@ export default function App() {
   const {
     phase,
     polygon, searchPattern,
-    dockClasses, setDockClasses,
-    perUavDockClasses, setPerUavDockClasses,
     analysis, setAnalysis,
     plan, setPlan,
     launchPoint, corridorPoints,
@@ -68,8 +66,8 @@ export default function App() {
     uavCountLocked, setUavCountLocked,
     partitionAngleDeg,
     routeOffsetM, setRouteOffsetM,
-    fallbackLocationAssignments, setFallbackLocationAssignments,
-    setManualFallbackLocationEdit,
+    deliveryHubAssignments, setDeliveryHubAssignments,
+    setManualDeliveryHubEdit,
     simDockWps, detectAfterWps, setDetectAfterWps,
     fenceEnabled, setFenceEnabled, fenceOffsetM, setFenceOffsetM,
     fenceTouched, toggleFence,
@@ -180,22 +178,22 @@ export default function App() {
     }
     return paths;
   }, [setLaunchPoints, setCorridorPointsArr]);
-  // Fallback delivery locations — the fence must also clear their confirmation
+  // Default delivery hubs — the fence must also clear their confirmation
   // orbit; conflict analysis checks the orbit against exclusion keep-outs.
-  const fallbackLocations = React.useMemo(
-    () => (settings?.fallback_delivery_locations || []).filter((o) => o && o.lat != null && o.lon != null),
+  const deliveryHubs = React.useMemo(
+    () => (settings?.default_delivery_hubs || []).filter((o) => o && o.lat != null && o.lon != null),
     [settings],
   );
-  // Only POIs the UAVs will actually orbit shape the fence: fallback locations ASSIGNED
-  // to a zone (unassigned fallback locations are display-only) plus the plan's simulated
-  // delivery docks (track waypoints the demo approves and approaches).
+  // Only POIs the UAVs will actually orbit shape the fence: delivery hubs ASSIGNED
+  // to a zone (unassigned delivery hubs are display-only) plus the plan's simulation
+  // POIs (track waypoints the demo approves and approaches).
   const fencePois = React.useMemo(() => {
     const out = [];
-    const seenFallbackLocation = new Set();
-    for (const fallbackLocationIdx of (fallbackLocationAssignments || [])) {
-      if (fallbackLocationIdx == null || seenFallbackLocation.has(fallbackLocationIdx)) continue;
-      seenFallbackLocation.add(fallbackLocationIdx);
-      const o = fallbackLocations[fallbackLocationIdx];
+    const seenDeliveryHub = new Set();
+    for (const deliveryHubIdx of (deliveryHubAssignments || [])) {
+      if (deliveryHubIdx == null || seenDeliveryHub.has(deliveryHubIdx)) continue;
+      seenDeliveryHub.add(deliveryHubIdx);
+      const o = deliveryHubs[deliveryHubIdx];
       if (o) out.push({ lat: o.lat, lon: o.lon });
     }
     for (const [zi, wps] of Object.entries(simDockWps || {})) {
@@ -206,7 +204,7 @@ export default function App() {
       }
     }
     return out;
-  }, [fallbackLocations, fallbackLocationAssignments, simDockWps, plan]);
+  }, [deliveryHubs, deliveryHubAssignments, simDockWps, plan]);
   const fenceAuto = React.useMemo(
     () => (fenceEnabled && polygon.length >= 3
       ? fenceInclusion(polygon, transitPaths, fencePois, {
@@ -267,7 +265,7 @@ export default function App() {
     return analyzeExclusionConflicts({
       corridorPaths: transitPaths,
       tracks: (plan?.zones || []).map((z) => z.track || []),
-      deliveryPoints: fencePois, // Assigned fallback locations and simulation docks.
+      orbitPois: fencePois, // Assigned delivery hubs and simulation POIs.
       orbitRadiusM: DEFAULT_ORBIT_RADIUS_M,
       exclusions,
     });
@@ -653,12 +651,12 @@ export default function App() {
             vehicleTargWps={vehicleTargWps}
             vehicleNavLastWp={vehicleNavLastWp}
             detectAfterWps={detectAfterWps}
-            fallbackLocations={settings?.fallback_delivery_locations}
-            fallbackLocationAssignments={fallbackLocationAssignments}
-            placingFallbackLocation={planning.placingFallbackLocation}
-            onPlaceFallbackLocation={planning.handlePlaceFallbackLocation}
-            onRemoveFallbackLocation={planning.handleRemoveFallbackLocation}
-            onMoveFallbackLocation={planning.handleMoveFallbackLocation}
+            deliveryHubs={settings?.default_delivery_hubs}
+            deliveryHubAssignments={deliveryHubAssignments}
+            placingDeliveryHub={planning.placingDeliveryHub}
+            onPlaceDeliveryHub={planning.handlePlaceDeliveryHub}
+            onRemoveDeliveryHub={planning.handleRemoveDeliveryHub}
+            onMoveDeliveryHub={planning.handleMoveDeliveryHub}
             followSysId={followSysId}
             fpvMode={mc.manualControlEnabled && mc.manualControlTarget != null}
             onViewerReady={setMapReady}
@@ -679,10 +677,10 @@ export default function App() {
               effectiveSets={planning.effectiveSets}
               activeSetIndex={activeSetIndex}
               setActiveSetIndex={setActiveSetIndex}
-              placingFallbackLocation={planning.placingFallbackLocation}
-              onToggleFallbackLocation={planning.toggleFallbackLocationPlacement}
-              placingFallbackLocationType={planning.placingFallbackLocationType}
-              setPlacingFallbackLocationType={planning.setPlacingFallbackLocationType}
+              placingDeliveryHub={planning.placingDeliveryHub}
+              onToggleDeliveryHub={planning.toggleDeliveryHubPlacement}
+              placingDeliveryHubType={planning.placingDeliveryHubType}
+              setPlacingDeliveryHubType={planning.setPlacingDeliveryHubType}
               fenceEnabled={fenceEnabled}
               onToggleFence={toggleFence}
               observedFenceMode={observedFence.mode}
@@ -839,14 +837,9 @@ export default function App() {
             <PlanningSidebar
               searchPattern={searchPattern}
               setSearchPattern={planning.handleSearchPatternChange}
-              dockClasses={dockClasses}
-              setDockClasses={setDockClasses}
-              perUavDockClasses={perUavDockClasses}
-              setPerUavDockClasses={setPerUavDockClasses}
               analysis={analysis}
               uavCount={planning.effectiveUavCount}
               setUavCount={setUavCount}
-              onPoiChange={planning.handlePoiChange}
               launchPoint={launchPoint}
               corridorPoints={corridorPoints}
               plan={plan}
@@ -856,9 +849,9 @@ export default function App() {
               vehicleList={vehicleList}
               aasParams={aasParams}
               setLaunchPoints={setLaunchPoints}
-              fallbackLocationAssignments={fallbackLocationAssignments}
-              setFallbackLocationAssignments={setFallbackLocationAssignments}
-              setManualFallbackLocationEdit={setManualFallbackLocationEdit}
+              deliveryHubAssignments={deliveryHubAssignments}
+              setDeliveryHubAssignments={setDeliveryHubAssignments}
+              setManualDeliveryHubEdit={setManualDeliveryHubEdit}
               simDockWps={simDockWps}
               simMode={settings?.simulation?.sim_mode ?? false}
               detectAfterWps={detectAfterWps}
@@ -958,10 +951,10 @@ export default function App() {
           compassCal={compassCal}
           accelCal={accelCal}
           sendCommand={api.sendCommand}
-          onStartPlacingFallbackLocation={() => {
+          onStartPlacingDeliveryHub={() => {
             setShowSettings(false);
             setSettingsTab(null);
-            planning.startPlacingFallbackLocationFromSettings();
+            planning.startPlacingDeliveryHubFromSettings();
           }}
         />
       )}

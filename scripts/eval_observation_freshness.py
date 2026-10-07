@@ -13,8 +13,8 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-# Measured three-UAV baseline: 1x delivers 88.4-89.8% of projected frames across
-# 48 vehicles with no spread.  Degraded 10x runs deliver 57.0-74.0%, and their
+# Measured three-UAV baseline: 1x dispatches 88.4-89.8% of projected frames across
+# 48 vehicles with no spread.  Degraded 10x runs dispatch 57.0-74.0%, and their
 # 3-D CPA rises monotonically as the fraction falls (74.0% -> 0.35 m,
 # 57.0% -> 8.42 m).  0.80 sits below every healthy run and above every degraded
 # one, so a run under it is reporting host contention rather than navigation
@@ -23,13 +23,13 @@ MIN_FRESH_OBSERVATION_FRACTION = 0.80
 # Absolute floor, in vehicle time, on fresh observations reaching the law.
 #
 # The fraction alone is not sufficient: if host load also starves the pose
-# stream, projections fall with deliveries and the ratio stays high while the
-# law sees almost nothing.  Ten frames delivered out of ten projected is 100%
+# stream, projections fall with dispatches and the ratio stays high while the
+# law sees almost nothing.  Ten frames dispatched out of ten projected is 100%
 # and still worthless.  Conversely a run whose sensor produced MORE than usual
 # could dip below the fraction while still feeding the law plenty.  Gate both.
 #
-# The sim pose stream runs at 40 Hz and healthy 1x runs deliver 35.3-36.1 Hz of
-# it; degraded runs deliver 21.0-26.5 Hz.  30 Hz sits between the two bands.
+# The sim pose stream runs at 40 Hz and healthy 1x runs dispatch 35.3-36.1 Hz of
+# it; degraded runs dispatch 21.0-26.5 Hz.  30 Hz sits between the two bands.
 MIN_FRESH_OBSERVATION_RATE_HZ = 30.0
 
 
@@ -65,33 +65,33 @@ def observation_freshness(
 ) -> dict[str, float | int]:
     """Rate of fresh observations that actually reached the navigation law.
 
-    ``projected_frames`` counts what the sim sensor produced; ``delivered_frames``
+    ``projected_frames`` counts what the sim sensor produced; ``dispatched_frames``
     counts what navigation consumed.  The difference is frames overwritten in the
     source's newest-only slot before any command slot drained them, so the law
     never saw them.  Rates are reported in vehicle time because that is the
     timebase the navigation law and the airframe share.
     """
     projected = source.get("projected_frames")
-    delivered = source.get("delivered_frames")
-    if not isinstance(projected, int) or not isinstance(delivered, int):
+    dispatched = source.get("dispatched_frames")
+    if not isinstance(projected, int) or not isinstance(dispatched, int):
         raise RuntimeError(
             f"source frame counts missing: projected={projected!r} "
-            f"delivered={delivered!r}"
+            f"dispatched={dispatched!r}"
         )
     if projected <= 0:
         raise RuntimeError(f"no projected frames: {projected}")
     span_s = scoring_interval_span_s(case_dir, speedup)
-    rejections = source.get("delivery_rejections")
+    rejections = source.get("dispatch_rejections")
     return {
-        "engagement_s": span_s,
+        "scoring_s": span_s,
         "projected_frames": projected,
-        "delivered_frames": delivered,
+        "dispatched_frames": dispatched,
         "overwritten_frames": projected
-        - delivered
+        - dispatched
         - (rejections if isinstance(rejections, int) else 0),
         "projected_rate_hz": projected / span_s,
-        "delivered_rate_hz": delivered / span_s,
-        "fresh_fraction": delivered / projected,
+        "dispatched_rate_hz": dispatched / span_s,
+        "fresh_fraction": dispatched / projected,
         "minimum_fresh_fraction": MIN_FRESH_OBSERVATION_FRACTION,
     }
 
@@ -104,20 +104,20 @@ def freshness_errors(freshness: dict[str, float | int]) -> list[str]:
     """
     errors: list[str] = []
     fraction = float(freshness["fresh_fraction"])
-    delivered_hz = float(freshness["delivered_rate_hz"])
+    dispatched_hz = float(freshness["dispatched_rate_hz"])
     if fraction < MIN_FRESH_OBSERVATION_FRACTION:
         errors.append(
             f"fresh observations {fraction * 100.0:.1f}% below "
             f"{MIN_FRESH_OBSERVATION_FRACTION * 100.0:.1f}%: the law saw "
-            f"{delivered_hz:.1f}Hz of "
+            f"{dispatched_hz:.1f}Hz of "
             f"{float(freshness['projected_rate_hz']):.1f}Hz produced; run "
             f"measures host contention, not navigation"
         )
-    if delivered_hz < MIN_FRESH_OBSERVATION_RATE_HZ:
+    if dispatched_hz < MIN_FRESH_OBSERVATION_RATE_HZ:
         errors.append(
-            f"fresh observation rate {delivered_hz:.1f}Hz below "
+            f"fresh observation rate {dispatched_hz:.1f}Hz below "
             f"{MIN_FRESH_OBSERVATION_RATE_HZ:.1f}Hz: the law was starved "
-            f"regardless of the delivered fraction"
+            f"regardless of the dispatched fraction"
         )
     return errors
 

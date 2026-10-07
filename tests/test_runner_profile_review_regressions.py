@@ -27,7 +27,7 @@ def _minimal_profile() -> dict[str, Any]:
     return {
         "detector": {
             "dock_presets": {
-                "medium": {"min_pixel_size": 73.0},
+                "dock": {"min_pixel_size": 73.0},
             }
         },
         "devices": [

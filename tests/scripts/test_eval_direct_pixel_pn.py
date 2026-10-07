@@ -91,13 +91,13 @@ def test_observation_freshness_counts_frames_overwritten_before_navigation(
     freshness = evaluator._observation_freshness(
         tmp_path,
         10.0,
-        {"projected_frames": 400, "delivered_frames": 300, "delivery_rejections": 10},
+        {"projected_frames": 400, "dispatched_frames": 300, "dispatch_rejections": 10},
     )
 
-    assert freshness["engagement_s"] == pytest.approx(9.9)
+    assert freshness["scoring_s"] == pytest.approx(9.9)
     assert freshness["overwritten_frames"] == 90
     assert freshness["projected_rate_hz"] == pytest.approx(400 / 9.9)
-    assert freshness["delivered_rate_hz"] == pytest.approx(300 / 9.9)
+    assert freshness["dispatched_rate_hz"] == pytest.approx(300 / 9.9)
     assert freshness["fresh_fraction"] == pytest.approx(0.75)
 
 
@@ -105,7 +105,7 @@ def test_observation_freshness_rejects_missing_frame_counts(tmp_path: Path) -> N
     _write_trace(tmp_path)
 
     with pytest.raises(RuntimeError, match="source frame counts missing"):
-        evaluator._observation_freshness(tmp_path, 1.0, {"delivered_frames": 300})
+        evaluator._observation_freshness(tmp_path, 1.0, {"dispatched_frames": 300})
 
 
 def test_three_uav_verdict_fails_a_run_starved_of_fresh_observations(
@@ -138,9 +138,9 @@ def test_three_uav_verdict_fails_a_run_starved_of_fresh_observations(
             "snap_3d_m": 0.5,
             "source": {
                 "projection_failures": 0,
-                "delivered_frames": 570,
+                "dispatched_frames": 570,
                 "projected_frames": 1000,
-                "delivery_rejections": 0,
+                "dispatch_rejections": 0,
             },
         },
         scorer,
@@ -228,7 +228,7 @@ def test_freshness_gate_rejects_a_high_fraction_at_a_starved_rate() -> None:
     """10 of 10 frames is 100% and still worthless."""
     errors = evaluator.freshness_errors({
         "fresh_fraction": 1.0,
-        "delivered_rate_hz": 4.0,
+        "dispatched_rate_hz": 4.0,
         "projected_rate_hz": 4.0,
     })
 
@@ -239,7 +239,7 @@ def test_freshness_gate_rejects_a_high_fraction_at_a_starved_rate() -> None:
 def test_freshness_gate_accepts_a_healthy_run() -> None:
     assert evaluator.freshness_errors({
         "fresh_fraction": 0.897,
-        "delivered_rate_hz": 35.9,
+        "dispatched_rate_hz": 35.9,
         "projected_rate_hz": 40.0,
     }) == []
 
@@ -247,7 +247,7 @@ def test_freshness_gate_accepts_a_healthy_run() -> None:
 def test_freshness_gate_reports_both_failures_together() -> None:
     errors = evaluator.freshness_errors({
         "fresh_fraction": 0.57,
-        "delivered_rate_hz": 21.0,
+        "dispatched_rate_hz": 21.0,
         "projected_rate_hz": 36.8,
     })
 
@@ -273,9 +273,9 @@ def test_three_uav_verdict_accepts_a_healthy_fresh_observation_rate(
             "snap_3d_m": 0.5,
             "source": {
                 "projection_failures": 0,
-                "delivered_frames": 897,
+                "dispatched_frames": 897,
                 "projected_frames": 1000,
-                "delivery_rejections": 0,
+                "dispatch_rejections": 0,
             },
         },
         SimpleNamespace(result=None, certification_error=None, sample_count=0),
@@ -307,7 +307,7 @@ def test_three_uav_verdict_reports_bad_snap_when_stability_is_unavailable(
             "snap_3d_m": 500.0,
             "source": {
                 "projection_failures": 0,
-                "delivered_frames": 100,
+                "dispatched_frames": 100,
             },
         },
         SimpleNamespace(result=None, certification_error=None, sample_count=0),
@@ -353,7 +353,7 @@ def test_three_uav_verdict_reports_horizontal_and_vertical_minima(
             "snap_3d_m": 5.0,
             "snap_horizontal_m": 2.5,
             "snap_vertical_m": 4.2,
-            "source": {"projection_failures": 0, "delivered_frames": 100},
+            "source": {"projection_failures": 0, "dispatched_frames": 100},
         },
         scorer,
         tmp_path,

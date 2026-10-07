@@ -1,7 +1,7 @@
-"""Compatibility facade for zoom tracking of a selected visual reference.
+"""Facade for zoom tracking of a selected POI.
 
-PoiZoomTracker can follow a delivery-dock observation; tracking alone does
-not identify an authorized recipient. Public POI-prefixed names stay stable.
+PoiZoomTracker follows a dock observation; tracking preserves POI
+association only.
 """
 
 from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker

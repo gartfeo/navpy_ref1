@@ -205,7 +205,7 @@ def verify_arm_trees(
         if unexpected:
             raise ValueError(
                 f"arms {reference.name!r} and {arm.name!r} differ outside "
-                f"{treatment.name}, so a miss difference would have more than "
+                f"{treatment.name}, so an approach-error difference would have more than "
                 f"one candidate cause: {unexpected[:10]}"
             )
     return digests

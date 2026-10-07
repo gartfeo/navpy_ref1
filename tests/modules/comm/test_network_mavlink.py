@@ -75,7 +75,7 @@ def test_assignment_broadcast_targets_companion_id_directly():
         receiver_id=102,
         task=TaskAssignMsgData(
             task_id=7,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(40.0, 44.0, 1000.0),
         ),
     )

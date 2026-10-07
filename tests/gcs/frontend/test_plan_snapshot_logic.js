@@ -40,20 +40,18 @@ function makeBaseline() {
     plan: { zones: [{ track: [[1, 2], [3, 4]], set_index: 0 }], altitude_m: 100 },
     polygon: [{ lat: 10, lon: 20 }, { lat: 11, lon: 21 }, { lat: 12, lon: 22 }],
     searchPattern: 'distributed',
-    dockClasses: ['small', 'vehicle'],
-    perUavDockClasses: { 1: ['medium'] },
     analysis: { min_uavs: 2, max_uavs: 4, sets: 1 },
     uavCount: 3,
     partitionAngleDeg: 45,
     setLaunchPoints: [{ lat: 10, lon: 20 }],
     setCorridorPointsArr: [[{ lat: 10.5, lon: 20.5 }]],
-    fallbackLocationAssignments: [0, 1],
+    deliveryHubAssignments: [0, 1],
     simDockWps: { 0: [1, 3] },
     detectAfterWps: { 0: 2 },
   };
 }
 
-// ---- isPlanDirty tests (14 cases) ----
+// ---- isPlanDirty tests (13 cases) ----
 
 test('isPlanDirty: identical baseline is not dirty', () => {
   const state = makeBaseline();
@@ -83,13 +81,6 @@ test('isPlanDirty: modified searchPattern -> dirty', () => {
   const state = makeBaseline();
   const snap = buildPlanSnapshot(state);
   state.searchPattern = 'corridor';
-  assert.strictEqual(isPlanDirty(state, snap), true);
-});
-
-test('isPlanDirty: modified dockClasses -> dirty', () => {
-  const state = makeBaseline();
-  const snap = buildPlanSnapshot(state);
-  state.dockClasses = ['large'];
   assert.strictEqual(isPlanDirty(state, snap), true);
 });
 
@@ -128,10 +119,10 @@ test('isPlanDirty: modified setCorridorPointsArr -> dirty', () => {
   assert.strictEqual(isPlanDirty(state, snap), true);
 });
 
-test('isPlanDirty: modified fallbackLocationAssignments -> dirty', () => {
+test('isPlanDirty: modified deliveryHubAssignments -> dirty', () => {
   const state = makeBaseline();
   const snap = buildPlanSnapshot(state);
-  state.fallbackLocationAssignments = [2, 3];
+  state.deliveryHubAssignments = [2, 3];
   assert.strictEqual(isPlanDirty(state, snap), true);
 });
 
@@ -146,13 +137,6 @@ test('isPlanDirty: modified detectAfterWps -> dirty', () => {
   const state = makeBaseline();
   const snap = buildPlanSnapshot(state);
   state.detectAfterWps = { 0: 7 };
-  assert.strictEqual(isPlanDirty(state, snap), true);
-});
-
-test('isPlanDirty: modified perUavDockClasses -> dirty', () => {
-  const state = makeBaseline();
-  const snap = buildPlanSnapshot(state);
-  state.perUavDockClasses = { 1: ['medium', 'large'] };
   assert.strictEqual(isPlanDirty(state, snap), true);
 });
 
@@ -195,21 +179,12 @@ test('buildPlanSnapshot: deep-copies analysis; null -> null', () => {
 test('buildPlanSnapshot: deep-copies DOCK/sim-POI/detect-after state', () => {
   const state = makeBaseline();
   const snap = buildPlanSnapshot(state);
-  state.fallbackLocationAssignments.push(5);
+  state.deliveryHubAssignments.push(5);
   state.simDockWps[0].push(99);
   state.detectAfterWps[1] = 9;
-  assert.strictEqual(snap.fallbackLocationAssignments.length, 2);
+  assert.strictEqual(snap.deliveryHubAssignments.length, 2);
   assert.strictEqual(snap.simDockWps[0].length, 2);
   assert.strictEqual(snap.detectAfterWps[1], undefined);
-});
-
-test('buildPlanSnapshot: deep-copies perUavDockClasses', () => {
-  const state = makeBaseline();
-  const snap = buildPlanSnapshot(state);
-  state.perUavDockClasses[1].push('large');
-  state.perUavDockClasses[2] = ['small'];
-  assert.strictEqual(snap.perUavDockClasses[1].length, 1);
-  assert.strictEqual(snap.perUavDockClasses[2], undefined);
 });
 
 test('buildPlanSnapshot: null-safe defaults for missing values', () => {
@@ -217,14 +192,15 @@ test('buildPlanSnapshot: null-safe defaults for missing values', () => {
   assert.deepStrictEqual(snap.polygon, []);
   assert.strictEqual(snap.plan, null);
   assert.strictEqual(snap.searchPattern, null);
-  assert.deepStrictEqual(snap.dockClasses, []);
-  assert.deepStrictEqual(snap.perUavDockClasses, {});
+  // Every zone targets the single dock class; there is no class selection to snapshot.
+  assert.strictEqual(Object.hasOwn(snap, 'dockClasses'), false);
+  assert.strictEqual(Object.hasOwn(snap, 'perUavDockClasses'), false);
   assert.strictEqual(snap.analysis, null);
   assert.strictEqual(snap.uavCount, null);
   assert.strictEqual(snap.partitionAngleDeg, null);
   assert.deepStrictEqual(snap.setLaunchPoints, [null]);
   assert.deepStrictEqual(snap.setCorridorPointsArr, [[]]);
-  assert.deepStrictEqual(snap.fallbackLocationAssignments, []);
+  assert.deepStrictEqual(snap.deliveryHubAssignments, []);
   assert.deepStrictEqual(snap.simDockWps, {});
   assert.deepStrictEqual(snap.detectAfterWps, {});
 });

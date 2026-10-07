@@ -111,8 +111,8 @@ def _verdict(
             errors.append(
                 f"POI left renderable sight: {source.get('projection_failures')} failures"
             )
-        if not isinstance(source.get("delivered_frames"), int) or source["delivered_frames"] < 10:
-            errors.append(f"insufficient direct pixel deliveries: {source.get('delivered_frames')!r}")
+        if not isinstance(source.get("dispatched_frames"), int) or source["dispatched_frames"] < 10:
+            errors.append(f"insufficient direct pixel dispatches: {source.get('dispatched_frames')!r}")
     snap = child_result.get("snap_3d_m")
     if not isinstance(snap, (int, float)) or snap > max_distance_m:
         errors.append(f"SNAP {snap!r} exceeds {max_distance_m:g}m")

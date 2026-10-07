@@ -4,7 +4,7 @@ export const PARAM_SECTIONS = [
     titleKey: 'settings.aas.sections.finalApproach',
     fields: [
       { key: 'del_pitch', label: 'Approach pitch (deg)', labelKey: 'settings.aas.fields.delPitch', step: 1, min: -90 },
-      { key: 'del_thr', label: 'Throttle dive (%)', labelKey: 'settings.aas.fields.throttleDive', step: 1, min: -1, placeholder: '-1 = TECS auto', placeholderKey: 'settings.aas.placeholders.tecsAuto' },
+      { key: 'del_thr', label: 'Approach throttle (%)', labelKey: 'settings.aas.fields.approachThrottle', step: 1, min: -1, placeholder: '-1 = TECS auto', placeholderKey: 'settings.aas.placeholders.tecsAuto' },
     ],
   },
   {
@@ -73,14 +73,14 @@ export const CONFIRMATION_PARAM_SECTION = {
 
 export const SIM_PARAM_SECTIONS = [
   {
-    title: 'Simulation docks',
-    titleKey: 'settings.aas.sections.simulationDocks',
+    title: 'Simulation POIs',
+    titleKey: 'settings.aas.sections.simulationPois',
     fields: [
       { key: 'targ_alt', label: 'Dock altitude (m)', labelKey: 'settings.aas.fields.dockAlt', step: 10 },
       { key: 'nav_min_alt', label: 'Min alt (m)', labelKey: 'settings.aas.fields.minAlt', step: 10 },
       { key: 'nav_last_wp', label: 'Start detect WP', labelKey: 'settings.aas.fields.startDetectWp', step: 1 },
-      { key: 'targ_wps', label: 'Dock WPs', labelKey: 'settings.aas.fields.dockWps', type: 'bitmask' },
-      { key: 'del_dir', label: 'Simulator reference position', labelKey: 'settings.aas.fields.simulatorReferencePosition', type: 'checkbox' },
+      { key: 'targ_wps', label: 'Simulation POI WPs', labelKey: 'settings.aas.fields.simPoiWps', type: 'bitmask' },
+      { key: 'del_dir', label: 'Simulator reference position (legacy)', labelKey: 'settings.aas.fields.simulatorReferencePosition', type: 'checkbox' },
       { key: 'nav_oneshot', label: 'Disarm after attempt', labelKey: 'settings.aas.fields.disarmAfterAttempt', type: 'checkbox' },
     ],
   },

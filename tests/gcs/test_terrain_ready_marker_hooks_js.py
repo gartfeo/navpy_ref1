@@ -3,7 +3,7 @@
 Covers the five marker hooks under
 ``src/gcs/frontend/src/components/map/hooks``: ``useAssignmentMarkers``,
 ``useAvailableTaskMarkers``, ``useDockMarkers``, ``useDetectionMarkers`` and
-``useFallbackLocationLayer``.
+``useDeliveryHubLayer``.
 
 Of these five, the four live-marker hooks place *self-clamping* Cesium entities
 (``heightReference`` ``CLAMP_TO_GROUND`` / ``RELATIVE_TO_GROUND``), so they do
@@ -13,7 +13,7 @@ render race, owned by ``test_viewer_ready_polygon_hooks_js.py``), including
 ``useAvailableTaskMarkers``: its data is event-driven and largely unexposed to
 the race, but PR #105's "close the class fully" pass gated it on ``viewerReady``
 anyway for consistency, so its shipped 4th param is ``viewerReady`` — not the
-``terrainReady`` the stale test expected. Only ``useFallbackLocationLayer`` gates on
+``terrainReady`` the stale test expected. Only ``useDeliveryHubLayer`` gates on
 ``terrainReady`` here, because its assignment polylines consume terrain-sampled
 zone-track heights.
 
@@ -46,7 +46,7 @@ _ASSIGNMENT_SRC = _read_map_file("hooks", "useAssignmentMarkers.js")
 _AVAILABLE_SRC = _read_map_file("hooks", "useAvailableTaskMarkers.js")
 _POI_SRC = _read_map_file("hooks", "useDockMarkers.js")
 _DETECTION_SRC = _read_map_file("hooks", "useDetectionMarkers.js")
-_DOCK_SRC = _read_map_file("hooks", "useFallbackLocationLayer.js")
+_DOCK_SRC = _read_map_file("hooks", "useDeliveryHubLayer.js")
 
 
 class TestTerrainReadyMarkerHooks(unittest.TestCase):
@@ -104,13 +104,13 @@ class TestTerrainReadyMarkerHooks(unittest.TestCase):
     def test_dock_layer_gates_on_terrain_ready(self):
         compact = _compact(_DOCK_SRC)
         self.assertIn(
-            "useFallbackLocationLayer(cesiumRef, viewerRef, fallbackLocations, fallbackLocationAssignments, plan, viewerReady, terrainReady, trackPosRef, terrainBaseRef, showTracks)",
+            "useDeliveryHubLayer(cesiumRef, viewerRef, deliveryHubs, deliveryHubAssignments, plan, viewerReady, terrainReady, trackPosRef, terrainBaseRef, showTracks)",
             compact,
         )
         # DOCK consumes terrain-sampled zone-track heights for its assignment
         # polylines, so it — and only it, among these five hooks — waits for terrainReady.
         self.assertIn("if (!terrainReady) { entitiesRef.current = []; return; }", compact)
-        self.assertIn("[fallbackLocations, fallbackLocationAssignments, plan, showTracks, terrainReady]", compact)
+        self.assertIn("[deliveryHubs, deliveryHubAssignments, plan, showTracks, terrainReady]", compact)
 
     def test_cesium_map_call_sites(self):
         compact = _compact(_MAP_SRC)
@@ -133,7 +133,7 @@ class TestTerrainReadyMarkerHooks(unittest.TestCase):
         )
         # DOCK layer consumes terrain-sampled heights — the only one called with terrainReady.
         self.assertIn(
-            "useFallbackLocationLayer(cesiumRef, viewerRef, fallbackLocations, fallbackLocationAssignments, plan, viewerReady, terrainReady, trackPosRef, terrainBaseRef, showTracks);",
+            "useDeliveryHubLayer(cesiumRef, viewerRef, deliveryHubs, deliveryHubAssignments, plan, viewerReady, terrainReady, trackPosRef, terrainBaseRef, showTracks);",
             compact,
         )
 

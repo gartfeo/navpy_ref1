@@ -5,7 +5,7 @@ by the GCS API (`/api/vehicles/{sys_id}/params`) and the MAVLink AAS_*
 parameter names stored on the autopilot, plus the type-coercion sets used
 when crossing that boundary.
 
-AAS_TARG_* / targ_* identify simulator delivery references; AAS_DEL_* /
+AAS_TARG_* / targ_* identify simulator POIs; AAS_DEL_* /
 del_* describe final-approach controls.
 
 Vehicle-side AAS parameters are owned by the autopilot, not by GCS settings,

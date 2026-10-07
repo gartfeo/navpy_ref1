@@ -37,8 +37,8 @@ export function handleDoubleClick(Cesium, viewer, click, callbacksRef, activeSet
 
   // Not drawing — check if double-clicked a vertex, corridor point, or launch point to delete
   const hit = pickEntity(Cesium, viewer, click.position);
-  if (hit && hit.type === 'fallbackLocation' && cb.placingFallbackLocation && cb.onRemoveFallbackLocation) {
-    cb.onRemoveFallbackLocation(hit.index);
+  if (hit && hit.type === 'deliveryHub' && cb.placingDeliveryHub && cb.onRemoveDeliveryHub) {
+    cb.onRemoveDeliveryHub(hit.index);
   } else if (hit && hit.type === 'vertex' && cb.onVertexDelete) {
     cb.onVertexDelete(hit.index);
   } else if (hit && hit.type === 'setCorridorPoint') {

@@ -43,7 +43,7 @@ class SerializerTest(unittest.TestCase):
 
     def test_task_confirm_request_msg(self):
         location = LocationMsgData(40.7128, -74.0060, 898.5884136)
-        task = TaskMsgData(11, TaskTypeMsgData.MEDIUM, location)
+        task = TaskMsgData(11, TaskTypeMsgData.DOCK, location)
         msg = TaskConfirmRequestMsg(3221, task)
 
         json_str = MsgSerializer.to_json(msg)
@@ -86,7 +86,7 @@ class SerializerTest(unittest.TestCase):
 
     def test_available_task_request_msg(self):
         location = LocationMsgData(40.7128, -74.0060, 10)
-        task = TaskMsgData(333, TaskTypeMsgData.SMALL, location)
+        task = TaskMsgData(333, TaskTypeMsgData.DOCK, location)
         msg = AvailableTaskRequestMsg(123, [task])
         json_str = MsgSerializer.to_json(msg)
         self.assertIsNotNone(json_str, "Serialization failed, JSON string is None")
@@ -126,7 +126,7 @@ class SerializerTest(unittest.TestCase):
 
     def test_task_assign_request_msg(self):
         location = LocationMsgData(40.7128, -74.0060, 10)
-        task = TaskAssignMsgData(123, TaskTypeMsgData.SMALL, location)
+        task = TaskAssignMsgData(123, TaskTypeMsgData.DOCK, location)
         msg = TaskAssignRequestMsg(123, 321, task)
         json_str = MsgSerializer.to_json(msg)
         self.assertIsNotNone(json_str, "Serialization failed, JSON string is None")

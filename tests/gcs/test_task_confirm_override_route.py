@@ -29,18 +29,18 @@ def client(mock_entry):
     mock_mgr = MagicMock()
     mock_mgr.get_vehicle = MagicMock(return_value=mock_entry)
 
-    with patch("gcs.backend.routes.task_force_confirm.vehicle_mgr", mock_mgr):
-        from gcs.backend.routes.task_force_confirm import router
+    with patch("gcs.backend.routes.task_confirm_override.vehicle_mgr", mock_mgr):
+        from gcs.backend.routes.task_confirm_override import router
         from fastapi import FastAPI
         app = FastAPI()
         app.include_router(router, prefix="/api/control")
         yield TestClient(app), mock_mgr
 
 
-class TestTaskForceConfirmRoute:
+class TestTaskConfirmOverrideRoute:
     def test_sends_swarm_request_force_confirm(self, client, mock_vehicle):
         tc, mock_mgr = client
-        resp = tc.post("/api/control/task_force_confirm", json={
+        resp = tc.post("/api/control/task_confirm_override", json={
             "sys_id": 1,
             "task_id": 5,
         })
@@ -55,7 +55,7 @@ class TestTaskForceConfirmRoute:
     def test_unknown_vehicle_returns_404(self, client):
         tc, mock_mgr = client
         mock_mgr.get_vehicle.return_value = None
-        resp = tc.post("/api/control/task_force_confirm", json={
+        resp = tc.post("/api/control/task_confirm_override", json={
             "sys_id": 99,
             "task_id": 1,
         })
@@ -63,7 +63,7 @@ class TestTaskForceConfirmRoute:
 
     def test_mavlink_message_fields(self, client, mock_vehicle):
         tc, mock_mgr = client
-        tc.post("/api/control/task_force_confirm", json={
+        tc.post("/api/control/task_confirm_override", json={
             "sys_id": 1,
             "task_id": 7,
         })
@@ -86,7 +86,7 @@ class TestTaskForceConfirmRoute:
         a later, unrelated confirm round for the same task_id, e.g. after a
         D-14 bounded re-ask)."""
         tc, mock_mgr = client
-        tc.post("/api/control/task_force_confirm", json={
+        tc.post("/api/control/task_confirm_override", json={
             "sys_id": 1,
             "task_id": 7,
         })

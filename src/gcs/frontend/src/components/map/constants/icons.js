@@ -41,7 +41,7 @@ export function makeCorridorIcon(color, size) {
   )}`;
 }
 
-// Configured delivery location: pad symbol.
+// Configured delivery hub: pad symbol.
 export function makeDockIcon(size) { return makeAssignmentIcon(size, '#00d2ff'); }
 
 // Available task — dashed orange circle with center dot (detected, pending assignment)

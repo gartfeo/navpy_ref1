@@ -1,4 +1,4 @@
-"""Tests for fallbackLocationAssignment.js — optimal DOCK-to-zone auto-assignment."""
+"""Tests for deliveryHubAssignment.js — optimal DOCK-to-zone auto-assignment."""
 import unittest
 from tests.gcs.js_runner import run_node
 import json
@@ -28,7 +28,7 @@ def _strip_es_modules(src):
     return "\n".join(out)
 
 
-_JS_FILE = os.path.join(_UTILS_DIR, "fallbackLocationAssignment.js")
+_JS_FILE = os.path.join(_UTILS_DIR, "deliveryHubAssignment.js")
 _DOCK_JS = _strip_es_modules(open(_JS_FILE, encoding="utf-8").read())
 
 
@@ -42,11 +42,11 @@ def _run_js(script):
 
 
 class TestAutoAssignDocks(unittest.TestCase):
-    """autoAssignFallbackLocations optimal assignment."""
+    """autoAssignDeliveryHubs optimal assignment."""
 
     def test_empty_zones(self):
         result = _run_js("""
-        const r = autoAssignFallbackLocations([], [{name:'A', lat:40, lon:44}]);
+        const r = autoAssignDeliveryHubs([], [{name:'A', lat:40, lon:44}]);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(result, [])
@@ -54,7 +54,7 @@ class TestAutoAssignDocks(unittest.TestCase):
     def test_empty_docks(self):
         result = _run_js("""
         const zones = [{track: [{lat:40, lon:44}]}];
-        const r = autoAssignFallbackLocations(zones, []);
+        const r = autoAssignDeliveryHubs(zones, []);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(result, [None])
@@ -62,8 +62,8 @@ class TestAutoAssignDocks(unittest.TestCase):
     def test_single_zone_single_dock(self):
         result = _run_js("""
         const zones = [{track: [{lat:40, lon:44}, {lat:40.1, lon:44}]}];
-        const fallbackLocations = [{name:'HQ', lat:40.15, lon:44}];
-        const r = autoAssignFallbackLocations(zones, fallbackLocations);
+        const deliveryHubs = [{name:'HQ', lat:40.15, lon:44}];
+        const r = autoAssignDeliveryHubs(zones, deliveryHubs);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(result, [0])
@@ -75,11 +75,11 @@ class TestAutoAssignDocks(unittest.TestCase):
           {track: [{lat:40, lon:44}, {lat:40.05, lon:44}]},  // ends at 40.05
           {track: [{lat:40, lon:44}, {lat:40.5, lon:44}]},   // ends at 40.5
         ];
-        const fallbackLocations = [
+        const deliveryHubs = [
           {name:'Near', lat:40.06, lon:44},  // closest to zone 0
           {name:'Far', lat:40.49, lon:44},   // closest to zone 1
         ];
-        const r = autoAssignFallbackLocations(zones, fallbackLocations);
+        const r = autoAssignDeliveryHubs(zones, deliveryHubs);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(result, [0, 1])
@@ -92,8 +92,8 @@ class TestAutoAssignDocks(unittest.TestCase):
           {track: [{lat:40.1, lon:44}]},
           {track: [{lat:40.2, lon:44}]},
         ];
-        const fallbackLocations = [{name:'A', lat:40, lon:44}];
-        const r = autoAssignFallbackLocations(zones, fallbackLocations);
+        const deliveryHubs = [{name:'A', lat:40, lon:44}];
+        const r = autoAssignDeliveryHubs(zones, deliveryHubs);
         console.log(JSON.stringify(r));
         """)
         # All 3 zones should get the only DOCK (index 0)
@@ -107,11 +107,11 @@ class TestAutoAssignDocks(unittest.TestCase):
           {track: [{lat:40.001, lon:44}]},
         ];
         // Both Docks near zone 0, but each zone should get a different one
-        const fallbackLocations = [
+        const deliveryHubs = [
           {name:'A', lat:40, lon:44},
           {name:'B', lat:40.002, lon:44},
         ];
-        const r = autoAssignFallbackLocations(zones, fallbackLocations);
+        const r = autoAssignDeliveryHubs(zones, deliveryHubs);
         console.log(JSON.stringify(r));
         """)
         # Each zone gets a unique DOCK
@@ -125,8 +125,8 @@ class TestAutoAssignDocks(unittest.TestCase):
           {track: []},
           {track: [{lat:40, lon:44}]},
         ];
-        const fallbackLocations = [{name:'A', lat:40, lon:44}];
-        const r = autoAssignFallbackLocations(zones, fallbackLocations);
+        const deliveryHubs = [{name:'A', lat:40, lon:44}];
+        const r = autoAssignDeliveryHubs(zones, deliveryHubs);
         console.log(JSON.stringify(r));
         """)
         self.assertIsNone(result[0])
@@ -150,12 +150,12 @@ class TestAutoAssignDocks(unittest.TestCase):
           {track: [{lat:32.05, lon:34.8}]},
           {track: [{lat:32.1,  lon:34.8}]},
         ];
-        const fallbackLocations = [
+        const deliveryHubs = [
           {name:'A', lat:32.04, lon:34.9},
           {name:'B', lat:32.06, lon:34.9},
           {name:'C', lat:32.08, lon:34.9},
         ];
-        const r = autoAssignFallbackLocations(zones, fallbackLocations);
+        const r = autoAssignDeliveryHubs(zones, deliveryHubs);
         console.log(JSON.stringify(r));
         """)
         # Optimal: Z0→DOCK0, Z1→DOCK1, Z2→DOCK2 — no crossing
@@ -168,12 +168,12 @@ class TestAutoAssignDocks(unittest.TestCase):
           {track: [{lat:32.0, lon:34.8}]},
           {track: [{lat:32.1, lon:34.8}]},
         ];
-        const fallbackLocations = [
+        const deliveryHubs = [
           {name:'A', lat:32.1, lon:34.9},
           {name:'B', lat:32.0, lon:34.9},
         ];
         // Z0 is near DOCK_B, Z1 is near DOCK_A → optimal: [1, 0]
-        const r = autoAssignFallbackLocations(zones, fallbackLocations);
+        const r = autoAssignDeliveryHubs(zones, deliveryHubs);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(result, [1, 0])
@@ -184,12 +184,12 @@ class TestAutoAssignDocks(unittest.TestCase):
         const zones = [
           {track: [{lat:40, lon:44}]},
         ];
-        const fallbackLocations = [
+        const deliveryHubs = [
           {name:'Far',  lat:41, lon:44},
           {name:'Near', lat:40.001, lon:44},
           {name:'Mid',  lat:40.5, lon:44},
         ];
-        const r = autoAssignFallbackLocations(zones, fallbackLocations);
+        const r = autoAssignDeliveryHubs(zones, deliveryHubs);
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(result, [1])  # nearest DOCK
@@ -203,11 +203,11 @@ class TestAutoAssignDocks(unittest.TestCase):
           {track: [{lat:40.2, lon:44}]},
           {track: [{lat:40.3, lon:44}]},
         ];
-        const fallbackLocations = [
+        const deliveryHubs = [
           {name:'South', lat:40.0, lon:44.1},
           {name:'North', lat:40.3, lon:44.1},
         ];
-        const r = autoAssignFallbackLocations(zones, fallbackLocations);
+        const r = autoAssignDeliveryHubs(zones, deliveryHubs);
         console.log(JSON.stringify(r));
         """)
         # 2 unique assignments + 2 shared (each picks nearest)
@@ -220,13 +220,13 @@ class TestAutoAssignDocks(unittest.TestCase):
 
 
 class TestZoneToDockDistance(unittest.TestCase):
-    """zoneToFallbackLocationDistance helper."""
+    """zoneToDeliveryHubDistance helper."""
 
     def test_basic_distance(self):
         result = _run_js("""
         const zone = {track: [{lat:40, lon:44}, {lat:40.001, lon:44}]};
         const dock = {lat:40.001, lon:44};
-        const d = zoneToFallbackLocationDistance(zone, dock);
+        const d = zoneToDeliveryHubDistance(zone, dock);
         console.log(JSON.stringify(d));
         """)
         # Same point — should be ~0
@@ -236,56 +236,56 @@ class TestZoneToDockDistance(unittest.TestCase):
         result = _run_js("""
         const zone = {track: []};
         const dock = {lat:40, lon:44};
-        const d = zoneToFallbackLocationDistance(zone, dock);
+        const d = zoneToDeliveryHubDistance(zone, dock);
         console.log(JSON.stringify(d === Infinity));
         """)
         self.assertTrue(result)
 
 
 class TestBuildDocksFromDownload(unittest.TestCase):
-    """buildFallbackLocationsFromDownload — DOCK extraction from downloaded fallback locations."""
+    """buildDeliveryHubsFromDownload — DOCK extraction from downloaded delivery hubs."""
 
     def test_no_pois_all_null(self):
         result = _run_js("""
-        const r = buildFallbackLocationsFromDownload([null, null, null]);
+        const r = buildDeliveryHubsFromDownload([null, null, null]);
         console.log(JSON.stringify(r));
         """)
-        self.assertEqual(result["fallbackLocations"], [])
+        self.assertEqual(result["deliveryHubs"], [])
         self.assertEqual(result["assignments"], [None, None, None])
 
     def test_single_poi(self):
         result = _run_js("""
-        const r = buildFallbackLocationsFromDownload([{lat: 32.0, lon: 34.8}]);
+        const r = buildDeliveryHubsFromDownload([{lat: 32.0, lon: 34.8}]);
         console.log(JSON.stringify(r));
         """)
-        self.assertEqual(len(result["fallbackLocations"]), 1)
-        self.assertEqual(result["fallbackLocations"][0]["name"], "Fallback delivery location 1")
-        self.assertEqual(result["fallbackLocations"][0]["type"], "other")
-        self.assertAlmostEqual(result["fallbackLocations"][0]["lat"], 32.0)
-        self.assertAlmostEqual(result["fallbackLocations"][0]["lon"], 34.8)
+        self.assertEqual(len(result["deliveryHubs"]), 1)
+        self.assertEqual(result["deliveryHubs"][0]["name"], "Default delivery hub 1")
+        self.assertEqual(result["deliveryHubs"][0]["type"], "other")
+        self.assertAlmostEqual(result["deliveryHubs"][0]["lat"], 32.0)
+        self.assertAlmostEqual(result["deliveryHubs"][0]["lon"], 34.8)
         self.assertEqual(result["assignments"], [0])
 
     def test_single_poi_with_downloaded_type(self):
         result = _run_js("""
-        const r = buildFallbackLocationsFromDownload([{lat: 32.0, lon: 34.8, type: 'bridge'}]);
+        const r = buildDeliveryHubsFromDownload([{lat: 32.0, lon: 34.8, type: 'bridge'}]);
         console.log(JSON.stringify(r));
         """)
-        self.assertEqual(result["fallbackLocations"][0]["type"], "bridge")
+        self.assertEqual(result["deliveryHubs"][0]["type"], "bridge")
 
     def test_dedup_shared_coords(self):
         result = _run_js("""
-        const r = buildFallbackLocationsFromDownload([
+        const r = buildDeliveryHubsFromDownload([
           {lat: 32.0, lon: 34.8},
           {lat: 32.0, lon: 34.8},
         ]);
         console.log(JSON.stringify(r));
         """)
-        self.assertEqual(len(result["fallbackLocations"]), 1)
+        self.assertEqual(len(result["deliveryHubs"]), 1)
         self.assertEqual(result["assignments"], [0, 0])
 
     def test_mixed_null_and_pois(self):
         result = _run_js("""
-        const r = buildFallbackLocationsFromDownload([
+        const r = buildDeliveryHubsFromDownload([
           null,
           {lat: 32.0, lon: 34.8},
           null,
@@ -293,49 +293,49 @@ class TestBuildDocksFromDownload(unittest.TestCase):
         ]);
         console.log(JSON.stringify(r));
         """)
-        self.assertEqual(len(result["fallbackLocations"]), 2)
+        self.assertEqual(len(result["deliveryHubs"]), 2)
         self.assertEqual(result["assignments"], [None, 0, None, 1])
-        self.assertEqual(result["fallbackLocations"][0]["name"], "Fallback delivery location 1")
-        self.assertEqual(result["fallbackLocations"][1]["name"], "Fallback delivery location 2")
+        self.assertEqual(result["deliveryHubs"][0]["name"], "Default delivery hub 1")
+        self.assertEqual(result["deliveryHubs"][1]["name"], "Default delivery hub 2")
 
     def test_empty_array(self):
         result = _run_js("""
-        const r = buildFallbackLocationsFromDownload([]);
+        const r = buildDeliveryHubsFromDownload([]);
         console.log(JSON.stringify(r));
         """)
-        self.assertEqual(result["fallbackLocations"], [])
+        self.assertEqual(result["deliveryHubs"], [])
         self.assertEqual(result["assignments"], [])
 
     def test_null_input(self):
         result = _run_js("""
-        const r = buildFallbackLocationsFromDownload(null);
+        const r = buildDeliveryHubsFromDownload(null);
         console.log(JSON.stringify(r));
         """)
-        self.assertEqual(result["fallbackLocations"], [])
+        self.assertEqual(result["deliveryHubs"], [])
         self.assertEqual(result["assignments"], [])
 
     def test_distinct_pois(self):
         result = _run_js("""
-        const r = buildFallbackLocationsFromDownload([
+        const r = buildDeliveryHubsFromDownload([
           {lat: 32.0, lon: 34.8},
           {lat: 33.0, lon: 35.0},
           {lat: 34.0, lon: 36.0},
         ]);
         console.log(JSON.stringify(r));
         """)
-        self.assertEqual(len(result["fallbackLocations"]), 3)
+        self.assertEqual(len(result["deliveryHubs"]), 3)
         self.assertEqual(result["assignments"], [0, 1, 2])
 
     def test_near_but_distinct_coords_not_deduped(self):
         """Coords differing by more than 1e-7 should NOT be deduped."""
         result = _run_js("""
-        const r = buildFallbackLocationsFromDownload([
+        const r = buildDeliveryHubsFromDownload([
           {lat: 32.0, lon: 34.8},
           {lat: 32.001, lon: 34.8},
         ]);
         console.log(JSON.stringify(r));
         """)
-        self.assertEqual(len(result["fallbackLocations"]), 2)
+        self.assertEqual(len(result["deliveryHubs"]), 2)
         self.assertEqual(result["assignments"], [0, 1])
 
 

@@ -1,4 +1,4 @@
-"""Sight/delivery metrics and measurement math for the SIYI pixel source."""
+"""Sight/dispatch metrics and measurement math for the SIYI pixel source."""
 
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ from navpy.modules.vision.visual_ray_projection import observation_body_ray
 class SiyiPixelSourceMetrics:
     visible_frames: int
     sight_losses: int
-    delivered_frames: int
-    delivery_rejections: int
+    dispatched_frames: int
+    dispatch_rejections: int
     first_sight_loss_distance_m: float | None
     longest_sight_loss_run: int
     max_gimbal_age_s: float
@@ -32,7 +32,7 @@ class SiyiPixelSourceMetrics:
 
 
 class SiyiSightRecorder:
-    """Accumulate sight, delivery, and pose-pair diagnostics for one source.
+    """Accumulate sight, dispatch, and pose-pair diagnostics for one source.
 
     Callers hold their own lock around every method; the recorder itself is
     plain mutable state.
@@ -47,8 +47,8 @@ class SiyiSightRecorder:
         self._poi_location = poi_location
         self._visible_frames = 0
         self._sight_losses = 0
-        self._delivered_frames = 0
-        self._delivery_rejections = 0
+        self._dispatched_frames = 0
+        self._dispatch_rejections = 0
         self._first_sight_loss_distance_m: float | None = None
         self._current_sight_loss_run = 0
         self._longest_sight_loss_run = 0
@@ -60,8 +60,8 @@ class SiyiSightRecorder:
         return SiyiPixelSourceMetrics(
             self._visible_frames,
             self._sight_losses,
-            self._delivered_frames,
-            self._delivery_rejections,
+            self._dispatched_frames,
+            self._dispatch_rejections,
             self._first_sight_loss_distance_m,
             self._longest_sight_loss_run,
             self._max_gimbal_age_s,
@@ -88,11 +88,11 @@ class SiyiSightRecorder:
     def record_visible(self) -> None:
         self._visible_frames += 1
 
-    def record_delivery(self, delivered: bool) -> None:
-        if delivered:
-            self._delivered_frames += 1
+    def record_dispatch(self, dispatched: bool) -> None:
+        if dispatched:
+            self._dispatched_frames += 1
         else:
-            self._delivery_rejections += 1
+            self._dispatch_rejections += 1
 
     def record_frame_pair(
         self,

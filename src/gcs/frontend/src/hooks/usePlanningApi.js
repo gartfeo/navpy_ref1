@@ -27,7 +27,7 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
   const debounceRef = useRef(null);
 
   const analyze = useCallback(
-    (polygon, dockClasses) => {
+    (polygon) => {
       // Debounce: wait 300ms after last change
       if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -43,7 +43,6 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               polygon: polygon.map((p) => ({ lat: p.lat, lon: p.lon })),
-              dock_classes: dockClasses,
             }),
           });
           if (res.ok) {
@@ -58,7 +57,7 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
   );
 
   const generate = useCallback(
-    async (polygon, dockClasses, searchPattern, uavCount, launchPoint, corridorWaypoints) => {
+    async (polygon, searchPattern, uavCount, launchPoint, corridorWaypoints) => {
       // Corridor search pattern doesn't need a polygon — use corridor waypoints as dummy polygon if needed
       if (searchPattern === 'corridor') {
         if (!corridorWaypoints || corridorWaypoints.length < 2) return null;
@@ -69,7 +68,6 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
       try {
         const body = {
           polygon: polygon.map((p) => ({ lat: p.lat, lon: p.lon })),
-          dock_classes: dockClasses,
           search_pattern: searchPattern,
           uav_count: uavCount,
         };

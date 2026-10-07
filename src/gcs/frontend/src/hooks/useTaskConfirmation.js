@@ -104,7 +104,7 @@ export default function useTaskConfirmation() {
 
   const forceConfirm = useCallback(async (sysId, taskId) => {
     try {
-      const res = await fetch('/api/control/task_force_confirm', {
+      const res = await fetch('/api/control/task_confirm_override', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sys_id: sysId, task_id: taskId }),

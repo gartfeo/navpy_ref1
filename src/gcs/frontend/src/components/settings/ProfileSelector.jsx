@@ -4,22 +4,11 @@ import { colors } from '../../styles';
 import { setDeviceConfigs, configurePlanner } from '../../utils/planner';
 import {
   MIN_CONFIRM_PIXELS,
-  DOCK_CLASS_TO_DETECT_ID,
-  getClassDetectSize,
-  getMinClassSize,
+  DOCK_PRESET_NAME,
+  getDockDetectSize,
   isDetectorClassDimensionsConfigured,
 } from '../../utils/plannerConfig.js';
 import { buildCatalogDeviceInfos, buildDiagramDevices } from './profileSelectorUtils.js';
-
-/**
- * Per-preset characteristic size derives from the preset's detect class via the
- * backend-owned CLASS_DETECT_SIZES (single source of truth). Presets no longer
- * carry `poi_size_m`. Falls back to the smallest class size when unmapped.
- */
-function presetPoiSize(presetName) {
-  const classId = DOCK_CLASS_TO_DETECT_ID[presetName];
-  return getClassDetectSize(classId) ?? getMinClassSize();
-}
 
 import { SettingsSection, inputStyle, NumericInput } from './SettingsField.jsx';
 import DetectionRangeDiagram, { DEVICE_COLORS } from './DetectionRangeDiagram.jsx';
@@ -47,7 +36,6 @@ export default function ProfileSelector({
   // pitches become equal (spread 0) and the by-pitch sort would otherwise tie.
   const slotOrderRef = useRef({ profile: null, names: [] });
   const [localOverrides, setLocalOverrides] = useState({ profile: {}, devices: {}, zooms: {} });
-  const [selectedPoi, setSelectedPoi] = useState('small');
   const [optimizeMsg, setOptimizeMsg] = useState(null);
   // Per-camera selected zoom (modal-local: the settings model persists only one
   // vision_zoom, so non-primary fixed-camera zoom lives here and feeds the diagram).
@@ -211,14 +199,11 @@ export default function ProfileSelector({
   for (const k of Object.keys(presetOverrides)) {
     if (!presets[k]) presets[k] = { ...presetOverrides[k] };
   }
-  const presetKeys = Object.keys(presets);
-  const altitude = presets[selectedPoi]?.altitude_m ?? 150;
-  // Size is derived from the preset's detect class, not stored on the preset.
-  const selectedPoiSize = presetPoiSize(selectedPoi);
-  // Diagram shows the DETECTION range of the selected POI. The base mdd uses
-  // MIN_CLASS_SIZE/MIN_CONFIRM_PIXELS, so rescale to the selected POI at the
-  // detection gate (MIN_DETECT_PIXELS) → effective fy·selectedSize/MIN_DETECT_PIXELS.
-  const mddScale = detectRangeScale(selectedPoiSize, getMinClassSize());
+  const altitude = presets[DOCK_PRESET_NAME]?.altitude_m ?? 150;
+  // Diagram shows the DETECTION range of the dock. The base mdd uses
+  // dockSize/MIN_CONFIRM_PIXELS, so rescale to the detection gate
+  // (MIN_DETECT_PIXELS) → effective fy·dockSize/MIN_DETECT_PIXELS.
+  const mddScale = detectRangeScale(getDockDetectSize(), getDockDetectSize());
   const anyMultiZoom = devices.some((d) => Object.keys(d.zooms).length > 1);
 
   // --- Camera-class & envelope (shared by the gimbal optimizer and the fixed handlers) ---
@@ -294,9 +279,9 @@ export default function ProfileSelector({
     for (const k of baseKeys) {
       const pv = profPresets[k] || {};
       const dv = curPresets[k] || {};
-      const size = presetPoiSize(k);
+      const size = getDockDetectSize();
       const minPx = pv.min_pixel_size ?? dv.min_pixel_size ?? MIN_CONFIRM_PIXELS;
-      const label = t(`planningSidebar.dockClasses.${k}`, { defaultValue: pv.label ?? dv.label ?? k });
+      const label = t('planningSidebar.dockPreset', { defaultValue: pv.label ?? dv.label ?? k });
       const alt = fixedMissionAltitude({ cameras: cams, sizeM: size, minPx, minAlt, maxAlt });
       updated[k] = { altitude_m: alt ?? (dv.altitude_m ?? pv.altitude_m ?? minAlt), min_pixel_size: minPx, label };
     }
@@ -412,8 +397,8 @@ export default function ProfileSelector({
 
     let optPitch;
     const devOverrides = {};
-    let smallestAlt = null;   // detect-far altitude of the smallest POI (gimbal)
-    let smallestSize = null;
+    let dockAlt = null;       // detect-far altitude of the dock (gimbal)
+    const dockSize = getDockDetectSize();
     let visionZoom = null;
     let geom = null;          // gimbal optimizer result (for the post-loop notes)
     let fyMax = null;         // fy at max zoom — for the recognition altitude cap
@@ -421,14 +406,12 @@ export default function ProfileSelector({
 
     if (dev.has_gimbal) {
       // Detect-far model (gimbal + zoom): size the scan so the far FOV edge grazes
-      // the ground at the SMALLEST POI's detection range, trading altitude vs
-      // reach (weight 0.5 = balanced) on the circle alt² + reach² = R_det². Per-class
-      // altitudes follow; the planner's min over the mission's classes then makes the
-      // smallest mission POI govern. Scan zoom = the device's selected zoom level.
+      // the ground at the dock's detection range, trading altitude vs
+      // reach (weight 0.5 = balanced) on the circle alt² + reach² = R_det².
+      // Scan zoom = the device's selected zoom level.
       const profPresets_g = pd.dock_presets || {};
       const curPresets_g = presetOverrides || {};
       const presetKeys_g = Object.keys(profPresets_g).length > 0 ? Object.keys(profPresets_g) : Object.keys(curPresets_g);
-      smallestSize = Math.min(...presetKeys_g.map((k) => presetPoiSize(k)));
       const zovZ = localOverrides.zooms?.[`${dev.name}/${minZoom}`] || {};
       const fyCal = zovZ.camera_fy ?? dev.zooms[minZoom]?.fy;   // calibrated fy at the scan zoom
       // Clamp the pitch so the FAR FOV edge points BELOW the horizon (depression ≥ FOVv/2,
@@ -445,7 +428,7 @@ export default function ProfileSelector({
       const maxZoomKey = String(Math.max(...Object.keys(dev.zooms).map(Number)));
       fyMax = dev.zooms[maxZoomKey]?.fy;
       geom = optimizeScanGeometry({
-        fy: fyCal, imageHeight: h, poiSizeM: smallestSize,
+        fy: fyCal, imageHeight: h, poiSizeM: dockSize,
         boresightDeg: depression, zoom: parseFloat(minZoom),
       });
       if (!geom) {
@@ -454,7 +437,7 @@ export default function ProfileSelector({
         return;
       }
       optPitch = Math.round(geom.pitchDeg * 10) / 10;   // clamped pitch (far edge on ground, within gimbal)
-      smallestAlt = geom.altitudeM;
+      dockAlt = geom.altitudeM;
       visionZoom = minZoom;
       // Persist the optimized gimbal pitch to the selected device's
       // gimbal.camera_pitch (vision_profiles.json, the single source of truth).
@@ -498,15 +481,15 @@ export default function ProfileSelector({
     for (const k of baseKeys) {
       const pv = profPresets[k] || {};
       const dv = curPresets[k] || {};
-      // Size derives from the preset's detect class; it is not stored on the preset.
-      const size = presetPoiSize(k);
+      // Size derives from the dock detect class; it is not stored on the preset.
+      const size = dockSize;
       const minPx = dv.min_pixel_size ?? pv.min_pixel_size ?? MIN_CONFIRM_PIXELS;
-      const label = t(`planningSidebar.dockClasses.${k}`, { defaultValue: dv.label ?? pv.label ?? k });
+      const label = t('planningSidebar.dockPreset', { defaultValue: dv.label ?? pv.label ?? k });
       let alt;
       if (dev.has_gimbal) {
-        // Detect-far: far edge at each class's R_det → altitude scales with size. Cap
+        // Detect-far: far edge at the dock's R_det. Cap
         // DOWN by the max-zoom confirm range (recognition) and the ceiling, UP by min-alt.
-        const raw = smallestAlt * size / smallestSize;
+        const raw = dockAlt;
         const confirm = confirmRange(fyMax, size, recognitionPx);
         const cap = Math.min(maxAlt, confirm);
         if (raw > cap) { if (confirm < maxAlt) recognitionClamped = true; else ceilingClamped = true; }
@@ -597,9 +580,9 @@ export default function ProfileSelector({
         </select>
       </div>
 
-      {/* Dive pitch envelope + optimize */}
+      {/* Approach pitch envelope + optimize */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-        <label style={{ color: colors.textDim, fontSize: 11, fontWeight: 600 }}>{t('visionProfile.divePitch')}</label>
+        <label style={{ color: colors.textDim, fontSize: 11, fontWeight: 600 }}>{t('visionProfile.approachPitchRange')}</label>
         <label style={{ color: colors.textDim, fontSize: 11 }}>{t('visionProfile.min')}</label>
         <NumericInput
           value={localOverrides.profile.min_pitch ?? profileData?.min_pitch ?? -60}
@@ -761,23 +744,9 @@ export default function ProfileSelector({
       {/* Detection range diagram */}
       {diagramDevices.length > 0 && (
         <>
-          {presetKeys.length > 0 && (
-            <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-              {presetKeys.map((key) => (
-                <button
-                  key={key}
-                  onClick={() => setSelectedPoi(key)}
-                  style={{
-                    padding: '2px 10px', fontSize: 11, borderRadius: 3, cursor: 'pointer',
-                    background: selectedPoi === key ? colors.accent : 'transparent',
-                    color: selectedPoi === key ? '#000' : colors.textDim,
-                    border: `1px solid ${selectedPoi === key ? colors.accent : colors.border}`,
-                    fontWeight: selectedPoi === key ? 600 : 400,
-                  }}
-                >
-                  {t(`planningSidebar.dockClasses.${key}`, { defaultValue: presets[key]?.label || key })} ({presets[key]?.altitude_m ?? '?'}m)
-                </button>
-              ))}
+          {presets[DOCK_PRESET_NAME] && (
+            <div style={{ fontSize: 11, color: colors.textDim, marginBottom: 4 }}>
+              {t('planningSidebar.dockPreset', { defaultValue: presets[DOCK_PRESET_NAME].label || DOCK_PRESET_NAME })} ({presets[DOCK_PRESET_NAME].altitude_m ?? '?'}m)
             </div>
           )}
           <DetectionRangeDiagram devices={diagramDevices.map((d) => ({

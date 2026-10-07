@@ -636,7 +636,7 @@ def _record_exit_evidence(
               else time.monotonic() - started_wall_s)
     result["measured_speedup"] = (
         None if not wall_s or started_t_s is None
-        else round((result.get("engage_s") or 0.0) / wall_s, 3)
+        else round((result.get("scoring_s") or 0.0) / wall_s, 3)
     )
 
 
@@ -913,7 +913,7 @@ def run_navigation_episode(link: MavlinkLink, options: argparse.Namespace, fligh
             # approach, so a total alone cannot say whether the roll law was
             # frozen where the miss was decided.
             **roll.summary(pose.t_s),
-            "engage_s": round(elapsed_s, 3),
+            "scoring_s": round(elapsed_s, 3),
             "miss_m": (None if approach.miss_m is None
                        else round(approach.miss_m, 3)),
             # Split so the roll law and the pitch law each answer for their
@@ -1102,8 +1102,8 @@ def run(options: argparse.Namespace) -> dict:
                 0.0, 0.0, options.throttle, options.level_settle_s,
                 lambda: False)
         scoring_end = run_navigation_episode(link, options, flight, result)
-        result["engage_end"] = scoring_end
-        say(f"  scoring window {scoring_end}: miss={result.get('miss_m')}m "
+        result["scoring_end"] = scoring_end
+        say(f"  scoring window {scoring_end}: cpa_error={result.get('miss_m')}m "
             f"commands={result.get('commands')} "
             f"clock={result.get('measured_speedup')}x")
         result["statustext"] = chatter.lines

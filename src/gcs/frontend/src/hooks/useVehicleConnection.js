@@ -21,7 +21,7 @@ import {
   startupMissionAuthority,
   startupPlanMetadata,
   startupPlanMetadataForOwnedPlan,
-  startupMissionFallbackLocationsForZones,
+  startupMissionDeliveryHubsForZones,
   enqueueStartupPostProcess,
 } from '../utils/planDownloadRun';
 import { prunePendingVehicles, upsertPendingVehicles } from '../utils/pendingVehicles';
@@ -42,9 +42,8 @@ export default function useVehicleConnection({
     polygon, plan,
     setPlan, setPolygon, setAnalysis,
     setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex,
-    fallbackLocationAssignments,
+    deliveryHubAssignments,
     setSimDockWps, setDetectAfterWps,
-    setPerUavDockClasses,
     setFenceEnabled, setFenceTouched, setFenceCustomVertices,
     setExclusionPolygons,
     beginFenceObservation, recordFenceObservation, resetFenceObservations,
@@ -245,8 +244,7 @@ export default function useVehicleConnection({
       metadataMission.polygon,
       metadataMission.corridor_backbone,
       metadataMission.launch_point,
-      planMetadata.dockClasses,
-      startupMissionFallbackLocationsForZones(run, zones),
+      startupMissionDeliveryHubsForZones(run, zones),
     );
     await observeFleetFence(
       zones.map((z) => ({ sys_id: z.sys_id })).filter((v) => v.sys_id != null),
@@ -292,7 +290,6 @@ export default function useVehicleConnection({
           const nextPlan = tagPlanForRun({
             zones: assembled.zones,
             altitude_m: assembled.altitude,
-            dock_classes: assembled.dockClasses || [],
           }, run);
           // Claim the WHOLE roster's fence state in the same tick that
           // publishes the plan, and before it. Reserving only when the fence
@@ -307,7 +304,7 @@ export default function useVehicleConnection({
           // already queued in this tick recognizes our own plan publication.
           planRef.current = nextPlan;
           run.hasPublished = true;
-          derivePlanPolygon(assembled.zones, assembled.searchPattern, assembled.polygon, assembled.corridorBackbone, assembled.launchPoint, assembled.dockClasses, assembled.missionFallbackLocations);
+          derivePlanPolygon(assembled.zones, assembled.searchPattern, assembled.polygon, assembled.corridorBackbone, assembled.launchPoint, assembled.missionDeliveryHubs);
           // Observe every vehicle's own fence. They are configured per vehicle
           // and can legitimately disagree, so the first vehicle's answer is not
           // the fleet's answer.
@@ -358,13 +355,13 @@ export default function useVehicleConnection({
     const startupRun = startupMissionStateRef.current.run;
     markStartupRosterChanged(startupRun);
     startupRun?.excludedIds.add(sysId);
-    startupRun?.missionFallbackLocationsBySysId.delete(sysId);
+    startupRun?.missionDeliveryHubsBySysId.delete(sysId);
     startupRun?.missionsBySysId.delete(sysId);
     const result = await api.disconnectVehicle(sysId);
     const removedIds = result?.removed || [sysId];
     for (const id of removedIds) {
       startupRun?.excludedIds.add(id);
-      startupRun?.missionFallbackLocationsBySysId.delete(id);
+      startupRun?.missionDeliveryHubsBySysId.delete(id);
       startupRun?.missionsBySysId.delete(id);
     }
     const removedSet = new Set(removedIds);
@@ -409,7 +406,6 @@ export default function useVehicleConnection({
       setActiveSetIndex(0);
       setSimDockWps({});
       if (setDetectAfterWps) setDetectAfterWps({});
-      if (setPerUavDockClasses) setPerUavDockClasses({});
       // Fence + keep-outs are plan geometry — clean them with the rest when
       // the last vehicle disconnects (same lifecycle as the zone). The
       // observations and any unacknowledged request belong to that plan too.
@@ -426,21 +422,14 @@ export default function useVehicleConnection({
       const nextPlan = currentPlan ? {
         ...currentPlan,
         zones: remaining,
-        ...(startupMetadata && {
-          altitude_m: startupMetadata.altitude,
-          dock_classes: startupMetadata.dockClasses,
-        }),
+        ...(startupMetadata && { altitude_m: startupMetadata.altitude }),
       } : null;
       planRef.current = nextPlan;
       setPlan(nextPlan);
-      // Reindex zone-keyed maps to match new zone positions. perUavDockClasses
-      // values are arrays (like simDockWps) so it uses 'array' mode.
+      // Reindex zone-keyed maps to match new zone positions.
       setSimDockWps((prev) => reindexZoneMap(prev, keptOldIndices, 'array'));
       if (setDetectAfterWps) {
         setDetectAfterWps((prev) => reindexZoneMap(prev, keptOldIndices, 'scalar'));
-      }
-      if (setPerUavDockClasses) {
-        setPerUavDockClasses((prev) => reindexZoneMap(prev, keptOldIndices, 'array'));
       }
       derivePlanPolygon(remaining);
       if (startupRun && planBelongsToRun(nextPlan, startupRun)) {
@@ -452,7 +441,7 @@ export default function useVehicleConnection({
         }).catch((e) => console.warn('Startup plan refresh after disconnect failed:', e));
       }
     }
-  }, [api.disconnectVehicle, applyStartupPlanEffects, cancelMissionDownloadRun, clearDownloading, removeVehicle, setPlan, setPolygon, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, derivePlanPolygon, onPlanSynced, setSimDockWps, setDetectAfterWps, setPerUavDockClasses, setFenceCustomVertices, setExclusionPolygons, setFenceEnabled, setFenceTouched, clearFenceIntent, resetFenceObservations]);
+  }, [api.disconnectVehicle, applyStartupPlanEffects, cancelMissionDownloadRun, clearDownloading, removeVehicle, setPlan, setPolygon, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, derivePlanPolygon, onPlanSynced, setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons, setFenceEnabled, setFenceTouched, clearFenceIntent, resetFenceObservations]);
 
   // Download mission for a single vehicle (background, tracked by downloadingSysIds)
   const downloadSingleMission = useCallback(async (sysId, name, startupRun = null) => {
@@ -508,7 +497,7 @@ export default function useVehicleConnection({
           startupRun.controller.abort();
           return;
         }
-        startupRun.missionFallbackLocationsBySysId.set(sysId, m.fallback_delivery_location || null);
+        startupRun.missionDeliveryHubsBySysId.set(sysId, m.default_delivery_hub || null);
         startupRun.missionsBySysId.set(sysId, m);
       }
       const mergedZones = startupRun
@@ -521,7 +510,6 @@ export default function useVehicleConnection({
         ...currentPlan,
         zones: mergedZones,
         altitude_m: startupMetadata?.altitude || m.altitude_m || currentPlan?.altitude_m || 100,
-        dock_classes: startupMetadata?.dockClasses || m.dock_classes || currentPlan?.dock_classes || [],
       };
       if (startupRun) {
         nextPlan = tagPlanForRun(nextPlan, startupRun);
@@ -546,12 +534,12 @@ export default function useVehicleConnection({
         // Non-startup single-vehicle downloads retain their existing merge and
         // post-processing behavior.
         const zonesForEffects = mergedZones;
-        const existingFallbackLocations = settings?.fallback_delivery_locations || [];
+        const existingDeliveryHubs = settings?.default_delivery_hubs || [];
         const pois = zonesForEffects.map((z, i) => {
-          if (i === zonesForEffects.length - 1) return m.fallback_delivery_location || null;
-          const fallbackLocationIdx = fallbackLocationAssignments?.[i];
-          if (fallbackLocationIdx != null && existingFallbackLocations[fallbackLocationIdx]) {
-            return { lat: existingFallbackLocations[fallbackLocationIdx].lat, lon: existingFallbackLocations[fallbackLocationIdx].lon };
+          if (i === zonesForEffects.length - 1) return m.default_delivery_hub || null;
+          const deliveryHubIdx = deliveryHubAssignments?.[i];
+          if (deliveryHubIdx != null && existingDeliveryHubs[deliveryHubIdx]) {
+            return { lat: existingDeliveryHubs[deliveryHubIdx].lat, lon: existingDeliveryHubs[deliveryHubIdx].lon };
           }
           return null;
         });
@@ -562,7 +550,6 @@ export default function useVehicleConnection({
           metadataMission.polygon,
           metadataMission.corridor_backbone,
           metadataMission.launch_point,
-          metadataMission.dock_classes,
           pois,
         );
         await observeFenceFromVehicle(sysId, startupRequestIsActive);
@@ -580,7 +567,7 @@ export default function useVehicleConnection({
     } catch (e) {
       console.warn('Mission post-processing failed (vehicle connected ok):', e);
     }
-  }, [api.downloadMission, setPlan, derivePlanPolygon, observeFenceFromVehicle, onPlanSynced, fallbackLocationAssignments, reserveFenceObservations, settings, applySimParams, applyStartupPlanEffects, setNotification, waitForBackendSettlement]);
+  }, [api.downloadMission, setPlan, derivePlanPolygon, observeFenceFromVehicle, onPlanSynced, deliveryHubAssignments, reserveFenceObservations, settings, applySimParams, applyStartupPlanEffects, setNotification, waitForBackendSettlement]);
 
   // Connect a single vehicle + auto-download its mission (only if no active plan)
   const handleConnect = useCallback(async (device, sysId, name) => {
@@ -672,7 +659,7 @@ export default function useVehicleConnection({
         requestedIds: new Set(),
         orderedIds: [],
         excludedIds: new Set(),
-        missionFallbackLocationsBySysId: new Map(),
+        missionDeliveryHubsBySysId: new Map(),
         missionsBySysId: new Map(),
         postProcessQueue: Promise.resolve(),
         rosterRevision: 0,

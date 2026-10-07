@@ -2,7 +2,7 @@
 
 Runs test_connect_dock_logic.js via Node.js subprocess to verify that
 existing zones preserve their DOCK assignments while the newly connected
-zone gets the downloaded fallback_delivery_location.
+zone gets the downloaded default_delivery_hub.
 """
 import os
 import subprocess

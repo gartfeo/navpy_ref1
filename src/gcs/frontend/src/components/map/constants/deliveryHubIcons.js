@@ -1,4 +1,4 @@
-/** Neutral host symbols for configured delivery locations. Type IDs stay unchanged. */
+/** Neutral host symbols for configured delivery hubs. Type IDs stay unchanged. */
 const svgIcon = (body) => `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`
 )}`;
@@ -12,5 +12,5 @@ const ICONS = {
   fuel: svgIcon('<rect x="3" y="3" width="11" height="18" rx="1"/><path d="M5 6h7v5H5zM14 10h3v7a2 2 0 0 0 4 0V8l-3-3"/>'),
   other: DOCK_ICON,
 };
-export const DELIVERY_LOCATION_TYPES = ['building', 'vehicle', 'antenna', 'operations_site', 'bridge', 'fuel', 'other'];
-export function getDeliveryLocationIcon(type) { return ICONS[type] || DOCK_ICON; }
+export const DELIVERY_HUB_TYPES = ['building', 'vehicle', 'antenna', 'operations_site', 'bridge', 'fuel', 'other'];
+export function getDeliveryHubIcon(type) { return ICONS[type] || DOCK_ICON; }

@@ -10,7 +10,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 # Shared mission metadata encoding — single source of truth
-from navpy.modules.nav.mission_encoding import CORRIDOR_END_MARKER, META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_FALLBACK_DELIVERY_LOCATION, encode_meta_z, encode_location_type_into_z
+from navpy.modules.nav.mission_encoding import CORRIDOR_END_MARKER, META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB, encode_meta_z, encode_location_type_into_z
 
 
 def build_mission(
@@ -22,9 +22,8 @@ def build_mission(
     polygon: list[dict] | None = None,
     corridor_backbone: list[dict] | None = None,
     launch_point: dict | None = None,
-    dock_classes: list[str] | None = None,
     corridor_altitude_m: float | None = None,
-    fallback_delivery_location: dict | None = None,
+    default_delivery_hub: dict | None = None,
     takeoff_altitude_m: float | None = None,
 ) -> MAVWPLoader:
     """Build a MAVWPLoader from track lat/lon points.
@@ -99,8 +98,8 @@ def build_mission(
         meta_items.append((META_CORRIDOR_VERTEX, cv))
     if launch_point:
         meta_items.append((META_LAUNCH_POINT, launch_point))
-    if fallback_delivery_location:
-        meta_items.append((META_FALLBACK_DELIVERY_LOCATION, fallback_delivery_location))
+    if default_delivery_hub:
+        meta_items.append((META_DEFAULT_DELIVERY_HUB, default_delivery_hub))
 
     def _insert_metadata() -> None:
         for idx, (meta_type, mp) in enumerate(meta_items):
@@ -113,13 +112,13 @@ def build_mission(
             wp.autocontinue = 1
             wp.x = int(mp["lat"] * 1e7)
             wp.y = int(mp["lon"] * 1e7)
-            # Only the last metadata item carries search_pattern + dock classes
+            # Only the last metadata item carries search_pattern
             if idx == len(meta_items) - 1:
-                wp.z = encode_meta_z(search_pattern, dock_classes)
+                wp.z = encode_meta_z(search_pattern)
             else:
                 wp.z = 0
-            # Location type encoded into z bits 11-13
-            if meta_type == META_FALLBACK_DELIVERY_LOCATION:
+            # Location type encoded into z bits 8-10
+            if meta_type == META_DEFAULT_DELIVERY_HUB:
                 wp.z = encode_location_type_into_z(wp.z, mp.get("type"))
 
     meta_inserted = False
@@ -145,20 +144,20 @@ def build_mission(
 
     # If corridor_count >= len(track_latlon) (e.g. a set whose scan track is
     # empty), the in-loop `i == corridor_count` guard never fires — emit the
-    # metadata block now so search_pattern/dock-classes/polygon are never dropped and
+    # metadata block now so search_pattern/polygon are never dropped and
     # the companion can still recover them from the mission.
     if not meta_inserted and meta_items:
         _insert_metadata()
 
-    # Append fallback delivery location as the last NAV_WAYPOINT
-    if fallback_delivery_location:
+    # Append default delivery hub as the last NAV_WAYPOINT
+    if default_delivery_hub:
         seq = wp_loader.count()
-        wp_loader.add_latlonalt(fallback_delivery_location["lat"], fallback_delivery_location["lon"], altitude_m)
+        wp_loader.add_latlonalt(default_delivery_hub["lat"], default_delivery_hub["lon"], altitude_m)
         wp = wp_loader.wp(seq)
         wp.frame = MAV_FRAME_GLOBAL_RELATIVE_ALT
         wp.command = MAV_CMD_NAV_WAYPOINT
         wp.autocontinue = 1
-        wp.x = int(fallback_delivery_location["lat"] * 1e7)
-        wp.y = int(fallback_delivery_location["lon"] * 1e7)
+        wp.x = int(default_delivery_hub["lat"] * 1e7)
+        wp.y = int(default_delivery_hub["lon"] * 1e7)
 
     return wp_loader

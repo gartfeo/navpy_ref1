@@ -35,33 +35,33 @@ function test(name, fn) {
 
 // ---- nextPlacementState ----
 
-const allIdle = { placingLaunchPoint: false, placingCorridor: false, placingFallbackLocation: false, isDrawing: false };
+const allIdle = { placingLaunchPoint: false, placingCorridor: false, placingDeliveryHub: false, isDrawing: false };
 const drawing = { ...allIdle, isDrawing: true };
 
 test('startDraw: clears all placement modes, sets shouldStartDraw', () => {
-  const state = { placingLaunchPoint: true, placingCorridor: true, placingFallbackLocation: true, isDrawing: false };
+  const state = { placingLaunchPoint: true, placingCorridor: true, placingDeliveryHub: true, isDrawing: false };
   const result = nextPlacementState(state, 'startDraw');
   assert.strictEqual(result.placingLaunchPoint, false);
   assert.strictEqual(result.placingCorridor, false);
-  assert.strictEqual(result.placingFallbackLocation, false);
+  assert.strictEqual(result.placingDeliveryHub, false);
   assert.strictEqual(result.shouldStartDraw, true);
   assert.strictEqual(result.shouldStopDraw, false);
 });
 
 test('toggleCorridor on: clears other modes, sets shouldStopDraw when drawing', () => {
-  const state = { placingLaunchPoint: true, placingCorridor: false, placingFallbackLocation: true, isDrawing: true };
+  const state = { placingLaunchPoint: true, placingCorridor: false, placingDeliveryHub: true, isDrawing: true };
   const result = nextPlacementState(state, 'toggleCorridor');
   assert.strictEqual(result.placingCorridor, true);
   assert.strictEqual(result.placingLaunchPoint, false);
-  assert.strictEqual(result.placingFallbackLocation, false);
+  assert.strictEqual(result.placingDeliveryHub, false);
   assert.strictEqual(result.shouldStopDraw, true);
   assert.strictEqual(result.shouldStartDraw, false);
 });
 
-test('startFallbackLocationFromSettings: clears all modes, sets placingFallbackLocation, shouldStopDraw when drawing', () => {
-  const state = { placingLaunchPoint: true, placingCorridor: true, placingFallbackLocation: false, isDrawing: true };
-  const result = nextPlacementState(state, 'startFallbackLocationFromSettings');
-  assert.strictEqual(result.placingFallbackLocation, true);
+test('startDeliveryHubFromSettings: clears all modes, sets placingDeliveryHub, shouldStopDraw when drawing', () => {
+  const state = { placingLaunchPoint: true, placingCorridor: true, placingDeliveryHub: false, isDrawing: true };
+  const result = nextPlacementState(state, 'startDeliveryHubFromSettings');
+  assert.strictEqual(result.placingDeliveryHub, true);
   assert.strictEqual(result.placingLaunchPoint, false);
   assert.strictEqual(result.placingCorridor, false);
   assert.strictEqual(result.shouldStopDraw, true);
@@ -69,19 +69,19 @@ test('startFallbackLocationFromSettings: clears all modes, sets placingFallbackL
 });
 
 test('toggleCorridor off: only clears corridor, preserves other state', () => {
-  const state = { placingLaunchPoint: false, placingCorridor: true, placingFallbackLocation: false, isDrawing: false };
+  const state = { placingLaunchPoint: false, placingCorridor: true, placingDeliveryHub: false, isDrawing: false };
   const result = nextPlacementState(state, 'toggleCorridor');
   assert.strictEqual(result.placingCorridor, false);
   assert.strictEqual(result.placingLaunchPoint, false);
-  assert.strictEqual(result.placingFallbackLocation, false);
+  assert.strictEqual(result.placingDeliveryHub, false);
   assert.strictEqual(result.shouldStopDraw, false);
   assert.strictEqual(result.shouldStartDraw, false);
 });
 
-test('toggleFallbackLocation off: only clears DOCK, preserves other state', () => {
-  const state = { placingLaunchPoint: false, placingCorridor: true, placingFallbackLocation: true, isDrawing: false };
-  const result = nextPlacementState(state, 'toggleFallbackLocation');
-  assert.strictEqual(result.placingFallbackLocation, false);
+test('toggleDeliveryHub off: only clears DOCK, preserves other state', () => {
+  const state = { placingLaunchPoint: false, placingCorridor: true, placingDeliveryHub: true, isDrawing: false };
+  const result = nextPlacementState(state, 'toggleDeliveryHub');
+  assert.strictEqual(result.placingDeliveryHub, false);
   assert.strictEqual(result.placingCorridor, true);
   assert.strictEqual(result.placingLaunchPoint, false);
   assert.strictEqual(result.shouldStopDraw, false);
@@ -92,13 +92,13 @@ test('shouldStopDraw is false when draw was not active', () => {
   assert.strictEqual(result.shouldStopDraw, false);
   assert.strictEqual(result.placingCorridor, true);
 
-  const result2 = nextPlacementState(allIdle, 'toggleFallbackLocation');
+  const result2 = nextPlacementState(allIdle, 'toggleDeliveryHub');
   assert.strictEqual(result2.shouldStopDraw, false);
-  assert.strictEqual(result2.placingFallbackLocation, true);
+  assert.strictEqual(result2.placingDeliveryHub, true);
 
-  const result3 = nextPlacementState(allIdle, 'startFallbackLocationFromSettings');
+  const result3 = nextPlacementState(allIdle, 'startDeliveryHubFromSettings');
   assert.strictEqual(result3.shouldStopDraw, false);
-  assert.strictEqual(result3.placingFallbackLocation, true);
+  assert.strictEqual(result3.placingDeliveryHub, true);
 });
 
 test('startDraw: shouldStopDraw false even when already drawing', () => {
@@ -108,10 +108,10 @@ test('startDraw: shouldStopDraw false even when already drawing', () => {
   assert.strictEqual(result.shouldStopDraw, false);
 });
 
-test('toggleFallbackLocation on: clears other modes, sets shouldStopDraw when drawing', () => {
-  const state = { placingLaunchPoint: true, placingCorridor: true, placingFallbackLocation: false, isDrawing: true };
-  const result = nextPlacementState(state, 'toggleFallbackLocation');
-  assert.strictEqual(result.placingFallbackLocation, true);
+test('toggleDeliveryHub on: clears other modes, sets shouldStopDraw when drawing', () => {
+  const state = { placingLaunchPoint: true, placingCorridor: true, placingDeliveryHub: false, isDrawing: true };
+  const result = nextPlacementState(state, 'toggleDeliveryHub');
+  assert.strictEqual(result.placingDeliveryHub, true);
   assert.strictEqual(result.placingLaunchPoint, false);
   assert.strictEqual(result.placingCorridor, false);
   assert.strictEqual(result.shouldStopDraw, true);

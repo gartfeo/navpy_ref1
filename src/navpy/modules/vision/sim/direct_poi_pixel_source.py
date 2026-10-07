@@ -30,7 +30,7 @@ Every trace row is appended while THIS class holds ``_lock`` -- the same lock
 that serialises the slot transitions the rows describe -- so a row can never
 be ordered against a slot transition it did not see. That is weaker than
 "row order is decision order", and deliberately so: an OUTPUT row is a
-SETTLEMENT row. Delivery runs unlocked, so newer STAGE rows can legitimately
+SETTLEMENT row. Dispatch runs unlocked, so newer STAGE rows can legitimately
 precede the OUTPUT row of a frame that was taken before them. The frame's
 own take instant is preserved instead, in the watermark column
 ``dispatch_available`` captures with the take.
@@ -56,7 +56,7 @@ from navpy.modules.common.scheduler_cadence import SchedulerCadence
 from navpy.modules.vehicle.vehicle_interface import IVehicle
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
-from navpy.modules.vision.sim.direct_delivery_metrics import (
+from navpy.modules.vision.sim.direct_dispatch_metrics import (
     DirectPixelSourceMetrics,
     DirectPublishState,
 )
@@ -69,7 +69,7 @@ from navpy.modules.vision.sim.direct_pixel_trace import (
     OUTPUT_EMPTY,
     OUTPUT_EXCEPTION,
     OUTPUT_STALE_EPOCH,
-    delivery_outcome,
+    dispatch_outcome,
 )
 from navpy.modules.vision.sim.pose_associator import AssociatedPose
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize
@@ -99,11 +99,11 @@ class DirectPoiPixelSource:
         *,
         aircraft_sequence: str,
         aircraft_degrees: bool,
-        deliver: Callable[[DetectedObject], bool],
+        dispatch: Callable[[DetectedObject], bool],
         frame_size: FrameSize = FrameSize(2560, 1440),
         wall_now_s: Callable[[], float] = time.time,
     ) -> None:
-        self._deliver = deliver
+        self._dispatch = dispatch
         self._lock = threading.Lock()
         self._state = DirectPublishState()
         pipeline = build_direct_pixel_pipeline(
@@ -155,10 +155,10 @@ class DirectPoiPixelSource:
             if not (self._state.active and self._state.is_current(epoch)):
                 trace.output(epoch, OUTPUT_STALE_EPOCH, poi, taken_at_us)
                 return False
-        delivered, outcome = False, OUTPUT_EXCEPTION
+        dispatched, outcome = False, OUTPUT_EXCEPTION
         try:
-            delivered = bool(self._deliver(poi))
-            outcome = delivery_outcome(delivered)
+            dispatched = bool(self._dispatch(poi))
+            outcome = dispatch_outcome(dispatched)
         finally:
             # A raising consumer still EMPTIED the slot, and the worker
             # CATCHES the exception (navigation_command_worker.py:136-140), so
@@ -166,7 +166,7 @@ class DirectPoiPixelSource:
             with self._lock:
                 self._state.settle(epoch, outcome)
                 trace.output(epoch, outcome, poi, taken_at_us)
-        return delivered
+        return dispatched
 
     @property
     def metrics(self) -> DirectPixelSourceMetrics:

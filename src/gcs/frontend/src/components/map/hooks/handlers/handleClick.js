@@ -31,12 +31,12 @@ export function handleClick(Cesium, viewer, click, callbacksRef) {
     }
   }
 
-  // fallback location placement mode — skip if clicking an existing fallback location (let double-click remove it)
-  if (cb.placingFallbackLocation && cb.onPlaceFallbackLocation && cb.editable) {
+  // delivery hub placement mode — skip if clicking an existing delivery hub (let double-click remove it)
+  if (cb.placingDeliveryHub && cb.onPlaceDeliveryHub && cb.editable) {
     const hit = pickEntity(Cesium, viewer, click.position);
-    if (hit && hit.type === 'fallbackLocation') return;
+    if (hit && hit.type === 'deliveryHub') return;
     const latlon = pickCartographic(Cesium, viewer, click.position);
-    if (latlon) cb.onPlaceFallbackLocation(latlon);
+    if (latlon) cb.onPlaceDeliveryHub(latlon);
     return;
   }
 

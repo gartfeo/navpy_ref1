@@ -52,7 +52,7 @@ export default function VisionTab({ draft, setDraft, preSaveRef, preResetRef }) 
               <span style={{ fontSize: 12, color: colors.text, minWidth: 200, paddingBottom: 4 }}>{t('visionTab.searchAltitude')}</span>
               {presetKeys.map((key) => (
                 <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <span style={{ fontSize: 11, color: colors.textDim }}>{t(`planningSidebar.dockClasses.${key}`, { defaultValue: presets[key].label || key })}</span>
+                  <span style={{ fontSize: 11, color: colors.textDim }}>{t('planningSidebar.dockPreset', { defaultValue: presets[key].label || key })}</span>
                   <NumericInput
                     value={presets[key].altitude_m}
                     onChange={(v) => setPreset(key, 'altitude_m', v)}

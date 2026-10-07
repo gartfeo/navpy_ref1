@@ -1,7 +1,7 @@
 """Non-accuracy validity gates: is a direct-pixel run evaluable at all?
 
 Everything here is orthogonal to which source scores the run: the child must
-have completed its pass, the sensor must have delivered fresh frames, the
+have completed its pass, the sensor must have dispatched fresh frames, the
 commands must be stable and causally explained, and the evaluator's own
 diagnostic stream must be certified.  Accuracy policy lives in
 ``eval_direct_pixel_verdict``.
@@ -62,12 +62,12 @@ def validity_errors(
                 "POI left renderable sight: "
                 f"{source.get('projection_failures')} projection failures"
             )
-        if not isinstance(source.get("delivered_frames"), int) or (
-            source["delivered_frames"] < 10
+        if not isinstance(source.get("dispatched_frames"), int) or (
+            source["dispatched_frames"] < 10
         ):
             errors.append(
-                "insufficient direct pixel deliveries: "
-                f"{source.get('delivered_frames')!r}"
+                "insufficient direct pixel dispatches: "
+                f"{source.get('dispatched_frames')!r}"
             )
     if scorer.certification_error:
         errors.append(scorer.certification_error)

@@ -31,10 +31,10 @@ const renderToolbar = (over = {}) => render(
     effectiveSets={1}
     activeSetIndex={0}
     setActiveSetIndex={vi.fn()}
-    placingFallbackLocation={false}
-    onToggleFallbackLocation={vi.fn()}
-    placingFallbackLocationType="other"
-    setPlacingFallbackLocationType={vi.fn()}
+    placingDeliveryHub={false}
+    onToggleDeliveryHub={vi.fn()}
+    placingDeliveryHubType="other"
+    setPlacingDeliveryHubType={vi.fn()}
     fenceEnabled={false}
     onToggleFence={vi.fn()}
     observedFenceMode="none"

@@ -60,13 +60,13 @@ export function autoPartitionAngle(polygonObj) {
 /**
  * Analyze polygon for mission planning stats.
  */
-export function analyzeArea(polygonObj, dockClasses, uavCount) {
+export function analyzeArea(polygonObj, uavCount) {
   const cfg = getConfig();
   const polygonLL = polygonObj.map((p) => [p.lat, p.lon]);
   const [ptsM, refLat] = polygonToMeters(polygonLL);
   const areaKm2 = polygonAreaM2(ptsM) / 1e6;
 
-  const [spacing] = computeTrackSpacing(dockClasses, cfg);
+  const [spacing] = computeTrackSpacing(cfg);
   const angleDeg = longestEdgeAngle(ptsM);
   const angleRad = angleDeg * DEG2RAD;
 
@@ -250,18 +250,15 @@ const SEARCH_PATTERN_HANDLERS = {
 /**
  * Generate full mission plan with zones and tracks.
  */
-export function generatePlan(polygonObj, dockClasses, searchPattern, uavCount, launchPointObj, corridorWaypointsObj, setLaunchPoints, partitionAngleDeg) {
+export function generatePlan(polygonObj, searchPattern, uavCount, launchPointObj, corridorWaypointsObj, setLaunchPoints, partitionAngleDeg) {
   const cfg = getConfig();
-  const [spacing, altitude] = computeTrackSpacing(dockClasses, cfg);
+  const [spacing, altitude] = computeTrackSpacing(cfg);
   const polygonLL = polygonObj.map((p) => [p.lat, p.lon]);
   const lp = launchPointObj ? [launchPointObj.lat, launchPointObj.lon] : null;
 
   // Corridor search pattern has its own coordinate system
   if (searchPattern === 'corridor') {
-    return {
-      ...generateCorridorPlan(polygonLL, spacing, altitude, uavCount, lp, corridorWaypointsObj, cfg),
-      dock_classes: dockClasses || [],
-    };
+    return generateCorridorPlan(polygonLL, spacing, altitude, uavCount, lp, corridorWaypointsObj, cfg);
   }
 
   // Distributed shares polygon projection
@@ -299,6 +296,5 @@ export function generatePlan(polygonObj, dockClasses, searchPattern, uavCount, l
     launch_zone_buffer_m: Math.round(lzBuffer),
     min_launch_zone: minLzPts.map((p) => ({ lat: _round(p[0], 6), lon: _round(p[1], 6) })),
     min_launch_zone_buffer_m: Math.round(minLzOutwardM),
-    dock_classes: dockClasses || [],
   };
 }

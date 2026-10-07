@@ -16,8 +16,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from navpy.modules.nav.mission_encoding import (  # noqa: E402
     CORRIDOR_END_MARKER,
     SEARCH_PATTERN_IDS, SEARCH_PATTERN_NAMES,
-    DOCK_CLASS_IDS, DOCK_CLASS_NAMES,
-    META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_FALLBACK_DELIVERY_LOCATION,
+    META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB,
     encode_meta_z, decode_meta_z, encode_location_type_into_z, decode_location_type_from_z,
 )
 
@@ -31,9 +30,8 @@ def load_mission_to_vehicle(vehicle, track_latlon: list[dict], altitude_m: float
                             polygon: list[dict] | None = None,
                             corridor_backbone: list[dict] | None = None,
                             launch_point: dict | None = None,
-                            dock_classes: list[str] | None = None,
                             corridor_altitude_m: float | None = None,
-                            fallback_delivery_location: dict | None = None,
+                            default_delivery_hub: dict | None = None,
                             takeoff_altitude_m: float | None = None) -> bool:
     """Build and upload a mission to a VehicleMav instance.
 
@@ -46,15 +44,14 @@ def load_mission_to_vehicle(vehicle, track_latlon: list[dict], altitude_m: float
         polygon: original planning polygon vertices (for round-trip)
         corridor_backbone: corridor backbone waypoints (for round-trip)
         launch_point: separate launch/home position (for round-trip)
-        dock_classes: selected dock class IDs (for round-trip)
 
     Returns:
         True on success
     """
     wp_loader = build_mission(track_latlon, altitude_m, vehicle.target_system,
                               corridor_count, search_pattern, polygon, corridor_backbone,
-                              launch_point, dock_classes, corridor_altitude_m,
-                              fallback_delivery_location, takeoff_altitude_m)
+                              launch_point, corridor_altitude_m,
+                              default_delivery_hub, takeoff_altitude_m)
 
     # Clear + load + upload is one transaction: hold the per-vehicle mission
     # lock so a concurrent probe/download can't clear or rebuild the loader
@@ -92,9 +89,8 @@ def upload_mission_with_retry(
     polygon: list[dict] | None = None,
     corridor_backbone: list[dict] | None = None,
     launch_point: dict | None = None,
-    dock_classes: list[str] | None = None,
     corridor_altitude_m: float | None = None,
-    fallback_delivery_location: dict | None = None,
+    default_delivery_hub: dict | None = None,
     takeoff_altitude_m: float | None = None,
     max_retries: int = 3,
     on_progress: Callable[[str, int], None] | None = None,
@@ -119,7 +115,7 @@ def upload_mission_with_retry(
     wp_loader = build_mission(
         track_latlon, altitude_m, vehicle.target_system,
         corridor_count, search_pattern, polygon, corridor_backbone,
-        launch_point, dock_classes, corridor_altitude_m, fallback_delivery_location,
+        launch_point, corridor_altitude_m, default_delivery_hub,
         takeoff_altitude_m,
     )
     expected_count = wp_loader.count()

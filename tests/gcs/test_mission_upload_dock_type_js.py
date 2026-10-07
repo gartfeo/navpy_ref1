@@ -10,11 +10,11 @@ _HOOK_FILE = os.path.normpath(os.path.join(
 
 
 class TestMissionUploadDockType(unittest.TestCase):
-    def test_fallback_delivery_location_includes_type(self):
+    def test_default_delivery_hub_includes_type(self):
         with open(_HOOK_FILE, encoding="utf-8") as f:
             src = f.read()
         self.assertIn(
-            "fallback_delivery_location: assignedFallbackLocation ? { lat: assignedFallbackLocation.lat, lon: assignedFallbackLocation.lon, type: assignedFallbackLocation.type } : null",
+            "default_delivery_hub: assignedDeliveryHub ? { lat: assignedDeliveryHub.lat, lon: assignedDeliveryHub.lon, type: assignedDeliveryHub.type } : null",
             src,
         )
 

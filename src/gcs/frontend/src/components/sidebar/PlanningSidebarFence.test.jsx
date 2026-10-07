@@ -43,20 +43,15 @@ const renderSidebar = (observedFence, over = {}) => render(
   <PlanningSidebar
     searchPattern="distributed"
     setSearchPattern={vi.fn()}
-    dockClasses={['small']}
-    setDockClasses={vi.fn()}
-    perUavDockClasses={{}}
-    setPerUavDockClasses={vi.fn()}
     analysis={null}
     uavCount={2}
     setUavCount={vi.fn()}
-    onPoiChange={vi.fn()}
     plan={null}
     launchPoint={null}
     corridorPoints={[]}
     uavCountLocked
     setUavCountLocked={vi.fn()}
-    settings={{ fallback_delivery_locations: [] }}
+    settings={{ default_delivery_hubs: [] }}
     vehicleList={[{ sys_id: 1 }, { sys_id: 2 }]}
     aasParams={{
       sessionDraft: {},
@@ -65,9 +60,9 @@ const renderSidebar = (observedFence, over = {}) => render(
       getConfirmedConsensus: () => ({ state: 'unknown', value: null }),
     }}
     setLaunchPoints={vi.fn()}
-    fallbackLocationAssignments={[]}
-    setFallbackLocationAssignments={vi.fn()}
-    setManualFallbackLocationEdit={vi.fn()}
+    deliveryHubAssignments={[]}
+    setDeliveryHubAssignments={vi.fn()}
+    setManualDeliveryHubEdit={vi.fn()}
     simDockWps={{}}
     simMode
     detectAfterWps={{}}
@@ -184,5 +179,14 @@ describe('PlanningSidebar fence request status', () => {
   ])('always shows the preserve / Off-requests-disable help on %s', (_label, obs, fenceEnabled) => {
     const { container } = renderSidebar(obs, { fenceEnabled, fenceRequestStatus: 'none' });
     expect(container.textContent).toContain('planningSidebar.fenceUploadHelp');
+  });
+});
+
+describe('PlanningSidebar dock targeting', () => {
+  it('renders no dock-class selector: every zone targets the single dock class', () => {
+    const { container } = renderSidebar(summarize([]));
+    expect(container.textContent).not.toContain('planningSidebar.dockClass');
+    expect(container.textContent).not.toContain('planningSidebar.perUavDockClass');
+    expect(container.querySelector('button[aria-pressed]')).toBeNull();
   });
 });

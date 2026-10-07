@@ -58,7 +58,7 @@ def _run_node(script):
 
 # Config with positive pitch (+35 deg) — camera above horizon, bz_near < 0
 _BAD_PITCH_CFG = """{
-  DOCK_PRESETS: { small: { altitude_m: 150 } },
+  DOCK_PRESETS: { dock: { altitude_m: 150 } },
   FOV_HORIZONTAL_DEG: 46.2,
   FOV_VERTICAL_DEG: 26.8,
   CAMERA_PITCH_DEG: 35.0,
@@ -68,7 +68,7 @@ _BAD_PITCH_CFG = """{
 
 # Config with full overlap (1.0) — spacing becomes zero
 _FULL_OVERLAP_CFG = """{
-  DOCK_PRESETS: { small: { altitude_m: 150 } },
+  DOCK_PRESETS: { dock: { altitude_m: 150 } },
   FOV_HORIZONTAL_DEG: 46.2,
   FOV_VERTICAL_DEG: 26.8,
   CAMERA_PITCH_DEG: -35.0,
@@ -78,7 +78,7 @@ _FULL_OVERLAP_CFG = """{
 
 # Normal config
 _NORMAL_CFG = """{
-  DOCK_PRESETS: { small: { altitude_m: 150 } },
+  DOCK_PRESETS: { dock: { altitude_m: 150 } },
   FOV_HORIZONTAL_DEG: 46.2,
   FOV_VERTICAL_DEG: 26.8,
   CAMERA_PITCH_DEG: -35.0,
@@ -92,7 +92,7 @@ class TestComputeTrackSpacingGuardsJS(unittest.TestCase):
 
     def test_positive_pitch_returns_zero(self):
         result = _run_node(
-            f"console.log(JSON.stringify(computeTrackSpacing(['small'], {_BAD_PITCH_CFG})));"
+            f"console.log(JSON.stringify(computeTrackSpacing({_BAD_PITCH_CFG})));"
         )
         spacing, alt, half_swath = result
         self.assertEqual(spacing, 0)
@@ -101,14 +101,14 @@ class TestComputeTrackSpacingGuardsJS(unittest.TestCase):
 
     def test_full_overlap_returns_zero(self):
         result = _run_node(
-            f"console.log(JSON.stringify(computeTrackSpacing(['small'], {_FULL_OVERLAP_CFG})));"
+            f"console.log(JSON.stringify(computeTrackSpacing({_FULL_OVERLAP_CFG})));"
         )
         spacing, alt, half_swath = result
         self.assertEqual(spacing, 0)
 
     def test_normal_config_positive_spacing(self):
         result = _run_node(
-            f"console.log(JSON.stringify(computeTrackSpacing(['small'], {_NORMAL_CFG})));"
+            f"console.log(JSON.stringify(computeTrackSpacing({_NORMAL_CFG})));"
         )
         spacing, alt, half_swath = result
         self.assertGreater(spacing, 0)
@@ -119,7 +119,7 @@ class TestComputeTrackSpacingGuardsJS(unittest.TestCase):
         # camera-derived spacing but leaves altitude/halfSwath untouched.
         result = _run_node(
             "const cfg = Object.assign(" + _NORMAL_CFG + ", { TRACK_SPACING_OVERRIDE_M: 123 });"
-            "console.log(JSON.stringify(computeTrackSpacing(['small'], cfg)));"
+            "console.log(JSON.stringify(computeTrackSpacing(cfg)));"
         )
         spacing, alt, half_swath = result
         self.assertEqual(spacing, 123)
@@ -129,7 +129,7 @@ class TestComputeTrackSpacingGuardsJS(unittest.TestCase):
     def test_null_override_keeps_computed_spacing(self):
         result = _run_node(
             "const cfg = Object.assign(" + _NORMAL_CFG + ", { TRACK_SPACING_OVERRIDE_M: null });"
-            "console.log(JSON.stringify(computeTrackSpacing(['small'], cfg)));"
+            "console.log(JSON.stringify(computeTrackSpacing(cfg)));"
         )
         spacing, alt, half_swath = result
         self.assertGreater(spacing, 0)
@@ -188,7 +188,7 @@ class TestAnalyzeAreaBadCameraJS(unittest.TestCase):
             "FOV_HORIZONTAL_DEG = 46.2;\n"
             "FOV_VERTICAL_DEG = 26.8;\n"
             "var poly = [{lat:32,lon:34.8},{lat:32,lon:34.9},{lat:32.1,lon:34.9},{lat:32.1,lon:34.8}];\n"
-            "var r = analyzeArea(poly, ['small']);\n"
+            "var r = analyzeArea(poly);\n"
             "console.log(JSON.stringify({strip_count: r.strip_count, spacing: r.track_spacing_m}));"
         )
         self.assertEqual(result["strip_count"], 0)

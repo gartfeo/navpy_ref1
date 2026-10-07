@@ -1,9 +1,9 @@
-"""Tests for mission_metadata.py — read_fallback_delivery_location and read_mission_metadata."""
+"""Tests for mission_metadata.py — read_default_delivery_hub and read_mission_metadata."""
 import unittest
 from unittest.mock import MagicMock
 
-from gcs.backend.planner.waypoint_builder import build_mission, META_FALLBACK_DELIVERY_LOCATION
-from navpy.modules.nav.mission_metadata import read_fallback_delivery_location, read_mission_metadata
+from gcs.backend.planner.waypoint_builder import build_mission, META_DEFAULT_DELIVERY_HUB
+from navpy.modules.nav.mission_metadata import read_default_delivery_hub, read_mission_metadata
 
 
 def _make_track(n=3, base_lat=32.0, base_lon=34.0, step=0.001):
@@ -24,43 +24,43 @@ def _mock_vehicle_from_loader(wp_loader):
     return vehicle
 
 
-class TestReadFallbackDeliveryLocation(unittest.TestCase):
-    """read_fallback_delivery_location from mission waypoints built by waypoint_builder."""
+class TestReadDefaultDeliveryHub(unittest.TestCase):
+    """read_default_delivery_hub from mission waypoints built by waypoint_builder."""
 
-    def test_with_fallback_delivery_location(self):
-        """Fallback delivery location present in mission."""
+    def test_with_default_delivery_hub(self):
+        """Default delivery hub present in mission."""
         track = _make_track(3)
         dt = {"lat": 40.5, "lon": 44.5}
-        wp_loader = build_mission(track, 100, fallback_delivery_location=dt)
+        wp_loader = build_mission(track, 100, default_delivery_hub=dt)
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
-        loc = read_fallback_delivery_location(vehicle)
+        loc = read_default_delivery_hub(vehicle)
         self.assertIsNotNone(loc)
         self.assertAlmostEqual(loc.lat, 40.5, places=6)
         self.assertAlmostEqual(loc.lng, 44.5, places=6)
 
-    def test_without_fallback_delivery_location(self):
-        """No fallback delivery location in mission → returns None."""
+    def test_without_default_delivery_hub(self):
+        """No default delivery hub in mission → returns None."""
         track = _make_track(3)
         wp_loader = build_mission(track, 100)
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
-        loc = read_fallback_delivery_location(vehicle)
+        loc = read_default_delivery_hub(vehicle)
         self.assertIsNone(loc)
 
     def test_with_other_metadata(self):
-        """Fallback delivery location found even alongside polygon and launch metadata."""
+        """Default delivery hub found even alongside polygon and launch metadata."""
         track = _make_track(3)
         polygon = [{"lat": 32.0, "lon": 34.0}]
         launch = {"lat": 31.5, "lon": 33.5}
         dt = {"lat": 40.5, "lon": 44.5}
         wp_loader = build_mission(
             track, 100,
-            polygon=polygon, launch_point=launch, fallback_delivery_location=dt,
+            polygon=polygon, launch_point=launch, default_delivery_hub=dt,
         )
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
-        loc = read_fallback_delivery_location(vehicle)
+        loc = read_default_delivery_hub(vehicle)
         self.assertIsNotNone(loc)
         self.assertAlmostEqual(loc.lat, 40.5, places=6)
         self.assertAlmostEqual(loc.lng, 44.5, places=6)
@@ -71,26 +71,27 @@ class TestReadFallbackDeliveryLocation(unittest.TestCase):
         vehicle.mission_items_count = 0
         vehicle.get_mission_item = MagicMock(return_value=None)
 
-        loc = read_fallback_delivery_location(vehicle)
+        loc = read_default_delivery_hub(vehicle)
         self.assertIsNone(loc)
 
 
 class TestReadMissionMetadata(unittest.TestCase):
     """read_mission_metadata from mission waypoints built by waypoint_builder."""
 
-    def test_decodes_dock_classes(self):
-        """Mission with dock classes decodes them correctly."""
+    def test_search_pattern_and_location_type_share_last_item(self):
+        """The last metadata item packs search pattern and location type together."""
         track = _make_track(3)
+        dt = {"lat": 40.5, "lon": 44.5, "type": "fuel"}
         wp_loader = build_mission(
-            track, 120, search_pattern="distributed", dock_classes=["small", "medium"],
-            polygon=[{"lat": 32.0, "lon": 34.0}],  # needed to create metadata items
+            track, 120, search_pattern="corridor",
+            polygon=[{"lat": 32.0, "lon": 34.0}],
+            default_delivery_hub=dt,
         )
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
         meta = read_mission_metadata(vehicle)
-        self.assertEqual(meta.search_pattern, "distributed")
-        self.assertIn("small", meta.dock_classes)
-        self.assertIn("medium", meta.dock_classes)
+        self.assertEqual(meta.search_pattern, "corridor")
+        self.assertEqual(meta.default_delivery_hub_type, "fuel")
 
     def test_decodes_search_pattern(self):
         """Mission search_pattern is correctly decoded."""
@@ -123,7 +124,7 @@ class TestReadMissionMetadata(unittest.TestCase):
             track, 149,  # altitude_m = scan/zone altitude
             corridor_count=2, corridor_altitude_m=438,
             polygon=[{"lat": 32.0, "lon": 34.0}],  # forces a metadata marker
-            fallback_delivery_location={"lat": 40.5, "lon": 44.5},
+            default_delivery_hub={"lat": 40.5, "lon": 44.5},
         )
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
@@ -139,7 +140,7 @@ class TestReadMissionMetadata(unittest.TestCase):
         wp_loader = build_mission(
             track, 149, corridor_count=2, corridor_altitude_m=100,
             polygon=[{"lat": 32.0, "lon": 34.0}],
-            fallback_delivery_location={"lat": 40.5, "lon": 44.5},
+            default_delivery_hub={"lat": 40.5, "lon": 44.5},
         )
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
@@ -166,7 +167,7 @@ class TestReadMissionMetadata(unittest.TestCase):
         track = _make_track(4)
         wp_loader = build_mission(
             track, 149, corridor_count=2, corridor_altitude_m=438,
-        )  # no polygon/backbone/launch/fallback_delivery_location -> no markers
+        )  # no polygon/backbone/launch/default_delivery_hub -> no markers
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
         meta = read_mission_metadata(vehicle)
@@ -184,17 +185,17 @@ class TestReadMissionMetadata(unittest.TestCase):
         meta = read_mission_metadata(vehicle)
         self.assertEqual(meta.scan_altitude_rel, 120.0)
 
-    def test_fallback_delivery_location_included(self):
-        """Fallback delivery location is included in metadata."""
+    def test_default_delivery_hub_included(self):
+        """Default delivery hub is included in metadata."""
         track = _make_track(3)
         dt = {"lat": 40.5, "lon": 44.5, "type": "operations_site"}
-        wp_loader = build_mission(track, 100, fallback_delivery_location=dt)
+        wp_loader = build_mission(track, 100, default_delivery_hub=dt)
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
         meta = read_mission_metadata(vehicle)
-        self.assertIsNotNone(meta.fallback_delivery_location)
-        self.assertAlmostEqual(meta.fallback_delivery_location.lat, 40.5, places=6)
-        self.assertEqual(meta.fallback_delivery_location_type, "operations_site")
+        self.assertIsNotNone(meta.default_delivery_hub)
+        self.assertAlmostEqual(meta.default_delivery_hub.lat, 40.5, places=6)
+        self.assertEqual(meta.default_delivery_hub_type, "operations_site")
 
     def test_empty_mission(self):
         """Empty mission returns defaults."""
@@ -204,32 +205,18 @@ class TestReadMissionMetadata(unittest.TestCase):
 
         meta = read_mission_metadata(vehicle)
         self.assertEqual(meta.search_pattern, "distributed")
-        self.assertEqual(meta.dock_classes, [])
         self.assertEqual(meta.waypoint_altitudes, [])
         self.assertIsNone(meta.scan_altitude_rel)
 
-    def test_detect_class_ids_mapping(self):
-        """detect_class_ids maps mission classes to detection class IDs."""
+    def test_metadata_carries_no_dock_class_selection(self):
+        """Every zone targets the single dock class, so none is decoded."""
         track = _make_track(3)
-        wp_loader = build_mission(
-            track, 100, dock_classes=["small", "medium"],
-            polygon=[{"lat": 32.0, "lon": 34.0}],
-        )
+        wp_loader = build_mission(track, 100, polygon=[{"lat": 32.0, "lon": 34.0}])
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
         meta = read_mission_metadata(vehicle)
-        ids = meta.detect_class_ids
-        self.assertIn(4, ids)  # small preset → class 4
-        self.assertIn(0, ids)  # medium preset → class 0
-
-    def test_no_classes_defaults_to_empty(self):
-        """Mission without dock classes returns empty list."""
-        track = _make_track(3)
-        wp_loader = build_mission(track, 100)
-        vehicle = _mock_vehicle_from_loader(wp_loader)
-
-        meta = read_mission_metadata(vehicle)
-        self.assertEqual(meta.dock_classes, [])
+        self.assertFalse(hasattr(meta, "dock_classes"))
+        self.assertFalse(hasattr(meta, "detect_class_ids"))
 
 
 if __name__ == "__main__":

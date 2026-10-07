@@ -28,27 +28,24 @@ class MsgType(Enum):
 @unique
 class TaskTypeMsgData(Enum):
     """
-    Enumeration of task types.
+    Enumeration of task types carried in the navlink ``task_type`` field.
+
+    The detector publishes a single class (``dock``), so a detected POI maps to
+    one task type. Wire values are stable: ``DOCK`` reuses 1 and ``UNKNOWN``
+    keeps 5.
     """
-    SMALL = 1
-    MEDIUM = 2
-    BIG = 3
-    HEAVY = 4
+    DOCK = 1
     UNKNOWN = 5  # Undefined types
 
 
-_CLASS_TO_TASK_TYPE = {
-    0: TaskTypeMsgData.HEAVY,    # Detection class 0
-    1: TaskTypeMsgData.BIG,      # Detection class 1
-    2: TaskTypeMsgData.BIG,      # Detection class 2
-    3: TaskTypeMsgData.MEDIUM,   # Detection class 3
-    4: TaskTypeMsgData.SMALL,    # Detection class 4
-}
-
-
 def class_to_task_type(class_id: int) -> TaskTypeMsgData:
-    """Map detection class_id to TaskTypeMsgData."""
-    return _CLASS_TO_TASK_TYPE.get(class_id, TaskTypeMsgData.BIG)
+    """Map a detection class_id to TaskTypeMsgData (``dock`` -> DOCK, else UNKNOWN)."""
+    # Lazy import: the vision package imports comm, so a module-level import cycles.
+    from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
+
+    if class_id == DOCK_DETECT_CLASS_ID:
+        return TaskTypeMsgData.DOCK
+    return TaskTypeMsgData.UNKNOWN
 
 
 class TaskDispatchStatus(Enum):

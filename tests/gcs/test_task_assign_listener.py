@@ -50,7 +50,7 @@ def _make_assign_request_msg(sender_id, receiver_id, task_id, lat, lon, alt,
         receiver_id=receiver_id,
         task=TaskAssignMsgData(
             task_id=task_id,
-            task_type=TaskTypeMsgData.MEDIUM,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(lat=lat, lng=lon, alt=alt),
         ),
     )
@@ -101,7 +101,7 @@ class TestOnNavlink:
         assert payload["sender_id"] == 1
         assert payload["receiver_id"] == 2
         assert payload["task_id"] == 7
-        assert payload["task_type"] == "MEDIUM"
+        assert payload["task_type"] == "DOCK"
         assert payload["lat"] == pytest.approx(32.5, abs=0.01)
         assert payload["lon"] == pytest.approx(34.8, abs=0.01)
         assert payload["alt"] == pytest.approx(100.0, abs=0.1)
@@ -213,12 +213,12 @@ class TestOnNavlink:
             tasks=[
                 TaskMsgData(
                     task_id=10,
-                    task_type=TaskTypeMsgData.MEDIUM,
+                    task_type=TaskTypeMsgData.DOCK,
                     location=LocationMsgData(lat=31.0, lng=34.0, alt=50.0),
                 ),
                 TaskMsgData(
                     task_id=11,
-                    task_type=TaskTypeMsgData.BIG,
+                    task_type=TaskTypeMsgData.UNKNOWN,
                     location=LocationMsgData(lat=31.5, lng=34.5, alt=60.0),
                 ),
             ],
@@ -237,13 +237,13 @@ class TestOnNavlink:
         assert len(payload["tasks"]) == 2
         t0 = payload["tasks"][0]
         assert t0["task_id"] == 10
-        assert t0["task_type"] == "MEDIUM"
+        assert t0["task_type"] == "DOCK"
         assert t0["lat"] == pytest.approx(31.0, abs=0.01)
         assert t0["lon"] == pytest.approx(34.0, abs=0.01)
         assert t0["alt"] == pytest.approx(50.0, abs=0.1)
         t1 = payload["tasks"][1]
         assert t1["task_id"] == 11
-        assert t1["task_type"] == "BIG"
+        assert t1["task_type"] == "UNKNOWN"
 
     @patch("gcs.backend.task_assign_listener.ws_manager")
     def test_broadcasts_available_task_request_empty(self, mock_ws, listener, loop):

@@ -31,20 +31,20 @@ from navpy.modules.vision.sim.determinism_events import (
     EVENT_SUBSCRIPTION,
     LIFECYCLE_ACTIVATED,
     LIFECYCLE_CLOSED,
-    OUTPUT_DELIVERED,
+    OUTPUT_DISPATCHED,
     OUTPUT_REJECTED,
     STAGE_FENCED,
     STAGE_STAGED,
     SUBSCRIPTION_CLOSED,
     SUBSCRIPTION_OPENED,
 )
-from navpy.modules.vision.sim.direct_delivery_metrics import LegBoundary
+from navpy.modules.vision.sim.direct_dispatch_metrics import LegBoundary
 from navpy.modules.vision.sim.direct_pixel_trace import (
     DirectPixelTrace,
     DisabledPixelTrace,
     build_direct_pixel_trace,
     command_loop_observer,
-    delivery_outcome,
+    dispatch_outcome,
 )
 
 
@@ -129,7 +129,7 @@ def test_every_no_op_accepts_the_arguments_the_source_passes(
     trace.association_committed(1, associated, associated)
     trace.stage(1, STAGE_FENCED, associated, None, None)
     trace.stage(1, STAGE_STAGED, associated, None, associated)
-    trace.output(1, OUTPUT_DELIVERED, None, None)
+    trace.output(1, OUTPUT_DISPATCHED, None, None)
     trace.subscription_opened(0)
     trace.subscription_closed(1)
     assert trace.trace is None
@@ -207,7 +207,7 @@ def test_an_output_row_carries_the_watermark_its_caller_captured(
     taken_at_us = trace.watermark_us()
     # An ATTITUDE lands while the consumer is still working.
     trace.association_committed(1, _associated(12.600), None)
-    trace.output(1, OUTPUT_DELIVERED, frame, taken_at_us)
+    trace.output(1, OUTPUT_DISPATCHED, frame, taken_at_us)
 
     row = list(trace.trace.capture().rows)[-1]
     assert row[3] == 12_500_000
@@ -350,6 +350,6 @@ def test_the_worker_observer_samples_the_ledger_on_every_pass(
     assert trace.command_log.current_iteration() == 2
 
 
-def test_delivery_outcome_separates_refusal_from_success() -> None:
-    assert delivery_outcome(True) == OUTPUT_DELIVERED
-    assert delivery_outcome(False) == OUTPUT_REJECTED
+def test_dispatch_outcome_separates_refusal_from_success() -> None:
+    assert dispatch_outcome(True) == OUTPUT_DISPATCHED
+    assert dispatch_outcome(False) == OUTPUT_REJECTED

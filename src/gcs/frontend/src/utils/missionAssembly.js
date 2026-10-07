@@ -3,7 +3,7 @@
  * Filters errors, builds zones and metadata from successful downloads.
  *
  * @param {Array} missionResults - Array of { waypoints, sys_id, error?, ... }
- * @returns {{ zones, missionFallbackLocations, altitude, searchPattern, polygon, corridorBackbone, launchPoint, dockClasses } | null}
+ * @returns {{ zones, missionDeliveryHubs, altitude, searchPattern, polygon, corridorBackbone, launchPoint } | null}
  */
 export function assembleMissionsFromResults(missionResults) {
   const missions = [];
@@ -15,13 +15,12 @@ export function assembleMissionsFromResults(missionResults) {
     }
   }
   const zones = [];
-  const missionFallbackLocations = [];
+  const missionDeliveryHubs = [];
   let altitude = 100;
   let searchPattern = 'distributed';
   let polygon = null;
   let corridorBackbone = null;
   let launchPoint = null;
-  let dockClasses = null;
   for (const m of missions) {
     if (m?.waypoints?.length) {
       zones.push({
@@ -32,17 +31,16 @@ export function assembleMissionsFromResults(missionResults) {
         corridor_end_index: m.corridor_end_index ?? 0,
         altitude_m: m.altitude_m,
       });
-      missionFallbackLocations.push(m.fallback_delivery_location || null);
+      missionDeliveryHubs.push(m.default_delivery_hub || null);
       altitude = m.altitude_m || altitude;
       if (m.search_pattern) searchPattern = m.search_pattern;
       if (!polygon && m.polygon?.length >= 3) polygon = m.polygon;
       if (!corridorBackbone && m.corridor_backbone?.length > 0) corridorBackbone = m.corridor_backbone;
       if (!launchPoint && m.launch_point) launchPoint = m.launch_point;
-      if (!dockClasses && m.dock_classes?.length > 0) dockClasses = m.dock_classes;
     }
   }
   if (zones.length === 0) return null;
-  return { zones, missionFallbackLocations, altitude, searchPattern, polygon, corridorBackbone, launchPoint, dockClasses };
+  return { zones, missionDeliveryHubs, altitude, searchPattern, polygon, corridorBackbone, launchPoint };
 }
 
 /**

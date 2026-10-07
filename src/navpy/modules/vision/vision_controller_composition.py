@@ -67,6 +67,7 @@ def build_vision_controller(
                 profile.profile,
                 vision_args.model_path,
                 vision_args.debug_show,
+                backend=vision_args.detector_backend,
             )
         else:
             from navpy.modules.vision.sim_detector_factory import (

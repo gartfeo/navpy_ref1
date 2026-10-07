@@ -13,10 +13,9 @@ from navpy.modules.vision.vision_profiles import (
     get_class_detect_size,
 )
 
-# Per-class characteristic sizes are OWNED by the backend. Pin the smallest
-# Class 4 and Class 0 diagonals from the single source so the JS expectations
+# Per-class characteristic sizes are OWNED by the backend. Pin the dock
+# (class 0, the only class) diagonal from the single source so the JS expectations
 # below track navpy.modules.vision.vision_profiles, not stale hardcoded numbers.
-CLASS_4_SIZE = get_class_detect_size(4)
 CLASS_0_SIZE = get_class_detect_size(0)
 
 
@@ -680,14 +679,14 @@ class TestComputeMaxDetectDist(unittest.TestCase):
     """Exported computeMaxDetectDist function."""
 
     def test_known_values(self):
-        """computeMaxDetectDist returns fy * MIN_CLASS_SIZE / MIN_CONFIRM_PIXELS."""
+        """computeMaxDetectDist returns fy * dock size / MIN_CONFIRM_PIXELS."""
         result = _run_js("""
             const d = computeMaxDetectDist(2000, 1920, 1080, 2.0, 640);
             console.log(JSON.stringify(d));
         """)
         # The CONFIRM-range base; ProfileSelector ×detectRangeScale converts it to
-        # the selected POI's detection range before the diagram renders it.
-        expected = 2000 * CLASS_4_SIZE / 20
+        # the dock's detection range before the diagram renders it.
+        expected = 2000 * CLASS_0_SIZE / 20
         self.assertAlmostEqual(result, expected, places=2)
 
     def test_ignores_legacy_params(self):
@@ -696,8 +695,8 @@ class TestComputeMaxDetectDist(unittest.TestCase):
             const d = computeMaxDetectDist(1500, 1920, 1080, null, null);
             console.log(JSON.stringify(d));
         """)
-        # mdd = fy * Person diagonal / 20 — legacy params have no effect
-        expected = 1500 * CLASS_4_SIZE / 20
+        # mdd = fy * dock diagonal / 20 — legacy params have no effect
+        expected = 1500 * CLASS_0_SIZE / 20
         self.assertAlmostEqual(result, expected, places=2)
 
     def test_matches_confirm_range_catalog_values(self):
@@ -706,7 +705,7 @@ class TestComputeMaxDetectDist(unittest.TestCase):
         result = _run_js(f"""
             const fy = 3000;
             const direct = computeMaxDetectDist(fy, 1920, 1080, 1.8, 640);
-            const expectedConfirm = fy * {CLASS_4_SIZE} / 20;
+            const expectedConfirm = fy * {CLASS_0_SIZE} / 20;
             console.log(JSON.stringify({{ direct, expectedConfirm }}));
         """)
         self.assertAlmostEqual(result["direct"], result["expectedConfirm"], places=6)
@@ -1083,26 +1082,19 @@ class TestLiveGimbalFootprint(unittest.TestCase):
         self.assertGreater(result["ranges"][1], result["ranges"][0])
         self.assertLess(result["narrowArea"], result["wideArea"] * 0.4)
 
-    def test_live_detect_range_uses_smallest_plan_class(self):
-        """Live detection envelope uses the smallest selected vehicle-plan class."""
+    def test_live_detect_range_uses_dock_class(self):
+        """Live detection envelope sizes against the dock class at the detect gate."""
         result = _run_js(f"""
             const fovV = 0.47;
             const imageHeight = 1080;
             const fy = imageHeight / (2 * Math.tan(fovV / 2));
-            const mediumOnly = computeLiveDetectRangeFromFov(fovV, imageHeight, ["medium"]);
-            const mixedPlan = computeLiveDetectRangeFromFov(fovV, imageHeight, ["medium", "small"]);
-            const fallback = computeLiveDetectRangeFromFov(fovV, imageHeight, []);
+            const range = computeLiveDetectRangeFromFov(fovV, imageHeight);
             console.log(JSON.stringify({{
-                mediumOnly,
-                mixedPlan,
-                fallback,
-                expectedMediumPreset: fy * {CLASS_0_SIZE} / 8,
-                expectedSmallPreset: fy * {CLASS_4_SIZE} / 8,
+                range,
+                expected: fy * {CLASS_0_SIZE} / 8,
             }}));
         """)
-        self.assertAlmostEqual(result["mediumOnly"], result["expectedMediumPreset"], places=6)
-        self.assertAlmostEqual(result["mixedPlan"], result["expectedSmallPreset"], places=6)
-        self.assertAlmostEqual(result["fallback"], result["expectedSmallPreset"], places=6)
+        self.assertAlmostEqual(result["range"], result["expected"], places=6)
 
     def test_live_zoom_only_change_updates_signature(self):
         """Coverage sampling notices zoom/FOV changes even when q is unchanged."""
@@ -1314,19 +1306,18 @@ class TestDiagramRangeComposition(unittest.TestCase):
     MIN_CONFIRM_PIXELS or this product double-counts the 20/8 factor (2.5× too far)."""
 
     def test_composed_diagram_range_equals_detection_range(self):
-        medium = get_class_detect_size(0)
-        person = get_class_detect_size(4)   # the planner's MIN_CLASS_SIZE
+        dock = get_class_detect_size(0)
         result = _run_js(f"""
             configureDetectorClassDimensions({json.dumps(_BACKEND_DOCK_CLASSES)});
             const fy = 2000;
             const base = computeMaxDetectDist(fy, 1920, 1080, 2.0, 640);  // confirm base
-            const scale = detectRangeScale({medium}, getMinClassSize());     // selected = Medium
+            const scale = detectRangeScale(getDockDetectSize(), getDockDetectSize());
             console.log(JSON.stringify({{ composed: base * scale }}));
         """)
-        # Must equal the detection range of the SELECTED POI (Medium), ÷8.
-        self.assertAlmostEqual(result["composed"], 2000 * medium / 8, places=2)
+        # Must equal the detection range of the dock, ÷8.
+        self.assertAlmostEqual(result["composed"], 2000 * dock / 8, places=2)
         # And NOT the 2.5× double-counted value the reverted ÷8 change produced.
-        self.assertNotAlmostEqual(result["composed"], 2000 * medium / 8 * 20 / 8, places=1)
+        self.assertNotAlmostEqual(result["composed"], 2000 * dock / 8 * 20 / 8, places=1)
 
 
 class TestPadFootprintLoop(unittest.TestCase):

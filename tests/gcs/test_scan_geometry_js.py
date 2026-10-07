@@ -48,7 +48,9 @@ def _run_js(script):
 
 
 CLASS_0_SIZE = get_class_detect_size(0)
-CLASS_4_SIZE = get_class_detect_size(4)
+# A generic smaller target size for the pure geometry checks below; it is not a
+# detector class (the dock is the only class).
+SMALLER_POI_SIZE = CLASS_0_SIZE / 2
 FY1 = 2082.84   # ZR10 1×
 IMG_H = 1440
 
@@ -76,7 +78,7 @@ class ScanGeometryTest(unittest.TestCase):
         self.assertAlmostEqual(math.hypot(r["altitudeM"], r["reachM"]), r_det, delta=1)
 
     def test_smaller_poi_lowers_altitude(self):
-        self.assertLess(_opt(CLASS_4_SIZE)["altitudeM"], _opt(CLASS_0_SIZE)["altitudeM"])
+        self.assertLess(_opt(SMALLER_POI_SIZE)["altitudeM"], _opt(CLASS_0_SIZE)["altitudeM"])
 
     def test_steeper_pitch_more_altitude_less_reach(self):
         hi = _opt(CLASS_0_SIZE, boresight=55)
@@ -116,17 +118,17 @@ class ScanGeometryTest(unittest.TestCase):
 
     def test_detect_range_scale_yields_detection_range(self):
         r = _run_js(f"""
-            const base = {FY1} * {CLASS_4_SIZE} / 20;
-            const scaled = base * detectRangeScale({CLASS_0_SIZE}, {CLASS_4_SIZE});
+            const base = {FY1} * {SMALLER_POI_SIZE} / 20;
+            const scaled = base * detectRangeScale({CLASS_0_SIZE}, {SMALLER_POI_SIZE});
             console.log(JSON.stringify({{ scaled, expect: {FY1} * {CLASS_0_SIZE} / 8 }}));
         """)
         self.assertAlmostEqual(r["scaled"], r["expect"], delta=0.5)
 
     def test_confirm_range(self):
         r = _run_js(f"""console.log(JSON.stringify({{
-            medium: confirmRange({FY1 * 10}, {CLASS_0_SIZE}, 45),
+            dock: confirmRange({FY1 * 10}, {CLASS_0_SIZE}, 45),
             none: confirmRange(0, {CLASS_0_SIZE}, 45)}}));""")
-        self.assertAlmostEqual(r["medium"], FY1 * 10 * CLASS_0_SIZE / 45, delta=1)   # 10× confirm range
+        self.assertAlmostEqual(r["dock"], FY1 * 10 * CLASS_0_SIZE / 45, delta=1)   # 10× confirm range
         self.assertIsNone(r["none"])   # Infinity (no cap) → JSON null
 
     def test_higher_zoom_extends_rdet_and_altitude(self):

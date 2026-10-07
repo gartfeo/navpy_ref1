@@ -76,7 +76,7 @@ def navigation_poi_location(
     distance: Optional[float],
     fallback: Optional[Location],
 ) -> Optional[Location]:
-    """Project a finite legacy navigation target along a NED direction."""
+    """Project a finite legacy navigation POI along a NED direction."""
     if current is None or poi_ned is None or distance is None or distance <= 0:
         return fallback if fallback is not None else current
     direction = normalize(poi_ned)

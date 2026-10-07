@@ -151,7 +151,7 @@ class NavigationArgs(object):
                        help=f"Enable Terrain. Default: {p['AAS_USE_TRN']}")
         g.add_argument("-udt", dest='AAS_DEL_DIR', type=parse_boolean, action=StoreWithFlag,
                        default=p['AAS_DEL_DIR'],
-                       help=f"Use simulator reference geolocation in legacy navigation (not the pure-vision law). Default: {p['AAS_DEL_DIR']}")
+                       help=f"Use simulator reference position (legacy navigation). Default: {p['AAS_DEL_DIR']}")
         g.add_argument("-pld", dest='AAS_DEL_PLD', type=float, action=StoreWithFlag,
                        default=p['AAS_DEL_PLD'],
                        help=f"Min distance (m) to lock pitch while maneuvering. -1 to disable. Default: {p['AAS_DEL_PLD']}")

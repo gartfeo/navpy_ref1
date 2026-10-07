@@ -160,7 +160,7 @@ class TestDetectorClassDimensionsConfiguredFlag(unittest.TestCase):
     def test_false_until_configured_then_true(self):
         result = self._run_raw("""
             const before = isDetectorClassDimensionsConfigured();
-            configureDetectorClassDimensions({ "0": { size_m: 4.30 }, "4": { size_m: 1.87 } });
+            configureDetectorClassDimensions({ "0": { size_m: 4.30 } });
             const after = isDetectorClassDimensionsConfigured();
             console.log(JSON.stringify({ before, after }));
         """)
@@ -186,7 +186,7 @@ class TestDetectorClassDimensionsConfiguredFlag(unittest.TestCase):
         # operator-editable so a valid->invalid transition is not reachable in
         # the UI anyway.
         result = self._run_raw("""
-            configureDetectorClassDimensions({ "0": { size_m: 4.30 }, "4": { size_m: 1.87 } });
+            configureDetectorClassDimensions({ "0": { size_m: 4.30 } });
             const afterValid = isDetectorClassDimensionsConfigured();
             const sizeAfterValid = getClassDetectSize(0);
             configureDetectorClassDimensions({});

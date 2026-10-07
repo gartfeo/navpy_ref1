@@ -4,20 +4,43 @@
 
 NavPy develops cooperative UAV swarm technology: autonomous navigation, fleet
 coordination and vision-based final approach for multi-UAV missions. The swarm
-core is the product; mission functions are plug-and-play modules on top of it.
-Example modules: payload delivery to authorized recipients and fire
-detection/suppression (e.g. finding and stopping fire spots in forests);
-further module scope is yet to be verified. Recipient platforms,
-including moving vehicles, are cooperative participants.
-For delivery, parking nets are general purpose 360 degree nets; parking nets may
-be on stationary or moving platforms.
-The current MVP is a three-UAV delivery/docking simulator demo.
+core is the product; it is generic, mission-agnostic and non-weaponized, and
+mission functions are plug-and-play modules on top of it. Module families
+include:
+- survey/inspection (e.g. factories and industrial sites),
+- agricultural spraying,
+- border security surveillance and patrol,
+- fire detection and suppression (finding fire spots in forests, then
+  dispatching UAVs carrying special suppression equipment),
+- medicine and other payload delivery to authorized recipients.
+Further modules follow the same plug-in pattern; no single module defines the
+product. Recipient platforms, including moving vehicles, are cooperative
+participants. The current MVP is a three-UAV delivery/docking simulator demo;
+delivery is one demo module and may later be split out, like any other.
 
-Parking navigation names the vision-based final approach.
 Technical names such as `vision_nav`, `poi`, and `AAS_DEL_*` do not define
 the application's purpose. Preserve actual API names, measured outcomes and
 historical evidence; approach accuracy or disarming does not establish physical
 docking or cargo receipt. Older wording is not authority for a different purpose.
+
+## Glossary
+
+Use these terms in docs, code and UI; keep existing API/parameter names.
+
+- **Swarm** — the product and its multi-vehicle coordination layer.
+- **Fleet** — the set of vehicles connected in one session.
+- **Mission module** — a plug-in mission function (delivery, survey, spraying,
+  surveillance, fire suppression, ...) running on the swarm core.
+- **POI** — the selected point the approach is flown to. Not "target",
+  "destination" or "delivery reference".
+- **Dock** — a general-purpose 360-degree net on a stationary or moving
+  platform; one detector class, `dock`. Never "parking net", "park net" or
+  "landing net".
+- **Final approach** (engineering) = **parking navigation** (product) — the
+  vision-based approach to the POI.
+- **Default delivery hub (DDH)** — the delivery module's return hub.
+- **Detector** — the real detector defaults to a ChArUco board detector; the
+  YOLO face model is a bench-only opt-in (`--detector-backend yolo`).
 
 ## Pure Vision Approach Constraint
 
@@ -26,16 +49,16 @@ aircraft compass-derived yaw/heading. Compass yaw can carry large bias and
 would contaminate navigation-quality isolation. Treat aircraft yaw/heading as
 allowed only for logs, operator display, or certification/scoring diagnostics;
 do not use it to build LOS for navigation, refresh predictions, compute
-lateral/vertical commands, or decide delivering/delivered state. Gimbal/camera yaw
+lateral/vertical commands, or decide final-approach completion state. Gimbal/camera yaw
 readback is a different source: roll-yaw-pitch readback from the gimbal/camera
 is allowed as camera-state only, so measured pixels can be converted into a
 frame-local visual ray. Allowed command inputs remain frame-local vision
 LOS/pixels/rates, gimbal/camera roll-yaw-pitch readback as camera-state only,
 pitch/roll aircraft attitude, airspeed, wind, and previous command state, with
-no park net geo/env truth, direct range, bbox-height, park net height, ground speed,
+no dock geo/env truth, direct range, bbox-height, dock height, ground speed,
 altitude-derived vertical state, or sim-truth dependency. Do not project
 world-frame wind direction into the command frame for final-approach navigation
-through hidden aircraft compass yaw; 
+through hidden aircraft compass yaw.
 
 `ideal_360` is a simulator-only sensor upper bound: it must keep the camera
 static relative to the aircraft, use infinite FOV, and publish the resulting
@@ -77,7 +100,7 @@ Architecture talk is not mechanism understanding. Comments, log messages, names,
 
 Runtime behavior changes include or update tests. Never delete, skip, weaken, or rewrite tests just to make a change pass; if intended behavior changed, explain why the test changed.
 
-For safety-critical navigation, navigation, mission, or operator-facing behavior, prefer both a mechanism-level regression test and a simulation/log/integration check when feasible.
+For safety-critical navigation, mission, or operator-facing behavior, prefer both a mechanism-level regression test and a simulation/log/integration check when feasible.
 
 Run the smallest relevant targeted test first, then broader tests when shared behavior, interfaces, or safety-relevant paths changed:
 

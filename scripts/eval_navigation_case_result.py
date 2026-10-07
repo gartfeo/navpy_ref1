@@ -193,7 +193,7 @@ def _identity_and_selection_fields(
             selection.poi_abs_alt_m if selection else ""
         ),
         "default_ooi_registered": (
-            selection.fallback_location_registered if selection else ""
+            selection.default_ooi_registered if selection else ""
         ),
         "poi_coordinate_error_m": gate.coordinate_error_m if gate else "",
         "poi_altitude_error_m": gate.altitude_error_m if gate else "",

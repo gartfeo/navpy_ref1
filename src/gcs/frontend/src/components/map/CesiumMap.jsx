@@ -19,7 +19,7 @@ import useAssignmentMarkers from './hooks/useAssignmentMarkers';
 import useAvailableTaskMarkers from './hooks/useAvailableTaskMarkers';
 import useDockMarkers from './hooks/useDockMarkers';
 import useDetectionMarkers from './hooks/useDetectionMarkers';
-import useFallbackLocationLayer from './hooks/useFallbackLocationLayer';
+import useDeliveryHubLayer from './hooks/useDeliveryHubLayer';
 import useFollowUav from './hooks/useFollowUav';
 import useTrackWpMarkers from './hooks/useTrackWpMarkers';
 import { resolveSimDocks, resolveSimDocksFromPlan, resolveDetectionStart, resolveDetectionStartFromPlan } from './utils/dockResolver';
@@ -104,12 +104,12 @@ function CesiumMap({
   vehicleNavLastWp,
   detectAfterWps,
   mapDefaults,
-  fallbackLocations,
-  fallbackLocationAssignments,
-  placingFallbackLocation,
-  onPlaceFallbackLocation,
-  onRemoveFallbackLocation,
-  onMoveFallbackLocation,
+  deliveryHubs,
+  deliveryHubAssignments,
+  placingDeliveryHub,
+  onPlaceDeliveryHub,
+  onRemoveDeliveryHub,
+  onMoveDeliveryHub,
   followSysId,
   fpvMode,
   onViewerReady,
@@ -169,10 +169,10 @@ function CesiumMap({
     onPolygonDragRecord,
     onPartitionAngleDrag,
     onSwitchSet: setActiveSetIndex,
-    placingFallbackLocation,
-    onPlaceFallbackLocation,
-    onRemoveFallbackLocation,
-    onMoveFallbackLocation,
+    placingDeliveryHub,
+    onPlaceDeliveryHub,
+    onRemoveDeliveryHub,
+    onMoveDeliveryHub,
     placingExclusion,
     onPlaceExclusionVertex,
     onFinishExclusion,
@@ -289,7 +289,7 @@ function CesiumMap({
       poiCacheRef.current.clear();
       return [];
     }
-    // Prune entries for connected vehicles — they'll be re-added from simfallback locations.
+    // Prune entries for connected vehicles — they'll be re-added from simDocks.
     // Disconnected vehicle entries survive (the cache's purpose).
     const connectedIds = new Set(vehicleList.map(v => v.sys_id));
     for (const [key, t] of poiCacheRef.current) {
@@ -314,7 +314,7 @@ function CesiumMap({
   useDetectionMarkers(cesiumRef, viewerRef, entitiesRef, detectionPoints, viewerReady);
   useTrackWpMarkers(cesiumRef, viewerRef, entitiesRef, trackPosRef, plan, simMode, phase, simDockWps, viewerReady);
 
-  useFallbackLocationLayer(cesiumRef, viewerRef, fallbackLocations, fallbackLocationAssignments, plan, viewerReady, terrainReady, trackPosRef, terrainBaseRef, showTracks);
+  useDeliveryHubLayer(cesiumRef, viewerRef, deliveryHubs, deliveryHubAssignments, plan, viewerReady, terrainReady, trackPosRef, terrainBaseRef, showTracks);
 
   // Dismiss the loading overlay as soon as the base map has painted its first
   // tiles (tilesReady) — NOT after the slower, network-bound Ion terrain upgrade

@@ -1,4 +1,4 @@
-import { MIN_DETECT_PIXELS, resolveSmallestDetectClassSize } from '../../../utils/plannerConfig.js';
+import { MIN_DETECT_PIXELS, getDockDetectSize } from '../../../utils/plannerConfig.js';
 
 const GIMBAL_DEVICE_FLAGS_YAW_IN_VEHICLE_FRAME = 32;
 const GIMBAL_DEVICE_FLAGS_YAW_IN_EARTH_FRAME = 64;
@@ -101,20 +101,20 @@ export function gimbalTelemetrySignature(telemetry) {
   ].join(':');
 }
 
-export function computeLiveDetectRangeFromFov(fovVRad, imageHeight, dockClasses) {
+export function computeLiveDetectRangeFromFov(fovVRad, imageHeight) {
   const fovV = normalizeFovRad(fovVRad);
   const height = normalizePositiveNumber(imageHeight);
   if (fovV == null || height == null) return null;
   const fy = height / (2 * Math.tan(fovV / 2));
   if (!Number.isFinite(fy) || fy <= 0) return null;
-  return fy * resolveSmallestDetectClassSize(dockClasses) / MIN_DETECT_PIXELS;
+  return fy * getDockDetectSize() / MIN_DETECT_PIXELS;
 }
 
-export function resolveLiveGimbalCameraConfig(camConfig, telemetry, dockClasses) {
+export function resolveLiveGimbalCameraConfig(camConfig, telemetry) {
   if (!camConfig || !telemetry) return null;
   const imageHeight = normalizePositiveNumber(camConfig.imageHeight);
   if (imageHeight == null) return null;
-  const maxDetectDist = computeLiveDetectRangeFromFov(telemetry.fovV, imageHeight, dockClasses);
+  const maxDetectDist = computeLiveDetectRangeFromFov(telemetry.fovV, imageHeight);
   if (maxDetectDist == null) return null;
   return {
     ...camConfig,

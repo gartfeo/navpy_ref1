@@ -165,7 +165,7 @@ describe('finding 2: a downloaded plan replacement is not an operator edit', () 
         drawing, undoRef, suppressRegenRef,
         localAnalyze: vi.fn(),
         handleSaveSettings: vi.fn(),
-        settings: { fallback_delivery_locations: [] },
+        settings: { default_delivery_hubs: [] },
         plannerReady: false,
         authorFenceIntent: mission.authorFenceIntent,
         clearFenceIntent: mission.clearFenceIntent,
@@ -207,7 +207,7 @@ describe('finding 2: a downloaded plan replacement is not an operator edit', () 
         localGenerate: vi.fn().mockResolvedValue(null),
         vehicleList: [{ sys_id: 1 }], api,
         settings: {
-          fallback_delivery_locations: [{ name: 'F', type: 'other', lat: 32.0, lon: 34.0 }],
+          default_delivery_hubs: [{ name: 'F', type: 'other', lat: 32.0, lon: 34.0 }],
           simulation: { sim_mode: false },
         },
         fence: upload.payload,
@@ -222,7 +222,7 @@ describe('finding 2: a downloaded plan replacement is not an operator edit', () 
 
   const uploadedPlan = (polygon) => ({
     waypoints: polygon.map((p) => ({ ...p, alt: 120 })),
-    search_pattern: 'distributed', altitude_m: 120, dock_classes: ['small'],
+    search_pattern: 'distributed', altitude_m: 120,
     polygon, launch_point: null, corridor_backbone: [],
   });
 

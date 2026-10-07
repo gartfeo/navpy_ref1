@@ -401,7 +401,7 @@ function _spliceCorridorXY(ring, isBase, pathXY, half, flip) {
  *
  * @param {Array<{lat,lon}>} zone - search polygon
  * @param {Array<Array<{lat,lon}>>} transitPaths - one [launch, ...corridor] per set
- * @param {Array<{lat,lon}>} pois - ASSIGNED fallback locations + simulated POIs
+ * @param {Array<{lat,lon}>} pois - ASSIGNED delivery hubs + simulated POIs
  * @param {{marginM?:number, takeoffRadiusM?:number, orbitRadiusM?:number}} opts
  * @returns {Array<{lat,lon}>}
  */
@@ -510,11 +510,11 @@ function _circleIntersectsPolyXY(center, r, poly) {
  * ``{kind:'corridor'|'track'|'orbit', label, exclusionIndex}``.
  *
  * @param {{corridorPaths?:Array<Array<{lat,lon}>>, tracks?:Array<Array<{lat,lon}>>,
- *          deliveryPoints?:Array<{lat,lon}>, orbitRadiusM?:number,
+ *          orbitPois?:Array<{lat,lon}>, orbitRadiusM?:number,
  *          exclusions?:Array<Array<{lat,lon}>>}} input
  */
 export function analyzeExclusionConflicts(input) {
-  const { corridorPaths = [], tracks = [], deliveryPoints = [], orbitRadiusM = 0, exclusions = [] } = input || {};
+  const { corridorPaths = [], tracks = [], orbitPois = [], orbitRadiusM = 0, exclusions = [] } = input || {};
   const excl = (exclusions || []).filter((e) => e && e.length >= 3);
   if (excl.length === 0) return [];
 
@@ -537,11 +537,11 @@ export function analyzeExclusionConflicts(input) {
   corridorPaths.forEach((p, i) => checkLegs(p, 'corridor', `set ${i + 1}`));
   tracks.forEach((t, i) => checkLegs(t, 'track', `UAV ${i + 1}`));
   if (orbitRadiusM > 0) {
-    (deliveryPoints || []).filter(Boolean).forEach((o, i) => {
+    (orbitPois || []).filter(Boolean).forEach((o, i) => {
       const c = toXY(o);
       exclXY.forEach((poly, ei) => {
         if (_circleIntersectsPolyXY(c, orbitRadiusM, poly)) {
-          conflicts.push({ kind: 'orbit', label: `delivery location ${i + 1}`, exclusionIndex: ei });
+          conflicts.push({ kind: 'orbit', label: `Orbit POI ${i + 1}`, exclusionIndex: ei });
         }
       });
     });
@@ -604,7 +604,7 @@ function _polylineCrossesRingXY(pts, fenceXY, closed) {
 /**
  * Does a (possibly operator-edited) inclusion fence still contain everything
  * the UAVs touch? Checks the same coverage set `fenceInclusion` guarantees:
- * zone vertices, each launch's takeoff round, corridor points, and each fallback location's
+ * zone vertices, each launch's takeoff round, corridor points, and each delivery hub's
  * confirmation orbit. Point containment alone is only sufficient for a CONVEX
  * fence; a hand-edited ring can be concave, so every flight SEGMENT is also
  * checked against the fence edges (endpoints inside + no edge crossing ⇒ the
@@ -616,11 +616,11 @@ function _polylineCrossesRingXY(pts, fenceXY, closed) {
  * @param {Array<{lat,lon}>} fence - inclusion polygon to validate
  * @param {Array<{lat,lon}>} zone - search polygon
  * @param {Array<Array<{lat,lon}>>} transitPaths - one [launch, ...corridor] per set
- * @param {Array<{lat,lon}>} deliveryPoints
+ * @param {Array<{lat,lon}>} orbitPois
  * @param {{takeoffRadiusM?:number, orbitRadiusM?:number}} opts
  * @returns {boolean} true when the fence covers the whole flight path
  */
-export function fenceCoversPlan(fence, zone, transitPaths, deliveryPoints, opts = {}) {
+export function fenceCoversPlan(fence, zone, transitPaths, orbitPois, opts = {}) {
   if (!fence || fence.length < 3) return false;
   const takeoffR = opts.takeoffRadiusM ?? 0;
   const orbitR = opts.orbitRadiusM ?? 0;
@@ -643,7 +643,7 @@ export function fenceCoversPlan(fence, zone, transitPaths, deliveryPoints, opts 
       segments.push({ pts: ring, closed: true });
     }
   }
-  for (const o of (deliveryPoints || [])) {
+  for (const o of (orbitPois || [])) {
     if (!o) continue;
     pts.push(o);
     if (orbitR > 0) {
@@ -684,7 +684,7 @@ export function missionWpOffset(searchPattern, polygonLen, corridorLen, hasLaunc
   const isCorrSearchPattern = searchPattern === 'corridor';
   const corrNavCount = isCorrSearchPattern ? 0 : corridorLen;
   const corrMetaCount = isCorrSearchPattern ? corridorLen : 0;
-  // +1 for mandatory fallback location metadata (META_FALLBACK_DELIVERY_LOCATION)
+  // +1 for mandatory delivery hub metadata (META_DEFAULT_DELIVERY_HUB)
   const metaCount = polygonLen + corrMetaCount + (hasLaunchPoint ? 1 : 0) + 1;
   return 2 + corrNavCount + metaCount;
 }

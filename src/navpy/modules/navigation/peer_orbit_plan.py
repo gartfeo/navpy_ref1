@@ -1,4 +1,4 @@
-"""Orbit sizing for peer-assigned or fallback delivery location approach planning."""
+"""Orbit sizing for peer-assigned or default delivery hub approach planning."""
 
 from __future__ import annotations
 
@@ -35,13 +35,13 @@ class OrbitMount(Protocol):
 
 
 # Vision-nav ORBIT floor, applied inside r_nav_min for the navigation-law
-# dive (zoom mounts with orbit_limits, and the NavController final-approach override).
-# The raw dive-feasibility minimum can fall to ~185-250 m at normal altitudes;
+# final approach (zoom mounts with orbit_limits, and the NavController final-approach override).
+# The raw descent-feasibility minimum can fall to ~185-250 m at normal altitudes;
 # floor the orbit here so the tangential orbit-exit has enough run-in to finish
-# the roll-out BEFORE the dive starts.
+# the roll-out BEFORE the final approach starts.
 #
 # 500 m (was 300 m): the extra ~200 m of run-in lets the orbit-exit bank settle
-# to wings-level before the final-approach dive, so the final-approach LOS is not corrupted
+# to wings-level before the final-approach descent, so the final-approach LOS is not corrupted
 # by residual roll. Live-confirmed (3-UAV eval): bank at the final-approach bearing
 # zero-crossing fell from 33-40 deg at 300 m to <5 deg at 500 m, collapsing the
 # LATERAL miss from ~1 m to ~0.006 m. Camera is not the constraint: the
@@ -50,7 +50,7 @@ class OrbitMount(Protocol):
 # NOTE (2026-07-14): 500 m does NOT on its own reach the <0.5 m 3D goal. Live
 # 500 m SNAP is 1.6-3.4 m, now VERTICAL-dominated (long ~2.4 m, vert ~2.3 m,
 # lat ~0). That vertical residual is a real-airframe final-approach-flare limit
-# (pitch/flight-path-response lag + TECS in the steep dive) that the offline
+# (pitch/flight-path-response lag + TECS in the steep descent) that the offline
 # point-mass certs do NOT reproduce (they hit <0.05 m at both 300 m and 500 m);
 # the earlier "offline repro: 500 m -> 0.11 m" prediction was an artifact of
 # that idealized plant. The lateral benefit above is the real, retained reason
@@ -61,8 +61,8 @@ MIN_APPROACH_STANDOFF_M = 500.0
 # Legacy no-zoom / no-orbit-limits acquisition floor ("never park closer than
 # this"). Kept at 300 m: a fixed-camera mount confirms the POI at its 1x
 # MIN_CONFIRM_PIXELS slant (~426 m for class 0 at alt 100 m), which must NOT be
-# pushed out to the 500 m vision-nav dive floor above -- doing so would put
-# the POI beyond the fixed camera's confirm range. Only the navigation-law dive
+# pushed out to the 500 m vision-nav approach floor above -- doing so would put
+# the POI beyond the fixed camera's confirm range. Only the navigation-law final approach
 # (zoom + orbit_limits) uses the larger MIN_APPROACH_STANDOFF_M.
 MIN_ACQUIRE_STANDOFF_M = 300.0
 _ORBIT_PIXEL_MARGIN = 0.9
@@ -87,7 +87,7 @@ def compute_orbit_plan(
 
     A zoom mount with ``orbit_limits`` uses the furthest standoff that still
     tracks reliably at 1x and reaches operator-identification size at maximum
-    zoom, floored by the final-approach dive-feasibility minimum::
+    zoom, floored by the final-approach descent-feasibility minimum::
 
         orbit_slant  = min(fy_1x  * size / MIN_TRACK_PIXELS,
                            fy_max * size / recognition_px)
@@ -128,7 +128,7 @@ def _compute_zoom_navigation_orbit_plan(
     *,
     logger: logging.Logger,
 ) -> ApproachPlan:
-    """Size the furthest zoom orbit while respecting the final-approach dive floor."""
+    """Size the furthest zoom orbit while respecting the final-approach floor."""
     nav_floor = r_nav_min(
         orbit_limits,
         alt,
@@ -162,14 +162,14 @@ def _compute_zoom_navigation_orbit_plan(
         actual_slant = math.sqrt(orbit_radius ** 2 + alt ** 2)
         if actual_slant > track_1x_slant + 1.0:
             logger.warning(
-                f"ORBIT(furthest): dive floor {nav_floor:.0f}m puts the "
+                f"ORBIT(furthest): approach floor {nav_floor:.0f}m puts the "
                 f"POI below {MIN_TRACK_PIXELS}px at 1x "
                 f"(slant {actual_slant:.0f}m > track {track_1x_slant:.0f}m, "
                 f"alt={alt:.0f}m) — 1x tracking margin reduced."
             )
         if actual_slant > recog_max_slant + 1.0:
             logger.warning(
-                f"ORBIT(furthest): dive floor {nav_floor:.0f}m exceeds "
+                f"ORBIT(furthest): approach floor {nav_floor:.0f}m exceeds "
                 f"the max-zoom recognition range (slant {actual_slant:.0f}m "
                 f"> recog {recog_max_slant:.0f}m, {recog_px:.0f}px) — "
                 f"recognition NOT reachable at max zoom."
@@ -186,7 +186,7 @@ def _compute_zoom_navigation_orbit_plan(
         logger.warning(
             f"ORBIT(furthest): unusable focal length "
             f"(base_fy={mount.base_fy}, zoom_ratio={zoom_ratio:.1f}); "
-            f"using dive floor orbit_r={nav_floor:.0f}m."
+            f"using approach floor orbit_r={nav_floor:.0f}m."
         )
     return ApproachPlan(
         kind=ApproachKind.ORBIT,

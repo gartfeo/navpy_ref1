@@ -62,7 +62,7 @@ def launch_speedup(cruise_speedup: float, scored_speedup: float) -> float:
 
 
 def step_down_ordinal(scoring_start_wp: int) -> int:
-    """The NAV_WAYPOINT ordinal to step the speed down on: the handover gate.
+    """The NAV_WAYPOINT ordinal to step the speed down on: the final-approach start gate.
 
     Stepping down AT scoring interval would be too late to be free. At 20x the
     aircraft covers several hundred metres per wall second, so the seconds

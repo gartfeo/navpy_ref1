@@ -15,10 +15,10 @@ numbers, 1, 2, 3 and on. A subscription is owed exactly the rulings
 cancels. One small lock, a leaf, orders numbering a ruling together with
 taking that type's subscriptions, and subscribe and cancel, so a subscription
 is in the snapshot of ruling n exactly when first <= n <= end. The lock is
-never held while a ruling is built or delivered.
+never held while a ruling is built or dispatched.
 
 A subscriber receives an immutable ruling of plain values, never the message.
-A ruling that could not be built, or not delivered, is a fault, flagged and
+A ruling that could not be built, or not dispatched, is a fault, flagged and
 counted on every subscription it cost. Nothing raises into the router but an
 interrupt: wherever it lands once the ruling is numbered, it flags every
 subscription it kept from the ruling and is passed on, uncounted, since its
@@ -125,7 +125,7 @@ class AdmissionTap:
         self._stamp_of = stamp_of
         self._ruled_types = frozenset(ruled_types)
         # Numbering, the subscriptions, subscribe and cancel: a leaf, never
-        # held while a ruling is built or delivered.
+        # held while a ruling is built or dispatched.
         self._lock = threading.Lock()
         self._numbers: dict[str, int] = {}
         self._owed: dict[str, tuple[AdmissionSubscription, ...]] = {}
@@ -190,14 +190,14 @@ class AdmissionTap:
             if built is None:
                 self._count(owed)
                 return
-            self._deliver(owed, built, handed)
+            self._dispatch(owed, built, handed)
         except BaseException as error:
             # Flags only, plain stores, and no lock: so the interrupt is
             # passed on even where Python has left the lock held, as when a
             # trace function raises on a with statement's exit line, before
             # __exit__. It never misses a subscription that lost the ruling;
             # it may flag one that lost nothing, when it lands between the
-            # snapshot and the number, or between a delivery and its note.
+            # snapshot and the number, or between a dispatch and its note.
             for subscription in owed:
                 if subscription not in handed:
                     subscription._faulted = True
@@ -225,14 +225,14 @@ class AdmissionTap:
         except Exception:  # noqa: BLE001 - nothing raises into the router
             return None
 
-    def _deliver(
+    def _dispatch(
         self,
         owed: tuple[AdmissionSubscription, ...],
         built: AdmissionRuling,
         handed: list[AdmissionSubscription],
     ) -> None:
-        """Each delivery in its own guard, and each subscription handed the
-        ruling goes into ``handed``. A failed delivery costs its own
+        """Each dispatch in its own guard, and each subscription handed the
+        ruling goes into ``handed``. A failed dispatch costs its own
         subscription. Nothing escapes but an interrupt."""
         for subscription in owed:
             try:

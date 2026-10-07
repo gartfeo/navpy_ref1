@@ -9,9 +9,9 @@ from navpy.modules.navigation.nav.nav_law import NavCommand, NavCommandMode
 from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfig
 
-# The command may not dive past this, whatever the loop asks for.  A converged
+# The command may not pitch down past this, whatever the loop asks for.  A converged
 # course needs roughly -45 deg at worst; reaching -70 means the loop has already
-# failed, and diving steeper destroys the horizontal control authority the
+# failed, and pitching down steeper destroys the horizontal control authority the
 # aircraft needs to hold its ground track against wind.
 PITCH_FLOOR_DEG = -70.0
 # Flat anti-balloon ceiling.  It does not bind in nominal operation; it exists

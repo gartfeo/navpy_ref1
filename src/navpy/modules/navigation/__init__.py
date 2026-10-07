@@ -1,7 +1,7 @@
 """Navigation module - Final-approach navigation and path following.
 
 This module owns ALL navigation-related functionality:
-- Approach geometry for a selected delivery reference
+- Approach geometry for a selected POI
 - Trajectory/path following
 - Geo-reference math (via navigation.geo submodule)
 - Terrain utilities (via navigation.geo submodule)
@@ -9,7 +9,8 @@ This module owns ALL navigation-related functionality:
 - Mission planning
 
 Generic target/setpoint and standard control terms retain their engineering
-meaning. Approach geometry is not an approved physical handover procedure.
+meaning. Approach geometry and
+approach accuracy does not establish a mission outcome (e.g. docking, cargo receipt, coverage).
 
 The public API is through this module:
     from navpy.modules.navigation import Navigation, GeoRefCalc, ZcUtil

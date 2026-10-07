@@ -66,16 +66,16 @@ export function handleDragStart(Cesium, viewer, click, callbacksRef, refs) {
     };
   }
 
-  // fallback location drag — only when fallback location edit mode is active
-  if (hit && hit.type === 'fallbackLocation' && cb.placingFallbackLocation && cb.onMoveFallbackLocation && cb.editable) {
-    let fallbackLocationEntity = null;
+  // delivery hub drag — only when delivery hub edit mode is active
+  if (hit && hit.type === 'deliveryHub' && cb.placingDeliveryHub && cb.onMoveDeliveryHub && cb.editable) {
+    let deliveryHubEntity = null;
     const picks = viewer.scene.drillPick(click.position, 5);
     for (const p of picks) {
-      if (Cesium.defined(p.id?.properties?.fallbackLocationIndex)) { fallbackLocationEntity = p.id; break; }
+      if (Cesium.defined(p.id?.properties?.deliveryHubIndex)) { deliveryHubEntity = p.id; break; }
     }
     viewer.scene.screenSpaceCameraController.enableRotate = false;
     return {
-      dragState: { type: 'fallbackLocation', index: hit.index, entity: fallbackLocationEntity, lastLatLon: null },
+      dragState: { type: 'deliveryHub', index: hit.index, entity: deliveryHubEntity, lastLatLon: null },
       skipNextClick: true,
     };
   }
@@ -121,7 +121,7 @@ export function handleDragStart(Cesium, viewer, click, callbacksRef, refs) {
   }
 
   // Skip polygon drag handling during placement modes — unless clicking a vertex/midpoint
-  if (cb.placingLaunchPoint || cb.placingCorridor || cb.placingFallbackLocation) {
+  if (cb.placingLaunchPoint || cb.placingCorridor || cb.placingDeliveryHub) {
     if (!hit || (hit.type !== 'vertex' && hit.type !== 'midpoint' && hit.type !== 'polygon')) return null;
   }
 

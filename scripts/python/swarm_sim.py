@@ -42,7 +42,7 @@ class MsgListener(ListenerAbc):
         elif message.msg_type() == MsgType.AVAILABLE_TASK_RESPONSE:
             msg: AvailableTaskResponseMsg = message
             loc = LocationMsgData(44.0, 45.0, 1300)
-            task = TaskMsgData(43, TaskTypeMsgData.SMALL, loc)
+            task = TaskMsgData(43, TaskTypeMsgData.DOCK, loc)
             self.network.broadcast(TaskAssignRequestMsg(self.id, msg.sender_id,
                                                         TaskAssignMsgData(task.task_id, task.task_type, task.location)))
         elif message.msg_type() == MsgType.TASK_ASSIGN_REQUEST:
@@ -132,13 +132,13 @@ def run_simulation():
         # print("CHECKOUT sent")
         #
         # # 3) Drone1 → GCS: task confirm request
-        task1 = TaskMsgData(42, TaskTypeMsgData.MEDIUM, loc1)
+        task1 = TaskMsgData(42, TaskTypeMsgData.DOCK, loc1)
         n1.broadcast(TaskConfirmRequestMsg(ID1, task1))
         # time.sleep(0.1)
         # print("TASK_CONFIRM_REQUEST sent")
 
         # # 5) Drone1 → Drone2: available task request
-        task2 = TaskMsgData(43, TaskTypeMsgData.SMALL, loc1)
+        task2 = TaskMsgData(43, TaskTypeMsgData.DOCK, loc1)
         n1.broadcast(AvailableTaskRequestMsg(ID1, [task2]))
         # d1.send_mavlink_message(
         #     MAVLink_heartbeat_message(MAV_TYPE_ONBOARD_CONTROLLER, MAV_AUTOPILOT_INVALID, 0, 0, MAV_STATE_ACTIVE))

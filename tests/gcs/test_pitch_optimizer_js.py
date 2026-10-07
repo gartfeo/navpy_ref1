@@ -278,7 +278,7 @@ class TestWeightedUnionArea(unittest.TestCase):
 
 
 class TestAngularGap(unittest.TestCase):
-    """angularGap checks coverage across the dive pitch envelope."""
+    """angularGap checks coverage across the approach pitch envelope."""
 
     def test_no_gap_full_coverage(self):
         """Two cameras with overlapping FOVs covering the required range."""

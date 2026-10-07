@@ -120,7 +120,7 @@ def test_an_out_of_range_command_value_is_unreadable_not_a_fault() -> None:
 def test_a_command_whose_getter_raises_is_unreadable_not_a_fault() -> None:
     """The digest reads an object the recorder does not own."""
 
-    class Hostile:
+    class Unreadable:
         pitch = 0.0
 
         @property
@@ -128,7 +128,7 @@ def test_a_command_whose_getter_raises_is_unreadable_not_a_fault() -> None:
             raise RuntimeError("no")
 
     log = CommandLoopLog(8)
-    log.note_command(1, Hostile())
+    log.note_command(1, Unreadable())
 
     assert log.entries() == [(1, COMMAND_UNREADABLE)]
     assert log.failed is False

@@ -11,7 +11,7 @@ What the series ARE:
 - ``dispatch_lag_slots`` -- the same difference at the instant a dispatch TOOK
   the frame, from the watermark its caller captured with the take.
 - ``ready_iterations`` -- the ``NavigationCommandWorker`` loop passes at which
-  delivered frames were first ready. **Iteration counts, not slot indices.**
+  dispatched frames were first ready. **Iteration counts, not slot indices.**
 
 W9.2's r(k) is still NOT measured, and the two units above are why. r(k) is the
 first logical COMMAND slot at which input k was completely ready; the worker
@@ -77,7 +77,7 @@ from navpy.modules.vision.sim.determinism_events import (
     EVENT_OUTPUT,
     EVENT_STAGE,
     OUTPUT_WORKER_ITERATION,
-    OUTPUT_DELIVERED,
+    OUTPUT_DISPATCHED,
     STAGE_STAGED,
 )
 from navpy.modules.vision.sim.determinism_trace import (
@@ -209,8 +209,8 @@ def summarise_capture(
             continue
         outcome = str(row[2])
         bucket[outcome] = bucket.get(outcome, 0) + 1
-        delivered = row[0] == EVENT_OUTPUT and outcome == OUTPUT_DELIVERED
-        if delivered:
+        dispatched = row[0] == EVENT_OUTPUT and outcome == OUTPUT_DISPATCHED
+        if dispatched:
             iteration = _iteration_of(row)
             if iteration is not None:
                 ready_iterations.append(iteration)
@@ -219,7 +219,7 @@ def summarise_capture(
             continue
         if row[0] == EVENT_STAGE and outcome == STAGE_STAGED:
             stage_lags.append(lag)
-        elif delivered:
+        elif dispatched:
             dispatch_lags.append(lag)
     return {
         "period_us": capture.period_us,

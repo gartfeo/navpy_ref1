@@ -54,7 +54,7 @@ class SelectionEvidence:
     catalog_seq: int | None
     task_id: int | None
     obj_id: int | None
-    fallback_location_registered: bool
+    default_ooi_registered: bool
     event_wall_time_s: float | None
     poi_lat_deg: float | None
     poi_lon_deg: float | None
@@ -67,7 +67,7 @@ class SelectionEvidence:
             "catalog_seq": self.catalog_seq,
             "task_id": self.task_id,
             "obj_id": self.obj_id,
-            "default_ooi_registered": self.fallback_location_registered,
+            "default_ooi_registered": self.default_ooi_registered,
             "event_wall_time_s": self.event_wall_time_s,
             "poi_lat_deg": self.poi_lat_deg,
             "poi_lon_deg": self.poi_lon_deg,

@@ -54,7 +54,6 @@ class TestResolvePlannerState(unittest.TestCase):
                     profiles: { zr10: { devices: [] } },
                     detector_class_dimensions: {
                         "0": { width_m: 3.5, height_m: 2.5, size_m: 4.30 },
-                        "4": { width_m: 0.5, height_m: 1.8, size_m: 1.87 },
                     },
                 },
             );
@@ -79,15 +78,15 @@ class TestResolvePlannerState(unittest.TestCase):
         self.assertIsNotNone(result["plannerLoadError"])
         self.assertIsNone(result["plannerDetectorClassDimensions"])
 
-    def test_not_ready_when_detector_class_dimensions_partial(self):
-        # Only class 4 present — medium/large (class 0) would fall back to
-        # the min size. The planner must treat this as not-ready.
+    def test_not_ready_when_dock_class_dimensions_missing(self):
+        # The dock class (0) is absent — the dock preset would fall back to the
+        # JS default size. The planner must treat this as not-ready.
         result = _run_js("""
             const state = resolvePlannerState(
                 { camera: { vision_profile: "zr10" } },
                 {
                     profiles: { zr10: { devices: [] } },
-                    detector_class_dimensions: { "4": { width_m: 0.5, height_m: 1.8, size_m: 1.87 } },
+                    detector_class_dimensions: { "1": { width_m: 3.0, height_m: 2.5, size_m: 3.91 } },
                 },
             );
             console.log(JSON.stringify(state));

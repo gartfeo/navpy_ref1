@@ -91,7 +91,7 @@ def test_nominal_track_is_certified_and_scores_the_pass() -> None:
     assert recorder.certified
     expected = math.hypot(0.05, 0.03)
     assert abs(verdict["dist_3d_m"] - expected) < 0.03
-    assert 35.0 < verdict["delivered_rate_hz"] < 45.0
+    assert 35.0 < verdict["scoring_sample_rate_hz"] < 45.0
     assert verdict["closure_post_samples"] >= truth.TRUTH_CLOSURE_MIN_POST_SAMPLES
     assert verdict["closure_rise_m"] > 1.0
     assert verdict["cpa_source_time_s"] is not None
@@ -110,7 +110,7 @@ def test_pre_scoring_interval_close_pass_does_not_score() -> None:
     verdict = recorder.verdict()
     assert verdict["certification_error"] is None
     assert verdict["dist_3d_m"] > 4.0
-    assert verdict["pre_engagement_samples"] == 400
+    assert verdict["pre_scoring_samples"] == 400
 
 
 def test_duplicate_arrivals_after_a_source_stall_are_not_fresh() -> None:
@@ -195,7 +195,7 @@ def test_duplicated_slow_stream_is_not_certified_as_nominal() -> None:
     _feed_pass(recorder, dt_s=0.05, count=300, arrivals_per_sample=2)
     recorder.finalize()
     verdict = recorder.verdict()
-    assert verdict["engaged_samples"] == 300
+    assert verdict["scoring_samples"] == 300
     assert verdict["collapsed_duplicate_arrivals"] == 300
     assert verdict["scorer_duplicates"] == 300
     error = verdict["certification_error"]
@@ -359,7 +359,7 @@ def test_write_track_records_rejections(tmp_path: Path) -> None:
     with path.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert len(rows) == 2
-    assert rows[0]["engaged"] == "0" and rows[0]["converted"] == "1"
+    assert rows[0]["scoring_active"] == "0" and rows[0]["converted"] == "1"
     assert rows[1]["converted"] == "0"
     assert "time_us" in rows[1]["reason"]
     # A rejected message keeps every field that still decodes: here the

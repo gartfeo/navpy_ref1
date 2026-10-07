@@ -31,7 +31,7 @@ from navpy.modules.vision.sim.determinism_events import (
     DISCARD_PUBLISH_LEG_ENDED,
     DISCARD_PUBLISH_OVERWRITTEN,
     DISCARD_UNBRACKETABLE,
-    OUTPUT_DELIVERED,
+    OUTPUT_DISPATCHED,
     OUTPUT_EMPTY,
     OUTPUT_EXCEPTION,
     OUTPUT_REJECTED,
@@ -48,7 +48,7 @@ from navpy.modules.vision.sim.determinism_trace import (
     DeterminismTrace,
     build_trace,
 )
-from navpy.modules.vision.sim.direct_delivery_metrics import LegBoundary
+from navpy.modules.vision.sim.direct_dispatch_metrics import LegBoundary
 
 
 class DisabledPixelTrace:
@@ -198,7 +198,7 @@ class DirectPixelTrace:
     ) -> None:
         """One projected frame ruled on -- staged, fenced, failed or inactive.
 
-        A frame it DISPLACED is the measured gap: projected, never delivered,
+        A frame it DISPLACED is the measured gap: projected, never dispatched,
         no rejection recorded. That row goes first, so the frame that caused
         the drop has already advanced the watermark it is measured against.
         """
@@ -265,9 +265,9 @@ def command_loop_observer(
     return PassObserver(trace.ledger, trace.command_log)
 
 
-def delivery_outcome(delivered: bool) -> str:
+def dispatch_outcome(dispatched: bool) -> str:
     """A refusing consumer and an empty slot are different failures."""
-    return OUTPUT_DELIVERED if delivered else OUTPUT_REJECTED
+    return OUTPUT_DISPATCHED if dispatched else OUTPUT_REJECTED
 
 
 def build_direct_pixel_trace(
@@ -292,5 +292,5 @@ __all__ = [
     "command_loop_observer",
     "DisabledPixelTrace",
     "build_direct_pixel_trace",
-    "delivery_outcome",
+    "dispatch_outcome",
 ]

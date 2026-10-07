@@ -60,7 +60,7 @@ async function main() {
     startupMissionAuthority,
     startupPlanMetadata,
     startupPlanMetadataForOwnedPlan,
-    startupMissionFallbackLocationsForZones,
+    startupMissionDeliveryHubsForZones,
     enqueueStartupPostProcess,
   } = loadEsm('utils/planDownloadRun.js');
 
@@ -164,7 +164,7 @@ async function main() {
     requestedIds: new Set(),
     orderedIds: [],
     excludedIds: new Set(),
-    missionFallbackLocationsBySysId: new Map(),
+    missionDeliveryHubsBySysId: new Map(),
     missionsBySysId: new Map(),
     postProcessQueue: Promise.resolve(),
   };
@@ -385,32 +385,32 @@ async function main() {
     orderedIds: [1, 2, 3],
     excludedIds: new Set(),
     missionsBySysId: new Map([
-      [1, { waypoints: [{}], altitude_m: 140, dock_classes: [] }],
-      [2, { waypoints: [{}], altitude_m: 120, dock_classes: ['medium'] }],
-      [3, { waypoints: [{}], altitude_m: 100, dock_classes: ['truck'] }],
+      [1, { waypoints: [{}], altitude_m: 140 }],
+      [2, { waypoints: [{}], altitude_m: 120 }],
+      [3, { waypoints: [{}], altitude_m: 100 }],
     ]),
   };
   assert.deepStrictEqual(
     startupPlanMetadata(planMetadataRun, 80),
-    { altitude: 100, dockClasses: ['medium'] },
-    'fleet base altitude is last ordered altitude and classes are first nonempty list',
+    { altitude: 100 },
+    'fleet base altitude is last ordered altitude',
   );
   planMetadataRun.excludedIds.add(3);
   assert.deepStrictEqual(
     startupPlanMetadata(planMetadataRun, 80),
-    { altitude: 120, dockClasses: ['medium'] },
+    { altitude: 120 },
     'fleet metadata recomputes after the lowest mission disconnects',
   );
   const metadataOwnedPlan = tagPlanForRun({ zones: [], altitude_m: 80 }, planMetadataRun);
   assert.deepStrictEqual(
     startupPlanMetadataForOwnedPlan(planMetadataRun, metadataOwnedPlan, 80),
-    { altitude: 120, dockClasses: ['medium'] },
+    { altitude: 120 },
     'startup-owned plan may receive recomputed mission metadata',
   );
   assert.strictEqual(
     startupPlanMetadataForOwnedPlan(
       planMetadataRun,
-      { zones: [{ sys_id: 99 }], altitude_m: 65, dock_classes: ['operator'] },
+      { zones: [{ sys_id: 99 }], altitude_m: 65 },
       65,
     ),
     null,
@@ -441,15 +441,15 @@ async function main() {
 
   // Concurrent mission completions retain fleet metadata by sys_id rather than
   // rebuilding earlier POIs from a stale React closure.
-  const metadataRun = { missionFallbackLocationsBySysId: new Map() };
+  const metadataRun = { missionDeliveryHubsBySysId: new Map() };
   const poi1 = { lat: 1, lon: 1 };
   const poi2 = { lat: 2, lon: 2 };
-  metadataRun.missionFallbackLocationsBySysId.set(2, poi2); // completion order differs
-  metadataRun.missionFallbackLocationsBySysId.set(1, poi1);
+  metadataRun.missionDeliveryHubsBySysId.set(2, poi2); // completion order differs
+  metadataRun.missionDeliveryHubsBySysId.set(1, poi1);
   assert.deepStrictEqual(
-    startupMissionFallbackLocationsForZones(metadataRun, [{ sys_id: 1 }, { sys_id: 2 }, { sys_id: 3 }]),
+    startupMissionDeliveryHubsForZones(metadataRun, [{ sys_id: 1 }, { sys_id: 2 }, { sys_id: 3 }]),
     [poi1, poi2, null],
-    'fallback locations accumulate in zone order regardless of completion order',
+    'delivery hubs accumulate in zone order regardless of completion order',
   );
 
   // Side effects are serialized so a slow earlier subset cannot finish after

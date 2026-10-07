@@ -1,11 +1,11 @@
-"""Compute approach points for peer-assigned or fallback delivery location navigation based on camera geometry.
+"""Compute approach points for peer-assigned or default delivery hub navigation based on camera geometry.
 
 Two strategies (see ``approach_strategy.py``):
 - OFFSET: offset point behind POI, bank-corrected for fixed cameras.
 - ORBIT: orbit directly around POI. With a zoom mount and navigation
   limits, the radius is the FURTHEST standoff that still tracks at 1x and
   confirms at max zoom (``min`` of the two camera-pixel bounds), floored by
-  the dive-feasibility minimum (``orbit_geometry.r_nav_min``); otherwise
+  the descent-feasibility minimum (``orbit_geometry.r_nav_min``); otherwise
   it falls back to camera-pixel-range sizing.
 """
 
@@ -83,7 +83,7 @@ def calc_peer_approach_offset(
     Parameters
     ----------
     poi : Location
-        Peer-assigned or fallback delivery location position.
+        Peer-assigned or default delivery hub position.
     drone_loc : Location
         Current drone position (used for approach bearing and altitude).
     mounts : list[CameraMount]
@@ -93,7 +93,7 @@ def calc_peer_approach_offset(
     kind : ApproachKind
         Which approach strategy to use.
     orbit_limits : OrbitNavigationLimits | None
-        Vehicle envelope supplying the dive-feasibility FLOOR
+        Vehicle envelope supplying the descent-feasibility FLOOR
         (``r_nav_min``) for the ORBIT radius. When supplied (and the chosen
         mount has zoom), the radius is the FURTHEST standoff that still tracks
         at 1x and confirms at max zoom, never inside this floor. ``None`` (or

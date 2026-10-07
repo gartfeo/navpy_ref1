@@ -189,8 +189,8 @@ def _result_payload(
         "source": {
             "projected_frames": metrics.visible_frames,
             "projection_failures": metrics.sight_losses,
-            "delivered_frames": metrics.delivered_frames,
-            "delivery_rejections": metrics.delivery_rejections,
+            "dispatched_frames": metrics.dispatched_frames,
+            "dispatch_rejections": metrics.dispatch_rejections,
             "first_sight_loss_distance_m": metrics.first_sight_loss_distance_m,
             "longest_sight_loss_run": metrics.longest_sight_loss_run,
             "max_gimbal_age_s": metrics.max_gimbal_age_s,
@@ -233,7 +233,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             options.poi_alt,
             is_absolute=True,
         )
-        def deliver(poi_detection: DetectedObject) -> bool:
+        def dispatch(poi_detection: DetectedObject) -> bool:
             nonlocal final_approach_recorded
             if not final_approach_recorded:
                 final_approach_recorded = navigation.final_approach.record_confirmed_detection(
@@ -261,7 +261,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             assembly.geo_ref,
             cadence,
             min_pixels=get_min_pixels_for_class(assembly.profile, 0),
-            deliver=deliver,
+            dispatch=dispatch,
         )
         navigation.bind_final_approach_source_dispatch(source.dispatch_available)
         spec.mount.start()

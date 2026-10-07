@@ -83,7 +83,7 @@ class NavigationStatusEmitter:
         if sample.gimbal_attitude is not None:
             gimbal = sample.gimbal_attitude
             self._logger.info(
-                f"GIMBAL_DIVE: gmb=(y{gimbal.yaw:.0f},"
+                f"GIMBAL_APPROACH: gmb=(y{gimbal.yaw:.0f},"
                 f"p{gimbal.pitch:.0f}) "
                 f"los_body=(y{sample.yaw_error:.0f},"
                 f"p{sample.pitch_error:.0f}) "

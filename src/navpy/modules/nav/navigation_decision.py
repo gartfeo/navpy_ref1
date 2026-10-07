@@ -70,7 +70,7 @@ class InactiveNavigationGuard:
             or self._confirmation_manager.active_poi is not None
             or self._navigation_task.navigation_poi_location is not None
             or self._navigation_task.peer_navigation
-            or self._mission.fallback_delivery_location_active
+            or self._mission.default_delivery_hub_active
         )
         if not self._ports.vehicle_armed():
             if has_active_task:

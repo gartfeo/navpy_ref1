@@ -111,7 +111,7 @@ describe('upload payload across a round trip', () => {
       mission, effectiveUavCount: 1,
       localGenerate: vi.fn().mockResolvedValue(null),
       vehicleList: [{ sys_id: 1 }], api,
-      settings: { fallback_delivery_locations: [{ name: 'F', lat: 0.01, lon: 0.02 }],
+      settings: { default_delivery_hubs: [{ name: 'F', lat: 0.01, lon: 0.02 }],
         simulation: { sim_mode: false } },
       fence, ...extra,
     }));
@@ -119,11 +119,11 @@ describe('upload payload across a round trip', () => {
   };
 
   const baseMission = (over = {}) => ({
-    polygon: ring(), dockClasses: ['small'], perUavDockClasses: {}, searchPattern: 'distributed',
+    polygon: ring(), searchPattern: 'distributed',
     launchPoint: null, corridorPoints: [],
     plan: { zones: [{ zone_index: 0, track: ring() }], altitude_m: 120 },
     setPlan: vi.fn(), setLaunchPoints: [null], setCorridorPointsArr: [[]],
-    goToMonitor: vi.fn(), fallbackLocationAssignments: [0], manualFallbackLocationEdit: true,
+    goToMonitor: vi.fn(), deliveryHubAssignments: [0], manualDeliveryHubEdit: true,
     simDockWps: {}, detectAfterWps: {}, setUploadProgress: vi.fn(), ...over,
   });
 
@@ -174,7 +174,7 @@ describe('upload payload across a round trip', () => {
       mission, effectiveUavCount: 1,
       localGenerate: vi.fn().mockResolvedValue(null),
       vehicleList: [{ sys_id: 1 }], api,
-      settings: { fallback_delivery_locations: [{ name: 'F', lat: 0.01, lon: 0.02 }],
+      settings: { default_delivery_hubs: [{ name: 'F', lat: 0.01, lon: 0.02 }],
         simulation: { sim_mode: false } },
       fence: { enabled: true, vertices: ring() },
       fenceIntentGeneration: 4, onFenceIntentResolved,
@@ -192,7 +192,7 @@ describe('upload payload across a round trip', () => {
 describe('download plan -> re-upload, through the real operator path', () => {
   const downloadedMission = {
     waypoints: [{ lat: 32, lon: 34, alt: 120 }, { lat: 32.001, lon: 34.001, alt: 120 }],
-    search_pattern: 'distributed', altitude_m: 120, dock_classes: ['small'],
+    search_pattern: 'distributed', altitude_m: 120,
   };
 
   const downloadHarness = (fenceResponse) => {

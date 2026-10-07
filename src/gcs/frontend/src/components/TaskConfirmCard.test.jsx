@@ -18,7 +18,7 @@ function entryFor({ roundUid, taskId = 7 }) {
   return {
     taskId,
     roundUid,
-    taskType: 'HEAVY',
+    taskType: 'DOCK',
     lat: 32.5,
     lon: 34.8,
     alt: 100,

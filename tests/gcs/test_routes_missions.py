@@ -11,7 +11,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 from gcs.backend.planner.waypoint_builder import (
     CORRIDOR_END_MARKER, META_POLYGON_VERTEX, META_CORRIDOR_VERTEX,
-    META_LAUNCH_POINT, META_FALLBACK_DELIVERY_LOCATION, encode_meta_z, encode_location_type_into_z,
+    META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB, encode_meta_z, encode_location_type_into_z,
 )
 
 
@@ -183,7 +183,7 @@ class TestDownloadMission:
 
     def test_mission_with_metadata(self, client, mock_vehicle):
         """Download a mission with polygon/corridor/launch metadata."""
-        meta_z = encode_meta_z("corridor", ["small", "medium"])
+        meta_z = encode_meta_z("corridor")
         items = [
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=32.0, lon=34.0),       # home
             _make_wp(MAV_CMD_NAV_TAKEOFF, lat=32.0, lon=34.0),        # takeoff
@@ -210,16 +210,15 @@ class TestDownloadMission:
         assert resp.status_code == 200
         data = resp.json()
         assert data["search_pattern"] == "corridor"
-        assert "small" in data["dock_classes"]
-        assert "medium" in data["dock_classes"]
+        assert "dock_classes" not in data
         assert data["corridor_end_index"] == 1  # after 1 nav wp
         assert len(data["polygon"]) == 1
         assert len(data["corridor_backbone"]) == 1
         assert data["launch_point"] is not None
 
-    def test_mission_with_fallback_delivery_location(self, client, mock_vehicle):
-        """Download a mission with META_FALLBACK_DELIVERY_LOCATION metadata and trailing NAV_WAYPOINT."""
-        meta_z = encode_meta_z("distributed", ["small", "medium"])
+    def test_mission_with_default_delivery_hub(self, client, mock_vehicle):
+        """Download a mission with META_DEFAULT_DELIVERY_HUB metadata and trailing NAV_WAYPOINT."""
+        meta_z = encode_meta_z("distributed")
         poi_lat, poi_lon = 32.05, 34.05
         items = [
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=32.0, lon=34.0),           # home (seq 0)
@@ -230,9 +229,9 @@ class TestDownloadMission:
             _make_wp(CORRIDOR_END_MARKER, lat=32.1, lon=34.1,
                      param1=float(META_POLYGON_VERTEX)),
             _make_wp(CORRIDOR_END_MARKER, lat=poi_lat, lon=poi_lon,
-                     param1=float(META_FALLBACK_DELIVERY_LOCATION),
+                     param1=float(META_DEFAULT_DELIVERY_HUB),
                      z=encode_location_type_into_z(meta_z, "antenna")),
-            # trailing NAV_WAYPOINT duplicating fallback_delivery_location coords
+            # trailing NAV_WAYPOINT duplicating default_delivery_hub coords
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=poi_lat, lon=poi_lon),
         ]
         mock_vehicle.download_mission.return_value = len(items)
@@ -246,19 +245,18 @@ class TestDownloadMission:
         resp = client.get("/api/vehicles/1/mission")
         assert resp.status_code == 200
         data = resp.json()
-        # fallback_delivery_location extracted from metadata
-        assert data["fallback_delivery_location"] is not None
-        assert abs(data["fallback_delivery_location"]["lat"] - poi_lat) < 1e-5
-        assert abs(data["fallback_delivery_location"]["lon"] - poi_lon) < 1e-5
-        assert data["fallback_delivery_location"]["type"] == "antenna"
+        # default_delivery_hub extracted from metadata
+        assert data["default_delivery_hub"] is not None
+        assert abs(data["default_delivery_hub"]["lat"] - poi_lat) < 1e-5
+        assert abs(data["default_delivery_hub"]["lon"] - poi_lon) < 1e-5
+        assert data["default_delivery_hub"]["type"] == "antenna"
         assert "default_poi" not in data
         assert "poi_classes" not in data
         # Trailing NAV_WAYPOINT trimmed — only track wp 1 and wp 2 remain
         assert len(data["waypoints"]) == 2
-        # search_pattern + dock_classes decoded from the same metadata item's z
+        # search_pattern + location type decoded from the same metadata item's z
         assert data["search_pattern"] == "distributed"
-        assert "small" in data["dock_classes"]
-        assert "medium" in data["dock_classes"]
+        assert "dock_classes" not in data
         # polygon vertex also decoded
         assert len(data["polygon"]) == 1
 
@@ -500,7 +498,7 @@ class TestUploadMissions:
             assert data["status"] == "partial_failure"
             assert data["results"][0]["error"] is not None
 
-    def test_upload_forwards_fallback_delivery_location_type(self, client):
+    def test_upload_forwards_default_delivery_hub_type(self, client):
         """Upload forwards DOCK type without adding extra mission items."""
         from gcs.backend.planner.waypoint_builder import UploadResult
         fake_result = UploadResult(success=True, uploaded_count=4, expected_count=4, attempts=1)
@@ -511,12 +509,12 @@ class TestUploadMissions:
                     "zone_index": 0,
                     "waypoints": [{"lat": 32.0, "lon": 34.0}, {"lat": 32.001, "lon": 34.001}],
                     "altitude_m": 150.0,
-                    "fallback_delivery_location": {"lat": 40.5, "lon": 44.5, "type": "bridge"},
+                    "default_delivery_hub": {"lat": 40.5, "lon": 44.5, "type": "bridge"},
                 }],
             })
         assert resp.status_code == 200
         kwargs = mock_upload.call_args.kwargs
-        assert kwargs["fallback_delivery_location"] == {"lat": 40.5, "lon": 44.5, "type": "bridge"}
+        assert kwargs["default_delivery_hub"] == {"lat": 40.5, "lon": 44.5, "type": "bridge"}
 
     def _fence_body(self, enabled=True, vertices=None):
         if vertices is None:

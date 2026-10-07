@@ -70,7 +70,7 @@ def test_siyi_source_uses_geo_for_pointing_but_delivers_only_finite_pixels() -> 
         geo_ref,
         Mock(wall_period_for_scheduler_period=lambda value: value),
         min_pixels=1.0,
-        deliver=lambda detection: delivered.append(detection) or True,
+        dispatch=lambda detection: delivered.append(detection) or True,
         wall_now_s=lambda: 100.0,
     )
 
@@ -155,7 +155,7 @@ def test_siyi_start_only_subscribes_streams_it_actually_requests() -> None:
         Mock(),
         Mock(wall_period_for_scheduler_period=lambda value: value),
         min_pixels=1.0,
-        deliver=lambda detection: True,
+        dispatch=lambda detection: True,
     )
 
     source.start()
@@ -182,11 +182,11 @@ def test_siyi_pixel_navigation_uses_geo_only_for_pre_navigation_approach() -> No
 
 
 def test_siyi_visible_frames_count_only_the_scoring_interval() -> None:
-    """``projected_frames`` must span the same leg as ``delivered_frames``.
+    """``projected_frames`` must span the same leg as ``dispatched_frames``.
 
     ``scripts/siyi_pixel_pn_child.py`` publishes ``visible_frames`` as
     ``projected_frames``, and ``eval_observation_freshness`` divides
-    ``delivered_frames`` by it and rejects the run below
+    ``dispatched_frames`` by it and rejects the run below
     ``MIN_FRESH_OBSERVATION_FRACTION``. Deliveries only happen from
     ``dispatch_available`` once the source is active, so counting frames the
     camera rendered while it was still acquiring puts frames in the
@@ -231,7 +231,7 @@ def test_siyi_visible_frames_count_only_the_scoring_interval() -> None:
         geo_ref,
         Mock(wall_period_for_scheduler_period=lambda value: value),
         min_pixels=1.0,
-        deliver=lambda detection: delivered.append(detection) or True,
+        dispatch=lambda detection: delivered.append(detection) or True,
         wall_now_s=lambda: 100.0,
     )
 
@@ -241,7 +241,7 @@ def test_siyi_visible_frames_count_only_the_scoring_interval() -> None:
     source._on_message(_message("GLOBAL_POSITION_INT"))
     assert source.ready
     assert source.metrics.visible_frames == 0
-    assert source.metrics.delivered_frames == 0
+    assert source.metrics.dispatched_frames == 0
 
     source.activate()
     vehicle.attitude_sample.time_boot_s = 10.1
@@ -252,5 +252,5 @@ def test_siyi_visible_frames_count_only_the_scoring_interval() -> None:
 
     metrics = source.metrics
     assert metrics.visible_frames == 1
-    assert metrics.delivered_frames == 1
-    assert metrics.delivered_frames / metrics.visible_frames == 1.0
+    assert metrics.dispatched_frames == 1
+    assert metrics.dispatched_frames / metrics.visible_frames == 1.0

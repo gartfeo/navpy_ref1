@@ -229,13 +229,13 @@ def main() -> int:
             continue
         rows.append(_report(root, leg_m, poi_alt))
         print(
-            f"  truth misses {rows[-1]['misses_m']}"
+            f"  truth CPA errors {rows[-1]['misses_m']}"
             f" ({rows[-1]['unscored_runs']} unscored)",
             flush=True,
         )
 
     print()
-    print(f"{'leg m':>8}{'POI alt':>12}{'truth miss m':>28}"
+    print(f"{'leg m':>8}{'POI alt':>12}{'truth CPA error m':>28}"
           f"{'unscored':>10}{'worst deferral':>20}")
     for row in rows:
         misses = ", ".join(f"{value:.3f}" for value in row["misses_m"])

@@ -6,13 +6,13 @@ import FlightTab from './settings/FlightTab.jsx';
 import ConnectionTab from './settings/ConnectionTab.jsx';
 import MapTab from './settings/MapTab.jsx';
 import AasTab from './settings/AasTab.jsx';
-import FallbackDeliveryLocationsTab from './settings/FallbackDeliveryLocationsTab.jsx';
+import DefaultDeliveryHubsTab from './settings/DefaultDeliveryHubsTab.jsx';
 import LaunchTab from './settings/LaunchTab.jsx';
 import ParametersTab from './settings/ParametersTab.jsx';
 import FailsafeTab from './settings/FailsafeTab.jsx';
 import CalibrationTab from './settings/CalibrationTab.jsx';
 
-    const TABS = ['UAV', 'Parameters', 'Failsafe', 'Vision', 'Flight', 'Connection', 'Map', 'FallbackDeliveryLocations', 'Launch', 'Calibration'];
+    const TABS = ['UAV', 'Parameters', 'Failsafe', 'Vision', 'Flight', 'Connection', 'Map', 'DefaultDeliveryHubs', 'Launch', 'Calibration'];
 
 const TAB_COMPONENTS = {
   Vision: VisionTab,
@@ -22,12 +22,12 @@ const TAB_COMPONENTS = {
   UAV: AasTab,
   Parameters: ParametersTab,
   Failsafe: FailsafeTab,
-  FallbackDeliveryLocations: FallbackDeliveryLocationsTab,
+  DefaultDeliveryHubs: DefaultDeliveryHubsTab,
   Launch: LaunchTab,
   Calibration: CalibrationTab,
 };
 
-export default function SettingsModal({ settings, onSave, onReset, onClose, onOpenConnect, vehicleList, initialTab, onVehicleTargWpsChange, onVehicleNavLastWpChange, onStartPlacingFallbackLocation, aasParams, fullParams, sendCommand, compassCal, accelCal }) {
+export default function SettingsModal({ settings, onSave, onReset, onClose, onOpenConnect, vehicleList, initialTab, onVehicleTargWpsChange, onVehicleNavLastWpChange, onStartPlacingDeliveryHub, aasParams, fullParams, sendCommand, compassCal, accelCal }) {
   const { t, i18n } = useTranslation();
   const TAB_LABELS = {
     UAV: t('settings.tabs.uav'),
@@ -37,7 +37,7 @@ export default function SettingsModal({ settings, onSave, onReset, onClose, onOp
     Flight: t('settings.tabs.flight'),
     Connection: t('settings.tabs.connection'),
     Map: t('settings.tabs.map'),
-    FallbackDeliveryLocations: t('settings.tabs.fallbackDeliveryLocations'),
+    DefaultDeliveryHubs: t('settings.tabs.defaultDeliveryHubs'),
     Launch: t('settings.tabs.launch'),
     Calibration: t('settings.tabs.calibration'),
   };
@@ -212,7 +212,7 @@ export default function SettingsModal({ settings, onSave, onReset, onClose, onOp
           flexDirection: 'column',
           minHeight: 0,
         }}>
-          {TabComponent && <TabComponent draft={draft} setDraft={setDraft} vehicleList={vehicleList} onOpenConnect={onOpenConnect} onClose={onClose} vehicleMissions={vehicleMissions} setVehicleMissions={setVehicleMissions} simMode={simMode} devMode={devMode} onVehicleTargWpsChange={onVehicleTargWpsChange} onVehicleNavLastWpChange={onVehicleNavLastWpChange} onStartPlacing={activeTab === 'FallbackDeliveryLocations' ? onStartPlacingFallbackLocation : undefined} preSaveRef={preSaveRef} preResetRef={preResetRef} aasParams={aasParams} fullParams={fullParams} sendCommand={sendCommand} compassCal={compassCal} accelCal={accelCal} />}
+          {TabComponent && <TabComponent draft={draft} setDraft={setDraft} vehicleList={vehicleList} onOpenConnect={onOpenConnect} onClose={onClose} vehicleMissions={vehicleMissions} setVehicleMissions={setVehicleMissions} simMode={simMode} devMode={devMode} onVehicleTargWpsChange={onVehicleTargWpsChange} onVehicleNavLastWpChange={onVehicleNavLastWpChange} onStartPlacing={activeTab === 'DefaultDeliveryHubs' ? onStartPlacingDeliveryHub : undefined} preSaveRef={preSaveRef} preResetRef={preResetRef} aasParams={aasParams} fullParams={fullParams} sendCommand={sendCommand} compassCal={compassCal} accelCal={accelCal} />}
         </div>
 
         {/* Footer buttons */}

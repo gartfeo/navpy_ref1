@@ -33,7 +33,7 @@ class TestPlannerReadyThreading(unittest.TestCase):
     def test_orchestrator_threads_planner_ready_to_hooks(self):
         source = _read("hooks", "usePlanningOrchestrator.js")
         self.assertIn("settingsVersion, plannerReady,", source)
-        self.assertIn("plannerReady,\n    setFallbackLocationAssignments", source)
+        self.assertIn("plannerReady,\n    setDeliveryHubAssignments", source)
         self.assertIn("handleSaveSettings,\n    plannerReady,", source)
         self.assertIn("localAnalyze, localGenerate,\n    plannerReady,", source)
 

@@ -10,7 +10,7 @@ class LatLon(BaseModel):
     lon: float
 
 
-class MissionFallbackLocation(LatLon):
+class MissionDeliveryHub(LatLon):
     model_config = ConfigDict(extra="forbid")
 
     type: Optional[str] = None
@@ -66,8 +66,7 @@ class VehicleAssignment(BaseModel):
     polygon: list[LatLon] = []  # original planning polygon vertices (for round-trip)
     corridor_backbone: list[LatLon] = []  # corridor backbone waypoints (for round-trip)
     launch_point: Optional[LatLon] = None  # separate launch/home position
-    dock_classes: list[Literal["small", "medium", "large"]] = []
-    fallback_delivery_location: Optional[MissionFallbackLocation] = None  # configured delivery location
+    default_delivery_hub: Optional[MissionDeliveryHub] = None  # configured delivery hub
 
 
 # Fix forward reference
@@ -140,7 +139,7 @@ class TaskConfirmResponseRequest(BaseModel):
     round_uid: Optional[str] = None
 
 
-class TaskForceConfirmRequest(BaseModel):
+class TaskConfirmOverrideRequest(BaseModel):
     """CONF-03 "Ask me anyway" one-shot gate-bypass override (D-18/D-19/D-20).
 
     Deliberately minimal: no wire-visible "why" or thumbnail data — the

@@ -1,4 +1,4 @@
-"""Thin application boundary for fleet delivery-task participation."""
+"""Thin application boundary for swarm task participation."""
 
 from __future__ import annotations
 

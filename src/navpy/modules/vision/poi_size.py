@@ -4,7 +4,7 @@ The confirmation source gate and the best-frame ranking both ask "is the
 POI big enough in pixels to recognize?". The answer uses the bbox
 DIAGONAL — ``sqrt(w**2 + h**2)`` — a single extent that accounts for
 both dimensions instead of height alone. A wide detection (recognizable mostly from its width) is no longer under-read by height; a
-tall, narrow POI (a standing person) still reads ~its height because
+tall, narrow bbox (w << h) still reads ~its height because
 the larger dimension dominates the diagonal. One measure, no per-class
 special-casing.
 """
