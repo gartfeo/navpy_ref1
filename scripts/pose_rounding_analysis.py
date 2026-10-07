@@ -16,19 +16,18 @@ from eval_direct_pixel_command_causality import _samples
 from pose_rounding_evidence import read_pairs
 from replay_navigation_trace import digest, run as replay_recorded, verify_live_rows
 from replay_pose_rounding import replay_arm
-from run_pose_matrix import BASELINE, cells
+from run_pose_matrix import cells, contract_file
 from simtime_navigation_protocol import RenderTruth, Snapshot
 
 ORIGINAL_REVERSAL_US = 83106312
-FIRMWARE = ROOT / "docs/validation/navigation-pose-firmware-20260921.json"
 
 
-def require_matrix(report: dict) -> None:
+def require_matrix(report: dict, baseline_path: Path, firmware_path: Path) -> None:
     if report.get("passed") is not True or report.get("version") != 1 or report.get("steps") != 15000:
         raise ValueError("pose analysis needs the complete accepted matrix")
     if (report["method_sha256"] != digest(ROOT / "scripts/run_pose_matrix.py") or
             report["pairs_method_sha256"] != digest(ROOT / "scripts/pose_rounding_evidence.py") or
-            report["baseline_sha256"] != digest(BASELINE)):
+            report["baseline_sha256"] != digest(baseline_path)):
         raise ValueError("pose validator or baseline changed")
     ledger_path = local_path(report["ledger"])
     if digest(ledger_path) != report["ledger_sha256"]:
@@ -37,8 +36,8 @@ def require_matrix(report: dict) -> None:
     expected = cells()
     if len(attempts) != len(expected) or len(report["runs"]) != len(expected):
         raise ValueError("pose matrix has missing cells")
-    baseline = json.loads(BASELINE.read_text())["normalized_history_sha256"]
-    firmware = json.loads(FIRMWARE.read_text())
+    baseline = json.loads(baseline_path.read_text())["normalized_history_sha256"]
+    firmware = json.loads(firmware_path.read_text())
     for attempt, row, cell in zip(attempts, report["runs"], expected):
         if (attempt["status"] != "captured" or
                 any(attempt[key] != value for key, value in cell.items()) or
@@ -145,9 +144,9 @@ def image_motion_split(peer: dict, snapshots: list[Snapshot]) -> list[dict]:
     return result
 
 
-def run(matrix: Path, output: Path) -> dict:
+def run(matrix: Path, output: Path, baseline: Path, firmware: Path) -> dict:
     report = json.loads(matrix.read_text())
-    require_matrix(report)
+    require_matrix(report, baseline, firmware)
     output.mkdir(parents=True, exist_ok=False)
     run_row = report["runs"][1]  # predeclared first enabled 10x/immediate capture
     directory = local_path(run_row["directory"])
@@ -191,7 +190,7 @@ def run(matrix: Path, output: Path) -> dict:
     result = dict(matrix_sha256=digest(matrix), method_sha256={name:digest(ROOT / "scripts" / name)
         for name in ("pose_rounding_analysis.py", "replay_pose_rounding.py", "pose_rounding_evidence.py")},
         case=str(case), exact_recorded_replay=recorded["exact_replay"], exact_legacy_control=legacy["exact_control"],
-        firmware_contract_sha256=digest(FIRMWARE),
+        firmware_contract_sha256=digest(firmware),
         signal_links=signal_links(legacy,precast,output,start,end),
         original_image_motion_split=image_motion_split(peer,snapshots),
         common_window_us=[start, end], arms=arms, displacement=bias,
@@ -206,8 +205,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("matrix", type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--baseline", required=True, type=contract_file,
+                        help="frozen legacy-history baseline JSON the matrix report pins")
+    parser.add_argument("--firmware", required=True, type=contract_file,
+                        help="reviewed firmware contract JSON (navigation-pose-firmware)")
     args = parser.parse_args()
-    result = run(args.matrix, args.output)
+    result = run(args.matrix, args.output, args.baseline, args.firmware)
     print(json.dumps(dict(arms=result["arms"], displacement=result["displacement"]), indent=2))
 
 

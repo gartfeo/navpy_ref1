@@ -12,7 +12,18 @@ from eval_lockstep_fleet import ROOT, digest, run
 from pose_rounding_evidence import read_pairs
 from simtime_step_launch import require_base_interpreter
 
-BASELINE = ROOT / "docs/validation/navigation-pose-baseline-20260921.json"
+
+
+def contract_file(value: str) -> Path:
+    """argparse type for a frozen validation contract JSON (baseline/firmware).
+
+    The contracts are not stored in the repository; the operator must pass the
+    reviewed file explicitly, and reports pin its sha256.
+    """
+    path = Path(value)
+    if not path.is_file():
+        raise argparse.ArgumentTypeError(f"validation contract not found: {path}")
+    return path
 
 
 def cells() -> list[dict]:
@@ -62,14 +73,16 @@ def check_run(directory: Path, capture: bool, baseline: dict) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--firmware-root", required=True)
+    parser.add_argument("--baseline", required=True, type=contract_file,
+                        help="frozen legacy-history baseline JSON (navigation-pose-baseline)")
     parser.add_argument("--peer-python", default="/home/gart/navpy-simtime-env/bin/python")
     args = parser.parse_args()
     require_base_interpreter()
     root = ROOT / ".sitl-runs" / f"pose-matrix-{datetime.now():%Y%m%d-%H%M%S}"
     root.mkdir()
-    baseline = json.loads(BASELINE.read_text())
+    baseline = json.loads(args.baseline.read_text())
     ledger = dict(version=1, policy="one attempt per declared cell; stop on first rejection",
-        baseline_sha256=digest(BASELINE), validator_sha256=digest(Path(__file__)),
+        baseline_sha256=digest(args.baseline), validator_sha256=digest(Path(__file__)),
         attempts=[dict(cell, directory=str(root / f"run-{i:02}"), status="pending")
                   for i, cell in enumerate(cells())])
     path = root / "attempts.json"
@@ -108,7 +121,7 @@ def main() -> None:
         save()
         print(json.dumps({key: result[key] for key in ("directory", "steps", "pose_capture", "branches")}), flush=True)
     report = dict(version=1, passed=True, ledger=str(path.resolve()), ledger_sha256=digest(path),
-        baseline_sha256=digest(BASELINE), method_sha256=digest(Path(__file__)),
+        baseline_sha256=digest(args.baseline), method_sha256=digest(Path(__file__)),
         pairs_method_sha256=digest(ROOT / "scripts/pose_rounding_evidence.py"),
         steps=sum(row["steps"] for row in checked), runs=checked)
     (root / "report.json").write_text(json.dumps(report, indent=2))

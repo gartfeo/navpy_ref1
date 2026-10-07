@@ -84,7 +84,7 @@ class DetectorPipelineConfig:
     frame_source: int | str | None = None
     # Certified capture-lookup artifact for `frame_source` on the live link.
     # Absent by default: an uncalibrated real source can never be
-    # frame-atomic (docs/decisions/vision-nav-capture-time-association).
+    # frame-atomic.
     capture_calibration: "CaptureLookupCalibration | None" = None
 
 

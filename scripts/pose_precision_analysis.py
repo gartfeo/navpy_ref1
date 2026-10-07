@@ -14,16 +14,17 @@ from analyze_noise_profiles import local_path, command_metrics
 from eval_direct_pixel_command_causality import _samples
 from pose_precision_evidence import read_precision
 from replay_navigation_trace import digest, run as replay_recorded
-from run_pose_precision_matrix import BASELINE, FIRMWARE, cells, check_run
+from run_pose_matrix import contract_file
+from run_pose_precision_matrix import cells, check_run
 from simtime_navigation_protocol import Snapshot
 
 
-def require_matrix(report: dict) -> None:
+def require_matrix(report: dict, baseline_path: Path, firmware_path: Path) -> None:
     if report.get("passed") is not True or report.get("version") != 2 or report.get("steps") != 15000:
         raise ValueError("precision analysis requires a complete five-boot matrix")
     for key, path in (("method_sha256", ROOT / "scripts/run_pose_precision_matrix.py"),
             ("pairs_method_sha256", ROOT / "scripts/pose_precision_evidence.py"),
-            ("baseline_sha256", BASELINE), ("firmware_sha256", FIRMWARE)):
+            ("baseline_sha256", baseline_path), ("firmware_sha256", firmware_path)):
         if report[key] != digest(path):
             raise ValueError("precision method/contract changed")
     ledger_path = local_path(report["ledger"])
@@ -33,7 +34,7 @@ def require_matrix(report: dict) -> None:
     attempts, runs, expected = ledger["attempts"], report["runs"], cells()
     if len(attempts) != 5 or len(runs) != 5:
         raise ValueError("missing precision matrix cells")
-    baseline, firmware = json.loads(BASELINE.read_text()), json.loads(FIRMWARE.read_text())
+    baseline, firmware = json.loads(baseline_path.read_text()), json.loads(firmware_path.read_text())
     for attempt, row, cell in zip(attempts, runs, expected):
         if (attempt["status"] != "captured" or any(attempt[k] != v for k, v in cell.items()) or
                 any(row[k] != cell[k] for k in ("pose_source", "speedup", "delayed")) or
@@ -94,9 +95,9 @@ def acceptance(arms: dict) -> dict:
                 closest_approach_not_regressed=approach)
 
 
-def run(matrix: Path, output: Path) -> dict:
+def run(matrix: Path, output: Path, baseline: Path, firmware: Path) -> dict:
     report = json.loads(matrix.read_text())
-    require_matrix(report)
+    require_matrix(report, baseline, firmware)
     output.mkdir(parents=True, exist_ok=False)
     flights = {}
     for row in report["runs"][:2]:
@@ -142,8 +143,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("matrix", type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--baseline", required=True, type=contract_file,
+                        help="frozen legacy-history baseline JSON the matrix report pins")
+    parser.add_argument("--firmware", required=True, type=contract_file,
+                        help="reviewed precision firmware contract JSON the matrix report pins")
     args = parser.parse_args()
-    result = run(args.matrix, args.output)
+    result = run(args.matrix, args.output, args.baseline, args.firmware)
     print(json.dumps(dict(acceptance=result["acceptance"], arms=result["arms"]), indent=2))
     if not result["acceptance"]["accepted"]:
         raise SystemExit("Predeclared precision acceptance failed; investigate without retuning")
