@@ -124,6 +124,19 @@ PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/
 - Keep top-level controllers/components thin; put logic in focused helpers, handlers, hooks, or services.
 - No arbitrary thresholds, polling, sleeps, or special cases standing in for correct state/modeling. Domain-required thresholds must be named, centralized when shared, documented enough to explain intent, and covered by tests or verification.
 
+## Definition of Done
+
+Do not call a task done until every applicable item holds; otherwise report it as not done and name what is missing.
+
+- **Outcome** — the requested behavior works end to end, fixed at the root cause (see "Diagnose Cause, Not Symptom"). A symptom workaround or a partial path is not done.
+- **Tests** — added or updated per the Testing Policy; targeted tests pass, plus the full suite when shared or safety-relevant paths changed. Report the commands and results, and name pre-existing failures instead of hiding them.
+- **Verified where it runs** — GCS behavior through the `live-tester` subagent; frontend changes also pass `npm test` and `npm run build` (see `src/gcs/AGENTS.md` Verification); `scripts/lua/*.lua` changes are redeployed (CRLF stripped) to WSL `~/ardupilot/{1,2,3}/scripts` before any SITL result is claimed, because SITL loads Lua from there, not from the repo.
+- **Evidence stated** — say what was verified and at which level (unit test, SITL/log, live app, hardware). Simulation results never establish physical outcomes such as docking or cargo receipt.
+- **Rules hold** — Pure Vision Approach Constraint, glossary terms and GCS launch rules.
+- **In sync** — generated files regenerated (see Agent Definitions); docs and AGENTS files updated when commands, behavior or terms change.
+- **Scoped diff** — only the task's change, no unrelated edits. Out-of-scope bugs found along the way become separate tasks, not inline fixes.
+- **Cleanup** — remove what the task created and no longer needs: debug code, scratch files, code the change made obsolete (no compatibility shims); keep `.logs/` evidence. Stop what you started unless the user wants it running: your GCS stack via `gcs_stop.py` (eval SITL: `--eval`), dev servers, background shells. Touch only your own work — never other sessions' processes, slots or untracked files; worktree, branch and registry cleanup goes through the `janitor` subagent.
+
 ## Agent Definitions
 
 `.claude/agents/*.md` is the single source of truth. `.codex/agents/*.toml` is generated — never edit it by hand. After changing an agent's Markdown, run:
