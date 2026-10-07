@@ -3,3 +3,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 node_modules/
+
+# Runtime / build artifacts
+.logs/
+*.egg-info/
+gcs_settings.json
+.env.local
+.env.*.local

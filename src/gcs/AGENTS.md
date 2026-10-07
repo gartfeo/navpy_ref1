@@ -35,6 +35,10 @@ Frontend:
   and credential-free — never put credentials in it, and it deliberately has no
   settings field and no backend route. The WHEP client is vendored third-party
   source: `frontend/src/vendor/mediamtx/` (see its `NOTICE`).
+- Cesium Ion imagery/terrain: build-time env var `VITE_CESIUM_ION_TOKEN`, set
+  in an untracked `src/gcs/frontend/.env.local`. Absent, the map stays on OSM.
+  The repository is public — never commit the token
+  (`tests/gcs/test_no_committed_tokens.py` enforces this).
 
 ## Multi-instance details
 

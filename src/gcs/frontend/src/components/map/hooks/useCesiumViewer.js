@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { CAMERA_KEY } from '../constants/icons';
 import { flyToOptions } from '../../../utils/cameraFlyTo';
+import { cesiumIonToken } from '../../../utils/cesiumConfig';
 
 /** Convert a map tile zoom level to approximate camera height in meters. */
 function zoomToHeight(zoom) {
@@ -84,8 +85,8 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults) {
       }
 
       self.CESIUM_BASE_URL = '/Cesium/';
-      Cesium.Ion.defaultAccessToken =
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4NzkxZDEyMi0xYzkzLTRiZTAtOTA1OC0yNzllZDBiNmI4ZTUiLCJpZCI6MzAzODg5LCJpYXQiOjE3NzEwOTc2MTV9.y1FXwvTpVxOy109c54cEKnEA7ef8CR7hJsjftfphUA8';
+      const ionToken = cesiumIonToken();
+      if (ionToken) Cesium.Ion.defaultAccessToken = ionToken;
 
       const viewDiv = document.createElement('div');
       viewDiv.style.width = '100%';
@@ -174,8 +175,8 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults) {
       // which only proves metadata resolved and would blank the map if Ion tiles
       // are slow or failing. The terrain geometry keeps loading behind the
       // already-visible map; terrain-dependent features gate on terrainReady,
-      // unchanged.
-      (async () => {
+      // unchanged. Without a configured Ion token the map stays on OSM.
+      if (ionToken) (async () => {
         try {
           const ionImagery = await Cesium.IonImageryProvider.fromAssetId(3);
           if (cancelled || viewer.isDestroyed()) return;
