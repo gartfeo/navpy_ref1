@@ -22,6 +22,6 @@ assert(param:add_param(PARAM_TABLE_KEY, 18, "NAV_ONESHOT", 0), "Failed to add NA
 assert(param:add_param(PARAM_TABLE_KEY, 15, "LOG_DEFER", 0), "Failed to add LOG_DEFER parameter")
 assert(param:add_param(PARAM_TABLE_KEY, 16, "LOG_RATE", 2), "Failed to add LOG_RATE parameter")
 
-assert(param:add_param(PARAM_TABLE_KEY, 17, "DEL_CTRL", 1), "Failed to add DEL_CTRL parameter")  -- 0=PID, 1=PN, 2=vision-nav-pn
+assert(param:add_param(PARAM_TABLE_KEY, 17, "DEL_CTRL", 2), "Failed to add DEL_CTRL parameter")  -- 0=PID (legacy geo), 1=PN (legacy geo), 2=vision-nav-pn
 
 assert(param:add_param(PARAM_TABLE_KEY, 19, "NAV_CGT", 15), "Failed to add NAV_CGT parameter")  -- operator gate timeout (sec)

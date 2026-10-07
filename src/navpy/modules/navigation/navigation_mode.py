@@ -7,7 +7,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Callable, Iterator, Mapping, Optional
 
-from navpy.args.navigation_args import NavigationAlgorithm, NavigationArgs
+from navpy.args.navigation_args import (
+    DEFAULT_NAVIGATION_ALGORITHM,
+    NavigationAlgorithm,
+    NavigationArgs,
+)
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.navigation.navigation_runtime import NavigationRuntime
 from navpy.modules.navigation.nav.nav_law_factory import (
@@ -126,7 +130,7 @@ class NavigationModeSelector:
             configured = getattr(
                 self._args,
                 "pitch_controller",
-                NavigationAlgorithm.PN.value,
+                DEFAULT_NAVIGATION_ALGORITHM.value,
             )
         return get_nav_algorithm_spec(configured)
 

@@ -22,7 +22,11 @@ NAVIGATION_ALGORITHM_PARAM_BY_VALUE = {
     algorithm.value: param
     for param, algorithm in NAVIGATION_ALGORITHM_BY_PARAM.items()
 }
-DEFAULT_NAVIGATION_ALGORITHM = NavigationAlgorithm.PN
+# Final approach defaults to the pure-vision law. PID/PN (0/1) are legacy
+# geo laws: their Roll-L1 lateral command reads compass yaw/heading, NED
+# ground velocity and the POI geo position (see AGENTS.md "Pure Vision
+# Approach Constraint"), so they must be selected explicitly.
+DEFAULT_NAVIGATION_ALGORITHM = NavigationAlgorithm.VISION_NAV_PN
 
 
 def resolve_navigation_algorithm(value, logger: Optional[ILogger] = None) -> NavigationAlgorithm:
@@ -58,7 +62,7 @@ class NavigationArgs(object):
         'AAS_DEL_THR': -1,
         'AAS_DEL_DIR': False,
         'AAS_DEL_P_KP': 1.5,
-        'AAS_DEL_CTRL': 1,  # 0=PID, 1=PN, 2=vision-nav-pn
+        'AAS_DEL_CTRL': NAVIGATION_ALGORITHM_PARAM_BY_VALUE[DEFAULT_NAVIGATION_ALGORITHM.value],  # 0=PID (legacy geo), 1=PN (legacy geo), 2=vision-nav-pn
         'AAS_USE_TRN': True,
         'AAS_DEL_PLD': -1,  # <0 disables the pitch-lock distance gate
         'AAS_DEL_PLRD': -1,  # <0 disables the pitch-lock roll gate
@@ -167,5 +171,6 @@ class NavigationArgs(object):
                        action=StoreWithFlag, default=DEFAULT_NAVIGATION_ALGORITHM.value,
                        help=(
                            "Final approach algorithm "
-                           "(0=PID, 1=PN, 2=vision-nav-pn). Default: pn"
+                           "(0=PID legacy geo, 1=PN legacy geo, 2=vision-nav-pn). "
+                           f"Default: {DEFAULT_NAVIGATION_ALGORITHM.value}"
                        ))
