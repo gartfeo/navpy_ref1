@@ -1,7 +1,8 @@
-"""Wind-aware delivery-approach mission planning policy.
+"""Wind-aware approach mission planning policy toward a selected POI.
 
-This legacy waypoint planner is not a complete moving-recipient rendezvous
-planner: authorization, uncertainty, separation and handover need validation.
+This legacy waypoint planner is not a complete moving-platform rendezvous
+planner: uncertainty and separation need validation, and
+approach accuracy does not establish a mission outcome (e.g. docking, cargo receipt, coverage).
 """
 
 from __future__ import annotations

@@ -86,7 +86,7 @@ def _source(
         ),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=lambda detection: True,
+        dispatch=lambda detection: True,
         wall_now_s=lambda: 100.0,
     )
     ledger = source.determinism_trace.ledger

@@ -80,7 +80,7 @@ def case_manifest(
         "slow_seq": speed_plan.slow_seq or None,
         "repetition": repetition,
         "poi": asdict(poi),
-        "engage_seq": scoring_start_seq,
+        "scoring_start_seq": scoring_start_seq,
         "sitl_params": list(sitl_params),
         "sitl_params_pushed": [list(pair) for pair in sitl_params_pushed],
         "source_identity": identity,

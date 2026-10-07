@@ -75,7 +75,7 @@ export default function WaypointEditorOverlay({ vehicleMissions, vehicleList, se
                     style={cellInput}
                   />
                 ))}
-                <span style={{ color: colors.textDim, fontWeight: 600, fontSize: 10 }}>{t('planningSidebar.dockWps')}</span>
+                <span style={{ color: colors.textDim, fontWeight: 600, fontSize: 10 }}>{t('planningSidebar.simPoiWps')}</span>
                 {cols.map((c) => (
                   <BitmaskInput
                     key={c.sid}

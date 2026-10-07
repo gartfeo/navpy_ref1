@@ -4,9 +4,10 @@ Read this when working on the GCS app (`src/gcs/`). Hard launch rules
 (launcher-only, never `--chat`, never broad-kill) live in the root `AGENTS.md`
 and apply always.
 
-The GCS supports UAV swarm missions (delivery and other plug-in mission modules)
-with cooperative, authorized recipients. Use the project purpose in the root `AGENTS.md`
-to distinguish detection review, delivery execution and verified package handover.
+The GCS supports UAV swarm missions (delivery and other plug-in mission
+modules) with cooperative, authorized recipients. Use the project purpose and
+glossary in the root `AGENTS.md` to distinguish detection review, mission-module
+execution and verified mission outcome (e.g. package handover for delivery).
 Existing API keys and MAVLink names retain their compatibility meanings.
 
 ## Architecture
@@ -15,7 +16,8 @@ Backend:
 
 - FastAPI entrypoint: `gcs.backend.main:app`
 - base port: `8000` + chat index `N`
-- routes include `/health`, `/api/plan`, `/api/vehicles`, `/api/control`
+- routes include `/health`, `/api/vehicles`, `/api/control`, `/api/diagnostics`
+  (registered in `route_registration.py`)
 - WebSocket: `/ws/telemetry`, telemetry broadcast at 5 Hz
 
 Frontend:
@@ -89,8 +91,6 @@ Frontend:
   don't build against a live dev server, or restart it afterwards.
 - Frontend JavaScript utilities: prefer tests that invoke Node.js subprocesses
   from Python tests, matching the existing test style.
-- Live testing: delegate the full flow to the `live-tester` subagent (see
-  root `AGENTS.md` Standard Delivery Pipeline).
-- Full GCS/SITL check flow: launch via the isolated launcher, connect in the
-  UI, verify vehicle discovery, run the mission flow, check backend/NavPy
-  logs, then tear down with `python scripts/gcs_stop.py`.
+- Live testing: delegate the full GCS/SITL flow (launch, connect, exercise,
+  check logs, tear down) to the `live-tester` subagent; its procedure is in
+  `.claude/agents/live-tester.md`.

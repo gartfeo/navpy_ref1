@@ -8,12 +8,12 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from navpy.modules.vision.sim.dock_artwork import create_delivery_vehicle_sprite, create_dock_sprite
+from navpy.modules.vision.sim.dock_artwork import create_platform_vehicle_sprite, create_dock_sprite
 
 
 _LOCATION_SPRITE_FILES = {
     "building": "building.png",
-    "vehicle": "delivery_vehicle.png",
+    "vehicle": "platform_vehicle.png",
     "antenna": "antenna.png",
     "operations_site": "operations_site.png",
     "bridge": "bridge.png",
@@ -34,7 +34,7 @@ class SimFrameGenerator:
         self._background = None
         self._sprites: Dict[str, np.ndarray] = {
             "dock": create_dock_sprite(),
-            "vehicle": create_delivery_vehicle_sprite(),
+            "vehicle": create_platform_vehicle_sprite(),
         }
         background_path = os.path.join(assets_dir, "background.png")
         if os.path.exists(background_path):

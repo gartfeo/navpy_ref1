@@ -40,7 +40,7 @@ TRACK_FIELDS = (
     "lat_deg",
     "lon_deg",
     "abs_alt_m",
-    "engaged",
+    "scoring_active",
     "converted",
     "reason",
 )

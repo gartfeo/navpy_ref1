@@ -158,9 +158,9 @@ def _result_payload(
         "source": {
             "projected_frames": metrics.projected_frames,
             "projection_failures": metrics.projection_failures,
-            "delivered_frames": metrics.delivered_frames,
-            "delivery_rejections": metrics.delivery_rejections,
-            "delivery_exceptions": metrics.delivery_exceptions,
+            "dispatched_frames": metrics.dispatched_frames,
+            "dispatch_rejections": metrics.dispatch_rejections,
+            "dispatch_exceptions": metrics.dispatch_exceptions,
             "advanced_truth_frames": metrics.advanced_truth_frames,
             "association_refusals": metrics.association_refusals,
             "pose_skew_ms_mean": metrics.pose_skew_ms_mean,
@@ -203,7 +203,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             options.poi_alt,
             is_absolute=True,
         )
-        def deliver(poi_detection: DetectedObject) -> bool:
+        def dispatch(poi_detection: DetectedObject) -> bool:
             nonlocal final_approach_recorded
             if not final_approach_recorded:
                 final_approach_recorded = navigation.final_approach.record_confirmed_detection(
@@ -219,7 +219,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             cadence,
             aircraft_sequence=geo_ref.uas_seq,
             aircraft_degrees=geo_ref.degrees,
-            deliver=deliver,
+            dispatch=dispatch,
         )
         navigation.bind_final_approach_source_dispatch(
             source.dispatch_available,

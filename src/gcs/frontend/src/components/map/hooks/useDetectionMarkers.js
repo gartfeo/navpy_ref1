@@ -2,9 +2,9 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { zoneColorsSolid } from '../../../styles';
 
-/** Build an observation-post icon+label data URI in the given hex color.
- * `prefix` is the localized abbreviation (e.g. OP / ДК / ԴԿ). */
-function makeObservationPostIcon(hex, wpNumber, prefix) {
+/** Build a detection-start icon+label data URI in the given hex color.
+ * `prefix` is the localized abbreviation (e.g. DS / ՀՍ). */
+function makeDetectionStartIcon(hex, wpNumber, prefix) {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
@@ -21,7 +21,7 @@ function makeObservationPostIcon(hex, wpNumber, prefix) {
 }
 
 /**
- * Renders observation post (НП) markers at the first detection waypoint for each zone.
+ * Renders detection-start markers at the first detection waypoint for each zone.
  * Positioned at the plan altitude using Cesium's relative-to-ground height.
  * Icon + label are baked into a single SVG billboard for stable rendering.
  *
@@ -37,7 +37,7 @@ export default function useDetectionMarkers(cesiumRef, viewerRef, entitiesRef, d
     const viewer = viewerRef.current;
     if (!Cesium || !viewer) return;
 
-    const opPrefix = t('mapMarkers.observationPost');
+    const dsPrefix = t('mapMarkers.detectionStart');
 
     const ents = entitiesRef.current;
     const existing = ents.detectionStart || [];
@@ -61,7 +61,7 @@ export default function useDetectionMarkers(cesiumRef, viewerRef, entitiesRef, d
       const e = viewer.entities.add({
         position,
         billboard: {
-          image: makeObservationPostIcon(colorHex, pt.wpNumber, opPrefix),
+          image: makeDetectionStartIcon(colorHex, pt.wpNumber, dsPrefix),
           width: 48,
           height: 36,
           verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -77,6 +77,6 @@ export default function useDetectionMarkers(cesiumRef, viewerRef, entitiesRef, d
     // viewerReady gates re-run so detection markers/labels set before the
     // async Cesium viewer finished init aren't lost — same fresh-load race as
     // usePolygonLayer.
-    // i18n.language re-runs so the НП/OP/ԴԿ label follows a live locale switch.
+    // i18n.language re-runs so the DS/ՀՍ label follows a live locale switch.
   }, [detectionPoints, viewerReady, i18n.language]);
 }

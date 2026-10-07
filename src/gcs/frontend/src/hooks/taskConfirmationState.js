@@ -7,7 +7,7 @@
  *
  * Decided states are monotonic, mirroring the vehicle/backend intent:
  *   - pending   -> approved | denied | canceled
- *   - approved  -> canceled (Cancel delivery requests cancellation; idempotent on approve)
+ *   - approved  -> canceled (Cancel task requests cancellation; idempotent on approve)
  *   - denied    -> terminal
  *   - canceled  -> terminal
  * A late approve can therefore never un-decide a canceled/denied card.

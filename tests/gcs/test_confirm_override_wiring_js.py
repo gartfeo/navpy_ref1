@@ -79,13 +79,13 @@ class TestUseTaskConfirmationForceOverride(unittest.TestCase):
         self.assertIn("forceConfirm", self.src)
 
     def test_posts_to_force_confirm_route(self):
-        self.assertIn("/api/control/task_force_confirm", self.src)
+        self.assertIn("/api/control/task_confirm_override", self.src)
 
     def test_marks_forced_only_after_successful_post(self):
         self.assertIn("markForced(sysId, taskId)", self.src)
         # markForced must be called after the fetch's ok-check, not before --
         # verify by position: the fetch call appears before markForced.
-        fetch_pos = self.src.index("/api/control/task_force_confirm")
+        fetch_pos = self.src.index("/api/control/task_confirm_override")
         mark_pos = self.src.index("markForced(sysId, taskId)")
         self.assertLess(fetch_pos, mark_pos)
 

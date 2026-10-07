@@ -185,8 +185,8 @@ export default function App() {
     [settings],
   );
   // Only POIs the UAVs will actually orbit shape the fence: delivery hubs ASSIGNED
-  // to a zone (unassigned delivery hubs are display-only) plus the plan's simulated
-  // delivery docks (track waypoints the demo approves and approaches).
+  // to a zone (unassigned delivery hubs are display-only) plus the plan's simulation
+  // POIs (track waypoints the demo approves and approaches).
   const fencePois = React.useMemo(() => {
     const out = [];
     const seenDeliveryHub = new Set();
@@ -265,7 +265,7 @@ export default function App() {
     return analyzeExclusionConflicts({
       corridorPaths: transitPaths,
       tracks: (plan?.zones || []).map((z) => z.track || []),
-      orbitPois: fencePois, // Assigned delivery hubs and simulation docks.
+      orbitPois: fencePois, // Assigned delivery hubs and simulation POIs.
       orbitRadiusM: DEFAULT_ORBIT_RADIUS_M,
       exclusions,
     });

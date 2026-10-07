@@ -40,9 +40,9 @@ def test_vehicle_uses_builtin_artwork_and_preserves_canvas_geometry(tmp_path):
     assert not np.any(frame[:165])
 
 
-def test_explicit_delivery_vehicle_artwork_override(tmp_path):
+def test_explicit_platform_vehicle_artwork_override(tmp_path):
     assert cv2.imwrite(str(tmp_path / "background.png"), np.zeros((480, 640, 3), np.uint8))
-    assert cv2.imwrite(str(tmp_path / "delivery_vehicle.png"), np.full((60, 80, 4), 255, np.uint8))
+    assert cv2.imwrite(str(tmp_path / "platform_vehicle.png"), np.full((60, 80, 4), 255, np.uint8))
     renderer = SimFrameGenerator(str(tmp_path), (640, 480))
     frame, boxes = renderer.generate_frame([(0.25, 0.5, 0.5)], location_type="vehicle")
     assert boxes == [(160, 240, 40, 30)]

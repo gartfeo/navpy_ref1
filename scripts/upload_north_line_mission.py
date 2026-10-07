@@ -10,19 +10,19 @@ start off the meridian.  Score wind against the measured ground track
 A collinear route makes the track close to north and easy to reason about; it
 does not make it exact.
 
-The route is HOME, NAV_TAKEOFF, NAV_LOITER_TO_ALT, a handover gate, then the
-POI.  Two NAV_WAYPOINTs, so the evaluator wants ``--scoring-start-wp 2
+The route is HOME, NAV_TAKEOFF, NAV_LOITER_TO_ALT, a final-approach start
+gate, then the POI.  Two NAV_WAYPOINTs, so the evaluator wants ``--scoring-start-wp 2
 --poi-wp 2``: ordinal 1 is the gate and ordinal 2 is the POI
 (NAV_LOITER_TO_ALT is not a NAV_WAYPOINT and is not counted).  Naming ordinal 1
-would score the gate as the POI and hand over at the loiter exit.
+would score the gate as the POI and start the final approach at the loiter exit.
 
-The loiter and the gate both exist to make handover repeatable.  NAV_TAKEOFF
+The loiter and the gate both exist to make the final-approach start repeatable.  NAV_TAKEOFF
 ends on altitude alone, so a bare takeoff advances the mission wherever the
 climb happens to finish -- measured 576 m from the POI in a 10 m/s tailwind
 against 1377 m in the same headwind, which moves the scoring interval geometry far
 more than the wind moves the navigation.  NAV_LOITER_TO_ALT holds the aircraft
 until it has both the altitude and the outbound heading, at any wind speed, and
-the gate then fixes the handover *position*: the child starts navigation when
+the gate then fixes the final-approach start *position*: the child starts navigation when
 MISSION_CURRENT reaches the POI's sequence, which happens when the aircraft
 reaches the gate.  Scored leg = POI offset - gate offset, constant.
 
@@ -209,7 +209,7 @@ def main() -> int:
         help=(
             "relative altitude at the waypoint (default: same as --alt, so the "
             "run-in is level). Set it lower to make the mission itself descend; "
-            "the final-approach dive onto the POI is navigation's job, not the "
+            "the final-approach descent toward the POI is navigation's job, not the "
             "mission's, so lowering this changes what the experiment measures."
         ),
     )

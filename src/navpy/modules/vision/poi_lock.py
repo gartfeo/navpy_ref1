@@ -1,6 +1,6 @@
-"""Selected visual-reference ownership for delivery-reference tracking.
+"""Selected POI ownership for POI tracking.
 
-A stable scene ID preserves track association, not recipient authorization.
+A stable scene ID preserves track association only.
 
 ``PoiLock`` records *which* stable scene identity the operator/auto-selector
 has chosen and follows it across frames. Identity continuity (re-recognising a

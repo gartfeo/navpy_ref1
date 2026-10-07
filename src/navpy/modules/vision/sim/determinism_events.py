@@ -120,7 +120,7 @@ DISCARD_PUBLISH_LEG_ENDED = "publish_leg_ended"
 # One dispatch attempt = one logical output slot on this path.
 OUTPUT_EMPTY = "empty"
 OUTPUT_STALE_EPOCH = "stale_epoch"
-OUTPUT_DELIVERED = "delivered"
+OUTPUT_DISPATCHED = "dispatched"
 OUTPUT_REJECTED = "rejected"
 # The consumer RAISED. Distinct from a refusal: the frame still left the
 # publish slot, and NavigationCommandWorker CATCHES the exception
@@ -172,7 +172,7 @@ EVENT_OUTCOMES = MappingProxyType({
     EVENT_OUTPUT: (
         OUTPUT_EMPTY,
         OUTPUT_STALE_EPOCH,
-        OUTPUT_DELIVERED,
+        OUTPUT_DISPATCHED,
         OUTPUT_REJECTED,
         OUTPUT_EXCEPTION,
     ),
@@ -219,7 +219,7 @@ __all__ = [
     "EVENT_VIOLATION",
     "LIFECYCLE_ACTIVATED",
     "LIFECYCLE_CLOSED",
-    "OUTPUT_DELIVERED",
+    "OUTPUT_DISPATCHED",
     "OUTPUT_EMPTY",
     "OUTPUT_EXCEPTION",
     "OUTPUT_REJECTED",

@@ -21,7 +21,7 @@ from navpy.modules.swarm.task_dispatch import TaskDispatch
 def _task(task_id: int) -> TaskMsgData:
     return TaskMsgData(
         task_id=task_id,
-        task_type=TaskTypeMsgData.SMALL,
+        task_type=TaskTypeMsgData.DOCK,
         location=LocationMsgData(1.0, 2.0, 3.0),
     )
 
@@ -277,7 +277,7 @@ def test_selected_task_slot_accepts_exactly_one_concurrent_assignment():
         barrier.wait()
         accepted.append(selection.try_accept(TaskAssignMsgData(
             task_id=task_id,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(1.0, 2.0, 3.0),
         )))
 

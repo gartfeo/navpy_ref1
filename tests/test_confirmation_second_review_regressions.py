@@ -99,7 +99,7 @@ def test_new_review_invalidates_prior_recall_authority(
 def _task(task_id: int) -> TaskMsgData:
     return TaskMsgData(
         task_id=task_id,
-        task_type=TaskTypeMsgData.SMALL,
+        task_type=TaskTypeMsgData.DOCK,
         location=LocationMsgData(1.0, 2.0, 3.0),
     )
 

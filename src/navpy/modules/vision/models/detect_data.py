@@ -1,9 +1,8 @@
 """Public grouped detection model for visual observations.
 
-In delivery scenarios a selected observation may represent a delivery
-dock or recipient reference. DetectionIdentity and task IDs provide correlation,
-not recipient authentication or handover authorization. Serialized keys stay
-compatible with existing telemetry and evaluation consumers.
+A selected observation is the POI (detector class ``dock``). DetectionIdentity
+and task IDs provide correlation only. Serialized keys stay compatible with
+existing telemetry and evaluation consumers.
 """
 
 from __future__ import annotations

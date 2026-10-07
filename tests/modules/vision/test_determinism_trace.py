@@ -44,7 +44,7 @@ from navpy.modules.vision.sim.determinism_events import (
     EVENT_VIOLATION,
     LIFECYCLE_ACTIVATED,
     LIFECYCLE_CLOSED,
-    OUTPUT_DELIVERED,
+    OUTPUT_DISPATCHED,
     OUTPUT_EMPTY,
     STAGE_PAYLOAD_DIGEST,
     STAGE_STAGED,
@@ -186,15 +186,15 @@ def test_a_stage_with_no_frame_at_all_is_not_a_hole() -> None:
 def test_a_pixel_getter_that_raises_is_an_unreadable_payload() -> None:
     """The pixel read used to sit OUTSIDE the try, so a getter escaped."""
 
-    class Hostile:
+    class Unreadable:
         @property
         def pixel(self) -> object:
             raise RuntimeError("no pixel for you")
 
     trace = DeterminismTrace(PERIOD_US, capacity=8)
-    trace.record_stage(epoch=1, outcome=STAGE_STAGED, frame=Hostile())
+    trace.record_stage(epoch=1, outcome=STAGE_STAGED, frame=Unreadable())
 
-    assert frame_digest(Hostile()) == PAYLOAD_UNREADABLE
+    assert frame_digest(Unreadable()) == PAYLOAD_UNREADABLE
     assert summarise(trace, epoch=1)["complete"] is False
 
 
@@ -268,7 +268,7 @@ def test_no_member_can_record_a_row_without_latching_a_hole_in_it() -> None:
     stage_hole = (
         EVENT_STAGE, 1, STAGE_STAGED, 0, 0, None, None, PAYLOAD_UNREADABLE
     )
-    clean_row = (EVENT_OUTPUT, 1, OUTPUT_DELIVERED, 0, 0, None, None, 1)
+    clean_row = (EVENT_OUTPUT, 1, OUTPUT_DISPATCHED, 0, 0, None, None, 1)
 
     takes_a_row = {"append", "note_violation"}
     takes_nothing = {
@@ -345,11 +345,11 @@ def test_the_payload_latch_reads_column_seven_only_on_a_stage_row() -> None:
     assert STAGE_PAYLOAD_DIGEST == 7
 
     log = BoundedRowLog(8)
-    log.append((EVENT_OUTPUT, 1, OUTPUT_DELIVERED, 0, 0, None, None, 7))
+    log.append((EVENT_OUTPUT, 1, OUTPUT_DISPATCHED, 0, 0, None, None, 7))
     assert log.status().payload_unreadable is False
 
     log.append(
-        (EVENT_OUTPUT, 1, OUTPUT_DELIVERED, 0, 0, None, None, PAYLOAD_UNREADABLE)
+        (EVENT_OUTPUT, 1, OUTPUT_DISPATCHED, 0, 0, None, None, PAYLOAD_UNREADABLE)
     )
     assert log.status().payload_unreadable is False, (
         "latched a payload hole off a row that carries no payload digest"
@@ -822,7 +822,7 @@ def test_every_journal_member_holds_the_row_lock_while_it_works() -> None:
             epoch=1, reason=DISCARD_UNBRACKETABLE, victim=frame
         ),
         "record_output": dict(
-            epoch=1, outcome=OUTPUT_DELIVERED, taken_at_us=1_000, iteration=1
+            epoch=1, outcome=OUTPUT_DISPATCHED, taken_at_us=1_000, iteration=1
         ),
         "record_lifecycle": dict(
             epoch=1, outcome=LIFECYCLE_CLOSED, resulting_epoch=2
@@ -924,7 +924,7 @@ def test_a_fault_while_latching_a_fault_still_invalidates_the_trace() -> None:
         "record_stage": dict(outcome=STAGE_STAGED, frame=frame),
         "record_discard": dict(reason=DISCARD_UNBRACKETABLE, victim=frame),
         "record_output": dict(
-            outcome=OUTPUT_DELIVERED, taken_at_us=1_000, iteration=1
+            outcome=OUTPUT_DISPATCHED, taken_at_us=1_000, iteration=1
         ),
         "record_lifecycle": dict(outcome=LIFECYCLE_CLOSED, resulting_epoch=2),
         "record_subscription": dict(outcome=SUBSCRIPTION_OPENED, ruling=3),
@@ -1080,7 +1080,7 @@ def test_summarise_measures_stage_and_dispatch_lag_in_slots() -> None:
     )
     trace.record_output(
         epoch=1,
-        outcome=OUTPUT_DELIVERED,
+        outcome=OUTPUT_DISPATCHED,
         frame=frame,
         taken_at_us=trace.watermark_us(),
     )
@@ -1089,7 +1089,7 @@ def test_summarise_measures_stage_and_dispatch_lag_in_slots() -> None:
     assert summary["complete"] is True
     assert summary["counts"][EVENT_STAGE] == {STAGE_STAGED: 1}
     assert summary["counts"][EVENT_DECIMATE] == {DISCARD_PUBLISH_OVERWRITTEN: 1}
-    assert summary["counts"][EVENT_OUTPUT] == {OUTPUT_DELIVERED: 1}
+    assert summary["counts"][EVENT_OUTPUT] == {OUTPUT_DISPATCHED: 1}
     # Staged in the slot it was captured in, taken three slots later.
     assert summary["stage_lag_slots"] == {"count": 1, "min": 0, "max": 0}
     assert summary["dispatch_lag_slots"] == {"count": 1, "min": 3, "max": 3}

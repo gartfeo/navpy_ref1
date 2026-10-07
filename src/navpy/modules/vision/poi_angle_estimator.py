@@ -1,7 +1,6 @@
 """Transactional constant-velocity estimator for angular tracking error.
 
-POI denotes the selected visual reference (a delivery reference in the
-delivery scenario), not an authenticated recipient or world trajectory.
+POI denotes the selected visual reference, not a world trajectory.
 """
 
 from __future__ import annotations

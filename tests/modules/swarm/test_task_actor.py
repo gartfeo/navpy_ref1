@@ -219,7 +219,7 @@ class TaskActorTest(unittest.TestCase):
         task_handle = TaskHandleMsgData(task_id=1, time_in_min=5.0)
         msg = AvailableTaskResponseMsg(sender_id=2, receiver_id=self.task_actor.id, tasks=[task_handle])
         dispatch = self._register(TaskDispatch(TaskMsgData(
-            task_id=1, task_type=TaskTypeMsgData.SMALL, location=LocationMsgData(12.34, 56.78, 90.0)
+            task_id=1, task_type=TaskTypeMsgData.DOCK, location=LocationMsgData(12.34, 56.78, 90.0)
         )))
 
         # Act
@@ -261,7 +261,7 @@ class TaskActorTest(unittest.TestCase):
 
         task = TaskMsgData(
             task_id=10,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(12.34, 56.78, 90.0),
         )
         task_dispatch = TaskDispatch(task)
@@ -313,7 +313,7 @@ class TaskActorTest(unittest.TestCase):
         for task_id in (10, 20):
             self._register(TaskDispatch(TaskMsgData(
                 task_id=task_id,
-                task_type=TaskTypeMsgData.SMALL,
+                task_type=TaskTypeMsgData.DOCK,
                 location=LocationMsgData(12.34, 56.78, 90.0),
             )))
 
@@ -380,7 +380,7 @@ class TaskActorTest(unittest.TestCase):
         self._discover(2, 3, 4)
         dispatch = self._register(TaskDispatch(TaskMsgData(
             task_id=9,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(12.34, 56.78, 90.0),
         )))
         message = AvailableTaskResponseMsg(
@@ -401,7 +401,7 @@ class TaskActorTest(unittest.TestCase):
         self._discover(2, 3, 4)
         message = AvailableTaskRequestMsg(sender_id=4, tasks=[TaskMsgData(
             task_id=9,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(12.34, 56.78, 90.0),
         )])
         self.network.broadcast.reset_mock()
@@ -420,7 +420,7 @@ class TaskActorTest(unittest.TestCase):
             receiver_id=self.task_actor.id,
             task=TaskAssignMsgData(
                 task_id=9,
-                task_type=TaskTypeMsgData.SMALL,
+                task_type=TaskTypeMsgData.DOCK,
                 location=LocationMsgData(12.34, 56.78, 90.0),
             ),
         )
@@ -438,7 +438,7 @@ class TaskActorTest(unittest.TestCase):
         # Arrange
         self._discover(2, 3)
         task_dispatch = TaskDispatch(TaskMsgData(
-            task_id=1, task_type=TaskTypeMsgData.SMALL, location=LocationMsgData(12.34, 56.78, 90.0)
+            task_id=1, task_type=TaskTypeMsgData.DOCK, location=LocationMsgData(12.34, 56.78, 90.0)
         ))
         self._register(task_dispatch)
         task_handle1 = TaskHandleMsgData(task_id=1, time_in_min=5.0)
@@ -460,7 +460,7 @@ class TaskActorTest(unittest.TestCase):
         # Arrange
         self._discover(2)
         task_dispatch = TaskDispatch(TaskMsgData(
-            task_id=1, task_type=TaskTypeMsgData.SMALL, location=LocationMsgData(12.34, 56.78, 90.0)
+            task_id=1, task_type=TaskTypeMsgData.DOCK, location=LocationMsgData(12.34, 56.78, 90.0)
         ))
         task_dispatch.assigned_peer = 2
         task_dispatch.set_status(TaskDispatchStatus.CONFIRMING)
@@ -484,7 +484,7 @@ class TaskActorTest(unittest.TestCase):
         # Arrange
         self._discover(2)
         task_dispatch = TaskDispatch(TaskMsgData(
-            task_id=1, task_type=TaskTypeMsgData.SMALL, location=LocationMsgData(12.34, 56.78, 90.0)
+            task_id=1, task_type=TaskTypeMsgData.DOCK, location=LocationMsgData(12.34, 56.78, 90.0)
         ))
         task_dispatch.task_handle_by_peer = {2: TaskHandleMsgData(task_id=1, time_in_min=5.0)}
         task_dispatch.assigned_peer = 2
@@ -509,7 +509,7 @@ class TaskActorTest(unittest.TestCase):
         self._discover(2, 3)
         task_dispatch = TaskDispatch(TaskMsgData(
             task_id=1,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(12.34, 56.78, 90.0),
         ))
         task_dispatch.task_handle_by_peer = {
@@ -521,7 +521,7 @@ class TaskActorTest(unittest.TestCase):
         self._register(task_dispatch)
         newer_dispatch = TaskDispatch(TaskMsgData(
             task_id=2,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(23.45, 67.89, 90.0),
         ))
         newer_dispatch.task_handle_by_peer = {
@@ -552,7 +552,7 @@ class TaskActorTest(unittest.TestCase):
         self._discover(2, 3)
         rejected_dispatch = TaskDispatch(TaskMsgData(
             task_id=1,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(12.34, 56.78, 90.0),
         ))
         rejected_dispatch.task_handle_by_peer = {
@@ -575,7 +575,7 @@ class TaskActorTest(unittest.TestCase):
             self._discover(2, 3)
             replacement = TaskDispatch(TaskMsgData(
                 task_id=1,
-                task_type=TaskTypeMsgData.SMALL,
+                task_type=TaskTypeMsgData.DOCK,
                 location=LocationMsgData(23.45, 67.89, 90.0),
             ))
             replacement.task_handle_by_peer = {
@@ -647,7 +647,7 @@ class TaskActorTest(unittest.TestCase):
     def test_rebroadcast_when_peers_missing(self):
         # Arrange — register a known peer that has NOT responded
         self._discover(5, 6)
-        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                            location=LocationMsgData(1.0, 2.0, 3.0))
         td = TaskDispatch(task)
         # Peer 5 responded, peer 6 did not
@@ -666,13 +666,13 @@ class TaskActorTest(unittest.TestCase):
     def test_rebroadcast_ignores_busy_assigned_peers(self):
         self._discover(5, 6)
 
-        available_task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        available_task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                                      location=LocationMsgData(1.0, 2.0, 3.0))
         available_dispatch = TaskDispatch(available_task)
         available_dispatch.on_peer_available(5, TaskHandleMsgData(task_id=10, time_in_min=2.0))
         self._register(available_dispatch)
 
-        confirming_task = TaskMsgData(task_id=20, task_type=TaskTypeMsgData.SMALL,
+        confirming_task = TaskMsgData(task_id=20, task_type=TaskTypeMsgData.DOCK,
                                       location=LocationMsgData(4.0, 5.0, 6.0))
         confirming_dispatch = TaskDispatch(confirming_task)
         confirming_dispatch.assigned_peer = 6
@@ -689,12 +689,12 @@ class TaskActorTest(unittest.TestCase):
     def test_rebroadcast_still_waits_for_unbusy_missing_peers(self):
         self._discover(5, 6)
 
-        available_task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        available_task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                                      location=LocationMsgData(1.0, 2.0, 3.0))
         available_dispatch = TaskDispatch(available_task)
         self._register(available_dispatch)
 
-        busy_task = TaskMsgData(task_id=20, task_type=TaskTypeMsgData.SMALL,
+        busy_task = TaskMsgData(task_id=20, task_type=TaskTypeMsgData.DOCK,
                                 location=LocationMsgData(4.0, 5.0, 6.0))
         busy_dispatch = TaskDispatch(busy_task)
         busy_dispatch.assigned_peer = 5
@@ -761,13 +761,13 @@ class TaskActorTest(unittest.TestCase):
 
         self._discover(5, 6)
 
-        available_task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        available_task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                                      location=LocationMsgData(1.0, 2.0, 3.0))
         available_dispatch = TaskDispatch(available_task)
         available_dispatch.on_peer_available(5, TaskHandleMsgData(task_id=10, time_in_min=2.0))
         self._register(available_dispatch)
 
-        busy_task = TaskMsgData(task_id=20, task_type=TaskTypeMsgData.SMALL,
+        busy_task = TaskMsgData(task_id=20, task_type=TaskTypeMsgData.DOCK,
                                 location=LocationMsgData(4.0, 5.0, 6.0))
         busy_dispatch = TaskDispatch(busy_task)
         busy_dispatch.assigned_peer = 6
@@ -826,7 +826,7 @@ class TaskActorTest(unittest.TestCase):
 
         self._discover(5, 6)
 
-        rejected_task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        rejected_task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                                     location=LocationMsgData(1.0, 2.0, 3.0))
         rejected_dispatch = TaskDispatch(rejected_task)
         rejected_dispatch.assigned_peer = 5
@@ -835,7 +835,7 @@ class TaskActorTest(unittest.TestCase):
         rejected_dispatch.on_peer_available(6, TaskHandleMsgData(task_id=10, time_in_min=3.0))
         self._register(rejected_dispatch)
 
-        busy_task = TaskMsgData(task_id=20, task_type=TaskTypeMsgData.SMALL,
+        busy_task = TaskMsgData(task_id=20, task_type=TaskTypeMsgData.DOCK,
                                 location=LocationMsgData(4.0, 5.0, 6.0))
         busy_dispatch = TaskDispatch(busy_task)
         busy_dispatch.assigned_peer = 6
@@ -870,7 +870,7 @@ class TaskActorTest(unittest.TestCase):
     def test_no_rebroadcast_when_all_responded(self):
         # Arrange — all known peers have responded
         self._discover(5)
-        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                            location=LocationMsgData(1.0, 2.0, 3.0))
         td = TaskDispatch(task)
         td.on_peer_available(5, TaskHandleMsgData(task_id=10, time_in_min=2.0))
@@ -887,7 +887,7 @@ class TaskActorTest(unittest.TestCase):
 
     def test_rebroadcast_cancels_when_no_peers_known(self):
         """With no known peers, rebroadcast should cancel — nobody to send to."""
-        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                            location=LocationMsgData(1.0, 2.0, 3.0))
         td = TaskDispatch(task)
         self._register(td)
@@ -903,7 +903,7 @@ class TaskActorTest(unittest.TestCase):
 
     def test_new_peer_triggers_rebroadcast_for_available_tasks(self):
         """When a new peer joins, rebroadcast should restart for available tasks."""
-        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                            location=LocationMsgData(1.0, 2.0, 3.0))
         td = TaskDispatch(task)
         self._register(td)
@@ -920,7 +920,7 @@ class TaskActorTest(unittest.TestCase):
     def test_existing_peer_heartbeat_does_not_restart_rebroadcast(self):
         """Heartbeat from already-known peer should not restart rebroadcast."""
         self._discover(5)
-        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                            location=LocationMsgData(1.0, 2.0, 3.0))
         td = TaskDispatch(task)
         self._register(td)
@@ -935,7 +935,7 @@ class TaskActorTest(unittest.TestCase):
 
     def test_rebroadcast_stops_on_assignment(self):
         # Arrange — task moves to CONFIRMING status
-        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                            location=LocationMsgData(1.0, 2.0, 3.0))
         td = TaskDispatch(task)
         td.set_status(TaskDispatchStatus.CONFIRMING)
@@ -962,7 +962,7 @@ class TaskActorTest(unittest.TestCase):
         # Populate actor state
         self._discover(5, 6)
         self.task_actor._selection.try_accept(Mock())
-        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.BIG,
+        task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                            location=LocationMsgData(1.0, 2.0, 3.0))
         self._register(task)
 
@@ -1021,7 +1021,7 @@ class TaskActorTest(unittest.TestCase):
 
         selected = TaskAssignMsgData(
             task_id=7,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(1.0, 2.0, 3.0),
         )
         self.assertTrue(self.task_actor._selection.try_accept(selected))

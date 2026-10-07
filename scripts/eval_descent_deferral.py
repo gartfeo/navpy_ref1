@@ -8,7 +8,7 @@ all.
 The deferral fraction is dimensionless -- "what fraction of the horizontal leg
 had already been flown when a given fraction of the height had been lost" -- so
 it compares directly across geometries.  A law that starts descending at
-handover produces roughly equal fractions (10% of the height gone by ~10% of
+the final-approach start produces roughly equal fractions (10% of the height gone by ~10% of
 the leg).  A rate-only law, which commands nothing until the line-of-sight rate
 grows, produces fractions far above the diagonal.
 

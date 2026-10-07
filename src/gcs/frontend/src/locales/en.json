@@ -322,11 +322,11 @@
         "control": "Control",
         "logging": "Logging",
         "confirmation": "Confirmation",
-        "simulationDocks": "Simulation docks"
+        "simulationPois": "Simulation POIs"
       },
       "fields": {
         "delPitch": "Approach pitch (deg)",
-        "throttleDive": "Throttle dive (%)",
+        "approachThrottle": "Approach throttle (%)",
         "algorithm": "Algorithm",
         "pitchKp": "Pitch Kp",
         "pitchLockDist": "Pitch lock dist (m)",
@@ -341,8 +341,8 @@
         "dockAlt": "Dock altitude (m)",
         "minAlt": "Min alt (m)",
         "startDetectWp": "Start detect WP",
-        "dockWps": "Dock WPs",
-        "simulatorReferencePosition": "Simulator reference position",
+        "simPoiWps": "Simulation POI WPs",
+        "simulatorReferencePosition": "Simulator reference position (legacy)",
         "disarmAfterAttempt": "Disarm after attempt"
       },
       "placeholders": {
@@ -356,7 +356,7 @@
     "waitingForImage": "Waiting for image...",
     "approve": "APPROVE",
     "deny": "DENY",
-    "cancelDelivery": "CANCEL DELIVERY",
+    "cancelTask": "CANCEL TASK",
     "approved": "APPROVED",
     "denied": "DENIED",
     "cancellationRequested": "CANCELLATION REQUESTED",
@@ -389,7 +389,7 @@
   },
   "mapMarkers": {
     "launchPoint": "LP",
-    "observationPost": "OP",
+    "detectionStart": "DS",
     "dock": "D"
   },
   "monitorOverlay": {
@@ -497,18 +497,18 @@
     "fenceObservedHint": "Read from the connected UAVs, not from the plan.",
     "fenceOffset": "Offset from zone",
     "takeoffRound": "Takeoff round",
-    "fenceHint": "Auto-generated from the search zone, corridor, default delivery hubs, and simulation docks. Drag the amber handles on the map to reshape it; double-click a handle to delete it.",
+    "fenceHint": "Auto-generated from the search zone, corridor, default delivery hubs, and simulation POIs. Drag the amber handles on the map to reshape it; double-click a handle to delete it.",
     "fenceRequestNone": "Next upload: no fence change — the vehicles keep their current settings.",
     "fenceRequestEnable": "Next upload: requests this fence update with the mission",
     "fenceRequestDisable": "Next upload: requests fence disable with the mission",
     "fenceRequestInvalid": "Fence enabled but its shape is unusable — nothing will be sent until it is fixed.",
     "fenceUploadHelp": "Uploading without a fence edit preserves the vehicles' settings. Changing the planner fence requests an update. Switching it Off requests a disable on the next upload.",
     "confirmation": "Confirmation",
-    "simDocks": "Simulation docks",
+    "simPois": "Simulation POIs",
     "uavHeader": "UAV",
-    "dockWps": "Dock WPs",
+    "simPoiWps": "Simulation POI WPs",
     "detectWp": "Detect WP",
-    "clickTrackWps": "Click track waypoints on the map to select simulation docks",
+    "clickTrackWps": "Click track waypoints on the map to select simulation POIs",
     "searchPatterns": {
       "distributed": "Distributed",
       "corridor": "Corridor"
@@ -624,11 +624,11 @@
     "noChanges": "No changes to upload",
     "uploadError": "Upload error",
     "simulation": "Simulation",
-    "editPois": "Edit simulation docks",
+    "editPois": "Edit simulation POIs",
     "replaceWaypoints": "Replace displayed waypoints?",
     "noMissionLoaded": "No mission loaded",
     "downloadMissions": "Download missions",
-    "simulatedPoiSelection": "Simulation dock selection",
+    "simulatedPoiSelection": "Simulation POI selection",
     "scrollZoomDragPan": "Scroll to zoom, drag to pan",
     "detectAfter": "Detect After",
     "confirmBlockedPixels": "Detection too small ({{detail}} px)",
@@ -754,7 +754,7 @@
   "visionProfile": {
     "title": "Vision Profile",
     "profile": "Profile",
-    "divePitch": "Dive Pitch",
+    "approachPitchRange": "Approach pitch range",
     "min": "Min",
     "max": "Max",
     "minAlt": "Min Alt",

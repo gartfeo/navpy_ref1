@@ -130,9 +130,9 @@ def get_euler_rotation_angles(start_look_at_vector, poi_look_at_vector,
     return rotation.as_euler(seq, degrees)
 
 
-def calculate_euler_angles(uas_seq, uas_euler_angles, poi_seq, target_euler_angles, degrees):
+def calculate_euler_angles(uas_seq, uas_euler_angles, poi_seq, poi_euler_angles, degrees):
     uas_rotation = Rotation.from_euler(uas_seq, uas_euler_angles, degrees)
-    poi_rotation = Rotation.from_euler(poi_seq, target_euler_angles, degrees)
+    poi_rotation = Rotation.from_euler(poi_seq, poi_euler_angles, degrees)
 
     uas_rotation_matrix = uas_rotation.as_matrix()
     poi_rotation_matrix = poi_rotation.as_matrix()

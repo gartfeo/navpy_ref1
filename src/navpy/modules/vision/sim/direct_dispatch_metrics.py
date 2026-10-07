@@ -1,4 +1,4 @@
-"""Publish slot and frame/delivery tallies for the direct-pixel source.
+"""Publish slot and frame/dispatch tallies for the direct-pixel source.
 
 Both live here because both are the source's MUTABLE state, and the source
 owns exactly one lock for all of it: every field below is read and written
@@ -15,7 +15,7 @@ from typing import Any
 from navpy.modules.vision.sim.determinism_events import (
     LIFECYCLE_ACTIVATED,
     LIFECYCLE_CLOSED,
-    OUTPUT_DELIVERED,
+    OUTPUT_DISPATCHED,
     OUTPUT_EXCEPTION,
     OUTPUT_REJECTED,
     STAGE_FENCED,
@@ -29,9 +29,9 @@ from navpy.modules.vision.sim.determinism_events import (
 class DirectPixelSourceMetrics:
     projected_frames: int
     projection_failures: int
-    delivered_frames: int
-    delivery_rejections: int
-    delivery_exceptions: int
+    dispatched_frames: int
+    dispatch_rejections: int
+    dispatch_exceptions: int
     advanced_truth_frames: int
     association_refusals: int
     pose_skew_ms_mean: float
@@ -79,18 +79,18 @@ class PoseSkewStatistics:
         return math.sqrt(max(variance, 0.0))
 
 
-class DirectDeliveryCounters:
-    """Mutable frame/delivery tallies, always touched under the source lock."""
+class DirectDispatchCounters:
+    """Mutable frame/dispatch tallies, always touched under the source lock."""
 
     def __init__(self) -> None:
         self.projected_frames = 0
         self.projection_failures = 0
-        self.delivered_frames = 0
-        self.delivery_rejections = 0
+        self.dispatched_frames = 0
+        self.dispatch_rejections = 0
         # The consumer RAISED. Kept apart from a refusal because the worker
         # CATCHES it (navigation_command_worker.py:136-140): a crashing consumer
         # would otherwise be indistinguishable from a quiet one.
-        self.delivery_exceptions = 0
+        self.dispatch_exceptions = 0
         self.advanced_truth_frames = 0
         # An ATTITUDE that could not close a pair. A few are normal (the pair
         # needs one event of each kind); a run where this climbs while
@@ -106,12 +106,12 @@ class DirectDeliveryCounters:
         it can never disagree about what happened to a frame. Outcomes that
         consumed no frame (empty slot, stale epoch) tally nothing.
         """
-        if outcome == OUTPUT_DELIVERED:
-            self.delivered_frames += 1
+        if outcome == OUTPUT_DISPATCHED:
+            self.dispatched_frames += 1
         elif outcome == OUTPUT_REJECTED:
-            self.delivery_rejections += 1
+            self.dispatch_rejections += 1
         elif outcome == OUTPUT_EXCEPTION:
-            self.delivery_exceptions += 1
+            self.dispatch_exceptions += 1
 
     def record_skew(self, skew_ms: float) -> None:
         # Every published frame is interpolated inside a bracketing truth
@@ -125,9 +125,9 @@ class DirectDeliveryCounters:
         return DirectPixelSourceMetrics(
             self.projected_frames,
             self.projection_failures,
-            self.delivered_frames,
-            self.delivery_rejections,
-            self.delivery_exceptions,
+            self.dispatched_frames,
+            self.dispatch_rejections,
+            self.dispatch_exceptions,
             self.advanced_truth_frames,
             self.association_refusals,
             self.skew.mean_ms,
@@ -163,7 +163,7 @@ class DirectPublishState:
         self.pending: Any | None = None
         self.source_now_s: float | None = None
         self.epoch = 0
-        self.counters = DirectDeliveryCounters()
+        self.counters = DirectDispatchCounters()
 
     def activate(self) -> LegBoundary:
         """Start a scored leg: publish nothing captured before this instant.
@@ -180,7 +180,7 @@ class DirectPublishState:
         ending, discarded = self.epoch, self._empty_slots()
         self.active = True
         self.source_now_s = None
-        self.counters = DirectDeliveryCounters()
+        self.counters = DirectDispatchCounters()
         self.epoch += 1
         return LegBoundary(LIFECYCLE_ACTIVATED, ending, self.epoch, *discarded)
 
@@ -209,9 +209,9 @@ class DirectPublishState:
     def publish(self, frame: Any) -> Any | None:
         """Fill the publish slot; return the frame this one DISPLACED.
 
-        A displaced frame was projected and never delivered, and no delivery
+        A displaced frame was projected and never dispatched, and no dispatch
         rejection is recorded for it -- which is exactly the archived
-        projected-minus-delivered gap.
+        projected-minus-dispatched gap.
         """
         displaced, self.latest = self.latest, frame
         return displaced
@@ -273,7 +273,7 @@ class DirectPublishState:
 
 
 __all__ = [
-    "DirectDeliveryCounters",
+    "DirectDispatchCounters",
     "PoseSkewStatistics",
     "DirectPixelSourceMetrics",
     "DirectPublishState",

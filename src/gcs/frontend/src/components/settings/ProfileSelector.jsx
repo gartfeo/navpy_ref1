@@ -580,9 +580,9 @@ export default function ProfileSelector({
         </select>
       </div>
 
-      {/* Dive pitch envelope + optimize */}
+      {/* Approach pitch envelope + optimize */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-        <label style={{ color: colors.textDim, fontSize: 11, fontWeight: 600 }}>{t('visionProfile.divePitch')}</label>
+        <label style={{ color: colors.textDim, fontSize: 11, fontWeight: 600 }}>{t('visionProfile.approachPitchRange')}</label>
         <label style={{ color: colors.textDim, fontSize: 11 }}>{t('visionProfile.min')}</label>
         <NumericInput
           value={localOverrides.profile.min_pitch ?? profileData?.min_pitch ?? -60}

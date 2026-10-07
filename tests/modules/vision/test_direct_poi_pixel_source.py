@@ -49,7 +49,7 @@ from navpy.modules.vision.sim.determinism_slots import (
     frame_digest,
 )
 from navpy.modules.vision.sim.determinism_trace_summary import summarise
-from navpy.modules.vision.sim.direct_delivery_metrics import (
+from navpy.modules.vision.sim.direct_dispatch_metrics import (
     DirectPublishState,
     LegBoundary,
 )
@@ -112,7 +112,7 @@ def _source(vehicle: Mock, delivered: list) -> DirectPoiPixelSource:
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=lambda detection: delivered.append(detection) or True,
+        dispatch=lambda detection: delivered.append(detection) or True,
         wall_now_s=lambda: 100.0,
     )
     source.activate()
@@ -173,8 +173,8 @@ def test_known_geo_poi_becomes_pixel_then_geo_free_final_approach_frame() -> Non
     assert np.linalg.norm(frame.body_ray) == pytest.approx(1.0)
     assert source.metrics.projected_frames == 1
     assert source.metrics.projection_failures == 0
-    assert source.metrics.delivered_frames == 1
-    assert source.metrics.delivery_rejections == 0
+    assert source.metrics.dispatched_frames == 1
+    assert source.metrics.dispatch_rejections == 0
 
 
 def test_newest_pixel_replaces_older_without_dispatching_twice() -> None:
@@ -193,7 +193,7 @@ def test_newest_pixel_replaces_older_without_dispatching_twice() -> None:
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=lambda detection: timestamps.append(
+        dispatch=lambda detection: timestamps.append(
             detection.pixel.source_timestamp_s
         ) or True,
         wall_now_s=lambda: 100.0,
@@ -214,7 +214,7 @@ def test_newest_pixel_replaces_older_without_dispatching_twice() -> None:
     assert not source.dispatch_available()
     assert timestamps == [2.0]
     assert source.metrics.projected_frames == 2
-    assert source.metrics.delivered_frames == 1
+    assert source.metrics.dispatched_frames == 1
 
 
 def test_pixel_is_rendered_from_truth_yaw_not_compass_yaw() -> None:
@@ -557,7 +557,7 @@ def test_activation_scopes_advance_diagnostics_to_the_scored_leg() -> None:
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=lambda detection: True,
+        dispatch=lambda detection: True,
         wall_now_s=lambda: 100.0,
     )
     source._on_message(_message("SIM_STATE"))
@@ -866,12 +866,12 @@ def test_activation_restarts_the_frame_tallies() -> None:
     _flush_truth(vehicle, source)
     assert source.dispatch_available()
     assert source.metrics.projected_frames == 1
-    assert source.metrics.delivered_frames == 1
+    assert source.metrics.dispatched_frames == 1
 
     source.activate()
 
     assert source.metrics.projected_frames == 0
-    assert source.metrics.delivered_frames == 0
+    assert source.metrics.dispatched_frames == 0
     assert source.metrics.pose_skew_ms_mean == 0.0
 
 
@@ -1150,7 +1150,7 @@ def test_the_traced_schedule_actually_exercises_the_coalescing(
             determinism_events.DISCARD_PUBLISH_OVERWRITTEN: 1
         },
         determinism_events.EVENT_OUTPUT: {
-            determinism_events.OUTPUT_DELIVERED: 3,
+            determinism_events.OUTPUT_DISPATCHED: 3,
             determinism_events.OUTPUT_EMPTY: 1,
         },
         # The one boundary this replay crosses: _source() activates it.
@@ -1236,7 +1236,7 @@ def test_the_trace_accounts_for_the_projected_minus_delivered_gap(
     metrics = result["metrics"]
     ledger = _assert_publish_slot_balances(result["source"])
     assert metrics.projected_frames == 4
-    assert metrics.delivered_frames == 3
+    assert metrics.dispatched_frames == 3
     assert ledger[1] == {
         "in": 4,
         "overwritten": 1,
@@ -1427,7 +1427,7 @@ def test_a_leg_never_activated_closes_as_epoch_zero(monkeypatch) -> None:
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=lambda detection: True,
+        dispatch=lambda detection: True,
         wall_now_s=lambda: 100.0,
     )
 
@@ -1445,7 +1445,7 @@ def test_a_rejected_frame_still_leaves_the_publish_slot(monkeypatch) -> None:
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=lambda detection: False,
+        dispatch=lambda detection: False,
         wall_now_s=lambda: 100.0,
     )
     source.activate()
@@ -1453,7 +1453,7 @@ def test_a_rejected_frame_still_leaves_the_publish_slot(monkeypatch) -> None:
 
     ledger = _assert_publish_slot_balances(source)
     assert ledger[source._state.epoch]["taken"] == 1
-    assert source.metrics.delivery_rejections == 1
+    assert source.metrics.dispatch_rejections == 1
 
 
 def test_publish_slot_overwrite_names_the_frame_no_dispatch_took(
@@ -1586,7 +1586,7 @@ def test_every_dispatch_attempt_records_exactly_one_output_slot(
     ]
     assert outputs == [
         determinism_events.OUTPUT_EMPTY,
-        determinism_events.OUTPUT_DELIVERED,
+        determinism_events.OUTPUT_DISPATCHED,
         determinism_events.OUTPUT_EMPTY,
     ]
     assert len(outputs) == len(schedule.dispatches)
@@ -1605,7 +1605,7 @@ def test_a_rejected_delivery_is_recorded_as_its_own_outcome(
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=lambda detection: False,
+        dispatch=lambda detection: False,
         wall_now_s=lambda: 100.0,
     )
     source.activate()
@@ -1621,7 +1621,7 @@ def test_a_rejected_delivery_is_recorded_as_its_own_outcome(
         for row in list(trace.capture().rows)
         if row[0] == determinism_events.EVENT_OUTPUT
     ] == [determinism_events.OUTPUT_REJECTED]
-    assert source.metrics.delivery_rejections == 1
+    assert source.metrics.dispatch_rejections == 1
 
 
 def test_a_frame_from_the_previous_leg_is_fenced_not_staged(
@@ -1821,7 +1821,7 @@ def test_a_raising_consumer_still_leaves_a_row_and_a_tally(monkeypatch) -> None:
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=boom,
+        dispatch=boom,
         wall_now_s=lambda: 100.0,
     )
     source.activate()
@@ -1832,9 +1832,9 @@ def test_a_raising_consumer_still_leaves_a_row_and_a_tally(monkeypatch) -> None:
 
     metrics = source.metrics
     assert metrics.projected_frames == 1
-    assert metrics.delivered_frames == 0
-    assert metrics.delivery_rejections == 0
-    assert metrics.delivery_exceptions == 1
+    assert metrics.dispatched_frames == 0
+    assert metrics.dispatch_rejections == 0
+    assert metrics.dispatch_exceptions == 1
     outputs = [
         row
         for row in list(source.determinism_trace.capture().rows)
@@ -1871,7 +1871,7 @@ def test_the_dispatch_lag_is_stamped_when_the_frame_was_taken(
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=deliver_while_the_stream_advances,
+        dispatch=deliver_while_the_stream_advances,
         wall_now_s=lambda: 100.0,
     )
     source.activate()
@@ -1975,7 +1975,7 @@ def _run_through_the_worker(script: str, *, tracing: bool, monkeypatch) -> dict:
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=law,
+        dispatch=law,
         wall_now_s=lambda: 100.0,
     )
     source.activate()
@@ -2124,7 +2124,7 @@ def test_the_ledger_holds_the_commands_the_worker_actually_executed(
         row[7]
         for row in list(on["trace"].capture().rows)
         if row[0] == determinism_events.EVENT_OUTPUT
-        and row[2] == determinism_events.OUTPUT_DELIVERED
+        and row[2] == determinism_events.OUTPUT_DISPATCHED
     ]
     assert ready_on == [1, 2, 3]
     assert issued_on == [pass_number + 1 for pass_number in ready_on]
@@ -2503,7 +2503,7 @@ def test_no_command_loop_is_reachable_from_the_journal_at_any_depth() -> None:
     trace.command_log.note_iteration(1)
     trace.record_output(
         epoch=1,
-        outcome="delivered",
+        outcome="dispatched",
         taken_at_us=trace.watermark_us(),
     )
     assert list(trace.capture().rows), "no rows recorded, so nothing was driven"
@@ -2662,7 +2662,7 @@ def test_no_store_reaches_the_attitude_ledger_or_is_reached_from_it() -> None:
     trace.record_truth(epoch=1, outcome="recorded")
     trace.record_stage(epoch=1, outcome="staged")
     trace.record_discard(epoch=1, reason="unbracketable", victim=None)
-    trace.record_output(epoch=1, outcome="delivered", taken_at_us=None)
+    trace.record_output(epoch=1, outcome="dispatched", taken_at_us=None)
     trace.record_lifecycle(epoch=1, outcome="closed", resulting_epoch=2)
     trace.guard_callback(lambda message: None)("message")
     trace.record_subscription(epoch=1, outcome="closed")
@@ -2728,7 +2728,7 @@ def test_the_only_thing_that_crosses_between_the_ledgers_is_a_value() -> None:
 
     trace = determinism_trace.DeterminismTrace(5_000, capacity=8)
     trace.command_log.note_iteration(7)
-    trace.record_output(epoch=1, outcome="delivered", taken_at_us=1_000)
+    trace.record_output(epoch=1, outcome="dispatched", taken_at_us=1_000)
     row = [
         row for row in list(trace.capture().rows)
         if row[0] == determinism_events.EVENT_OUTPUT
@@ -2737,13 +2737,13 @@ def test_the_only_thing_that_crosses_between_the_ledgers_is_a_value() -> None:
 
     # And a fault reading it latches the trace incomplete rather than raising
     # into a command path or quietly losing the row.
-    class Hostile:
+    class Unreadable:
         def current_iteration(self):
             raise RuntimeError("the ledger is broken")
 
     faulted = determinism_trace.DeterminismTrace(5_000, capacity=8)
-    faulted._commands = Hostile()
-    faulted.record_output(epoch=1, outcome="delivered", taken_at_us=1_000)
+    faulted._commands = Unreadable()
+    faulted.record_output(epoch=1, outcome="dispatched", taken_at_us=1_000)
     assert faulted.journal.capture()[1].failed is True
 
 
@@ -2752,7 +2752,7 @@ def test_a_recorder_that_throws_cannot_stop_the_command_loop() -> None:
     executed: list = []
     logger = Mock()
 
-    class _Hostile:
+    class _Unreadable:
         def note_iteration(self, iteration: int) -> None:
             raise RuntimeError("observer blew up on the iteration")
 
@@ -2792,7 +2792,7 @@ def test_a_recorder_that_throws_cannot_stop_the_command_loop() -> None:
             runtime_session=runtime_session,
             logger=logger,
             source_dispatch=lambda: stop_event.set() or False,
-            command_loop=_Hostile(),
+            command_loop=_Unreadable(),
             monotonic_s=lambda: next(clock),
             sleep_s=lambda seconds: None,
         )
@@ -2826,7 +2826,7 @@ def test_the_worker_swallows_a_crash_but_the_trace_does_not(
         Mock(wall_period_for_scheduler_period=lambda value: value),
         aircraft_sequence="ZYX",
         aircraft_degrees=True,
-        deliver=boom,
+        dispatch=boom,
         wall_now_s=lambda: 100.0,
     )
     source.activate()
@@ -2862,7 +2862,7 @@ def test_the_worker_swallows_a_crash_but_the_trace_does_not(
 
     # The loop survived, and said so only in the log.
     assert logger.error.called
-    assert source.metrics.delivery_exceptions == 1
+    assert source.metrics.dispatch_exceptions == 1
     _assert_publish_slot_balances(source)
 
 

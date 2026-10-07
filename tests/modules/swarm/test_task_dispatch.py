@@ -11,7 +11,7 @@ class TaskDispatchTest(unittest.TestCase):
     def setUp(self):
         self.task = TaskMsgData(
             task_id=1,
-            task_type=TaskTypeMsgData.SMALL,
+            task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(12.34, 56.78, 90.0)
         )
         self.task_dispatch = TaskDispatch(self.task)

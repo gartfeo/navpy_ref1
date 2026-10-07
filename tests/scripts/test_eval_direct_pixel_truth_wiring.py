@@ -606,7 +606,7 @@ def _fly_setup(tmp_path: Path, monkeypatch) -> tuple[list[dict], Path]:
     def _drain(master, *, sysid, live_anchors, scorer, track,
                truth=None, truth_scoring_active=False):
         drains.append({
-            "engaged": truth_scoring_active,
+            "scoring_active": truth_scoring_active,
             "scorer": scorer is not None,
             "track": track is not None,
         })
@@ -640,7 +640,7 @@ def test_fly_keeps_draining_until_truth_closure(
     assert truth.polls == 3
     # One drain in the main loop, then one per not-ready closure poll.
     assert len(drains) == 3
-    assert all(d["engaged"] for d in drains)
+    assert all(d["scoring_active"] for d in drains)
     # The closure tail feeds ONLY the truth recorder: the child's result ends
     # the EKF scorer's and ground track's episode.
     assert drains[0]["scorer"] and drains[0]["track"]

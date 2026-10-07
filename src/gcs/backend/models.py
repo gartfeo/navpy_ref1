@@ -139,7 +139,7 @@ class TaskConfirmResponseRequest(BaseModel):
     round_uid: Optional[str] = None
 
 
-class TaskForceConfirmRequest(BaseModel):
+class TaskConfirmOverrideRequest(BaseModel):
     """CONF-03 "Ask me anyway" one-shot gate-bypass override (D-18/D-19/D-20).
 
     Deliberately minimal: no wire-visible "why" or thumbnail data — the

@@ -36,7 +36,7 @@ VISIBLE_LITERAL_GUARDS = {
     "ProfileSelector.jsx": [
         'title="Vision Profile"',
         ">Profile</label>",
-        ">Dive Pitch</label>",
+        ">Approach pitch range</label>",
         ">Min</label>",
         ">Max</label>",
         ">Min Alt</label>",

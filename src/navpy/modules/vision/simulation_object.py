@@ -4,7 +4,7 @@ from navpy.modules.common.models.location import Location
 
 
 class SimulationObject:
-    """Positioned simulator delivery reference, not a verified recipient."""
+    """Positioned simulator POI."""
 
     def __init__(self, uid: int, loc_global: Location, height: int,
                  location_type: str | None = None) -> None:

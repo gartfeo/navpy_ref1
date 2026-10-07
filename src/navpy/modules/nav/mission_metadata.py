@@ -23,7 +23,7 @@ class MissionMetadata:
     search_pattern: str = "distributed"
     waypoint_altitudes: List[float] = field(default_factory=list)
     # Scan/zone (navigation task) altitude relative to home — the dock preset
-    # ``altitude_m`` band the drone orbits and dives from, distinct from
+    # ``altitude_m`` band the drone orbits and descends from, distinct from
     # the (often higher) corridor/transit band. See _resolve_scan_altitude.
     scan_altitude_rel: Optional[float] = None
     default_delivery_hub: Optional[Location] = None
@@ -53,7 +53,7 @@ def _resolve_scan_altitude(
     ``waypoint_builder.build_mission``): corridor waypoints at the
     transit altitude *before* the metadata marker block, and scan/zone
     waypoints at the dock preset ``altitude_m`` *after* it. The drone
-    orbits and dives from the SCAN band, so that — never the (often
+    orbits and descends from the SCAN band, so that — never the (often
     higher) corridor band — is the navigation task altitude. Taking the
     corridor altitude oversizes the orbit past recognition range
     (SITL run 174040: 898 m, mission stalled in CONFIRM_WAIT).

@@ -25,8 +25,8 @@ def create_dock_sprite() -> np.ndarray:
     return sprite
 
 
-def create_delivery_vehicle_sprite() -> np.ndarray:
-    """Draw a delivery vehicle carrying a D pad on the existing square canvas."""
+def create_platform_vehicle_sprite() -> np.ndarray:
+    """Draw a moving platform vehicle carrying a dock on the existing square canvas."""
     sprite = np.zeros((VEHICLE_SPRITE_SIZE_PX, VEHICLE_SPRITE_SIZE_PX, 4), np.uint8)
     # Top view: four wheels, a plain cargo platform, and a cab at the front.
     for x in (70, 470):

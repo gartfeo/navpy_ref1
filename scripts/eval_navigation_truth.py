@@ -240,9 +240,9 @@ class TruthRecorder:
             "vertical_m": None if best is None else best.vertical_m,
             "cpa_source_time_s": None if cpa is None else cpa.source_time_s,
             "cpa_segment_fraction": None if cpa is None else cpa.fraction,
-            "engaged_samples": len(canonical),
-            "engaged_span_s": span,
-            "delivered_rate_hz": (
+            "scoring_samples": len(canonical),
+            "scoring_span_s": span,
+            "scoring_sample_rate_hz": (
                 (len(canonical) - 1) / span if span > 0.0 else 0.0
             ),
             "collapsed_duplicate_arrivals": collapsed,
@@ -251,7 +251,7 @@ class TruthRecorder:
             "scorer_late": self._scorer.late_sample_count,
             "closure_post_samples": post_samples,
             "closure_rise_m": rise,
-            "pre_engagement_samples": sum(
+            "pre_scoring_samples": sum(
                 1 for record in self._records
                 if record.converted and not record.scoring_active
             ),

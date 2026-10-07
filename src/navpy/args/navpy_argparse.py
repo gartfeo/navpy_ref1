@@ -15,7 +15,7 @@ from navpy.args.vision_args import VisionArgs
 _ARG_MODULES: Sequence[tuple[Callable, tuple]] = (
     # vehicle
     (ConnArgs.add_args, ()),
-    # simulator delivery references / navigation
+    # simulator POIs / navigation
     (NavigationPoiArgs.add_args, ()),
     (NavigationArgs.add_args, ()),
     # navigation

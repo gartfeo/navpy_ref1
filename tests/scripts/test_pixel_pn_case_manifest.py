@@ -54,7 +54,7 @@ UNTRACED_KEYS = [
     "slow_seq",
     "repetition",
     "poi",
-    "engage_seq",
+    "scoring_start_seq",
     "sitl_params",
     "sitl_params_pushed",
     "source_identity",
@@ -173,7 +173,7 @@ def test_the_manifest_still_carries_what_it_always_carried(tmp_path: Path) -> No
     manifest = _write(tmp_path, FinalApproachSpeedPlan(), 1.0)
 
     assert manifest["repetition"] == 0
-    assert manifest["engage_seq"] == 4
+    assert manifest["scoring_start_seq"] == 4
     assert manifest["source_identity"] == IDENTITY
     assert manifest["poi"]["rel_alt_m"] == 60.0
 

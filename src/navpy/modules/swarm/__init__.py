@@ -1,12 +1,13 @@
-"""Fleet coordination and delivery-task distribution (compatible swarm package).
+"""Swarm coordination and task distribution.
 
 This module provides:
 - Task assignment and distribution
 - Multi-vehicle coordination
-- Fleet task communication protocols
+- Swarm task communication protocols
 
 The swarm import path and message names remain stable for compatibility.
-Task allocation is not a guarantee of safe separation or successful handover.
+Task allocation is not a guarantee of safe separation, and
+approach accuracy does not establish a mission outcome (e.g. docking, cargo receipt, coverage).
 
 Usage:
     from navpy.modules.swarm import TaskActor, TaskDispatch

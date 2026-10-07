@@ -1,7 +1,7 @@
-"""Pure minimum-ETA allocation for fleet delivery-task auctions.
+"""Pure minimum-ETA allocation for swarm task auctions.
 
-Reported ETA/availability does not establish energy reserve, safe separation
-or recipient authorization; those require separate operational validation.
+Reported ETA/availability does not establish energy reserve or safe separation;
+those require separate operational validation.
 """
 
 from __future__ import annotations

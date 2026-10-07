@@ -1,18 +1,19 @@
-# NavPy Core — layer navigate
+# NavPy Core — layer guide
 
 Read this when working on the navigation framework (`src/navpy/`), simulations,
 or navigation-log analysis.
 
 ## Architecture
 
-NavPy provides navigation and swarm coordination for logistics.
-Source lives in `src/navpy/`. 
+NavPy provides mission-agnostic navigation and swarm coordination; mission
+modules plug in on top (see root `AGENTS.md`). Source lives in `src/navpy/`.
 
 - `modules/common`: shared types such as `Location`, `Attitude`, `Wind`
 - `modules/vehicle`: `IVehicle` and MAVLink implementation via `VehicleMav`
 - `modules/vision`: detector abstractions and implementations
 - `modules/navigation`: navigation algorithms, `GeoRefCalc`, `ZcUtil`, L1/PID/PN navigation
-- `modules/nav`: `NavController` state machine: `ONHOLD -> DETECT -> NAV -> RESET`
+- `modules/nav`: `NavController` state machine (`nav_state.NavState`): `ONHOLD`, `DETECT`,
+  `CONFIRM`, `NAV`, `RESET`, `RECOVERY`
 - `modules/comm`: `NetworkWifi`, `NetworkSerial`, `NetworkMavlink`
 - `modules/swarm`: `TaskActor`, `TaskDispatch`, multi-vehicle coordination
 

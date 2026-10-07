@@ -37,11 +37,11 @@ def build_parser(
             "--cruise-speedup", type=float, default=0.0,
             help="cruise to the gate at this speed; 0 flies the scored speed throughout")
     parser.add_argument("--repetitions", type=int, default=3)
-    # The uploaded line has two NAV_WAYPOINTs: ordinal 1 is the handover gate
+    # The uploaded line has two NAV_WAYPOINTs: ordinal 1 is the final-approach start gate
     # and ordinal 2 is the POI.  Both options must name the POI, ordinal
     # 2: scoring interval fires when MISSION_CURRENT reaches the POI's sequence,
     # which happens when the aircraft *reaches the gate*.  Naming ordinal 1
-    # instead would score the gate as the POI and hand over at the loiter
+    # instead would score the gate as the POI and start the final approach at the loiter
     # exit, throwing away the fixed-length scored leg the gate exists to give.
     # LOITER_TO_ALT is not a NAV_WAYPOINT and is not counted in the ordinals.
     parser.add_argument("--poi-wp", type=int, default=2)
@@ -65,7 +65,7 @@ def build_parser(
         "--gate-offset",
         type=float,
         default=DEFAULT_GATE_OFFSET_M,
-        help="metres north of home for the handover gate",
+        help="metres north of home for the final-approach start gate",
     )
     parser.add_argument(
         "--poi-offset",

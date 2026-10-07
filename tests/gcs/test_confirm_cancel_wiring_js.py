@@ -31,7 +31,7 @@ class TestTaskConfirmCard(unittest.TestCase):
     def test_cancel_control_wired(self):
         self.assertIn("onCancel(sysId)", self.src)
         self.assertIn("canCancel(entry)", self.src)
-        self.assertIn("task.cancelDelivery", self.src)
+        self.assertIn("task.cancelTask", self.src)
 
 
 class TestUseTaskConfirmation(unittest.TestCase):

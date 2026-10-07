@@ -45,7 +45,7 @@ gcs.on_message("NAVLINK",
 # vehicle1.send_mavlink_message(CheckInMsg(vehicle1.target_system).to_mavlink())
 # vehicle2.send_mavlink_message(CheckInMsg(vehicle2.target_system).to_mavlink())
 
-task = TaskMsgData(111, TaskTypeMsgData.MEDIUM, LocationMsgData(44.0, 45.0, 1300))
+task = TaskMsgData(111, TaskTypeMsgData.DOCK, LocationMsgData(44.0, 45.0, 1300))
 available_request_msg = AvailableTaskRequestMsg(vehicle1.source_system, [task])
 vehicle1.send_mavlink_message(available_request_msg.to_mavlink())
 

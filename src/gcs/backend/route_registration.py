@@ -25,9 +25,9 @@ _ROUTES = (
     _RouteSpec("navpy_sim", "/api/control", "NavPy sim routes not available"),
     _RouteSpec("task_confirm", "/api/control", "Task confirm routes not available"),
     _RouteSpec(
-        "task_force_confirm",
+        "task_confirm_override",
         "/api/control",
-        "Task force-confirm routes not available",
+        "Task confirm-override routes not available",
     ),
     _RouteSpec("settings", unavailable_message="Settings routes not available"),
     _RouteSpec(

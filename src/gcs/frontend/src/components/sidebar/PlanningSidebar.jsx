@@ -441,12 +441,12 @@ export default function PlanningSidebar({
       {simMode && plan?.zones?.length > 0 && (
         <>
           <Divider />
-          <Label>{t('planningSidebar.simDocks')}</Label>
+          <Label>{t('planningSidebar.simPois')}</Label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 4 }}>
             {/* Header row */}
             <div style={{ display: 'grid', gridTemplateColumns: '48px minmax(0, 1fr) minmax(0, 1fr)', gap: 4, fontSize: 11, color: colors.textDim, paddingBottom: 2 }}>
               <span>{t('planningSidebar.uavHeader')}</span>
-              <span>{t('planningSidebar.dockWps')}</span>
+              <span>{t('planningSidebar.simPoiWps')}</span>
               <span>{t('planningSidebar.detectWp')}</span>
             </div>
             {/* Data rows */}

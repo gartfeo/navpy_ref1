@@ -35,7 +35,7 @@ from navpy.modules.vision.sim.determinism_events import (
     EVENT_TRUTH,
     EVENT_VIOLATION,
     LIFECYCLE_CLOSED,
-    OUTPUT_DELIVERED,
+    OUTPUT_DISPATCHED,
     OUTPUT_EMPTY,
     SLOT_PAIRS,
     STAGE_PROJECTION_FAILED,
@@ -103,7 +103,7 @@ def _every_row() -> list[tuple]:
         discard_row(
             1, DISCARD_PUBLISH_OVERWRITTEN, 10_020_000, 10_040_000, PERIOD_US
         ),
-        output_row(1, OUTPUT_DELIVERED, 10_020_000, 10_040_000, 3, PERIOD_US),
+        output_row(1, OUTPUT_DISPATCHED, 10_020_000, 10_040_000, 3, PERIOD_US),
         output_row(1, OUTPUT_EMPTY, None, None, None, PERIOD_US),
         lifecycle_row(1, LIFECYCLE_CLOSED, 2, 10_040_000, PERIOD_US),
         subscription_row(1, SUBSCRIPTION_OPENED, None),

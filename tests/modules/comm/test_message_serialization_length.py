@@ -22,7 +22,7 @@ class TestMessageSerializationLength(unittest.TestCase):
                 tasks=[
                     TaskMsgData(
                         task_id=1,
-                        task_type=TaskTypeMsgData.SMALL,
+                        task_type=TaskTypeMsgData.DOCK,
                         location=LocationMsgData(lat=40.1545411, lng=-105.1127835, alt=1609.34)
                     ),
                 ]
@@ -39,7 +39,7 @@ class TestMessageSerializationLength(unittest.TestCase):
                 receiver_id=2,
                 task=TaskAssignMsgData(
                     task_id=1,
-                    task_type=TaskTypeMsgData.SMALL,
+                    task_type=TaskTypeMsgData.DOCK,
                     location=LocationMsgData(lat=0.0, lng=0.0, alt=0.0)
                 )
             ),

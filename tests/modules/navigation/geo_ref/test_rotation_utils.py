@@ -90,12 +90,12 @@ class RotationUtilsTestCase(unittest.TestCase):
     def test_calculate_euler_angles(self):
         uas_euler_angles = np.array([0, 10, -10])
         # uas_euler_angles = np.array([0, 0.2, 0.1])
-        # target_euler_angles = np.array([10, -30, 0])
-        target_euler_angles = np.array([0, -20, 0])
+        # poi_euler_angles = np.array([10, -30, 0])
+        poi_euler_angles = np.array([0, -20, 0])
         seq = 'XYZ'
 
         gimbal_euler_angles_to_poi = calculate_euler_angles('ZYX', uas_euler_angles,
-                                                               seq, target_euler_angles,
+                                                               seq, poi_euler_angles,
                                                                True)
 
         i = [1, 0, 0]
@@ -103,7 +103,7 @@ class RotationUtilsTestCase(unittest.TestCase):
         r_uas_v = Rotation.from_euler('ZYX', uas_euler_angles, degrees=True).as_matrix()
         p_uas = r_uas_v @ i
 
-        r_g_v = Rotation.from_euler(seq, target_euler_angles, degrees=True).as_matrix()
+        r_g_v = Rotation.from_euler(seq, poi_euler_angles, degrees=True).as_matrix()
         p_g = r_g_v @ i
 
         r_uas_g = Rotation.from_euler(seq, gimbal_euler_angles_to_poi, degrees=True).as_matrix()

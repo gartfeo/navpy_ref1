@@ -18,7 +18,7 @@ from navpy.modules.vision.sim.determinism_events import (
     ASSOCIATION_REFUSED,
     DISCARD_PENDING_LEG_ENDED,
     EVENT_VIOLATION,
-    OUTPUT_DELIVERED,
+    OUTPUT_DISPATCHED,
     STAGE_PROJECTION_FAILED,
     STAGE_STAGED,
     VIOLATION_SOURCE_REPEATED,
@@ -100,8 +100,8 @@ def test_frames_victims_and_outputs_carry_their_slots() -> None:
         stage_row(1, STAGE_STAGED, 10_020_000, 10_040_000, FRAME, PERIOD_US),
         stage_row(1, STAGE_PROJECTION_FAILED, None, None, None, PERIOD_US),
         discard_row(1, DISCARD_PENDING_LEG_ENDED, 10_020_000, None, PERIOD_US),
-        output_row(1, OUTPUT_DELIVERED, 10_020_000, 10_040_000, 1, PERIOD_US),
-        output_row(1, OUTPUT_DELIVERED, 10_020_000, 10_040_000, None, PERIOD_US),
+        output_row(1, OUTPUT_DISPATCHED, 10_020_000, 10_040_000, 1, PERIOD_US),
+        output_row(1, OUTPUT_DISPATCHED, 10_020_000, 10_040_000, None, PERIOD_US),
     )
     assert _added(*rows) == (
         (("frame_slot", 501), ("watermark_slot", 502)),

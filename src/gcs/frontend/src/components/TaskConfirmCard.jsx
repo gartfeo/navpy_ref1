@@ -13,7 +13,7 @@ const DEFAULT_TIMEOUT_SEC = 30;
  *
  * While the card is PENDING it shows the countdown + Approve/Deny and auto-
  * fires the timeout action (per the per-vehicle AAS params). Once DECIDED it
- * persists for review: APPROVED shows approval sent with a "Cancel delivery"
+ * persists for review: APPROVED shows approval sent with a "Cancel task"
  * control; DENIED/CANCELED show the outcome and auto-dismiss (handled by the
  * owning hook). The auto-timeout never runs once decided.
  *
@@ -264,7 +264,7 @@ export default function TaskConfirmCard({
             cursor: 'pointer',
           }}
         >
-          {t('task.cancelDelivery')}
+          {t('task.cancelTask')}
         </button>
       ) : null}
     </div>

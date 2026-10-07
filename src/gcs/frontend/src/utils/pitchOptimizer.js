@@ -3,7 +3,7 @@
  *
  * Balances two objectives:
  * - Surveillance: maximize union ground-coverage area (determines track spacing)
- * - Navigation: ensure continuous angular coverage across the UAV dive pitch
+ * - Navigation: ensure continuous angular coverage across the UAV approach pitch
  *   envelope (min_pitch..max_pitch) so a detected POI stays visible
  *
  * Pure JS, zero imports — testable via Node subprocess.
@@ -270,7 +270,7 @@ function angularGap(devices, minPitchReq, maxPitchReq) {
  * @param {Array} devices — per device: { fovH, fovV, mdd, currentPitch }
  *   fovH/fovV in radians, mdd in metres.
  * @param {{ min: number, max: number }} altitudeRange
- * @param {{ min: number, max: number }} pitchEnvelope — UAV dive pitch range (degrees)
+ * @param {{ min: number, max: number }} pitchEnvelope — UAV approach pitch range (degrees)
  * @returns {{ pitches: number[], altitude: number, score: number }}
  */
 function optimizePitches(devices, altitudeRange, pitchEnvelope) {

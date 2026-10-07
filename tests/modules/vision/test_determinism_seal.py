@@ -34,7 +34,7 @@ from navpy.modules.vision.sim.determinism_events import (
     ASSOCIATION_COMMITTED,
     DISCARD_UNBRACKETABLE,
     LIFECYCLE_CLOSED,
-    OUTPUT_DELIVERED,
+    OUTPUT_DISPATCHED,
     STAGE_STAGED,
     SUBSCRIPTION_OPENED,
     TRUTH_RECORDED,
@@ -58,7 +58,7 @@ RECORDERS: dict[str, dict[str, Any]] = {
     "record_stage": dict(outcome=STAGE_STAGED),
     "record_discard": dict(reason=DISCARD_UNBRACKETABLE, victim=None),
     "record_output": dict(
-        outcome=OUTPUT_DELIVERED, taken_at_us=1_000, iteration=1
+        outcome=OUTPUT_DISPATCHED, taken_at_us=1_000, iteration=1
     ),
     "record_lifecycle": dict(outcome=LIFECYCLE_CLOSED, resulting_epoch=2),
     "record_subscription": dict(outcome=SUBSCRIPTION_OPENED, ruling=3),
@@ -616,7 +616,7 @@ def test_a_facade_fault_is_flagged_before_the_log_latches(
     monkeypatch.setattr(CommandLoopLog, "current_iteration", unreadable)
     monkeypatch.setattr(BoundedRowLog, "fail", watched_fail)
 
-    trace.record_output(epoch=1, outcome=OUTPUT_DELIVERED, taken_at_us=None)
+    trace.record_output(epoch=1, outcome=OUTPUT_DISPATCHED, taken_at_us=None)
 
     assert entered == [(True, True)], (
         f"the log's latch began as (lock held, flag set) = {entered}"

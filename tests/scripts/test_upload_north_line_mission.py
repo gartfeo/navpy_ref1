@@ -147,7 +147,7 @@ def _resolved(ordinal: int):
 
 
 def test_evaluator_defaults_select_the_poi_not_the_gate() -> None:
-    """Ordinal 1 is the handover gate; scoring it would discard the scored leg."""
+    """Ordinal 1 is the final-approach start gate; scoring it would discard the scored leg."""
     from scripts import eval_direct_pixel_pn as evaluator
 
     args = evaluator._parser().parse_args([])

@@ -22,7 +22,7 @@ def test_selection_evidence_retains_recorded_field_order_and_values():
 
 def test_truth_track_preserves_bytes_and_reads_old_evidence(tmp_path):
     recorded = (
-        b"received_wall_time_s,source_time_s,lat_deg,lon_deg,abs_alt_m,engaged,converted,reason\r\n"
+        b"received_wall_time_s,source_time_s,lat_deg,lon_deg,abs_alt_m,scoring_active,converted,reason\r\n"
         b"100.5,2.0,43.0,34.0,500.0,1,1,\r\n"
         b"101.0,,,,,0,0,missing coordinates\r\n"
     )

@@ -27,7 +27,7 @@ class MissionPlannerArgs:
                                   'If None will do the closest, If False Opposite direction. Default: True')
         mp_args.add_argument('-mpcsd', '--mp-custom-start-distance', type=int, default=700,
                              help='Start custom distance from home location in meters. '
-                                  'If None predicted distance from current location to the delivery reference. Default: None')
+                                  'If None predicted distance from current location to the POI. Default: None')
         mp_args.add_argument('-mpmspd', '--mp-min-air-speed', type=float, default=5.0,
                              help='Minimum air speed. Default: 5.0')
         mp_args.add_argument('-mpad', '--mp-aligned-delta', type=float, default=3,

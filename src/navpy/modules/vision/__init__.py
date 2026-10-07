@@ -1,4 +1,4 @@
-"""Vision module - Detection, cameras, gimbals, and delivery-reference tracking.
+"""Vision module - Detection, cameras, gimbals, and POI tracking.
 
 This module owns ALL vision-related functionality:
 - VisionController - Self-contained orchestrator for all vision components
@@ -6,10 +6,10 @@ This module owns ALL vision-related functionality:
 - Detector interfaces and implementations
 - Camera interfaces and simulation
 - Gimbal interfaces and simulation
-- Visual-reference models and simulator delivery-reference providers
+- Visual-reference models and simulator POI providers
 
-POI-prefixed exports retain compatible names. A detector observation or
-stable track is not authenticated recipient identification.
+A detector observation or stable track preserves POI association only;
+approach accuracy does not establish a mission outcome (e.g. docking, cargo receipt, coverage).
 
 Usage:
     from navpy.modules.vision import VisionController, CameraMount

@@ -1,6 +1,6 @@
-"""Delivery-reference tracking loss, geo hold and stable-track reacquisition.
+"""POI tracking loss, geo hold and stable-track reacquisition.
 
-Track identity continuity does not establish an authorized recipient identity.
+Track identity continuity preserves POI association only.
 """
 
 from __future__ import annotations

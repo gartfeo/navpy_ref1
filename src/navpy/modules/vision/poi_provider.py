@@ -85,10 +85,9 @@ def _poi_terrain_enabled(args, vehicle: PoiProviderVehicle) -> bool:
 
 
 class PoiProvider:
-    """Build simulator delivery references from selected mission waypoints.
+    """Build simulator POIs from selected mission waypoints.
 
-    The compatible PoiProvider name does not imply recipient authorization
-    or prediction of a moving recipient platform; outputs are SimulationObject records.
+    This does not predict a moving platform; outputs are SimulationObject records.
     """
 
     def __init__(
