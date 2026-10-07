@@ -1,14 +1,14 @@
 ---
 name: ship
-description: Ship this chat's work in one step. Verifies the Definition of Done, reviews, cleans up, commits, opens or updates the PR, and merges. Stops only on failure.
+description: Ship this chat's work in one step. Verifies the Definition of Done, reviews, cleans up, commits, opens or updates the PR, merges, and archives the chat. Stops only on failure.
 disable-model-invocation: true
 ---
 
 # Ship
 
-`/ship` is the user's go-ahead for every step below, merge included; don't ask
-between steps. Anything else still needs a yes. Stop at the first failure and
-say what is needed.
+`/ship` is the user's go-ahead for every step below, merge and archive
+included; don't ask between steps. Anything else still needs a yes. Stop at
+the first failure and say what is needed.
 
 1. **Scope.** Ship only this task's changes since `origin/main`; leave other
    edits and untracked files you didn't create. Unclear: ask. Nothing to ship:
@@ -38,3 +38,7 @@ say what is needed.
    folder (main-folder chat), `git -C <main> pull --ff-only` (never force),
    and delete the local branch unless a worktree holds it (`/cleanup sweep`
    gets those). Reply with one line and the PR link.
+7. **Archive.** Auto-archive skips a chat that is busy when its PR merges, and
+   `/ship` merges mid-turn. So after the reply, archive this chat:
+   `archive_session` with `self` (ends the conversation; the app may ask for
+   one click). Outside the desktop app, ask the user to archive it.

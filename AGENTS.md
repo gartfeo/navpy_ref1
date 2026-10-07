@@ -126,7 +126,7 @@ PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/
 
 ## Definition of Done
 
-A task is done only when every applicable item holds; otherwise report it as not done and say what is missing. The user's `/ship` walks this list, then commits, opens the PR and merges.
+A task is done only when every applicable item holds; otherwise report it as not done and say what is missing. The user's `/ship` walks this list, then commits, opens the PR, merges and archives the chat.
 
 - **Outcome** — works end to end, fixed at the root cause; no symptom workarounds or partial paths.
 - **Tests** — per the Testing Policy; report commands and results, and name pre-existing failures.
