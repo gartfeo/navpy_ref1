@@ -11,6 +11,10 @@ Only the LAST metadata item's z is non-zero:
 location_type is only set on a default-delivery-hub item (and is 0
 otherwise). Every zone targets the single ``dock`` class, so no dock class
 is encoded on the wire.
+
+ArduPlane executes DO_SET_ROI_LOCATION in AUTO (it points the primary mount
+at the item), so the GCS planner puts a forward MAV_CMD_DO_JUMP right before
+the block whenever an item follows it; readers must skip that jump.
 """
 from __future__ import annotations
 
