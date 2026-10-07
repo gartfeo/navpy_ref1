@@ -12,13 +12,14 @@ from eval_lockstep_fleet import ROOT, digest, run
 from pose_rounding_evidence import read_pairs
 from simtime_step_launch import require_base_interpreter
 
+BASELINE = ROOT / "docs/validation/navigation-pose-baseline-20260921.json"
 
 
 def contract_file(value: str) -> Path:
     """argparse type for a frozen validation contract JSON (baseline/firmware).
 
-    The contracts are not stored in the repository; the operator must pass the
-    reviewed file explicitly, and reports pin its sha256.
+    Defaults point at the committed docs/validation/ contracts; reports pin the
+    sha256 of whichever file is used.
     """
     path = Path(value)
     if not path.is_file():
@@ -73,7 +74,7 @@ def check_run(directory: Path, capture: bool, baseline: dict) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--firmware-root", required=True)
-    parser.add_argument("--baseline", required=True, type=contract_file,
+    parser.add_argument("--baseline", default=str(BASELINE), type=contract_file,
                         help="frozen legacy-history baseline JSON (navigation-pose-baseline)")
     parser.add_argument("--peer-python", default="/home/gart/navpy-simtime-env/bin/python")
     args = parser.parse_args()

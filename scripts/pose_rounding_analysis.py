@@ -16,10 +16,11 @@ from eval_direct_pixel_command_causality import _samples
 from pose_rounding_evidence import read_pairs
 from replay_navigation_trace import digest, run as replay_recorded, verify_live_rows
 from replay_pose_rounding import replay_arm
-from run_pose_matrix import cells, contract_file
+from run_pose_matrix import BASELINE, cells, contract_file
 from simtime_navigation_protocol import RenderTruth, Snapshot
 
 ORIGINAL_REVERSAL_US = 83106312
+FIRMWARE = ROOT / "docs/validation/navigation-pose-firmware-20260921.json"
 
 
 def require_matrix(report: dict, baseline_path: Path, firmware_path: Path) -> None:
@@ -205,9 +206,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("matrix", type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--baseline", required=True, type=contract_file,
+    parser.add_argument("--baseline", default=str(BASELINE), type=contract_file,
                         help="frozen legacy-history baseline JSON the matrix report pins")
-    parser.add_argument("--firmware", required=True, type=contract_file,
+    parser.add_argument("--firmware", default=str(FIRMWARE), type=contract_file,
                         help="reviewed firmware contract JSON (navigation-pose-firmware)")
     args = parser.parse_args()
     result = run(args.matrix, args.output, args.baseline, args.firmware)

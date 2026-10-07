@@ -14,8 +14,8 @@ from analyze_noise_profiles import local_path, command_metrics
 from eval_direct_pixel_command_causality import _samples
 from pose_precision_evidence import read_precision
 from replay_navigation_trace import digest, run as replay_recorded
-from run_pose_matrix import contract_file
-from run_pose_precision_matrix import cells, check_run
+from run_pose_matrix import BASELINE, contract_file
+from run_pose_precision_matrix import FIRMWARE, cells, check_run
 from simtime_navigation_protocol import Snapshot
 
 
@@ -143,9 +143,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("matrix", type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--baseline", required=True, type=contract_file,
+    parser.add_argument("--baseline", default=str(BASELINE), type=contract_file,
                         help="frozen legacy-history baseline JSON the matrix report pins")
-    parser.add_argument("--firmware", required=True, type=contract_file,
+    parser.add_argument("--firmware", default=str(FIRMWARE), type=contract_file,
                         help="reviewed precision firmware contract JSON the matrix report pins")
     args = parser.parse_args()
     result = run(args.matrix, args.output, args.baseline, args.firmware)

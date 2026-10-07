@@ -116,3 +116,14 @@ def test_missing_validation_contract_fails_with_clear_message(tmp_path, monkeypa
         script.main()
     assert stop.value.code == 2
     assert f"validation contract not found: {missing}" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("module", ["pose_rounding_analysis", "pose_precision_analysis",
+                                    "run_pose_matrix", "run_pose_precision_matrix"])
+def test_contracts_default_to_committed_validation_files(module):
+    import importlib
+    script = importlib.import_module(f"scripts.{module}")
+    contracts = [script.BASELINE] + ([script.FIRMWARE] if hasattr(script, "FIRMWARE") else [])
+    for path in contracts:
+        assert path.parent == script.ROOT / "docs/validation" and path.is_file()
+    assert hasattr(script, "FIRMWARE") == (module != "run_pose_matrix")
