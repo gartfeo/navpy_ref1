@@ -1,9 +1,21 @@
 # Swarm task assignment with acknowledgments
 
-Status: **design agreed 2026-10-07, not implemented.** Based on `origin/main`
-1bd24d1 (includes 1b4bbf3 assign resend/release and d8605f6 adverts fenced
-against assign requests). Owner = UAV that advertises the task; helper =
-peer that bids and flies it.
+Status: **design agreed 2026-10-07; steps 1–6 (swarm core) implemented
+2026-10-08, GCS steps 6a–6c and the live check (8) pending.** Until 6a–6c
+land, the GCS ignores SWARM_ACK and shows every request/response copy.
+Based on `origin/main` 1bd24d1 (includes 1b4bbf3 assign resend/release and
+d8605f6 adverts fenced against assign requests). Owner = UAV that
+advertises the task; helper = peer that bids and flies it.
+
+Implementation notes (steps 1–6):
+- Nav publishes "approaching" every cycle, but only a change reaches the
+  actor's lock; a reject repeat's first copy is sent from its timer thread,
+  so the nav thread never sends.
+- The peer task also preempts an own POI seen in DETECT and not yet
+  reviewed: it is handed to the swarm like one under CONFIRM.
+- Owners stop advertising to a released peer once the task is reserved
+  again; that peer then learns from the RECEIVED answer to its next step 4,
+  or its 18 s expiry.
 
 ## Problem
 
