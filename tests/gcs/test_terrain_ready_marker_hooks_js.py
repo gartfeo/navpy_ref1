@@ -59,7 +59,7 @@ class TestTerrainReadyMarkerHooks(unittest.TestCase):
         # Both the crosshair billboard and its label self-clamp to terrain, so
         # no terrainReady gate is needed.
         self.assertGreaterEqual(_ASSIGNMENT_SRC.count(_CLAMP), 2)
-        self.assertIn("delete existing[tidStr];", _ASSIGNMENT_SRC)
+        self.assertIn("delete existing[key];", _ASSIGNMENT_SRC)
         # Gated on viewerReady (fresh-load race), not terrainReady.
         self.assertIn("[assignments, viewerReady, sysIdKey]", compact)
         self.assertNotIn("if (!terrainReady)", _ASSIGNMENT_SRC)

@@ -1,4 +1,5 @@
 import threading
+from dataclasses import dataclass, field
 from typing import Callable, Optional, Dict
 
 from navpy.modules.comm.messages.task_message_data import (
@@ -6,6 +7,45 @@ from navpy.modules.comm.messages.task_message_data import (
     TaskMsgData,
 )
 from navpy.modules.comm.messages.types import TaskDispatchStatus
+from navpy.modules.swarm.task_msg_refs import MsgRef
+
+
+@dataclass
+class AssignAttempt:
+    """One reservation of the task to a peer; a newer one fences it off.
+
+    ``sends`` counts the elapsed request-copy slots (a slot after the
+    helper's first ack sends nothing) and ``request_refs`` the copies sent.
+    ``floor`` is that first ack: only a response the helper sent after it
+    can confirm the task.
+    """
+
+    number: int = 0
+    sends: int = 0
+    request_refs: set[MsgRef] = field(default_factory=set)
+    floor: Optional[MsgRef] = None
+
+
+@dataclass
+class PeerAnswers:
+    """How admitted peers answered the task's advert, for the owner.
+
+    ``bid_orders`` holds the order of each bid in ``task_handle_by_peer``;
+    ``released_to`` is a peer whose reservation was released and that has
+    not answered since, so it keeps getting the advert.
+    """
+
+    bid_orders: dict[int, Optional[MsgRef]] = field(default_factory=dict)
+    declined: set[int] = field(default_factory=set)
+    released_to: Optional[int] = None
+
+    def heard_from(self, peer_id: int) -> None:
+        if self.released_to == peer_id:
+            self.released_to = None
+
+    def forget(self, peer_id: int) -> None:
+        self.bid_orders.pop(peer_id, None)
+        self.declined.discard(peer_id)
 
 
 class TaskDispatch:
@@ -20,18 +60,42 @@ class TaskDispatch:
         self.assigned_peer: Optional[int] = None
         self.retry_count: int = 0
         self.max_retry_attempts: int = 3
-        self.assign_request_sends: int = 0
+        self.attempt = AssignAttempt()
+        self.answers = PeerAnswers()
         self._timer_event: Optional[threading.Timer] = None
         self._rebroadcast_timer: Optional[threading.Timer] = None
         self._confirm_timer: Optional[threading.Timer] = None
         self._lock = threading.RLock()  # Changed to RLock
 
-    def on_peer_available(self, peer_id: int, task_handle: TaskHandleMsgData) -> None:
+    def on_peer_available(
+        self,
+        peer_id: int,
+        task_handle: TaskHandleMsgData,
+        order: Optional[MsgRef] = None,
+    ) -> None:
         """
-        Records a peer's availability to handle the task.
+        Records a peer's bid (its availability to handle the task).
         """
         with self._lock:
             self.task_handle_by_peer[peer_id] = task_handle
+            self.answers.forget(peer_id)
+            self.answers.bid_orders[peer_id] = order
+            self.answers.heard_from(peer_id)
+
+    def on_peer_declined(self, peer_id: int) -> None:
+        """Record a peer that cannot fly this task (e.g. fuel)."""
+        with self._lock:
+            self.task_handle_by_peer.pop(peer_id, None)
+            self.answers.forget(peer_id)
+            self.answers.declined.add(peer_id)
+            self.answers.heard_from(peer_id)
+
+    def begin_attempt(self) -> int:
+        """Start a reservation attempt; its number fences older ones."""
+        with self._lock:
+            self.attempt = AssignAttempt(self.attempt.number + 1)
+            self.answers.released_to = None
+            return self.attempt.number
 
     def start_peer_select_timer(self, select_peer_func: Callable[[int], None], time: float) -> None:
         """
@@ -69,6 +133,7 @@ class TaskDispatch:
         """
         with self._lock:
             self.task_handle_by_peer.pop(responder_id, None)
+            self.answers.forget(responder_id)
             if self.assigned_peer == responder_id:
                 self.assigned_peer = None  # <-- free reservation
             remaining_peers = len(self.task_handle_by_peer)

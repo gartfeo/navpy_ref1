@@ -2,14 +2,15 @@ import { useEffect, useRef } from 'react';
 import { makeAssignmentIcon } from '../constants/icons';
 import { zoneColorsSolid } from '../../../styles';
 import { useTelemetryStore } from '../../../hooks/useTelemetryStore';
+import { isAssignedOrLater } from '../../../utils/taskAssignmentState';
 
 /**
  * Renders crosshair markers for peer-assigned POIs.
  * - Billboard: crosshair colored to match assigned UAV
- * - Label: "UAV {id} > {taskType}" with checkmark on accept
+ * - Label: "UAV {id} > {taskType}" with a checkmark once the owner applied it
  */
 export default function useAssignmentMarkers(cesiumRef, viewerRef, assignments, storeRef, viewerReady) {
-  const markersRef = useRef({});   // task_id -> entity
+  const markersRef = useRef({});   // assignment entry key -> entity
   const sysIdKey = useTelemetryStore(s => s.getSysIdKey());
 
   useEffect(() => {
@@ -26,27 +27,26 @@ export default function useAssignmentMarkers(cesiumRef, viewerRef, assignments, 
       sysIdIndex.set(vehicleList[i].sys_id, i);
     }
 
-    for (const [tidStr, entry] of Object.entries(assignments || {})) {
-      const tid = Number(tidStr);
+    for (const [key, entry] of Object.entries(assignments || {})) {
       if (entry.lat == null || entry.lon == null) continue;
-      seen.add(tid);
+      seen.add(key);
 
       const vIdx = sysIdIndex.get(entry.receiverId) ?? -1;
       const uavColor = zoneColorsSolid[vIdx >= 0 ? vIdx % zoneColorsSolid.length : 0];
 
-      const labelSuffix = entry.status === 'assigned' ? ' \u2713' : '';
+      const labelSuffix = isAssignedOrLater(entry) ? ' \u2713' : '';
       const labelText = `UAV ${entry.receiverId} > ${entry.taskType}${labelSuffix}`;
       const position = Cesium.Cartesian3.fromDegrees(entry.lon, entry.lat, entry.alt || 0);
 
-      if (existing[tid]) {
+      if (existing[key]) {
         // Update existing marker
-        existing[tid].position = position;
-        existing[tid].billboard.image = makeAssignmentIcon(32, uavColor);
-        existing[tid].label.text = labelText;
-        existing[tid].label.fillColor = Cesium.Color.fromCssColorString(uavColor);
+        existing[key].position = position;
+        existing[key].billboard.image = makeAssignmentIcon(32, uavColor);
+        existing[key].label.text = labelText;
+        existing[key].label.fillColor = Cesium.Color.fromCssColorString(uavColor);
       } else {
         // Create new marker
-        existing[tid] = viewer.entities.add({
+        existing[key] = viewer.entities.add({
           position,
           billboard: {
             image: makeAssignmentIcon(32, uavColor),
@@ -75,10 +75,10 @@ export default function useAssignmentMarkers(cesiumRef, viewerRef, assignments, 
     }
 
     // Remove markers for gone assignments
-    for (const tidStr of Object.keys(existing)) {
-      if (!seen.has(Number(tidStr))) {
-        try { viewer.entities.remove(existing[tidStr]); } catch {}
-        delete existing[tidStr];
+    for (const key of Object.keys(existing)) {
+      if (!seen.has(key)) {
+        try { viewer.entities.remove(existing[key]); } catch {}
+        delete existing[key];
       }
     }
   }, [assignments, viewerReady, sysIdKey]);

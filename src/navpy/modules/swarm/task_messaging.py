@@ -22,14 +22,26 @@ from navpy.modules.comm.messages.task_message_data import (
 from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
 from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.msg_abc import MsgABC
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmHeartbeatMsg
+from navpy.modules.comm.messages.msg_meta import MsgMetaProvider
+from navpy.modules.comm.messages.swarm_ack_msg import SwarmAckMsg
+from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+    SwarmHeartbeatMsg,
+    SwarmNodeState,
+)
+from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
 from navpy.modules.comm.messages.types import MsgType
+from navpy.modules.swarm.task_ack_timing import ack_ttl_ms
 from navpy.modules.swarm.task_auction_models import TaskReservation
+from navpy.modules.swarm.task_msg_refs import MsgRef, msg_ref
 from navpy.modules.swarm.task_ports import TaskMessageBroadcaster
 
 
 class TaskMessageSender:
-    """Build and send task protocol messages through one narrow network port."""
+    """Build and send task protocol messages through one narrow network port.
+
+    Each send stamps a fresh UID before broadcasting and returns it (None
+    when the transport failed), so callers can match later acks to it.
+    """
 
     def __init__(
         self,
@@ -41,14 +53,17 @@ class TaskMessageSender:
         self._network = network
         self._logger = logger
 
-    def available(self, tasks: list[TaskMsgData]) -> bool:
+    def available(self, tasks: list[TaskMsgData]) -> Optional[MsgRef]:
         return self._send(
             AvailableTaskRequestMsg(sender_id=self._actor_id, tasks=tasks),
             "Broadcast available tasks.",
             "Failed to broadcast available tasks",
         )
 
-    def assignment_request(self, reservation: TaskReservation) -> bool:
+    def assignment_request(
+        self,
+        reservation: TaskReservation,
+    ) -> Optional[MsgRef]:
         task = reservation.task
         message = TaskAssignRequestMsg(
             sender_id=self._actor_id,
@@ -71,7 +86,7 @@ class TaskMessageSender:
         self,
         receiver_id: int,
         tasks: list[TaskHandleMsgData],
-    ) -> bool:
+    ) -> Optional[MsgRef]:
         return self._send(
             AvailableTaskResponseMsg(
                 sender_id=self._actor_id,
@@ -81,12 +96,13 @@ class TaskMessageSender:
             f"Sent available task response to {receiver_id}",
             f"Failed to send available task response to {receiver_id}",
         )
+
     def assignment_response(
         self,
         receiver_id: int,
         task_id: int,
         accepted: bool,
-    ) -> bool:
+    ) -> Optional[MsgRef]:
         return self._send(
             TaskAssignResponseMsg(
                 sender_id=self._actor_id,
@@ -99,21 +115,52 @@ class TaskMessageSender:
             f"Failed to send task assignment response to {receiver_id}",
         )
 
-    def heartbeat(self) -> bool:
+    def ack(self, message: MsgABC, status: int) -> Optional[MsgRef]:
+        """Acknowledge ``message`` by its UID, living as long as it does."""
+        acked = msg_ref(message)
+        acked_type = message.msg_type()
+        if acked is None:
+            self._logger.warning(
+                f"Cannot ack {acked_type.name} from {message.sender_id}: "
+                "it carries no message UID."
+            )
+            return None
         return self._send(
-            SwarmHeartbeatMsg.create_with_meta(self._actor_id),
+            SwarmAckMsg(
+                sender_id=self._actor_id,
+                receiver_id=message.sender_id,
+                ref_boot_id=acked.boot_id,
+                ref_msg_seq=acked.msg_seq,
+                ref_msg_type=acked_type.value,
+                status=status,
+            ),
+            f"Ack {acked_type.name} {acked.boot_id}:{acked.msg_seq} "
+            f"to {message.sender_id} (status {status})",
+            f"Failed to ack {acked_type.name} to {message.sender_id}",
+            ttl_ms=ack_ttl_ms(acked_type),
+        )
+
+    def heartbeat_message(self, state: SwarmNodeState) -> SwarmHeartbeatMsg:
+        """Build and stamp a state report; send it with send_heartbeat()."""
+        message = SwarmHeartbeatMsg(self._actor_id, state=int(state))
+        self._stamp(message, None)
+        return message
+
+    def send_heartbeat(self, message: SwarmHeartbeatMsg) -> Optional[MsgRef]:
+        return self._broadcast(
+            message,
             None,
             "Failed to broadcast swarm heartbeat",
         )
 
-    def checkin(self) -> bool:
+    def checkin(self) -> Optional[MsgRef]:
         return self._send(
             CheckInMsg(self._actor_id),
             "CheckIn",
             "Failed to broadcast check-in message",
         )
 
-    def checkout(self, location: LocationMsgData) -> bool:
+    def checkout(self, location: LocationMsgData) -> Optional[MsgRef]:
         return self._send(
             CheckOutMsg(self._actor_id, location),
             f"CheckOut. Location: {location}",
@@ -125,15 +172,32 @@ class TaskMessageSender:
         message: MsgABC,
         success: Optional[str],
         failure: str,
-    ) -> bool:
+        *,
+        ttl_ms: Optional[int] = None,
+    ) -> Optional[MsgRef]:
+        self._stamp(message, ttl_ms)
+        return self._broadcast(message, success, failure)
+
+    @staticmethod
+    def _stamp(message: MsgABC, ttl_ms: Optional[int]) -> None:
+        message.set_meta(MsgMetaProvider.get_instance().create_meta(
+            get_ttl_ms(message.msg_type()) if ttl_ms is None else ttl_ms
+        ))
+
+    def _broadcast(
+        self,
+        message: MsgABC,
+        success: Optional[str],
+        failure: str,
+    ) -> Optional[MsgRef]:
         try:
             self._network.broadcast(message)
         except OSError as exc:
             self._logger.error(f"{failure}: {exc}")
-            return False
+            return None
         if success is not None:
             self._logger.info(success)
-        return True
+        return msg_ref(message)
 
 
 class TaskMessageRouter:
@@ -144,6 +208,7 @@ class TaskMessageRouter:
         MsgType.AVAILABLE_TASK_RESPONSE,
         MsgType.TASK_ASSIGN_REQUEST,
         MsgType.TASK_ASSIGN_RESPONSE,
+        MsgType.SWARM_ACK,
     }
     _IGNORED_TYPES = {
         MsgType.LOG_STATUS,

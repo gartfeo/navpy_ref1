@@ -51,6 +51,7 @@ class NavNetworkRuntime:
         self.task_actor: Optional[TaskActor] = None
         self.peer_dispatch: Optional[PeerPoiDispatchWorker] = None
         self._health = ComponentFailureLatch()
+        self._published: tuple[Optional[TaskActor], bool] = (None, False)
 
     def set_network(self, network: Optional[NetworkAbc]) -> None:
         self._disconnect()
@@ -111,6 +112,18 @@ class NavNetworkRuntime:
     def submit_nav_peers(self, pois: list[DetectedObject]) -> None:
         if self.peer_dispatch is not None and pois:
             self.peer_dispatch.submit(pois)
+
+    def publish_approaching(self, approaching: bool) -> None:
+        """Tell the swarm whether nav flies a final approach (BUSY).
+
+        Called every nav cycle; only a change, or a new actor, takes the
+        actor's lock.
+        """
+        actor = self.task_actor
+        if actor is None or self._published == (actor, approaching):
+            return
+        self._published = (actor, approaching)
+        actor.set_approaching(approaching)
 
     def start_task_actor(self) -> None:
         if self.task_actor is not None:

@@ -1,4 +1,8 @@
-"""Tests for the 4-state assignment status model in useTaskAssignment.js."""
+"""Tests for the 4-state assignment status model (taskAssignmentState.js).
+
+Behaviour is tested on the real reducer by test_task_assignment_state.js;
+these pin the model's shape and its wiring into the hook and the markers.
+"""
 import os
 import unittest
 
@@ -6,6 +10,12 @@ _HOOK_FILE = os.path.normpath(os.path.join(
     os.path.dirname(__file__),
     "..", "..", "src", "gcs", "frontend", "src", "hooks",
     "useTaskAssignment.js",
+))
+
+_STATE_FILE = os.path.normpath(os.path.join(
+    os.path.dirname(__file__),
+    "..", "..", "src", "gcs", "frontend", "src", "utils",
+    "taskAssignmentState.js",
 ))
 
 _MONITORING_FILE = os.path.normpath(os.path.join(
@@ -33,63 +43,53 @@ _ASSIGNMENT_LIST_FILE = os.path.normpath(os.path.join(
 ))
 
 
-class TestUseTaskAssignmentStatusModel(unittest.TestCase):
+def _function_body(source, name):
+    start = source.index(f"export function {name}(")
+    end = source.find("\nexport function ", start + 1)
+    return source[start:end if end != -1 else len(source)]
+
+
+class TestTaskAssignmentStatusModel(unittest.TestCase):
     def setUp(self):
         with open(_HOOK_FILE, encoding="utf-8") as f:
             self.source = f.read()
+        with open(_STATE_FILE, encoding="utf-8") as f:
+            self.state = f.read()
 
-    def test_handle_assign_request_sets_assigning(self):
-        """handleAssignRequest must set status to 'assigning', not 'assigned'."""
-        self.assertIn("status: 'assigning'", self.source)
+    def test_statuses_rank_waiting_assigned_confirming_confirmed(self):
+        self.assertIn(
+            "const RANK = Object.freeze({ waiting: 0, assigned: 1, confirming: 2, confirmed: 3 });",
+            self.state,
+        )
 
-    def test_handle_assign_request_does_not_set_assigned_directly(self):
-        """handleAssignRequest must not set status to 'assigned' — that belongs
-        to handleAssignResponse."""
-        # Verify 'assigning' appears before 'assigned' (i.e. the request handler
-        # uses 'assigning') by checking the relative position in the file.
-        assigning_pos = self.source.index("status: 'assigning'")
-        assigned_pos = self.source.index("status: 'assigned'")
-        self.assertLess(assigning_pos, assigned_pos,
-                        "'assigning' should appear before 'assigned' in the file")
+    def test_assign_request_sets_waiting_not_assigned(self):
+        """Step 3 leaves the helper WAITING; it is not assigned yet."""
+        body = _function_body(self.state, "assignRequest")
+        self.assertIn("ASSIGNMENT_STATUS.WAITING", body)
+        self.assertNotIn("ASSIGNMENT_STATUS.ASSIGNED", body)
 
-    def test_handle_assign_response_sets_assigned(self):
-        """handleAssignResponse must set status to 'assigned' on acceptance."""
-        self.assertIn("status: 'assigned'", self.source)
+    def test_assign_response_does_not_assign(self):
+        """The helper's "doing" is not the truth; only the owner's APPLIED is."""
+        self.assertNotIn("ASSIGNMENT_STATUS.ASSIGNED", _function_body(self.state, "assignResponse"))
+
+    def test_owner_applied_sets_assigned(self):
+        self.assertIn("ASSIGNMENT_STATUS.ASSIGNED", _function_body(self.state, "assignAck"))
 
     def test_old_accepted_status_absent(self):
         """The legacy status value 'accepted' must not appear anywhere."""
         self.assertNotIn("'accepted'", self.source)
+        self.assertNotIn("'accepted'", self.state)
 
-    def test_handle_confirming_status_function_exists(self):
-        """handleConfirmingStatus must be defined in the hook."""
-        self.assertIn("handleConfirmingStatus", self.source)
+    def test_confirming_and_confirmed_set_by_the_reducer(self):
+        self.assertIn("ASSIGNMENT_STATUS.CONFIRMING", _function_body(self.state, "taskConfirming"))
+        self.assertIn("ASSIGNMENT_STATUS.CONFIRMED", _function_body(self.state, "taskConfirmed"))
 
-    def test_handle_confirming_status_sets_confirming(self):
-        """handleConfirmingStatus must set status to 'confirming'."""
-        self.assertIn("status: 'confirming'", self.source)
+    def test_hook_exposes_the_confirm_status_handlers(self):
+        self.assertIn("handleConfirmingStatus: onTask('task_confirming')", self.source)
+        self.assertIn("handleConfirmedStatusByTask: onTask('task_confirmed')", self.source)
 
-    def test_handle_confirmed_status_function_exists(self):
-        """The task-keyed confirmed-status setter must be defined in the hook."""
-        self.assertIn("handleConfirmedStatusByTask", self.source)
-
-    def test_handle_confirmed_status_sets_confirmed(self):
-        """The confirmed-status setter must set status to 'confirmed'."""
-        self.assertIn("status: 'confirmed'", self.source)
-
-    def test_handle_confirming_status_exported_in_return(self):
-        """handleConfirmingStatus must appear in the return object."""
-        # Find the return block and verify both handlers are listed there.
-        return_idx = self.source.rfind("return {")
-        self.assertNotEqual(return_idx, -1, "No return { found in hook")
-        return_block = self.source[return_idx:]
-        self.assertIn("handleConfirmingStatus", return_block)
-
-    def test_handle_confirmed_status_exported_in_return(self):
-        """The task-keyed confirmed-status setter must appear in the return."""
-        return_idx = self.source.rfind("return {")
-        self.assertNotEqual(return_idx, -1, "No return { found in hook")
-        return_block = self.source[return_idx:]
-        self.assertIn("handleConfirmedStatusByTask", return_block)
+    def test_hook_routes_the_owner_applied(self):
+        self.assertIn("handleAssignAck: on('task_assign_ack')", self.source)
 
 
 class TestMonitoringSidebarUsesNewArchitecture(unittest.TestCase):
@@ -129,10 +129,16 @@ class TestAssignmentMarkersUsesAssignedStatus(unittest.TestCase):
         with open(_ASSIGNMENT_MARKERS_FILE, encoding="utf-8") as f:
             self.source = f.read()
 
-    def test_checkmark_check_uses_assigned_not_accepted(self):
-        """The checkmark label suffix must test for 'assigned', not 'accepted'."""
-        self.assertIn("=== 'assigned'", self.source)
+    def test_checkmark_from_assigned_on_not_accepted(self):
+        """The checkmark shows once the owner applied it (assigned and later),
+        not on the helper's own accept and not while WAITING."""
+        self.assertIn("isAssignedOrLater(entry) ? ' \\u2713'", self.source)
         self.assertNotIn("=== 'accepted'", self.source)
+
+    def test_markers_keyed_by_entry_key(self):
+        """Keys are `${owner}:${task}` / `helper:${id}` strings, not task ids."""
+        self.assertIn("seen.add(key);", self.source)
+        self.assertNotIn("Number(", self.source)
 
 
 class TestAssignmentListFileRemoved(unittest.TestCase):

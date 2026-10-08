@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Sequence
+from typing import NamedTuple, Sequence
 
 from scripts.eval_gcs_demo_audit import (
     load_approval_records,
     validate_approval_records,
 )
 from scripts.eval_gcs_demo_assignment_audit import derive_global_assignment_map
+from scripts.eval_gcs_demo_assignment_lines import LogFormat, parse_assignment_lines
 from scripts.eval_gcs_demo_command_bounds import load_command_bounds
 from scripts.eval_gcs_demo_constants import NAVIGATION_SPEEDUP_OVERRIDE, SIM_SPEEDUP
 from scripts.eval_gcs_demo_models import (
@@ -65,19 +66,30 @@ def approval_counts(
     return counts, errors
 
 
+class AssignmentEvidence(NamedTuple):
+    assignments: dict[int, int]
+    errors: list[str]
+    # Acked log format: peers fly only after their owner's APPLIED.
+    acked: bool
+
+
 def global_assignment_evidence(
     log_dir: Path,
     plan: DemoMissionPlan,
-) -> tuple[dict[int, int], list[str]]:
+) -> AssignmentEvidence:
+    acked = False
     try:
         backend_log = (log_dir / "gcs_backend.log").read_text(
             encoding="utf-8",
             errors="strict",
         )
+        acked = parse_assignment_lines(backend_log).log_format is LogFormat.ACKED
         assignments = derive_global_assignment_map(backend_log, plan)
     except (OSError, UnicodeError, TypeError, ValueError) as error:
-        return {}, [f"invalid global assignment evidence: {error}"]
-    return assignments, []
+        return AssignmentEvidence(
+            {}, [f"invalid global assignment evidence: {error}"], acked,
+        )
+    return AssignmentEvidence(assignments, [], acked)
 
 
 def analyze_run(
@@ -111,8 +123,9 @@ def analyze_run(
         else load_approval_records(log_dir / "operator_approvals.json")
     )
     counts, approval_errors = approval_counts(approval_rows, plan)
-    assignments, assignment_errors = global_assignment_evidence(log_dir, plan)
-    errors = approval_errors + assignment_errors + mission_assignment_errors(
+    evidence = global_assignment_evidence(log_dir, plan)
+    assignments = evidence.assignments
+    errors = approval_errors + evidence.errors + mission_assignment_errors(
         log_dir,
         plan,
         assignments,
@@ -127,6 +140,7 @@ def analyze_run(
             limits=limits,
             navigation_speedup=requested_speedup,
             command_bounds=command_bounds.for_vehicle(vehicle.sys_id),
+            assignment_acked=evidence.acked,
         )
         for vehicle in plan.vehicles
     ]
@@ -145,6 +159,7 @@ def analyze_run(
 
 
 __all__ = [
+    "AssignmentEvidence",
     "analyze_run",
     "analyze_vehicle",
     "approval_counts",

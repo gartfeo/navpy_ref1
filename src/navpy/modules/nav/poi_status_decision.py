@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.modules.nav.confirmed_poi_release import ConfirmedPoiRelease
+from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.modules.nav.nav_state import NavPhaseState, NavState
 from navpy.modules.nav.nav_status import NavigationStatusReporter
 from navpy.modules.nav.confirmation_manager import ConfirmationStatus
@@ -31,6 +32,7 @@ class ConfirmationStatusDecision:
         presence: PoiPresenceReview,
         confirmed: ConfirmedPoiRelease,
         rejection: PoiRejectionExit,
+        peer_task: PeerTaskPriority,
     ) -> None:
         self._selection = selection
         self._phase = phase
@@ -38,6 +40,7 @@ class ConfirmationStatusDecision:
         self._presence = presence
         self._confirmed = confirmed
         self._rejection = rejection
+        self._peer_task = peer_task
 
     def dispatch(self) -> bool:
         self._status_reporter.last_ignore_code = 0
@@ -45,6 +48,12 @@ class ConfirmationStatusDecision:
         if active is None:
             self._phase.request(NavState.DETECT)
             return False
+        if self._phase.previous is not NavState.NAV and self._peer_task.pending():
+            # Not yet approached: the own POI yields to the assigned peer
+            # task without RESET, which would release that task.
+            self._peer_task.hand_off(active)
+            self._phase.request(NavState.DETECT)
+            return True
         status = self._selection.poi_status(active)
         if self._presence.update(active, status):
             return True

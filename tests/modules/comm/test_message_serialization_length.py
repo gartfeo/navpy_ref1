@@ -6,7 +6,9 @@ from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
 from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.log_status_msg import LogStatusMsg
 from navpy.modules.comm.messages.msg_abc import MsgSerializer
-from navpy.modules.comm.messages.types import TaskTypeMsgData
+from navpy.modules.comm.messages.msg_meta import MsgMeta
+from navpy.modules.comm.messages.swarm_ack_msg import ACK_STATUS_APPLIED, SwarmAckMsg
+from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
 from navpy.modules.comm.serial.serial_interface_ebyte import MAX_PACKET_SIZE
 
 
@@ -48,7 +50,21 @@ class TestMessageSerializationLength(unittest.TestCase):
                 receiver_id=2,
                 task_id=1,
                 is_accepted=True
-            )
+            ),
+            SwarmAckMsg(
+                sender_id=1,
+                receiver_id=2,
+                ref_boot_id=0xFFFFFFFF,
+                ref_msg_seq=0xFFFFFFFF,
+                ref_msg_type=MsgType.TASK_ASSIGN_RESPONSE.value,
+                status=ACK_STATUS_APPLIED,
+                meta=MsgMeta(
+                    boot_id=0xFFFFFFFF,
+                    msg_seq=0xFFFFFFFF,
+                    time_ms=1753280000123,
+                    ttl_ms=5000,
+                ),
+            ),
         ]
 
         # Test serialization length

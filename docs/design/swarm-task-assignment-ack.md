@@ -1,9 +1,37 @@
 # Swarm task assignment with acknowledgments
 
-Status: **design agreed 2026-10-07, not implemented.** Based on `origin/main`
-1bd24d1 (includes 1b4bbf3 assign resend/release and d8605f6 adverts fenced
-against assign requests). Owner = UAV that advertises the task; helper =
-peer that bids and flies it.
+Status: **design agreed 2026-10-07; steps 1–7 implemented and the live
+check (8) run 2026-10-08.** In the 3-UAV demo: uid lines, one APPLIED per
+peer, assigned before the peer approach, busy peer skipped, WAITING →
+ASSIGNED. The demo evaluator's full pass is blocked by failures that
+`origin/main` shows too (a second confirmation round after SNAP).
+Based on `origin/main` 1bd24d1 (includes 1b4bbf3 assign resend/release and
+d8605f6 adverts fenced against assign requests); "today" below means that
+base. Owner = UAV that advertises the task; helper = peer that bids and
+flies it.
+
+Implementation notes:
+- Nav publishes "approaching" every cycle, but only a change reaches the
+  actor's lock; a reject repeat's first copy is sent from its timer thread,
+  so the nav thread never sends.
+- The peer task also preempts an own POI seen in DETECT and not yet
+  reviewed: it is dropped like one under CONFIRM.
+- Owners stop advertising to a released peer once the task is reserved
+  again; that peer then learns from the RECEIVED answer to its next step 4,
+  or its 18 s expiry.
+- GCS: a step-4 copy and the APPLIED naming it arrive on different vehicle
+  links (threads), so an APPLIED heard first waits, one per helper, for its
+  copy. `swarm` is a telemetry change key, so a new beat is broadcast.
+- Frontend: a FREE beat retires a round only once the helper's "doing" (or
+  the APPLIED's ref) orders it; a round without one ends by advert, reject
+  or APPLIED. Confirm events match entries by (UAV, task id), and available
+  tasks are keyed `${owner}:${task}` like rounds. A helper's confirm carries
+  its own POI id, which can differ from the owner's task id; the card then
+  never shows CONFIRMED, as before this change (follow-up).
+- Audit: the backend log's format also switches the peer gate, so recorded
+  legacy runs need no `assigned by owner` line. The gate orders the
+  assignment against `Peer navigation started`: a free peer's hub return
+  may loiter first.
 
 ## Problem
 
@@ -36,8 +64,10 @@ UAV still bids, and a peer that does not bid stalls the auction.
 7. **Fuel is per task**: a UAV that cannot fly a task answers that advert
    with "can't do"; the owner leaves it out of that task instead of waiting.
 8. **A peer task has priority** over a found own POI (not yet approached) and
-   the DDH return. One final approach per flight: the own POI is dropped and
-   offered to the other UAVs; the DDH return comes after the task.
+   the DDH return. One final approach per flight: the own POI is dropped, not
+   offered to the other UAVs (owner ruling 2026-10-08: it may be the assigned
+   dock itself, and task ids are numbered per UAV); the DDH return comes
+   after the task.
 9. GCS shows WAITING vs ASSIGNED (owner APPLIED is the truth) and busy; the
    demo audit accepts repeated copies.
 
@@ -127,9 +157,10 @@ approaching, the peer task preempts:
 - DETECT with DDH return: `setup()` replaces the hub approach (DDH comes
   after the task, as today after any task).
 - CONFIRM of an own POI: the own POI is dropped (active POI cleared, status
-  PEER_NOTIFIED) and handed to `PeerPoiNotifier` so other UAVs can bid; then
-  DETECT starts the peer approach. Own POIs are never advertised today
-  (`PoiSelector` keeps `own` local), so this hand-off is new.
+  DROPPED, never offered); then DETECT starts the peer approach. DROPPED is
+  not final: if it is the assigned dock, the peer approach takes it up again.
+  Open: a confirmation round already in flight keeps asking the operator and,
+  at its deadline, overwrites DROPPED (follow-up: cancel it on the drop).
 - NAV (approaching): cannot happen, the UAV is BUSY and rejects step 3.
 
 **Heartbeat.** `SwarmPresence.heartbeat()` reads the state and stamps meta
@@ -157,7 +188,8 @@ counter, so a report is exactly ordered against step-4 copies.
   advertising to that peer until it replies, reports FREE, or the task is
   reserved/reset (otherwise a lost release advert keeps it WAITING 18 s).
 - Silence: a peer with no heartbeat/check-in for TTL(`SWARM_HEARTBEAT`) =
-  5 s is silent, checked at the owner's own heartbeat tick (no new timers);
+  5 s is silent, checked at the owner's own heartbeat tick (no new timers;
+  an error there is logged and never stops the heartbeat);
   its next heartbeat revives it; CHECK_OUT makes it silent at once.
 - `presence.stop()` never runs under the actor lock (its join can raise).
 
@@ -190,7 +222,7 @@ by action; `useTaskAssignment` becomes a thin wrapper).
 readable); uid-format logs require exactly one (owner, task) per peer whose
 APPLIED `ref` names an accepted step-4 line, tolerate copies, released rounds
 and rejects; mixed formats are an error. Peer gate: `Task T assigned by
-owner O` must appear before the first GUIDED_LOITER.
+owner O` must appear before `Peer navigation started`.
 
 ## Timing (derived from `ttl_defaults.py`)
 
@@ -221,7 +253,7 @@ the relationships and recompute under a monkeypatched `TTL_DEFAULTS`.
 | peer busy (other task, or approaching) | no bid; owners skip it within 1 s and assign among free peers |
 | peer lacks fuel for one task | "can't do" for that task; matrix completes without it |
 | peer becomes busy after bidding / starts its own approach while WAITING | its bids withdrawn / it rejects, owner retries |
-| peer in CONFIRM or DDH return wins a task | own POI handed to others / hub after the task; flies the peer task |
+| peer in CONFIRM or DDH return wins a task | own POI dropped / hub after the task; flies the peer task |
 | all peers busy or silent | no adverts until the first peer reports FREE |
 | heartbeat lost / peer silent 5 s | next beat 1 s later / skipped, revived by its next beat |
 | release advert lost while helper WAITING | re-advertised to it until it bids or stops WAITING |
@@ -245,6 +277,7 @@ the relationships and recompute under a monkeypatched `TTL_DEFAULTS`.
 - Armenian labels (`hy.json`): the current idle label "ՍՊԱՍՈՒՄ" means
   "waiting". Proposal: give it to the new waiting status, rename idle to
   "ԱՆԳՈՐԾ", badge "ԶԲԱՂՎԱԾ" (busy) and "ԱՆՀԱՅՏ" (unknown, stale heartbeat).
+  Applied as proposed in 6b, pending the owner's OK.
 
 ## Implementation plan
 
@@ -290,10 +323,10 @@ stall them); 4d separately; GCS 6a–6c after 4c.
      phase NAV) after each cycle; `publish_approaching()` in `nav_network.py`;
      wire in `nav_runtime_composition.py`. ASSIGNED preempts: DDH return
      replaced by `setup()`; CONFIRM drops the own POI (clear active POI,
-     PEER_NOTIFIED, `PeerPoiNotifier`) and returns to DETECT **without
+     DROPPED) and returns to DETECT **without
      RESET** (RESET releases ASSIGNED). Tests: new
      `test_nav_task_availability.py` (approaching per phase); nav-controller:
-     CONFIRM + ASSIGNED → own POI advertised, peer approach starts; DDH +
+     CONFIRM + ASSIGNED → own POI dropped, peer approach starts; DDH +
      ASSIGNED → peer approach; NAV → BUSY, step 3 rejected.
    - 4c. **Owner peer status**: roster status and `report()`; `busy_peers(store)`
      at all call sites; per-task declines (matrix complete on bid or decline);

@@ -1,10 +1,6 @@
 """Compatibility exports for focused swarm task-state owners."""
 
-from navpy.modules.swarm.task_actor_slots import (
-    MAX_REMOTE_PEERS,
-    PeerRoster,
-    SelectedTaskSlot,
-)
+from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot
 from navpy.modules.swarm.task_auction_models import (
     TaskAssignmentPlanner,
     TaskOffer,
@@ -13,11 +9,9 @@ from navpy.modules.swarm.task_auction_models import (
     TaskReservation,
     _TaskAuctionStore,
 )
-from navpy.modules.swarm.task_auction_state import (
-    TaskAuctionState,
-    _busy_peers,
-)
+from navpy.modules.swarm.task_auction_state import TaskAuctionState
 from navpy.modules.swarm.task_auction_lifecycle import _shutdown_dispatches
+from navpy.modules.swarm.task_peer_roster import MAX_REMOTE_PEERS, PeerRoster
 from navpy.modules.swarm.task_rebroadcast_state import TaskRebroadcastState
 from navpy.modules.swarm.task_state_composition import create_task_state
 

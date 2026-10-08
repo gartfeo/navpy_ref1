@@ -1,5 +1,6 @@
 """In-memory MAVLink regression for the three-UAV task auction."""
 
+import threading
 from collections import deque
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -10,14 +11,25 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLINK_MSG_ID_TASK_ASSIGN_RESPONSE,
 )
 
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmHeartbeatMsg
 from navpy.modules.comm.messages.types import TaskDispatchStatus
 from navpy.modules.comm.network_mavlink import NetworkMavlink
 from navpy.modules.common.models.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
+from navpy.modules.swarm.task_actor_slots import SlotState
 from navpy.modules.swarm.task_dispatch import TaskDispatch
 from tests.detection_factory import make_detected_poi
 from tests.modules.swarm.test_task_assign_confirmation import FakeTimers
+
+
+@pytest.fixture(autouse=True)
+def explicit_heartbeats():
+    """Heartbeats carry node state: tests send them explicitly instead of
+    letting the 1 Hz thread inject wall-clock reports."""
+    with patch(
+        "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+        threading.TIMEOUT_MAX,
+    ):
+        yield
 
 
 class _MavlinkBus:
@@ -102,8 +114,8 @@ def test_owner_dispatches_exact_second_and_third_pois_to_distinct_peers():
     peer_3_id = vehicles[2].source_system
 
     try:
-        for actor, network in zip(actors, networks):
-            network.broadcast(SwarmHeartbeatMsg(actor.id))
+        for actor in actors:
+            actor._presence.heartbeat()
         bus.drain()
         # Peers are known by their sysids, and the owner must not see itself.
         assert actors[0]._rebroadcast.known_peers() == {peer_2_id, peer_3_id}
@@ -170,7 +182,7 @@ def _three_uav_swarm(bus, owner_loc, peer_2_loc, peer_3_loc):
         actor.start()
         network.set_listener(actor)
         bus.networks.append(network)
-        network.broadcast(SwarmHeartbeatMsg(actor.id))
+        actor._presence.heartbeat()
         actors.append(actor)
     bus.drain()
     return vehicles, actors
@@ -184,6 +196,7 @@ def _is_assign_response_from(sender_id, mav_msg, peer_id):
 
 
 def _holders(actors, task_id):
+    """Peers nav would fly the task on (ASSIGNED)."""
     return {
         actor.id
         for actor in actors[1:]
@@ -192,7 +205,17 @@ def _holders(actors, task_id):
     }
 
 
-def test_lost_assign_response_is_recovered_by_resending_the_request():
+def _waiting(actors, task_id):
+    """Peers holding the task offer, invisible to nav until applied."""
+    return {
+        actor.id
+        for actor in actors[1:]
+        if actor._selection.state() is SlotState.WAITING
+        and actor._selection.held().task.task_id == task_id
+    }
+
+
+def test_lost_assign_response_is_recovered_by_the_next_response_copy():
     owner_loc = Location(40.2961244, 44.4334705, 1339.7)
     poi = Location(40.2967648, 44.4332133, 1339.7, is_absolute=True)
     bus = _MavlinkBus()
@@ -220,9 +243,13 @@ def test_lost_assign_response_is_recovered_by_resending_the_request():
             dispatch = actors[0]._auction_state.lookup(2)
             assert len(dropped) == 1
             assert dispatch.status == TaskDispatchStatus.CONFIRMING
-            assert _holders(actors, 2) == {2}
+            # Peer 2 waits for the owner's confirmation and does not fly.
+            assert _waiting(actors, 2) == {2}
+            assert _holders(actors, 2) == set()
 
-            assert timers.fire_pending() == 1  # resend the assign request
+            # The owner's acked request slot sends nothing; the peer's
+            # next response copy confirms.
+            timers.fire_pending()
             bus.drain()
 
         assert dispatch.status == TaskDispatchStatus.CONFIRMED
@@ -255,7 +282,8 @@ def test_peer_stranded_by_lost_responses_releases_task_before_reassignment():
             bus.drain()
             dispatch = actors[0]._auction_state.lookup(2)
             assert dispatch.assigned_peer == 2
-            assert _holders(actors, 2) == {2}
+            assert _waiting(actors, 2) == {2}
+            assert _holders(actors, 2) == set()
 
             # Peer 2 is now farther away; its replies stay lost throughout.
             vehicles[1]._location = Location(40.3261244, 44.4634705, 1339.7)

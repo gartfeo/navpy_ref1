@@ -60,6 +60,18 @@ class TestHasChanged(unittest.TestCase):
         curr = {"mode": "GUIDED"}
         self.assertTrue(_has_changed(prev, curr))
 
+    def test_swarm_state_changes_are_broadcast(self):
+        free = {"state": "FREE", "boot": 7, "seq": 3, "stale": False}
+        for prev, curr in (
+            (None, free),
+            (free, {**free, "state": "BUSY", "seq": 4}),
+            (free, {**free, "seq": 4}),  # orders the beat after step-4 copies
+            (free, {**free, "stale": True}),
+        ):
+            with self.subTest(prev=prev, curr=curr):
+                self.assertTrue(_has_changed({"swarm": prev}, {"swarm": curr}))
+        self.assertFalse(_has_changed({"swarm": free}, {"swarm": dict(free)}))
+
 
 class TestTelemetryLoopNavpyRestart(unittest.TestCase):
     """Tests for the sim-status tick's NavPy auto-restart hook."""

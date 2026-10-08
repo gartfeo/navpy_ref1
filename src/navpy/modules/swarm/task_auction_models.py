@@ -2,17 +2,32 @@
 
 from __future__ import annotations
 
+import math
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional, Protocol, Sequence
 
 from navpy.modules.comm.messages.task_message_data import TaskMsgData
-from navpy.modules.swarm.task_actor_slots import PeerRoster
 from navpy.modules.swarm.task_dispatch import TaskDispatch
+from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.modules.swarm.task_peer_roster import PeerRoster
 
 
 UNAVAILABLE_ASSIGNMENT_COST = 1e9
+
+# The ETA a helper sends for a task it cannot fly ("can't do", e.g. fuel).
+DECLINED_ETA_MIN = -1.0
+
+
+def is_declined_eta(value: object) -> bool:
+    """A finite negative ETA is an explicit decline of that one task."""
+    return (
+        type(value) in {int, float}
+        and math.isfinite(value)
+        and value < 0
+    )
 
 
 @dataclass(frozen=True)
@@ -36,6 +51,7 @@ class TaskReservation:
     peer_id: int
     task: TaskMsgData
     generation: int
+    attempt: int
 
 
 @dataclass(frozen=True)
@@ -47,39 +63,40 @@ class TaskRejectOutcome:
     remaining_peers: int = 0
 
 
+class ResponseVerdict(Enum):
+    """The owner's verdict on one step-4 copy (design verdict table)."""
+
+    NOT_YOURS = "not_yours"
+    UNFENCED = "unfenced"
+    CONFIRMED = "confirmed"
+    REPEAT = "repeat"
+    REJECTED = "rejected"
+    KEPT = "kept"
+
+
 @dataclass(frozen=True)
-class AssignConfirmationPolicy:
-    """How long a CONFIRMING reservation waits for its assign response.
+class AssignVerdict:
+    """The verdict, the ack status it answers with, and its side effects."""
 
-    The request is sent up to ``max_sends`` times, ``resend_interval_s``
-    apart, so one lost request or response does not strand the task. After
-    the last send the owner waits ``release_delay_s`` before releasing the
-    reservation; set it to the request TTL so no copy of the request is
-    still accepted by the peer once the task is released.
-    """
-
-    resend_interval_s: float
-    max_sends: int
-    release_delay_s: float
-
-    def delay_after(self, sends: int) -> float:
-        if sends < self.max_sends:
-            return self.resend_interval_s
-        return self.release_delay_s
+    verdict: ResponseVerdict
+    ack_status: int
+    reject: Optional[TaskRejectOutcome] = None
+    busy_changed: bool = False
 
 
 @dataclass(frozen=True)
 class AssignConfirmationPorts:
     """Owner actions a due assign confirmation may take under the lock."""
 
-    send_request: Callable[[TaskReservation], bool]
-    advertise: Callable[[list[TaskMsgData]], bool]
+    send_request: Callable[[TaskReservation], Optional[MsgRef]]
+    advertise: Callable[[list[TaskMsgData]], Optional[MsgRef]]
     on_due: Callable[[TaskReservation], None]
 
 
 @dataclass(frozen=True)
 class TaskConfirmationOutcome:
-    """``stale``: reservation no longer current; ``resent``; ``released``."""
+    """``stale``: not current; ``resent``; ``acked`` (no copy needed);
+    ``released``."""
 
     kind: str
     generation: int
@@ -105,8 +122,10 @@ class _TaskAuctionStore:
 
 
 __all__ = [
-    "AssignConfirmationPolicy",
     "AssignConfirmationPorts",
+    "AssignVerdict",
+    "DECLINED_ETA_MIN",
+    "ResponseVerdict",
     "TaskAssignmentPlanner",
     "TaskConfirmationOutcome",
     "TaskOffer",
@@ -114,4 +133,5 @@ __all__ = [
     "TaskRejectOutcome",
     "TaskReservation",
     "UNAVAILABLE_ASSIGNMENT_COST",
+    "is_declined_eta",
 ]

@@ -9,7 +9,7 @@ const AVAILABLE_COLOR = '#ff9800';
  * - Label: "#taskId taskType" in orange
  */
 export default function useAvailableTaskMarkers(cesiumRef, viewerRef, availableTasks, viewerReady) {
-  const markersRef = useRef({});   // task_id -> entity
+  const markersRef = useRef({});   // `${owner}:${task}` -> entity
 
   useEffect(() => {
     const Cesium = cesiumRef.current;
@@ -19,19 +19,18 @@ export default function useAvailableTaskMarkers(cesiumRef, viewerRef, availableT
     const existing = markersRef.current;
     const seen = new Set();
 
-    for (const [tidStr, entry] of Object.entries(availableTasks || {})) {
-      const tid = Number(tidStr);
+    for (const [key, entry] of Object.entries(availableTasks || {})) {
       if (entry.lat == null || entry.lon == null) continue;
-      seen.add(tid);
+      seen.add(key);
 
       const labelText = `#${entry.taskId} ${entry.taskType}`;
       const position = Cesium.Cartesian3.fromDegrees(entry.lon, entry.lat, entry.alt || 0);
 
-      if (existing[tid]) {
-        existing[tid].position = position;
-        existing[tid].label.text = labelText;
+      if (existing[key]) {
+        existing[key].position = position;
+        existing[key].label.text = labelText;
       } else {
-        existing[tid] = viewer.entities.add({
+        existing[key] = viewer.entities.add({
           position,
           billboard: {
             image: makeAvailableTaskIcon(32),
@@ -60,10 +59,10 @@ export default function useAvailableTaskMarkers(cesiumRef, viewerRef, availableT
     }
 
     // Remove markers for tasks no longer available
-    for (const tidStr of Object.keys(existing)) {
-      if (!seen.has(Number(tidStr))) {
-        try { viewer.entities.remove(existing[tidStr]); } catch {}
-        delete existing[tidStr];
+    for (const key of Object.keys(existing)) {
+      if (!seen.has(key)) {
+        try { viewer.entities.remove(existing[key]); } catch {}
+        delete existing[key];
       }
     }
   }, [availableTasks, viewerReady]);

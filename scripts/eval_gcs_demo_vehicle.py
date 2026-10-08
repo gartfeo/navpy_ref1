@@ -160,6 +160,7 @@ def analyze_vehicle(
     navigation_speedup: float = 0.0,
     launch_speedup: float = SIM_SPEEDUP,
     command_bounds: VehicleCommandBounds | None = None,
+    assignment_acked: bool = False,
 ) -> VehicleReport:
     checked_sys_id = positive_int("sys_id", sys_id)
     if role not in {"owner", "peer"}:
@@ -201,6 +202,7 @@ def analyze_vehicle(
             approval_count=approval_count,
             navigation_speedup=requested_speedup,
             launch_speedup=launch_speed,
+            assignment_acked=assignment_acked,
         )
     )
     errors.extend(

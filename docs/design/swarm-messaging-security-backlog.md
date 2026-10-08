@@ -6,32 +6,38 @@ makes the scenarios below less likely. They are recorded here so they can be
 addressed when authentication work starts.
 
 Source: security review of PR #4 (assign-request resend and release,
-2026-10-07).
+2026-10-07); updated 2026-10-08 for the assignment acks
+([swarm-task-assignment-ack.md](swarm-task-assignment-ack.md)).
 
 ## Background
 
 Swarm task messages (AVAILABLE_TASK_REQUEST/RESPONSE, TASK_ASSIGN_REQUEST/
-RESPONSE) identify the sender only by the MAVLink `srcSystem`. Nothing
-authenticates that ID. The owner's `boot_id`, task ids and sequence numbers
-are sent in plaintext.
+RESPONSE, SWARM_ACK) and the SWARM_HEARTBEAT node state identify the sender
+only by the MAVLink `srcSystem`. Nothing authenticates that ID. Boot ids,
+task ids and sequence numbers are sent in plaintext.
 
 ## Known risks
 
-1. **Spoofed release of a busy vehicle.** A peer drops its held task when the
-   owner advertises it again (`task_capability.py`,
-   `_release_if_re_advertised`). A forged AVAILABLE message carrying the
-   owner's ID and a newer `msg_seq` makes the peer drop the task, while the
-   owner still treats it as CONFIRMED. A forged assign request can then
-   re-task the vehicle.
+1. **Spoofed release of a waiting vehicle.** A WAITING helper drops its task
+   when its owner advertises it again, later (`SelectedTaskSlot.on_advert`).
+   A forged advert with the owner's ID and boot and a newer `msg_seq` drops
+   it; if the owner already CONFIRMED that helper, the task is stranded. An
+   ASSIGNED (flying) task is never dropped by adverts.
 2. **Spoofed assign request into an idle slot.** This predates PR #4. An idle
-   peer accepts any assign request from an admitted roster ID.
-3. **High-`msg_seq` pin.** A forged request for the held task with a very
-   high `msg_seq` raises the peer's accepted order
-   (`SelectedTaskSlot.try_accept`). Every genuine release that follows is
-   then ignored, and the peer and task stay pinned.
-4. **Forged best bid.** A forged low-ETA bid from an offline roster peer wins
-   the auction. The owner releases the task after its confirmation timeout
-   (about 7 s), but this can repeat indefinitely.
+   peer turns WAITING on any assign request from an admitted roster ID, and
+   flies once an APPLIED names one of its step-4 copies (see 5).
+3. **High-`msg_seq` pin.** A forged copy of the WAITING request with a very
+   high `msg_seq` raises the held request (`SelectedTaskSlot.on_request`).
+   Genuine release adverts are then ignored until the 18 s WAITING expiry.
+4. **Forged best bid.** A forged low-ETA bid, with forged heartbeats so an
+   offline roster peer does not fall silent, wins the auction. The owner
+   releases the task 9 s after its first assign request, but this can repeat
+   indefinitely.
+5. **Forged acks and node state.** A forged APPLIED naming a helper's step-4
+   copy (its UID is plaintext) makes a WAITING helper fly although its owner
+   never confirmed it, so two UAVs can fly one task; a forged RECEIVED drops
+   a WAITING task. A forged BUSY heartbeat keeps a free peer out of auctions;
+   a forged FREE one makes a busy peer look free.
 
 ## To do (when authentication is in scope)
 
@@ -39,9 +45,10 @@ are sent in plaintext.
       alone, or add authentication at the message level. Record the
       decision here.
 - [ ] If message level: enable MAVLink2 message signing on swarm links, or
-      add an HMAC over task messages, with key provisioning per fleet.
-- [ ] Bound how far a re-accept may raise the accepted order (a seq window
-      around the stored order) to limit the high-seq pin.
+      add an HMAC over task messages, acks and heartbeats, with key
+      provisioning per fleet.
+- [ ] Bound how far a repeat may raise the held request (a seq window
+      around it) to limit the high-seq pin.
 - [ ] Replace the inferred release (re-advertisement) with an explicit
       owner→peer cancel message tied to the reservation.
 - [ ] Add a final give-up for repeated releases to the same peer: an

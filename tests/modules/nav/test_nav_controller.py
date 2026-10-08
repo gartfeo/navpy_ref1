@@ -14,6 +14,7 @@ import unittest
 import time
 from dataclasses import replace
 import numpy as np
+from pytest import approx as pytest_approx
 from unittest.mock import ANY, Mock, MagicMock, call, patch, PropertyMock
 
 from navpy.exception_groups import ExceptionGroup
@@ -32,7 +33,26 @@ from navpy.modules.vision.models.detection_publication import DetectionPublicati
 from navpy.modules.vision.models.detect_response import DetectResponse
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.poi_zoom_tracker import ZoomTrackResult, ZoomTrackingState
-from navpy.modules.comm.messages.available_task_msg import AvailableTaskRequestMsg
+from navpy.modules.comm.messages.available_task_msg import (
+    AvailableTaskRequestMsg,
+    TaskAssignMsgData,
+    TaskAssignRequestMsg,
+    TaskAssignResponseMsg,
+)
+from navpy.modules.comm.messages.location_msg import LocationMsgData
+from navpy.modules.comm.messages.msg_meta import MsgMeta
+from navpy.modules.comm.messages.swarm_ack_msg import (
+    ACK_STATUS_APPLIED,
+    SwarmAckMsg,
+)
+from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+    SwarmHeartbeatMsg,
+    SwarmNodeState,
+)
+from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
+from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.modules.swarm.task_actor import TaskActor
+from navpy.modules.swarm.task_actor_slots import SlotState
 from tests.modules.nav.nav_test_rig import (
     as_detection_coordination,
     create_nav_test_rig,
@@ -7537,6 +7557,344 @@ class TestNavControllerDefaultDeliveryHub(unittest.TestCase):
 
 
 # =============================================================================
+# Peer Task Priority Tests (docs/design/swarm-task-assignment-ack.md)
+# =============================================================================
+
+def _assigned_peer_task(controller, task_id=77):
+    """A task actor whose slot holds an ASSIGNED peer task."""
+    task_actor = Mock()
+    task_actor.selected_poi.return_value = TaskAssignMsgData(
+        task_id=task_id,
+        task_type=TaskTypeMsgData.DOCK,
+        location=LocationMsgData(40.001, -74.001, 0.0),
+    )
+    controller.network.task_actor = task_actor
+    return task_actor
+
+
+def _commit(controller, state):
+    controller.phase.current = state
+    controller.phase.previous = state
+
+
+class TestNavControllerPeerTaskPriority(unittest.TestCase):
+    """An assigned peer task outranks an own POI not yet approached and the
+    DDH return; one final approach per flight."""
+
+    # Owner ruling 2026-10-08: the own POI is dropped, never offered. It may
+    # be the assigned dock itself (task ids are numbered per UAV), and
+    # offering it could send a second UAV there.
+
+    def test_confirm_drops_the_own_poi_without_reset(self):
+        controller = _create_controller(
+            vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=7),
+        )
+        task_actor = _assigned_peer_task(controller)
+        own = _create_detected_poi(obj_id=5)
+        own.set_p_t_g_loc(Location(40.002, -74.002, 0.0))
+        controller.confirmation_manager.set_active_poi(own)
+        controller.confirmation_manager.update_status(
+            own, ConfirmationStatus.CONFIRMING,
+        )
+        _commit(controller, NavState.CONFIRM)
+
+        controller.decision.decide()
+
+        self.assertIsNone(controller.confirmation_manager.active_poi)
+        self.assertIs(
+            controller.confirmation_manager.get_status(own),
+            ConfirmationStatus.DROPPED,
+        )
+        self.assertIs(controller.phase.current, NavState.DETECT)
+        # No RESET: that would release the assigned task.
+        task_actor.clear_selected_poi.assert_not_called()
+        task_actor.reset.assert_not_called()
+
+        controller.actions.act()
+
+        self.assertTrue(controller.navigation_task.peer_navigation)
+        controller.navigation.vehicle_commands.peer_poi.assert_called_once()
+        task_actor.notify_pois.assert_not_called()
+
+    def test_detect_drops_a_found_own_poi_and_flies_the_peer_task(self):
+        controller = _create_controller()
+        task_actor = _assigned_peer_task(controller)
+        own = _create_detected_poi(obj_id=6)
+        own.set_p_t_g_loc(Location(40.002, -74.002, 0.0))
+        controller.detections.detected_pois = [own]
+        _commit(controller, NavState.DETECT)
+
+        controller.detect_action.act()
+
+        self.assertIsNone(controller.confirmation_manager.active_poi)
+        self.assertIs(
+            controller.confirmation_manager.get_status(own),
+            ConfirmationStatus.DROPPED,
+        )
+        task_actor.notify_pois.assert_not_called()
+        self.assertTrue(controller.navigation_task.peer_navigation)
+
+    def test_a_dropped_poi_is_not_offered_beside_another_dock(self):
+        controller = _create_controller()
+        task_actor = _assigned_peer_task(controller)
+        own = _create_detected_poi(obj_id=6)
+        own.set_p_t_g_loc(Location(40.002, -74.002, 0.0))
+        controller.detections.detected_pois = [own]
+        _commit(controller, NavState.DETECT)
+        controller.detect_action.act()
+        other = _create_detected_poi(obj_id=8)
+        other.set_p_t_g_loc(Location(40.003, -74.003, 0.0))
+
+        # The other dock is selected first, so the dropped one is a peer
+        # candidate; it is still never offered.
+        controller.detections.detected_pois = [other, own]
+        controller.detect_action.act()
+
+        offered = [
+            poi
+            for call in task_actor.notify_pois.call_args_list
+            for poi in call.args[0]
+        ]
+        self.assertNotIn(own, offered)
+
+    def test_the_peer_approach_takes_up_a_dropped_poi_at_its_dock(self):
+        # The dropped POI may be the assigned dock: near it, the peer
+        # approach starts it, and its confirmation can be asked.
+        controller = _create_controller()
+        _assigned_peer_task(controller)
+        own = _create_detected_poi(obj_id=6)
+        own.set_p_t_g_loc(Location(40.002, -74.002, 0.0))
+        controller.detections.detected_pois = [own]
+        _commit(controller, NavState.DETECT)
+        controller.detect_action.act()
+        controller.peer_navigation.near_poi = Mock(return_value=True)
+
+        controller.detect_action.act()
+
+        self.assertIs(controller.confirmation_manager.active_poi, own)
+        self.assertIsNone(controller.confirmation_manager.get_status(own))
+
+    def test_ddh_return_yields_to_an_assigned_peer_task(self):
+        vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=9)
+        vehicle.mission_items_count = 10
+        controller = _create_controller(vehicle=vehicle)
+        controller.mission.default_delivery_hub = Location(40.5, 44.5, 0.0)
+        controller.fallback_navigation.setup()
+        self.assertTrue(controller.mission.default_delivery_hub_active)
+        _assigned_peer_task(controller)
+        _commit(controller, NavState.DETECT)
+
+        controller.detect_action.act()
+
+        self.assertTrue(controller.navigation_task.peer_navigation)
+        self.assertEqual(
+            controller.navigation_task.navigation_poi_location.lat,
+            pytest_approx(40.001),
+        )
+
+    def test_peer_task_does_not_preempt_an_own_final_approach(self):
+        controller = _create_controller(
+            vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED),
+        )
+        task_actor = _assigned_peer_task(controller)
+        own = _create_detected_poi(obj_id=7)
+        controller.confirmation_manager.set_active_poi(own)
+        controller.confirmation_manager.update_status(
+            own, ConfirmationStatus.CONFIRMED,
+        )
+        _commit(controller, NavState.NAV)
+
+        controller.poi_status.dispatch()
+
+        self.assertIs(controller.confirmation_manager.active_poi, own)
+        task_actor.notify_pois.assert_not_called()
+
+
+class TestNavControllerApproachAvailability(unittest.TestCase):
+    """A committed NAV phase reports BUSY and makes the swarm reject offers."""
+
+    def setUp(self):
+        patcher = patch(
+            "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+            threading.TIMEOUT_MAX,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.controller = _create_controller(
+            vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED),
+        )
+        helper = Mock()
+        helper.source_system = 2
+        helper.location.return_value = Location(40.0, -74.0, 200.0)
+        helper.ground_speed = 20.0
+        helper.wind.speed = 0.0
+        helper.wind.direction = 0.0
+        helper.battery_level = 100.0
+        self.swarm_network = Mock(spec=NetworkAbc)
+        self.actor = TaskActor(helper, self.swarm_network, Mock())
+        self.actor.start()
+        self.addCleanup(self.actor.reset)
+        self.actor.on_message(SwarmHeartbeatMsg(sender_id=1))
+        self.controller.network.task_actor = self.actor
+        self.nav_action = Mock()
+        self.controller.actions._actions[NavState.NAV] = self.nav_action
+
+    def _heartbeat_state(self):
+        self.swarm_network.reset_mock()
+        self.actor._presence.heartbeat()
+        (beat,) = [c.args[0] for c in self.swarm_network.broadcast.call_args_list]
+        return SwarmNodeState(beat.state)
+
+    def test_nav_phase_is_busy_and_rejects_a_step_three(self):
+        _commit(self.controller, NavState.NAV)
+
+        self.controller.actions.act()
+        self.nav_action.assert_called_once_with()
+        self.assertIs(self._heartbeat_state(), SwarmNodeState.BUSY)
+
+        with patch("threading.Timer") as timer:
+            self.actor.on_message(TaskAssignRequestMsg(
+                sender_id=1,
+                receiver_id=2,
+                task=TaskAssignMsgData(
+                    task_id=9,
+                    task_type=TaskTypeMsgData.DOCK,
+                    location=LocationMsgData(40.001, -74.001, 0.0),
+                ),
+                meta=MsgMeta(boot_id=7, msg_seq=50, time_ms=0, ttl_ms=5000),
+            ))
+            (deferred_reject,) = timer.call_args_list
+            deferred_reject.args[1]()
+
+        answers = [
+            message
+            for c in self.swarm_network.broadcast.call_args_list
+            if isinstance((message := c.args[0]), TaskAssignResponseMsg)
+        ]
+        self.assertEqual(
+            [(m.receiver_id, m.task_id, m.is_accepted) for m in answers],
+            [(1, 9, False)],
+        )
+        self.assertIsNone(self.actor.selected_poi())
+
+    def test_leaving_nav_reports_free_again(self):
+        _commit(self.controller, NavState.NAV)
+        self.controller.actions.act()
+
+        _commit(self.controller, NavState.DETECT)
+        self.controller.actions._actions[NavState.DETECT] = Mock()
+        self.controller.actions.act()
+
+        self.assertIs(self._heartbeat_state(), SwarmNodeState.FREE)
+
+
+class TestNavControllerPeerTaskHandshake(unittest.TestCase):
+    """Nav flies a peer task only once its owner applied the answer."""
+
+    OWNER_BOOT = 7
+
+    def setUp(self):
+        for target, value in (
+            ("threading.Timer", MagicMock()),
+            (
+                "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+                threading.TIMEOUT_MAX,
+            ),
+        ):
+            patcher = patch(target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.navigation = _create_mock_navigation()
+        self.controller = _create_controller(
+            vehicle=_create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5),
+            navigation=self.navigation,
+        )
+        helper = Mock()
+        helper.source_system = 2
+        helper.location.return_value = Location(40.0, -74.0, 200.0)
+        helper.ground_speed = 20.0
+        helper.wind.speed = 0.0
+        helper.wind.direction = 0.0
+        helper.battery_level = 100.0
+        self.swarm_network = Mock(spec=NetworkAbc)
+        self.actor = TaskActor(helper, self.swarm_network, Mock())
+        self.actor.start()
+        self.addCleanup(self.actor.shutdown)
+        self._owner_beat()
+        self.controller.network.task_actor = self.actor
+        _commit(self.controller, NavState.DETECT)
+
+    def _owner_beat(self):
+        self.actor.on_message(SwarmHeartbeatMsg(sender_id=1))
+
+    def _offer(self):
+        self.actor.on_message(TaskAssignRequestMsg(
+            sender_id=1,
+            receiver_id=2,
+            task=TaskAssignMsgData(
+                task_id=77,
+                task_type=TaskTypeMsgData.DOCK,
+                location=LocationMsgData(40.001, -74.001, 0.0),
+            ),
+            meta=MsgMeta(
+                boot_id=self.OWNER_BOOT, msg_seq=50, time_ms=0, ttl_ms=5000,
+            ),
+        ))
+
+    def _apply(self):
+        answer = [
+            message
+            for c in self.swarm_network.broadcast.call_args_list
+            if isinstance((message := c.args[0]), TaskAssignResponseMsg)
+        ][-1]
+        self.actor.on_message(SwarmAckMsg(
+            sender_id=1,
+            receiver_id=2,
+            ref_boot_id=answer.meta.boot_id,
+            ref_msg_seq=answer.meta.msg_seq,
+            ref_msg_type=MsgType.TASK_ASSIGN_RESPONSE.value,
+            status=ACK_STATUS_APPLIED,
+            meta=MsgMeta(
+                boot_id=self.OWNER_BOOT, msg_seq=60, time_ms=0, ttl_ms=5000,
+            ),
+        ))
+
+    def test_no_peer_approach_while_waiting(self):
+        self._offer()
+
+        self.controller.detect_action.act()
+
+        self.assertIs(self.actor._selection.state(), SlotState.WAITING)
+        self.assertFalse(self.controller.navigation_task.peer_navigation)
+        self.navigation.vehicle_commands.peer_poi.assert_not_called()
+
+    def test_peer_approach_starts_after_the_owner_applies(self):
+        self._offer()
+        self.controller.detect_action.act()
+
+        self._apply()
+        self.controller.detect_action.act()
+
+        self.assertTrue(self.controller.navigation_task.peer_navigation)
+        self.navigation.vehicle_commands.peer_poi.assert_called_once()
+
+    def test_nav_reset_keeps_a_waiting_task_and_releases_an_assigned_one(self):
+        self._offer()
+
+        self.controller.transitions.enter_reset()
+        self.assertIs(self.actor._selection.state(), SlotState.WAITING)
+
+        self.actor.start()  # nav restarts the actor on its next state
+        self._owner_beat()
+        self._apply()
+        self.assertIs(self.actor._selection.state(), SlotState.ASSIGNED)
+        self.controller.transitions.enter_reset()
+
+        self.assertIs(self.actor._selection.state(), SlotState.EMPTY)
+        self.assertIsNone(self.controller.network.selected_poi())
+
+
+# =============================================================================
 # Swarm Dispatch Safety Tests
 # =============================================================================
 
@@ -7735,10 +8093,12 @@ class TestResumeAutoMissionAfterRejection(unittest.TestCase):
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=7)
         controller = _create_controller(vehicle=vehicle)
 
-        # Set up task actor with selected POIs
+        # Set up task actor with selected POIs. Its approach is under way:
+        # a peer task not yet started would take priority over this review.
         task_actor = Mock()
         task_actor.selected_poi.return_value = Mock()
         controller.network.task_actor = task_actor
+        controller.navigation_task.peer_navigation = True
 
         poi = _create_detected_poi(obj_id=42)
         controller.confirmation_manager.set_active_poi(poi)

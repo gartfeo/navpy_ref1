@@ -16,6 +16,9 @@ class ConfirmationStatus(Enum):
     CONFIRMED = 20
     TIMEOUT_REJECTED = 25
     REJECTED = 30
+    # An own POI dropped for an assigned peer task: never offered to peers
+    # (any status blocks that), but the peer approach may take it up again.
+    DROPPED = 40
     PEER_NOTIFIED = 100
 
 

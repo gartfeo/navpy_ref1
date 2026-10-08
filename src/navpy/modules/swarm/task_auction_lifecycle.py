@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from navpy.exception_groups import ExceptionGroup
 from navpy.logger.cache_logger import ILogger
+from navpy.modules.comm.messages.types import TaskDispatchStatus
 from navpy.modules.swarm.task_auction_models import _TaskAuctionStore
 from navpy.modules.swarm.task_dispatch import TaskDispatch
 
@@ -22,6 +23,7 @@ class TaskAuctionLifecycle:
             dispatches = list(self._store.dispatches.values())
             self._store.dispatches.clear()
             self._store.peers.clear()
+        _log_dropped_assignments(dispatches, logger, "Reset")
         _shutdown_dispatches(dispatches, logger)
 
     def shutdown(self, logger: ILogger) -> None:
@@ -33,7 +35,26 @@ class TaskAuctionLifecycle:
             dispatches = list(self._store.dispatches.values())
             self._store.dispatches.clear()
             self._store.peers.clear()
+        _log_dropped_assignments(dispatches, logger, "Shutdown")
         _shutdown_dispatches(dispatches, logger)
+
+
+def _log_dropped_assignments(
+    dispatches: list[TaskDispatch],
+    logger: ILogger,
+    reason: str,
+) -> None:
+    # The owner forgets tasks it handed out (accepted corner case); a helper
+    # may still fly a CONFIRMED one.
+    for dispatch in dispatches:
+        if dispatch.status in (
+            TaskDispatchStatus.CONFIRMING,
+            TaskDispatchStatus.CONFIRMED,
+        ):
+            logger.warning(
+                f"{reason} drops task {dispatch.task.task_id} "
+                f"{dispatch.status.name} to peer {dispatch.assigned_peer}."
+            )
 
 
 def _shutdown_dispatches(

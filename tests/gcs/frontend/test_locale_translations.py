@@ -101,6 +101,19 @@ def test_armenian_locale_has_no_copied_english_values():
     assert copied_values == {}
 
 
+def test_status_badges_read_distinctly_in_each_locale():
+    """A UAV card badge must never show one word for two states (e.g. the
+    Armenian idle label used to read "waiting", now a status of its own)."""
+    for locale in ("en", "hy"):
+        strings = _load_locale(locale)
+        labels = [
+            *strings["missionStatus"].values(),
+            strings["vehicle"]["swarmBusy"],
+            strings["vehicle"]["swarmUnknown"],
+        ]
+        assert len(set(labels)) == len(labels), (locale, labels)
+
+
 def test_vision_profile_surface_does_not_render_known_english_literals_directly():
     offenders = {}
     for filename, literals in VISIBLE_LITERAL_GUARDS.items():

@@ -33,6 +33,10 @@ _MOUNT_RE = re.compile(
     r"fixed=(?P<fixed>True|False)"
 )
 _IDEAL_360_ACTIVE_RE = re.compile(r"static ideal 360 enabled", re.IGNORECASE)
+_ASSIGNED_RE = re.compile(r"\bTask \d+ assigned by owner \d+\b")
+# Logged when the peer approach is dispatched; a GUIDED_LOITER alone can be a
+# free peer's default delivery hub return, before any assignment.
+_PEER_APPROACH = "Peer navigation started"
 
 
 @lru_cache(maxsize=1)
@@ -165,6 +169,19 @@ def _ordered_workflow_errors(navigation_text: str) -> list[str]:
     return errors
 
 
+def _peer_assignment_errors(navigation_text: str) -> list[str]:
+    """A peer flies its task only once its owner applied it (acked logs)."""
+    assigned = _ASSIGNED_RE.search(navigation_text)
+    if assigned is None:
+        return ["peer never logged 'Task T assigned by owner O'"]
+    approach = navigation_text.find(_PEER_APPROACH)
+    if approach < 0:
+        return [f"peer never logged {_PEER_APPROACH!r}"]
+    if approach < assigned.start():
+        return [f"peer logged {_PEER_APPROACH!r} before 'Task T assigned by owner O'"]
+    return []
+
+
 def workflow_errors(
     navigation_text: str,
     *,
@@ -172,6 +189,7 @@ def workflow_errors(
     approval_count: int,
     navigation_speedup: float,
     launch_speedup: float = SIM_SPEEDUP,
+    assignment_acked: bool = False,
 ) -> list[str]:
     if role not in {"owner", "peer"}:
         raise ValueError(f"invalid demo role {role!r}")
@@ -187,6 +205,8 @@ def workflow_errors(
             errors.append("peer did not start with targ_wps=0")
         if "GUIDED_LOITER" not in navigation_text:
             errors.append("peer did not execute GUIDED_LOITER assignment approach")
+        if assignment_acked:
+            errors.extend(_peer_assignment_errors(navigation_text))
     if approval_count != 1:
         errors.append(f"expected exactly one audited approval, found {approval_count}")
     lowered = navigation_text.lower()

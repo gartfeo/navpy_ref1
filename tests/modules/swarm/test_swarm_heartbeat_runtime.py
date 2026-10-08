@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from navpy.modules.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
-from navpy.modules.swarm.task_messaging import TaskMessageSender
+from navpy.modules.swarm.swarm_presence import SwarmPresence
 
 
 class _StuckThread:
@@ -25,7 +25,7 @@ class _StuckThread:
 class SwarmHeartbeatRuntimeTest(unittest.TestCase):
     @staticmethod
     def _runtime():
-        return SwarmHeartbeatRuntime(Mock(spec=TaskMessageSender))
+        return SwarmHeartbeatRuntime(Mock(spec=SwarmPresence))
 
     def test_restart_uses_a_new_stop_generation_without_reviving_old_loop(self):
         runtime = self._runtime()
@@ -131,7 +131,7 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         runtime._heartbeat_loop.assert_not_called()
 
     def test_heartbeat_failure_is_persistent_and_prevents_silent_restart(self):
-        sender = Mock(spec=TaskMessageSender)
+        presence = Mock(spec=SwarmPresence)
         failure = RuntimeError("heartbeat encoder failed")
         attempted = threading.Event()
 
@@ -139,8 +139,8 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
             attempted.set()
             raise failure
 
-        sender.heartbeat.side_effect = fail_heartbeat
-        runtime = SwarmHeartbeatRuntime(sender)
+        presence.heartbeat.side_effect = fail_heartbeat
+        runtime = SwarmHeartbeatRuntime(presence)
 
         with patch(
             "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
@@ -164,15 +164,15 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         self.assertIs(raised.exception, failure)
 
     def test_recoverable_heartbeat_status_does_not_poison_health(self):
-        sender = Mock(spec=TaskMessageSender)
+        presence = Mock(spec=SwarmPresence)
         attempted = threading.Event()
 
         def unavailable():
             attempted.set()
-            return False
+            return None  # the send failed and was reported
 
-        sender.heartbeat.side_effect = unavailable
-        runtime = SwarmHeartbeatRuntime(sender)
+        presence.heartbeat.side_effect = unavailable
+        runtime = SwarmHeartbeatRuntime(presence)
         with patch(
             "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
             0.01,

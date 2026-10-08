@@ -16,10 +16,12 @@ from gcs.backend.task_confirm_rounds import ConfirmationRoundRegistry, RequestAc
 from gcs.backend.task_confirm_transport import parse_round_uid
 from navpy.exception_groups import ExceptionGroup
 from navpy.modules.comm.messages.available_task_msg import (
+    TaskAssignResponseMsg,
     TaskHandleMsgData,
     TaskMsgData,
 )
 from navpy.modules.comm.messages.location_msg import LocationMsgData
+from navpy.modules.comm.messages.msg_meta import MsgMeta
 from navpy.modules.comm.messages.types import (
     MsgType,
     TaskDispatchStatus,
@@ -43,6 +45,8 @@ from navpy.modules.nav.confirmation_media import ConfirmationMedia
 from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState, ConfirmationStatus
 from navpy.modules.swarm.task_actor_state import create_task_state
 from navpy.modules.swarm.task_assignment_planner import MinimumEtaAssignmentPlanner
+from navpy.modules.swarm.task_auction_models import ResponseVerdict
+from navpy.modules.swarm.task_msg_refs import MsgRef
 from tests.detection_factory import make_detected_poi
 
 
@@ -105,7 +109,7 @@ def _task(task_id: int) -> TaskMsgData:
 
 
 def _reserve(task_id: int = 7, peer_id: int = 2):
-    _, auction, roster, _ = create_task_state(threading.RLock())
+    _, auction, roster, confirmation = create_task_state(threading.RLock())
     assert roster.discover_peer(peer_id, lambda *_: None)
     dispatch, generation = auction.register(_task(task_id))
     dispatch.on_peer_available(
@@ -117,32 +121,44 @@ def _reserve(task_id: int = 7, peer_id: int = 2):
         generation,
     )
     assert len(reservations) == 1
-    return auction, roster, dispatch
+    # As if the peer had acked the request: its responses pass the fence.
+    dispatch.attempt.floor = MsgRef(peer_id, 70, 10)
+    return auction, roster, confirmation, dispatch
+
+
+def _verdict(confirmation, peer_id: int, accepted: bool, seq: int = 11):
+    return confirmation.answer_response(TaskAssignResponseMsg(
+        sender_id=peer_id,
+        receiver_id=1,
+        task_id=7,
+        is_accepted=accepted,
+        meta=MsgMeta(boot_id=70, msg_seq=seq, time_ms=0, ttl_ms=5000),
+    )).verdict
 
 
 def test_auction_rejects_unassigned_responses() -> None:
-    _, auction, roster, _ = create_task_state(threading.RLock())
+    _, auction, roster, confirmation = create_task_state(threading.RLock())
     assert roster.discover_peer(2, lambda *_: None)
     dispatch, _ = auction.register(_task(7))
 
-    assert not auction.accept(7, 2)
-    assert auction.reject(7, 2).kind == "missing"
+    assert _verdict(confirmation, 2, True) is ResponseVerdict.NOT_YOURS
+    assert _verdict(confirmation, 2, False) is ResponseVerdict.NOT_YOURS
     assert dispatch.status is TaskDispatchStatus.AVAILABLE
     assert dispatch.assigned_peer is None
 
 
 def test_auction_rejects_wrong_reserved_peer() -> None:
-    auction, roster, dispatch = _reserve()
+    _, roster, confirmation, dispatch = _reserve()
     assert roster.discover_peer(3, lambda *_: None)
 
-    assert not auction.accept(7, 3)
-    assert auction.reject(7, 3).kind == "missing"
+    assert _verdict(confirmation, 3, True) is ResponseVerdict.NOT_YOURS
+    assert _verdict(confirmation, 3, False) is ResponseVerdict.NOT_YOURS
     assert dispatch.status is TaskDispatchStatus.CONFIRMING
     assert dispatch.assigned_peer == 2
 
 
 def test_auction_rejects_stale_response_after_reset_and_id_reuse() -> None:
-    auction, _, _ = _reserve()
+    auction, _, confirmation, _ = _reserve()
     auction.reset(Mock())
     _, _, roster, _ = create_task_state(threading.RLock())
     del roster  # control against accidentally using a different state
@@ -151,25 +167,27 @@ def test_auction_rejects_stale_response_after_reset_and_id_reuse() -> None:
     dispatch.on_peer_available(3, TaskHandleMsgData(task_id=7, time_in_min=1.0))
     assert auction.plan_and_reserve(MinimumEtaAssignmentPlanner(), generation)
 
-    assert not auction.accept(7, 2)
-    assert auction.reject(7, 2).kind == "missing"
+    assert _verdict(confirmation, 2, True) is ResponseVerdict.NOT_YOURS
+    assert _verdict(confirmation, 2, False) is ResponseVerdict.NOT_YOURS
     assert dispatch.status is TaskDispatchStatus.CONFIRMING
     assert dispatch.assigned_peer == 3
 
 
 def test_auction_accept_and_reject_are_single_use() -> None:
-    auction, _, dispatch = _reserve()
-    assert auction.accept(7, 2)
-    assert not auction.accept(7, 2)
-    assert auction.reject(7, 2).kind == "missing"
+    _, _, confirmation, dispatch = _reserve()
+    assert _verdict(confirmation, 2, True) is ResponseVerdict.CONFIRMED
+    # A copy is answered again but changes nothing; a confirmed task is
+    # never taken back.
+    assert _verdict(confirmation, 2, True, 12) is ResponseVerdict.REPEAT
+    assert _verdict(confirmation, 2, False, 13) is ResponseVerdict.KEPT
     assert dispatch.status is TaskDispatchStatus.CONFIRMED
     assert dispatch.assigned_peer == 2
 
 
 def test_auction_reject_is_single_use() -> None:
-    auction, _, dispatch = _reserve()
-    assert auction.reject(7, 2).kind != "missing"
-    assert auction.reject(7, 2).kind == "missing"
+    _, _, confirmation, dispatch = _reserve()
+    assert _verdict(confirmation, 2, False) is ResponseVerdict.REJECTED
+    assert _verdict(confirmation, 2, False, 12) is ResponseVerdict.NOT_YOURS
     assert dispatch.status is TaskDispatchStatus.AVAILABLE
     assert dispatch.assigned_peer is None
 

@@ -26,6 +26,7 @@ from navpy.modules.nav.poi_status_decision import (
     ConfirmationStatusDecision,
 )
 from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
+from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
 
@@ -40,6 +41,7 @@ def _compose_poi_status(
     navigation: NavCapabilities,
     tracking: TrackRecoveryWorkflows,
     release: FinalApproachReleaseGate,
+    peer_task: PeerTaskPriority,
 ) -> ConfirmationStatusDecision:
     poi_status = ConfirmationStatusDecision(
         PoiSelectionPorts(
@@ -80,5 +82,6 @@ def _compose_poi_status(
             observation.retry,
             reset.resume_auto,
         ),
+        peer_task,
     )
     return poi_status

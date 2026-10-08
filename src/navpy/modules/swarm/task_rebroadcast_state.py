@@ -10,7 +10,12 @@ from navpy.modules.swarm.task_auction_models import (
     TaskRebroadcastPlan,
     _TaskAuctionStore,
 )
-from navpy.modules.swarm.task_auction_queries import busy_peers
+from navpy.modules.swarm.task_auction_evidence import apply_presence
+from navpy.modules.swarm.task_auction_queries import (
+    advert_targets,
+    busy_peers,
+)
+from navpy.modules.swarm.task_msg_refs import MsgRef
 
 
 class TaskRebroadcastState:
@@ -31,6 +36,22 @@ class TaskRebroadcastState:
         if is_new:
             self.restart_available(callback)
         return is_new
+
+    def peer_heard(self, peer_id: int) -> bool:
+        """A heartbeat or check-in; True when it revived a silent peer."""
+        return apply_presence(
+            self._store, lambda: self._store.peers.heard(peer_id),
+        )
+
+    def peer_checked_out(self, peer_id: int) -> bool:
+        """True when the check-out made the peer leave the free set."""
+        return apply_presence(
+            self._store, lambda: self._store.peers.silence(peer_id),
+        )
+
+    def expire_silent_peers(self) -> bool:
+        """True when a peer just fell silent."""
+        return apply_presence(self._store, self._store.peers.expire_silent)
 
     def schedule(
         self,
@@ -63,10 +84,10 @@ class TaskRebroadcastState:
             dispatch = self._store.dispatches.get(task_id)
             if dispatch is None or dispatch.status != TaskDispatchStatus.AVAILABLE:
                 return None
-            missing = (
-                self._store.peers.snapshot()
-                - busy_peers(self._store.dispatches)
-                - set(dispatch.task_handle_by_peer)
+            missing = advert_targets(
+                self._store,
+                dispatch,
+                busy_peers(self._store),
             )
             if not missing:
                 dispatch.cancel_rebroadcast()
@@ -82,7 +103,6 @@ class TaskRebroadcastState:
         self,
         callback: Callable[[int, int], None],
         *,
-        exclude_task_id: Optional[int] = None,
         expected_generation: Optional[int] = None,
     ) -> None:
         with self._store.lock:
@@ -94,21 +114,17 @@ class TaskRebroadcastState:
                 )
             ):
                 return
-            peers = self._store.peers.snapshot()
-            if not peers:
+            if not self._store.peers.snapshot():
                 return
-            busy = busy_peers(self._store.dispatches)
+            busy = busy_peers(self._store)
             generation = self._store.generation
-            for task_id, dispatch in self._store.dispatches.items():
-                if task_id == exclude_task_id:
-                    continue
+            for dispatch in self._store.dispatches.values():
                 if (
                     dispatch.status != TaskDispatchStatus.AVAILABLE
                     or dispatch.has_active_rebroadcast()
                 ):
                     continue
-                missing = peers - busy - set(dispatch.task_handle_by_peer)
-                if missing:
+                if advert_targets(self._store, dispatch, busy):
                     dispatch.start_rebroadcast(
                         lambda current_id, g=generation: callback(current_id, g),
                         0.0,
@@ -117,7 +133,7 @@ class TaskRebroadcastState:
     def send_if_available(
         self,
         tasks: list[TaskMsgData],
-        send: Callable[[list[TaskMsgData]], bool],
+        send: Callable[[list[TaskMsgData]], Optional[MsgRef]],
     ) -> Optional[bool]:
         """Advertise only still-AVAILABLE tasks, under the store lock.
 
@@ -138,7 +154,7 @@ class TaskRebroadcastState:
             ]
             if not available:
                 return None
-            return send(available)
+            return send(available) is not None
 
     def peer_ids(self) -> set[int]:
         return self._store.peers.snapshot()
