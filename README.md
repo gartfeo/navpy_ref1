@@ -7,8 +7,7 @@ is mission-agnostic; mission functions are plug-and-play modules, so the same
 swarm serves factory and industrial survey/inspection, agricultural spraying,
 border security surveillance, forest fire detection and suppression with
 special equipment, and time-critical medicine or payload delivery to authorized
-recipients. The project is non-weaponized and is not intended for weapons,
-explosives, harmful payload delivery, or hostile targeting.
+recipients. NavPy is for civilian use only.
 
 See `AGENTS.md` for the project purpose and glossary (POI, dock, final
 approach, default delivery hub, swarm, fleet).
@@ -24,9 +23,9 @@ The intended moving-recipient use case is a fixed-wing UAV transporting a
 package toward an authorized vehicle traveling through difficult terrain. The
 system is intended to estimate the cooperative recipient's motion and plan a
 safe rendezvous subject to aircraft, terrain, airspace, energy, communications,
-and operational constraints. Rendezvous means an approved delivery
-configuration at an appropriate place and time, not physical interception of
-the vehicle.
+and operational constraints. Rendezvous means a cooperative capture at an
+agreed place and time: the UAV flies into capture equipment that the recipient
+deploys and controls, such as the dock net on the vehicle.
 
 The demo does not yet establish an end-to-end safe moving-recipient handover,
 trained dock recognition, or physical capture performance.
