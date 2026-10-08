@@ -93,9 +93,15 @@ class TestUseTaskAssignment(unittest.TestCase):
         self.assertIn("handleResolvedCleanupByTask", self.src)
 
     def test_cleanup_is_task_keyed(self):
-        # Precise removal by task_id (assignments are keyed by task_id) so a
-        # stale event cannot wipe a newer task's assignment.
-        self.assertIn("delete next[taskId]", self.src)
+        # Precise removal by (UAV, task id) so a stale event cannot wipe a
+        # newer task's assignment; task ids are per owner, so the task id
+        # alone no longer names one entry.
+        state = _read("utils", "taskAssignmentState.js")
+        self.assertIn(
+            "entry.receiverId === data.sys_id && entry.taskId === data.task_id",
+            state,
+        )
+        self.assertIn("dropAssignments(state, forTask(data))", state)
 
 
 class TestMissionStatusUsesPendingOnly(unittest.TestCase):

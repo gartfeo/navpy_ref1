@@ -107,6 +107,16 @@ const STATUS_RENDERERS = {
       : null,
   }),
 
+  waiting: (_v, assignment, onFlyToLocation) => ({
+    inline: (
+      <>
+        <TaskLabel assignment={assignment} />
+        <ClickableCoords assignment={assignment} onFlyToLocation={onFlyToLocation} />
+      </>
+    ),
+    extra: null,
+  }),
+
   assigned: (_v, assignment, onFlyToLocation) => ({
     inline: (
       <>

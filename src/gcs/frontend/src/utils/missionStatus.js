@@ -8,6 +8,7 @@ const STATUS_TABLE = {
   idle:        { labelKey: 'missionStatus.idle',        color: colors.textDim },
   en_route:    { labelKey: 'missionStatus.enRoute',     color: colors.textDim },
   searching:   { labelKey: 'missionStatus.searching',   color: colors.success },
+  waiting:     { labelKey: 'missionStatus.waiting',     color: colors.textDim },
   assigned:    { labelKey: 'missionStatus.assigned',    color: colors.accent },
   approaching: { labelKey: 'missionStatus.approaching', color: colors.warning },
   confirming:  { labelKey: 'missionStatus.confirming',  color: colors.warning },
@@ -37,6 +38,8 @@ function deriveStatusId(vehicle, assignment, wpOffset, hasPendingConfirm) {
   if (assignment) {
     if (assignment.status === 'confirmed') return 'confirmed';
     if (hasPendingConfirm) return 'confirming';
+    // A WAITING helper does not fly the task until its owner applies it.
+    if (assignment.status === 'waiting') return 'waiting';
     if (vehicle.mode === 'GUIDED') return 'approaching';
     return 'assigned';
   }
@@ -50,4 +53,23 @@ function deriveStatusId(vehicle, assignment, wpOffset, hasPendingConfirm) {
   if (vehicle.mode === 'AUTO') return 'searching';
 
   return 'idle';
+}
+
+const SWARM_BADGES = {
+  busy:    { labelKey: 'vehicle.swarmBusy',    titleKey: 'vehicle.swarmBusyTitle',    color: colors.accent },
+  unknown: { labelKey: 'vehicle.swarmUnknown', titleKey: 'vehicle.swarmUnknownTitle', color: colors.textDim },
+};
+
+/**
+ * Badge for the companion's swarm node state (snapshot `swarm`): BUSY UAVs
+ * are skipped by task auctions, UNKNOWN once the last beat outlived its TTL.
+ * None before the first beat or while FREE, the normal state.
+ *
+ * @param {object|null} swarm - { state: 'FREE'|'BUSY', boot, seq, stale }
+ * @returns {{ labelKey: string, titleKey: string, color: string }|null}
+ */
+export function computeSwarmBadge(swarm) {
+  if (!swarm) return null;
+  if (swarm.stale) return SWARM_BADGES.unknown;
+  return swarm.state === 'BUSY' ? SWARM_BADGES.busy : null;
 }

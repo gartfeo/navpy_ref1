@@ -4,7 +4,8 @@ import { colors } from '../../styles';
 import UavBadge from '../UavBadge';
 import { gpsFixLabel, gpsColor, haccLabel, linkBars, linkBarColor } from '../hud/StatusBarIndicator';
 import { batteryColor } from '../hud/BatteryIndicator';
-import { computeMissionStatus } from '../../utils/missionStatus';
+import { computeMissionStatus, computeSwarmBadge } from '../../utils/missionStatus';
+import { vehicleAssignment } from '../../utils/taskAssignmentState';
 import { isInitializing } from '../../utils/loadStage';
 import { hasPendingConfirm } from '../../hooks/taskConfirmationState';
 import { computeLaunchReadiness, visibleAdvisories } from '../../utils/prearmChecks';
@@ -47,6 +48,31 @@ function CompanionBadge({ status }) {
       }}
     >
       {t('vehicle.cc')}
+    </span>
+  );
+}
+
+// BUSY / UNKNOWN from the companion's swarm heartbeat; nothing while FREE.
+function SwarmBadge({ swarm }) {
+  const { t } = useTranslation();
+  const badge = computeSwarmBadge(swarm);
+  if (!badge) return null;
+  return (
+    <span
+      title={t(badge.titleKey)}
+      style={{
+        display: 'inline-block',
+        padding: '1px 4px',
+        fontSize: 9,
+        fontWeight: 700,
+        borderRadius: 3,
+        background: badge.color,
+        color: '#fff',
+        lineHeight: '14px',
+        opacity: 0.9,
+      }}
+    >
+      {t(badge.labelKey)}
     </span>
   );
 }
@@ -135,7 +161,7 @@ export default function VehicleStatusCard({
   if (inAuto && totalKm > 0) statusText = `${passedKm.toFixed(1)} / ${totalKm.toFixed(1)} km`;
   else if (!inAuto && totalKm > 0) statusText = `0.0 / ${totalKm.toFixed(1)} km`;
 
-  const vAssignment = Object.values(assignments || {}).find((e) => e.receiverId === v.sys_id) || null;
+  const vAssignment = vehicleAssignment(assignments || {}, v.sys_id);
   const readiness = computeLaunchReadiness(v, gates);
   // Non-blocking advisories (e.g. arming checks disabled) are dismissible so they
   // don't nag. Dismissal is per-card and lasts while this card stays mounted.
@@ -169,6 +195,7 @@ export default function VehicleStatusCard({
         <span style={{ color: colors.textBright, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
           <UavBadge name={v.name} index={i} />
           <CompanionBadge status={v.companion_status} />
+          <SwarmBadge swarm={v.swarm} />
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>

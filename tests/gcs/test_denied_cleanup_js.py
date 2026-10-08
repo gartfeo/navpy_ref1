@@ -1,6 +1,9 @@
-"""Tests for task deny cleanup: Node.js logic + source-level wiring checks."""
+"""Tests for task deny cleanup: source-level wiring checks.
+
+The cleanup itself (vehicle_reset in the taskAssignmentState reducer) is
+tested on the real module by test_task_assignment_state.js.
+"""
 import os
-import subprocess
 import unittest
 
 _HOOK_FILE = os.path.normpath(os.path.join(
@@ -9,45 +12,35 @@ _HOOK_FILE = os.path.normpath(os.path.join(
     "useTaskAssignment.js",
 ))
 
+_STATE_FILE = os.path.normpath(os.path.join(
+    os.path.dirname(__file__),
+    "..", "..", "src", "gcs", "frontend", "src", "utils",
+    "taskAssignmentState.js",
+))
+
 _APP_FILE = os.path.normpath(os.path.join(
     os.path.dirname(__file__),
     "..", "..", "src", "gcs", "frontend", "src", "App.jsx",
 ))
 
-_NODE_TEST = os.path.normpath(os.path.join(
-    os.path.dirname(__file__), "test_denied_cleanup_logic.js",
-))
-
-
-class TestDeniedCleanupLogic(unittest.TestCase):
-    """Run the Node.js test for the pure updater logic."""
-
-    def test_node_logic(self):
-        result = subprocess.run(
-            ["node", _NODE_TEST],
-            capture_output=True, text=True, timeout=10,
-        )
-        self.assertEqual(result.returncode, 0, f"Node test failed:\n{result.stderr}")
-
 
 class TestHandleDeniedCleanupHook(unittest.TestCase):
-    """Verify useTaskAssignment exports handleDeniedCleanup."""
+    """Verify useTaskAssignment exposes handleDeniedCleanup."""
 
     def setUp(self):
         with open(_HOOK_FILE, encoding="utf-8") as f:
             self.source = f.read()
+        with open(_STATE_FILE, encoding="utf-8") as f:
+            self.state_source = f.read()
 
     def test_function_defined(self):
         self.assertIn("handleDeniedCleanup", self.source)
 
     def test_filters_by_receiver_id(self):
-        self.assertIn("receiverId === sysId", self.source)
+        self.assertIn("entry.receiverId === sysId", self.state_source)
 
-    def test_exported_in_return(self):
-        return_idx = self.source.rfind("return {")
-        self.assertNotEqual(return_idx, -1, "No return { found in hook")
-        return_block = self.source[return_idx:]
-        self.assertIn("handleDeniedCleanup", return_block)
+    def test_exposed_as_a_handler(self):
+        self.assertIn("handleDeniedCleanup: (sysId) =>", self.source)
 
 
 _WS_HANDLERS_FILE = os.path.normpath(os.path.join(

@@ -34,15 +34,15 @@ export default function useWsHandlers({
   useEffect(() => {
     messageHandlersRef.current['task_confirm_request'] = (data) => {
       taskConfirm.handleConfirmRequest(data);
-      confirmingStatusRef.current?.(data.sys_id);
+      confirmingStatusRef.current?.(data.sys_id, data.task_id);
     };
     messageHandlersRef.current['task_confirm_image'] = taskConfirm.handleConfirmImage;
     // Response converges on ALL clients (not just the initiator's wrapper):
-    // the card state AND the task-keyed assignment state are updated here.
+    // the card state AND the (UAV, task)-keyed assignment state are updated here.
     messageHandlersRef.current['task_confirm_response'] = (data) => {
       taskConfirm.handleConfirmResponse(data);
-      if (data.is_confirmed) taskAssign.handleConfirmedStatusByTask(data.task_id);
-      else taskAssign.handleResolvedCleanupByTask(data.task_id);
+      if (data.is_confirmed) taskAssign.handleConfirmedStatusByTask(data.sys_id, data.task_id);
+      else taskAssign.handleResolvedCleanupByTask(data.sys_id, data.task_id);
     };
     // Mission restart / E-STOP (incl. a per-UAV E-STOP): clear cards +
     // assignments for the listed UAVs.
@@ -62,7 +62,11 @@ export default function useWsHandlers({
     messageHandlersRef.current['available_task_request'] = taskAssign.handleAvailableTaskRequest;
     messageHandlersRef.current['task_assign_request'] = taskAssign.handleAssignRequest;
     messageHandlersRef.current['task_assign_response'] = taskAssign.handleAssignResponse;
-  }, [taskAssign.handleAvailableTaskRequest, taskAssign.handleAssignRequest, taskAssign.handleAssignResponse]);
+    messageHandlersRef.current['task_assign_ack'] = taskAssign.handleAssignAck;
+  }, [
+    taskAssign.handleAvailableTaskRequest, taskAssign.handleAssignRequest,
+    taskAssign.handleAssignResponse, taskAssign.handleAssignAck,
+  ]);
 
   // ---- Existing task cleanup event ----
   const disarmAfterGuidedCardRef = useRef(taskConfirm.handleDisarmAfterGuided);

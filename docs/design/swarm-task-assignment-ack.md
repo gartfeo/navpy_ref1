@@ -1,9 +1,8 @@
 # Swarm task assignment with acknowledgments
 
-Status: **design agreed 2026-10-07; steps 1–6 (swarm core) and 6a (GCS
-backend) implemented 2026-10-08; 6b–6c and the live check (8) pending.**
-Until 6b lands, the UI shows every request/response copy; until 6c, the demo
-audit rejects repeated copies.
+Status: **design agreed 2026-10-07; steps 1–6 (swarm core), 6a (GCS
+backend) and 6b (frontend) implemented 2026-10-08; 6c and the live check (8)
+pending.** Until 6c, the demo audit rejects repeated copies.
 Based on `origin/main` 1bd24d1 (includes 1b4bbf3 assign resend/release and
 d8605f6 adverts fenced against assign requests). Owner = UAV that
 advertises the task; helper = peer that bids and flies it.
@@ -20,6 +19,10 @@ Implementation notes:
 - GCS: a step-4 copy and the APPLIED naming it arrive on different vehicle
   links (threads), so an APPLIED heard first waits, one per helper, for its
   copy. `swarm` is a telemetry change key, so a new beat is broadcast.
+- Frontend: a FREE beat retires a round only once the helper's "doing" (or
+  the APPLIED's ref) orders it; a round without one ends by advert, reject
+  or APPLIED. Confirm events match entries by (UAV, task id), and available
+  tasks are keyed `${owner}:${task}` like rounds.
 
 ## Problem
 
@@ -261,6 +264,7 @@ the relationships and recompute under a monkeypatched `TTL_DEFAULTS`.
 - Armenian labels (`hy.json`): the current idle label "ՍՊԱՍՈՒՄ" means
   "waiting". Proposal: give it to the new waiting status, rename idle to
   "ԱՆԳՈՐԾ", badge "ԶԲԱՂՎԱԾ" (busy) and "ԱՆՀԱՅՏ" (unknown, stale heartbeat).
+  Applied as proposed in 6b, pending the owner's OK.
 
 ## Implementation plan
 

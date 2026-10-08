@@ -24,3 +24,44 @@ describe('legacy completion event handling', () => {
     expect(timeout).not.toHaveBeenCalled();
   });
 });
+
+describe('task assignment routing', () => {
+  function setup() {
+    const messageHandlersRef = { current: {} };
+    const taskConfirm = {
+      handleConfirmRequest: vi.fn(),
+      handleConfirmResponse: vi.fn(),
+    };
+    const taskAssign = {
+      handleAssignAck: vi.fn(),
+      handleConfirmingStatus: vi.fn(),
+      handleConfirmedStatusByTask: vi.fn(),
+      handleResolvedCleanupByTask: vi.fn(),
+    };
+    renderHook(() => useWsHandlers({
+      messageHandlersRef, taskConfirm, taskAssign, setUploadProgress: vi.fn(),
+    }));
+    return { handlers: messageHandlersRef.current, taskAssign };
+  }
+
+  it('routes the owner APPLIED to the assignment state', () => {
+    const { handlers, taskAssign } = setup();
+    const ack = { type: 'task_assign_ack', owner_id: 1, helper_id: 2, task_id: 5 };
+
+    act(() => handlers.task_assign_ack(ack));
+
+    expect(taskAssign.handleAssignAck).toHaveBeenCalledExactlyOnceWith(ack);
+  });
+
+  it('keys confirm events by UAV and task', () => {
+    const { handlers, taskAssign } = setup();
+
+    act(() => handlers.task_confirm_request({ sys_id: 2, task_id: 5 }));
+    act(() => handlers.task_confirm_response({ sys_id: 2, task_id: 5, is_confirmed: true }));
+    act(() => handlers.task_confirm_response({ sys_id: 3, task_id: 6, is_confirmed: false }));
+
+    expect(taskAssign.handleConfirmingStatus).toHaveBeenCalledExactlyOnceWith(2, 5);
+    expect(taskAssign.handleConfirmedStatusByTask).toHaveBeenCalledExactlyOnceWith(2, 5);
+    expect(taskAssign.handleResolvedCleanupByTask).toHaveBeenCalledExactlyOnceWith(3, 6);
+  });
+});

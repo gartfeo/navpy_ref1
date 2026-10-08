@@ -130,13 +130,45 @@ class TestApproachingStatus(unittest.TestCase):
         self.assertEqual(r["status"], "assigned")
 
 
-class TestAssignedStatus(unittest.TestCase):
-    """Priority 4: assignment with 'assigning' or 'assigned' (non-GUIDED)."""
+class TestWaitingStatus(unittest.TestCase):
+    """Step 3 seen, owner's APPLIED not yet: the helper does not fly the task
+    (docs/design/swarm-task-assignment-ack.md, decision 3)."""
 
-    def test_assigning_status(self):
+    def test_step_3_shows_waiting(self):
         r = _run_js("""
         const v = { mode: 'AUTO', armed: true, mission_progress: 5 };
-        const a = { taskId: 1, taskType: 'dock', lat: 40, lon: 44, status: 'assigning' };
+        const a = { taskId: 1, taskType: 'dock', lat: 40, lon: 44, status: 'waiting' };
+        console.log(JSON.stringify(computeMissionStatus(v, a, 3)));
+        """)
+        self.assertEqual(r["status"], "waiting")
+        self.assertEqual(r["labelKey"], "missionStatus.waiting")
+        self.assertEqual(r["color"], "#8899aa")
+
+    def test_waiting_is_never_approaching(self):
+        """The waiting check comes before the GUIDED check."""
+        r = _run_js("""
+        const v = { mode: 'GUIDED', armed: true, mission_progress: 5 };
+        const a = { taskId: 1, taskType: 'dock', lat: 40, lon: 44, status: 'waiting' };
+        console.log(JSON.stringify(computeMissionStatus(v, a, 3)));
+        """)
+        self.assertEqual(r["status"], "waiting")
+
+    def test_pending_confirm_still_shows_confirming(self):
+        r = _run_js("""
+        const v = { mode: 'GUIDED', armed: true, mission_progress: 5 };
+        const a = { taskId: 1, taskType: 'dock', lat: 40, lon: 44, status: 'waiting' };
+        console.log(JSON.stringify(computeMissionStatus(v, a, 3, true)));
+        """)
+        self.assertEqual(r["status"], "confirming")
+
+
+class TestAssignedStatus(unittest.TestCase):
+    """Priority 4: assignment with status 'assigned' (non-GUIDED)."""
+
+    def test_assigned_status(self):
+        r = _run_js("""
+        const v = { mode: 'AUTO', armed: true, mission_progress: 5 };
+        const a = { taskId: 1, taskType: 'dock', lat: 40, lon: 44, status: 'assigned' };
         console.log(JSON.stringify(computeMissionStatus(v, a, 3)));
         """)
         self.assertEqual(r["status"], "assigned")
@@ -255,6 +287,32 @@ class TestDefaultIdleStatus(unittest.TestCase):
         console.log(JSON.stringify(computeMissionStatus(v, null, 0)));
         """)
         self.assertEqual(r["status"], "idle")
+
+
+class TestSwarmBadge(unittest.TestCase):
+    """BUSY / UNKNOWN badge from the snapshot's swarm heartbeat state."""
+
+    def _badge(self, swarm):
+        return _run_js(f"""
+        console.log(JSON.stringify(computeSwarmBadge({json.dumps(swarm)})));
+        """)
+
+    def test_no_badge_before_the_first_beat_or_while_free(self):
+        self.assertIsNone(self._badge(None))
+        self.assertIsNone(self._badge(
+            {"state": "FREE", "boot": 7, "seq": 3, "stale": False},
+        ))
+
+    def test_busy(self):
+        r = self._badge({"state": "BUSY", "boot": 7, "seq": 3, "stale": False})
+        self.assertEqual(r["labelKey"], "vehicle.swarmBusy")
+        self.assertEqual(r["titleKey"], "vehicle.swarmBusyTitle")
+
+    def test_stale_is_unknown_whatever_it_said(self):
+        for state in ("FREE", "BUSY"):
+            r = self._badge({"state": state, "boot": 7, "seq": 3, "stale": True})
+            self.assertEqual(r["labelKey"], "vehicle.swarmUnknown", state)
+            self.assertEqual(r["titleKey"], "vehicle.swarmUnknownTitle", state)
 
 
 class TestReturnShape(unittest.TestCase):
