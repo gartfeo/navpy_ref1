@@ -81,7 +81,13 @@ class SwarmPresence:
         with self._lock:
             message = self._sender.heartbeat_message(self._node_state())
         sent = self._sender.send_heartbeat(message)
-        self._peers.tick()
+        try:
+            self._peers.tick()
+        except Exception as error:
+            # Like the bus reader: the heartbeat loop treats any error as
+            # fatal, so a failed silence check or replan would silence this
+            # node for good.
+            self._logger.error(f"Peer silence check failed: {error}", error)
         return sent
 
     def on_heartbeat(self, message: SwarmHeartbeatMsg) -> None:

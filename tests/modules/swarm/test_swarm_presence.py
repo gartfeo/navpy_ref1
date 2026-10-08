@@ -1,6 +1,6 @@
 import threading
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.comm.messages.location_msg import LocationMsgData
@@ -29,6 +29,7 @@ def _presence(
     reported=None,
     checked_out=None,
     tick=None,
+    logger=None,
 ):
     return SwarmPresence(
         1,
@@ -42,7 +43,7 @@ def _presence(
             checked_out=checked_out or Mock(),
             tick=tick or Mock(),
         ),
-        Mock(spec=ILogger),
+        logger or Mock(spec=ILogger),
     )
 
 
@@ -237,6 +238,32 @@ class PeerPresenceEventTest(unittest.TestCase):
         _presence(sender, tick=tick).heartbeat()
 
         self.assertEqual(order, ["send", "tick"])
+
+    def test_a_failing_silence_check_does_not_stop_the_heartbeat(self):
+        # The heartbeat loop latches any error as fatal; a replan error in
+        # the silence check must not end this node's heartbeats.
+        sender = Mock(spec=TaskMessageSender)
+        beats = threading.Semaphore(0)
+        sender.send_heartbeat.side_effect = lambda _message: beats.release()
+        logger = Mock(spec=ILogger)
+        presence = _presence(
+            sender,
+            tick=Mock(side_effect=RuntimeError("replan failed")),
+            logger=logger,
+        )
+
+        with patch(
+            "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+            0.01,
+        ):
+            presence.start()
+            try:
+                self.assertTrue(beats.acquire(timeout=1.0))
+                self.assertTrue(beats.acquire(timeout=1.0))
+                self.assertTrue(presence.is_started())
+            finally:
+                presence.stop()
+        logger.error.assert_called()
 
     def test_check_in_is_heard_and_check_out_silences_a_foreign_peer(self):
         reported, checked_out = Mock(), Mock()

@@ -7581,7 +7581,11 @@ class TestNavControllerPeerTaskPriority(unittest.TestCase):
     """An assigned peer task outranks an own POI not yet approached and the
     DDH return; one final approach per flight."""
 
-    def test_confirm_hands_the_own_poi_to_the_swarm_without_reset(self):
+    # Owner ruling 2026-10-08: the own POI is dropped, never offered. It may
+    # be the assigned dock itself (task ids are numbered per UAV), and
+    # offering it could send a second UAV there.
+
+    def test_confirm_drops_the_own_poi_without_reset(self):
         controller = _create_controller(
             vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=7),
         )
@@ -7599,9 +7603,8 @@ class TestNavControllerPeerTaskPriority(unittest.TestCase):
         self.assertIsNone(controller.confirmation_manager.active_poi)
         self.assertIs(
             controller.confirmation_manager.get_status(own),
-            ConfirmationStatus.PEER_NOTIFIED,
+            ConfirmationStatus.DROPPED,
         )
-        task_actor.notify_pois.assert_called_once_with([own])
         self.assertIs(controller.phase.current, NavState.DETECT)
         # No RESET: that would release the assigned task.
         task_actor.clear_selected_poi.assert_not_called()
@@ -7611,8 +7614,9 @@ class TestNavControllerPeerTaskPriority(unittest.TestCase):
 
         self.assertTrue(controller.navigation_task.peer_navigation)
         controller.navigation.vehicle_commands.peer_poi.assert_called_once()
+        task_actor.notify_pois.assert_not_called()
 
-    def test_detect_offers_a_found_own_poi_and_flies_the_peer_task(self):
+    def test_detect_drops_a_found_own_poi_and_flies_the_peer_task(self):
         controller = _create_controller()
         task_actor = _assigned_peer_task(controller)
         own = _create_detected_poi(obj_id=6)
@@ -7623,8 +7627,52 @@ class TestNavControllerPeerTaskPriority(unittest.TestCase):
         controller.detect_action.act()
 
         self.assertIsNone(controller.confirmation_manager.active_poi)
-        task_actor.notify_pois.assert_called_once_with([own])
+        self.assertIs(
+            controller.confirmation_manager.get_status(own),
+            ConfirmationStatus.DROPPED,
+        )
+        task_actor.notify_pois.assert_not_called()
         self.assertTrue(controller.navigation_task.peer_navigation)
+
+    def test_a_dropped_poi_is_not_offered_beside_another_dock(self):
+        controller = _create_controller()
+        task_actor = _assigned_peer_task(controller)
+        own = _create_detected_poi(obj_id=6)
+        own.set_p_t_g_loc(Location(40.002, -74.002, 0.0))
+        controller.detections.detected_pois = [own]
+        _commit(controller, NavState.DETECT)
+        controller.detect_action.act()
+        other = _create_detected_poi(obj_id=8)
+        other.set_p_t_g_loc(Location(40.003, -74.003, 0.0))
+
+        # The other dock is selected first, so the dropped one is a peer
+        # candidate; it is still never offered.
+        controller.detections.detected_pois = [other, own]
+        controller.detect_action.act()
+
+        offered = [
+            poi
+            for call in task_actor.notify_pois.call_args_list
+            for poi in call.args[0]
+        ]
+        self.assertNotIn(own, offered)
+
+    def test_the_peer_approach_takes_up_a_dropped_poi_at_its_dock(self):
+        # The dropped POI may be the assigned dock: near it, the peer
+        # approach starts it, and its confirmation can be asked.
+        controller = _create_controller()
+        _assigned_peer_task(controller)
+        own = _create_detected_poi(obj_id=6)
+        own.set_p_t_g_loc(Location(40.002, -74.002, 0.0))
+        controller.detections.detected_pois = [own]
+        _commit(controller, NavState.DETECT)
+        controller.detect_action.act()
+        controller.peer_navigation.near_poi = Mock(return_value=True)
+
+        controller.detect_action.act()
+
+        self.assertIs(controller.confirmation_manager.active_poi, own)
+        self.assertIsNone(controller.confirmation_manager.get_status(own))
 
     def test_ddh_return_yields_to_an_assigned_peer_task(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=9)

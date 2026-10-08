@@ -77,7 +77,12 @@ class NavigationTaskAction:
                     return
             if self._retry.is_in_poi_cooldown(poi):
                 return
-            if self.start(poi) and is_reask:
+            started = self.start(poi)
+            if started and status is ConfirmationStatus.DROPPED:
+                # Taken up again by the peer approach; a status would keep
+                # the confirmation from being asked.
+                self._confirmation_manager.clear_status(poi)
+            if started and is_reask:
                 self._retry.begin_reask(poi)
         elif (
             self._fallback_navigation.should_nav_to_fallback()

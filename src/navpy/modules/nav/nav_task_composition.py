@@ -214,7 +214,6 @@ def compose_navigation_task_workflows(
         ),
         state.navigation_task,
         poi.confirmation_manager,
-        peer_notifier,
         logger,
     )
     navigation_task_action = NavigationTaskAction(
