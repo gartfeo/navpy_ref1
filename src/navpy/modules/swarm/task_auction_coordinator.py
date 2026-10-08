@@ -94,7 +94,7 @@ class TaskAuctionCoordinator:
         for handle in message.tasks:
             answered = self._record_answer(peer_id, handle, order) or answered
         if busy_changed:
-            self._on_busy_changed()
+            self.replan()
         elif answered:
             self._run_complete_assignment()
 
@@ -110,7 +110,7 @@ class TaskAuctionCoordinator:
         if verdict.reject is not None:
             self._after_reject(message.task_id, verdict.reject)
         if verdict.busy_changed:
-            self._on_busy_changed()
+            self.replan()
 
     def on_request_ack(self, ack: SwarmAckMsg) -> None:
         task_id = self._confirmation.on_request_ack(ack)
@@ -120,15 +120,10 @@ class TaskAuctionCoordinator:
                 "awaiting its response."
             )
 
-    def observe_peer(
-        self,
-        peer_id: int,
-        state: SwarmNodeState,
-        order: Optional[MsgRef],
-    ) -> None:
-        """Apply a peer's state report; replan when the busy set changed."""
-        if self._state.observe_peer(peer_id, state, order):
-            self._on_busy_changed()
+    def replan(self) -> None:
+        """The busy set changed: advertise to free peers and plan again."""
+        self._rebroadcast.restart()
+        self._run_complete_assignment()
 
     def _record_answer(
         self,
@@ -177,10 +172,6 @@ class TaskAuctionCoordinator:
         self._rebroadcast.notify_task_available([outcome.task])
         self._rebroadcast.restart(expected_generation=outcome.generation)
         self._run_complete_assignment(outcome.generation)
-
-    def _on_busy_changed(self) -> None:
-        self._rebroadcast.restart()
-        self._run_complete_assignment()
 
     def _select_peer_for_task(self, _task_id: int, generation: int) -> None:
         self._run_complete_assignment(generation)

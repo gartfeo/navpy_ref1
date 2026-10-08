@@ -56,6 +56,15 @@ class TaskRebroadcastCoordinator:
     def peer_discovered(self, peer_id: int) -> None:
         self._rebroadcast.discover_peer(peer_id, self._rebroadcast_task)
 
+    def peer_heard(self, peer_id: int) -> bool:
+        return self._rebroadcast.peer_heard(peer_id)
+
+    def peer_checked_out(self, peer_id: int) -> bool:
+        return self._rebroadcast.peer_checked_out(peer_id)
+
+    def expire_silent_peers(self) -> bool:
+        return self._rebroadcast.expire_silent_peers()
+
     def restart(
         self,
         *,

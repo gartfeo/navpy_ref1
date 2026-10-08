@@ -5,9 +5,12 @@ import threading
 import pytest
 
 from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
+from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
+from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.swarm.task_msg_refs import MsgRef
 from navpy.modules.swarm.task_peer_roster import (
     MAX_REMOTE_PEERS,
+    PEER_SILENCE_EXPIRY_S,
     PeerRoster,
     sent_after,
 )
@@ -103,3 +106,49 @@ def test_clear_forgets_peers_and_status(roster):
     assert roster.snapshot() == set()
     assert roster.busy() == set()
     assert roster.status(2) is None
+
+
+# --- Silence (no heartbeat or check-in for one heartbeat TTL) --------------
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now_s = 100.0
+
+    def __call__(self) -> float:
+        return self.now_s
+
+
+def test_silence_expiry_is_one_heartbeat_ttl():
+    assert PEER_SILENCE_EXPIRY_S == get_ttl_ms(MsgType.SWARM_HEARTBEAT) / 1000.0
+
+
+def test_unheard_peer_falls_silent_and_its_next_beat_revives_it():
+    clock = FakeClock()
+    roster = PeerRoster(threading.RLock(), clock)
+    roster.add(2)
+    roster.add(3)
+
+    clock.now_s += PEER_SILENCE_EXPIRY_S
+    roster.heard(3)
+    roster.expire_silent()
+    assert roster.busy() == set()  # exactly one TTL is not yet silent
+
+    clock.now_s += 0.1
+    roster.expire_silent()
+    assert roster.busy() == {2}
+    assert roster.status(2).silent
+
+    roster.heard(2)
+    assert roster.busy() == set()
+    assert roster.status(2).last_heard_s == clock.now_s
+
+
+def test_check_out_silences_at_once():
+    roster = PeerRoster(threading.RLock(), FakeClock())
+    roster.add(2)
+
+    roster.silence(2)
+
+    assert roster.busy() == {2}
+    assert roster.contains(2)  # still routes its acks and responses

@@ -7,6 +7,7 @@ peer's last evidence (docs/design/swarm-task-assignment-ack.md).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Optional
 
 from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
@@ -32,14 +33,26 @@ def report_peer_state(
         if store.closed or not store.peers.contains(peer_id):
             return False
         was_busy = peer_id in busy_peers(store)
-        if not store.peers.report(peer_id, state, order):
-            return False
-        if state is SwarmNodeState.BUSY:
-            _withdraw_bids(store, peer_id, order)
-        else:
-            for dispatch in store.dispatches.values():
-                dispatch.answers.heard_from(peer_id)
+        if store.peers.report(peer_id, state, order):
+            if state is SwarmNodeState.BUSY:
+                _withdraw_bids(store, peer_id, order)
+            else:
+                for dispatch in store.dispatches.values():
+                    dispatch.answers.heard_from(peer_id)
         return was_busy != (peer_id in busy_peers(store))
+
+
+def apply_presence(
+    store: _TaskAuctionStore,
+    change: Callable[[], None],
+) -> bool:
+    """Apply a presence change (heard, silent); True if busy set changed."""
+    with store.lock:
+        if store.closed:
+            return False
+        busy = busy_peers(store)
+        change()
+        return busy != busy_peers(store)
 
 
 def _withdraw_bids(
@@ -58,4 +71,4 @@ def _withdraw_bids(
         dispatch.answers.forget(peer_id)
 
 
-__all__ = ["report_peer_state"]
+__all__ = ["apply_presence", "report_peer_state"]

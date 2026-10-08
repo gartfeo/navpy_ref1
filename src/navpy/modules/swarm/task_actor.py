@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import threading
+import time
+from collections.abc import Callable
 from typing import Optional
 
 from navpy.logger.cache_logger import ILogger
@@ -11,7 +13,7 @@ from navpy.modules.comm.messages.msg_abc import MsgABC
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
 from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.comm.network_abc import NetworkAbc
-from navpy.modules.swarm.swarm_presence import SwarmPresence
+from navpy.modules.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
 from navpy.modules.swarm.task_ack_routing import TaskAckRouter
 from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
 from navpy.modules.swarm.task_assign_reply import AssignReplies
@@ -28,6 +30,7 @@ from navpy.modules.swarm.task_messaging import (
     TaskMessageRouter,
     TaskMessageSender,
 )
+from navpy.modules.swarm.task_peer_status import PeerStatusCoordinator
 from navpy.modules.swarm.task_ports import (
     ClockOffsetResetPort,
     MessageClockReset,
@@ -47,6 +50,7 @@ class TaskActor(ListenerAbc):
         network: NetworkAbc,
         logger: ILogger,
         clock_reset: ClockOffsetResetPort | None = None,
+        monotonic_s: Callable[[], float] = time.monotonic,
     ) -> None:
         self.id: int = vehicle.source_system
         self.vehicle = vehicle
@@ -54,7 +58,7 @@ class TaskActor(ListenerAbc):
         self.logger = logger
         lock = threading.RLock()
         selection, auction_state, rebroadcast_state, confirmation = (
-            create_task_state(lock)
+            create_task_state(lock, monotonic_s)
         )
         sender = TaskMessageSender(self.id, network, logger)
         rebroadcast = TaskRebroadcastCoordinator(
@@ -91,8 +95,10 @@ class TaskActor(ListenerAbc):
             sender,
             lock,
             selection.node_state,
-            rebroadcast.peer_discovered,
-            auction.observe_peer,
+            _peer_status_ports(
+                rebroadcast,
+                PeerStatusCoordinator(auction_state, rebroadcast, auction.replan),
+            ),
             logger,
         )
         acks = TaskAckRouter(
@@ -177,3 +183,15 @@ class TaskActor(ListenerAbc):
         finally:
             self._participation.close()
             self._auction_state.shutdown(self.logger)
+
+
+def _peer_status_ports(
+    rebroadcast: TaskRebroadcastCoordinator,
+    status: PeerStatusCoordinator,
+) -> PeerStatusPorts:
+    return PeerStatusPorts(
+        discovered=rebroadcast.peer_discovered,
+        reported=status.observe_peer,
+        checked_out=status.peer_checked_out,
+        tick=status.check_silence,
+    )

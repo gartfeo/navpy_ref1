@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Optional
 
 from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
+from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
+from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.swarm.task_msg_refs import MsgRef
 
 
 MAX_REMOTE_PEERS = 2
+
+# A peer unheard (no heartbeat or check-in) for one heartbeat TTL is silent.
+PEER_SILENCE_EXPIRY_S = get_ttl_ms(MsgType.SWARM_HEARTBEAT) / 1000.0
 
 
 @dataclass
@@ -19,12 +26,14 @@ class PeerStatus:
 
     ``order`` is the UID of the evidence applied last and ``busy_order``
     that of the newest BUSY evidence, which makes the peer's older bids
-    stale.
+    stale. A silent peer counts as busy until it is heard again.
     """
 
     state: SwarmNodeState = SwarmNodeState.FREE
     order: Optional[MsgRef] = None
     busy_order: Optional[MsgRef] = None
+    last_heard_s: float = 0.0
+    silent: bool = False
 
 
 def sent_after(message: Optional[MsgRef], report: Optional[MsgRef]) -> bool:
@@ -47,16 +56,44 @@ def _supersedes(evidence: Optional[MsgRef], current: Optional[MsgRef]) -> bool:
 class PeerRoster:
     """Own the swarm peers discovered from heartbeats and their status."""
 
-    def __init__(self, lock: threading.RLock) -> None:
+    def __init__(
+        self,
+        lock: threading.RLock,
+        monotonic_s: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._lock = lock
+        self._monotonic_s = monotonic_s
         self._peers: dict[int, PeerStatus] = {}
 
     def add(self, peer_id: int) -> bool:
         with self._lock:
             if peer_id in self._peers or len(self._peers) >= MAX_REMOTE_PEERS:
                 return False
-            self._peers[peer_id] = PeerStatus()
+            self._peers[peer_id] = PeerStatus(last_heard_s=self._monotonic_s())
             return True
+
+    def heard(self, peer_id: int) -> None:
+        """A heartbeat or check-in: the peer is present (revives it)."""
+        with self._lock:
+            status = self._peers.get(peer_id)
+            if status is not None:
+                status.last_heard_s = self._monotonic_s()
+                status.silent = False
+
+    def silence(self, peer_id: int) -> None:
+        """The peer checked out: silent at once."""
+        with self._lock:
+            status = self._peers.get(peer_id)
+            if status is not None:
+                status.silent = True
+
+    def expire_silent(self) -> None:
+        """Mark peers unheard for longer than PEER_SILENCE_EXPIRY_S."""
+        with self._lock:
+            now_s = self._monotonic_s()
+            for status in self._peers.values():
+                if now_s - status.last_heard_s > PEER_SILENCE_EXPIRY_S:
+                    status.silent = True
 
     def contains(self, peer_id: int) -> bool:
         with self._lock:
@@ -101,15 +138,20 @@ class PeerRoster:
         with self._lock:
             status = self._peers.get(peer_id)
             return None if status is None else PeerStatus(
-                status.state, status.order, status.busy_order,
+                status.state,
+                status.order,
+                status.busy_order,
+                status.last_heard_s,
+                status.silent,
             )
 
     def busy(self) -> set[int]:
+        """Peers reported BUSY or silent."""
         with self._lock:
             return {
                 peer_id
                 for peer_id, status in self._peers.items()
-                if status.state is SwarmNodeState.BUSY
+                if status.state is SwarmNodeState.BUSY or status.silent
             }
 
     def bid_is_current(self, peer_id: int, bid: Optional[MsgRef]) -> bool:
@@ -122,6 +164,7 @@ class PeerRoster:
 
 __all__ = [
     "MAX_REMOTE_PEERS",
+    "PEER_SILENCE_EXPIRY_S",
     "PeerRoster",
     "PeerStatus",
     "sent_after",

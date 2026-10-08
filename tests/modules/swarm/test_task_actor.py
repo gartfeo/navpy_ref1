@@ -10,7 +10,7 @@ from navpy.modules.comm.messages.available_task_msg import (
     TaskHandleMsgData, TaskMsgData,
     AvailableTaskResponseMsg, AvailableTaskRequestMsg,
 )
-from navpy.modules.comm.messages.check_msg import CheckInMsg
+from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
 from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.msg_meta import MsgMeta
 from navpy.modules.comm.messages.swarm_ack_msg import (
@@ -1325,3 +1325,87 @@ class TaskActorTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TaskActorSilenceTest(unittest.TestCase):
+    """Peers unheard for one heartbeat TTL are skipped until heard again."""
+
+    def setUp(self):
+        for target, value in (
+            ("navpy.modules.swarm.task_dispatch.threading.Timer", _IdleTimer),
+            (
+                "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+                threading.TIMEOUT_MAX,
+            ),
+        ):
+            patcher = patch(target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.now_s = 1000.0
+        vehicle = Mock(spec=IVehicle)
+        vehicle.source_system = 1
+        vehicle.location.return_value = Location(12.34, 56.78, 90.0)
+        self.network = Mock(spec=NetworkAbc)
+        self.actor = TaskActor(
+            vehicle, self.network, Mock(spec=ILogger),
+            monotonic_s=lambda: self.now_s,
+        )
+        self.actor.start()
+        self.addCleanup(self.actor.reset)
+        for peer_id in (2, 3):
+            self.actor.on_message(SwarmHeartbeatMsg(sender_id=peer_id))
+        self.dispatch = self.actor._auction_state.register_dispatch(
+            TaskDispatch(TaskMsgData(
+                task_id=10,
+                task_type=TaskTypeMsgData.DOCK,
+                location=LocationMsgData(1.0, 2.0, 3.0),
+            ))
+        )[0]
+
+    def _tick_after(self, seconds):
+        """Advance the clock, then run this owner's own heartbeat tick."""
+        self.now_s += seconds
+        self.actor._presence.heartbeat()
+
+    def _answer(self, peer_id, seq):
+        self.actor.on_message(AvailableTaskResponseMsg(
+            sender_id=peer_id,
+            receiver_id=1,
+            tasks=[TaskHandleMsgData(task_id=10, time_in_min=float(peer_id))],
+            meta=_meta(seq),
+        ))
+
+    def _requests(self):
+        return [
+            (message.receiver_id, message.task.task_id)
+            for call in self.network.broadcast.call_args_list
+            if isinstance((message := call.args[0]), TaskAssignRequestMsg)
+        ]
+
+    def test_silent_peer_is_skipped_and_the_heard_peer_assigned(self):
+        self.now_s += 3.0
+        self.actor.on_message(SwarmHeartbeatMsg(sender_id=3))
+
+        self._tick_after(2.5)  # peer 2 unheard for 5.5 s, peer 3 for 2.5 s
+        self._answer(3, 1)
+
+        self.assertEqual(self._requests(), [(3, 10)])
+
+    def test_silent_peers_get_no_adverts_until_one_is_heard(self):
+        self._tick_after(6.0)
+        self.network.reset_mock()
+        self.actor._rebroadcast.restart()
+        self.assertIsNone(self.dispatch._rebroadcast_timer)
+
+        self.actor.on_message(SwarmHeartbeatMsg(sender_id=2))
+
+        self.assertTrue(self.dispatch.has_active_rebroadcast())
+
+    def test_check_out_makes_a_peer_silent_at_once(self):
+        self.actor.on_message(CheckOutMsg(
+            sender_id=2, location=LocationMsgData(1.0, 2.0, 3.0),
+        ))
+
+        self._answer(3, 1)
+
+        self.assertEqual(self._requests(), [(3, 10)])

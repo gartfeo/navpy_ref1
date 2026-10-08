@@ -13,7 +13,7 @@ from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
 from navpy.modules.comm.messages.types import TaskTypeMsgData
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
-from navpy.modules.swarm.swarm_presence import SwarmPresence
+from navpy.modules.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
 from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot
 from navpy.modules.swarm.task_messaging import TaskMessageSender
 from navpy.modules.swarm.task_msg_refs import MsgRef
@@ -27,6 +27,8 @@ def _presence(
     node_state=lambda: SwarmNodeState.FREE,
     discovered=None,
     reported=None,
+    checked_out=None,
+    tick=None,
 ):
     return SwarmPresence(
         1,
@@ -34,8 +36,12 @@ def _presence(
         sender,
         lock or threading.RLock(),
         node_state,
-        discovered or Mock(),
-        reported or Mock(),
+        PeerStatusPorts(
+            discovered=discovered or Mock(),
+            reported=reported or Mock(),
+            checked_out=checked_out or Mock(),
+            tick=tick or Mock(),
+        ),
         Mock(spec=ILogger),
     )
 
@@ -219,3 +225,31 @@ class PeerHeartbeatTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PeerPresenceEventTest(unittest.TestCase):
+    def test_own_heartbeat_runs_the_silence_check_after_sending(self):
+        sender = Mock(spec=TaskMessageSender)
+        order = []
+        sender.send_heartbeat.side_effect = lambda _message: order.append("send")
+        tick = Mock(side_effect=lambda: order.append("tick"))
+
+        _presence(sender, tick=tick).heartbeat()
+
+        self.assertEqual(order, ["send", "tick"])
+
+    def test_check_in_is_heard_and_check_out_silences_a_foreign_peer(self):
+        reported, checked_out = Mock(), Mock()
+        presence = _presence(
+            Mock(spec=TaskMessageSender),
+            reported=reported,
+            checked_out=checked_out,
+        )
+        location = LocationMsgData(1.0, 2.0, 3.0)
+
+        presence.on_checkin(Mock(sender_id=7))
+        presence.on_checkout(Mock(sender_id=7, location=location))
+        presence.on_checkout(Mock(sender_id=1, location=location))
+
+        reported.assert_called_once_with(7, None, None)
+        checked_out.assert_called_once_with(7)
