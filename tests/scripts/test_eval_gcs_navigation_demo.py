@@ -738,6 +738,95 @@ def test_exact_three_uav_run_passes_owner_and_peer_workflow_gates(tmp_path):
     assert [vehicle.role for vehicle in report.vehicles] == ["owner", "peer", "peer"]
 
 
+def _write_acked_backend_log(log_dir: Path) -> None:
+    """The same auction in the acked format: copies, a reject, APPLIED."""
+    (log_dir / "gcs_backend.log").write_text(
+        "\n".join((
+            "INFO Task assign request: sender=4 receiver=5 task_id=2 "
+            "at (40.000500, 44.000000) uid=40:10",
+            "INFO Task assign request: sender=4 receiver=5 task_id=2 "
+            "at (40.000500, 44.000000) uid=40:12",
+            "INFO Task assign request: sender=4 receiver=6 task_id=3 "
+            "at (40.000600, 44.000000) uid=40:11",
+            "INFO Task assign response: sender=6 receiver=4 task_id=3 "
+            "accepted=False uid=60:3",
+            "INFO Task assign request: sender=4 receiver=6 task_id=3 "
+            "at (40.000600, 44.000000) uid=40:20",
+            "INFO Task assign response: sender=5 receiver=4 task_id=2 "
+            "accepted=True uid=50:7",
+            "INFO Task assign ack: owner=4 helper=5 task_id=2 status=APPLIED "
+            "ref=50:7 uid=40:13",
+            "INFO Task assign response: sender=6 receiver=4 task_id=3 "
+            "accepted=True uid=60:8",
+            "INFO Task assign ack: owner=4 helper=6 task_id=3 status=APPLIED "
+            "ref=60:8 uid=40:21",
+        ))
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _log_assignment(log_dir: Path, sys_id: int, line: str, *, after: bool = False) -> None:
+    path = log_dir / f"uav_{sys_id}_navigation.log"
+    approach = "GUIDED_LOITER cmd=DO_REPOSITION center=40."
+    text = path.read_text(encoding="utf-8")
+    start = text.index(approach)
+    end = text.index("\n", start) + 1
+    if after:
+        text = text[:end] + f"{line}\n" + text[end:]
+    else:
+        text = text[:start] + f"{line}\n" + text[start:]
+    path.write_text(text, encoding="utf-8")
+
+
+def _acked_run(tmp_path: Path) -> None:
+    rolls = [12, 11, 9, 7, 5, 3, 1, 0, -1, -2, -2, -1]
+    for sys_id, role in ((4, "owner"), (5, "peer"), (6, "peer")):
+        _write_episode(tmp_path, sys_id, rolls, snap_m=0.4, role=role)
+    _write_resolved_plan(tmp_path)
+    _write_acked_backend_log(tmp_path)
+
+
+def test_acked_run_passes_when_peers_fly_after_their_owner_applied(tmp_path):
+    _acked_run(tmp_path)
+    _log_assignment(tmp_path, 5, "Task 2 assigned by owner 4")
+    _log_assignment(tmp_path, 6, "Task 3 assigned by owner 4")
+
+    report = evaluator.analyze_run(
+        tmp_path, sys_ids=(4, 5, 6), approvals=_approval_records()
+    )
+
+    assert report.passed is True, report.errors + [
+        error for vehicle in report.vehicles for error in vehicle.errors
+    ]
+    assert report.global_assignments == {4: 1, 5: 2, 6: 3}
+
+
+@pytest.mark.parametrize(
+    ("after", "message"),
+    [
+        (None, "peer never logged 'Task T assigned by owner O'"),
+        (True, "peer started GUIDED_LOITER before 'Task T assigned by owner O'"),
+    ],
+)
+def test_acked_run_fails_a_peer_that_flew_before_its_owner_applied(
+    tmp_path, after, message,
+):
+    _acked_run(tmp_path)
+    _log_assignment(tmp_path, 5, "Task 2 assigned by owner 4")
+    if after is not None:
+        _log_assignment(tmp_path, 6, "Task 3 assigned by owner 4", after=after)
+
+    report = evaluator.analyze_run(
+        tmp_path, sys_ids=(4, 5, 6), approvals=_approval_records()
+    )
+
+    assert report.passed is False
+    peer_5, peer_6 = report.vehicles[1], report.vehicles[2]
+    assert not any("assigned by owner" in error for error in peer_5.errors)
+    assert message in peer_6.errors
+
+
 @pytest.mark.parametrize(
     ("surface", "old", "new"),
     [

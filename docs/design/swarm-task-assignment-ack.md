@@ -1,8 +1,7 @@
 # Swarm task assignment with acknowledgments
 
-Status: **design agreed 2026-10-07; steps 1–6 (swarm core), 6a (GCS
-backend) and 6b (frontend) implemented 2026-10-08; 6c and the live check (8)
-pending.** Until 6c, the demo audit rejects repeated copies.
+Status: **design agreed 2026-10-07; steps 1–6 (swarm core) and GCS 6a–6c
+implemented 2026-10-08; docs (7) and the live check (8) pending.**
 Based on `origin/main` 1bd24d1 (includes 1b4bbf3 assign resend/release and
 d8605f6 adverts fenced against assign requests). Owner = UAV that
 advertises the task; helper = peer that bids and flies it.
@@ -23,6 +22,8 @@ Implementation notes:
   the APPLIED's ref) orders it; a round without one ends by advert, reject
   or APPLIED. Confirm events match entries by (UAV, task id), and available
   tasks are keyed `${owner}:${task}` like rounds.
+- Audit: the backend log's format also switches the peer gate, so recorded
+  legacy runs need no `assigned by owner` line.
 
 ## Problem
 

@@ -24,7 +24,13 @@ from navpy.modules.comm.messages.swarm_ack_msg import (
     SwarmAckMsg,
 )
 from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
-from scripts.eval_gcs_demo_assignment_audit import _REQUEST, _RESPONSE
+from scripts.eval_gcs_demo_assignment_lines import (
+    AckLine,
+    LogFormat,
+    RequestLine,
+    ResponseLine,
+    parse_assignment_lines,
+)
 
 
 @pytest.fixture
@@ -408,13 +414,9 @@ class TestHandshakeUids:
         line, = [r.getMessage() for r in caplog.records
                  if "Task assign request:" in r.getMessage()]
         assert line.endswith(" uid=7:50")
-        match = _REQUEST.search(line)
-        assert match is not None
-        assert (match["sender"], match["receiver"], match["task"]) == (
-            "1", "2", "9",
-        )
-        assert float(match["lat"]) == pytest.approx(32.5)
-        assert float(match["lon"]) == pytest.approx(34.8)
+        parsed = parse_assignment_lines(line)
+        assert parsed.log_format is LogFormat.ACKED
+        assert parsed.requests == (RequestLine(1, 2, 9, 32.5, 34.8, (7, 50)),)
 
     def test_response_copy_payload_and_log_carry_its_uid(
         self, fleet, broadcast, caplog,
@@ -427,11 +429,9 @@ class TestHandshakeUids:
         line, = [r.getMessage() for r in caplog.records
                  if "Task assign response:" in r.getMessage()]
         assert line.endswith(" uid=3:20")
-        match = _RESPONSE.search(line)
-        assert match is not None
-        assert match.groupdict() == {
-            "sender": "2", "receiver": "1", "task": "9", "accepted": "True",
-        }
+        assert parse_assignment_lines(line).responses == (
+            ResponseLine(2, 1, 9, True, (3, 20)),
+        )
 
     def test_advert_payload_carries_its_uid(self, fleet, broadcast):
         advert = AvailableTaskRequestMsg(
@@ -483,10 +483,14 @@ class TestAssignAck:
             "ref": {"boot_id": 3, "msg_seq": 20},
             "uid": {"boot_id": 7, "msg_seq": 60},
         }]
-        assert (
+        line = (
             "Task assign ack: owner=1 helper=2 task_id=9 status=APPLIED "
             "ref=3:20 uid=7:60"
-        ) in [r.getMessage() for r in caplog.records]
+        )
+        assert line in [r.getMessage() for r in caplog.records]
+        assert parse_assignment_lines(line).acks == (
+            AckLine(1, 2, 9, (3, 20), (7, 60)),
+        )
 
     def test_applied_heard_before_its_copy_is_reported_with_the_copy(
         self, fleet, broadcast,
@@ -543,5 +547,71 @@ class TestAssignAck:
             _applied(fleet, ref=(3, 20), uid=(7, 60), link=link)
 
         assert len(_payloads(broadcast, "task_assign_ack")) == 1
+
+
+class TestDemoAuditReadsTheListenerLog:
+    """The demo audit reads the listener's own log of a whole handshake."""
+
+    def test_copies_reject_and_applied_give_the_assignment_map(
+        self, listener, broadcast, caplog,
+    ):
+        from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_NAV_WAYPOINT
+        from scripts.eval_gcs_demo_assignment_audit import (
+            derive_global_assignment_map,
+        )
+        from scripts.eval_gcs_demo_models import ThreeUavIds
+        from scripts.eval_gcs_demo_scenario import resolve_demo_plan
+
+        owner, peer_a, peer_b = 7, 4, 9
+        plan = resolve_demo_plan(
+            ThreeUavIds.from_values((owner, peer_a, peer_b)),
+            {"sys_id": owner, "waypoints": [
+                {
+                    "lat": 40.0 + ordinal / 10_000,
+                    "lon": 44.0 + ordinal / 10_000,
+                    "alt": 100.0,
+                    "mission_sequence": ordinal + 1,
+                    "command": MAV_CMD_NAV_WAYPOINT,
+                    "nav_waypoint_ordinal": ordinal,
+                }
+                for ordinal in range(1, 8)
+            ]},
+        )
+        for sys_id in (owner, peer_a, peer_b):
+            listener.register_vehicle(sys_id, MagicMock())
+        caplog.set_level("INFO", logger="gcs.backend.task_assign_listener")
+
+        def offer(peer, task, coordinate, seq):
+            listener._on_navlink(owner, _make_assign_request_msg(
+                owner, peer, task, coordinate, coordinate + 4.0, 100.0,
+                uid=(10, seq),
+            ))
+
+        def answer(peer, task, seq, accepted=True):
+            listener._on_navlink(peer, _make_assign_response_msg(
+                peer, owner, task, accepted, uid=(peer * 10, seq),
+            ))
+
+        def apply(peer, ref_seq, seq):
+            listener._on_navlink(owner, _make_ack_msg(
+                owner, peer, (peer * 10, ref_seq), (10, seq),
+            ))
+
+        offer(peer_a, 1, 40.0003, 50)
+        offer(peer_a, 1, 40.0003, 52)  # repeated step 3
+        offer(peer_b, 3, 40.0007, 51)
+        answer(peer_b, 3, 5, accepted=False)
+        offer(peer_b, 3, 40.0007, 60)
+        answer(peer_a, 1, 7)
+        answer(peer_a, 1, 9)  # repeated step 4
+        apply(peer_a, 7, 53)
+        apply(peer_a, 9, 54)
+        apply(peer_b, 8, 61)  # heard before its copy
+        answer(peer_b, 3, 8)
+
+        log = "\n".join(record.getMessage() for record in caplog.records)
+        assert derive_global_assignment_map(log, plan) == {
+            owner: 2, peer_a: 1, peer_b: 3,
+        }
 
 

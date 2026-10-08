@@ -45,9 +45,10 @@ def analyze_ideal_run(
         else _load_approvals(log_dir / "operator_approvals.json")
     )
     counts, approval_errors = approval_counts(approval_rows, plan)
-    assignments, assignment_errors = global_assignment_evidence(log_dir, plan)
+    evidence = global_assignment_evidence(log_dir, plan)
+    assignments = evidence.assignments
     source_time = load_source_time_evidence(log_dir, plan_ids.values)
-    errors = approval_errors + assignment_errors + mission_assignment_errors(
+    errors = approval_errors + evidence.errors + mission_assignment_errors(
         log_dir,
         plan,
         assignments,
