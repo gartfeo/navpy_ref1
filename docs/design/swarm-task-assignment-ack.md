@@ -1,10 +1,11 @@
 # Swarm task assignment with acknowledgments
 
-Status: **design agreed 2026-10-07; steps 1–6 (swarm core) and GCS 6a–6c
-implemented 2026-10-08; docs (7) and the live check (8) pending.**
+Status: **design agreed 2026-10-07; steps 1–7 implemented 2026-10-08; the
+live check (8) pending.**
 Based on `origin/main` 1bd24d1 (includes 1b4bbf3 assign resend/release and
-d8605f6 adverts fenced against assign requests). Owner = UAV that
-advertises the task; helper = peer that bids and flies it.
+d8605f6 adverts fenced against assign requests); "today" below means that
+base. Owner = UAV that advertises the task; helper = peer that bids and
+flies it.
 
 Implementation notes:
 - Nav publishes "approaching" every cycle, but only a change reaches the

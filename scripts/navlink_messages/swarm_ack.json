@@ -1,7 +1,7 @@
 {
   "name": "SWARM_ACK",
   "id": 25110,
-  "description": "Generic receipt acknowledgement of another message, referenced by that message's dedup UID (sender_id, boot_id, msg_seq). Redefines the reserved 25110 slot (formerly TASK_CONFIRM_ACK) with a generic, message-agnostic ack. Includes dedup/TTL metadata. No production sender today: the confirm-path auto-ack this was built for was removed as dead code, and the definition is kept for wire compatibility.",
+  "description": "Generic receipt acknowledgement of another message, referenced by that message's dedup UID (sender_id, boot_id, msg_seq). Redefines the reserved 25110 slot (formerly TASK_CONFIRM_ACK) with a generic, message-agnostic ack. Includes dedup/TTL metadata. The swarm task-assignment handshake acks steps 3 and 4 with it (docs/design/swarm-task-assignment-ack.md).",
   "ttl_ms": 3000,
   "fields": [
     {"name": "boot_id", "type": "uint32_t", "units": null, "desc": "Random ID generated on process start, identifies sender instance."},
