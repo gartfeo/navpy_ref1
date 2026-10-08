@@ -16,6 +16,9 @@ from navpy.modules.comm.messages.types import MsgType
 # Default TTL for message types not explicitly listed (5 seconds)
 DEFAULT_TTL_MS = 5000
 
+# Cadence at which a sender repeats an unacknowledged swarm message.
+SWARM_RESEND_INTERVAL_MS = 2000
+
 # TTL defaults per message type in milliseconds
 TTL_DEFAULTS = {
     # Heartbeats - short validity, high frequency
@@ -42,7 +45,7 @@ TTL_DEFAULTS = {
     MsgType.SEARCH_STATUS: 15000,     # 15s
     MsgType.LOG_STATUS: 30000,        # 30s - logs can be older
 
-    # Reliability toolkit (D-07/D-25/D-26) - short TTL matching the 2.0s resend cadence
+    # Reliability toolkit (D-07/D-25/D-26) - short TTL matching SWARM_RESEND_INTERVAL_MS
     MsgType.SWARM_ACK: 3000,          # 3s
     MsgType.SWARM_REQUEST: 3000,      # 3s
 
