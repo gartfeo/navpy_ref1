@@ -1,7 +1,10 @@
 # Swarm task assignment with acknowledgments
 
-Status: **design agreed 2026-10-07; steps 1–7 implemented 2026-10-08; the
-live check (8) pending.**
+Status: **design agreed 2026-10-07; steps 1–7 implemented and the live
+check (8) run 2026-10-08.** In the 3-UAV demo: uid lines, one APPLIED per
+peer, assigned before the peer approach, busy peer skipped, WAITING →
+ASSIGNED. The demo evaluator's full pass is blocked by failures that
+`origin/main` shows too (a second confirmation round after SNAP).
 Based on `origin/main` 1bd24d1 (includes 1b4bbf3 assign resend/release and
 d8605f6 adverts fenced against assign requests); "today" below means that
 base. Owner = UAV that advertises the task; helper = peer that bids and
