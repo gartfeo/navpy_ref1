@@ -3,18 +3,47 @@ import unittest
 from unittest.mock import Mock
 
 from navpy.logger.cache_logger import ILogger
+from navpy.modules.comm.messages.location_msg import LocationMsgData
+from navpy.modules.comm.messages.msg_meta import MsgMeta
+from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+    SwarmHeartbeatMsg,
+    SwarmNodeState,
+)
+from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
+from navpy.modules.comm.messages.types import TaskTypeMsgData
+from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
 from navpy.modules.swarm.swarm_presence import SwarmPresence
+from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot
 from navpy.modules.swarm.task_messaging import TaskMessageSender
+from navpy.modules.swarm.task_msg_refs import MsgRef
 from navpy.modules.vehicle.vehicle_interface import IVehicle
+
+
+def _presence(
+    sender,
+    *,
+    lock=None,
+    node_state=lambda: SwarmNodeState.FREE,
+    discovered=None,
+    reported=None,
+):
+    return SwarmPresence(
+        1,
+        Mock(spec=IVehicle),
+        sender,
+        lock or threading.RLock(),
+        node_state,
+        discovered or Mock(),
+        reported or Mock(),
+        Mock(spec=ILogger),
+    )
 
 
 class SwarmPresenceTest(unittest.TestCase):
     def _presence(self):
-        vehicle = Mock(spec=IVehicle)
         sender = Mock(spec=TaskMessageSender)
-        logger = Mock(spec=ILogger)
-        return SwarmPresence(1, vehicle, sender, Mock(), logger), sender
+        return _presence(sender), sender
 
     def test_committed_start_announces_checkin_once_per_generation(self):
         presence, sender = self._presence()
@@ -36,22 +65,18 @@ class SwarmPresenceTest(unittest.TestCase):
             presence.stop()
 
     def test_checkin_admits_only_foreign_peer_and_replies_with_heartbeat(self):
-        vehicle = Mock(spec=IVehicle)
         sender = Mock(spec=TaskMessageSender)
         discovered = Mock()
-        presence = SwarmPresence(
-            1,
-            vehicle,
-            sender,
-            discovered,
-            Mock(spec=ILogger),
-        )
+        presence = _presence(sender, discovered=discovered)
 
         presence.on_checkin(Mock(sender_id=1))
         presence.on_checkin(Mock(sender_id=7))
 
         discovered.assert_called_once_with(7)
-        sender.heartbeat.assert_called_once_with()
+        sender.heartbeat_message.assert_called_once_with(SwarmNodeState.FREE)
+        sender.send_heartbeat.assert_called_once_with(
+            sender.heartbeat_message.return_value,
+        )
 
     def test_checkin_failure_stops_new_runtime_and_reraises_exact_failure(self):
         presence, sender = self._presence()
@@ -82,6 +107,114 @@ class SwarmPresenceTest(unittest.TestCase):
 
         heartbeat.raise_if_failed.assert_called_once_with()
         heartbeat.stop.assert_called_once_with()
+
+
+def _offer(slot, task_id=10):
+    task = TaskAssignMsgData(
+        task_id=task_id,
+        task_type=TaskTypeMsgData.DOCK,
+        location=LocationMsgData(1.0, 2.0, 3.0),
+    )
+    return slot.on_request(task, MsgRef(3, 7, task_id), flyable=True)
+
+
+class HeartbeatNodeStateTest(unittest.TestCase):
+    """The heartbeat state is FREE unless the slot holds a task or nav
+    flies a final approach."""
+
+    def setUp(self):
+        self.lock = threading.RLock()
+        self.slot = SelectedTaskSlot(self.lock)
+        self.network = Mock(spec=NetworkAbc)
+        self.presence = _presence(
+            TaskMessageSender(1, self.network, Mock(spec=ILogger)),
+            lock=self.lock,
+            node_state=self.slot.node_state,
+        )
+
+    def _reported_state(self, report):
+        self.network.reset_mock()
+        report()
+        (message,) = [call.args[0] for call in self.network.broadcast.call_args_list]
+        self.assertIsInstance(message, SwarmHeartbeatMsg)
+        return SwarmNodeState(message.state)
+
+    def _assert_reported(self, expected):
+        for report in (
+            self.presence.heartbeat,
+            lambda: self.presence.on_checkin(Mock(sender_id=7)),
+        ):
+            self.assertIs(self._reported_state(report), expected)
+
+    def test_empty_slot_and_no_approach_is_free(self):
+        self._assert_reported(SwarmNodeState.FREE)
+
+    def test_final_approach_is_busy(self):
+        self.slot.set_approaching(True)
+        self._assert_reported(SwarmNodeState.BUSY)
+
+    def test_waiting_task_is_busy(self):
+        _offer(self.slot)
+        self._assert_reported(SwarmNodeState.BUSY)
+
+    def test_assigned_task_is_busy_with_or_without_approach(self):
+        decision = _offer(self.slot)
+        ref = MsgRef(1, 5, 1)
+        self.slot.record_reply(decision.held.token, ref)
+        self.slot.on_ack(ref, 2, MsgRef(3, 7, 99))
+        self._assert_reported(SwarmNodeState.BUSY)
+        self.slot.set_approaching(True)
+        self._assert_reported(SwarmNodeState.BUSY)
+
+    def test_state_is_stamped_under_the_actor_lock_and_sent_outside(self):
+        sender = Mock(spec=TaskMessageSender)
+        held = []
+        sender.heartbeat_message.side_effect = (
+            lambda _state: held.append(("stamp", self.lock._is_owned()))
+        )
+        sender.send_heartbeat.side_effect = (
+            lambda _message: held.append(("send", self.lock._is_owned()))
+        )
+        presence = _presence(sender, lock=self.lock)
+
+        presence.heartbeat()
+
+        self.assertEqual(held, [("stamp", True), ("send", False)])
+
+
+class PeerHeartbeatTest(unittest.TestCase):
+    def test_peer_heartbeat_reports_its_state_with_its_uid(self):
+        discovered, reported = Mock(), Mock()
+        presence = _presence(
+            Mock(spec=TaskMessageSender),
+            discovered=discovered,
+            reported=reported,
+        )
+
+        presence.on_heartbeat(SwarmHeartbeatMsg(
+            sender_id=7,
+            state=SwarmNodeState.BUSY,
+            meta=MsgMeta(boot_id=4, msg_seq=9, time_ms=0, ttl_ms=5000),
+        ))
+        presence.on_heartbeat(SwarmHeartbeatMsg(sender_id=1, state=1))
+
+        discovered.assert_called_once_with(7)
+        reported.assert_called_once_with(
+            7, SwarmNodeState.BUSY, MsgRef(7, 4, 9),
+        )
+
+    def test_state_code_round_trips_and_any_nonzero_code_is_busy(self):
+        for state in SwarmNodeState:
+            message = SwarmHeartbeatMsg(
+                sender_id=7,
+                state=state,
+                meta=MsgMeta(boot_id=4, msg_seq=9, time_ms=0, ttl_ms=5000),
+            )
+            mav = message.to_mavlink()
+            mav._header.srcSystem = 7
+            decoded = SwarmHeartbeatMsg.from_mavlink(mav)
+            self.assertIs(SwarmNodeState.from_code(decoded.state), state)
+        self.assertIs(SwarmNodeState.from_code(7), SwarmNodeState.BUSY)
 
 
 if __name__ == "__main__":

@@ -12,7 +12,16 @@ from navpy.modules.comm.messages.available_task_msg import (
 )
 from navpy.modules.comm.messages.check_msg import CheckInMsg
 from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmHeartbeatMsg
+from navpy.modules.comm.messages.msg_meta import MsgMeta
+from navpy.modules.comm.messages.swarm_ack_msg import (
+    ACK_STATUS_APPLIED,
+    ACK_STATUS_RECEIVED,
+    SwarmAckMsg,
+)
+from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+    SwarmHeartbeatMsg,
+    SwarmNodeState,
+)
 from navpy.modules.comm.messages.types import TaskDispatchStatus, TaskTypeMsgData
 from navpy.modules.common.models.location import Location
 from navpy.modules.comm.network_abc import NetworkAbc
@@ -20,9 +29,10 @@ from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSiz
 from tests.detection_factory import make_detected_poi
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.swarm.task_actor import TaskActor
-from navpy.modules.swarm.task_auction_models import TaskRejectOutcome
 from navpy.modules.swarm.task_dispatch import TaskDispatch
+from navpy.modules.swarm.task_msg_refs import MsgRef
 from navpy.modules.swarm.task_ports import MessageClockReset
 from navpy.logger.cache_logger import ILogger
 
@@ -44,6 +54,22 @@ class _IdleTimer:
 
     def is_alive(self):
         return self._alive
+
+
+# Arbitrary boot of the simulated peers; their seqs follow the ack floor.
+PEER_BOOT = 70
+
+
+def _meta(msg_seq: int, boot_id: int = PEER_BOOT) -> MsgMeta:
+    return MsgMeta(boot_id=boot_id, msg_seq=msg_seq, time_ms=0, ttl_ms=5000)
+
+
+def _assign_slot(slot, task, owner_id=3):
+    """Drive a helper slot to ASSIGNED the way the owner's APPLIED does."""
+    held = slot.on_request(task, MsgRef(owner_id, 7, 1), flyable=True).held
+    reply = MsgRef(1, 9, 1)
+    slot.record_reply(held.token, reply)
+    slot.on_ack(reply, ACK_STATUS_APPLIED, MsgRef(owner_id, 7, 2))
 
 
 class TaskActorTest(unittest.TestCase):
@@ -109,6 +135,40 @@ class TaskActorTest(unittest.TestCase):
             task_id,
             self.task_actor._auction_state.current_generation(),
         )
+
+    @staticmethod
+    def _fence(dispatch, peer_id):
+        """As if the peer acked this attempt's request with seq 10."""
+        dispatch.attempt.floor = MsgRef(peer_id, PEER_BOOT, 10)
+
+    def _response(self, peer_id, task_id, accepted, seq=11):
+        return TaskAssignResponseMsg(
+            sender_id=peer_id,
+            receiver_id=self.task_actor.id,
+            task_id=task_id,
+            is_accepted=accepted,
+            meta=_meta(seq),
+        )
+
+    def _ack_request_and_accept(self, peer_id, task_id):
+        """Play the helper: ack the latest request copy, then accept."""
+        request = [
+            message
+            for call in self.network.broadcast.call_args_list
+            if isinstance((message := call.args[0]), TaskAssignRequestMsg)
+            and message.receiver_id == peer_id
+            and message.task.task_id == task_id
+        ][-1]
+        self.task_actor.on_message(SwarmAckMsg(
+            sender_id=peer_id,
+            receiver_id=self.task_actor.id,
+            ref_boot_id=request.meta.boot_id,
+            ref_msg_seq=request.meta.msg_seq,
+            ref_msg_type=MsgType.TASK_ASSIGN_REQUEST.value,
+            status=ACK_STATUS_RECEIVED,
+            meta=_meta(10),
+        ))
+        self.task_actor.on_message(self._response(peer_id, task_id, True))
 
     def test_notify_pois(self):
         # Arrange
@@ -238,13 +298,23 @@ class TaskActorTest(unittest.TestCase):
         # Arrange
         self._discover(2)
         msg = AvailableTaskRequestMsg(sender_id=2, tasks=[])
-        self.task_actor._selection.try_accept(Mock(), owner_id=3)
+        self.task_actor._selection.on_request(
+            TaskAssignMsgData(
+                task_id=7,
+                task_type=TaskTypeMsgData.DOCK,
+                location=LocationMsgData(1.0, 2.0, 3.0),
+            ),
+            MsgRef(3, 7, 1),
+            flyable=True,
+        )
 
         # Act
         self.task_actor.on_message(msg)
 
         # Assert
-        self.logger.info.assert_called_with("Already handling tasks. Can't handle more tasks.")
+        self.logger.info.assert_called_with(
+            "Busy (holding a task or flying a final approach); not bidding."
+        )
         self.network.broadcast.assert_not_called()
 
     def test_on_task_available_response(self):
@@ -498,13 +568,9 @@ class TaskActorTest(unittest.TestCase):
         ))
         task_dispatch.assigned_peer = 2
         task_dispatch.set_status(TaskDispatchStatus.CONFIRMING)
+        self._fence(task_dispatch, 2)
         self._register(task_dispatch)
-        msg = TaskAssignResponseMsg(
-            sender_id=2,
-            receiver_id=self.task_actor.id,
-            task_id=1,
-            is_accepted=True
-        )
+        msg = self._response(2, 1, True)
 
         # Act
         self.task_actor.on_message(msg)
@@ -523,13 +589,9 @@ class TaskActorTest(unittest.TestCase):
         task_dispatch.task_handle_by_peer = {2: TaskHandleMsgData(task_id=1, time_in_min=5.0)}
         task_dispatch.assigned_peer = 2
         task_dispatch.set_status(TaskDispatchStatus.CONFIRMING)
+        self._fence(task_dispatch, 2)
         self._register(task_dispatch)
-        msg = TaskAssignResponseMsg(
-            sender_id=2,
-            receiver_id=self.task_actor.id,
-            task_id=1,
-            is_accepted=False
-        )
+        msg = self._response(2, 1, False)
 
         # Act
         self.task_actor.on_message(msg)
@@ -552,6 +614,7 @@ class TaskActorTest(unittest.TestCase):
         }
         task_dispatch.assigned_peer = 2
         task_dispatch.set_status(TaskDispatchStatus.CONFIRMING)
+        self._fence(task_dispatch, 2)
         self._register(task_dispatch)
         newer_dispatch = TaskDispatch(TaskMsgData(
             task_id=2,
@@ -565,18 +628,16 @@ class TaskActorTest(unittest.TestCase):
         self.network.broadcast.reset_mock()
 
         with patch.object(TaskDispatch, "start_rebroadcast", return_value=None):
-            self.task_actor.on_message(TaskAssignResponseMsg(
-                sender_id=2,
-                receiver_id=self.task_actor.id,
-                task_id=1,
-                is_accepted=False,
-            ))
+            self.task_actor.on_message(self._response(2, 1, False))
 
         self.assertEqual(task_dispatch.status, TaskDispatchStatus.CONFIRMING)
         self.assertEqual(task_dispatch.assigned_peer, 3)
-        self.network.broadcast.assert_called_once()
-        assignment = self.network.broadcast.call_args.args[0]
-        self.assertIsInstance(assignment, TaskAssignRequestMsg)
+        # Besides the ack of the reject, one request goes out: to peer 3.
+        (assignment,) = [
+            message
+            for call in self.network.broadcast.call_args_list
+            if isinstance((message := call.args[0]), TaskAssignRequestMsg)
+        ]
         self.assertEqual(assignment.receiver_id, 3)
         self.assertEqual(assignment.task.task_id, 1)
         self.assertEqual(newer_dispatch.status, TaskDispatchStatus.AVAILABLE)
@@ -595,15 +656,14 @@ class TaskActorTest(unittest.TestCase):
         }
         rejected_dispatch.assigned_peer = 2
         rejected_dispatch.set_status(TaskDispatchStatus.CONFIRMING)
+        self._fence(rejected_dispatch, 2)
         self._register(rejected_dispatch)
-        original_reject = self.task_actor._auction_state.reject
+        confirmation = self.task_actor._auction._confirmation
+        original_answer = confirmation.answer_response
         replacements: list[TaskDispatch] = []
 
-        def reject_then_replace(
-            task_id: int,
-            peer_id: int,
-        ) -> TaskRejectOutcome:
-            outcome = original_reject(task_id, peer_id)
+        def reject_then_replace(message):
+            verdict = original_answer(message)
             self.task_actor.reset()
             self.task_actor.start()
             self._discover(2, 3)
@@ -618,12 +678,12 @@ class TaskActorTest(unittest.TestCase):
             self._register(replacement)
             replacements.append(replacement)
             self.network.broadcast.reset_mock()
-            return outcome
+            return verdict
 
         with (
             patch.object(
-                self.task_actor._auction_state,
-                "reject",
+                confirmation,
+                "answer_response",
                 side_effect=reject_then_replace,
             ),
             patch.object(
@@ -632,12 +692,7 @@ class TaskActorTest(unittest.TestCase):
                 return_value=None,
             ) as start_rebroadcast,
         ):
-            self.task_actor.on_message(TaskAssignResponseMsg(
-                sender_id=2,
-                receiver_id=self.task_actor.id,
-                task_id=1,
-                is_accepted=False,
-            ))
+            self.task_actor.on_message(self._response(2, 1, False))
 
         replacement = replacements[0]
         self.assertEqual(replacement.status, TaskDispatchStatus.AVAILABLE)
@@ -785,14 +840,10 @@ class TaskActorTest(unittest.TestCase):
         busy_dispatch = TaskDispatch(busy_task)
         busy_dispatch.assigned_peer = 6
         busy_dispatch.set_status(TaskDispatchStatus.CONFIRMING)
+        self._fence(busy_dispatch, 6)
         self._register(busy_dispatch)
 
-        reject_msg = TaskAssignResponseMsg(
-            sender_id=6,
-            receiver_id=self.task_actor.id,
-            task_id=20,
-            is_accepted=False,
-        )
+        reject_msg = self._response(6, 20, False)
 
         with patch("navpy.modules.swarm.task_dispatch.threading.Timer", side_effect=make_timer):
             self.task_actor.on_message(reject_msg)
@@ -846,6 +897,7 @@ class TaskActorTest(unittest.TestCase):
         rejected_dispatch.set_status(TaskDispatchStatus.CONFIRMING)
         rejected_dispatch.on_peer_available(5, TaskHandleMsgData(task_id=10, time_in_min=2.0))
         rejected_dispatch.on_peer_available(6, TaskHandleMsgData(task_id=10, time_in_min=3.0))
+        self._fence(rejected_dispatch, 5)
         self._register(rejected_dispatch)
 
         busy_task = TaskMsgData(task_id=20, task_type=TaskTypeMsgData.DOCK,
@@ -855,12 +907,7 @@ class TaskActorTest(unittest.TestCase):
         busy_dispatch.set_status(TaskDispatchStatus.CONFIRMING)
         self._register(busy_dispatch)
 
-        reject_msg = TaskAssignResponseMsg(
-            sender_id=5,
-            receiver_id=self.task_actor.id,
-            task_id=10,
-            is_accepted=False,
-        )
+        reject_msg = self._response(5, 10, False)
 
         with patch("navpy.modules.swarm.task_dispatch.threading.Timer", side_effect=make_timer):
             self.task_actor.on_message(reject_msg)
@@ -973,7 +1020,11 @@ class TaskActorTest(unittest.TestCase):
 
         # Populate actor state
         self._discover(5, 6)
-        self.task_actor._selection.try_accept(Mock(), owner_id=3)
+        _assign_slot(self.task_actor._selection, TaskAssignMsgData(
+            task_id=7,
+            task_type=TaskTypeMsgData.DOCK,
+            location=LocationMsgData(1.0, 2.0, 3.0),
+        ))
         task = TaskMsgData(task_id=10, task_type=TaskTypeMsgData.DOCK,
                            location=LocationMsgData(1.0, 2.0, 3.0))
         self._register(task)
@@ -1036,7 +1087,7 @@ class TaskActorTest(unittest.TestCase):
             task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(1.0, 2.0, 3.0),
         )
-        self.assertTrue(self.task_actor._selection.try_accept(selected, owner_id=3))
+        _assign_slot(self.task_actor._selection, selected)
         self.assertTrue(self.task_actor.has_selected_pois())
 
     def test_shutdown_stops_auctions_when_checkout_raises(self):
@@ -1067,6 +1118,79 @@ class TaskActorTest(unittest.TestCase):
             self.task_actor._presence.heartbeat_thread(),
             first_thread,
         )
+
+    # --- Busy peers, fuel declines and stale bids (owner side) -----------
+
+    def _beat(self, peer_id, state, seq):
+        self.task_actor.on_message(SwarmHeartbeatMsg(
+            sender_id=peer_id, state=state, meta=_meta(seq),
+        ))
+
+    def _answer(self, peer_id, task_id, eta, seq):
+        self.task_actor.on_message(AvailableTaskResponseMsg(
+            sender_id=peer_id,
+            receiver_id=self.task_actor.id,
+            tasks=[TaskHandleMsgData(task_id=task_id, time_in_min=eta)],
+            meta=_meta(seq),
+        ))
+
+    def _requests(self):
+        return [
+            (message.receiver_id, message.task.task_id)
+            for call in self.network.broadcast.call_args_list
+            if isinstance((message := call.args[0]), TaskAssignRequestMsg)
+        ]
+
+    def _task_10(self):
+        return self._register(TaskDispatch(TaskMsgData(
+            task_id=10,
+            task_type=TaskTypeMsgData.DOCK,
+            location=LocationMsgData(1.0, 2.0, 3.0),
+        )))
+
+    def test_busy_peer_is_skipped_and_the_free_peer_assigned(self):
+        self._discover(2, 3)
+        self._beat(3, SwarmNodeState.BUSY, 1)
+        self._task_10()
+
+        self._answer(2, 10, 5.0, 2)
+
+        self.assertEqual(self._requests(), [(2, 10)])
+
+    def test_peer_reporting_free_is_advertised_to_and_then_assigned(self):
+        self._discover(2, 3)
+        for peer_id in (2, 3):
+            self._beat(peer_id, SwarmNodeState.BUSY, 1)
+        dispatch = self._task_10()
+        self.assertIsNone(dispatch._rebroadcast_timer)
+
+        self._beat(3, SwarmNodeState.FREE, 2)
+        self.assertTrue(dispatch.has_active_rebroadcast())
+        self._answer(3, 10, 5.0, 3)
+
+        self.assertEqual(self._requests(), [(3, 10)])
+
+    def test_peer_that_cannot_fly_the_task_is_left_out_of_it(self):
+        self._discover(2, 3)
+        self._task_10()
+
+        self._answer(3, 10, -1.0, 1)
+        self.assertEqual(self._requests(), [])
+        self._answer(2, 10, 50.0, 1)
+
+        self.assertEqual(self._requests(), [(2, 10)])
+        self.logger.info.assert_any_call("Task 10 declined by 3 (cannot fly it)")
+
+    def test_peer_turning_busy_after_bidding_loses_its_bid(self):
+        self._discover(2, 3)
+        dispatch = self._task_10()
+        self._answer(2, 10, 1.0, 10)
+
+        self._beat(2, SwarmNodeState.BUSY, 11)
+        self.assertNotIn(2, dispatch.task_handle_by_peer)
+        self._answer(3, 10, 5.0, 1)
+
+        self.assertEqual(self._requests(), [(3, 10)])
 
     def test_full_cycle_detect_assign_navigate_reset_repeat(self):
         """
@@ -1118,11 +1242,8 @@ class TaskActorTest(unittest.TestCase):
         self.assertEqual(td1.status, TaskDispatchStatus.CONFIRMING)
         self.assertEqual(td1.assigned_peer, 5)
 
-        # Peer accepts → navigates
-        accept1 = TaskAssignResponseMsg(
-            sender_id=5, receiver_id=1, task_id=1, is_accepted=True,
-        )
-        self.task_actor.on_message(accept1)
+        # Peer acks the request and accepts → navigates
+        self._ack_request_and_accept(5, 1)
         self.assertEqual(td1.status, TaskDispatchStatus.CONFIRMED)
 
         # ---- Reset all ----
@@ -1196,11 +1317,8 @@ class TaskActorTest(unittest.TestCase):
         self.assertIsInstance(sent, TaskAssignRequestMsg)
         self.assertEqual(sent.receiver_id, 5)
 
-        # Peer accepts again
-        accept2 = TaskAssignResponseMsg(
-            sender_id=5, receiver_id=1, task_id=2, is_accepted=True,
-        )
-        self.task_actor.on_message(accept2)
+        # Peer acks the request and accepts again
+        self._ack_request_and_accept(5, 2)
         self.assertEqual(td2.status, TaskDispatchStatus.CONFIRMED)
         self.assertEqual(td2.assigned_peer, 5)
 

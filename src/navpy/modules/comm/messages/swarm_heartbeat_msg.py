@@ -8,8 +8,12 @@ The SwarmHeartbeatMsg is critical for:
 
 Expected rate: 1Hz
 TTL: 5000ms
+
+The ``state`` byte carries SwarmNodeState: whether the node can take part in
+a task auction (docs/design/swarm-task-assignment-ack.md, "Busy UAVs").
 """
 
+from enum import IntEnum
 from typing import Dict, Any, Optional
 
 from pymavlink.dialects.v20.ardupilotmega import (
@@ -22,6 +26,20 @@ from navpy.modules.comm.messages.msg_meta import MsgMeta
 from navpy.modules.comm.messages.types import MsgType
 
 
+class SwarmNodeState(IntEnum):
+    """Heartbeat state codes; receivers treat any non-zero code as BUSY.
+
+    BUSY: the node holds another UAV's task or flies a final approach.
+    """
+
+    FREE = 0
+    BUSY = 1
+
+    @classmethod
+    def from_code(cls, code: int) -> "SwarmNodeState":
+        return cls.FREE if code == cls.FREE else cls.BUSY
+
+
 @register_msg()
 class SwarmHeartbeatMsg(MsgABC):
     """
@@ -29,7 +47,7 @@ class SwarmHeartbeatMsg(MsgABC):
 
     Contains:
     - sender_id: The sending node's system ID
-    - state: Current node state (optional, for status reporting)
+    - state: SwarmNodeState code (FREE=0, BUSY=1)
     - boot_id, msg_seq, time_ms, ttl_ms: Via meta field (required for this message)
 
     The time_ms field in meta is used by receivers to compute clock offset.
@@ -42,7 +60,7 @@ class SwarmHeartbeatMsg(MsgABC):
 
         Args:
             sender_id: The sending node's system ID
-            state: Current node state code (default 0 = IDLE)
+            state: SwarmNodeState code (default 0 = FREE)
             meta: Message metadata (required for clock sync)
         """
         super().__init__(sender_id, receiver_id=None, meta=meta)

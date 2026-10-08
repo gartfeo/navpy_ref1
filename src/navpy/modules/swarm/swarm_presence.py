@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
-from threading import Thread
+from typing import Optional
 
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
 from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmHeartbeatMsg
+from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+    SwarmHeartbeatMsg,
+    SwarmNodeState,
+)
 from navpy.modules.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
 from navpy.modules.swarm.task_messaging import TaskMessageSender
+from navpy.modules.swarm.task_msg_refs import MsgRef, msg_ref
 from navpy.modules.swarm.task_ports import TaskLocationReader
+
+
+PeerReport = Callable[[int, SwarmNodeState, Optional[MsgRef]], None]
 
 
 class SwarmPresence:
@@ -22,15 +30,21 @@ class SwarmPresence:
         actor_id: int,
         vehicle: TaskLocationReader,
         sender: TaskMessageSender,
+        lock: threading.RLock,
+        node_state: Callable[[], SwarmNodeState],
         peer_discovered: Callable[[int], None],
+        peer_reported: PeerReport,
         logger: ILogger,
     ) -> None:
         self._actor_id = actor_id
         self._vehicle = vehicle
         self._sender = sender
+        self._lock = lock
+        self._node_state = node_state
         self._peer_discovered = peer_discovered
+        self._peer_reported = peer_reported
         self._logger = logger
-        self._heartbeat = SwarmHeartbeatRuntime(sender)
+        self._heartbeat = SwarmHeartbeatRuntime(self)
 
     def start(self) -> None:
         if not self._heartbeat.start():
@@ -45,16 +59,32 @@ class SwarmPresence:
         return self._heartbeat.is_started()
 
     def stop(self) -> None:
+        # Never under the actor lock: the heartbeat thread takes it.
         self._heartbeat.stop()
 
+    def heartbeat(self) -> Optional[MsgRef]:
+        """Report this node's state.
+
+        The state is read and stamped under the actor lock, so the report
+        is ordered against step-4 copies; it is sent outside the lock.
+        """
+        with self._lock:
+            message = self._sender.heartbeat_message(self._node_state())
+        return self._sender.send_heartbeat(message)
+
     def on_heartbeat(self, message: SwarmHeartbeatMsg) -> None:
-        self._discover_foreign_peer(message.sender_id)
+        if self._discover_foreign_peer(message.sender_id):
+            self._peer_reported(
+                message.sender_id,
+                SwarmNodeState.from_code(message.state),
+                msg_ref(message),
+            )
 
     def on_checkin(self, message: CheckInMsg) -> None:
         if self._discover_foreign_peer(message.sender_id):
             # Reply immediately so a later starter learns incumbents without
             # waiting for the next one-second wall heartbeat.
-            self._sender.heartbeat()
+            self.heartbeat()
         self._logger.info(f"Actor {message.sender_id} checked in.")
 
     def on_checkout(self, message: CheckOutMsg) -> None:
@@ -79,7 +109,7 @@ class SwarmPresence:
             location.alt,
         ))
 
-    def heartbeat_thread(self) -> Thread | None:
+    def heartbeat_thread(self) -> threading.Thread | None:
         return self._heartbeat.heartbeat_thread()
 
     def raise_if_failed(self) -> None:

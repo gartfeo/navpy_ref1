@@ -29,7 +29,7 @@ def test_state_action_dispatcher_dispatches_every_state_from_map(
     phase = NavPhaseState(current=state, previous=state)
     transitions = Mock()
 
-    StateActionDispatcher(phase, transitions, action_map).act()
+    StateActionDispatcher(phase, transitions, action_map, Mock()).act()
 
     action_map[state].assert_called_once_with()
     for candidate, action in action_map.items():
@@ -43,7 +43,7 @@ def test_state_action_dispatcher_requires_complete_nav_state_map(
     del action_map[NavState.RECOVERY]
 
     with pytest.raises(ValueError, match="RECOVERY"):
-        StateActionDispatcher(NavPhaseState(), Mock(), action_map)
+        StateActionDispatcher(NavPhaseState(), Mock(), action_map, Mock())
 
 
 def test_nav_redirect_recomputes_dispatch_before_atomic_commit(
@@ -59,7 +59,7 @@ def test_nav_redirect_recomputes_dispatch_before_atomic_commit(
         oneshot_completed=True,
     )
 
-    StateActionDispatcher(phase, transitions, action_map).act()
+    StateActionDispatcher(phase, transitions, action_map, Mock()).act()
 
     transitions.on_change.assert_called_once_with(
         NavState.NAV,

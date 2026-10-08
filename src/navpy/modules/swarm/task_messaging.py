@@ -24,7 +24,10 @@ from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.msg_abc import MsgABC
 from navpy.modules.comm.messages.msg_meta import MsgMetaProvider
 from navpy.modules.comm.messages.swarm_ack_msg import SwarmAckMsg
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmHeartbeatMsg
+from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+    SwarmHeartbeatMsg,
+    SwarmNodeState,
+)
 from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
 from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.swarm.task_ack_timing import ack_ttl_ms
@@ -137,9 +140,15 @@ class TaskMessageSender:
             ttl_ms=ack_ttl_ms(acked_type),
         )
 
-    def heartbeat(self) -> Optional[MsgRef]:
-        return self._send(
-            SwarmHeartbeatMsg(self._actor_id),
+    def heartbeat_message(self, state: SwarmNodeState) -> SwarmHeartbeatMsg:
+        """Build and stamp a state report; send it with send_heartbeat()."""
+        message = SwarmHeartbeatMsg(self._actor_id, state=int(state))
+        self._stamp(message, None)
+        return message
+
+    def send_heartbeat(self, message: SwarmHeartbeatMsg) -> Optional[MsgRef]:
+        return self._broadcast(
+            message,
             None,
             "Failed to broadcast swarm heartbeat",
         )
@@ -166,9 +175,21 @@ class TaskMessageSender:
         *,
         ttl_ms: Optional[int] = None,
     ) -> Optional[MsgRef]:
+        self._stamp(message, ttl_ms)
+        return self._broadcast(message, success, failure)
+
+    @staticmethod
+    def _stamp(message: MsgABC, ttl_ms: Optional[int]) -> None:
         message.set_meta(MsgMetaProvider.get_instance().create_meta(
             get_ttl_ms(message.msg_type()) if ttl_ms is None else ttl_ms
         ))
+
+    def _broadcast(
+        self,
+        message: MsgABC,
+        success: Optional[str],
+        failure: str,
+    ) -> Optional[MsgRef]:
         try:
             self._network.broadcast(message)
         except OSError as exc:

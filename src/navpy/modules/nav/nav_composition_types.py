@@ -27,6 +27,7 @@ from navpy.modules.nav.detection_freshness import DetectionFreshnessPolicy
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.modules.nav.navigation_task_action import NavigationTaskAction
 from navpy.modules.nav.peer_poi_notification import PeerPoiNotifier
+from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.modules.nav.poi_selection import PoiSelector
 from navpy.modules.nav.navigation_task_reset import (
     AutoMissionResume,
@@ -151,6 +152,7 @@ class NavigationTaskWorkflows:
     peer_geo_acquisition: PeerGeoAcquisition
     selector: PoiSelector
     peer_notifier: PeerPoiNotifier
+    peer_task_priority: PeerTaskPriority
     navigation_task_action: NavigationTaskAction
 
 

@@ -30,6 +30,7 @@ from navpy.modules.nav.nav_composition_types import (
     VehicleApproachOwnership,
 )
 from navpy.modules.nav.nav_state import NavState
+from navpy.modules.nav.nav_task_availability import is_approaching
 from navpy.modules.nav.navigation_loop import (
     DetectionSensor,
     NavigationCycle,
@@ -144,6 +145,9 @@ def compose_nav_application(
             NavState.RESET: navigation.pause,
             NavState.RECOVERY: decision.recovery.act,
         },
+        lambda committed: observation.network.publish_approaching(
+            is_approaching(committed)
+        ),
     )
     sensor = DetectionSensor(
         detection.snapshot,

@@ -11,6 +11,7 @@ from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
 from navpy.modules.nav.mission_navigation import FallbackMissionNavigation
 from navpy.modules.nav.nav_state import NavigationTaskState, FinalApproachNavState
 from navpy.modules.nav.peer_navigation import PeerNavigationCoordinator
+from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.modules.nav.self_detected_approach import SelfDetectedApproach
 from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
 from navpy.modules.vision.detector_ports import TrackingCommandPort
@@ -30,6 +31,7 @@ class NavigationTaskAction:
         tracking: TrackingCommandPort,
         speedup: NavigationSpeedupLease,
         peer_navigation: PeerNavigationCoordinator,
+        peer_task: PeerTaskPriority,
         fallback_navigation: FallbackMissionNavigation,
         self_approach: SelfDetectedApproach,
         final_approach_active: Callable[[], bool],
@@ -42,12 +44,19 @@ class NavigationTaskAction:
         self._tracking = tracking
         self._speedup = speedup
         self._peer_navigation = peer_navigation
+        self._peer_task = peer_task
         self._fallback_navigation = fallback_navigation
         self._self_approach = self_approach
         self._final_approach_active = final_approach_active
         self._logger = logger
 
     def handle_new_poi(self, poi: Optional[DetectedObject]) -> None:
+        if self._peer_task.pending():
+            # The peer task outranks an own POI and the DDH return.
+            if poi is not None:
+                self._peer_task.hand_off(poi)
+            self._peer_navigation.setup()
+            return
         if poi is not None:
             if (
                 self._navigation_task.peer_navigation
@@ -70,11 +79,6 @@ class NavigationTaskAction:
                 return
             if self.start(poi) and is_reask:
                 self._retry.begin_reask(poi)
-        elif (
-            self._peer_navigation.has_assignment()
-            and not self._navigation_task.peer_navigation
-        ):
-            self._peer_navigation.setup()
         elif (
             self._fallback_navigation.should_nav_to_fallback()
             and not self._navigation_task.peer_navigation

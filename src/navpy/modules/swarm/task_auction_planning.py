@@ -17,6 +17,7 @@ from navpy.modules.swarm.task_auction_queries import (
     BidMatrixSignature,
     busy_peers,
     complete_bid_matrix,
+    free_peers,
 )
 
 
@@ -34,7 +35,8 @@ def plan_and_reserve(
         matrix = _required_matrix(store, require_complete_matrix)
         if require_complete_matrix and matrix is None:
             return None
-        busy = busy_peers(store.dispatches)
+        busy = busy_peers(store)
+        free = store.peers.snapshot() - busy
         offers = _available_offers(store)
 
     offered_eta = {
@@ -47,8 +49,10 @@ def plan_and_reserve(
     with store.lock:
         if store.closed or generation != store.generation:
             return None if require_complete_matrix else []
-        if require_complete_matrix and complete_bid_matrix(store) != matrix:
-            return None
+        if (
+            require_complete_matrix and complete_bid_matrix(store) != matrix
+        ) or free_peers(store) != free:
+            return None if require_complete_matrix else []
         return _reserve_valid_plan(store, planned, offered_eta, generation)
 
 
@@ -101,7 +105,8 @@ def _plan_reserve_and_send(
         matrix = _required_matrix(store, require_complete_matrix)
         if require_complete_matrix and matrix is None:
             return None
-        busy = busy_peers(store.dispatches)
+        busy = busy_peers(store)
+        free = store.peers.snapshot() - busy
         offers = _available_offers(store, task_ids)
 
     offered_eta = {
@@ -112,6 +117,7 @@ def _plan_reserve_and_send(
     planned = planner.plan(tuple(offers), set(busy))
 
     with store.lock:
+        # A plan whose free set changed while planning is aborted.
         if (
             store.closed
             or generation != store.generation
@@ -119,6 +125,7 @@ def _plan_reserve_and_send(
                 require_complete_matrix
                 and complete_bid_matrix(store) != matrix
             )
+            or free_peers(store) != free
         ):
             return None
         reservations = _reserve_valid_plan(
@@ -193,7 +200,7 @@ def _reserve_valid_plan(
             or not store.peers.contains(peer_id)
             or (task_id, peer_id) not in offered_eta
             or offered_eta[(task_id, peer_id)] != handle.time_in_min
-            or peer_id in busy_peers(store.dispatches)
+            or peer_id in busy_peers(store)
         ):
             continue
         dispatch.cancel_peer_select_timer()
@@ -204,6 +211,7 @@ def _reserve_valid_plan(
             peer_id=peer_id,
             task=dispatch.task,
             generation=generation,
+            attempt=dispatch.begin_attempt(),
         ))
     return reservations
 

@@ -1,39 +1,57 @@
-"""Owner-side task bidding and assignment coordination."""
+"""Owner-side task bidding and acknowledged assignment coordination."""
 
 from __future__ import annotations
 
+from typing import Optional
+
 from navpy.logger.cache_logger import ILogger
+from navpy.modules.comm.messages.swarm_ack_msg import SwarmAckMsg
+from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
 from navpy.modules.comm.messages.task_assignment_msg import TaskAssignResponseMsg
 from navpy.modules.comm.messages.task_availability_msg import (
     AvailableTaskResponseMsg,
 )
-from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
-from navpy.modules.comm.messages.types import MsgType
+from navpy.modules.comm.messages.task_message_data import TaskHandleMsgData
+from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
 from navpy.modules.swarm.task_auction_confirmation import (
     TaskAssignConfirmation,
 )
 from navpy.modules.swarm.task_auction_models import (
-    AssignConfirmationPolicy,
     AssignConfirmationPorts,
+    ResponseVerdict,
     TaskAssignmentPlanner,
+    TaskRejectOutcome,
     TaskReservation,
+    is_declined_eta,
 )
 from navpy.modules.swarm.task_auction_state import TaskAuctionState
 from navpy.modules.swarm.task_messaging import TaskMessageSender
+from navpy.modules.swarm.task_msg_refs import MsgRef, msg_ref
 from navpy.modules.swarm.task_rebroadcast import TaskRebroadcastCoordinator
 
 
 PEER_SELECTION_DELAY_S = 2.0
 
-# TASK_ASSIGN_REQUEST/RESPONSE are best effort with no ack, so an unanswered
-# request is resent a few times, then the reservation is released once the
-# last request copy has expired at the peer (its TTL); see
-# AssignConfirmationPolicy.
-ASSIGN_CONFIRMATION = AssignConfirmationPolicy(
-    resend_interval_s=1.0,
-    max_sends=3,
-    release_delay_s=get_ttl_ms(MsgType.TASK_ASSIGN_REQUEST) / 1000.0,
-)
+# Step-3 copies, then the release of an unconfirmed reservation.
+ASSIGN_REQUEST_SCHEDULE = ASSIGN_ACK_TIMING.request
+
+# (log level, message) per step-4 verdict; a repeat is not logged.
+_VERDICT_LOGS = {
+    ResponseVerdict.NOT_YOURS: (
+        "warning", "Task dispatch {task} not reserved to {peer}.",
+    ),
+    ResponseVerdict.UNFENCED: (
+        "info",
+        "Task {task}: response from {peer} precedes its request ack; "
+        "asked it to repeat.",
+    ),
+    ResponseVerdict.CONFIRMED: ("info", "Task {task} accepted by {peer}"),
+    ResponseVerdict.REJECTED: ("info", "Task {task} rejected by {peer}"),
+    ResponseVerdict.KEPT: (
+        "warning",
+        "Task {task} stays with {peer}: a confirmed task is never taken back.",
+    ),
+}
 
 
 class TaskAuctionCoordinator:
@@ -61,76 +79,121 @@ class TaskAuctionCoordinator:
         )
 
     def on_available_response(self, message: AvailableTaskResponseMsg) -> None:
-        if not self._state.admits_peer(message.sender_id):
+        peer_id = message.sender_id
+        if not self._state.admits_peer(peer_id):
             self._logger.warning(
-                f"Ignoring task offer from unadmitted peer {message.sender_id}."
+                f"Ignoring task offer from unadmitted peer {peer_id}."
             )
             return
-        offer_recorded = False
+        order = msg_ref(message)
+        # A bid or a decline reports the peer FREE.
+        busy_changed = self._state.observe_peer(
+            peer_id, SwarmNodeState.FREE, order,
+        )
+        answered = False
         for handle in message.tasks:
-            if not self._state.record_offer(
-                handle.task_id,
-                message.sender_id,
-                handle,
-                self._select_peer_for_task,
-                PEER_SELECTION_DELAY_S,
-            ):
-                self._logger.warning(
-                    f"Task {handle.task_id} not found in dispatch list."
-                )
-                continue
-            offer_recorded = True
-            self._logger.info(
-                f"Task {handle.task_id} can be handled by "
-                f"{message.sender_id} in {handle.time_in_min} minutes"
-            )
-        if offer_recorded:
+            answered = self._record_answer(peer_id, handle, order) or answered
+        if busy_changed:
+            self._on_busy_changed()
+        elif answered:
             self._run_complete_assignment()
 
     def on_assign_response(self, message: TaskAssignResponseMsg) -> None:
-        if message.is_accepted:
-            if not self._state.accept(message.task_id, message.sender_id):
-                self._logger.warning(
-                    f"Task dispatch {message.task_id} not found."
-                )
-                return
-            self._logger.info(
-                f"Task {message.task_id} accepted by {message.sender_id}"
+        verdict = self._confirmation.answer_response(message)
+        self._sender.ack(message, verdict.ack_status)
+        log = _VERDICT_LOGS.get(verdict.verdict)
+        if log is not None:
+            level, text = log
+            getattr(self._logger, level)(
+                text.format(task=message.task_id, peer=message.sender_id)
             )
-            return
+        if verdict.reject is not None:
+            self._after_reject(message.task_id, verdict.reject)
+        if verdict.busy_changed:
+            self._on_busy_changed()
 
-        outcome = self._state.reject(message.task_id, message.sender_id)
-        if outcome.kind == "missing":
-            self._logger.warning(
-                f"Task dispatch {message.task_id} not found."
+    def on_request_ack(self, ack: SwarmAckMsg) -> None:
+        task_id = self._confirmation.on_request_ack(ack)
+        if task_id is not None:
+            self._logger.info(
+                f"Task {task_id}: request acked by {ack.sender_id}; "
+                "awaiting its response."
             )
-            return
+
+    def observe_peer(
+        self,
+        peer_id: int,
+        state: SwarmNodeState,
+        order: Optional[MsgRef],
+    ) -> None:
+        """Apply a peer's state report; replan when the busy set changed."""
+        if self._state.observe_peer(peer_id, state, order):
+            self._on_busy_changed()
+
+    def _record_answer(
+        self,
+        peer_id: int,
+        handle: TaskHandleMsgData,
+        order: Optional[MsgRef],
+    ) -> bool:
+        if is_declined_eta(handle.time_in_min):
+            declined = self._state.record_decline(
+                handle.task_id, peer_id, order=order,
+            )
+            if declined:
+                self._logger.info(
+                    f"Task {handle.task_id} declined by {peer_id} "
+                    "(cannot fly it)"
+                )
+            return declined
+        if not self._state.record_offer(
+            handle.task_id,
+            peer_id,
+            handle,
+            self._select_peer_for_task,
+            PEER_SELECTION_DELAY_S,
+            order=order,
+        ):
+            self._logger.warning(
+                f"Task {handle.task_id}: offer from {peer_id} not recorded "
+                "(no available task, invalid ETA, or sent before it was busy)."
+            )
+            return False
         self._logger.info(
-            f"Task {message.task_id} rejected by {message.sender_id}"
+            f"Task {handle.task_id} can be handled by "
+            f"{peer_id} in {handle.time_in_min} minutes"
         )
+        return True
+
+    def _after_reject(self, task_id: int, outcome: TaskRejectOutcome) -> None:
         if outcome.kind == "retry":
-            self._run_retry_assignment(message.task_id, outcome.generation)
+            self._run_retry_assignment(task_id, outcome.generation)
             self._rebroadcast.restart(expected_generation=outcome.generation)
             return
-
         self._logger.warning(
-            f"Task {message.task_id} assignment failed after "
+            f"Task {task_id} assignment failed after "
             f"{outcome.retry_count} retries."
         )
-        if outcome.task is not None:
-            self._rebroadcast.notify_task_available([outcome.task])
-        self._rebroadcast.restart(exclude_task_id=message.task_id)
+        self._rebroadcast.notify_task_available([outcome.task])
+        self._rebroadcast.restart(expected_generation=outcome.generation)
+        self._run_complete_assignment(outcome.generation)
+
+    def _on_busy_changed(self) -> None:
+        self._rebroadcast.restart()
+        self._run_complete_assignment()
 
     def _select_peer_for_task(self, _task_id: int, generation: int) -> None:
         self._run_complete_assignment(generation)
 
     def _send_assignment(self, reservation: TaskReservation) -> bool:
-        if self._sender.assignment_request(reservation) is None:
+        request = self._sender.assignment_request(reservation)
+        if request is None:
             return False
         self._confirmation.arm(
             reservation,
+            request,
             self._on_confirmation_due,
-            ASSIGN_CONFIRMATION,
+            ASSIGN_REQUEST_SCHEDULE,
         )
         return True
 
@@ -138,23 +201,24 @@ class TaskAuctionCoordinator:
         outcome = self._confirmation.due(
             reservation,
             self._confirmation_ports,
-            ASSIGN_CONFIRMATION,
+            ASSIGN_REQUEST_SCHEDULE,
         )
         if outcome.kind == "resent":
             self._logger.warning(
-                f"Task {reservation.task_id}: no assign response from "
-                f"{reservation.peer_id}; resent request "
-                f"({outcome.sends}/{ASSIGN_CONFIRMATION.max_sends})."
+                f"Task {reservation.task_id}: request not acked by "
+                f"{reservation.peer_id}; resent it "
+                f"({outcome.sends}/{ASSIGN_REQUEST_SCHEDULE.copies})."
             )
             return
         if outcome.kind != "released":
             return
         self._logger.warning(
-            f"Task {reservation.task_id}: no assign response from "
+            f"Task {reservation.task_id}: no confirmed response from "
             f"{reservation.peer_id} after {outcome.sends} requests; "
             f"released and re-advertising (retry {outcome.retry_count})."
         )
         self._rebroadcast.restart(expected_generation=outcome.generation)
+        self._run_complete_assignment(outcome.generation)
 
     def _run_retry_assignment(self, task_id: int, generation: int) -> None:
         sent = self._state.plan_retry_reserve_and_send(

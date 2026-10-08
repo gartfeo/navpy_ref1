@@ -35,9 +35,6 @@ class PeerApproachReadyGate:
         self._approach_kind = approach_kind
         self._logger = logger
 
-    def has_assignment(self) -> bool:
-        return self._ports.selected_poi() is not None
-
     def is_ready(self) -> bool:
         selected = self._ports.selected_poi()
         if selected is None:

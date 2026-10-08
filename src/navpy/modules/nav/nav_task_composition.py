@@ -43,6 +43,10 @@ from navpy.modules.nav.peer_approach_ready_gate import (
     PeerApproachReadyPorts,
 )
 from navpy.modules.nav.peer_navigation import PeerNavigationCoordinator
+from navpy.modules.nav.peer_task_priority import (
+    PeerTaskPriority,
+    PeerTaskPriorityPorts,
+)
 from navpy.modules.vehicle.vehicle_interface import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
@@ -203,6 +207,16 @@ def compose_navigation_task_workflows(
         approach_kind,
         logger,
     )
+    peer_task_priority = PeerTaskPriority(
+        PeerTaskPriorityPorts(
+            selected_poi=observation.network.selected_poi,
+            stop_tracking=detection.tracking_commands.stop_tracking,
+        ),
+        state.navigation_task,
+        poi.confirmation_manager,
+        peer_notifier,
+        logger,
+    )
     navigation_task_action = NavigationTaskAction(
         state.navigation_task,
         state.final_approach,
@@ -211,6 +225,7 @@ def compose_navigation_task_workflows(
         detection.tracking_commands,
         approach.speedup,
         peer_navigation,
+        peer_task_priority,
         mission_navigation.fallback_navigation,
         self_approach,
         lambda: navigation.final_approach.is_active,
@@ -221,6 +236,7 @@ def compose_navigation_task_workflows(
         peer_geo_acquisition=peer_geo_acquisition,
         selector=selector,
         peer_notifier=peer_notifier,
+        peer_task_priority=peer_task_priority,
         navigation_task_action=navigation_task_action,
     )
 

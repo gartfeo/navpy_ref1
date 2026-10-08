@@ -56,17 +56,19 @@ class DetectionSensor:
 
 
 class StateActionDispatcher:
-    """Apply transitions once, then dispatch the current phase action."""
+    """Apply transitions once, publish the committed phase, then act."""
 
     def __init__(
         self,
         phase: NavPhaseState,
         transitions: NavigationTransitionHandler,
         actions: Mapping[NavState, Callable[[], None]],
+        publish_phase: Callable[[NavState], None],
     ) -> None:
         self._phase = phase
         self._transitions = transitions
         self._actions = dict(actions)
+        self._publish_phase = publish_phase
         expected = set(NavState)
         provided = set(self._actions)
         if provided != expected:
@@ -95,7 +97,11 @@ class StateActionDispatcher:
                 effective=outcome.effective_state,
                 oneshot_completed=outcome.oneshot_completed,
             )
-        self._actions[self._phase.current]()
+        committed = self._phase.current
+        # A raising transition publishes nothing: the last value stands
+        # until the next commit.
+        self._publish_phase(committed)
+        self._actions[committed]()
 
 
 class NavigationCycle:

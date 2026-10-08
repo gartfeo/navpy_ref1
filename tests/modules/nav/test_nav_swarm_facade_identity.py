@@ -101,10 +101,10 @@ FACADE_EXPORTS = {
         ),
     },
     "navpy.modules.swarm.task_actor_state": {
-        "navpy.modules.swarm.task_actor_slots": (
+        "navpy.modules.swarm.task_actor_slots": ("SelectedTaskSlot",),
+        "navpy.modules.swarm.task_peer_roster": (
             "MAX_REMOTE_PEERS",
             "PeerRoster",
-            "SelectedTaskSlot",
         ),
         "navpy.modules.swarm.task_auction_models": (
             "TaskAssignmentPlanner",
@@ -114,10 +114,7 @@ FACADE_EXPORTS = {
             "TaskReservation",
             "_TaskAuctionStore",
         ),
-        "navpy.modules.swarm.task_auction_state": (
-            "TaskAuctionState",
-            "_busy_peers",
-        ),
+        "navpy.modules.swarm.task_auction_state": ("TaskAuctionState",),
         "navpy.modules.swarm.task_auction_lifecycle": (
             "_shutdown_dispatches",
         ),

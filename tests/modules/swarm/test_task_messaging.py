@@ -11,6 +11,7 @@ from navpy.modules.comm.messages.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     SwarmAckMsg,
 )
+from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
 from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
 from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.comm.network_abc import NetworkAbc
@@ -28,14 +29,19 @@ class TaskMessageSenderErrorBoundaryTest(unittest.TestCase):
         self.network.broadcast.side_effect = TypeError("bad call contract")
 
         with self.assertRaisesRegex(TypeError, "bad call contract"):
-            self.sender.heartbeat()
+            self._heartbeat()
 
     def test_os_error_is_contained_and_reported(self):
         self.network.broadcast.side_effect = OSError("link down")
 
-        self.assertFalse(self.sender.heartbeat())
+        self.assertFalse(self._heartbeat())
         self.logger.error.assert_called_once_with(
             "Failed to broadcast swarm heartbeat: link down"
+        )
+
+    def _heartbeat(self):
+        return self.sender.send_heartbeat(
+            self.sender.heartbeat_message(SwarmNodeState.FREE),
         )
 
 

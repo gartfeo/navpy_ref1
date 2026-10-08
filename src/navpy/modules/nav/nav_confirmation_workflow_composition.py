@@ -14,6 +14,7 @@ from navpy.modules.nav.nav_composition_types import (
     VehicleApproachOwnership,
 )
 from navpy.modules.nav.nav_poi_status_composition import _compose_poi_status
+from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.modules.nav.nav_track_recovery_composition import (
     _compose_track_recovery,
 )
@@ -30,6 +31,7 @@ def compose_confirmation_workflows(
     admission: ConfirmationAdmissionWorkflows,
     reset: ResetWorkflows,
     navigation: NavCapabilities,
+    peer_task: PeerTaskPriority,
 ) -> ConfirmationWorkflows:
     tracking = _compose_track_recovery(
         detection,
@@ -52,6 +54,7 @@ def compose_confirmation_workflows(
         navigation,
         tracking,
         admission.release,
+        peer_task,
     )
     return ConfirmationWorkflows(
         reset=reset,

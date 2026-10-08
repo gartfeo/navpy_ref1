@@ -59,12 +59,10 @@ class TaskRebroadcastCoordinator:
     def restart(
         self,
         *,
-        exclude_task_id: int | None = None,
         expected_generation: int | None = None,
     ) -> None:
         self._rebroadcast.restart_available(
             self._rebroadcast_task,
-            exclude_task_id=exclude_task_id,
             expected_generation=expected_generation,
         )
 

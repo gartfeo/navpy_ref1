@@ -134,6 +134,7 @@ def create_nav_application(
         final_approach.admission,
         final_approach.reset,
         navigation_capabilities,
+        navigation_workflows.peer_task_priority,
     )
     decision = compose_decision_workflows(
         vehicle,

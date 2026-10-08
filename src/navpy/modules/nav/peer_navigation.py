@@ -28,9 +28,6 @@ class PeerNavigationCoordinator:
             selected, navigation_location = prepared
             self._approach.start(selected, navigation_location)
 
-    def has_assignment(self) -> bool:
-        return self._approach_ready_gate.has_assignment()
-
     def near_poi(self) -> bool:
         return self._approach_ready_gate.is_ready()
 

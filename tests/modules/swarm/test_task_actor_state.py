@@ -10,12 +10,20 @@ from navpy.modules.comm.messages.available_task_msg import (
     TaskMsgData,
 )
 from navpy.modules.comm.messages.location_msg import LocationMsgData
+from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
 from navpy.modules.comm.messages.types import TaskDispatchStatus, TaskTypeMsgData
+from navpy.modules.swarm.task_actor_slots import RequestKind
 from navpy.modules.swarm.task_actor_state import create_task_state
 from navpy.modules.swarm.task_assignment_planner import (
     MinimumEtaAssignmentPlanner,
 )
+from navpy.modules.swarm.task_auction_queries import (
+    advert_targets,
+    busy_peers,
+    complete_bid_matrix,
+)
 from navpy.modules.swarm.task_dispatch import TaskDispatch
+from navpy.modules.swarm.task_msg_refs import MsgRef
 
 
 def _task(task_id: int) -> TaskMsgData:
@@ -271,15 +279,19 @@ def test_complete_assignment_send_failure_releases_all_unsent_reservations():
 def test_selected_task_slot_accepts_exactly_one_concurrent_assignment():
     selection, _, _, _ = create_task_state(threading.RLock())
     barrier = threading.Barrier(3)
-    accepted: list[bool] = []
+    decisions: list[RequestKind] = []
 
     def attempt(task_id: int) -> None:
         barrier.wait()
-        accepted.append(selection.try_accept(TaskAssignMsgData(
-            task_id=task_id,
-            task_type=TaskTypeMsgData.DOCK,
-            location=LocationMsgData(1.0, 2.0, 3.0),
-        ), owner_id=1))
+        decisions.append(selection.on_request(
+            TaskAssignMsgData(
+                task_id=task_id,
+                task_type=TaskTypeMsgData.DOCK,
+                location=LocationMsgData(1.0, 2.0, 3.0),
+            ),
+            MsgRef(1, 7, task_id),
+            flyable=True,
+        ).kind)
 
     threads = [threading.Thread(target=attempt, args=(task_id,)) for task_id in (1, 2)]
     for thread in threads:
@@ -288,9 +300,9 @@ def test_selected_task_slot_accepts_exactly_one_concurrent_assignment():
     for thread in threads:
         thread.join(timeout=1.0)
 
-    assert accepted.count(True) == 1
-    assert accepted.count(False) == 1
-    assert selection.selected().task_id in {1, 2}
+    assert decisions.count(RequestKind.WAIT) == 1
+    assert decisions.count(RequestKind.REJECT) == 1
+    assert selection.held().task.task_id in {1, 2}
 
 
 def test_planner_runs_without_holding_auction_state_lock() -> None:
@@ -418,3 +430,125 @@ def test_shutdown_rejects_late_registration_and_is_idempotent() -> None:
     assert dispatch.shutdown.call_count == 1
     assert auction.register(_task(24)) is None
     assert not rebroadcast.discover_peer(2, lambda *_: None)
+
+
+# --- Peer availability (busy UAVs, fuel declines, stale bids) ---------------
+
+FREE, BUSY = SwarmNodeState.FREE, SwarmNodeState.BUSY
+
+
+def _two_peers():
+    _, auction, rebroadcast, _ = create_task_state(threading.RLock())
+    for peer_id in (2, 3):
+        rebroadcast.discover_peer(peer_id, lambda *_: None)
+    return auction, auction._store
+
+
+def _ref(peer_id: int, seq: int, boot_id: int = 70) -> MsgRef:
+    return MsgRef(peer_id, boot_id, seq)
+
+
+def _bid(auction, task_id, peer_id, eta, seq=None):
+    return auction.record_offer(
+        task_id,
+        peer_id,
+        TaskHandleMsgData(task_id=task_id, time_in_min=eta),
+        lambda *_: None,
+        2.0,
+        order=None if seq is None else _ref(peer_id, seq),
+    )
+
+
+def test_busy_set_is_confirming_peers_and_busy_reports_not_confirmed_alone():
+    auction, store = _two_peers()
+    confirming, _ = auction.register(_task(80))
+    confirming.assigned_peer = 2
+    confirming.set_status(TaskDispatchStatus.CONFIRMING)
+    confirmed, _ = auction.register(_task(81))
+    confirmed.assigned_peer = 3
+    confirmed.set_status(TaskDispatchStatus.CONFIRMED)
+
+    assert busy_peers(store) == {2}
+    assert auction.observe_peer(3, BUSY, _ref(3, 5))
+    assert busy_peers(store) == {2, 3}
+    assert auction.observe_peer(3, FREE, _ref(3, 6))
+    assert busy_peers(store) == {2}
+
+
+def test_decline_completes_the_matrix_without_the_declining_peer():
+    auction, store = _two_peers()
+    first, generation = auction.register(_task(90))
+    second, _ = auction.register(_task(91))
+    send = Mock(return_value=True)
+
+    assert _bid(auction, 90, 2, 1.0)
+    assert auction.record_decline(90, 3)
+    assert _bid(auction, 91, 2, 3.0)
+    assert complete_bid_matrix(store) is None
+    assert _bid(auction, 91, 3, 2.0)
+
+    assert auction.plan_reserve_and_send_if_complete(
+        MinimumEtaAssignmentPlanner(), generation, send,
+    )
+    assert {
+        (call.args[0].task_id, call.args[0].peer_id)
+        for call in send.call_args_list
+    } == {(90, 2), (91, 3)}
+    assert 3 in first.answers.declined
+
+
+def test_matrix_signature_tells_a_decline_from_a_bid():
+    auction, store = _two_peers()
+    auction.register(_task(92))
+    _bid(auction, 92, 2, 1.0)
+    auction.record_decline(92, 3)
+    declined = complete_bid_matrix(store)
+
+    _bid(auction, 92, 3, 5.0)
+
+    assert declined is not None
+    assert complete_bid_matrix(store) not in (None, declined)
+
+
+def test_busy_report_withdraws_older_bids_and_later_stale_bids_are_dropped():
+    auction, store = _two_peers()
+    dispatch, _ = auction.register(_task(93))
+    assert _bid(auction, 93, 2, 1.0, seq=10)
+
+    auction.observe_peer(2, BUSY, _ref(2, 11))
+
+    assert 2 not in dispatch.task_handle_by_peer
+    assert not _bid(auction, 93, 2, 1.0, seq=9)
+    assert not auction.record_decline(93, 2, order=_ref(2, 9))
+    assert _bid(auction, 93, 2, 1.0, seq=12)
+
+
+def test_plan_is_aborted_when_the_free_set_changes_while_planning():
+    auction, _ = _two_peers()
+    _, generation = auction.register(_task(94))
+    _bid(auction, 94, 2, 1.0)
+
+    class ReportingPlanner:
+        def plan(self, _offers, _busy):
+            auction.observe_peer(3, BUSY, _ref(3, 1))
+            return [(94, 2)]
+
+    assert auction.plan_and_reserve(ReportingPlanner(), generation) == []
+    assert auction.lookup(94).status is TaskDispatchStatus.AVAILABLE
+
+
+def test_released_peer_gets_the_advert_until_it_answers_or_reports_free():
+    auction, store = _two_peers()
+    dispatch, _ = auction.register(_task(95))
+    _bid(auction, 95, 3, 1.0)
+    dispatch.answers.released_to = 2
+    auction.observe_peer(2, BUSY, _ref(2, 5))  # still waiting for this task
+
+    assert advert_targets(store, dispatch, busy_peers(store)) == {2}
+    _bid(auction, 95, 2, 2.0, seq=6)
+    assert dispatch.answers.released_to is None
+    assert advert_targets(store, dispatch, busy_peers(store)) == set()
+
+    dispatch.answers.released_to = 2
+    auction.observe_peer(2, FREE, _ref(2, 7))
+    assert dispatch.answers.released_to is None
