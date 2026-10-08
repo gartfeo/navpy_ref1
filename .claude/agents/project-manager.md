@@ -47,7 +47,7 @@ Break work into discrete tasks, assign to specialist agents, track progress, res
 ## Quality Gates
 
 Before declaring done:
-- All new code has tests (policy in `AGENTS.md`)
+- The Definition of Done in the root `AGENTS.md` holds
 - Code reviewer has approved
 - Tests pass: `PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -x -q --tb=short`
 

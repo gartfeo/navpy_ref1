@@ -23,7 +23,7 @@ from navpy.modules.comm.messages.types import TaskDispatchStatus, TaskTypeMsgDat
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.common.models.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
-from navpy.modules.swarm.task_state_composition import create_swarm_task_state
+from navpy.modules.swarm.task_state_composition import create_task_state
 from navpy.modules.swarm.task_dispatch import TaskDispatch
 from navpy.modules.vehicle.vehicle_interface import IVehicle
 
@@ -208,9 +208,12 @@ def test_stale_confirmation_timer_cannot_touch_replacement_generation():
     from navpy.modules.swarm.task_auction_coordinator import (
         ASSIGN_CONFIRMATION,
     )
-    from navpy.modules.swarm.task_auction_models import TaskReservation
+    from navpy.modules.swarm.task_auction_models import (
+        AssignConfirmationPorts,
+        TaskReservation,
+    )
 
-    _, auction, rebroadcast, confirmation = create_swarm_task_state(
+    _, auction, rebroadcast, confirmation = create_task_state(
         threading.RLock()
     )
     for peer_id in (2, 3):
@@ -230,7 +233,9 @@ def test_stale_confirmation_timer_cannot_touch_replacement_generation():
     send = Mock(return_value=True)
 
     outcome = confirmation.due(
-        stale, send, lambda _reservation: None, ASSIGN_CONFIRMATION
+        stale,
+        AssignConfirmationPorts(send, Mock(), lambda _reservation: None),
+        ASSIGN_CONFIRMATION,
     )
 
     assert outcome.kind == "stale"
@@ -320,3 +325,108 @@ class TestPeerParticipation:
         ))
 
         assert self.actor.selected_poi().task_id == 10
+
+
+def test_rebroadcast_prepared_before_reservation_is_not_sent_after_it():
+    """A stale advertisement would make the assigned peer drop the task."""
+    vehicle = Mock(spec=IVehicle)
+    vehicle.source_system = 1
+    vehicle.location.return_value = Location(12.34, 56.78, 90.0)
+    network = Mock(spec=NetworkAbc)
+    actor = TaskActor(vehicle, network, Mock(spec=ILogger))
+    actor.start()
+    try:
+        for peer_id in (2, 3):
+            actor.on_message(SwarmHeartbeatMsg(sender_id=peer_id))
+        dispatch = TaskDispatch(_task(10))
+        dispatch.on_peer_available(2, TaskHandleMsgData(10, 1.0))
+        assert actor._auction_state.register_dispatch(dispatch) is not None
+        generation = actor._auction_state.current_generation()
+        rebroadcast_state = actor._rebroadcast._rebroadcast
+        original_prepare = rebroadcast_state.prepare
+
+        def prepare_then_complete_auction(task_id, plan_generation):
+            plan = original_prepare(task_id, plan_generation)
+            # Peer 3's bid lands between prepare and send.
+            dispatch.on_peer_available(3, TaskHandleMsgData(10, 2.0))
+            actor._auction._select_peer_for_task(10, generation)
+            return plan
+
+        network.reset_mock()
+        with (
+            patch.object(
+                rebroadcast_state,
+                "prepare",
+                side_effect=prepare_then_complete_auction,
+            ),
+            patch.object(TaskDispatch, "start_rebroadcast", return_value=None),
+            patch.object(TaskDispatch, "start_confirm_timer", return_value=None),
+        ):
+            actor._rebroadcast._rebroadcast_task(10, generation)
+
+        sent = [call.args[0] for call in network.broadcast.call_args_list]
+        assert dispatch.status is TaskDispatchStatus.CONFIRMING
+        assert [type(message) for message in sent] == [TaskAssignRequestMsg]
+    finally:
+        actor.reset()
+
+
+def test_peer_ignores_advertisement_older_than_accepted_request():
+    from navpy.modules.comm.messages.msg_meta import MsgMeta
+
+    vehicle = Mock(spec=IVehicle)
+    vehicle.source_system = 2
+    vehicle.location.return_value = Location(12.34, 56.78, 90.0)
+    actor = TaskActor(vehicle, Mock(spec=NetworkAbc), Mock(spec=ILogger))
+    actor.start()
+    try:
+        for peer_id in (1, 3):
+            actor.on_message(SwarmHeartbeatMsg(sender_id=peer_id))
+        actor.on_message(TaskAssignRequestMsg(
+            sender_id=1, receiver_id=2, task=_assign_task(10),
+            meta=MsgMeta(boot_id=7, msg_seq=50, time_ms=0, ttl_ms=5000),
+        ))
+
+        # Reordered on the link: sent before the request.
+        actor.on_message(AvailableTaskRequestMsg(
+            sender_id=1, tasks=[_task(10)],
+            meta=MsgMeta(boot_id=7, msg_seq=49, time_ms=0, ttl_ms=5000),
+        ))
+        assert actor.selected_poi().task_id == 10
+
+        with patch(
+            "navpy.modules.swarm.task_actor.FlyEstimator.time_to_fly",
+            return_value=4.0,
+        ):
+            actor.on_message(AvailableTaskRequestMsg(
+                sender_id=1, tasks=[_task(10)],
+                meta=MsgMeta(boot_id=7, msg_seq=51, time_ms=0, ttl_ms=5000),
+            ))
+        assert actor.selected_poi() is None
+    finally:
+        actor.reset()
+
+
+def test_failed_rebroadcast_send_keeps_the_rebroadcast_chain():
+    vehicle = Mock(spec=IVehicle)
+    vehicle.source_system = 1
+    vehicle.location.return_value = Location(12.34, 56.78, 90.0)
+    network = Mock(spec=NetworkAbc)
+    actor = TaskActor(vehicle, network, Mock(spec=ILogger))
+    actor.start()
+    try:
+        for peer_id in (2, 3):
+            actor.on_message(SwarmHeartbeatMsg(sender_id=peer_id))
+        dispatch = TaskDispatch(_task(10))
+        assert actor._auction_state.register_dispatch(dispatch) is not None
+        network.broadcast.side_effect = OSError("link down")
+
+        with patch.object(TaskDispatch, "start_rebroadcast") as start:
+            actor._rebroadcast._rebroadcast_task(
+                10, actor._auction_state.current_generation()
+            )
+
+        start.assert_called_once()
+    finally:
+        network.broadcast.side_effect = None
+        actor.reset()

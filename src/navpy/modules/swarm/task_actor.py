@@ -12,7 +12,7 @@ from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
 from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.swarm.swarm_presence import SwarmPresence
-from navpy.modules.swarm.task_state_composition import create_swarm_task_state
+from navpy.modules.swarm.task_state_composition import create_task_state
 from navpy.modules.swarm.task_assignment_planner import (
     MinimumEtaAssignmentPlanner,
 )
@@ -51,7 +51,7 @@ class TaskActor(ListenerAbc):
         self.logger = logger
         lock = threading.RLock()
         selection, auction_state, rebroadcast_state, confirmation = (
-            create_swarm_task_state(lock)
+            create_task_state(lock)
         )
         sender = TaskMessageSender(self.id, network, logger)
         rebroadcast = TaskRebroadcastCoordinator(

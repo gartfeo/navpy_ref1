@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Optional, Protocol, Sequence
 
@@ -69,6 +69,15 @@ class AssignConfirmationPolicy:
 
 
 @dataclass(frozen=True)
+class AssignConfirmationPorts:
+    """Owner actions a due assign confirmation may take under the lock."""
+
+    send_request: Callable[[TaskReservation], bool]
+    advertise: Callable[[list[TaskMsgData]], bool]
+    on_due: Callable[[TaskReservation], None]
+
+
+@dataclass(frozen=True)
 class TaskConfirmationOutcome:
     """``stale``: reservation no longer current; ``resent``; ``released``."""
 
@@ -97,6 +106,7 @@ class _TaskAuctionStore:
 
 __all__ = [
     "AssignConfirmationPolicy",
+    "AssignConfirmationPorts",
     "TaskAssignmentPlanner",
     "TaskConfirmationOutcome",
     "TaskOffer",

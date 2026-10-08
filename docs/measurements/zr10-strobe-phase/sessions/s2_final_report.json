@@ -1,0 +1,187 @@
+{
+  "input": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\claude\\C--repos-navpy--claude-worktrees-stoic-bell-d79710\\c70c25a2-e9ab-4ae9-8b02-77e6cf8596c1\\scratchpad\\s2_final.jsonl",
+  "meta": {
+    "argv": [
+      "/home/pf/bench/zr10-latency-20260830/measure_zr10_latency.py",
+      "--output",
+      "/home/pf/bench/s2_final.jsonl",
+      "--no-recenter",
+      "--roi-x",
+      "429",
+      "--roi-y",
+      "386",
+      "--roi-w",
+      "400",
+      "--roi-h",
+      "40",
+      "--events",
+      "400",
+      "--on-time",
+      "0.003",
+      "--interval-min",
+      "0.15",
+      "--interval-max",
+      "0.45"
+    ],
+    "roi": [
+      429,
+      386,
+      400,
+      40
+    ],
+    "versions": {
+      "python": "3.10.12",
+      "gstreamer": "GStreamer 1.20.3",
+      "glib": "2.71.3",
+      "numpy": "1.21.5",
+      "kernel": "5.15.185-tegra"
+    },
+    "random_seed": 20260830
+  },
+  "diagnostics": {
+    "frames_rejected_bad_pts": 0,
+    "frames_saturated": 0,
+    "gpio_pairs_malformed": 0,
+    "gpio_edge_span_us": {
+      "median": 32.609,
+      "max": 1021.049
+    }
+  },
+  "frames": 3117,
+  "pulses_total": 400,
+  "pulses_analyzed": 398,
+  "pulses_terminal_excluded": 2,
+  "frame_period_ms": 40.0899160625,
+  "affine": {
+    "alpha": 1.2026974936834518,
+    "beta_ns": 135490933240658.23,
+    "residual_sd_ms": 4.315494773933638,
+    "block_alphas": [
+      1.2027108110256892,
+      1.2027671067398076,
+      1.202708064652015,
+      1.202699225995489,
+      1.2026589574619226,
+      1.2026512390785025
+    ],
+    "block_map_divergence_ms": 0.599680234375
+  },
+  "classes": {
+    "single": 358,
+    "split": 40
+  },
+  "lit_threshold": 12.0,
+  "prior_offset_ms": 99.8,
+  "coarse_latency_ms": 95.721615,
+  "split_crossing": {
+    "offset_ms": -75.8859760078125,
+    "ci95_ms": [
+      -76.067305,
+      -75.52001240625
+    ],
+    "ci_note": "conditional on the fitted affine map; pulses resampled as independent"
+  },
+  "linear_split_diagnostic_ms": -75.31233938201932,
+  "split_phase_balance": {
+    "below_crossing": 15,
+    "above_crossing": 25
+  },
+  "miss_band": {
+    "insufficient": "0 misses / 398 lit; need 15 / 30"
+  },
+  "half_session_drift_ms": null,
+  "canonical": {
+    "offset_wrapped_ms": 4.2938561171875,
+    "source": "split"
+  },
+  "prior_scan": {
+    "rows": [
+      {
+        "step_ms": -20,
+        "classes": {
+          "single": 358,
+          "split": 40
+        },
+        "offset_wrapped_ms": 4.2938561171875,
+        "source": "split"
+      },
+      {
+        "step_ms": -15,
+        "classes": {
+          "single": 358,
+          "split": 40
+        },
+        "offset_wrapped_ms": 4.2938561171875,
+        "source": "split"
+      },
+      {
+        "step_ms": -10,
+        "classes": {
+          "single": 358,
+          "split": 40
+        },
+        "offset_wrapped_ms": 4.2938561171875,
+        "source": "split"
+      },
+      {
+        "step_ms": -5,
+        "classes": {
+          "single": 358,
+          "split": 40
+        },
+        "offset_wrapped_ms": 4.2938561171875,
+        "source": "split"
+      },
+      {
+        "step_ms": 0,
+        "classes": {
+          "single": 358,
+          "split": 40
+        },
+        "offset_wrapped_ms": 4.2938561171875,
+        "source": "split"
+      },
+      {
+        "step_ms": 5,
+        "classes": {
+          "single": 358,
+          "split": 40
+        },
+        "offset_wrapped_ms": 4.2938561171875,
+        "source": "split"
+      },
+      {
+        "step_ms": 10,
+        "classes": {
+          "single": 358,
+          "split": 40
+        },
+        "offset_wrapped_ms": 4.2938561171875,
+        "source": "split"
+      },
+      {
+        "step_ms": 15,
+        "classes": {
+          "single": 358,
+          "unexpected_lit": 14,
+          "split": 26
+        }
+      },
+      {
+        "step_ms": 20,
+        "classes": {
+          "single": 332,
+          "unexpected_lit": 66
+        }
+      }
+    ],
+    "admissible_estimates": 7,
+    "plateau_spread_ms": 0.0,
+    "stable": true,
+    "note": "prior-assignment sensitivity only; a temporal drift common to every prior passes this - it is not a session-drift test"
+  },
+  "verdict": {
+    "valid": true,
+    "failures": []
+  }
+}

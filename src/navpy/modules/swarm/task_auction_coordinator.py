@@ -14,6 +14,7 @@ from navpy.modules.swarm.task_auction_confirmation import (
 )
 from navpy.modules.swarm.task_auction_models import (
     AssignConfirmationPolicy,
+    AssignConfirmationPorts,
     TaskAssignmentPlanner,
     TaskReservation,
 )
@@ -53,6 +54,11 @@ class TaskAuctionCoordinator:
         self._sender = sender
         self._rebroadcast = rebroadcast
         self._logger = logger
+        self._confirmation_ports = AssignConfirmationPorts(
+            send_request=sender.assignment_request,
+            advertise=sender.available,
+            on_due=self._on_confirmation_due,
+        )
 
     def on_available_response(self, message: AvailableTaskResponseMsg) -> None:
         if not self._state.admits_peer(message.sender_id):
@@ -131,8 +137,7 @@ class TaskAuctionCoordinator:
     def _on_confirmation_due(self, reservation: TaskReservation) -> None:
         outcome = self._confirmation.due(
             reservation,
-            self._sender.assignment_request,
-            self._on_confirmation_due,
+            self._confirmation_ports,
             ASSIGN_CONFIRMATION,
         )
         if outcome.kind == "resent":

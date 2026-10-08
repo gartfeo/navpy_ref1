@@ -1,6 +1,10 @@
 """Tests for vision profile optimized_altitude persistence."""
 import json
+import tempfile
+import threading
 import unittest
+from contextlib import contextmanager
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -75,28 +79,31 @@ class TestOptimizedAltitude(unittest.TestCase):
         self.client = TestClient(self.app)
         # Deep-copy so each test starts fresh
         self._data = json.loads(json.dumps(SAMPLE_PROFILES_DATA))
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self._path = Path(tmp.name) / "vision_profiles.json"
 
+    @contextmanager
     def _patch_load(self):
-        """Patch load_profiles to use in-memory data with a fake Path."""
+        """Back load_profiles with a real temp file seeded from ``self._data``.
+
+        A real file (not an in-memory fake) so the route's atomic
+        temp-file + replace write is exercised. Every load re-syncs
+        ``self._data`` from disk so tests can assert on what was persisted.
+        """
         test = self
-
-        class FakePath:
-            def read_text(self_path):
-                return json.dumps(test._data)
-
-            def write_text(self_path, text):
-                test._data = json.loads(text)
-
-        fake_path = FakePath()
+        self._path.write_text(json.dumps(self._data), encoding="utf-8")
 
         def _load():
+            test._data = json.loads(test._path.read_text(encoding="utf-8"))
             d = test._data
-            return d["profiles"], d["default_profile"], fake_path
+            return d["profiles"], d["default_profile"], test._path
 
-        return patch(
+        with patch(
             "gcs.backend.routes.vision_profiles.load_profiles",
             side_effect=_load,
-        )
+        ):
+            yield
 
     def test_catalog_returns_null_when_no_optimized_altitude(self):
         with self._patch_load():
@@ -232,6 +239,94 @@ class TestOptimizedAltitude(unittest.TestCase):
             self._data["profiles"]["profile_a"]["devices"][0]["gimbal"]["camera_pitch"],
             -30,
         )
+
+
+class TestVisionProfileWriteSafety(unittest.TestCase):
+    """The PUT routes rewrite a file the NavPy companions also read: a crash
+    mid-write must not leave it truncated, and concurrent edits must not
+    drop each other's changes."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.path = Path(tmp.name) / "vision_profiles.json"
+        self.path.write_text(json.dumps(SAMPLE_PROFILES_DATA, indent=2) + "\n", encoding="utf-8")
+        self.client = TestClient(_make_app(), raise_server_exceptions=False)
+
+        def _load():
+            d = json.loads(self.path.read_text(encoding="utf-8"))
+            return d["profiles"], d["default_profile"], self.path
+
+        self.load = _load
+        for target, kwargs in (
+            ("gcs.backend.routes.vision_profiles.load_profiles", {"side_effect": _load}),
+            ("gcs.backend.routes.vision_profiles._restart_navpy_if_active_profile_changed", {}),
+        ):
+            patcher = patch(target, **kwargs)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _assert_crash_keeps_file(self, method_path, body):
+        from gcs.backend import atomic_json
+
+        before = self.path.read_text(encoding="utf-8")
+        with patch.object(atomic_json.os, "replace", side_effect=OSError("simulated crash")):
+            resp = self.client.put(method_path, json=body)
+        self.assertEqual(resp.status_code, 500)
+        self.assertEqual(self.path.read_text(encoding="utf-8"), before)
+        self.assertEqual([p.name for p in self.path.parent.iterdir()], [self.path.name])
+
+    def test_set_default_write_is_atomic(self):
+        self._assert_crash_keeps_file("/api/vision-profiles/default/profile_b", None)
+
+    def test_device_update_write_is_atomic(self):
+        self._assert_crash_keeps_file(
+            "/api/vision-profiles/profile_a/devices/cam1", {"zoom": "1", "pitch_deg": -30})
+
+    def test_profile_update_write_is_atomic(self):
+        self._assert_crash_keeps_file("/api/vision-profiles/profile_a", {"min_pitch": -50})
+
+    def test_concurrent_edits_do_not_lose_updates(self):
+        """Edit A is paused mid-write; edit B must not read the file until A
+        has committed, otherwise B rewrites stale data and drops A's change."""
+        from gcs.backend.routes import vision_profiles as route
+
+        a_writing = threading.Event()
+        b_loaded = threading.Event()
+        real_write = route.atomic_write_json
+        calls = {"n": 0}
+
+        def paused_write(path, data):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                a_writing.set()
+                # Without a lock B loads now; with one it blocks. Either way
+                # A resumes (B's load, or the bounded wait expiring).
+                b_loaded.wait(timeout=1.0)
+            real_write(path, data)
+
+        def b_load():
+            if threading.current_thread().name == "edit-b":
+                b_loaded.set()
+            return self.load()
+
+        with (
+            patch.object(route, "atomic_write_json", side_effect=paused_write),
+            patch.object(route, "load_profiles", side_effect=b_load),
+        ):
+            a = threading.Thread(target=route.update_profile_params,
+                                 args=("profile_a", route.ProfileUpdate(min_pitch=-50)), name="edit-a")
+            b = threading.Thread(target=route.update_profile_params,
+                                 args=("profile_a", route.ProfileUpdate(max_pitch=10)), name="edit-b")
+            a.start()
+            self.assertTrue(a_writing.wait(timeout=5))
+            b.start()
+            a.join(timeout=5)
+            b.join(timeout=5)
+
+        detector = json.loads(self.path.read_text(encoding="utf-8"))["profiles"]["profile_a"]["detector"]
+        self.assertEqual(detector["min_pitch"], -50)
+        self.assertEqual(detector["max_pitch"], 10)
 
 
 if __name__ == "__main__":

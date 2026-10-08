@@ -1,0 +1,212 @@
+{
+  "version": 2,
+  "matrix_sha256": "88923ac756ecf371835bc2062eb065aa9cfad315a2bc0485519c1dcd95168e14",
+  "common_window_us": [
+    55026312,
+    83286312
+  ],
+  "arms": {
+    "rounded": {
+      "common_window": {
+        "fresh_commands": 1128,
+        "duration_s": 28.15999999999999,
+        "law_branches": {
+          "normal": 1128
+        },
+        "roll": {
+          "max_step_deg": 70.0,
+          "p95_step_deg": 2.7321360519016644,
+          "total_variation_deg": 962.829909822222,
+          "variation_per_s": 34.191403047664146,
+          "clipped_commands": 7,
+          "clipped_fraction": 0.0062056737588652485
+        },
+        "pitch": {
+          "max_step_deg": 7.261061558239662,
+          "p95_step_deg": 0.02169016944859843,
+          "total_variation_deg": 18.211828224561234,
+          "variation_per_s": 0.6467268545653849,
+          "clipped_commands": 0,
+          "clipped_fraction": 0.0
+        },
+        "largest_roll_step": {
+          "source_s": 83.106312,
+          "dt_s": 0.01999999999999602,
+          "before_deg": 35.0,
+          "after_deg": -35.0,
+          "before_branch": "normal",
+          "after_branch": "normal",
+          "visual_rate_change_deg_s": -6.220699767537058,
+          "own_turn_change_deg_s": -0.9749137167900523
+        }
+      },
+      "own_window": {
+        "fresh_commands": 1128,
+        "duration_s": 28.15999999999999,
+        "law_branches": {
+          "normal": 1128
+        },
+        "roll": {
+          "max_step_deg": 70.0,
+          "p95_step_deg": 2.7321360519016644,
+          "total_variation_deg": 962.829909822222,
+          "variation_per_s": 34.191403047664146,
+          "clipped_commands": 7,
+          "clipped_fraction": 0.0062056737588652485
+        },
+        "pitch": {
+          "max_step_deg": 7.261061558239662,
+          "p95_step_deg": 0.02169016944859843,
+          "total_variation_deg": 18.211828224561234,
+          "variation_per_s": 0.6467268545653849,
+          "clipped_commands": 0,
+          "clipped_fraction": 0.0
+        },
+        "largest_roll_step": {
+          "source_s": 83.106312,
+          "dt_s": 0.01999999999999602,
+          "before_deg": 35.0,
+          "after_deg": -35.0,
+          "before_branch": "normal",
+          "after_branch": "normal",
+          "visual_rate_change_deg_s": -6.220699767537058,
+          "own_turn_change_deg_s": -0.9749137167900523
+        }
+      },
+      "seed_step": 752,
+      "first_pass_step": 2165,
+      "pass_source_us": 83286312,
+      "phase_duration_s": 28.26,
+      "closest_approach": {
+        "distance_m": 0.06195519465831512,
+        "segment_start_step": 2162,
+        "segment_fraction": 0.3365328872359721,
+        "sampled_distance_m": 0.25701457290203894,
+        "sampled_step": 2162,
+        "samples": 1414,
+        "source": "piecewise-linear precast smoothed camera pose in both flights, seed through first visual pass inclusive; interpolation is a scoring estimate"
+      },
+      "exact_replay": true,
+      "causality": {
+        "sample_count": 1128,
+        "roll_max_residual_deg": 3.552713678800501e-15,
+        "pitch_max_residual_deg": 8.881784197001252e-16,
+        "roll_max_step_deg": 70.0,
+        "pitch_max_step_deg": 7.261061558239662,
+        "held_sample_count": 0
+      },
+      "evidence_sha256": {
+        "peer.json": "6898bfaa6164a6bac3e127a3523a378db33d5c95625a6cff81d59eb9c42eaa7a",
+        "navpy-pose.csv": "eb1bf1d8ba39d7b2256544be707140f145a6f497d341f49ddf5ffac00d3eeb39"
+      }
+    },
+    "precast": {
+      "common_window": {
+        "fresh_commands": 1128,
+        "duration_s": 28.15999999999999,
+        "law_branches": {
+          "normal": 1128
+        },
+        "roll": {
+          "max_step_deg": 18.025057451633323,
+          "p95_step_deg": 0.13897628768760972,
+          "total_variation_deg": 70.49443960364727,
+          "variation_per_s": 2.503353679106793,
+          "clipped_commands": 3,
+          "clipped_fraction": 0.0026595744680851063
+        },
+        "pitch": {
+          "max_step_deg": 5.81588698885489,
+          "p95_step_deg": 0.021501442464884234,
+          "total_variation_deg": 17.749327747381976,
+          "variation_per_s": 0.6303028319382806,
+          "clipped_commands": 0,
+          "clipped_fraction": 0.0
+        },
+        "largest_roll_step": {
+          "source_s": 83.186312,
+          "dt_s": 0.01999999999999602,
+          "before_deg": 16.974942548366677,
+          "after_deg": 35.0,
+          "before_branch": "normal",
+          "after_branch": "normal",
+          "visual_rate_change_deg_s": 1.4103101948062011,
+          "own_turn_change_deg_s": 0.3983745836931674
+        }
+      },
+      "own_window": {
+        "fresh_commands": 1128,
+        "duration_s": 28.15999999999999,
+        "law_branches": {
+          "normal": 1128
+        },
+        "roll": {
+          "max_step_deg": 18.025057451633323,
+          "p95_step_deg": 0.13897628768760972,
+          "total_variation_deg": 70.49443960364727,
+          "variation_per_s": 2.503353679106793,
+          "clipped_commands": 3,
+          "clipped_fraction": 0.0026595744680851063
+        },
+        "pitch": {
+          "max_step_deg": 5.81588698885489,
+          "p95_step_deg": 0.021501442464884234,
+          "total_variation_deg": 17.749327747381976,
+          "variation_per_s": 0.6303028319382806,
+          "clipped_commands": 0,
+          "clipped_fraction": 0.0
+        },
+        "largest_roll_step": {
+          "source_s": 83.186312,
+          "dt_s": 0.01999999999999602,
+          "before_deg": 16.974942548366677,
+          "after_deg": 35.0,
+          "before_branch": "normal",
+          "after_branch": "normal",
+          "visual_rate_change_deg_s": 1.4103101948062011,
+          "own_turn_change_deg_s": 0.3983745836931674
+        }
+      },
+      "seed_step": 752,
+      "first_pass_step": 2165,
+      "pass_source_us": 83286312,
+      "phase_duration_s": 28.26,
+      "closest_approach": {
+        "distance_m": 0.010580707072888102,
+        "segment_start_step": 2162,
+        "segment_fraction": 0.3284211622885915,
+        "sampled_distance_m": 0.243254795740118,
+        "sampled_step": 2162,
+        "samples": 1414,
+        "source": "piecewise-linear precast smoothed camera pose in both flights, seed through first visual pass inclusive; interpolation is a scoring estimate"
+      },
+      "exact_replay": true,
+      "causality": {
+        "sample_count": 1128,
+        "roll_max_residual_deg": 3.552713678800501e-15,
+        "pitch_max_residual_deg": 0.0,
+        "roll_max_step_deg": 18.025057451633323,
+        "pitch_max_step_deg": 5.81588698885489,
+        "held_sample_count": 0
+      },
+      "evidence_sha256": {
+        "peer.json": "c0caf2e622f95df32cfacea68c96529b5910fdbb0cf792030e98222a7aca0a28",
+        "navpy-pose.csv": "cd2d80d8b536b370ee2866841120a48fdc5f33257f27ab96db0eadde65dd3620"
+      }
+    }
+  },
+  "method_sha256": {
+    "pose_precision_analysis.py": "9d1d0f7fa22cf3475c5a5a0e99a788e2d20ba0e10911bb866e4bc7dda6491381",
+    "pose_precision_evidence.py": "bb35b5518e03d0c1226e684329e777db921c4b18d11836f7668a8a56bd424a6d",
+    "run_pose_precision_matrix.py": "53adca7b023bf1dd5aa2decd3c385fb9ae4eda53d6bf282e3b2e74b6305ec2d1",
+    "replay_navigation_trace.py": "22d14f181a33362d6b15c429b0af1a753e57268eede0d181c0739e1d4a2f4ed0",
+    "compare_lockstep_fleet.py": "c2b88358bf2a5e068e6af61f8a33c2e8631f59e20130eb28eef178cccaf4e709",
+    "compare_noise_matrix.py": "2bead3ebe3f9877a17391b4a0ae298c022d1902f5a5d68587f03aa13da6d9104"
+  },
+  "acceptance": {
+    "accepted": true,
+    "roll_variation_lower": true,
+    "closest_approach_not_regressed": true
+  },
+  "limits": "One vehicle and scenario. Repeatability across speed/delivery timing, not robustness. Camera-pose closest approach and visual pass do not establish docking or cargo receipt. The law, estimator and sensor noise profile were held fixed."
+}

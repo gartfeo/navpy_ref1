@@ -1,0 +1,48 @@
+{
+  "sessions": [
+    {
+      "label": "baseline",
+      "input": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\claude\\C--repos-navpy--claude-worktrees-stoic-bell-d79710\\c70c25a2-e9ab-4ae9-8b02-77e6cf8596c1\\scratchpad\\s2_final.jsonl",
+      "roi": [
+        429,
+        386,
+        400,
+        40
+      ],
+      "alpha": 1.2026974936834518,
+      "offset_wrapped_ms": 4.2938561171875,
+      "source": "split",
+      "frame_period_ms": 40.0899160625,
+      "coarse_latency_ms": 95.721615,
+      "prior_offset_ms": 99.8,
+      "valid": true
+    },
+    {
+      "label": "restart",
+      "input": "C:\\Users\\GARTF\\AppData\\Local\\Temp\\claude\\C--repos-navpy--claude-worktrees-stoic-bell-d79710\\c70c25a2-e9ab-4ae9-8b02-77e6cf8596c1\\scratchpad\\s1_restart2.jsonl",
+      "roi": [
+        158,
+        383,
+        400,
+        40
+      ],
+      "alpha": 1.2026954358817086,
+      "offset_wrapped_ms": 4.186609765625,
+      "source": "split",
+      "frame_period_ms": 40.08984746875,
+      "coarse_latency_ms": 97.146632,
+      "prior_offset_ms": 99.8,
+      "valid": true
+    }
+  ],
+  "excluded_from_contrasts": [],
+  "deltas_vs_first_ms": [
+    {
+      "label": "restart",
+      "delta_ms": -0.10724635156250173,
+      "circular_delta_ms": -0.10724635156250173,
+      "branch_periods": 0
+    }
+  ],
+  "offset_spread_ms": 0.10724635156250173
+}

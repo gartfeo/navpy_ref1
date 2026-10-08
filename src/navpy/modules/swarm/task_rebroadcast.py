@@ -51,7 +51,7 @@ class TaskRebroadcastCoordinator:
             )
 
     def notify_task_available(self, tasks: list[TaskMsgData]) -> None:
-        self._sender.available(tasks)
+        self._rebroadcast.send_if_available(tasks, self._sender.available)
 
     def peer_discovered(self, peer_id: int) -> None:
         self._rebroadcast.discover_peer(peer_id, self._rebroadcast_task)
@@ -75,7 +75,12 @@ class TaskRebroadcastCoordinator:
         plan = self._rebroadcast.prepare(task_id, generation)
         if plan is None:
             return
-        self._sender.available([plan.task])
+        # A failed send keeps the schedule; only a reserved task stops it.
+        if self._rebroadcast.send_if_available(
+            [plan.task],
+            self._sender.available,
+        ) is None:
+            return
         self._logger.info(
             f"Rebroadcast task {task_id}, waiting for "
             f"{plan.missing_count} peers"
