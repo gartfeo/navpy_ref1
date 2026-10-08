@@ -4,7 +4,7 @@
 
 NavPy develops cooperative UAV swarm technology: autonomous navigation, fleet
 coordination and vision-based final approach for multi-UAV missions. The swarm
-core is the product; it is generic, mission-agnostic and non-weaponized, and
+core is the product; it is generic, mission-agnostic and for civilian use, and
 mission functions are plug-and-play modules on top of it. Module families
 include:
 - survey/inspection (e.g. factories and industrial sites),
