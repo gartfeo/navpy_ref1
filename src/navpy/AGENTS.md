@@ -16,6 +16,7 @@ modules plug in on top (see root `AGENTS.md`). Source lives in `src/navpy/`.
   `CONFIRM`, `NAV`, `RESET`, `RECOVERY`
 - `modules/comm`: `NetworkWifi`, `NetworkSerial`, `NetworkMavlink`
 - `modules/swarm`: `TaskActor`, `TaskDispatch`, multi-vehicle coordination
+  (assignment acks: `docs/design/swarm-task-assignment-ack.md`)
 
 Common patterns: ABC interfaces with `@abstractmethod`, args dataclasses in
 `src/navpy/args/`, factory functions such as `create_vehicle()` and
