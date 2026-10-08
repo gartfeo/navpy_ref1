@@ -11,6 +11,7 @@ from navpy.modules.swarm.task_auction_models import (
     _TaskAuctionStore,
 )
 from navpy.modules.swarm.task_auction_queries import busy_peers
+from navpy.modules.swarm.task_msg_refs import MsgRef
 
 
 class TaskRebroadcastState:
@@ -117,7 +118,7 @@ class TaskRebroadcastState:
     def send_if_available(
         self,
         tasks: list[TaskMsgData],
-        send: Callable[[list[TaskMsgData]], bool],
+        send: Callable[[list[TaskMsgData]], Optional[MsgRef]],
     ) -> Optional[bool]:
         """Advertise only still-AVAILABLE tasks, under the store lock.
 
@@ -138,7 +139,7 @@ class TaskRebroadcastState:
             ]
             if not available:
                 return None
-            return send(available)
+            return send(available) is not None
 
     def peer_ids(self) -> set[int]:
         return self._store.peers.snapshot()

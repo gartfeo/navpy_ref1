@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import threading
-from typing import Protocol
+from typing import Optional, Protocol
 
 from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.modules.swarm.task_msg_refs import MsgRef
 
 
 HEARTBEAT_INTERVAL_S = 1.0
@@ -13,7 +14,7 @@ HEARTBEAT_JOIN_TIMEOUT_S = 2.0
 
 
 class HeartbeatEmitter(Protocol):
-    def heartbeat(self) -> bool: ...
+    def heartbeat(self) -> Optional[MsgRef]: ...
 
 
 class SwarmHeartbeatRuntime:

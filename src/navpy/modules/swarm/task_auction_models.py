@@ -10,6 +10,7 @@ from typing import Optional, Protocol, Sequence
 from navpy.modules.comm.messages.task_message_data import TaskMsgData
 from navpy.modules.swarm.task_actor_slots import PeerRoster
 from navpy.modules.swarm.task_dispatch import TaskDispatch
+from navpy.modules.swarm.task_msg_refs import MsgRef
 
 
 UNAVAILABLE_ASSIGNMENT_COST = 1e9
@@ -72,8 +73,8 @@ class AssignConfirmationPolicy:
 class AssignConfirmationPorts:
     """Owner actions a due assign confirmation may take under the lock."""
 
-    send_request: Callable[[TaskReservation], bool]
-    advertise: Callable[[list[TaskMsgData]], bool]
+    send_request: Callable[[TaskReservation], Optional[MsgRef]]
+    advertise: Callable[[list[TaskMsgData]], Optional[MsgRef]]
     on_due: Callable[[TaskReservation], None]
 
 

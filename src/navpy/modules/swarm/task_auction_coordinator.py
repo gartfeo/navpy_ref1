@@ -125,7 +125,7 @@ class TaskAuctionCoordinator:
         self._run_complete_assignment(generation)
 
     def _send_assignment(self, reservation: TaskReservation) -> bool:
-        if not self._sender.assignment_request(reservation):
+        if self._sender.assignment_request(reservation) is None:
             return False
         self._confirmation.arm(
             reservation,

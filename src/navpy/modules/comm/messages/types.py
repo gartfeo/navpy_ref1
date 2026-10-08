@@ -20,7 +20,7 @@ class MsgType(Enum):
     VOTE_PHASE = 220
     SEARCH_STATUS = 300
     LOG_STATUS = 1000
-    SWARM_ACK = 170          # Generic ack of any message by dedup UID (navlink 25110; no sender today)
+    SWARM_ACK = 170          # Generic ack of any message by dedup UID (navlink 25110; task assignment)
     SWARM_REQUEST = 180      # Generic retransmit/resource/force-confirm request (navlink 25111)
     UNKNOWN = 0  # Unrecognized message types
 

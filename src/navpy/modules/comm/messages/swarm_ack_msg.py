@@ -5,10 +5,9 @@ Redefines the reserved 25110 slot (formerly TASK_CONFIRM_ACK) as a generic,
 message-agnostic acknowledgement: it acks any message by that message's dedup
 UID (sender_id, boot_id, msg_seq), not just confirm-requests.
 
-NOTE: no code currently sends or consumes this message. The confirm path's
-auto-ack/stop-signal machinery it was built for was removed as dead code; the
-class is kept for wire compatibility with the navlink 25110 definition and as
-the ready-made ack shape for a future sender that actually needs one.
+The swarm task-assignment handshake sends and consumes it (TaskMessageSender
+.ack, TaskAckRouter; docs/design/swarm-task-assignment-ack.md): an ack lives
+as long as the message it acknowledges.
 
 Mirrors the TaskConfirmResponseMsg pattern (available_task_msg.py) exactly:
 receiver_id maps to the native target_system field, meta carries the

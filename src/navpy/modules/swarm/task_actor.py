@@ -12,6 +12,7 @@ from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
 from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.swarm.swarm_presence import SwarmPresence
+from navpy.modules.swarm.task_ack_routing import TaskAckRouter
 from navpy.modules.swarm.task_state_composition import create_task_state
 from navpy.modules.swarm.task_assignment_planner import (
     MinimumEtaAssignmentPlanner,
@@ -97,6 +98,7 @@ class TaskActor(ListenerAbc):
                 MsgType.TASK_ASSIGN_RESPONSE: auction.on_assign_response,
                 MsgType.CHECK_IN: presence.on_checkin,
                 MsgType.CHECK_OUT: presence.on_checkout,
+                MsgType.SWARM_ACK: TaskAckRouter({}, logger).route,
             },
             logger,
         )
