@@ -159,6 +159,8 @@ approaching, the peer task preempts:
 - CONFIRM of an own POI: the own POI is dropped (active POI cleared, status
   DROPPED, never offered); then DETECT starts the peer approach. DROPPED is
   not final: if it is the assigned dock, the peer approach takes it up again.
+  Open: a confirmation round already in flight keeps asking the operator and,
+  at its deadline, overwrites DROPPED (follow-up: cancel it on the drop).
 - NAV (approaching): cannot happen, the UAV is BUSY and rejects step 3.
 
 **Heartbeat.** `SwarmPresence.heartbeat()` reads the state and stamps meta
