@@ -1,13 +1,14 @@
 # Swarm task assignment with acknowledgments
 
-Status: **design agreed 2026-10-07; steps 1–6 (swarm core) implemented
-2026-10-08, GCS steps 6a–6c and the live check (8) pending.** Until 6a–6c
-land, the GCS ignores SWARM_ACK and shows every request/response copy.
+Status: **design agreed 2026-10-07; steps 1–6 (swarm core) and 6a (GCS
+backend) implemented 2026-10-08; 6b–6c and the live check (8) pending.**
+Until 6b lands, the UI shows every request/response copy; until 6c, the demo
+audit rejects repeated copies.
 Based on `origin/main` 1bd24d1 (includes 1b4bbf3 assign resend/release and
 d8605f6 adverts fenced against assign requests). Owner = UAV that
 advertises the task; helper = peer that bids and flies it.
 
-Implementation notes (steps 1–6):
+Implementation notes:
 - Nav publishes "approaching" every cycle, but only a change reaches the
   actor's lock; a reject repeat's first copy is sent from its timer thread,
   so the nav thread never sends.
@@ -16,6 +17,9 @@ Implementation notes (steps 1–6):
 - Owners stop advertising to a released peer once the task is reserved
   again; that peer then learns from the RECEIVED answer to its next step 4,
   or its 18 s expiry.
+- GCS: a step-4 copy and the APPLIED naming it arrive on different vehicle
+  links (threads), so an APPLIED heard first waits, one per helper, for its
+  copy. `swarm` is a telemetry change key, so a new beat is broadcast.
 
 ## Problem
 

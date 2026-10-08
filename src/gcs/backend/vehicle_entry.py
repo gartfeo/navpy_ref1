@@ -10,6 +10,7 @@ from navpy.modules.vehicle.vehicle_mav import (
     VehicleMav, PREARM_STATE_OK, PREARM_STATE_CHECKS_DISABLED, PREARM_STATE_FAILED,
 )
 from gcs.backend.companion_identity import COMPANION_TELEMETRY_COMPONENT_IDS, is_from_companion
+from gcs.backend.companion_swarm_state import CompanionSwarmState
 from gcs.backend.vehicle_status import ACCEL_CAL_ACTIVE_WINDOW_S, RC_CHANNELS_MAX, CONFIRM_BLOCKED_STALE_S
 from gcs.backend import vehicle_status, vehicle_camera, vehicle_snapshot
 
@@ -55,6 +56,8 @@ class VehicleEntry:
         self._gimbal_lock = threading.Lock()
         self._rc_channels: list[Optional[int]] = []
         self._rc_lock = threading.Lock()
+        # FREE/BUSY from the own companion's SWARM_HEARTBEAT.
+        self._swarm_state = CompanionSwarmState(sys_id)
         vehicle.on_message("STATUSTEXT", self._on_statustext)
         vehicle.on_message(
             "GIMBAL_DEVICE_ATTITUDE_STATUS",
@@ -63,6 +66,7 @@ class VehicleEntry:
         vehicle.on_message("CAMERA_FOV_STATUS", self._on_camera_fov_status)
         vehicle.on_message("CAMERA_SETTINGS", self._on_camera_settings)
         vehicle.on_message("RC_CHANNELS", self._on_rc_channels)
+        vehicle.on_message("SWARM_HEARTBEAT", self._swarm_state.on_heartbeat)
 
     def mark_accel_cal_active(self) -> None:
         """Mark that a GCS-initiated accel calibration is in progress.

@@ -75,6 +75,7 @@ def snapshot(entry: VehicleEntry) -> dict:
         "rc3": v.rc3_raw,
         "gimbals": entry._gimbal_snapshot(),
         "confirm_blocked": entry._confirm_blocked,
+        "swarm": entry._swarm_state.snapshot(),
     }
     rc_channels = entry._rc_channels_snapshot()
     if rc_channels is not None:

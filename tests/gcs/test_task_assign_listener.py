@@ -16,7 +16,15 @@ from navpy.modules.comm.messages.available_task_msg import (
     TaskMsgData,
 )
 from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.types import TaskTypeMsgData
+from navpy.modules.comm.messages.msg_meta import MsgMeta
+from navpy.modules.comm.messages.swarm_ack_msg import (
+    ACK_STATUS_APPLIED,
+    ACK_STATUS_PROCESSING,
+    ACK_STATUS_RECEIVED,
+    SwarmAckMsg,
+)
+from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
+from scripts.eval_gcs_demo_assignment_audit import _REQUEST, _RESPONSE
 
 
 @pytest.fixture
@@ -42,8 +50,15 @@ def mock_vehicle():
 AUTOPILOT_COMPONENT_ID = 1
 
 
+def _meta(uid):
+    if uid is None:
+        return None
+    boot_id, msg_seq = uid
+    return MsgMeta(boot_id=boot_id, msg_seq=msg_seq, time_ms=0, ttl_ms=5000)
+
+
 def _make_assign_request_msg(sender_id, receiver_id, task_id, lat, lon, alt,
-                             src_component=COMPANION_COMPONENT_ID):
+                             src_component=COMPANION_COMPONENT_ID, uid=None):
     """Create a mock MAVLink message for TaskAssignRequest."""
     req = TaskAssignRequestMsg(
         sender_id=sender_id,
@@ -53,6 +68,7 @@ def _make_assign_request_msg(sender_id, receiver_id, task_id, lat, lon, alt,
             task_type=TaskTypeMsgData.DOCK,
             location=LocationMsgData(lat=lat, lng=lon, alt=alt),
         ),
+        meta=_meta(uid),
     )
     mav_msg = req.to_mavlink()
     mav_msg.get_srcSystem = MagicMock(return_value=sender_id)
@@ -60,13 +76,15 @@ def _make_assign_request_msg(sender_id, receiver_id, task_id, lat, lon, alt,
     return mav_msg
 
 
-def _make_assign_response_msg(sender_id, receiver_id, task_id, is_accepted):
+def _make_assign_response_msg(sender_id, receiver_id, task_id, is_accepted,
+                              uid=None):
     """Create a mock MAVLink message for TaskAssignResponse."""
     resp = TaskAssignResponseMsg(
         sender_id=sender_id,
         receiver_id=receiver_id,
         task_id=task_id,
         is_accepted=is_accepted,
+        meta=_meta(uid),
     )
     mav_msg = resp.to_mavlink()
     mav_msg.get_srcSystem = MagicMock(return_value=sender_id)
@@ -312,5 +330,218 @@ class TestOnNavlink:
         payload = mock_ws.broadcast.call_args[0][0]
         assert payload["type"] == "task_assign_request"
         assert payload["task_id"] == 7
+
+
+OWNER, HELPER, OTHER = 1, 2, 3
+
+
+def _make_ack_msg(sender_id, receiver_id, ref, uid,
+                  status=ACK_STATUS_APPLIED,
+                  ref_type=MsgType.TASK_ASSIGN_RESPONSE):
+    """Create a mock MAVLink message for a SWARM_ACK of ``ref``."""
+    ack = SwarmAckMsg(
+        sender_id=sender_id,
+        receiver_id=receiver_id,
+        ref_boot_id=ref[0],
+        ref_msg_seq=ref[1],
+        ref_msg_type=ref_type.value,
+        status=status,
+        meta=_meta(uid),
+    )
+    mav_msg = ack.to_mavlink()
+    mav_msg.get_srcSystem = MagicMock(return_value=sender_id)
+    mav_msg.get_srcComponent = MagicMock(return_value=COMPANION_COMPONENT_ID)
+    return mav_msg
+
+
+@pytest.fixture
+def broadcast():
+    """Record every WS payload without scheduling coroutines."""
+    with patch("gcs.backend.task_assign_listener.ws_manager") as ws, patch(
+        "gcs.backend.task_assign_listener.asyncio.run_coroutine_threadsafe",
+    ):
+        yield ws.broadcast
+
+
+@pytest.fixture
+def fleet(listener):
+    for sys_id in (OWNER, HELPER, OTHER):
+        listener.register_vehicle(sys_id, MagicMock())
+    return listener
+
+
+def _payloads(broadcast, kind):
+    return [
+        call.args[0] for call in broadcast.call_args_list
+        if call.args[0]["type"] == kind
+    ]
+
+
+def _doing(listener, task_id, uid, accepted=True, helper=HELPER, owner=OWNER):
+    listener._on_navlink(helper, _make_assign_response_msg(
+        sender_id=helper, receiver_id=owner, task_id=task_id,
+        is_accepted=accepted, uid=uid,
+    ))
+
+
+def _applied(listener, ref, uid, owner=OWNER, helper=HELPER, link=None, **kw):
+    listener._on_navlink(
+        owner if link is None else link,
+        _make_ack_msg(owner, helper, ref, uid, **kw),
+    )
+
+
+class TestHandshakeUids:
+    """Every copy reaches the UI with its UID; the logs stay audit-readable."""
+
+    def test_request_copy_payload_and_log_carry_its_uid(
+        self, fleet, broadcast, caplog,
+    ):
+        caplog.set_level("INFO", logger="gcs.backend.task_assign_listener")
+        fleet._on_navlink(OWNER, _make_assign_request_msg(
+            sender_id=OWNER, receiver_id=HELPER, task_id=9,
+            lat=32.5, lon=34.8, alt=100.0, uid=(7, 50),
+        ))
+
+        payload, = _payloads(broadcast, "task_assign_request")
+        assert payload["uid"] == {"boot_id": 7, "msg_seq": 50}
+        line, = [r.getMessage() for r in caplog.records
+                 if "Task assign request:" in r.getMessage()]
+        assert line.endswith(" uid=7:50")
+        match = _REQUEST.search(line)
+        assert match is not None
+        assert (match["sender"], match["receiver"], match["task"]) == (
+            "1", "2", "9",
+        )
+        assert float(match["lat"]) == pytest.approx(32.5)
+        assert float(match["lon"]) == pytest.approx(34.8)
+
+    def test_response_copy_payload_and_log_carry_its_uid(
+        self, fleet, broadcast, caplog,
+    ):
+        caplog.set_level("INFO", logger="gcs.backend.task_assign_listener")
+        _doing(fleet, task_id=9, uid=(3, 20))
+
+        payload, = _payloads(broadcast, "task_assign_response")
+        assert payload["uid"] == {"boot_id": 3, "msg_seq": 20}
+        line, = [r.getMessage() for r in caplog.records
+                 if "Task assign response:" in r.getMessage()]
+        assert line.endswith(" uid=3:20")
+        match = _RESPONSE.search(line)
+        assert match is not None
+        assert match.groupdict() == {
+            "sender": "2", "receiver": "1", "task": "9", "accepted": "True",
+        }
+
+    def test_advert_payload_carries_its_uid(self, fleet, broadcast):
+        advert = AvailableTaskRequestMsg(
+            sender_id=OWNER, tasks=[], meta=_meta((7, 40)),
+        ).to_mavlink()
+        advert.get_srcSystem = MagicMock(return_value=OWNER)
+        advert.get_srcComponent = MagicMock(return_value=COMPANION_COMPONENT_ID)
+
+        fleet._on_navlink(OWNER, advert)
+
+        payload, = _payloads(broadcast, "available_task_request")
+        assert payload["uid"] == {"boot_id": 7, "msg_seq": 40}
+
+    def test_every_copy_is_forwarded(self, fleet, broadcast):
+        for seq in (50, 51, 52):
+            fleet._on_navlink(OWNER, _make_assign_request_msg(
+                sender_id=OWNER, receiver_id=HELPER, task_id=9,
+                lat=32.5, lon=34.8, alt=100.0, uid=(7, seq),
+            ))
+        for seq in (20, 21):
+            _doing(fleet, task_id=9, uid=(3, seq))
+
+        assert [p["uid"]["msg_seq"] for p in _payloads(
+            broadcast, "task_assign_request",
+        )] == [50, 51, 52]
+        assert [p["uid"]["msg_seq"] for p in _payloads(
+            broadcast, "task_assign_response",
+        )] == [20, 21]
+
+
+class TestAssignAck:
+    """An owner's APPLIED of a helper's "doing" marks the helper ASSIGNED."""
+
+    def test_applied_naming_an_accepted_copy_is_reported(
+        self, fleet, broadcast, caplog,
+    ):
+        caplog.set_level("INFO", logger="gcs.backend.task_assign_listener")
+        _doing(fleet, task_id=9, uid=(3, 20))
+        _doing(fleet, task_id=9, uid=(3, 21))
+
+        _applied(fleet, ref=(3, 20), uid=(7, 60))
+
+        assert _payloads(broadcast, "task_assign_ack") == [{
+            "type": "task_assign_ack",
+            "owner_id": OWNER,
+            "helper_id": HELPER,
+            "task_id": 9,
+            "status": "APPLIED",
+            "ref": {"boot_id": 3, "msg_seq": 20},
+            "uid": {"boot_id": 7, "msg_seq": 60},
+        }]
+        assert (
+            "Task assign ack: owner=1 helper=2 task_id=9 status=APPLIED "
+            "ref=3:20 uid=7:60"
+        ) in [r.getMessage() for r in caplog.records]
+
+    def test_applied_heard_before_its_copy_is_reported_with_the_copy(
+        self, fleet, broadcast,
+    ):
+        # The copy and the APPLIED run on different vehicle-link threads.
+        _applied(fleet, ref=(3, 20), uid=(7, 60))
+        assert _payloads(broadcast, "task_assign_ack") == []
+
+        _doing(fleet, task_id=9, uid=(3, 20))
+
+        types = [call.args[0]["type"] for call in broadcast.call_args_list]
+        assert types == ["task_assign_response", "task_assign_ack"]
+        ack, = _payloads(broadcast, "task_assign_ack")
+        assert (ack["task_id"], ack["ref"], ack["uid"]) == (
+            9, {"boot_id": 3, "msg_seq": 20}, {"boot_id": 7, "msg_seq": 60},
+        )
+
+    @pytest.mark.parametrize("ack", [
+        {"status": ACK_STATUS_RECEIVED},
+        {"status": ACK_STATUS_PROCESSING},
+        {"ref_type": MsgType.TASK_ASSIGN_REQUEST},
+        {"ref": (3, 99)},
+        {"owner": OTHER},
+    ], ids=["received", "processing", "step-3-ack", "unknown-ref",
+            "other-owner"])
+    def test_other_acks_are_not_reported(self, fleet, broadcast, ack):
+        _doing(fleet, task_id=9, uid=(3, 20))
+
+        _applied(fleet, **{"ref": (3, 20), "uid": (7, 60), **ack})
+
+        assert _payloads(broadcast, "task_assign_ack") == []
+
+    def test_applied_of_a_rejected_copy_is_not_reported(self, fleet, broadcast):
+        _doing(fleet, task_id=9, uid=(3, 20), accepted=False)
+
+        _applied(fleet, ref=(3, 20), uid=(7, 60))
+
+        assert _payloads(broadcast, "task_assign_ack") == []
+
+    def test_applied_of_an_earlier_round_is_not_reported(
+        self, fleet, broadcast,
+    ):
+        _doing(fleet, task_id=9, uid=(3, 20))
+        _doing(fleet, task_id=4, uid=(3, 25), owner=OTHER)
+
+        _applied(fleet, ref=(3, 20), uid=(7, 60))
+
+        assert _payloads(broadcast, "task_assign_ack") == []
+
+    def test_shared_bus_ack_is_reported_once(self, fleet, broadcast):
+        _doing(fleet, task_id=9, uid=(3, 20))
+
+        for link in (OWNER, HELPER, OTHER):
+            _applied(fleet, ref=(3, 20), uid=(7, 60), link=link)
+
+        assert len(_payloads(broadcast, "task_assign_ack")) == 1
 
 
