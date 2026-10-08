@@ -34,6 +34,9 @@ _MOUNT_RE = re.compile(
 )
 _IDEAL_360_ACTIVE_RE = re.compile(r"static ideal 360 enabled", re.IGNORECASE)
 _ASSIGNED_RE = re.compile(r"\bTask \d+ assigned by owner \d+\b")
+# Logged when the peer approach is dispatched; a GUIDED_LOITER alone can be a
+# free peer's default delivery hub return, before any assignment.
+_PEER_APPROACH = "Peer navigation started"
 
 
 @lru_cache(maxsize=1)
@@ -171,9 +174,11 @@ def _peer_assignment_errors(navigation_text: str) -> list[str]:
     assigned = _ASSIGNED_RE.search(navigation_text)
     if assigned is None:
         return ["peer never logged 'Task T assigned by owner O'"]
-    approach = navigation_text.find("GUIDED_LOITER")
-    if 0 <= approach < assigned.start():
-        return ["peer started GUIDED_LOITER before 'Task T assigned by owner O'"]
+    approach = navigation_text.find(_PEER_APPROACH)
+    if approach < 0:
+        return [f"peer never logged {_PEER_APPROACH!r}"]
+    if approach < assigned.start():
+        return [f"peer logged {_PEER_APPROACH!r} before 'Task T assigned by owner O'"]
     return []
 
 

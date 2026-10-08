@@ -767,16 +767,29 @@ def _write_acked_backend_log(log_dir: Path) -> None:
 
 
 def _log_assignment(log_dir: Path, sys_id: int, line: str, *, after: bool = False) -> None:
+    """Make the peer's loiter a logged peer approach; ``line`` before or after it."""
     path = log_dir / f"uav_{sys_id}_navigation.log"
-    approach = "GUIDED_LOITER cmd=DO_REPOSITION center=40."
+    loiter = "GUIDED_LOITER cmd=DO_REPOSITION center=40."
     text = path.read_text(encoding="utf-8")
-    start = text.index(approach)
+    start = text.index(loiter)
     end = text.index("\n", start) + 1
-    if after:
-        text = text[:end] + f"{line}\n" + text[end:]
-    else:
-        text = text[:start] + f"{line}\n" + text[start:]
-    path.write_text(text, encoding="utf-8")
+    approach = text[start:end] + "Peer navigation started (orbit, offset=0m, orbit_r=500m).\n"
+    approach = approach + f"{line}\n" if after else f"{line}\n" + approach
+    path.write_text(text[:start] + approach + text[end:], encoding="utf-8")
+
+
+def _log_hub_return_first(log_dir: Path, sys_id: int) -> None:
+    """A still-free peer first loiters on its default delivery hub return."""
+    path = log_dir / f"uav_{sys_id}_navigation.log"
+    text = path.read_text(encoding="utf-8")
+    hub_return = (
+        "GUIDED_LOITER cmd=DO_REPOSITION center=40.3099,44.4561,200 radius=500m\n"
+        "Default delivery hub navigation: 40.309986, 44.456187\n"
+    )
+    path.write_text(
+        text.replace("No POI is set\n", "No POI is set\n" + hub_return, 1),
+        encoding="utf-8",
+    )
 
 
 def _acked_run(tmp_path: Path) -> None:
@@ -802,11 +815,32 @@ def test_acked_run_passes_when_peers_fly_after_their_owner_applied(tmp_path):
     assert report.global_assignments == {4: 1, 5: 2, 6: 3}
 
 
+def test_acked_run_passes_a_peer_whose_hub_return_loitered_before_its_task(tmp_path):
+    # Live 2026-10-08: a free peer's hub-return GUIDED_LOITER preceded its
+    # assignment; only the peer approach must follow the owner's APPLIED.
+    _acked_run(tmp_path)
+    _log_assignment(tmp_path, 5, "Task 2 assigned by owner 4")
+    _log_assignment(tmp_path, 6, "Task 3 assigned by owner 4")
+    _log_hub_return_first(tmp_path, 6)
+
+    report = evaluator.analyze_run(
+        tmp_path, sys_ids=(4, 5, 6), approvals=_approval_records()
+    )
+
+    assert report.passed is True, report.errors + [
+        error for vehicle in report.vehicles for error in vehicle.errors
+    ]
+
+
 @pytest.mark.parametrize(
     ("after", "message"),
     [
         (None, "peer never logged 'Task T assigned by owner O'"),
-        (True, "peer started GUIDED_LOITER before 'Task T assigned by owner O'"),
+        (
+            True,
+            "peer logged 'Peer navigation started' before "
+            "'Task T assigned by owner O'",
+        ),
     ],
 )
 def test_acked_run_fails_a_peer_that_flew_before_its_owner_applied(
@@ -825,6 +859,26 @@ def test_acked_run_fails_a_peer_that_flew_before_its_owner_applied(
     peer_5, peer_6 = report.vehicles[1], report.vehicles[2]
     assert not any("assigned by owner" in error for error in peer_5.errors)
     assert message in peer_6.errors
+
+
+def test_acked_run_fails_a_peer_that_never_started_its_peer_approach(tmp_path):
+    # A GUIDED_LOITER without the peer-approach marker: the task was never flown.
+    _acked_run(tmp_path)
+    _log_assignment(tmp_path, 5, "Task 2 assigned by owner 4")
+    path = tmp_path / "uav_6_navigation.log"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "No POI is set\n", "No POI is set\nTask 3 assigned by owner 4\n", 1,
+        ),
+        encoding="utf-8",
+    )
+
+    report = evaluator.analyze_run(
+        tmp_path, sys_ids=(4, 5, 6), approvals=_approval_records()
+    )
+
+    assert report.passed is False
+    assert "peer never logged 'Peer navigation started'" in report.vehicles[2].errors
 
 
 @pytest.mark.parametrize(

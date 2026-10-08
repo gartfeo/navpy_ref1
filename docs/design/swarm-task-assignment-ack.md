@@ -22,9 +22,13 @@ Implementation notes:
 - Frontend: a FREE beat retires a round only once the helper's "doing" (or
   the APPLIED's ref) orders it; a round without one ends by advert, reject
   or APPLIED. Confirm events match entries by (UAV, task id), and available
-  tasks are keyed `${owner}:${task}` like rounds.
+  tasks are keyed `${owner}:${task}` like rounds. A helper's confirm carries
+  its own POI id, which can differ from the owner's task id; the card then
+  never shows CONFIRMED, as before this change (follow-up).
 - Audit: the backend log's format also switches the peer gate, so recorded
-  legacy runs need no `assigned by owner` line.
+  legacy runs need no `assigned by owner` line. The gate orders the
+  assignment against `Peer navigation started`: a free peer's hub return
+  may loiter first.
 
 ## Problem
 
@@ -211,7 +215,7 @@ by action; `useTaskAssignment` becomes a thin wrapper).
 readable); uid-format logs require exactly one (owner, task) per peer whose
 APPLIED `ref` names an accepted step-4 line, tolerate copies, released rounds
 and rejects; mixed formats are an error. Peer gate: `Task T assigned by
-owner O` must appear before the first GUIDED_LOITER.
+owner O` must appear before `Peer navigation started`.
 
 ## Timing (derived from `ttl_defaults.py`)
 
