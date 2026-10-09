@@ -74,6 +74,10 @@ law may use pitch/roll attitude and airspeed as an attitude-control proxy, but
 must not read `ground_speed_ned`, `velocity`, `location()`, `altitude`,
 `relative_altitude`, or equivalent altitude fields.
 
+## Owner's shell
+
+Commands given to the owner must work in Windows PowerShell 5.1: no `&&` or `||` (use `;`), and absolute paths.
+
 ## Running the GCS stack — hard rules for every chat
 
 **Always launch through the isolated launcher — never on hardcoded ports
