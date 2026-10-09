@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 
-PINNED_BASE = "a2ab2fcb7cbd34b4589e7f0754cfe6eca3bd7ba6"
+PINNED_BASE = "e0fa68d4504f1c955c1b27d81985cc81413bc1c0"
 MATERIAL_ROOTS = ("src/navpy", "src/gcs", "scripts", "tools")
 MAX_CLASS_LINES = 200
 MAX_DIRECT_METHODS = 15
