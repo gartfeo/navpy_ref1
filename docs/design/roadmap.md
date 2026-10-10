@@ -4,6 +4,8 @@ This roadmap merges the step orders from `mission_modules.md`, `architecture_spl
 `flow_runner.md` and `component_ports.md`. It was planned against origin/main `0c7f2ad`
 (after PR #14), and code paths are under `src/navpy/modules/`.
 
+**Owner re-order (2026-10-09):** first a clean `main` (done), then the refactor, then the rest. Refactor step 1 only separates modules: `step1_separation.md`.
+
 **How to read it:**
 - **Single main:** the work starts and finishes with only `main`. Steps run one at a time, and each is merged into `main` before the next starts. No branch outlives its step.
 - **keep** means no behavior change: the oracle and the evals prove it.
