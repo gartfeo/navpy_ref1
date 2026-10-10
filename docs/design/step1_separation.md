@@ -113,4 +113,4 @@ main.py, main_gui.py stay. The ESP32 trigger and simulator move to src/gcs/backe
 ## Before c00 (owner)
 1. **Re-pin the size guard.** Done in `145d9a8`.
 2. **Approve the layout** above, then re-plan the commits to match it.
-3. **Pause other work.** The camera chat (PR #15) has uncommitted changes in files that step 1 moves. Merge or park it first. Pause other chats and GCS stacks while step 1 lands.
+3. **Pause other work.** The camera chat (`claude/wizardly-dijkstra-550966`, no PR yet) has uncommitted changes in files that step 1 moves. Merge or park it first. Pause other chats and GCS stacks while step 1 lands.
