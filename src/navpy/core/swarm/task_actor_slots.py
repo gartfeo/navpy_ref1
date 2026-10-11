@@ -15,7 +15,7 @@ from navpy.core.link.swarm_ack_msg import (
 )
 from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.task_message_data import TaskAssignMsgData
-from navpy.modules.swarm.task_msg_refs import MsgRef, OwnerRef
+from navpy.core.swarm.task_msg_refs import MsgRef, OwnerRef
 
 
 class SlotState(Enum):

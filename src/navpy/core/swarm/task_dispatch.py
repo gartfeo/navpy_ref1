@@ -7,7 +7,7 @@ from navpy.core.link.task_message_data import (
     TaskMsgData,
 )
 from navpy.core.link.types import TaskDispatchStatus
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 
 @dataclass

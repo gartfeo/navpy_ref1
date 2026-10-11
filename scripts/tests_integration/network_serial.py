@@ -9,7 +9,7 @@ from navpy.core.kernel.location import Location
 from navpy.plugins.radio.serial.network_serial import NetworkSerial
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.swarm.task_actor import TaskActor
+from navpy.core.swarm.task_actor import TaskActor
 from navpy.core.kernel.logging.cache_logger import ConsoleCacheLogger
 
 print_lock = threading.Lock()

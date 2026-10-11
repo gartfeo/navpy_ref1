@@ -15,11 +15,11 @@ from navpy.core.link.swarm_ack_msg import (
 )
 from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.link.types import TaskTypeMsgData
-from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
-from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot, SlotState
-from navpy.modules.swarm.task_assign_reply import AssignReplies
-from navpy.modules.swarm.task_messaging import TaskMessageSender
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_ack_timing import ASSIGN_ACK_TIMING
+from navpy.core.swarm.task_actor_slots import SelectedTaskSlot, SlotState
+from navpy.core.swarm.task_assign_reply import AssignReplies
+from navpy.core.swarm.task_messaging import TaskMessageSender
+from navpy.core.swarm.task_msg_refs import MsgRef
 from tests.modules.swarm.test_task_assign_confirmation import FakeTimers
 
 SCHEDULE = ASSIGN_ACK_TIMING.response

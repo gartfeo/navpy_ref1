@@ -14,9 +14,9 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from navpy.core.link.types import TaskDispatchStatus
 from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from navpy.core.kernel.location import Location
-from navpy.modules.swarm.task_actor import TaskActor
-from navpy.modules.swarm.task_actor_slots import SlotState
-from navpy.modules.swarm.task_dispatch import TaskDispatch
+from navpy.core.swarm.task_actor import TaskActor
+from navpy.core.swarm.task_actor_slots import SlotState
+from navpy.core.swarm.task_dispatch import TaskDispatch
 from tests.detection_factory import make_detected_poi
 from tests.modules.swarm.test_task_assign_confirmation import FakeTimers
 
@@ -26,7 +26,7 @@ def explicit_heartbeats():
     """Heartbeats carry node state: tests send them explicitly instead of
     letting the 1 Hz thread inject wall-clock reports."""
     with patch(
-        "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+        "navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
         threading.TIMEOUT_MAX,
     ):
         yield

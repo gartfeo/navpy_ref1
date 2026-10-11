@@ -30,10 +30,10 @@ from navpy.core.link.swarm_heartbeat_msg import (
 )
 from navpy.core.link.ttl_defaults import get_ttl_ms
 from navpy.core.link.types import MsgType
-from navpy.modules.swarm.task_ack_timing import ack_ttl_ms
-from navpy.modules.swarm.task_auction_models import TaskReservation
-from navpy.modules.swarm.task_msg_refs import MsgRef, msg_ref
-from navpy.modules.swarm.task_ports import TaskMessageBroadcaster
+from navpy.core.swarm.task_ack_timing import ack_ttl_ms
+from navpy.core.swarm.task_auction_models import TaskReservation
+from navpy.core.swarm.task_msg_refs import MsgRef, msg_ref
+from navpy.core.swarm.task_ports import TaskMessageBroadcaster
 
 
 class TaskMessageSender:

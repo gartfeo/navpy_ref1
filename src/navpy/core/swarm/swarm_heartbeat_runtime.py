@@ -6,7 +6,7 @@ import threading
 from typing import Optional, Protocol
 
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 
 HEARTBEAT_INTERVAL_S = 1.0

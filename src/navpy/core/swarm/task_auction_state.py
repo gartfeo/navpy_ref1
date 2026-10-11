@@ -13,21 +13,21 @@ from navpy.core.link.task_message_data import (
     TaskMsgData,
 )
 from navpy.core.link.types import TaskDispatchStatus
-from navpy.modules.swarm.task_auction_evidence import report_peer_state
-from navpy.modules.swarm.task_auction_models import (
+from navpy.core.swarm.task_auction_evidence import report_peer_state
+from navpy.core.swarm.task_auction_models import (
     TaskAssignmentPlanner,
     TaskReservation,
     UNAVAILABLE_ASSIGNMENT_COST,
     _TaskAuctionStore,
 )
-from navpy.modules.swarm.task_auction_lifecycle import TaskAuctionLifecycle
-from navpy.modules.swarm.task_auction_planning import (
+from navpy.core.swarm.task_auction_lifecycle import TaskAuctionLifecycle
+from navpy.core.swarm.task_auction_planning import (
     plan_and_reserve as reserve_auction_plan,
     plan_reserve_and_send_if_complete,
     plan_retry_reserve_and_send,
 )
-from navpy.modules.swarm.task_dispatch import TaskDispatch
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_dispatch import TaskDispatch
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 
 class TaskAuctionState:

@@ -12,11 +12,11 @@ from navpy.core.link.swarm_heartbeat_msg import (
 from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.link.types import TaskTypeMsgData
 from navpy.core.ports.network_abc import NetworkAbc
-from navpy.modules.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
-from navpy.modules.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
-from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot
-from navpy.modules.swarm.task_messaging import TaskMessageSender
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
+from navpy.core.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
+from navpy.core.swarm.task_actor_slots import SelectedTaskSlot
+from navpy.core.swarm.task_messaging import TaskMessageSender
+from navpy.core.swarm.task_msg_refs import MsgRef
 from navpy.core.ports.vehicle_contract import IVehicle
 
 
@@ -253,7 +253,7 @@ class PeerPresenceEventTest(unittest.TestCase):
         )
 
         with patch(
-            "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+            "navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
             0.01,
         ):
             presence.start()

@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Optional
 
 from navpy.core.link.types import TaskDispatchStatus
-from navpy.modules.swarm.task_auction_models import _TaskAuctionStore
-from navpy.modules.swarm.task_dispatch import TaskDispatch
+from navpy.core.swarm.task_auction_models import _TaskAuctionStore
+from navpy.core.swarm.task_dispatch import TaskDispatch
 
 
 # Per free peer: its ETA, or None when it declined the task.

@@ -10,7 +10,7 @@ from navpy.core.link.ttl_defaults import (
     get_ttl_ms,
 )
 from navpy.core.link.types import MsgType
-from navpy.modules.swarm.task_ack_timing import (
+from navpy.core.swarm.task_ack_timing import (
     ASSIGN_ACK_TIMING,
     AssignAckTiming,
     RepeatSchedule,

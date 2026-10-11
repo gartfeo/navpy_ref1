@@ -26,8 +26,8 @@ from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachR
 from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPolicy
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
-from navpy.modules.nav.peer_poi_notification import PeerPoiNotifier
-from navpy.modules.nav.peer_task_priority import PeerTaskPriority
+from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
+from navpy.core.swarm.peer_task_priority import PeerTaskPriority
 from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.modules.nav.navigation_task_reset import (
     AutoMissionResume,
@@ -38,7 +38,7 @@ from navpy.modules.nav.mission_catalog import MissionCatalog
 from navpy.core.flow.fallback_mission_navigation import FallbackMissionNavigation
 from navpy.modules.nav.mission_navigation import MissionPassPolicy
 from navpy.modules.nav.nav_clock import NavClock
-from navpy.modules.nav.nav_network import NavNetworkRuntime
+from navpy.core.swarm.nav_network import NavNetworkRuntime
 from navpy.modules.nav.nav_state import (
     ConfirmGateState,
     ConfirmOverrideInbox,

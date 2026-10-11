@@ -12,10 +12,10 @@ from typing import Optional
 
 from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.types import TaskDispatchStatus
-from navpy.modules.swarm.task_auction_models import _TaskAuctionStore
-from navpy.modules.swarm.task_auction_queries import busy_peers
-from navpy.modules.swarm.task_msg_refs import MsgRef
-from navpy.modules.swarm.task_peer_roster import sent_after
+from navpy.core.swarm.task_auction_models import _TaskAuctionStore
+from navpy.core.swarm.task_auction_queries import busy_peers
+from navpy.core.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_peer_roster import sent_after
 
 
 def report_peer_state(

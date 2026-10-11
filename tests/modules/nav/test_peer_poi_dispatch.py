@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from navpy.core.kernel.location import Location
-from navpy.modules.nav.peer_poi_dispatch import (
+from navpy.core.swarm.peer_poi_dispatch import (
     PeerPoiDispatchPorts,
     PeerPoiDispatchWorker,
 )

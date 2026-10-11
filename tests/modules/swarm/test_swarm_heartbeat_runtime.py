@@ -2,8 +2,8 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-from navpy.modules.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
-from navpy.modules.swarm.swarm_presence import SwarmPresence
+from navpy.core.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
+from navpy.core.swarm.swarm_presence import SwarmPresence
 
 
 class _StuckThread:
@@ -45,7 +45,7 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         stuck_thread = _StuckThread(target=lambda: None, daemon=True)
 
         with patch(
-            "navpy.modules.swarm.swarm_heartbeat_runtime.threading.Thread",
+            "navpy.core.swarm.swarm_heartbeat_runtime.threading.Thread",
             return_value=stuck_thread,
         ):
             runtime.start()
@@ -65,7 +65,7 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         thread.is_alive.return_value = False
 
         with patch(
-            "navpy.modules.swarm.swarm_heartbeat_runtime.threading.Thread",
+            "navpy.core.swarm.swarm_heartbeat_runtime.threading.Thread",
             return_value=thread,
         ):
             with self.assertRaises(RuntimeError) as raised:
@@ -86,7 +86,7 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         thread.is_alive.return_value = False
 
         with patch(
-            "navpy.modules.swarm.swarm_heartbeat_runtime.threading.Thread",
+            "navpy.core.swarm.swarm_heartbeat_runtime.threading.Thread",
             return_value=thread,
         ):
             with self.assertRaises(KeyboardInterrupt) as raised:
@@ -143,7 +143,7 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         runtime = SwarmHeartbeatRuntime(presence)
 
         with patch(
-            "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+            "navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
             0.0,
         ):
             runtime.start()
@@ -174,7 +174,7 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         presence.heartbeat.side_effect = unavailable
         runtime = SwarmHeartbeatRuntime(presence)
         with patch(
-            "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+            "navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
             0.01,
         ):
             runtime.start()

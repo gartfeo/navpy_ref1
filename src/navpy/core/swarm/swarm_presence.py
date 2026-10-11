@@ -14,10 +14,10 @@ from navpy.core.link.swarm_heartbeat_msg import (
     SwarmHeartbeatMsg,
     SwarmNodeState,
 )
-from navpy.modules.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
-from navpy.modules.swarm.task_messaging import TaskMessageSender
-from navpy.modules.swarm.task_msg_refs import MsgRef, msg_ref
-from navpy.modules.swarm.task_ports import TaskLocationReader
+from navpy.core.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
+from navpy.core.swarm.task_messaging import TaskMessageSender
+from navpy.core.swarm.task_msg_refs import MsgRef, msg_ref
+from navpy.core.swarm.task_ports import TaskLocationReader
 
 
 @dataclass(frozen=True)

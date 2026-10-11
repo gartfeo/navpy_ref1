@@ -4,7 +4,7 @@ from unittest.mock import Mock, call
 
 import pytest
 
-from navpy.modules.nav.nav_network import NavNetworkRuntime
+from navpy.core.swarm.nav_network import NavNetworkRuntime
 from navpy.modules.nav.nav_state import NavPhaseState, NavState
 from navpy.modules.nav.nav_task_availability import is_approaching
 from navpy.modules.nav.navigation_loop import StateActionDispatcher

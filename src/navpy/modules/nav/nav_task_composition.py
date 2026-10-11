@@ -6,7 +6,7 @@ from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
-from navpy.modules.nav.peer_poi_notification import (
+from navpy.core.swarm.peer_poi_notification import (
     PeerPoiNotifier,
     PeerPoiNotifierPorts,
 )
@@ -45,7 +45,7 @@ from navpy.core.skills.acquire.peer_approach_ready_gate import (
     PeerApproachReadyPorts,
 )
 from navpy.core.skills.acquire.peer_navigation import PeerNavigationCoordinator
-from navpy.modules.nav.peer_task_priority import (
+from navpy.core.swarm.peer_task_priority import (
     PeerTaskPriority,
     PeerTaskPriorityPorts,
 )

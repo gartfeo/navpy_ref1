@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from navpy.modules.nav.nav_network import NavNetworkRuntime
+from navpy.core.swarm.nav_network import NavNetworkRuntime
 
 
 @pytest.mark.parametrize("component_name", ["peer_dispatch", "task_actor"])
@@ -111,13 +111,13 @@ def test_set_network_owns_peer_worker_before_start_failure() -> None:
     worker.start.side_effect = failure
 
     with patch(
-        "navpy.modules.nav.nav_network.TaskActor",
+        "navpy.core.swarm.nav_network.TaskActor",
         return_value=actor,
     ), patch(
-        "navpy.modules.nav.nav_network.ConfirmOverrideListener",
+        "navpy.core.swarm.nav_network.ConfirmOverrideListener",
         return_value=listener,
     ), patch(
-        "navpy.modules.nav.nav_network.PeerPoiDispatchWorker",
+        "navpy.core.swarm.nav_network.PeerPoiDispatchWorker",
         return_value=worker,
     ):
         with pytest.raises(RuntimeError) as raised:

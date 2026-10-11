@@ -8,9 +8,9 @@ from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.review.confirm_override_listener import ConfirmOverrideListener
 from navpy.core.kernel.failure_health import ComponentFailureLatch
-from navpy.modules.nav.peer_poi_dispatch import PeerPoiDispatchWorker
+from navpy.core.swarm.peer_poi_dispatch import PeerPoiDispatchWorker
 from navpy.core.review.confirmation_manager import ConfirmationManager
-from navpy.modules.swarm.task_actor import TaskActor
+from navpy.core.swarm.task_actor import TaskActor
 
 
 def disconnect_nav_network_session(

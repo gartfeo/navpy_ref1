@@ -33,21 +33,21 @@ from navpy.core.review.confirmation_round_transaction import (
     ConfirmationRequestRef,
     ConfirmationResponseKind,
 )
-from navpy.modules.nav.peer_poi_dispatch import (
+from navpy.core.swarm.peer_poi_dispatch import (
     PeerPoiDispatchPorts,
     PeerPoiDispatchWorker,
 )
-from navpy.modules.nav.self_assignment_publisher import SelfAssignmentPublisher
+from navpy.core.swarm.self_assignment_publisher import SelfAssignmentPublisher
 from navpy.core.review.confirmation_coordinator import (
     ConfirmationCoordinator,
 )
 from navpy.core.review.confirmation_media import ConfirmationMedia
 from navpy.core.review.confirmation_manager_state import ConfirmationManagerState
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.swarm.task_state_composition import create_task_state
-from navpy.modules.swarm.task_assignment_planner import MinimumEtaAssignmentPlanner
-from navpy.modules.swarm.task_auction_models import ResponseVerdict
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_state_composition import create_task_state
+from navpy.core.swarm.task_assignment_planner import MinimumEtaAssignmentPlanner
+from navpy.core.swarm.task_auction_models import ResponseVerdict
+from navpy.core.swarm.task_msg_refs import MsgRef
 from tests.detection_factory import make_detected_poi
 
 
@@ -405,10 +405,10 @@ def test_auction_cleanup_attempts_all_and_surfaces_exception_group() -> None:
             "src/navpy/core/review/confirmation_inbound.py",
             {"ConfirmationManagerState"},
         ),
-        ("src/navpy/modules/nav/self_assignment_publisher.py", {"NetworkAbc"}),
-        ("src/navpy/modules/swarm/task_messaging.py", {"NetworkAbc"}),
-        ("src/navpy/modules/swarm/swarm_presence.py", {"IVehicle"}),
-        ("src/navpy/modules/swarm/task_capability.py", {"IVehicle"}),
+        ("src/navpy/core/swarm/self_assignment_publisher.py", {"NetworkAbc"}),
+        ("src/navpy/core/swarm/task_messaging.py", {"NetworkAbc"}),
+        ("src/navpy/core/swarm/swarm_presence.py", {"IVehicle"}),
+        ("src/navpy/core/swarm/task_capability.py", {"IVehicle"}),
     ],
 )
 def test_internal_owners_depend_on_narrow_ports(
@@ -426,7 +426,7 @@ def test_internal_owners_depend_on_narrow_ports(
 
 
 def test_task_actor_has_no_network_clock_reachthrough() -> None:
-    source = (REPO_ROOT / "src/navpy/modules/swarm/task_actor.py").read_text(
+    source = (REPO_ROOT / "src/navpy/core/swarm/task_actor.py").read_text(
         encoding="utf-8"
     )
     assert "network.message_filter.offset_estimator" not in source

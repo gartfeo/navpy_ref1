@@ -12,18 +12,18 @@ from navpy.core.link.task_message_data import (
 from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.types import TaskDispatchStatus, TaskTypeMsgData
-from navpy.modules.swarm.task_actor_slots import RequestKind
-from navpy.modules.swarm.task_state_composition import create_task_state
-from navpy.modules.swarm.task_assignment_planner import (
+from navpy.core.swarm.task_actor_slots import RequestKind
+from navpy.core.swarm.task_state_composition import create_task_state
+from navpy.core.swarm.task_assignment_planner import (
     MinimumEtaAssignmentPlanner,
 )
-from navpy.modules.swarm.task_auction_queries import (
+from navpy.core.swarm.task_auction_queries import (
     advert_targets,
     busy_peers,
     complete_bid_matrix,
 )
-from navpy.modules.swarm.task_dispatch import TaskDispatch
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_dispatch import TaskDispatch
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 
 def _task(task_id: int) -> TaskMsgData:

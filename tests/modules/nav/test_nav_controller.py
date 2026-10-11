@@ -52,8 +52,8 @@ from navpy.core.link.swarm_heartbeat_msg import (
 )
 from navpy.core.link.types import MsgType, TaskTypeMsgData
 from navpy.core.ports.network_abc import NetworkAbc
-from navpy.modules.swarm.task_actor import TaskActor
-from navpy.modules.swarm.task_actor_slots import SlotState
+from navpy.core.swarm.task_actor import TaskActor
+from navpy.core.swarm.task_actor_slots import SlotState
 from tests.modules.nav.nav_test_rig import (
     as_detection_coordination,
     create_nav_test_rig,
@@ -7718,7 +7718,7 @@ class TestNavControllerApproachAvailability(unittest.TestCase):
 
     def setUp(self):
         patcher = patch(
-            "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+            "navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
             threading.TIMEOUT_MAX,
         )
         patcher.start()
@@ -7800,7 +7800,7 @@ class TestNavControllerPeerTaskHandshake(unittest.TestCase):
         for target, value in (
             ("threading.Timer", MagicMock()),
             (
-                "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+                "navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
                 threading.TIMEOUT_MAX,
             ),
         ):
@@ -8013,7 +8013,7 @@ class TestNavControllerSwarmDispatchSafety(unittest.TestCase):
 
     def test_task_actor_ignores_own_available_request(self):
         """TaskActor routing ignores self-sent availability messages."""
-        from navpy.modules.swarm.task_actor import TaskActor
+        from navpy.core.swarm.task_actor import TaskActor
 
         vehicle = Mock()
         vehicle.source_system = 1

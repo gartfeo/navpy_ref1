@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 from navpy.core.kernel.location import Location
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.utils.fly_estimator import FlyEstimator
+from navpy.core.swarm.fly_estimator import FlyEstimator
 
 
 class FlyEstimatorTest(unittest.TestCase):

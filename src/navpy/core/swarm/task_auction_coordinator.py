@@ -12,11 +12,11 @@ from navpy.core.link.task_availability_msg import (
     AvailableTaskResponseMsg,
 )
 from navpy.core.link.task_message_data import TaskHandleMsgData
-from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
-from navpy.modules.swarm.task_auction_confirmation import (
+from navpy.core.swarm.task_ack_timing import ASSIGN_ACK_TIMING
+from navpy.core.swarm.task_auction_confirmation import (
     TaskAssignConfirmation,
 )
-from navpy.modules.swarm.task_auction_models import (
+from navpy.core.swarm.task_auction_models import (
     AssignConfirmationPorts,
     ResponseVerdict,
     TaskAssignmentPlanner,
@@ -24,10 +24,10 @@ from navpy.modules.swarm.task_auction_models import (
     TaskReservation,
     is_declined_eta,
 )
-from navpy.modules.swarm.task_auction_state import TaskAuctionState
-from navpy.modules.swarm.task_messaging import TaskMessageSender
-from navpy.modules.swarm.task_msg_refs import MsgRef, msg_ref
-from navpy.modules.swarm.task_rebroadcast import TaskRebroadcastCoordinator
+from navpy.core.swarm.task_auction_state import TaskAuctionState
+from navpy.core.swarm.task_messaging import TaskMessageSender
+from navpy.core.swarm.task_msg_refs import MsgRef, msg_ref
+from navpy.core.swarm.task_rebroadcast import TaskRebroadcastCoordinator
 
 
 PEER_SELECTION_DELAY_S = 2.0

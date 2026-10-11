@@ -14,7 +14,7 @@ from navpy.modules.nav.nav_composition_types import (
     VehicleApproachOwnership,
 )
 from navpy.modules.nav.nav_poi_status_composition import _compose_poi_status
-from navpy.modules.nav.peer_task_priority import PeerTaskPriority
+from navpy.core.swarm.peer_task_priority import PeerTaskPriority
 from navpy.modules.nav.nav_track_recovery_composition import (
     _compose_track_recovery,
 )

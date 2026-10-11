@@ -33,8 +33,8 @@ from navpy.core.link.task_availability_msg import (
 from navpy.core.link.types import MsgType, TaskDispatchStatus
 from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from navpy.core.kernel.location import Location
-from navpy.modules.swarm.task_actor import TaskActor
-from navpy.modules.swarm.task_actor_slots import SlotState
+from navpy.core.swarm.task_actor import TaskActor
+from navpy.core.swarm.task_actor_slots import SlotState
 from tests.detection_factory import make_detected_poi
 
 OWNER, NEAR_PEER, FAR_PEER = 1, 2, 3
@@ -278,7 +278,7 @@ def swarm():
     with (
         patch("threading.Timer", side_effect=clock.timer),
         patch(
-            "navpy.modules.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
+            "navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
             threading.TIMEOUT_MAX,
         ),
     ):

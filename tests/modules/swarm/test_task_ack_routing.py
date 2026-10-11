@@ -11,9 +11,9 @@ from navpy.core.link.swarm_ack_msg import (
     SwarmAckMsg,
 )
 from navpy.core.link.types import MsgType
-from navpy.modules.swarm.task_ack_routing import TaskAckRouter, acked_ref
-from navpy.modules.swarm.task_messaging import TaskMessageRouter
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_ack_routing import TaskAckRouter, acked_ref
+from navpy.core.swarm.task_messaging import TaskMessageRouter
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 
 def _ack(ref_msg_type: int, sender_id: int = 2, receiver_id: int = 1):

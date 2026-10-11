@@ -36,7 +36,7 @@ _VEHICLE_SYS_ID = 1
 # Runs in a FRESH interpreter: only the companion's production swarm path is
 # imported, so the registry ends up exactly as a real companion has it.
 _PRODUCTION_IMPORT_PROBE = """
-import navpy.modules.nav.nav_network            # companion swarm session
+import navpy.core.swarm.nav_network            # companion swarm session
 from pymavlink.dialects.v20.ardupilotmega import MAVLINK_MSG_ID_SWARM_ACK
 from navpy.core.link.msg_abc import MsgRegistry
 print("REGISTERED" if MsgRegistry.has_mav_id(MAVLINK_MSG_ID_SWARM_ACK) else "ABSENT")

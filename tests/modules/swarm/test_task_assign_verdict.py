@@ -27,16 +27,16 @@ from navpy.core.link.types import (
     TaskDispatchStatus,
     TaskTypeMsgData,
 )
-from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
-from navpy.modules.swarm.task_assignment_planner import (
+from navpy.core.swarm.task_ack_timing import ASSIGN_ACK_TIMING
+from navpy.core.swarm.task_assignment_planner import (
     MinimumEtaAssignmentPlanner,
 )
-from navpy.modules.swarm.task_auction_models import (
+from navpy.core.swarm.task_auction_models import (
     AssignConfirmationPorts,
     ResponseVerdict,
 )
-from navpy.modules.swarm.task_msg_refs import MsgRef
-from navpy.modules.swarm.task_state_composition import create_task_state
+from navpy.core.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_state_composition import create_task_state
 from tests.modules.swarm.test_task_assign_confirmation import FakeTimers
 
 SCHEDULE = ASSIGN_ACK_TIMING.request

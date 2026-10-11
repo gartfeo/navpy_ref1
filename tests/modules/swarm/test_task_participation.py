@@ -30,15 +30,15 @@ from navpy.core.link.swarm_ack_msg import (
 from navpy.core.link.types import MsgType, TaskTypeMsgData
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
-from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
-from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot, SlotState
-from navpy.modules.swarm.task_assign_reply import AssignReplies
-from navpy.modules.swarm.task_auction_models import DECLINED_ETA_MIN
-from navpy.modules.swarm.task_capability import (
+from navpy.core.swarm.task_ack_timing import ASSIGN_ACK_TIMING
+from navpy.core.swarm.task_actor_slots import SelectedTaskSlot, SlotState
+from navpy.core.swarm.task_assign_reply import AssignReplies
+from navpy.core.swarm.task_auction_models import DECLINED_ETA_MIN
+from navpy.core.swarm.task_capability import (
     TaskCapabilityEvaluator,
     TaskParticipationCoordinator,
 )
-from navpy.modules.swarm.task_messaging import TaskMessageSender
+from navpy.core.swarm.task_messaging import TaskMessageSender
 from tests.modules.swarm.test_task_assign_confirmation import FakeTimers
 
 OWNER, OWNER_BOOT = 1, 7

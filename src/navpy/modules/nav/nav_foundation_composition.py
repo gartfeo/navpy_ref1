@@ -41,7 +41,7 @@ from navpy.modules.nav.nav_constants import (
     POI_CLOSE_DIST,
     POI_REACQUIRE_COOLDOWN_SEC,
 )
-from navpy.modules.nav.nav_network import NavNetworkRuntime
+from navpy.core.swarm.nav_network import NavNetworkRuntime
 from navpy.modules.nav.nav_state import (
     ConfirmGateState,
     ConfirmOverrideInbox,

@@ -18,10 +18,10 @@ from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     ACK_STATUS_RECEIVED,
 )
-from navpy.modules.swarm.task_ack_timing import RepeatSchedule
-from navpy.modules.swarm.task_actor_slots import HeldTask, SelectedTaskSlot
-from navpy.modules.swarm.task_messaging import TaskMessageSender
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_ack_timing import RepeatSchedule
+from navpy.core.swarm.task_actor_slots import HeldTask, SelectedTaskSlot
+from navpy.core.swarm.task_messaging import TaskMessageSender
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 
 @dataclass(eq=False)

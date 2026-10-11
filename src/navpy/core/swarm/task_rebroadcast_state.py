@@ -6,16 +6,16 @@ from typing import Callable, Optional
 
 from navpy.core.link.task_message_data import TaskMsgData
 from navpy.core.link.types import TaskDispatchStatus
-from navpy.modules.swarm.task_auction_models import (
+from navpy.core.swarm.task_auction_models import (
     TaskRebroadcastPlan,
     _TaskAuctionStore,
 )
-from navpy.modules.swarm.task_auction_evidence import apply_presence
-from navpy.modules.swarm.task_auction_queries import (
+from navpy.core.swarm.task_auction_evidence import apply_presence
+from navpy.core.swarm.task_auction_queries import (
     advert_targets,
     busy_peers,
 )
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 
 class TaskRebroadcastState:

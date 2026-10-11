@@ -8,7 +8,7 @@ from typing import Optional
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.swarm_ack_msg import SwarmAckMsg
 from navpy.core.link.types import MsgType
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 
 def acked_ref(ack: SwarmAckMsg) -> MsgRef:

@@ -7,15 +7,15 @@ import time
 from collections.abc import Callable
 from typing import NamedTuple
 
-from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot
-from navpy.modules.swarm.task_auction_confirmation import (
+from navpy.core.swarm.task_actor_slots import SelectedTaskSlot
+from navpy.core.swarm.task_auction_confirmation import (
     TaskAssignConfirmation,
 )
-from navpy.modules.swarm.task_auction_lifecycle import TaskAuctionLifecycle
-from navpy.modules.swarm.task_auction_models import _TaskAuctionStore
-from navpy.modules.swarm.task_auction_state import TaskAuctionState
-from navpy.modules.swarm.task_peer_roster import PeerRoster
-from navpy.modules.swarm.task_rebroadcast_state import TaskRebroadcastState
+from navpy.core.swarm.task_auction_lifecycle import TaskAuctionLifecycle
+from navpy.core.swarm.task_auction_models import _TaskAuctionStore
+from navpy.core.swarm.task_auction_state import TaskAuctionState
+from navpy.core.swarm.task_peer_roster import PeerRoster
+from navpy.core.swarm.task_rebroadcast_state import TaskRebroadcastState
 
 
 class SwarmTaskState(NamedTuple):

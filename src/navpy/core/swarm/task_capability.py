@@ -23,18 +23,18 @@ from navpy.core.link.task_message_data import (
     TaskMsgData,
 )
 from navpy.core.kernel.location import Location
-from navpy.modules.swarm.task_ack_routing import acked_ref
-from navpy.modules.swarm.task_actor_slots import (
+from navpy.core.swarm.task_ack_routing import acked_ref
+from navpy.core.swarm.task_actor_slots import (
     AckKind,
     RequestDecision,
     RequestKind,
     SelectedTaskSlot,
 )
-from navpy.modules.swarm.task_assign_reply import AssignReplies
-from navpy.modules.swarm.task_auction_models import DECLINED_ETA_MIN
-from navpy.modules.swarm.task_messaging import TaskMessageSender
-from navpy.modules.swarm.task_msg_refs import msg_ref
-from navpy.modules.swarm.task_ports import TaskLocationReader
+from navpy.core.swarm.task_assign_reply import AssignReplies
+from navpy.core.swarm.task_auction_models import DECLINED_ETA_MIN
+from navpy.core.swarm.task_messaging import TaskMessageSender
+from navpy.core.swarm.task_msg_refs import msg_ref
+from navpy.core.swarm.task_ports import TaskLocationReader
 
 
 class TaskCapabilityEvaluator:

@@ -72,11 +72,11 @@ EXPERIMENT_FUNCTION_LINE_DEBT = {
 # accumulating back into the controllers while broader legacy cleanup proceeds.
 FOCUSED_CLASS_LINE_LIMITS = {
     (
-        "src/navpy/modules/nav/nav_network.py",
+        "src/navpy/core/swarm/nav_network.py",
         "NavNetworkRuntime",
     ): 150,
     (
-        "src/navpy/modules/nav/peer_poi_dispatch.py",
+        "src/navpy/core/swarm/peer_poi_dispatch.py",
         "PeerPoiDispatchWorker",
     ): 150,
     (
@@ -84,7 +84,7 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "FinalApproachDetectionEventPump",
     ): 150,
     (
-        "src/navpy/modules/swarm/swarm_presence.py",
+        "src/navpy/core/swarm/swarm_presence.py",
         "SwarmPresence",
     ): 150,
     (

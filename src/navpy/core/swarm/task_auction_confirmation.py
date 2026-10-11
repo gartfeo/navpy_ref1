@@ -18,10 +18,10 @@ from navpy.core.link.swarm_ack_msg import (
 from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.task_assignment_msg import TaskAssignResponseMsg
 from navpy.core.link.types import TaskDispatchStatus
-from navpy.modules.swarm.task_ack_routing import acked_ref
-from navpy.modules.swarm.task_ack_timing import RepeatSchedule
-from navpy.modules.swarm.task_auction_evidence import report_peer_state
-from navpy.modules.swarm.task_auction_models import (
+from navpy.core.swarm.task_ack_routing import acked_ref
+from navpy.core.swarm.task_ack_timing import RepeatSchedule
+from navpy.core.swarm.task_auction_evidence import report_peer_state
+from navpy.core.swarm.task_auction_models import (
     AssignConfirmationPorts,
     AssignVerdict,
     ResponseVerdict,
@@ -30,9 +30,9 @@ from navpy.modules.swarm.task_auction_models import (
     TaskReservation,
     _TaskAuctionStore,
 )
-from navpy.modules.swarm.task_auction_queries import reserved_dispatch
-from navpy.modules.swarm.task_dispatch import TaskDispatch
-from navpy.modules.swarm.task_msg_refs import MsgRef, msg_ref
+from navpy.core.swarm.task_auction_queries import reserved_dispatch
+from navpy.core.swarm.task_dispatch import TaskDispatch
+from navpy.core.swarm.task_msg_refs import MsgRef, msg_ref
 
 
 _HELD = (TaskDispatchStatus.CONFIRMING, TaskDispatchStatus.CONFIRMED)

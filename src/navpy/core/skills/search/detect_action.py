@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
-from navpy.modules.nav.peer_poi_notification import PeerPoiNotifier
+from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.core.skills.acquire.peer_geo_tick import PeerGeoTick

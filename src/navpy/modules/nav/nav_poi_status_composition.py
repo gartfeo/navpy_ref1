@@ -26,7 +26,7 @@ from navpy.modules.nav.poi_status_decision import (
     ConfirmationStatusDecision,
 )
 from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
-from navpy.modules.nav.peer_task_priority import PeerTaskPriority
+from navpy.core.swarm.peer_task_priority import PeerTaskPriority
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
 

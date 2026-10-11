@@ -11,7 +11,7 @@ from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
 from navpy.core.flow.fallback_mission_navigation import FallbackMissionNavigation
 from navpy.modules.nav.nav_state import NavigationTaskState, FinalApproachNavState
 from navpy.core.skills.acquire.peer_navigation import PeerNavigationCoordinator
-from navpy.modules.nav.peer_task_priority import PeerTaskPriority
+from navpy.core.swarm.peer_task_priority import PeerTaskPriority
 from navpy.core.skills.geo_approach.self_detected_approach import SelfDetectedApproach
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus

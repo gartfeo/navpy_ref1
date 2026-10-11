@@ -8,9 +8,9 @@ from navpy.core.link.task_message_data import (
 )
 from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.types import class_to_task_type
-from navpy.modules.swarm.task_auction_state import TaskAuctionState
-from navpy.modules.swarm.task_rebroadcast_state import TaskRebroadcastState
-from navpy.modules.swarm.task_messaging import TaskMessageSender
+from navpy.core.swarm.task_auction_state import TaskAuctionState
+from navpy.core.swarm.task_rebroadcast_state import TaskRebroadcastState
+from navpy.core.swarm.task_messaging import TaskMessageSender
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
 

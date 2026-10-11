@@ -13,32 +13,32 @@ from navpy.core.link.msg_abc import MsgABC
 from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.link.types import MsgType
 from navpy.core.ports.network_abc import NetworkAbc
-from navpy.modules.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
-from navpy.modules.swarm.task_ack_routing import TaskAckRouter
-from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
-from navpy.modules.swarm.task_assign_reply import AssignReplies
-from navpy.modules.swarm.task_state_composition import create_task_state
-from navpy.modules.swarm.task_assignment_planner import (
+from navpy.core.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
+from navpy.core.swarm.task_ack_routing import TaskAckRouter
+from navpy.core.swarm.task_ack_timing import ASSIGN_ACK_TIMING
+from navpy.core.swarm.task_assign_reply import AssignReplies
+from navpy.core.swarm.task_state_composition import create_task_state
+from navpy.core.swarm.task_assignment_planner import (
     MinimumEtaAssignmentPlanner,
 )
-from navpy.modules.swarm.task_auction_coordinator import TaskAuctionCoordinator
-from navpy.modules.swarm.task_capability import (
+from navpy.core.swarm.task_auction_coordinator import TaskAuctionCoordinator
+from navpy.core.swarm.task_capability import (
     TaskCapabilityEvaluator,
     TaskParticipationCoordinator,
 )
-from navpy.modules.swarm.task_messaging import (
+from navpy.core.swarm.task_messaging import (
     TaskMessageRouter,
     TaskMessageSender,
 )
-from navpy.modules.swarm.task_peer_status import PeerStatusCoordinator
-from navpy.modules.swarm.task_ports import (
+from navpy.core.swarm.task_peer_status import PeerStatusCoordinator
+from navpy.core.swarm.task_ports import (
     ClockOffsetResetPort,
     MessageClockReset,
 )
-from navpy.modules.swarm.task_rebroadcast import TaskRebroadcastCoordinator
+from navpy.core.swarm.task_rebroadcast import TaskRebroadcastCoordinator
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.utils.fly_estimator import FlyEstimator
+from navpy.core.swarm.fly_estimator import FlyEstimator
 
 
 class TaskActor(ListenerAbc):

@@ -37,9 +37,9 @@ from navpy.core.link.types import (
 )
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
-from navpy.modules.swarm.task_actor import TaskActor
-from navpy.modules.swarm.task_state_composition import create_task_state
-from navpy.modules.swarm.task_dispatch import TaskDispatch
+from navpy.core.swarm.task_actor import TaskActor
+from navpy.core.swarm.task_state_composition import create_task_state
+from navpy.core.swarm.task_dispatch import TaskDispatch
 from navpy.core.ports.vehicle_contract import IVehicle
 
 
@@ -77,7 +77,7 @@ class FakeTimers:
 
     def patch(self):
         return patch(
-            "navpy.modules.swarm.task_dispatch.threading.Timer",
+            "navpy.core.swarm.task_dispatch.threading.Timer",
             side_effect=self.make,
         )
 
@@ -179,7 +179,7 @@ class TestOwnerConfirmation:
         assert dispatch.assigned_peer is None
 
     def test_unanswered_request_is_resent_then_released_as_a_retry(self):
-        from navpy.modules.swarm.task_auction_coordinator import (
+        from navpy.core.swarm.task_auction_coordinator import (
             ASSIGN_REQUEST_SCHEDULE as schedule,
         )
 
@@ -258,10 +258,10 @@ class TestOwnerConfirmation:
 
 
 def test_stale_confirmation_timer_cannot_touch_replacement_generation():
-    from navpy.modules.swarm.task_auction_coordinator import (
+    from navpy.core.swarm.task_auction_coordinator import (
         ASSIGN_REQUEST_SCHEDULE,
     )
-    from navpy.modules.swarm.task_auction_models import (
+    from navpy.core.swarm.task_auction_models import (
         AssignConfirmationPorts,
         TaskReservation,
     )
@@ -311,7 +311,7 @@ class TestPeerParticipation:
         for patcher in (
             self.timers.patch(),
             patch(
-                "navpy.modules.swarm.task_actor.FlyEstimator.time_to_fly",
+                "navpy.core.swarm.task_actor.FlyEstimator.time_to_fly",
                 return_value=4.0,
             ),
         ):
@@ -455,7 +455,7 @@ def test_peer_ignores_advertisement_older_than_accepted_request():
         for peer_id in (1, 3):
             actor.on_message(SwarmHeartbeatMsg(sender_id=peer_id))
         with patch(
-            "navpy.modules.swarm.task_actor.FlyEstimator.time_to_fly",
+            "navpy.core.swarm.task_actor.FlyEstimator.time_to_fly",
             return_value=4.0,
         ):
             actor.on_message(TaskAssignRequestMsg(

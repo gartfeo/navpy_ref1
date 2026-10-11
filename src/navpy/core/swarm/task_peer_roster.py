@@ -11,7 +11,7 @@ from typing import Optional
 from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.ttl_defaults import get_ttl_ms
 from navpy.core.link.types import MsgType
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 
 MAX_REMOTE_PEERS = 2

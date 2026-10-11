@@ -16,13 +16,13 @@ from navpy.core.link.swarm_ack_msg import (
 from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.link.types import TaskTypeMsgData
-from navpy.modules.swarm.task_actor_slots import (
+from navpy.core.swarm.task_actor_slots import (
     AckKind,
     RequestKind,
     SelectedTaskSlot,
     SlotState,
 )
-from navpy.modules.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_msg_refs import MsgRef
 
 OWNER, BOOT = 1, 7
 REQUEST = MsgRef(OWNER, BOOT, 50)

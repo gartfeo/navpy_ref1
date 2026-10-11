@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
 from navpy.core.kernel.location import Location
-from navpy.modules.nav.peer_dispatch_quiescence import (
+from navpy.core.swarm.peer_dispatch_quiescence import (
     await_peer_dispatch_quiescence,
 )
 from navpy.core.ports.detect_data import DetectedObject

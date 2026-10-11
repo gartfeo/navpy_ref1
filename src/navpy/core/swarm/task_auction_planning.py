@@ -7,13 +7,13 @@ from types import MappingProxyType
 from typing import Optional
 
 from navpy.core.link.types import TaskDispatchStatus
-from navpy.modules.swarm.task_auction_models import (
+from navpy.core.swarm.task_auction_models import (
     TaskAssignmentPlanner,
     TaskOffer,
     TaskReservation,
     _TaskAuctionStore,
 )
-from navpy.modules.swarm.task_auction_queries import (
+from navpy.core.swarm.task_auction_queries import (
     BidMatrixSignature,
     busy_peers,
     complete_bid_matrix,

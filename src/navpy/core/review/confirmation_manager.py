@@ -18,7 +18,7 @@ from navpy.core.review.confirmation_dependencies import (
     FreshnessGate,
 )
 from navpy.core.review.confirmation_round_runner import ConfirmationRoundRunner
-from navpy.modules.nav.self_assignment_publisher import SelfAssignmentPublisher
+from navpy.core.swarm.self_assignment_publisher import SelfAssignmentPublisher
 from navpy.core.review.confirmation_coordinator import (
     ConfirmationCoordinator,
 )

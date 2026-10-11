@@ -4,7 +4,7 @@ import pytest
 
 from navpy.core.link.check_msg import CheckInMsg
 from navpy.core.link.msg_meta import MsgMeta
-from navpy.modules.swarm.task_msg_refs import MsgRef, OwnerRef, msg_ref
+from navpy.core.swarm.task_msg_refs import MsgRef, OwnerRef, msg_ref
 
 
 def _meta(boot_id: int, msg_seq: int) -> MsgMeta:

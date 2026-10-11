@@ -13,7 +13,7 @@ from navpy.core.review.confirmation_ports import (
 )
 from navpy.core.review.confirmation_round_runner import ConfirmationRoundRunner
 from navpy.core.review.confirmation_round_transaction import ConfirmationWorkerLease
-from navpy.modules.nav.self_assignment_publisher import SelfAssignmentPublisher
+from navpy.core.swarm.self_assignment_publisher import SelfAssignmentPublisher
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
 

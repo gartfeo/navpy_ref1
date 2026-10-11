@@ -11,19 +11,19 @@ from navpy.core.kernel.location import Location
 from navpy.core.review.confirm_override_listener import ConfirmOverrideListener
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.core.kernel.failure_health import ComponentFailureLatch
-from navpy.modules.nav.nav_network_shutdown import (
+from navpy.core.swarm.nav_network_shutdown import (
     disconnect_nav_network_session,
 )
 from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.modules.nav.nav_state import ConfirmOverrideInbox
-from navpy.modules.nav.peer_poi_dispatch import (
+from navpy.core.swarm.peer_poi_dispatch import (
     PeerPoiDispatchPorts,
     PeerPoiDispatchWorker,
 )
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.swarm.task_actor import TaskActor
-from navpy.modules.swarm.task_ports import MessageClockReset
+from navpy.core.swarm.task_actor import TaskActor
+from navpy.core.swarm.task_ports import MessageClockReset
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detector_ports import SimulationControlPort
 from navpy.core.ports.detect_data import DetectedObject
