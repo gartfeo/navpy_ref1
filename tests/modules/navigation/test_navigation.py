@@ -17,7 +17,7 @@ from navpy.logger.navigation_log_streams import NavigationLogStreams
 from navpy.logger.navigation_logger import NavigationLogger
 from navpy.logger.log_events import LogEvent
 from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
+from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,

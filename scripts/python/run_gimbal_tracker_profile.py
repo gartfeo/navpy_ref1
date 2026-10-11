@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
-from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig

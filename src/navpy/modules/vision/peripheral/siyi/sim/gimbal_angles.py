@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.peripheral.siyi.siyi_sdk import ZR10
+from navpy.plugins.gimbal.siyi.siyi_sdk import ZR10
 
 
 MAX_SLEW_RATE = 90.0

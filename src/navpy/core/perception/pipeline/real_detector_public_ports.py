@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
+from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.detector_ports import (
     DetectionEventPort,

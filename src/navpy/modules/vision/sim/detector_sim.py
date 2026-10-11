@@ -8,7 +8,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
-from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.sim.sim_detector_assembly import (

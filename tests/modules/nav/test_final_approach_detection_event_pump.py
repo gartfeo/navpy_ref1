@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
+from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.source_epoch import (
     FrameAdmission,

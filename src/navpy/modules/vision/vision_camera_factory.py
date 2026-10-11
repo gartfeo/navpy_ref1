@@ -116,7 +116,7 @@ def _build_gimbal(
     scheduler_cadence: "SchedulerCadence | None",
 ) -> GimbalAbc:
     from navpy.core.kernel.config.uas_args import UasArgs
-    from navpy.modules.vision.peripheral.fixed_gimbal import FixedGimbal
+    from navpy.plugins.gimbal.fixed.fixed_gimbal import FixedGimbal
     from navpy.modules.vision.sim.gimbal_sim import GimbalSim
 
     raw_gimbal = device.get("gimbal", {})
@@ -126,7 +126,7 @@ def _build_gimbal(
     is_stabilized = gimbal_data.roll_stabilize or gimbal_data.pitch_stabilize
 
     if gimbal_type == "siyi" and not use_sim_gimbal:
-        from navpy.modules.vision.peripheral.gimbal_siyi import GimbalSiyi
+        from navpy.plugins.gimbal.siyi.gimbal_siyi import GimbalSiyi
 
         return GimbalSiyi(
             gimbal_data,
@@ -166,7 +166,7 @@ def build_camera_mounts(
 ) -> list[CameraMountSpec]:
     """Build mounts paired with immutable profile-device snapshots."""
     from navpy.core.perception.camera.camera_mount import CameraMount
-    from navpy.modules.vision.peripheral.fixed_gimbal import FixedGimbal
+    from navpy.plugins.gimbal.fixed.fixed_gimbal import FixedGimbal
 
     devices = get_devices(profile)
     detector_settings = get_detector_settings(profile)

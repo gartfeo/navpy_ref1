@@ -12,7 +12,7 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
 from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTrackerConfig

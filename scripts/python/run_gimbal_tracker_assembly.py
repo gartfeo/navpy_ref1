@@ -9,8 +9,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
-from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.pipeline.detector import (
     Detector,
@@ -21,7 +21,7 @@ from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
     DetectorPipelineConfig,
 )
-from navpy.modules.vision.peripheral.gimbal_siyi import GimbalSiyi
+from navpy.plugins.gimbal.siyi.gimbal_siyi import GimbalSiyi
 from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
 
 from scripts.python.run_gimbal_tracker_args import (

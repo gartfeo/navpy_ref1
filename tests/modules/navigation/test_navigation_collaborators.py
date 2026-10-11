@@ -23,7 +23,7 @@ from navpy.modules.navigation.navigation_command_worker import (
 )
 from navpy.modules.navigation.navigation import Navigation
 from navpy.modules.navigation.navigation_lifecycle import NavigationLifecycle
-from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
+from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.navigation_mode import (
     ActiveNavigationMode,
     NavigationModeBuilder,

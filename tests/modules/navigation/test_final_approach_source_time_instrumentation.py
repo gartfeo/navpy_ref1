@@ -10,7 +10,7 @@ from navpy.core.kernel.resource_cleanup import CleanupStack
 from scripts import eval_certificate as certificate
 from navpy.modules.navigation.nav.vision_nav import command_executor as command_executor_module
 from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
+from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.nav.vision_nav.command_executor import (
     FinalApproachCommandExecutor,
     FinalApproachExecutorPorts,

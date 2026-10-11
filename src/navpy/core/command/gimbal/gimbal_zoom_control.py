@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.modules.navigation.gimbal_navigation_state import (
+from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalDetectionMemory,
     GimbalSessionCommandGate,
     GimbalSessionFence,

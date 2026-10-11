@@ -9,7 +9,7 @@ from navpy.modules.navigation.navigation_final_approach import FinalApproachNavi
 from navpy.modules.navigation.navigation_source_dispatch import (
     BindSourceDispatch,
 )
-from navpy.modules.navigation.navigation_vehicle_commands import NavigationVehicleCommands
+from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
 from navpy.modules.navigation.legacy_destination_resolver import LegacyDestinationResolver
 from navpy.modules.nav.approach_planner import ApproachPlanner
 from navpy.modules.nav.confirmation_action import ConfirmationAction

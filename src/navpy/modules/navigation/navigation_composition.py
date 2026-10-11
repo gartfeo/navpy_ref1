@@ -12,7 +12,7 @@ from navpy.logger.navigation_logger import NavigationLogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
-from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
+from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.navigation_command_session import NavigationCommandSession
 from navpy.modules.navigation.navigation_lifecycle import NavigationLifecycle
 from navpy.modules.navigation.navigation_law_builders import compose_law_builders
@@ -29,7 +29,7 @@ from navpy.modules.navigation.navigation_source_dispatch import (
     NavigationSourceDispatchSlot,
 )
 from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
-from navpy.modules.navigation.navigation_vehicle_commands import NavigationVehicleCommands
+from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
 from navpy.modules.navigation.legacy_destination_resolver import (
     LegacyNavigationState,
     LegacyDestinationResolver,

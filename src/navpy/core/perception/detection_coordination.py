@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Sequence
 
-from navpy.modules.navigation.gimbal_navigation_state import GimbalLossPolicy
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalLossPolicy
 from navpy.core.perception.detection_aggregation import DetectionAggregator
 from navpy.core.perception.detection_identity_registry import DetectionIdentityRegistry
 from navpy.core.perception.detector_lifecycle_fleet import DetectorLifecycleFleet

@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
-from navpy.modules.vision.peripheral.siyi.hardware.ports import SiyiSdkPort
+from navpy.plugins.gimbal.siyi.hardware.ports import SiyiSdkPort
 
 
 SDK_DISCONNECT_TIMEOUT_S = 2.0

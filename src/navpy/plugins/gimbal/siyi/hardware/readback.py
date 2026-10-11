@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.peripheral.siyi.hardware.ports import MonotonicClock
-from navpy.modules.vision.peripheral.siyi.hardware.state import SiyiReadbackStore
+from navpy.plugins.gimbal.siyi.hardware.ports import MonotonicClock
+from navpy.plugins.gimbal.siyi.hardware.state import SiyiReadbackStore
 
 
 class SiyiHardwareReadback:

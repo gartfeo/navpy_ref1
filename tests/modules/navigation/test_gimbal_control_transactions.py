@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
-from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.pointing.gimbal_rate_tracker import (
     GimbalRateTrackerConfig,
     TrackingState,

@@ -38,7 +38,7 @@ from navpy.modules.navigation.mission_planner import MissionPlanner  # noqa: E40
 from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
 from navpy.core.ports.vehicle_contract import IVehicle  # noqa: E402
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
-from navpy.modules.navigation.gimbal_navigation import GimbalNavigation  # noqa: E402
+from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation  # noqa: E402
 from navpy.modules.vision.sim.siyi_geo_pixel_source import (  # noqa: E402
     SiyiGeoPixelSource,
 )

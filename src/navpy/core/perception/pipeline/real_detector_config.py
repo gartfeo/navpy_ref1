@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
-from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
 from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec

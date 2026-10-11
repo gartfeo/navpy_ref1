@@ -15,7 +15,7 @@ import numpy as np
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
 from navpy.core.perception.pointing.gimbal_rate_tracker import (
     GimbalRateTracker,
@@ -397,7 +397,7 @@ class TestSecondLaunchGeoPointing(unittest.TestCase):
             GimbalSiyiSim,
         )
         from navpy.core.ports.gimbal_abc import GimbalData
-        from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
+        from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
 
         vehicle = Mock()
         vehicle.attitude = Attitude(0, 0, 0)  # body == world for readback

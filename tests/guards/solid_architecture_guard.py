@@ -108,7 +108,7 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "VisionLifecycle",
     ): 150,
     (
-        "src/navpy/modules/vision/peripheral/siyi/hardware/lifecycle.py",
+        "src/navpy/plugins/gimbal/siyi/hardware/lifecycle.py",
         "SiyiHardwareLifecycle",
     ): 150,
     (
@@ -124,9 +124,9 @@ FOCUSED_CLASS_LINE_LIMITS = {
 VENDORED_SHA256 = {
     "src/navpy/plugins/vehicle/ardupilot/_mavftp/_upstream_mavftp.py":
         "6977ACE6D7FF6DE95AF5FF63FEB1883F3863C76266A2FF6E1607C86312BCBE9F",
-    "src/navpy/modules/vision/peripheral/siyi/siyi_sdk.py":
+    "src/navpy/plugins/gimbal/siyi/siyi_sdk.py":
         "DCEBF8A3BB4EFAE396D213236918CB66D1C95D67816B8681A377255E4A8C8843",
-    "src/navpy/modules/vision/peripheral/siyi/siyi_message.py":
+    "src/navpy/plugins/gimbal/siyi/siyi_message.py":
         "BB8E3BAAD0827FC41459FB488DE8C356E2050432AD25A8CDC3DFA97DCEAF904D",
 }
 
@@ -183,7 +183,7 @@ class FacadeMethodAllowance:
 # escape hatch; only these path/name/shape-bounded adapters receive an allowance.
 FACADE_METHOD_ALLOWANCES = {
     (
-        "src/navpy/modules/navigation/gimbal_navigation.py",
+        "src/navpy/core/command/gimbal/gimbal_navigation.py",
         "GimbalNavigation",
     ): FacadeMethodAllowance(1, 20, frozenset({"_parts"})),
     # 82 = 80 + the two capture-pose accessors (attitude_history,
@@ -228,7 +228,7 @@ FACADE_METHOD_ALLOWANCES = {
         "VisionController",
     ): FacadeMethodAllowance(16, 16, frozenset({"_ports"})),
     (
-        "src/navpy/modules/vision/peripheral/gimbal_siyi.py",
+        "src/navpy/plugins/gimbal/siyi/gimbal_siyi.py",
         "GimbalSiyi",
     ): FacadeMethodAllowance(1, 22, frozenset({"_parts"})),
     (

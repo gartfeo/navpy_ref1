@@ -6,14 +6,14 @@ import math
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.gimbal_geo_diagnostics import GeoRayDiagnosticLogger
-from navpy.modules.navigation.gimbal_navigation_state import (
+from navpy.core.command.gimbal.gimbal_geo_diagnostics import GeoRayDiagnosticLogger
+from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalGeoMemory,
     GimbalHardware,
     GimbalSessionCommandGate,
     GimbalSessionFence,
 )
-from navpy.modules.navigation.gimbal_tracking_constants import GIMBAL_COMMAND_ERRORS
+from navpy.core.command.gimbal.gimbal_tracking_constants import GIMBAL_COMMAND_ERRORS
 
 
 class GimbalGeoCommander:

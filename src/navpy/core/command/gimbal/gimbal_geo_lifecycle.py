@@ -4,19 +4,19 @@ from __future__ import annotations
 
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.gimbal_navigation_state import (
+from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalDetectionMemory,
     GimbalGeoMemory,
     GimbalHardware,
     GimbalSessionCommandGate,
     GimbalSessionFence,
 )
-from navpy.modules.navigation.gimbal_neutral_return import GimbalNeutralReturn
-from navpy.modules.navigation.gimbal_tracking_constants import (
+from navpy.core.command.gimbal.gimbal_neutral_return import GimbalNeutralReturn
+from navpy.core.command.gimbal.gimbal_tracking_constants import (
     GIMBAL_COMMAND_ERRORS,
     MODE_LOCK,
 )
-from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
+from navpy.core.command.gimbal.gimbal_zoom_control import GimbalZoomController
 
 
 class GimbalGeoLifecycle:

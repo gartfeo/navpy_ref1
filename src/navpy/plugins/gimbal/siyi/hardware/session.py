@@ -6,7 +6,7 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from navpy.modules.vision.peripheral.siyi.hardware.ports import SiyiSdkPort
+from navpy.plugins.gimbal.siyi.hardware.ports import SiyiSdkPort
 
 
 class SiyiSdkSession:

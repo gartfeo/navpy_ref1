@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Callable
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.gimbal_navigation_state import (
+from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalGeoMemory,
     GimbalHardware,
     GimbalSessionFence,

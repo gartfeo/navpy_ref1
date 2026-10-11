@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 import cv2
 
 from navpy.core.kernel.resource_cleanup import CleanupStack
-from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
+from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
 from navpy.core.ports.detect_request import DetectRequest
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.pipeline.detector import Detector

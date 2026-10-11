@@ -19,7 +19,7 @@ from navpy.logger.navigation_logger import NavigationLogger
 from navpy.core.kernel.logging.logger_api import ConsoleLogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
+from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider,

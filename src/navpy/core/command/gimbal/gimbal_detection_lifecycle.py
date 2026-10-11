@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.modules.navigation.gimbal_navigation_state import (
+from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalDetectionMemory,
     GimbalGeoMemory,
     GimbalHardware,
@@ -10,9 +10,9 @@ from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalSessionFence,
     GimbalTrackers,
 )
-from navpy.modules.navigation.gimbal_neutral_return import GimbalNeutralReturn
-from navpy.modules.navigation.gimbal_tracking_constants import MODE_LOCK
-from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
+from navpy.core.command.gimbal.gimbal_neutral_return import GimbalNeutralReturn
+from navpy.core.command.gimbal.gimbal_tracking_constants import MODE_LOCK
+from navpy.core.command.gimbal.gimbal_zoom_control import GimbalZoomController
 
 
 class GimbalDetectionLifecycle:

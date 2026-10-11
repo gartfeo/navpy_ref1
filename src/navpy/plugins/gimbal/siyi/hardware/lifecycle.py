@@ -6,21 +6,21 @@ import threading
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.peripheral.siyi.hardware.poll_worker import (
+from navpy.plugins.gimbal.siyi.hardware.poll_worker import (
     SiyiPollWorker,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.polling import (
+from navpy.plugins.gimbal.siyi.hardware.polling import (
     SiyiTelemetryPoller,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.ports import (
+from navpy.plugins.gimbal.siyi.hardware.ports import (
     SiyiSdkFactory,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.sdk_owner import (
+from navpy.plugins.gimbal.siyi.hardware.sdk_owner import (
     SiyiEndpoint,
     SiyiSdkOwner,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.session import SiyiSdkSession
-from navpy.modules.vision.peripheral.siyi.hardware.state import SiyiReadbackStore
+from navpy.plugins.gimbal.siyi.hardware.session import SiyiSdkSession
+from navpy.plugins.gimbal.siyi.hardware.state import SiyiReadbackStore
 
 
 ATTITUDE_READY_TIMEOUT_S = 1.0

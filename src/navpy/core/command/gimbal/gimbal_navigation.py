@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.navigation.gimbal_navigation_composition import (
+from navpy.core.command.gimbal.gimbal_navigation_composition import (
     build_gimbal_navigation,
 )
-from navpy.modules.navigation.gimbal_navigation_facets import (
+from navpy.core.command.gimbal.gimbal_navigation_facets import (
     GimbalDetectionFacet,
     GimbalGeoFacet,
     GimbalNavigationStatusFacet,
     GimbalVisualFacet,
     GimbalZoomFacet,
 )
-from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTracker
 from navpy.core.perception.zoom.poi_zoom_orchestrator import PoiZoomTracker

@@ -7460,7 +7460,7 @@ class TestNavControllerOneShot(unittest.TestCase):
     def test_exit_fences_stale_command_before_blocked_detector_stop(self):
         import threading
 
-        from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
+        from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 
         lock = threading.RLock()
         slot = NavigationCommandSlot(lock, threading.Event())

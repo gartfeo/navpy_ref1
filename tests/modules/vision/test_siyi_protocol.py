@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from navpy.modules.vision.peripheral.siyi.siyi_sdk import SIYISDK
-from navpy.modules.vision.peripheral.siyi.siyi_message import COMMAND, MountDirMsg, SIYIMESSAGE
+from navpy.plugins.gimbal.siyi.siyi_sdk import SIYISDK
+from navpy.plugins.gimbal.siyi.siyi_message import COMMAND, MountDirMsg, SIYIMESSAGE
 
 
 class FakeSocket:
@@ -150,7 +150,7 @@ class TestSiyiSdk(unittest.TestCase):
         sdk._g_att_thread = FakeThread()
         sdk._g_att_thread._alive = True
 
-        with patch("navpy.modules.vision.peripheral.siyi.siyi_sdk.threading.current_thread", return_value=current):
+        with patch("navpy.plugins.gimbal.siyi.siyi_sdk.threading.current_thread", return_value=current):
             sdk.disconnect()
 
         self.assertEqual(current.join_calls, 0)
@@ -182,8 +182,8 @@ class TestSiyiSdk(unittest.TestCase):
         try:
             with patch.object(sdk, "_create_socket", side_effect=fake_create_socket), \
                 patch.object(sdk, "_init_threads", side_effect=fake_init_threads), \
-                patch("navpy.modules.vision.peripheral.siyi.siyi_sdk.time", side_effect=[0.0, 0.1, 0.2]), \
-                patch("navpy.modules.vision.peripheral.siyi.siyi_sdk.sleep", lambda *_: None):
+                patch("navpy.plugins.gimbal.siyi.siyi_sdk.time", side_effect=[0.0, 0.1, 0.2]), \
+                patch("navpy.plugins.gimbal.siyi.siyi_sdk.sleep", lambda *_: None):
                 self.assertTrue(sdk.connect(maxWaitTime=0.05, maxRetries=2))
         finally:
             sdk.disconnect()
@@ -207,7 +207,7 @@ class TestSiyiSdk(unittest.TestCase):
         sdk = SIYISDK()
         try:
             with patch(
-                "navpy.modules.vision.peripheral.siyi.siyi_sdk.monotonic",
+                "navpy.plugins.gimbal.siyi.siyi_sdk.monotonic",
                 return_value=12.5,
             ):
                 self.assertTrue(sdk.parseCurrentZoomLevelMsg("0305", 42))
@@ -222,7 +222,7 @@ class TestSiyiSdk(unittest.TestCase):
         try:
             payload = "640038ff3200000000000000"
             with patch(
-                "navpy.modules.vision.peripheral.siyi.siyi_sdk.time",
+                "navpy.plugins.gimbal.siyi.siyi_sdk.time",
                 return_value=123.45,
             ):
                 self.assertTrue(sdk.parseAttitudeMsg(payload, 9))

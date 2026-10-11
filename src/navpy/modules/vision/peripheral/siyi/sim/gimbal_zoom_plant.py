@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import clamp
-from navpy.modules.vision.peripheral.siyi.siyi_sdk import ZR10
+from navpy.plugins.gimbal.siyi.siyi_sdk import ZR10
 
 
 ZOOM_INCREMENTAL_SPEED = 5.0

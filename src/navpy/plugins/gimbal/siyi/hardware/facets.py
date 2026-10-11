@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.peripheral.siyi.hardware.composition import (
+from navpy.plugins.gimbal.siyi.hardware.composition import (
     SiyiHardwareParts,
 )
 

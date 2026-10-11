@@ -6,26 +6,26 @@ from dataclasses import dataclass
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.peripheral.siyi.hardware.commands import (
+from navpy.plugins.gimbal.siyi.hardware.commands import (
     SiyiHardwareCommands,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.lifecycle import (
+from navpy.plugins.gimbal.siyi.hardware.lifecycle import (
     SiyiEndpoint,
     SiyiHardwareLifecycle,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.polling import (
+from navpy.plugins.gimbal.siyi.hardware.polling import (
     SiyiTelemetryPoller,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.ports import (
+from navpy.plugins.gimbal.siyi.hardware.ports import (
     MonotonicClock,
     SiyiSdkFactory,
     SiyiSdkPort,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.readback import (
+from navpy.plugins.gimbal.siyi.hardware.readback import (
     SiyiHardwareReadback,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.session import SiyiSdkSession
-from navpy.modules.vision.peripheral.siyi.hardware.state import SiyiReadbackStore
+from navpy.plugins.gimbal.siyi.hardware.session import SiyiSdkSession
+from navpy.plugins.gimbal.siyi.hardware.state import SiyiReadbackStore
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,7 @@ class SiyiHardwareParts:
 
 
 def create_siyi_sdk(*, server_ip: str, port: int) -> SiyiSdkPort:
-    from navpy.modules.vision.peripheral.siyi.siyi_sdk import SIYISDK
+    from navpy.plugins.gimbal.siyi.siyi_sdk import SIYISDK
 
     return SIYISDK(server_ip=server_ip, port=port)
 

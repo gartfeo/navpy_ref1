@@ -5,9 +5,9 @@ from __future__ import annotations
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.gimbal_geo_acquisition import GeoAcquisitionZoom
-from navpy.modules.navigation.gimbal_geo_commander import GimbalGeoCommander
-from navpy.modules.navigation.gimbal_geo_lifecycle import GimbalGeoLifecycle
+from navpy.core.command.gimbal.gimbal_geo_acquisition import GeoAcquisitionZoom
+from navpy.core.command.gimbal.gimbal_geo_commander import GimbalGeoCommander
+from navpy.core.command.gimbal.gimbal_geo_lifecycle import GimbalGeoLifecycle
 
 
 class GimbalGeoTracking:

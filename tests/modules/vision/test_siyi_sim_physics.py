@@ -12,7 +12,7 @@ from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
     wrap180 as _wrap180,
 )
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_zoom_plant import ZOOM_INCREMENTAL_SPEED
-from navpy.modules.vision.peripheral.siyi.siyi_sdk import ZR10
+from navpy.plugins.gimbal.siyi.siyi_sdk import ZR10
 
 
 class TestAngleLimits(unittest.TestCase):

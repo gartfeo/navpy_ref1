@@ -7,15 +7,15 @@ from typing import NoReturn
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.peripheral.siyi.hardware.bounded_sdk import (
+from navpy.plugins.gimbal.siyi.hardware.bounded_sdk import (
     BoundedSiyiSdk,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.ports import (
+from navpy.plugins.gimbal.siyi.hardware.ports import (
     SiyiSdkFactory,
     SiyiSdkPort,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.session import SiyiSdkSession
-from navpy.modules.vision.peripheral.siyi.hardware.shutdown import (
+from navpy.plugins.gimbal.siyi.hardware.session import SiyiSdkSession
+from navpy.plugins.gimbal.siyi.hardware.shutdown import (
     require_acknowledgement,
     shutdown_payload,
 )

@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Protocol
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.gimbal_navigation_state import GimbalNavigationStatus
-from navpy.modules.navigation.gimbal_tracking_constants import ARMED_ANY_OBJ_ID
-from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalNavigationStatus
+from navpy.core.command.gimbal.gimbal_tracking_constants import ARMED_ANY_OBJ_ID
+from navpy.core.command.gimbal.gimbal_zoom_control import GimbalZoomController
 from navpy.core.perception.pointing.gimbal_rate_types import GimbalTrackResult
 from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 

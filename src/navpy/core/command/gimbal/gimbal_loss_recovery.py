@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from navpy.modules.navigation.gimbal_navigation_state import (
+from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalHardware,
     GimbalLossPolicy,
 )
-from navpy.modules.navigation.gimbal_neutral_return import GimbalNeutralReturn
-from navpy.modules.navigation.gimbal_tracking_constants import MODE_LOCK
-from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
+from navpy.core.command.gimbal.gimbal_neutral_return import GimbalNeutralReturn
+from navpy.core.command.gimbal.gimbal_tracking_constants import MODE_LOCK
+from navpy.core.command.gimbal.gimbal_zoom_control import GimbalZoomController
 from navpy.core.perception.pointing.gimbal_rate_types import TrackingState
 
 

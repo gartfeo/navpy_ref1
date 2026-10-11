@@ -9,12 +9,12 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
-from navpy.modules.navigation.gimbal_tracking_constants import (
+from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
+from navpy.core.command.gimbal.gimbal_tracking_constants import (
     MODE_FOLLOW,
     MODE_LOCK,
 )
-from navpy.modules.navigation.gimbal_navigation_state import (
+from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalLossPolicy,
     GimbalTrackingSetup,
 )
@@ -1018,7 +1018,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
     ):
         navigation.start_geo_tracking(self.poi_loc, self.geo_ref)
         with patch(
-            "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
+            "navpy.core.command.gimbal.gimbal_navigation_composition.pymap3d.geodetic2ned",
             return_value=(
                 np.array([100.0, 0.0, 0.0])
                 if poi_ned is None
@@ -1210,7 +1210,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self.gimbal.reset_mock()
 
         with patch(
-            "navpy.modules.navigation.gimbal_navigation_composition.compute_geo_ray_diagnostic",
+            "navpy.core.command.gimbal.gimbal_navigation_composition.compute_geo_ray_diagnostic",
         ) as compute_diag:
             g.update_geo(self.uav_loc, self.uav_att)
 
@@ -1236,7 +1236,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self.logger.debug.reset_mock()
 
         with patch(
-            "navpy.modules.navigation.gimbal_navigation_composition.compute_geo_ray_diagnostic",
+            "navpy.core.command.gimbal.gimbal_navigation_composition.compute_geo_ray_diagnostic",
             return_value=diagnostic,
         ) as compute_diag:
             g.update_geo(self.uav_loc, self.uav_att)
@@ -1285,7 +1285,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         with patch(
-            "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
+            "navpy.core.command.gimbal.gimbal_navigation_composition.pymap3d.geodetic2ned",
             return_value=np.array([100.0, 0.0, 0.0]),
         ):
             prepared = g.prepare_geo_acquisition(
@@ -1317,7 +1317,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         with patch(
-            "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
+            "navpy.core.command.gimbal.gimbal_navigation_composition.pymap3d.geodetic2ned",
             return_value=np.array([100.0, 0.0, 0.0]),
         ):
             prepared = g.prepare_geo_acquisition(
@@ -1356,7 +1356,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         g.start_geo_tracking(self.poi_loc, self.geo_ref)
 
         with patch(
-            "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
+            "navpy.core.command.gimbal.gimbal_navigation_composition.pymap3d.geodetic2ned",
             return_value=np.array([100.0, 0.0, 0.0]),
         ):
             prepared = g.prepare_geo_acquisition(
@@ -1368,7 +1368,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_prepare_geo_acquisition_rejects_nonfinite_class_size(self):
         with patch(
-            "navpy.modules.navigation.gimbal_navigation_composition.get_class_detect_size",
+            "navpy.core.command.gimbal.gimbal_navigation_composition.get_class_detect_size",
             return_value=float("nan"),
         ):
             g = self._make(with_zoom=True)
@@ -1434,7 +1434,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
 
     def test_prepare_geo_acquisition_rejects_nonfinite_projected_size(self):
         with patch(
-            "navpy.modules.navigation.gimbal_navigation_composition.get_class_detect_size",
+            "navpy.core.command.gimbal.gimbal_navigation_composition.get_class_detect_size",
             return_value=1e308,
         ):
             g = self._make(with_zoom=True)
@@ -1502,7 +1502,7 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self.mount.set_zoom.return_value = True
         g.start_geo_tracking(self.poi_loc, self.geo_ref)
         with patch(
-            "navpy.modules.navigation.gimbal_navigation_composition.pymap3d.geodetic2ned",
+            "navpy.core.command.gimbal.gimbal_navigation_composition.pymap3d.geodetic2ned",
             return_value=np.array([100.0, 0.0, 0.0]),
         ):
             g.prepare_geo_acquisition(
@@ -1683,16 +1683,16 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         self.gimbal.set_att.assert_not_called()
 
     def test_geo_tracking_facade_reexports_exact_owner_symbols(self):
-        from navpy.modules.navigation.gimbal_geo_acquisition import (
+        from navpy.core.command.gimbal.gimbal_geo_acquisition import (
             GeoAcquisitionZoom as OwnedGeoAcquisitionZoom,
         )
-        from navpy.modules.navigation.gimbal_geo_session import (
+        from navpy.core.command.gimbal.gimbal_geo_session import (
             GimbalGeoTracking as OwnedGimbalGeoTracking,
         )
-        from navpy.modules.navigation.gimbal_geo_acquisition import GeoAcquisitionZoom
-        from navpy.modules.navigation.gimbal_geo_zoom_selector import GeoZoomSelector
-        from navpy.modules.navigation.gimbal_geo_session import GimbalGeoTracking
-        from navpy.modules.navigation.gimbal_geo_zoom_selector import (
+        from navpy.core.command.gimbal.gimbal_geo_acquisition import GeoAcquisitionZoom
+        from navpy.core.command.gimbal.gimbal_geo_zoom_selector import GeoZoomSelector
+        from navpy.core.command.gimbal.gimbal_geo_session import GimbalGeoTracking
+        from navpy.core.command.gimbal.gimbal_geo_zoom_selector import (
             GeoZoomSelector as OwnedGeoZoomSelector,
         )
 

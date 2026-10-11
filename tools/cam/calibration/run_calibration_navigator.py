@@ -256,7 +256,7 @@ def draw_overlay(frame, targets, active_idx, target_xy, status_lines, badge, cen
 
 def connect_gimbal(ip, port):
     """Connect to a SIYI gimbal, center it, and return the instance."""
-    from navpy.modules.vision.peripheral.gimbal_siyi import GimbalSiyi
+    from navpy.plugins.gimbal.siyi.gimbal_siyi import GimbalSiyi
 
     data = GimbalData(
         att=Attitude(0, 0, 0),

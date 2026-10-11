@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.navigation_command_slot import (
+from navpy.core.command.navigation_command_slot import (
     NavigationCommandLease,
     NavigationCommandSlot,
 )

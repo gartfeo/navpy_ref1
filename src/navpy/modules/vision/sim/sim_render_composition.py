@@ -7,7 +7,7 @@ from typing import Optional
 
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 
-from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
+from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
 from navpy.modules.vision.sim.detection_publication_buffer import (
     DetectionPublicationBuffer,
 )

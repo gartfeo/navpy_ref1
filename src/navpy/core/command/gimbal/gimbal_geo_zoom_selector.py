@@ -10,7 +10,7 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.gimbal_navigation_state import GimbalHardware
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalHardware
 from navpy.core.perception.profile.vision_camera_calibration import (
     CameraZoomCalibration,
 )

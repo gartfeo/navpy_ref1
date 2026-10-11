@@ -6,7 +6,7 @@ import threading
 from dataclasses import dataclass
 from typing import Protocol
 
-from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
+from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.nav.vision_nav.command_hold import (
     FinalApproachCommandHoldStore,
 )

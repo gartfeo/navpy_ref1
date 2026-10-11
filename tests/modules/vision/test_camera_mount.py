@@ -12,7 +12,7 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.ports.camera_abc import CameraAbc
 from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
-from navpy.modules.vision.peripheral.fixed_gimbal import FixedGimbal
+from navpy.plugins.gimbal.fixed.fixed_gimbal import FixedGimbal
 from navpy.core.ports.gimbal_abc import (
     GimbalAbc,
     GimbalData,

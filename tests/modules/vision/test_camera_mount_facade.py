@@ -5,7 +5,7 @@ from __future__ import annotations
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
-from navpy.modules.vision.peripheral.fixed_gimbal import FixedGimbal
+from navpy.plugins.gimbal.fixed.fixed_gimbal import FixedGimbal
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
 

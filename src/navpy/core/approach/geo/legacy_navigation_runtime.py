@@ -13,7 +13,7 @@ from navpy.modules.navigation.navigation_runtime import NavigationRuntime
 if TYPE_CHECKING:
     import numpy as np
 
-    from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
+    from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 
 
 class LegacyNavigationRuntime(NavigationRuntime):

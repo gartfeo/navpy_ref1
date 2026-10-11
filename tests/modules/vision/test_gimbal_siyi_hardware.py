@@ -8,11 +8,11 @@ import pytest
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.peripheral.siyi.hardware.polling import (
+from navpy.plugins.gimbal.siyi.hardware.polling import (
     SiyiTelemetryPoller,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.session import SiyiSdkSession
-from navpy.modules.vision.peripheral.siyi.hardware.state import SiyiReadbackStore
+from navpy.plugins.gimbal.siyi.hardware.session import SiyiSdkSession
+from navpy.plugins.gimbal.siyi.hardware.state import SiyiReadbackStore
 
 
 class _Logger:

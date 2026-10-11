@@ -16,7 +16,7 @@ from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
     DetectorPipelineConfig,
 )
-from navpy.modules.vision.peripheral.gimbal_siyi import GimbalSiyi
+from navpy.plugins.gimbal.siyi.gimbal_siyi import GimbalSiyi
 from navpy.modules.vision.vision_camera_factory import build_camera_model
 from navpy.modules.vision.vision_gimbal_profile import build_gimbal_data
 from navpy.core.perception.profile.vision_detector_profile import get_detector_settings

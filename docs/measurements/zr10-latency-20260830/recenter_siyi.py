@@ -4,7 +4,7 @@ import argparse
 import json
 import time
 
-from navpy.modules.vision.peripheral.siyi.siyi_sdk import SIYISDK
+from navpy.plugins.gimbal.siyi.siyi_sdk import SIYISDK
 
 
 def main():

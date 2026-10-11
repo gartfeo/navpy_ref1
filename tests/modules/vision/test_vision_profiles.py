@@ -1171,7 +1171,7 @@ class TestBuildCameraMounts(unittest.TestCase):
 
     def test_build_camera_mounts_uses_fixed_gimbal_when_not_stabilized(self):
         """build_camera_mounts uses FixedGimbal when not stabilized."""
-        from navpy.modules.vision.peripheral.fixed_gimbal import FixedGimbal
+        from navpy.plugins.gimbal.fixed.fixed_gimbal import FixedGimbal
 
         profile = {
             "devices": [

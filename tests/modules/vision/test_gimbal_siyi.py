@@ -12,8 +12,8 @@ from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.peripheral.gimbal_siyi import GimbalSiyi
-from navpy.modules.vision.peripheral.siyi.hardware.bounded_sdk import (
+from navpy.plugins.gimbal.siyi.gimbal_siyi import GimbalSiyi
+from navpy.plugins.gimbal.siyi.hardware.bounded_sdk import (
     BoundedSiyiSdk,
 )
 
@@ -144,7 +144,7 @@ def test_zoom_readback_starts_unavailable() -> None:
     assert gimbal.get_frame_state_sample()[1:] == (None, None, None)
 
 
-@patch("navpy.modules.vision.peripheral.siyi.siyi_sdk.SIYISDK")
+@patch("navpy.plugins.gimbal.siyi.siyi_sdk.SIYISDK")
 def test_existing_four_argument_constructor_uses_default_sdk(mock_sdk_cls) -> None:
     sdk = _sdk()
     mock_sdk_cls.return_value = sdk
@@ -572,7 +572,7 @@ def test_poll_failure_is_persistent_health_failure() -> None:
     lifecycle._poll_worker._poller.run = Mock(side_effect=failure)
 
     with patch(
-        "navpy.modules.vision.peripheral.siyi.hardware.lifecycle."
+        "navpy.plugins.gimbal.siyi.hardware.lifecycle."
         "ATTITUDE_READY_TIMEOUT_S",
         0.01,
     ):

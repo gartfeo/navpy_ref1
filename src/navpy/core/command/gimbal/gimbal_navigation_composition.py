@@ -8,13 +8,13 @@ import pymap3d
 
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.navigation.gimbal_geo_commander import GimbalGeoCommander
-from navpy.modules.navigation.gimbal_geo_diagnostics import GeoRayDiagnosticLogger
-from navpy.modules.navigation.gimbal_geo_lifecycle import GimbalGeoLifecycle
-from navpy.modules.navigation.gimbal_geo_acquisition import GeoAcquisitionZoom
-from navpy.modules.navigation.gimbal_geo_session import GimbalGeoTracking
-from navpy.modules.navigation.gimbal_geo_zoom_selector import GeoZoomSelector
-from navpy.modules.navigation.gimbal_navigation_state import (
+from navpy.core.command.gimbal.gimbal_geo_commander import GimbalGeoCommander
+from navpy.core.command.gimbal.gimbal_geo_diagnostics import GeoRayDiagnosticLogger
+from navpy.core.command.gimbal.gimbal_geo_lifecycle import GimbalGeoLifecycle
+from navpy.core.command.gimbal.gimbal_geo_acquisition import GeoAcquisitionZoom
+from navpy.core.command.gimbal.gimbal_geo_session import GimbalGeoTracking
+from navpy.core.command.gimbal.gimbal_geo_zoom_selector import GeoZoomSelector
+from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalDetectionMemory,
     GimbalGeoMemory,
     GimbalNavigationStatus,
@@ -24,13 +24,13 @@ from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalTrackingSetup,
     GimbalTrackers,
 )
-from navpy.modules.navigation.gimbal_neutral_return import GimbalNeutralReturn
-from navpy.modules.navigation.gimbal_detection_lifecycle import (
+from navpy.core.command.gimbal.gimbal_neutral_return import GimbalNeutralReturn
+from navpy.core.command.gimbal.gimbal_detection_lifecycle import (
     GimbalDetectionLifecycle,
 )
-from navpy.modules.navigation.gimbal_loss_recovery import GimbalLossRecovery
-from navpy.modules.navigation.gimbal_visual_tracking import GimbalVisualTracking
-from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
+from navpy.core.command.gimbal.gimbal_loss_recovery import GimbalLossRecovery
+from navpy.core.command.gimbal.gimbal_visual_tracking import GimbalVisualTracking
+from navpy.core.command.gimbal.gimbal_zoom_control import GimbalZoomController
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.geo.geo_ray_diagnostics import compute_geo_ray_diagnostic
 from navpy.core.perception.pointing.gimbal_rate_tracker import (

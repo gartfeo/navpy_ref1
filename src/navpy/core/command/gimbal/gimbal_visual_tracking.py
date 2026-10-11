@@ -6,17 +6,17 @@ import math
 import time
 from dataclasses import dataclass, replace
 
-from navpy.modules.navigation.gimbal_navigation_state import (
+from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalDetectionMemory,
     GimbalSessionCommandGate,
     GimbalSessionFence,
     GimbalTrackers,
 )
-from navpy.modules.navigation.gimbal_loss_recovery import (
+from navpy.core.command.gimbal.gimbal_loss_recovery import (
     GimbalLossRecovery,
     LossRecoveryResult,
 )
-from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
+from navpy.core.command.gimbal.gimbal_zoom_control import GimbalZoomController
 from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalObservationDisposition,
     GimbalTrackResult,

@@ -6,15 +6,15 @@ import time
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
-from navpy.modules.vision.peripheral.siyi.hardware.composition import (
+from navpy.plugins.gimbal.siyi.hardware.composition import (
     build_siyi_hardware,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.facets import (
+from navpy.plugins.gimbal.siyi.hardware.facets import (
     SiyiHardwareControlFacet,
     SiyiHardwareLifecycleFacet,
     SiyiHardwareReadbackFacet,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.ports import (
+from navpy.plugins.gimbal.siyi.hardware.ports import (
     MonotonicClock,
     SiyiSdkFactory,
 )

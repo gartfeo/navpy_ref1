@@ -7,10 +7,10 @@ from dataclasses import dataclass
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
-from navpy.modules.vision.peripheral.siyi.hardware.polling import (
+from navpy.plugins.gimbal.siyi.hardware.polling import (
     SiyiTelemetryPoller,
 )
-from navpy.modules.vision.peripheral.siyi.hardware.shutdown import (
+from navpy.plugins.gimbal.siyi.hardware.shutdown import (
     stop_poll_thread,
 )
 from navpy.core.ports.worker_failure import WorkerFailureLatch

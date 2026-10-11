@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from navpy.modules.vision.vision_tracking_profile import build_tracking_profile
 
 if TYPE_CHECKING:
-    from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
+    from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 
 
 def build_tracking_config(
@@ -17,7 +17,7 @@ def build_tracking_config(
     sim: bool,
 ) -> "GimbalTrackingSetup | None":
     """Translate Vision-owned tracker data into Navigation-owned policy."""
-    from navpy.modules.navigation.gimbal_navigation_state import (
+    from navpy.core.command.gimbal.gimbal_navigation_state import (
         GimbalLossPolicy,
         GimbalTrackingSetup,
     )

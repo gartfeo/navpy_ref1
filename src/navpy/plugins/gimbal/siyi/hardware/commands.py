@@ -6,9 +6,9 @@ from collections.abc import Callable
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.peripheral.siyi.hardware.ports import SiyiSdkPort
-from navpy.modules.vision.peripheral.siyi.hardware.session import SiyiSdkSession
-from navpy.modules.vision.peripheral.siyi.hardware.state import SiyiReadbackStore
+from navpy.plugins.gimbal.siyi.hardware.ports import SiyiSdkPort
+from navpy.plugins.gimbal.siyi.hardware.session import SiyiSdkSession
+from navpy.plugins.gimbal.siyi.hardware.state import SiyiReadbackStore
 
 
 class SiyiHardwareCommands:
