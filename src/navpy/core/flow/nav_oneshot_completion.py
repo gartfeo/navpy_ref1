@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.nav.navigation_task_reset import NavigationTaskResetTransaction
+from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
 
 
 @dataclass(frozen=True)

@@ -13,13 +13,13 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
-from navpy.modules.nav.detection_snapshot import DetectionSnapshot
-from navpy.modules.nav.navigation_task_reset import AutoMissionResume
-from navpy.modules.nav.nav_constants import (
+from navpy.core.flow.detection_snapshot import DetectionSnapshot
+from navpy.core.flow.navigation_task_reset import AutoMissionResume
+from navpy.core.flow.nav_constants import (
     TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC,
     TRACK_REACQUIRE_GATE_RADIUS_M,
 )
-from navpy.modules.nav.nav_state import (
+from navpy.core.flow.nav_state import (
     ConfirmGateState,
     GeoHoldState,
     NavPhaseState,

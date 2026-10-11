@@ -8,7 +8,7 @@ swarm-task-assignment-ack.md, "Busy UAVs").
 
 from __future__ import annotations
 
-from navpy.modules.nav.nav_state import NavState
+from navpy.core.flow.nav_state import NavState
 
 
 def is_approaching(committed: NavState) -> bool:

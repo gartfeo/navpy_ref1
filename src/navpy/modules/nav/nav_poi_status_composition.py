@@ -21,7 +21,7 @@ from navpy.core.skills.confirm.poi_rejection_exit import (
     PoiRejectionExit,
     PoiRejectionPorts,
 )
-from navpy.modules.nav.poi_status_decision import (
+from navpy.core.flow.poi_status_decision import (
     PoiSelectionPorts,
     ConfirmationStatusDecision,
 )

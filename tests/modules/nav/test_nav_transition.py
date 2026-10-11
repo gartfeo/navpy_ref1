@@ -10,12 +10,12 @@ from navpy.core.approach.nav_exit_cleanup import (
     NavExitCleanup,
     NavExitCleanupPorts,
 )
-from navpy.modules.nav.nav_oneshot_completion import (
+from navpy.core.flow.nav_oneshot_completion import (
     OneShotCompletion,
     OneShotCompletionPorts,
 )
-from navpy.modules.nav.nav_transition import NavTransition
-from navpy.modules.nav.nav_state import NavigationTaskState, NavState
+from navpy.core.flow.nav_transition import NavTransition
+from navpy.core.flow.nav_state import NavigationTaskState, NavState
 
 
 def test_exit_cleanup_fences_navigation_before_every_other_cleanup():

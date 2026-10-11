@@ -18,13 +18,13 @@ from navpy.core.skills.confirm.confirmation_reporting import (
     ConfirmDebugReporter,
 )
 from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPolicy
-from navpy.modules.nav.detection_snapshot import DetectionSnapshot
-from navpy.modules.nav.navigation_speedup import (
+from navpy.core.flow.detection_snapshot import DetectionSnapshot
+from navpy.core.flow.navigation_speedup import (
     NavigationSpeedupLease,
     SimSpeedupParameterPort,
 )
-from navpy.modules.nav.mission_catalog import MissionCatalog
-from navpy.modules.nav.nav_clock import NavClock
+from navpy.core.flow.mission_catalog import MissionCatalog
+from navpy.core.flow.nav_clock import NavClock
 from navpy.modules.nav.nav_composition_types import (
     DetectionReviewOwnership,
     NavCapabilities,
@@ -32,7 +32,7 @@ from navpy.modules.nav.nav_composition_types import (
     PoiMissionOwnership,
     VehicleApproachOwnership,
 )
-from navpy.modules.nav.nav_constants import (
+from navpy.core.flow.nav_constants import (
     CONFIRM_FRESH_DETECTION_MAX_AGE_S,
     CONFIRM_REASK_MAX_ATTEMPTS,
     DIST_EPS,
@@ -42,7 +42,7 @@ from navpy.modules.nav.nav_constants import (
     POI_REACQUIRE_COOLDOWN_SEC,
 )
 from navpy.core.swarm.nav_network import NavNetworkRuntime
-from navpy.modules.nav.nav_state import (
+from navpy.core.flow.nav_state import (
     ConfirmGateState,
     ConfirmOverrideInbox,
     NavigationTaskState,
@@ -51,8 +51,8 @@ from navpy.modules.nav.nav_state import (
     NavPhaseState,
     FinalApproachNavState,
 )
-from navpy.modules.nav.nav_status import NavigationStatusReporter
-from navpy.modules.nav.navigation_zoom import ZoomController
+from navpy.core.flow.nav_status import NavigationStatusReporter
+from navpy.core.flow.navigation_zoom import ZoomController
 from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.skills.confirm.poi_retry import PoiRetryState

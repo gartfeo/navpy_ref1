@@ -8,7 +8,7 @@ from typing import Protocol
 
 from navpy.core.kernel.location import Location
 from navpy.core.skills.confirm.confirmation_policy import ConfirmationTimingPolicy
-from navpy.modules.nav.nav_state import GeoHoldState
+from navpy.core.flow.nav_state import GeoHoldState
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.skills.confirm.track_recovery import GeoHoldCoordinator
 from navpy.core.ports.detect_data import DetectedObject

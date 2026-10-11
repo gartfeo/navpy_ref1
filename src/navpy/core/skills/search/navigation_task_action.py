@@ -7,9 +7,9 @@ from typing import Callable, Optional
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
-from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
+from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
 from navpy.core.flow.fallback_mission_navigation import FallbackMissionNavigation
-from navpy.modules.nav.nav_state import NavigationTaskState, FinalApproachNavState
+from navpy.core.flow.nav_state import NavigationTaskState, FinalApproachNavState
 from navpy.core.skills.acquire.peer_navigation import PeerNavigationCoordinator
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
 from navpy.core.skills.geo_approach.self_detected_approach import SelfDetectedApproach

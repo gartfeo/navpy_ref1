@@ -10,7 +10,7 @@ from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.modules.navigation.navigation import Navigation
 from navpy.modules.nav.nav_composition import create_nav_application
-from navpy.modules.nav.nav_constants import (
+from navpy.core.flow.nav_constants import (
     DIST_EPS,
     DIST_INC_MAX,
     NAV_LOOP_PERIOD_S,

@@ -10,7 +10,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
-from navpy.modules.nav.nav_state import NavigationTaskState, GeoHoldState
+from navpy.core.flow.nav_state import NavigationTaskState, GeoHoldState
 from navpy.core.skills.acquire.peer_geo import PeerGeoTracker
 
 

@@ -11,8 +11,8 @@ from navpy.core.skills.confirm.confirmation_policy import (
     ConfirmationTimingPolicy,
     PoiRetryPolicy,
 )
-from navpy.modules.nav.navigation_task_reset import AutoMissionResume
-from navpy.modules.nav.nav_state import NavPhaseState, NavState
+from navpy.core.flow.navigation_task_reset import AutoMissionResume
+from navpy.core.flow.nav_state import NavPhaseState, NavState
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id

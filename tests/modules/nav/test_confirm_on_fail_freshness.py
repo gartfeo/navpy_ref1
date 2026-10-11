@@ -28,7 +28,7 @@ from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
-from navpy.modules.nav.nav_constants import CONFIRM_FRESH_DETECTION_MAX_AGE_S
+from navpy.core.flow.nav_constants import CONFIRM_FRESH_DETECTION_MAX_AGE_S
 from navpy.modules.nav.nav_controller import NavController
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
@@ -346,7 +346,7 @@ class IsPoiFreshForConfirmTests(unittest.TestCase):
         controller.detections.detected_pois = [poi]
 
         with patch(
-            "navpy.modules.nav.nav_clock.time.time", return_value=fixed_now,
+            "navpy.core.flow.nav_clock.time.time", return_value=fixed_now,
         ):
             self.assertTrue(controller.freshness.is_poi_fresh_for_confirm(55))
 

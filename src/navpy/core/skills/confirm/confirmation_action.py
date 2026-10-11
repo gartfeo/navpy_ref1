@@ -12,10 +12,10 @@ from navpy.core.skills.confirm.confirmation_reporting import (
 from navpy.core.skills.confirm.confirmation_frame_policy import ConfirmationFramePolicy
 from navpy.core.skills.confirm.confirmation_recognition import RecognitionGate
 from navpy.core.skills.confirm.confirmation_review import ConfirmationReview
-from navpy.modules.nav.detection_snapshot import DetectionSnapshot
+from navpy.core.flow.detection_snapshot import DetectionSnapshot
 from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.skills.search.poi_selection import PoiSelector
-from navpy.modules.nav.nav_state import (
+from navpy.core.flow.nav_state import (
     GeoHoldState,
     FinalApproachNavState,
 )

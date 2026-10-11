@@ -10,8 +10,8 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
 from navpy.core.skills.acquire.approach_planner import ApproachPlanner
-from navpy.modules.nav.mission_catalog import MissionCatalog
-from navpy.modules.nav.nav_state import NavigationTaskState
+from navpy.core.flow.mission_catalog import MissionCatalog
+from navpy.core.flow.nav_state import NavigationTaskState
 from navpy.core.skills.acquire.vehicle_navigation import VehicleNavigationCommands
 from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
 

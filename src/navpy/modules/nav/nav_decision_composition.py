@@ -14,7 +14,7 @@ from navpy.modules.nav.nav_composition_types import (
     PoiMissionOwnership,
     VehicleApproachOwnership,
 )
-from navpy.modules.nav.navigation_decision import (
+from navpy.core.flow.navigation_decision import (
     NavDecisionPorts,
     NavStateDecision,
     InactiveGuardPorts,
@@ -22,7 +22,7 @@ from navpy.modules.nav.navigation_decision import (
     NavigationDecision,
     NavigationDecisionPorts,
 )
-from navpy.modules.nav.recovery import RecoveryAction, RecoveryPorts
+from navpy.core.flow.recovery import RecoveryAction, RecoveryPorts
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 

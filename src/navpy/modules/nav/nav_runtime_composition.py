@@ -13,13 +13,13 @@ from navpy.core.approach.nav_exit_cleanup import (
     NavExitCleanup,
     NavExitCleanupPorts,
 )
-from navpy.modules.nav.nav_oneshot_completion import (
+from navpy.core.flow.nav_oneshot_completion import (
     OneShotCompletion,
     OneShotCompletionPorts,
 )
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.core.skills.acquire.peer_geo_tick import PeerGeoTick
-from navpy.modules.nav.nav_application import NavApplication, NavShutdown
+from navpy.core.flow.nav_application import NavApplication, NavShutdown
 from navpy.modules.nav.nav_composition_types import (
     ConfirmationWorkflows,
     DecisionWorkflows,
@@ -30,16 +30,16 @@ from navpy.modules.nav.nav_composition_types import (
     PoiMissionOwnership,
     VehicleApproachOwnership,
 )
-from navpy.modules.nav.nav_state import NavState
-from navpy.modules.nav.nav_task_availability import is_approaching
-from navpy.modules.nav.navigation_loop import (
+from navpy.core.flow.nav_state import NavState
+from navpy.core.flow.nav_task_availability import is_approaching
+from navpy.core.flow.navigation_loop import (
     DetectionSensor,
     NavigationCycle,
     NavigationLoop,
     StateActionDispatcher,
 )
-from navpy.modules.nav.nav_transition import NavTransition
-from navpy.modules.nav.navigation_transition_handler import (
+from navpy.core.flow.nav_transition import NavTransition
+from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
     TransitionPorts,
 )

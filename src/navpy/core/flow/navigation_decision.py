@@ -8,24 +8,24 @@ from typing import Callable, Optional
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.nav.navigation_task_reset import NavigationTaskResetTransaction
-from navpy.modules.nav.mission_catalog import MissionCatalog
-from navpy.modules.nav.mission_navigation import MissionPassPolicy
-from navpy.modules.nav.nav_constants import (
+from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
+from navpy.core.flow.mission_catalog import MissionCatalog
+from navpy.core.flow.mission_navigation import MissionPassPolicy
+from navpy.core.flow.nav_constants import (
     GUIDED_ACCEPT_TIMEOUT_S,
     GUIDED_REQUEST_RETRY_INTERVAL_S,
 )
-from navpy.modules.nav.nav_state import (
+from navpy.core.flow.nav_state import (
     ConfirmGateState,
     NavigationTaskState,
     NavigationFailureLatch,
     NavPhaseState,
     NavState,
 )
-from navpy.modules.nav.nav_status import NavigationStatusReporter
-from navpy.modules.nav.recovery import RecoveryAction
+from navpy.core.flow.nav_status import NavigationStatusReporter
+from navpy.core.flow.recovery import RecoveryAction
 from navpy.core.review.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.poi_status_decision import ConfirmationStatusDecision
+from navpy.core.flow.poi_status_decision import ConfirmationStatusDecision
 from navpy.core.skills.acquire.vehicle_navigation import LoiterRadiusLease
 from navpy.core.ports.flight_mode import FlightMode
 

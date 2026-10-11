@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.skills.acquire.peer_offset import OFFSET_LOITER_RADIUS_M
-from navpy.modules.nav.nav_state import NavigationTaskState
+from navpy.core.flow.nav_state import NavigationTaskState
 from navpy.core.skills.acquire.vehicle_navigation import LoiterRadiusLease
 from navpy.core.ports.detect_data import DetectedObject
 

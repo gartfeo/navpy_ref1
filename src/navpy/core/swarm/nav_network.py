@@ -9,13 +9,13 @@ from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
 from navpy.core.review.confirm_override_listener import ConfirmOverrideListener
-from navpy.modules.nav.detection_snapshot import DetectionSnapshot
+from navpy.core.flow.detection_snapshot import DetectionSnapshot
 from navpy.core.kernel.failure_health import ComponentFailureLatch
 from navpy.core.swarm.nav_network_shutdown import (
     disconnect_nav_network_session,
 )
 from navpy.core.skills.search.poi_selection import PoiSelector
-from navpy.modules.nav.nav_state import ConfirmOverrideInbox
+from navpy.core.flow.nav_state import ConfirmOverrideInbox
 from navpy.core.swarm.peer_poi_dispatch import (
     PeerPoiDispatchPorts,
     PeerPoiDispatchWorker,

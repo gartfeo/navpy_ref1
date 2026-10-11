@@ -2,7 +2,7 @@
 
 from unittest.mock import Mock, call
 
-from navpy.modules.nav.navigation_speedup import (
+from navpy.core.flow.navigation_speedup import (
     NavigationSpeedupLease,
     NavigationSpeedupState,
     SimSpeedupParameterPort,

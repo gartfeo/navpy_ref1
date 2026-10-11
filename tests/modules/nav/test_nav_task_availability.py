@@ -5,10 +5,10 @@ from unittest.mock import Mock, call
 import pytest
 
 from navpy.core.swarm.nav_network import NavNetworkRuntime
-from navpy.modules.nav.nav_state import NavPhaseState, NavState
-from navpy.modules.nav.nav_task_availability import is_approaching
-from navpy.modules.nav.navigation_loop import StateActionDispatcher
-from navpy.modules.nav.navigation_transition_handler import TransitionOutcome
+from navpy.core.flow.nav_state import NavPhaseState, NavState
+from navpy.core.flow.nav_task_availability import is_approaching
+from navpy.core.flow.navigation_loop import StateActionDispatcher
+from navpy.core.flow.navigation_transition_handler import TransitionOutcome
 
 
 @pytest.mark.parametrize("phase", list(NavState))

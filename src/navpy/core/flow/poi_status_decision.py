@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 from navpy.core.skills.confirm.confirmed_poi_release import ConfirmedPoiRelease
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
-from navpy.modules.nav.nav_state import NavPhaseState, NavState
-from navpy.modules.nav.nav_status import NavigationStatusReporter
+from navpy.core.flow.nav_state import NavPhaseState, NavState
+from navpy.core.flow.nav_status import NavigationStatusReporter
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.skills.confirm.poi_presence_review import PoiPresenceReview
 from navpy.core.skills.confirm.poi_rejection_exit import PoiRejectionExit

@@ -13,7 +13,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.nav.nav_state import NavigationTaskState, GeoHoldState
+from navpy.core.flow.nav_state import NavigationTaskState, GeoHoldState
 from navpy.core.perception.detector_ports import GeoPointingPort, MountCatalogPort
 from navpy.core.perception.profile.vision_class_profile import (
     get_class_detect_size,

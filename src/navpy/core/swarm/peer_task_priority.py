@@ -18,7 +18,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.nav.nav_state import NavigationTaskState
+from navpy.core.flow.nav_state import NavigationTaskState
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id, same_poi_identity
 

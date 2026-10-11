@@ -10,12 +10,12 @@ from collections.abc import Callable, Mapping
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.high_resolution_deadline import wait_until_deadline
-from navpy.modules.nav.detection_snapshot import DetectionSnapshot
-from navpy.modules.nav.nav_clock import NavClock
-from navpy.modules.nav.nav_constants import NAV_LOOP_PERIOD_S
-from navpy.modules.nav.nav_state import NavPhaseState, NavState
-from navpy.modules.nav.navigation_decision import NavigationDecision
-from navpy.modules.nav.navigation_transition_handler import (
+from navpy.core.flow.detection_snapshot import DetectionSnapshot
+from navpy.core.flow.nav_clock import NavClock
+from navpy.core.flow.nav_constants import NAV_LOOP_PERIOD_S
+from navpy.core.flow.nav_state import NavPhaseState, NavState
+from navpy.core.flow.navigation_decision import NavigationDecision
+from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
 )
 from navpy.core.perception.detector_ports import DetectionEventPort, DetectionSnapshotPort

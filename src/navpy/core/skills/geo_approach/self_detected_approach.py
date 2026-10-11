@@ -8,7 +8,7 @@ from typing import Callable, Optional
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
-from navpy.modules.nav.nav_state import NavigationTaskState
+from navpy.core.flow.nav_state import NavigationTaskState
 from navpy.core.ports.detect_data import DetectedObject
 
 

@@ -24,22 +24,22 @@ from navpy.core.skills.confirm.confirmation_reporting import (
 from navpy.core.approach.final_approach_record_deadline import FinalApproachRecordDeadline
 from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPolicy
-from navpy.modules.nav.detection_snapshot import DetectionSnapshot
+from navpy.core.flow.detection_snapshot import DetectionSnapshot
 from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
 from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
 from navpy.core.skills.search.poi_selection import PoiSelector
-from navpy.modules.nav.navigation_task_reset import (
+from navpy.core.flow.navigation_task_reset import (
     AutoMissionResume,
     NavigationTaskResetTransaction,
 )
-from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
-from navpy.modules.nav.mission_catalog import MissionCatalog
+from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
+from navpy.core.flow.mission_catalog import MissionCatalog
 from navpy.core.flow.fallback_mission_navigation import FallbackMissionNavigation
-from navpy.modules.nav.mission_navigation import MissionPassPolicy
-from navpy.modules.nav.nav_clock import NavClock
+from navpy.core.flow.mission_navigation import MissionPassPolicy
+from navpy.core.flow.nav_clock import NavClock
 from navpy.core.swarm.nav_network import NavNetworkRuntime
-from navpy.modules.nav.nav_state import (
+from navpy.core.flow.nav_state import (
     ConfirmGateState,
     ConfirmOverrideInbox,
     NavigationTaskState,
@@ -48,15 +48,15 @@ from navpy.modules.nav.nav_state import (
     NavPhaseState,
     FinalApproachNavState,
 )
-from navpy.modules.nav.nav_status import NavigationStatusReporter
-from navpy.modules.nav.navigation_decision import NavigationDecision
-from navpy.modules.nav.navigation_zoom import ZoomController
+from navpy.core.flow.nav_status import NavigationStatusReporter
+from navpy.core.flow.navigation_decision import NavigationDecision
+from navpy.core.flow.navigation_zoom import ZoomController
 from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
 from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition
-from navpy.modules.nav.recovery import RecoveryAction
+from navpy.core.flow.recovery import RecoveryAction
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.skills.confirm.poi_retry import PoiRetryState
-from navpy.modules.nav.poi_status_decision import ConfirmationStatusDecision
+from navpy.core.flow.poi_status_decision import ConfirmationStatusDecision
 from navpy.core.approach.final_approach_source_admission import FinalApproachSourceAdmission
 from navpy.core.approach.final_approach_source_session import FinalApproachSourceSession
 from navpy.core.approach.final_approach_publication_admission import (

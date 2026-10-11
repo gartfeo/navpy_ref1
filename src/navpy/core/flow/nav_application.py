@@ -9,10 +9,10 @@ from typing import Callable
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.network_abc import NetworkAbc
-from navpy.modules.nav.navigation_task_reset import NavigationTaskResetTransaction
+from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.core.swarm.nav_network import NavNetworkRuntime
-from navpy.modules.nav.nav_state import ConfirmOverrideInbox
-from navpy.modules.nav.navigation_loop import NavigationLoop
+from navpy.core.flow.nav_state import ConfirmOverrideInbox
+from navpy.core.flow.navigation_loop import NavigationLoop
 
 
 def _run_shutdown_steps(

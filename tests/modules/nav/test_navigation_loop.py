@@ -6,10 +6,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.modules.nav.nav_application import NavApplication
-from navpy.modules.nav.nav_state import NavPhaseState, NavState
-from navpy.modules.nav.navigation_loop import NavigationLoop, StateActionDispatcher
-from navpy.modules.nav.navigation_transition_handler import TransitionOutcome
+from navpy.core.flow.nav_application import NavApplication
+from navpy.core.flow.nav_state import NavPhaseState, NavState
+from navpy.core.flow.navigation_loop import NavigationLoop, StateActionDispatcher
+from navpy.core.flow.navigation_transition_handler import TransitionOutcome
 
 
 class FatalNavigationFailure(BaseException):

@@ -21,11 +21,11 @@ from navpy.modules.nav.nav_confirmation_admission_composition import (
     compose_confirmation_admission_workflows,
 )
 from navpy.core.swarm.nav_network import NavPeerSubmission
-from navpy.modules.nav.nav_constants import (
+from navpy.core.flow.nav_constants import (
     CONFIRM_FRESH_DETECTION_MAX_AGE_S,
 )
 from navpy.modules.nav.nav_reset_composition import compose_reset_workflows
-from navpy.modules.nav.nav_state import NavState
+from navpy.core.flow.nav_state import NavState
 from navpy.core.approach.final_approach_command_dispatch import (
     FinalApproachCommandDispatch,
     FinalApproachCommandPorts,

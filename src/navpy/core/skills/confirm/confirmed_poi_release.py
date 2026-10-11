@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
 from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
-from navpy.modules.nav.nav_state import GeoHoldState, NavPhaseState, NavState
+from navpy.core.flow.nav_state import GeoHoldState, NavPhaseState, NavState
 from navpy.core.skills.confirm.track_recovery import TrackRecovery
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id

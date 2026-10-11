@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from navpy.core.kernel.config.nav_args import NavArgs
-from navpy.modules.nav.detection_snapshot import DetectionSnapshot
-from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
-from navpy.modules.nav.mission_catalog import MissionCatalog
-from navpy.modules.nav.nav_constants import PEER_APPROACH_DIST
-from navpy.modules.nav.nav_state import (
+from navpy.core.flow.detection_snapshot import DetectionSnapshot
+from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
+from navpy.core.flow.mission_catalog import MissionCatalog
+from navpy.core.flow.nav_constants import PEER_APPROACH_DIST
+from navpy.core.flow.nav_state import (
     ConfirmGateState,
     NavigationTaskState,
     GeoHoldState,

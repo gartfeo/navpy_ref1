@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.nav.nav_state import NavigationTaskState
-from navpy.modules.nav.navigation_zoom import ZoomController
+from navpy.core.flow.nav_state import NavigationTaskState
+from navpy.core.flow.navigation_zoom import ZoomController
 
 
 @dataclass(frozen=True)

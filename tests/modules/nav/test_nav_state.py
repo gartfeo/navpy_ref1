@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
-from navpy.modules.nav.detection_snapshot import DetectionSnapshot
+from navpy.core.flow.detection_snapshot import DetectionSnapshot
 
 
 def test_acknowledging_event_lease_preserves_later_append() -> None:

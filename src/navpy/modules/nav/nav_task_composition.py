@@ -19,7 +19,7 @@ from navpy.core.flow.fallback_mission_navigation import (
     FallbackMissionNavigation,
     FallbackMissionPorts,
 )
-from navpy.modules.nav.mission_navigation import (
+from navpy.core.flow.mission_navigation import (
     MissionPassPolicy,
     MissionPassPorts,
 )

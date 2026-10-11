@@ -7,14 +7,14 @@ from collections.abc import Callable
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.nav.nav_constants import (
+from navpy.core.flow.nav_constants import (
     CONFIRM_DWELL_MARGIN_SEC,
     CONFIRM_MAX_DWELL_SEC,
     CONFIRM_REACQUIRE_ABORT_SEC,
     MAX_CONFIRM_GATE_RESETS,
     TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC,
 )
-from navpy.modules.nav.nav_state import ConfirmGateState, GeoHoldState
+from navpy.core.flow.nav_state import ConfirmGateState, GeoHoldState
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.skills.confirm.poi_retry import PoiRetryState
 from navpy.core.perception.detector_ports import ZoomControlPort

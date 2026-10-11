@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.nav.nav_state import NavigationTaskState, GeoHoldState
+from navpy.core.flow.nav_state import NavigationTaskState, GeoHoldState
 from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition
 
 
