@@ -6,7 +6,8 @@ from typing import Optional
 
 from navpy.args.nav_args import NavArgs
 from navpy.logger.cache_logger import ILogger
-from navpy.modules.nav.detect_action import DetectAction, DetectPointingPorts
+from navpy.modules.nav.detect_action import DetectAction
+from navpy.modules.nav.peer_geo_tick import DetectPointingPorts
 from navpy.modules.nav.nav_entry import NavEntry, NavEntryPorts
 from navpy.modules.nav.nav_exit_cleanup import (
     NavExitCleanup,
@@ -43,7 +44,7 @@ from navpy.modules.nav.navigation_transition_handler import (
     TransitionPorts,
 )
 from navpy.modules.nav.final_approach_nav_workflow import FinalApproachNavWorkflow
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
 

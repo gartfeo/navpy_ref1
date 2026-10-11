@@ -10,10 +10,8 @@ from navpy.logger.cache_logger import ILogger
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
 from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits, r_nav_min
-from navpy.modules.navigation.peer_offset import (
-    MIN_APPROACH_STANDOFF_M,
-    calc_peer_approach_offset,
-)
+from navpy.modules.navigation.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
+from navpy.modules.navigation.peer_offset import calc_peer_approach_offset
 from navpy.modules.vision.vision_class_profile import get_min_pixels_for_class
 
 

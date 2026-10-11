@@ -6,9 +6,6 @@ from navpy.exception_groups import ExceptionGroup
 
 from navpy.modules.vision.real_detector_config import (
     DetectorDependencies,
-    DetectorGimbalConfig,
-    DetectorModelConfig,
-    DetectorPipelineConfig,
     RealDetectorConfig,
     RealDetectorPorts,
 )
@@ -124,9 +121,6 @@ def build_real_detector(
 
 __all__ = [
     "DetectorDependencies",
-    "DetectorGimbalConfig",
-    "DetectorModelConfig",
-    "DetectorPipelineConfig",
     "RealDetectorConfig",
     "RealDetectorPorts",
     "build_real_detector",

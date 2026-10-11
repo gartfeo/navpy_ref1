@@ -9,10 +9,12 @@ from navpy.modules.common.models.location import Location
 from navpy.modules.vision.sim.truth_pose_history import (
     TIME_AXIS_RECEIPT,
     TIME_AXIS_SOURCE,
-    TRUTH_POSE_TIME_AXIS_ENV,
     TruthPoseHistory,
-    resolve_truth_pose_time_axis,
     wrap_degrees,
+)
+from navpy.modules.vision.sim.truth_pose_time_axis import (
+    TRUTH_POSE_TIME_AXIS_ENV,
+    resolve_truth_pose_time_axis,
 )
 
 

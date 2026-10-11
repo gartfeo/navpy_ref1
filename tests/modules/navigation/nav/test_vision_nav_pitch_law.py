@@ -14,7 +14,7 @@ import math
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.law import VERTICAL_PN_NAVIGATION_CONSTANT
+from navpy.modules.navigation.nav.vision_nav.law_plan import VERTICAL_PN_NAVIGATION_CONSTANT
 from navpy.modules.navigation.nav.vision_nav.pitch_law import raw_pitch_current
 
 

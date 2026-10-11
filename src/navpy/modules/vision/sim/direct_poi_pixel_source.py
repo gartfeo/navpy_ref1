@@ -53,7 +53,7 @@ from collections.abc import Callable
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.common.scheduler_cadence import SchedulerCadence
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
 from navpy.modules.vision.sim.direct_dispatch_metrics import (
@@ -61,16 +61,15 @@ from navpy.modules.vision.sim.direct_dispatch_metrics import (
     DirectPublishState,
 )
 from navpy.modules.vision.sim.direct_pixel_pipeline import (
-    DIRECT_PIXEL_SOURCE_NAME,
     advance_for_pending,
     build_direct_pixel_pipeline,
 )
-from navpy.modules.vision.sim.direct_pixel_trace import (
+from navpy.modules.vision.sim.determinism_events import (
     OUTPUT_EMPTY,
     OUTPUT_EXCEPTION,
     OUTPUT_STALE_EPOCH,
-    dispatch_outcome,
 )
+from navpy.modules.vision.sim.direct_pixel_trace import dispatch_outcome
 from navpy.modules.vision.sim.pose_associator import AssociatedPose
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize
 
@@ -289,7 +288,6 @@ class DirectPoiPixelSource:
 __all__ = [
     "DIRECT_PIXEL_CLOCK_MESSAGE_TYPE",
     "DIRECT_PIXEL_POSE_MESSAGE_TYPES",
-    "DIRECT_PIXEL_SOURCE_NAME",
     "DIRECT_PIXEL_TRUTH_MESSAGE_TYPE",
     "DirectPixelSourceMetrics",
     "DirectPoiPixelSource",

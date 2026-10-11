@@ -9,34 +9,19 @@ from navpy.logger.cache_logger import ILogger
 from navpy.modules.common.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.navigation.navigation import Navigation
-from navpy.modules.nav.confirmation_frame_policy import (
-    extract_confirmation_size as _extract_confirmation_size,
-)
 from navpy.modules.nav.nav_composition import create_nav_application
 from navpy.modules.nav.nav_constants import (
-    ALT_HYST,
-    CONFIRM_DWELL_MARGIN_SEC,
-    CONFIRM_FRESH_DETECTION_MAX_AGE_S,
-    CONFIRM_MAX_DWELL_SEC,
-    CONFIRM_REACQUIRE_ABORT_SEC,
-    CONFIRM_REASK_MAX_ATTEMPTS,
     DIST_EPS,
     DIST_INC_MAX,
-    GUIDED_ACCEPT_TIMEOUT_S,
-    MAX_CONFIRM_GATE_RESETS,
     NAV_LOOP_PERIOD_S,
     NAV_LOOP_RATE_HZ,
     PASSED_POI_BEHIND_MIN_DEG,
     PEER_APPROACH_DIST,
     PEER_APPROACH_MARGIN_M,
     POI_CLOSE_DIST,
-    POI_REACQUIRE_COOLDOWN_SEC,
     FINAL_APPROACH_RECORD_TIMEOUT_S,
-    TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC,
-    TRACK_REACQUIRE_GATE_RADIUS_M,
 )
-from navpy.modules.nav.nav_state import NavState
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
 
@@ -82,27 +67,14 @@ class NavController:
 
 
 __all__ = [
-    "ALT_HYST",
-    "CONFIRM_DWELL_MARGIN_SEC",
-    "CONFIRM_FRESH_DETECTION_MAX_AGE_S",
-    "CONFIRM_MAX_DWELL_SEC",
-    "CONFIRM_REACQUIRE_ABORT_SEC",
-    "CONFIRM_REASK_MAX_ATTEMPTS",
     "DIST_EPS",
     "DIST_INC_MAX",
-    "GUIDED_ACCEPT_TIMEOUT_S",
-    "MAX_CONFIRM_GATE_RESETS",
     "NAV_LOOP_PERIOD_S",
     "NAV_LOOP_RATE_HZ",
     "NavController",
-    "NavState",
     "PASSED_POI_BEHIND_MIN_DEG",
     "PEER_APPROACH_DIST",
     "PEER_APPROACH_MARGIN_M",
     "POI_CLOSE_DIST",
-    "POI_REACQUIRE_COOLDOWN_SEC",
     "FINAL_APPROACH_RECORD_TIMEOUT_S",
-    "TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC",
-    "TRACK_REACQUIRE_GATE_RADIUS_M",
-    "_extract_confirmation_size",
 ]

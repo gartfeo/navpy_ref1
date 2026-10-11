@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from typing import Optional
 
-from navpy.modules.comm.messages.available_task_msg import TaskConfirmResponseMsg
+from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmResponseMsg
 from navpy.modules.comm.messages.msg_meta import MsgMeta, MsgMetaProvider
 from navpy.modules.comm.messages.swarm_request_msg import (
     REQUEST_TYPE_RESOURCE,

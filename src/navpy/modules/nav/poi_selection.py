@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from navpy.modules.nav.confirmation_policy import PoiRetryPolicy
-from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
+from navpy.modules.nav.confirmation_manager import ConfirmationManager
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import get_poi_task_id
 from navpy.modules.vision.poi_priority import (

@@ -7,11 +7,9 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from navpy.modules.vision.poi_zoom_mount_adapters import MountZoomAdapter
-from navpy.modules.vision.poi_zoom_tracker import (
-    PoiZoomTracker,
-    PoiZoomTrackerConfig,
-    ZoomTrackingState,
-)
+from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
 
 
 def _poi(size_px: float) -> SimpleNamespace:

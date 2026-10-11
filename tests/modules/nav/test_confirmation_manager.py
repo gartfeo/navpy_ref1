@@ -6,17 +6,15 @@ from time import sleep
 from unittest.mock import MagicMock, patch
 
 from navpy.args.nav_args import NavArgs
-from navpy.modules.comm.messages.available_task_msg import (
-    TaskAssignRequestMsg,
+from navpy.modules.comm.messages.task_assignment_msg import TaskAssignRequestMsg
+from navpy.modules.comm.messages.task_confirmation_msg import (
     TaskConfirmRequestMsg,
     TaskConfirmResponseMsg,
 )
 from navpy.modules.comm.messages.msg_meta import MsgMeta
 from navpy.modules.comm.network_abc import NetworkAbc
-from navpy.modules.nav.confirmation_manager import (
-    ConfirmationStatus,
-    ConfirmationManager,
-)
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
+from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from navpy.modules.vision.models.detection_components import ConfirmationEvidence
 from tests.detection_factory import make_detected_poi

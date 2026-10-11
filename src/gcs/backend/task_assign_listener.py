@@ -17,8 +17,8 @@ from typing import Any, Optional
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.modules.comm.messages.available_task_msg import (
-    AvailableTaskRequestMsg,
+from navpy.modules.comm.messages.task_availability_msg import AvailableTaskRequestMsg
+from navpy.modules.comm.messages.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )

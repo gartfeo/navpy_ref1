@@ -14,10 +14,6 @@ from navpy.modules.navigation.gimbal_navigation_facets import (
     GimbalZoomFacet,
 )
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
-from navpy.modules.navigation.gimbal_tracking_constants import (
-    MODE_FOLLOW,
-    MODE_LOCK,
-)
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
 from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
@@ -54,4 +50,4 @@ class GimbalNavigation(
             neutral_pitch_deg=neutral_pitch_deg,
         )
 
-__all__ = ["GimbalNavigation", "MODE_FOLLOW", "MODE_LOCK"]
+__all__ = ["GimbalNavigation", ]

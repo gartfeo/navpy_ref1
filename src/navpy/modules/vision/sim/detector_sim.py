@@ -9,9 +9,8 @@ from navpy.modules.common.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.camera_mount import CameraMount
-from navpy.modules.vision.detector_abc import DetectorAbc
 from navpy.modules.vision.sim.sim_detector_assembly import (
     SimDetectorDependencies,
     SimDetectorOptions,
@@ -41,7 +40,6 @@ class DetectorSim(
     SimDetectorDetectionFacet,
     SimDetectorSimulationFacet,
     SimDetectorProjectionFacet,
-    DetectorAbc,
 ):
     """One-field compatibility adapter over focused simulator owners."""
 

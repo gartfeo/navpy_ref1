@@ -13,7 +13,7 @@ from navpy.modules.nav.confirmation_policy import (
 )
 from navpy.modules.nav.navigation_task_reset import AutoMissionResume
 from navpy.modules.nav.nav_state import NavPhaseState, NavState
-from navpy.modules.nav.confirmation_manager import ConfirmationStatus
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import get_poi_task_id
 

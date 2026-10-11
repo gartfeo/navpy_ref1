@@ -36,7 +36,7 @@ class SiyiHardwareParts:
 
 
 def create_siyi_sdk(*, server_ip: str, port: int) -> SiyiSdkPort:
-    from navpy.modules.vision.peripheral.siyi import SIYISDK
+    from navpy.modules.vision.peripheral.siyi.siyi_sdk import SIYISDK
 
     return SIYISDK(server_ip=server_ip, port=port)
 

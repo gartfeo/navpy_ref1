@@ -9,30 +9,13 @@ from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPla
 
 
 def test_orbit_constants_remain_available_from_peer_offset() -> None:
-    assert peer_offset.MIN_APPROACH_STANDOFF_M == 500.0
+    assert peer_orbit_plan.MIN_APPROACH_STANDOFF_M == 500.0
     assert peer_offset.MIN_ACQUIRE_STANDOFF_M == 300.0
-    assert peer_offset._ORBIT_PIXEL_MARGIN == 0.9
-    assert (
-        peer_offset.MIN_APPROACH_STANDOFF_M
-        == peer_orbit_plan.MIN_APPROACH_STANDOFF_M
-    )
+    assert peer_orbit_plan._ORBIT_PIXEL_MARGIN == 0.9
     assert (
         peer_offset.MIN_ACQUIRE_STANDOFF_M
         == peer_orbit_plan.MIN_ACQUIRE_STANDOFF_M
     )
-    assert (
-        peer_offset._ORBIT_PIXEL_MARGIN
-        == peer_orbit_plan._ORBIT_PIXEL_MARGIN
-    )
-    assert (
-        peer_offset.MIN_CONFIRM_PIXELS
-        == peer_orbit_plan.MIN_CONFIRM_PIXELS
-    )
-    assert (
-        peer_offset.MIN_DETECT_PIXELS
-        == peer_orbit_plan.MIN_DETECT_PIXELS
-    )
-    assert peer_offset.r_nav_min is peer_orbit_plan.r_nav_min
 
 
 def test_orbit_leaf_uses_the_original_logger_category() -> None:

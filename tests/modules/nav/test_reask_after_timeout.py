@@ -24,17 +24,16 @@ from unittest.mock import MagicMock, Mock
 
 from navpy.args.nav_args import NavArgs
 from navpy.logger.cache_logger import ILogger
-from navpy.modules.comm.messages.available_task_msg import TaskConfirmResponseMsg
+from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmResponseMsg
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
-from navpy.modules.nav.nav_controller import (
-    CONFIRM_REASK_MAX_ATTEMPTS,
-    NavController,
-    NavState,
-)
-from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
+from navpy.modules.nav.nav_constants import CONFIRM_REASK_MAX_ATTEMPTS
+from navpy.modules.nav.nav_controller import NavController
+from navpy.modules.nav.nav_state import NavState
+from navpy.modules.nav.confirmation_manager import ConfirmationManager
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.vehicle.flight_mode import FlightMode
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from tests.detection_factory import make_detected_poi

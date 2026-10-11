@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
-from navpy.modules.vision.multi_object_tracker import TrackedObject
+from navpy.modules.vision.mot_state import TrackedObject
 
 # Max seconds a track keeps being emitted (coasted) after empty detections.
 _EMPTY_DETECTION_COAST_SECONDS = 0.30

@@ -21,21 +21,22 @@ from navpy.exception_groups import ExceptionGroup
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
-from navpy.modules.navigation.peer_offset import (
-    MIN_APPROACH_STANDOFF_M,
-    OFFSET_LOITER_RADIUS_M,
-)
-from navpy.modules.nav.nav_controller import NavController, NavState, ALT_HYST
-from navpy.modules.nav.confirmation_manager import ConfirmationStatus
+from navpy.modules.navigation.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
+from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M
+from navpy.modules.nav.nav_controller import NavController
+from navpy.modules.nav.nav_state import NavState
+from navpy.modules.nav.nav_constants import ALT_HYST
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.vehicle.flight_mode import FlightMode
 from navpy.modules.vision.detection_coordinator import DetectionCoordinator
 from navpy.modules.vision.models.detection_publication import DetectionPublication
 from navpy.modules.vision.models.detect_response import DetectResponse
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.modules.vision.poi_zoom_tracker import ZoomTrackResult, ZoomTrackingState
-from navpy.modules.comm.messages.available_task_msg import (
-    AvailableTaskRequestMsg,
-    TaskAssignMsgData,
+from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
+from navpy.modules.comm.messages.task_availability_msg import AvailableTaskRequestMsg
+from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
+from navpy.modules.comm.messages.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )
@@ -816,7 +817,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         """A pre-request CONFIRM POI continuously absent past
         CONFIRM_REACQUIRE_ABORT_SEC aborts to DETECT (mirrors REJECTED: clear
         active POI + stop_tracking) and registers a re-acquire cooldown."""
-        from navpy.modules.nav.nav_controller import CONFIRM_REACQUIRE_ABORT_SEC
+        from navpy.modules.nav.nav_constants import CONFIRM_REACQUIRE_ABORT_SEC
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
@@ -841,7 +842,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
     def test_decide_stays_in_confirm_before_reacquire_timeout(self):
         """A pre-request CONFIRM POI absent only briefly stays in CONFIRM
         (continuous-absence run below the bound)."""
-        from navpy.modules.nav.nav_controller import CONFIRM_REACQUIRE_ABORT_SEC
+        from navpy.modules.nav.nav_constants import CONFIRM_REACQUIRE_ABORT_SEC
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
 
@@ -899,7 +900,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
     def test_confirming_poi_aborted_by_max_dwell_cap(self):
         """A CONFIRMING POI that overruns CONFIRM_MAX_DWELL_SEC (wall clock)
         is torn down (backstop) and registers a re-acquire cooldown."""
-        from navpy.modules.nav.nav_controller import CONFIRM_MAX_DWELL_SEC
+        from navpy.modules.nav.nav_constants import CONFIRM_MAX_DWELL_SEC
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
@@ -922,7 +923,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         """A POI that reappears each tick never accumulates a continuous
         absence run, so the re-acquire abort never fires despite a long total
         elapsed time."""
-        from navpy.modules.nav.nav_controller import CONFIRM_REACQUIRE_ABORT_SEC
+        from navpy.modules.nav.nav_constants import CONFIRM_REACQUIRE_ABORT_SEC
         controller = _create_controller()
         fake = [1000.0]
         controller.clock.decision_s = lambda: fake[0]
@@ -936,7 +937,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
     def test_confirm_loss_accumulator_sustained_absence_aborts(self):
         """A sustained absence run (never returning) accumulates to the bound
         and trips the re-acquire timeout."""
-        from navpy.modules.nav.nav_controller import CONFIRM_REACQUIRE_ABORT_SEC
+        from navpy.modules.nav.nav_constants import CONFIRM_REACQUIRE_ABORT_SEC
         controller = _create_controller()
         fake = [1000.0]
         controller.clock.decision_s = lambda: fake[0]
@@ -971,7 +972,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
     def test_aborted_identity_in_cooldown_skipped_by_select_poi(self):
         """After an abort, _select_poi skips the cooled-down identity so
         DETECT keeps scanning; the entry expires after the cooldown window."""
-        from navpy.modules.nav.nav_controller import POI_REACQUIRE_COOLDOWN_SEC
+        from navpy.modules.nav.nav_constants import POI_REACQUIRE_COOLDOWN_SEC
         controller = _create_controller()
         # The cooldown is a WALL-clock bound, so drive the wall accessor.
         fake = [1000.0]
@@ -1004,7 +1005,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
     def test_confirm_dwell_cap_is_at_least_auto_confirm_timeout(self):
         """The absolute CONFIRM cap must never pre-empt the operator/auto
         confirm response, and the pre-request abort must be well below it."""
-        from navpy.modules.nav.nav_controller import (
+        from navpy.modules.nav.nav_constants import (
             CONFIRM_MAX_DWELL_SEC,
             CONFIRM_REACQUIRE_ABORT_SEC,
         )
@@ -1017,7 +1018,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         """The effective cap must outlast AAS_NAV_CWT even when the GS raises it
         above the 45s floor (the UI allows up to 60s), so a legitimate review is
         never torn down; and it must fall back to the floor for small/None CWT."""
-        from navpy.modules.nav.nav_controller import (
+        from navpy.modules.nav.nav_constants import (
             CONFIRM_MAX_DWELL_SEC,
             CONFIRM_DWELL_MARGIN_SEC,
         )
@@ -1070,7 +1071,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
     def test_cooldown_expiry_is_wall_clock_under_speedup(self):
         """The re-acquire cooldown expiry is stamped on the wall clock, so a
         fast sim clock cannot make it expire immediately."""
-        from navpy.modules.nav.nav_controller import POI_REACQUIRE_COOLDOWN_SEC
+        from navpy.modules.nav.nav_constants import POI_REACQUIRE_COOLDOWN_SEC
         controller = _create_controller()
         controller.scheduler_cadence = Mock(now=Mock(return_value=9.0e9))
 
@@ -1087,10 +1088,8 @@ class TestNavControllerStateTransitions(unittest.TestCase):
 
     def test_class0_recognition_gate_relaxed_to_36(self):
         """The dock (class-0) recognition gate resolves to 36px."""
-        from navpy.modules.vision.vision_profiles import (
-            get_min_pixels_for_class,
-            resolve_profile,
-        )
+        from navpy.modules.vision.vision_class_profile import get_min_pixels_for_class
+        from navpy.modules.vision.vision_profile_loader import resolve_profile
         _, profile, _ = resolve_profile("siyi_zr10", Mock())
         self.assertEqual(get_min_pixels_for_class(profile, 0), 36.0)
 
@@ -1138,7 +1137,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         """While the hold is active, the 2.5s CONFIRM_REACQUIRE_ABORT_SEC
         abort does NOT fire even though its bound has been exceeded (D-09):
         the hold's own timeout owns the loss window instead."""
-        from navpy.modules.nav.nav_controller import CONFIRM_REACQUIRE_ABORT_SEC
+        from navpy.modules.nav.nav_constants import CONFIRM_REACQUIRE_ABORT_SEC
         controller = _create_controller()
         controller.geo_hold.active = True
         controller.geo_hold.poi_location = Location(
@@ -1162,7 +1161,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         """One decide tick before TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC the hold
         persists; at/after expiry the SAME abort teardown fires (mirrors
         test_decide_aborts_confirm_to_detect_on_reacquire_timeout)."""
-        from navpy.modules.nav.nav_controller import TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC
+        from navpy.modules.nav.nav_constants import TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
@@ -1200,7 +1199,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
     def test_geo_hold_timeout_runs_on_navigation_task_clock(self):
         """The geo-hold timeout is driven by the navigation task clock (clock.decision_s),
         not the wall clock — D-08."""
-        from navpy.modules.nav.nav_controller import TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC
+        from navpy.modules.nav.nav_constants import TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC
         controller = _create_controller()
         controller.geo_hold.active = True
         fake = [1000.0]
@@ -1217,7 +1216,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         """With no known geo anywhere, the hold never enters and the
         original 2.5s pre-request abort fires exactly as today (D-01
         carve-out)."""
-        from navpy.modules.nav.nav_controller import CONFIRM_REACQUIRE_ABORT_SEC
+        from navpy.modules.nav.nav_constants import CONFIRM_REACQUIRE_ABORT_SEC
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
@@ -1427,7 +1426,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         candidate whose geo-ref is just INSIDE TRACK_REACQUIRE_GATE_RADIUS_M
         re-binds the ORIGINAL navigation task via the allocator rebind and
         resumes tracking on the ORIGINAL task id — not a fresh one."""
-        from navpy.modules.nav.nav_controller import TRACK_REACQUIRE_GATE_RADIUS_M
+        from navpy.modules.nav.nav_constants import TRACK_REACQUIRE_GATE_RADIUS_M
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         detector.rebind_task_id = Mock(return_value=True)
@@ -1463,7 +1462,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         """Boundary pair with the INSIDE case: a same-class candidate just
         OUTSIDE TRACK_REACQUIRE_GATE_RADIUS_M never rebinds; the hold
         persists exactly as before."""
-        from navpy.modules.nav.nav_controller import TRACK_REACQUIRE_GATE_RADIUS_M
+        from navpy.modules.nav.nav_constants import TRACK_REACQUIRE_GATE_RADIUS_M
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         detector.rebind_task_id = Mock(return_value=True)
@@ -1554,7 +1553,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         loss still governs the re-bound detection after identity-expiry
         reacquire (ConfirmationManager keys status purely by task_id, which the
         allocator rebind adopts onto the new track)."""
-        from navpy.modules.nav.nav_controller import TRACK_REACQUIRE_GATE_RADIUS_M
+        from navpy.modules.nav.nav_constants import TRACK_REACQUIRE_GATE_RADIUS_M
 
         def _fake_rebind(task_id, poi):
             poi.reidentify(task_id=task_id)
@@ -1596,7 +1595,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         ticks: loss -> hold entry -> identity-expiry -> geo-gate re-bind ->
         confirmation flow proceeds (the ORIGINAL task id resolves to a
         live, present detection again)."""
-        from navpy.modules.nav.nav_controller import TRACK_REACQUIRE_GATE_RADIUS_M
+        from navpy.modules.nav.nav_constants import TRACK_REACQUIRE_GATE_RADIUS_M
 
         def _fake_rebind(task_id, poi):
             poi.reidentify(task_id=task_id)
@@ -1702,7 +1701,7 @@ class TestNavControllerGeoHoldFailClosed(unittest.TestCase):
         here escapes _decide, gets swallowed by _nav_loop, and strands the
         controller in CONFIRM forever); no geo-hold enters and the legacy
         2.5 s abort teardown fires exactly as pre-geo-hold."""
-        from navpy.modules.nav.nav_controller import CONFIRM_REACQUIRE_ABORT_SEC
+        from navpy.modules.nav.nav_constants import CONFIRM_REACQUIRE_ABORT_SEC
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         detector.loss_hold_sec = None  # no geo-hold-capable navigation
@@ -1737,7 +1736,7 @@ class TestNavControllerGeoHoldFailClosed(unittest.TestCase):
         RESTORED — otherwise a POI returning before the 2.5 s abort
         leaves a live navigation task with nothing tracking. The legacy abort
         stays in charge."""
-        from navpy.modules.nav.nav_controller import CONFIRM_REACQUIRE_ABORT_SEC
+        from navpy.modules.nav.nav_constants import CONFIRM_REACQUIRE_ABORT_SEC
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         # Silent no-op arm: call succeeds but is_geo_armed never flips True.
@@ -2029,7 +2028,7 @@ class TestNavControllerStateTransitionHandlers(unittest.TestCase):
     def test_nav_aborts_when_guided_not_accepted_within_timeout(self):
         """If the autopilot never accepts GUIDED, the wait is bounded: abort to
         DETECT instead of re-commanding forever with no end."""
-        from navpy.modules.nav.nav_controller import GUIDED_ACCEPT_TIMEOUT_S
+        from navpy.modules.nav.nav_constants import GUIDED_ACCEPT_TIMEOUT_S
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
         controller.phase.current = NavState.NAV
@@ -2572,7 +2571,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
 
     def test_act_confirm_blocks_below_min_confirm_pixels(self):
         """bbox height below MIN_CONFIRM_PIXELS → confirmation deferred."""
-        from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         small_h = MIN_CONFIRM_PIXELS - 1
@@ -2597,7 +2596,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
 
     def test_act_confirm_passes_at_min_confirm_pixels(self):
         """bbox height at/above MIN_CONFIRM_PIXELS → proceeds to review."""
-        from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         poi = _create_detected_poi(
@@ -3118,7 +3117,9 @@ class TestNavControllerActConfirm(unittest.TestCase):
         navigation.vehicle_commands.peer_poi.assert_not_called()
 
     def test_extract_confirmation_size_uses_source_bbox_only(self):
-        from navpy.modules.nav.nav_controller import _extract_confirmation_size
+        from navpy.modules.nav.confirmation_frame_policy import (
+            extract_confirmation_size as _extract_confirmation_size,
+        )
 
         poi = _create_detected_poi(
             tracking_bbox=(100.0, 100.0, 50.0, 200.0),
@@ -3129,7 +3130,9 @@ class TestNavControllerActConfirm(unittest.TestCase):
             _extract_confirmation_size(poi), math.sqrt(50.0**2 + 80.0**2))
 
     def test_extract_confirmation_size_missing_returns_none(self):
-        from navpy.modules.nav.nav_controller import _extract_confirmation_size
+        from navpy.modules.nav.confirmation_frame_policy import (
+            extract_confirmation_size as _extract_confirmation_size,
+        )
 
         poi = _create_detected_poi(
             tracking_bbox=(100.0, 100.0, 50.0, 200.0),
@@ -3140,7 +3143,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
     def test_confirm_gate_reset_cap_blocks_starvation(self):
         """After MAX_CONFIRM_GATE_RESETS re-acquires, the timer stops being
         extended — FOV-edge oscillation can't starve the timeout."""
-        from navpy.modules.nav.nav_controller import MAX_CONFIRM_GATE_RESETS
+        from navpy.modules.nav.nav_constants import MAX_CONFIRM_GATE_RESETS
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         poi = _create_detected_poi(
@@ -5799,7 +5802,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         from navpy.modules.navigation.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
-        from navpy.modules.vision.vision_profiles import (
+        from navpy.modules.vision.vision_class_profile import (
             get_min_pixels_for_class,
         )
 

@@ -5,7 +5,7 @@ from navpy.args.logger_args import LoggerArgs
 from navpy.modules.vehicle.vehicle_factory import create_vehicle
 from navpy.modules.navigation.mission_planner import MissionPlanner, MissionPlannerArgs
 from navpy.logger.cache_logger import ConsoleCacheLogger
-from navpy.main import ConnArgs
+from navpy.args.conn_args import ConnArgs
 
 
 def main(args):

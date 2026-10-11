@@ -44,10 +44,8 @@ from navpy.modules.vision.sim.siyi_geo_pixel_source import (  # noqa: E402
 )
 from navpy.modules.vision.models.detect_data import DetectedObject  # noqa: E402
 from navpy.modules.vision.vision_profile_composition import build_vision_profile  # noqa: E402
-from navpy.modules.vision.vision_profiles import (  # noqa: E402
-    build_tracking_config,
-    build_zoom_config,
-)
+from navpy.modules.vision.vision_tracking_composition import build_tracking_config  # noqa: E402
+from navpy.modules.vision.vision_zoom_profile import build_zoom_config  # noqa: E402
 from navpy.modules.vision.vision_class_profile import get_min_pixels_for_class  # noqa: E402
 # QUALIFIED, not bare. A bare `from pixel_pn_flight_control_trace import ...`
 # resolves only when scripts/ happens to be on sys.path -- true when this file

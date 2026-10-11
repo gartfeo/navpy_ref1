@@ -53,10 +53,12 @@ from navpy.modules.vision.sim.determinism_events import (
     VIOLATION_SOURCE_REPEATED,
 )
 from navpy.modules.vision.sim.determinism_row_log import BoundedRowLog
-from navpy.modules.vision.sim.determinism_trace import (
+from navpy.modules.vision.sim.determinism_trace_gate import (
     DEFAULT_TRACE_CAPACITY,
     DETERMINISM_TRACE_CAPACITY_ENV,
     DETERMINISM_TRACE_ENV,
+)
+from navpy.modules.vision.sim.determinism_trace import (
     DeterminismTrace,
     build_trace,
 )

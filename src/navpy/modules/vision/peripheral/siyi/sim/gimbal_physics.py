@@ -9,13 +9,8 @@ from __future__ import annotations
 
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
     ANGLE_SEEK_DEADBAND,
-    MAX_SLEW_RATE,
-    MODE_FOLLOW,
-    MODE_FPV,
-    MODE_LOCK,
     GimbalAngularPlant,
     clamp as _clamp,
-    wrap180 as _wrap180,
 )
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_frame_transform import (
     matrix_to_xyz as _matrix_to_xyz,
@@ -23,10 +18,8 @@ from navpy.modules.vision.peripheral.siyi.sim.gimbal_frame_transform import (
 )
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_zoom_plant import (
     GimbalZoomPlant,
-    ZOOM_INCREMENTAL_SPEED,
     ZOOM_SEEK_SPEED,
 )
-from navpy.modules.vision.peripheral.siyi.siyi_sdk import ZR10
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics_facets import (
     GimbalPhysicsControlFacet,
     GimbalPhysicsParts,
@@ -55,15 +48,8 @@ __all__ = [
     "GimbalPhysics",
     "GimbalPhysicsParts",
     "GimbalPhysicsSnapshot",
-    "MAX_SLEW_RATE",
-    "MODE_FOLLOW",
-    "MODE_FPV",
-    "MODE_LOCK",
-    "ZOOM_INCREMENTAL_SPEED",
     "ZOOM_SEEK_SPEED",
-    "ZR10",
     "_clamp",
     "_matrix_to_xyz",
-    "_wrap180",
     "_zyx_to_matrix",
 ]

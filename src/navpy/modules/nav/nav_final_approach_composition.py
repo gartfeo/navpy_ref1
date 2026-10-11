@@ -52,7 +52,7 @@ from navpy.modules.nav.final_approach_source_reset_fence import (
     FinalApproachSourceResetFence,
 )
 from navpy.modules.vehicle.flight_mode import FlightMode
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 from navpy.modules.vision.models.detect_request import DetectRequest
 

@@ -1,9 +1,9 @@
 """Regression tests for the message-admission composition boundary."""
 
-from navpy.modules.comm import (
+from navpy.modules.comm.message_admission_state import (
     ClockOffsetEstimator as PackageClockOffsetEstimator,
+    DedupCache as PackageDedupCache,
 )
-from navpy.modules.comm import DedupCache as PackageDedupCache
 from navpy.modules.comm.message_admission_state import (
     ClockOffsetEstimator,
     DedupCache,

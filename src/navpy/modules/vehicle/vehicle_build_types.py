@@ -19,10 +19,8 @@ from navpy.modules.vehicle.message_store import MessageStore
 from navpy.modules.vehicle.message_subscriptions import CallbackRegistry
 from navpy.modules.vehicle.mission_inbox import MissionInbox
 from navpy.modules.vehicle.mode_control import ModeControl
-from navpy.modules.vehicle.parameter_client import (
-    ParameterClient,
-    SimAutopilotCapability,
-)
+from navpy.modules.vehicle.parameter_client import ParameterClient
+from navpy.modules.vehicle.sim_autopilot import SimAutopilotCapability
 from navpy.modules.vehicle.parameter_repository import ParameterRepository
 from navpy.modules.vehicle.parameter_snapshot import ParameterSnapshotClient
 from navpy.modules.vehicle.pose_telemetry import CommandDiagnostics, PoseTelemetry

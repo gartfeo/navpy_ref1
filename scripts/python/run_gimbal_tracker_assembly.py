@@ -15,12 +15,14 @@ from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.detector import (
     Detector,
     DetectorDependencies,
-    DetectorModelConfig,
-    DetectorPipelineConfig,
     RealDetectorConfig,
 )
+from navpy.modules.vision.real_detector_config import (
+    DetectorModelConfig,
+    DetectorPipelineConfig,
+)
 from navpy.modules.vision.peripheral.gimbal_siyi import GimbalSiyi
-from navpy.modules.vision.poi_zoom_tracker import PoiZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
 
 from scripts.python.run_gimbal_tracker_args import (
     SIYI_PROFILE_NAME,

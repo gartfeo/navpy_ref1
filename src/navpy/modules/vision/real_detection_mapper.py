@@ -9,7 +9,7 @@ from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.real_confirmation_frame_selector import (
     ConfirmationFrameSelector,
 )
-from navpy.modules.vision.multi_object_tracker import TrackedObject
+from navpy.modules.vision.mot_state import TrackedObject
 from navpy.modules.vision.real_detected_object_builder import (
     DetectedObjectBuilder,
     visual_attitude_components,

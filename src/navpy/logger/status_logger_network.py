@@ -4,7 +4,7 @@ from typing import Optional
 from navpy.args.logger_args import LoggerArgs, LogStatusDest
 from navpy.modules.comm.messages.log_status_msg import LogStatusMsg
 from navpy.modules.comm.network_abc import NetworkAbc
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.logger.status_logger import IStatusLogger
 
 

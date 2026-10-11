@@ -7,7 +7,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_CMD_NAV_TAKEOFF, MAV_CMD_NAV_LOITER_UNLIM, MAV_CMD_NAV_RETURN_TO_LAUNCH
 )
 
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
 from navpy.modules.vehicle.flight_mode import FlightMode
 from navpy.logger.cache_logger import ConsoleLogger

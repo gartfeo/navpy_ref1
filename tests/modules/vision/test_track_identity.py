@@ -3,7 +3,7 @@ from dataclasses import replace
 
 import numpy as np
 
-from navpy.modules.vision.multi_object_tracker import TrackedObject
+from navpy.modules.vision.mot_state import TrackedObject
 from navpy.modules.vision.track_identity import (
     TrackIdentityResolver,
     build_track_identity_resolver,

@@ -12,10 +12,8 @@ AUTOPILOT_COMPONENT_ID = 1
 def _make_available_task_msg(sender_id: int,
                              src_component: int = COMPANION_COMPONENT_ID):
     """Create a mock NAVLINK msg that decodes to AvailableTaskRequestMsg."""
-    from navpy.modules.comm.messages.available_task_msg import (
-        AvailableTaskRequestMsg,
-        MAVLINK_MSG_ID_AVAILABLE_TASK_REQUEST,
-    )
+    from navpy.modules.comm.messages.task_availability_msg import AvailableTaskRequestMsg
+    from pymavlink.dialects.v20.ardupilotmega import MAVLINK_MSG_ID_AVAILABLE_TASK_REQUEST
     from navpy.modules.comm.messages.msg_abc import MsgRegistry
 
     # Ensure registry knows the class

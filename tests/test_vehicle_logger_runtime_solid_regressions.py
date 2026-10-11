@@ -13,7 +13,7 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
-from navpy.logger.navigation_snap import calc_distance, calc_h_v_dist
+from navpy.logger.navigation_snap_geometry import calc_distance, calc_h_v_dist
 from navpy.logger.navigation_log_streams import NavigationLogStreams
 from navpy.modules.common.models.location import Location
 from navpy.modules.vehicle.mav_bus import MavBus
@@ -239,32 +239,8 @@ def test_vehicle_lifecycle_defers_dependencies_until_heartbeat_quiesces():
     lease.release.assert_called_once_with()
 
 
-def test_vehicle_interface_facade_preserves_exact_class_objects():
-    facade = importlib.import_module("navpy.modules.vehicle.vehicle_interface")
-    capabilities = importlib.import_module(
-        "navpy.modules.vehicle.vehicle_capability_interfaces"
-    )
-    contract = importlib.import_module("navpy.modules.vehicle.vehicle_contract")
-
-    for name in (
-        "VehicleIdentityAccess",
-        "VehicleMotionTelemetry",
-        "VehiclePowerTelemetry",
-        "VehicleLimits",
-        "VehicleFlightControl",
-        "VehicleMissionAccess",
-        "VehicleParameters",
-        "VehicleSimulationAccess",
-        "VehicleMessaging",
-        "VehicleLifetime",
-        "VehicleLogging",
-    ):
-        assert getattr(facade, name) is getattr(capabilities, name)
-    assert facade.IVehicle is contract.IVehicle
-
-
 def test_composite_vehicle_preserves_legacy_constructor_and_abstract_surface():
-    facade = importlib.import_module("navpy.modules.vehicle.vehicle_interface")
+    contract = importlib.import_module("navpy.modules.vehicle.vehicle_contract")
     legacy_abstracts = {
         "air_speed",
         "attitude",
@@ -305,43 +281,24 @@ def test_composite_vehicle_preserves_legacy_constructor_and_abstract_surface():
         "velocity",
         "wind",
     }
-    assert set(facade.IVehicle.__abstractmethods__) == legacy_abstracts
+    assert set(contract.IVehicle.__abstractmethods__) == legacy_abstracts
     implementations = {}
     for name in legacy_abstracts:
-        descriptor = inspect.getattr_static(facade.IVehicle, name)
+        descriptor = inspect.getattr_static(contract.IVehicle, name)
         implementations[name] = (
             property(lambda self: None)
             if isinstance(descriptor, property)
             else lambda self, *args, **kwargs: None
         )
-    legacy_vehicle = type("LegacyVehicle", (facade.IVehicle,), implementations)
+    legacy_vehicle = type("LegacyVehicle", (contract.IVehicle,), implementations)
 
     vehicle = legacy_vehicle(7)
 
-    assert tuple(inspect.signature(facade.IVehicle).parameters) == (
+    assert tuple(inspect.signature(contract.IVehicle).parameters) == (
         "target_system",
     )
     assert vehicle.target_system == 7
     assert vehicle.source_system == 7
-
-
-def test_navigation_snap_facade_preserves_exact_class_and_function_objects():
-    facade = importlib.import_module("navpy.logger.navigation_snap")
-    geometry = importlib.import_module("navpy.logger.navigation_snap_geometry")
-    tracker = importlib.import_module("navpy.logger.navigation_snap_tracker")
-    types = importlib.import_module("navpy.logger.navigation_snap_types")
-
-    assert facade.ClosestSnap is types.ClosestSnap
-    assert facade.ClosestPointComponents is types.ClosestPointComponents
-    assert facade.ClosestApproachTracker is tracker.ClosestApproachTracker
-    for name in (
-        "calc_h_v_dist",
-        "calc_distance",
-        "closest_point_components_on_segment",
-        "closest_on_segment",
-        "closest_horizontal_on_segment",
-    ):
-        assert getattr(facade, name) is getattr(geometry, name)
 
 
 @pytest.mark.parametrize(
@@ -1040,8 +997,6 @@ def test_main_returns_runtime_exit_code_without_calling_sys_exit(monkeypatch):
 def test_refactored_facades_and_main_are_thin_physical_boundaries():
     expected_limits = {
         "src/navpy/modules/vehicle/vehicle_composition.py": 80,
-        "src/navpy/modules/vehicle/vehicle_interface.py": 80,
-        "src/navpy/logger/navigation_snap.py": 80,
         "src/navpy/main.py": 40,
     }
     for relative, limit in expected_limits.items():

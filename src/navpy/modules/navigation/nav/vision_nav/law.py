@@ -5,11 +5,6 @@ from __future__ import annotations
 import math
 
 from navpy.modules.navigation.nav.vision_nav.command_anchor import (
-    OUTLIER_BEARING_DELTA_DEG,
-    OUTLIER_ELEVATION_DELTA_DEG,
-    PITCH_CEILING_DEG,
-    PITCH_FLOOR_DEG,
-    ROLL_LIMIT_CAP_DEG,
     FinalApproachCommandAnchor,
     advanced_anchor,
     bootstrap_anchor,
@@ -20,11 +15,7 @@ from navpy.modules.navigation.nav.vision_nav.command_anchor import (
     is_outlier,
 )
 from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.law_config import (
-    FixedFinalApproachLawConfigProvider,
-    FinalApproachLawConfig,
-    FinalApproachLawConfigProvider,
-)
+from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfigProvider
 from navpy.modules.navigation.nav.vision_nav.law_plan import (
     LATERAL_PN_NAVIGATION_CONSTANT,
     FinalApproachLawPlan,
@@ -257,20 +248,8 @@ def _lateral_is_ill_conditioned(frame: FinalApproachVisionFrame) -> bool:
 
 
 __all__ = [
-    "FixedFinalApproachLawConfigProvider",
-    "OUTLIER_BEARING_DELTA_DEG",
-    "OUTLIER_ELEVATION_DELTA_DEG",
-    "PITCH_CEILING_DEG",
-    "PITCH_FLOOR_DEG",
-    "ROLL_LIMIT_CAP_DEG",
     "STEEP_LOS_HORIZONTAL_MIN",
     "STEEP_PITCH_DEG",
-    "FinalApproachCommandAnchor",
-    "FinalApproachLawConfig",
-    "FinalApproachLawConfigProvider",
-    "FinalApproachLawPlan",
-    "VERTICAL_PN_NAVIGATION_CONSTANT",
     "VERTICAL_RATE_FILTER_TAU_S",
-    "LATERAL_PN_NAVIGATION_CONSTANT",
     "VisionNavLaw",
 ]

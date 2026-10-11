@@ -12,7 +12,7 @@ from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalTrackingSetup,
 )
 from navpy.modules.vision.gimbal_rate_types import GimbalRateTrackerConfig
-from navpy.modules.vision.poi_zoom_tracker import PoiZoomTrackerConfig
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
 from scripts.python import run_gimbal_tracker_assembly as runner_assembly
 from scripts.python import run_gimbal_tracker_commands as runner_commands
 

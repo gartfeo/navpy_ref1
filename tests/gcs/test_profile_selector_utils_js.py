@@ -5,7 +5,7 @@ import re
 from tests.gcs.js_runner import run_node
 import unittest
 
-from navpy.modules.vision.vision_profiles import (
+from navpy.modules.vision.vision_class_profile import (
     DETECTOR_CLASS_DIMENSIONS,
     compute_confirm_slant_range,
     get_class_detect_size,

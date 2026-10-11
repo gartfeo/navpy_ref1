@@ -128,16 +128,20 @@ class TestOptimizedAltitude(unittest.TestCase):
         self.assertGreater(zoom["detect_range_m"], zoom["confirm_range_m"])
         # Ranges derive from the diagonal class sizes (the single source);
         # compute from the live values so this stays order-independent.
-        from navpy.modules.vision import vision_profiles as _vp
+        from navpy.modules.vision.vision_class_profile import (
+            _MIN_CLASS_SIZE,
+            get_class_detect_size,
+            get_detector_class_dimensions,
+        )
         self.assertAlmostEqual(
-            zoom["detect_range_m"], 2000 * _vp.get_class_detect_size(0) / 8, places=2)
+            zoom["detect_range_m"], 2000 * get_class_detect_size(0) / 8, places=2)
         self.assertAlmostEqual(
-            zoom["confirm_range_m"], 2000 * _vp._MIN_CLASS_SIZE / 20, places=2)
+            zoom["confirm_range_m"], 2000 * _MIN_CLASS_SIZE / 20, places=2)
         # The catalog exposes the per-class dims (single source the frontend reads).
         self.assertIn("detector_class_dimensions", cat)
         tc0 = cat["detector_class_dimensions"]["0"]
-        self.assertEqual((tc0["width_m"], tc0["height_m"]), _vp.get_detector_class_dimensions(0))
-        self.assertAlmostEqual(tc0["size_m"], _vp.get_class_detect_size(0), places=4)
+        self.assertEqual((tc0["width_m"], tc0["height_m"]), get_detector_class_dimensions(0))
+        self.assertAlmostEqual(tc0["size_m"], get_class_detect_size(0), places=4)
         # The dock is the only detector class the GCS sizes against.
         self.assertEqual(set(cat["detector_class_dimensions"]), {"0"})
         self.assertEqual((tc0["width_m"], tc0["height_m"]), (3.5, 2.5))

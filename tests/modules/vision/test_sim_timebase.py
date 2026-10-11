@@ -3,8 +3,6 @@
 import pytest
 
 from navpy.modules.common.scheduler_cadence import SchedulerCadence
-from navpy.modules.common.sim_time import SimTimebase
-from navpy.modules.vision.sim.sim_timebase import SimTimebase as VisionSimTimebase
 
 
 class _FakeClock:
@@ -227,7 +225,3 @@ def test_multiple_cadence_owners_keep_the_smallest_quantum(monkeypatch) -> None:
     assert current["value"] == pytest.approx(0.001)
     fast.close()
     assert current["value"] == pytest.approx(0.005)
-
-
-def test_vision_sim_timebase_import_is_compatible() -> None:
-    assert VisionSimTimebase is SimTimebase is SchedulerCadence

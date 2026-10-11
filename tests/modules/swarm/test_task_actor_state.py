@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from navpy.modules.comm.messages.available_task_msg import (
+from navpy.modules.comm.messages.task_message_data import (
     TaskAssignMsgData,
     TaskHandleMsgData,
     TaskMsgData,
@@ -13,7 +13,7 @@ from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
 from navpy.modules.comm.messages.types import TaskDispatchStatus, TaskTypeMsgData
 from navpy.modules.swarm.task_actor_slots import RequestKind
-from navpy.modules.swarm.task_actor_state import create_task_state
+from navpy.modules.swarm.task_state_composition import create_task_state
 from navpy.modules.swarm.task_assignment_planner import (
     MinimumEtaAssignmentPlanner,
 )

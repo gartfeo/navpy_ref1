@@ -8,7 +8,7 @@ import re
 import tempfile
 from unittest.mock import Mock
 
-from navpy.modules.vision.vision_profiles import (
+from navpy.modules.vision.vision_class_profile import (
     DETECTOR_CLASS_DIMENSIONS,
     get_class_detect_size,
 )
@@ -1174,8 +1174,8 @@ class TestLiveGimbalEndToEndContract(unittest.TestCase):
         from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
         from gcs.backend.vehicle_manager import VehicleEntry
         from navpy.modules.common.models.attitude import Attitude
-        from navpy.modules.vision.camera_mount import CameraMountOptics
-        from navpy.modules.vision import vision_profiles
+        from navpy.modules.vision.camera_mount_types import CameraMountOptics
+        from navpy.modules.vision.vision_profile_types import CameraMountSpec
         from navpy.modules.vision.gimbal_telemetry_publisher import GimbalTelemetryPublisher
         from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 
@@ -1214,7 +1214,7 @@ class TestLiveGimbalEndToEndContract(unittest.TestCase):
                 pass
 
         sender = FakeSender()
-        spec = vision_profiles.CameraMountSpec(
+        spec = CameraMountSpec(
             mount=FakeMount(),
             device={},
             gimbal_device_id=1,

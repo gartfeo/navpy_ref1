@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from navpy.modules.vision.multi_object_tracker import TrackedObject
+from navpy.modules.vision.mot_state import TrackedObject
 from navpy.modules.vision.real_detector_public_ports import RealDiagnosticsParts
 
 

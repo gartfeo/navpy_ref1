@@ -11,10 +11,6 @@ from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
 from navpy.modules.vision.models.detect_request import DetectRequest
 from navpy.modules.vision.models.detect_response import DetectResponse
-from navpy.modules.vision.real_detector_diagnostics import (
-    DetectorDebugConfig,
-    DetectorDiagnostics,
-)
 from navpy.modules.vision.real_detector_ports import (
     GimbalGeoCommandPort,
     GimbalTrackingCommandPort,
@@ -22,11 +18,13 @@ from navpy.modules.vision.real_detector_ports import (
 from navpy.modules.vision.real_detector_state import (
     ConfirmationFrameStore,
     DetectionResultStore,
-    DetectorRunState,
     FreshnessPolicy,
-    InferenceGeneration,
+)
+from navpy.modules.vision.real_detector_runtime_state import (
+    DetectorRunState,
     PipelineMutationGate,
 )
+from navpy.modules.vision.real_detector_inference_state import InferenceGeneration
 from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.poi_priority import prioritize_pois
 from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
@@ -224,8 +222,6 @@ class DetectorResetController:
 
 __all__ = [
     "DetectionQuery",
-    "DetectorDebugConfig",
-    "DetectorDiagnostics",
     "DetectorGeoControl",
     "DetectorResetController",
     "DetectorTrackingControl",

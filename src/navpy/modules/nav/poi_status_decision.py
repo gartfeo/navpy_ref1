@@ -9,7 +9,7 @@ from navpy.modules.nav.confirmed_poi_release import ConfirmedPoiRelease
 from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.modules.nav.nav_state import NavPhaseState, NavState
 from navpy.modules.nav.nav_status import NavigationStatusReporter
-from navpy.modules.nav.confirmation_manager import ConfirmationStatus
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.nav.poi_presence_review import PoiPresenceReview
 from navpy.modules.nav.poi_rejection_exit import PoiRejectionExit
 from navpy.modules.vision.models.detect_data import DetectedObject

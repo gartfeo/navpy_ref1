@@ -9,7 +9,6 @@ from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.vision.detection_coordinator import DetectionCoordinator
 from navpy.modules.vision.detector_lifecycle_fleet import DetectorLifecycleFleet
-from navpy.modules.vision.detector_abc import DetectorAbc
 from navpy.modules.vision.models.detection_publication import DetectionPublication
 from navpy.modules.vision.models.detect_request import DetectRequest
 from navpy.modules.vision.models.detect_response import DetectResponse
@@ -942,12 +941,6 @@ class TestDetectionCoordinator(unittest.TestCase):
             (first_error, third_error),
         )
 
-    def test_detector_abc_does_not_own_tracking_defaults(self):
-        """The compatibility marker must not hide missing capabilities."""
-        self.assertTrue({
-            "start_tracking", "stop_tracking", "get_zoom_result",
-        }.isdisjoint(DetectorAbc.__dict__))
-
 
 class TestDetectionCoordinatorZoomSizeDemand(unittest.TestCase):
     def setUp(self):
@@ -973,11 +966,6 @@ class TestDetectionCoordinatorZoomSizeDemand(unittest.TestCase):
 
         for detector in detectors:
             detector.freeze_final_approach_zoom_at_min.assert_called_once_with()
-
-    def test_detector_abc_does_not_own_zoom_defaults(self):
-        self.assertTrue({
-            "set_zoom_size_demand", "freeze_final_approach_zoom_at_min",
-        }.isdisjoint(DetectorAbc.__dict__))
 
 
 class TestDetectionCoordinatorGeo(unittest.TestCase):
@@ -1093,18 +1081,6 @@ class TestDetectionCoordinatorGeo(unittest.TestCase):
         self.assertTrue(coord.is_detection_armed)
 
 
-class TestDetectorAbcCapabilities(unittest.TestCase):
-    """The legacy marker owns no optional detector behavior."""
-
-    def test_detector_abc_does_not_own_geo_defaults(self):
-        self.assertTrue({
-            "start_geo_tracking",
-            "update_geo",
-            "prepare_geo_acquisition",
-            "stop_geo_tracking",
-        }.isdisjoint(DetectorAbc.__dict__))
-
-
 class TestDetectorLifecycleFleet(unittest.TestCase):
     def test_incomplete_member_stop_propagates_without_skipping_siblings(self):
         first = Mock()
@@ -1169,11 +1145,6 @@ class TestDetectorLifecycleFleet(unittest.TestCase):
 
         self.assertIs(raised.exception, failure)
         self.assertTrue(fleet.is_quiescent)
-
-    def test_detector_abc_does_not_own_status_defaults(self):
-        self.assertTrue({
-            "is_geo_armed", "is_detection_armed", "loss_hold_sec",
-        }.isdisjoint(DetectorAbc.__dict__))
 
 
 if __name__ == '__main__':

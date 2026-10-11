@@ -28,7 +28,8 @@ from navpy.modules.nav.confirmation_inbound import (
 from navpy.modules.nav.confirmation_media import (
     ConfirmationMedia,
 )
-from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState, ConfirmationStatus
+from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.utils.image_utils import create_confirmation_thumbnail
 

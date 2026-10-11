@@ -30,7 +30,7 @@ from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.modules.navigation.mission_planner import MissionPlanner, MissionPlannerArgs
 from navpy.modules.nav.nav_controller import NavController
 from navpy.modules.vehicle.vehicle_factory import create_vehicle
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vehicle.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )

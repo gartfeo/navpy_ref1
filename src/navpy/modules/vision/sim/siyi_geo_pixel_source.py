@@ -14,7 +14,7 @@ from navpy.modules.common.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vehicle.pose_streams import pose_frame_association_max_skew_s
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
 from navpy.modules.vision.sim.pose_associator import PoseAssociator

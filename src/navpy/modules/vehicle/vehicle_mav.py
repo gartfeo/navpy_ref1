@@ -8,16 +8,8 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.logger.cache_logger import ConsoleLogger, ILogger
-from navpy.modules.vehicle.parameter_spec import value_in_int_range as _value_in_int_range
-from navpy.modules.vehicle.preflight_health import (
-    PREARM_STATE_CHECKS_DISABLED,
-    PREARM_STATE_FAILED,
-    PREARM_STATE_NOT_REPORTED,
-    PREARM_STATE_NO_SYS_STATUS,
-    PREARM_STATE_OK,
-)
 from navpy.modules.vehicle.vehicle_composition import build_vehicle_parts
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vehicle.vehicle_public_control import (
     VehicleCommandFacet,
     VehicleFlightControlFacet,

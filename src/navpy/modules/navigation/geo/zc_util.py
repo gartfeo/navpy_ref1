@@ -9,7 +9,6 @@ import numpy as np
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.geo.attitude_ray_converter import AttitudeRayConverter
-from navpy.modules.navigation.geo.dem_data import DemData
 from navpy.modules.navigation.geo.dem_tile_repository import (
     DemTileRepository,
     default_dem_directory,
@@ -92,4 +91,4 @@ class ZcUtil:
         return valid_coords(lat, lon)
 
 
-__all__ = ["DemData", "ZcUtil"]
+__all__ = ["ZcUtil"]

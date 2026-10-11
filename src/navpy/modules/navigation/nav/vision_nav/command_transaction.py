@@ -13,7 +13,7 @@ from navpy.modules.navigation.nav.vision_nav.command_anchor import (
     FinalApproachLimits,
     effective_limits,
 )
-from navpy.modules.navigation.nav.vision_nav.law import FinalApproachLawPlan
+from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachLawPlan
 from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachPlanOrigin
 from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassPlan
 

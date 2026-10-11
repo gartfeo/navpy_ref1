@@ -10,23 +10,21 @@ from navpy.logger.cache_logger import ILogger
 from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
 from navpy.modules.vision.geometry import cxcywh_to_xyxy
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.multi_object_tracker import TrackedObject
+from navpy.modules.vision.mot_state import TrackedObject
 from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
+from navpy.modules.vision.real_detector_inference_state import DetectionBatchInbox
 from navpy.modules.vision.real_detector_state import (
-    DetectionBatchInbox,
     DetectionResultStore,
+    FreshnessPolicy,
+)
+from navpy.modules.vision.real_detector_runtime_state import (
     DetectorRunState,
     LoopTiming,
     RuntimeMetrics,
-    FreshnessPolicy,
     next_loop_deadline,
 )
 from navpy.modules.vision.real_detector_ports import GimbalMeasurementPort
-from navpy.modules.vision.real_tracking_batch import (
-    TrackingBatchProcessor,
-    TrackingModels,
-    TrackingPublications,
-)
+from navpy.modules.vision.real_tracking_batch import TrackingBatchProcessor
 from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.poi_priority import find_poi_by_id
 from navpy.modules.vision.track_identity import TrackIdentityResolver
@@ -196,7 +194,5 @@ __all__ = [
     "TrackingBatchProcessor",
     "TrackingNavigationSink",
     "TrackingLoop",
-    "TrackingModels",
-    "TrackingPublications",
     "TrackingRecovery",
 ]

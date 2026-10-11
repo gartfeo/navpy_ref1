@@ -18,7 +18,7 @@ from gcs.backend.task_confirm_rounds import (
     round_uid,
 )
 from gcs.backend.task_confirm_transport import ConfirmationTransport
-from navpy.modules.comm.messages.available_task_msg import TaskConfirmRequestMsg
+from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmRequestMsg
 from navpy.modules.comm.messages.msg_abc import MsgRegistry
 
 

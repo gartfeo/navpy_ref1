@@ -28,7 +28,8 @@ from navpy.modules.vehicle.message_subscriptions import CallbackRegistry
 from navpy.modules.vehicle.mav_transport import MavTransport
 from navpy.modules.vehicle.mission_store import MissionStore
 from navpy.modules.vehicle.mission_inbox import MissionInbox
-from navpy.modules.vehicle.mission_protocol import MissionDownloader, MissionUploader
+from navpy.modules.vehicle.mission_download import MissionDownloader
+from navpy.modules.vehicle.mission_upload import MissionUploader
 from navpy.modules.vehicle.parameter_client import ParameterReader
 from navpy.modules.vehicle.parameter_repository import ParameterRepository
 from navpy.modules.vehicle.vehicle_mav import VehicleMav

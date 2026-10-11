@@ -43,7 +43,7 @@ from navpy.modules.vehicle.pose_telemetry import (  # noqa: E402
     attitude_sample_from_message,
 )
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
-from navpy.modules.vehicle.vehicle_interface import IVehicle  # noqa: E402
+from navpy.modules.vehicle.vehicle_contract import IVehicle  # noqa: E402
 
 COMMAND_RATE_HZ = 20.0
 SAMPLE_RATE_HZ = 50.0

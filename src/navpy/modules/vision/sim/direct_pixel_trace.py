@@ -32,10 +32,7 @@ from navpy.modules.vision.sim.determinism_events import (
     DISCARD_PUBLISH_OVERWRITTEN,
     DISCARD_UNBRACKETABLE,
     OUTPUT_DISPATCHED,
-    OUTPUT_EMPTY,
-    OUTPUT_EXCEPTION,
     OUTPUT_REJECTED,
-    OUTPUT_STALE_EPOCH,
     SUBSCRIPTION_CLOSED,
     SUBSCRIPTION_OPENED,
     TRUTH_RECORDED,
@@ -285,9 +282,6 @@ def build_direct_pixel_trace(
 
 
 __all__ = [
-    "OUTPUT_EMPTY",
-    "OUTPUT_EXCEPTION",
-    "OUTPUT_STALE_EPOCH",
     "DirectPixelTrace",
     "command_loop_observer",
     "DisabledPixelTrace",

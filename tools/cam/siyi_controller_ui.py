@@ -398,7 +398,7 @@ class SiyiControllerApp:
 
         def do_connect():
             try:
-                from navpy.modules.vision.peripheral.siyi import SIYISDK
+                from navpy.modules.vision.peripheral.siyi.siyi_sdk import SIYISDK
                 sdk = SIYISDK(server_ip=ip, port=port)
                 ok = sdk.connect()
                 self.root.after(0, lambda: self._on_connected(sdk, ok))

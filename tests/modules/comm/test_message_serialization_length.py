@@ -1,7 +1,18 @@
 import unittest
 
-from navpy.modules.comm.messages.available_task_msg import TaskAssignResponseMsg, TaskAssignMsgData, TaskAssignRequestMsg, \
-    TaskHandleMsgData, AvailableTaskResponseMsg, TaskMsgData, AvailableTaskRequestMsg
+from navpy.modules.comm.messages.task_assignment_msg import (
+    TaskAssignResponseMsg,
+    TaskAssignRequestMsg,
+)
+from navpy.modules.comm.messages.task_message_data import (
+    TaskAssignMsgData,
+    TaskHandleMsgData,
+    TaskMsgData,
+)
+from navpy.modules.comm.messages.task_availability_msg import (
+    AvailableTaskResponseMsg,
+    AvailableTaskRequestMsg,
+)
 from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
 from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.log_status_msg import LogStatusMsg

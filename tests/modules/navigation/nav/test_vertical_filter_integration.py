@@ -6,13 +6,15 @@ from dataclasses import replace
 import pytest
 
 from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.law import (
+from navpy.modules.navigation.nav.vision_nav.law_config import (
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
+)
+from navpy.modules.navigation.nav.vision_nav.law import (
     VisionNavLaw,
-    VERTICAL_PN_NAVIGATION_CONSTANT,
     VERTICAL_RATE_FILTER_TAU_S,
 )
+from navpy.modules.navigation.nav.vision_nav.law_plan import VERTICAL_PN_NAVIGATION_CONSTANT
 
 
 def frame(timestamp, elevation_deg):

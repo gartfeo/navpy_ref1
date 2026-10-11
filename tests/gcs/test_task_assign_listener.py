@@ -8,10 +8,12 @@ import pytest
 
 from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
 from gcs.backend.task_assign_listener import TaskAssignListener
-from navpy.modules.comm.messages.available_task_msg import (
-    AvailableTaskRequestMsg,
+from navpy.modules.comm.messages.task_availability_msg import AvailableTaskRequestMsg
+from navpy.modules.comm.messages.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
+)
+from navpy.modules.comm.messages.task_message_data import (
     TaskAssignMsgData,
     TaskMsgData,
 )

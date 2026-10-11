@@ -8,7 +8,7 @@ from navpy.logger.cache_log_level import CacheLogLevel
 from navpy.modules.common.models.location import Location
 from navpy.modules.comm.network_serial import NetworkSerial
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.logger.cache_logger import ConsoleCacheLogger
 

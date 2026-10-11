@@ -9,7 +9,7 @@ from navpy.modules.navigation.approach_strategy import ApproachPlan
 from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
 from navpy.modules.nav.approach_planner import ApproachPlanner
 from navpy.modules.vehicle.flight_mode import FlightMode
-from navpy.modules.vehicle.vehicle_capability_interfaces import VehicleParameters
+from navpy.modules.vehicle.vehicle_control_interfaces import VehicleParameters
 
 
 class NavigationModeLocation(Protocol):

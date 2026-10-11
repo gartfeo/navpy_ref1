@@ -18,7 +18,6 @@ from navpy.modules.vision.detection_coordinator_facets import (
     CoordinatorTrackingFacet,
     CoordinatorZoomFacet,
 )
-from navpy.modules.vision.detector_abc import DetectorAbc
 from navpy.modules.vision.detector_ports import DetectorFleetMember
 from navpy.modules.vision.tracking_command_router import TrackingLogger
 
@@ -32,7 +31,6 @@ class DetectionCoordinator(
     CoordinatorTrackingFacet,
     CoordinatorGeoFacet,
     CoordinatorZoomFacet,
-    DetectorAbc,
 ):
     """One-field compatibility boundary over detector-fleet capabilities."""
 

@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, List, Optional
 from navpy.modules.vision.geometry import iou_cxcywh
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.multi_object_tracker import TrackedObject
+    from navpy.modules.vision.mot_state import TrackedObject
 
 
 class PoiLock:

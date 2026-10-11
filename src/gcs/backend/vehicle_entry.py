@@ -6,8 +6,11 @@ import threading
 import time
 from typing import Optional
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
-from navpy.modules.vehicle.vehicle_mav import (
-    VehicleMav, PREARM_STATE_OK, PREARM_STATE_CHECKS_DISABLED, PREARM_STATE_FAILED,
+from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.modules.vehicle.preflight_health import (
+    PREARM_STATE_OK,
+    PREARM_STATE_CHECKS_DISABLED,
+    PREARM_STATE_FAILED,
 )
 from gcs.backend.companion_identity import COMPANION_TELEMETRY_COMPONENT_IDS, is_from_companion
 from gcs.backend.companion_swarm_state import CompanionSwarmState

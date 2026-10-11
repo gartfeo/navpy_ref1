@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.nav.confirmation_ports import ConfirmationNetworkPort
-from navpy.modules.nav.confirmation_manager_state import ConfirmationStatus
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 
 
 class ConfirmationNetworkSlot:

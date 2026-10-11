@@ -2,7 +2,9 @@
 import unittest
 import numpy as np
 
-from navpy.modules.vision.detector import iou_xyxy, hungarian, KalmanCV
+from navpy.modules.vision.geometry import iou_xyxy
+from navpy.modules.common.linear_assignment import hungarian
+from navpy.modules.vision.mot_state import KalmanCV
 
 
 class TestIoUXYXY(unittest.TestCase):

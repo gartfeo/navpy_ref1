@@ -5,10 +5,18 @@ from unittest.mock import Mock, patch
 
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.comm.message_filter import MessageFilter
-from navpy.modules.comm.messages.available_task_msg import (
-    TaskAssignResponseMsg, TaskAssignRequestMsg, TaskAssignMsgData,
-    TaskHandleMsgData, TaskMsgData,
-    AvailableTaskResponseMsg, AvailableTaskRequestMsg,
+from navpy.modules.comm.messages.task_assignment_msg import (
+    TaskAssignResponseMsg,
+    TaskAssignRequestMsg,
+)
+from navpy.modules.comm.messages.task_message_data import (
+    TaskAssignMsgData,
+    TaskHandleMsgData,
+    TaskMsgData,
+)
+from navpy.modules.comm.messages.task_availability_msg import (
+    AvailableTaskResponseMsg,
+    AvailableTaskRequestMsg,
 )
 from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
 from navpy.modules.comm.messages.location_msg import LocationMsgData
@@ -28,7 +36,7 @@ from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from tests.detection_factory import make_detected_poi
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_dispatch import TaskDispatch

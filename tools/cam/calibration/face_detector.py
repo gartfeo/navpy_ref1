@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from cam.calibration.detector_abc import DetectorAbc
-from navpy.modules.vision.detector import YoloDetector
+from navpy.modules.vision.yolo_detector import YoloDetector
 
 # Default model path: .models/yolov8n-face-lindevs.pt at project root
 _DEFAULT_MODEL = (

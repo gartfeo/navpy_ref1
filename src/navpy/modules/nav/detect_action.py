@@ -6,7 +6,7 @@ from navpy.modules.nav.navigation_task_action import NavigationTaskAction
 from navpy.modules.nav.peer_poi_notification import PeerPoiNotifier
 from navpy.modules.nav.poi_selection import PoiSelector
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
-from navpy.modules.nav.peer_geo_tick import DetectPointingPorts, PeerGeoTick
+from navpy.modules.nav.peer_geo_tick import PeerGeoTick
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 
 
@@ -42,4 +42,4 @@ class DetectAction:
         self._peer_geo.update()
 
 
-__all__ = ["DetectAction", "DetectPointingPorts"]
+__all__ = ["DetectAction"]

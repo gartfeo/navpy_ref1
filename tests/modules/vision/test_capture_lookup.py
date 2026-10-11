@@ -12,18 +12,20 @@ from types import SimpleNamespace
 import pytest
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.vision.capture_lookup import (
+from navpy.modules.vision.capture_interpolation import (
     BRACKET_MAX_WIDTH_S,
     CLOCK_SEAM_TOLERANCE_S,
-    CaptureLookupCalibration,
-    RATE_AMPLIFICATION_LIMIT,
     STATUS_CLOCK_SEAM,
     STATUS_GAP,
     STATUS_UNBRACKETED,
+    interpolate_attitude_at,
+)
+from navpy.modules.vision.capture_lookup import (
+    CaptureLookupCalibration,
+    RATE_AMPLIFICATION_LIMIT,
     TIMING_RESIDUAL_BUDGET_S,
     attitude_lookup_wall_s,
     capture_estimate_s,
-    interpolate_attitude_at,
     quarantine_window_s,
     validate_calibration,
 )

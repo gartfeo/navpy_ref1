@@ -51,7 +51,7 @@ export const DOCK_DETECT_CLASS_ID = 0;
 // (computeMaxDetectDist, getDockDetectSize) don't return NaN
 // before the catalog arrives. The planner UI is gated on `plannerReady`, so
 // these defaults are not used for any operator-visible computation; they
-// mirror the backend (navpy.modules.vision.vision_profiles.get_class_detect_size)
+// mirror the backend (navpy.modules.vision.vision_class_profile.get_class_detect_size)
 // purely to keep early calls numerically sane.
 const FALLBACK_CLASS_DETECT_SIZES = { [DOCK_DETECT_CLASS_ID]: 4.3012 };
 

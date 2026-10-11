@@ -20,10 +20,11 @@ from navpy.modules.nav.peer_poi_dispatch import (
     PeerPoiDispatchPorts,
     PeerPoiDispatchWorker,
 )
-from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
+from navpy.modules.nav.confirmation_manager import ConfirmationManager
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_ports import MessageClockReset
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.detector_ports import SimulationControlPort
 from navpy.modules.vision.models.detect_data import DetectedObject
 

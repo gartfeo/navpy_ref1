@@ -20,7 +20,7 @@ from navpy.modules.comm.message_filter import (
     MessageFilter,
     FilterMetrics,
 )
-from navpy.modules.comm.messages.available_task_msg import TaskConfirmResponseMsg
+from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmResponseMsg
 from navpy.modules.comm.messages.msg_meta import MsgMeta, MsgMetaProvider
 from navpy.modules.comm.messages.types import MsgType
 

@@ -12,10 +12,6 @@ from navpy.modules.vehicle.parameter_reader import (
 )
 from navpy.modules.vehicle.parameter_snapshot import ParameterSnapshotClient
 from navpy.modules.vehicle.parameter_writer import ParameterWriter
-from navpy.modules.vehicle.sim_autopilot import (
-    SimAutopilotCapability,
-    SimAutopilotState,
-)
 
 
 class ParameterClient:
@@ -98,6 +94,4 @@ __all__ = [
     "ParameterClient",
     "ParameterReader",
     "ParameterWriter",
-    "SimAutopilotCapability",
-    "SimAutopilotState",
 ]

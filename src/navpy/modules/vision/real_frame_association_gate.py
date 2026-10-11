@@ -18,7 +18,7 @@ from navpy.modules.vehicle.pose_streams import (
     POSE_FRAME_ASSOCIATION_ABSOLUTE_MAX_SKEW_S,
     POSE_FRAME_ASSOCIATION_MAX_SKEW_S,
 )
-from navpy.modules.vision.camera_mount import CameraMountFrameState
+from navpy.modules.vision.camera_mount_types import CameraMountFrameState
 from navpy.modules.vision.frame_capture_ports import CaptureStampKind
 
 

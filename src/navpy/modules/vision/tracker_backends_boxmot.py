@@ -19,7 +19,7 @@ from navpy.modules.vision.device import (
     resolve_reid_device,
     uses_cuda_device,
 )
-from navpy.modules.vision.multi_object_tracker import TrackedObject
+from navpy.modules.vision.mot_state import TrackedObject
 from navpy.modules.vision.track_export_memory import (
     _EMPTY_DETECTION_COAST_SECONDS,
     _TrackExportMemory,

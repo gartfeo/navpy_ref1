@@ -3,16 +3,22 @@ import math
 import pytest
 
 from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.law import (
+from navpy.modules.navigation.nav.vision_nav.law_config import (
     FixedFinalApproachLawConfigProvider,
+    FinalApproachLawConfig,
+)
+from navpy.modules.navigation.nav.vision_nav.command_anchor import (
     PITCH_CEILING_DEG,
     ROLL_LIMIT_CAP_DEG,
-    FinalApproachLawConfig,
-    VERTICAL_PN_NAVIGATION_CONSTANT,
+)
+from navpy.modules.navigation.nav.vision_nav.law_plan import VERTICAL_PN_NAVIGATION_CONSTANT
+from navpy.modules.navigation.nav.vision_nav.law import (
     VERTICAL_RATE_FILTER_TAU_S,
     VisionNavLaw,
 )
-from navpy.modules.navigation.nav.nav_law_factory import VehicleFinalApproachLawConfigProvider
+from navpy.modules.navigation.nav.final_approach_airframe_config import (
+    VehicleFinalApproachLawConfigProvider,
+)
 
 
 def _frame(

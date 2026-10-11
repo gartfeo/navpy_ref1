@@ -8,7 +8,7 @@ from gcs.backend.settings_model import LaunchSettings
 log = logging.getLogger("gcs.backend.routes.control")
 
 from dataclasses import dataclass
-from navpy.modules.vehicle.vehicle_mav import (
+from navpy.modules.vehicle.preflight_health import (
     PREARM_STATE_NO_SYS_STATUS, PREARM_STATE_NOT_REPORTED, PREARM_STATE_CHECKS_DISABLED,
     PREARM_STATE_FAILED, PREARM_STATE_OK,
 )

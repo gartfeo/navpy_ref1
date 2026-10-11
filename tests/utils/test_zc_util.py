@@ -4,7 +4,8 @@ import numpy as np
 
 from navpy.modules.common.models.location import Location
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.navigation.geo.zc_util import ZcUtil, DemData
+from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.modules.navigation.geo.dem_data import DemData
 
 
 class TestZcUtil(unittest.TestCase):

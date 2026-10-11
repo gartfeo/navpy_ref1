@@ -19,10 +19,11 @@ from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.nav.confirm_override_listener import ConfirmOverrideListener
-from navpy.modules.nav.nav_controller import NavController, NavState
+from navpy.modules.nav.nav_controller import NavController
+from navpy.modules.nav.nav_state import NavState
 from navpy.modules.vehicle.flight_mode import FlightMode
 from navpy.modules.vision.models.detect_response import DetectResponse
-from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
 from tests.detection_factory import make_detected_poi
 from tests.modules.nav.nav_test_rig import create_nav_test_rig
 

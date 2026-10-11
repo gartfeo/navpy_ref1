@@ -7,7 +7,8 @@ from typing import Callable, Optional
 
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.common.models.location import Location
-from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
+from navpy.modules.nav.confirmation_manager import ConfirmationManager
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import same_poi_identity
 

@@ -47,7 +47,7 @@ from navpy.modules.nav.peer_task_priority import (
     PeerTaskPriority,
     PeerTaskPriorityPorts,
 )
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
 

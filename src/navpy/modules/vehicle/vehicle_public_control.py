@@ -5,7 +5,7 @@ from __future__ import annotations
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.common.models.location import Location
 from navpy.modules.vehicle.flight_mode import FlightMode
-from navpy.modules.vehicle.vehicle_capability_interfaces import CommandValue
+from navpy.modules.vehicle.vehicle_control_interfaces import CommandValue
 from navpy.modules.vehicle.vehicle_public_ports import (
     CommandParts,
     FlightControlParts,

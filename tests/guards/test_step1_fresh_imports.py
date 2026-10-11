@@ -22,14 +22,10 @@ from typing import Callable, Iterable
 from tests.guards.step1_fresh import error_tail, run_fresh
 from tests.guards.step1_sources import REPO_ROOT, navpy_sources
 
-# Fails today; listed so the guard holds the rest. A listed module that imports
-# again fails the test until its entry is removed.
-KNOWN_FAILURES = {
-    "navpy.utils.serializer_abc": (
-        "cycle through the modules/comm/__init__.py facade: it imports network_serial, "
-        "which imports JsonSerializer from the half-loaded serializer_abc; c01 empties the facade"
-    ),
-}
+# Modules known to fail as the first import, listed so the guard holds the rest
+# (none since c01 emptied the comm facade). A listed module that imports again
+# fails the test until its entry is removed.
+KNOWN_FAILURES: dict[str, str] = {}
 IMPORT_ALONE = (
     "import importlib, json, sys\n"
     "importlib.import_module(sys.argv[1])\n"

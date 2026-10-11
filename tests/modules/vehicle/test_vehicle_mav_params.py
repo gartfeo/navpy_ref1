@@ -16,7 +16,8 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_PARAM_TYPE_REAL32,
 )
 
-from navpy.modules.vehicle.vehicle_mav import VehicleMav, _value_in_int_range
+from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.modules.vehicle.parameter_spec import value_in_int_range as _value_in_int_range
 
 
 def _make_vehicle(self) -> VehicleMav:

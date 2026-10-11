@@ -10,7 +10,7 @@ from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFra
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
 )
-from navpy.modules.navigation.nav.vision_nav.law import FinalApproachLawPlan
+from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachLawPlan
 from navpy.modules.navigation.nav.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,

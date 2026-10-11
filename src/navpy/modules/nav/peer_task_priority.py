@@ -16,10 +16,8 @@ from typing import Optional
 from navpy.args.logger_args import LogStatusDest
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
-from navpy.modules.nav.confirmation_manager import (
-    ConfirmationManager,
-    ConfirmationStatus,
-)
+from navpy.modules.nav.confirmation_manager import ConfirmationManager
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.nav.nav_state import NavigationTaskState
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import get_poi_task_id, same_poi_identity

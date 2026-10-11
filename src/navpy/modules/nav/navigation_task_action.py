@@ -13,7 +13,8 @@ from navpy.modules.nav.nav_state import NavigationTaskState, FinalApproachNavSta
 from navpy.modules.nav.peer_navigation import PeerNavigationCoordinator
 from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.modules.nav.self_detected_approach import SelfDetectedApproach
-from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
+from navpy.modules.nav.confirmation_manager import ConfirmationManager
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.vision.detector_ports import TrackingCommandPort
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import get_poi_task_id

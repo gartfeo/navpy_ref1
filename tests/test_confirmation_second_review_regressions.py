@@ -15,8 +15,8 @@ from gcs.backend.task_confirm_listener import TaskConfirmListener
 from gcs.backend.task_confirm_rounds import ConfirmationRoundRegistry, RequestAction
 from gcs.backend.task_confirm_transport import parse_round_uid
 from navpy.exception_groups import ExceptionGroup
-from navpy.modules.comm.messages.available_task_msg import (
-    TaskAssignResponseMsg,
+from navpy.modules.comm.messages.task_assignment_msg import TaskAssignResponseMsg
+from navpy.modules.comm.messages.task_message_data import (
     TaskHandleMsgData,
     TaskMsgData,
 )
@@ -42,8 +42,9 @@ from navpy.modules.nav.confirmation_coordinator import (
     ConfirmationCoordinator,
 )
 from navpy.modules.nav.confirmation_media import ConfirmationMedia
-from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState, ConfirmationStatus
-from navpy.modules.swarm.task_actor_state import create_task_state
+from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
+from navpy.modules.swarm.task_state_composition import create_task_state
 from navpy.modules.swarm.task_assignment_planner import MinimumEtaAssignmentPlanner
 from navpy.modules.swarm.task_auction_models import ResponseVerdict
 from navpy.modules.swarm.task_msg_refs import MsgRef

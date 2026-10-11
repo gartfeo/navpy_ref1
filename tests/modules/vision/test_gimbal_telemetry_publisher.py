@@ -7,8 +7,9 @@ import pytest
 from pymavlink.dialects.v20 import ardupilotmega as mav
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.vision.camera_mount import CameraMountOptics
-from navpy.modules.vision import vision_profiles
+from navpy.modules.vision.camera_mount_types import CameraMountOptics
+from navpy.modules.vision.vision_camera_factory import build_camera_mounts
+from navpy.modules.vision.vision_profile_types import CameraMountSpec
 from navpy.modules.vision.gimbal_telemetry_publisher import GimbalTelemetryPublisher
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 
@@ -44,7 +45,7 @@ class FakeVehicle:
 
 
 def _spec(mount, device_id):
-    return vision_profiles.CameraMountSpec(
+    return CameraMountSpec(
         mount=mount,
         device={},
         gimbal_device_id=device_id,
@@ -232,7 +233,7 @@ def test_raw_profile_index_fallback_survives_skipped_devices():
         ]
     }
     logger = Mock()
-    specs = vision_profiles.build_camera_mounts(profile, Mock(), logger, use_sim_gimbal=False)
+    specs = build_camera_mounts(profile, Mock(), logger, use_sim_gimbal=False)
     vehicle = FakeVehicle()
     publisher = GimbalTelemetryPublisher(vehicle, specs, logger)
 
@@ -262,7 +263,7 @@ def test_publish_once_emits_camera_fov_for_real_fixed_mount():
         ]
     }
     logger = Mock()
-    specs = vision_profiles.build_camera_mounts(profile, Mock(), logger, use_sim_gimbal=False)
+    specs = build_camera_mounts(profile, Mock(), logger, use_sim_gimbal=False)
     vehicle = FakeVehicle()
     publisher = GimbalTelemetryPublisher(vehicle, specs, logger)
 
@@ -294,7 +295,7 @@ def test_explicit_gimbal_device_id_publishes_from_mount_path():
         ]
     }
     logger = Mock()
-    specs = vision_profiles.build_camera_mounts(profile, Mock(), logger, use_sim_gimbal=False)
+    specs = build_camera_mounts(profile, Mock(), logger, use_sim_gimbal=False)
     vehicle = FakeVehicle()
     publisher = GimbalTelemetryPublisher(vehicle, specs, logger)
 

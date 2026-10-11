@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from navpy.modules.vision.detector_abc import DetectorAbc
 from navpy.modules.vision.detector_public_control import (
     DetectorGeoFacet,
     DetectorIdentityFacet,
@@ -17,23 +16,14 @@ from navpy.modules.vision.detector_public_runtime import (
     DetectorQueryFacet,
     DetectorSimulationFacet,
 )
-from navpy.modules.vision.multi_object_tracker import (
-    KalmanCV,
-    TrackedObject,
-    hungarian,
-    iou_xyxy,
-)
 from navpy.modules.vision.real_detector_composition import (
     DetectorDependencies,
-    DetectorGimbalConfig,
-    DetectorModelConfig,
-    DetectorPipelineConfig,
     RealDetectorConfig,
     RealDetectorPorts,
     build_real_detector,
 )
-from navpy.modules.vision.real_detector_diagnostics import DetectorDebugConfig
-from navpy.modules.vision.yolo_detector import Detection, DeviceT, YoloDetector
+from navpy.modules.vision.real_detector_config import DetectorGimbalConfig
+from navpy.modules.vision.device import DeviceT
 
 
 class Detector(
@@ -45,7 +35,6 @@ class Detector(
     DetectorQueryFacet,
     DetectorSimulationFacet,
     DetectorDiagnosticsFacet,
-    DetectorAbc,
 ):
     """One-field public adapter over focused real-detector capabilities."""
 
@@ -62,17 +51,8 @@ class Detector(
 
 __all__ = [
     "Detector",
-    "DetectorDebugConfig",
     "DetectorDependencies",
     "DetectorGimbalConfig",
-    "DetectorModelConfig",
-    "DetectorPipelineConfig",
     "RealDetectorConfig",
-    "Detection",
-    "TrackedObject",
-    "YoloDetector",
-    "KalmanCV",
-    "hungarian",
-    "iou_xyxy",
     "DeviceT",
 ]

@@ -10,7 +10,7 @@ import cv2
 
 from navpy.modules.common.resource_cleanup import CleanupStack
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
-from navpy.modules.vision import DetectRequest
+from navpy.modules.vision.models.detect_request import DetectRequest
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.detector import Detector
 from navpy.modules.vision.focus_monitor import FocusMonitor, laplacian_focus

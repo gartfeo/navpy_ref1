@@ -144,7 +144,7 @@ def test_zoom_readback_starts_unavailable() -> None:
     assert gimbal.get_frame_state_sample()[1:] == (None, None, None)
 
 
-@patch("navpy.modules.vision.peripheral.siyi.SIYISDK")
+@patch("navpy.modules.vision.peripheral.siyi.siyi_sdk.SIYISDK")
 def test_existing_four_argument_constructor_uses_default_sdk(mock_sdk_cls) -> None:
     sdk = _sdk()
     mock_sdk_cls.return_value = sdk

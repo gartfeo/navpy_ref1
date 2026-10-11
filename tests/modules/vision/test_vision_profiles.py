@@ -6,44 +6,34 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.vision import vision_profiles
+from navpy.modules.vision.vision_camera_factory import build_camera_model, build_camera_mounts
+from navpy.modules.vision.vision_class_profile import (
+    DETECTOR_CLASS_DIMENSIONS,
+    MIN_CONFIRM_PIXELS,
+    MIN_DETECT_PIXELS,
+    compute_approach_interval,
+    compute_confirm_slant_range,
+    compute_detect_slant_range,
+    compute_max_detect_dist,
+    get_class_detect_size,
+    get_min_pixels_for_class,
+)
+from navpy.modules.vision.vision_detector_profile import get_detector_settings
+from navpy.modules.vision.vision_gimbal_profile import (
+    build_gimbal_data,
+    resolve_gimbal_device_id,
+    resolve_gimbal_seq,
+    resolve_gimbal_setup_att,
+)
+from navpy.modules.vision.vision_profile_loader import (
+    _resolve_profile_definitions,
+    get_devices,
+    load_profiles,
+    resolve_profile,
+)
+from navpy.modules.vision.vision_tracking_composition import build_tracking_config
+from navpy.modules.vision.vision_zoom_profile import build_zoom_config
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-
-
-class TestVisionProfilesFacade(unittest.TestCase):
-    """The compatibility module must expose the canonical leaf objects."""
-
-    def test_reexports_exact_profile_symbols(self):
-        from navpy.modules.vision.vision_camera_factory import build_camera_mounts
-        from navpy.modules.vision.vision_profile_loader import (
-            _resolve_profile_definitions,
-            load_profiles,
-        )
-        from navpy.modules.vision.vision_profile_types import CameraMountSpec
-        from navpy.modules.vision.vision_class_profile import (
-            compute_detect_slant_range,
-            get_min_pixels_for_class,
-        )
-        from navpy.modules.vision.vision_tracking_composition import (
-            build_tracking_config,
-        )
-
-        self.assertIs(vision_profiles.CameraMountSpec, CameraMountSpec)
-        self.assertIs(vision_profiles.build_camera_mounts, build_camera_mounts)
-        self.assertIs(vision_profiles.load_profiles, load_profiles)
-        self.assertIs(
-            vision_profiles._resolve_profile_definitions,
-            _resolve_profile_definitions,
-        )
-        self.assertIs(
-            vision_profiles.compute_detect_slant_range,
-            compute_detect_slant_range,
-        )
-        self.assertIs(
-            vision_profiles.get_min_pixels_for_class,
-            get_min_pixels_for_class,
-        )
-        self.assertIs(vision_profiles.build_tracking_config, build_tracking_config)
 
 
 class TestLoadProfiles(unittest.TestCase):
@@ -51,18 +41,18 @@ class TestLoadProfiles(unittest.TestCase):
 
     def test_load_profiles_returns_dict(self):
         """load_profiles returns profiles dict."""
-        profiles, default, path = vision_profiles.load_profiles()
+        profiles, default, path = load_profiles()
         self.assertIsInstance(profiles, dict)
         self.assertTrue(len(profiles) > 0)
 
     def test_load_profiles_returns_default_profile_name(self):
         """load_profiles returns default profile name."""
-        profiles, default, path = vision_profiles.load_profiles()
+        profiles, default, path = load_profiles()
         self.assertIsInstance(default, str)
 
     def test_load_profiles_returns_path(self):
         """load_profiles returns JSON file path."""
-        profiles, default, path = vision_profiles.load_profiles()
+        profiles, default, path = load_profiles()
         self.assertIsInstance(path, Path)
         self.assertTrue(path.exists())
 
@@ -75,17 +65,17 @@ class TestResolveProfile(unittest.TestCase):
 
     def test_resolve_profile_by_name(self):
         """resolve_profile returns named profile."""
-        profiles, default, _ = vision_profiles.load_profiles()
+        profiles, default, _ = load_profiles()
         name = next(iter(profiles.keys()))
 
-        key, profile, path = vision_profiles.resolve_profile(name, self.logger)
+        key, profile, path = resolve_profile(name, self.logger)
 
         self.assertEqual(key, name)
         self.assertIsInstance(profile, dict)
 
     def test_resolve_profile_uses_default(self):
         """resolve_profile uses default when name is empty."""
-        key, profile, path = vision_profiles.resolve_profile("", self.logger)
+        key, profile, path = resolve_profile("", self.logger)
 
         self.assertIsInstance(key, str)
         self.assertIsInstance(profile, dict)
@@ -93,30 +83,30 @@ class TestResolveProfile(unittest.TestCase):
 
     def test_resolve_novoxy18_profile(self):
         """resolve_profile returns novoxy18 single-device profile."""
-        key, profile, path = vision_profiles.resolve_profile("novoxy18", self.logger)
+        key, profile, path = resolve_profile("novoxy18", self.logger)
 
         self.assertEqual(key, "novoxy18")
-        devices = vision_profiles.get_devices(profile)
+        devices = get_devices(profile)
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0]["name"], "novoxy_18_down")
         self.assertLess(devices[0]["gimbal"]["camera_pitch"], 0)  # downward-looking
 
     def test_resolve_novoxy10_profile(self):
         """resolve_profile returns novoxy10 single-device profile."""
-        key, profile, path = vision_profiles.resolve_profile("novoxy10", self.logger)
+        key, profile, path = resolve_profile("novoxy10", self.logger)
 
         self.assertEqual(key, "novoxy10")
-        devices = vision_profiles.get_devices(profile)
+        devices = get_devices(profile)
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0]["name"], "novoxy_10_straight")
         self.assertLess(devices[0]["gimbal"]["camera_pitch"], 0)  # downward-looking
 
     def test_siyi_horizon_profile_only_overrides_static_camera_pitch(self):
         """The co-alt setup inherits SIYI calibration without changing ground."""
-        profiles, _, _ = vision_profiles.load_profiles()
+        profiles, _, _ = load_profiles()
         ground = profiles["siyi_zr10"]
         horizon = profiles["siyi_zr10_horizon"]
-        key, resolved_horizon, _ = vision_profiles.resolve_profile(
+        key, resolved_horizon, _ = resolve_profile(
             "siyi_zr10_horizon", self.logger
         )
 
@@ -138,7 +128,7 @@ class TestResolveProfile(unittest.TestCase):
 
     def test_default_siyi_profile_uses_ground_air_camera_pitch(self):
         """The existing operator profile uses the unified ground/air angle."""
-        profiles, default, _ = vision_profiles.load_profiles()
+        profiles, default, _ = load_profiles()
 
         self.assertEqual(default, "siyi_zr10")
         self.assertEqual(
@@ -148,7 +138,7 @@ class TestResolveProfile(unittest.TestCase):
 
     def test_profile_inheritance_rejects_cycles(self):
         with self.assertRaisesRegex(ValueError, "inheritance cycle"):
-            vision_profiles._resolve_profile_definitions(
+            _resolve_profile_definitions(
                 {
                     "profile_a": {"extends": "profile_b"},
                     "profile_b": {"extends": "profile_a"},
@@ -157,7 +147,7 @@ class TestResolveProfile(unittest.TestCase):
 
     def test_profile_device_override_requires_named_base_device(self):
         with self.assertRaisesRegex(ValueError, "overrides unknown device"):
-            vision_profiles._resolve_profile_definitions(
+            _resolve_profile_definitions(
                 {
                     "base": {"devices": [{"name": "camera_a"}]},
                     "variant": {
@@ -169,14 +159,14 @@ class TestResolveProfile(unittest.TestCase):
 
     def test_profile_devices_reject_non_mapping_entries(self):
         with self.assertRaisesRegex(ValueError, "entries must be JSON objects"):
-            vision_profiles._resolve_profile_definitions(
+            _resolve_profile_definitions(
                 {"invalid": {"devices": ["camera_a"]}}
             )
 
     def test_resolve_profile_invalid_name_raises(self):
         """resolve_profile raises ValueError for unknown profile."""
         with self.assertRaises(ValueError) as ctx:
-            vision_profiles.resolve_profile("nonexistent_profile_xyz", self.logger)
+            resolve_profile("nonexistent_profile_xyz", self.logger)
 
         self.assertIn("not found", str(ctx.exception))
         self.logger.error.assert_called()
@@ -188,7 +178,7 @@ class TestGetDevices(unittest.TestCase):
     def test_get_devices_returns_list(self):
         """get_devices returns devices list from profile."""
         profile = {"devices": [{"name": "cam1"}, {"name": "cam2"}]}
-        devices = vision_profiles.get_devices(profile)
+        devices = get_devices(profile)
 
         self.assertEqual(len(devices), 2)
         self.assertEqual(devices[0]["name"], "cam1")
@@ -196,7 +186,7 @@ class TestGetDevices(unittest.TestCase):
     def test_get_devices_empty_profile(self):
         """get_devices returns empty list for profile without devices."""
         profile = {}
-        devices = vision_profiles.get_devices(profile)
+        devices = get_devices(profile)
 
         self.assertEqual(devices, [])
 
@@ -205,13 +195,13 @@ class TestGetDevices(unittest.TestCase):
         profile = {"devices": "not_a_list"}
 
         with self.assertRaises(ValueError) as ctx:
-            vision_profiles.get_devices(profile)
+            get_devices(profile)
 
         self.assertIn("must be a list", str(ctx.exception))
 
     def test_get_devices_rejects_non_mapping_entries(self):
         with self.assertRaisesRegex(ValueError, "entries must be JSON objects"):
-            vision_profiles.get_devices({"devices": [None]})
+            get_devices({"devices": [None]})
 
 
 class TestGetDetectorSettings(unittest.TestCase):
@@ -220,7 +210,7 @@ class TestGetDetectorSettings(unittest.TestCase):
     def test_get_detector_settings_defaults(self):
         """get_detector_settings returns defaults when not specified."""
         profile = {}
-        settings = vision_profiles.get_detector_settings(profile)
+        settings = get_detector_settings(profile)
 
         self.assertEqual(settings["detect_hz"], 15.0)
         self.assertEqual(settings["conf"], 0.35)
@@ -235,7 +225,7 @@ class TestGetDetectorSettings(unittest.TestCase):
                 "conf": 0.5,
             }
         }
-        settings = vision_profiles.get_detector_settings(profile)
+        settings = get_detector_settings(profile)
 
         self.assertEqual(settings["detect_hz"], 30.0)
         self.assertEqual(settings["conf"], 0.5)
@@ -245,10 +235,10 @@ class TestGetDetectorSettings(unittest.TestCase):
 
     def test_ideal_360_profile_enables_sim_ideal_sensor(self):
         """ideal_360 profile opts into the sim-only static infinite-FOV sensor."""
-        _, profile, _ = vision_profiles.resolve_profile("ideal_360", Mock())
+        _, profile, _ = resolve_profile("ideal_360", Mock())
 
-        settings = vision_profiles.get_detector_settings(profile)
-        devices = vision_profiles.get_devices(profile)
+        settings = get_detector_settings(profile)
+        devices = get_devices(profile)
 
         self.assertTrue(settings["ideal_360"])
         self.assertNotIn("loop_rate_hz", settings)
@@ -262,12 +252,12 @@ class TestGetDetectorSettings(unittest.TestCase):
     def test_get_detector_settings_rejects_invalid_detector(self):
         profile = {"detector": "invalid"}
         with self.assertRaisesRegex(ValueError, "detector must be a mapping"):
-            vision_profiles.get_detector_settings(profile)
+            get_detector_settings(profile)
 
     def test_siyi_profile_enables_gpu_deep_search(self):
-        _, profile, _ = vision_profiles.resolve_profile("siyi_zr10", Mock())
+        _, profile, _ = resolve_profile("siyi_zr10", Mock())
 
-        settings = vision_profiles.get_detector_settings(profile)
+        settings = get_detector_settings(profile)
 
         self.assertEqual(settings["device"], "auto")
         self.assertEqual(settings["detect_hz"], 30.0)
@@ -310,7 +300,7 @@ class TestBuildGimbalData(unittest.TestCase):
             }
         }
 
-        data = vision_profiles.build_gimbal_data(device, 0)
+        data = build_gimbal_data(device, 0)
 
         self.assertIsInstance(data, GimbalData)
         self.assertEqual(data.att.pitch, -45)
@@ -325,14 +315,14 @@ class TestBuildGimbalData(unittest.TestCase):
     def test_build_gimbal_data_no_gimbal_returns_none(self):
         """build_gimbal_data returns None when no gimbal config."""
         device = {"camera": {}}
-        data = vision_profiles.build_gimbal_data(device, 0)
+        data = build_gimbal_data(device, 0)
 
         self.assertIsNone(data)
 
     def test_build_gimbal_data_invalid_gimbal_returns_none(self):
         """build_gimbal_data returns None when gimbal is not dict."""
         device = {"gimbal": "invalid"}
-        data = vision_profiles.build_gimbal_data(device, 0)
+        data = build_gimbal_data(device, 0)
 
         self.assertIsNone(data)
 
@@ -345,7 +335,7 @@ class TestBuildGimbalData(unittest.TestCase):
             }
         }
 
-        data = vision_profiles.build_gimbal_data(device, 5)
+        data = build_gimbal_data(device, 5)
 
         self.assertEqual(data.name, "gimbal_5")
 
@@ -353,7 +343,7 @@ class TestBuildGimbalData(unittest.TestCase):
         """build_gimbal_data uses the catalog setup_att default."""
         device = {"gimbal": {"camera_pitch": -15}}
 
-        data = vision_profiles.build_gimbal_data(device, 0)
+        data = build_gimbal_data(device, 0)
 
         self.assertEqual(data.setup_att.pitch, 90)
         self.assertEqual(data.setup_att.yaw, 0)
@@ -364,18 +354,18 @@ class TestBuildGimbalData(unittest.TestCase):
     def test_resolve_gimbal_device_id_rejects_float(self):
         """gimbal_device_id values must be explicit integers."""
         with self.assertRaisesRegex(ValueError, "must be an integer"):
-            vision_profiles.resolve_gimbal_device_id({"gimbal_device_id": 1.9}, 0)
+            resolve_gimbal_device_id({"gimbal_device_id": 1.9}, 0)
 
     def test_resolve_gimbal_device_id_rejects_bool(self):
         """bool is not accepted as a MAVLink device ID."""
         with self.assertRaisesRegex(ValueError, "must be an integer"):
-            vision_profiles.resolve_gimbal_device_id({"gimbal_device_id": True}, 0)
+            resolve_gimbal_device_id({"gimbal_device_id": True}, 0)
 
     def test_setup_vectors_require_exactly_three_finite_values(self):
         for setup_att in ([1, 2], [1, 2, 3, 4], [1, math.nan, 3]):
             with self.subTest(setup_att=setup_att):
                 with self.assertRaisesRegex(ValueError, "exactly 3|finite"):
-                    vision_profiles.resolve_gimbal_setup_att(
+                    resolve_gimbal_setup_att(
                         {"setup_att": setup_att}
                     )
 
@@ -383,14 +373,14 @@ class TestBuildGimbalData(unittest.TestCase):
         for setup_dist in ([1, 2], [1, math.inf, 3]):
             with self.subTest(setup_dist=setup_dist):
                 with self.assertRaisesRegex(ValueError, "exactly 3|finite"):
-                    vision_profiles.build_gimbal_data(
+                    build_gimbal_data(
                         {"gimbal": {"setup_dist_mm": setup_dist}},
                         0,
                     )
 
     def test_rotation_sequences_must_be_known(self):
         with self.assertRaisesRegex(ValueError, "must be one of"):
-            vision_profiles.resolve_gimbal_seq({"seq": "ABC"})
+            resolve_gimbal_seq({"seq": "ABC"})
 
 class TestComputeMaxDetectDist(unittest.TestCase):
     """Tests for compute_max_detect_dist."""
@@ -401,13 +391,13 @@ class TestComputeMaxDetectDist(unittest.TestCase):
         # _MAX_CLASS_SIZE = sqrt(3.5^2 + 2.5^2) = sqrt(18.5) (the only class: dock)
         _max_size = math.sqrt(18.5)
         expected = 2000.0 * _max_size / 8 * 1.1
-        result = vision_profiles.compute_max_detect_dist(fy=2000)
+        result = compute_max_detect_dist(fy=2000)
         self.assertAlmostEqual(result, expected, places=1)
 
     def test_higher_fy_increases_range(self):
         """Higher fy (more zoom) produces larger confirmation range."""
-        d1 = vision_profiles.compute_max_detect_dist(2000)
-        d2 = vision_profiles.compute_max_detect_dist(4000)
+        d1 = compute_max_detect_dist(2000)
+        d2 = compute_max_detect_dist(4000)
         self.assertAlmostEqual(d2, d1 * 2, places=2)
 
     def test_build_gimbal_data_computes_from_optics(self):
@@ -429,7 +419,7 @@ class TestComputeMaxDetectDist(unittest.TestCase):
         }
         det_settings = {"reference_height_m": 2.0, "imgsz": 640}
 
-        data = vision_profiles.build_gimbal_data(device, 0, det_settings)
+        data = build_gimbal_data(device, 0, det_settings)
 
         # Formula: fy * _MAX_CLASS_SIZE / MIN_DETECT_PIXELS * 1.1
         # _MAX_CLASS_SIZE = sqrt(18.5) (dock: 3.5m x 2.5m diagonal)
@@ -454,18 +444,18 @@ class TestComputeMaxDetectDist(unittest.TestCase):
             }
         }
 
-        data = vision_profiles.build_gimbal_data(device, 0)
+        data = build_gimbal_data(device, 0)
 
         self.assertEqual(data.max_detect_distance, 3000.0)
 
     def test_c270hd_profile_computed_distance(self):
         """Real c270hd profile computes expected max_detect_distance."""
-        _, profile, _ = vision_profiles.resolve_profile("c270hd", Mock())
-        det_settings = vision_profiles.get_detector_settings(profile)
-        devices = vision_profiles.get_devices(profile)
+        _, profile, _ = resolve_profile("c270hd", Mock())
+        det_settings = get_detector_settings(profile)
+        devices = get_devices(profile)
         device = devices[0]
 
-        data = vision_profiles.build_gimbal_data(device, 0, det_settings)
+        data = build_gimbal_data(device, 0, det_settings)
 
         # Formula: fy * _MAX_CLASS_SIZE / MIN_DETECT_PIXELS * 1.1
         # _MAX_CLASS_SIZE = sqrt(18.5) (dock diagonal)
@@ -478,21 +468,21 @@ class TestComputeExplicitSlantRanges(unittest.TestCase):
 
     def test_compute_detect_slant_range_uses_raw_detector_gate(self):
         """Raw detect range uses class size and MIN_DETECT_PIXELS."""
-        result = vision_profiles.compute_detect_slant_range(fy=2000, class_size=2.96)
-        self.assertAlmostEqual(result, 2000.0 * 2.96 / vision_profiles.MIN_DETECT_PIXELS, places=1)
+        result = compute_detect_slant_range(fy=2000, class_size=2.96)
+        self.assertAlmostEqual(result, 2000.0 * 2.96 / MIN_DETECT_PIXELS, places=1)
 
     def test_compute_confirm_slant_range_uses_confirmation_gate(self):
         """Confirmation range uses _MIN_CLASS_SIZE (dock diagonal) and MIN_CONFIRM_PIXELS."""
         # _MIN_CLASS_SIZE = sqrt(3.5^2 + 2.5^2) = sqrt(18.5) ≈ 4.301 (dock diagonal)
         _min_size = math.sqrt(3.5**2 + 2.5**2)
-        expected = 2000.0 * _min_size / vision_profiles.MIN_CONFIRM_PIXELS
-        result = vision_profiles.compute_confirm_slant_range(fy=2000)
+        expected = 2000.0 * _min_size / MIN_CONFIRM_PIXELS
+        result = compute_confirm_slant_range(fy=2000)
         self.assertAlmostEqual(result, expected, places=4)
 
     def test_detect_range_exceeds_confirm_range_for_same_poi(self):
         """Raw detection range is larger than confirmation range for the same POI class."""
-        detect = vision_profiles.compute_detect_slant_range(fy=2000, class_size=2.96)
-        confirm = vision_profiles.compute_confirm_slant_range(fy=2000, class_size=2.96)
+        detect = compute_detect_slant_range(fy=2000, class_size=2.96)
+        confirm = compute_confirm_slant_range(fy=2000, class_size=2.96)
         self.assertGreater(detect, confirm)
 
     def test_range_math_rejects_nonfinite_or_nonpositive_inputs(self):
@@ -505,7 +495,7 @@ class TestComputeExplicitSlantRanges(unittest.TestCase):
         for fy, class_size, pixels in invalid_cases:
             with self.subTest(fy=fy, class_size=class_size, pixels=pixels):
                 with self.assertRaisesRegex(ValueError, "positive finite"):
-                    vision_profiles.compute_detect_slant_range(
+                    compute_detect_slant_range(
                         fy,
                         class_size,
                         pixels,
@@ -518,7 +508,7 @@ class TestComputeApproachInterval(unittest.TestCase):
     def test_returns_interval_for_valid_config(self):
         """Steep camera with large fy returns a valid interval."""
         # fy=3000, cy=540, ih=1080, pitch=30, alt=200, Medium=2.96
-        result = vision_profiles.compute_approach_interval(3000, 540, 1080, 30, 200, 2.96)
+        result = compute_approach_interval(3000, 540, 1080, 30, 200, 2.96)
         self.assertIsNotNone(result)
         g_min, g_max = result
         self.assertGreater(g_max, g_min)
@@ -526,18 +516,18 @@ class TestComputeApproachInterval(unittest.TestCase):
 
     def test_returns_none_when_slant_below_alt(self):
         """When confirm slant < altitude, returns None."""
-        result = vision_profiles.compute_approach_interval(500, 540, 1080, 15, 500, 1.80)
+        result = compute_approach_interval(500, 540, 1080, 15, 500, 1.80)
         self.assertIsNone(result)
 
     def test_returns_none_when_no_overlap(self):
         """Shallow pitch at high alt — confirm min exceeds confirm max."""
-        result = vision_profiles.compute_approach_interval(1440, 337, 720, 5, 200, 1.80)
+        result = compute_approach_interval(1440, 337, 720, 5, 200, 1.80)
         self.assertIsNone(result)
 
     def test_steeper_pitch_widens_interval(self):
         """Steeper camera gives wider interval (lower g_confirm_min)."""
-        r_shallow = vision_profiles.compute_approach_interval(3000, 540, 1080, 15, 200, 2.96)
-        r_steep = vision_profiles.compute_approach_interval(3000, 540, 1080, 30, 200, 2.96)
+        r_shallow = compute_approach_interval(3000, 540, 1080, 15, 200, 2.96)
+        r_steep = compute_approach_interval(3000, 540, 1080, 30, 200, 2.96)
         self.assertIsNotNone(r_steep)
         if r_shallow is not None:
             self.assertGreater(r_steep[1] - r_steep[0], r_shallow[1] - r_shallow[0])
@@ -545,7 +535,7 @@ class TestComputeApproachInterval(unittest.TestCase):
     def test_cy_below_budget_line_gives_zero_g_min(self):
         """When cy > max_y_pct * img_h, g_confirm_min is 0 (always within budget)."""
         # cy=900 in 1080px image: 0.80*1080=864 < 900 → px_from_cy < 0 → g_min=0
-        result = vision_profiles.compute_approach_interval(3000, 900, 1080, 30, 100, 2.96)
+        result = compute_approach_interval(3000, 900, 1080, 30, 100, 2.96)
         if result is not None:
             g_min, g_max = result
             self.assertEqual(g_min, 0.0)
@@ -556,10 +546,10 @@ class TestBuildTrackingConfig(unittest.TestCase):
 
     def test_siyi_zr10_returns_config(self):
         """siyi_zr10 profile has tracking config with correct values."""
-        _, profile, _ = vision_profiles.resolve_profile("siyi_zr10", Mock())
-        devices = vision_profiles.get_devices(profile)
+        _, profile, _ = resolve_profile("siyi_zr10", Mock())
+        devices = get_devices(profile)
         device = devices[0]
-        config = vision_profiles.build_tracking_config(device, sim=True)
+        config = build_tracking_config(device, sim=True)
 
         self.assertIsNotNone(config)
         # siyi_zr10 uses correction_bw=2.5 (the library default). #186 raised it
@@ -581,7 +571,7 @@ class TestBuildTrackingConfig(unittest.TestCase):
             "loss_repoint_sec": 1.8,
             "preserve_zoom_during_loss": False,
         }}}
-        config = vision_profiles.build_tracking_config(device, sim=True)
+        config = build_tracking_config(device, sim=True)
         self.assertIsNotNone(config)
         self.assertAlmostEqual(config.loss.hold_sec, 0.4)
         self.assertAlmostEqual(config.loss.repoint_sec, 1.8)
@@ -590,28 +580,28 @@ class TestBuildTrackingConfig(unittest.TestCase):
     def test_loss_ladder_defaults_when_not_overridden(self):
         """Without overrides the loss-ladder boundaries keep library defaults."""
         device = {"gimbal": {"camera_pitch": -20.0, "tracking": {"enabled": True}}}
-        config = vision_profiles.build_tracking_config(device, sim=True)
+        config = build_tracking_config(device, sim=True)
         self.assertAlmostEqual(config.loss.hold_sec, 0.5)
         self.assertAlmostEqual(config.loss.repoint_sec, 2.0)
         self.assertTrue(config.loss.preserve_zoom_during_loss)
 
     def test_c270hd_returns_none(self):
         """c270hd profile has no tracking config."""
-        _, profile, _ = vision_profiles.resolve_profile("c270hd", Mock())
-        devices = vision_profiles.get_devices(profile)
-        config = vision_profiles.build_tracking_config(devices[0], sim=True)
+        _, profile, _ = resolve_profile("c270hd", Mock())
+        devices = get_devices(profile)
+        config = build_tracking_config(devices[0], sim=True)
 
         self.assertIsNone(config)
 
     def test_device_without_gimbal_returns_none(self):
         """Device with no gimbal section returns None."""
-        config = vision_profiles.build_tracking_config({"camera": {}}, sim=True)
+        config = build_tracking_config({"camera": {}}, sim=True)
         self.assertIsNone(config)
 
     def test_tracking_disabled_returns_none(self):
         """When tracking.enabled is false, returns None."""
         device = {"gimbal": {"tracking": {"enabled": False}}}
-        config = vision_profiles.build_tracking_config(device, sim=True)
+        config = build_tracking_config(device, sim=True)
         self.assertIsNone(config)
 
     def test_tracking_enabled_must_be_boolean(self):
@@ -619,7 +609,7 @@ class TestBuildTrackingConfig(unittest.TestCase):
             with self.subTest(enabled=enabled):
                 device = {"gimbal": {"tracking": {"enabled": enabled}}}
                 with self.assertRaisesRegex(ValueError, "enabled must be boolean"):
-                    vision_profiles.build_tracking_config(device, sim=True)
+                    build_tracking_config(device, sim=True)
 
     def test_preserve_zoom_during_loss_must_be_boolean(self):
         for preserve in (1, 0, "true", "false", None):
@@ -632,7 +622,7 @@ class TestBuildTrackingConfig(unittest.TestCase):
                     ValueError,
                     "preserve_zoom_during_loss must be boolean",
                 ):
-                    vision_profiles.build_tracking_config(device, sim=True)
+                    build_tracking_config(device, sim=True)
 
     def test_unknown_tracking_keys_are_rejected(self):
         for key in (
@@ -651,14 +641,14 @@ class TestBuildTrackingConfig(unittest.TestCase):
                     ValueError,
                     "Unknown gimbal.tracking key",
                 ):
-                    vision_profiles.build_tracking_config(device, sim=True)
+                    build_tracking_config(device, sim=True)
 
     def test_estimator_override_flows_into_config(self):
         """gimbal.tracking.estimator overrides reach the nested estimator
         config, so the robust outlier-rejection knee is profile-tunable."""
         device = {"gimbal": {"camera_pitch": -20.0, "tracking": {
             "enabled": True, "estimator": {"robust_nis_knee": 16.0}}}}
-        config = vision_profiles.build_tracking_config(device, sim=True)
+        config = build_tracking_config(device, sim=True)
         self.assertIsNotNone(config)
         self.assertAlmostEqual(config.rate.estimator.robust_nis_knee, 16.0)
 
@@ -667,15 +657,15 @@ class TestBuildTrackingConfig(unittest.TestCase):
         (the robust knee stays on by default — not silently disabled)."""
         from navpy.modules.vision.poi_angle_estimator import PoiAngleEstimatorConfig
         device = {"gimbal": {"camera_pitch": -20.0, "tracking": {"enabled": True}}}
-        config = vision_profiles.build_tracking_config(device, sim=True)
+        config = build_tracking_config(device, sim=True)
         self.assertAlmostEqual(
             config.rate.estimator.robust_nis_knee,
             PoiAngleEstimatorConfig().robust_nis_knee)
 
     def test_invalid_params_return_none(self):
-        self.assertIsNone(vision_profiles.compute_approach_interval(0, 540, 1080, 15, 200, 2.96))
-        self.assertIsNone(vision_profiles.compute_approach_interval(2000, 540, 1080, 15, 0, 2.96))
-        self.assertIsNone(vision_profiles.compute_approach_interval(2000, 540, 1080, 15, 200, 0))
+        self.assertIsNone(compute_approach_interval(0, 540, 1080, 15, 200, 2.96))
+        self.assertIsNone(compute_approach_interval(2000, 540, 1080, 15, 0, 2.96))
+        self.assertIsNone(compute_approach_interval(2000, 540, 1080, 15, 200, 0))
 
 
 class TestBuildZoomConfig(unittest.TestCase):
@@ -684,14 +674,14 @@ class TestBuildZoomConfig(unittest.TestCase):
     def test_siyi_zr10_derives_target_pixels_from_profile_presets(self):
         """siyi_zr10 zoom config no longer carries target_pixels — values
         derive from the profile's dock_presets via get_min_pixels_for_class."""
-        _, profile, _ = vision_profiles.resolve_profile("siyi_zr10", Mock())
+        _, profile, _ = resolve_profile("siyi_zr10", Mock())
         presets = profile["detector"]["dock_presets"]
         # Dock (class-0) recognition gate relaxed 48 -> 36 for the 3-UAV demo.
         self.assertEqual(set(presets), {"dock"})
         self.assertEqual(presets["dock"]["min_pixel_size"], 36)
 
-        devices = vision_profiles.get_devices(profile)
-        config = vision_profiles.build_zoom_config(devices[0], profile)
+        devices = get_devices(profile)
+        config = build_zoom_config(devices[0], profile)
 
         self.assertIsNotNone(config)
         self.assertEqual(tuple(config.__dataclass_fields__), ("target_pixels",))
@@ -703,9 +693,9 @@ class TestBuildZoomConfig(unittest.TestCase):
 
     def test_c270hd_returns_none(self):
         """c270hd profile has no zoom block → returns None."""
-        _, profile, _ = vision_profiles.resolve_profile("c270hd", Mock())
-        devices = vision_profiles.get_devices(profile)
-        config = vision_profiles.build_zoom_config(devices[0], profile)
+        _, profile, _ = resolve_profile("c270hd", Mock())
+        devices = get_devices(profile)
+        config = build_zoom_config(devices[0], profile)
 
         self.assertIsNone(config)
 
@@ -714,28 +704,28 @@ class TestBuildZoomConfig(unittest.TestCase):
         two-arg signature is safe across every shipped profile."""
         for profile_name in ("c270hd", "novoxy10", "novoxy18", "novoxy_dual", "zenfone7pro"):
             with self.subTest(profile=profile_name):
-                _, profile, _ = vision_profiles.resolve_profile(profile_name, Mock())
-                for device in vision_profiles.get_devices(profile):
+                _, profile, _ = resolve_profile(profile_name, Mock())
+                for device in get_devices(profile):
                     self.assertIsNone(
-                        vision_profiles.build_zoom_config(device, profile),
+                        build_zoom_config(device, profile),
                         msg=f"expected None for {profile_name}/{device.get('name')}",
                     )
 
     def test_device_without_gimbal_returns_none(self):
         """Device without a gimbal section returns None."""
-        self.assertIsNone(vision_profiles.build_zoom_config({"camera": {}}))
+        self.assertIsNone(build_zoom_config({"camera": {}}))
 
     def test_zoom_disabled_returns_none(self):
         """When zoom.enabled is false, returns None."""
         device = {"gimbal": {"zoom": {"enabled": False}}}
-        self.assertIsNone(vision_profiles.build_zoom_config(device))
+        self.assertIsNone(build_zoom_config(device))
 
     def test_defaults_when_fields_omitted(self):
         """Only 'enabled=true' provided and no profile → MIN_CONFIRM_PIXELS default."""
-        from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
 
         device = {"gimbal": {"zoom": {"enabled": True}}}
-        config = vision_profiles.build_zoom_config(device)
+        config = build_zoom_config(device)
 
         self.assertIsNotNone(config)
         self.assertEqual(config.target_pixels, {"default": float(MIN_CONFIRM_PIXELS)})
@@ -755,7 +745,7 @@ class TestBuildZoomConfig(unittest.TestCase):
         for key in removed:
             with self.subTest(key=key):
                 with self.assertRaisesRegex(ValueError, "Unknown gimbal.zoom"):
-                    vision_profiles.build_zoom_config(
+                    build_zoom_config(
                         {"gimbal": {"zoom": {"enabled": True, key: 1}}}
                     )
 
@@ -763,7 +753,7 @@ class TestBuildZoomConfig(unittest.TestCase):
         for enabled in (1, 0, "true", None):
             with self.subTest(enabled=enabled):
                 with self.assertRaises(ValueError):
-                    vision_profiles.build_zoom_config(
+                    build_zoom_config(
                         {"gimbal": {"zoom": {"enabled": enabled}}}
                     )
 
@@ -775,7 +765,7 @@ class TestBuildZoomConfig(unittest.TestCase):
                 }
             }
         }
-        config = vision_profiles.build_zoom_config(
+        config = build_zoom_config(
             {"gimbal": {"zoom": {"enabled": True}}},
             profile,
         )
@@ -795,34 +785,34 @@ class TestGetMinPixelsForClass(unittest.TestCase):
 
         profile = {"detector": {"dock_presets": {"dock": {"min_pixel_size": 15}}}}
         self.assertAlmostEqual(
-            vision_profiles.get_min_pixels_for_class(profile, DOCK_DETECT_CLASS_ID), 15.0,
+            get_min_pixels_for_class(profile, DOCK_DETECT_CLASS_ID), 15.0,
         )
 
     def test_falls_back_to_min_confirm_pixels(self):
         """Non-dock classes have no preset and fall back to MIN_CONFIRM_PIXELS."""
-        from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
 
         profile = {"detector": {"dock_presets": {"dock": {"min_pixel_size": 11}}}}
         self.assertAlmostEqual(
-            vision_profiles.get_min_pixels_for_class(profile, 1),
+            get_min_pixels_for_class(profile, 1),
             float(MIN_CONFIRM_PIXELS),
         )
 
     def test_retired_preset_names_do_not_feed_the_dock_gate(self):
         """Old small/medium/large keys are not read as the dock preset."""
-        from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
 
         profile = {"detector": {"dock_presets": {"medium": {"min_pixel_size": 99}}}}
         self.assertAlmostEqual(
-            vision_profiles.get_min_pixels_for_class(profile, 0),
+            get_min_pixels_for_class(profile, 0),
             float(MIN_CONFIRM_PIXELS),
         )
 
     def test_empty_profile_returns_fallback(self):
-        from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
 
         self.assertAlmostEqual(
-            vision_profiles.get_min_pixels_for_class({}, 0),
+            get_min_pixels_for_class({}, 0),
             float(MIN_CONFIRM_PIXELS),
         )
 
@@ -832,15 +822,15 @@ class TestGetMinPixelsForClass(unittest.TestCase):
                 "dock_presets": {"dock": {"min_pixel_size": "not-a-number"}},
             },
         }
-        from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
 
         self.assertAlmostEqual(
-            vision_profiles.get_min_pixels_for_class(profile, 0),
+            get_min_pixels_for_class(profile, 0),
             float(MIN_CONFIRM_PIXELS),
         )
 
     def test_rejects_nonfinite_or_nonpositive_numeric_values(self):
-        from navpy.modules.vision.vision_profiles import MIN_CONFIRM_PIXELS
+        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
 
         for value in (-1, 0, math.nan, math.inf, -math.inf):
             with self.subTest(value=value):
@@ -852,7 +842,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
                     },
                 }
                 self.assertEqual(
-                    vision_profiles.get_min_pixels_for_class(profile, 0),
+                    get_min_pixels_for_class(profile, 0),
                     float(MIN_CONFIRM_PIXELS),
                 )
 
@@ -863,7 +853,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
         ):
             with self.subTest(profile=profile):
                 with self.assertRaisesRegex(ValueError, "must be a mapping"):
-                    vision_profiles.get_min_pixels_for_class(profile, 0)
+                    get_min_pixels_for_class(profile, 0)
 
 
 class TestGetClassDetectSize(unittest.TestCase):
@@ -876,14 +866,14 @@ class TestGetClassDetectSize(unittest.TestCase):
 
         self.assertEqual(DOCK_DETECT_CLASS_ID, 0)
         self.assertEqual(
-            vision_profiles.DETECTOR_CLASS_DIMENSIONS, {DOCK_DETECT_CLASS_ID: (3.5, 2.5)},
+            DETECTOR_CLASS_DIMENSIONS, {DOCK_DETECT_CLASS_ID: (3.5, 2.5)},
         )
         self.assertAlmostEqual(
-            vision_profiles.get_class_detect_size(DOCK_DETECT_CLASS_ID), math.sqrt(18.5), places=4,
+            get_class_detect_size(DOCK_DETECT_CLASS_ID), math.sqrt(18.5), places=4,
         )
 
     def test_shipped_profiles_have_single_dock_preset(self):
-        profiles, _, _ = vision_profiles.load_profiles()
+        profiles, _, _ = load_profiles()
         for name, profile in profiles.items():
             presets = (profile.get("detector") or {}).get("dock_presets")
             if presets is None:
@@ -894,7 +884,7 @@ class TestGetClassDetectSize(unittest.TestCase):
 
     def test_unknown_class_returns_default(self):
         # Default dims (2.0, 2.0) → diagonal = sqrt(8) ≈ 2.828
-        self.assertAlmostEqual(vision_profiles.get_class_detect_size(99), math.sqrt(8.0), places=4)
+        self.assertAlmostEqual(get_class_detect_size(99), math.sqrt(8.0), places=4)
 
 
 class TestBuildCameraModel(unittest.TestCase):
@@ -922,7 +912,7 @@ class TestBuildCameraModel(unittest.TestCase):
             }
         }
 
-        camera = vision_profiles.build_camera_model(device, self.logger)
+        camera = build_camera_model(device, self.logger)
 
         self.assertEqual(camera.image_width, 1920)
         self.assertEqual(camera.image_height, 1080)
@@ -942,7 +932,7 @@ class TestBuildCameraModel(unittest.TestCase):
             }
         }
 
-        camera = vision_profiles.build_camera_model(
+        camera = build_camera_model(
             device, self.logger, log=False
         )
 
@@ -966,7 +956,7 @@ class TestBuildCameraModel(unittest.TestCase):
                     },
                 }
                 with self.assertRaisesRegex(ValueError, "positive finite"):
-                    vision_profiles.build_camera_model(device, self.logger)
+                    build_camera_model(device, self.logger)
 
 
 class TestBuildCameraMounts(unittest.TestCase):
@@ -1002,7 +992,7 @@ class TestBuildCameraMounts(unittest.TestCase):
             ]
         }
 
-        specs = vision_profiles.build_camera_mounts(
+        specs = build_camera_mounts(
             profile, self.vehicle, self.logger, use_sim_gimbal=False
         )
 
@@ -1064,7 +1054,7 @@ class TestBuildCameraMounts(unittest.TestCase):
             ]
         }
 
-        specs = vision_profiles.build_camera_mounts(
+        specs = build_camera_mounts(
             profile, self.vehicle, self.logger, use_sim_gimbal=True
         )
         self.assertEqual(len(specs), 1)
@@ -1105,7 +1095,7 @@ class TestBuildCameraMounts(unittest.TestCase):
             ]
         }
 
-        specs = vision_profiles.build_camera_mounts(
+        specs = build_camera_mounts(
             profile, self.vehicle, self.logger, use_sim_gimbal=False
         )
 
@@ -1145,7 +1135,7 @@ class TestBuildCameraMounts(unittest.TestCase):
             ]
         }
 
-        specs = vision_profiles.build_camera_mounts(
+        specs = build_camera_mounts(
             profile, self.vehicle, self.logger, use_sim_gimbal=False
         )
 
@@ -1172,7 +1162,7 @@ class TestBuildCameraMounts(unittest.TestCase):
             ]
         }
 
-        specs = vision_profiles.build_camera_mounts(
+        specs = build_camera_mounts(
             profile, self.vehicle, self.logger, use_sim_gimbal=False
         )
 
@@ -1204,7 +1194,7 @@ class TestBuildCameraMounts(unittest.TestCase):
             ]
         }
 
-        specs = vision_profiles.build_camera_mounts(
+        specs = build_camera_mounts(
             profile, self.vehicle, self.logger, use_sim_gimbal=True
         )
 

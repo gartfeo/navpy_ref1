@@ -8,7 +8,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from navpy.exception_groups import ExceptionGroup
-from navpy.modules.vision.detector import Detector, TrackedObject
+from navpy.modules.vision.detector import Detector
+from navpy.modules.vision.mot_state import TrackedObject
 from navpy.modules.vision.detector_ports import (
     GimbalSourceIdentity,
     IdentitySchedulerCadence,
@@ -18,10 +19,10 @@ from navpy.modules.vision.detector_ports import (
 from navpy.modules.vision.frame_provider import FrameSnapshot
 from navpy.modules.vision.real_detector_composition import (
     DetectorDependencies,
-    DetectorModelConfig,
     RealDetectorConfig,
     build_real_detector,
 )
+from navpy.modules.vision.real_detector_config import DetectorModelConfig
 from navpy.modules.vision.real_detector_controls import DetectorResetController
 from navpy.modules.vision.real_detector_lifecycle import (
     DetectorLifecycle,
@@ -31,15 +32,19 @@ from navpy.modules.vision.real_detector_models import build_models
 from navpy.modules.vision.real_detector_resources import DetectorResources
 from navpy.modules.vision.real_detector_state import (
     ConfirmationFrameStore,
+    DetectionResultStore,
+    FreshnessPolicy,
+    OverlayStore,
+)
+from navpy.modules.vision.real_detector_inference_state import (
     DeepSearchInbox,
     DetectionBatch,
     DetectionBatchInbox,
-    DetectionResultStore,
-    DetectorRunState,
-    FreshnessPolicy,
     InferenceGeneration,
+)
+from navpy.modules.vision.real_detector_runtime_state import (
+    DetectorRunState,
     LoopTiming,
-    OverlayStore,
     PipelineMutationGate,
     RuntimeMetrics,
     next_loop_deadline,
@@ -52,6 +57,8 @@ from navpy.modules.vision.real_inference import (
 from navpy.modules.vision.real_tracking import (
     TrackingBatchProcessor,
     TrackingLoop,
+)
+from navpy.modules.vision.real_tracking_batch import (
     TrackingModels,
     TrackingPublications,
 )

@@ -6,7 +6,7 @@ import numpy as np
 
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.detector_overlay import draw_debug_overlay
-from navpy.modules.vision.multi_object_tracker import TrackedObject
+from navpy.modules.vision.mot_state import TrackedObject
 from navpy.modules.vision.real_detector_ports import AircraftAttitudeReader
 
 

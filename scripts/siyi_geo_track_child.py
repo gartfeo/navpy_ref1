@@ -31,10 +31,8 @@ from navpy.modules.vision.vision_camera_calibration import (  # noqa: E402
 from navpy.modules.vision.vision_profile_composition import (  # noqa: E402
     build_vision_profile,
 )
-from navpy.modules.vision.vision_profiles import (  # noqa: E402
-    build_tracking_config,
-    build_zoom_config,
-)
+from navpy.modules.vision.vision_tracking_composition import build_tracking_config  # noqa: E402
+from navpy.modules.vision.vision_zoom_profile import build_zoom_config  # noqa: E402
 from navpy.modules.vision.vision_class_profile import (  # noqa: E402
     get_class_detect_size,
     get_min_pixels_for_class,

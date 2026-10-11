@@ -18,21 +18,13 @@ from geopy.distance import geodesic
 
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
-from navpy.modules.navigation.orbit_geometry import (
-    OrbitNavigationLimits,
-    r_nav_min,  # compatibility re-export
-)
+from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
 from navpy.modules.navigation.peer_orbit_plan import (
     MIN_ACQUIRE_STANDOFF_M,
-    MIN_APPROACH_STANDOFF_M,
-    MIN_TRACK_PIXELS,
-    _ORBIT_PIXEL_MARGIN,
     compute_orbit_plan,
 )
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.vision_class_profile import (
-    MIN_CONFIRM_PIXELS,  # compatibility re-export
-    MIN_DETECT_PIXELS,  # compatibility re-export
     compute_approach_interval,
     compute_detect_slant_range,
     get_class_detect_size,

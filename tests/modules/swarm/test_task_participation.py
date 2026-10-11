@@ -8,13 +8,17 @@ from unittest.mock import Mock
 import pytest
 
 from navpy.logger.cache_logger import ILogger
-from navpy.modules.comm.messages.available_task_msg import (
+from navpy.modules.comm.messages.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
+)
+from navpy.modules.comm.messages.task_message_data import (
     TaskAssignMsgData,
+    TaskMsgData,
+)
+from navpy.modules.comm.messages.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
-    TaskMsgData,
 )
 from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.msg_meta import MsgMeta

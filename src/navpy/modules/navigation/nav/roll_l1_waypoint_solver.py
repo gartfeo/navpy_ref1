@@ -9,7 +9,7 @@ from time import time
 import numpy as np
 
 from navpy.modules.common.models.location import Location
-from navpy.modules.navigation.geo import normalize
+from navpy.modules.navigation.geo.rotation_utils import normalize
 from navpy.modules.navigation.nav.roll_l1_state import (
     RollL1Parameters,
     RollL1State,

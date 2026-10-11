@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "src"))
 
 from cam.calibration.face_detector import FaceDetector, _DEFAULT_MODEL
 from cam.calibration.detector_abc import DetectorAbc
-from navpy.modules.vision.detector import Detection
+from navpy.modules.vision.yolo_detector import Detection
 
 
 # ---------------------------------------------------------------------------

@@ -3,16 +3,16 @@
 import unittest
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import (
-    GimbalPhysics,
+from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import GimbalPhysics
+from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
     MAX_SLEW_RATE,
     MODE_FOLLOW,
     MODE_FPV,
     MODE_LOCK,
-    ZOOM_INCREMENTAL_SPEED,
-    ZR10,
-    _wrap180,
+    wrap180 as _wrap180,
 )
+from navpy.modules.vision.peripheral.siyi.sim.gimbal_zoom_plant import ZOOM_INCREMENTAL_SPEED
+from navpy.modules.vision.peripheral.siyi.siyi_sdk import ZR10
 
 
 class TestAngleLimits(unittest.TestCase):

@@ -9,10 +9,7 @@ from _thread import RLock as RLockType
 from pymavlink import mavutil
 
 from navpy.modules.vehicle.mav_bus_heartbeats import MavBusHeartbeats
-from navpy.modules.vehicle.mav_bus_lifecycle import (
-    MavBusClosedError,
-    MavBusLifecycle,
-)
+from navpy.modules.vehicle.mav_bus_lifecycle import MavBusLifecycle
 from navpy.modules.vehicle.mav_bus_membership import (
     MavBusMembership,
     MavMessageReceiver,

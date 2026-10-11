@@ -7,7 +7,7 @@ from navpy.modules.comm.network_serial import NetworkSerial
 from navpy.modules.comm.network_wifi import NetworkWifi
 from navpy.modules.comm.network_mavlink import NetworkMavlink
 from navpy.logger.cache_logger import ILogger
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 
 
 def create_network(args: NetworkArgs, node_id: int, logger: ILogger, vehicle: Optional[IVehicle]) -> Optional[NetworkAbc]:

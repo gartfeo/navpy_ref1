@@ -12,11 +12,11 @@ from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.law import (
+from navpy.modules.navigation.nav.vision_nav.law_config import (
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
-    VisionNavLaw,
 )
+from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.modules.vision.models.pixel_observation import VisualDetection
 from scripts.vision_static_point_mass_plant import (
     air_velocity_ned_mps,

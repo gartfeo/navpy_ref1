@@ -8,13 +8,13 @@ import pytest
 
 from navpy.modules.comm.messages.msg_meta import MsgMeta
 from navpy.modules.nav.confirmation_round_transaction import ConfirmationRequestRef
-from navpy.modules.nav.poi_confirmation import ConfirmationRoundRunner
-from navpy.modules.nav.confirmation_manager_state import (
+from navpy.modules.nav.confirmation_round_runner import ConfirmationRoundRunner
+from navpy.modules.nav.confirmation_round_transaction import (
     ConfirmationResponseKind,
     ConfirmationWorkerLease,
-    ConfirmationManagerState,
-    ConfirmationStatus,
 )
+from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.vision.models.detect_data import DetectedObject
 from tests.detection_factory import make_detected_poi
 

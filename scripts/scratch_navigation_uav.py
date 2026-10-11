@@ -75,11 +75,11 @@ if not __package__:
             sys.path.remove(import_path)
         sys.path.insert(0, import_path)
 
-from navpy.modules.navigation.nav.vision_nav.law import (  # noqa: E402
+from navpy.modules.navigation.nav.vision_nav.law_config import (  # noqa: E402
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
-    VisionNavLaw,
 )
+from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw  # noqa: E402
 from navpy.modules.vision.models.pixel_observation import (  # noqa: E402
     aircraft_yaw_rate_rad_s,
 )

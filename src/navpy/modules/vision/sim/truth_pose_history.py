@@ -33,8 +33,6 @@ from navpy.modules.vision.sim.truth_pose_time_axis import (
     TIME_AXES,
     TIME_AXIS_RECEIPT,
     TIME_AXIS_SOURCE,
-    TRUTH_POSE_TIME_AXIS_ENV,
-    resolve_truth_pose_time_axis,
 )
 
 
@@ -292,8 +290,6 @@ __all__ = [
     "SOURCE_CLOCK_QUANTUM_S",
     "TIME_AXIS_RECEIPT",
     "TIME_AXIS_SOURCE",
-    "TRUTH_POSE_TIME_AXIS_ENV",
     "TruthPoseHistory",
-    "resolve_truth_pose_time_axis",
     "wrap_degrees",
 ]

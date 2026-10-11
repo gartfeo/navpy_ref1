@@ -22,7 +22,7 @@ from navpy.modules.navigation.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )
-from navpy.modules.navigation.nav.nav_law_factory import (
+from navpy.modules.navigation.nav.final_approach_airframe_config import (
     VehicleFinalApproachLawConfigProvider,
 )
 from navpy.modules.navigation.nav.vision_nav.command_executor import (
@@ -69,12 +69,12 @@ from navpy.modules.navigation.nav.vision_nav.ingress import (
     FinalApproachIngress,
     FinalApproachIngressPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.law import (
+from navpy.modules.navigation.nav.vision_nav.law_config import (
     FixedFinalApproachLawConfigProvider,
-    ROLL_LIMIT_CAP_DEG,
     FinalApproachLawConfig,
-    VisionNavLaw,
 )
+from navpy.modules.navigation.nav.vision_nav.command_anchor import ROLL_LIMIT_CAP_DEG
+from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachPlanOrigin
 from navpy.modules.navigation.nav.vision_nav.runtime import (
     FinalApproachCommandWorkRuntime,

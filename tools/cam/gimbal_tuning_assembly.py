@@ -10,15 +10,17 @@ from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.detector import (
     Detector,
     DetectorDependencies,
-    DetectorModelConfig,
-    DetectorPipelineConfig,
     RealDetectorConfig,
 )
+from navpy.modules.vision.real_detector_config import (
+    DetectorModelConfig,
+    DetectorPipelineConfig,
+)
 from navpy.modules.vision.peripheral.gimbal_siyi import GimbalSiyi
-from navpy.modules.vision.vision_profiles import (
-    build_camera_model,
-    build_gimbal_data,
-    get_detector_settings,
+from navpy.modules.vision.vision_camera_factory import build_camera_model
+from navpy.modules.vision.vision_gimbal_profile import build_gimbal_data
+from navpy.modules.vision.vision_detector_profile import get_detector_settings
+from navpy.modules.vision.vision_profile_loader import (
     get_devices,
     resolve_profile,
 )

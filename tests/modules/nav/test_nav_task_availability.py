@@ -8,7 +8,7 @@ from navpy.modules.nav.nav_network import NavNetworkRuntime
 from navpy.modules.nav.nav_state import NavPhaseState, NavState
 from navpy.modules.nav.nav_task_availability import is_approaching
 from navpy.modules.nav.navigation_loop import StateActionDispatcher
-from navpy.modules.nav.navigation_transitions import TransitionOutcome
+from navpy.modules.nav.navigation_transition_handler import TransitionOutcome
 
 
 @pytest.mark.parametrize("phase", list(NavState))

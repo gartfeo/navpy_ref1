@@ -7,7 +7,7 @@ from typing import Optional
 import numpy as np
 
 from navpy.modules.vision.appearance import cosine_distance
-from navpy.modules.vision.multi_object_tracker import TrackedObject
+from navpy.modules.vision.mot_state import TrackedObject
 from navpy.modules.vision.track_identity_registry import IdentityRegistry
 from navpy.modules.vision.track_identity_types import (
     IdentityAppearanceMemory,

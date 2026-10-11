@@ -23,18 +23,20 @@ if not __package__:
         sys.path.insert(0, import_path)
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.vision import DetectRequest
+from navpy.modules.vision.models.detect_request import DetectRequest
 from navpy.modules.vision.detector import (
     Detector,
-    DetectorDebugConfig,
     DetectorDependencies,
-    DetectorModelConfig,
-    DetectorPipelineConfig,
     RealDetectorConfig,
 )
-from navpy.modules.vision.vision_profiles import (
-    resolve_profile, build_camera_mounts, get_detector_settings,
+from navpy.modules.vision.real_detector_diagnostics import DetectorDebugConfig
+from navpy.modules.vision.real_detector_config import (
+    DetectorModelConfig,
+    DetectorPipelineConfig,
 )
+from navpy.modules.vision.vision_profile_loader import resolve_profile
+from navpy.modules.vision.vision_camera_factory import build_camera_mounts
+from navpy.modules.vision.vision_detector_profile import get_detector_settings
 
 
 class _DummyVehicle:

@@ -4,14 +4,20 @@ from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
 from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.available_task_msg import (
+from navpy.modules.comm.messages.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
+)
+from navpy.modules.comm.messages.task_message_data import (
     TaskMsgData,
     TaskHandleMsgData,
     TaskAssignMsgData,
+)
+from navpy.modules.comm.messages.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
+)
+from navpy.modules.comm.messages.task_confirmation_msg import (
     TaskConfirmRequestMsg,
     TaskConfirmResponseMsg,
 )

@@ -4,8 +4,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from navpy.modules.vision.multi_object_tracker import iou_xyxy
-from navpy.modules.vision.yolo_detector import Detection, DeviceT, YoloDetector
+from navpy.modules.vision.geometry import iou_xyxy
+from navpy.modules.vision.device import DeviceT
+from navpy.modules.vision.yolo_detector import Detection, YoloDetector
 
 
 @dataclass(frozen=True)

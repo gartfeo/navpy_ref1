@@ -56,9 +56,9 @@ from navpy.modules.vision.sim.direct_dispatch_metrics import (
 from navpy.modules.vision.sim.direct_pixel_trace import command_loop_observer
 from navpy.modules.vision.sim.direct_poi_pixel_source import (
     DIRECT_PIXEL_POSE_MESSAGE_TYPES,
-    DIRECT_PIXEL_SOURCE_NAME,
     DirectPoiPixelSource,
 )
+from navpy.modules.vision.sim.direct_pixel_pipeline import DIRECT_PIXEL_SOURCE_NAME
 
 
 CURRENT = Location(40.0, 44.0, 1000.0, is_absolute=True)

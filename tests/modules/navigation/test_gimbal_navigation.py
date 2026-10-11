@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.navigation.gimbal_navigation import (
-    GimbalNavigation,
+from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
+from navpy.modules.navigation.gimbal_tracking_constants import (
     MODE_FOLLOW,
     MODE_LOCK,
 )
@@ -30,11 +30,11 @@ from navpy.modules.vision.gimbal_rate_types import (
 from navpy.modules.vision.models.detect_data import DetectedObject
 from tests.detection_factory import make_detected_poi
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.modules.vision.poi_zoom_tracker import (
+from navpy.modules.vision.poi_zoom_types import (
     PoiZoomTrackerConfig,
     ZoomTrackResult,
-    ZoomTrackingState,
 )
+from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
 
 
 def _make_poi(x_error=960, y_error=540):
@@ -1689,11 +1689,9 @@ class TestGimbalNavigationGeo(unittest.TestCase):
         from navpy.modules.navigation.gimbal_geo_session import (
             GimbalGeoTracking as OwnedGimbalGeoTracking,
         )
-        from navpy.modules.navigation.gimbal_geo_tracking import (
-            GeoAcquisitionZoom,
-            GeoZoomSelector,
-            GimbalGeoTracking,
-        )
+        from navpy.modules.navigation.gimbal_geo_acquisition import GeoAcquisitionZoom
+        from navpy.modules.navigation.gimbal_geo_zoom_selector import GeoZoomSelector
+        from navpy.modules.navigation.gimbal_geo_session import GimbalGeoTracking
         from navpy.modules.navigation.gimbal_geo_zoom_selector import (
             GeoZoomSelector as OwnedGeoZoomSelector,
         )

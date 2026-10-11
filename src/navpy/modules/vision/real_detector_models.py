@@ -33,7 +33,7 @@ from navpy.modules.vision.real_detector_ports import (
     FrameDetector,
     ModelResourceCloser,
 )
-from navpy.modules.vision.real_detector_state import RuntimeMetrics
+from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
 from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.track_identity import TrackIdentityResolver
 from navpy.modules.vision.tracker_backends import (

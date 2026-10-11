@@ -28,11 +28,10 @@ from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
-from navpy.modules.nav.nav_controller import (
-    CONFIRM_FRESH_DETECTION_MAX_AGE_S,
-    NavController,
-)
-from navpy.modules.nav.confirmation_manager import ConfirmationManager, ConfirmationStatus
+from navpy.modules.nav.nav_constants import CONFIRM_FRESH_DETECTION_MAX_AGE_S
+from navpy.modules.nav.nav_controller import NavController
+from navpy.modules.nav.confirmation_manager import ConfirmationManager
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.vehicle.flight_mode import FlightMode
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from navpy.modules.vision.models.detect_response import DetectResponse

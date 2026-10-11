@@ -256,8 +256,10 @@ class TestGimbalPhysicsModeSwitch(unittest.TestCase):
     """Test yaw conversion when switching between FOLLOW and LOCK modes."""
 
     def test_follow_to_lock_preserves_pointing(self):
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import (
-            GimbalPhysics, MODE_FOLLOW, MODE_LOCK,
+        from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import GimbalPhysics
+        from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
+            MODE_FOLLOW,
+            MODE_LOCK,
         )
         physics = GimbalPhysics(initial_pitch=-15.0, initial_yaw=10.0)
         physics.set_motion_mode(MODE_FOLLOW)
@@ -267,8 +269,10 @@ class TestGimbalPhysicsModeSwitch(unittest.TestCase):
         self.assertAlmostEqual(physics.yaw, 100.0, places=1)
 
     def test_lock_to_follow_roundtrips(self):
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import (
-            GimbalPhysics, MODE_FOLLOW, MODE_LOCK,
+        from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import GimbalPhysics
+        from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
+            MODE_FOLLOW,
+            MODE_LOCK,
         )
         physics = GimbalPhysics(initial_yaw=10.0)
         physics.set_motion_mode(MODE_FOLLOW)
@@ -279,9 +283,8 @@ class TestGimbalPhysicsModeSwitch(unittest.TestCase):
         self.assertAlmostEqual(physics.yaw, 10.0, places=1)
 
     def test_same_mode_is_noop(self):
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import (
-            GimbalPhysics, MODE_FOLLOW,
-        )
+        from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import GimbalPhysics
+        from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import MODE_FOLLOW
         physics = GimbalPhysics(initial_yaw=5.0)
         physics.set_motion_mode(MODE_FOLLOW)
         physics.set_vehicle_attitude(Attitude(0, 90, 0))

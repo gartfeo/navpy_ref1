@@ -30,7 +30,7 @@ from navpy.modules.navigation.nav.nav_law import (
     NavContext,
     NavInvalidReason,
 )
-from navpy.modules.navigation.nav.roll_l1_pitch_nav import (
+from navpy.modules.navigation.nav.roll_l1_core import (
     PitchPidController,
 )
 from navpy.modules.navigation.nav.roll_l1_composition import (

@@ -12,14 +12,14 @@ from pydantic import BaseModel, ConfigDict
 from gcs.backend import navpy_sim_runtime as runtime
 from gcs.backend.atomic_json import atomic_write_json
 from gcs.backend.settings_store import settings_store
-from navpy.modules.vision.vision_profiles import (
+from navpy.modules.vision.vision_class_profile import (
     DETECTOR_CLASS_DIMENSIONS,
-    build_device_gimbal_metadata,
     compute_confirm_slant_range,
     compute_detect_slant_range,
     get_class_detect_size,
-    load_profiles,
 )
+from navpy.modules.vision.vision_gimbal_profile import build_device_gimbal_metadata
+from navpy.modules.vision.vision_profile_loader import load_profiles
 
 log = logging.getLogger(__name__)
 router = APIRouter()

@@ -15,13 +15,17 @@ from navpy.modules.vision.real_detector_models import RealDetectorModels
 from navpy.modules.vision.real_gimbal_adapters import GimbalMeasurementAdapter
 from navpy.modules.vision.real_detector_state import (
     ConfirmationFrameStore,
+    DetectionResultStore,
+    FreshnessPolicy,
+    OverlayStore,
+)
+from navpy.modules.vision.real_detector_inference_state import (
     DeepSearchInbox,
     DetectionBatchInbox,
-    DetectionResultStore,
-    DetectorRunState,
-    FreshnessPolicy,
     InferenceGeneration,
-    OverlayStore,
+)
+from navpy.modules.vision.real_detector_runtime_state import (
+    DetectorRunState,
     PipelineMutationGate,
     RuntimeMetrics,
 )

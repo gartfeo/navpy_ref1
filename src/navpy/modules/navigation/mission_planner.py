@@ -15,7 +15,7 @@ from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.mission_approach_writer import MissionApproachWriter
 from navpy.modules.navigation.peer_poi_mission_writer import PeerPoiMissionWriter
 from navpy.modules.navigation.wind_feed_forward import WindFeedForwardCalculator
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 
 
 class MissionPlanner:

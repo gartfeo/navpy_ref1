@@ -7,15 +7,19 @@ from collections.abc import Iterable
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.vision.deep_search import DeepSearchConfig, DeepSearchDetector
 from navpy.modules.vision.frame_provider import FrameProvider
-from navpy.modules.vision.real_detector_state import (
+from navpy.modules.vision.real_detector_runtime_state import (
     DetectorRunState,
-    FreshnessPolicy,
-    InferenceGeneration,
-    InferenceReservation,
     LoopTiming,
-    OverlayStore,
     RuntimeMetrics,
     next_loop_deadline,
+)
+from navpy.modules.vision.real_detector_state import (
+    FreshnessPolicy,
+    OverlayStore,
+)
+from navpy.modules.vision.real_detector_inference_state import (
+    InferenceGeneration,
+    InferenceReservation,
 )
 from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
 from navpy.modules.vision.poi_lock import PoiLock

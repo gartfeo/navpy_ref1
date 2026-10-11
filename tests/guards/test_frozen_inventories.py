@@ -9,10 +9,9 @@ ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src/navpy"
 SCHEDULER = "src/navpy/modules/common/scheduler_cadence.py"
 EXECUTOR = "src/navpy/modules/navigation/nav/vision_nav/command_executor.py"
-SIM_ALIASES = {
-    "src/navpy/modules/common/sim_time.py",
-    "src/navpy/modules/vision/sim/sim_timebase.py",
-}
+# The SchedulerCadence alias and its two modules were removed in step 1 (c01).
+SIM_ALIASES = frozenset({"SimTimebase", "sim_time", "sim_timebase"})
+SCANNED_ROOTS = ("src", "scripts", "tests", "tools")
 LEGACY_APIS = {"wall_period_for_sim_period", "loop_sim_speedup"}
 # The final-approach command core, one full path per file: the files do not
 # share one folder after the module separation, and a moved file must fail
@@ -292,25 +291,29 @@ def _cadence_violations(trees: list[tuple[str, ast.Module]]) -> list[str]:
                 hits.append(f"{relative}:{node.lineno} non-period cadence input")
     return hits
 
-def test_sim_timebase_is_only_an_exact_compatibility_alias() -> None:
-    trees = dict(_production())
-    expected = ast.parse(
-        "from navpy.modules.common.scheduler_cadence import SchedulerCadence\n"
-        "SimTimebase = SchedulerCadence\n__all__ = ['SimTimebase']\n")
-    assert SIM_ALIASES <= trees.keys()
-    for relative, tree in trees.items():
-        if relative not in SIM_ALIASES:
-            assert not _references(tree, {"SimTimebase"}), relative
-            continue
-        body = [
-            node for node in tree.body
-            if not (isinstance(node, ast.Expr)
-                    and isinstance(node.value, ast.Constant)
-                    and isinstance(node.value.value, str))
-        ]
-        actual = ast.Module(body=body, type_ignores=[])
-        assert ast.dump(actual, include_attributes=False) == ast.dump(
-            expected, include_attributes=False), relative
+def _sim_alias_hits(relative: str, tree: ast.Module) -> list[str]:
+    """A file named after an alias module, or any name, import or dotted
+    module part in it that is SimTimebase, sim_time or sim_timebase."""
+    hits = [f"{relative}: file"] if Path(relative).stem in SIM_ALIASES else []
+    for node in ast.walk(tree):
+        names = set(_node_names(node))
+        if isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module)
+        parts = {part for name in names for part in name.split(".")}
+        hits += [f"{relative}:{getattr(node, 'lineno', 0)} {part}"
+                 for part in sorted(parts & SIM_ALIASES)]
+    return hits
+
+def test_sim_timebase_and_its_alias_modules_are_referenced_nowhere() -> None:
+    paths = sorted(path for root in SCANNED_ROOTS for path in (ROOT / root).rglob("*.py")
+                   if "node_modules" not in path.parts)
+    assert len(paths) > 1000, "scanned too few files"
+    hits = [
+        hit for path in paths
+        for hit in _sim_alias_hits(path.relative_to(ROOT).as_posix(),
+                                   ast.parse(path.read_text("utf-8")))
+    ]
+    assert not hits, hits
 
 def test_legacy_apis_are_absent_and_speedup_changes_only_cadence() -> None:
     trees = _production()

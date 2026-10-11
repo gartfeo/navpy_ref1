@@ -1,10 +1,9 @@
 """Regression tests for the SIYI SDK package."""
 
-import importlib
 import unittest
 from unittest.mock import Mock, patch
 
-from navpy.modules.vision.peripheral.siyi import SIYISDK
+from navpy.modules.vision.peripheral.siyi.siyi_sdk import SIYISDK
 from navpy.modules.vision.peripheral.siyi.siyi_message import COMMAND, MountDirMsg, SIYIMESSAGE
 
 
@@ -54,12 +53,6 @@ class FakeThread:
     def join(self):
         self.join_calls += 1
         self._alive = False
-
-
-class TestSiyiPackage(unittest.TestCase):
-    def test_package_import_exposes_sdk(self):
-        module = importlib.import_module("navpy.modules.vision.peripheral.siyi")
-        self.assertIs(module.SIYISDK, SIYISDK)
 
 
 class TestSiyiMessage(unittest.TestCase):

@@ -10,12 +10,16 @@ import numpy as np
 
 from navpy.modules.vision.deep_search import merge_deep_search_detections
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.multi_object_tracker import TrackedObject
-from navpy.modules.vision.real_detector_state import (
+from navpy.modules.vision.mot_state import TrackedObject
+from navpy.modules.vision.real_detector_inference_state import (
     DetectionBatch,
-    DetectionResultStore,
     InferenceGeneration,
+)
+from navpy.modules.vision.real_detector_state import (
+    DetectionResultStore,
     OverlayStore,
+)
+from navpy.modules.vision.real_detector_runtime_state import (
     PipelineMutationGate,
     RuntimeMetrics,
 )

@@ -9,7 +9,8 @@ from unittest.mock import MagicMock, patch
 
 from navpy.modules.vehicle.mav_transport import MavTransport
 from navpy.modules.vehicle.message_store import MessageStore
-from navpy.modules.vehicle.parameter_client import ParameterReader, ParameterWriter, SimAutopilotState
+from navpy.modules.vehicle.parameter_client import ParameterReader, ParameterWriter
+from navpy.modules.vehicle.sim_autopilot import SimAutopilotState
 from navpy.modules.vehicle.parameter_repository import ParameterRepository
 
 def test_operator_refresh_bypasses_cached_value_and_waits_for_fresh_echo():

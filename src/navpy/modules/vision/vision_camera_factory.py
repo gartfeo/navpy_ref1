@@ -21,7 +21,7 @@ from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
 
 if TYPE_CHECKING:
     from navpy.modules.common.scheduler_cadence import SchedulerCadence
-    from navpy.modules.vehicle.vehicle_interface import IVehicle
+    from navpy.modules.vehicle.vehicle_contract import IVehicle
 
 
 def _positive_integer(value: object, name: str) -> int:
@@ -136,7 +136,7 @@ def _build_gimbal(
         )
     if gimbal_type == "siyi" and use_sim_gimbal:
         from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
-        from navpy.modules.vision.peripheral.siyi.sim import GimbalSiyiSim
+        from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim import GimbalSiyiSim
 
         return GimbalSiyiSim(
             gimbal_data,

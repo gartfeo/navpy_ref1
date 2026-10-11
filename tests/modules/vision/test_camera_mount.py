@@ -1036,7 +1036,7 @@ class TestCameraMountWithGimbalSim(unittest.TestCase):
             VehicleAttitudeReader,
         )
         from navpy.modules.vision.sim.gimbal_sim import GimbalSim
-        from navpy.modules.vehicle.vehicle_interface import IVehicle
+        from navpy.modules.vehicle.vehicle_contract import IVehicle
 
         vehicle = Mock(spec=IVehicle)
         vehicle.attitude = Attitude(-45, 0, 0)

@@ -32,10 +32,10 @@ from navpy.modules.nav.nav_composition_types import (
     PoiMissionOwnership,
     VehicleApproachOwnership,
 )
-from navpy.modules.nav.confirmation_manager import ConfirmationStatus
+from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.nav.final_approach_record_deadline import FinalApproachRecordDeadline
 from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
 

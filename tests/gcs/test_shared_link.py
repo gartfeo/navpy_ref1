@@ -6,7 +6,8 @@ import time
 from unittest.mock import MagicMock, patch
 
 from gcs.backend.vehicle_manager import VehicleManager
-from navpy.modules.vehicle.mav_bus import MavBus, MavBusClosedError
+from navpy.modules.vehicle.mav_bus import MavBus
+from navpy.modules.vehicle.mav_bus_lifecycle import MavBusClosedError
 
 
 class _FakeBus:

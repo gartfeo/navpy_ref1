@@ -15,10 +15,12 @@ from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
 )
 from navpy.modules.navigation.nav.vision_nav.ingress import FinalApproachIngress
-from navpy.modules.nav.final_approach_navigation import (
-    NavSourceBatch,
+from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
+from navpy.modules.nav.final_approach_command_dispatch import (
     FinalApproachCommandDispatch,
     FinalApproachCommandPorts,
+)
+from navpy.modules.nav.final_approach_nav_workflow import (
     FinalApproachNavPorts,
     FinalApproachNavWorkflow,
 )
@@ -82,7 +84,6 @@ def test_nav_dispatch_has_no_gap_command_capability():
     assert "nav_gap" not in FinalApproachCommandPorts.__dataclass_fields__
     final_approach_nav_files = (
         "src/navpy/modules/nav/final_approach_command_dispatch.py",
-        "src/navpy/modules/nav/final_approach_navigation.py",
         "src/navpy/modules/nav/final_approach_nav_workflow.py",
         "src/navpy/modules/nav/final_approach_source_admission.py",
     )

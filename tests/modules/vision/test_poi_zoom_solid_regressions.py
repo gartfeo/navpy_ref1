@@ -14,11 +14,9 @@ from navpy.modules.vision.gimbal_rate_types import (
     GimbalTrackResult,
     TrackingState,
 )
-from navpy.modules.vision.poi_zoom_tracker import (
-    PoiZoomTracker,
-    PoiZoomTrackerConfig,
-    ZoomTrackingState,
-)
+from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
 
 ROOT = Path(__file__).resolve().parents[3]
 # Zoom leaves, one full path each so file moves rewrite them. Every listed file

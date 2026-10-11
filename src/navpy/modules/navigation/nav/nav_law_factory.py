@@ -6,9 +6,6 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Protocol
 
 from navpy.args.navigation_args import NavigationAlgorithm, NavigationArgs
-from navpy.modules.navigation.nav.final_approach_airframe_config import (
-    VehicleFinalApproachLawConfigProvider,
-)
 
 
 class NavigationLawLifecycle(Protocol):
@@ -70,6 +67,5 @@ def get_nav_algorithm_spec(
 __all__ = [
     "NavigationLawLifecycle",
     "NavAlgorithmSpec",
-    "VehicleFinalApproachLawConfigProvider",
     "get_nav_algorithm_spec",
 ]

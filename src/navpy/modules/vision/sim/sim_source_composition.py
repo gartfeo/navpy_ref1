@@ -12,7 +12,7 @@ from navpy.modules.vehicle.pose_streams import (
     request_simulator_truth_pose_stream,
     resolve_pose_stream_rate_hz,
 )
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.sim.detection_publication_store import (
     DetectionPublicationStore,
 )

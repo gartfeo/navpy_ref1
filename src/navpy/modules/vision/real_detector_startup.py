@@ -15,7 +15,7 @@ from navpy.modules.vision.real_detector_ports import (
     PoseStreamRequest,
     WorkerLoop,
 )
-from navpy.modules.vision.real_detector_state import DetectorRunState
+from navpy.modules.vision.real_detector_runtime_state import DetectorRunState
 from navpy.modules.vision.real_detector_stop_transaction import (
     DetectorStopTransaction,
 )

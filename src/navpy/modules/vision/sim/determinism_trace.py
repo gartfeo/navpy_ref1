@@ -65,9 +65,6 @@ from navpy.modules.vision.sim.determinism_command_log import (
 from navpy.modules.vision.sim.determinism_journal import RowJournal
 from navpy.modules.vision.sim.determinism_row_log import TraceStatus
 from navpy.modules.vision.sim.determinism_trace_gate import (
-    DEFAULT_TRACE_CAPACITY,
-    DETERMINISM_TRACE_CAPACITY_ENV,
-    DETERMINISM_TRACE_ENV,
     capacity_from_env,
     enabled_from_env,
 )
@@ -285,9 +282,6 @@ def build_trace(period_us: int) -> DeterminismTrace | None:
 
 
 __all__ = [
-    "DEFAULT_TRACE_CAPACITY",
-    "DETERMINISM_TRACE_CAPACITY_ENV",
-    "DETERMINISM_TRACE_ENV",
     "ENABLED",
     "DeterminismTrace",
     "TraceCapture",

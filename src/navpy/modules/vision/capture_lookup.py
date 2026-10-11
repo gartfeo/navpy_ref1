@@ -15,15 +15,7 @@ from dataclasses import dataclass
 from navpy.modules.vehicle.pose_streams import (
     POSE_FRAME_ASSOCIATION_ABSOLUTE_MAX_SKEW_S,
 )
-from navpy.modules.vision.capture_interpolation import (
-    AttitudeAtLookup,
-    BRACKET_MAX_WIDTH_S,
-    CLOCK_SEAM_TOLERANCE_S,
-    STATUS_CLOCK_SEAM,
-    STATUS_GAP,
-    STATUS_UNBRACKETED,
-    interpolate_attitude_at,
-)
+from navpy.modules.vision.capture_interpolation import AttitudeAtLookup
 from navpy.modules.vision.frame_capture_ports import (
     CaptureStamp,
     CaptureStampKind,
@@ -187,18 +179,12 @@ def quarantine_window_s(
 
 __all__ = [
     "AttitudeAtLookup",
-    "BRACKET_MAX_WIDTH_S",
-    "CLOCK_SEAM_TOLERANCE_S",
     "CaptureLookupCalibration",
     "RATE_AMPLIFICATION_LIMIT",
-    "STATUS_CLOCK_SEAM",
-    "STATUS_GAP",
-    "STATUS_UNBRACKETED",
     "STATUS_UNCALIBRATED",
     "TIMING_RESIDUAL_BUDGET_S",
     "attitude_lookup_wall_s",
     "capture_estimate_s",
-    "interpolate_attitude_at",
     "quarantine_window_s",
     "validate_calibration",
 ]

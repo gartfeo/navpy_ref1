@@ -15,10 +15,6 @@ from navpy.modules.vision.camera_mount_facets import (
     CameraMountZoomControlFacet,
     CameraMountZoomReadbackFacet,
 )
-from navpy.modules.vision.camera_mount_types import (
-    CameraMountFrameState,
-    CameraMountOptics,
-)
 from navpy.modules.vision.camera_mount_zoom_readback import (
     LIVE_ZOOM_READBACK_STALE_S,
     _format_cmd_key as _format_cmd_key,
@@ -62,7 +58,5 @@ class CameraMount(
 
 __all__ = [
     "CameraMount",
-    "CameraMountFrameState",
-    "CameraMountOptics",
     "LIVE_ZOOM_READBACK_STALE_S",
 ]

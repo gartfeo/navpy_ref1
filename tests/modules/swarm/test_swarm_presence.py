@@ -17,7 +17,7 @@ from navpy.modules.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
 from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot
 from navpy.modules.swarm.task_messaging import TaskMessageSender
 from navpy.modules.swarm.task_msg_refs import MsgRef
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 
 
 def _presence(

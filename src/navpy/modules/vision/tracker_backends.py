@@ -19,7 +19,8 @@ from typing import List, Optional, Protocol
 import numpy as np
 
 from navpy.modules.vision.device import DeviceT
-from navpy.modules.vision.multi_object_tracker import MultiObjectTracker, TrackedObject
+from navpy.modules.vision.multi_object_tracker import MultiObjectTracker
+from navpy.modules.vision.mot_state import TrackedObject
 from navpy.modules.vision.tracker_backends_boxmot import (
     BotSortTrackerBackend,
     StrongSortTrackerBackend,

@@ -36,7 +36,7 @@ from navpy.modules.swarm.task_ports import (
     MessageClockReset,
 )
 from navpy.modules.swarm.task_rebroadcast import TaskRebroadcastCoordinator
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.utils.fly_estimator import FlyEstimator
 

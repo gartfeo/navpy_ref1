@@ -9,7 +9,7 @@ from navpy.logger.cache_logger import ILogger
 from navpy.modules.vision.frame_provider import FrameProvider
 from navpy.modules.vision.real_detector_diagnostics import DetectorDiagnostics
 from navpy.modules.vision.real_detector_resources import DetectorResources
-from navpy.modules.vision.real_detector_state import DetectorRunState
+from navpy.modules.vision.real_detector_runtime_state import DetectorRunState
 from navpy.modules.vision.real_detector_worker_shutdown import (
     WorkerThread,
     wait_for_worker_quiescence,

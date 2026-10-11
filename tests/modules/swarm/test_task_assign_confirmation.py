@@ -9,14 +9,18 @@ import threading
 from unittest.mock import Mock, patch
 
 from navpy.logger.cache_logger import ILogger
-from navpy.modules.comm.messages.available_task_msg import (
+from navpy.modules.comm.messages.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
+)
+from navpy.modules.comm.messages.task_message_data import (
     TaskAssignMsgData,
-    TaskAssignRequestMsg,
-    TaskAssignResponseMsg,
     TaskHandleMsgData,
     TaskMsgData,
+)
+from navpy.modules.comm.messages.task_assignment_msg import (
+    TaskAssignRequestMsg,
+    TaskAssignResponseMsg,
 )
 from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.msg_meta import MsgMeta
@@ -36,7 +40,7 @@ from navpy.modules.common.models.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_state_composition import create_task_state
 from navpy.modules.swarm.task_dispatch import TaskDispatch
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 
 
 class FakeTimer:

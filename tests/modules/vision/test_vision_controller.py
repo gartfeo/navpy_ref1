@@ -1031,7 +1031,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
     def test_sim_debug_snapshot_preserves_missing_intrinsics(self):
         """Missing K remains None so panel fallback geometry stays active."""
         from navpy.modules.vision.sim_detector_factory import SimDetectorFactory
-        from navpy.modules.vision.vision_profiles import CameraMountSpec
+        from navpy.modules.vision.vision_profile_types import CameraMountSpec
 
         mount = Mock()
         mount.name = "main"
@@ -1082,7 +1082,7 @@ class TestVisionControllerRealDetector(unittest.TestCase):
     def test_create_real_detector_enables_poi_lock(self):
         """Real detector creation explicitly enables POI lock."""
         from navpy.modules.vision.real_detector_factory import RealDetectorFactory
-        from navpy.modules.vision.vision_profiles import CameraMountSpec
+        from navpy.modules.vision.vision_profile_types import CameraMountSpec
 
         mount = Mock()
         mount.name = "main"
@@ -1162,7 +1162,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         from navpy.modules.vision.vision_controller_composition import (
             build_vision_controller,
         )
-        from navpy.modules.vision.vision_profiles import CameraMountSpec
+        from navpy.modules.vision.vision_profile_types import CameraMountSpec
 
         mount = Mock(name="ideal_mount")
         profile = Mock(
@@ -1228,7 +1228,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         from navpy.modules.vision.vision_controller_composition import (
             build_vision_controller,
         )
-        from navpy.modules.vision.vision_profiles import CameraMountSpec
+        from navpy.modules.vision.vision_profile_types import CameraMountSpec
 
         mount = Mock()
         mount.name = "main"

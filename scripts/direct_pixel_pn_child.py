@@ -31,7 +31,7 @@ from navpy.modules.navigation.navigation import Navigation  # noqa: E402
 from navpy.modules.navigation.mission_planner import MissionPlanner  # noqa: E402
 from navpy.modules.vehicle.flight_mode import FlightMode  # noqa: E402
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
-from navpy.modules.vehicle.vehicle_interface import IVehicle  # noqa: E402
+from navpy.modules.vehicle.vehicle_contract import IVehicle  # noqa: E402
 from navpy.modules.vision.models.detect_data import DetectedObject  # noqa: E402
 from navpy.modules.vision.sim.direct_pixel_trace import (  # noqa: E402
     command_loop_observer,

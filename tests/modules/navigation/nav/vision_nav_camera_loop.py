@@ -13,11 +13,11 @@ from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.law import (
+from navpy.modules.navigation.nav.vision_nav.law_config import (
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
-    VisionNavLaw,
 )
+from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
 from navpy.modules.vision.gimbal_rate_types import GimbalRateTrackerConfig
 from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample

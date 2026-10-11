@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
-from navpy.modules.vehicle.vehicle_capability_interfaces import CommandValue
-from navpy.modules.vehicle.vehicle_capability_interfaces import (
+from navpy.modules.vehicle.vehicle_control_interfaces import (
+    CommandValue,
     VehicleFlightControl,
+    VehicleMissionAccess,
+    VehicleParameters,
+    VehicleSimulationAccess,
+)
+from navpy.modules.vehicle.vehicle_telemetry_interfaces import (
     VehicleIdentityAccess,
-    VehicleLifetime,
     VehicleLimits,
+    VehicleMotionTelemetry,
+    VehiclePowerTelemetry,
+)
+from navpy.modules.vehicle.vehicle_runtime_interfaces import (
+    VehicleLifetime,
     VehicleLogging,
     VehicleMessaging,
-    VehicleMissionAccess,
-    VehicleMotionTelemetry,
-    VehicleParameters,
-    VehiclePowerTelemetry,
-    VehicleSimulationAccess,
 )
 
 

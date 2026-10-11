@@ -30,7 +30,7 @@ from navpy.modules.nav.nav_runtime_composition import compose_nav_application
 from navpy.modules.nav.nav_final_approach_composition import (
     compose_final_approach_workflows,
 )
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
 

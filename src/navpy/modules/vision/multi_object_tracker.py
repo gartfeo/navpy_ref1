@@ -1,4 +1,4 @@
-"""Multi-object tracker orchestration and compatibility exports.
+"""Multi-object tracker orchestration.
 
 Manages persistent track IDs across frames, handling track birth,
 confirmation, occlusion (coasting), death, and revival. Runs at a
@@ -14,7 +14,6 @@ import numpy as np
 from navpy.modules.common.linear_assignment import hungarian
 from navpy.modules.vision.geometry import clip_bbox_xyxy, iou_xyxy
 from navpy.modules.vision.mot_state import (
-    KalmanCV,
     TrackedObject,
     _Track,
     export_tracks,
@@ -22,12 +21,7 @@ from navpy.modules.vision.mot_state import (
 from navpy.modules.vision.yolo_detector import Detection
 
 __all__ = [
-    "TrackedObject",
     "MultiObjectTracker",
-    "KalmanCV",
-    "hungarian",
-    "iou_xyxy",
-    "clip_bbox_xyxy",
 ]
 
 

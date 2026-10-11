@@ -7,11 +7,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.args.navigation_args import NavigationArgs
-from navpy.modules.navigation.nav.vision_nav.law import (
-    FinalApproachLawConfig,
-    FinalApproachLawConfigProvider,
-)
-from navpy.modules.vehicle.vehicle_interface import IVehicle
+from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfig
+from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfigProvider
+from navpy.modules.vehicle.vehicle_contract import IVehicle
 
 
 @dataclass(frozen=True)

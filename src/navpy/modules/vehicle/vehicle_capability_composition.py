@@ -12,6 +12,8 @@ from navpy.modules.vehicle.parameter_client import (
     ParameterClient,
     ParameterReader,
     ParameterWriter,
+)
+from navpy.modules.vehicle.sim_autopilot import (
     SimAutopilotCapability,
     SimAutopilotState,
 )

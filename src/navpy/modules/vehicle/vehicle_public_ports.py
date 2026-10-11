@@ -9,10 +9,8 @@ from navpy.modules.vehicle.flight_telemetry import FlightTelemetry
 from navpy.modules.vehicle.guided_navigation import GuidedNavigation
 from navpy.modules.vehicle.mav_mission import MavMission
 from navpy.modules.vehicle.mode_control import ModeControl
-from navpy.modules.vehicle.parameter_client import (
-    ParameterClient,
-    SimAutopilotCapability,
-)
+from navpy.modules.vehicle.parameter_client import ParameterClient
+from navpy.modules.vehicle.sim_autopilot import SimAutopilotCapability
 from navpy.modules.vehicle.pose_telemetry import PoseTelemetry
 from navpy.modules.vehicle.position_service import PositionService
 from navpy.modules.vehicle.power_gps_telemetry import PowerGpsTelemetry

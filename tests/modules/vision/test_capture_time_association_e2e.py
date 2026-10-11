@@ -18,7 +18,7 @@ from unittest.mock import patch
 import numpy as np
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.vision.camera_mount import CameraMountFrameState
+from navpy.modules.vision.camera_mount_types import CameraMountFrameState
 from navpy.modules.vision.capture_lookup import CaptureLookupCalibration
 from navpy.modules.vision.frame_capture_ports import (
     CaptureStamp,
@@ -391,7 +391,7 @@ def test_freshness_split_through_a_real_detected_poi() -> None:
     # carries detection_timestamp_s = CAPTURE estimate, so the freshness
     # floor judges measurement age; a regression back to publication time in
     # _measurement_timestamp_s() fails this test.
-    from navpy.modules.vision.detector import TrackedObject
+    from navpy.modules.vision.mot_state import TrackedObject
     from navpy.modules.vision.real_detector_state import (
         ConfirmationFrameStore,
         FreshnessPolicy,

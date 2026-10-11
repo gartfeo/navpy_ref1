@@ -6,8 +6,21 @@ import threading
 import time
 from typing import Optional
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_GCS, MAV_COMP_ID_MISSIONPLANNER
+# NAVLINK message classes register on import (@register_msg), and every
+# VehicleMav here asks that registry which inbound MAVLink ids are NAVLINK:
+# import the swarm messages the GCS receives (not LogStatusMsg).
+from navpy.modules.comm.messages import (  # noqa: F401  (registration imports)
+    check_msg,
+    swarm_ack_msg,
+    swarm_heartbeat_msg,
+    swarm_request_msg,
+    task_assignment_msg,
+    task_availability_msg,
+    task_confirmation_msg,
+)
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
-from navpy.modules.vehicle.mav_bus import MavBus, MavBusClosedError
+from navpy.modules.vehicle.mav_bus import MavBus
+from navpy.modules.vehicle.mav_bus_lifecycle import MavBusClosedError
 from gcs.backend.vehicle_entry import VehicleEntry
 from gcs.backend import vehicle_connections, vehicle_mission_probe
 from gcs.backend.vehicle_status import (
