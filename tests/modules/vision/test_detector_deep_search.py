@@ -16,7 +16,7 @@ from navpy.modules.vision.detector_ports import (
     NonSimulationControls,
     PollingDetectionEvents,
 )
-from navpy.modules.vision.frame_provider import FrameSnapshot
+from navpy.core.perception.camera.frame_provider import FrameSnapshot
 from navpy.modules.vision.real_detector_composition import (
     DetectorDependencies,
     RealDetectorConfig,

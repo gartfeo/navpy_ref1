@@ -23,8 +23,8 @@ from typing import Callable, Optional, Sequence
 import cv2
 import numpy as np
 
-from navpy.modules.vision.focus_policy import FocusPolicy as _FocusPolicy
-from navpy.modules.vision.focus_state import (
+from navpy.core.perception.camera.focus_policy import FocusPolicy as _FocusPolicy
+from navpy.core.perception.camera.focus_state import (
     _State,
     FocusDriftState as _FocusDriftState,
     FocusRecoveryState as _FocusRecoveryState,

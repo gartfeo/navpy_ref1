@@ -38,8 +38,8 @@ from pathlib import Path
 
 import pytest
 
-from navpy.modules.vision.camera_mount_optics import MountOpticsReader
-from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
+from navpy.core.perception.camera.camera_mount_optics import MountOpticsReader
+from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 
 PROFILE_PATH = (
     Path(__file__).resolve().parents[3]

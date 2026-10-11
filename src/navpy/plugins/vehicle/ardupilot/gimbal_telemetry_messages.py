@@ -22,7 +22,7 @@ from navpy.core.kernel.euler_utils import get_euler_by_sequence
 from navpy.core.kernel.simple_rotation import Rotation
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.camera_mount import CameraMount
+    from navpy.core.perception.camera.camera_mount import CameraMount
     from navpy.core.ports.gimbal_abc import GimbalData
     from navpy.modules.vision.vision_profile_types import CameraMountSpec
 

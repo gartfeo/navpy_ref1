@@ -14,7 +14,7 @@ from navpy.modules.navigation.gimbal_navigation_facets import (
     GimbalZoomFacet,
 )
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
 from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
 from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig

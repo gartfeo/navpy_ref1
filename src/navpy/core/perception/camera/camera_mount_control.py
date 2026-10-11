@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 
-from navpy.modules.vision.camera_mount_ports import (
+from navpy.core.perception.camera.camera_mount_ports import (
     CameraLifecyclePort,
     CameraZoomPort,
     ControlZoomReadbackPort,

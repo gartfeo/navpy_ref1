@@ -11,7 +11,7 @@ from pathlib import Path
 from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.detector import (
     Detector,
     DetectorDependencies,

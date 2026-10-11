@@ -1174,7 +1174,7 @@ class TestLiveGimbalEndToEndContract(unittest.TestCase):
         from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
         from gcs.backend.vehicle_manager import VehicleEntry
         from navpy.core.kernel.attitude import Attitude
-        from navpy.modules.vision.camera_mount_types import CameraMountOptics
+        from navpy.core.perception.camera.camera_mount_types import CameraMountOptics
         from navpy.modules.vision.vision_profile_types import CameraMountSpec
         from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import GimbalTelemetryPublisher
         from navpy.core.ports.gimbal_abc import GimbalData

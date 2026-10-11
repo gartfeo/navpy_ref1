@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, Sequence
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.camera_mount import CameraMount
+    from navpy.core.perception.camera.camera_mount import CameraMount
 
 
 class MountMember(Protocol):

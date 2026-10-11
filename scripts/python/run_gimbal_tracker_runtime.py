@@ -11,9 +11,9 @@ import cv2
 from navpy.core.kernel.resource_cleanup import CleanupStack
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.core.ports.detect_request import DetectRequest
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.detector import Detector
-from navpy.modules.vision.focus_monitor import FocusMonitor, laplacian_focus
+from navpy.core.perception.camera.focus_monitor import FocusMonitor, laplacian_focus
 
 from scripts.python.run_gimbal_tracker_args import (
     DETECTOR_PRESETS,

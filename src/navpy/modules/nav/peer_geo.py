@@ -21,7 +21,7 @@ from navpy.modules.vision.vision_class_profile import (
 )
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.camera_mount import CameraMount
+    from navpy.core.perception.camera.camera_mount import CameraMount
 
 
 @dataclass(frozen=True)

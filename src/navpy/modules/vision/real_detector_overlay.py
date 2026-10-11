@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.detector_overlay import draw_debug_overlay
 from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.real_detector_ports import AircraftAttitudeReader

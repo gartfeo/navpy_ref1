@@ -1,7 +1,7 @@
 import time
 import serial
 
-from navpy.args.camera_args import CameraArgs
+from navpy.plugins.camera.visca.camera_args import CameraArgs
 
 
 class CameraZoomControllerVisca:

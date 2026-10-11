@@ -9,7 +9,7 @@ from typing import Optional
 
 import cv2
 
-from navpy.modules.vision.frame_capture_cv_lease import OpenCvCaptureLease
+from navpy.plugins.camera.opencv.frame_capture_cv_lease import OpenCvCaptureLease
 from navpy.core.ports.frame_capture_ports import (
     CaptureLogger,
     CaptureRunState,

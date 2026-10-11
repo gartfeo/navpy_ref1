@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from navpy.modules.vision.camera_mount_types import CameraMountFrameState
+from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from navpy.core.ports.detection_components import (
     ConfirmationEvidence,

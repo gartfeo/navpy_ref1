@@ -8,8 +8,8 @@ from enum import Enum, auto
 import numpy as np
 
 from navpy.core.ports.frame_capture_ports import CaptureStamp
-from navpy.modules.vision.frame_capture_session import CaptureSession
-from navpy.modules.vision.frame_publication import FramePublicationStore
+from navpy.core.perception.camera.frame_capture_session import CaptureSession
+from navpy.core.perception.camera.frame_publication import FramePublicationStore
 
 
 class _CapturePhase(Enum):

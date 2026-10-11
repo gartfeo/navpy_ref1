@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
-from navpy.modules.vision.frame_provider import FrameProvider
+from navpy.core.perception.camera.frame_provider import FrameProvider
 from navpy.modules.vision.real_detector_config import (
     DetectorDependencies,
     DetectorPipelineConfig,

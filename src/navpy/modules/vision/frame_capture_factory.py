@@ -8,9 +8,9 @@ import os
 
 import cv2
 
-from navpy.modules.vision.frame_capture_cv_lease import OpenCvCaptureLease
-from navpy.modules.vision.frame_capture_ffmpeg import FfmpegFrameCapture
-from navpy.modules.vision.frame_capture_opencv import (
+from navpy.plugins.camera.opencv.frame_capture_cv_lease import OpenCvCaptureLease
+from navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg import FfmpegFrameCapture
+from navpy.plugins.camera.opencv.frame_capture_opencv import (
     OpenCvFrameCapture,
     open_jetson_capture,
     open_source_capture,

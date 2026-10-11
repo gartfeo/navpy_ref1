@@ -7,7 +7,7 @@ from typing import cast
 
 import numpy as np
 
-from navpy.modules.vision.camera_mount_types import ZoomWrite
+from navpy.core.perception.camera.camera_mount_types import ZoomWrite
 from navpy.core.ports.camera_abc import CameraAbc
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.ports.worker_failure import require_failure_health

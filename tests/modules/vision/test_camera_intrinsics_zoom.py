@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
+from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 
 
 def _make_zoom_map():

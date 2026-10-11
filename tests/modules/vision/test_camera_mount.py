@@ -9,9 +9,9 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.ports.camera_abc import CameraAbc
-from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
+from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.modules.vision.peripheral.fixed_gimbal import FixedGimbal
 from navpy.core.ports.gimbal_abc import (
     GimbalAbc,
@@ -305,7 +305,7 @@ class TestCameraMount(unittest.TestCase):
         mount = CameraMount(name="test", camera=camera, gimbal=gimbal)
 
         with patch(
-            "navpy.modules.vision.camera_mount_frame_state.time.monotonic",
+            "navpy.core.perception.camera.camera_mount_frame_state.time.monotonic",
             side_effect=(10.0, 10.005),
         ):
             state = mount.capture_frame_state(1000, 500)

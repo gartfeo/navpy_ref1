@@ -18,7 +18,7 @@ from navpy.core.ports.frame_capture_ports import (
     CaptureStampKind,
     FramePublisher,
 )
-from navpy.modules.vision.frame_capture_ffmpeg_tools import (
+from navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg_tools import (
     ffmpeg_binary,
     open_raw_video_process,
     probe_resolution,

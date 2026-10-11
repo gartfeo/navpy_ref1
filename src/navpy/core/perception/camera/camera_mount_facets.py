@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from navpy.modules.vision.camera_mount_composition import CameraMountParts
-from navpy.modules.vision.camera_mount_types import (
+from navpy.core.perception.camera.camera_mount_composition import CameraMountParts
+from navpy.core.perception.camera.camera_mount_types import (
     CameraMountFrameState,
     CameraMountOptics,
 )

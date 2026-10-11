@@ -13,7 +13,7 @@ from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.sim.detection_publication_buffer import (
     DetectionPublicationBuffer,
 )

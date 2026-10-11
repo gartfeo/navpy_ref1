@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
-from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
+from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.modules.vision.vision_camera_calibration import parse_zoom_calibration
 from navpy.modules.vision.vision_detector_profile import get_detector_settings
 from navpy.modules.vision.vision_gimbal_profile import (
@@ -165,7 +165,7 @@ def build_camera_mounts(
     scheduler_cadence: "SchedulerCadence | None" = None,
 ) -> list[CameraMountSpec]:
     """Build mounts paired with immutable profile-device snapshots."""
-    from navpy.modules.vision.camera_mount import CameraMount
+    from navpy.core.perception.camera.camera_mount import CameraMount
     from navpy.modules.vision.peripheral.fixed_gimbal import FixedGimbal
 
     devices = get_devices(profile)

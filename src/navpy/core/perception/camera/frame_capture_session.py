@@ -8,7 +8,7 @@ import threading
 from dataclasses import dataclass, field
 
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
-from navpy.modules.vision.frame_capture_logging import SafeCaptureLogger
+from navpy.core.perception.camera.frame_capture_logging import SafeCaptureLogger
 from navpy.core.ports.frame_capture_ports import FrameCaptureBackend
 from navpy.core.ports.worker_failure import WorkerFailureLatch
 

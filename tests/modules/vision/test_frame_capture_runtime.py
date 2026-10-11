@@ -8,8 +8,8 @@ import numpy as np
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.kernel.logging.logger_api import ConsoleLogger
-from navpy.modules.vision.frame_capture_runtime import FrameCaptureRuntime
-from navpy.modules.vision.frame_publication import FramePublicationStore
+from navpy.core.perception.camera.frame_capture_runtime import FrameCaptureRuntime
+from navpy.core.perception.camera.frame_publication import FramePublicationStore
 
 from tests.modules.vision.test_frame_provider import _Logger
 
@@ -70,13 +70,13 @@ class TestFrameCaptureRuntime(unittest.TestCase):
         runtime = FrameCaptureRuntime("camera", _Logger(), publications)
         backend = _BlockingCapture()
         opened = patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=backend,
         )
         opened_mock = opened.start()
         self.addCleanup(opened.stop)
         timeout = patch(
-            "navpy.modules.vision.frame_capture_runtime._STOP_WARNING_S",
+            "navpy.core.perception.camera.frame_capture_runtime._STOP_WARNING_S",
             0.0,
         )
         timeout.start()
@@ -141,11 +141,11 @@ class TestFrameCaptureRuntime(unittest.TestCase):
         )
         backend = _BlockingCapture()
         with patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=backend,
         ):
             with patch(
-                "navpy.modules.vision.frame_capture_runtime.threading.Thread.start",
+                "navpy.core.perception.camera.frame_capture_runtime.threading.Thread.start",
                 side_effect=RuntimeError("thread start failed"),
             ):
                 with self.assertRaisesRegex(RuntimeError, "thread start failed"):
@@ -170,10 +170,10 @@ class TestFrameCaptureRuntime(unittest.TestCase):
             raise RuntimeError("thread launch acknowledgement failed")
 
         with patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=backend,
         ), patch(
-            "navpy.modules.vision.frame_capture_runtime.threading.Thread.start",
+            "navpy.core.perception.camera.frame_capture_runtime.threading.Thread.start",
             launch_then_fail,
         ):
             with self.assertRaisesRegex(
@@ -186,7 +186,7 @@ class TestFrameCaptureRuntime(unittest.TestCase):
         self.assertFalse(runtime.is_running)
         self.assertTrue(runtime.has_capture_thread)
         with patch(
-            "navpy.modules.vision.frame_capture_runtime._STOP_WARNING_S",
+            "navpy.core.perception.camera.frame_capture_runtime._STOP_WARNING_S",
             0.01,
         ):
             self.assertFalse(runtime.stop())
@@ -206,11 +206,11 @@ class TestFrameCaptureRuntime(unittest.TestCase):
         )
         backend = _BlockingCapture()
         with patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=backend,
         ):
             with patch(
-                "navpy.modules.vision.frame_capture_runtime.threading.Thread",
+                "navpy.core.perception.camera.frame_capture_runtime.threading.Thread",
                 side_effect=RuntimeError("thread construction failed"),
             ):
                 with self.assertRaisesRegex(
@@ -232,11 +232,11 @@ class TestFrameCaptureRuntime(unittest.TestCase):
         )
         backend = _BlockingCapture()
         with patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=backend,
         ):
             with patch(
-                "navpy.modules.vision.frame_capture_session.CaptureSession",
+                "navpy.core.perception.camera.frame_capture_session.CaptureSession",
                 side_effect=RuntimeError("session construction failed"),
             ):
                 with self.assertRaisesRegex(
@@ -258,11 +258,11 @@ class TestFrameCaptureRuntime(unittest.TestCase):
         )
         backend = _RollbackFailureCapture()
         with patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=backend,
         ):
             with patch(
-                "navpy.modules.vision.frame_capture_runtime.threading.Thread.start",
+                "navpy.core.perception.camera.frame_capture_runtime.threading.Thread.start",
                 side_effect=RuntimeError("thread start failed"),
             ):
                 with self.assertRaises(BaseExceptionGroup) as raised:
@@ -284,7 +284,7 @@ class TestFrameCaptureRuntime(unittest.TestCase):
             FramePublicationStore(),
         )
         with patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             side_effect=[first, second],
         ) as opened:
             runtime.start()
@@ -337,7 +337,7 @@ class TestFrameCaptureRuntime(unittest.TestCase):
             return None
 
         with patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=backend,
         ), patch.object(threading.Thread, "start", delayed_start):
             runtime.start()
@@ -359,7 +359,7 @@ class TestFrameCaptureRuntime(unittest.TestCase):
             FramePublicationStore(),
         )
         with patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=backend,
         ):
             runtime.start()
@@ -392,7 +392,7 @@ class TestFrameCaptureRuntime(unittest.TestCase):
             FramePublicationStore(),
         )
         with patch(
-            "navpy.modules.vision.frame_capture_runtime.open_capture_backend",
+            "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=None,
         ):
             with patch("builtins.print") as output:

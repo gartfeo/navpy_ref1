@@ -12,16 +12,16 @@ import numpy as np
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.ports.pose_stream_rate import POSE_FRAME_ASSOCIATION_MAX_SKEW_S
-from navpy.modules.vision.camera_mount_types import CameraMountFrameState
-from navpy.modules.vision.capture_lookup import (
+from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
+from navpy.core.perception.camera.capture_lookup import (
     CaptureLookupCalibration,
     attitude_lookup_wall_s,
     capture_estimate_s,
     quarantine_window_s,
     validate_calibration,
 )
-from navpy.modules.vision.capture_interpolation import interpolate_attitude_at
-from navpy.modules.vision.frame_provider import FrameSnapshot
+from navpy.core.perception.camera.capture_interpolation import interpolate_attitude_at
+from navpy.core.perception.camera.frame_provider import FrameSnapshot
 from navpy.modules.vision.real_frame_association_gate import (
     CaptureTiming,
     finite_body_rates,

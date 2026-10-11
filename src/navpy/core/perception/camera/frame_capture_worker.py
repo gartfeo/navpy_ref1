@@ -7,9 +7,9 @@ from typing import Callable
 
 import numpy as np
 
-from navpy.modules.vision.frame_capture_logging import SafeCaptureLogger
+from navpy.core.perception.camera.frame_capture_logging import SafeCaptureLogger
 from navpy.core.ports.frame_capture_ports import CaptureStamp
-from navpy.modules.vision.frame_capture_session import (
+from navpy.core.perception.camera.frame_capture_session import (
     CaptureSession,
     record_unexpected_return,
 )

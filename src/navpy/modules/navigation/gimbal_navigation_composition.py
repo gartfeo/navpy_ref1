@@ -31,7 +31,7 @@ from navpy.modules.navigation.gimbal_detection_lifecycle import (
 from navpy.modules.navigation.gimbal_loss_recovery import GimbalLossRecovery
 from navpy.modules.navigation.gimbal_visual_tracking import GimbalVisualTracking
 from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.geo_ray_diagnostics import compute_geo_ray_diagnostic
 from navpy.modules.vision.gimbal_rate_tracker import (
     GimbalRateTracker,

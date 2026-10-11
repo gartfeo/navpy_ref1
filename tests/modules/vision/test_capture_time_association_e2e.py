@@ -18,13 +18,13 @@ from unittest.mock import patch
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.camera_mount_types import CameraMountFrameState
-from navpy.modules.vision.capture_lookup import CaptureLookupCalibration
+from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
+from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
 from navpy.core.ports.frame_capture_ports import (
     CaptureStamp,
     CaptureStampKind,
 )
-from navpy.modules.vision.frame_publication import FramePublicationStore
+from navpy.core.perception.camera.frame_publication import FramePublicationStore
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
 

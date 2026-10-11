@@ -6,11 +6,11 @@ import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from navpy.modules.vision.camera_mount_ports import (
+from navpy.core.perception.camera.camera_mount_ports import (
     CameraZoomPort,
     GimbalZoomReadbackPort,
 )
-from navpy.modules.vision.camera_mount_types import LiveZoomSample
+from navpy.core.perception.camera.camera_mount_types import LiveZoomSample
 
 if TYPE_CHECKING:
     from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable

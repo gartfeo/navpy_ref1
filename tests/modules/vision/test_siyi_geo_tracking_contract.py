@@ -14,8 +14,8 @@ from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
-from navpy.modules.vision.camera_mount import CameraMount
-from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
+from navpy.core.perception.camera.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,

@@ -8,7 +8,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Union, cast
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.camera_mount import CameraMount
+    from navpy.core.perception.camera.camera_mount import CameraMount
 
 
 JsonScalar = Union[str, int, float, bool, None]

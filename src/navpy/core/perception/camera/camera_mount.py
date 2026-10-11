@@ -6,8 +6,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
-from navpy.modules.vision.camera_mount_composition import build_camera_mount_parts
-from navpy.modules.vision.camera_mount_facets import (
+from navpy.core.perception.camera.camera_mount_composition import build_camera_mount_parts
+from navpy.core.perception.camera.camera_mount_facets import (
     CameraMountFrameFacet,
     CameraMountLifecycleFacet,
     CameraMountOpticsFacet,
@@ -15,7 +15,7 @@ from navpy.modules.vision.camera_mount_facets import (
     CameraMountZoomControlFacet,
     CameraMountZoomReadbackFacet,
 )
-from navpy.modules.vision.camera_mount_zoom_readback import (
+from navpy.core.perception.camera.camera_mount_zoom_readback import (
     LIVE_ZOOM_READBACK_STALE_S,
     _format_cmd_key as _format_cmd_key,
 )

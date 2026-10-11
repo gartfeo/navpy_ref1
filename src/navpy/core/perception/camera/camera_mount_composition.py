@@ -7,23 +7,23 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from navpy.modules.vision.camera_mount_control import (
+from navpy.core.perception.camera.camera_mount_control import (
     MountLifecycle,
     MountZoomControl,
 )
-from navpy.modules.vision.camera_mount_frame_state import MountFrameStateCapture
-from navpy.modules.vision.camera_mount_hardware import (
+from navpy.core.perception.camera.camera_mount_frame_state import MountFrameStateCapture
+from navpy.core.perception.camera.camera_mount_hardware import (
     MountCameraHardware,
     MountGimbalHardware,
     MountGimbalPoiZoomHardware,
     MountGimbalZoomReadbackHardware,
 )
-from navpy.modules.vision.camera_mount_optics import (
+from navpy.core.perception.camera.camera_mount_optics import (
     MountCalibrationSummary,
     MountLiveOptics,
     MountOpticsReader,
 )
-from navpy.modules.vision.camera_mount_zoom_readback import MountZoomReadback
+from navpy.core.perception.camera.camera_mount_zoom_readback import MountZoomReadback
 
 if TYPE_CHECKING:
     from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable

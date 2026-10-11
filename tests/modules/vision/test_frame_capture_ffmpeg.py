@@ -4,7 +4,7 @@ import subprocess
 import unittest
 from unittest.mock import Mock, patch
 
-from navpy.modules.vision.frame_capture_ffmpeg import (
+from navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg import (
     FfmpegFrameCapture,
     probe_resolution,
 )
@@ -17,7 +17,7 @@ class TestFfmpegFrameCapture(unittest.TestCase):
         logger = _Logger()
         result = Mock(returncode=1, stdout="", stderr="unreachable")
         with patch(
-            "navpy.modules.vision.frame_capture_ffmpeg.subprocess.run",
+            "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.subprocess.run",
             return_value=result,
         ):
             self.assertIsNone(
@@ -35,15 +35,15 @@ class TestFfmpegFrameCapture(unittest.TestCase):
         process = Mock()
         process.stderr = Mock()
         with patch(
-            "navpy.modules.vision.frame_capture_ffmpeg.probe_resolution",
+            "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.probe_resolution",
             return_value=(640, 480),
         ):
             with patch(
-                "navpy.modules.vision.frame_capture_ffmpeg.subprocess.Popen",
+                "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.subprocess.Popen",
                 return_value=process,
             ) as popen:
                 with patch(
-                    "navpy.modules.vision.frame_capture_ffmpeg.threading.Thread"
+                    "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.threading.Thread"
                 ) as thread_class:
                     capture = FfmpegFrameCapture.open(
                         "rtsp://camera/stream",
@@ -61,15 +61,15 @@ class TestFfmpegFrameCapture(unittest.TestCase):
         process = Mock()
         process.stderr = Mock()
         with patch(
-            "navpy.modules.vision.frame_capture_ffmpeg.probe_resolution",
+            "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.probe_resolution",
             return_value=(640, 480),
         ):
             with patch(
-                "navpy.modules.vision.frame_capture_ffmpeg.subprocess.Popen",
+                "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.subprocess.Popen",
                 return_value=process,
             ):
                 with patch(
-                    "navpy.modules.vision.frame_capture_ffmpeg.threading.Thread"
+                    "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.threading.Thread"
                 ) as thread_class:
                     thread_class.return_value.start.side_effect = RuntimeError(
                         "thread start failed"
@@ -92,15 +92,15 @@ class TestFfmpegFrameCapture(unittest.TestCase):
         process = Mock()
         process.stderr = Mock()
         with patch(
-            "navpy.modules.vision.frame_capture_ffmpeg.probe_resolution",
+            "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.probe_resolution",
             return_value=(640, 480),
         ):
             with patch(
-                "navpy.modules.vision.frame_capture_ffmpeg.subprocess.Popen",
+                "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.subprocess.Popen",
                 return_value=process,
             ):
                 with patch(
-                    "navpy.modules.vision.frame_capture_ffmpeg.threading.Thread",
+                    "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.threading.Thread",
                     side_effect=RuntimeError("thread construction failed"),
                 ):
                     with self.assertRaisesRegex(
@@ -125,11 +125,11 @@ class TestFfmpegFrameCapture(unittest.TestCase):
                 raise RuntimeError("capture construction failed")
 
         with patch(
-            "navpy.modules.vision.frame_capture_ffmpeg.probe_resolution",
+            "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.probe_resolution",
             return_value=(640, 480),
         ):
             with patch(
-                "navpy.modules.vision.frame_capture_ffmpeg.subprocess.Popen",
+                "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.subprocess.Popen",
                 return_value=process,
             ):
                 with self.assertRaisesRegex(

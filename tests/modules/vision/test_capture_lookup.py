@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.capture_interpolation import (
+from navpy.core.perception.camera.capture_interpolation import (
     BRACKET_MAX_WIDTH_S,
     CLOCK_SEAM_TOLERANCE_S,
     STATUS_CLOCK_SEAM,
@@ -20,7 +20,7 @@ from navpy.modules.vision.capture_interpolation import (
     STATUS_UNBRACKETED,
     interpolate_attitude_at,
 )
-from navpy.modules.vision.capture_lookup import (
+from navpy.core.perception.camera.capture_lookup import (
     CaptureLookupCalibration,
     RATE_AMPLIFICATION_LIMIT,
     TIMING_RESIDUAL_BUDGET_S,
@@ -262,7 +262,7 @@ class TestImplementationChecks:
     def test_opencv_backend_stamps_read_kind_at_grab(self) -> None:
         import numpy as np
 
-        from navpy.modules.vision.frame_capture_opencv import (
+        from navpy.plugins.camera.opencv.frame_capture_opencv import (
             OpenCvFrameCapture,
         )
 

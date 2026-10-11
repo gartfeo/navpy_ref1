@@ -35,7 +35,7 @@ from cam.calibration.calibration_navigator import (
     measure_board_size,
 )
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.frame_provider import FrameProvider
+from navpy.core.perception.camera.frame_provider import FrameProvider
 from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
 
 WINDOW_NAME = "Calibration Navigator"

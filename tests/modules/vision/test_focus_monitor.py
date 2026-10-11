@@ -4,8 +4,8 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from navpy.modules.vision.focus_monitor import FocusMonitor, laplacian_focus
-from navpy.modules.vision.focus_policy import FocusPolicy
+from navpy.core.perception.camera.focus_monitor import FocusMonitor, laplacian_focus
+from navpy.core.perception.camera.focus_policy import FocusPolicy
 
 
 class _Clock:

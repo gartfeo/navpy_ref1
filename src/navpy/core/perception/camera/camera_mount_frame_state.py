@@ -9,16 +9,16 @@ import time
 
 import numpy as np
 
-from navpy.modules.vision.camera_mount_hardware import (
+from navpy.core.perception.camera.camera_mount_hardware import (
     FrameStateCapabilityUnavailable,
 )
-from navpy.modules.vision.camera_mount_ports import (
+from navpy.core.perception.camera.camera_mount_ports import (
     CameraZoomPort,
     FrameOpticsPort,
     FrameZoomReadbackPort,
     GimbalFramePort,
 )
-from navpy.modules.vision.camera_mount_types import CameraMountFrameState
+from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
 from navpy.core.ports.gimbal_abc import GimbalData
 
 

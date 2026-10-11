@@ -8,20 +8,20 @@ import threading
 from dataclasses import dataclass
 
 from navpy.modules.vision.frame_capture_factory import open_capture_backend
-from navpy.modules.vision.frame_capture_logging import SafeCaptureLogger
+from navpy.core.perception.camera.frame_capture_logging import SafeCaptureLogger
 from navpy.core.ports.frame_capture_ports import (
     CaptureLogger,
 )
-from navpy.modules.vision.frame_capture_session import (
+from navpy.core.perception.camera.frame_capture_session import (
     CaptureSession,
     create_capture_session,
 )
-from navpy.modules.vision.frame_capture_state import FrameCaptureState
-from navpy.modules.vision.frame_capture_worker import (
+from navpy.core.perception.camera.frame_capture_state import FrameCaptureState
+from navpy.core.perception.camera.frame_capture_worker import (
     FrameCaptureWorker,
     FrameCaptureWorkerPorts,
 )
-from navpy.modules.vision.frame_publication import FramePublicationStore
+from navpy.core.perception.camera.frame_publication import FramePublicationStore
 from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 _STOP_WARNING_S = 2.0

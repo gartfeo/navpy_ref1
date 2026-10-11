@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import cv2
 
-from navpy.modules.vision.frame_capture_opencv import (
+from navpy.plugins.camera.opencv.frame_capture_opencv import (
     OpenCvFrameCapture,
     open_jetson_capture,
     open_source_capture,
@@ -23,7 +23,7 @@ class TestOpenCvSourceRouting(unittest.TestCase):
         capture.isOpened.return_value = True
         capture.get.side_effect = cv2.error("metadata failed")
         with patch(
-            "navpy.modules.vision.frame_capture_opencv.cv2.VideoCapture",
+            "navpy.plugins.camera.opencv.frame_capture_opencv.cv2.VideoCapture",
             return_value=capture,
         ):
             with self.assertRaisesRegex(cv2.error, "metadata failed"):
@@ -36,7 +36,7 @@ class TestOpenCvSourceRouting(unittest.TestCase):
         capture.isOpened.return_value = True
         capture.read.side_effect = cv2.error("read failed")
         with patch(
-            "navpy.modules.vision.frame_capture_opencv.cv2.VideoCapture",
+            "navpy.plugins.camera.opencv.frame_capture_opencv.cv2.VideoCapture",
             return_value=capture,
         ):
             with self.assertRaisesRegex(cv2.error, "read failed"):
@@ -50,7 +50,7 @@ class TestOpenCvSourceRouting(unittest.TestCase):
         fallback = Mock()
         fallback.isOpened.return_value = True
         with patch(
-            "navpy.modules.vision.frame_capture_opencv.cv2.VideoCapture",
+            "navpy.plugins.camera.opencv.frame_capture_opencv.cv2.VideoCapture",
             side_effect=[primary, fallback],
         ):
             result = open_stream_capture("camera.mp4")
@@ -109,7 +109,7 @@ class TestOpenCvSourceRouting(unittest.TestCase):
     def test_integer_source_uses_webcam_opener(self):
         capture = Mock()
         with patch(
-            "navpy.modules.vision.frame_capture_opencv.open_webcam_capture",
+            "navpy.plugins.camera.opencv.frame_capture_opencv.open_webcam_capture",
             return_value=capture,
         ) as open_webcam:
             result = open_source_capture(3, _Logger())
@@ -119,7 +119,7 @@ class TestOpenCvSourceRouting(unittest.TestCase):
     def test_string_source_uses_stream_opener(self):
         capture = Mock()
         with patch(
-            "navpy.modules.vision.frame_capture_opencv.open_stream_capture",
+            "navpy.plugins.camera.opencv.frame_capture_opencv.open_stream_capture",
             return_value=capture,
         ) as open_stream:
             result = open_source_capture("camera.mp4", _Logger())

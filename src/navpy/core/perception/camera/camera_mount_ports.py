@@ -7,7 +7,7 @@ from typing import Protocol
 
 import numpy as np
 
-from navpy.modules.vision.camera_mount_types import (
+from navpy.core.perception.camera.camera_mount_types import (
     LiveZoomSample,
     ZoomWrite,
 )

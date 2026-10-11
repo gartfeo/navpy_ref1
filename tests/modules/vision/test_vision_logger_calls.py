@@ -218,7 +218,7 @@ class TestDeepSearchLoopLog(unittest.TestCase):
         # The old numeric key deduped once per candidate count. Keep that
         # behavior with a named string key while rendering the count.
         from navpy.modules.vision.real_inference import DeepSearchLoop
-        from navpy.modules.vision.frame_publication import FrameSnapshot
+        from navpy.core.perception.camera.frame_publication import FrameSnapshot
 
         logger = _RecordingLogger()
         run_state = SimpleNamespace(is_running=True)

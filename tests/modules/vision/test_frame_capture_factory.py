@@ -5,7 +5,7 @@ from unittest.mock import Mock, PropertyMock, patch
 import pytest
 
 from navpy.modules.vision.frame_capture_factory import open_capture_backend
-from navpy.modules.vision.frame_capture_opencv import OpenCvFrameCapture
+from navpy.plugins.camera.opencv.frame_capture_opencv import OpenCvFrameCapture
 
 from tests.modules.vision.test_frame_provider import _Logger
 

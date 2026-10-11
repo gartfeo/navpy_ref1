@@ -88,11 +88,11 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "SwarmPresence",
     ): 150,
     (
-        "src/navpy/modules/vision/frame_capture_runtime.py",
+        "src/navpy/core/perception/camera/frame_capture_runtime.py",
         "FrameCaptureRuntime",
     ): 150,
     (
-        "src/navpy/modules/vision/frame_capture_ffmpeg.py",
+        "src/navpy/plugins/camera/ffmpeg/frame_capture_ffmpeg.py",
         "FfmpegFrameCapture",
     ): 150,
     (
@@ -112,7 +112,7 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "SiyiHardwareLifecycle",
     ): 150,
     (
-        "src/navpy/modules/vision/peripheral/camera_intrinsics.py",
+        "src/navpy/core/perception/camera/camera_intrinsics.py",
         "CameraIntrinsics",
     ): 150,
     (
@@ -197,7 +197,7 @@ FACADE_METHOD_ALLOWANCES = {
         "VehicleMav",
     ): FacadeMethodAllowance(1, 83, frozenset({"_parts"})),
     (
-        "src/navpy/modules/vision/camera_mount.py",
+        "src/navpy/core/perception/camera/camera_mount.py",
         "CameraMount",
     ): FacadeMethodAllowance(
         1,

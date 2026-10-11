@@ -7,7 +7,7 @@ from typing import Protocol
 
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.detection_coordinator import DetectionCoordinator
 from navpy.modules.vision.detector_ports import DetectorFleetMember
 from navpy.modules.vision.vision_lifecycle import VisionLifecycle

@@ -23,7 +23,7 @@ from navpy.modules.navigation.peer_orbit_plan import (
     MIN_ACQUIRE_STANDOFF_M,
     compute_orbit_plan,
 )
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.vision_class_profile import (
     compute_approach_interval,
     compute_detect_slant_range,

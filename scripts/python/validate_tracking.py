@@ -43,7 +43,7 @@ REC_SECS = parse_record_seconds(sys.argv)
 _METRICS = METRICS_PATH
 
 from navpy.modules.vision.appearance import create_appearance_embedder
-from navpy.modules.vision.frame_provider import FrameProvider
+from navpy.core.perception.camera.frame_provider import FrameProvider
 from navpy.core.kernel.geometry import cxcywh_to_xyxy
 from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
 from navpy.modules.vision.poi_lock import PoiLock

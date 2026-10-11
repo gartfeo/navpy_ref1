@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.detector import (
     Detector,
     DetectorDependencies,

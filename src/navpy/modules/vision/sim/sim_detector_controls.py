@@ -7,7 +7,7 @@ from typing import Optional
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.vision.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.detector_ports import source_name_from_gimbal
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.core.ports.detect_data import DetectedObject

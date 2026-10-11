@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from navpy.core.kernel.location import Location
     from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
     from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
-    from navpy.modules.vision.camera_mount import CameraMount
+    from navpy.core.perception.camera.camera_mount import CameraMount
     from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
     from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 

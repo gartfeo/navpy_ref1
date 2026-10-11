@@ -9,7 +9,7 @@ import threading
 import numpy as np
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.frame_provider import FrameProvider
+from navpy.core.perception.camera.frame_provider import FrameProvider
 from navpy.modules.vision.real_detector_diagnostics import DetectorDiagnostics
 from navpy.modules.vision.real_detector_ports import (
     LifecycleLog,

@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.camera_mount import CameraMount
-from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
+from navpy.core.perception.camera.camera_mount import CameraMount
+from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
     GimbalAngularPlant,
