@@ -7,7 +7,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.logger.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.navigation_logger import NavigationLogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot

@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
-from navpy.modules.navigation.navigation_source_dispatch import (
+from navpy.core.approach.navigation_final_approach import FinalApproachNavigationService
+from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
 )
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
@@ -21,7 +21,7 @@ from navpy.modules.nav.confirmation_reporting import (
     ConfirmBlockedReporter,
     ConfirmDebugReporter,
 )
-from navpy.modules.nav.final_approach_record_deadline import FinalApproachRecordDeadline
+from navpy.core.approach.final_approach_record_deadline import FinalApproachRecordDeadline
 from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.modules.nav.detection_freshness import DetectionFreshnessPolicy
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
@@ -57,9 +57,9 @@ from navpy.modules.nav.recovery import RecoveryAction
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.poi_retry import PoiRetryState
 from navpy.modules.nav.poi_status_decision import ConfirmationStatusDecision
-from navpy.modules.nav.final_approach_source_admission import FinalApproachSourceAdmission
-from navpy.modules.nav.final_approach_source_session import FinalApproachSourceSession
-from navpy.modules.nav.final_approach_publication_admission import (
+from navpy.core.approach.final_approach_source_admission import FinalApproachSourceAdmission
+from navpy.core.approach.final_approach_source_session import FinalApproachSourceSession
+from navpy.core.approach.final_approach_publication_admission import (
     FinalApproachPublicationAdmission,
 )
 from navpy.modules.nav.vehicle_navigation import (

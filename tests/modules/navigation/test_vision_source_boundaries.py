@@ -15,12 +15,12 @@ from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
 )
 from navpy.core.approach.vision_nav.ingress import FinalApproachIngress
-from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
-from navpy.modules.nav.final_approach_command_dispatch import (
+from navpy.core.approach.final_approach_source_contracts import NavSourceBatch
+from navpy.core.approach.final_approach_command_dispatch import (
     FinalApproachCommandDispatch,
     FinalApproachCommandPorts,
 )
-from navpy.modules.nav.final_approach_nav_workflow import (
+from navpy.core.approach.final_approach_nav_workflow import (
     FinalApproachNavPorts,
     FinalApproachNavWorkflow,
 )
@@ -83,9 +83,9 @@ def test_ingress_delegates_all_rich_poi_reads_to_projector():
 def test_nav_dispatch_has_no_gap_command_capability():
     assert "nav_gap" not in FinalApproachCommandPorts.__dataclass_fields__
     final_approach_nav_files = (
-        "src/navpy/modules/nav/final_approach_command_dispatch.py",
-        "src/navpy/modules/nav/final_approach_nav_workflow.py",
-        "src/navpy/modules/nav/final_approach_source_admission.py",
+        "src/navpy/core/approach/final_approach_command_dispatch.py",
+        "src/navpy/core/approach/final_approach_nav_workflow.py",
+        "src/navpy/core/approach/final_approach_source_admission.py",
     )
     for relative in final_approach_nav_files:
         assert "nav_without_detection" not in Path(relative).read_text(

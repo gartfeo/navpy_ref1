@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from typing import Iterable, Optional, Protocol
 
-from navpy.modules.nav.final_approach_source_contracts import ActiveSourceEvents
+from navpy.core.approach.final_approach_source_contracts import ActiveSourceEvents
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.core.perception.detection.poi_identity import get_poi_task_id

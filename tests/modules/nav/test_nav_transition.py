@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.modules.nav.nav_exit_cleanup import (
+from navpy.core.approach.nav_exit_cleanup import (
     NavCleanupResult,
     NavExitCleanup,
     NavExitCleanupPorts,

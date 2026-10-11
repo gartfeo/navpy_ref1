@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-from navpy.logger.navigation_event_rows import build_event_line
-from navpy.logger.navigation_log_streams import NavigationLogStreams
-from navpy.logger.log_events import LogEvent
+from navpy.core.approach.logs.navigation_event_rows import build_event_line
+from navpy.core.approach.logs.navigation_log_streams import NavigationLogStreams
+from navpy.core.approach.logs.log_events import LogEvent
 
 
 class NavigationEventRecorder:

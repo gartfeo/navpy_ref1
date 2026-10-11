@@ -8,8 +8,8 @@ from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.nav.detect_action import DetectAction
 from navpy.modules.nav.peer_geo_tick import DetectPointingPorts
-from navpy.modules.nav.nav_entry import NavEntry, NavEntryPorts
-from navpy.modules.nav.nav_exit_cleanup import (
+from navpy.core.approach.nav_entry import NavEntry, NavEntryPorts
+from navpy.core.approach.nav_exit_cleanup import (
     NavExitCleanup,
     NavExitCleanupPorts,
 )
@@ -17,7 +17,7 @@ from navpy.modules.nav.nav_oneshot_completion import (
     OneShotCompletion,
     OneShotCompletionPorts,
 )
-from navpy.modules.nav.nav_snap_reporter import NavSnapReporter
+from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.modules.nav.peer_geo_tick import PeerGeoTick
 from navpy.modules.nav.nav_application import NavApplication, NavShutdown
 from navpy.modules.nav.nav_composition_types import (
@@ -43,7 +43,7 @@ from navpy.modules.nav.navigation_transition_handler import (
     NavigationTransitionHandler,
     TransitionPorts,
 )
-from navpy.modules.nav.final_approach_nav_workflow import FinalApproachNavWorkflow
+from navpy.core.approach.final_approach_nav_workflow import FinalApproachNavWorkflow
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 

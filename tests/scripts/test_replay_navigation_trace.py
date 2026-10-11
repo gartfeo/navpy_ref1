@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from navpy.logger.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.navigation_logger import NavigationLogger
 from navpy.core.kernel.location import Location
 from scripts.replay_navigation_trace import replay, verify_live_rows
 from scripts import simtime_navigation_runtime as runtime
@@ -101,10 +101,10 @@ def test_analyzer_does_not_change_flight_source_identity():
 def test_offline_event_is_written_before_return(monkeypatch):
     import io
     from scripts.replay_navigation_trace import FullRateLogger
-    from navpy.logger import navigation_log_streams as streams
+    from navpy.core.approach.logs import navigation_log_streams as streams
     from navpy.core.kernel.logging.logger_api import ConsoleLogger
     from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
-    from navpy.logger.log_events import LogEvent
+    from navpy.core.approach.logs.log_events import LogEvent
 
     class DeferredWorker:
         first_error = None

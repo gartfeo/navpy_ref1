@@ -8,15 +8,15 @@ from typing import Callable, Optional, cast
 
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm, NavigationArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.logger.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.navigation_logger import NavigationLogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
-from navpy.modules.navigation.navigation_command_session import NavigationCommandSession
-from navpy.modules.navigation.navigation_lifecycle import NavigationLifecycle
+from navpy.core.approach.navigation_command_session import NavigationCommandSession
+from navpy.core.approach.navigation_lifecycle import NavigationLifecycle
 from navpy.modules.navigation.navigation_law_builders import compose_law_builders
-from navpy.modules.navigation.navigation_mode import (
+from navpy.core.approach.navigation_mode import (
     NavigationModeBuilder,
     NavigationModeSelector,
     NavigationModeState,
@@ -24,11 +24,11 @@ from navpy.modules.navigation.navigation_mode import (
     RuntimeBuildResult,
 )
 from navpy.core.approach.geo.legacy_navigation_runtime import LegacyNavigationRuntime
-from navpy.modules.navigation.navigation_source_dispatch import (
+from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
     NavigationSourceDispatchSlot,
 )
-from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
+from navpy.core.approach.navigation_final_approach import FinalApproachNavigationService
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
 from navpy.core.approach.geo.legacy_destination_resolver import (
     LegacyNavigationState,
@@ -42,7 +42,7 @@ from navpy.core.approach.geo.legacy_final_approach_command import (
 )
 from navpy.modules.navigation.mission_planner import MissionPlanner
 from navpy.core.ports.nav_law import NavLaw
-from navpy.modules.navigation.nav.nav_law_factory import (
+from navpy.core.approach.nav_law_factory import (
     NavigationLawLifecycle,
     get_nav_algorithm_spec,
 )

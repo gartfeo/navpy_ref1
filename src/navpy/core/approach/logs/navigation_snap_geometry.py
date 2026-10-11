@@ -8,7 +8,7 @@ from typing import Optional
 import numpy as np
 import pymap3d
 
-from navpy.logger.navigation_snap_types import ClosestPointComponents
+from navpy.core.approach.logs.navigation_snap_types import ClosestPointComponents
 from navpy.core.kernel.location import Location
 
 

@@ -15,16 +15,16 @@ import pytest
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.navigation_command_session import NavigationCommandSession
-from navpy.modules.navigation.navigation_command_worker import (
+from navpy.core.approach.navigation_command_session import NavigationCommandSession
+from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
     _next_fixed_deadline,
 )
 from navpy.modules.navigation.navigation import Navigation
-from navpy.modules.navigation.navigation_lifecycle import NavigationLifecycle
+from navpy.core.approach.navigation_lifecycle import NavigationLifecycle
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
-from navpy.modules.navigation.navigation_mode import (
+from navpy.core.approach.navigation_mode import (
     ActiveNavigationMode,
     NavigationModeBuilder,
     NavigationModeSelector,
@@ -33,7 +33,7 @@ from navpy.modules.navigation.navigation_mode import (
     RuntimeBuildResult,
 )
 from navpy.core.approach.geo.legacy_navigation_runtime import LegacyNavigationRuntime
-from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
+from navpy.core.approach.navigation_final_approach import FinalApproachNavigationService
 from navpy.core.approach.geo.legacy_destination_resolver import (
     LegacyNavigationState,
     LegacyDestinationResolver,
@@ -44,7 +44,7 @@ from navpy.core.approach.geo.legacy_final_approach_command import (
     LegacyFinalApproachCommandPorts,
 )
 from navpy.core.ports.nav_command import NavCommand, NavCommandMode
-from navpy.modules.navigation.nav.nav_law_factory import (
+from navpy.core.approach.nav_law_factory import (
     NavAlgorithmSpec,
     get_nav_algorithm_spec,
 )
@@ -1655,7 +1655,7 @@ def test_command_session_stop_is_bounded_and_retryable():
     assert entered.wait(timeout=1.0)
 
     with patch(
-        "navpy.modules.navigation.navigation_command_session."
+        "navpy.core.approach.navigation_command_session."
         "NAVIGATION_COMMAND_JOIN_TIMEOUT_S",
         0.01,
     ):

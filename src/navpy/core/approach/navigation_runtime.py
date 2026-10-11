@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Optional, Protocol
 
-from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.navigation_postprocess_dispatcher import PostprocessJob
+from navpy.core.approach.calc_data import CalcData
+from navpy.core.approach.navigation_postprocess_dispatcher import PostprocessJob
 from navpy.core.ports.detect_data import DetectedObject
 
 

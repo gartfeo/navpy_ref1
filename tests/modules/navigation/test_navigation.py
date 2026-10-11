@@ -13,12 +13,12 @@ from navpy.core.kernel.resource_cleanup import CleanupStack
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.logger.navigation_log_streams import NavigationLogStreams
-from navpy.logger.navigation_logger import NavigationLogger
-from navpy.logger.log_events import LogEvent
-from navpy.modules.navigation.calc_data import CalcData
+from navpy.core.approach.logs.navigation_log_streams import NavigationLogStreams
+from navpy.core.approach.logs.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.log_events import LogEvent
+from navpy.core.approach.calc_data import CalcData
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
-from navpy.modules.navigation.navigation_command_worker import (
+from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )

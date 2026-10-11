@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
-from navpy.logger.navigation_clocks import (
+from navpy.core.approach.logs.navigation_clocks import (
     current_source_time_s,
     minimum_wall_interval_s,
     primary_log_gate,
 )
-from navpy.logger.navigation_log_streams import NavigationLogStreams
-from navpy.logger.navigation_sample import NavigationSample
-from navpy.logger.navigation_snap_geometry import calc_h_v_dist
-from navpy.logger.navigation_snap_session import NavigationSnapSession
-from navpy.logger.navigation_status_emitter import NavigationStatusEmitter
-from navpy.logger.log_schema import PRIMARY_SCHEMA
+from navpy.core.approach.logs.navigation_log_streams import NavigationLogStreams
+from navpy.core.approach.logs.navigation_sample import NavigationSample
+from navpy.core.approach.logs.navigation_snap_geometry import calc_h_v_dist
+from navpy.core.approach.logs.navigation_snap_session import NavigationSnapSession
+from navpy.core.approach.logs.navigation_status_emitter import NavigationStatusEmitter
+from navpy.core.approach.logs.log_schema import PRIMARY_SCHEMA
 
 
 class NavigationSampleRecorder:

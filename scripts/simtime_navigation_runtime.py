@@ -14,8 +14,8 @@ import threading
 import time
 
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
-from navpy.logger.navigation_log_streams import NavigationLogStreams
-from navpy.logger.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.navigation_log_streams import NavigationLogStreams
+from navpy.core.approach.logs.navigation_logger import NavigationLogger
 from navpy.core.kernel.logging.logger_api import ConsoleLogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location

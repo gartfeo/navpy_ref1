@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from navpy.logger.navigation_snap_geometry import (
+from navpy.core.approach.logs.navigation_snap_geometry import (
     closest_horizontal_on_segment,
     closest_point_components_on_segment,
     is_valid_location,
 )
-from navpy.logger.navigation_snap_types import ClosestSnap
+from navpy.core.approach.logs.navigation_snap_types import ClosestSnap
 from navpy.core.kernel.location import Location
 
 

@@ -14,7 +14,7 @@ import textwrap
 import threading
 from types import SimpleNamespace
 
-from navpy.modules.navigation.calc_data import CalcData
+from navpy.core.approach.calc_data import CalcData
 from navpy.core.ports.admission_tap import AdmissionRuling, AdmissionTap
 from navpy.plugins.vehicle.ardupilot.inbound_router import (
     AUTOPILOT_TELEMETRY_TYPES,

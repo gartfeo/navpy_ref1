@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from navpy.modules.navigation.calc_data import CalcData
+from navpy.core.approach.calc_data import CalcData
 from navpy.modules.vision.sim.determinism_command_log import (
     COMMAND_RAISED,
     COMMAND_UNREADABLE,

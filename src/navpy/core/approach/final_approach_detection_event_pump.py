@@ -6,11 +6,11 @@ import threading
 from dataclasses import dataclass
 from typing import Callable
 
-from navpy.modules.nav.final_approach_detection_dispatch import (
+from navpy.core.approach.final_approach_detection_dispatch import (
     FinalApproachDetectionDispatch,
     FinalApproachEventHandler,
 )
-from navpy.modules.nav.final_approach_detection_pump_session import (
+from navpy.core.approach.final_approach_detection_pump_session import (
     FinalApproachPumpSession,
     stop_final_approach_pump_session,
 )

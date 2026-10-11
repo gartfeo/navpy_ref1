@@ -9,17 +9,17 @@ from typing import ContextManager
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
-from navpy.modules.navigation.navigation_command_worker import (
+from navpy.core.approach.navigation_command_worker import (
     AUTOPILOT_NAVIGATION_LOOP_HZ,
     NO_COMMAND_LOOP_OBSERVER,
     CommandLoopObserver,
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )
-from navpy.modules.navigation.navigation_postprocess_dispatcher import (
+from navpy.core.approach.navigation_postprocess_dispatcher import (
     NavigationPostprocessDispatcher,
 )
-from navpy.modules.navigation.navigation_runtime import CommandWorkRuntime
+from navpy.core.approach.navigation_runtime import CommandWorkRuntime
 
 
 NAVIGATION_COMMAND_JOIN_TIMEOUT_S = 2.0

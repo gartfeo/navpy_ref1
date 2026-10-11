@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from collections.abc import Iterable
 from typing import Callable, Optional, Protocol
 
-from navpy.modules.nav.final_approach_source_contracts import (
+from navpy.core.approach.final_approach_source_contracts import (
     ActiveSourceEvents,
     DetectionInboxLease,
     NavSourceBatch,

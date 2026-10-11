@@ -28,8 +28,8 @@ from pymavlink.dialects.v20.ardupilotmega import (
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.navigation_command_worker import (
+from navpy.core.approach.calc_data import CalcData
+from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )

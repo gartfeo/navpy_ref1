@@ -5,12 +5,12 @@ from __future__ import annotations
 import threading
 from typing import Optional
 
-from navpy.logger.navigation_logger import ClosestSnap, NavigationLogger
-from navpy.modules.navigation.navigation_command_session import NavigationCommandSession
-from navpy.modules.navigation.navigation_postprocess_dispatcher import (
+from navpy.core.approach.logs.navigation_logger import ClosestSnap, NavigationLogger
+from navpy.core.approach.navigation_command_session import NavigationCommandSession
+from navpy.core.approach.navigation_postprocess_dispatcher import (
     NavigationPostprocessFailure,
 )
-from navpy.modules.navigation.navigation_mode import NavigationModeSelector, NavigationModeState
+from navpy.core.approach.navigation_mode import NavigationModeSelector, NavigationModeState
 from navpy.core.approach.geo.legacy_destination_resolver import LegacyNavigationState
 
 

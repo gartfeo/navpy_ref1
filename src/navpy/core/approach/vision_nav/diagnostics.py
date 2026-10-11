@@ -8,8 +8,8 @@ from typing import Protocol
 
 import numpy as np
 
-from navpy.logger.navigation_logger import NavigationLogger
-from navpy.logger.log_events import LogEvent
+from navpy.core.approach.logs.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.log_events import LogEvent
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc

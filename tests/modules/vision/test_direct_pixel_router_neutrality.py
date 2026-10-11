@@ -26,8 +26,8 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
 
-from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.navigation_command_worker import (
+from navpy.core.approach.calc_data import CalcData
+from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )

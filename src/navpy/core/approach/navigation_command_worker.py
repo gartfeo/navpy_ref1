@@ -10,11 +10,11 @@ from typing import Any, Callable, ContextManager, Protocol
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.high_resolution_deadline import wait_until_deadline
-from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.navigation_postprocess_dispatcher import (
+from navpy.core.approach.calc_data import CalcData
+from navpy.core.approach.navigation_postprocess_dispatcher import (
     PostprocessJob,
 )
-from navpy.modules.navigation.navigation_runtime import CommandWorkRuntime
+from navpy.core.approach.navigation_runtime import CommandWorkRuntime
 
 
 AUTOPILOT_NAVIGATION_LOOP_HZ = 50.0

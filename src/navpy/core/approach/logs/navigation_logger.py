@@ -9,19 +9,19 @@ from typing import Any, Callable, Mapping, Optional
 import numpy as np
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.logger.navigation_clocks import current_wall_timestamp
-from navpy.logger.navigation_event_recorder import NavigationEventRecorder
-from navpy.logger.navigation_log_streams import (
+from navpy.core.approach.logs.navigation_clocks import current_wall_timestamp
+from navpy.core.approach.logs.navigation_event_recorder import NavigationEventRecorder
+from navpy.core.approach.logs.navigation_log_streams import (
     NavigationLogStreams,
     open_navigation_log_streams,
 )
-from navpy.logger.navigation_sample import NavigationSample
-from navpy.logger.navigation_sample_recorder import NavigationSampleRecorder
-from navpy.logger.navigation_snap_types import ClosestPointComponents, ClosestSnap
-from navpy.logger.navigation_snap_session import NavigationSnapSession
-from navpy.logger.navigation_status_emitter import NavigationStatusEmitter
-from navpy.logger.log_events import LogEvent
-from navpy.logger.log_schema import PRIMARY_SCHEMA
+from navpy.core.approach.logs.navigation_sample import NavigationSample
+from navpy.core.approach.logs.navigation_sample_recorder import NavigationSampleRecorder
+from navpy.core.approach.logs.navigation_snap_types import ClosestPointComponents, ClosestSnap
+from navpy.core.approach.logs.navigation_snap_session import NavigationSnapSession
+from navpy.core.approach.logs.navigation_status_emitter import NavigationStatusEmitter
+from navpy.core.approach.logs.log_events import LogEvent
+from navpy.core.approach.logs.log_schema import PRIMARY_SCHEMA
 from navpy.core.kernel.location import Location
 
 

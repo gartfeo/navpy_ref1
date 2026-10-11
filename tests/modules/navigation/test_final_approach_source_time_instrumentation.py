@@ -9,7 +9,7 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.kernel.resource_cleanup import CleanupStack
 from scripts import eval_certificate as certificate
 from navpy.core.approach.vision_nav import command_executor as command_executor_module
-from navpy.modules.navigation.calc_data import CalcData
+from navpy.core.approach.calc_data import CalcData
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.core.approach.vision_nav.command_executor import (
     FinalApproachCommandExecutor,

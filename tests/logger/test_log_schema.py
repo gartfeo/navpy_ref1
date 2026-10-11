@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from navpy.logger.log_schema import (
+from navpy.core.approach.logs.log_schema import (
     PRIMARY_SCHEMA,
     LogField,
     LogSchema,

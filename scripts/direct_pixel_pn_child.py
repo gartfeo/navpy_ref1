@@ -22,7 +22,7 @@ from navpy.core.kernel.config.logger_args import LoggerArgs  # noqa: E402
 from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs  # noqa: E402
 from navpy.args.navpy_argparse import make_parser  # noqa: E402
 from navpy.core.kernel.config.uas_args import UasArgs  # noqa: E402
-from navpy.logger.navigation_snap_types import ClosestSnap  # noqa: E402
+from navpy.core.approach.logs.navigation_snap_types import ClosestSnap  # noqa: E402
 from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
 from navpy.core.kernel.location import Location  # noqa: E402
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402

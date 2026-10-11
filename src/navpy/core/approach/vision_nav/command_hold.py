@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
-from navpy.modules.navigation.calc_data import CalcData
+from navpy.core.approach.calc_data import CalcData
 from navpy.core.approach.vision_nav.command_transaction import (
     FinalApproachAttitudeActuator,
 )

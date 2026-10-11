@@ -7,7 +7,7 @@ from typing import Callable, Optional, Protocol
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
+from navpy.core.approach.final_approach_source_contracts import NavSourceBatch
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.core.perception.detection.poi_identity import get_poi_task_id

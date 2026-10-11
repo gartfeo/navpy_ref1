@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 from typing import Any, Mapping, Optional
 
-from navpy.logger.navigation_snap_types import ClosestSnap
-from navpy.logger.log_events import (
+from navpy.core.approach.logs.navigation_snap_types import ClosestSnap
+from navpy.core.approach.logs.log_events import (
     LogEvent,
     format_snap_event_row,
     format_standard_event_row,

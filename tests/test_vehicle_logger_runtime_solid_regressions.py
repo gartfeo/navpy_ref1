@@ -13,8 +13,8 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
-from navpy.logger.navigation_snap_geometry import calc_distance, calc_h_v_dist
-from navpy.logger.navigation_log_streams import NavigationLogStreams
+from navpy.core.approach.logs.navigation_snap_geometry import calc_distance, calc_h_v_dist
+from navpy.core.approach.logs.navigation_log_streams import NavigationLogStreams
 from navpy.core.kernel.location import Location
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 from navpy.plugins.vehicle.ardupilot.vehicle_composition import build_vehicle_parts

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Iterable
 
-from navpy.modules.navigation.calc_data import CalcData
+from navpy.core.approach.calc_data import CalcData
 from navpy.core.command.navigation_command_slot import (
     NavigationCommandLease,
     NavigationCommandSlot,

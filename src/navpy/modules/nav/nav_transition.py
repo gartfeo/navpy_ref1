@@ -7,10 +7,10 @@ from navpy.core.kernel.exception_groups import ExceptionGroup
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.modules.nav.nav_entry import NavEntry
-from navpy.modules.nav.nav_exit_cleanup import NavExitCleanup
+from navpy.core.approach.nav_entry import NavEntry
+from navpy.core.approach.nav_exit_cleanup import NavExitCleanup
 from navpy.modules.nav.nav_oneshot_completion import OneShotCompletion
-from navpy.modules.nav.nav_snap_reporter import NavSnapReporter
+from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.modules.nav.nav_state import NavigationTaskState, NavState
 
 

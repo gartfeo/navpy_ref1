@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
-from navpy.modules.navigation.calc_data import CalcData
+from navpy.core.approach.calc_data import CalcData
 from navpy.core.command.navigation_command_slot import (
     NavigationCommandLease,
     NavigationCommandSlot,
@@ -27,7 +27,7 @@ from navpy.core.approach.vision_nav.command_freshness import (
 from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandFailureSink,
 )
-from navpy.modules.navigation.navigation_postprocess_dispatcher import PostprocessJob
+from navpy.core.approach.navigation_postprocess_dispatcher import PostprocessJob
 from navpy.core.approach.vision_nav.command_postprocess import (
     FinalApproachPostprocessFence,
 )

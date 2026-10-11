@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
-from navpy.modules.navigation.calc_data import CalcData
+from navpy.core.approach.calc_data import CalcData
 from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.plugins.laws.vision_pn.command_anchor import (
     FinalApproachLimits,

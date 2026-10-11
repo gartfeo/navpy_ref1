@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from navpy.logger.gate_formatter import (
+from navpy.core.approach.logs.gate_formatter import (
     format_gate_result,
     format_gate_results_list,
     sanitize,

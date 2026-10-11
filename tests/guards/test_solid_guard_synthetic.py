@@ -203,7 +203,7 @@ class Constants:
 def test_passive_record_exception_is_exact_frozen_and_bounded() -> None:
     fields = "\n".join(f"    field_{index}: int" for index in range(13))
     record = f"@dataclass(frozen=True)\nclass NavigationSample:\n{fields}\n"
-    exact = {"src/navpy/logger/navigation_sample.py": record}
+    exact = {"src/navpy/core/approach/logs/navigation_sample.py": record}
     assert not scan_global_class_limits(exact, exclusions={})
 
     wrong_path = {"src/navpy/other.py": record}
@@ -214,7 +214,7 @@ def test_passive_record_exception_is_exact_frozen_and_bounded() -> None:
     behavioral = record + "    def mutate(self): ...\n"
     assert "owned-fields" in _codes(
         scan_global_class_limits(
-            {"src/navpy/logger/navigation_sample.py": behavioral},
+            {"src/navpy/core/approach/logs/navigation_sample.py": behavioral},
             exclusions={},
         )
     )
@@ -224,7 +224,7 @@ def test_passive_record_exception_is_exact_frozen_and_bounded() -> None:
     )
     assert "owned-fields" in _codes(
         scan_global_class_limits(
-            {"src/navpy/logger/navigation_sample.py": oversized},
+            {"src/navpy/core/approach/logs/navigation_sample.py": oversized},
             exclusions={},
         )
     )

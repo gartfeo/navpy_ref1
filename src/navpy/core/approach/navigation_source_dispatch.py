@@ -12,7 +12,7 @@ import threading
 from collections.abc import Callable
 from typing import Any, Protocol
 
-from navpy.modules.navigation.navigation_command_worker import (
+from navpy.core.approach.navigation_command_worker import (
     CommandLoopObserver,
 )
 

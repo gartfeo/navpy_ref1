@@ -6,7 +6,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
-from navpy.modules.nav.final_approach_source_contracts import DetectionInboxLease
+from navpy.core.approach.final_approach_source_contracts import DetectionInboxLease
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
 

@@ -6,15 +6,15 @@ from typing import Optional
 
 from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.logger.navigation_logger import ClosestSnap
+from navpy.core.approach.logs.navigation_logger import ClosestSnap
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.modules.navigation.navigation_composition import compose_navigation
-from navpy.modules.navigation.navigation_command_worker import (
+from navpy.core.approach.navigation_command_worker import (
     CommandLoopObserver,
 )
-from navpy.modules.navigation.navigation_source_dispatch import SourceDispatch
+from navpy.core.approach.navigation_source_dispatch import SourceDispatch
 from navpy.modules.navigation.mission_planner import MissionPlanner
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.ports.detect_data import DetectedObject

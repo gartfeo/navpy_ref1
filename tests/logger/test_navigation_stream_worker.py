@@ -1,6 +1,6 @@
 import threading
 
-from navpy.logger.navigation_stream_worker import (
+from navpy.core.approach.logs.navigation_stream_worker import (
     NavigationStreamBacklogError,
     NavigationStreamWorker,
 )

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Mapping, Optional
 
-from navpy.logger.navigation_event_recorder import NavigationEventRecorder
-from navpy.logger.navigation_event_rows import snap_components_payload
-from navpy.logger.navigation_snap_tracker import ClosestApproachTracker
-from navpy.logger.navigation_snap_types import ClosestSnap
-from navpy.logger.log_events import LogEvent
+from navpy.core.approach.logs.navigation_event_recorder import NavigationEventRecorder
+from navpy.core.approach.logs.navigation_event_rows import snap_components_payload
+from navpy.core.approach.logs.navigation_snap_tracker import ClosestApproachTracker
+from navpy.core.approach.logs.navigation_snap_types import ClosestSnap
+from navpy.core.approach.logs.log_events import LogEvent
 from navpy.core.kernel.location import Location
 
 

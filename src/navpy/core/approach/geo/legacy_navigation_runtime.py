@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Iterable, Optional
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.navigation_postprocess_dispatcher import PostprocessJob
+from navpy.core.approach.calc_data import CalcData
+from navpy.core.approach.navigation_postprocess_dispatcher import PostprocessJob
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.navigation.navigation_runtime import NavigationRuntime
+from navpy.core.approach.navigation_runtime import NavigationRuntime
 
 if TYPE_CHECKING:
     import numpy as np

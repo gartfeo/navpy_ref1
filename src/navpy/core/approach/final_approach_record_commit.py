@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
-from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
+from navpy.core.approach.final_approach_source_contracts import NavSourceBatch
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
 

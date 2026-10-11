@@ -16,31 +16,31 @@ from navpy.core.approach.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,
 )
-from navpy.modules.nav.final_approach_detection_event_pump import (
+from navpy.core.approach.final_approach_detection_event_pump import (
     FinalApproachDetectionEventPump,
     FinalApproachDetectionEventPumpPorts,
     FinalApproachPumpFailure,
 )
-from navpy.modules.nav.final_approach_command_dispatch import (
+from navpy.core.approach.final_approach_command_dispatch import (
     FinalApproachCommandDispatch,
     FinalApproachCommandPorts,
 )
-from navpy.modules.nav.final_approach_nav_workflow import (
+from navpy.core.approach.final_approach_nav_workflow import (
     FinalApproachNavPorts,
     FinalApproachNavWorkflow,
 )
-from navpy.modules.nav.final_approach_source_event_handler import (
+from navpy.core.approach.final_approach_source_event_handler import (
     FinalApproachSourceEventHandler,
     FinalApproachSourceEventHandlerPorts,
 )
-from navpy.modules.nav.final_approach_source_reset_fence import (
+from navpy.core.approach.final_approach_source_reset_fence import (
     FinalApproachSourceResetFence,
 )
-from navpy.modules.nav.final_approach_publication_admission import (
+from navpy.core.approach.final_approach_publication_admission import (
     FinalApproachPublicationAdmission,
     FinalApproachPublicationAdmissionPorts,
 )
-from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
+from navpy.core.approach.final_approach_source_contracts import NavSourceBatch
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.modules.vision.sim.detection_publication_store import (
     DetectionPublicationStore,
@@ -417,7 +417,7 @@ def test_blocked_handler_close_is_bounded_retained_and_retryable():
     assert entered.wait(timeout=1.0)
 
     with patch(
-        "navpy.modules.nav.final_approach_detection_event_pump."
+        "navpy.core.approach.final_approach_detection_event_pump."
         "FINAL_APPROACH_PUMP_STOP_TIMEOUT_S",
         0.01,
     ):

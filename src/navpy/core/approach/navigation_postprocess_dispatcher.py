@@ -8,8 +8,8 @@ from dataclasses import dataclass
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.logger.navigation_logger import NAVIGATION_EVIDENCE_FAILURE_MARKER
-from navpy.logger.navigation_stream_worker import NavigationStreamWorker
+from navpy.core.approach.logs.navigation_logger import NAVIGATION_EVIDENCE_FAILURE_MARKER
+from navpy.core.approach.logs.navigation_stream_worker import NavigationStreamWorker
 
 
 @dataclass(frozen=True)

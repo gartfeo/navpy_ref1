@@ -8,12 +8,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.logger.navigation_logger import NAVIGATION_EVIDENCE_FAILURE_MARKER
-from navpy.modules.navigation.navigation_command_worker import (
+from navpy.core.approach.logs.navigation_logger import NAVIGATION_EVIDENCE_FAILURE_MARKER
+from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )
-from navpy.modules.navigation.navigation_postprocess_dispatcher import (
+from navpy.core.approach.navigation_postprocess_dispatcher import (
     NavigationPostprocessDispatcher,
     NavigationPostprocessFailure,
 )

@@ -28,7 +28,7 @@ from scripts.eval_direct_pixel_command_causality import analyze
 from scripts.simtime_navigation_protocol import (
     ATTITUDE, DRAIN_STEPS, GUIDED, TAKEOFF_ARM, Snapshot, StepCommand,
 )
-from navpy.logger.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.navigation_logger import NavigationLogger
 from navpy.core.kernel.location import Location
 
 

@@ -11,9 +11,9 @@ from datetime import datetime
 from typing import NoReturn, Optional, Protocol, TextIO
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.logger.log_events import LogEvent, STANDARD_EVENT_HEADER
-from navpy.logger.log_schema import PRIMARY_SCHEMA
-from navpy.logger.navigation_stream_worker import NavigationStreamWorker
+from navpy.core.approach.logs.log_events import LogEvent, STANDARD_EVENT_HEADER
+from navpy.core.approach.logs.log_schema import PRIMARY_SCHEMA
+from navpy.core.approach.logs.navigation_stream_worker import NavigationStreamWorker
 
 
 _COMPACT = "compact"

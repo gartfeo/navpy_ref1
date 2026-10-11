@@ -6,7 +6,7 @@ import threading
 import time
 from typing import Callable, Optional, Protocol
 
-from navpy.modules.nav.final_approach_source_watchdog import (
+from navpy.core.approach.final_approach_source_watchdog import (
     FinalApproachSourceReceiptWatchdog,
 )
 from navpy.core.ports.detection_event_lease import (

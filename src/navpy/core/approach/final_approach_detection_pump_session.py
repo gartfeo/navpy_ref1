@@ -8,7 +8,7 @@ from typing import Callable
 
 from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
-from navpy.modules.nav.final_approach_detection_dispatch import (
+from navpy.core.approach.final_approach_detection_dispatch import (
     FinalApproachDetectionDispatch,
 )
 from navpy.core.ports.detection_event_lease import DetectionEventLease

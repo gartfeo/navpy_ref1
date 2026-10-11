@@ -12,14 +12,14 @@ from unittest.mock import Mock, patch
 
 import pymap3d
 
-from navpy.logger.navigation_event_recorder import NavigationEventRecorder
-from navpy.logger.navigation_log_streams import (
+from navpy.core.approach.logs.navigation_event_recorder import NavigationEventRecorder
+from navpy.core.approach.logs.navigation_log_streams import (
     NavigationLogStreams,
     open_navigation_log_streams,
 )
-from navpy.logger.navigation_logger import NavigationLogger
-from navpy.logger.log_events import LogEvent, STANDARD_EVENT_HEADER
-from navpy.logger.log_schema import LEGACY_PRIMARY_FIELDS, PRIMARY_SCHEMA
+from navpy.core.approach.logs.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.log_events import LogEvent, STANDARD_EVENT_HEADER
+from navpy.core.approach.logs.log_schema import LEGACY_PRIMARY_FIELDS, PRIMARY_SCHEMA
 from navpy.core.kernel.location import Location
 
 

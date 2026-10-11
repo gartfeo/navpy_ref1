@@ -13,8 +13,8 @@ from navpy.core.kernel.config.navigation_args import (
     NavigationArgs,
 )
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.navigation.navigation_runtime import NavigationRuntime
-from navpy.modules.navigation.nav.nav_law_factory import (
+from navpy.core.approach.navigation_runtime import NavigationRuntime
+from navpy.core.approach.nav_law_factory import (
     NavigationLawLifecycle,
     NavAlgorithmSpec,
     get_nav_algorithm_spec,

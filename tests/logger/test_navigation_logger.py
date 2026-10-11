@@ -3,15 +3,15 @@ import unittest
 
 import pymap3d
 
-from navpy.logger.navigation_event_recorder import NavigationEventRecorder
-from navpy.logger.navigation_log_streams import NavigationLogStreams
-from navpy.logger.navigation_snap_types import ClosestSnap
-from navpy.logger.navigation_snap_geometry import (
+from navpy.core.approach.logs.navigation_event_recorder import NavigationEventRecorder
+from navpy.core.approach.logs.navigation_log_streams import NavigationLogStreams
+from navpy.core.approach.logs.navigation_snap_types import ClosestSnap
+from navpy.core.approach.logs.navigation_snap_geometry import (
     closest_horizontal_on_segment,
     closest_on_segment,
     closest_point_components_on_segment,
 )
-from navpy.logger.navigation_snap_session import NavigationSnapSession
+from navpy.core.approach.logs.navigation_snap_session import NavigationSnapSession
 from navpy.core.kernel.location import Location
 
 

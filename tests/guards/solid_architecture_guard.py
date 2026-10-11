@@ -80,7 +80,7 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "PeerPoiDispatchWorker",
     ): 150,
     (
-        "src/navpy/modules/nav/final_approach_detection_event_pump.py",
+        "src/navpy/core/approach/final_approach_detection_event_pump.py",
         "FinalApproachDetectionEventPump",
     ): 150,
     (
@@ -136,7 +136,7 @@ VENDORED_SHA256 = {
 # views, and `@staticmethod` helpers -- none of those mutate or own behavior on
 # a frozen dataclass. Any other method disqualifies the allowance.
 PASSIVE_RECORD_FIELD_LIMITS = {
-    ("src/navpy/logger/navigation_sample.py", "NavigationSample"): 16,
+    ("src/navpy/core/approach/logs/navigation_sample.py", "NavigationSample"): 16,
     ("src/navpy/core/ports/tracks.py", "TrackedObject"): 14,
     # 17 = the original 16 plus ONE nested frozen CaptureTiming record added
     # by the capture-time association change; capture-domain times are one

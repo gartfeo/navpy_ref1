@@ -13,10 +13,10 @@ from typing import Callable, Optional, Protocol
 import numpy as np
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.logger.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.navigation_logger import NavigationLogger
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.calc_data import CalcData
+from navpy.core.approach.calc_data import CalcData
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.approach.geo.legacy_final_approach_actuation import LegacyFinalApproachActuation
 from navpy.core.approach.geo.legacy_final_approach_calculation import (

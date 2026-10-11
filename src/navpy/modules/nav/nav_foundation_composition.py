@@ -56,15 +56,15 @@ from navpy.modules.nav.navigation_zoom import ZoomController
 from navpy.modules.nav.pass_tracker import LegacyPassTracker
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.poi_retry import PoiRetryState
-from navpy.modules.nav.final_approach_source_admission import (
+from navpy.core.approach.final_approach_source_admission import (
     FinalApproachSourceAdmission,
     FinalApproachSourcePorts,
 )
-from navpy.modules.nav.final_approach_publication_admission import (
+from navpy.core.approach.final_approach_publication_admission import (
     FinalApproachPublicationAdmission,
     FinalApproachPublicationAdmissionPorts,
 )
-from navpy.modules.nav.final_approach_source_session import FinalApproachSourceSession
+from navpy.core.approach.final_approach_source_session import FinalApproachSourceSession
 from navpy.modules.nav.vehicle_navigation import (
     ApproachCommandPorts,
     LoiterRadiusLease,
