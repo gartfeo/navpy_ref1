@@ -17,12 +17,12 @@ from navpy.core.kernel.location import Location
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
-from navpy.modules.vision.gimbal_rate_tracker import (
+from navpy.core.perception.pointing.gimbal_rate_tracker import (
     GimbalRateTracker,
     GimbalRateTrackerConfig,
     TrackingState,
 )
-from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
+from navpy.core.perception.pointing.gimbal_tracking_sample import GimbalAngularSample
 
 
 class TestGimbalRateTrackerThreadSafety(unittest.TestCase):
@@ -79,7 +79,7 @@ class TestDetectorSimTracking(unittest.TestCase):
         from navpy.modules.vision.sim.detector_sim import DetectorSim
         from navpy.core.ports.gimbal_abc import GimbalData
         from navpy.core.kernel.config.uas_args import UasArgs
-        from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+        from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
         from tests.conftest import create_mock_args
 
         gimbal = Mock()
@@ -189,7 +189,7 @@ class TestProjectPoi(unittest.TestCase):
         from navpy.core.ports.gimbal_abc import GimbalData
         from navpy.modules.vision.simulation_object import SimulationObject
         from navpy.core.kernel.config.uas_args import UasArgs
-        from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+        from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
         from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
         from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
         from navpy.modules.vision.sim.ideal_poi_projector import (

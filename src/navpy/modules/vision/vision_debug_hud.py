@@ -7,8 +7,8 @@ import math
 import cv2
 import numpy as np
 
-from navpy.modules.vision.gimbal_rate_tracker import GimbalTrackResult
-from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalTrackResult
+from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 from navpy.modules.vision.vision_ui_ports import SimDebugSnapshot
 
 

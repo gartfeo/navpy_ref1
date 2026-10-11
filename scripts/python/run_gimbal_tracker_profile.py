@@ -10,7 +10,7 @@ from typing import Protocol
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
 from navpy.modules.vision.vision_camera_factory import (
     build_camera_model,
     build_zoom_calibration,
@@ -18,12 +18,12 @@ from navpy.modules.vision.vision_camera_factory import (
 from navpy.modules.vision.vision_gimbal_profile import build_gimbal_data
 from navpy.modules.vision.vision_tracking_composition import build_tracking_config
 from navpy.modules.vision.vision_zoom_profile import build_zoom_config
-from navpy.modules.vision.vision_detector_profile import get_detector_settings
-from navpy.modules.vision.vision_profile_loader import (
+from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
+from navpy.core.perception.profile.vision_profile_loader import (
     get_devices,
     resolve_profile,
 )
-from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
+from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
 
 from scripts.python.run_gimbal_tracker_args import SIYI_PROFILE_NAME
 

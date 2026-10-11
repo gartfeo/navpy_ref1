@@ -8,8 +8,8 @@ from navpy.args.vision_args import VisionArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.approach_strategy import ApproachKind
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.detection_coordination import DetectionCoordination
@@ -19,7 +19,7 @@ from navpy.modules.vision.vision_controller_composition import (
     build_vision_controller,
 )
 from navpy.modules.vision.vision_controller_ports import VisionControllerPorts
-from navpy.modules.vision.vision_profile_types import VisionProfile
+from navpy.core.perception.profile.vision_profile_types import VisionProfile
 
 
 class VisionController:

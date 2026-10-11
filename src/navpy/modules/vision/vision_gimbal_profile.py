@@ -10,7 +10,7 @@ from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )
-from navpy.modules.vision.vision_class_profile import compute_max_detect_dist
+from navpy.core.perception.profile.vision_class_profile import compute_max_detect_dist
 
 
 DEFAULT_GIMBAL_SETUP_ATT = [90, 0, 90]

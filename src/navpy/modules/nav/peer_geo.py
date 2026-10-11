@@ -12,10 +12,10 @@ from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.nav.nav_state import NavigationTaskState, GeoHoldState
 from navpy.modules.vision.detector_ports import GeoPointingPort, MountCatalogPort
-from navpy.modules.vision.vision_class_profile import (
+from navpy.core.perception.profile.vision_class_profile import (
     get_class_detect_size,
     get_min_pixels_for_class,
 )

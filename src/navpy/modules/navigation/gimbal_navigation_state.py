@@ -13,20 +13,20 @@ from navpy.core.ports.gimbal_hardware_ports import (
     GimbalActuatorPort,
     GimbalMountPort,
 )
-from navpy.modules.vision.gimbal_rate_tracker import (
+from navpy.core.perception.pointing.gimbal_rate_tracker import (
     GimbalRateTracker,
     GimbalRateTrackerConfig,
 )
-from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
+from navpy.core.perception.pointing.gimbal_rate_types import GimbalTrackResult
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
-from navpy.modules.vision.poi_zoom_types import (
+from navpy.core.perception.zoom.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.core.perception.zoom.poi_zoom_types import (
     PoiZoomTrackerConfig,
     ZoomTrackResult,
 )
 
 if TYPE_CHECKING:
-    from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+    from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 
 
 @dataclass(frozen=True)

@@ -10,8 +10,8 @@ from navpy.core.kernel.config.navigation_args import NavigationAlgorithm, Naviga
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.logger.navigation_logger import NavigationLogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.navigation_command_session import NavigationCommandSession
 from navpy.modules.navigation.navigation_lifecycle import NavigationLifecycle

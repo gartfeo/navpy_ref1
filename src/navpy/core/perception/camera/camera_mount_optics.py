@@ -16,7 +16,7 @@ from navpy.core.perception.camera.camera_mount_ports import (
     LiveZoomReadbackPort,
 )
 from navpy.core.perception.camera.camera_mount_types import CameraMountOptics
-from navpy.modules.vision.vision_class_profile import (
+from navpy.core.perception.profile.vision_class_profile import (
     MIN_CONFIRM_PIXELS,
     MIN_DETECT_PIXELS,
 )

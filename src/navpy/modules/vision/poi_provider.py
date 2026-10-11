@@ -9,7 +9,7 @@ from navpy.core.kernel.config.vehicle_arg_ports import (
     MissionParameterReader,
     ParameterDefaultReader,
 )
-from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.args.navigation_poi_args import NavigationPoiArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 

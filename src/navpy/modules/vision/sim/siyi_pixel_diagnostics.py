@@ -169,7 +169,7 @@ def projected_poi_pixels(
     camera: Location,
     poi_location: Location,
 ) -> float:
-    from navpy.modules.vision.vision_class_profile import get_class_detect_size
+    from navpy.core.perception.profile.vision_class_profile import get_class_detect_size
     distance = distance_m(camera, poi_location)
     return poi.pixel.calibration.fy_px * get_class_detect_size(0) / max(
         distance,

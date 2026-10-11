@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import inspect
 
-from navpy.modules.vision import continuous_zoom_policy
-from navpy.modules.vision import poi_zoom_orchestrator
-from navpy.modules.vision import poi_zoom_types
+from navpy.core.perception.zoom import continuous_zoom_policy
+from navpy.core.perception.zoom import poi_zoom_orchestrator
+from navpy.core.perception.zoom import poi_zoom_types
 
 
 def test_facades_reexport_exact_owner_symbols() -> None:

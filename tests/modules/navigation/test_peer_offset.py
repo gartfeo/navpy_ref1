@@ -192,7 +192,7 @@ class TestCalcPeerApproachOffset(unittest.TestCase):
 
     def test_orbit_radius_from_detect_pixels(self):
         """Orbit radius derived from fy, class_size, MIN_DETECT_PIXELS with 10% margin."""
-        from navpy.modules.vision.vision_class_profile import MIN_DETECT_PIXELS, get_class_detect_size
+        from navpy.core.perception.profile.vision_class_profile import MIN_DETECT_PIXELS, get_class_detect_size
 
         poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
@@ -227,7 +227,7 @@ class TestCalcPeerApproachOffset(unittest.TestCase):
 
     def test_orbit_detection_possible_at_orbit_distance(self):
         """POI must have >= MIN_DETECT_PIXELS at the orbit slant range."""
-        from navpy.modules.vision.vision_class_profile import MIN_DETECT_PIXELS, get_class_detect_size
+        from navpy.core.perception.profile.vision_class_profile import MIN_DETECT_PIXELS, get_class_detect_size
 
         poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
@@ -262,7 +262,7 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
     """Orbit slant range must depend on whether the mount can zoom."""
 
     def test_zoom_mount_orbits_at_detect_slant(self):
-        from navpy.modules.vision.vision_class_profile import MIN_DETECT_PIXELS, get_class_detect_size
+        from navpy.core.perception.profile.vision_class_profile import MIN_DETECT_PIXELS, get_class_detect_size
 
         poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
@@ -281,7 +281,7 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
 
     def test_fixed_mount_orbits_at_confirm_slant(self):
         """Without zoom, the drone must orbit closer — at the confirm slant."""
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS, get_class_detect_size
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS, get_class_detect_size
 
         poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)
@@ -328,7 +328,7 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
             MIN_APPROACH_STANDOFF_M,
             _ORBIT_PIXEL_MARGIN,
         )
-        from navpy.modules.vision.vision_class_profile import (
+        from navpy.core.perception.profile.vision_class_profile import (
             MIN_TRACK_PIXELS,
             get_class_detect_size,
         )
@@ -358,7 +358,7 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         """With a small recognition demand the 1x tracking bound (12 px) is the
         binding (closer) constraint and the orbit sits there."""
         from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
-        from navpy.modules.vision.vision_class_profile import (
+        from navpy.core.perception.profile.vision_class_profile import (
             MIN_TRACK_PIXELS,
             get_class_detect_size,
         )
@@ -454,7 +454,7 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         """A fixed-FOV mount keeps camera-confirm-range sizing even when
         orbit_limits is supplied (it can't zoom to recover recognition)."""
         from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS, get_class_detect_size
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS, get_class_detect_size
 
         poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=300)  # alt = 100

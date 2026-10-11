@@ -128,7 +128,7 @@ class TestOptimizedAltitude(unittest.TestCase):
         self.assertGreater(zoom["detect_range_m"], zoom["confirm_range_m"])
         # Ranges derive from the diagonal class sizes (the single source);
         # compute from the live values so this stays order-independent.
-        from navpy.modules.vision.vision_class_profile import (
+        from navpy.core.perception.profile.vision_class_profile import (
             _MIN_CLASS_SIZE,
             get_class_detect_size,
             get_detector_class_dimensions,

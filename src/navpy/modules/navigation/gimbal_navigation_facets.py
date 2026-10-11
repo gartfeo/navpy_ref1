@@ -8,8 +8,8 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.gimbal_navigation_state import GimbalNavigationStatus
 from navpy.modules.navigation.gimbal_tracking_constants import ARMED_ANY_OBJ_ID
 from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
-from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
-from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.pointing.gimbal_rate_types import GimbalTrackResult
+from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 
 
 class GimbalStatusParts(Protocol):

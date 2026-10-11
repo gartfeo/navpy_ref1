@@ -26,7 +26,7 @@ from navpy.core.perception.camera.camera_mount_optics import (
 from navpy.core.perception.camera.camera_mount_zoom_readback import MountZoomReadback
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
+    from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
 
 
 @dataclass(frozen=True)

@@ -104,7 +104,7 @@ def test_configured_factory_opens_once_and_default_ideal_does_no_io(tmp_path, mo
 
 def test_real_render_composition_owns_recorder_and_binds_pipeline(tmp_path,monkeypatch):
     from navpy.core.kernel.config.uas_args import UasArgs
-    from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+    from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
     from navpy.modules.vision.sim.sim_render_composition import build_render_foundation, build_pipeline
     _,camera,_,_,loc,poi,*_ = rig(None)
     for key,value in dict(NAVPY_SIM_PROJECTION_RECORDER='1',NAVPY_SIM_EVIDENCE_DIR=str(tmp_path),
@@ -196,7 +196,7 @@ def test_recorder_io_failure_keeps_pipeline_result_or_original_exception(tmp_pat
 @pytest.mark.parametrize('stage',['finish','asdict'])
 def test_pre_emit_failure_latches_incomplete_through_production_error_callback(tmp_path,monkeypatch,stage):
     from navpy.core.kernel.config.uas_args import UasArgs
-    from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+    from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
     from navpy.modules.vision.sim.finite_projection_evidence import ProjectionCapture
     from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
     from navpy.modules.vision.sim.sim_camera_ports import FrameSize

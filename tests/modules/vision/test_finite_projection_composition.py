@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 from navpy.core.kernel.config.uas_args import UasArgs
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.ports.detect_data import DetectStatus
 from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize

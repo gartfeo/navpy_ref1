@@ -28,7 +28,7 @@ def default_elevation_lookup(
     latitude: float,
     longitude: float,
 ) -> float | None:
-    from navpy.utils.zc_util_instance import ZcUtilInstance
+    from navpy.core.perception.geo.zc_util_instance import ZcUtilInstance
 
     utility = ZcUtilInstance.get()
     return utility.get_elevation((latitude, longitude)) if utility else None

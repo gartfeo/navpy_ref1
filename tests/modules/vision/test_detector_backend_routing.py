@@ -20,7 +20,7 @@ from navpy.modules.vision.real_detector_config import (
 from navpy.modules.vision.real_detector_factory import RealDetectorFactory
 from navpy.app.perception.real_detector_model_builder import build_models
 from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
-from navpy.modules.vision.vision_profile_types import CameraMountSpec
+from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
 
 _MODELS = "navpy.app.perception.real_detector_model_builder"
 

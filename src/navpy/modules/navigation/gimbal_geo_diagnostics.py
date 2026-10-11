@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Callable
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalGeoMemory,
     GimbalHardware,
@@ -14,7 +14,7 @@ from navpy.modules.navigation.gimbal_navigation_state import (
 )
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.geo_ray_diagnostics import GeoRayDiagnostic
+    from navpy.core.perception.geo.geo_ray_diagnostics import GeoRayDiagnostic
 
 
 class GeoRayDiagnosticLogger:

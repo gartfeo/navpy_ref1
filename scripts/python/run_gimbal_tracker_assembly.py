@@ -22,7 +22,7 @@ from navpy.modules.vision.real_detector_config import (
     DetectorPipelineConfig,
 )
 from navpy.modules.vision.peripheral.gimbal_siyi import GimbalSiyi
-from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
 
 from scripts.python.run_gimbal_tracker_args import (
     SIYI_PROFILE_NAME,

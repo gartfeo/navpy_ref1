@@ -8,8 +8,8 @@ from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.logger.navigation_logger import ClosestSnap
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.modules.navigation.navigation_composition import compose_navigation
 from navpy.modules.navigation.navigation_command_worker import (
     CommandLoopObserver,

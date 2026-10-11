@@ -20,7 +20,7 @@ from navpy.modules.vision.detector_ports import DetectorFleetMember
 if TYPE_CHECKING:
     from navpy.core.kernel.attitude import Attitude
     from navpy.core.kernel.location import Location
-    from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+    from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
     from navpy.core.perception.camera.camera_mount import CameraMount
     from navpy.core.ports.detect_data import DetectedObject
     from navpy.core.ports.detection_event_lease import DetectionEventLease
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from navpy.core.ports.detection_publication import (
         DetectionPublication,
     )
-    from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+    from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 
 
 class CoordinatorIdentityFacet:

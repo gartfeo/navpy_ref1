@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.geo_ray_diagnostics import compute_geo_ray_diagnostic
+from navpy.core.perception.geo.geo_ray_diagnostics import compute_geo_ray_diagnostic
 from navpy.core.ports.gimbal_abc import GimbalData
 
 
@@ -47,7 +47,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
         geo_ref = _GeoRef(uv=(960.0, 540.0), ray=(2.0, 0.0, 1.0))
 
         with patch(
-            "navpy.modules.vision.geo_ray_diagnostics.pymap3d.geodetic2ned",
+            "navpy.core.perception.geo.geo_ray_diagnostics.pymap3d.geodetic2ned",
             return_value=np.array([100.0, 20.0, 50.0]),
         ):
             diag = compute_geo_ray_diagnostic(
@@ -78,7 +78,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
         geo_ref = _GeoRef(uv=(2000.0, 540.0), ray=(2.0, 0.0, 1.0))
 
         with patch(
-            "navpy.modules.vision.geo_ray_diagnostics.pymap3d.geodetic2ned",
+            "navpy.core.perception.geo.geo_ray_diagnostics.pymap3d.geodetic2ned",
             return_value=np.array([100.0, 0.0, 50.0]),
         ):
             diag = compute_geo_ray_diagnostic(
@@ -99,7 +99,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
         validator = Mock()
 
         with patch(
-            "navpy.modules.vision.geo_ray_diagnostics.pymap3d.geodetic2ned",
+            "navpy.core.perception.geo.geo_ray_diagnostics.pymap3d.geodetic2ned",
             return_value=np.array([100.0, 0.0, 50.0]),
         ):
             diag = compute_geo_ray_diagnostic(
@@ -120,7 +120,7 @@ class TestGeoRayDiagnostics(unittest.TestCase):
         geo_ref = _GeoRef(uv=(960.0, 540.0), ray=(1.0, 0.0, 0.0))
 
         with patch(
-            "navpy.modules.vision.geo_ray_diagnostics.pymap3d.geodetic2ned",
+            "navpy.core.perception.geo.geo_ray_diagnostics.pymap3d.geodetic2ned",
             return_value=np.array([100.0, 0.0, 50.0]),
         ):
             diag = compute_geo_ray_diagnostic(

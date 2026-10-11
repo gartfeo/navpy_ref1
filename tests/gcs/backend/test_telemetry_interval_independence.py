@@ -24,7 +24,7 @@ def test_telemetry_interval_does_not_read_vision_profiles():
             loop._stop.set()
 
         with patch("gcs.backend.telemetry_loop.settings_store.get", return_value=settings), \
-             patch("navpy.modules.vision.vision_profile_loader.load_profiles", side_effect=ValueError("invalid profile")) as profiles, \
+             patch("navpy.core.perception.profile.vision_profile_loader.load_profiles", side_effect=ValueError("invalid profile")) as profiles, \
              patch("gcs.backend.telemetry_loop.ws_manager.broadcast", new_callable=AsyncMock), \
              patch("gcs.backend.telemetry_loop.asyncio.sleep", side_effect=stop_after_sleep):
             await loop._loop()

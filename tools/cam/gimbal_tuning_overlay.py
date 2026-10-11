@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
+from navpy.core.perception.pointing.gimbal_rate_types import GimbalTrackResult
 from .gimbal_tuning_geometry import (
     ANCHOR_NAMES,
     TrackingCommand,

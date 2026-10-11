@@ -43,7 +43,7 @@ from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 
 PROFILE_PATH = (
     Path(__file__).resolve().parents[3]
-    / "src/navpy/modules/vision/vision_profiles.json"
+    / "src/navpy/core/perception/profile/vision_profiles.json"
 )
 
 # The only mode this camera serves over RTSP.

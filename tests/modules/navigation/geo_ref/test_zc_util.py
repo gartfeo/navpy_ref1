@@ -6,7 +6,7 @@ from numpy.testing import assert_allclose
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.rotation_utils import normalize
-from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.kernel.location import Location
 
 

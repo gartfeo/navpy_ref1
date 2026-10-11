@@ -14,7 +14,7 @@ from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_messages import (
 from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.vision_profile_types import CameraMountSpec
+    from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
 
 
 class GimbalTelemetryPublisher:

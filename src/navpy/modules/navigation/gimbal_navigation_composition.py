@@ -32,17 +32,17 @@ from navpy.modules.navigation.gimbal_loss_recovery import GimbalLossRecovery
 from navpy.modules.navigation.gimbal_visual_tracking import GimbalVisualTracking
 from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
 from navpy.core.perception.camera.camera_mount import CameraMount
-from navpy.modules.vision.geo_ray_diagnostics import compute_geo_ray_diagnostic
-from navpy.modules.vision.gimbal_rate_tracker import (
+from navpy.core.perception.geo.geo_ray_diagnostics import compute_geo_ray_diagnostic
+from navpy.core.perception.pointing.gimbal_rate_tracker import (
     GimbalRateTracker,
     GimbalRateTrackerConfig,
 )
-from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
-from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
-from navpy.modules.vision.vision_camera_calibration import (
+from navpy.core.perception.zoom.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.core.perception.profile.vision_camera_calibration import (
     read_camera_zoom_calibration,
 )
-from navpy.modules.vision.vision_class_profile import get_class_detect_size
+from navpy.core.perception.profile.vision_class_profile import get_class_detect_size
 
 
 @dataclass(frozen=True)

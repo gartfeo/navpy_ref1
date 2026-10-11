@@ -11,7 +11,7 @@ import re
 from tests.gcs.js_runner import run_node
 import unittest
 
-from navpy.modules.vision.vision_class_profile import get_class_detect_size
+from navpy.core.perception.profile.vision_class_profile import get_class_detect_size
 
 _UTILS_DIR = os.path.normpath(os.path.join(
     os.path.dirname(__file__), "..", "..",

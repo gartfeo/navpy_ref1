@@ -23,7 +23,7 @@ from navpy.modules.vision.sim.sim_runtime_ports import (
     OverlayPosition,
 )
 from navpy.modules.vision.simulation_object import SimulationObject
-from navpy.modules.vision.vision_class_profile import get_class_detect_size
+from navpy.core.perception.profile.vision_class_profile import get_class_detect_size
 
 
 class ConfirmationCapture:

@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import pytest
 
-from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
+from navpy.core.perception.pointing.gimbal_tracking_sample import GimbalAngularSample
 from tests.detection_factory import make_detected_poi
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))

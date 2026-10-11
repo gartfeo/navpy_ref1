@@ -18,9 +18,9 @@ from scripts.eval_gcs_demo_constants import (
 from scripts.eval_gcs_demo_evidence import navigation_speedup_errors
 from scripts.eval_gcs_demo_models import EpisodeMetrics, RegressionError
 
-from navpy.modules.vision.vision_class_profile import get_min_pixels_for_class
-from navpy.modules.vision.vision_profile_loader import load_profiles
-from navpy.modules.vision.vision_profile_types import VisionProfile
+from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class
+from navpy.core.perception.profile.vision_profile_loader import load_profiles
+from navpy.core.perception.profile.vision_profile_types import VisionProfile
 
 
 _VISION_PROFILE_RE = re.compile(r"Using vision profile '(?P<profile>[^']+)'")

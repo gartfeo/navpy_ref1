@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
-from navpy.modules.vision.vision_class_profile import (
+from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.core.perception.profile.vision_class_profile import (
     CLASS_DETECT_SIZES,
     MIN_CONFIRM_PIXELS,
     get_min_pixels_for_class,

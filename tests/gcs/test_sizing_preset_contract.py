@@ -8,8 +8,8 @@ from pydantic import ValidationError
 
 from gcs.backend.models import VehicleAssignment
 from gcs.backend.routes.vision_profiles import ProfileUpdate
-from navpy.modules.vision.vision_profile_loader import load_profiles
-from navpy.modules.vision.vision_class_profile import DOCK_PRESET_NAME
+from navpy.core.perception.profile.vision_profile_loader import load_profiles
+from navpy.core.perception.profile.vision_class_profile import DOCK_PRESET_NAME
 
 
 def test_all_shipped_profiles_use_the_single_dock_preset():
@@ -42,7 +42,7 @@ def test_profile_file_retired_preset_fails(tmp_path, retired):
     path.write_text(json.dumps({"profiles": {"fixture": {"detector": {
         "dock_presets": {retired: {"min_pixel_size": 45}}
     }}}}))
-    with patch("navpy.modules.vision.vision_profile_loader._profiles_path", return_value=path):
+    with patch("navpy.core.perception.profile.vision_profile_loader._profiles_path", return_value=path):
         with pytest.raises(ValueError, match="unknown sizing presets"):
             load_profiles()
 
@@ -58,7 +58,7 @@ def test_profile_file_unknown_preset_fails_without_rewriting(tmp_path):
         "dock_presets": {"obsolete-preset": {"min_pixel_size": 45}}
     }}}}))
     before = path.read_bytes()
-    with patch("navpy.modules.vision.vision_profile_loader._profiles_path", return_value=path):
+    with patch("navpy.core.perception.profile.vision_profile_loader._profiles_path", return_value=path):
         with pytest.raises(ValueError, match="unknown sizing presets"):
             load_profiles()
     assert path.read_bytes() == before
@@ -69,7 +69,7 @@ def test_profile_loader_preserves_optional_empty_detector_blocks(tmp_path, detec
     path = tmp_path / "profiles.json"
     profile = {"detector": detector}
     path.write_text(json.dumps({"profiles": {"fixture": profile}}))
-    with patch("navpy.modules.vision.vision_profile_loader._profiles_path", return_value=path):
+    with patch("navpy.core.perception.profile.vision_profile_loader._profiles_path", return_value=path):
         profiles, _, _ = load_profiles()
     assert profiles["fixture"] == profile
 
@@ -77,6 +77,6 @@ def test_profile_loader_preserves_optional_empty_detector_blocks(tmp_path, detec
 def test_malformed_detector_has_a_clear_error(tmp_path):
     path = tmp_path / "profiles.json"
     path.write_text(json.dumps({"profiles": {"fixture": {"detector": []}}}))
-    with patch("navpy.modules.vision.vision_profile_loader._profiles_path", return_value=path):
+    with patch("navpy.core.perception.profile.vision_profile_loader._profiles_path", return_value=path):
         with pytest.raises(ValueError, match="detector must be a mapping"):
             load_profiles()

@@ -18,11 +18,11 @@ from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalLossPolicy,
     GimbalTrackingSetup,
 )
-from navpy.modules.vision.gimbal_rate_tracker import (
+from navpy.core.perception.pointing.gimbal_rate_tracker import (
     GimbalRateTrackerConfig,
     TrackingState,
 )
-from navpy.modules.vision.gimbal_rate_types import (
+from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalObservationDisposition,
     GimbalRateUpdate,
     GimbalTrackResult,
@@ -30,11 +30,11 @@ from navpy.modules.vision.gimbal_rate_types import (
 from navpy.core.ports.detect_data import DetectedObject
 from tests.detection_factory import make_detected_poi
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.poi_zoom_types import (
+from navpy.core.perception.zoom.poi_zoom_types import (
     PoiZoomTrackerConfig,
     ZoomTrackResult,
 )
-from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
+from navpy.core.perception.zoom.zoom_tracking_types import ZoomTrackingState
 
 
 def _make_poi(x_error=960, y_error=540):

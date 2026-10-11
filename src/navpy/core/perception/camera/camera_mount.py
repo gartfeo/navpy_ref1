@@ -23,7 +23,7 @@ from navpy.core.perception.camera.camera_mount_zoom_readback import (
 if TYPE_CHECKING:
     from navpy.core.ports.camera_abc import CameraAbc
     from navpy.core.ports.gimbal_abc import GimbalAbc
-    from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
+    from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
 
 
 @dataclass

@@ -1,6 +1,6 @@
 import unittest
 
-from navpy.modules.vision.zoom_calibration import (
+from navpy.core.perception.zoom.zoom_calibration import (
     ZoomCalibrationEntry,
     ZoomCalibrationTable,
 )

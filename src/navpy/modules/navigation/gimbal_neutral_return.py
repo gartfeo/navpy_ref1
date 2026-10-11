@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
+from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTracker
 
 
 MODE_FOLLOW = 1

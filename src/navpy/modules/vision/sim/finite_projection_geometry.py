@@ -1,6 +1,6 @@
 """Finite simulator reference bounding box; navigation does not consume truth."""
 from __future__ import annotations
-from navpy.modules.vision.vision_class_profile import get_detector_class_dimensions
+from navpy.core.perception.profile.vision_class_profile import get_detector_class_dimensions
 
 
 def tracking_bbox(pixel_ok: bool, focal_y: float, distance_m: float,

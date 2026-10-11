@@ -8,7 +8,7 @@ import re
 import tempfile
 from unittest.mock import Mock
 
-from navpy.modules.vision.vision_class_profile import (
+from navpy.core.perception.profile.vision_class_profile import (
     DETECTOR_CLASS_DIMENSIONS,
     get_class_detect_size,
 )
@@ -1175,7 +1175,7 @@ class TestLiveGimbalEndToEndContract(unittest.TestCase):
         from gcs.backend.vehicle_manager import VehicleEntry
         from navpy.core.kernel.attitude import Attitude
         from navpy.core.perception.camera.camera_mount_types import CameraMountOptics
-        from navpy.modules.vision.vision_profile_types import CameraMountSpec
+        from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
         from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import GimbalTelemetryPublisher
         from navpy.core.ports.gimbal_abc import GimbalData
 

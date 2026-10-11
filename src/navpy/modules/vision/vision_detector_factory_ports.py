@@ -12,7 +12,7 @@ from navpy.modules.vision.vision_ui_ports import (
     DetectorUiStepPort,
     SimDebugSource,
 )
-from navpy.modules.vision.vision_profile_types import CameraMountSpec, VisionProfile
+from navpy.core.perception.profile.vision_profile_types import CameraMountSpec, VisionProfile
 
 
 class DetectorConstructionCleanupPort(Protocol):

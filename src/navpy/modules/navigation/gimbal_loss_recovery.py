@@ -11,7 +11,7 @@ from navpy.modules.navigation.gimbal_navigation_state import (
 from navpy.modules.navigation.gimbal_neutral_return import GimbalNeutralReturn
 from navpy.modules.navigation.gimbal_tracking_constants import MODE_LOCK
 from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
-from navpy.modules.vision.gimbal_rate_types import TrackingState
+from navpy.core.perception.pointing.gimbal_rate_types import TrackingState
 
 
 _COMMAND_ERRORS = (AttributeError, OSError, RuntimeError, TypeError, ValueError)

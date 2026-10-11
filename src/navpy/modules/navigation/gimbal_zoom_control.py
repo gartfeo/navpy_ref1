@@ -8,14 +8,14 @@ from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalSessionFence,
     GimbalTrackers,
 )
-from navpy.modules.vision.gimbal_rate_types import (
+from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalTrackResult,
     TrackingState,
 )
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_zoom_ports import ZoomLogger
-from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
-from navpy.modules.vision.poi_zoom_types import ZoomStopPlan, ZoomTrackResult
+from navpy.core.perception.zoom.poi_zoom_ports import ZoomLogger
+from navpy.core.perception.zoom.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.core.perception.zoom.poi_zoom_types import ZoomStopPlan, ZoomTrackResult
 
 
 class GimbalZoomController:

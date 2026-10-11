@@ -8,12 +8,12 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
-from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
+from navpy.core.perception.pointing.gimbal_rate_types import GimbalTrackResult
 from navpy.core.ports.tracks import TrackedObject
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 
 
 class TimestampedVisionItem(Protocol):

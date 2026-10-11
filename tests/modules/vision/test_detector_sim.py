@@ -15,7 +15,7 @@ from pymap3d import ned2geodetic
 from navpy.core.kernel.config.uas_args import UasArgs
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.ports.detect_data import (
     DetectedObject,
     DetectStatus,

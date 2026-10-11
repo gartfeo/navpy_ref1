@@ -8,10 +8,10 @@ from typing import Optional, Protocol
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.gimbal_rate_tracker import GimbalTrackResult
+from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalTrackResult
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 
 
 class AircraftAttitudeReader(Protocol):

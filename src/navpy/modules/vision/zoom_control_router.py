@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Protocol, Sequence
 
 if TYPE_CHECKING:
     from navpy.core.perception.detection.poi_identity import PoiIdentity
-    from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+    from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 
 
 class ZoomMember(Protocol):

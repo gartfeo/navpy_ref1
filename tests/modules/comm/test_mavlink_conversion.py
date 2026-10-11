@@ -127,7 +127,7 @@ class TestClassToTaskType(unittest.TestCase):
 
     def test_dock_class_maps_to_dock_task(self):
         from navpy.core.link.types import class_to_task_type
-        from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
+        from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
         self.assertEqual(class_to_task_type(DOCK_DETECT_CLASS_ID), TaskTypeMsgData.DOCK)
 
     def test_unknown_class_returns_unknown(self):

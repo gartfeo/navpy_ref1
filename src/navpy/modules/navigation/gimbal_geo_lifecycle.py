@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalDetectionMemory,
     GimbalGeoMemory,

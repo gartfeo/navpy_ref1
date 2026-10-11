@@ -70,6 +70,6 @@ def test_current_settings_file_preserves_all_fields(tmp_path):
 def test_config_reads_unchanged_navpy_profile_format():
     from gcs.backend.config import _resolve_presets
     presets = {"dock": {"altitude_m": 211, "min_pixel_size": 43, "label": "Fixture"}}
-    with patch("navpy.modules.vision.vision_profile_loader.load_profiles",
+    with patch("navpy.core.perception.profile.vision_profile_loader.load_profiles",
                return_value=({"fixture": {"detector": {"dock_presets": presets}}}, "fixture", None)):
         assert _resolve_presets(SimpleNamespace(vision_profile="fixture")) == presets

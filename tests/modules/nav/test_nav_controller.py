@@ -32,8 +32,8 @@ from navpy.modules.vision.detection_coordinator import DetectionCoordinator
 from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.core.ports.detect_response import DetectResponse
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
-from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
+from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.zoom.zoom_tracking_types import ZoomTrackingState
 from navpy.core.link.task_availability_msg import AvailableTaskRequestMsg
 from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.link.task_assignment_msg import (
@@ -1088,8 +1088,8 @@ class TestNavControllerStateTransitions(unittest.TestCase):
 
     def test_class0_recognition_gate_relaxed_to_36(self):
         """The dock (class-0) recognition gate resolves to 36px."""
-        from navpy.modules.vision.vision_class_profile import get_min_pixels_for_class
-        from navpy.modules.vision.vision_profile_loader import resolve_profile
+        from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class
+        from navpy.core.perception.profile.vision_profile_loader import resolve_profile
         _, profile, _ = resolve_profile("siyi_zr10", Mock())
         self.assertEqual(get_min_pixels_for_class(profile, 0), 36.0)
 
@@ -2571,7 +2571,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
 
     def test_act_confirm_blocks_below_min_confirm_pixels(self):
         """bbox height below MIN_CONFIRM_PIXELS → confirmation deferred."""
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         small_h = MIN_CONFIRM_PIXELS - 1
@@ -2596,7 +2596,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
 
     def test_act_confirm_passes_at_min_confirm_pixels(self):
         """bbox height at/above MIN_CONFIRM_PIXELS → proceeds to review."""
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         poi = _create_detected_poi(
@@ -5802,7 +5802,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         from navpy.modules.navigation.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
-        from navpy.modules.vision.vision_class_profile import (
+        from navpy.core.perception.profile.vision_class_profile import (
             get_min_pixels_for_class,
         )
 

@@ -17,7 +17,7 @@ from navpy.modules.nav.confirmation_review import ConfirmationReview
 from navpy.modules.nav.nav_state import ConfirmOverrideInbox
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
-from navpy.modules.vision.vision_class_profile import get_min_pixels_for_class
+from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class
 
 
 @dataclass(frozen=True)

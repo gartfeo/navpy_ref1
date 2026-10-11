@@ -18,8 +18,8 @@ from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )
-from navpy.modules.vision.poi_zoom_mount_adapters import MountZoomAdapter
-from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
+from navpy.core.perception.zoom.poi_zoom_mount_adapters import MountZoomAdapter
+from navpy.core.perception.zoom.zoom_tracking_types import ZoomTrackingState
 from tests.conftest import create_test_camera
 
 
@@ -813,7 +813,7 @@ class TestSyncZoomReverseLookup(unittest.TestCase):
     """sync_zoom_from_hardware with a ZoomCalibrationTable → reverse-lookup."""
 
     def _siyi_cal(self):
-        from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
+        from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
         return ZoomCalibrationTable.from_profile({
             "1.0": 1.1, "1.4": 1.2, "1.5": 1.3, "1.6": 1.4, "1.7": 1.5,
             "1.8": 1.6, "1.9": 1.7, "2.0": 1.8, "3.0": 2.8,
@@ -880,7 +880,7 @@ class TestSyncZoomReverseLookup(unittest.TestCase):
     def test_sync_returns_false_when_readback_to_command_returns_none(self):
         """Empty calibration table → readback_to_command returns None →
         sync returns False and does not call set_zoom."""
-        from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
+        from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
         empty_cal = ZoomCalibrationTable(entries=())
         camera = Mock()
         camera._zoom = "1"

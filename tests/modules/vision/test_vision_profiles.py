@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.vision_camera_factory import build_camera_model, build_camera_mounts
-from navpy.modules.vision.vision_class_profile import (
+from navpy.core.perception.profile.vision_class_profile import (
     DETECTOR_CLASS_DIMENSIONS,
     MIN_CONFIRM_PIXELS,
     MIN_DETECT_PIXELS,
@@ -18,14 +18,14 @@ from navpy.modules.vision.vision_class_profile import (
     get_class_detect_size,
     get_min_pixels_for_class,
 )
-from navpy.modules.vision.vision_detector_profile import get_detector_settings
+from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
 from navpy.modules.vision.vision_gimbal_profile import (
     build_gimbal_data,
     resolve_gimbal_device_id,
     resolve_gimbal_seq,
     resolve_gimbal_setup_att,
 )
-from navpy.modules.vision.vision_profile_loader import (
+from navpy.core.perception.profile.vision_profile_loader import (
     _resolve_profile_definitions,
     get_devices,
     load_profiles,
@@ -655,7 +655,7 @@ class TestBuildTrackingConfig(unittest.TestCase):
     def test_estimator_defaults_when_not_overridden(self):
         """Without an estimator block the nested config keeps library defaults
         (the robust knee stays on by default — not silently disabled)."""
-        from navpy.modules.vision.poi_angle_estimator import PoiAngleEstimatorConfig
+        from navpy.core.perception.pointing.poi_angle_estimator import PoiAngleEstimatorConfig
         device = {"gimbal": {"camera_pitch": -20.0, "tracking": {"enabled": True}}}
         config = build_tracking_config(device, sim=True)
         self.assertAlmostEqual(
@@ -722,7 +722,7 @@ class TestBuildZoomConfig(unittest.TestCase):
 
     def test_defaults_when_fields_omitted(self):
         """Only 'enabled=true' provided and no profile → MIN_CONFIRM_PIXELS default."""
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS
 
         device = {"gimbal": {"zoom": {"enabled": True}}}
         config = build_zoom_config(device)
@@ -781,7 +781,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
 
     def test_dock_class_reads_dock_preset(self):
         """The dock class id resolves to the dock preset's min_pixel_size."""
-        from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
+        from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
 
         profile = {"detector": {"dock_presets": {"dock": {"min_pixel_size": 15}}}}
         self.assertAlmostEqual(
@@ -790,7 +790,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
 
     def test_falls_back_to_min_confirm_pixels(self):
         """Non-dock classes have no preset and fall back to MIN_CONFIRM_PIXELS."""
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS
 
         profile = {"detector": {"dock_presets": {"dock": {"min_pixel_size": 11}}}}
         self.assertAlmostEqual(
@@ -800,7 +800,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
 
     def test_retired_preset_names_do_not_feed_the_dock_gate(self):
         """Old small/medium/large keys are not read as the dock preset."""
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS
 
         profile = {"detector": {"dock_presets": {"medium": {"min_pixel_size": 99}}}}
         self.assertAlmostEqual(
@@ -809,7 +809,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
         )
 
     def test_empty_profile_returns_fallback(self):
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS
 
         self.assertAlmostEqual(
             get_min_pixels_for_class({}, 0),
@@ -822,7 +822,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
                 "dock_presets": {"dock": {"min_pixel_size": "not-a-number"}},
             },
         }
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS
 
         self.assertAlmostEqual(
             get_min_pixels_for_class(profile, 0),
@@ -830,7 +830,7 @@ class TestGetMinPixelsForClass(unittest.TestCase):
         )
 
     def test_rejects_nonfinite_or_nonpositive_numeric_values(self):
-        from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
+        from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS
 
         for value in (-1, 0, math.nan, math.inf, -math.inf):
             with self.subTest(value=value):
@@ -862,7 +862,7 @@ class TestGetClassDetectSize(unittest.TestCase):
     def test_dock_is_the_only_class(self):
         # The catalog holds exactly one class: the dock, 3.5 m x 2.5 m.
         # Its size is the bbox diagonal sqrt(3.5^2 + 2.5^2) = sqrt(18.5) ≈ 4.301.
-        from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
+        from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
 
         self.assertEqual(DOCK_DETECT_CLASS_ID, 0)
         self.assertEqual(
@@ -1005,7 +1005,7 @@ class TestBuildCameraMounts(unittest.TestCase):
         self.assertEqual(spec.gimbal_device_id, 1)
 
     def test_camera_mount_spec_snapshots_device_recursively(self):
-        from navpy.modules.vision.vision_profile_types import CameraMountSpec
+        from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
 
         source = {
             "name": "camera_a",

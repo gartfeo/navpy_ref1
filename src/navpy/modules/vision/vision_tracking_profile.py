@@ -6,8 +6,8 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTrackerConfig
-from navpy.modules.vision.poi_angle_estimator import PoiAngleEstimatorConfig
+from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTrackerConfig
+from navpy.core.perception.pointing.poi_angle_estimator import PoiAngleEstimatorConfig
 
 
 @dataclass(frozen=True)

@@ -13,7 +13,7 @@ from navpy.modules.nav.approach_planner import ApproachPlanner
 from navpy.modules.nav.mission_catalog import MissionCatalog
 from navpy.modules.nav.nav_state import NavigationTaskState
 from navpy.modules.nav.vehicle_navigation import VehicleNavigationCommands
-from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
+from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
 
 
 @dataclass(frozen=True)

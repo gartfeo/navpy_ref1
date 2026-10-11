@@ -18,9 +18,9 @@ from navpy.core.ports.law_config import (
     FinalApproachLawConfig,
 )
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
-from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
-from navpy.modules.vision.gimbal_rate_types import GimbalRateTrackerConfig
-from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
+from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTracker
+from navpy.core.perception.pointing.gimbal_rate_types import GimbalRateTrackerConfig
+from navpy.core.perception.pointing.gimbal_tracking_sample import GimbalAngularSample
 from navpy.core.ports.pixel_observation import (
     PixelCalibration,
     PixelObservation,

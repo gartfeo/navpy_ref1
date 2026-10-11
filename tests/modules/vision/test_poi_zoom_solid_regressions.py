@@ -10,36 +10,36 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.modules.vision.gimbal_rate_types import (
+from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalTrackResult,
     TrackingState,
 )
-from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
-from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
-from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
+from navpy.core.perception.zoom.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.core.perception.zoom.zoom_tracking_types import ZoomTrackingState
 
 ROOT = Path(__file__).resolve().parents[3]
 # Zoom leaves, one full path each so file moves rewrite them. Every listed file
 # must exist, and other poi_zoom_*.py files beside them are scanned too.
 ZOOM_LEAVES = (
-    "src/navpy/modules/vision/poi_zoom_actuator_epoch.py",
-    "src/navpy/modules/vision/poi_zoom_composition.py",
-    "src/navpy/modules/vision/poi_zoom_continuous.py",
-    "src/navpy/modules/vision/poi_zoom_drive.py",
-    "src/navpy/modules/vision/poi_zoom_drive_outcomes.py",
-    "src/navpy/modules/vision/poi_zoom_drive_strategies.py",
-    "src/navpy/modules/vision/poi_zoom_geometry.py",
-    "src/navpy/modules/vision/poi_zoom_lifecycle.py",
-    "src/navpy/modules/vision/poi_zoom_orchestrator.py",
-    "src/navpy/modules/vision/poi_zoom_ports.py",
-    "src/navpy/modules/vision/poi_zoom_public_view.py",
-    "src/navpy/modules/vision/poi_zoom_readback.py",
-    "src/navpy/modules/vision/poi_zoom_session.py",
-    "src/navpy/modules/vision/poi_zoom_setpoint.py",
-    "src/navpy/modules/vision/poi_zoom_types.py",
-    "src/navpy/modules/vision/poi_zoom_update.py",
-    "src/navpy/modules/vision/continuous_zoom_policy.py",
-    "src/navpy/modules/vision/continuous_zoom_rules.py",
+    "src/navpy/core/perception/zoom/poi_zoom_actuator_epoch.py",
+    "src/navpy/core/perception/zoom/poi_zoom_composition.py",
+    "src/navpy/core/perception/zoom/poi_zoom_continuous.py",
+    "src/navpy/core/perception/zoom/poi_zoom_drive.py",
+    "src/navpy/core/perception/zoom/poi_zoom_drive_outcomes.py",
+    "src/navpy/core/perception/zoom/poi_zoom_drive_strategies.py",
+    "src/navpy/core/perception/zoom/poi_zoom_geometry.py",
+    "src/navpy/core/perception/zoom/poi_zoom_lifecycle.py",
+    "src/navpy/core/perception/zoom/poi_zoom_orchestrator.py",
+    "src/navpy/core/perception/zoom/poi_zoom_ports.py",
+    "src/navpy/core/perception/zoom/poi_zoom_public_view.py",
+    "src/navpy/core/perception/zoom/poi_zoom_readback.py",
+    "src/navpy/core/perception/zoom/poi_zoom_session.py",
+    "src/navpy/core/perception/zoom/poi_zoom_setpoint.py",
+    "src/navpy/core/perception/zoom/poi_zoom_types.py",
+    "src/navpy/core/perception/zoom/poi_zoom_update.py",
+    "src/navpy/core/perception/zoom/continuous_zoom_policy.py",
+    "src/navpy/core/perception/zoom/continuous_zoom_rules.py",
 )
 
 

@@ -12,7 +12,7 @@ from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPla
 from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits, r_nav_min
 from navpy.modules.navigation.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
 from navpy.modules.navigation.peer_offset import calc_peer_approach_offset
-from navpy.modules.vision.vision_class_profile import get_min_pixels_for_class
+from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class
 
 
 _ORBIT_AIRSPEED_FALLBACK_MPS = 25.0

@@ -32,7 +32,7 @@ from navpy.logger.navigation_logger import ClosestSnap  # noqa: E402
 from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
 from navpy.core.kernel.location import Location  # noqa: E402
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc  # noqa: E402
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc  # noqa: E402
 from navpy.modules.navigation.navigation import Navigation  # noqa: E402
 from navpy.modules.navigation.mission_planner import MissionPlanner  # noqa: E402
 from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
@@ -46,7 +46,7 @@ from navpy.core.ports.detect_data import DetectedObject  # noqa: E402
 from navpy.modules.vision.vision_profile_composition import build_vision_profile  # noqa: E402
 from navpy.modules.vision.vision_tracking_composition import build_tracking_config  # noqa: E402
 from navpy.modules.vision.vision_zoom_profile import build_zoom_config  # noqa: E402
-from navpy.modules.vision.vision_class_profile import get_min_pixels_for_class  # noqa: E402
+from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class  # noqa: E402
 # QUALIFIED, not bare. A bare `from pixel_pn_flight_control_trace import ...`
 # resolves only when scripts/ happens to be on sys.path -- true when this file
 # is RUN, false when pytest imports it as `scripts.siyi_pixel_pn_child`. The

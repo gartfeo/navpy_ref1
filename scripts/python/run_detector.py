@@ -34,9 +34,9 @@ from navpy.modules.vision.real_detector_config import (
     DetectorModelConfig,
     DetectorPipelineConfig,
 )
-from navpy.modules.vision.vision_profile_loader import resolve_profile
+from navpy.core.perception.profile.vision_profile_loader import resolve_profile
 from navpy.modules.vision.vision_camera_factory import build_camera_mounts
-from navpy.modules.vision.vision_detector_profile import get_detector_settings
+from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
 
 
 class _DummyVehicle:

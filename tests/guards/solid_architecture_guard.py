@@ -220,7 +220,7 @@ FACADE_METHOD_ALLOWANCES = {
         "Detector",
     ): FacadeMethodAllowance(1, 40, frozenset({"_parts"})),
     (
-        "src/navpy/modules/vision/poi_zoom_orchestrator.py",
+        "src/navpy/core/perception/zoom/poi_zoom_orchestrator.py",
         "PoiZoomTracker",
     ): FacadeMethodAllowance(1, 17, frozenset({"_parts"})),
     (

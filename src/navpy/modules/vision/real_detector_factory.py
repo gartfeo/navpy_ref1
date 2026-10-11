@@ -14,8 +14,8 @@ from navpy.core.kernel.config.detector_backend import (
     validate_detector_backend,
 )
 from navpy.modules.vision.vision_detector_factory_ports import VisionDetectorNode
-from navpy.modules.vision.vision_detector_profile import validate_detector_settings_keys
-from navpy.modules.vision.vision_profile_types import CameraMountSpec, VisionProfile
+from navpy.core.perception.profile.vision_detector_profile import validate_detector_settings_keys
+from navpy.core.perception.profile.vision_profile_types import CameraMountSpec, VisionProfile
 from navpy.modules.vision.vision_tracking_composition import build_tracking_config
 from navpy.modules.vision.vision_zoom_profile import build_zoom_config
 

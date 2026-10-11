@@ -10,7 +10,7 @@ from navpy.core.perception.camera.camera_mount_types import (
     CameraMountOptics,
 )
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
+from navpy.core.perception.zoom.zoom_tracking_types import ZoomTrackingState
 
 
 class CameraMountOpticsFacet:

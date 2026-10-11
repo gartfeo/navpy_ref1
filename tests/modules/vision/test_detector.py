@@ -8,8 +8,8 @@ from navpy.core.kernel.config.uas_args import UasArgs
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader

@@ -15,7 +15,7 @@ from navpy.core.kernel.location import Location
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
-from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTrackerConfig
+from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTrackerConfig
 from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.core.ports.gimbal_abc import (
     GimbalData,
@@ -67,7 +67,7 @@ def _make_mount(vehicle, camera_pitch=-28.7):
 
 def _make_detector(vehicle, mount, tracking_config):
     from navpy.core.kernel.config.uas_args import UasArgs
-    from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+    from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
     from tests.conftest import create_mock_args
 
     return DetectorSim(
@@ -182,7 +182,7 @@ class TestClosedLoopTracking(unittest.TestCase):
         detector.stop_tracking()
 
         # Verify tracker state is IDLE after stop
-        from navpy.modules.vision.gimbal_rate_tracker import TrackingState
+        from navpy.core.perception.pointing.gimbal_rate_tracker import TrackingState
         self.assertEqual(detector.navigation.rate_result.state, TrackingState.IDLE)
         detector.stop()
 

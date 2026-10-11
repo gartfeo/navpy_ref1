@@ -9,12 +9,12 @@ import numpy as np
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.sim.detector_sim import DetectorSim
 from navpy.modules.vision.vision_detector_factory_ports import VisionDetectorNode
-from navpy.modules.vision.vision_profile_types import CameraMountSpec, VisionProfile
+from navpy.core.perception.profile.vision_profile_types import CameraMountSpec, VisionProfile
 from navpy.modules.vision.vision_tracking_composition import build_tracking_config
 from navpy.modules.vision.vision_ui_ports import SimDebugSnapshot, SimDebugSource
 from navpy.modules.vision.vision_zoom_profile import build_zoom_config

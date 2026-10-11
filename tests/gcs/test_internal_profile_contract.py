@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from navpy.modules.vision.vision_profile_loader import load_profiles
+from navpy.core.perception.profile.vision_profile_loader import load_profiles
 
 
 @pytest.mark.parametrize("current_present", [False, True])
@@ -25,7 +25,7 @@ def test_retired_profile_fields_fail_without_rewriting(tmp_path, scope, current_
     path = tmp_path / "profiles.json"
     path.write_text(json.dumps(data))
     before = path.read_bytes()
-    with patch("navpy.modules.vision.vision_profile_loader._profiles_path", return_value=path):
+    with patch("navpy.core.perception.profile.vision_profile_loader._profiles_path", return_value=path):
         with pytest.raises(ValueError, match="retired profile field"):
             load_profiles()
     assert path.read_bytes() == before

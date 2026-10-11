@@ -12,7 +12,7 @@ from navpy.logger.navigation_logger import NavigationLogger
 from navpy.logger.log_events import LogEvent
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.nav.vision_nav.command_transaction import (
     FinalApproachCommandOutcome,
     FinalApproachCommandResult,

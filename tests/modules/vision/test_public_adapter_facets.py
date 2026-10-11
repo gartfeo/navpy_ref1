@@ -14,7 +14,7 @@ PUBLIC_ADAPTERS = {
     "src/navpy/modules/vision/detection_coordinator.py": "DetectionCoordinator",
     "src/navpy/modules/vision/peripheral/siyi/sim/gimbal_physics.py": "GimbalPhysics",
     "src/navpy/modules/vision/peripheral/siyi/sim/gimbal_siyi_sim.py": "GimbalSiyiSim",
-    "src/navpy/modules/vision/poi_zoom_orchestrator.py": "PoiZoomTracker",
+    "src/navpy/core/perception/zoom/poi_zoom_orchestrator.py": "PoiZoomTracker",
 }
 # Top-level *Facet classes in src/navpy on 2026-10-11. The scan covers the
 # whole package so moved files stay in it; finding fewer means one was lost.

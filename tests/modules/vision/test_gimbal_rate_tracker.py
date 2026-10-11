@@ -5,13 +5,13 @@ import numpy as np
 import pytest
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
-from navpy.modules.vision.gimbal_rate_types import (
+from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTracker
+from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalObservationDisposition,
     GimbalRateTrackerConfig,
     TrackingState,
 )
-from navpy.modules.vision.gimbal_tracking_sample import (
+from navpy.core.perception.pointing.gimbal_tracking_sample import (
     GimbalAngularSample,
     GimbalPoiProjector,
 )
@@ -19,7 +19,7 @@ from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.pixel_observation import PixelCalibration
 from tests.detection_factory import make_detected_poi
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.poi_angle_estimator import (
+from navpy.core.perception.pointing.poi_angle_estimator import (
     PoiAngleEstimatorConfig,
 )
 

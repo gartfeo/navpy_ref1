@@ -41,7 +41,7 @@ class TaskTypeMsgData(Enum):
 def class_to_task_type(class_id: int) -> TaskTypeMsgData:
     """Map a detection class_id to TaskTypeMsgData (``dock`` -> DOCK, else UNKNOWN)."""
     # Lazy import: the vision package imports comm, so a module-level import cycles.
-    from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
+    from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
 
     if class_id == DOCK_DETECT_CLASS_ID:
         return TaskTypeMsgData.DOCK

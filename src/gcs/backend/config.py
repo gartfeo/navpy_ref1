@@ -65,7 +65,7 @@ def _resolve_intrinsics(c):
     if not profile_name:
         return CAMERA_FX, CAMERA_FY, CAMERA_IMAGE_WIDTH, CAMERA_IMAGE_HEIGHT
     try:
-        from navpy.modules.vision.vision_profile_loader import load_profiles
+        from navpy.core.perception.profile.vision_profile_loader import load_profiles
         profiles, _, _ = load_profiles()
         p = profiles.get(profile_name)
         if not p:
@@ -98,7 +98,7 @@ def _resolve_pitch(c) -> float:
     if not profile_name:
         return CAMERA_PITCH_DEG
     try:
-        from navpy.modules.vision.vision_profile_loader import load_profiles
+        from navpy.core.perception.profile.vision_profile_loader import load_profiles
         profiles, _, _ = load_profiles()
         p = profiles.get(profile_name)
         if not p:
@@ -127,7 +127,7 @@ def _resolve_presets(c) -> dict:
     if not profile_name:
         return dict(DOCK_PRESETS)
     try:
-        from navpy.modules.vision.vision_profile_loader import load_profiles
+        from navpy.core.perception.profile.vision_profile_loader import load_profiles
         profiles, _, _ = load_profiles()
         p = profiles.get(profile_name)
         presets = (p or {}).get("detector", {}).get("dock_presets")

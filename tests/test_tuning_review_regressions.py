@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.gimbal_rate_types import (
+from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalObservationDisposition,
     GimbalRateTrackerConfig,
     GimbalRateUpdate,

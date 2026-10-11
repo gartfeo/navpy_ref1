@@ -9,7 +9,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mav
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.perception.camera.camera_mount_types import CameraMountOptics
 from navpy.modules.vision.vision_camera_factory import build_camera_mounts
-from navpy.modules.vision.vision_profile_types import CameraMountSpec
+from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
 from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import GimbalTelemetryPublisher
 from navpy.core.ports.gimbal_abc import GimbalData
 

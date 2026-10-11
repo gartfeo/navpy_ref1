@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from navpy.modules.navigation.geo.dem_data import DemData
+from navpy.core.perception.geo.dem_data import DemData
 
 DEM_FILE = Path(__file__).resolve().parents[4] / '.terrain' / 'dem' / 'N40E044.hgt'
 

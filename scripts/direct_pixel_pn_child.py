@@ -26,7 +26,7 @@ from navpy.logger.navigation_snap_types import ClosestSnap  # noqa: E402
 from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
 from navpy.core.kernel.location import Location  # noqa: E402
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc  # noqa: E402
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc  # noqa: E402
 from navpy.modules.navigation.navigation import Navigation  # noqa: E402
 from navpy.modules.navigation.mission_planner import MissionPlanner  # noqa: E402
 from navpy.core.ports.flight_mode import FlightMode  # noqa: E402

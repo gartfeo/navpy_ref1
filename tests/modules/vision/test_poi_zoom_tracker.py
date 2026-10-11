@@ -2,17 +2,17 @@ import math
 import unittest
 from unittest.mock import Mock, call
 
-from navpy.modules.vision.continuous_zoom_policy import ContinuousZoomPolicy
-from navpy.modules.vision.gimbal_rate_tracker import GimbalTrackResult, TrackingState
+from navpy.core.perception.zoom.continuous_zoom_policy import ContinuousZoomPolicy
+from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalTrackResult, TrackingState
 from navpy.core.ports.gimbal_abc import GimbalAbc
-from navpy.modules.vision.vision_class_profile import MIN_TRACK_PIXELS
-from navpy.modules.vision.zoom_calibration import (
+from navpy.core.perception.profile.vision_class_profile import MIN_TRACK_PIXELS
+from navpy.core.perception.zoom.zoom_calibration import (
     ZoomCalibrationEntry,
     ZoomCalibrationTable,
 )
-from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
-from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
-from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
+from navpy.core.perception.zoom.poi_zoom_orchestrator import PoiZoomTracker
+from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.core.perception.zoom.zoom_tracking_types import ZoomTrackingState
 
 _SQRT2 = math.sqrt(2.0)
 

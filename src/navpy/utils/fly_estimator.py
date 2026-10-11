@@ -5,7 +5,7 @@ from typing import Optional, Protocol
 
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.wind import Wind
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 
 # Constants
 DRONE_MAX_FLIGHT_TIME_SEC = 60 * 60  # Maximum flight time in seconds (1 hour)

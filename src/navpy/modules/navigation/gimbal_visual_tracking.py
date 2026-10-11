@@ -17,12 +17,12 @@ from navpy.modules.navigation.gimbal_loss_recovery import (
     LossRecoveryResult,
 )
 from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController
-from navpy.modules.vision.gimbal_rate_types import (
+from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalObservationDisposition,
     GimbalTrackResult,
     TrackingState,
 )
-from navpy.modules.vision.gimbal_tracking_sample import GimbalPoiProjector
+from navpy.core.perception.pointing.gimbal_tracking_sample import GimbalPoiProjector
 from navpy.core.ports.detect_data import DetectedObject
 
 

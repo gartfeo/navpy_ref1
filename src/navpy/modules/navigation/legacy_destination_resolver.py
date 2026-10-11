@@ -11,9 +11,9 @@ import pymap3d
 from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.kernel.rotation_utils import normalize
-from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.detect_data import DetectedObject
 
 

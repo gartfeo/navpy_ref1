@@ -6,11 +6,11 @@ from typing import Optional, Protocol, Sequence
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.pointing.gimbal_rate_types import GimbalTrackResult
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.simulation_object import SimulationObject
-from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 
 
 class TrackingNavigationPort(Protocol):

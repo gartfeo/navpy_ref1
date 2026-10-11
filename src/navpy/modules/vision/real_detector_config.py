@@ -34,8 +34,8 @@ from navpy.modules.vision.real_detector_diagnostics import (
     DetectorDiagnostics,
 )
 from navpy.modules.vision.real_detector_lifecycle import DetectorLifecycle
-from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
-from navpy.modules.vision.vision_profile_types import VisionProfile
+from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.core.perception.profile.vision_profile_types import VisionProfile
 
 
 @dataclass(frozen=True)

@@ -172,7 +172,7 @@ def test_projector_clock_does_not_certify_a_missing_frame_identity():
 
 def test_world_lock_diagnostic_disagrees_but_actual_projection_evidence_is_correct():
     from navpy.core.kernel.config.uas_args import UasArgs
-    from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
+    from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
     records = []
     projector, camera, calc, _, loc, poi, matrix, raw = rig(records.append)
     matrix[:] = [[1407.42, 0, 670.95], [0, 1401.91, 369.78], [0, 0, 1]]

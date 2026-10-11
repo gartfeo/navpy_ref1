@@ -24,7 +24,7 @@ from navpy.modules.navigation.peer_orbit_plan import (
     compute_orbit_plan,
 )
 from navpy.core.perception.camera.camera_mount import CameraMount
-from navpy.modules.vision.vision_class_profile import (
+from navpy.core.perception.profile.vision_class_profile import (
     compute_approach_interval,
     compute_detect_slant_range,
     get_class_detect_size,

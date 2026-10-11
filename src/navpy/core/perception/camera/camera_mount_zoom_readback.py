@@ -13,7 +13,7 @@ from navpy.core.perception.camera.camera_mount_ports import (
 from navpy.core.perception.camera.camera_mount_types import LiveZoomSample
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
+    from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
 
 
 LIVE_ZOOM_READBACK_STALE_S = 2.0

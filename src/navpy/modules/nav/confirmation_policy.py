@@ -20,7 +20,7 @@ from navpy.modules.nav.poi_retry import PoiRetryState
 from navpy.modules.vision.detector_ports import ZoomControlPort
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
-from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 
 
 class ConfirmationTimingPolicy:

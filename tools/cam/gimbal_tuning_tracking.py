@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from navpy.modules.vision.gimbal_rate_ports import (
+from navpy.core.perception.pointing.gimbal_rate_ports import (
     GimbalRateActuator,
     GimbalRateLog,
 )
-from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
-from navpy.modules.vision.gimbal_rate_types import (
+from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTracker
+from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalRateTrackerConfig,
     GimbalRateUpdate,
     GimbalTrackResult,
 )
-from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
+from navpy.core.perception.pointing.gimbal_tracking_sample import GimbalAngularSample
 
 
 class TuningTracker:

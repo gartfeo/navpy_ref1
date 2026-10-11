@@ -209,7 +209,7 @@ def analysis_identity() -> dict:
     paths = sorted((root / "scripts").glob("eval_gcs_demo_*.py"))
     paths.extend(root / path for path in (
         "scripts/gcs_demo_comparison.py", "scripts/compare_gcs_demo_runs.py",
-        "src/navpy/modules/vision/vision_profiles.json",
+        "src/navpy/core/perception/profile/vision_profiles.json",
         "src/gcs/backend/task_confirm_uid.py",
     ))
     return {

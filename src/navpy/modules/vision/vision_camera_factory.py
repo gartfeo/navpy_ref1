@@ -9,15 +9,15 @@ from typing import TYPE_CHECKING
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
 from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
-from navpy.modules.vision.vision_camera_calibration import parse_zoom_calibration
-from navpy.modules.vision.vision_detector_profile import get_detector_settings
+from navpy.core.perception.profile.vision_camera_calibration import parse_zoom_calibration
+from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
 from navpy.modules.vision.vision_gimbal_profile import (
     build_device_gimbal_metadata,
     build_gimbal_data,
 )
-from navpy.modules.vision.vision_profile_loader import get_devices
-from navpy.modules.vision.vision_profile_types import CameraMountSpec
-from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
+from navpy.core.perception.profile.vision_profile_loader import get_devices
+from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
+from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
 
 if TYPE_CHECKING:
     from navpy.core.kernel.scheduler_cadence import SchedulerCadence
@@ -85,7 +85,7 @@ def build_zoom_calibration(
     logger: ILogger,
 ) -> ZoomCalibrationTable | None:
     """Build the optional commanded-to-actual zoom calibration table."""
-    from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
+    from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
 
     camera = _camera_config(device)
     raw_calibration = camera.get("zoom_calibration")

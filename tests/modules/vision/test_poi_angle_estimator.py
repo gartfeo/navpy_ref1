@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from navpy.modules.vision.poi_angle_estimator import (
+from navpy.core.perception.pointing.poi_angle_estimator import (
     PoiAngleEstimator,
     PoiAngleEstimatorConfig,
     project_estimate,

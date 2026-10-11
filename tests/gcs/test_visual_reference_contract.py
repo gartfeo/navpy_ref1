@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from navpy.modules.vision.vision_detector_profile import get_detector_settings
-from navpy.modules.vision.vision_profile_loader import load_profiles
+from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
+from navpy.core.perception.profile.vision_profile_loader import load_profiles
 from navpy.modules.vision.real_detector_factory import RealDetectorFactory
 
 
@@ -28,7 +28,7 @@ def test_retired_height_file_rejected_without_rewrite(tmp_path, also_current):
     path = tmp_path / "profile.json"
     path.write_text(json.dumps({"profiles": {"fixture": {"detector": settings}}}))
     before = path.read_bytes()
-    with patch("navpy.modules.vision.vision_profile_loader._profiles_path", return_value=path):
+    with patch("navpy.core.perception.profile.vision_profile_loader._profiles_path", return_value=path):
         with pytest.raises(ValueError, match="retired.*poi_height"):
             load_profiles()
     assert path.read_bytes() == before

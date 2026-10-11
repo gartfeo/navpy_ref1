@@ -8,8 +8,8 @@ from typing import Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.geo.zc_util import ZcUtil
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.ports.vehicle_contract import IVehicle
@@ -29,7 +29,7 @@ from navpy.modules.vision.sim.sim_detector_lifecycle import SimDetectorLifecycle
 from navpy.modules.vision.sim.sim_detector_loop import SimDetectorWorker
 from navpy.modules.vision.sim.sim_runtime_ports import ConfirmationFrameFactory
 from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
-from navpy.modules.vision.poi_zoom_types import PoiZoomTrackerConfig
+from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
 
 
 @dataclass(frozen=True)

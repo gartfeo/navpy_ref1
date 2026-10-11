@@ -6,8 +6,8 @@ import time
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.pointing.gimbal_rate_types import GimbalTrackResult
 from navpy.core.perception.tracking.lost_poi_bridge import LostPoiBridge
 from navpy.core.ports.detect_request import DetectRequest
 from navpy.core.ports.detect_response import DetectResponse
@@ -27,7 +27,7 @@ from navpy.modules.vision.real_detector_runtime_state import (
 from navpy.modules.vision.real_detector_inference_state import InferenceGeneration
 from navpy.core.perception.tracking.poi_lock import PoiLock
 from navpy.core.perception.detection.poi_priority import prioritize_pois
-from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
 

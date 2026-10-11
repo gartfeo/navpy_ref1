@@ -5,11 +5,11 @@ from __future__ import annotations
 import math
 from typing import Protocol
 
-from navpy.modules.vision.gimbal_rate_types import (
+from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalRateUpdate,
     GimbalTrackResult,
 )
-from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
+from navpy.core.perception.pointing.gimbal_tracking_sample import GimbalAngularSample
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_components import BoundingBox
 

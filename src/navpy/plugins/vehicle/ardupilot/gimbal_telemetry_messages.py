@@ -24,7 +24,7 @@ from navpy.core.kernel.simple_rotation import Rotation
 if TYPE_CHECKING:
     from navpy.core.perception.camera.camera_mount import CameraMount
     from navpy.core.ports.gimbal_abc import GimbalData
-    from navpy.modules.vision.vision_profile_types import CameraMountSpec
+    from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
 
 
 class GimbalMavlinkPublisher(Protocol):

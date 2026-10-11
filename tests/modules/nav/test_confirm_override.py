@@ -23,7 +23,7 @@ from navpy.modules.nav.nav_controller import NavController
 from navpy.modules.nav.nav_state import NavState
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.ports.detect_response import DetectResponse
-from navpy.modules.vision.vision_class_profile import MIN_CONFIRM_PIXELS
+from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS
 from tests.detection_factory import make_detected_poi
 from tests.modules.nav.nav_test_rig import create_nav_test_rig
 
