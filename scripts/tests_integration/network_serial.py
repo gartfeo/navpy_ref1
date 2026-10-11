@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 from navpy.core.kernel.location import Location
-from navpy.modules.comm.network_serial import NetworkSerial
+from navpy.plugins.radio.serial.network_serial import NetworkSerial
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.swarm.task_actor import TaskActor

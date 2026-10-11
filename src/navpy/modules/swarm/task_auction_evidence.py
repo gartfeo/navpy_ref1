@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Optional
 
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
-from navpy.modules.comm.messages.types import TaskDispatchStatus
+from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
+from navpy.core.link.types import TaskDispatchStatus
 from navpy.modules.swarm.task_auction_models import _TaskAuctionStore
 from navpy.modules.swarm.task_auction_queries import busy_peers
 from navpy.modules.swarm.task_msg_refs import MsgRef

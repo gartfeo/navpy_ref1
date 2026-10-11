@@ -14,12 +14,12 @@ import pytest
 
 from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
 from gcs.backend.task_confirm_listener import TaskConfirmListener, _LEGACY_ROUND_UID
-from navpy.modules.comm.image_transfer import ImageTransferType
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmRequestMsg
-from navpy.modules.comm.messages.task_message_data import TaskMsgData
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.types import TaskTypeMsgData
+from navpy.plugins.radio.mavlink.image_transfer import ImageTransferType
+from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
+from navpy.core.link.task_message_data import TaskMsgData
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.types import TaskTypeMsgData
 
 # The companion shares its aircraft's system id; component 191 is what
 # tells it apart from the autopilot.

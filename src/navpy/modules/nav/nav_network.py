@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
+from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
 from navpy.modules.nav.confirm_override_listener import ConfirmOverrideListener

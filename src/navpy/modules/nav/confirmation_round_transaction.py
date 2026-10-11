@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum, unique
 from typing import Optional, TypeVar
 
-from navpy.modules.comm.messages.msg_meta import MsgMeta
+from navpy.core.link.msg_meta import MsgMeta
 from navpy.core.ports.detect_data import DetectedObject
 
 

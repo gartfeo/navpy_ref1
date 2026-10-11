@@ -1,26 +1,26 @@
 import unittest
 
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_assignment_msg import (
     TaskAssignResponseMsg,
     TaskAssignRequestMsg,
 )
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskAssignMsgData,
     TaskHandleMsgData,
     TaskMsgData,
 )
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.task_availability_msg import (
     AvailableTaskResponseMsg,
     AvailableTaskRequestMsg,
 )
-from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.log_status_msg import LogStatusMsg
-from navpy.modules.comm.messages.msg_abc import MsgSerializer
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_ack_msg import ACK_STATUS_APPLIED, SwarmAckMsg
-from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
-from navpy.modules.comm.serial.serial_interface_ebyte import MAX_PACKET_SIZE
+from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.log_status_msg import LogStatusMsg
+from navpy.core.link.msg_abc import MsgSerializer
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_ack_msg import ACK_STATUS_APPLIED, SwarmAckMsg
+from navpy.core.link.types import MsgType, TaskTypeMsgData
+from navpy.plugins.radio.serial.serial_interface_ebyte import MAX_PACKET_SIZE
 
 
 class TestMessageSerializationLength(unittest.TestCase):

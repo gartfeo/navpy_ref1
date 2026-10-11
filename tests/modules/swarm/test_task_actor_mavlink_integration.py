@@ -11,8 +11,8 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLINK_MSG_ID_TASK_ASSIGN_RESPONSE,
 )
 
-from navpy.modules.comm.messages.types import TaskDispatchStatus
-from navpy.modules.comm.network_mavlink import NetworkMavlink
+from navpy.core.link.types import TaskDispatchStatus
+from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from navpy.core.kernel.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_actor_slots import SlotState

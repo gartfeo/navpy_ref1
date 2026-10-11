@@ -1,20 +1,20 @@
 """Regression tests for the message-admission composition boundary."""
 
-from navpy.modules.comm.message_admission_state import (
+from navpy.core.link.message_admission_state import (
     ClockOffsetEstimator as PackageClockOffsetEstimator,
     DedupCache as PackageDedupCache,
 )
-from navpy.modules.comm.message_admission_state import (
+from navpy.core.link.message_admission_state import (
     ClockOffsetEstimator,
     DedupCache,
 )
-from navpy.modules.comm.message_filter import (
+from navpy.core.link.message_filter import (
     ClockOffsetEstimator as FacadeClockOffsetEstimator,
 )
-from navpy.modules.comm.message_filter import DedupCache as FacadeDedupCache
-from navpy.modules.comm.message_filter import MessageFilter
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmHeartbeatMsg
+from navpy.core.link.message_filter import DedupCache as FacadeDedupCache
+from navpy.core.link.message_filter import MessageFilter
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_heartbeat_msg import SwarmHeartbeatMsg
 
 
 def test_legacy_and_package_exports_reference_the_state_owners() -> None:

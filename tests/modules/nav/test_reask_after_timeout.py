@@ -24,7 +24,7 @@ from unittest.mock import MagicMock, Mock
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmResponseMsg
+from navpy.core.link.task_confirmation_msg import TaskConfirmResponseMsg
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location

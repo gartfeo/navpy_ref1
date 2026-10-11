@@ -14,15 +14,15 @@ import time
 import unittest
 from unittest.mock import MagicMock
 
-from navpy.modules.comm.message_filter import (
+from navpy.core.link.message_filter import (
     DedupCache,
     ClockOffsetEstimator,
     MessageFilter,
     FilterMetrics,
 )
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmResponseMsg
-from navpy.modules.comm.messages.msg_meta import MsgMeta, MsgMetaProvider
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.task_confirmation_msg import TaskConfirmResponseMsg
+from navpy.core.link.msg_meta import MsgMeta, MsgMetaProvider
+from navpy.core.link.types import MsgType
 
 
 class TestMsgMeta(unittest.TestCase):
@@ -693,7 +693,7 @@ class TestMessageFilter(unittest.TestCase):
 
     def test_outlier_rejection(self):
         """Extreme clock jump sample should be rejected, estimate unchanged."""
-        from navpy.modules.comm.message_filter import ClockOffsetEstimator
+        from navpy.core.link.message_filter import ClockOffsetEstimator
 
         estimator = ClockOffsetEstimator(alpha=0.1)
 
@@ -712,7 +712,7 @@ class TestMessageFilter(unittest.TestCase):
 
     def test_outlier_first_sample_accepted(self):
         """First sample is always accepted regardless of magnitude."""
-        from navpy.modules.comm.message_filter import ClockOffsetEstimator
+        from navpy.core.link.message_filter import ClockOffsetEstimator
 
         estimator = ClockOffsetEstimator(alpha=0.1)
 

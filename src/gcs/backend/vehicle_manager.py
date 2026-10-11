@@ -9,7 +9,7 @@ from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_GCS, MAV_COMP_ID_MISSI
 # NAVLINK message classes register on import (@register_msg), and every
 # VehicleMav here asks that registry which inbound MAVLink ids are NAVLINK:
 # import the swarm messages the GCS receives (not LogStatusMsg).
-from navpy.modules.comm.messages import (  # noqa: F401  (registration imports)
+from navpy.core.link import (  # noqa: F401  (registration imports)
     check_msg,
     swarm_ack_msg,
     swarm_heartbeat_msg,

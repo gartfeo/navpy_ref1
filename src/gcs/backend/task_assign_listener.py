@@ -17,17 +17,17 @@ from typing import Any, Optional
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.modules.comm.messages.task_availability_msg import AvailableTaskRequestMsg
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_availability_msg import AvailableTaskRequestMsg
+from navpy.core.link.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )
-from navpy.modules.comm.messages.msg_abc import MsgABC, MsgRegistry
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.msg_abc import MsgABC, MsgRegistry
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     SwarmAckMsg,
 )
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.types import MsgType
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
 from gcs.backend.companion_identity import is_from_companion
 from gcs.backend.broadcast import manager as ws_manager

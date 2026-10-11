@@ -11,11 +11,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from navpy.modules.comm.messages.ttl_defaults import (
+from navpy.core.link.ttl_defaults import (
     SWARM_RESEND_INTERVAL_MS,
     get_ttl_ms,
 )
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.types import MsgType
 
 
 @dataclass(frozen=True)

@@ -6,14 +6,14 @@ import logging
 from collections.abc import Callable
 from typing import Optional
 
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmResponseMsg
-from navpy.modules.comm.messages.msg_meta import MsgMeta, MsgMetaProvider
-from navpy.modules.comm.messages.swarm_request_msg import (
+from navpy.core.link.task_confirmation_msg import TaskConfirmResponseMsg
+from navpy.core.link.msg_meta import MsgMeta, MsgMetaProvider
+from navpy.core.link.swarm_request_msg import (
     REQUEST_TYPE_RESOURCE,
     SUBJECT_TYPE_THUMBNAIL,
     SwarmRequestMsg,
 )
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.types import MsgType
 
 from gcs.backend.task_confirm_ports import MavlinkMessageSender
 from gcs.backend.task_confirm_uid import parse_round_uid

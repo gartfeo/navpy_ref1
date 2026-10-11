@@ -92,7 +92,7 @@ class TestPrepare(unittest.IsolatedAsyncioTestCase):
         lc = LaunchController()
         mock_client = _make_mock_client()
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(lc, sys_ids=[1, 2], channel_map={1: 1, 2: 2}))
 
         self.assertTrue(lc.is_prepared)
@@ -107,7 +107,7 @@ class TestPrepare(unittest.IsolatedAsyncioTestCase):
         mock_client = _make_mock_client()
         mock_client.health_check.return_value = False
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(lc, sys_ids=[1, 2], channel_map={}))
 
         self.assertFalse(lc.is_prepared)
@@ -122,7 +122,7 @@ class TestPrepare(unittest.IsolatedAsyncioTestCase):
         lc = LaunchController()
         mock_client = _make_mock_client()
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(lc, sys_ids=[1]))
             await lc.prepare(**_prepare_args(lc, sys_ids=[1, 2]))
 
@@ -152,7 +152,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
 
         lc._altitudes[1] = 0.0
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], altitude_timeout=2.0,
                 arm_func=arm_func, auto_func=auto_func,
@@ -184,7 +184,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         lc = LaunchController()
         mock_client = _make_mock_client()
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(lc, sys_ids=[1]))
             with self.assertRaises(ValueError):
                 await lc.trigger_vehicle(99)
@@ -196,7 +196,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         lc = LaunchController()
         mock_client = _make_mock_client()
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(lc, sys_ids=[1], arm_timeout=5.0))
             # First trigger — will wait for arm (never confirmed)
             await lc.trigger_vehicle(1)
@@ -213,7 +213,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         lc = LaunchController()
         mock_client = _make_mock_client()
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], arm_timeout=0.3,
             ))
@@ -238,7 +238,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
             arm_calls.append(sid)
             lc._armed[sid] = True
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1],
                 arm_func=arm_func,
@@ -263,7 +263,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         lc._armed[1] = True
         arm_calls = []
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1],
                 arm_func=lambda sid: arm_calls.append(sid),
@@ -285,7 +285,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         mock_client = _make_mock_client()
         lc._armed[1] = True
         lc._altitudes[1] = 0.0  # grounded
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], altitude_threshold=0.0, altitude_timeout=1.0, settle_s=0.0,
             ))
@@ -304,7 +304,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
 
         lc._armed[1] = True  # Already armed
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(lc, sys_ids=[1]))
             await lc.trigger_vehicle(1)
             await lc._tasks[1]
@@ -322,7 +322,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         lc._armed.update({1: True, 2: True})
         lc._altitudes.update({1: 0.0, 2: 0.0})
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc,
                 sys_ids=[1, 2],
@@ -356,7 +356,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         lc._armed[1] = True  # Already armed
         lc._altitudes[1] = 0.0  # Stays at 0
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], altitude_timeout=0.3,
             ))
@@ -376,7 +376,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         lc._armed.update({1: True, 2: True})
         lc._altitudes.update({1: 0.0, 2: 0.0})
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc,
                 sys_ids=[1, 2],
@@ -404,7 +404,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         lc._armed[5] = True
         lc._altitudes[5] = 0.0
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[5], channel_map={}, altitude_timeout=0.3,
             ))
@@ -436,7 +436,7 @@ class TestTriggerVehicle(unittest.IsolatedAsyncioTestCase):
         lc._altitudes[1] = 0.0
         lc._altitudes[2] = 0.0
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1, 2], channel_map={1: 1, 2: 2},
                 altitude_timeout=2.0, arm_func=arm_func,
@@ -489,7 +489,7 @@ class TestTimingAndAirborne(unittest.IsolatedAsyncioTestCase):
         mock_ws.broadcast = AsyncMock()
         lc = LaunchController()
         mock_client = _make_mock_client()
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], settle_s=0.5, stagger_s=1.0, require_armed=True,
             ))
@@ -531,7 +531,7 @@ class TestTimingAndAirborne(unittest.IsolatedAsyncioTestCase):
             lc._armed[sid] = True
 
         lc._altitudes[1] = 0.0
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], altitude_timeout=2.0, require_armed=True,
                 arm_func=arm_func,
@@ -578,7 +578,7 @@ class TestTimingAndAirborne(unittest.IsolatedAsyncioTestCase):
         lc = LaunchController()
         mock_client = _make_mock_client()
         lc._altitudes[1] = 0.0
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(lc, sys_ids=[1], settle_s=5.0))
             await lc.trigger_vehicle(1)
             await asyncio.sleep(0.1)  # now inside the settle sleep
@@ -611,7 +611,7 @@ class TestTimingAndAirborne(unittest.IsolatedAsyncioTestCase):
         mock_client = _make_mock_client()
         lc._armed[1] = True   # arm step passes instantly
         lc._altitudes[1] = 0.0
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], settle_s=0.0, altitude_timeout=3.0,
                 min_climb_rate_ms=1.0, climb_confirm_s=0.2,
@@ -639,7 +639,7 @@ class TestTimingAndAirborne(unittest.IsolatedAsyncioTestCase):
             lc._armed[sid] = True
 
         lc._altitudes[1] = 0.0
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], altitude_timeout=2.0, settle_s=0.3,
                 auto_func=auto_func, arm_func=arm_func,
@@ -757,7 +757,7 @@ class TestSequencingOnFailure(unittest.IsolatedAsyncioTestCase):
 
         lc._altitudes[1] = 0.0
         lc._altitudes[2] = 0.0
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1, 2], channel_map={1: 1, 2: 2},
                 altitude_timeout=0.4, settle_s=0.0, arm_func=arm_func,
@@ -797,7 +797,7 @@ class TestAbortAndCleanup(unittest.IsolatedAsyncioTestCase):
         lc = LaunchController()
         mock_client = _make_mock_client()
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], arm_timeout=10.0,
             ))
@@ -818,7 +818,7 @@ class TestAbortAndCleanup(unittest.IsolatedAsyncioTestCase):
         lc = LaunchController()
         mock_client = _make_mock_client()
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1], arm_timeout=10.0,
             ))
@@ -836,7 +836,7 @@ class TestAbortAndCleanup(unittest.IsolatedAsyncioTestCase):
         lc = LaunchController()
         mock_client = _make_mock_client()
 
-        with patch("navpy.modules.comm.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
             await lc.prepare(**_prepare_args(
                 lc, sys_ids=[1, 2], channel_map={1: 1, 2: 2},
                 arm_timeout=10.0,

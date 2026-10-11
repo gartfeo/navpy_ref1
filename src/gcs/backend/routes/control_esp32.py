@@ -10,7 +10,7 @@ log = logging.getLogger("gcs.backend.routes.control")
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from navpy.tools.esp32_simulator import Esp32Simulator
+    from gcs.backend.esp32_simulator import Esp32Simulator
 
 async def esp32_status(*, _esp32_sim: Esp32Simulator | None, settings_store: SettingsStore) -> dict:
     """Check ESP32 health and return status.
@@ -36,7 +36,7 @@ async def esp32_status(*, _esp32_sim: Esp32Simulator | None, settings_store: Set
         port = ls.esp32_port
 
     loop = asyncio.get_running_loop()
-    from navpy.modules.comm.esp32_trigger import Esp32TriggerClient
+    from gcs.backend.esp32_trigger import Esp32TriggerClient
     client = Esp32TriggerClient(host, port, timeout=3.0)
     healthy = await loop.run_in_executor(None, client.health_check)
     status = await loop.run_in_executor(None, client.get_status) if healthy else None

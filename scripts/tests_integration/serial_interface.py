@@ -1,9 +1,9 @@
 import argparse
 import time
 
-from navpy.args.conn.serial_network_args import SerialNetworkArgs
-from navpy.modules.comm.serial.serial_interface_ebyte import SerialInterfaceEbyte
-from navpy.modules.comm.serial.serial_listener import ISerialListener
+from navpy.plugins.radio.serial.serial_network_args import SerialNetworkArgs
+from navpy.plugins.radio.serial.serial_interface_ebyte import SerialInterfaceEbyte
+from navpy.plugins.radio.serial.serial_listener import ISerialListener
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger
 
 # Define the COM ports for the transmitter and receiver

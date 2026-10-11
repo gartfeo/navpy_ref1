@@ -5,11 +5,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TASK_MESSAGE_LINE_LIMITS = {
-    "src/navpy/modules/comm/messages/task_assignment_msg.py": 220,
-    "src/navpy/modules/comm/messages/task_availability_msg.py": 220,
-    "src/navpy/modules/comm/messages/task_confirmation_msg.py": 220,
-    "src/navpy/modules/comm/messages/task_message_data.py": 100,
-    "src/navpy/modules/comm/messages/task_message_meta.py": 60,
+    "src/navpy/core/link/task_assignment_msg.py": 220,
+    "src/navpy/core/link/task_availability_msg.py": 220,
+    "src/navpy/core/link/task_confirmation_msg.py": 220,
+    "src/navpy/core/link/task_message_data.py": 100,
+    "src/navpy/core/link/task_message_meta.py": 60,
 }
 
 

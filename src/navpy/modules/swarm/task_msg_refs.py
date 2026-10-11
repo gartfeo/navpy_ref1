@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from navpy.modules.comm.messages.msg_abc import MsgABC
+from navpy.core.link.msg_abc import MsgABC
 
 
 @dataclass(frozen=True)

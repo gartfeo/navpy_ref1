@@ -18,8 +18,8 @@ from gcs.backend.task_confirm_rounds import (
     round_uid,
 )
 from gcs.backend.task_confirm_transport import ConfirmationTransport
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmRequestMsg
-from navpy.modules.comm.messages.msg_abc import MsgRegistry
+from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
+from navpy.core.link.msg_abc import MsgRegistry
 
 
 log = logging.getLogger(__name__)

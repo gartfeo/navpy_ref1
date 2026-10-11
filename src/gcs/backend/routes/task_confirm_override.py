@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from gcs.backend.models import TaskConfirmOverrideRequest
 from gcs.backend.vehicle_manager import vehicle_mgr
-from navpy.modules.comm.messages.swarm_request_msg import (
+from navpy.core.link.swarm_request_msg import (
     REQUEST_TYPE_FORCE_CONFIRM,
     SwarmRequestMsg,
 )

@@ -1,8 +1,8 @@
 import unittest
 
-from navpy.modules.comm.messages.check_msg import CheckOutMsg
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_abc import MsgSerializer
+from navpy.core.link.check_msg import CheckOutMsg
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_abc import MsgSerializer
 
 
 class MsgSerializerTest(unittest.TestCase):

@@ -5,28 +5,28 @@ from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.args.conn.network_args import NetworkArgs, NetworkType
 from navpy.args.conn_args import ConnArgs
-from navpy.modules.comm.listener_abc import ListenerAbc
-from navpy.modules.comm.messages.task_confirmation_msg import (
+from navpy.core.link.listener_abc import ListenerAbc
+from navpy.core.link.task_confirmation_msg import (
     TaskConfirmRequestMsg,
     TaskConfirmResponseMsg,
 )
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskMsgData,
     TaskHandleMsgData,
     TaskAssignMsgData,
 )
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
 )
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )
-from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_abc import MsgABC
-from navpy.modules.comm.messages.types import TaskTypeMsgData, MsgType
+from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_abc import MsgABC
+from navpy.core.link.types import TaskTypeMsgData, MsgType
 from navpy.modules.comm.network_factory import create_network
 from navpy.modules.vehicle.vehicle_factory import create_vehicle
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger

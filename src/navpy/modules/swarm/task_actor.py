@@ -8,10 +8,10 @@ from collections.abc import Callable
 from typing import Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.listener_abc import ListenerAbc
-from navpy.modules.comm.messages.msg_abc import MsgABC
-from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.listener_abc import ListenerAbc
+from navpy.core.link.msg_abc import MsgABC
+from navpy.core.link.task_message_data import TaskAssignMsgData
+from navpy.core.link.types import MsgType
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
 from navpy.modules.swarm.task_ack_routing import TaskAckRouter

@@ -1,7 +1,7 @@
 import unittest
 
-from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
-from navpy.modules.comm.messages.location_msg import LocationMsgData
+from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
+from navpy.core.link.location_msg import LocationMsgData
 
 
 class CheckInOutMsgTest(unittest.TestCase):

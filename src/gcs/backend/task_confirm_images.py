@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Optional
 
-from navpy.modules.comm.image_transfer import ImageReassembler
+from navpy.plugins.radio.mavlink.image_transfer import ImageReassembler
 from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_data_transmission_handshake_message,
     MAVLink_encapsulated_data_message,

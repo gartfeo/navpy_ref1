@@ -2,8 +2,8 @@
 
 import pytest
 
-from navpy.modules.comm.messages.check_msg import CheckInMsg
-from navpy.modules.comm.messages.msg_meta import MsgMeta
+from navpy.core.link.check_msg import CheckInMsg
+from navpy.core.link.msg_meta import MsgMeta
 from navpy.modules.swarm.task_msg_refs import MsgRef, OwnerRef, msg_ref
 
 

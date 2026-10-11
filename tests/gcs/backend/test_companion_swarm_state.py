@@ -6,8 +6,8 @@ import pytest
 from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
 from gcs.backend.companion_swarm_state import CompanionSwarmState
 from gcs.backend.vehicle_manager import VehicleEntry
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmHeartbeatMsg
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_heartbeat_msg import SwarmHeartbeatMsg
 
 SYS_ID = 2
 AUTOPILOT_COMPONENT_ID = 1

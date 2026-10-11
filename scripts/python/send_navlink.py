@@ -2,13 +2,13 @@ import time
 
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_GCS, MAV_COMP_ID_SYSTEM_CONTROL
 
-from navpy.modules.comm.messages.task_message_data import TaskMsgData, TaskHandleMsgData
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.task_message_data import TaskMsgData, TaskHandleMsgData
+from navpy.core.link.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
 )
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.types import TaskTypeMsgData
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.types import TaskTypeMsgData
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
 
 vehicle1 = VehicleMav("udp:0.0.0.0:14560",

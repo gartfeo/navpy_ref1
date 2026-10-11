@@ -8,26 +8,26 @@ from unittest.mock import Mock
 import pytest
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
 )
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskAssignMsgData,
     TaskMsgData,
 )
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     ACK_STATUS_RECEIVED,
     SwarmAckMsg,
 )
-from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
+from navpy.core.link.types import MsgType, TaskTypeMsgData
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
 from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING

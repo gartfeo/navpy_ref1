@@ -16,10 +16,10 @@ from unittest.mock import MagicMock
 
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_ONBOARD_CONTROLLER
 
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_ack_msg import ACK_STATUS_APPLIED, SwarmAckMsg
-from navpy.modules.comm.messages.types import MsgType
-from navpy.modules.comm.network_mavlink import NetworkMavlink
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_ack_msg import ACK_STATUS_APPLIED, SwarmAckMsg
+from navpy.core.link.types import MsgType
+from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from navpy.modules.vehicle.inbound_router import InboundMessageRouter
 from navpy.modules.vehicle.link_state import HeartbeatState, PacketLossTracker
 from navpy.modules.vehicle.message_store import MessageStore
@@ -38,7 +38,7 @@ _VEHICLE_SYS_ID = 1
 _PRODUCTION_IMPORT_PROBE = """
 import navpy.modules.nav.nav_network            # companion swarm session
 from pymavlink.dialects.v20.ardupilotmega import MAVLINK_MSG_ID_SWARM_ACK
-from navpy.modules.comm.messages.msg_abc import MsgRegistry
+from navpy.core.link.msg_abc import MsgRegistry
 print("REGISTERED" if MsgRegistry.has_mav_id(MAVLINK_MSG_ID_SWARM_ACK) else "ABSENT")
 """
 

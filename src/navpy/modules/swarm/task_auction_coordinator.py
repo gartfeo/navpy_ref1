@@ -5,13 +5,13 @@ from __future__ import annotations
 from typing import Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.swarm_ack_msg import SwarmAckMsg
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
-from navpy.modules.comm.messages.task_assignment_msg import TaskAssignResponseMsg
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.swarm_ack_msg import SwarmAckMsg
+from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
+from navpy.core.link.task_assignment_msg import TaskAssignResponseMsg
+from navpy.core.link.task_availability_msg import (
     AvailableTaskResponseMsg,
 )
-from navpy.modules.comm.messages.task_message_data import TaskHandleMsgData
+from navpy.core.link.task_message_data import TaskHandleMsgData
 from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
 from navpy.modules.swarm.task_auction_confirmation import (
     TaskAssignConfirmation,

@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_confirmation_msg import (
+from navpy.core.link.task_confirmation_msg import (
     TaskConfirmResponseMsg,
 )
-from navpy.modules.comm.messages.msg_abc import MsgABC
-from navpy.modules.comm.messages.swarm_request_msg import (
+from navpy.core.link.msg_abc import MsgABC
+from navpy.core.link.swarm_request_msg import (
     REQUEST_TYPE_RESOURCE,
     SUBJECT_TYPE_THUMBNAIL,
     SwarmRequestMsg,
 )
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.types import MsgType
 from navpy.modules.nav.confirmation_ports import ConfirmationInboundStatePort
 from navpy.modules.nav.confirmation_round_transaction import (
     ConfirmationRequestRef,

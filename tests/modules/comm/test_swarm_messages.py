@@ -26,16 +26,16 @@ import unittest
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.modules.comm.messages.msg_abc import MsgRegistry
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.types import MsgType
-from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms, DEFAULT_TTL_MS
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.msg_abc import MsgRegistry
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.types import MsgType
+from navpy.core.link.ttl_defaults import get_ttl_ms, DEFAULT_TTL_MS
+from navpy.core.link.swarm_ack_msg import (
     SwarmAckMsg,
     ACK_STATUS_RECEIVED,
     ACK_STATUS_APPLIED,
 )
-from navpy.modules.comm.messages.swarm_request_msg import (
+from navpy.core.link.swarm_request_msg import (
     SwarmRequestMsg,
     REQUEST_TYPE_RESOURCE,
     SUBJECT_TYPE_THUMBNAIL,

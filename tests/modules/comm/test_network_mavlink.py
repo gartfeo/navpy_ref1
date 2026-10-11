@@ -2,13 +2,13 @@
 
 from unittest.mock import MagicMock
 
-from navpy.modules.comm.messages.task_availability_msg import AvailableTaskResponseMsg
-from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData, TaskHandleMsgData
-from navpy.modules.comm.messages.task_assignment_msg import TaskAssignRequestMsg
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmResponseMsg
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.types import TaskTypeMsgData
-from navpy.modules.comm.network_mavlink import NetworkMavlink
+from navpy.core.link.task_availability_msg import AvailableTaskResponseMsg
+from navpy.core.link.task_message_data import TaskAssignMsgData, TaskHandleMsgData
+from navpy.core.link.task_assignment_msg import TaskAssignRequestMsg
+from navpy.core.link.task_confirmation_msg import TaskConfirmResponseMsg
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.types import TaskTypeMsgData
+from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 
 
 def _network(node_id: int):

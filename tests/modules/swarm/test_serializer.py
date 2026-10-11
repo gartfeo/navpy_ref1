@@ -1,26 +1,26 @@
 import unittest
 
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_assignment_msg import (
     TaskAssignResponseMsg,
     TaskAssignRequestMsg,
 )
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskAssignMsgData,
     TaskHandleMsgData,
     TaskMsgData,
 )
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.task_availability_msg import (
     AvailableTaskResponseMsg,
     AvailableTaskRequestMsg,
 )
-from navpy.modules.comm.messages.task_confirmation_msg import (
+from navpy.core.link.task_confirmation_msg import (
     TaskConfirmRequestMsg,
     TaskConfirmResponseMsg,
 )
-from navpy.modules.comm.messages.check_msg import CheckOutMsg, CheckInMsg
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_abc import MsgSerializer
-from navpy.modules.comm.messages.types import TaskTypeMsgData
+from navpy.core.link.check_msg import CheckOutMsg, CheckInMsg
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_abc import MsgSerializer
+from navpy.core.link.types import TaskTypeMsgData
 
 
 class SerializerTest(unittest.TestCase):

@@ -5,8 +5,8 @@ from pymavlink.dialects.v20.ardupilotmega import MAVLink_check_in_message, \
     MAVLink_message, MAVLink_check_out_message, MAVLink_slot_heartbeat_message, MAVLink_slot_claim_message, \
     MAVLink_vote_phase_message, MAVLink_search_status_message
 
-from navpy.modules.comm.messages.msg_abc import MsgRegistry, MsgABC
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.msg_abc import MsgRegistry, MsgABC
+from navpy.core.link.types import MsgType
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
 
 

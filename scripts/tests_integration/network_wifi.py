@@ -5,7 +5,7 @@ import time
 from unittest.mock import Mock
 
 from navpy.core.kernel.location import Location
-from navpy.modules.comm.network_wifi import NetworkWifi
+from navpy.plugins.radio.wifi.network_wifi import NetworkWifi
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.core.kernel.config.arg_helper import parse_boolean

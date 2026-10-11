@@ -6,30 +6,30 @@ from collections.abc import Callable, Mapping
 from typing import Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
 )
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskAssignMsgData,
     TaskHandleMsgData,
     TaskMsgData,
 )
-from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_abc import MsgABC
-from navpy.modules.comm.messages.msg_meta import MsgMetaProvider
-from navpy.modules.comm.messages.swarm_ack_msg import SwarmAckMsg
-from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_abc import MsgABC
+from navpy.core.link.msg_meta import MsgMetaProvider
+from navpy.core.link.swarm_ack_msg import SwarmAckMsg
+from navpy.core.link.swarm_heartbeat_msg import (
     SwarmHeartbeatMsg,
     SwarmNodeState,
 )
-from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.ttl_defaults import get_ttl_ms
+from navpy.core.link.types import MsgType
 from navpy.modules.swarm.task_ack_timing import ack_ttl_ms
 from navpy.modules.swarm.task_auction_models import TaskReservation
 from navpy.modules.swarm.task_msg_refs import MsgRef, msg_ref

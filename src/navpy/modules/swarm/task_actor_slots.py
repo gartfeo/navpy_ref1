@@ -9,12 +9,12 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Optional
 
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     ACK_STATUS_RECEIVED,
 )
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
-from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
+from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
+from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.modules.swarm.task_msg_refs import MsgRef, OwnerRef
 
 

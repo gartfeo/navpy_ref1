@@ -84,7 +84,7 @@ class TestAutoStartEsp32Sim(unittest.TestCase):
         ctrl_mod._esp32_sim = MagicMock()  # already running
         self.assertFalse(ctrl_mod.auto_start_esp32_sim())
 
-    @patch("navpy.tools.esp32_simulator.Esp32Simulator")
+    @patch("gcs.backend.esp32_simulator.Esp32Simulator")
     @patch.object(ctrl_mod.settings_store, "get")
     def test_starts_simulator_in_sim_container_mode(self, mock_get, mock_cls):
         mock_get.return_value = _settings(

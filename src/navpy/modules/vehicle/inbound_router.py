@@ -9,7 +9,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_TYPE_GCS,
 )
 
-from navpy.modules.comm.messages.msg_abc import MsgRegistry
+from navpy.core.link.msg_abc import MsgRegistry
 import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 from navpy.core.ports.admission_tap import (
     AdmissionSubscription,

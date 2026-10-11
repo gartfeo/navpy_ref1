@@ -17,7 +17,7 @@ log = logging.getLogger("gcs.backend.routes.control")
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from navpy.tools.esp32_simulator import Esp32Simulator
+    from gcs.backend.esp32_simulator import Esp32Simulator
 from gcs.backend.routes.control_readiness import _resolve_channel_map
 
 async def _bungee_launch(

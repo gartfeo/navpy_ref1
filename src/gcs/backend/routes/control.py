@@ -206,7 +206,7 @@ async def start_esp32_sim(port: int | None = None):
     if _esp32_sim is not None:
         raise HTTPException(409, "Simulator already running")
 
-    from navpy.tools.esp32_simulator import Esp32Simulator
+    from gcs.backend.esp32_simulator import Esp32Simulator
     sim_port = port or settings.launch.esp32_port
     _esp32_sim = Esp32Simulator(port=sim_port)
     _esp32_sim.start()
@@ -256,7 +256,7 @@ def auto_start_esp32_sim() -> bool:
     if _esp32_sim is not None:
         return False
 
-    from navpy.tools.esp32_simulator import Esp32Simulator
+    from gcs.backend.esp32_simulator import Esp32Simulator
     sim_port = settings.launch.esp32_port
     _esp32_sim = Esp32Simulator(port=sim_port)
     _esp32_sim.start()

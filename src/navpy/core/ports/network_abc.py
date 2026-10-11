@@ -4,9 +4,9 @@ import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from navpy.modules.comm.listener_abc import ListenerAbc
-from navpy.modules.comm.messages.msg_abc import MsgABC
-from navpy.modules.comm.message_filter import MessageFilter
+from navpy.core.link.listener_abc import ListenerAbc
+from navpy.core.link.msg_abc import MsgABC
+from navpy.core.link.message_filter import MessageFilter
 
 # Default chunk size (can be overridden by subclasses)
 DEFAULT_CHUNK_SIZE = 4096  # 4KB for WiFi/Serial

@@ -15,13 +15,13 @@ own message module).
 from typing import Callable
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
-from navpy.modules.comm.listener_abc import ListenerAbc
-from navpy.modules.comm.messages.msg_abc import MsgABC
-from navpy.modules.comm.messages.swarm_request_msg import (
+from navpy.core.link.listener_abc import ListenerAbc
+from navpy.core.link.msg_abc import MsgABC
+from navpy.core.link.swarm_request_msg import (
     REQUEST_TYPE_FORCE_CONFIRM,
     SwarmRequestMsg,
 )
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.types import MsgType
 
 
 class ConfirmOverrideListener(ListenerAbc):

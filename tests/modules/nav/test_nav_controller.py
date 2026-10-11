@@ -34,23 +34,23 @@ from navpy.core.ports.detect_response import DetectResponse
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
-from navpy.modules.comm.messages.task_availability_msg import AvailableTaskRequestMsg
-from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_availability_msg import AvailableTaskRequestMsg
+from navpy.core.link.task_message_data import TaskAssignMsgData
+from navpy.core.link.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     SwarmAckMsg,
 )
-from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+from navpy.core.link.swarm_heartbeat_msg import (
     SwarmHeartbeatMsg,
     SwarmNodeState,
 )
-from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
+from navpy.core.link.types import MsgType, TaskTypeMsgData
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_actor_slots import SlotState

@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import numpy as np
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
-from navpy.modules.comm.messages.swarm_request_msg import (
+from navpy.core.link.swarm_request_msg import (
     REQUEST_TYPE_FORCE_CONFIRM,
     REQUEST_TYPE_RESOURCE,
     SUBJECT_TYPE_THUMBNAIL,

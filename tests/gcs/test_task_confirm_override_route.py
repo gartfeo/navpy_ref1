@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from navpy.modules.comm.messages.swarm_request_msg import REQUEST_TYPE_FORCE_CONFIRM
+from navpy.core.link.swarm_request_msg import REQUEST_TYPE_FORCE_CONFIRM
 
 
 @pytest.fixture

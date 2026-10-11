@@ -6,12 +6,12 @@ from time import sleep
 from unittest.mock import MagicMock, patch
 
 from navpy.core.kernel.config.nav_args import NavArgs
-from navpy.modules.comm.messages.task_assignment_msg import TaskAssignRequestMsg
-from navpy.modules.comm.messages.task_confirmation_msg import (
+from navpy.core.link.task_assignment_msg import TaskAssignRequestMsg
+from navpy.core.link.task_confirmation_msg import (
     TaskConfirmRequestMsg,
     TaskConfirmResponseMsg,
 )
-from navpy.modules.comm.messages.msg_meta import MsgMeta
+from navpy.core.link.msg_meta import MsgMeta
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.nav.confirmation_manager import ConfirmationManager

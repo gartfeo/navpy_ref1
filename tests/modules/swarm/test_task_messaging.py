@@ -2,18 +2,18 @@ import unittest
 from unittest.mock import Mock
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_assignment_msg import (
     TaskAssignResponseMsg,
 )
-from navpy.modules.comm.messages.check_msg import CheckInMsg
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.check_msg import CheckInMsg
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     SwarmAckMsg,
 )
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
-from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
+from navpy.core.link.ttl_defaults import get_ttl_ms
+from navpy.core.link.types import MsgType
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.swarm.task_messaging import TaskMessageRouter, TaskMessageSender
 from navpy.modules.swarm.task_msg_refs import msg_ref

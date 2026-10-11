@@ -1,8 +1,8 @@
 import unittest
 
-from navpy.modules.comm.messages.check_msg import CheckInMsg
-from navpy.modules.comm.messages.msg_abc import MsgRegistry
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.check_msg import CheckInMsg
+from navpy.core.link.msg_abc import MsgRegistry
+from navpy.core.link.types import MsgType
 
 
 class MsgRegistryTest(unittest.TestCase):

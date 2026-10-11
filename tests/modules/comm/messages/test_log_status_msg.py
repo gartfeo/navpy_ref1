@@ -11,8 +11,8 @@ import logging
 
 import pytest
 
-from navpy.modules.comm.messages import log_status_msg
-from navpy.modules.comm.messages.log_status_msg import (
+from navpy.core.link import log_status_msg
+from navpy.core.link.log_status_msg import (
     LogStatusMsg,
     _make_non_string_status_tracer,
 )

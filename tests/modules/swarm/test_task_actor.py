@@ -4,40 +4,40 @@ from dataclasses import replace
 from unittest.mock import Mock, patch
 
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.comm.message_filter import MessageFilter
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.message_filter import MessageFilter
+from navpy.core.link.task_assignment_msg import (
     TaskAssignResponseMsg,
     TaskAssignRequestMsg,
 )
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskAssignMsgData,
     TaskHandleMsgData,
     TaskMsgData,
 )
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.task_availability_msg import (
     AvailableTaskResponseMsg,
     AvailableTaskRequestMsg,
 )
-from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     ACK_STATUS_RECEIVED,
     SwarmAckMsg,
 )
-from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+from navpy.core.link.swarm_heartbeat_msg import (
     SwarmHeartbeatMsg,
     SwarmNodeState,
 )
-from navpy.modules.comm.messages.types import TaskDispatchStatus, TaskTypeMsgData
+from navpy.core.link.types import TaskDispatchStatus, TaskTypeMsgData
 from navpy.core.kernel.location import Location
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from tests.detection_factory import make_detected_poi
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.types import MsgType
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_dispatch import TaskDispatch
 from navpy.modules.swarm.task_msg_refs import MsgRef

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Optional
 
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
+from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.modules.swarm.task_auction_state import TaskAuctionState
 from navpy.modules.swarm.task_msg_refs import MsgRef
 from navpy.modules.swarm.task_rebroadcast import TaskRebroadcastCoordinator

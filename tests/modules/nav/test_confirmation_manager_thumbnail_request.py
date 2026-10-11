@@ -16,8 +16,8 @@ import numpy as np
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmRequestMsg
-from navpy.modules.comm.messages.swarm_request_msg import (
+from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
+from navpy.core.link.swarm_request_msg import (
     SwarmRequestMsg, REQUEST_TYPE_RESOURCE, REQUEST_TYPE_RETRANSMIT,
     REQUEST_TYPE_FORCE_CONFIRM, SUBJECT_TYPE_THUMBNAIL,
 )

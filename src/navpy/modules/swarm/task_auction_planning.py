@@ -6,7 +6,7 @@ from collections.abc import Callable
 from types import MappingProxyType
 from typing import Optional
 
-from navpy.modules.comm.messages.types import TaskDispatchStatus
+from navpy.core.link.types import TaskDispatchStatus
 from navpy.modules.swarm.task_auction_models import (
     TaskAssignmentPlanner,
     TaskOffer,

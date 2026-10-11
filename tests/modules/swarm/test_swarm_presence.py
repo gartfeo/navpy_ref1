@@ -3,14 +3,14 @@ import unittest
 from unittest.mock import Mock, patch
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_heartbeat_msg import (
     SwarmHeartbeatMsg,
     SwarmNodeState,
 )
-from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
-from navpy.modules.comm.messages.types import TaskTypeMsgData
+from navpy.core.link.task_message_data import TaskAssignMsgData
+from navpy.core.link.types import TaskTypeMsgData
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
 from navpy.modules.swarm.swarm_presence import PeerStatusPorts, SwarmPresence

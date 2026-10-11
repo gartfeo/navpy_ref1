@@ -1,9 +1,9 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from navpy.modules.comm.messages.task_message_data import TaskHandleMsgData, TaskMsgData
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.types import TaskDispatchStatus, TaskTypeMsgData
+from navpy.core.link.task_message_data import TaskHandleMsgData, TaskMsgData
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.types import TaskDispatchStatus, TaskTypeMsgData
 from navpy.modules.swarm.task_dispatch import TaskDispatch
 
 

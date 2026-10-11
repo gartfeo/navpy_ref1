@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Protocol, Sequence
 
-from navpy.modules.comm.messages.task_message_data import TaskMsgData
+from navpy.core.link.task_message_data import TaskMsgData
 from navpy.modules.swarm.task_dispatch import TaskDispatch
 from navpy.modules.swarm.task_msg_refs import MsgRef
 from navpy.modules.swarm.task_peer_roster import PeerRoster

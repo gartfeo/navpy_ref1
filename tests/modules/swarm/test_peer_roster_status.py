@@ -4,9 +4,9 @@ import threading
 
 import pytest
 
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
-from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
+from navpy.core.link.ttl_defaults import get_ttl_ms
+from navpy.core.link.types import MsgType
 from navpy.modules.swarm.task_msg_refs import MsgRef
 from navpy.modules.swarm.task_peer_roster import (
     MAX_REMOTE_PEERS,

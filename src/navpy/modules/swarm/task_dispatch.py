@@ -2,11 +2,11 @@ import threading
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Dict
 
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskHandleMsgData,
     TaskMsgData,
 )
-from navpy.modules.comm.messages.types import TaskDispatchStatus
+from navpy.core.link.types import TaskDispatchStatus
 from navpy.modules.swarm.task_msg_refs import MsgRef
 
 

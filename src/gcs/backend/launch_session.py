@@ -83,7 +83,7 @@ async def prepare(
 
     # Create and health-check ESP32 client
     loop = asyncio.get_running_loop()
-    from navpy.modules.comm.esp32_trigger import Esp32TriggerClient
+    from gcs.backend.esp32_trigger import Esp32TriggerClient
     controller._esp32_client = Esp32TriggerClient(esp32_host, esp32_port)
     healthy = await loop.run_in_executor(None, controller._esp32_client.health_check)
     if not healthy:

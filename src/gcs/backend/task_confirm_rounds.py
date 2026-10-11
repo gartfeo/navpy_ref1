@@ -12,7 +12,7 @@ from gcs.backend.task_confirm_uid import (
     canonical_round_uid,
     parse_round_uid,
 )
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmRequestMsg
+from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
 
 
 class RequestAction(Enum):

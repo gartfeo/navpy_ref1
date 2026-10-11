@@ -21,7 +21,7 @@ from navpy.args.navpy_argparse import make_parser
 from navpy.args.vision_args import VisionArgs
 from navpy.core.kernel.logging.logger_api import ILogger
 from navpy.core.kernel.logging.logger_factory import initialize_logger
-from navpy.logger.status_logger_network import GroundStationLoggerNetwork
+from navpy.core.link.status_logger_network import GroundStationLoggerNetwork
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.comm.network_factory import create_network
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence

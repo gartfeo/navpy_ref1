@@ -4,12 +4,12 @@ import math
 
 import pytest
 
-from navpy.modules.comm.messages import ttl_defaults
-from navpy.modules.comm.messages.ttl_defaults import (
+from navpy.core.link import ttl_defaults
+from navpy.core.link.ttl_defaults import (
     SWARM_RESEND_INTERVAL_MS,
     get_ttl_ms,
 )
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.types import MsgType
 from navpy.modules.swarm.task_ack_timing import (
     ASSIGN_ACK_TIMING,
     AssignAckTiming,

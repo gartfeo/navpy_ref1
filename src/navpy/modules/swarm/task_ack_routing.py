@@ -6,8 +6,8 @@ from collections.abc import Callable, Mapping
 from typing import Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.swarm_ack_msg import SwarmAckMsg
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.swarm_ack_msg import SwarmAckMsg
+from navpy.core.link.types import MsgType
 from navpy.modules.swarm.task_msg_refs import MsgRef
 
 

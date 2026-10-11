@@ -2,10 +2,10 @@ from typing import Optional
 
 from navpy.args.conn.network_args import NetworkArgs, NetworkType
 from navpy.core.ports.network_abc import NetworkAbc
-from navpy.modules.comm.message_filter import MessageFilter
-from navpy.modules.comm.network_serial import NetworkSerial
-from navpy.modules.comm.network_wifi import NetworkWifi
-from navpy.modules.comm.network_mavlink import NetworkMavlink
+from navpy.core.link.message_filter import MessageFilter
+from navpy.plugins.radio.serial.network_serial import NetworkSerial
+from navpy.plugins.radio.wifi.network_wifi import NetworkWifi
+from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.vehicle_contract import IVehicle
 

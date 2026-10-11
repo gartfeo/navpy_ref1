@@ -1,6 +1,6 @@
 import unittest
 
-from navpy.modules.comm.messages.location_msg import LocationMsgData
+from navpy.core.link.location_msg import LocationMsgData
 
 
 class MyTestCase(unittest.TestCase):

@@ -1,13 +1,13 @@
 import time
 from multiprocessing import Process
 
-from navpy.modules.comm.messages.check_msg import CheckInMsg
-from navpy.modules.comm.serial.sim.serial_sim_server import SerialSimServer
+from navpy.core.link.check_msg import CheckInMsg
+from navpy.sim.radio.serial_sim_server import SerialSimServer
 
 
 def start_node(n_id):
     from navpy.core.kernel.logging.cache_logger import ConsoleLogger
-    from navpy.modules.comm.network_serial import NetworkSerial
+    from navpy.plugins.radio.serial.network_serial import NetworkSerial
 
     logger = ConsoleLogger()
     network = NetworkSerial(n_id, None, logger=logger, simulation=True)

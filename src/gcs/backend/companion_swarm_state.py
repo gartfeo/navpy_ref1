@@ -17,7 +17,7 @@ from typing import Optional
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.modules.comm.messages.swarm_heartbeat_msg import (
+from navpy.core.link.swarm_heartbeat_msg import (
     SwarmHeartbeatMsg,
     SwarmNodeState,
 )

@@ -16,22 +16,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from navpy.modules.comm.messages.msg_abc import MsgRegistry
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.msg_abc import MsgRegistry
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     ACK_STATUS_PROCESSING,
     SwarmAckMsg,
 )
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
 )
-from navpy.modules.comm.messages.types import MsgType, TaskDispatchStatus
-from navpy.modules.comm.network_mavlink import NetworkMavlink
+from navpy.core.link.types import MsgType, TaskDispatchStatus
+from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from navpy.core.kernel.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_actor_slots import SlotState

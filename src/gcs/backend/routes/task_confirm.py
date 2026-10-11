@@ -10,9 +10,9 @@ from gcs.backend.models import TaskConfirmResponseRequest
 from gcs.backend.vehicle_manager import vehicle_mgr
 from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.task_confirm_transport import correlated_meta
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmResponseMsg
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.task_confirmation_msg import TaskConfirmResponseMsg
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.types import MsgType
 
 log = logging.getLogger(__name__)
 router = APIRouter()

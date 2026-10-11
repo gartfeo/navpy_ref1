@@ -2,7 +2,7 @@
 import unittest
 import base64
 
-from navpy.modules.comm.image_transfer import (
+from navpy.plugins.radio.mavlink.image_transfer import (
     ImageChunker,
     ImageReassembler,
     ImageTransferType,

@@ -6,7 +6,7 @@ import threading
 from collections.abc import Callable
 from typing import Optional, Protocol
 
-from navpy.modules.comm.messages.msg_abc import MsgABC
+from navpy.core.link.msg_abc import MsgABC
 from navpy.modules.nav.confirmation_round_transaction import (
     ConfirmationRequestRef,
     ConfirmationResponseKind,

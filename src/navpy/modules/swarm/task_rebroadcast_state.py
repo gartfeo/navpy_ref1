@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from navpy.modules.comm.messages.task_message_data import TaskMsgData
-from navpy.modules.comm.messages.types import TaskDispatchStatus
+from navpy.core.link.task_message_data import TaskMsgData
+from navpy.core.link.types import TaskDispatchStatus
 from navpy.modules.swarm.task_auction_models import (
     TaskRebroadcastPlan,
     _TaskAuctionStore,

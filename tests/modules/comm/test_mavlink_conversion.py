@@ -2,28 +2,28 @@ import unittest
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.modules.comm.messages.check_msg import CheckInMsg, CheckOutMsg
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
 )
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskMsgData,
     TaskHandleMsgData,
     TaskAssignMsgData,
 )
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )
-from navpy.modules.comm.messages.task_confirmation_msg import (
+from navpy.core.link.task_confirmation_msg import (
     TaskConfirmRequestMsg,
     TaskConfirmResponseMsg,
 )
-from navpy.modules.comm.messages.log_status_msg import LogStatusMsg
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.types import TaskTypeMsgData
+from navpy.core.link.log_status_msg import LogStatusMsg
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.types import TaskTypeMsgData
 
 
 # Default meta for testing - messages with meta will have symmetric roundtrip
@@ -126,12 +126,12 @@ class TestClassToTaskType(unittest.TestCase):
     """Tests for class_to_task_type mapping."""
 
     def test_dock_class_maps_to_dock_task(self):
-        from navpy.modules.comm.messages.types import class_to_task_type
+        from navpy.core.link.types import class_to_task_type
         from navpy.modules.vision.vision_class_profile import DOCK_DETECT_CLASS_ID
         self.assertEqual(class_to_task_type(DOCK_DETECT_CLASS_ID), TaskTypeMsgData.DOCK)
 
     def test_unknown_class_returns_unknown(self):
-        from navpy.modules.comm.messages.types import class_to_task_type
+        from navpy.core.link.types import class_to_task_type
         self.assertEqual(class_to_task_type(99), TaskTypeMsgData.UNKNOWN)
 
     def test_task_type_members_are_dock_and_unknown(self):

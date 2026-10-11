@@ -6,8 +6,8 @@ from typing import Callable, List, Optional
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.listener_abc import ListenerAbc
-from navpy.modules.comm.messages.msg_abc import MsgABC
+from navpy.core.link.listener_abc import ListenerAbc
+from navpy.core.link.msg_abc import MsgABC
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.nav.confirmation_image_artifacts import (
     save_confirmation_image_artifacts,

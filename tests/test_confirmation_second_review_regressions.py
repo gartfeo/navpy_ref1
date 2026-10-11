@@ -15,14 +15,14 @@ from gcs.backend.task_confirm_listener import TaskConfirmListener
 from gcs.backend.task_confirm_rounds import ConfirmationRoundRegistry, RequestAction
 from gcs.backend.task_confirm_transport import parse_round_uid
 from navpy.core.kernel.exception_groups import ExceptionGroup
-from navpy.modules.comm.messages.task_assignment_msg import TaskAssignResponseMsg
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_assignment_msg import TaskAssignResponseMsg
+from navpy.core.link.task_message_data import (
     TaskHandleMsgData,
     TaskMsgData,
 )
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.types import (
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.types import (
     MsgType,
     TaskDispatchStatus,
     TaskTypeMsgData,

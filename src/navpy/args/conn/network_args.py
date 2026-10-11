@@ -1,8 +1,8 @@
 from enum import Enum
 
-from navpy.args.conn.serial_multi_networkArgs import SerialMultiNetworkArgs
-from navpy.args.conn.serial_network_args import SerialNetworkArgs
-from navpy.args.conn.wifi_network_args import WifiNetworkArgs
+from navpy.plugins.radio.serial.serial_multi_networkArgs import SerialMultiNetworkArgs
+from navpy.plugins.radio.serial.serial_network_args import SerialNetworkArgs
+from navpy.plugins.radio.wifi.wifi_network_args import WifiNetworkArgs
 
 
 class NetworkType(Enum):

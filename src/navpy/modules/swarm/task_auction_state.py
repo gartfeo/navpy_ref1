@@ -7,12 +7,12 @@ import math
 from typing import Callable, Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
+from navpy.core.link.task_message_data import (
     TaskHandleMsgData,
     TaskMsgData,
 )
-from navpy.modules.comm.messages.types import TaskDispatchStatus
+from navpy.core.link.types import TaskDispatchStatus
 from navpy.modules.swarm.task_auction_evidence import report_peer_state
 from navpy.modules.swarm.task_auction_models import (
     TaskAssignmentPlanner,

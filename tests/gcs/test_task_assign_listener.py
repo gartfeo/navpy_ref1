@@ -8,24 +8,24 @@ import pytest
 
 from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
 from gcs.backend.task_assign_listener import TaskAssignListener
-from navpy.modules.comm.messages.task_availability_msg import AvailableTaskRequestMsg
-from navpy.modules.comm.messages.task_assignment_msg import (
+from navpy.core.link.task_availability_msg import AvailableTaskRequestMsg
+from navpy.core.link.task_assignment_msg import (
     TaskAssignRequestMsg,
     TaskAssignResponseMsg,
 )
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskAssignMsgData,
     TaskMsgData,
 )
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     ACK_STATUS_PROCESSING,
     ACK_STATUS_RECEIVED,
     SwarmAckMsg,
 )
-from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
+from navpy.core.link.types import MsgType, TaskTypeMsgData
 from scripts.eval_gcs_demo_assignment_lines import (
     AckLine,
     LogFormat,

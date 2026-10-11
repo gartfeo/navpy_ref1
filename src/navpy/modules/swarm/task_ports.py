@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Optional, Protocol
 
 from navpy.core.ports.network_abc import NetworkAbc
-from navpy.modules.comm.messages.msg_abc import MsgABC
+from navpy.core.link.msg_abc import MsgABC
 from navpy.core.kernel.location import Location
 
 

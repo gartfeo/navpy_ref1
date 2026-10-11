@@ -15,7 +15,7 @@ from typing import Optional
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
+from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.nav.nav_state import NavigationTaskState

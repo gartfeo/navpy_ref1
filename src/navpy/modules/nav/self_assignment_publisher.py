@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_assignment_msg import TaskAssignRequestMsg
-from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.types import class_to_task_type
+from navpy.core.link.task_assignment_msg import TaskAssignRequestMsg
+from navpy.core.link.task_message_data import TaskAssignMsgData
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.types import class_to_task_type
 from navpy.modules.nav.confirmation_ports import ConfirmationMessageBroadcaster
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import get_poi_task_id

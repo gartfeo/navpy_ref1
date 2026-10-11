@@ -7,12 +7,12 @@ from typing import Callable, Optional
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmRequestMsg
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
+from navpy.core.link.task_message_data import (
     TaskMsgData,
 )
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.types import class_to_task_type
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.types import class_to_task_type
 from navpy.modules.nav.confirmation_dependencies import ConfirmationFailurePolicy
 from navpy.modules.nav.confirmation_ports import (
     ConfirmationMessageBroadcaster,

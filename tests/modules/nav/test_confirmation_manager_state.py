@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.modules.comm.messages.msg_meta import MsgMeta
+from navpy.core.link.msg_meta import MsgMeta
 from navpy.modules.nav.confirmation_round_transaction import ConfirmationRequestRef
 from navpy.modules.nav.confirmation_round_runner import ConfirmationRoundRunner
 from navpy.modules.nav.confirmation_round_transaction import (

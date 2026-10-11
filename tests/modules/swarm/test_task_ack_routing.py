@@ -5,12 +5,12 @@ from unittest.mock import Mock
 import pytest
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_RECEIVED,
     SwarmAckMsg,
 )
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.types import MsgType
 from navpy.modules.swarm.task_ack_routing import TaskAckRouter, acked_ref
 from navpy.modules.swarm.task_messaging import TaskMessageRouter
 from navpy.modules.swarm.task_msg_refs import MsgRef

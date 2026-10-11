@@ -8,17 +8,17 @@ from collections.abc import Callable
 from typing import Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.messages.location_msg import LocationMsgData
-from navpy.modules.comm.messages.swarm_ack_msg import (
+from navpy.core.link.location_msg import LocationMsgData
+from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_RECEIVED,
     SwarmAckMsg,
 )
-from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
-from navpy.modules.comm.messages.task_assignment_msg import TaskAssignRequestMsg
-from navpy.modules.comm.messages.task_availability_msg import (
+from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
+from navpy.core.link.task_assignment_msg import TaskAssignRequestMsg
+from navpy.core.link.task_availability_msg import (
     AvailableTaskRequestMsg,
 )
-from navpy.modules.comm.messages.task_message_data import (
+from navpy.core.link.task_message_data import (
     TaskHandleMsgData,
     TaskMsgData,
 )

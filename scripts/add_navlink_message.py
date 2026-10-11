@@ -241,9 +241,9 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLINK_MSG_ID_{name.upper()},
 )
 
-from navpy.modules.comm.messages.msg_abc import register_msg, MsgABC
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.types import MsgType
+from navpy.core.link.msg_abc import register_msg, MsgABC
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.types import MsgType
 
 
 def _meta4(meta: Optional[MsgMeta]):
@@ -323,8 +323,8 @@ def generate_test(spec, module_name):
     asserts_str = "\n".join(asserts) or "    pass"
 
     return f'''"""Roundtrip tests for {cls} ({name}). AUTO-SCAFFOLDED."""
-from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.messages.{module_name} import {cls}
+from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.link.{module_name} import {cls}
 
 
 def _make():
@@ -351,7 +351,7 @@ def scaffold_navpy(spec, dry_run):
     name = spec["name"]
     nav = spec["navpy"]
     module_name = f"{name.lower()}_msg"
-    wrapper_path = os.path.join(REPO_ROOT, "src", "navpy", "modules", "comm", "messages", f"{module_name}.py")
+    wrapper_path = os.path.join(REPO_ROOT, "src", "navpy", "core", "link", f"{module_name}.py")
     test_path = os.path.join(REPO_ROOT, "tests", "modules", "comm", f"test_{module_name}.py")
 
     # wrapper
@@ -377,7 +377,7 @@ def scaffold_navpy(spec, dry_run):
 
 
 def _patch_msgtype(enum_name, value, dry_run):
-    path = os.path.join(REPO_ROOT, "src", "navpy", "modules", "comm", "messages", "types.py")
+    path = os.path.join(REPO_ROOT, "src", "navpy", "core", "link", "types.py")
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
     if f"{enum_name} =" in content:
@@ -394,7 +394,7 @@ def _patch_msgtype(enum_name, value, dry_run):
 
 
 def _patch_ttl(enum_name, ttl_ms, dry_run):
-    path = os.path.join(REPO_ROOT, "src", "navpy", "modules", "comm", "messages", "ttl_defaults.py")
+    path = os.path.join(REPO_ROOT, "src", "navpy", "core", "link", "ttl_defaults.py")
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
     if f"MsgType.{enum_name}:" in content:
