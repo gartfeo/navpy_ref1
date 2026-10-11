@@ -25,7 +25,7 @@ from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_ports import MessageClockReset
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detector_ports import SimulationControlPort
+from navpy.core.perception.detector_ports import SimulationControlPort
 from navpy.core.ports.detect_data import DetectedObject
 
 

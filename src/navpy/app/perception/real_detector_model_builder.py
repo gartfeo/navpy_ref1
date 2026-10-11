@@ -21,19 +21,19 @@ from navpy.core.kernel.config.detector_backend import (
     CHARUCO_BACKEND,
     YOLO_BACKEND,
 )
-from navpy.modules.vision.real_detector_config import (
+from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
     RealDetectorConfig,
 )
 from navpy.core.ports.detection import FrameDetector
-from navpy.modules.vision.real_detector_ports import ModelResourceCloser
-from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
+from navpy.core.perception.pipeline.real_detector_ports import ModelResourceCloser
+from navpy.core.perception.pipeline.real_detector_runtime_state import RuntimeMetrics
 from navpy.core.perception.tracking.poi_lock import PoiLock
 from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
 from navpy.app.perception.tracker_backend_factory import create_tracker_backend
 from navpy.plugins.detection.yolo.yolo_detector import YoloDetector
-from navpy.modules.vision.real_detector_models import RealDetectorModels, close_model_resources
+from navpy.core.perception.pipeline.real_detector_models import RealDetectorModels, close_model_resources
 
 
 def _build_yolo(model: DetectorModelConfig, logger: ILogger) -> FrameDetector:

@@ -44,7 +44,7 @@ from navpy.modules.vision.sim.sim_detector_controls import (
 from navpy.modules.vision.sim.sim_detector_state import SimCaptureState
 from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
 from navpy.modules.vision.simulation_object import SimulationObject
-from navpy.modules.vision.visual_ray_projection import observation_body_ray
+from navpy.core.perception.visual_ray_projection import observation_body_ray
 from tests.detection_factory import make_detected_poi
 
 

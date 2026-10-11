@@ -7,8 +7,8 @@ import numpy as np
 
 from navpy.core.perception.tracking.appearance_async import AsyncAppearanceEmbedder
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
-from navpy.modules.vision.real_tracking import TrackingRecovery
+from navpy.core.perception.pipeline.real_detector_runtime_state import RuntimeMetrics
+from navpy.core.perception.pipeline.real_tracking import TrackingRecovery
 
 
 def _track(obj_id, cls=0, cx=100.0):

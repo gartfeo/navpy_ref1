@@ -9,9 +9,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 PUBLIC_ADAPTERS = {
     "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py": "VehicleMav",
-    "src/navpy/modules/vision/detector.py": "Detector",
+    "src/navpy/core/perception/pipeline/detector.py": "Detector",
     "src/navpy/modules/vision/sim/detector_sim.py": "DetectorSim",
-    "src/navpy/modules/vision/detection_coordinator.py": "DetectionCoordinator",
+    "src/navpy/core/perception/detection_coordinator.py": "DetectionCoordinator",
     "src/navpy/modules/vision/peripheral/siyi/sim/gimbal_physics.py": "GimbalPhysics",
     "src/navpy/modules/vision/peripheral/siyi/sim/gimbal_siyi_sim.py": "GimbalSiyiSim",
     "src/navpy/core/perception/zoom/poi_zoom_orchestrator.py": "PoiZoomTracker",

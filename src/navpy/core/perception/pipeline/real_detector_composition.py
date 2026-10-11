@@ -1,0 +1,125 @@
+"""Bounded composition root for the real detector."""
+
+from __future__ import annotations
+
+from navpy.core.kernel.exception_groups import ExceptionGroup
+
+from navpy.core.perception.pipeline.real_detector_config import (
+    DetectorDependencies,
+    RealDetectorConfig,
+    RealDetectorPorts,
+)
+from navpy.core.perception.detector_ports import (
+    GimbalSourceIdentity,
+    IdentitySchedulerCadence,
+    NonSimulationControls,
+    PollingDetectionEvents,
+)
+from navpy.core.perception.pipeline.real_detector_controls import (
+    DetectionQuery,
+    DetectorGeoControl,
+    DetectorTrackingControl,
+)
+from navpy.app.perception.real_detector_model_builder import build_models
+from navpy.core.perception.pipeline.real_detector_models import close_model_resources
+from navpy.core.perception.pipeline.real_gimbal_adapters import (
+    GimbalGeoAdapter,
+    GimbalTrackingAdapter,
+)
+from navpy.core.perception.pipeline.real_detector_runtime_composition import (
+    build_runtime,
+    build_state,
+)
+from navpy.core.perception.pipeline.real_detector_worker_composition import (
+    build_diagnostics,
+    build_lifecycle,
+    build_reset,
+    build_resources,
+    build_workers,
+)
+
+
+def build_real_detector(
+    dependencies: DetectorDependencies,
+    config: RealDetectorConfig,
+) -> RealDetectorPorts:
+    state = build_state(config)
+    models = build_models(dependencies.logger, config, state.metrics)
+    resources = None
+    try:
+        resources = build_resources(state, models)
+        runtime = build_runtime(dependencies, config, state, models)
+        workers = build_workers(dependencies, config, state, models, runtime)
+        diagnostics = build_diagnostics(
+            dependencies,
+            config,
+            state,
+            models,
+            runtime,
+        )
+        lifecycle = build_lifecycle(
+            dependencies,
+            state,
+            runtime,
+            workers,
+            diagnostics,
+            resources,
+        )
+        return RealDetectorPorts(
+            mount=dependencies.mount,
+            identity=GimbalSourceIdentity(dependencies.mount.get_gimbal_data),
+            events=PollingDetectionEvents(),
+            simulation=NonSimulationControls(),
+            cadence=IdentitySchedulerCadence(),
+            compatibility_navigation=runtime.navigation,
+            tracking=DetectorTrackingControl(
+                None
+                if runtime.navigation is None
+                else GimbalTrackingAdapter(runtime.navigation),
+                models.poi_lock,
+            ),
+            geo=DetectorGeoControl(
+                None
+                if runtime.navigation is None
+                else GimbalGeoAdapter(runtime.navigation)
+            ),
+            lifecycle=lifecycle,
+            reset=build_reset(state, models),
+            query=DetectionQuery(
+                state.results,
+                state.freshness,
+                models.poi_lock,
+                config.pipeline.use_poi_lock,
+            ),
+            diagnostics=diagnostics,
+        )
+    except Exception as creation_error:
+        if resources is None:
+            cleanup_errors = close_model_resources(
+                dependencies.logger,
+                tracker=models.tracker,
+                appearance=models.appearance,
+                frame_detector=models.frame_detector,
+                deep_search=models.deep_search,
+            )
+        else:
+            try:
+                resources.close()
+            except Exception as cleanup_error:
+                cleanup_errors = (cleanup_error,)
+            else:
+                cleanup_errors = ()
+        if cleanup_errors:
+            raise ExceptionGroup(
+                "detector construction and rollback failed",
+                [creation_error, *cleanup_errors],
+            ) from None
+        raise
+
+
+__all__ = [
+    "DetectorDependencies",
+    "RealDetectorConfig",
+    "RealDetectorPorts",
+    "build_real_detector",
+]

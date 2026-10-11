@@ -50,7 +50,7 @@ from navpy.modules.nav.peer_task_priority import (
     PeerTaskPriorityPorts,
 )
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
 def compose_mission_navigation_ownership(

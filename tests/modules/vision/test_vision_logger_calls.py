@@ -23,7 +23,7 @@ from navpy.plugins.tracking.boxmot.tracker_backends_boxmot import (
 from navpy.plugins.tracking.tracker_config import tracker_config_from_settings
 from navpy.core.ports.detection import Detection
 from navpy.plugins.detection.yolo.yolo_detector import YoloDetector
-from navpy.modules.vision.tracking_command_router import TrackingCommandRouter
+from navpy.core.perception.tracking_command_router import TrackingCommandRouter
 
 from tests.modules.vision.test_tracker_backends import (
     _FakeBotSort,
@@ -217,7 +217,7 @@ class TestDeepSearchLoopLog(unittest.TestCase):
     def test_candidate_log_preserves_per_count_dedupe(self):
         # The old numeric key deduped once per candidate count. Keep that
         # behavior with a named string key while rendering the count.
-        from navpy.modules.vision.real_inference import DeepSearchLoop
+        from navpy.core.perception.pipeline.real_inference import DeepSearchLoop
         from navpy.core.perception.camera.frame_publication import FrameSnapshot
 
         logger = _RecordingLogger()

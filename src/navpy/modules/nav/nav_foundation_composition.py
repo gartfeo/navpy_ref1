@@ -71,7 +71,7 @@ from navpy.modules.nav.vehicle_navigation import (
     VehicleNavigationCommands,
 )
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
 ApproachCalculator = Callable[..., ApproachPlan]

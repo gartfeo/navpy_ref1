@@ -19,19 +19,19 @@ from navpy.core.ports.tracks import TrackedObject
 from navpy.core.perception.camera.frame_provider import FrameSnapshot
 from navpy.core.ports.detect_request import DetectRequest
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.real_detector_controls import DetectionQuery
-from navpy.modules.vision.real_detector_diagnostics import (
+from navpy.core.perception.pipeline.real_detector_controls import DetectionQuery
+from navpy.core.perception.pipeline.real_detector_diagnostics import (
     DetectorDebugConfig,
     DetectorDiagnostics,
 )
-from navpy.modules.vision.real_detector_lifecycle import PoseStreamRequester
-from navpy.modules.vision.real_detector_state import (
+from navpy.core.perception.pipeline.real_detector_lifecycle import PoseStreamRequester
+from navpy.core.perception.pipeline.real_detector_state import (
     ConfirmationFrameStore,
     DetectionResultStore,
     FreshnessPolicy,
     OverlayStore,
 )
-from navpy.modules.vision.real_detector_runtime_state import (
+from navpy.core.perception.pipeline.real_detector_runtime_state import (
     DetectorRunState,
     RuntimeMetrics,
 )
@@ -40,8 +40,8 @@ from navpy.core.ports.frame_capture_ports import (
     CaptureStamp,
     CaptureStampKind,
 )
-from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
-from navpy.modules.vision.real_detection_mapper import (
+from navpy.core.perception.pipeline.real_frame_association import FrameAssociationBuilder
+from navpy.core.perception.pipeline.real_detection_mapper import (
     DetectedObjectMapper,
     DetectionMappingConfig,
 )
@@ -278,7 +278,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         if associated_at_s is None:
             associated_at_s = frame_ts + 0.01
         with patch(
-                "navpy.modules.vision.real_frame_association.time.time",
+                "navpy.core.perception.pipeline.real_frame_association.time.time",
                 return_value=associated_at_s,
         ):
             return detector.association.capture(snapshot, frame)
@@ -738,7 +738,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         )
 
         with patch(
-                "navpy.modules.vision.real_detector_controls.time.time",
+                "navpy.core.perception.pipeline.real_detector_controls.time.time",
                 return_value=100.0,
         ):
             resp = query.get_detect_data(DetectRequest())
@@ -765,7 +765,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         )
 
         with patch(
-                "navpy.modules.vision.real_detector_controls.time.time",
+                "navpy.core.perception.pipeline.real_detector_controls.time.time",
                 return_value=100.0,
         ):
             tracks = diagnostics.get_overlay_tracks()

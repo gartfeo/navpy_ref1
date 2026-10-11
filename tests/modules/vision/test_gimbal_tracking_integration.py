@@ -320,10 +320,10 @@ class TestBodyFrameReporting(unittest.TestCase):
 class TestDetectionCoordinatorTracking(unittest.TestCase):
 
     def test_start_tracking_forwards(self):
-        from navpy.modules.vision.detection_identity_registry import (
+        from navpy.core.perception.detection_identity_registry import (
             DetectionIdentityRegistry,
         )
-        from navpy.modules.vision.tracking_command_router import TrackingCommandRouter
+        from navpy.core.perception.tracking_command_router import TrackingCommandRouter
 
         d1, d2 = Mock(), Mock()
         coord = TrackingCommandRouter(
@@ -334,10 +334,10 @@ class TestDetectionCoordinatorTracking(unittest.TestCase):
         d2.start_tracking.assert_called_once_with(7)
 
     def test_stop_tracking_forwards(self):
-        from navpy.modules.vision.detection_identity_registry import (
+        from navpy.core.perception.detection_identity_registry import (
             DetectionIdentityRegistry,
         )
-        from navpy.modules.vision.tracking_command_router import TrackingCommandRouter
+        from navpy.core.perception.tracking_command_router import TrackingCommandRouter
 
         d1, d2 = Mock(), Mock()
         coord = TrackingCommandRouter(
@@ -355,7 +355,7 @@ class TestRealDetectorStartTracking(unittest.TestCase):
         """Negative ids are reserved as GimbalNavigation arm() sentinels;
         the real-detector surface must reject them so a caller can't
         accidentally arm YOLO's lock on a non-existent track."""
-        from navpy.modules.vision.real_detector_controls import (
+        from navpy.core.perception.pipeline.real_detector_controls import (
             DetectorTrackingControl,
         )
 

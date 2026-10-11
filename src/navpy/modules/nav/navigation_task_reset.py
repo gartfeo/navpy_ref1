@@ -24,7 +24,7 @@ from navpy.modules.nav.poi_retry import PoiRetryState
 from navpy.modules.nav.vehicle_navigation import LoiterRadiusLease
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detector_ports import (
+from navpy.core.perception.detector_ports import (
     DetectorResetPort,
     GeoPointingPort,
     TrackingCommandPort,

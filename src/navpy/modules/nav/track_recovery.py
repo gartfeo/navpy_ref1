@@ -27,7 +27,7 @@ from navpy.modules.nav.nav_state import (
 )
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.vision.detector_ports import (
+from navpy.core.perception.detector_ports import (
     GeoPointingPort,
     PoiIdentityPort,
     TrackingCommandPort,

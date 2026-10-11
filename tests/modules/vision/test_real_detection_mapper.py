@@ -7,9 +7,9 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
 from navpy.core.ports.tracks import TrackedObject
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.real_detector_state import ConfirmationFrameStore
-from navpy.modules.vision.real_frame_association import RealFrameAssociation
-from navpy.modules.vision.real_detection_mapper import (
+from navpy.core.perception.pipeline.real_detector_state import ConfirmationFrameStore
+from navpy.core.perception.pipeline.real_frame_association import RealFrameAssociation
+from navpy.core.perception.pipeline.real_detection_mapper import (
     DetectedObjectMapper,
     DetectionMappingConfig,
 )

@@ -11,7 +11,7 @@ from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.vision.sim.detection_publication_buffer import (
     DetectionPublicationBuffer,
 )
-from navpy.modules.vision.detector_ports import source_name_from_gimbal
+from navpy.core.perception.detector_ports import source_name_from_gimbal
 from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
 from navpy.modules.vision.sim.finite_projection_evidence import projection_log_sink
 from navpy.modules.vision.sim.projection_run_recorder import ProjectionRunRecorder, create_projection_recorder, rollback_projection_recorder

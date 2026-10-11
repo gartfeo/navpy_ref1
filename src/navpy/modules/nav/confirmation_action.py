@@ -21,7 +21,7 @@ from navpy.modules.nav.nav_state import (
 )
 from navpy.modules.nav.peer_geo import PeerGeoAcquisition
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.vision.detector_ports import GeoPointingPort
+from navpy.core.perception.detector_ports import GeoPointingPort
 from navpy.core.ports.detect_data import DetectedObject
 
 

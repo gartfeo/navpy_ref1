@@ -274,11 +274,11 @@ class TestDetectorGeoForwarders(unittest.TestCase):
         from unittest.mock import Mock
 
         from navpy.core.kernel.location import Location
-        from navpy.modules.vision.real_detector_controls import (
+        from navpy.core.perception.pipeline.real_detector_controls import (
             DetectorGeoControl,
             DetectorTrackingControl,
         )
-        from navpy.modules.vision.real_gimbal_adapters import (
+        from navpy.core.perception.pipeline.real_gimbal_adapters import (
             GimbalGeoAdapter,
             GimbalTrackingAdapter,
         )
@@ -328,7 +328,7 @@ class TestDetectorGeoForwarders(unittest.TestCase):
         self.navigation.freeze_final_approach_zoom_at_min.assert_called_once_with()
 
     def test_no_op_when_navigation_is_none(self):
-        from navpy.modules.vision.real_detector_controls import (
+        from navpy.core.perception.pipeline.real_detector_controls import (
             DetectorGeoControl,
             DetectorTrackingControl,
         )

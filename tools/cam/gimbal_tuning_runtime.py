@@ -11,7 +11,7 @@ import cv2
 from navpy.core.kernel.resource_cleanup import CleanupStack
 from navpy.core.ports.detect_request import DetectRequest
 from navpy.core.perception.camera.camera_mount import CameraMount
-from navpy.modules.vision.detector import Detector
+from navpy.core.perception.pipeline.detector import Detector
 
 from .gimbal_tuning_args import MAX_ZOOM, MIN_ZOOM, parse_args
 from .gimbal_tuning_assembly import (

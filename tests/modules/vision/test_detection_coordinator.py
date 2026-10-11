@@ -7,15 +7,15 @@ from unittest.mock import Mock
 from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.detection_coordinator import DetectionCoordinator
-from navpy.modules.vision.detector_lifecycle_fleet import DetectorLifecycleFleet
+from navpy.core.perception.detection_coordinator import DetectionCoordinator
+from navpy.core.perception.detector_lifecycle_fleet import DetectorLifecycleFleet
 from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.core.ports.detect_request import DetectRequest
 from navpy.core.ports.detect_response import DetectResponse
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.perception.detection.poi_priority import select_most_centered_poi
-from navpy.modules.vision.tracking_command_router import TrackingCommandRouter
-from navpy.modules.vision.zoom_control_router import ZoomControlRouter
+from navpy.core.perception.tracking_command_router import TrackingCommandRouter
+from navpy.core.perception.zoom_control_router import ZoomControlRouter
 from tests.detection_factory import make_detected_poi
 
 

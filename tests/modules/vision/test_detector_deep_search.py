@@ -8,61 +8,61 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from navpy.core.kernel.exception_groups import ExceptionGroup
-from navpy.modules.vision.detector import Detector
+from navpy.core.perception.pipeline.detector import Detector
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.detector_ports import (
+from navpy.core.perception.detector_ports import (
     GimbalSourceIdentity,
     IdentitySchedulerCadence,
     NonSimulationControls,
     PollingDetectionEvents,
 )
 from navpy.core.perception.camera.frame_provider import FrameSnapshot
-from navpy.modules.vision.real_detector_composition import (
+from navpy.core.perception.pipeline.real_detector_composition import (
     DetectorDependencies,
     RealDetectorConfig,
     build_real_detector,
 )
-from navpy.modules.vision.real_detector_config import DetectorModelConfig
-from navpy.modules.vision.real_detector_controls import DetectorResetController
-from navpy.modules.vision.real_detector_lifecycle import (
+from navpy.core.perception.pipeline.real_detector_config import DetectorModelConfig
+from navpy.core.perception.pipeline.real_detector_controls import DetectorResetController
+from navpy.core.perception.pipeline.real_detector_lifecycle import (
     DetectorLifecycle,
     DetectorWorkers,
 )
 from navpy.app.perception.real_detector_model_builder import build_models
-from navpy.modules.vision.real_detector_resources import DetectorResources
-from navpy.modules.vision.real_detector_state import (
+from navpy.core.perception.pipeline.real_detector_resources import DetectorResources
+from navpy.core.perception.pipeline.real_detector_state import (
     ConfirmationFrameStore,
     DetectionResultStore,
     FreshnessPolicy,
     OverlayStore,
 )
-from navpy.modules.vision.real_detector_inference_state import (
+from navpy.core.perception.pipeline.real_detector_inference_state import (
     DeepSearchInbox,
     DetectionBatch,
     DetectionBatchInbox,
     InferenceGeneration,
 )
-from navpy.modules.vision.real_detector_runtime_state import (
+from navpy.core.perception.pipeline.real_detector_runtime_state import (
     DetectorRunState,
     LoopTiming,
     PipelineMutationGate,
     RuntimeMetrics,
     next_loop_deadline,
 )
-from navpy.modules.vision.real_inference import (
+from navpy.core.perception.pipeline.real_inference import (
     DeepSearchChannel,
     DeepSearchLoop,
     DetectionLoop,
 )
-from navpy.modules.vision.real_tracking import (
+from navpy.core.perception.pipeline.real_tracking import (
     TrackingBatchProcessor,
     TrackingLoop,
 )
-from navpy.modules.vision.real_tracking_batch import (
+from navpy.core.perception.pipeline.real_tracking_batch import (
     TrackingModels,
     TrackingPublications,
 )
-from navpy.modules.vision.real_tracking_batch import (
+from navpy.core.perception.pipeline.real_tracking_batch import (
     TrackingAssociationProcessor,
     TrackingResultPublisher,
 )
@@ -143,7 +143,7 @@ class TestDetectorDeepSearch(unittest.TestCase):
         overlays.publish([], _track(7, missed=0))
 
         with patch(
-                "navpy.modules.vision.real_detector_state.time.time",
+                "navpy.core.perception.pipeline.real_detector_state.time.time",
                 return_value=100.1,
         ):
             self.assertFalse(channel.should_run())
@@ -153,7 +153,7 @@ class TestDetectorDeepSearch(unittest.TestCase):
         overlays.publish([], _track(7, missed=3))
 
         with patch(
-                "navpy.modules.vision.real_detector_state.time.time",
+                "navpy.core.perception.pipeline.real_detector_state.time.time",
                 return_value=100.1,
         ):
             self.assertTrue(channel.should_run())
@@ -163,7 +163,7 @@ class TestDetectorDeepSearch(unittest.TestCase):
         overlays.publish([], _track(7, missed=0, timestamp=99.0))
 
         with patch(
-                "navpy.modules.vision.real_detector_state.time.time",
+                "navpy.core.perception.pipeline.real_detector_state.time.time",
                 return_value=100.0,
         ):
             self.assertTrue(channel.should_run())
@@ -651,7 +651,7 @@ class TestRealDetectorFleetCapabilities(unittest.TestCase):
             cadence=IdentitySchedulerCadence(),
         )
         with patch(
-            "navpy.modules.vision.detector.build_real_detector",
+            "navpy.core.perception.pipeline.detector.build_real_detector",
             return_value=ports,
         ):
             detector = Detector(Mock(), Mock())
@@ -814,7 +814,7 @@ class TestDetectorLifecycle(unittest.TestCase):
         self.assertTrue(entered.wait(timeout=1.0))
 
         with patch(
-                "navpy.modules.vision.real_detector_lifecycle."
+                "navpy.core.perception.pipeline.real_detector_lifecycle."
                 "WORKER_JOIN_WARNING_S",
                 0.01,
         ):
@@ -957,7 +957,7 @@ class TestDetectorLifecycle(unittest.TestCase):
         release_timer = threading.Timer(0.2, release.set)
         release_timer.start()
         with patch(
-                "navpy.modules.vision.real_detector_lifecycle."
+                "navpy.core.perception.pipeline.real_detector_lifecycle."
                 "WORKER_JOIN_WARNING_S",
                 0.01,
         ), patch.object(threading.Thread, "start", fail_second_start):
@@ -1010,7 +1010,7 @@ class TestDetectorLifecycle(unittest.TestCase):
         release_timer = threading.Timer(0.2, release.set)
         release_timer.start()
         with patch(
-                "navpy.modules.vision.real_detector_lifecycle."
+                "navpy.core.perception.pipeline.real_detector_lifecycle."
                 "WORKER_JOIN_WARNING_S",
                 0.01,
         ), patch.object(threading.Thread, "start", launch_then_fail):
@@ -1207,7 +1207,7 @@ class TestDetectorLifecycle(unittest.TestCase):
         )
 
         with patch(
-            "navpy.modules.vision.real_detector_stop_transaction."
+            "navpy.core.perception.pipeline.real_detector_stop_transaction."
             "wait_for_worker_quiescence",
             return_value=completed_workers,
         ):
@@ -1418,7 +1418,7 @@ class TestDetectorCompositionTransaction(unittest.TestCase):
                 "DeepSearchDetector",
                 return_value=deep_search,
         ), patch(
-                "navpy.modules.vision.real_detector_runtime_composition.FrameProvider",
+                "navpy.core.perception.pipeline.real_detector_runtime_composition.FrameProvider",
                 side_effect=failure,
         ):
             with self.assertRaises(ExceptionGroup) as raised:

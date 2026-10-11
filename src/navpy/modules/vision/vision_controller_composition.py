@@ -11,7 +11,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detection_coordinator import DetectionCoordinator
+from navpy.core.perception.detection_coordinator import DetectionCoordinator
 from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
@@ -26,7 +26,7 @@ from navpy.modules.vision.vision_detector_factory_ports import (
     cleanup_detector_nodes,
     cleanup_mount_specs,
 )
-from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+from navpy.core.perception.vision_lifecycle import VisionLifecycle
 from navpy.modules.vision.vision_profile_composition import build_vision_profile
 from navpy.modules.vision.vision_sim_debug_view import (
     StackedSimulatorView,

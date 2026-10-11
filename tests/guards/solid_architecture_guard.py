@@ -100,11 +100,11 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "GimbalTelemetryPublisher",
     ): 150,
     (
-        "src/navpy/modules/vision/real_detector_lifecycle.py",
+        "src/navpy/core/perception/pipeline/real_detector_lifecycle.py",
         "DetectorLifecycle",
     ): 150,
     (
-        "src/navpy/modules/vision/vision_lifecycle.py",
+        "src/navpy/core/perception/vision_lifecycle.py",
         "VisionLifecycle",
     ): 150,
     (
@@ -142,7 +142,7 @@ PASSIVE_RECORD_FIELD_LIMITS = {
     # by the capture-time association change; capture-domain times are one
     # value-object field, not four loose floats.
     (
-        "src/navpy/modules/vision/real_frame_association.py",
+        "src/navpy/core/perception/pipeline/real_frame_association.py",
         "RealFrameAssociation",
     ): 17,
     ("src/navpy/plugins/tracking/boxmot/track_export_memory.py", "_MemoryState"): 13,
@@ -212,11 +212,11 @@ FACADE_METHOD_ALLOWANCES = {
         }),
     ),
     (
-        "src/navpy/modules/vision/detection_coordinator.py",
+        "src/navpy/core/perception/detection_coordinator.py",
         "DetectionCoordinator",
     ): FacadeMethodAllowance(1, 31, frozenset({"_parts"})),
     (
-        "src/navpy/modules/vision/detector.py",
+        "src/navpy/core/perception/pipeline/detector.py",
         "Detector",
     ): FacadeMethodAllowance(1, 40, frozenset({"_parts"})),
     (

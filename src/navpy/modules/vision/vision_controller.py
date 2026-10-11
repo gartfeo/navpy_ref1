@@ -12,9 +12,9 @@ from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
-from navpy.modules.vision.detection_coordination import DetectionCoordination
-from navpy.modules.vision.detection_coordinator import DetectionCoordinator
-from navpy.modules.vision.detector_ports import DetectorFleetMember
+from navpy.core.perception.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordinator import DetectionCoordinator
+from navpy.core.perception.detector_ports import DetectorFleetMember
 from navpy.modules.vision.vision_controller_composition import (
     build_vision_controller,
 )

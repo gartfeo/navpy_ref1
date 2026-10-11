@@ -22,7 +22,7 @@ from navpy.modules.nav.nav_constants import (
     FINAL_APPROACH_RECORD_TIMEOUT_S,
 )
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
 class NavController:

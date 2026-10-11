@@ -18,7 +18,7 @@ from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.modules.nav.nav_track_recovery_composition import (
     _compose_track_recovery,
 )
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
 def compose_confirmation_workflows(

@@ -22,7 +22,7 @@ from navpy.modules.nav.nav_composition_types import (
     VehicleApproachOwnership,
 )
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
 def compose_reset_workflows(

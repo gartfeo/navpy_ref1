@@ -1,7 +1,7 @@
 """Best-effort optical controls for navigation transitions."""
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.detector_ports import ZoomControlPort
+from navpy.core.perception.detector_ports import ZoomControlPort
 
 
 class ZoomController:

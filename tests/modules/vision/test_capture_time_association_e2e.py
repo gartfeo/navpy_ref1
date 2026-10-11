@@ -26,7 +26,7 @@ from navpy.core.ports.frame_capture_ports import (
 )
 from navpy.core.perception.camera.frame_publication import FramePublicationStore
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
+from navpy.core.perception.pipeline.real_frame_association import FrameAssociationBuilder
 
 ROLL_RATE_DEG_S = 80.0
 DA0_S = 0.012           # fixed ATTITUDE transport delay
@@ -124,7 +124,7 @@ def _associate(
     )
     associated_at = read_s + 0.005
     with patch(
-        "navpy.modules.vision.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.time.time",
         return_value=associated_at,
     ):
         return builder.capture(snapshot, frame)
@@ -222,7 +222,7 @@ def test_calibrated_high_latency_passes_consistency_not_freshness() -> None:
     decision, judged on the CAPTURE estimate. Both directions asserted, each
     naming the layer that decides.
     """
-    from navpy.modules.vision.real_detector_state import FreshnessPolicy
+    from navpy.core.perception.pipeline.real_detector_state import FreshnessPolicy
 
     exposure = BASE_S + 1.0
     association = _associate(exposure, calibration=_calibration())
@@ -257,7 +257,7 @@ def test_exposure_kind_end_to_end_matches_truth_with_link_delay() -> None:
         source_id="rtsp-cam",
     )
     with patch(
-        "navpy.modules.vision.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.time.time",
         return_value=exposure + 0.02,
     ):
         association = builder.capture(snapshot, frame)
@@ -301,7 +301,7 @@ def test_zoom_capable_camera_refused_for_latent_frames() -> None:
         source_id="rtsp-cam",
     )
     with patch(
-        "navpy.modules.vision.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.time.time",
         return_value=read_s + 0.005,
     ):
         association = builder.capture(snapshot, frame)
@@ -324,7 +324,7 @@ def test_zoom_capable_camera_refused_for_latent_frames() -> None:
         source_id="rtsp-cam",
     )
     with patch(
-        "navpy.modules.vision.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.time.time",
         return_value=exposure + 0.028,
     ):
         association = builder_young.capture(store.snapshot(), frame)
@@ -378,7 +378,7 @@ def test_runtime_rate_tightens_the_bracket_ceiling() -> None:
     )
     builder.set_maximum_skew(pose_frame_association_max_skew_s(100.0))
     with patch(
-        "navpy.modules.vision.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.time.time",
         return_value=exposure + DC0_S + 0.005,
     ):
         association = builder.capture(store.snapshot(), frame)
@@ -392,11 +392,11 @@ def test_freshness_split_through_a_real_detected_poi() -> None:
     # floor judges measurement age; a regression back to publication time in
     # _measurement_timestamp_s() fails this test.
     from navpy.core.ports.tracks import TrackedObject
-    from navpy.modules.vision.real_detector_state import (
+    from navpy.core.perception.pipeline.real_detector_state import (
         ConfirmationFrameStore,
         FreshnessPolicy,
     )
-    from navpy.modules.vision.real_detection_mapper import (
+    from navpy.core.perception.pipeline.real_detection_mapper import (
         DetectedObjectMapper,
         DetectionMappingConfig,
     )

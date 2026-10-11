@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from navpy.modules.vision.visual_ray_projection import observation_body_ray
+from navpy.core.perception.visual_ray_projection import observation_body_ray
 
 
 SCRIPT_PATH = Path("scripts/vision_static_point_mass.py").resolve()

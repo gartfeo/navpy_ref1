@@ -14,7 +14,7 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.nav.nav_state import NavigationTaskState, GeoHoldState
-from navpy.modules.vision.detector_ports import GeoPointingPort, MountCatalogPort
+from navpy.core.perception.detector_ports import GeoPointingPort, MountCatalogPort
 from navpy.core.perception.profile.vision_class_profile import (
     get_class_detect_size,
     get_min_pixels_for_class,

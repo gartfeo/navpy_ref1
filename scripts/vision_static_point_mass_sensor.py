@@ -21,7 +21,7 @@ from navpy.core.ports.pixel_observation import (
     VisualDetection,
 )
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.visual_ray_projection import (
+from navpy.core.perception.visual_ray_projection import (
     body_ray_to_pixel,
     camera_to_body_from_gimbal,
 )

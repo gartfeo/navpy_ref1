@@ -36,7 +36,7 @@ from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.nav.final_approach_record_deadline import FinalApproachRecordDeadline
 from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
 def compose_confirmation_admission_workflows(

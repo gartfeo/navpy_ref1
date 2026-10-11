@@ -27,7 +27,7 @@ from navpy.core.ports.pixel_observation import (
     aircraft_yaw_rate_rad_s,
 )
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.visual_ray_projection import camera_to_body_from_gimbal
+from navpy.core.perception.visual_ray_projection import camera_to_body_from_gimbal
 
 
 _DEFAULT_MATRIX = np.asarray(

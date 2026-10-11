@@ -7,7 +7,7 @@ from navpy.core.kernel.exception_groups import ExceptionGroup
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
-from navpy.modules.vision.detector_ports import DetectorFleetMember
+from navpy.core.perception.detector_ports import DetectorFleetMember
 from navpy.modules.vision.vision_ui_ports import (
     DetectorUiStepPort,
     SimDebugSource,

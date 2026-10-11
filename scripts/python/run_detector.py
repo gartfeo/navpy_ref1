@@ -24,13 +24,13 @@ if not __package__:
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.detect_request import DetectRequest
-from navpy.modules.vision.detector import (
+from navpy.core.perception.pipeline.detector import (
     Detector,
     DetectorDependencies,
     RealDetectorConfig,
 )
-from navpy.modules.vision.real_detector_diagnostics import DetectorDebugConfig
-from navpy.modules.vision.real_detector_config import (
+from navpy.core.perception.pipeline.real_detector_diagnostics import DetectorDebugConfig
+from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
     DetectorPipelineConfig,
 )

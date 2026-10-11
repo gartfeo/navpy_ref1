@@ -27,7 +27,7 @@ from navpy.modules.nav.poi_status_decision import (
 )
 from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.modules.nav.peer_task_priority import PeerTaskPriority
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
 def _compose_poi_status(

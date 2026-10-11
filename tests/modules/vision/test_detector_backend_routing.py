@@ -13,13 +13,13 @@ import pytest
 
 from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec
 from navpy.plugins.detection.charuco.charuco_detector import CharucoBoardDetector
-from navpy.modules.vision.real_detector_config import (
+from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
     RealDetectorConfig,
 )
 from navpy.modules.vision.real_detector_factory import RealDetectorFactory
 from navpy.app.perception.real_detector_model_builder import build_models
-from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
+from navpy.core.perception.pipeline.real_detector_runtime_state import RuntimeMetrics
 from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
 
 _MODELS = "navpy.app.perception.real_detector_model_builder"
@@ -35,7 +35,7 @@ def _mount_spec() -> CameraMountSpec:
 
 def _created_config(factory: RealDetectorFactory, settings: dict):
     detector_ctor = Mock(return_value=Mock())
-    with patch("navpy.modules.vision.detector.Detector", detector_ctor):
+    with patch("navpy.core.perception.pipeline.detector.Detector", detector_ctor):
         factory.create(_mount_spec(), settings, 0)
     _, config = detector_ctor.call_args.args
     return config
@@ -178,11 +178,11 @@ def test_charuco_model_build_does_not_import_ultralytics():
     script = textwrap.dedent("""
         import sys
         from unittest.mock import Mock
-        from navpy.modules.vision.real_detector_config import (
+        from navpy.core.perception.pipeline.real_detector_config import (
             DetectorModelConfig, RealDetectorConfig,
         )
         from navpy.app.perception.real_detector_model_builder import build_models
-        from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
+        from navpy.core.perception.pipeline.real_detector_runtime_state import RuntimeMetrics
         config = RealDetectorConfig(
             model=DetectorModelConfig("", backend="charuco"),
         )

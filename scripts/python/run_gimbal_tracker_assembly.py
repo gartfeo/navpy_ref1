@@ -12,12 +12,12 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
-from navpy.modules.vision.detector import (
+from navpy.core.perception.pipeline.detector import (
     Detector,
     DetectorDependencies,
     RealDetectorConfig,
 )
-from navpy.modules.vision.real_detector_config import (
+from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
     DetectorPipelineConfig,
 )

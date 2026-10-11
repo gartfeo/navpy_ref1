@@ -66,17 +66,17 @@ class RealDetectorFactory:
     ) -> VisionDetectorNode:
         validate_detector_settings_keys(detector_settings)
         try:
-            from navpy.modules.vision.detector import Detector
-            from navpy.modules.vision.real_detector_composition import (
+            from navpy.core.perception.pipeline.detector import Detector
+            from navpy.core.perception.pipeline.real_detector_composition import (
                 DetectorDependencies,
                 RealDetectorConfig,
             )
-            from navpy.modules.vision.real_detector_config import (
+            from navpy.core.perception.pipeline.real_detector_config import (
                 DetectorGimbalConfig,
                 DetectorModelConfig,
                 DetectorPipelineConfig,
             )
-            from navpy.modules.vision.real_detector_diagnostics import (
+            from navpy.core.perception.pipeline.real_detector_diagnostics import (
                 DetectorDebugConfig,
             )
             from navpy.core.kernel.device import DeviceT

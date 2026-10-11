@@ -18,7 +18,7 @@ from navpy.modules.nav.navigation_decision import NavigationDecision
 from navpy.modules.nav.navigation_transition_handler import (
     NavigationTransitionHandler,
 )
-from navpy.modules.vision.detector_ports import DetectionEventPort, DetectionSnapshotPort
+from navpy.core.perception.detector_ports import DetectionEventPort, DetectionSnapshotPort
 from navpy.core.ports.detect_request import DetectRequest
 from navpy.core.ports.detection_publication import DetectionPublication
 

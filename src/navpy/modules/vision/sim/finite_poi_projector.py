@@ -44,7 +44,7 @@ from navpy.modules.vision.sim.sim_runtime_ports import (
     TimestampReader,
 )
 from navpy.modules.vision.simulation_object import SimulationObject
-from navpy.modules.vision.visual_ray_projection import camera_to_body_from_gimbal
+from navpy.core.perception.visual_ray_projection import camera_to_body_from_gimbal
 from navpy.core.perception.profile.vision_class_profile import (
     MIN_DETECT_PIXELS,
     get_class_detect_size,

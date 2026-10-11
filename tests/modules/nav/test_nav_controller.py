@@ -28,7 +28,7 @@ from navpy.modules.nav.nav_state import NavState
 from navpy.modules.nav.nav_constants import ALT_HYST
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.flight_mode import FlightMode
-from navpy.modules.vision.detection_coordinator import DetectionCoordinator
+from navpy.core.perception.detection_coordinator import DetectionCoordinator
 from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.core.ports.detect_response import DetectResponse
 from navpy.core.ports.gimbal_abc import GimbalData

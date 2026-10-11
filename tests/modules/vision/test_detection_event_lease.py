@@ -8,8 +8,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.modules.vision.detection_aggregation import DetectionAggregator
-from navpy.modules.vision.detection_identity_registry import (
+from navpy.core.perception.detection_aggregation import DetectionAggregator
+from navpy.core.perception.detection_identity_registry import (
     DetectionIdentityRegistry,
 )
 from navpy.core.ports.detect_request import DetectRequest

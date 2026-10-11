@@ -18,7 +18,7 @@ from navpy.modules.nav.track_recovery import (
     IdentityReacquisitionPorts,
     TrackRecovery,
 )
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
 def _compose_track_recovery(

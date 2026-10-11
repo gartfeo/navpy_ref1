@@ -33,7 +33,7 @@ from navpy.modules.vision.sim.ideal_camera_state import IdealCameraReader
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize
 from navpy.modules.vision.sim.sim_runtime_ports import TimestampReader
 from navpy.modules.vision.simulation_object import SimulationObject
-from navpy.modules.vision.visual_ray_projection import (
+from navpy.core.perception.visual_ray_projection import (
     body_ray_to_pixel,
     camera_to_body_from_gimbal,
 )

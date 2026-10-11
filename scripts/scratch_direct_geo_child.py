@@ -75,7 +75,7 @@ from navpy.core.ports.detect_data import DetectedObject  # noqa: E402
 from navpy.modules.vision.sim.direct_poi_pixel_source import (  # noqa: E402
     DirectPoiPixelSource,
 )
-from navpy.modules.vision.visual_ray_projection import (  # noqa: E402
+from navpy.core.perception.visual_ray_projection import (  # noqa: E402
     observation_body_ray,
 )
 from pixel_pn_flight_control_trace import FlightControlTrace  # noqa: E402

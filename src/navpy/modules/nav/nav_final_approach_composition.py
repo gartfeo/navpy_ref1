@@ -53,7 +53,7 @@ from navpy.modules.nav.final_approach_source_reset_fence import (
 )
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 from navpy.core.ports.detect_request import DetectRequest
 
 

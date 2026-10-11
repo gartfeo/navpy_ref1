@@ -24,7 +24,7 @@ from navpy.modules.nav.navigation_decision import (
 )
 from navpy.modules.nav.recovery import RecoveryAction, RecoveryPorts
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vision.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
 def compose_decision_workflows(

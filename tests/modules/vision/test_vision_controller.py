@@ -90,7 +90,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
     def test_init_creates_coordinator(self):
         """VisionController creates DetectionCoordinator."""
         from navpy.modules.vision.vision_controller import VisionController
-        from navpy.modules.vision.detection_coordinator import DetectionCoordinator
+        from navpy.core.perception.detection_coordinator import DetectionCoordinator
 
         vision_args = self._create_vision_args()
 
@@ -244,7 +244,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
 
     def test_start_and_stop(self):
         """Lifecycle starts and stops every exact owner."""
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double()
         publisher = _vision_reader_double()
@@ -264,7 +264,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         coordinator.stop.assert_called_once()
 
     def test_running_lifecycle_is_not_reported_quiescent(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double()
         publisher = _vision_reader_double()
@@ -279,7 +279,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
 
     def test_start_stop_order_keeps_publisher_between_mounts_and_vehicle(self):
         """Publisher starts after mounts and stops before mounts."""
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         order = []
 
@@ -325,7 +325,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         )
 
     def test_start_failure_rolls_back_attempted_components_in_reverse(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         order = []
         start_error = RuntimeError("second start failed")
@@ -362,7 +362,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         )
 
     def test_start_preserves_original_and_cleanup_failures(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         order = []
         start_error = RuntimeError("coordinator start")
@@ -418,7 +418,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
 
     def test_failed_start_requires_controller_reconstruction(self):
         """A rolled-back Thread-backed mount is deliberately not restarted."""
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double("thread-backed")
         publisher = _vision_reader_double()
@@ -436,7 +436,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         mount.stop.assert_called_once_with()
 
     def test_failed_start_retains_only_incomplete_rollback_for_stop_retry(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         start_error = RuntimeError("publisher failed")
         mount = _vision_mount_double("thread-backed")
@@ -459,7 +459,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         debug.close.assert_called_once_with()
 
     def test_keyboard_interrupt_during_start_does_not_deadlock_cleanup(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double("interrupting")
         mount.start.side_effect = KeyboardInterrupt()
@@ -475,7 +475,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
 
     def test_stop_reports_unsafe_when_coordinator_stop_raises(self):
         """Sibling readers stop, but mounts wait for coordinator quiescence."""
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         order = []
 
@@ -530,7 +530,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
 
     def test_stop_reports_unsafe_close_when_mount_stop_raises(self):
         """Unknown mount quiescence keeps the vehicle connection open."""
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         class FailingMount:
             name = "mount"
@@ -555,7 +555,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         error.assert_called_once()
 
     def test_stop_reports_mount_timeout_as_unsafe(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double("thread-backed")
         mount.stop.return_value = False
@@ -567,7 +567,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         self.assertIs(lifecycle.stop(), False)
 
     def test_stop_retries_only_components_that_are_not_yet_quiescent(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double("thread-backed")
         mount.stop.side_effect = [False, True]
@@ -585,7 +585,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         coordinator.stop.assert_called_once_with()
 
     def test_none_reader_stop_cannot_release_mount_dependencies(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double("owned-mount")
         publisher = _vision_reader_double()
@@ -606,7 +606,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         mount.stop.assert_called_once_with()
 
     def test_quiescent_coordinator_cleanup_error_does_not_gate_mounts(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         cleanup_error = RuntimeError("detector resource close failed")
 
@@ -646,7 +646,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         mount.stop.assert_called_once_with()
 
     def test_keyboard_interrupt_during_stop_commits_retry_state_before_reraise(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double("interrupting")
         interrupt = KeyboardInterrupt()
@@ -668,7 +668,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
 
     def test_stop_retains_mounts_until_publisher_quiesces(self):
         """A live publisher keeps its mount dependencies owned for retry."""
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         order = []
 
@@ -721,7 +721,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         )
 
     def test_stop_retains_publisher_and_mounts_until_coordinator_quiesces(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         order = []
 
@@ -767,7 +767,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         )
 
     def test_start_and_stop_are_exactly_once_across_repeated_calls(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double()
         publisher = _vision_reader_double()
@@ -789,7 +789,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         coordinator.stop.assert_called_once_with()
 
     def test_concurrent_start_and_stop_each_execute_once(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         start_entered = threading.Event()
         release_start = threading.Event()
@@ -849,7 +849,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         publisher.stop.assert_called_once_with()
 
     def test_stop_retries_failed_cleanup_without_repeating_completed_cleanup(self):
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         mount = _vision_mount_double()
         mount_error = RuntimeError("mount failed")
@@ -885,7 +885,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
 
     def test_refresh(self):
         """Lifecycle refreshes mounts before the coordinator."""
-        from navpy.modules.vision.vision_lifecycle import VisionLifecycle
+        from navpy.core.perception.vision_lifecycle import VisionLifecycle
 
         order = []
         mount = Mock()
@@ -1102,7 +1102,7 @@ class TestVisionControllerRealDetector(unittest.TestCase):
         )
 
         detector_ctor = Mock(return_value=Mock())
-        with patch("navpy.modules.vision.detector.Detector", detector_ctor):
+        with patch("navpy.core.perception.pipeline.detector.Detector", detector_ctor):
             factory.create(mount_spec, {}, 0)
 
         dependencies, config = detector_ctor.call_args.args

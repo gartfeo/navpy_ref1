@@ -15,7 +15,7 @@ from navpy.modules.vision.sim.ideal_poi_projector import (
     UasFrameConvention,
     poi_los_uas,
 )
-from navpy.modules.vision.visual_ray_projection import observation_body_ray
+from navpy.core.perception.visual_ray_projection import observation_body_ray
 
 
 @dataclass(frozen=True)

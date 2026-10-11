@@ -10,8 +10,8 @@ from __future__ import annotations
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.nav.nav_composition import create_nav_application
 from navpy.modules.nav.nav_state import NavState
-from navpy.modules.vision.detection_coordination import DetectionCoordination
-from navpy.modules.vision.detection_coordinator import DetectionCoordinator
+from navpy.core.perception.detection_coordination import DetectionCoordination
+from navpy.core.perception.detection_coordinator import DetectionCoordinator
 
 
 def as_detection_coordination(detector) -> DetectionCoordination:
