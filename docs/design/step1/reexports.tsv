@@ -1,0 +1,94 @@
+src	line	name	imported_from	why
+main.py	3	ConnArgs	navpy.args.conn_args	re-export (1 outside); origin app/conn_args.py
+modules/nav/detect_action.py	9	DetectPointingPorts	navpy.modules.nav.peer_geo_tick	re-export (navpy); origin core/skills/acquire/peer_geo_tick.py
+modules/nav/nav_controller.py	12	_extract_confirmation_size	navpy.modules.nav.confirmation_frame_policy	re-export (2 outside); origin core/skills/confirm/confirmation_frame_policy.py
+modules/nav/nav_controller.py	16	ALT_HYST	navpy.modules.nav.nav_constants	re-export (1 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	CONFIRM_DWELL_MARGIN_SEC	navpy.modules.nav.nav_constants	re-export (1 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	CONFIRM_FRESH_DETECTION_MAX_AGE_S	navpy.modules.nav.nav_constants	re-export (1 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	CONFIRM_MAX_DWELL_SEC	navpy.modules.nav.nav_constants	re-export (3 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	CONFIRM_REACQUIRE_ABORT_SEC	navpy.modules.nav.nav_constants	re-export (9 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	CONFIRM_REASK_MAX_ATTEMPTS	navpy.modules.nav.nav_constants	re-export (1 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	GUIDED_ACCEPT_TIMEOUT_S	navpy.modules.nav.nav_constants	re-export (1 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	MAX_CONFIRM_GATE_RESETS	navpy.modules.nav.nav_constants	re-export (1 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	POI_REACQUIRE_COOLDOWN_SEC	navpy.modules.nav.nav_constants	re-export (2 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC	navpy.modules.nav.nav_constants	re-export (2 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	16	TRACK_REACQUIRE_GATE_RADIUS_M	navpy.modules.nav.nav_constants	re-export (4 outside); origin core/flow/nav_constants.py
+modules/nav/nav_controller.py	38	NavState	navpy.modules.nav.nav_state	re-export (navpy; 3 outside); origin core/flow/nav_state.py
+modules/navigation/geo/zc_util.py	12	DemData	navpy.modules.navigation.geo.dem_data	re-export (2 outside); origin core/perception/geo/dem_data.py
+modules/navigation/gimbal_navigation.py	17	MODE_FOLLOW	navpy.modules.navigation.gimbal_tracking_constants	re-export (1 outside); origin core/command/gimbal/gimbal_tracking_constants.py
+modules/navigation/gimbal_navigation.py	17	MODE_LOCK	navpy.modules.navigation.gimbal_tracking_constants	re-export (1 outside); origin core/command/gimbal/gimbal_tracking_constants.py
+modules/navigation/nav/nav_law_factory.py	9	VehicleFinalApproachLawConfigProvider	navpy.modules.navigation.nav.final_approach_airframe_config	wrong-way after the move (2 outside); origin plugins/vehicle/ardupilot/final_approach_airframe_config.py
+modules/navigation/nav/vision_nav/law.py	7	PITCH_CEILING_DEG	navpy.modules.navigation.nav.vision_nav.command_anchor	re-export (1 outside); origin plugins/laws/vision_pn/command_anchor.py
+modules/navigation/nav/vision_nav/law.py	7	ROLL_LIMIT_CAP_DEG	navpy.modules.navigation.nav.vision_nav.command_anchor	re-export (2 outside); origin plugins/laws/vision_pn/command_anchor.py
+modules/navigation/nav/vision_nav/law.py	23	FinalApproachLawConfig	navpy.modules.navigation.nav.vision_nav.law_config	re-export (navpy; 6 outside); origin core/ports/law_config.py
+modules/navigation/nav/vision_nav/law.py	23	FixedFinalApproachLawConfigProvider	navpy.modules.navigation.nav.vision_nav.law_config	re-export (6 outside); origin core/ports/law_config.py
+modules/navigation/peer_offset.py	25	MIN_APPROACH_STANDOFF_M	navpy.modules.navigation.peer_orbit_plan	re-export (navpy; 4 outside); origin core/skills/acquire/peer_orbit_plan.py
+modules/navigation/peer_offset.py	25	MIN_TRACK_PIXELS	navpy.modules.vision.vision_class_profile	re-export (2 outside); origin core/perception/profile/vision_class_profile.py
+modules/navigation/peer_offset.py	25	_ORBIT_PIXEL_MARGIN	navpy.modules.navigation.peer_orbit_plan	re-export (2 outside); origin core/skills/acquire/peer_orbit_plan.py
+modules/vehicle/__init__.py	12	IVehicle	navpy.modules.vehicle.vehicle_contract	package-init re-export across folders (no importers); origin core/ports/vehicle_contract.py
+modules/vehicle/__init__.py	14	create_vehicle	navpy.modules.vehicle.vehicle_factory	wrong-way after the move (no importers); origin app/vehicle_factory.py
+modules/vehicle/__init__.py	15	FlightMode	navpy.modules.vehicle.flight_mode	package-init re-export across folders (no importers); origin core/ports/flight_mode.py
+modules/vehicle/__init__.py	18	Wind	navpy.modules.common.models.wind	package-init re-export across folders (no importers); origin core/kernel/wind.py
+modules/vehicle/mav_bus.py	12	MavBusClosedError	navpy.modules.vehicle.mav_bus_lifecycle	re-export (2 outside); origin plugins/vehicle/ardupilot/mav_bus_lifecycle.py
+modules/vehicle/parameter_client.py	15	SimAutopilotCapability	navpy.modules.vehicle.sim_autopilot	re-export (navpy; 1 outside); origin plugins/vehicle/ardupilot/sim_autopilot.py
+modules/vehicle/parameter_client.py	15	SimAutopilotState	navpy.modules.vehicle.sim_autopilot	re-export (navpy; 2 outside); origin plugins/vehicle/ardupilot/sim_autopilot.py
+modules/vehicle/vehicle_mav.py	11	_value_in_int_range	navpy.modules.vehicle.parameter_spec	re-export (1 outside); origin plugins/vehicle/ardupilot/parameter_spec.py
+modules/vehicle/vehicle_mav.py	12	PREARM_STATE_CHECKS_DISABLED	navpy.modules.vehicle.preflight_health	re-export (2 outside); origin plugins/vehicle/ardupilot/preflight_health.py
+modules/vehicle/vehicle_mav.py	12	PREARM_STATE_FAILED	navpy.modules.vehicle.preflight_health	re-export (2 outside); origin plugins/vehicle/ardupilot/preflight_health.py
+modules/vehicle/vehicle_mav.py	12	PREARM_STATE_NOT_REPORTED	navpy.modules.vehicle.preflight_health	re-export (1 outside); origin plugins/vehicle/ardupilot/preflight_health.py
+modules/vehicle/vehicle_mav.py	12	PREARM_STATE_NO_SYS_STATUS	navpy.modules.vehicle.preflight_health	re-export (1 outside); origin plugins/vehicle/ardupilot/preflight_health.py
+modules/vehicle/vehicle_mav.py	12	PREARM_STATE_OK	navpy.modules.vehicle.preflight_health	re-export (2 outside); origin plugins/vehicle/ardupilot/preflight_health.py
+modules/vision/camera_mount.py	18	CameraMountFrameState	navpy.modules.vision.camera_mount_types	re-export (navpy; 2 outside); origin core/perception/camera/camera_mount_types.py
+modules/vision/camera_mount.py	18	CameraMountOptics	navpy.modules.vision.camera_mount_types	re-export (2 outside); origin core/perception/camera/camera_mount_types.py
+modules/vision/capture_lookup.py	18	BRACKET_MAX_WIDTH_S	navpy.modules.vision.capture_interpolation	re-export (1 outside); origin core/perception/camera/capture_interpolation.py
+modules/vision/capture_lookup.py	18	CLOCK_SEAM_TOLERANCE_S	navpy.modules.vision.capture_interpolation	re-export (1 outside); origin core/perception/camera/capture_interpolation.py
+modules/vision/capture_lookup.py	18	STATUS_CLOCK_SEAM	navpy.modules.vision.capture_interpolation	re-export (1 outside); origin core/perception/camera/capture_interpolation.py
+modules/vision/capture_lookup.py	18	STATUS_GAP	navpy.modules.vision.capture_interpolation	re-export (1 outside); origin core/perception/camera/capture_interpolation.py
+modules/vision/capture_lookup.py	18	STATUS_UNBRACKETED	navpy.modules.vision.capture_interpolation	re-export (1 outside); origin core/perception/camera/capture_interpolation.py
+modules/vision/capture_lookup.py	18	interpolate_attitude_at	navpy.modules.vision.capture_interpolation	re-export (navpy; 1 outside); origin core/perception/camera/capture_interpolation.py
+modules/vision/detector.py	20	KalmanCV	navpy.modules.vision.mot_state	wrong-way after the move (1 outside); origin plugins/tracking/kalman/mot_state.py
+modules/vision/detector.py	20	TrackedObject	navpy.modules.vision.mot_state	wrong-way after the move (3 outside); origin core/ports/tracks.py
+modules/vision/detector.py	20	hungarian	navpy.modules.common.linear_assignment	re-export (1 outside); origin core/kernel/linear_assignment.py
+modules/vision/detector.py	20	iou_xyxy	navpy.modules.vision.geometry	re-export (1 outside); origin core/kernel/geometry.py
+modules/vision/detector.py	26	DetectorModelConfig	navpy.modules.vision.real_detector_config	re-export (3 outside); origin core/perception/pipeline/real_detector_config.py
+modules/vision/detector.py	26	DetectorPipelineConfig	navpy.modules.vision.real_detector_config	re-export (3 outside); origin core/perception/pipeline/real_detector_config.py
+modules/vision/detector.py	35	DetectorDebugConfig	navpy.modules.vision.real_detector_diagnostics	re-export (1 outside); origin core/perception/pipeline/real_detector_diagnostics.py
+modules/vision/detector.py	36	Detection	navpy.modules.vision.yolo_detector	wrong-way after the move (1 outside); origin core/ports/detection.py
+modules/vision/detector.py	36	YoloDetector	navpy.modules.vision.yolo_detector	wrong-way after the move (1 outside); origin plugins/detection/yolo/yolo_detector.py
+modules/vision/multi_object_tracker.py	16	KalmanCV	navpy.modules.vision.mot_state	re-export (navpy); origin plugins/tracking/kalman/mot_state.py
+modules/vision/peripheral/siyi/__init__.py	1	SIYISDK	navpy.modules.vision.peripheral.siyi.siyi_sdk	re-export (navpy; 2 outside); origin plugins/gimbal/siyi/siyi_sdk.py
+modules/vision/peripheral/siyi/sim/__init__.py	2	GimbalSiyiSim	navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim	re-export (navpy); origin sim/gimbal/siyi/gimbal_siyi_sim.py
+modules/vision/peripheral/siyi/sim/gimbal_physics.py	10	MAX_SLEW_RATE	navpy.modules.vision.peripheral.siyi.sim.gimbal_angles	re-export (1 outside); origin sim/gimbal/siyi/gimbal_angles.py
+modules/vision/peripheral/siyi/sim/gimbal_physics.py	10	MODE_FOLLOW	navpy.modules.vision.peripheral.siyi.sim.gimbal_angles	re-export (4 outside); origin sim/gimbal/siyi/gimbal_angles.py
+modules/vision/peripheral/siyi/sim/gimbal_physics.py	10	MODE_FPV	navpy.modules.vision.peripheral.siyi.sim.gimbal_angles	re-export (1 outside); origin sim/gimbal/siyi/gimbal_angles.py
+modules/vision/peripheral/siyi/sim/gimbal_physics.py	10	MODE_LOCK	navpy.modules.vision.peripheral.siyi.sim.gimbal_angles	re-export (3 outside); origin sim/gimbal/siyi/gimbal_angles.py
+modules/vision/peripheral/siyi/sim/gimbal_physics.py	10	_wrap180	navpy.modules.vision.peripheral.siyi.sim.gimbal_angles	re-export (1 outside); origin sim/gimbal/siyi/gimbal_angles.py
+modules/vision/peripheral/siyi/sim/gimbal_physics.py	24	ZOOM_INCREMENTAL_SPEED	navpy.modules.vision.peripheral.siyi.sim.gimbal_zoom_plant	re-export (1 outside); origin sim/gimbal/siyi/gimbal_zoom_plant.py
+modules/vision/peripheral/siyi/sim/gimbal_physics.py	29	ZR10	navpy.modules.vision.peripheral.siyi.siyi_sdk	re-export (1 outside); origin plugins/gimbal/siyi/siyi_sdk.py
+modules/vision/real_detector_composition.py	7	DetectorGimbalConfig	navpy.modules.vision.real_detector_config	re-export (navpy); origin core/perception/pipeline/real_detector_config.py
+modules/vision/real_detector_composition.py	7	DetectorModelConfig	navpy.modules.vision.real_detector_config	re-export (navpy; 1 outside); origin core/perception/pipeline/real_detector_config.py
+modules/vision/real_detector_composition.py	7	DetectorPipelineConfig	navpy.modules.vision.real_detector_config	re-export (navpy); origin core/perception/pipeline/real_detector_config.py
+modules/vision/real_detector_controls.py	14	DetectorDebugConfig	navpy.modules.vision.real_detector_diagnostics	re-export (1 outside); origin core/perception/pipeline/real_detector_diagnostics.py
+modules/vision/real_detector_controls.py	14	DetectorDiagnostics	navpy.modules.vision.real_detector_diagnostics	re-export (1 outside); origin core/perception/pipeline/real_detector_diagnostics.py
+modules/vision/real_detector_state.py	13	DeepSearchInbox	navpy.modules.vision.real_detector_inference_state	re-export (navpy; 1 outside); origin core/perception/pipeline/real_detector_inference_state.py
+modules/vision/real_detector_state.py	13	DetectionBatch	navpy.modules.vision.real_detector_inference_state	re-export (navpy; 1 outside); origin core/perception/pipeline/real_detector_inference_state.py
+modules/vision/real_detector_state.py	13	DetectionBatchInbox	navpy.modules.vision.real_detector_inference_state	re-export (navpy; 1 outside); origin core/perception/pipeline/real_detector_inference_state.py
+modules/vision/real_detector_state.py	13	InferenceGeneration	navpy.modules.vision.real_detector_inference_state	re-export (navpy; 1 outside); origin core/perception/pipeline/real_detector_inference_state.py
+modules/vision/real_detector_state.py	13	InferenceReservation	navpy.modules.vision.real_detector_inference_state	re-export (navpy); origin core/perception/pipeline/real_detector_inference_state.py
+modules/vision/real_detector_state.py	21	DetectorRunState	navpy.modules.vision.real_detector_runtime_state	re-export (navpy; 2 outside); origin core/perception/pipeline/real_detector_runtime_state.py
+modules/vision/real_detector_state.py	21	LoopTiming	navpy.modules.vision.real_detector_runtime_state	re-export (navpy; 1 outside); origin core/perception/pipeline/real_detector_runtime_state.py
+modules/vision/real_detector_state.py	21	PipelineMutationGate	navpy.modules.vision.real_detector_runtime_state	re-export (navpy; 1 outside); origin core/perception/pipeline/real_detector_runtime_state.py
+modules/vision/real_detector_state.py	21	RuntimeMetrics	navpy.modules.vision.real_detector_runtime_state	re-export (navpy; 4 outside); origin core/perception/pipeline/real_detector_runtime_state.py
+modules/vision/real_detector_state.py	21	next_loop_deadline	navpy.modules.vision.real_detector_runtime_state	re-export (navpy; 1 outside); origin core/perception/pipeline/real_detector_runtime_state.py
+modules/vision/real_tracking.py	25	TrackingModels	navpy.modules.vision.real_tracking_batch	re-export (1 outside); origin core/perception/pipeline/real_tracking_batch.py
+modules/vision/real_tracking.py	25	TrackingPublications	navpy.modules.vision.real_tracking_batch	re-export (1 outside); origin core/perception/pipeline/real_tracking_batch.py
+modules/vision/sim/determinism_trace.py	67	DEFAULT_TRACE_CAPACITY	navpy.modules.vision.sim.determinism_trace_gate	re-export (1 outside); origin sim/determinism/determinism_trace_gate.py
+modules/vision/sim/determinism_trace.py	67	DETERMINISM_TRACE_CAPACITY_ENV	navpy.modules.vision.sim.determinism_trace_gate	re-export (1 outside); origin sim/determinism/determinism_trace_gate.py
+modules/vision/sim/determinism_trace.py	67	DETERMINISM_TRACE_ENV	navpy.modules.vision.sim.determinism_trace_gate	re-export (1 outside); origin sim/determinism/determinism_trace_gate.py
+modules/vision/sim/direct_pixel_trace.py	25	OUTPUT_EMPTY	navpy.modules.vision.sim.determinism_events	re-export (navpy); origin sim/determinism/determinism_events.py
+modules/vision/sim/direct_pixel_trace.py	25	OUTPUT_EXCEPTION	navpy.modules.vision.sim.determinism_events	re-export (navpy); origin sim/determinism/determinism_events.py
+modules/vision/sim/direct_pixel_trace.py	25	OUTPUT_STALE_EPOCH	navpy.modules.vision.sim.determinism_events	re-export (navpy); origin sim/determinism/determinism_events.py
+modules/vision/sim/direct_poi_pixel_source.py	63	DIRECT_PIXEL_SOURCE_NAME	navpy.modules.vision.sim.direct_pixel_pipeline	re-export (1 outside); origin sim/detection/direct_pixel_pipeline.py
+modules/vision/sim/truth_pose_history.py	31	TRUTH_POSE_TIME_AXIS_ENV	navpy.modules.vision.sim.truth_pose_time_axis	re-export (1 outside); origin sim/detection/truth_pose_time_axis.py
+modules/vision/sim/truth_pose_history.py	31	resolve_truth_pose_time_axis	navpy.modules.vision.sim.truth_pose_time_axis	re-export (1 outside); origin sim/detection/truth_pose_time_axis.py
+modules/vision/vision_profile_loader.py	10	_merge_profile_dict	navpy.modules.vision.vision_profile_inheritance	re-export (navpy); origin core/perception/profile/vision_profile_inheritance.py
