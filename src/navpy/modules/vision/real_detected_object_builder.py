@@ -22,7 +22,7 @@ from navpy.modules.vision.models.pixel_observation import (
     PixelProjectionKind,
     aircraft_yaw_rate_rad_s,
 )
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.real_confirmation_frame_selector import (
     SelectedConfirmationFrame,
 )

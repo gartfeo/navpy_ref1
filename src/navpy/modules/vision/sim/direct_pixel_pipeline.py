@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.common.scheduler_cadence import SchedulerCadence
-from navpy.modules.vehicle.pose_streams import (
+from navpy.core.ports.pose_stream_rate import (
     pose_frame_association_max_skew_s,
 )
 from navpy.modules.vehicle.vehicle_contract import IVehicle

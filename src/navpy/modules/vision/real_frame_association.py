@@ -11,7 +11,7 @@ import numpy as np
 
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
-from navpy.modules.vehicle.pose_streams import POSE_FRAME_ASSOCIATION_MAX_SKEW_S
+from navpy.core.ports.pose_stream_rate import POSE_FRAME_ASSOCIATION_MAX_SKEW_S
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
 from navpy.modules.vision.capture_lookup import (
     CaptureLookupCalibration,

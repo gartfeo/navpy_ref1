@@ -137,7 +137,7 @@ VENDORED_SHA256 = {
 # a frozen dataclass. Any other method disqualifies the allowance.
 PASSIVE_RECORD_FIELD_LIMITS = {
     ("src/navpy/logger/navigation_sample.py", "NavigationSample"): 16,
-    ("src/navpy/modules/vision/mot_state.py", "TrackedObject"): 14,
+    ("src/navpy/core/ports/tracks.py", "TrackedObject"): 14,
     # 17 = the original 16 plus ONE nested frozen CaptureTiming record added
     # by the capture-time association change; capture-domain times are one
     # value-object field, not four loose floats.

@@ -19,13 +19,13 @@ from navpy.modules.vision.device import (
     resolve_reid_device,
     uses_cuda_device,
 )
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.track_export_memory import (
     _EMPTY_DETECTION_COAST_SECONDS,
     _TrackExportMemory,
 )
 from navpy.modules.vision.tracker_config import TrackerBackendConfig
-from navpy.modules.vision.yolo_detector import Detection
+from navpy.core.ports.detection import Detection
 import time
 
 

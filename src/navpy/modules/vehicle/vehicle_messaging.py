@@ -12,7 +12,8 @@ from navpy.modules.vehicle.admission_tap import (
 )
 from navpy.modules.vehicle.inbound_router import InboundMessageRouter
 from navpy.modules.vehicle.mav_transport import MavTransport
-from navpy.modules.vehicle.message_subscriptions import CallbackRegistry, Subscription
+from navpy.modules.vehicle.message_subscriptions import CallbackRegistry
+from navpy.core.ports.subscription import Subscription
 
 
 class VehicleMessaging:

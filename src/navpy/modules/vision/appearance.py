@@ -8,46 +8,17 @@ from typing import Protocol
 import numpy as np
 
 from navpy.logger.logger_api import ILogger
-from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 from navpy.modules.vision.device import (
     DeviceT,
     free_cuda_cache,
     resolve_reid_device,
     uses_cuda_device,
 )
-
-
-class AppearanceEmbedder(Protocol):
-    def embed(
-        self,
-        frame: np.ndarray,
-        boxes_xyxy: Sequence[Sequence[float]],
-    ) -> np.ndarray:
-        """Return one L2-normalized embedding per box."""
-        ...
+from navpy.core.ports.appearance_embedding import AppearanceEmbedder, l2_normalize
 
 
 class _FeatureBackend(Protocol):
     def get_features(self, boxes: np.ndarray, frame: np.ndarray) -> np.ndarray: ...
-
-
-def cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
-    """Return cosine distance for two already-normalized vectors."""
-    if a is None or b is None:
-        return 1.0
-    left = np.asarray(a, dtype=np.float32).ravel()
-    right = np.asarray(b, dtype=np.float32).ravel()
-    if left.size == 0 or right.size == 0 or left.size != right.size:
-        return 1.0
-    return float(1.0 - float(np.dot(left, right)))
-
-
-def l2_normalize(vectors: np.ndarray) -> np.ndarray:
-    normalized = np.asarray(vectors, dtype=np.float32)
-    if normalized.ndim == 1:
-        normalized = normalized[None, :]
-    norms = np.linalg.norm(normalized, axis=1, keepdims=True)
-    return normalized / np.maximum(norms, 1e-12)
 
 
 class BoxmotReidEmbedder:
@@ -115,10 +86,6 @@ def create_appearance_embedder(
 
 
 __all__ = [
-    "AppearanceEmbedder",
-    "AsyncAppearanceEmbedder",
     "BoxmotReidEmbedder",
-    "cosine_distance",
     "create_appearance_embedder",
-    "l2_normalize",
 ]

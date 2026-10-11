@@ -10,7 +10,7 @@ import numpy as np
 
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.vision.frame_provider import FrameProvider
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.real_detector_ports import DetectorOverlayRenderer
 from navpy.modules.vision.real_detector_runtime_state import (
     DetectorRunState,

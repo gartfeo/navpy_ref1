@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from navpy.modules.vision.real_frame_association import RealFrameAssociation
-    from navpy.modules.vision.yolo_detector import Detection
+    from navpy.core.ports.detection import Detection
 
 
 @dataclass(frozen=True)

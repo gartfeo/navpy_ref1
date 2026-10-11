@@ -8,25 +8,9 @@ from collections.abc import Callable
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.modules.vehicle.logger_ref import LoggerRef
+from navpy.core.ports.subscription import Subscription
 
 MessageCallback = Callable[[MAVLink_message], None]
-
-
-class Subscription:
-    def __init__(self, cancel: Callable[[], None]) -> None:
-        self._cancel_action = cancel
-        self._lock = threading.Lock()
-        self._cancelled = False
-
-    def cancel(self) -> None:
-        with self._lock:
-            if self._cancelled:
-                return
-            self._cancelled = True
-        self._cancel_action()
-
-    def __call__(self) -> None:
-        self.cancel()
 
 
 class CallbackRegistry:

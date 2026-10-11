@@ -15,9 +15,11 @@ from navpy.modules.nav.self_detected_approach import (
     SelfDetectedApproachPorts,
 )
 from navpy.modules.nav.poi_selection import PoiSelector
-from navpy.modules.nav.mission_navigation import (
+from navpy.core.flow.fallback_mission_navigation import (
     FallbackMissionNavigation,
     FallbackMissionPorts,
+)
+from navpy.modules.nav.mission_navigation import (
     MissionPassPolicy,
     MissionPassPorts,
 )

@@ -35,10 +35,8 @@ from navpy.modules.nav.navigation_task_reset import (
 )
 from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
 from navpy.modules.nav.mission_catalog import MissionCatalog
-from navpy.modules.nav.mission_navigation import (
-    FallbackMissionNavigation,
-    MissionPassPolicy,
-)
+from navpy.core.flow.fallback_mission_navigation import FallbackMissionNavigation
+from navpy.modules.nav.mission_navigation import MissionPassPolicy
 from navpy.modules.nav.nav_clock import NavClock
 from navpy.modules.nav.nav_network import NavNetworkRuntime
 from navpy.modules.nav.nav_state import (

@@ -7,10 +7,10 @@ from collections.abc import Sequence
 import numpy as np
 
 from navpy.logger.cache_logger import ILogger
-from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 from navpy.modules.vision.geometry import cxcywh_to_xyxy
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
 from navpy.modules.vision.real_detector_inference_state import DetectionBatchInbox
 from navpy.modules.vision.real_detector_state import (

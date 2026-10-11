@@ -10,12 +10,10 @@ from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
-from navpy.modules.vision.device import DeviceT
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
-from navpy.modules.vision.yolo_detector import Detection
 
 
 class TimestampedVisionItem(Protocol):
@@ -55,16 +53,6 @@ class WorkerLoop(Protocol):
 
 
 class ModelResourceCloser(Protocol):
-    def close(self) -> None: ...
-
-
-class FrameDetector(Protocol):
-    """Stateless per-frame inference backend (ChArUco board, YOLO model)."""
-
-    device: DeviceT
-
-    def detect(self, frame: np.ndarray) -> list[Detection]: ...
-
     def close(self) -> None: ...
 
 
@@ -186,7 +174,6 @@ __all__ = [
     "AttitudeSampleView",
     "CleanupAction",
     "DetectorOverlayRenderer",
-    "FrameDetector",
     "GimbalGeoCommandPort",
     "GimbalMeasurementPort",
     "GimbalTrackingCommandPort",

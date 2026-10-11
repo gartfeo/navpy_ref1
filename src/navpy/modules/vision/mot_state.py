@@ -2,29 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 
-from navpy.modules.vision.yolo_detector import Detection
-
-
-@dataclass(frozen=True)
-class TrackedObject:
-    id: int
-    cx: float
-    cy: float
-    w: float
-    h: float
-    confidence: float
-    class_id: int
-    age: int
-    hits: int
-    missed: int
-    is_confirmed: bool
-    timestamp: float
-    vx: float
-    vy: float
+from navpy.core.ports.detection import Detection
+from navpy.core.ports.tracks import TrackedObject
 
 
 class KalmanCV:
@@ -153,4 +134,4 @@ def export_tracks(tracks: list[_Track]) -> list[TrackedObject]:
     ]
 
 
-__all__ = ["KalmanCV", "TrackedObject"]
+__all__ = ["KalmanCV"]

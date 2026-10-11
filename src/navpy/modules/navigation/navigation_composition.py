@@ -23,7 +23,7 @@ from navpy.modules.navigation.navigation_mode import (
     NavigationFinalApproachCapabilities,
     RuntimeBuildResult,
 )
-from navpy.modules.navigation.navigation_runtime import LegacyNavigationRuntime
+from navpy.core.approach.geo.legacy_navigation_runtime import LegacyNavigationRuntime
 from navpy.modules.navigation.navigation_source_dispatch import (
     BindSourceDispatch,
     NavigationSourceDispatchSlot,

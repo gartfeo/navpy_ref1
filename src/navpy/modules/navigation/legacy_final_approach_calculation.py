@@ -11,7 +11,8 @@ import numpy as np
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.nav.nav_law import NavCommandMode, NavContext, NavLaw
+from navpy.core.ports.nav_command import NavCommandMode
+from navpy.modules.navigation.nav.nav_law import NavContext, NavLaw
 
 
 NavPoiCalculator = Callable[

@@ -20,10 +20,8 @@ from navpy.modules.vision.real_detector_controls import (
     DetectorGeoControl,
     DetectorTrackingControl,
 )
-from navpy.modules.vision.real_detector_models import (
-    build_models,
-    close_model_resources,
-)
+from navpy.app.perception.real_detector_model_builder import build_models
+from navpy.modules.vision.real_detector_models import close_model_resources
 from navpy.modules.vision.real_gimbal_adapters import (
     GimbalGeoAdapter,
     GimbalTrackingAdapter,

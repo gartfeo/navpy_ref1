@@ -16,12 +16,13 @@ import numpy as np
 from navpy.logger.cache_log_level import CacheLogLevel
 from navpy.logger.cache_logger import ConsoleCacheLogger
 from navpy.logger.logger_api import ILogger
-from navpy.modules.vision.tracker_backends import (
+from navpy.modules.vision.tracker_backends_boxmot import (
     BotSortTrackerBackend,
     StrongSortTrackerBackend,
-    tracker_config_from_settings,
 )
-from navpy.modules.vision.yolo_detector import Detection, YoloDetector
+from navpy.modules.vision.tracker_config import tracker_config_from_settings
+from navpy.core.ports.detection import Detection
+from navpy.modules.vision.yolo_detector import YoloDetector
 from navpy.modules.vision.tracking_command_router import TrackingCommandRouter
 
 from tests.modules.vision.test_tracker_backends import (

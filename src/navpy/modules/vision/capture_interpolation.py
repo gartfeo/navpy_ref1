@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from typing import Sequence
 
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.vehicle.pose_streams import (
+from navpy.core.ports.pose_stream_rate import (
     POSE_FRAME_ASSOCIATION_MAX_PERIODS,
     POSE_STREAM_RATE_HZ,
 )

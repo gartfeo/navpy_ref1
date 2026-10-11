@@ -10,7 +10,7 @@ import numpy as np
 
 from navpy.modules.vision.deep_search import merge_deep_search_detections
 from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.real_detector_inference_state import (
     DetectionBatch,
     InferenceGeneration,

@@ -6,8 +6,8 @@ import math
 import time
 from dataclasses import dataclass
 
+from navpy.core.ports.pose_stream_rate import pose_frame_association_max_skew_s
 from navpy.modules.vehicle.pose_streams import (
-    pose_frame_association_max_skew_s,
     request_pose_streams,
     request_simulator_truth_pose_stream,
     resolve_pose_stream_rate_hz,

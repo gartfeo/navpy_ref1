@@ -13,12 +13,12 @@ import numpy as np
 
 from navpy.modules.common.linear_assignment import hungarian
 from navpy.modules.vision.geometry import clip_bbox_xyxy, iou_xyxy
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.mot_state import (
-    TrackedObject,
     _Track,
     export_tracks,
 )
-from navpy.modules.vision.yolo_detector import Detection
+from navpy.core.ports.detection import Detection
 
 __all__ = [
     "MultiObjectTracker",

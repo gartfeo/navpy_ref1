@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.track_identity_scoring import (
     INFINITE_MATCH_COST,
     IdentityPairScorer,

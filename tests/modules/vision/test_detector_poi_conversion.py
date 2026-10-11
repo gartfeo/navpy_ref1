@@ -15,7 +15,7 @@ from navpy.modules.vision.confirmation_frame import (
     should_replace_confirmation_frame,
 )
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.frame_provider import FrameSnapshot
 from navpy.modules.vision.models.detect_request import DetectRequest
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData

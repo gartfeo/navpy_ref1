@@ -9,7 +9,7 @@ from typing import Any, Optional, Protocol, Sequence, TypeVar
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.sim.detection_publication_store import PublicationSlot
 from navpy.modules.vision.sim.frame_generation_gate import FrameGeneration
-from navpy.modules.vehicle.message_subscriptions import Subscription
+from navpy.core.ports.subscription import Subscription
 
 
 PoseT = TypeVar("PoseT")

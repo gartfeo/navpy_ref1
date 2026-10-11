@@ -336,7 +336,7 @@ def test_runtime_rate_tightens_the_bracket_ceiling() -> None:
     # Post-review probe, pinned: at an 80 Hz pose rate the two-period
     # ceiling is 25 ms; a 40 ms bracket admitted under the 40 Hz default
     # must be refused once the builder follows the runtime rate.
-    from navpy.modules.vehicle.pose_streams import (
+    from navpy.core.ports.pose_stream_rate import (
         pose_frame_association_max_skew_s,
     )
 
@@ -391,7 +391,7 @@ def test_freshness_split_through_a_real_detected_poi() -> None:
     # carries detection_timestamp_s = CAPTURE estimate, so the freshness
     # floor judges measurement age; a regression back to publication time in
     # _measurement_timestamp_s() fails this test.
-    from navpy.modules.vision.mot_state import TrackedObject
+    from navpy.core.ports.tracks import TrackedObject
     from navpy.modules.vision.real_detector_state import (
         ConfirmationFrameStore,
         FreshnessPolicy,

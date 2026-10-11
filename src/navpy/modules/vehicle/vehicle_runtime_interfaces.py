@@ -15,7 +15,7 @@ if TYPE_CHECKING:
         AdmissionSubscription,
         RulingCallback,
     )
-    from navpy.modules.vehicle.message_subscriptions import Subscription
+    from navpy.core.ports.subscription import Subscription
 
 RcChannelReceiver = Callable[[int], None]
 

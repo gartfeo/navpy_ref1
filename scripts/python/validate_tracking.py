@@ -48,7 +48,7 @@ from navpy.modules.vision.geometry import cxcywh_to_xyxy
 from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
 from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.track_identity import TrackIdentityResolver
-from navpy.modules.vision.tracker_backends import create_tracker_backend
+from navpy.app.perception.tracker_backend_factory import create_tracker_backend
 from navpy.modules.vision.yolo_detector import YoloDetector
 from scripts.python.validate_tracking_camera_motion import (
     camera_motion as _camera_motion,

@@ -6,7 +6,8 @@ from typing import List, Optional
 
 from navpy.modules.vision.geometry import iou_xyxy
 from navpy.modules.vision.device import DeviceT
-from navpy.modules.vision.yolo_detector import Detection, YoloDetector
+from navpy.core.ports.detection import Detection
+from navpy.modules.vision.yolo_detector import YoloDetector
 
 
 @dataclass(frozen=True)

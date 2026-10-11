@@ -8,7 +8,7 @@ from navpy.args.logger_args import LogStatusDest
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.nav.confirmation_policy import PoiRetryPolicy
 from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
-from navpy.modules.nav.mission_navigation import FallbackMissionNavigation
+from navpy.core.flow.fallback_mission_navigation import FallbackMissionNavigation
 from navpy.modules.nav.nav_state import NavigationTaskState, FinalApproachNavState
 from navpy.modules.nav.peer_navigation import PeerNavigationCoordinator
 from navpy.modules.nav.peer_task_priority import PeerTaskPriority

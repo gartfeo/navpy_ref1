@@ -6,12 +6,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from navpy.modules.vision import appearance
-from navpy.modules.vision.appearance import (
-    BoxmotReidEmbedder,
-    cosine_distance,
-    create_appearance_embedder,
-    l2_normalize,
-)
+from navpy.core.ports.appearance_embedding import cosine_distance, l2_normalize
+from navpy.modules.vision.appearance import BoxmotReidEmbedder, create_appearance_embedder
 
 
 class _FakeBackend:
@@ -83,7 +79,7 @@ class TestEmbeddingProvenance(unittest.TestCase):
     for a raw id whose box moved or whose object was swapped."""
 
     def _async(self, **kw):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
         backend = _FakeBackend()
 
         class _Emb:
@@ -145,7 +141,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
         return _F()
 
     def test_sync_mode_computes_inline(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
         f = self._fake()
         counts = []
         a = AsyncAppearanceEmbedder(f, sync=True, on_batch=counts.append)
@@ -157,7 +153,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
 
     def test_async_worker_eventually_produces_latest(self):
         import time
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
         f = self._fake()
         a = AsyncAppearanceEmbedder(f)            # real worker thread
         self.assertEqual(a.latest(), {})          # nothing yet -> non-blocking
@@ -169,7 +165,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
         a.close()
 
     def test_embed_failure_is_swallowed(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
         class _Boom:
             def embed(self, frame, boxes): raise RuntimeError("boom")
             def close(self): pass
@@ -179,7 +175,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
         a.close()
 
     def test_async_submit_after_close_does_not_restart_inline(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 
         backend = self._fake()
         embedder = AsyncAppearanceEmbedder(backend)
@@ -194,7 +190,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
         self.assertEqual(backend.calls, 0)
 
     def test_close_waits_for_inflight_embed_before_backend_close(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 
         class _BlockingBackend:
             def __init__(s):
@@ -240,7 +236,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
         self.assertEqual(set(embedder.latest()), {1})
 
     def test_submit_after_close_is_noop_in_both_modes(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 
         for sync in (False, True):
             with self.subTest(sync=sync):
@@ -255,7 +251,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
                 self.assertEqual(backend.calls, 0)
 
     def test_close_is_idempotent(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 
         class _CountingBackend:
             def __init__(s):
@@ -274,7 +270,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
         self.assertEqual(backend.close_calls, 1)
 
     def test_warning_logger_failure_cannot_orphan_worker(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 
         class _BlockingBackend:
             def __init__(s):
@@ -323,7 +319,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
         )
 
     def test_cleanup_error_is_replayed_without_double_close(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 
         backend = self._fake()
         backend.close = Mock(side_effect=RuntimeError("close failed"))
@@ -334,7 +330,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
         backend.close.assert_called_once_with()
 
     def test_worker_start_failure_closes_acquired_backend(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 
         backend = self._fake()
         with patch(
@@ -347,7 +343,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
         self.assertTrue(backend.closed)
 
     def test_callback_can_close_without_orphaning_worker_or_backend(self):
-        from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
+        from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 
         class _ReentrantBackend:
             def __init__(s):

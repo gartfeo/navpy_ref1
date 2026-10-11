@@ -32,7 +32,7 @@ from navpy.modules.navigation.navigation_mode import (
     NavigationFinalApproachCapabilities,
     RuntimeBuildResult,
 )
-from navpy.modules.navigation.navigation_runtime import LegacyNavigationRuntime
+from navpy.core.approach.geo.legacy_navigation_runtime import LegacyNavigationRuntime
 from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
 from navpy.modules.navigation.legacy_destination_resolver import (
     LegacyNavigationState,
@@ -43,7 +43,7 @@ from navpy.modules.navigation.legacy_final_approach_command import (
     LegacyFinalApproachCommand,
     LegacyFinalApproachCommandPorts,
 )
-from navpy.modules.navigation.nav.nav_law import NavCommand, NavCommandMode
+from navpy.core.ports.nav_command import NavCommand, NavCommandMode
 from navpy.modules.navigation.nav.nav_law_factory import (
     NavAlgorithmSpec,
     get_nav_algorithm_spec,

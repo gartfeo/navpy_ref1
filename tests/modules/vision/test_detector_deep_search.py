@@ -9,7 +9,7 @@ import numpy as np
 
 from navpy.exception_groups import ExceptionGroup
 from navpy.modules.vision.detector import Detector
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.detector_ports import (
     GimbalSourceIdentity,
     IdentitySchedulerCadence,
@@ -28,7 +28,7 @@ from navpy.modules.vision.real_detector_lifecycle import (
     DetectorLifecycle,
     DetectorWorkers,
 )
-from navpy.modules.vision.real_detector_models import build_models
+from navpy.app.perception.real_detector_model_builder import build_models
 from navpy.modules.vision.real_detector_resources import DetectorResources
 from navpy.modules.vision.real_detector_state import (
     ConfirmationFrameStore,
@@ -66,7 +66,7 @@ from navpy.modules.vision.real_tracking_batch import (
     TrackingAssociationProcessor,
     TrackingResultPublisher,
 )
-from navpy.modules.vision.yolo_detector import Detection
+from navpy.core.ports.detection import Detection
 
 
 def _track(obj_id, missed, timestamp=100.0):
@@ -1301,16 +1301,16 @@ class TestDetectorCompositionTransaction(unittest.TestCase):
         )
 
         with patch(
-                "navpy.modules.vision.real_detector_models.YoloDetector",
+                "navpy.app.perception.real_detector_model_builder.YoloDetector",
                 return_value=yolo,
         ), patch(
-                "navpy.modules.vision.real_detector_models.create_tracker_backend",
+                "navpy.app.perception.real_detector_model_builder.create_tracker_backend",
                 return_value=tracker,
         ), patch(
-                "navpy.modules.vision.real_detector_models.create_appearance_embedder",
+                "navpy.app.perception.real_detector_model_builder.create_appearance_embedder",
                 return_value=embedder,
         ), patch(
-                "navpy.modules.vision.real_detector_models.deep_search_config_from_settings",
+                "navpy.app.perception.real_detector_model_builder.deep_search_config_from_settings",
                 return_value=None,
         ), patch(
                 "navpy.modules.vision.appearance_worker.threading.Thread.start",
@@ -1343,26 +1343,26 @@ class TestDetectorCompositionTransaction(unittest.TestCase):
         dependencies = DetectorDependencies(Mock(), Mock(), Mock())
 
         with patch(
-                "navpy.modules.vision.real_detector_models.YoloDetector",
+                "navpy.app.perception.real_detector_model_builder.YoloDetector",
                 return_value=yolo,
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "create_tracker_backend",
                 return_value=tracker,
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "create_appearance_embedder",
                 return_value=object(),
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "AsyncAppearanceEmbedder",
                 return_value=appearance,
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "deep_search_config_from_settings",
                 return_value=SimpleNamespace(),
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "DeepSearchDetector",
                 side_effect=failure,
         ):
@@ -1395,26 +1395,26 @@ class TestDetectorCompositionTransaction(unittest.TestCase):
         dependencies = DetectorDependencies(Mock(), Mock(), Mock())
 
         with patch(
-                "navpy.modules.vision.real_detector_models.YoloDetector",
+                "navpy.app.perception.real_detector_model_builder.YoloDetector",
                 return_value=yolo,
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "create_tracker_backend",
                 return_value=tracker,
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "create_appearance_embedder",
                 return_value=object(),
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "AsyncAppearanceEmbedder",
                 return_value=appearance,
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "deep_search_config_from_settings",
                 return_value=SimpleNamespace(),
         ), patch(
-                "navpy.modules.vision.real_detector_models."
+                "navpy.app.perception.real_detector_model_builder."
                 "DeepSearchDetector",
                 return_value=deep_search,
         ), patch(

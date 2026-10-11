@@ -14,7 +14,7 @@ from typing import Any, Iterable, Optional
 
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
-from navpy.modules.vehicle.message_subscriptions import Subscription
+from navpy.core.ports.subscription import Subscription
 from navpy.modules.vision.sim.frame_generation_gate import FrameGeneration
 from navpy.modules.vision.sim.sim_coordinator_ports import (
     ArmedReader,

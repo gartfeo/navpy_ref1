@@ -8,7 +8,7 @@ from typing import Callable, Protocol
 
 import numpy as np
 
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.track_identity_assignment import (
     UnmatchedIdentityBinder,
 )

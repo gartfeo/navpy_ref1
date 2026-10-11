@@ -23,8 +23,7 @@ from navpy.modules.vision.real_detector_inference_state import (
 )
 from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
 from navpy.modules.vision.poi_lock import PoiLock
-from navpy.modules.vision.real_detector_ports import FrameDetector
-from navpy.modules.vision.yolo_detector import Detection
+from navpy.core.ports.detection import Detection, FrameDetector
 
 
 class DeepSearchChannel:

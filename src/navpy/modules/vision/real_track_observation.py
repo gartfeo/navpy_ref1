@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from navpy.modules.vision.models.detection_components import BoundingBox
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 
 
 @dataclass(frozen=True)

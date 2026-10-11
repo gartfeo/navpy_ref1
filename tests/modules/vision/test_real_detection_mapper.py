@@ -5,7 +5,7 @@ import numpy as np
 
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.real_detector_state import ConfirmationFrameStore
 from navpy.modules.vision.real_frame_association import RealFrameAssociation

@@ -8,7 +8,7 @@ import math
 from copy import deepcopy
 from typing import Iterable
 
-from navpy.args.navigation_poi_args import is_nav_poi_command
+from navpy.plugins.vehicle.ardupilot.nav_waypoints import is_nav_poi_command
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_ports import JsonValue
 

@@ -10,7 +10,7 @@ from gcs.backend.planner.waypoint_builder import (
     META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB,
     decode_meta_z, decode_location_type_from_z,
 )
-from navpy.args.navigation_poi_args import is_nav_poi_command
+from navpy.plugins.vehicle.ardupilot.nav_waypoints import is_nav_poi_command
 
 log = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from navpy.modules.navigation.nav.nav_law import NavCommand
+from navpy.core.ports.nav_command import NavCommand
 from navpy.modules.navigation.nav.vision_nav.command_anchor import (
     FinalApproachCommandAnchor,
     clamped_command,

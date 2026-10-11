@@ -18,11 +18,11 @@ from navpy.modules.vision.real_detector_config import (
     RealDetectorConfig,
 )
 from navpy.modules.vision.real_detector_factory import RealDetectorFactory
-from navpy.modules.vision.real_detector_models import build_models
+from navpy.app.perception.real_detector_model_builder import build_models
 from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
 from navpy.modules.vision.vision_profile_types import CameraMountSpec
 
-_MODELS = "navpy.modules.vision.real_detector_models"
+_MODELS = "navpy.app.perception.real_detector_model_builder"
 
 
 def _mount_spec() -> CameraMountSpec:
@@ -181,7 +181,7 @@ def test_charuco_model_build_does_not_import_ultralytics():
         from navpy.modules.vision.real_detector_config import (
             DetectorModelConfig, RealDetectorConfig,
         )
-        from navpy.modules.vision.real_detector_models import build_models
+        from navpy.app.perception.real_detector_model_builder import build_models
         from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
         config = RealDetectorConfig(
             model=DetectorModelConfig("", backend="charuco"),

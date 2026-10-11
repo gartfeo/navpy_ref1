@@ -14,7 +14,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from navpy.modules.vehicle.pose_streams import (
+from navpy.core.ports.pose_stream_rate import (
     POSE_FRAME_ASSOCIATION_ABSOLUTE_MAX_SKEW_S,
     POSE_FRAME_ASSOCIATION_MAX_SKEW_S,
 )

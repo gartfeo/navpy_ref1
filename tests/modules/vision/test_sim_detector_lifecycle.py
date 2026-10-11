@@ -11,7 +11,7 @@ import pytest
 
 from navpy.exception_groups import ExceptionGroup
 from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.vehicle.message_subscriptions import Subscription
+from navpy.core.ports.subscription import Subscription
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.detection_publication_store import (
     DetectionPublicationStore,

@@ -7,7 +7,7 @@ from navpy.modules.vision.deep_search import (
     deep_search_config_from_settings,
     merge_deep_search_detections,
 )
-from navpy.modules.vision.yolo_detector import Detection
+from navpy.core.ports.detection import Detection
 
 
 class _FakeYolo:

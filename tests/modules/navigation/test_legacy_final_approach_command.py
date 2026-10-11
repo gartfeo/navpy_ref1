@@ -11,7 +11,7 @@ from navpy.modules.navigation.legacy_final_approach_command import (
     LegacyFinalApproachCommand,
     LegacyFinalApproachCommandPorts,
 )
-from navpy.modules.navigation.nav.nav_law import NavCommand, NavCommandMode
+from navpy.core.ports.nav_command import NavCommand, NavCommandMode
 from tests.detection_factory import make_detected_poi
 
 

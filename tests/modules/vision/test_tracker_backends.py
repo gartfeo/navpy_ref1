@@ -7,14 +7,14 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from navpy.modules.vision.track_export_memory import _TrackExportMemory
-from navpy.modules.vision.tracker_backends import (
+from navpy.modules.vision.tracker_backends_boxmot import (
     BotSortTrackerBackend,
-    CustomTrackerBackend,
     StrongSortTrackerBackend,
-    create_tracker_backend,
-    tracker_config_from_settings,
 )
-from navpy.modules.vision.yolo_detector import Detection
+from navpy.plugins.tracking.kalman.custom_tracker_backend import CustomTrackerBackend
+from navpy.app.perception.tracker_backend_factory import create_tracker_backend
+from navpy.modules.vision.tracker_config import tracker_config_from_settings
+from navpy.core.ports.detection import Detection
 
 
 # ---------------------------------------------------------------------------

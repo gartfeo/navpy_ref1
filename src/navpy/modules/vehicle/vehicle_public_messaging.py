@@ -10,7 +10,7 @@ from navpy.modules.vehicle.admission_tap import (
     AdmissionSubscription,
     RulingCallback,
 )
-from navpy.modules.vehicle.message_subscriptions import Subscription
+from navpy.core.ports.subscription import Subscription
 from navpy.modules.vehicle.vehicle_public_ports import MessagingParts
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from navpy.modules.navigation.nav.nav_law import NavCommand, NavCommandMode
+from navpy.core.ports.nav_command import NavCommand, NavCommandMode
 from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfig
 

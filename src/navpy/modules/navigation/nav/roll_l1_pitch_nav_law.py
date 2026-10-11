@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from navpy.modules.navigation.nav.nav_law import (
+from navpy.core.ports.nav_command import (
     NavCommand,
     NavCommandMode,
+)
+from navpy.modules.navigation.nav.nav_law import (
     NavContext,
     NavLaw,
 )

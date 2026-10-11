@@ -24,12 +24,12 @@ from navpy.args.mission_planner_args import MissionPlannerArgs
 from navpy.args.pid_args import PIDArgs
 from navpy.modules.common.models.attitude import Attitude
 from navpy.modules.common.models.location import Location
-from navpy.modules.navigation.nav.nav_law import (
+from navpy.core.ports.nav_command import (
     NavCommand,
     NavCommandMode,
-    NavContext,
     NavInvalidReason,
 )
+from navpy.modules.navigation.nav.nav_law import NavContext
 from navpy.modules.navigation.nav.roll_l1_core import (
     PitchPidController,
 )

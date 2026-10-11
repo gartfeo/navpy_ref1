@@ -11,7 +11,7 @@ from typing import List, Optional, Tuple
 import cv2
 import numpy as np
 
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.core.ports.tracks import TrackedObject
 
 
 def draw_corner_box(

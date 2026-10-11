@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from navpy.modules.vision.multi_object_tracker import MultiObjectTracker
-from navpy.modules.vision.yolo_detector import Detection
+from navpy.core.ports.detection import Detection
 
 
 def _det(cx: float, cy: float = 500.0) -> Detection:

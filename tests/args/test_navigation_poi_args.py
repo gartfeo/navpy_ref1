@@ -9,8 +9,8 @@ from navpy.args.navigation_poi_args import (
     NavigationPoiArgs,
     decode_wp_bitmask,
     encode_wp_bitmask,
-    nav_wp_indices,
 )
+from navpy.plugins.vehicle.ardupilot.nav_waypoints import nav_wp_indices
 
 
 # ── encode / decode helpers ──────────────────────────────────────────

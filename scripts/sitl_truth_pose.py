@@ -62,7 +62,7 @@ import time
 from dataclasses import dataclass
 from typing import Protocol
 
-from navpy.modules.vehicle.pose_streams import (
+from navpy.core.ports.pose_stream_rate import (
     ARDUPILOT_MESSAGE_RATE_SCHEDULER_FRACTION,
     POSE_STREAM_RATE_HZ,
     pose_frame_association_max_skew_s,

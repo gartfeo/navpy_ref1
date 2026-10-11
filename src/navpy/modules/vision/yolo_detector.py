@@ -5,7 +5,6 @@ detections. Stateless per-frame: no tracking or temporal logic.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
@@ -17,28 +16,11 @@ from navpy.modules.vision.device import (
     resolve_auto_device,
     uses_cuda_device,
 )
+from navpy.core.ports.detection import Detection
 
 # Substrings identifying an FP16/half-precision inference failure (as opposed to
 # an unrelated error such as CUDA OOM, a malformed frame, or a driver fault).
 _HALF_ERROR_MARKERS = ("half", "fp16", "float16", "dtype")
-
-
-@dataclass(frozen=True)
-class Detection:
-    cx: float
-    cy: float
-    w: float
-    h: float
-    confidence: float
-    class_id: int
-
-    @property
-    def xyxy(self) -> np.ndarray:
-        x1 = self.cx - self.w * 0.5
-        y1 = self.cy - self.h * 0.5
-        x2 = self.cx + self.w * 0.5
-        y2 = self.cy + self.h * 0.5
-        return np.array([x1, y1, x2, y2], dtype=np.float32)
 
 
 class YoloDetector:

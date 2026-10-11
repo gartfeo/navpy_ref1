@@ -5,8 +5,8 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from navpy.modules.vision.appearance import AsyncAppearanceEmbedder
-from navpy.modules.vision.mot_state import TrackedObject
+from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
+from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
 from navpy.modules.vision.real_tracking import TrackingRecovery
 

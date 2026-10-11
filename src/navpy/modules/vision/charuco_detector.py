@@ -27,7 +27,7 @@ from navpy.modules.vision.charuco_board import (
 )
 from navpy.logger.cache_logger import ILogger
 from navpy.modules.vision.device import DeviceT
-from navpy.modules.vision.yolo_detector import Detection
+from navpy.core.ports.detection import Detection
 
 # A plane-to-image homography needs at least four point correspondences.
 MIN_CHARUCO_CORNERS = 4
