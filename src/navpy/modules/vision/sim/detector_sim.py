@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from argparse import Namespace
 
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup

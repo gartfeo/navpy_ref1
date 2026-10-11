@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-import navpy.modules.vehicle.pose_cadence_debug as pose_cadence_debug
+import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 
 
 class FrameOutcomeRecorder:

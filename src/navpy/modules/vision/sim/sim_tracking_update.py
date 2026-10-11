@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.sim_camera_ports import TrackingCameraPort

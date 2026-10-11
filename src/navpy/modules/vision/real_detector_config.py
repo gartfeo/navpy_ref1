@@ -4,19 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.capture_lookup import CaptureLookupCalibration
 from navpy.modules.vision.charuco_board import CharucoBoardSpec
-from navpy.args.detector_backend import (
+from navpy.core.kernel.config.detector_backend import (
     YOLO_BACKEND,
     DetectorBackend,
     validate_detector_backend,
 )
-from navpy.modules.vision.device import DeviceT
+from navpy.core.kernel.device import DeviceT
 from navpy.modules.vision.detector_ports import (
     DetectionEventPort,
     SchedulerCadence,

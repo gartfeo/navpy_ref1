@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 
 if TYPE_CHECKING:
     from navpy.modules.vehicle.admission_tap import (

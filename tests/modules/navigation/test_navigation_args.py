@@ -1,7 +1,7 @@
 import argparse
 
-from navpy.args.navigation_args import NavigationAlgorithm, NavigationArgs
-from navpy.args.pid_args import PIDArgs
+from navpy.core.kernel.config.navigation_args import NavigationAlgorithm, NavigationArgs
+from navpy.core.kernel.config.pid_args import PIDArgs
 
 
 class FakeVehicle:

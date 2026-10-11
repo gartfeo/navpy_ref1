@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, Sequence
 
 if TYPE_CHECKING:
-    from navpy.modules.common.models.location import Location
+    from navpy.core.kernel.location import Location
 
 
 class SimulationMember(Protocol):

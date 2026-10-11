@@ -10,7 +10,7 @@ import threading
 import uuid
 from typing import Any, Callable, Iterator, Optional
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.modules.vision.sim.finite_projection_evidence import FiniteProjectionEvidence
 from navpy.modules.vision.sim.run_evidence_file import EvidenceBudget, RunEvidenceFile
 from navpy.modules.vision.sim.sim_frame_types import FrameContext

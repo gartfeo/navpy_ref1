@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.mission_approach_writer import MissionApproachWriter
 from navpy.modules.navigation.peer_poi_mission_writer import PeerPoiMissionWriter
 from navpy.modules.vehicle.mav_mission import MavMission

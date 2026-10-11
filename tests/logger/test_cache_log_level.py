@@ -1,7 +1,7 @@
 """Tests for CacheLogLevel.from_name — the argparse log-level converter."""
 import pytest
 
-from navpy.logger.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 
 
 class TestFromName:

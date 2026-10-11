@@ -2,7 +2,7 @@
 
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_NAV_WAYPOINT
 
-from navpy.args.vehicle_arg_ports import MissionParameterReader
+from navpy.core.kernel.config.vehicle_arg_ports import MissionParameterReader
 
 
 NAV_POI_COMMANDS = frozenset({MAV_CMD_NAV_WAYPOINT})

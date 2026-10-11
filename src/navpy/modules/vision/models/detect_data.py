@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from enum import Enum, unique
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.models.detection_components import (
     ConfirmationEvidence,
     DetectionClassification,

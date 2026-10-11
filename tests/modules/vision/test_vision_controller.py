@@ -3,8 +3,8 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-from navpy.exception_groups import ExceptionGroup
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.exception_groups import ExceptionGroup
+from navpy.core.kernel.attitude import Attitude
 from tests.conftest import create_mock_args
 
 

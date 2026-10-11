@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.peripheral.siyi.hardware.ports import SiyiSdkPort
 from navpy.modules.vision.peripheral.siyi.hardware.session import SiyiSdkSession
 from navpy.modules.vision.peripheral.siyi.hardware.state import SiyiReadbackStore

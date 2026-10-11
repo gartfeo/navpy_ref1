@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import Mock, MagicMock
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.wind import Wind
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.wind import Wind
 from navpy.modules.navigation.mission_planner import MissionPlanner
 
 

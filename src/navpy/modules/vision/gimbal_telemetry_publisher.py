@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING, Iterable
 
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.modules.vision.gimbal_telemetry_messages import (
     GimbalMavlinkPublisher,
     GimbalTelemetryEmitter,

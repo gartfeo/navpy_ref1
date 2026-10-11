@@ -29,7 +29,7 @@ from navpy.modules.comm.messages.msg_abc import MsgABC
 from navpy.modules.comm.messages.types import TaskTypeMsgData, MsgType
 from navpy.modules.comm.network_factory import create_network
 from navpy.modules.vehicle.vehicle_factory import create_vehicle
-from navpy.logger.cache_logger import ConsoleLogger
+from navpy.core.kernel.logging.cache_logger import ConsoleLogger
 
 
 class MsgListener(ListenerAbc):

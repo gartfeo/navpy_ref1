@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.utils.fly_estimator import FlyEstimator
 

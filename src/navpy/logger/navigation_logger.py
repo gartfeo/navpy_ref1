@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Optional
 
 import numpy as np
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.logger.navigation_clocks import current_wall_timestamp
 from navpy.logger.navigation_event_recorder import NavigationEventRecorder
 from navpy.logger.navigation_log_streams import (
@@ -22,7 +22,7 @@ from navpy.logger.navigation_snap_session import NavigationSnapSession
 from navpy.logger.navigation_status_emitter import NavigationStatusEmitter
 from navpy.logger.log_events import LogEvent
 from navpy.logger.log_schema import PRIMARY_SCHEMA
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 NAVIGATION_EVIDENCE_FAILURE_MARKER = "NAVIGATION_EVIDENCE_FAILURE"

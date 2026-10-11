@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vision.frame_provider import FrameProvider
 from navpy.modules.vision.real_detector_diagnostics import DetectorDiagnostics
 from navpy.modules.vision.real_detector_resources import DetectorResources

@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Optional, Protocol
 
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.modules.swarm.task_msg_refs import MsgRef
 
 

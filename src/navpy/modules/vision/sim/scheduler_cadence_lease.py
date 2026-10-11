@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.vision.sim.sim_runtime_ports import OptionalFloatReader
 
 

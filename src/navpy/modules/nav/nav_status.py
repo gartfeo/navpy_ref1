@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Callable
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.args.nav_args import NavArgs
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
 
 
 class NavigationStatusReporter:

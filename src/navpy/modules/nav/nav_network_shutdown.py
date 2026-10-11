@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from navpy.exception_groups import ExceptionGroup
+from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.nav.confirm_override_listener import ConfirmOverrideListener
-from navpy.modules.nav.failure_health import ComponentFailureLatch
+from navpy.core.kernel.failure_health import ComponentFailureLatch
 from navpy.modules.nav.peer_poi_dispatch import PeerPoiDispatchWorker
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.swarm.task_actor import TaskActor

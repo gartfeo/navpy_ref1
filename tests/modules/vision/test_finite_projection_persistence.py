@@ -5,12 +5,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.args.logger_args import LoggerArgsStub
-from navpy.logger.cache_log_level import CacheLogLevel
-from navpy.logger.logger_factory import initialize_logger
+from navpy.core.kernel.config.logger_args import LoggerArgsStub
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.logger_factory import initialize_logger
 from navpy.modules.vision.sim.finite_projection_evidence import projection_log_sink
 from tests.modules.vision.test_finite_projection_evidence import rig
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 
 
 def close_logger(logger, sysid):

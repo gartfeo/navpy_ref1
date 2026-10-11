@@ -5,9 +5,9 @@ from __future__ import annotations
 import math
 from typing import Callable, Optional, Protocol, Sequence
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
 from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits, r_nav_min
 from navpy.modules.navigation.peer_orbit_plan import MIN_APPROACH_STANDOFF_M

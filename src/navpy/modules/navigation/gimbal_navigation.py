@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.navigation.gimbal_navigation_composition import (
     build_gimbal_navigation,
 )

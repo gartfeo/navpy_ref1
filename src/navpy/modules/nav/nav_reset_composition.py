@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from navpy.args.nav_args import NavArgs
+from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.modules.nav.navigation_task_reset import (
     AutoMissionResume,
     AutoMissionResumePorts,

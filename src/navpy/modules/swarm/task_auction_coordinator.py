@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.swarm_ack_msg import SwarmAckMsg
 from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
 from navpy.modules.comm.messages.task_assignment_msg import TaskAssignResponseMsg

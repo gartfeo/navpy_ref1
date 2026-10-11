@@ -9,8 +9,8 @@ import os
 from typing import Any, Callable, Optional
 
 import numpy as np
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize
 from navpy.modules.vision.simulation_object import SimulationObject

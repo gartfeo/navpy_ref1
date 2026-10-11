@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import time
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.modules.vision.lost_poi_bridge import LostPoiBridge

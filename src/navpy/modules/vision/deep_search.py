@@ -4,8 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from navpy.modules.vision.geometry import iou_xyxy
-from navpy.modules.vision.device import DeviceT
+from navpy.core.kernel.geometry import iou_xyxy
+from navpy.core.kernel.device import DeviceT
 from navpy.core.ports.detection import Detection
 from navpy.modules.vision.yolo_detector import YoloDetector
 

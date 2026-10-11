@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from scripts.python import run_gimbal_tracker as runner_facade
 from scripts.python import run_gimbal_tracker_args as runner_args

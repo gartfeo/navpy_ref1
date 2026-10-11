@@ -14,7 +14,7 @@ from navpy.modules.navigation.nav.roll_l1_state import (
 )
 from navpy.modules.navigation.nav.roll_l1_inputs import RollL1MotionSnapshot
 from navpy.modules.navigation.nav.roll_l1_waypoint_solver import RollL1WaypointSolver
-from navpy.utils.math_utils import GRAVITY_MSS
+from navpy.core.kernel.math_utils import GRAVITY_MSS
 
 
 class RollL1Control:

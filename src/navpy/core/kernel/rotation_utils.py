@@ -1,6 +1,6 @@
 import numpy as np
 from pymavlink.mavextra import wrap_180
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.simple_rotation import Rotation
 
 
 def normalize(v):

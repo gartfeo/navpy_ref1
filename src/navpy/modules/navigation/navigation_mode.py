@@ -7,12 +7,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Callable, Iterator, Mapping, Optional
 
-from navpy.args.navigation_args import (
+from navpy.core.kernel.config.navigation_args import (
     DEFAULT_NAVIGATION_ALGORITHM,
     NavigationAlgorithm,
     NavigationArgs,
 )
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.navigation.navigation_runtime import NavigationRuntime
 from navpy.modules.navigation.nav.nav_law_factory import (
     NavigationLawLifecycle,

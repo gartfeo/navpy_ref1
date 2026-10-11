@@ -11,7 +11,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from gcs.backend.navpy_process_instance import (
     NavpyInstance,
     _assign_job,
@@ -94,7 +94,7 @@ def _normalize_vision_profile(value: str | None) -> str | None:
 def _normalize_log_level(value: str | None) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
-    from navpy.logger.cache_log_level import CacheLogLevel
+    from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 
     try:
         return CacheLogLevel.from_name(value).name

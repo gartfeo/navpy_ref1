@@ -18,7 +18,7 @@ from navpy.modules.comm.image_transfer import ImageTransferType
 # MAVLink ENCAPSULATED_DATA payload size
 MAVLINK_CHUNK_SIZE = 253
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.utils.serializer_abc import JsonSerializer
 
 

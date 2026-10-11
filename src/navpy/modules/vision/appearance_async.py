@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
 import threading
 import time
@@ -12,7 +12,7 @@ from typing import Protocol
 
 import numpy as np
 
-from navpy.logger.logger_api import ILogger
+from navpy.core.kernel.logging.logger_api import ILogger
 from navpy.modules.vision.appearance_worker import AppearanceWorker
 
 

@@ -8,8 +8,8 @@ from typing import Protocol
 
 import numpy as np
 
-from navpy.logger.logger_api import ILogger
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.logging.logger_api import ILogger
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
 _WORKER_WARNING_S = 1.0
 

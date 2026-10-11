@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
 from collections.abc import Callable
 from types import TracebackType

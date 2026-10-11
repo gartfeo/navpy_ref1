@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.legacy_destination_resolver import LegacyNavigationState
 from navpy.modules.navigation.mission_planner import MissionPlanner
 from navpy.modules.vehicle.vehicle_contract import IVehicle

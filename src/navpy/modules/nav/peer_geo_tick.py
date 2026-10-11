@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.nav.nav_state import NavigationTaskState, GeoHoldState
 from navpy.modules.nav.peer_geo import PeerGeoAcquisition
 

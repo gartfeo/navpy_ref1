@@ -10,7 +10,7 @@ from navpy.logger.navigation_snap_geometry import (
     is_valid_location,
 )
 from navpy.logger.navigation_snap_types import ClosestSnap
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class ClosestApproachTracker:

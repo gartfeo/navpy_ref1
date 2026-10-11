@@ -6,14 +6,14 @@ The paired navigation attitude is yaw-redacted before it leaves this source.
 
 from __future__ import annotations
 
-from navpy.exception_groups import ExceptionGroup
+from navpy.core.kernel.exception_groups import ExceptionGroup
 
 import threading
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.core.ports.subscription import Subscription
 from navpy.modules.vision.sim.frame_generation_gate import FrameGeneration
 from navpy.modules.vision.sim.sim_coordinator_ports import (

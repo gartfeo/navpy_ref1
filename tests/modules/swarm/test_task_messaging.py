@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.task_assignment_msg import (
     TaskAssignResponseMsg,
 )

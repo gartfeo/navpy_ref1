@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.nav.mission_metadata import read_mission_metadata
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 

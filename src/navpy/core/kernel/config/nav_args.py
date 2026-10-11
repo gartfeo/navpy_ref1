@@ -1,6 +1,6 @@
 from navpy.plugins.vehicle.ardupilot.nav_waypoints import nav_wp_indices
-from navpy.args.vehicle_arg_ports import MissionParameterReader
-from navpy.utils.arg_helper import parse_boolean, StoreWithFlag, StoreTrueWithFlag
+from navpy.core.kernel.config.vehicle_arg_ports import MissionParameterReader
+from navpy.core.kernel.config.arg_helper import parse_boolean, StoreWithFlag, StoreTrueWithFlag
 
 
 class NavArgs(object):

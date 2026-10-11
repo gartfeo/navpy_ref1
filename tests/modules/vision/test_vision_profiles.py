@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from unittest.mock import Mock
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.vision_camera_factory import build_camera_model, build_camera_mounts
 from navpy.modules.vision.vision_class_profile import (
     DETECTOR_CLASS_DIMENSIONS,

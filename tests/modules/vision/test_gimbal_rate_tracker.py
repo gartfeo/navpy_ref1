@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, fields
 import numpy as np
 import pytest
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
 from navpy.modules.vision.gimbal_rate_types import (
     GimbalObservationDisposition,

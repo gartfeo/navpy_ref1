@@ -5,8 +5,8 @@ from __future__ import annotations
 import time
 from typing import Optional, Tuple
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.sim.frame_generation_gate import FrameGeneration
 from navpy.modules.vision.sim.projection_run_recorder import ProjectionRunRecorder, projection_frame_scope

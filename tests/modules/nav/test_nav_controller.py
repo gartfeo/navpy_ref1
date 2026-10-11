@@ -17,9 +17,9 @@ import numpy as np
 from pytest import approx as pytest_approx
 from unittest.mock import ANY, Mock, MagicMock, call, patch, PropertyMock
 
-from navpy.exception_groups import ExceptionGroup
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.exception_groups import ExceptionGroup
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.navigation.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
 from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M

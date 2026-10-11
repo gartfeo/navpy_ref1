@@ -21,7 +21,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from navpy.exception_groups import (
+from navpy.core.kernel.exception_groups import (
     BaseExceptionGroup,
     ExceptionGroup,
     _FallbackBaseExceptionGroup,
@@ -1097,7 +1097,7 @@ GROUP_CLASSES = {
 def _raise_groups_of(monkeypatch: pytest.MonkeyPatch, groups: str) -> None:
     """Make the child's teardown and evidence writer raise ``groups``' classes.
 
-    "fallback" is what navpy.exception_groups selects on Python 3.10, and the
+    "fallback" is what navpy.core.kernel.exception_groups selects on Python 3.10, and the
     traceback module renders it as one plain exception with its members
     dropped (review round 6). Patched where the CHILD looks the names up: it
     imports these modules as ``pixel_pn_child_teardown`` and

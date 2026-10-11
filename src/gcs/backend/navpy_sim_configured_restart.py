@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
 from gcs.backend.settings_model import GcsSettings
 

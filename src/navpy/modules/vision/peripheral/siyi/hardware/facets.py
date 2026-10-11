@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.peripheral.siyi.hardware.composition import (
     SiyiHardwareParts,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
 
 

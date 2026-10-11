@@ -8,7 +8,7 @@ WHY IT WALKS THE FAILURES ITSELF. Once the determinism summary's own write has
 failed, the published result is the only record left of why the run failed
 (review round 5). Review round 6 found two ways it still lost failures. On
 Python 3.10 NavPy's exception groups are a fallback class
-(``navpy.exception_groups``), which ``traceback`` renders as one plain
+(``navpy.core.kernel.exception_groups``), which ``traceback`` renders as one plain
 exception with its members dropped, so the walk expands anything that carries
 a tuple of exceptions, native group or not. And formatting can raise (a
 SyntaxError whose ``text`` is not a string is enough), which cost the result.

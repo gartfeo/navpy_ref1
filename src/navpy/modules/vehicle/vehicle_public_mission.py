@@ -10,7 +10,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 from pymavlink.mavwp import MAVWPLoader
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.vehicle_public_ports import MissionParts
 
 

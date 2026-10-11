@@ -6,7 +6,7 @@ from navpy.modules.comm.serial.sim.serial_sim_server import SerialSimServer
 
 
 def start_node(n_id):
-    from navpy.logger.cache_logger import ConsoleLogger
+    from navpy.core.kernel.logging.cache_logger import ConsoleLogger
     from navpy.modules.comm.network_serial import NetworkSerial
 
     logger = ConsoleLogger()

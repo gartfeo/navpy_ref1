@@ -22,7 +22,7 @@ if not __package__:
             sys.path.remove(import_path)
         sys.path.insert(0, import_path)
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.models.detect_request import DetectRequest
 from navpy.modules.vision.detector import (
     Detector,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vision.gimbal_cadence import FixedCadenceRunner
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import MODE_FOLLOW
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_state import (

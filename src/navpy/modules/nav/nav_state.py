@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Optional
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 @unique

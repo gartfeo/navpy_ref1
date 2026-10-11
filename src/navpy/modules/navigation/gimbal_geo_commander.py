@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.gimbal_geo_diagnostics import GeoRayDiagnosticLogger
 from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalGeoMemory,

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.nav.confirmation_policy import ConfirmationTimingPolicy
 from navpy.modules.nav.nav_state import GeoHoldState
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus

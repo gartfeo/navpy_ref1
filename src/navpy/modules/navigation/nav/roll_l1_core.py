@@ -8,8 +8,8 @@ from collections.abc import Callable
 
 import numpy as np
 
-from navpy.args.pid_args import PIDArgs
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.pid_args import PIDArgs
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.nav.pid.pid import Pid
 from navpy.modules.navigation.nav.pn.pitch_pn import PitchPn
 from navpy.modules.navigation.nav.roll_l1 import RollL1Control

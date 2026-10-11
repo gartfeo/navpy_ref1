@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from navpy.modules.common.models.wind import Wind
+from navpy.core.kernel.wind import Wind
 from navpy.modules.vehicle.message_store import MessageStore
 
 

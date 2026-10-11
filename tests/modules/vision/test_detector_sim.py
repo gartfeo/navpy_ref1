@@ -12,9 +12,9 @@ import numpy as np
 import pytest
 from pymap3d import ned2geodetic
 
-from navpy.args.uas_args import UasArgs
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.uas_args import UasArgs
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vision.models.detect_data import (
     DetectedObject,

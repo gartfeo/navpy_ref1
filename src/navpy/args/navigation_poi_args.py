@@ -1,4 +1,4 @@
-from navpy.args.vehicle_arg_ports import MissionParameterReader
+from navpy.core.kernel.config.vehicle_arg_ports import MissionParameterReader
 from navpy.plugins.vehicle.ardupilot.nav_waypoints import nav_wp_indices
 
 

@@ -8,7 +8,7 @@ from typing import Optional, Protocol
 
 import numpy as np
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
 from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits, r_nav_min
 from navpy.modules.vision.vision_class_profile import (

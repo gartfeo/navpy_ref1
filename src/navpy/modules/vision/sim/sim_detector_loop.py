@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.modules.vision.sim.ideal_pose_source import IdealPoseSample
 from navpy.modules.vision.sim.scheduler_cadence_lease import SchedulerCadenceLease
 from navpy.modules.vision.sim.sim_coordinator_ports import WorkerCoordinatorPort

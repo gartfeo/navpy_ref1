@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from tools.cam import gimbal_tuning_runtime as tuning_runtime
 
 
@@ -241,7 +241,7 @@ def test_tuning_multiple_cleanup_errors_are_grouped(
 
 
 def test_cleanup_stack_is_reverse_ordered_and_retry_safe() -> None:
-    from navpy.modules.common.resource_cleanup import CleanupStack
+    from navpy.core.kernel.resource_cleanup import CleanupStack
 
     events: list[str] = []
     marker = RuntimeError("cleanup")
@@ -267,7 +267,7 @@ def test_cleanup_stack_is_reverse_ordered_and_retry_safe() -> None:
 
 
 def test_cleanup_stack_preserves_clean_primary_exception_identity() -> None:
-    from navpy.modules.common.resource_cleanup import CleanupStack
+    from navpy.core.kernel.resource_cleanup import CleanupStack
 
     marker = RuntimeError("body")
     with pytest.raises(RuntimeError) as captured:
@@ -278,7 +278,7 @@ def test_cleanup_stack_preserves_clean_primary_exception_identity() -> None:
 
 
 def test_cleanup_stack_groups_primary_and_cleanup_errors() -> None:
-    from navpy.modules.common.resource_cleanup import CleanupStack
+    from navpy.core.kernel.resource_cleanup import CleanupStack
 
     primary = RuntimeError("body")
     cleanup = RuntimeError("cleanup")

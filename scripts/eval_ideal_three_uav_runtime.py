@@ -7,7 +7,7 @@ import time
 from copy import deepcopy
 from pathlib import Path
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from scripts.eval_gcs_demo_command_bounds import persist_command_bounds
 from scripts.eval_gcs_demo_companion_ready import (
     capture_post_restart_status,

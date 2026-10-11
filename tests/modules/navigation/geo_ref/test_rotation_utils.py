@@ -3,12 +3,12 @@ import unittest
 import numpy as np
 from numpy.testing import assert_allclose
 from pymavlink.mavextra import wrap_180
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.simple_rotation import Rotation
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.navigation.geo.rotation_utils import get_euler_rotation_angles, normalize, \
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.rotation_utils import get_euler_rotation_angles, normalize, \
     calculate_euler_angles, _calculate_yaw, _calculate_pitch_after_yaw, angle_between_vectors_proj
-from navpy.utils.euler_utils import get_euler_by_sequence
+from navpy.core.kernel.euler_utils import get_euler_by_sequence
 
 
 class RotationUtilsTestCase(unittest.TestCase):

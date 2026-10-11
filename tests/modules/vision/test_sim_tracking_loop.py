@@ -10,8 +10,8 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
@@ -66,7 +66,7 @@ def _make_mount(vehicle, camera_pitch=-28.7):
 
 
 def _make_detector(vehicle, mount, tracking_config):
-    from navpy.args.uas_args import UasArgs
+    from navpy.core.kernel.config.uas_args import UasArgs
     from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
     from tests.conftest import create_mock_args
 

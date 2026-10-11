@@ -6,18 +6,18 @@ import logging
 import traceback
 from typing import Optional
 
-from navpy.args.logger_args import LoggerArgs, LoggerArgsStub, LogStatusDest
-from navpy.logger.cache_log_dedupe import CacheLogDeduplicator
-from navpy.logger.cache_log_level import CacheLogLevel
-from navpy.logger.cache_log_message import LogMessage
-from navpy.logger.cache_log_output import (
+from navpy.core.kernel.config.logger_args import LoggerArgs, LoggerArgsStub, LogStatusDest
+from navpy.core.kernel.logging.cache_log_dedupe import CacheLogDeduplicator
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.cache_log_message import LogMessage
+from navpy.core.kernel.logging.cache_log_output import (
     CacheLogOutput,
     CacheStatusOutput,
     TextLogSink,
 )
-from navpy.logger.cache_log_worker import CacheLogWorker
-from navpy.logger.logger_api import ConsoleLogger, ILogger
-from navpy.logger.status_logger import IStatusLogger
+from navpy.core.kernel.logging.cache_log_worker import CacheLogWorker
+from navpy.core.kernel.logging.logger_api import ConsoleLogger, ILogger
+from navpy.core.kernel.logging.status_logger import IStatusLogger
 
 _diag_log = logging.getLogger(__name__)
 

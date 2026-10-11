@@ -12,10 +12,10 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
-from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 from navpy.logger.navigation_snap_geometry import calc_distance, calc_h_v_dist
 from navpy.logger.navigation_log_streams import NavigationLogStreams
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.mav_bus import MavBus
 from navpy.modules.vehicle.vehicle_composition import build_vehicle_parts
 from navpy.modules.vehicle.vehicle_lifecycle import VehicleLifecycle

@@ -19,8 +19,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 from unittest.mock import MagicMock
 
-from navpy.args.logger_args import LoggerArgsStub
-from navpy.logger.logger_factory import LOG_DIR_ENV, initialize_logger
+from navpy.core.kernel.config.logger_args import LoggerArgsStub
+from navpy.core.kernel.logging.logger_factory import LOG_DIR_ENV, initialize_logger
 
 ARROW_MSG = "DetectionCoordinator: start_tracking task_id=1 → gimbal_0 obj_id=1"
 

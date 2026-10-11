@@ -4,10 +4,10 @@ import unittest
 import pymap3d
 from numpy.testing import assert_allclose
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.navigation.geo.rotation_utils import normalize
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.rotation_utils import normalize
 from navpy.modules.navigation.geo.zc_util import ZcUtil
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class ZcUtilTestCase(unittest.TestCase):

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.nav.final_approach_airframe_config import FinalApproachAirframeConfigProvider, FinalApproachParameterPort
 from scripts import simtime_navigation_config as config
 from scripts.simtime_navigation_protocol import ATTITUDE, Snapshot

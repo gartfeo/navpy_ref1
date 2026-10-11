@@ -4,7 +4,7 @@ import struct
 from typing import Optional
 
 from navpy.modules.comm.serial.serial_listener import ISerialListener
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 
 
 class SerialSimClient:

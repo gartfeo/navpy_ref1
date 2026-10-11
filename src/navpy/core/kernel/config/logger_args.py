@@ -1,7 +1,7 @@
 import argparse
 from enum import Enum
 
-from navpy.logger.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 
 _LOG_LEVEL_NAMES = ", ".join(level.name for level in CacheLogLevel)
 

@@ -7,7 +7,7 @@ from typing import Optional, Protocol
 
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.comm.messages.msg_abc import MsgABC
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class TaskMessageBroadcaster(Protocol):

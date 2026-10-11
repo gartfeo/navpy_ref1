@@ -10,7 +10,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from navpy.modules.common.linear_assignment import hungarian
+from navpy.core.kernel.linear_assignment import hungarian
 from navpy.modules.swarm.task_auction_models import (
     TaskOffer,
     UNAVAILABLE_ASSIGNMENT_COST,

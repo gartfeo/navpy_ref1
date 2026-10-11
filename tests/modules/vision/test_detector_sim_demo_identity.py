@@ -18,10 +18,10 @@ from unittest.mock import Mock
 
 import pymap3d
 
-from navpy.args.uas_args import UasArgs
-from navpy.logger.cache_logger import ConsoleLogger
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.uas_args import UasArgs
+from navpy.core.kernel.logging.cache_logger import ConsoleLogger
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.camera_mount import CameraMount

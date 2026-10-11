@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
 from typing import Protocol, Sequence
 

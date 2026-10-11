@@ -6,7 +6,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import List, Optional
 
-from navpy.modules.vision.geometry import iou_cxcywh
+from navpy.core.kernel.geometry import iou_cxcywh
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.models.detection_event_lease import (
     DetectionEventLease,

@@ -13,9 +13,9 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from navpy.logger.cache_log_level import CacheLogLevel
-from navpy.logger.cache_logger import ConsoleCacheLogger
-from navpy.logger.logger_api import ILogger
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.cache_logger import ConsoleCacheLogger
+from navpy.core.kernel.logging.logger_api import ILogger
 from navpy.modules.vision.tracker_backends_boxmot import (
     BotSortTrackerBackend,
     StrongSortTrackerBackend,

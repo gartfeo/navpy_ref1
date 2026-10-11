@@ -6,10 +6,10 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Optional, cast
 
-from navpy.args.navigation_args import NavigationAlgorithm, NavigationArgs
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.navigation_args import NavigationAlgorithm, NavigationArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.logger.navigation_logger import NavigationLogger
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot

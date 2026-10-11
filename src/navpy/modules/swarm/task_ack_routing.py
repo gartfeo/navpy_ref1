@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Optional
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.swarm_ack_msg import SwarmAckMsg
 from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.swarm.task_msg_refs import MsgRef

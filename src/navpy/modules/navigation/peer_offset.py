@@ -16,7 +16,7 @@ from typing import List, Optional
 import pymap3d
 from geopy.distance import geodesic
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
 from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
 from navpy.modules.navigation.peer_orbit_plan import (

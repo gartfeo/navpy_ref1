@@ -1,4 +1,4 @@
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 
 
 def get_euler_by_sequence(att: Attitude, seq):

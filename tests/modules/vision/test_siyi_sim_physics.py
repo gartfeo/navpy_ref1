@@ -2,7 +2,7 @@
 
 import unittest
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import GimbalPhysics
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
     MAX_SLEW_RATE,

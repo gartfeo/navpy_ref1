@@ -2,7 +2,7 @@
 
 import pytest
 
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 
 
 class _FakeClock:
@@ -75,11 +75,11 @@ def test_accelerated_sitl_requests_high_resolution_timer(monkeypatch) -> None:
     calls = []
     clock = _FakeClock(20.0)
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence._request_high_resolution_timer",
+        "navpy.core.kernel.scheduler_cadence._request_high_resolution_timer",
         lambda: calls.append("begin") or True,
     )
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence._release_high_resolution_timer",
+        "navpy.core.kernel.scheduler_cadence._release_high_resolution_timer",
         lambda: calls.append("end"),
     )
 
@@ -93,11 +93,11 @@ def test_realtime_sitl_does_not_request_high_resolution_timer(monkeypatch) -> No
     calls = []
     clock = _FakeClock(20.0)
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence._request_high_resolution_timer",
+        "navpy.core.kernel.scheduler_cadence._request_high_resolution_timer",
         lambda: calls.append("begin") or True,
     )
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence._release_high_resolution_timer",
+        "navpy.core.kernel.scheduler_cadence._release_high_resolution_timer",
         lambda: calls.append("end"),
     )
 
@@ -112,11 +112,11 @@ def test_high_resolution_timer_released_when_speed_returns_realtime(monkeypatch)
     clock = _FakeClock(20.0)
     speed = {"value": 10.0}
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence._request_high_resolution_timer",
+        "navpy.core.kernel.scheduler_cadence._request_high_resolution_timer",
         lambda: calls.append("begin") or True,
     )
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence._release_high_resolution_timer",
+        "navpy.core.kernel.scheduler_cadence._release_high_resolution_timer",
         lambda: calls.append("end"),
     )
 
@@ -144,11 +144,11 @@ def test_accelerated_sitl_uses_live_proven_quantum_only_during_commands(
 ) -> None:
     current = {"value": 0.005}
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence.sys.getswitchinterval",
+        "navpy.core.kernel.scheduler_cadence.sys.getswitchinterval",
         lambda: current["value"],
     )
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence.sys.setswitchinterval",
+        "navpy.core.kernel.scheduler_cadence.sys.setswitchinterval",
         lambda value: current.__setitem__("value", value),
     )
 
@@ -174,11 +174,11 @@ def test_interpreter_quantum_tracks_verified_speed_changes(monkeypatch) -> None:
     current = {"value": 0.005}
     speed = {"value": 10.0}
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence.sys.getswitchinterval",
+        "navpy.core.kernel.scheduler_cadence.sys.getswitchinterval",
         lambda: current["value"],
     )
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence.sys.setswitchinterval",
+        "navpy.core.kernel.scheduler_cadence.sys.setswitchinterval",
         lambda value: current.__setitem__("value", value),
     )
     cadence = SchedulerCadence(
@@ -200,11 +200,11 @@ def test_interpreter_quantum_tracks_verified_speed_changes(monkeypatch) -> None:
 def test_multiple_cadence_owners_keep_the_smallest_quantum(monkeypatch) -> None:
     current = {"value": 0.005}
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence.sys.getswitchinterval",
+        "navpy.core.kernel.scheduler_cadence.sys.getswitchinterval",
         lambda: current["value"],
     )
     monkeypatch.setattr(
-        "navpy.modules.common.scheduler_cadence.sys.setswitchinterval",
+        "navpy.core.kernel.scheduler_cadence.sys.setswitchinterval",
         lambda value: current.__setitem__("value", value),
     )
     fast = SchedulerCadence(

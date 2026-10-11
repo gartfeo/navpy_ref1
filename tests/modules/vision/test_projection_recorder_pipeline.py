@@ -4,8 +4,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-from navpy.exception_groups import BaseExceptionGroup
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.sim.sim_detection_context import SimDetectionContext
 from navpy.modules.vision.sim.sim_detection_pipeline import SimDetectionPipeline
 from navpy.modules.vision.sim.sim_frame_timestamp import SimFrameTimestampResolver
@@ -103,7 +103,7 @@ def test_configured_factory_opens_once_and_default_ideal_does_no_io(tmp_path, mo
 
 
 def test_real_render_composition_owns_recorder_and_binds_pipeline(tmp_path,monkeypatch):
-    from navpy.args.uas_args import UasArgs
+    from navpy.core.kernel.config.uas_args import UasArgs
     from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
     from navpy.modules.vision.sim.sim_render_composition import build_render_foundation, build_pipeline
     _,camera,_,_,loc,poi,*_ = rig(None)
@@ -195,7 +195,7 @@ def test_recorder_io_failure_keeps_pipeline_result_or_original_exception(tmp_pat
 
 @pytest.mark.parametrize('stage',['finish','asdict'])
 def test_pre_emit_failure_latches_incomplete_through_production_error_callback(tmp_path,monkeypatch,stage):
-    from navpy.args.uas_args import UasArgs
+    from navpy.core.kernel.config.uas_args import UasArgs
     from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
     from navpy.modules.vision.sim.finite_projection_evidence import ProjectionCapture
     from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState

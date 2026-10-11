@@ -1,11 +1,11 @@
 import time
 from typing import Optional
 
-from navpy.args.logger_args import LoggerArgs, LogStatusDest
+from navpy.core.kernel.config.logger_args import LoggerArgs, LogStatusDest
 from navpy.modules.comm.messages.log_status_msg import LogStatusMsg
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.vehicle.vehicle_contract import IVehicle
-from navpy.logger.status_logger import IStatusLogger
+from navpy.core.kernel.logging.status_logger import IStatusLogger
 
 
 class GroundStationLoggerNetwork(IStatusLogger):

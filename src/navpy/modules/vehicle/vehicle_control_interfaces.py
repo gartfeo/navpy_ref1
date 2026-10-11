@@ -7,7 +7,7 @@ from typing import Union
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.flight_mode import FlightMode
 
 ParameterValue = Union[int, float]

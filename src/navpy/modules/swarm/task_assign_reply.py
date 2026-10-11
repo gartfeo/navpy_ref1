@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Optional
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     ACK_STATUS_RECEIVED,

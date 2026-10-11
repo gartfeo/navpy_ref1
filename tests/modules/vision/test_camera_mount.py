@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.peripheral.camera_abc import CameraAbc
 from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics

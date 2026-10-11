@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.swarm_ack_msg import (
     ACK_STATUS_APPLIED,

@@ -14,7 +14,7 @@ from gcs.backend.task_confirm_images import ActiveImage
 from gcs.backend.task_confirm_listener import TaskConfirmListener
 from gcs.backend.task_confirm_rounds import ConfirmationRoundRegistry, RequestAction
 from gcs.backend.task_confirm_transport import parse_round_uid
-from navpy.exception_groups import ExceptionGroup
+from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.modules.comm.messages.task_assignment_msg import TaskAssignResponseMsg
 from navpy.modules.comm.messages.task_message_data import (
     TaskHandleMsgData,
@@ -27,7 +27,7 @@ from navpy.modules.comm.messages.types import (
     TaskDispatchStatus,
     TaskTypeMsgData,
 )
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.nav.confirmation_dependencies import FreshnessGate
 from navpy.modules.nav.confirmation_round_transaction import (
     ConfirmationRequestRef,

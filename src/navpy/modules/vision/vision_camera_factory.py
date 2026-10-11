@@ -6,7 +6,7 @@ import math
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalAbc, GimbalData
 from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
 from navpy.modules.vision.vision_camera_calibration import parse_zoom_calibration
@@ -20,7 +20,7 @@ from navpy.modules.vision.vision_profile_types import CameraMountSpec
 from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
 
 if TYPE_CHECKING:
-    from navpy.modules.common.scheduler_cadence import SchedulerCadence
+    from navpy.core.kernel.scheduler_cadence import SchedulerCadence
     from navpy.modules.vehicle.vehicle_contract import IVehicle
 
 
@@ -115,7 +115,7 @@ def _build_gimbal(
     use_sim_gimbal: bool,
     scheduler_cadence: "SchedulerCadence | None",
 ) -> GimbalAbc:
-    from navpy.args.uas_args import UasArgs
+    from navpy.core.kernel.config.uas_args import UasArgs
     from navpy.modules.vision.peripheral.fixed_gimbal import FixedGimbal
     from navpy.modules.vision.sim.gimbal_sim import GimbalSim
 

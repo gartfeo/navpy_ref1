@@ -26,8 +26,8 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.sim.truth_pose_time_axis import (
     SOURCE_CLOCK_QUANTUM_S,
     TIME_AXES,

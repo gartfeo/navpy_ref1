@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.nav.confirmation_policy import PoiRetryPolicy
 from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
 from navpy.core.flow.fallback_mission_navigation import FallbackMissionNavigation

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.task_assignment_msg import TaskAssignRequestMsg
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
 from navpy.modules.comm.messages.location_msg import LocationMsgData

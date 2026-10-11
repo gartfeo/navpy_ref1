@@ -1,6 +1,6 @@
 """Focused tests for raw-message duplicate suppression."""
 
-from navpy.logger.cache_log_dedupe import CacheLogDeduplicator
+from navpy.core.kernel.logging.cache_log_dedupe import CacheLogDeduplicator
 
 
 def test_info_dedupes_same_raw_message_per_key_only():

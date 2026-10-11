@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.args.navigation_args import NavigationArgs
+from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.modules.navigation.nav.roll_l1 import RollL1Control
 from navpy.modules.navigation.nav.roll_l1_inputs import (
     PitchLockSettings,

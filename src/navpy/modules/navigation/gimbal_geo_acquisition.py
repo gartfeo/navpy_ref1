@@ -7,8 +7,8 @@ from typing import Callable
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.gimbal_geo_zoom_selector import GeoZoomSelector
 from navpy.modules.navigation.gimbal_navigation_state import (
     GimbalGeoMemory,

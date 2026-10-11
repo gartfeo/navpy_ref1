@@ -8,7 +8,7 @@ helper's request ack confirms it.
 import threading
 from unittest.mock import Mock, patch
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.task_availability_msg import (
     AvailableTaskRequestMsg,
     AvailableTaskResponseMsg,
@@ -36,7 +36,7 @@ from navpy.modules.comm.messages.types import (
     TaskTypeMsgData,
 )
 from navpy.modules.comm.network_abc import NetworkAbc
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_state_composition import create_task_state
 from navpy.modules.swarm.task_dispatch import TaskDispatch

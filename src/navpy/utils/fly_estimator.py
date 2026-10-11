@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 from typing import Optional, Protocol
 
-from navpy.modules.common.models.location import Location
-from navpy.modules.common.models.wind import Wind
+from navpy.core.kernel.location import Location
+from navpy.core.kernel.wind import Wind
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 
 # Constants

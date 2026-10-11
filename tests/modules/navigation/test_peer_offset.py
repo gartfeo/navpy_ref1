@@ -3,8 +3,8 @@ import math
 import unittest
 from unittest.mock import Mock
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.navigation.peer_offset import (
     calc_peer_approach_offset,

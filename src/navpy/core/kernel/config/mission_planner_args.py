@@ -1,4 +1,4 @@
-from navpy.utils.arg_helper import parse_none_boolean
+from navpy.core.kernel.config.arg_helper import parse_none_boolean
 
 
 class MissionPlannerArgs:

@@ -5,8 +5,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.exception_groups import BaseExceptionGroup
-from navpy.modules.common.resource_cleanup import CleanupStack
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.resource_cleanup import CleanupStack
 from scripts import eval_certificate as certificate
 from navpy.modules.navigation.nav.vision_nav import command_executor as command_executor_module
 from navpy.modules.navigation.calc_data import CalcData
@@ -53,7 +53,7 @@ from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedg
 from navpy.modules.navigation.nav.vision_nav.source_time_adapter import (
     PoseCadenceFinalApproachSourceTimeObserver,
 )
-from navpy.modules.vehicle import pose_cadence_debug
+from navpy.core.kernel.logging import pose_cadence_debug
 
 
 @dataclass

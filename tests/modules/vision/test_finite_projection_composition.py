@@ -3,8 +3,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-from navpy.args.uas_args import UasArgs
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.config.uas_args import UasArgs
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vision.models.detect_data import DetectStatus
 from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState

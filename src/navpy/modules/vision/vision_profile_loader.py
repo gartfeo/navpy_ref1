@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping
 from pathlib import Path
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vision.vision_profile_inheritance import ProfileInheritanceResolver
 from navpy.modules.vision.vision_profile_types import VisionProfile
 from navpy.modules.vision.vision_detector_profile import validate_detector_settings_keys

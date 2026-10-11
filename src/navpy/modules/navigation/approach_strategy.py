@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from navpy.modules.vision.camera_mount import CameraMount
-    from navpy.modules.common.models.location import Location
+    from navpy.core.kernel.location import Location
 
 
 @unique

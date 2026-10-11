@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
 from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData

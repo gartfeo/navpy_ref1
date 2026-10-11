@@ -5,8 +5,8 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.modules.vision.peripheral.siyi.hardware.polling import (
     SiyiTelemetryPoller,
 )

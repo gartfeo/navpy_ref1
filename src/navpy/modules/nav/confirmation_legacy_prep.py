@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M
 from navpy.modules.nav.nav_state import NavigationTaskState

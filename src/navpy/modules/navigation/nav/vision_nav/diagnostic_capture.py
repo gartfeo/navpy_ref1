@@ -6,8 +6,8 @@ import math
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.nav.vision_nav.command_transaction import (
     FinalApproachLawEvidence,
 )

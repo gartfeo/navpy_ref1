@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from scripts.python import run_gimbal_tracker_runtime as runner_runtime
 from tests.detection_factory import make_detected_poi
 

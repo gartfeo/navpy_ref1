@@ -7,7 +7,7 @@ import threading
 from collections.abc import Callable
 from typing import Optional
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.swarm_ack_msg import (
     ACK_STATUS_RECEIVED,
@@ -22,7 +22,7 @@ from navpy.modules.comm.messages.task_message_data import (
     TaskHandleMsgData,
     TaskMsgData,
 )
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.swarm.task_ack_routing import acked_ref
 from navpy.modules.swarm.task_actor_slots import (
     AckKind,

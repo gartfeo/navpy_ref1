@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 from scripts import eval_siyi_geo_tracking_three_uav as evaluator
 from scripts import siyi_geo_track_child as child
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 def test_wait_ready_uses_child_marker_not_profile_specific_console_text(

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from navpy.utils.math_utils import GRAVITY_MSS
+from navpy.core.kernel.math_utils import GRAVITY_MSS
 from scripts.vision_static_point_mass_types import (
     StaticPointMassCase,
     StaticPointMassMiss,

@@ -2,8 +2,8 @@
 import unittest
 import numpy as np
 
-from navpy.modules.vision.geometry import iou_xyxy
-from navpy.modules.common.linear_assignment import hungarian
+from navpy.core.kernel.geometry import iou_xyxy
+from navpy.core.kernel.linear_assignment import hungarian
 from navpy.modules.vision.mot_state import KalmanCV
 
 

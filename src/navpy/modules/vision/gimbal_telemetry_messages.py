@@ -18,8 +18,8 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from navpy.modules.vision.mavlink_camera_components import (
     CAMERA_COMPONENT_BY_GIMBAL_DEVICE_ID,
 )
-from navpy.utils.euler_utils import get_euler_by_sequence
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.euler_utils import get_euler_by_sequence
+from navpy.core.kernel.simple_rotation import Rotation
 
 if TYPE_CHECKING:
     from navpy.modules.vision.camera_mount import CameraMount

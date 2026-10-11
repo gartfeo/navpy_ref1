@@ -17,8 +17,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import navpy.modules.vehicle.pose_cadence_flusher as flusher_mod
-from navpy.modules.vehicle.pose_cadence_flusher import PoseCadenceFlusher
+import navpy.core.kernel.logging.pose_cadence_flusher as flusher_mod
+from navpy.core.kernel.logging.pose_cadence_flusher import PoseCadenceFlusher
 
 
 @pytest.fixture

@@ -7,9 +7,9 @@ import time
 import traceback
 from collections.abc import Callable, Mapping
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.high_resolution_deadline import wait_until_deadline
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.high_resolution_deadline import wait_until_deadline
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.modules.nav.nav_clock import NavClock
 from navpy.modules.nav.nav_constants import NAV_LOOP_PERIOD_S

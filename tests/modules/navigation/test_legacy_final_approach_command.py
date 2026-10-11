@@ -5,8 +5,8 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.legacy_final_approach_command import (
     LegacyFinalApproachCommand,
     LegacyFinalApproachCommandPorts,

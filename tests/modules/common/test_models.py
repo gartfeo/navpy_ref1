@@ -2,9 +2,9 @@
 import math
 import unittest
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
-from navpy.modules.common.models.wind import Wind
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
+from navpy.core.kernel.wind import Wind
 
 
 class TestLocation(unittest.TestCase):

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from navpy.args.nav_args import NavArgs
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
 from navpy.modules.nav.approach_planner import ApproachPlanner
 from navpy.modules.nav.confirmation_policy import (

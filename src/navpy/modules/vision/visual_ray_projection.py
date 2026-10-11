@@ -13,8 +13,8 @@ from navpy.modules.vision.models.pixel_observation import (
     PixelProjectionKind,
 )
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.utils.euler_utils import get_euler_by_sequence
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.euler_utils import get_euler_by_sequence
+from navpy.core.kernel.simple_rotation import Rotation
 
 
 def camera_to_body_from_gimbal(gimbal: GimbalData) -> CameraToBodyTransform:

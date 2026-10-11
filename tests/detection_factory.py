@@ -6,8 +6,8 @@ from typing import Any
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from navpy.modules.vision.models.detection_components import (
     ConfirmationEvidence,

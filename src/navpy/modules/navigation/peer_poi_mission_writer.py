@@ -10,7 +10,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_mission_item_message,
 )
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class PeerPoiMissionVehicle(Protocol):

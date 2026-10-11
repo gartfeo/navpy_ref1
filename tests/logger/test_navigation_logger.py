@@ -12,7 +12,7 @@ from navpy.logger.navigation_snap_geometry import (
     closest_point_components_on_segment,
 )
 from navpy.logger.navigation_snap_session import NavigationSnapSession
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class _MemoryStream:

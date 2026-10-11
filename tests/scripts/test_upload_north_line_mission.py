@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from scripts import upload_north_line_mission as uploader
 
 

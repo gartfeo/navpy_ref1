@@ -7,8 +7,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Optional, TYPE_CHECKING
 
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.gimbal_hardware_ports import (
     GimbalActuatorPort,
     GimbalMountPort,

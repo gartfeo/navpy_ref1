@@ -17,9 +17,9 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 from pymavlink.mavextra import wrap_360
 
-from navpy.args.mission_planner_args import MissionPlannerArgs
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.flight_mode import FlightMode
 
 

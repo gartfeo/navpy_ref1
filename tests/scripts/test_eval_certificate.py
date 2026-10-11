@@ -517,7 +517,7 @@ def test_source_time_metrics_do_not_affect_certificate_validity():
 def test_source_time_env_is_the_instrument_modules_env_var():
     import inspect
 
-    import navpy.modules.vehicle.pose_cadence_debug as pcd_mod
+    import navpy.core.kernel.logging.pose_cadence_debug as pcd_mod
 
     # The evaluator sets cert.SOURCE_TIME_ENV; the instrument reads its own
     # env var at import. If the two names drift apart the gate silently
@@ -526,7 +526,7 @@ def test_source_time_env_is_the_instrument_modules_env_var():
 
 
 def test_flush_grace_covers_at_least_two_flush_intervals():
-    import navpy.modules.vehicle.pose_cadence_debug as pcd_mod
+    import navpy.core.kernel.logging.pose_cadence_debug as pcd_mod
 
     # The evaluator waits SOURCE_TIME_FLUSH_GRACE_S before hard-terminating
     # NavPy so the daemon flusher can land the terminal tail. Two periods, not

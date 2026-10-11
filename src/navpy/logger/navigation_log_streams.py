@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
 import os
 import threading
@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import NoReturn, Optional, Protocol, TextIO
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.logger.log_events import LogEvent, STANDARD_EVENT_HEADER
 from navpy.logger.log_schema import PRIMARY_SCHEMA
 from navpy.logger.navigation_stream_worker import NavigationStreamWorker

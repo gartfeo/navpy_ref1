@@ -2,7 +2,7 @@
 
 from unittest.mock import Mock, patch
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation import peer_offset
 from navpy.modules.navigation import peer_orbit_plan
 from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan

@@ -11,7 +11,7 @@ from navpy.modules.navigation.nav.vision_nav.source_time_ports import (
     ObservationOutcome,
     SourceNow,
 )
-import navpy.modules.vehicle.pose_cadence_debug as pose_cadence_debug
+import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 
 
 _LOG = logging.getLogger(__name__)

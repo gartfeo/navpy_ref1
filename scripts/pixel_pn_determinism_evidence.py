@@ -63,7 +63,7 @@ SCRIPTS = str(Path(__file__).resolve().parent)
 if SCRIPTS not in sys.path:
     sys.path.insert(0, SCRIPTS)
 
-from navpy.exception_groups import (  # noqa: E402
+from navpy.core.kernel.exception_groups import (  # noqa: E402
     BaseExceptionGroup,
     ExceptionGroup,
 )

@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.charuco_board import charuco_board_spec_from_settings
-from navpy.args.detector_backend import (
+from navpy.core.kernel.config.detector_backend import (
     DetectorBackend,
     backend_requires_model_path,
     validate_detector_backend,
@@ -79,7 +79,7 @@ class RealDetectorFactory:
             from navpy.modules.vision.real_detector_diagnostics import (
                 DetectorDebugConfig,
             )
-            from navpy.modules.vision.device import DeviceT
+            from navpy.core.kernel.device import DeviceT
         except ImportError as import_error:
             self._logger.error(
                 "Failed to import Detector: "

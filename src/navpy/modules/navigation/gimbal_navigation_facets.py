@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.gimbal_navigation_state import GimbalNavigationStatus
 from navpy.modules.navigation.gimbal_tracking_constants import ARMED_ANY_OBJ_ID
 from navpy.modules.navigation.gimbal_zoom_control import GimbalZoomController

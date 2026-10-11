@@ -3,8 +3,8 @@ import os
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
-from navpy.args.logger_args import LoggerArgs
-from navpy.logger.cache_logger import CacheLogger, IStatusLogger
+from navpy.core.kernel.config.logger_args import LoggerArgs
+from navpy.core.kernel.logging.cache_logger import CacheLogger, IStatusLogger
 
 
 LOG_DIR_ENV = "NAVPY_LOG_DIR"

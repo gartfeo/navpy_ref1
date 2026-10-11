@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Protocol, Sequence
 from navpy.modules.vision.tracking_command_router import TrackingLogger
 
 if TYPE_CHECKING:
-    from navpy.modules.common.models.attitude import Attitude
-    from navpy.modules.common.models.location import Location
+    from navpy.core.kernel.attitude import Attitude
+    from navpy.core.kernel.location import Location
     from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 
 

@@ -1,6 +1,6 @@
 """Shared logger reference for collaborators that support runtime replacement."""
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 
 
 class LoggerRef:

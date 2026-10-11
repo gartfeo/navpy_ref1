@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
 import time
 from argparse import Namespace
@@ -13,18 +13,18 @@ import cv2
 
 from navpy.args.conn.network_args import NetworkArgs
 from navpy.args.conn_args import ConnArgs
-from navpy.args.navigation_args import NavigationArgs
+from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.args.navigation_poi_args import NavigationPoiArgs
-from navpy.args.logger_args import LoggerArgs
-from navpy.args.nav_args import NavArgs
+from navpy.core.kernel.config.logger_args import LoggerArgs
+from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.args.navpy_argparse import make_parser
 from navpy.args.vision_args import VisionArgs
-from navpy.logger.logger_api import ILogger
-from navpy.logger.logger_factory import initialize_logger
+from navpy.core.kernel.logging.logger_api import ILogger
+from navpy.core.kernel.logging.logger_factory import initialize_logger
 from navpy.logger.status_logger_network import GroundStationLoggerNetwork
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.comm.network_factory import create_network
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.navigation import Navigation
 from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.modules.navigation.mission_planner import MissionPlanner, MissionPlannerArgs
@@ -41,7 +41,7 @@ from navpy.runtime_resources import (
     VehicleCloseGate,
 )
 from navpy.runtime_ready import emit_runtime_ready
-from navpy.utils.arg_helper import (
+from navpy.core.kernel.config.arg_helper import (
     collect_non_default_args,
     collect_param_overrides,
     format_kv,

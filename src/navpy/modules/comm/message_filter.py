@@ -26,7 +26,7 @@ from navpy.modules.comm.message_admission_state import (
 if TYPE_CHECKING:
     from navpy.modules.comm.messages.msg_abc import MsgABC
     from navpy.modules.comm.messages.msg_meta import MsgMeta
-    from navpy.logger.cache_logger import ILogger
+    from navpy.core.kernel.logging.cache_logger import ILogger
 
 @dataclass
 class FilterMetrics:

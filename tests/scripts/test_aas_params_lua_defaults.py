@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from navpy.args.nav_args import NavArgs
-from navpy.args.navigation_args import NavigationArgs
+from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.args.navigation_poi_args import NavigationPoiArgs, encode_wp_bitmask
 
 LUA = Path(__file__).resolve().parents[2] / "scripts" / "lua" / "aas_params.lua"

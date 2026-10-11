@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.args.nav_args import NavArgs
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.nav.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.modules.nav.mission_catalog import MissionCatalog
 from navpy.modules.nav.mission_navigation import MissionPassPolicy

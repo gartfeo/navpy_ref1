@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from navpy.args.detector_backend import (
+from navpy.core.kernel.config.detector_backend import (
     DEFAULT_DETECTOR_BACKEND,
     DETECTOR_BACKENDS,
 )

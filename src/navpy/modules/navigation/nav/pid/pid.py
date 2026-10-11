@@ -2,7 +2,7 @@ import logging
 from collections import namedtuple
 from time import time
 
-from navpy.args.pid_args import PIDArgs
+from navpy.core.kernel.config.pid_args import PIDArgs
 
 
 class Pid(object):

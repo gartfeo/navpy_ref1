@@ -1173,7 +1173,7 @@ class TestLiveGimbalEndToEndContract(unittest.TestCase):
     def test_published_snapshot_quaternion_projects_live_footprint(self):
         from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
         from gcs.backend.vehicle_manager import VehicleEntry
-        from navpy.modules.common.models.attitude import Attitude
+        from navpy.core.kernel.attitude import Attitude
         from navpy.modules.vision.camera_mount_types import CameraMountOptics
         from navpy.modules.vision.vision_profile_types import CameraMountSpec
         from navpy.modules.vision.gimbal_telemetry_publisher import GimbalTelemetryPublisher

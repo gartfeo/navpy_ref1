@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class SimulationObject:

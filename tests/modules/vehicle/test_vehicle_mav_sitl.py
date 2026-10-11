@@ -10,8 +10,8 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
 from navpy.modules.vehicle.flight_mode import FlightMode
-from navpy.logger.cache_logger import ConsoleLogger
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.logging.cache_logger import ConsoleLogger
+from navpy.core.kernel.location import Location
 
 
 def _split_env(varname: str):

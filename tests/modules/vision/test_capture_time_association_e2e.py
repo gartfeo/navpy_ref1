@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
 from navpy.modules.vision.capture_lookup import CaptureLookupCalibration
 from navpy.modules.vision.frame_capture_ports import (

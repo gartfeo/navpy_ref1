@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pytest
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
@@ -39,8 +39,8 @@ from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_step import (
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_zoom_plant import (
     GimbalZoomPlant,
 )
-from navpy.utils.euler_utils import get_euler_by_sequence
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.euler_utils import get_euler_by_sequence
+from navpy.core.kernel.simple_rotation import Rotation
 
 
 @dataclass

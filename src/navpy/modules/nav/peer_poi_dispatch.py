@@ -6,7 +6,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.nav.peer_dispatch_quiescence import (
     await_peer_dispatch_quiescence,
 )

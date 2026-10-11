@@ -9,8 +9,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from navpy.exception_groups import ExceptionGroup
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.exception_groups import ExceptionGroup
+from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.subscription import Subscription
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.detection_publication_store import (

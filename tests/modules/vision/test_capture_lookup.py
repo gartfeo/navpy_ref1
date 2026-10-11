@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.capture_interpolation import (
     BRACKET_MAX_WIDTH_S,
     CLOCK_SEAM_TOLERANCE_S,

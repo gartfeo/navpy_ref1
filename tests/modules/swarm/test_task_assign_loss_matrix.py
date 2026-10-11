@@ -32,7 +32,7 @@ from navpy.modules.comm.messages.task_availability_msg import (
 )
 from navpy.modules.comm.messages.types import MsgType, TaskDispatchStatus
 from navpy.modules.comm.network_mavlink import NetworkMavlink
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_actor_slots import SlotState
 from tests.detection_factory import make_detected_poi

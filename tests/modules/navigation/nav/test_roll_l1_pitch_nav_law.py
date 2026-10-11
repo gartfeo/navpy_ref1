@@ -18,12 +18,12 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from navpy.args.navigation_args import NavigationArgs
+from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.args.navigation_poi_args import NavigationPoiArgs
-from navpy.args.mission_planner_args import MissionPlannerArgs
-from navpy.args.pid_args import PIDArgs
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs
+from navpy.core.kernel.config.pid_args import PIDArgs
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.core.ports.nav_command import (
     NavCommand,
     NavCommandMode,

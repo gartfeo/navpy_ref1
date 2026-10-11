@@ -106,8 +106,8 @@ def image_motion_split(peer: dict, snapshots: list[Snapshot]) -> list[dict]:
     # Symmetric position-first/attitude-first differences, as in the reviewed
     # pre-implementation diagnostic. This is image motion, not the law's rate.
     from simtime_navigation_runtime import BoundaryAttitude, BoundaryTruth
-    from navpy.modules.common.models.attitude import Attitude
-    from navpy.modules.common.models.location import Location
+    from navpy.core.kernel.attitude import Attitude
+    from navpy.core.kernel.location import Location
     from navpy.modules.vision.sim.direct_pixel_render import DirectPixelRenderer
     from navpy.modules.vision.sim.pose_associator import AssociatedPose
     from navpy.modules.vision.sim.sim_camera_ports import FrameSize

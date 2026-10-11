@@ -9,9 +9,9 @@ import numpy as np
 import pymap3d
 from pymavlink.mavextra import wrap_180
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
-from navpy.modules.navigation.geo.rotation_utils import (
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
+from navpy.core.kernel.rotation_utils import (
     calculate_yaw_pitch,
     get_euler_rotation_angles,
 )

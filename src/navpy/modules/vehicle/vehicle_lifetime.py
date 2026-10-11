@@ -1,7 +1,7 @@
 """Vehicle lifetime and runtime-wide logger replacement."""
 from __future__ import annotations
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vehicle.logger_ref import LoggerRef
 from navpy.modules.vehicle.vehicle_lifecycle import VehicleLifecycle
 

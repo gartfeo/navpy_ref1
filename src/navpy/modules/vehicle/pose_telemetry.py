@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.message_store import MessageSample, MessageStore
 
 

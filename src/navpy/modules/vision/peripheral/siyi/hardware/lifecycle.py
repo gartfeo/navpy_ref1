@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import threading
 
-from navpy.exception_groups import BaseExceptionGroup
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vision.peripheral.siyi.hardware.poll_worker import (
     SiyiPollWorker,
 )

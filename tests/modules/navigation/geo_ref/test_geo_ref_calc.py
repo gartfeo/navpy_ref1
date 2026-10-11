@@ -7,12 +7,12 @@ import pymap3d
 from numpy.testing import assert_allclose
 from pymavlink.mavextra import wrap_180
 
-from navpy.args.uas_args import UasArgs
-from navpy.logger.cache_logger import ConsoleLogger
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.uas_args import UasArgs
+from navpy.core.kernel.logging.cache_logger import ConsoleLogger
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.geo.rotation_utils import normalize
+from navpy.core.kernel.rotation_utils import normalize
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
@@ -23,8 +23,8 @@ from navpy.modules.vision.peripheral.gimbal_abc import (
 from navpy.modules.vision.sim.detector_sim import DetectorSim
 from navpy.modules.vision.sim.gimbal_sim import GimbalSim
 from navpy.modules.vision.simulation_object import SimulationObject
-from navpy.utils.euler_utils import get_euler_by_sequence
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.euler_utils import get_euler_by_sequence
+from navpy.core.kernel.simple_rotation import Rotation
 from tests.conftest import create_test_camera, create_mock_args
 
 

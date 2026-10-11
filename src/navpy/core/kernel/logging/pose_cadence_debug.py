@@ -59,7 +59,7 @@ import os
 import threading
 from typing import Dict, List, Tuple
 
-from navpy.modules.vehicle.pose_cadence_flusher import PoseCadenceFlusher
+from navpy.core.kernel.logging.pose_cadence_flusher import PoseCadenceFlusher
 
 
 def _resolve_output_dir() -> str | None:

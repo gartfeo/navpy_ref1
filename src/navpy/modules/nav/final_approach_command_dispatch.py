@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional, Protocol
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.models.detection_publication import DetectionPublication

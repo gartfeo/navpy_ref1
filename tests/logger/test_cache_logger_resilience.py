@@ -8,8 +8,8 @@ error, etc.) can never break logging for the rest of the process.
 """
 from __future__ import annotations
 
-from navpy.args.logger_args import LoggerArgsStub
-from navpy.logger.cache_logger import CacheLogger
+from navpy.core.kernel.config.logger_args import LoggerArgsStub
+from navpy.core.kernel.logging.cache_logger import CacheLogger
 
 
 class _FlakyLogger:

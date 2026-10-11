@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import cast
 
-from navpy.exception_groups import ExceptionGroup
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.exception_groups import ExceptionGroup
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.appearance_embedding import AppearanceEmbedder
 from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 from navpy.modules.vision.appearance import create_appearance_embedder
@@ -17,7 +17,7 @@ from navpy.modules.vision.deep_search import (
 )
 from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
 from navpy.modules.vision.charuco_detector import CharucoBoardDetector
-from navpy.args.detector_backend import (
+from navpy.core.kernel.config.detector_backend import (
     CHARUCO_BACKEND,
     YOLO_BACKEND,
 )

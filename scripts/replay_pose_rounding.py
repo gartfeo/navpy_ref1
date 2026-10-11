@@ -12,7 +12,7 @@ sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts"), str(ROOT)]
 from scripts import simtime_navigation_runtime as runtime
 from replay_navigation_trace import FullRateLogger
 from simtime_navigation_protocol import ATTITUDE, DRAIN_STEPS, GUIDED, TAKEOFF_ARM, Snapshot, StepCommand
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from eval_direct_pixel_command_causality import analyze, _samples
 
 

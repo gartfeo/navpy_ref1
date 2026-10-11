@@ -5,11 +5,11 @@ from __future__ import annotations
 import threading
 from dataclasses import replace
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.navigation.geo.rotation_utils import calculate_euler_angles
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.rotation_utils import calculate_euler_angles
 from navpy.modules.vision.gimbal_attitude_reader import AircraftAttitudeReader
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.utils.euler_utils import get_att_by_sequence, get_euler_by_sequence
+from navpy.core.kernel.euler_utils import get_att_by_sequence, get_euler_by_sequence
 
 
 class GimbalStabilizer:

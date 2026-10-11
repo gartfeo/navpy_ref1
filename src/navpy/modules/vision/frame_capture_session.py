@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
 import threading
 from dataclasses import dataclass, field
 
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.modules.vision.frame_capture_logging import SafeCaptureLogger
 from navpy.modules.vision.frame_capture_ports import FrameCaptureBackend
 from navpy.modules.vision.worker_failure import WorkerFailureLatch

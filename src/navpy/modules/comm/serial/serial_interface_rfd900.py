@@ -7,7 +7,7 @@ import serial
 
 from navpy.args.conn.serial_network_args import SerialNetworkArgs
 from navpy.modules.comm.serial.serial_listener import ISerialListener
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 
 MAX_PACKET_SIZE = 340 # SiK air-frame limit
 DELIM = b"\x1E" # ASCII “record separator”

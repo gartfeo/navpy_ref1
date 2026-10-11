@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
 from navpy.modules.vehicle.heartbeat_runtime import HeartbeatRuntime
 from navpy.modules.vehicle.inbound_router import InboundMessageRouter

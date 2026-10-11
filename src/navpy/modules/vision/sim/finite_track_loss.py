@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pymap3d
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.sim_camera_ports import ProjectionCameraPort
 from navpy.modules.vision.sim.sim_runtime_ports import (

@@ -3,12 +3,12 @@ from typing import Callable, Sequence
 
 from navpy.args.conn_args import ConnArgs
 from navpy.args.conn.network_args import NetworkArgs
-from navpy.args.pid_args import PIDArgs
-from navpy.args.navigation_args import NavigationArgs
+from navpy.core.kernel.config.pid_args import PIDArgs
+from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.args.navigation_poi_args import NavigationPoiArgs
-from navpy.args.logger_args import LoggerArgs
-from navpy.args.mission_planner_args import MissionPlannerArgs
-from navpy.args.nav_args import NavArgs
+from navpy.core.kernel.config.logger_args import LoggerArgs
+from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs
+from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.args.vision_args import VisionArgs
 
 # every (*class*, extra-positional-args)

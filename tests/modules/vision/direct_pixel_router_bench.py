@@ -23,7 +23,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_TYPE_ONBOARD_CONTROLLER,
 )
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.inbound_router import InboundMessageRouter
 from navpy.modules.vehicle.link_state import HeartbeatState, PacketLossTracker
 from navpy.modules.vehicle.message_store import MessageStore

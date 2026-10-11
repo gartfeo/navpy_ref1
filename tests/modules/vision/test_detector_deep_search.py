@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from navpy.exception_groups import ExceptionGroup
+from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.modules.vision.detector import Detector
 from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.detector_ports import (

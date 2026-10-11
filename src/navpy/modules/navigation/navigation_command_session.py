@@ -7,8 +7,8 @@ import threading
 from collections.abc import Callable
 from typing import ContextManager
 
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.modules.navigation.navigation_command_worker import (
     AUTOPILOT_NAVIGATION_LOOP_HZ,
     NO_COMMAND_LOOP_OBSERVER,

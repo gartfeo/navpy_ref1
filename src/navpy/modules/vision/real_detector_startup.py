@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.core.ports.pose_stream_rate import pose_frame_association_max_skew_s
 from navpy.modules.vision.frame_provider import FrameProvider
 from navpy.modules.vision.real_detector_ports import (

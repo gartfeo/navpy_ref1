@@ -6,7 +6,7 @@ import threading
 import time
 from typing import Protocol
 
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.modules.vision.worker_failure import WorkerFailureLatch
 
 

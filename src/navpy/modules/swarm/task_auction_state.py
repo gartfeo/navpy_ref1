@@ -6,7 +6,7 @@ import math
 
 from typing import Callable, Optional
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
 from navpy.modules.comm.messages.task_message_data import (
     TaskHandleMsgData,

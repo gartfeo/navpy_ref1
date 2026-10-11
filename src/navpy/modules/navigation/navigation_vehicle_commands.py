@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional, Protocol
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class NavigationCommandVehicle(Protocol):

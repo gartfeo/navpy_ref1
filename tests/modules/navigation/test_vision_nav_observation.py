@@ -4,7 +4,7 @@ from dataclasses import FrozenInstanceError, fields, replace
 import numpy as np
 import pytest
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,

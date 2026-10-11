@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import ExceptionGroup
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.exception_groups import ExceptionGroup
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.types import TaskDispatchStatus
 from navpy.modules.swarm.task_auction_models import _TaskAuctionStore
 from navpy.modules.swarm.task_dispatch import TaskDispatch

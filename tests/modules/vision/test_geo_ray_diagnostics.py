@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.geo_ray_diagnostics import compute_geo_ray_diagnostic
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 

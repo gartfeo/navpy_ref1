@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.nav.confirmation_frame_policy import extract_confirmation_size
 from navpy.modules.nav.confirmation_policy import ConfirmationTimingPolicy
 from navpy.modules.nav.confirmation_reporting import (

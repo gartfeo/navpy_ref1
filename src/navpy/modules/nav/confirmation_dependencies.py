@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Callable, Optional
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.nav.confirmation_ports import ConfirmationNetworkPort
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 

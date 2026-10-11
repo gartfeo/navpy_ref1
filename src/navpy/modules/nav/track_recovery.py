@@ -8,9 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.nav.confirmation_policy import PoiRetryPolicy
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot

@@ -6,8 +6,8 @@ import threading
 import time
 from typing import Callable
 
-from navpy.exception_groups import ExceptionGroup
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.exception_groups import ExceptionGroup
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.modules.nav.final_approach_detection_dispatch import (
     FinalApproachDetectionDispatch,
 )

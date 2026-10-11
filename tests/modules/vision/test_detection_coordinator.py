@@ -4,9 +4,9 @@ from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from navpy.exception_groups import ExceptionGroup
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.exception_groups import ExceptionGroup
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.detection_coordinator import DetectionCoordinator
 from navpy.modules.vision.detector_lifecycle_fleet import DetectorLifecycleFleet
 from navpy.modules.vision.models.detection_publication import DetectionPublication

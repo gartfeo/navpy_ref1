@@ -1,4 +1,4 @@
-from navpy.utils.arg_helper import StoreWithFlag
+from navpy.core.kernel.config.arg_helper import StoreWithFlag
 
 
 class PIDArgs(object):

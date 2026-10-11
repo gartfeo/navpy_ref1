@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.vision.gimbal_attitude_reader import AircraftAttitudeReader
 from navpy.modules.vision.gimbal_cadence import FixedCadenceRunner
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalAbc, GimbalData

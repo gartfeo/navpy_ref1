@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.navigation.gimbal_tracking_constants import (
     MODE_FOLLOW,
@@ -908,7 +908,7 @@ class TestGimbalNavigation(unittest.TestCase):
 
 
 class _FakeLocation:
-    """Minimal stand-in for navpy.modules.common.models.location.Location.
+    """Minimal stand-in for navpy.core.kernel.location.Location.
 
     GimbalNavigation only forwards Locations to ``geo_ref.calc_gimbal_lock_att_loc``
     as opaque objects, so the tests don't need the real Location class.

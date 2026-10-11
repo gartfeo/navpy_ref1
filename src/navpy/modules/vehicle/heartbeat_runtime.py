@@ -13,7 +13,7 @@ from navpy.modules.vehicle.link_state import HeartbeatState
 from navpy.modules.vehicle.logger_ref import LoggerRef
 from navpy.modules.vehicle.mav_transport import MavTransport
 from navpy.modules.vehicle.vehicle_identity import VehicleIdentity
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
 
 HEARTBEAT_JOIN_TIMEOUT_S = 2.0

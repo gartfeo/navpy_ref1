@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional, Protocol
 
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachPlan
 from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
 from navpy.modules.nav.approach_planner import ApproachPlanner

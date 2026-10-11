@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
 from navpy.modules.vehicle.mav_bus import MavBus, MavBusLease
 from navpy.modules.vehicle.vehicle_build_types import (

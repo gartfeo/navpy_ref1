@@ -1,5 +1,5 @@
 """
-Rotation test-suite for navpy.utils.simple_rotation.Rotation.
+Rotation test-suite for navpy.core.kernel.simple_rotation.Rotation.
 
 Usage:
     # quick correctness (default):
@@ -21,7 +21,7 @@ from functools import partial
 import numpy as np
 from numpy.testing import assert_allclose
 
-from navpy.utils.simple_rotation import Rotation as SimpleRot
+from navpy.core.kernel.simple_rotation import Rotation as SimpleRot
 
 try:
     from scipy.spatial.transform import Rotation as _SciRot

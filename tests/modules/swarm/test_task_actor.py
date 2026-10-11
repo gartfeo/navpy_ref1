@@ -31,18 +31,18 @@ from navpy.modules.comm.messages.swarm_heartbeat_msg import (
     SwarmNodeState,
 )
 from navpy.modules.comm.messages.types import TaskDispatchStatus, TaskTypeMsgData
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from tests.detection_factory import make_detected_poi
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_dispatch import TaskDispatch
 from navpy.modules.swarm.task_msg_refs import MsgRef
 from navpy.modules.swarm.task_ports import MessageClockReset
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 
 
 class _IdleTimer:

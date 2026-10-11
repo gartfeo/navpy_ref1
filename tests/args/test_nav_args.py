@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from navpy.args.nav_args import NavArgs
+from navpy.core.kernel.config.nav_args import NavArgs
 
 
 def _make_vehicle(mission_count=10, metadata_seqs=None):

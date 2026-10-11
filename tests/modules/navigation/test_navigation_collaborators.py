@@ -12,9 +12,9 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from navpy.args.navigation_args import NavigationAlgorithm
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.navigation_command_session import NavigationCommandSession
 from navpy.modules.navigation.navigation_command_worker import (
     NavigationCommandWorker,

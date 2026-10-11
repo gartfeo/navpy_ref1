@@ -7,12 +7,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.vision.models.pixel_observation import VisualDetection
 from navpy.modules.vision.visual_ray_projection import observation_body_ray, unit_vector
-from navpy.utils.euler_utils import get_euler_by_sequence
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.euler_utils import get_euler_by_sequence
+from navpy.core.kernel.simple_rotation import Rotation
 
 
 @dataclass(frozen=True)

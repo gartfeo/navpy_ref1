@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.detector_ports import source_name_from_gimbal

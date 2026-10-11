@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from navpy.args.nav_args import NavArgs
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.nav.detect_action import DetectAction
 from navpy.modules.nav.peer_geo_tick import DetectPointingPorts
 from navpy.modules.nav.nav_entry import NavEntry, NavEntryPorts

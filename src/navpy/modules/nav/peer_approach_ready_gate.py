@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.nav.nav_constants import ALT_HYST, PEER_APPROACH_MARGIN_M
 from navpy.modules.nav.nav_state import NavigationTaskState

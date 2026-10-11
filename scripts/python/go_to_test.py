@@ -7,7 +7,7 @@ from pymavlink.dialects.v20.ardupilotmega import MAV_MODE_FLAG_CUSTOM_MODE_ENABL
     POSITION_TARGET_TYPEMASK_AZ_IGNORE, POSITION_TARGET_TYPEMASK_YAW_IGNORE, POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE, \
     MAV_FRAME_GLOBAL_RELATIVE_ALT, MAV_CMD_NAV_WAYPOINT
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 BOOT_TIME = time.time()
 vehicle_id = 2

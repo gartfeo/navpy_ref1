@@ -8,8 +8,8 @@ from typing import Optional, Tuple
 import numpy as np
 import pymap3d
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.models.detect_data import (
     DetectedObject,
     DetectResult,
@@ -49,8 +49,8 @@ from navpy.modules.vision.vision_class_profile import (
     MIN_DETECT_PIXELS,
     get_class_detect_size,
 )
-from navpy.utils.euler_utils import get_att_by_sequence, get_euler_by_sequence
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.euler_utils import get_att_by_sequence, get_euler_by_sequence
+from navpy.core.kernel.simple_rotation import Rotation
 
 
 class FinitePoiProjector:

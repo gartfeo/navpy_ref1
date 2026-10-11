@@ -8,7 +8,7 @@ from typing import Optional
 import numpy as np
 from geopy.distance import geodesic
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.dem_tile_repository import (
     DemTileRepository,
     valid_coords,

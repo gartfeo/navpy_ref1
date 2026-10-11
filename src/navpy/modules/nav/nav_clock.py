@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 
 
 class NavClock:

@@ -23,7 +23,7 @@ from navpy.modules.vision.real_detector_composition import (
     build_real_detector,
 )
 from navpy.modules.vision.real_detector_config import DetectorGimbalConfig
-from navpy.modules.vision.device import DeviceT
+from navpy.core.kernel.device import DeviceT
 
 
 class Detector(

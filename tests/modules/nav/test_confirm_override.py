@@ -8,15 +8,15 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from navpy.args.logger_args import LogStatusDest
+from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.modules.comm.messages.swarm_request_msg import (
     REQUEST_TYPE_FORCE_CONFIRM,
     REQUEST_TYPE_RESOURCE,
     SUBJECT_TYPE_THUMBNAIL,
     SwarmRequestMsg,
 )
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.nav.confirm_override_listener import ConfirmOverrideListener
 from navpy.modules.nav.nav_controller import NavController

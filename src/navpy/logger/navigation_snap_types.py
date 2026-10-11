@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 @dataclass

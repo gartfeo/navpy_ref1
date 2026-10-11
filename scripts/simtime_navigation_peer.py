@@ -14,7 +14,7 @@ from types import FrameType
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
-from navpy.modules.common.models.location import Location  # noqa: E402
+from navpy.core.kernel.location import Location  # noqa: E402
 from scripts.simtime_navigation_protocol import (  # noqa: E402
     ATTITUDE, DRAIN_STEPS, GUIDED, HOST_DELAYS_S, TAKEOFF_ARM, SNAPSHOT_SIZE,
     WINDOW_SIZE, SnapshotSequence, StepCommand,

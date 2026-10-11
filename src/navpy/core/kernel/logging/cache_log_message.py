@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger.cache_log_level import CacheLogLevel
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 
 
 @dataclass

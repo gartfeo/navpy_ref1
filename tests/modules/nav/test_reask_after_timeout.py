@@ -22,12 +22,12 @@ Covers:
 import unittest
 from unittest.mock import MagicMock, Mock
 
-from navpy.args.nav_args import NavArgs
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmResponseMsg
 from navpy.modules.comm.network_abc import NetworkAbc
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.nav.nav_constants import CONFIRM_REASK_MAX_ATTEMPTS
 from navpy.modules.nav.nav_controller import NavController

@@ -6,7 +6,7 @@ import math
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
     GimbalAngularSnapshot,
     MODE_FOLLOW,

@@ -13,7 +13,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from navpy.modules.vision.device import (
+from navpy.core.kernel.device import (
     free_cuda_cache,
     DeviceT,
     resolve_reid_device,

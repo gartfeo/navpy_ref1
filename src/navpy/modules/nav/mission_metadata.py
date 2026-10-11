@@ -10,7 +10,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.modules.vehicle.vehicle_contract import IVehicle
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.nav.mission_encoding import (
     META_DEFAULT_DELIVERY_HUB,
     decode_meta_z, decode_location_type_from_z,

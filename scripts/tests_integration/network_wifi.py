@@ -4,12 +4,12 @@ import threading
 import time
 from unittest.mock import Mock
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.comm.network_wifi import NetworkWifi
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.swarm.task_actor import TaskActor
-from navpy.utils.arg_helper import parse_boolean
-from navpy.logger.cache_logger import ConsoleCacheLogger
+from navpy.core.kernel.config.arg_helper import parse_boolean
+from navpy.core.kernel.logging.cache_logger import ConsoleCacheLogger
 
 print_lock = threading.Lock()
 

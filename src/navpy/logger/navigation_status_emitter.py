@@ -7,8 +7,8 @@ from typing import Optional
 
 import numpy as np
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.logger.navigation_sample import NavigationSample
 from navpy.logger.navigation_snap_geometry import calc_distance
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from navpy.modules.vision.device import DeviceT
+from navpy.core.kernel.device import DeviceT
 
 
 @dataclass(frozen=True)

@@ -9,7 +9,7 @@ import numpy as np
 import pymap3d
 
 from navpy.logger.navigation_snap_types import ClosestPointComponents
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 def is_valid_location(location: Optional[Location]) -> bool:

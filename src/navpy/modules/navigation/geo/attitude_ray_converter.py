@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.utils.euler_utils import get_euler_by_sequence
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.euler_utils import get_euler_by_sequence
+from navpy.core.kernel.simple_rotation import Rotation
 
 
 class AttitudeRayConverter:

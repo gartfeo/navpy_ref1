@@ -9,7 +9,7 @@ from navpy.logger.navigation_event_rows import snap_components_payload
 from navpy.logger.navigation_snap_tracker import ClosestApproachTracker
 from navpy.logger.navigation_snap_types import ClosestSnap
 from navpy.logger.log_events import LogEvent
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class NavigationSnapSession:

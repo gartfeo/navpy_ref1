@@ -16,7 +16,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_PARAM_TYPE_UINT64,
 )
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 
 
 INTEGER_PARAMETER_TYPES = frozenset({

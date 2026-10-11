@@ -10,8 +10,8 @@ from __future__ import annotations
 from geopy.distance import geodesic
 from pymavlink.mavextra import wrap_180
 
-from navpy.args.mission_planner_args import MissionPlannerArgs
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.mission_approach_writer import MissionApproachWriter
 from navpy.modules.navigation.peer_poi_mission_writer import PeerPoiMissionWriter
 from navpy.modules.navigation.wind_feed_forward import WindFeedForwardCalculator

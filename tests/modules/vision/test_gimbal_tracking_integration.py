@@ -12,9 +12,9 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
 from navpy.modules.vision.gimbal_rate_tracker import (
@@ -78,7 +78,7 @@ class TestDetectorSimTracking(unittest.TestCase):
     def _make_detector(self, with_tracker=True):
         from navpy.modules.vision.sim.detector_sim import DetectorSim
         from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-        from navpy.args.uas_args import UasArgs
+        from navpy.core.kernel.config.uas_args import UasArgs
         from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
         from tests.conftest import create_mock_args
 
@@ -188,7 +188,7 @@ class TestProjectPoi(unittest.TestCase):
     def test_project_poi_ignores_is_valid(self):
         from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
         from navpy.modules.vision.simulation_object import SimulationObject
-        from navpy.args.uas_args import UasArgs
+        from navpy.core.kernel.config.uas_args import UasArgs
         from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
         from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
         from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState

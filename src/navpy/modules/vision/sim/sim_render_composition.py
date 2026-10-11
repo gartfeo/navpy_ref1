@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from navpy.logger.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.vision.sim.detection_publication_buffer import (

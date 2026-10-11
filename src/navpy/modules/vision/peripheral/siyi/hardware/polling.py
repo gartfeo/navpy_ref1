@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vision.peripheral.siyi.hardware.ports import MonotonicClock
 from navpy.modules.vision.peripheral.siyi.hardware.session import SiyiSdkSession
 from navpy.modules.vision.peripheral.siyi.hardware.state import SiyiReadbackStore

@@ -9,8 +9,8 @@ from typing import Optional, Sequence, Tuple
 import numpy as np
 import pymap3d
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from navpy.modules.vision.models.detection_components import (
     ConfirmationEvidence,
@@ -37,8 +37,8 @@ from navpy.modules.vision.visual_ray_projection import (
     body_ray_to_pixel,
     camera_to_body_from_gimbal,
 )
-from navpy.utils.euler_utils import get_euler_by_sequence
-from navpy.utils.simple_rotation import Rotation
+from navpy.core.kernel.euler_utils import get_euler_by_sequence
+from navpy.core.kernel.simple_rotation import Rotation
 
 
 @dataclass(frozen=True)

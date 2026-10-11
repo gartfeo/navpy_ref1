@@ -2,7 +2,7 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.location_msg import LocationMsgData
 from navpy.modules.comm.messages.msg_meta import MsgMeta
 from navpy.modules.comm.messages.swarm_heartbeat_msg import (

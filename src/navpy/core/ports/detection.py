@@ -7,7 +7,7 @@ from typing import Protocol
 
 import numpy as np
 
-from navpy.modules.vision.device import DeviceT
+from navpy.core.kernel.device import DeviceT
 
 
 class FrameDetector(Protocol):

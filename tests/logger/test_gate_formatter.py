@@ -8,7 +8,7 @@ from navpy.logger.gate_formatter import (
     format_gate_results_list,
     sanitize,
 )
-from navpy.modules.navigation.gates.observable_gate import GateResult, GateStatus
+from navpy.core.kernel.observable_gate import GateResult, GateStatus
 
 
 class SanitizeTests(unittest.TestCase):

@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-from navpy.logger.cache_log_level import CacheLogLevel
-from navpy.logger.cache_log_message import LogMessage
-from navpy.logger.cache_log_worker import CacheLogWorker
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.cache_log_message import LogMessage
+from navpy.core.kernel.logging.cache_log_worker import CacheLogWorker
 
 
 def _message(text: str) -> LogMessage:
@@ -83,7 +83,7 @@ def test_blocked_handler_close_is_bounded_retained_and_retryable():
     assert entered.wait(timeout=1.0)
 
     with patch(
-        "navpy.logger.cache_log_worker.CACHE_WORKER_JOIN_TIMEOUT_S",
+        "navpy.core.kernel.logging.cache_log_worker.CACHE_WORKER_JOIN_TIMEOUT_S",
         0.01,
     ):
         started_s = time.perf_counter()

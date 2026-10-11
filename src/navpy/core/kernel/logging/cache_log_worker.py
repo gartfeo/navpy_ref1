@@ -7,8 +7,8 @@ import queue
 import threading
 from collections.abc import Callable
 
-from navpy.logger.cache_log_message import LogMessage
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.logging.cache_log_message import LogMessage
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
 _diag_log = logging.getLogger(__name__)
 _STOP = object()

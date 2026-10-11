@@ -14,7 +14,7 @@ from typing import Optional
 
 import numpy as np
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.core.ports.nav_command import NavCommand
 
 

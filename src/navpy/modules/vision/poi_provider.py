@@ -3,15 +3,15 @@ from __future__ import annotations
 import math
 from typing import Protocol, runtime_checkable
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.simulation_object import SimulationObject
-from navpy.args.vehicle_arg_ports import (
+from navpy.core.kernel.config.vehicle_arg_ports import (
     MissionParameterReader,
     ParameterDefaultReader,
 )
 from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.args.navigation_poi_args import NavigationPoiArgs
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 
 
 def _real_arg_value(args, name: str):

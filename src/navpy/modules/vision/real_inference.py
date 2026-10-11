@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vision.deep_search import DeepSearchConfig, DeepSearchDetector
 from navpy.modules.vision.frame_provider import FrameProvider
 from navpy.modules.vision.real_detector_runtime_state import (

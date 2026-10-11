@@ -6,8 +6,8 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.exception_groups import BaseExceptionGroup
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.logger.navigation_logger import NAVIGATION_EVIDENCE_FAILURE_MARKER
 from navpy.logger.navigation_stream_worker import NavigationStreamWorker
 

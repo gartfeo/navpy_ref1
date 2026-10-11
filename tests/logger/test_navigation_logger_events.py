@@ -20,7 +20,7 @@ from navpy.logger.navigation_log_streams import (
 from navpy.logger.navigation_logger import NavigationLogger
 from navpy.logger.log_events import LogEvent, STANDARD_EVENT_HEADER
 from navpy.logger.log_schema import LEGACY_PRIMARY_FIELDS, PRIMARY_SCHEMA
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class _TrackingFile:

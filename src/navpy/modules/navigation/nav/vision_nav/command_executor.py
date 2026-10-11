@@ -5,13 +5,13 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from navpy.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.modules.navigation.calc_data import CalcData
 from navpy.modules.navigation.navigation_command_slot import (
     NavigationCommandLease,
     NavigationCommandSlot,
 )
-from navpy.modules.common.resource_cleanup import CleanupStack
+from navpy.core.kernel.resource_cleanup import CleanupStack
 from navpy.modules.navigation.nav.vision_nav.command_transaction import (
     FinalApproachCommandOutcome,
     FinalApproachCommandResult,

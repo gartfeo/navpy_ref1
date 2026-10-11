@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from collections.abc import Mapping
 from typing import cast
 
-from navpy.args.uas_args import UasArgs
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.config.uas_args import UasArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.approach_strategy import ApproachKind, classify_approach
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vehicle.vehicle_contract import IVehicle

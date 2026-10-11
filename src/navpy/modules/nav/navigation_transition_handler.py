@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.nav.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.modules.nav.nav_transition import NavExitOutcome, NavTransition
 from navpy.modules.nav.nav_state import ConfirmGateState, NavState

@@ -6,7 +6,7 @@ from navpy.modules.comm.message_filter import MessageFilter
 from navpy.modules.comm.network_serial import NetworkSerial
 from navpy.modules.comm.network_wifi import NetworkWifi
 from navpy.modules.comm.network_mavlink import NetworkMavlink
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 
 

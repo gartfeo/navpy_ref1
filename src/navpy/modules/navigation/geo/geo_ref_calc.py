@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from navpy.args.uas_args import UasArgs
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.uas_args import UasArgs
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.camera_ned_projector import CameraNedProjector
 from navpy.modules.navigation.geo.geo_location_metrics import (
     calculate_bearing,

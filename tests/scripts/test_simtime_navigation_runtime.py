@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from scripts.simtime_navigation_protocol import ATTITUDE, Snapshot
 from tests.scripts.test_simtime_navigation_protocol import packet
 
@@ -70,7 +70,7 @@ def test_drain_stops_admission_and_does_not_compute_discarded_commands() -> None
 
 
 def test_diagnostic_telemetry_and_roll_provider_do_not_change_commands(monkeypatch) -> None:
-    from navpy.modules.common.models.attitude import Attitude
+    from navpy.core.kernel.attitude import Attitude
     from navpy.modules.navigation.nav.vision_nav.diagnostics import FinalApproachDiagnosticSnapshot
     from scripts import simtime_navigation_runtime as adapter
     baseline = replay((0.,))

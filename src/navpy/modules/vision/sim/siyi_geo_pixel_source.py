@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from navpy.modules.common.models.location import Location
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.location import Location
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.core.ports.pose_stream_rate import pose_frame_association_max_skew_s

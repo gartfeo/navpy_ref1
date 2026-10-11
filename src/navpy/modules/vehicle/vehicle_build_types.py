@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vehicle.attitude_command import AttitudeCommand
 from navpy.modules.vehicle.flight_telemetry import FlightTelemetry
 from navpy.modules.vehicle.guided_navigation import GuidedNavigation

@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import numpy as np
 
-from navpy.exception_groups import BaseExceptionGroup
-from navpy.logger.logger_api import ConsoleLogger
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.logging.logger_api import ConsoleLogger
 from navpy.modules.vision.frame_capture_runtime import FrameCaptureRuntime
 from navpy.modules.vision.frame_publication import FramePublicationStore
 

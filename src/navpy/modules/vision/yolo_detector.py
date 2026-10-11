@@ -9,7 +9,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from navpy.modules.vision.device import (
+from navpy.core.kernel.device import (
     DeviceT,
     cuda_available,
     free_cuda_cache,

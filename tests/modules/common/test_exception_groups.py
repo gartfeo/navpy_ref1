@@ -2,7 +2,7 @@ import weakref
 
 import pytest
 
-from navpy.exception_groups import (
+from navpy.core.kernel.exception_groups import (
     BaseExceptionGroup,
     ExceptionGroup,
     _FallbackBaseExceptionGroup,

@@ -5,7 +5,7 @@ from dataclasses import replace
 from time import sleep
 from unittest.mock import MagicMock, patch
 
-from navpy.args.nav_args import NavArgs
+from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.modules.comm.messages.task_assignment_msg import TaskAssignRequestMsg
 from navpy.modules.comm.messages.task_confirmation_msg import (
     TaskConfirmRequestMsg,
@@ -18,8 +18,8 @@ from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
 from navpy.modules.vision.models.detection_components import ConfirmationEvidence
 from tests.detection_factory import make_detected_poi
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.location import Location
 
 
 class ConfirmationManagerTests(unittest.TestCase):
@@ -837,8 +837,8 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         import numpy as np
         from unittest.mock import MagicMock
 
-        from navpy.args.nav_args import NavArgs
-        from navpy.logger.cache_logger import ILogger
+        from navpy.core.kernel.config.nav_args import NavArgs
+        from navpy.core.kernel.logging.cache_logger import ILogger
         from navpy.modules.comm.network_abc import NetworkAbc
 
         self.mock_logger = MagicMock(spec=ILogger)

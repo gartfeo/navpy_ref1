@@ -14,7 +14,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.frame_provider import FrameProvider
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalAbc
 

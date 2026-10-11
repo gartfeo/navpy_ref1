@@ -7,7 +7,7 @@ from typing import Optional
 import numpy as np
 import pymap3d
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.confirmation_frame import (
     CONFIRMATION_FRAME_MAX_CENTER_SCORE,
     is_confirmation_frame_centered,

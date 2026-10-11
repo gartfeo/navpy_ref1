@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalAbc, GimbalData
 
 

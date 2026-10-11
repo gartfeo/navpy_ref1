@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from navpy.modules.vision.device import DeviceT
+from navpy.core.kernel.device import DeviceT
 from navpy.modules.vision.tracker_backends_boxmot import (
     BotSortTrackerBackend,
     StrongSortTrackerBackend,

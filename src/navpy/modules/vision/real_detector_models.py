@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
 from navpy.modules.vision.deep_search import (
     DeepSearchConfig,

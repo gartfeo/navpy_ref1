@@ -29,7 +29,7 @@ from scripts.simtime_navigation_protocol import (
     ATTITUDE, DRAIN_STEPS, GUIDED, TAKEOFF_ARM, Snapshot, StepCommand,
 )
 from navpy.logger.navigation_logger import NavigationLogger
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 class FullRateLogger(NavigationLogger):

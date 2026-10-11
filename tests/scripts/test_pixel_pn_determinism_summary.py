@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-from navpy.exception_groups import BaseExceptionGroup, ExceptionGroup
+from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 from navpy.modules.vision.sim.determinism_events import (
     OUTPUT_EMPTY,
     TRUTH_RECORDED,

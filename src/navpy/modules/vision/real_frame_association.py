@@ -9,8 +9,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.core.ports.pose_stream_rate import POSE_FRAME_ASSOCIATION_MAX_SKEW_S
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
 from navpy.modules.vision.capture_lookup import (

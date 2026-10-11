@@ -7,7 +7,7 @@ from typing import Optional
 
 import numpy as np
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 @dataclass(frozen=True)

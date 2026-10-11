@@ -11,10 +11,10 @@ import logging
 
 import pytest
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger import cache_logger as cl_module
-from navpy.logger.cache_log_level import CacheLogLevel
-from navpy.logger.cache_logger import (
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging import cache_logger as cl_module
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.cache_logger import (
     CacheLogger,
     _make_non_string_status_tracer,
 )

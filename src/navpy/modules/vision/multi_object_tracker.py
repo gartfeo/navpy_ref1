@@ -11,8 +11,8 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from navpy.modules.common.linear_assignment import hungarian
-from navpy.modules.vision.geometry import clip_bbox_xyxy, iou_xyxy
+from navpy.core.kernel.linear_assignment import hungarian
+from navpy.core.kernel.geometry import clip_bbox_xyxy, iou_xyxy
 from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.mot_state import (
     _Track,

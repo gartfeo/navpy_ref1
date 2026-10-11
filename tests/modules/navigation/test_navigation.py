@@ -8,11 +8,11 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from navpy.exception_groups import BaseExceptionGroup
-from navpy.modules.common.resource_cleanup import CleanupStack
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.exception_groups import BaseExceptionGroup
+from navpy.core.kernel.resource_cleanup import CleanupStack
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.logger.navigation_log_streams import NavigationLogStreams
 from navpy.logger.navigation_logger import NavigationLogger
 from navpy.logger.log_events import LogEvent

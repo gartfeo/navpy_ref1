@@ -3,8 +3,8 @@ from __future__ import annotations
 import threading
 from typing import Optional, Protocol
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.models.detect_data import DetectedObject, DetectResult, DetectStatus
 from navpy.modules.vision.sim.finite_projection_evidence import EvidenceErrorSink, EvidenceSink, ProjectionCapture
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize, PixelValidator

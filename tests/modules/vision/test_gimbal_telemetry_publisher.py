@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 from pymavlink.dialects.v20 import ardupilotmega as mav
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.camera_mount_types import CameraMountOptics
 from navpy.modules.vision.vision_camera_factory import build_camera_mounts
 from navpy.modules.vision.vision_profile_types import CameraMountSpec

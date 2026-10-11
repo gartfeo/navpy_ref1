@@ -9,7 +9,7 @@ import os
 
 import pytest
 
-import navpy.modules.vehicle.pose_cadence_debug as pcd
+import navpy.core.kernel.logging.pose_cadence_debug as pcd
 
 
 @pytest.fixture(autouse=True)

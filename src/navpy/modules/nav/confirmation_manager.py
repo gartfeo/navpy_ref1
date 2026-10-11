@@ -4,8 +4,8 @@ import threading
 import time
 from typing import Callable, List, Optional
 
-from navpy.args.nav_args import NavArgs
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.listener_abc import ListenerAbc
 from navpy.modules.comm.messages.msg_abc import MsgABC
 from navpy.modules.comm.network_abc import NetworkAbc

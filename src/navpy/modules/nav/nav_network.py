@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
 from navpy.modules.comm.network_abc import NetworkAbc
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.nav.confirm_override_listener import ConfirmOverrideListener
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
-from navpy.modules.nav.failure_health import ComponentFailureLatch
+from navpy.core.kernel.failure_health import ComponentFailureLatch
 from navpy.modules.nav.nav_network_shutdown import (
     disconnect_nav_network_session,
 )

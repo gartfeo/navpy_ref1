@@ -7,10 +7,10 @@ import time
 from collections.abc import Callable
 from typing import Protocol
 
-from navpy.args.logger_args import LogStatusDest
-from navpy.logger.cache_log_level import CacheLogLevel
-from navpy.logger.cache_log_message import LogMessage
-from navpy.logger.status_logger import IStatusLogger
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.cache_log_message import LogMessage
+from navpy.core.kernel.logging.status_logger import IStatusLogger
 
 
 class TextLogSink(Protocol):

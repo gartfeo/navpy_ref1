@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.vehicle.mav_bus import MavBus
 from navpy.modules.vehicle.vehicle_build_transaction import (
     build_requested_vehicle as _build_vehicle_parts,

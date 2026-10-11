@@ -6,7 +6,7 @@ import math
 
 import pymap3d
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 
 
 def calculate_distance(

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from navpy.args.nav_args import NavArgs
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.nav.nav_composition_types import (
     ConfirmationWorkflows,
     DecisionWorkflows,

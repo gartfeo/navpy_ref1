@@ -8,7 +8,7 @@ from navpy.modules.comm.network_abc import NetworkAbc
 from navpy.modules.comm.serial.serial_interface_rfd900 import SerialInterfaceRFD900
 from navpy.modules.comm.serial.serial_listener import ISerialListener
 from navpy.modules.comm.serial.sim.serial_sim_client import SerialSimClient
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.utils.serializer_abc import JsonSerializer
 
 # Smaller chunk size for serial (limited bandwidth)

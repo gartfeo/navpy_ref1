@@ -10,7 +10,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.modules.comm.messages.msg_abc import MsgRegistry
-import navpy.modules.vehicle.pose_cadence_debug as pose_cadence_debug
+import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 from navpy.modules.vehicle.admission_tap import (
     AdmissionSubscription,
     AdmissionTap,

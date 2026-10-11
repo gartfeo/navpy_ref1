@@ -339,7 +339,7 @@ class TestRunGimbalTracker(unittest.TestCase):
         self.assertFalse(config.pipeline.auto_poi_lock)
 
     def test_operator_zoom_only_sets_initial_hardware_zoom(self):
-        from navpy.modules.common.models.attitude import Attitude
+        from navpy.core.kernel.attitude import Attitude
         from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 
         gimbal = Mock()

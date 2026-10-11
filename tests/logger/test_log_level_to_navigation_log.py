@@ -11,9 +11,9 @@ import logging
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from navpy.args.logger_args import LoggerArgs
-from navpy.logger.cache_log_level import CacheLogLevel
-from navpy.logger.logger_factory import initialize_logger
+from navpy.core.kernel.config.logger_args import LoggerArgs
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.logger_factory import initialize_logger
 
 
 def _logger_args(level):

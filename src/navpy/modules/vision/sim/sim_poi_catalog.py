@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Optional
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.simulation_object import SimulationObject
 from navpy.modules.vision.sim.sim_control_ports import PoiProviderMutationPort
 

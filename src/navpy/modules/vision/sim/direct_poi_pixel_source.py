@@ -50,9 +50,9 @@ import threading
 import time
 from collections.abc import Callable
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
-from navpy.modules.common.scheduler_cadence import SchedulerCadence
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.vehicle.vehicle_contract import IVehicle
 from navpy.modules.vision.models.detect_data import DetectedObject
 from navpy.modules.vision.sim.determinism_trace import DeterminismTrace

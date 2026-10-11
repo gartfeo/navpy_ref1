@@ -13,7 +13,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_message,
 )
 
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.logger_ref import LoggerRef
 from navpy.modules.vehicle.mav_mission import MavMission
 from navpy.modules.vehicle.mav_transport import MavTransport

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import ExceptionGroup
+from navpy.core.kernel.exception_groups import ExceptionGroup
 
 from navpy.modules.vision.real_detector_config import (
     DetectorDependencies,

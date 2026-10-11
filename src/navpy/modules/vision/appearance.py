@@ -7,8 +7,8 @@ from typing import Protocol
 
 import numpy as np
 
-from navpy.logger.logger_api import ILogger
-from navpy.modules.vision.device import (
+from navpy.core.kernel.logging.logger_api import ILogger
+from navpy.core.kernel.device import (
     DeviceT,
     free_cuda_cache,
     resolve_reid_device,

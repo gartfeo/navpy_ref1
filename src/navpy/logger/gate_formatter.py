@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Sequence, Tuple
 
-from navpy.modules.navigation.gates.observable_gate import GateResult, GateStatus
+from navpy.core.kernel.observable_gate import GateResult, GateStatus
 
 
 _UNSAFE = re.compile(r"[;=,\r\n]")

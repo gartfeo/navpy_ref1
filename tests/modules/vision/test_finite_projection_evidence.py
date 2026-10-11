@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 from pymap3d import ned2geodetic
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.vision.models.detect_data import DetectStatus
 from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
@@ -171,7 +171,7 @@ def test_projector_clock_does_not_certify_a_missing_frame_identity():
 
 
 def test_world_lock_diagnostic_disagrees_but_actual_projection_evidence_is_correct():
-    from navpy.args.uas_args import UasArgs
+    from navpy.core.kernel.config.uas_args import UasArgs
     from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
     records = []
     projector, camera, calc, _, loc, poi, matrix, raw = rig(records.append)

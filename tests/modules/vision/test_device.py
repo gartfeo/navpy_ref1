@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from navpy.modules.vision.device import (
+from navpy.core.kernel.device import (
     resolve_auto_device,
     resolve_reid_device,
     uses_cuda_device,

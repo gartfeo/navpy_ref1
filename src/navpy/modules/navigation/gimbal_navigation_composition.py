@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 import pymap3d
 
-from navpy.logger.cache_log_level import CacheLogLevel
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.navigation.gimbal_geo_commander import GimbalGeoCommander
 from navpy.modules.navigation.gimbal_geo_diagnostics import GeoRayDiagnosticLogger
 from navpy.modules.navigation.gimbal_geo_lifecycle import GimbalGeoLifecycle

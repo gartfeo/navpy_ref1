@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
-from navpy.modules.common.thread_launch import ThreadLaunchGate
+from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
 
 @dataclass(frozen=True)

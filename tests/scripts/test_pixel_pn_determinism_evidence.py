@@ -30,7 +30,7 @@ from typing import Any
 
 import pytest
 
-from navpy.exception_groups import ExceptionGroup
+from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.modules.vision.sim.determinism_admission_ledger import PassObserver
 from navpy.modules.vision.sim.determinism_events import (
     ASSOCIATION_COMMITTED,

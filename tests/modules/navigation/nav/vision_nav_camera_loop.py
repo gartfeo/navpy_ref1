@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
@@ -31,7 +31,7 @@ from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
 from navpy.modules.vision.visual_ray_projection import (
     camera_to_body_from_gimbal,
 )
-from navpy.utils.math_utils import GRAVITY_MSS
+from navpy.core.kernel.math_utils import GRAVITY_MSS
 from scripts.vision_static_point_mass_plant import (
     PointMassState,
     closest_point_to_poi,

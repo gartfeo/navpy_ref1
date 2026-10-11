@@ -14,7 +14,7 @@ own message module).
 """
 from typing import Callable
 
-from navpy.args.logger_args import LogStatusDest
+from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.modules.comm.listener_abc import ListenerAbc
 from navpy.modules.comm.messages.msg_abc import MsgABC
 from navpy.modules.comm.messages.swarm_request_msg import (

@@ -17,15 +17,15 @@ SCRIPTS = Path(__file__).resolve().parent
 sys.path[:0] = [str(WORKTREE / "src"), str(SCRIPTS)]
 
 from navpy.args.conn_args import ConnArgs  # noqa: E402
-from navpy.args.navigation_args import NavigationArgs  # noqa: E402
-from navpy.args.logger_args import LoggerArgs  # noqa: E402
-from navpy.args.mission_planner_args import MissionPlannerArgs  # noqa: E402
+from navpy.core.kernel.config.navigation_args import NavigationArgs  # noqa: E402
+from navpy.core.kernel.config.logger_args import LoggerArgs  # noqa: E402
+from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs  # noqa: E402
 from navpy.args.navpy_argparse import make_parser  # noqa: E402
-from navpy.args.uas_args import UasArgs  # noqa: E402
+from navpy.core.kernel.config.uas_args import UasArgs  # noqa: E402
 from navpy.logger.navigation_snap_types import ClosestSnap  # noqa: E402
-from navpy.logger.logger_factory import initialize_logger  # noqa: E402
-from navpy.modules.common.models.location import Location  # noqa: E402
-from navpy.modules.common.scheduler_cadence import SchedulerCadence  # noqa: E402
+from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
+from navpy.core.kernel.location import Location  # noqa: E402
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc  # noqa: E402
 from navpy.modules.navigation.navigation import Navigation  # noqa: E402
 from navpy.modules.navigation.mission_planner import MissionPlanner  # noqa: E402

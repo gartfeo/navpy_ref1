@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.wind import Wind
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.wind import Wind
 from navpy.modules.vehicle.vehicle_public_ports import (
     IdentityParts,
     MotionParts,

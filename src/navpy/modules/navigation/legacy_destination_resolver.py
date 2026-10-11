@@ -8,11 +8,11 @@ from typing import Optional, Protocol
 import numpy as np
 import pymap3d
 
-from navpy.args.navigation_args import NavigationArgs
-from navpy.modules.common.models.attitude import Attitude
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.config.navigation_args import NavigationArgs
+from navpy.core.kernel.attitude import Attitude
+from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.geo.rotation_utils import normalize
+from navpy.core.kernel.rotation_utils import normalize
 from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.modules.vision.models.detect_data import DetectedObject
 

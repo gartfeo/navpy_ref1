@@ -14,15 +14,15 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from navpy.args.nav_args import NavArgs
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.task_confirmation_msg import TaskConfirmRequestMsg
 from navpy.modules.comm.messages.swarm_request_msg import (
     SwarmRequestMsg, REQUEST_TYPE_RESOURCE, REQUEST_TYPE_RETRANSMIT,
     REQUEST_TYPE_FORCE_CONFIRM, SUBJECT_TYPE_THUMBNAIL,
 )
 from navpy.modules.comm.network_abc import NetworkAbc
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.nav import confirmation_manager as tm_module
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus

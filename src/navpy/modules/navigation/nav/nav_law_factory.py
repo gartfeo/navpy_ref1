@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional, Protocol
 
-from navpy.args.navigation_args import NavigationAlgorithm, NavigationArgs
+from navpy.core.kernel.config.navigation_args import NavigationAlgorithm, NavigationArgs
 
 
 class NavigationLawLifecycle(Protocol):

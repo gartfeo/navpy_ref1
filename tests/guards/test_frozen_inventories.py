@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src/navpy"
-SCHEDULER = "src/navpy/modules/common/scheduler_cadence.py"
+SCHEDULER = "src/navpy/core/kernel/scheduler_cadence.py"
 EXECUTOR = "src/navpy/modules/navigation/nav/vision_nav/command_executor.py"
 # The SchedulerCadence alias and its two modules were removed in step 1 (c01).
 SIM_ALIASES = frozenset({"SimTimebase", "sim_time", "sim_timebase"})

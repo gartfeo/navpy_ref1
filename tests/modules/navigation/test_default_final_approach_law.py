@@ -15,13 +15,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from navpy.args.navigation_args import (
+from navpy.core.kernel.config.navigation_args import (
     DEFAULT_NAVIGATION_ALGORITHM,
     NAVIGATION_ALGORITHM_PARAM_BY_VALUE,
     NavigationAlgorithm,
     NavigationArgs,
 )
-from navpy.args.pid_args import PIDArgs
+from navpy.core.kernel.config.pid_args import PIDArgs
 from navpy.modules.navigation import navigation_composition, navigation_law_builders
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 

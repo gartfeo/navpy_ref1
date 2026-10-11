@@ -22,7 +22,7 @@ import math
 import threading
 from typing import TYPE_CHECKING, List, Optional
 
-from navpy.modules.vision.geometry import iou_cxcywh
+from navpy.core.kernel.geometry import iou_cxcywh
 
 if TYPE_CHECKING:
     from navpy.core.ports.tracks import TrackedObject

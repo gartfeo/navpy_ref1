@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 from typing import Optional
 
-from navpy.logger.cache_logger import ILogger
+from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.listener_abc import ListenerAbc
 from navpy.modules.comm.messages.msg_abc import MsgABC
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData

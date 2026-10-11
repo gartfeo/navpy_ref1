@@ -719,7 +719,7 @@ def test_a_rejection_is_still_recorded_for_the_cadence_log(
     still records each rejection, with the same reason strings its readers
     parse."""
     recorded: list[tuple[int, str, str]] = []
-    module = "navpy.modules.vehicle.pose_cadence_debug"
+    module = "navpy.core.kernel.logging.pose_cadence_debug"
     monkeypatch.setattr(f"{module}.ENABLED", True)
     monkeypatch.setattr(
         f"{module}.record_telemetry_reject",

@@ -13,7 +13,7 @@ from navpy.modules.vision.sim.projection_run_recorder import ProjectionRunRecord
 from navpy.modules.vision.sim.run_evidence_file import EvidenceBudget, RunEvidenceFile
 from navpy.modules.vision.sim.sim_frame_types import FrameContext
 from tests.modules.vision.test_finite_projection_evidence import rig
-from navpy.modules.common.models.attitude import Attitude
+from navpy.core.kernel.attitude import Attitude
 
 
 def output(tmp_path, *, records=20000, bytes_=100_000_000, opener=None):

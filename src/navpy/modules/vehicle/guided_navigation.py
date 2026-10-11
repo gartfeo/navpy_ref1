@@ -12,7 +12,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.modules.vehicle.flight_mode import FlightMode
-from navpy.modules.common.models.location import Location
+from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.logger_ref import LoggerRef
 from navpy.modules.vehicle.mav_transport import MavTransport
 from navpy.modules.vehicle.mode_control import ModeControl

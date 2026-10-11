@@ -9,7 +9,7 @@ from __future__ import annotations
 import unittest
 from typing import List, Optional
 
-from navpy.modules.navigation.gates.observable_gate import (
+from navpy.core.kernel.observable_gate import (
     AllGate,
     DwellGate,
     GateResult,

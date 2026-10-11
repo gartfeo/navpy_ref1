@@ -8,8 +8,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, ContextManager, Protocol
 
-from navpy.logger.cache_logger import ILogger
-from navpy.modules.common.high_resolution_deadline import wait_until_deadline
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.high_resolution_deadline import wait_until_deadline
 from navpy.modules.navigation.calc_data import CalcData
 from navpy.modules.navigation.navigation_postprocess_dispatcher import (
     PostprocessJob,

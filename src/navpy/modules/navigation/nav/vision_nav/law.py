@@ -27,7 +27,7 @@ from navpy.modules.navigation.nav.vision_nav.law_plan import (
 from navpy.modules.navigation.nav.vision_nav.rate_filter import VerticalRateFilter
 from navpy.modules.navigation.nav.vision_nav.lateral_rate import LateralRateFilter
 from navpy.modules.navigation.nav.vision_nav.pitch_law import raw_pitch_current
-from navpy.utils.math_utils import GRAVITY_MSS
+from navpy.core.kernel.math_utils import GRAVITY_MSS
 
 # Own named constant.  This used to be `PTCH2SRV_TCONST`, which the law read for
 # two unrelated jobs at once: the rate-filter time constant AND the rate-to-angle

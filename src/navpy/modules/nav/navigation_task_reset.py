@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from navpy.exception_groups import ExceptionGroup
+from navpy.core.kernel.exception_groups import ExceptionGroup
 
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from navpy.args.nav_args import NavArgs
+from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.modules.nav.navigation_speedup import NavigationSpeedupLease
 from navpy.modules.nav.mission_catalog import MissionCatalog
