@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from navpy.core.ports.admission_tap import AdmissionTap
-from navpy.modules.vehicle.inbound_router import (
+from navpy.plugins.vehicle.ardupilot.inbound_router import (
     AUTOPILOT_TELEMETRY_TYPES,
     message_boot_time_ms,
 )

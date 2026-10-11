@@ -52,7 +52,7 @@ from navpy.modules.navigation.nav.vision_nav.runtime_composition import (
     FinalApproachVehicleDiagnosticReader,
     compose_final_approach_runtime,
 )
-from navpy.modules.vehicle.pose_streams import (
+from navpy.plugins.vehicle.ardupilot.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )
 from navpy.core.ports.vehicle_contract import IVehicle

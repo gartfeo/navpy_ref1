@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PUBLIC_ADAPTERS = {
-    "src/navpy/modules/vehicle/vehicle_mav.py": "VehicleMav",
+    "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py": "VehicleMav",
     "src/navpy/modules/vision/detector.py": "Detector",
     "src/navpy/modules/vision/sim/detector_sim.py": "DetectorSim",
     "src/navpy/modules/vision/detection_coordinator.py": "DetectionCoordinator",

@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_PREFLIGHT_CALIBRATION
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from gcs.backend.vehicle_manager import VehicleManager
 from gcs.backend.settings_model import GcsSettings
 

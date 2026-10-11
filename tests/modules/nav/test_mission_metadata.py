@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from gcs.backend.planner.waypoint_builder import build_mission, META_DEFAULT_DELIVERY_HUB
-from navpy.modules.nav.mission_metadata import read_default_delivery_hub, read_mission_metadata
+from navpy.plugins.vehicle.ardupilot.mission_metadata import read_default_delivery_hub, read_mission_metadata
 
 
 def _make_track(n=3, base_lat=32.0, base_lon=34.0, step=0.001):

@@ -10,7 +10,7 @@ from navpy.core.ports.pose_stream_rate import (
     SCHED_LOOP_RATE_FALLBACK_HZ,
     pose_frame_association_max_skew_s,
 )
-from navpy.modules.vehicle.pose_streams import (
+from navpy.plugins.vehicle.ardupilot.pose_streams import (
     MAV_CMD_SET_MESSAGE_INTERVAL,
     MAVLINK_MSG_ID_ATTITUDE,
     MAVLINK_MSG_ID_GLOBAL_POSITION_INT,

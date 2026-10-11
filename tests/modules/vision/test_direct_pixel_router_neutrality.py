@@ -31,8 +31,8 @@ from navpy.modules.navigation.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )
-from navpy.modules.vehicle import inbound_router
-from navpy.modules.vehicle.inbound_router import REJECT_STALE_BOOT
+from navpy.plugins.vehicle.ardupilot import inbound_router
+from navpy.plugins.vehicle.ardupilot.inbound_router import REJECT_STALE_BOOT
 from navpy.modules.vision.sim import determinism_trace
 from navpy.modules.vision.sim.determinism_eligibility import ELIGIBLE, judge
 from navpy.modules.vision.sim.determinism_events import (

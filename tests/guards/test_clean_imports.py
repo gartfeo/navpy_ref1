@@ -67,7 +67,7 @@ def test_core_composition_modules_do_not_import_compatibility_facades() -> None:
     ).read_text(encoding="utf-8")
     bus_registry = (
         REPO_ROOT
-        / "src/navpy/modules/vehicle/mav_bus_registry.py"
+        / "src/navpy/plugins/vehicle/ardupilot/mav_bus_registry.py"
     ).read_text(encoding="utf-8")
 
     assert "roll_l1_pitch_nav import" not in roll_composition
@@ -143,7 +143,7 @@ def test_internal_modules_do_not_depend_on_compatibility_facades() -> None:
     violations = facade_imports(navpy_sources(REPO_ROOT), compatibility_facades())
 
     source_root = REPO_ROOT / "src/navpy"
-    package_import = "from navpy.modules.vehicle import pose_cadence_debug"
+    package_import = "from navpy.plugins.vehicle.ardupilot import pose_cadence_debug"
     for path in source_root.rglob("*.py"):
         if package_import in path.read_text(encoding="utf-8"):
             violations.append(

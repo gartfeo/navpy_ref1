@@ -20,11 +20,11 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_COMP_ID_AUTOPILOT1,
 )
 
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
-from navpy.modules.vehicle.attitude_command import euler_to_quaternion
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.attitude_command import euler_to_quaternion
 from navpy.core.ports.flight_mode import FlightMode
-from navpy.modules.vehicle.inbound_router import InboundMessageRouter
-from navpy.modules.vehicle.mission_inbox import MissionInbox
+from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
+from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger
 from navpy.core.kernel.location import Location
 
@@ -45,7 +45,7 @@ class VehicleMavTest(unittest.TestCase):
         self.logger = MagicMock()
 
         patcher = patch(
-            "navpy.modules.vehicle.mav_bus.mavutil.mavlink_connection",
+            "navpy.plugins.vehicle.ardupilot.mav_bus.mavutil.mavlink_connection",
             return_value=self.fake_conn,
         )
         self.addCleanup(patcher.stop)
@@ -53,14 +53,14 @@ class VehicleMavTest(unittest.TestCase):
 
         # patch mode_string_v10 globally once
         self.mode_patch = patch(
-            "navpy.modules.vehicle.mode_control.mavutil.mode_string_v10",
+            "navpy.plugins.vehicle.ardupilot.mode_control.mavutil.mode_string_v10",
             return_value="MANUAL",
         )
         self.mode_patch.start()
         self.addCleanup(self.mode_patch.stop)
 
         mav_of_poi_patch = patch(
-            "navpy.modules.vehicle.vehicle_mav.mavutil.mavlink.MAVLink",
+            "navpy.plugins.vehicle.ardupilot.vehicle_mav.mavutil.mavlink.MAVLink",
             return_value=self.fake_mav_of_poi,
         )
         self.addCleanup(mav_of_poi_patch.stop)
@@ -76,7 +76,7 @@ class VehicleMavTest(unittest.TestCase):
         lease = MagicMock()
         bus.reserve.return_value = lease
 
-        with patch("navpy.modules.vehicle.mav_bus.MavBus.get_or_create") as get_or_create:
+        with patch("navpy.plugins.vehicle.ardupilot.mav_bus.MavBus.get_or_create") as get_or_create:
             dm = VehicleMav(
                 device="dev-supplied-bus",
                 target_system=9,
@@ -124,7 +124,7 @@ class VehicleMavTest(unittest.TestCase):
             4
         )
         # Stub module-level mode_string_v10 to return 'GUIDED'
-        with patch('navpy.modules.vehicle.mode_control.mavutil.mode_string_v10', return_value='GUIDED'):
+        with patch('navpy.plugins.vehicle.ardupilot.mode_control.mavutil.mode_string_v10', return_value='GUIDED'):
             hb = self._make_vehicle_msg(
                 dm,
                 "HEARTBEAT",
@@ -476,7 +476,7 @@ class VehicleMavTest(unittest.TestCase):
 
     def test_terrain_height_at_preserves_no_reply_deadline(self):
         messages = self.dm._parts.position._messages
-        with patch("navpy.modules.vehicle.position_service.time") as clock:
+        with patch("navpy.plugins.vehicle.ardupilot.position_service.time") as clock:
             clock.monotonic.return_value = 100.0
             with patch.object(messages, "wait_after", return_value=None) as wait:
                 self.assertIsNone(self.dm.terrain_height_at(40.31, 44.46))
@@ -1055,7 +1055,7 @@ class VehicleMavTest(unittest.TestCase):
             yawspeed=0.03,
         )
 
-        with patch("navpy.modules.vehicle.inbound_router.time.time", return_value=456.25):
+        with patch("navpy.plugins.vehicle.ardupilot.inbound_router.time.time", return_value=456.25):
             dm.feed_message(attitude)
         sample = dm.attitude_sample
 
@@ -1083,7 +1083,7 @@ class VehicleMavTest(unittest.TestCase):
             vd=97.0,
         )
 
-        with patch("navpy.modules.vehicle.inbound_router.time.time", return_value=456.25):
+        with patch("navpy.plugins.vehicle.ardupilot.inbound_router.time.time", return_value=456.25):
             dm.feed_message(sim_state)
         pose = dm.simulator_truth_pose
 
@@ -1239,21 +1239,21 @@ class TestUploadMission(unittest.TestCase):
         self.fake_conn.close = MagicMock()
 
         patcher = patch(
-            "navpy.modules.vehicle.mav_bus.mavutil.mavlink_connection",
+            "navpy.plugins.vehicle.ardupilot.mav_bus.mavutil.mavlink_connection",
             return_value=self.fake_conn,
         )
         self.addCleanup(patcher.stop)
         patcher.start()
 
         self.mode_patch = patch(
-            "navpy.modules.vehicle.vehicle_mav.mavutil.mode_string_v10",
+            "navpy.plugins.vehicle.ardupilot.vehicle_mav.mavutil.mode_string_v10",
             return_value="MANUAL",
         )
         self.mode_patch.start()
         self.addCleanup(self.mode_patch.stop)
 
         mav_of_poi_patch = patch(
-            "navpy.modules.vehicle.vehicle_mav.mavutil.mavlink.MAVLink",
+            "navpy.plugins.vehicle.ardupilot.vehicle_mav.mavutil.mavlink.MAVLink",
             return_value=MagicMock(),
         )
         self.addCleanup(mav_of_poi_patch.stop)

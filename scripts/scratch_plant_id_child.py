@@ -37,9 +37,9 @@ from navpy.core.kernel.config.logger_args import LoggerArgs  # noqa: E402
 from navpy.args.navpy_argparse import make_parser  # noqa: E402
 from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
 from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
-from navpy.modules.vehicle.message_store import MessageStore  # noqa: E402
-from navpy.modules.vehicle.pose_streams import request_pose_streams  # noqa: E402
-from navpy.modules.vehicle.pose_telemetry import (  # noqa: E402
+from navpy.plugins.vehicle.ardupilot.message_store import MessageStore  # noqa: E402
+from navpy.plugins.vehicle.ardupilot.pose_streams import request_pose_streams  # noqa: E402
+from navpy.plugins.vehicle.ardupilot.pose_telemetry import (  # noqa: E402
     attitude_sample_from_message,
 )
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402

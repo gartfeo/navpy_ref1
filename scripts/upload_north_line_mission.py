@@ -56,7 +56,7 @@ WORKTREE = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(WORKTREE / "src"), str(WORKTREE)]
 
 from gcs.backend import instance_ports as ip  # noqa: E402
-from navpy.modules.vehicle.vehicle_mav import VehicleMav  # noqa: E402
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav  # noqa: E402
 from scripts.north_line_route import (  # noqa: E402,F401
     CLIMB_COMPLETE_OFFSET_M,
     DEFAULT_ALT_M,

@@ -4,7 +4,7 @@ from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_ONBOARD_CONTROLLER, MA
 
 from navpy.args.conn_args import ConnArgs
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from navpy.core.kernel.logging.cache_logger import ILogger, ConsoleLogger
 
 

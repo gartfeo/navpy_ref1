@@ -12,10 +12,10 @@ from fastapi.testclient import TestClient
 from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.full_params import FullParamCache, full_param_cache
 from gcs.backend.routes import full_params as full_params_route
-from navpy.modules.vehicle._mavftp.param_pck import (
+from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import (
     AP_TYPE_FLOAT, FLAG_HAS_DEFAULT, PCK_MAGIC, parse_param_pck,
 )
-from navpy.modules.vehicle.full_param_snapshot import FullParamSnapshot
+from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
 
 
 def _build_snapshot(target_system=42) -> FullParamSnapshot:

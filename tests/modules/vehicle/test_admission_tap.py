@@ -32,19 +32,19 @@ from navpy.core.ports.admission_tap import (
     AdmissionSubscription,
     AdmissionTap,
 )
-from navpy.modules.vehicle.inbound_router import (
+from navpy.plugins.vehicle.ardupilot.inbound_router import (
     REJECT_FOREIGN_COMPONENT,
     REJECT_STALE_BOOT,
     InboundMessageRouter,
     message_boot_time_ms,
 )
-from navpy.modules.vehicle.link_state import HeartbeatState, PacketLossTracker
-from navpy.modules.vehicle.message_store import MessageStore
-from navpy.modules.vehicle.message_subscriptions import CallbackRegistry
-from navpy.modules.vehicle.mission_inbox import MissionInbox
-from navpy.modules.vehicle.parameter_repository import ParameterRepository
-from navpy.modules.vehicle.vehicle_identity import VehicleIdentity
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState, PacketLossTracker
+from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
+from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
+from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
+from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from navpy.core.ports.vehicle_runtime_interfaces import VehicleMessaging
 
 TARGET = 42

@@ -8,7 +8,7 @@ from __future__ import annotations
 import struct
 import unittest
 
-from navpy.modules.vehicle._mavftp.param_pck import (
+from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import (
     AP_TYPE_FLOAT,
     AP_TYPE_INT8,
     AP_TYPE_INT16,
@@ -430,7 +430,7 @@ class TestAdditionalEdgeCases(unittest.TestCase):
 # ---------------------------------------------------------------------
 class TestDecodeNibbles(unittest.TestCase):
     def test_nibble_split(self):
-        from navpy.modules.vehicle._mavftp.param_pck import _decode_nibbles
+        from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import _decode_nibbles
         # byte = 0xAB → low=0xB, high=0xA
         self.assertEqual(_decode_nibbles(0xAB), (0xB, 0xA))
         self.assertEqual(_decode_nibbles(0x00), (0, 0))
@@ -439,7 +439,7 @@ class TestDecodeNibbles(unittest.TestCase):
     def test_record_byte_assembly_round_trip(self):
         # Build a record byte0 = (flags << 4) | type with flags=0x3, type=0x4
         byte0 = (0x3 << 4) | 0x4
-        from navpy.modules.vehicle._mavftp.param_pck import _decode_nibbles
+        from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import _decode_nibbles
         ap_type, flags = _decode_nibbles(byte0)
         self.assertEqual(ap_type, 0x4)
         self.assertEqual(flags, 0x3)

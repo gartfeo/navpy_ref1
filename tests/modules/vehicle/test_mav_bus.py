@@ -34,9 +34,9 @@ def _idle_connection():
 class TestMavBusRegistry(unittest.TestCase):
     """MavBus.get_or_create shares buses by device string."""
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_same_device_returns_same_bus(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
         conn = _idle_connection()
         mock_mavutil.mavlink_connection.return_value = conn
 
@@ -46,9 +46,9 @@ class TestMavBusRegistry(unittest.TestCase):
         self.assertEqual(mock_mavutil.mavlink_connection.call_count, 1)
         bus1.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_different_device_returns_different_bus(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
         conn1, conn2 = _idle_connection(), _idle_connection()
         mock_mavutil.mavlink_connection.side_effect = [conn1, conn2]
 
@@ -58,9 +58,9 @@ class TestMavBusRegistry(unittest.TestCase):
         bus1.close()
         bus2.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_close_removes_from_registry(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus, _buses
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, _buses
         conn = _idle_connection()
         mock_mavutil.mavlink_connection.return_value = conn
 
@@ -69,9 +69,9 @@ class TestMavBusRegistry(unittest.TestCase):
         bus.close()
         self.assertNotIn("test:close_reg", _buses)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_get_or_create_waits_for_close_before_replacement(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus, _buses
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, _buses
 
         device = "test:close_replace_wait"
         close_entered = threading.Event()
@@ -110,7 +110,7 @@ class TestMavBusRegistry(unittest.TestCase):
         bus2.close()
 
     def test_close_only_removes_self_from_registry(self):
-        from navpy.modules.vehicle.mav_bus import MavBus, _buses
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, _buses
 
         device = "test:close_identity"
         conn1 = _idle_connection()
@@ -130,9 +130,9 @@ class TestMavBusRegistry(unittest.TestCase):
 class TestMavBusDispatch(unittest.TestCase):
     """MavBus dispatches messages to registered consumers."""
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_attach_and_dispatch(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         ready = threading.Event()
         msg = _make_data(1)
@@ -163,9 +163,9 @@ class TestMavBusDispatch(unittest.TestCase):
 
         bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_detach_removes_consumer(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         conn = _idle_connection()
         mock_mavutil.mavlink_connection.return_value = conn
@@ -178,9 +178,9 @@ class TestMavBusDispatch(unittest.TestCase):
         self.assertFalse(bus.has_targets)
         self.assertTrue(bus.is_closed)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_attach_rejects_closed_bus(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         conn = _idle_connection()
         mock_mavutil.mavlink_connection.return_value = conn
@@ -192,9 +192,9 @@ class TestMavBusDispatch(unittest.TestCase):
             bus.attach(1, MagicMock())
         self.assertFalse(bus.has_targets)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_get_or_create_does_not_return_bus_while_detach_closes_last_target(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus, _buses
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, _buses
 
         device = "test:detach_attach_close_race"
         close_entered = threading.Event()
@@ -237,10 +237,10 @@ class TestMavBusDispatch(unittest.TestCase):
 class TestMavBusReaderQuietPaths(unittest.TestCase):
     """Windows-UDP WSAECONNRESET is a quiet path, not a reader error."""
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_connection_reset_is_quiet_and_reader_survives(self, mock_mavutil):
-        from navpy.modules.vehicle import mav_bus as bus_mod
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot import mav_bus as bus_mod
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         call_count = 0
         hb = _make_heartbeat(1, MAV_TYPE_FIXED_WING)
@@ -256,8 +256,8 @@ class TestMavBusReaderQuietPaths(unittest.TestCase):
 
         conn = MagicMock()
         conn.recv_match.side_effect = recv_side_effect
-        with patch("navpy.modules.vehicle.mav_bus_reader.log.exception") as mock_exc, \
-             patch("navpy.modules.vehicle.mav_bus_reader.log.debug") as mock_dbg:
+        with patch("navpy.plugins.vehicle.ardupilot.mav_bus_reader.log.exception") as mock_exc, \
+             patch("navpy.plugins.vehicle.ardupilot.mav_bus_reader.log.debug") as mock_dbg:
             bus = MavBus(conn, "udp:0.0.0.0:5992")
             time.sleep(0.3)
             # Reader survived the reset and kept consuming messages after it.
@@ -267,12 +267,12 @@ class TestMavBusReaderQuietPaths(unittest.TestCase):
                 any("unreachable" in str(c) for c in mock_dbg.call_args_list))
             bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_connection_reset_on_tcp_stays_loud(self, mock_mavutil):
         # On TCP a reset means the link is genuinely dead — the quiet path is
         # UDP-only, so a TCP reset must keep the loud reader-error log.
-        from navpy.modules.vehicle import mav_bus as bus_mod
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot import mav_bus as bus_mod
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         call_count = 0
 
@@ -285,16 +285,16 @@ class TestMavBusReaderQuietPaths(unittest.TestCase):
 
         conn = MagicMock()
         conn.recv_match.side_effect = recv_side_effect
-        with patch("navpy.modules.vehicle.mav_bus_reader.log.exception") as mock_exc:
+        with patch("navpy.plugins.vehicle.ardupilot.mav_bus_reader.log.exception") as mock_exc:
             bus = MavBus(conn, "tcp:127.0.0.1:5760")
             time.sleep(0.3)
             mock_exc.assert_called()
             bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_other_oserrors_still_logged_as_reader_errors(self, mock_mavutil):
-        from navpy.modules.vehicle import mav_bus as bus_mod
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot import mav_bus as bus_mod
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         call_count = 0
 
@@ -307,7 +307,7 @@ class TestMavBusReaderQuietPaths(unittest.TestCase):
 
         conn = MagicMock()
         conn.recv_match.side_effect = recv_side_effect
-        with patch("navpy.modules.vehicle.mav_bus_reader.log.exception") as mock_exc:
+        with patch("navpy.plugins.vehicle.ardupilot.mav_bus_reader.log.exception") as mock_exc:
             bus = MavBus(conn, "test:other_oserror")
             time.sleep(0.3)
             mock_exc.assert_called()
@@ -318,9 +318,9 @@ class TestMavBusReaderCooperativeScheduling(unittest.TestCase):
     """A continuous MAVLink backlog must not monopolize the Python runtime."""
 
     def _run_messages(self, messages, dispatch=None):
-        from navpy.modules.vehicle.mav_bus_heartbeats import MavBusHeartbeats
-        from navpy.modules.vehicle.mav_bus_membership import MavBusMembership
-        from navpy.modules.vehicle.mav_bus_reader import MavBusReader
+        from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
+        from navpy.plugins.vehicle.ardupilot.mav_bus_membership import MavBusMembership
+        from navpy.plugins.vehicle.ardupilot.mav_bus_reader import MavBusReader
 
         stop = threading.Event()
         connection = MagicMock()
@@ -365,9 +365,9 @@ class TestMavBusReaderCooperativeScheduling(unittest.TestCase):
 class TestMavBusHeartbeats(unittest.TestCase):
     """MavBus tracks vehicle and companion heartbeats."""
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_vehicle_heartbeat_tracked(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         call_count = 0
         hb = _make_heartbeat(1, MAV_TYPE_FIXED_WING)
@@ -383,9 +383,9 @@ class TestMavBusHeartbeats(unittest.TestCase):
         self.assertIn(1, bus.heartbeats)
         bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_companion_heartbeat_tracked(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         call_count = 0
         hb = _make_heartbeat(1, MAV_TYPE_ONBOARD_CONTROLLER)
@@ -402,9 +402,9 @@ class TestMavBusHeartbeats(unittest.TestCase):
         self.assertNotIn(1, bus.heartbeats)
         bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_gcs_heartbeat_ignored(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         call_count = 0
         hb = _make_heartbeat(255, MAV_TYPE_GCS)
@@ -425,9 +425,9 @@ class TestMavBusHeartbeats(unittest.TestCase):
 class TestMavBusBroadcast(unittest.TestCase):
     """MavBus broadcasts messages from unknown sources to all targets."""
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_unknown_source_broadcasts_to_all_pois(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         # Gate message delivery until consumers are attached
         ready = threading.Event()
@@ -460,9 +460,9 @@ class TestMavBusBroadcast(unittest.TestCase):
 
         bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_known_source_dispatches_to_single_poi(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         # Gate message delivery until consumers are attached
         ready = threading.Event()
@@ -499,9 +499,9 @@ class TestMavBusBroadcast(unittest.TestCase):
 class TestMavBusWaitHeartbeat(unittest.TestCase):
     """MavBus.wait_heartbeat polls the heartbeat table."""
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_wait_heartbeat_success(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         conn = _idle_connection()
         mock_mavutil.mavlink_connection.return_value = conn
@@ -511,9 +511,9 @@ class TestMavBusWaitHeartbeat(unittest.TestCase):
         self.assertTrue(bus.wait_heartbeat(1, timeout=0.5))
         bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_wait_heartbeat_timeout(self, mock_mavutil):
-        from navpy.modules.vehicle.mav_bus import MavBus
+        from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 
         conn = _idle_connection()
         mock_mavutil.mavlink_connection.return_value = conn
@@ -528,7 +528,7 @@ class TestEnlargeRecvBuffer(unittest.TestCase):
 
     def test_socket_backed_conn_gets_rcvbuf_bumped(self):
         import socket as _socket
-        from navpy.modules.vehicle.mav_bus import _enlarge_recv_buffer, _RCVBUF_BYTES
+        from navpy.plugins.vehicle.ardupilot.mav_bus import _enlarge_recv_buffer, _RCVBUF_BYTES
         sock = MagicMock()
         sock.getsockopt.return_value = _RCVBUF_BYTES
         conn = MagicMock()
@@ -539,7 +539,7 @@ class TestEnlargeRecvBuffer(unittest.TestCase):
         )
 
     def test_serial_like_conn_without_setsockopt_is_skipped(self):
-        from navpy.modules.vehicle.mav_bus import _enlarge_recv_buffer
+        from navpy.plugins.vehicle.ardupilot.mav_bus import _enlarge_recv_buffer
 
         class _SerialPort:  # pyserial-like: no setsockopt
             pass
@@ -549,13 +549,13 @@ class TestEnlargeRecvBuffer(unittest.TestCase):
         _enlarge_recv_buffer(conn, "COM3")  # must not raise
 
     def test_none_port_is_skipped(self):
-        from navpy.modules.vehicle.mav_bus import _enlarge_recv_buffer
+        from navpy.plugins.vehicle.ardupilot.mav_bus import _enlarge_recv_buffer
         conn = MagicMock()
         conn.port = None
         _enlarge_recv_buffer(conn, "x")  # must not raise
 
     def test_setsockopt_oserror_is_swallowed(self):
-        from navpy.modules.vehicle.mav_bus import _enlarge_recv_buffer
+        from navpy.plugins.vehicle.ardupilot.mav_bus import _enlarge_recv_buffer
         sock = MagicMock()
         sock.setsockopt.side_effect = OSError("no buffer space")
         conn = MagicMock()

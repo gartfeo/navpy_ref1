@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm, NavigationArgs
 from navpy.modules.navigation.nav.nav_law_factory import NavigationLawLifecycle
 from navpy.modules.navigation.nav.roll_l1_composition import compose_roll_l1_law
-from navpy.modules.navigation.nav.final_approach_airframe_config import (
+from navpy.plugins.vehicle.ardupilot.final_approach_airframe_config import (
     FinalApproachAirframeConfigProvider,
     FinalApproachParameterPort,
 )

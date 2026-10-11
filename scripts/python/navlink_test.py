@@ -7,7 +7,7 @@ from pymavlink.dialects.v20.ardupilotmega import MAVLink_check_in_message, \
 
 from navpy.core.link.msg_abc import MsgRegistry, MsgABC
 from navpy.core.link.types import MsgType
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
 
 def create_mock_msg_class(mav_msg: MAVLink_message):

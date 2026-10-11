@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from navpy.core.kernel.location import Location
-from navpy.modules.nav.mission_metadata import read_mission_metadata
+from navpy.plugins.vehicle.ardupilot.mission_metadata import read_mission_metadata
 from navpy.core.ports.vehicle_contract import IVehicle
 
 

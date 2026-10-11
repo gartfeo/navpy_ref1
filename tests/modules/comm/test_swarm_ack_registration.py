@@ -20,13 +20,13 @@ from navpy.core.link.msg_meta import MsgMeta
 from navpy.core.link.swarm_ack_msg import ACK_STATUS_APPLIED, SwarmAckMsg
 from navpy.core.link.types import MsgType
 from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
-from navpy.modules.vehicle.inbound_router import InboundMessageRouter
-from navpy.modules.vehicle.link_state import HeartbeatState, PacketLossTracker
-from navpy.modules.vehicle.message_store import MessageStore
-from navpy.modules.vehicle.message_subscriptions import CallbackRegistry
-from navpy.modules.vehicle.mission_inbox import MissionInbox
-from navpy.modules.vehicle.parameter_repository import ParameterRepository
-from navpy.modules.vehicle.vehicle_identity import VehicleIdentity
+from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState, PacketLossTracker
+from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
+from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
+from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
+from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
 from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
 
 # The companion shares its aircraft's system id (component 191 tells it apart

@@ -24,7 +24,7 @@ if _SCRIPTS not in sys.path:
 
 from eval_navigation_models import PositionSample  # noqa: E402
 
-from navpy.modules.vehicle.pose_telemetry import (  # noqa: E402
+from navpy.plugins.vehicle.ardupilot.pose_telemetry import (  # noqa: E402
     simulator_truth_source_time_s,
 )
 

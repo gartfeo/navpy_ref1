@@ -10,7 +10,7 @@ from pymavlink.dialects.v20.ardupilotmega import MAV_COMP_ID_CAMERA, MAV_COMP_ID
 from gcs.backend import vehicle_manager as vehicle_manager_mod
 from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
 from gcs.backend.vehicle_manager import VehicleEntry
-from navpy.modules.vision.mavlink_camera_components import (
+from navpy.plugins.vehicle.ardupilot.mavlink_camera_components import (
     CAMERA_COMPONENT_BY_GIMBAL_DEVICE_ID,
 )
 

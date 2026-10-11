@@ -12,7 +12,7 @@ from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordinator import DetectionCoordinator
-from navpy.modules.vision.gimbal_telemetry_publisher import (
+from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
 from navpy.modules.vision.vision_controller_ports import VisionControllerPorts

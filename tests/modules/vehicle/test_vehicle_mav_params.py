@@ -16,8 +16,8 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_PARAM_TYPE_REAL32,
 )
 
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
-from navpy.modules.vehicle.parameter_spec import value_in_int_range as _value_in_int_range
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.parameter_spec import value_in_int_range as _value_in_int_range
 
 
 def _make_vehicle(self) -> VehicleMav:
@@ -32,7 +32,7 @@ def _make_vehicle(self) -> VehicleMav:
     self.logger = MagicMock()
 
     patcher = patch(
-        "navpy.modules.vehicle.mav_bus.mavutil.mavlink_connection",
+        "navpy.plugins.vehicle.ardupilot.mav_bus.mavutil.mavlink_connection",
         return_value=self.fake_conn,
     )
     self.addCleanup(patcher.stop)

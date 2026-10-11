@@ -23,7 +23,7 @@ from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: 
 from navpy.core.kernel.location import Location  # noqa: E402
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation  # noqa: E402
-from navpy.modules.vehicle.pose_streams import request_pose_streams  # noqa: E402
+from navpy.plugins.vehicle.ardupilot.pose_streams import request_pose_streams  # noqa: E402
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
 from navpy.modules.vision.vision_camera_calibration import (  # noqa: E402
     read_camera_zoom_calibration,

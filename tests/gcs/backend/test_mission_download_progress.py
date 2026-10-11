@@ -101,7 +101,7 @@ class TestMavMissionDownloadProgress(unittest.TestCase):
     """The protocol-layer on_progress callback (mirrors upload's on_wp_sent)."""
 
     def test_download_invokes_on_progress_per_item(self):
-        from navpy.modules.vehicle.mission_download import MissionDownloader
+        from navpy.plugins.vehicle.ardupilot.mission_download import MissionDownloader
 
         transport = MagicMock()
         store = MagicMock()

@@ -146,7 +146,7 @@ def _mean_bearing(degrees: list[float]) -> float | None:
 
 
 def _euler_to_quaternion(roll: float, pitch: float, yaw: float) -> list[float]:
-    """Same convention as `navpy.modules.vehicle.attitude_command`."""
+    """Same convention as `navpy.plugins.vehicle.ardupilot.attitude_command`."""
     cr, sr = math.cos(roll * 0.5), math.sin(roll * 0.5)
     cp, sp = math.cos(pitch * 0.5), math.sin(pitch * 0.5)
     cy, sy = math.cos(yaw * 0.5), math.sin(yaw * 0.5)

@@ -2638,7 +2638,7 @@ def test_no_store_reaches_the_attitude_ledger_or_is_reached_from_it() -> None:
     command loop or the journal's globals. The control: the walk finds the
     ledger, and both stores, from the facade that holds them."""
     from navpy.core.ports.admission_tap import AdmissionTap
-    from navpy.modules.vehicle.inbound_router import (
+    from navpy.plugins.vehicle.ardupilot.inbound_router import (
         AUTOPILOT_TELEMETRY_TYPES,
         REJECT_STALE_BOOT,
         message_boot_time_ms,

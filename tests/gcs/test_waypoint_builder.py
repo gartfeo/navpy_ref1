@@ -22,7 +22,7 @@ from gcs.backend.planner.waypoint_builder import (
     META_LAUNCH_POINT,
     META_DEFAULT_DELIVERY_HUB,
 )
-from navpy.modules.nav.mission_encoding import LOCATION_TYPE_IDS
+from navpy.plugins.vehicle.ardupilot.mission_encoding import LOCATION_TYPE_IDS
 
 
 def _make_track(n=5, base_lat=32.0, base_lon=34.0, step=0.001):

@@ -12,7 +12,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 # Shared mission metadata encoding — single source of truth
-from navpy.modules.nav.mission_encoding import CORRIDOR_END_MARKER, META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB, encode_meta_z, encode_location_type_into_z
+from navpy.plugins.vehicle.ardupilot.mission_encoding import CORRIDOR_END_MARKER, META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB, encode_meta_z, encode_location_type_into_z
 
 
 def build_mission(

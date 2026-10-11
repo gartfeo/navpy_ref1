@@ -7,9 +7,9 @@ import threading
 
 import pytest
 
-from navpy.modules.vehicle.mav_transport import MavTransport
-from navpy.modules.vehicle.vehicle_commands import VehicleCommands
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
+from navpy.plugins.vehicle.ardupilot.vehicle_commands import VehicleCommands
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def vehicle_and_connection():
         identity, MavTransport(connection, threading.RLock()),
     )
     with patch(
-        "navpy.modules.vehicle.vehicle_mav.build_vehicle_parts",
+        "navpy.plugins.vehicle.ardupilot.vehicle_mav.build_vehicle_parts",
         return_value=SimpleNamespace(
             identity=identity,
             commands=commands,

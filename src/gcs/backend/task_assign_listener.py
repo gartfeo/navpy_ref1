@@ -28,7 +28,7 @@ from navpy.core.link.swarm_ack_msg import (
     SwarmAckMsg,
 )
 from navpy.core.link.types import MsgType
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from gcs.backend.companion_identity import is_from_companion
 from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.task_assign_rounds import AssignedTask, AssignRounds, Uid

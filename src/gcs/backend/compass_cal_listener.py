@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from gcs.backend.broadcast import manager as ws_manager
 
 log = logging.getLogger(__name__)

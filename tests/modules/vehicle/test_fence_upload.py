@@ -16,11 +16,11 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from pymavlink.mavwp import MAVWPLoader
 
 from gcs.backend.planner.fence_builder import build_fence_items
-from navpy.modules.vehicle.logger_ref import LoggerRef
-from navpy.modules.vehicle.mav_mission import MavMission
-from navpy.modules.vehicle.mav_transport import MavTransport
-from navpy.modules.vehicle.message_store import MessageStore
-from navpy.modules.vehicle.mission_inbox import MissionInbox
+from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
+from navpy.plugins.vehicle.ardupilot.mav_mission import MavMission
+from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
+from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
 
 
 def _protocol_message(message_type, *, sequence=0, ack_type=0, mission_type=0):

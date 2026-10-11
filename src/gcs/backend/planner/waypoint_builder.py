@@ -13,7 +13,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 # Shared mission metadata encoding — single source of truth
-from navpy.modules.nav.mission_encoding import (  # noqa: E402
+from navpy.plugins.vehicle.ardupilot.mission_encoding import (  # noqa: E402
     CORRIDOR_END_MARKER,
     SEARCH_PATTERN_IDS, SEARCH_PATTERN_NAMES,
     META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB,

@@ -72,13 +72,13 @@ class TestRequestPoseStreams(unittest.TestCase):
         # link so frame-time roll/pitch stays fresh at ArduPilot's
         # scheduler-derived 0.8 MAVLink limit -- same request the sim makes,
         # via the shared helper.
-        from navpy.modules.vehicle.pose_streams import (
+        from navpy.plugins.vehicle.ardupilot.pose_streams import (
             MAV_CMD_SET_MESSAGE_INTERVAL,
             MAVLINK_MSG_ID_ATTITUDE,
             MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
         )
 
-        from navpy.modules.vehicle.pose_streams import (
+        from navpy.plugins.vehicle.ardupilot.pose_streams import (
             request_pose_streams,
             resolve_pose_stream_rate_hz,
         )

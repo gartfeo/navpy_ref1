@@ -17,26 +17,26 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGrou
 from navpy.core.kernel.location import Location
 from navpy.modules.navigation.mission_approach_writer import MissionApproachWriter
 from navpy.modules.navigation.peer_poi_mission_writer import PeerPoiMissionWriter
-from navpy.modules.vehicle.mav_mission import MavMission
-from navpy.modules.vehicle.mav_bus import MavBus
-from navpy.modules.vehicle.message_store import (
+from navpy.plugins.vehicle.ardupilot.mav_mission import MavMission
+from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
+from navpy.plugins.vehicle.ardupilot.message_store import (
     MESSAGE_HISTORY_LIMIT,
     MessageHistoryOverrun,
     MessageStore,
 )
-from navpy.modules.vehicle.message_subscriptions import CallbackRegistry
-from navpy.modules.vehicle.mav_transport import MavTransport
-from navpy.modules.vehicle.mission_store import MissionStore
-from navpy.modules.vehicle.mission_inbox import MissionInbox
-from navpy.modules.vehicle.mission_download import MissionDownloader
-from navpy.modules.vehicle.mission_upload import MissionUploader
-from navpy.modules.vehicle.parameter_client import ParameterReader
-from navpy.modules.vehicle.parameter_repository import ParameterRepository
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
-from navpy.modules.vehicle.vehicle_composition import build_vehicle_parts
-from navpy.modules.vehicle.heartbeat_runtime import HeartbeatRuntime
-from navpy.modules.vehicle.link_state import HeartbeatState
-from navpy.modules.vehicle.vehicle_lifecycle import VehicleLifecycle
+from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
+from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
+from navpy.plugins.vehicle.ardupilot.mission_store import MissionStore
+from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
+from navpy.plugins.vehicle.ardupilot.mission_download import MissionDownloader
+from navpy.plugins.vehicle.ardupilot.mission_upload import MissionUploader
+from navpy.plugins.vehicle.ardupilot.parameter_client import ParameterReader
+from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_composition import build_vehicle_parts
+from navpy.plugins.vehicle.ardupilot.heartbeat_runtime import HeartbeatRuntime
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
+from navpy.plugins.vehicle.ardupilot.vehicle_lifecycle import VehicleLifecycle
 
 
 def test_message_store_wait_after_rejects_pre_request_sample():
@@ -241,7 +241,7 @@ def test_composition_rolls_back_base_exception_without_masking_it():
     bus.reserve.return_value = lease
 
     with patch(
-        "navpy.modules.vehicle.vehicle_build_transaction.build_protocol_parts",
+        "navpy.plugins.vehicle.ardupilot.vehicle_build_transaction.build_protocol_parts",
         side_effect=KeyboardInterrupt("build interrupted"),
     ):
         with pytest.raises(BaseExceptionGroup) as caught:
@@ -310,7 +310,7 @@ def test_heartbeat_close_is_bounded_retained_and_retryable():
     runtime.start()
     assert entered.wait(timeout=0.5)
     with patch(
-        "navpy.modules.vehicle.heartbeat_runtime.HEARTBEAT_JOIN_TIMEOUT_S",
+        "navpy.plugins.vehicle.ardupilot.heartbeat_runtime.HEARTBEAT_JOIN_TIMEOUT_S",
         0.01,
     ):
         started_s = time.perf_counter()
@@ -790,7 +790,7 @@ def test_vehicle_and_mission_update_contract_is_sequence_first():
 def test_vehicle_adapter_delegates_sequence_first_without_reordering():
     mission_gateway = MagicMock()
     with patch(
-        "navpy.modules.vehicle.vehicle_mav.build_vehicle_parts",
+        "navpy.plugins.vehicle.ardupilot.vehicle_mav.build_vehicle_parts",
         return_value=SimpleNamespace(mission=mission_gateway),
     ):
         vehicle = VehicleMav(

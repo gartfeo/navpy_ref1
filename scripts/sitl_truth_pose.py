@@ -67,7 +67,7 @@ from navpy.core.ports.pose_stream_rate import (
     POSE_STREAM_RATE_HZ,
     pose_frame_association_max_skew_s,
 )
-from navpy.modules.vehicle.pose_telemetry import sim_state_coordinates_deg
+from navpy.plugins.vehicle.ardupilot.pose_telemetry import sim_state_coordinates_deg
 
 
 # pymavlink ships no type stubs, so the objects it hands back are described by

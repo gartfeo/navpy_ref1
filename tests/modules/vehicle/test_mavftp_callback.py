@@ -10,15 +10,15 @@ from unittest.mock import MagicMock, patch
 
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_ONBOARD_CONTROLLER
 
-from navpy.modules.vehicle._mavftp._upstream_mavftp import FtpError, MAVFTP
-from navpy.modules.vehicle._mavftp._upstream_mavftp_op import (
+from navpy.plugins.vehicle.ardupilot._mavftp._upstream_mavftp import FtpError, MAVFTP
+from navpy.plugins.vehicle.ardupilot._mavftp._upstream_mavftp_op import (
     FTP_OP,
     OP_Ack,
     OP_BurstReadFile,
     OP_Nack,
     OP_ResetSessions,
 )
-from navpy.modules.vehicle._mavftp.vehicle_ftp import VehicleFtp, _BridgeMaster
+from navpy.plugins.vehicle.ardupilot._mavftp.vehicle_ftp import VehicleFtp, _BridgeMaster
 
 
 class TestMavFtpCallbackDownload(unittest.TestCase):
@@ -173,8 +173,8 @@ class TestMavFtpEstimatedParamSize(unittest.TestCase):
 
 class TestMavFtpBridgeMaster(unittest.TestCase):
     def test_bridge_exposes_connection_source_identity(self):
-        from navpy.modules.vehicle.mav_transport import MavTransport
-        from navpy.modules.vehicle.vehicle_identity import VehicleIdentity
+        from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
+        from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
 
         connection = SimpleNamespace(
             mav=SimpleNamespace(srcSystem=255, srcComponent=0),

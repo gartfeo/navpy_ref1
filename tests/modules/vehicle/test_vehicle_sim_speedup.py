@@ -3,13 +3,13 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
-from navpy.modules.vehicle.sim_autopilot import (
+from navpy.plugins.vehicle.ardupilot.sim_autopilot import (
     SimAutopilotCapability,
     SimAutopilotState,
 )
-from navpy.modules.vehicle.parameter_repository import ParameterRepository
+from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
 
 class SimSpeedupTest(unittest.TestCase):
@@ -36,7 +36,7 @@ class SimSpeedupTest(unittest.TestCase):
         capability, repository, _state, _connection = self._capability()
         repository.update("SIM_SPEEDUP", 10.0)
         with patch(
-            "navpy.modules.vehicle.vehicle_mav.build_vehicle_parts",
+            "navpy.plugins.vehicle.ardupilot.vehicle_mav.build_vehicle_parts",
             return_value=SimpleNamespace(simulation=capability),
         ):
             vehicle = VehicleMav(
@@ -59,7 +59,7 @@ class SimSpeedupTest(unittest.TestCase):
         capability, _repository, _state, connection = self._capability()
 
         with patch(
-            "navpy.modules.vehicle.parameter_client.time.monotonic",
+            "navpy.plugins.vehicle.ardupilot.parameter_client.time.monotonic",
             return_value=100.0,
         ):
             capability.speedup()
@@ -71,7 +71,7 @@ class SimSpeedupTest(unittest.TestCase):
         capability, _repository, state, connection = self._capability()
 
         with patch(
-            "navpy.modules.vehicle.parameter_client.time.monotonic",
+            "navpy.plugins.vehicle.ardupilot.parameter_client.time.monotonic",
             side_effect=[float(index * 2) for index in range(15)],
         ):
             values = [capability.speedup() for _ in range(15)]

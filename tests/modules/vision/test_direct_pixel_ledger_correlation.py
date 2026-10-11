@@ -23,8 +23,8 @@ from typing import Any
 
 import pytest
 
-from navpy.modules.vehicle import inbound_router
-from navpy.modules.vehicle.inbound_router import REJECT_STALE_BOOT
+from navpy.plugins.vehicle.ardupilot import inbound_router
+from navpy.plugins.vehicle.ardupilot.inbound_router import REJECT_STALE_BOOT
 from navpy.modules.vision.sim import determinism_trace
 from navpy.modules.vision.sim.determinism_eligibility import (
     INSPECTABLE,

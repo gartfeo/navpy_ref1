@@ -10,7 +10,7 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.camera_mount_types import CameraMountOptics
 from navpy.modules.vision.vision_camera_factory import build_camera_mounts
 from navpy.modules.vision.vision_profile_types import CameraMountSpec
-from navpy.modules.vision.gimbal_telemetry_publisher import GimbalTelemetryPublisher
+from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import GimbalTelemetryPublisher
 from navpy.core.ports.gimbal_abc import GimbalData
 
 
@@ -353,7 +353,7 @@ def test_thread_start_failure_does_not_poison_stop_retry():
     publisher = GimbalTelemetryPublisher(FakeVehicle(), [], Mock())
 
     with patch(
-        "navpy.modules.vision.gimbal_telemetry_publisher.threading.Thread",
+        "navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher.threading.Thread",
         return_value=thread,
     ):
         with pytest.raises(RuntimeError) as raised:

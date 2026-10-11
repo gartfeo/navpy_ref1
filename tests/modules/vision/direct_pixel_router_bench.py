@@ -24,17 +24,17 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.kernel.location import Location
-from navpy.modules.vehicle.inbound_router import InboundMessageRouter
-from navpy.modules.vehicle.link_state import HeartbeatState, PacketLossTracker
-from navpy.modules.vehicle.message_store import MessageStore
-from navpy.modules.vehicle.message_subscriptions import CallbackRegistry
-from navpy.modules.vehicle.mission_inbox import MissionInbox
-from navpy.modules.vehicle.parameter_repository import ParameterRepository
-from navpy.modules.vehicle.pose_telemetry import (
+from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState, PacketLossTracker
+from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
+from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
+from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
+from navpy.plugins.vehicle.ardupilot.pose_telemetry import (
     CommandDiagnostics,
     PoseTelemetry,
 )
-from navpy.modules.vehicle.vehicle_identity import VehicleIdentity
+from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
 
 TARGET_SYSTEM = 42
 POI = Location(40.001, 44.002, 900.0, is_absolute=True)

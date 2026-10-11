@@ -9,9 +9,9 @@ _APP_FILE = _ROOT / "src/gcs/frontend/src/App.jsx"
 _BOTTOM_BAR_FILE = _ROOT / "src/gcs/frontend/src/components/BottomBar.jsx"
 _MISSIONS_FILE = _ROOT / "src/gcs/backend/routes/missions.py"
 _WP_BUILDER_FILE = _ROOT / "src/gcs/backend/planner/waypoint_builder.py"
-_VEHICLE_MISSION_FACET_FILE = _ROOT / "src/navpy/modules/vehicle/vehicle_public_mission.py"
+_VEHICLE_MISSION_FACET_FILE = _ROOT / "src/navpy/plugins/vehicle/ardupilot/vehicle_public_mission.py"
 _WS_HANDLERS_FILE = _ROOT / "src/gcs/frontend/src/hooks/useWsHandlers.js"
-_MISSION_UPLOAD_FILE = _ROOT / "src/navpy/modules/vehicle/mission_upload.py"
+_MISSION_UPLOAD_FILE = _ROOT / "src/navpy/plugins/vehicle/ardupilot/mission_upload.py"
 
 
 class TestUploadProgressLogic(unittest.TestCase):

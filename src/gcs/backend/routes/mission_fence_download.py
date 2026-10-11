@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from fastapi import HTTPException
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from gcs.backend.planner.fence_builder import parse_fence_items
 from gcs.backend.routes.mission_upload_helpers import read_fence_params
 

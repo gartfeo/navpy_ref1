@@ -8,7 +8,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_TYPE_ONBOARD_CONTROLLER,
 )
 
-from navpy.modules.vehicle.mav_bus import MavBus
+from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 from gcs.backend.vehicle_manager import (
     VehicleManager,
     COMPANION_OK_WINDOW_S,
@@ -19,7 +19,7 @@ from gcs.backend.vehicle_manager import (
 class TestMavBusCompanionHeartbeat(unittest.TestCase):
     """Verify MavBus tracks companion heartbeats separately."""
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_companion_heartbeats_dict_exists(self, mock_mavutil):
         conn = MagicMock()
         conn.recv_match.return_value = None
@@ -29,7 +29,7 @@ class TestMavBusCompanionHeartbeat(unittest.TestCase):
         self.assertEqual(len(bus.companion_heartbeats), 0)
         bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_companion_heartbeat_tracked(self, mock_mavutil):
         """Simulate a MAV_TYPE_ONBOARD_CONTROLLER heartbeat being recorded."""
         conn = MagicMock()
@@ -40,7 +40,7 @@ class TestMavBusCompanionHeartbeat(unittest.TestCase):
         self.assertIn(1, bus.companion_heartbeats)
         bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_vehicle_heartbeat_not_in_companion(self, mock_mavutil):
         """Autopilot and companion heartbeats now share one srcSystem, so the
         MAV_TYPE split is the only thing keeping them apart: MavBus files
@@ -72,7 +72,7 @@ def _record_heartbeat(
     """Drive the heartbeat owner through the same observation path as MAVLink."""
     observed_at = time.time() - age_s
     with patch(
-        "navpy.modules.vehicle.mav_bus_heartbeats.time.time",
+        "navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats.time.time",
         return_value=observed_at,
     ):
         bus._heartbeats.observe(_heartbeat(sys_id, mav_type))
@@ -86,7 +86,7 @@ class TestSharedSysIdHeartbeatSplit(unittest.TestCase):
     dicts are independent so one key can hold both without aliasing.
     """
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_same_sys_id_lands_in_both_dicts_without_aliasing(self, mock_mavutil):
         conn = MagicMock()
         conn.recv_match.side_effect = [
@@ -110,7 +110,7 @@ class TestSharedSysIdHeartbeatSplit(unittest.TestCase):
         finally:
             bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_autopilot_only_never_marks_the_companion_alive(self, mock_mavutil):
         conn = MagicMock()
         conn.recv_match.side_effect = [
@@ -139,7 +139,7 @@ class TestVehicleManagerCompanion(unittest.TestCase):
         """No buses -> companion not active."""
         self.assertFalse(self.mgr.is_companion_active(1))
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_is_companion_active_recent(self, mock_mavutil):
         """Recent companion heartbeat -> active."""
         conn = MagicMock()
@@ -151,7 +151,7 @@ class TestVehicleManagerCompanion(unittest.TestCase):
         bus.close()
         self.mgr._buses.pop("test:comp_recent", None)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_is_companion_active_uses_the_shared_sys_id(self, mock_mavutil):
         """The companion heartbeat carries the aircraft sysid, so the liveness
         lookup keys straight on sys_id."""
@@ -165,7 +165,7 @@ class TestVehicleManagerCompanion(unittest.TestCase):
         bus.close()
         self.mgr._buses.pop("test:comp_mapped", None)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_is_companion_active_stale(self, mock_mavutil):
         """Stale companion heartbeat -> not active."""
         conn = MagicMock()
@@ -177,7 +177,7 @@ class TestVehicleManagerCompanion(unittest.TestCase):
         bus.close()
         self.mgr._buses.pop("test:comp_stale", None)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_is_companion_active_different_sys_id(self, mock_mavutil):
         """Companion heartbeat for sys_id 2 does not make sys_id 1 active."""
         conn = MagicMock()
@@ -189,7 +189,7 @@ class TestVehicleManagerCompanion(unittest.TestCase):
         bus.close()
         self.mgr._buses.pop("test:comp_diff", None)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_snapshot_includes_companion_ok(self, mock_mavutil):
         """get_all_snapshots includes companion_ok in each snapshot."""
         mock_conn = MagicMock()
@@ -207,7 +207,7 @@ class TestVehicleManagerCompanion(unittest.TestCase):
         self.assertTrue(snapshots[0]["companion_ok"])
         self.mgr.shutdown()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_snapshot_companion_ok_false_when_no_heartbeat(self, mock_mavutil):
         """companion_ok is False when no companion heartbeat received."""
         mock_conn = MagicMock()
@@ -254,13 +254,13 @@ class TestCompanionStatusTriState(unittest.TestCase):
     def test_status_never_seen_is_down(self):
         self.assertEqual(self.mgr.companion_status(1), "down")
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_status_fresh_is_ok(self, mock_mavutil):
         bus = self._bus_with_hb_age("test:cs_ok", 1, 0.0, mock_mavutil)
         self.assertEqual(self.mgr.companion_status(1), "ok")
         self._cleanup("test:cs_ok", bus)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_status_transient_gap_is_checking_not_down(self, mock_mavutil):
         """A mid-band (~10 s) gap is 'checking', not 'down'. The old 5 s
         is_companion_active() called this inactive/faulty (the flap)."""
@@ -273,7 +273,7 @@ class TestCompanionStatusTriState(unittest.TestCase):
         )
         self._cleanup("test:cs_check", bus)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_status_sustained_silence_is_down(self, mock_mavutil):
         bus = self._bus_with_hb_age(
             "test:cs_down", 1, COMPANION_DOWN_WINDOW_S + 5.0, mock_mavutil
@@ -281,7 +281,7 @@ class TestCompanionStatusTriState(unittest.TestCase):
         self.assertEqual(self.mgr.companion_status(1), "down")
         self._cleanup("test:cs_down", bus)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_snapshot_checking_keeps_companion_ok_true(self, mock_mavutil):
         """Snapshot exposes companion_status; during 'checking', companion_ok
         stays True so prearm launch-readiness does not trip."""
@@ -301,7 +301,7 @@ class TestCompanionStatusTriState(unittest.TestCase):
         self.assertTrue(snaps[0]["companion_ok"])
         self.mgr.shutdown()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_snapshot_down_sets_companion_ok_false(self, mock_mavutil):
         mock_conn = MagicMock()
         mock_conn.recv_match.return_value = None

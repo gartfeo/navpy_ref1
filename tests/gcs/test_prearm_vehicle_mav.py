@@ -9,7 +9,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_SYS_STATUS_PREARM_CHECK,
 )
 
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
 
 def _make_sys_status(present=0, enabled=0, health=0):

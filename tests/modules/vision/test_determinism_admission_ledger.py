@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from navpy.core.ports.admission_tap import AdmissionRuling, AdmissionTap
-from navpy.modules.vehicle.inbound_router import (
+from navpy.plugins.vehicle.ardupilot.inbound_router import (
     AUTOPILOT_TELEMETRY_TYPES,
     REJECT_FOREIGN_COMPONENT,
     REJECT_STALE_BOOT,

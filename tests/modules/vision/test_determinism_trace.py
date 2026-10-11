@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 from navpy.modules.navigation.calc_data import CalcData
 from navpy.core.ports.admission_tap import AdmissionRuling, AdmissionTap
-from navpy.modules.vehicle.inbound_router import (
+from navpy.plugins.vehicle.ardupilot.inbound_router import (
     AUTOPILOT_TELEMETRY_TYPES,
     REJECT_STALE_BOOT,
     message_boot_time_ms,

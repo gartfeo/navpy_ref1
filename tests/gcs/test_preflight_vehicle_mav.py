@@ -13,7 +13,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_COMP_ID_AUTOPILOT1,
 )
 
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
 
 def _make_vehicle(test_case: unittest.TestCase | None = None):

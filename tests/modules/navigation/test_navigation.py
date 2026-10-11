@@ -22,7 +22,7 @@ from navpy.modules.navigation.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )
-from navpy.modules.navigation.nav.final_approach_airframe_config import (
+from navpy.plugins.vehicle.ardupilot.final_approach_airframe_config import (
     VehicleFinalApproachLawConfigProvider,
 )
 from navpy.modules.navigation.nav.vision_nav.command_executor import (

@@ -304,7 +304,7 @@ class TestImplementationChecks:
     def test_message_store_recent_is_immutable_under_publish(self) -> None:
         import threading
 
-        from navpy.modules.vehicle.message_store import MessageStore
+        from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
 
         store = MessageStore()
         stop = threading.Event()
@@ -415,7 +415,7 @@ class TestPostReviewHardening:
         assert status == "bracketed"
 
     def test_link_identity_appears_only_after_heartbeat(self) -> None:
-        from navpy.modules.vehicle.pose_telemetry import PoseTelemetry
+        from navpy.plugins.vehicle.ardupilot.pose_telemetry import PoseTelemetry
 
         confirmed = {"heartbeat": False}
 

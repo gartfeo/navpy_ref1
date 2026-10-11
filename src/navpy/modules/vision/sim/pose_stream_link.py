@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 
 from navpy.core.ports.subscription import Subscription
-from navpy.modules.vehicle.pose_streams import (
+from navpy.plugins.vehicle.ardupilot.pose_streams import (
     pose_stream_rate_for_scheduler_rate_hz,
     request_pose_streams,
     request_simulator_truth_pose_stream,

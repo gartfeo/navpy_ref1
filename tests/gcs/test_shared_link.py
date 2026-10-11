@@ -6,8 +6,8 @@ import time
 from unittest.mock import MagicMock, patch
 
 from gcs.backend.vehicle_manager import VehicleManager
-from navpy.modules.vehicle.mav_bus import MavBus
-from navpy.modules.vehicle.mav_bus_lifecycle import MavBusClosedError
+from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
+from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusClosedError
 
 
 class _FakeBus:
@@ -50,7 +50,7 @@ class _ConnectsDuringScanBus(_FakeBus):
 class TestMavBusSendLock:
     """Verify that vehicles on the same MavBus share one send lock."""
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_vehicles_on_same_device_share_lock(self, mock_mavutil):
         """The public bus registry returns one serialized link per device."""
         conn = MagicMock()
@@ -70,7 +70,7 @@ class TestMavBusSendLock:
             if bus is not None:
                 bus.close()
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_vehicles_on_different_devices_have_separate_locks(self, mock_mavutil):
         """Distinct public bus components own distinct serialization locks."""
         conn1, conn2 = MagicMock(), MagicMock()
@@ -92,7 +92,7 @@ class TestMavBusSendLock:
 
     def test_vehicle_mav_uses_bus_lock(self):
         """A public vehicle send waits behind its supplied bus lock."""
-        from navpy.modules.vehicle.vehicle_mav import VehicleMav
+        from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
         conn = MagicMock()
         conn.recv_match = MagicMock(return_value=None)

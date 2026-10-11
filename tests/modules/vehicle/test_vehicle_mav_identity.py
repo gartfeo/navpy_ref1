@@ -12,15 +12,15 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_TYPE_ONBOARD_CONTROLLER,
 )
 
-from navpy.modules.vehicle.inbound_router import InboundMessageRouter
-from navpy.modules.vehicle.link_state import HeartbeatState, PacketLossTracker
-from navpy.modules.vehicle.message_store import MessageStore
-from navpy.modules.vehicle.message_subscriptions import CallbackRegistry
-from navpy.modules.vehicle.mission_inbox import MissionInbox
-from navpy.modules.vehicle.parameter_repository import ParameterRepository
-from navpy.modules.vehicle.preflight_health import PreflightHealth
-from navpy.modules.vehicle.vehicle_identity import VehicleIdentity
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState, PacketLossTracker
+from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
+from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
+from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
+from navpy.plugins.vehicle.ardupilot.preflight_health import PreflightHealth
+from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
 
 def _router_and_health(target_system: int = 42):
@@ -75,7 +75,7 @@ def _construction_bus():
 def test_transmits_with_vehicle_sys_id_and_companion_component():
     bus = _construction_bus()
     with patch(
-        "navpy.modules.vehicle.mav_bus.MavBus.get_or_create",
+        "navpy.plugins.vehicle.ardupilot.mav_bus.MavBus.get_or_create",
         return_value=bus,
     ) as get_or_create:
         vehicle = VehicleMav(
@@ -121,7 +121,7 @@ def test_reports_actual_transport_encoder_source_identity():
 def test_custom_component_id_is_honoured():
     bus = _construction_bus()
     with patch(
-        "navpy.modules.vehicle.mav_bus.MavBus.get_or_create",
+        "navpy.plugins.vehicle.ardupilot.mav_bus.MavBus.get_or_create",
         return_value=bus,
     ) as get_or_create:
         vehicle = VehicleMav(

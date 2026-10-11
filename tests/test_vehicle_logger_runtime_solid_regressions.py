@@ -16,9 +16,9 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGrou
 from navpy.logger.navigation_snap_geometry import calc_distance, calc_h_v_dist
 from navpy.logger.navigation_log_streams import NavigationLogStreams
 from navpy.core.kernel.location import Location
-from navpy.modules.vehicle.mav_bus import MavBus
-from navpy.modules.vehicle.vehicle_composition import build_vehicle_parts
-from navpy.modules.vehicle.vehicle_lifecycle import VehicleLifecycle
+from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
+from navpy.plugins.vehicle.ardupilot.vehicle_composition import build_vehicle_parts
+from navpy.plugins.vehicle.ardupilot.vehicle_lifecycle import VehicleLifecycle
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -78,7 +78,7 @@ def test_falsey_injected_bus_is_preserved_by_identity():
 
 def test_vehicle_build_rollback_aggregates_primary_and_cleanup_failures():
     transaction = importlib.import_module(
-        "navpy.modules.vehicle.vehicle_build_transaction"
+        "navpy.plugins.vehicle.ardupilot.vehicle_build_transaction"
     )
     bus, lease = _fake_bus(release_error=OSError("lease release failed"))
     with patch.object(
@@ -105,9 +105,9 @@ def test_vehicle_transaction_releases_lease_after_every_reserved_failure(
     failure_stage,
 ):
     transaction_module = importlib.import_module(
-        "navpy.modules.vehicle.vehicle_build_transaction"
+        "navpy.plugins.vehicle.ardupilot.vehicle_build_transaction"
     )
-    types = importlib.import_module("navpy.modules.vehicle.vehicle_build_types")
+    types = importlib.import_module("navpy.plugins.vehicle.ardupilot.vehicle_build_types")
     bus, lease = _fake_bus()
     request = types.VehicleBuildRequest(
         link=types.VehicleLinkRequest("unused", 7, 115200, 18, 191, bus),
@@ -176,9 +176,9 @@ def test_vehicle_transaction_releases_lease_after_every_reserved_failure(
 
 def test_vehicle_transaction_retains_failed_rollback_for_explicit_retry():
     transaction_module = importlib.import_module(
-        "navpy.modules.vehicle.vehicle_build_transaction"
+        "navpy.plugins.vehicle.ardupilot.vehicle_build_transaction"
     )
-    types = importlib.import_module("navpy.modules.vehicle.vehicle_build_types")
+    types = importlib.import_module("navpy.plugins.vehicle.ardupilot.vehicle_build_types")
     bus, lease = _fake_bus()
     lease.release.side_effect = [OSError("release failed"), None]
     request = types.VehicleBuildRequest(
@@ -996,7 +996,7 @@ def test_main_returns_runtime_exit_code_without_calling_sys_exit(monkeypatch):
 
 def test_refactored_facades_and_main_are_thin_physical_boundaries():
     expected_limits = {
-        "src/navpy/modules/vehicle/vehicle_composition.py": 80,
+        "src/navpy/plugins/vehicle/ardupilot/vehicle_composition.py": 80,
         "src/navpy/main.py": 40,
     }
     for relative, limit in expected_limits.items():

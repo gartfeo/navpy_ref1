@@ -8,7 +8,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.ports.vehicle_contract import IVehicle
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger
 from navpy.core.kernel.location import Location

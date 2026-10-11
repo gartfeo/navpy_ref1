@@ -42,16 +42,16 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Awaitable, Callable, Optional, Sequence
 
-from navpy.modules.vehicle._mavftp.param_pck import (
+from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import (
     AP_TYPE_FLOAT, AP_TYPE_INT8, AP_TYPE_INT16, AP_TYPE_INT32,
     ParamRecord,
 )
-from navpy.modules.vehicle.full_param_snapshot import FullParamSnapshot
+from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
 
 from gcs.backend.param_readonly import is_readonly
 
 if TYPE_CHECKING:
-    from navpy.modules.vehicle.vehicle_mav import VehicleMav
+    from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
 log = logging.getLogger(__name__)
 

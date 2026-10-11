@@ -7,7 +7,7 @@ companion discriminator — filtering on system id alone would let the
 autopilot's own traffic alias as companion traffic.
 
 Camera/gimbal optics the companion publishes ride the per-camera component ids
-instead of 191 (see ``navpy.modules.vision.gimbal_telemetry_publisher``), so
+instead of 191 (see ``navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher``), so
 telemetry filters must accept that wider set.
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from typing import Iterable, Optional
 
 from pymavlink.dialects.v20.ardupilotmega import MAV_COMP_ID_ONBOARD_COMPUTER
 
-from navpy.modules.vision.mavlink_camera_components import (
+from navpy.plugins.vehicle.ardupilot.mavlink_camera_components import (
     GIMBAL_DEVICE_ID_BY_CAMERA_COMPONENT,
 )
 

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.nav.final_approach_airframe_config import FinalApproachAirframeConfigProvider, FinalApproachParameterPort
+from navpy.plugins.vehicle.ardupilot.final_approach_airframe_config import FinalApproachAirframeConfigProvider, FinalApproachParameterPort
 from scripts import simtime_navigation_config as config
 from scripts.simtime_navigation_protocol import ATTITUDE, Snapshot
 from scripts.simtime_navigation_runtime import SynchronousNavigation

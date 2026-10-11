@@ -96,7 +96,7 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "FfmpegFrameCapture",
     ): 150,
     (
-        "src/navpy/modules/vision/gimbal_telemetry_publisher.py",
+        "src/navpy/plugins/vehicle/ardupilot/gimbal_telemetry_publisher.py",
         "GimbalTelemetryPublisher",
     ): 150,
     (
@@ -122,7 +122,7 @@ FOCUSED_CLASS_LINE_LIMITS = {
 }
 
 VENDORED_SHA256 = {
-    "src/navpy/modules/vehicle/_mavftp/_upstream_mavftp.py":
+    "src/navpy/plugins/vehicle/ardupilot/_mavftp/_upstream_mavftp.py":
         "6977ACE6D7FF6DE95AF5FF63FEB1883F3863C76266A2FF6E1607C86312BCBE9F",
     "src/navpy/modules/vision/peripheral/siyi/siyi_sdk.py":
         "DCEBF8A3BB4EFAE396D213236918CB66D1C95D67816B8681A377255E4A8C8843",
@@ -193,7 +193,7 @@ FACADE_METHOD_ALLOWANCES = {
     # LANDING2 step-1 plan), approved by the
     # owner on 2026-09-10 -- the same kind of ratchet, not headroom.
     (
-        "src/navpy/modules/vehicle/vehicle_mav.py",
+        "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
     ): FacadeMethodAllowance(1, 83, frozenset({"_parts"})),
     (

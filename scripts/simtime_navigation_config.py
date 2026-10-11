@@ -7,7 +7,7 @@ from pathlib import Path
 import struct
 
 from scripts.eval_param_file import parse_parm
-from navpy.modules.navigation.nav.final_approach_airframe_config import (
+from navpy.plugins.vehicle.ardupilot.final_approach_airframe_config import (
     FinalApproachAirframeConfigProvider, FinalApproachParameterPort,
 )
 from navpy.core.ports.law_config import FinalApproachLawConfig

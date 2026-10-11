@@ -28,11 +28,11 @@ from gcs.backend.full_params import (
     _coerce_to_stored,
     _mav_param_type_for,
 )
-from navpy.modules.vehicle._mavftp.param_pck import (
+from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import (
     AP_TYPE_FLOAT, AP_TYPE_INT8, AP_TYPE_INT16, AP_TYPE_INT32,
     FLAG_HAS_DEFAULT, PCK_MAGIC, ParamRecord, parse_param_pck,
 )
-from navpy.modules.vehicle.full_param_snapshot import FullParamSnapshot
+from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
 
 
 def _build_snapshot(

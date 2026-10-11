@@ -7,7 +7,7 @@ import time
 import unittest
 from unittest.mock import MagicMock
 
-from navpy.modules.vehicle.mav_mission import MavMission
+from navpy.plugins.vehicle.ardupilot.mav_mission import MavMission
 
 
 def _mission(downloader, uploader, store=None):

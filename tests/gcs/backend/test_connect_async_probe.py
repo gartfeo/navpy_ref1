@@ -22,7 +22,7 @@ class TestConnectAsyncProbe(unittest.TestCase):
         except Exception:
             pass
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_add_vehicle_does_not_block_on_probe(self, mock_mavutil):
         conn = MagicMock()
         conn.recv_match.return_value = None
@@ -53,7 +53,7 @@ class TestConnectAsyncProbe(unittest.TestCase):
         self.assertEqual(called_with, [1])
         probe_may_finish.set()  # release the probe thread
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_is_probing_true_during_probe_then_false(self, mock_mavutil):
         """is_probing drives the UI 'Downloading…' load stage in auto-connect
         mode: True from the moment the probe is kicked (synchronously, so the
@@ -84,7 +84,7 @@ class TestConnectAsyncProbe(unittest.TestCase):
             time.sleep(0.01)
         self.assertFalse(entry.is_probing)
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_is_probing_exposed_in_snapshot(self, mock_mavutil):
         """The snapshot broadcast to the frontend carries is_probing so the card
         can render the load stage."""
@@ -101,7 +101,7 @@ class TestConnectAsyncProbe(unittest.TestCase):
         self.assertIn("is_probing", snap)
         self.assertTrue(snap["is_probing"])
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_is_probing_cleared_if_probe_thread_cannot_start(self, mock_mavutil):
         """If the OS can't start the probe thread (thread exhaustion under load),
         is_probing must NOT stick True — otherwise the card is pinned on
@@ -125,7 +125,7 @@ class TestConnectAsyncProbe(unittest.TestCase):
         self.assertFalse(entry.is_probing)   # flag cleared despite start() failing
         self.assertIn("is_probing", entry.snapshot())
 
-    @patch("navpy.modules.vehicle.mav_bus.mavutil")
+    @patch("navpy.plugins.vehicle.ardupilot.mav_bus.mavutil")
     def test_async_probe_exception_does_not_escape(self, mock_mavutil):
         conn = MagicMock()
         conn.recv_match.return_value = None

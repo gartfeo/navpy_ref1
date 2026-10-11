@@ -18,9 +18,9 @@ from navpy.core.link import (  # noqa: F401  (registration imports)
     task_availability_msg,
     task_confirmation_msg,
 )
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
-from navpy.modules.vehicle.mav_bus import MavBus
-from navpy.modules.vehicle.mav_bus_lifecycle import MavBusClosedError
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
+from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusClosedError
 from gcs.backend.vehicle_entry import VehicleEntry
 from gcs.backend import vehicle_connections, vehicle_mission_probe
 from gcs.backend.vehicle_status import (

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from gcs.backend.vehicle_manager import VehicleManager
 
 log = logging.getLogger("gcs.backend.routes.control")

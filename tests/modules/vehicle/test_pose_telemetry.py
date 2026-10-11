@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from navpy.modules.vehicle.pose_telemetry import (
+from navpy.plugins.vehicle.ardupilot.pose_telemetry import (
     simulator_truth_pose_from_sample,
     simulator_truth_source_time_s,
 )

@@ -6,8 +6,8 @@ import threading
 import time
 from typing import Optional
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
-from navpy.modules.vehicle.preflight_health import (
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.preflight_health import (
     PREARM_STATE_OK,
     PREARM_STATE_CHECKS_DISABLED,
     PREARM_STATE_FAILED,

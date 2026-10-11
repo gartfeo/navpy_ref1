@@ -9,7 +9,7 @@ from navpy.core.link.task_availability_msg import (
 )
 from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.types import TaskTypeMsgData
-from navpy.modules.vehicle.vehicle_mav import VehicleMav
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
 vehicle1 = VehicleMav("udp:0.0.0.0:14560",
                     1,

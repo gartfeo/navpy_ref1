@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from navpy.modules.vehicle.vehicle_mav import (
+from navpy.plugins.vehicle.ardupilot.vehicle_mav import (
     NO_HEARTBEAT_EXIT_MARKER,
     STARTUP_HEARTBEAT_TIMEOUT_S,
 )
