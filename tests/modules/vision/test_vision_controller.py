@@ -28,7 +28,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
         self.logger = Mock()
         self.args = create_mock_args()
 
-    def _create_vision_args(self, profile_name="c720hd", detector_type="sim"):
+    def _create_vision_args(self, profile_name="c270hd", detector_type="sim"):
         """Create mock VisionArgs."""
         vision_args = Mock()
         vision_args.profile_name = profile_name
@@ -54,13 +54,13 @@ class TestVisionControllerIntegration(unittest.TestCase):
         """VisionController initializes with named profile."""
         from navpy.modules.vision.vision_controller import VisionController
 
-        vision_args = self._create_vision_args(profile_name="c720hd")
+        vision_args = self._create_vision_args(profile_name="c270hd")
 
         controller = VisionController(
             self.vehicle, self.args, vision_args, self.logger
         )
 
-        self.assertEqual(controller.profile_name, "c720hd")
+        self.assertEqual(controller.profile_name, "c270hd")
 
     def test_init_creates_mounts(self):
         """VisionController creates camera mounts."""
@@ -137,11 +137,11 @@ class TestVisionControllerIntegration(unittest.TestCase):
         detector = controller.detectors[0]
         self.assertIsNotNone(detector.get_zoom_result())
 
-    def test_c720hd_detector_has_no_zoom_status(self):
+    def test_c270hd_detector_has_no_zoom_status(self):
         """A fixed camera without zoom exposes no zoom result."""
         from navpy.modules.vision.vision_controller import VisionController
 
-        vision_args = self._create_vision_args(profile_name="c720hd")
+        vision_args = self._create_vision_args(profile_name="c270hd")
         controller = VisionController(
             self.vehicle, self.args, vision_args, self.logger
         )
@@ -233,7 +233,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         from navpy.modules.vision.vision_controller import VisionController
 
         vision_args = Mock()
-        vision_args.profile_name = "c720hd"
+        vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
         vision_args.debug_show = False
@@ -917,7 +917,7 @@ class TestVisionControllerUiStep(unittest.TestCase):
         from navpy.modules.vision.vision_controller import VisionController
 
         vision_args = Mock()
-        vision_args.profile_name = "c720hd"
+        vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
         vision_args.debug_show = False
@@ -975,7 +975,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         from navpy.modules.vision.sim.detector_sim import DetectorSim
 
         vision_args = Mock()
-        vision_args.profile_name = "c720hd"
+        vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
         vision_args.debug_show = False
@@ -992,7 +992,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         from navpy.modules.vision.vision_controller import VisionController
 
         vision_args = Mock()
-        vision_args.profile_name = "c720hd"
+        vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
         vision_args.debug_show = False

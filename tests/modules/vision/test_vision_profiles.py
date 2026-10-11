@@ -458,9 +458,9 @@ class TestComputeMaxDetectDist(unittest.TestCase):
 
         self.assertEqual(data.max_detect_distance, 3000.0)
 
-    def test_c720hd_profile_computed_distance(self):
-        """Real c720hd profile computes expected max_detect_distance."""
-        _, profile, _ = vision_profiles.resolve_profile("c720hd", Mock())
+    def test_c270hd_profile_computed_distance(self):
+        """Real c270hd profile computes expected max_detect_distance."""
+        _, profile, _ = vision_profiles.resolve_profile("c270hd", Mock())
         det_settings = vision_profiles.get_detector_settings(profile)
         devices = vision_profiles.get_devices(profile)
         device = devices[0]
@@ -595,9 +595,9 @@ class TestBuildTrackingConfig(unittest.TestCase):
         self.assertAlmostEqual(config.loss.repoint_sec, 2.0)
         self.assertTrue(config.loss.preserve_zoom_during_loss)
 
-    def test_c720hd_returns_none(self):
-        """c720hd profile has no tracking config."""
-        _, profile, _ = vision_profiles.resolve_profile("c720hd", Mock())
+    def test_c270hd_returns_none(self):
+        """c270hd profile has no tracking config."""
+        _, profile, _ = vision_profiles.resolve_profile("c270hd", Mock())
         devices = vision_profiles.get_devices(profile)
         config = vision_profiles.build_tracking_config(devices[0], sim=True)
 
@@ -701,9 +701,9 @@ class TestBuildZoomConfig(unittest.TestCase):
         self.assertAlmostEqual(config.target_pixels["0"], 36.0)
         self.assertEqual(set(config.target_pixels), {"0", "default"})
 
-    def test_c720hd_returns_none(self):
-        """c720hd profile has no zoom block → returns None."""
-        _, profile, _ = vision_profiles.resolve_profile("c720hd", Mock())
+    def test_c270hd_returns_none(self):
+        """c270hd profile has no zoom block → returns None."""
+        _, profile, _ = vision_profiles.resolve_profile("c270hd", Mock())
         devices = vision_profiles.get_devices(profile)
         config = vision_profiles.build_zoom_config(devices[0], profile)
 
@@ -712,7 +712,7 @@ class TestBuildZoomConfig(unittest.TestCase):
     def test_profiles_without_zoom_block_all_return_none(self):
         """Every non-siyi profile must return None — ensures the new
         two-arg signature is safe across every shipped profile."""
-        for profile_name in ("c720hd", "novoxy10", "novoxy18", "novoxy_dual", "zenfone7pro"):
+        for profile_name in ("c270hd", "novoxy10", "novoxy18", "novoxy_dual", "zenfone7pro"):
             with self.subTest(profile=profile_name):
                 _, profile, _ = vision_profiles.resolve_profile(profile_name, Mock())
                 for device in vision_profiles.get_devices(profile):

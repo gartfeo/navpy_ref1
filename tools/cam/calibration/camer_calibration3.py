@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
 import argparse
-import glob
 import json
+from collections import Counter
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+CALIBRATION_DIR = Path(__file__).resolve().parent
 
 
 def _parse_pattern(pattern: str) -> tuple[int, int]:
@@ -25,11 +27,68 @@ def _build_objp(cols: int, rows: int, square_size_mm: float) -> np.ndarray:
     return objp
 
 
+IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png")
+
+
+def _list_images(image_dir: Path) -> list[str]:
+    return sorted(
+        str(p) for p in image_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES
+    )
+
+
+def _collect_detections(images, checkerboard, objp, criteria, show=False):
+    """Detect board corners in every image of the calibration frame size.
+
+    calibrateCamera needs one image size; the most common size in the set is
+    the calibration frame and images of any other size (e.g. cropped captures)
+    are skipped, not fitted.
+    """
+    objpoints, imgpoints = [], []
+    flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
+
+    loaded = []
+    for fname in images:
+        img = cv2.imread(fname)
+        if img is None:
+            print(f"Skipping unreadable image: {fname}")
+            continue
+        loaded.append((fname, img))
+    if not loaded:
+        return objpoints, imgpoints, None
+
+    img_shape = Counter(img.shape[1::-1] for _, img in loaded).most_common(1)[0][0]
+
+    for fname, img in loaded:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        shape = gray.shape[::-1]
+        if shape != img_shape:
+            print(f"Skipping {Path(fname).name}: size {shape} != calibration size {img_shape}")
+            continue
+
+        ret, corners = cv2.findChessboardCorners(gray, checkerboard, flags)
+        if not ret and hasattr(cv2, "findChessboardCornersSB"):
+            ret, corners = cv2.findChessboardCornersSB(gray, checkerboard, None)
+
+        if ret:
+            corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
+            objpoints.append(objp)
+            imgpoints.append(corners2)
+
+            if show:
+                overlay = cv2.drawChessboardCorners(img, checkerboard, corners2, ret)
+                cv2.imshow("calib", overlay)
+                cv2.waitKey(50)
+        else:
+            print(f"No corners: {Path(fname).name}")
+
+    return objpoints, imgpoints, img_shape
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Calibrate camera from chessboard images.")
     parser.add_argument(
         "--image-dir",
-        default=r"C:\repos\navpy\tools\cam\calibration\novoxy_10\zoom1",
+        default=str(CALIBRATION_DIR / "novoxy_10" / "zoom1"),
         help="Directory with calibration images.",
     )
     parser.add_argument(
@@ -45,8 +104,18 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-json",
-        default=r"C:\repos\navpy\tools\cam\calibration\novoxy_10\zoom1\intrinsics.json",
+        default=str(CALIBRATION_DIR / "novoxy_10" / "zoom1" / "intrinsics.json"),
         help="Output JSON file for intrinsics.",
+    )
+    parser.add_argument(
+        "--camera-name",
+        default="Novoxy_10",
+        help="Camera key written to the output JSON (default: Novoxy_10).",
+    )
+    parser.add_argument(
+        "--zoom",
+        default="1",
+        help="Zoom key written to the output JSON (default: 1).",
     )
     parser.add_argument(
         "--show",
@@ -63,37 +132,13 @@ def main() -> None:
     imgpoints = []
     objp = _build_objp(cols, rows, args.square_size_mm)
 
-    images = sorted(glob.glob(str(Path(args.image_dir) / "*.jpg")))
+    images = _list_images(Path(args.image_dir))
     if not images:
         raise SystemExit(f"No images found in {args.image_dir}")
 
-    img_shape = None
-    flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
-
-    for fname in images:
-        img = cv2.imread(fname)
-        if img is None:
-            print(f"Skipping unreadable image: {fname}")
-            continue
-
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        img_shape = gray.shape[::-1]
-
-        ret, corners = cv2.findChessboardCorners(gray, checkerboard, flags)
-        if not ret and hasattr(cv2, "findChessboardCornersSB"):
-            ret, corners = cv2.findChessboardCornersSB(gray, checkerboard, None)
-
-        if ret:
-            corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
-            objpoints.append(objp)
-            imgpoints.append(corners2)
-
-            if args.show:
-                overlay = cv2.drawChessboardCorners(img, checkerboard, corners2, ret)
-                cv2.imshow("calib", overlay)
-                cv2.waitKey(50)
-        else:
-            print(f"No corners: {Path(fname).name}")
+    objpoints, imgpoints, img_shape = _collect_detections(
+        images, checkerboard, objp, criteria, show=args.show
+    )
 
     if args.show:
         cv2.destroyAllWindows()
@@ -124,11 +169,11 @@ def main() -> None:
 
     intrinsics = {
         "cameras": {
-            "Novoxy_10": {
+            args.camera_name: {
                 "image_width": int(w),
                 "image_height": int(h),
                 "zooms": {
-                    "1": {
+                    str(args.zoom): {
                         "fx": float(mtx[0, 0]),
                         "fy": float(mtx[1, 1]),
                         "cx": float(mtx[0, 2]),

@@ -497,7 +497,7 @@ class TestDetectorSimAdapter:
 
     def test_source_identity_is_lazy_and_uses_gimbal_data_name(self):
         mount = Mock()
-        mount.name = "c720hd"
+        mount.name = "c270hd"
         mount.get_gimbal_data.return_value = GimbalData(
             att=Attitude(0.0, 0.0, 0.0),
             name="gimbal_0",

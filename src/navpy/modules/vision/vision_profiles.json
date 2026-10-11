@@ -328,7 +328,7 @@
         }
       ]
     },
-    "c720hd": {
+    "c270hd": {
       "detector": {
         "detect_hz": 15.0,
         "track_hz": 60.0,
@@ -351,7 +351,7 @@
       },
       "devices": [
         {
-          "name": "c720hd",
+          "name": "c270hd",
           "camera": {
             "image_width": 1280,
             "image_height": 720,
