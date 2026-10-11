@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from navpy.modules.vision.track_identity_types import (
+from navpy.core.perception.tracking.track_identity_types import (
     IdentityResolverDiagnostics,
     IdentityRetentionPolicy,
     IdentityState,

@@ -21,7 +21,7 @@ from typing import List, Optional
 import cv2
 import numpy as np
 
-from navpy.modules.vision.charuco_board import (
+from navpy.plugins.detection.charuco.charuco_board import (
     CHARUCO_DOCK_CLASS_ID,
     CharucoBoardSpec,
 )

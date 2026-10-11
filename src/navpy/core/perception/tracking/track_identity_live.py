@@ -7,9 +7,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.track_identity_appearance import IdentityGallery
-from navpy.modules.vision.track_identity_registry import IdentityRegistry
-from navpy.modules.vision.track_identity_types import IdentityCounters
+from navpy.core.perception.tracking.track_identity_appearance import IdentityGallery
+from navpy.core.perception.tracking.track_identity_registry import IdentityRegistry
+from navpy.core.perception.tracking.track_identity_types import IdentityCounters
 
 
 @dataclass(frozen=True)

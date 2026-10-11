@@ -531,7 +531,7 @@ class ConfirmationManagerTests(unittest.TestCase):
         recalled POI, but it must still wake any waiting confirm thread."""
         import threading
 
-        from navpy.modules.vision.poi_identity import get_poi_task_id
+        from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
         poi = self.detected_pois[0]
         task_id = get_poi_task_id(poi)
@@ -564,7 +564,7 @@ class ConfirmationManagerTests(unittest.TestCase):
         """
         import threading
 
-        from navpy.modules.vision.poi_identity import get_poi_task_id
+        from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
         poi = self.detected_pois[0]
         task_id = get_poi_task_id(poi)
@@ -587,7 +587,7 @@ class ConfirmationManagerTests(unittest.TestCase):
         """A duplicate negative response leaves REJECTED and wakes waiters."""
         import threading
 
-        from navpy.modules.vision.poi_identity import get_poi_task_id
+        from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
         poi = self.detected_pois[0]
         task_id = get_poi_task_id(poi)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Iterable, Optional, TYPE_CHECKING
 
-from navpy.modules.vision.poi_identity import get_poi_task_id
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
 if TYPE_CHECKING:
     from navpy.core.ports.detect_data import DetectedObject

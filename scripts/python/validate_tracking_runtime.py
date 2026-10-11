@@ -11,14 +11,14 @@ from typing import Any
 import cv2
 import numpy as np
 
-from navpy.modules.vision.appearance import create_appearance_embedder
+from navpy.plugins.tracking.boxmot.appearance import create_appearance_embedder
 from navpy.core.perception.camera.frame_provider import FrameProvider
 from navpy.core.kernel.geometry import cxcywh_to_xyxy
-from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
-from navpy.modules.vision.poi_lock import PoiLock
-from navpy.modules.vision.track_identity import TrackIdentityResolver
+from navpy.core.perception.tracking.lost_poi_bridge import LostPoiBridge
+from navpy.core.perception.tracking.poi_lock import PoiLock
+from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.app.perception.tracker_backend_factory import create_tracker_backend
-from navpy.modules.vision.yolo_detector import YoloDetector
+from navpy.plugins.detection.yolo.yolo_detector import YoloDetector
 from scripts.python.validate_tracking_config import BUS, CAR, TRUCK
 
 

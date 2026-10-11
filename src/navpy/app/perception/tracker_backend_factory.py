@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Optional
 
 from navpy.core.kernel.device import DeviceT
-from navpy.modules.vision.tracker_backends_boxmot import (
+from navpy.plugins.tracking.boxmot.tracker_backends_boxmot import (
     BotSortTrackerBackend,
     StrongSortTrackerBackend,
 )
-from navpy.modules.vision.tracker_config import tracker_config_from_settings
+from navpy.plugins.tracking.tracker_config import tracker_config_from_settings
 from navpy.plugins.tracking.kalman.custom_tracker_backend import CustomTrackerBackend
 from navpy.core.ports.tracker_backends import TrackerBackend
 

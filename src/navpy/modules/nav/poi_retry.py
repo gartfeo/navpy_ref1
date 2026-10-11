@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_identity import (
+from navpy.core.perception.detection.poi_identity import (
     get_poi_identity,
     get_poi_task_id,
 )

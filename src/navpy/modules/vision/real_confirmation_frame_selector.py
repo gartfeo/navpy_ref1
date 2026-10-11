@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from navpy.modules.vision.confirmation_frame import (
+from navpy.core.perception.detection.confirmation_frame import (
     should_replace_confirmation_frame,
 )
 from navpy.core.ports.detection_components import BoundingBox

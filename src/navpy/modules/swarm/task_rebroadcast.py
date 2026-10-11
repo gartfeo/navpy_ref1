@@ -12,7 +12,7 @@ from navpy.modules.swarm.task_auction_state import TaskAuctionState
 from navpy.modules.swarm.task_rebroadcast_state import TaskRebroadcastState
 from navpy.modules.swarm.task_messaging import TaskMessageSender
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_identity import get_poi_task_id
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
 
 REBROADCAST_INTERVAL_S = 0.5

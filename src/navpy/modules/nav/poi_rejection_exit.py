@@ -15,7 +15,7 @@ from navpy.modules.nav.navigation_task_reset import AutoMissionResume
 from navpy.modules.nav.nav_state import NavPhaseState, NavState
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_identity import get_poi_task_id
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
 
 @dataclass(frozen=True)

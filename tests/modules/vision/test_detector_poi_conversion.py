@@ -10,7 +10,7 @@ from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )
-from navpy.modules.vision.confirmation_frame import (
+from navpy.core.perception.detection.confirmation_frame import (
     should_replace_center_gated_confirmation_frame,
     should_replace_confirmation_frame,
 )

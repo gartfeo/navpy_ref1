@@ -20,7 +20,7 @@ from navpy.modules.vision.real_detector_state import (
     FreshnessPolicy,
     OverlayStore,
 )
-from navpy.modules.vision.track_identity import TrackIdentityResolver
+from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 
 
 @dataclass(frozen=True)

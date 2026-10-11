@@ -7,11 +7,11 @@ from collections.abc import Iterable
 import numpy as np
 
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.track_identity_service import (
+from navpy.core.perception.tracking.track_identity_service import (
     IdentityResolutionPort,
     build_track_identity_service,
 )
-from navpy.modules.vision.track_identity_types import (
+from navpy.core.perception.tracking.track_identity_types import (
     IdentityAppearancePolicy,
     IdentityGeometryPolicy,
     IdentityResolverDiagnostics,

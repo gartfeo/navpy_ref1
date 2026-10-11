@@ -10,7 +10,7 @@ from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
-from navpy.modules.vision.charuco_board import CharucoBoardSpec
+from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec
 from navpy.core.kernel.config.detector_backend import (
     YOLO_BACKEND,
     DetectorBackend,

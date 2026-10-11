@@ -145,7 +145,7 @@ PASSIVE_RECORD_FIELD_LIMITS = {
         "src/navpy/modules/vision/real_frame_association.py",
         "RealFrameAssociation",
     ): 17,
-    ("src/navpy/modules/vision/track_export_memory.py", "_MemoryState"): 13,
+    ("src/navpy/plugins/tracking/boxmot/track_export_memory.py", "_MemoryState"): 13,
     (
         "src/navpy/core/ports/frame.py",
         "FinalApproachVisionFrame",

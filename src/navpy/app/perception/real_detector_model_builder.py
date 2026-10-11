@@ -8,15 +8,15 @@ from typing import cast
 from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.appearance_embedding import AppearanceEmbedder
-from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
-from navpy.modules.vision.appearance import create_appearance_embedder
-from navpy.modules.vision.deep_search import (
+from navpy.core.perception.tracking.appearance_async import AsyncAppearanceEmbedder
+from navpy.plugins.tracking.boxmot.appearance import create_appearance_embedder
+from navpy.core.perception.detection.deep_search import (
     DeepSearchConfig,
     DeepSearchDetector,
     deep_search_config_from_settings,
 )
-from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
-from navpy.modules.vision.charuco_detector import CharucoBoardDetector
+from navpy.core.perception.tracking.lost_poi_bridge import LostPoiBridge
+from navpy.plugins.detection.charuco.charuco_detector import CharucoBoardDetector
 from navpy.core.kernel.config.detector_backend import (
     CHARUCO_BACKEND,
     YOLO_BACKEND,
@@ -28,11 +28,11 @@ from navpy.modules.vision.real_detector_config import (
 from navpy.core.ports.detection import FrameDetector
 from navpy.modules.vision.real_detector_ports import ModelResourceCloser
 from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
-from navpy.modules.vision.poi_lock import PoiLock
-from navpy.modules.vision.track_identity import TrackIdentityResolver
+from navpy.core.perception.tracking.poi_lock import PoiLock
+from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
 from navpy.app.perception.tracker_backend_factory import create_tracker_backend
-from navpy.modules.vision.yolo_detector import YoloDetector
+from navpy.plugins.detection.yolo.yolo_detector import YoloDetector
 from navpy.modules.vision.real_detector_models import RealDetectorModels, close_model_resources
 
 

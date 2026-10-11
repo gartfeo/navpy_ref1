@@ -6,14 +6,14 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from navpy.modules.vision.track_export_memory import _TrackExportMemory
-from navpy.modules.vision.tracker_backends_boxmot import (
+from navpy.plugins.tracking.boxmot.track_export_memory import _TrackExportMemory
+from navpy.plugins.tracking.boxmot.tracker_backends_boxmot import (
     BotSortTrackerBackend,
     StrongSortTrackerBackend,
 )
 from navpy.plugins.tracking.kalman.custom_tracker_backend import CustomTrackerBackend
 from navpy.app.perception.tracker_backend_factory import create_tracker_backend
-from navpy.modules.vision.tracker_config import tracker_config_from_settings
+from navpy.plugins.tracking.tracker_config import tracker_config_from_settings
 from navpy.core.ports.detection import Detection
 
 
@@ -99,14 +99,14 @@ class _FakeStrongSort:
 
 def _patch_botsort():
     return patch(
-        "navpy.modules.vision.tracker_backends_boxmot._load_botsort_deps",
+        "navpy.plugins.tracking.boxmot.tracker_backends_boxmot._load_botsort_deps",
         return_value=(_FakeReID, _FakeBotSort),
     )
 
 
 def _patch_strongsort():
     return patch(
-        "navpy.modules.vision.tracker_backends_boxmot._load_strongsort_deps",
+        "navpy.plugins.tracking.boxmot.tracker_backends_boxmot._load_strongsort_deps",
         return_value=(_FakeReID, _FakeStrongSort),
     )
 

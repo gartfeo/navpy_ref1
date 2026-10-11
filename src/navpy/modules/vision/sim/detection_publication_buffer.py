@@ -22,7 +22,7 @@ from navpy.modules.vision.sim.sim_runtime_ports import (
     FrameOutcomeSink,
     OptionalTextReader,
 )
-from navpy.modules.vision.poi_priority import (
+from navpy.core.perception.detection.poi_priority import (
     find_poi_by_id,
     prioritize_pois,
 )

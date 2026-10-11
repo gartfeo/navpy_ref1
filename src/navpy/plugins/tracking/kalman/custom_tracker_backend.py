@@ -6,9 +6,9 @@ from typing import List, Optional
 
 import numpy as np
 
-from navpy.modules.vision.multi_object_tracker import MultiObjectTracker
+from navpy.plugins.tracking.kalman.multi_object_tracker import MultiObjectTracker
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.tracker_config import TrackerBackendConfig
+from navpy.plugins.tracking.tracker_config import TrackerBackendConfig
 from navpy.core.ports.detection import Detection
 
 

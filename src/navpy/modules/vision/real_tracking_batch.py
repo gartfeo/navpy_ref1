@@ -8,7 +8,7 @@ from typing import Protocol
 
 import numpy as np
 
-from navpy.modules.vision.deep_search import merge_deep_search_detections
+from navpy.core.perception.detection.deep_search import merge_deep_search_detections
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.real_detector_inference_state import (
@@ -26,9 +26,9 @@ from navpy.modules.vision.real_detector_runtime_state import (
 from navpy.modules.vision.real_frame_association import RealFrameAssociation
 from navpy.modules.vision.real_inference import DeepSearchChannel
 from navpy.modules.vision.real_detection_mapper import DetectedObjectMapper
-from navpy.modules.vision.poi_lock import PoiLock
-from navpy.modules.vision.poi_priority import find_poi_by_id
-from navpy.modules.vision.track_identity import TrackIdentityResolver
+from navpy.core.perception.tracking.poi_lock import PoiLock
+from navpy.core.perception.detection.poi_priority import find_poi_by_id
+from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
 
 

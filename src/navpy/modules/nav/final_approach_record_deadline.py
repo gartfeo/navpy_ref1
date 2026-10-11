@@ -10,7 +10,7 @@ from navpy.modules.nav.confirmation_reporting import ConfirmDebugReporter
 from navpy.modules.nav.nav_constants import FINAL_APPROACH_RECORD_TIMEOUT_S
 from navpy.modules.nav.nav_state import FinalApproachNavState
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_identity import get_poi_task_id
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
 
 class FinalApproachRecordDeadline:

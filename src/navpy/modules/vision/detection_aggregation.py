@@ -16,7 +16,7 @@ from navpy.core.ports.detection_event_lease import (
     DetectionLeaseDispatch,
 )
 from navpy.core.ports.detect_response import DetectResponse
-from navpy.modules.vision.poi_priority import select_most_centered_poi
+from navpy.core.perception.detection.poi_priority import select_most_centered_poi
 
 if TYPE_CHECKING:
     from navpy.modules.vision.detector_ports import (

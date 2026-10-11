@@ -2,7 +2,7 @@ import threading
 import unittest
 from types import SimpleNamespace
 
-from navpy.modules.vision.poi_lock import PoiLock
+from navpy.core.perception.tracking.poi_lock import PoiLock
 
 
 def _track(

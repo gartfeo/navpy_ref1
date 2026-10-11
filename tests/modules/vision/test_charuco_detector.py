@@ -11,12 +11,12 @@ import cv2
 import numpy as np
 import pytest
 
-from navpy.modules.vision.charuco_board import (
+from navpy.plugins.detection.charuco.charuco_board import (
     CHARUCO_DOCK_CLASS_ID,
     CharucoBoardSpec,
     charuco_board_spec_from_settings,
 )
-from navpy.modules.vision.charuco_detector import (
+from navpy.plugins.detection.charuco.charuco_detector import (
     MIN_CHARUCO_CORNERS,
     CharucoBoardDetector,
     build_charuco_board,

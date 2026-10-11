@@ -9,20 +9,20 @@ from typing import Callable, Protocol
 import numpy as np
 
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.track_identity_assignment import (
+from navpy.core.perception.tracking.track_identity_assignment import (
     UnmatchedIdentityBinder,
 )
-from navpy.modules.vision.track_identity_appearance import (
+from navpy.core.perception.tracking.track_identity_appearance import (
     IdentityGallery,
     LateIdentityMerger,
 )
-from navpy.modules.vision.track_identity_commit import (
+from navpy.core.perception.tracking.track_identity_commit import (
     IdentityObservationCommitter,
 )
-from navpy.modules.vision.track_identity_live import LiveBindingClassifier
-from navpy.modules.vision.track_identity_matching import LostIdentityMatcher
-from navpy.modules.vision.track_identity_registry import IdentityRegistry
-from navpy.modules.vision.track_identity_types import (
+from navpy.core.perception.tracking.track_identity_live import LiveBindingClassifier
+from navpy.core.perception.tracking.track_identity_matching import LostIdentityMatcher
+from navpy.core.perception.tracking.track_identity_registry import IdentityRegistry
+from navpy.core.perception.tracking.track_identity_types import (
     IdentityCounters,
     IdentityResolverDiagnostics,
     TrackIdentityPolicies,

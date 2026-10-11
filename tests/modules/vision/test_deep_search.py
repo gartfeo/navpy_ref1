@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from navpy.modules.vision.deep_search import (
+from navpy.core.perception.detection.deep_search import (
     DeepSearchConfig,
     DeepSearchDetector,
     deep_search_config_from_settings,
@@ -96,7 +96,7 @@ class TestDeepSearchDetector(unittest.TestCase):
         kwargs.setdefault("default_model_path", "base.pt")
         kwargs.setdefault("default_device", 0)
         kwargs.setdefault("default_classes", [2])
-        with patch("navpy.modules.vision.deep_search.YoloDetector", _FakeYolo):
+        with patch("navpy.core.perception.detection.deep_search.YoloDetector", _FakeYolo):
             return DeepSearchDetector(config, **kwargs)
 
     def test_auto_device_inherits_detector_device(self):

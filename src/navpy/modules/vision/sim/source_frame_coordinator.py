@@ -13,7 +13,7 @@ from navpy.modules.vision.sim.detection_publication_store import (
     DetectionPublicationStore,
     PublicationSlot,
 )
-from navpy.modules.vision.poi_priority import select_most_centered_poi
+from navpy.core.perception.detection.poi_priority import select_most_centered_poi
 from navpy.modules.vision.sim.frame_generation_gate import (
     FrameGeneration,
     FrameGenerationGate,

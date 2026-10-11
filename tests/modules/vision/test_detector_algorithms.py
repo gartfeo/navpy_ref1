@@ -4,7 +4,7 @@ import numpy as np
 
 from navpy.core.kernel.geometry import iou_xyxy
 from navpy.core.kernel.linear_assignment import hungarian
-from navpy.modules.vision.mot_state import KalmanCV
+from navpy.plugins.tracking.kalman.mot_state import KalmanCV
 
 
 class TestIoUXYXY(unittest.TestCase):

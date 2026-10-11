@@ -12,7 +12,7 @@ from navpy.core.ports.detection_event_lease import DetectionEventLease
 from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.modules.vision.sim.detection_event_stream import DetectionEventStream
 from navpy.modules.vision.sim.detection_snapshot_state import DetectionSnapshot
-from navpy.modules.vision.poi_priority import prioritize_pois
+from navpy.core.perception.detection.poi_priority import prioritize_pois
 
 
 @dataclass(eq=False)

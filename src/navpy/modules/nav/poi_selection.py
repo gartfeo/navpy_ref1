@@ -8,8 +8,8 @@ from navpy.modules.nav.confirmation_policy import PoiRetryPolicy
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_identity import get_poi_task_id
-from navpy.modules.vision.poi_priority import (
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
+from navpy.core.perception.detection.poi_priority import (
     find_poi_by_task_id,
     prioritize_pois,
 )

@@ -7,7 +7,7 @@ from navpy.core.kernel.exception_groups import ExceptionGroup
 from typing import TYPE_CHECKING, Callable, Protocol, Sequence
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.poi_identity import PoiIdentity
+    from navpy.core.perception.detection.poi_identity import PoiIdentity
 
 
 class TrackingMember(Protocol):

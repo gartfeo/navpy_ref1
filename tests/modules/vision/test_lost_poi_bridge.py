@@ -3,7 +3,7 @@ import unittest
 import cv2
 import numpy as np
 
-from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
+from navpy.core.perception.tracking.lost_poi_bridge import LostPoiBridge
 
 
 def _scene(cx, cy, patch):

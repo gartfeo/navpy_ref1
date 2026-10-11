@@ -2,7 +2,7 @@
 import math
 import unittest
 
-from navpy.modules.vision.poi_size import characteristic_pixels
+from navpy.core.perception.detection.poi_size import characteristic_pixels
 
 
 class TestCharacteristicPixels(unittest.TestCase):

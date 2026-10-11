@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from navpy.modules.vision.yolo_detector import YoloDetector
+from navpy.plugins.detection.yolo.yolo_detector import YoloDetector
 
 
 class _FakeYOLO:

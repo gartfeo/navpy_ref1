@@ -6,16 +6,16 @@ from dataclasses import dataclass
 from typing import Union
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
-from navpy.modules.vision.deep_search import (
+from navpy.core.perception.tracking.appearance_async import AsyncAppearanceEmbedder
+from navpy.core.perception.detection.deep_search import (
     DeepSearchConfig,
     DeepSearchDetector,
 )
-from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
+from navpy.core.perception.tracking.lost_poi_bridge import LostPoiBridge
 from navpy.core.ports.detection import FrameDetector
 from navpy.modules.vision.real_detector_ports import ModelResourceCloser
-from navpy.modules.vision.poi_lock import PoiLock
-from navpy.modules.vision.track_identity import TrackIdentityResolver
+from navpy.core.perception.tracking.poi_lock import PoiLock
+from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
 
 

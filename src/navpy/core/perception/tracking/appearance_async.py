@@ -13,7 +13,7 @@ from typing import Protocol
 import numpy as np
 
 from navpy.core.kernel.logging.logger_api import ILogger
-from navpy.modules.vision.appearance_worker import AppearanceWorker
+from navpy.core.perception.tracking.appearance_worker import AppearanceWorker
 
 
 class AppearanceBackend(Protocol):

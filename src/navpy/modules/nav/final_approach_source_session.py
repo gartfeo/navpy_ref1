@@ -12,8 +12,8 @@ from typing import Iterable, Optional, Protocol
 from navpy.modules.nav.final_approach_source_contracts import ActiveSourceEvents
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
-from navpy.modules.vision.poi_identity import get_poi_task_id
-from navpy.modules.vision.poi_priority import find_poi_by_task_id
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
+from navpy.core.perception.detection.poi_priority import find_poi_by_task_id
 
 
 class SourceEventCapability(Protocol):

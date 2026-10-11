@@ -16,7 +16,7 @@ from navpy.modules.nav.confirmation_round_transaction import (
 from navpy.modules.nav.confirmation_worker_state import ConfirmationWorkerState
 from navpy.modules.nav.confirmation_registry_state import ConfirmationRegistryState, ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_identity import get_poi_task_id
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
 
 class ConfirmationManagerState:

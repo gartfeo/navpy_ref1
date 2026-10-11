@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.deep_search import DeepSearchConfig, DeepSearchDetector
+from navpy.core.perception.detection.deep_search import DeepSearchConfig, DeepSearchDetector
 from navpy.core.perception.camera.frame_provider import FrameProvider
 from navpy.modules.vision.real_detector_runtime_state import (
     DetectorRunState,
@@ -22,7 +22,7 @@ from navpy.modules.vision.real_detector_inference_state import (
     InferenceReservation,
 )
 from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
-from navpy.modules.vision.poi_lock import PoiLock
+from navpy.core.perception.tracking.poi_lock import PoiLock
 from navpy.core.ports.detection import Detection, FrameDetector
 
 

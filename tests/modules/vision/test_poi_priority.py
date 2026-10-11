@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from navpy.modules.vision.poi_priority import (
+from navpy.core.perception.detection.poi_priority import (
     find_poi_by_id,
     prioritize_pois,
     select_most_centered_poi,

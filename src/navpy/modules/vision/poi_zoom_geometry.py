@@ -6,7 +6,7 @@ import math
 
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult, TrackingState
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_size import characteristic_pixels
+from navpy.core.perception.detection.poi_size import characteristic_pixels
 from navpy.modules.vision.poi_zoom_types import ZoomGeometry, ZoomObservation
 
 

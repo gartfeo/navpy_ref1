@@ -11,7 +11,7 @@ from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.types import class_to_task_type
 from navpy.modules.nav.confirmation_ports import ConfirmationMessageBroadcaster
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_identity import get_poi_task_id
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
 
 class SelfAssignmentPublisher:

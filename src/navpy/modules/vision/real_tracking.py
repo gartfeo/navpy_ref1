@@ -7,11 +7,11 @@ from collections.abc import Sequence
 import numpy as np
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
+from navpy.core.perception.tracking.appearance_async import AsyncAppearanceEmbedder
 from navpy.core.kernel.geometry import cxcywh_to_xyxy
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
+from navpy.core.perception.tracking.lost_poi_bridge import LostPoiBridge
 from navpy.modules.vision.real_detector_inference_state import DetectionBatchInbox
 from navpy.modules.vision.real_detector_state import (
     DetectionResultStore,
@@ -25,9 +25,9 @@ from navpy.modules.vision.real_detector_runtime_state import (
 )
 from navpy.modules.vision.real_detector_ports import GimbalMeasurementPort
 from navpy.modules.vision.real_tracking_batch import TrackingBatchProcessor
-from navpy.modules.vision.poi_lock import PoiLock
-from navpy.modules.vision.poi_priority import find_poi_by_id
-from navpy.modules.vision.track_identity import TrackIdentityResolver
+from navpy.core.perception.tracking.poi_lock import PoiLock
+from navpy.core.perception.detection.poi_priority import find_poi_by_id
+from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 
 
 class TrackingNavigationSink:

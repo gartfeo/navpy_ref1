@@ -20,11 +20,11 @@ from navpy.core.kernel.device import (
     uses_cuda_device,
 )
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.track_export_memory import (
+from navpy.plugins.tracking.boxmot.track_export_memory import (
     _EMPTY_DETECTION_COAST_SECONDS,
     _TrackExportMemory,
 )
-from navpy.modules.vision.tracker_config import TrackerBackendConfig
+from navpy.plugins.tracking.tracker_config import TrackerBackendConfig
 from navpy.core.ports.detection import Detection
 import time
 

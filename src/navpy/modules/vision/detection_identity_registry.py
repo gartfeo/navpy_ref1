@@ -7,11 +7,11 @@ import threading
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
-from navpy.modules.vision.poi_identity import (
+from navpy.core.perception.detection.poi_identity import (
     PoiIdentity,
     PoiTaskIdAllocator,
 )
-from navpy.modules.vision.poi_priority import prioritize_pois
+from navpy.core.perception.detection.poi_priority import prioritize_pois
 
 if TYPE_CHECKING:
     from navpy.core.ports.detect_data import DetectedObject

@@ -16,13 +16,13 @@ import numpy as np
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 from navpy.core.kernel.logging.cache_logger import ConsoleCacheLogger
 from navpy.core.kernel.logging.logger_api import ILogger
-from navpy.modules.vision.tracker_backends_boxmot import (
+from navpy.plugins.tracking.boxmot.tracker_backends_boxmot import (
     BotSortTrackerBackend,
     StrongSortTrackerBackend,
 )
-from navpy.modules.vision.tracker_config import tracker_config_from_settings
+from navpy.plugins.tracking.tracker_config import tracker_config_from_settings
 from navpy.core.ports.detection import Detection
-from navpy.modules.vision.yolo_detector import YoloDetector
+from navpy.plugins.detection.yolo.yolo_detector import YoloDetector
 from navpy.modules.vision.tracking_command_router import TrackingCommandRouter
 
 from tests.modules.vision.test_tracker_backends import (
@@ -169,7 +169,7 @@ class TestTrackerBackendStartupLog(unittest.TestCase):
         # half -> dest and cmc_method -> check_interval.
         logger = _RecordingLogger()
         with patch(
-            "navpy.modules.vision.tracker_backends_boxmot._load_botsort_deps",
+            "navpy.plugins.tracking.boxmot.tracker_backends_boxmot._load_botsort_deps",
             return_value=(_FakeReID, _FakeBotSort),
         ):
             BotSortTrackerBackend(
@@ -194,7 +194,7 @@ class TestTrackerBackendStartupLog(unittest.TestCase):
         # reach both status routes and fail later at .encode().
         logger = _RecordingLogger()
         with patch(
-            "navpy.modules.vision.tracker_backends_boxmot._load_strongsort_deps",
+            "navpy.plugins.tracking.boxmot.tracker_backends_boxmot._load_strongsort_deps",
             return_value=(_FakeReID, _FakeStrongSort),
         ):
             StrongSortTrackerBackend(

@@ -6,8 +6,8 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGrou
 
 import threading
 
-from navpy.modules.vision.appearance_async import AsyncAppearanceEmbedder
-from navpy.modules.vision.deep_search import DeepSearchDetector
+from navpy.core.perception.tracking.appearance_async import AsyncAppearanceEmbedder
+from navpy.core.perception.detection.deep_search import DeepSearchDetector
 from navpy.modules.vision.real_detector_ports import CleanupAction
 from navpy.core.ports.detection import FrameDetector
 from navpy.modules.vision.real_detector_state import ConfirmationFrameStore

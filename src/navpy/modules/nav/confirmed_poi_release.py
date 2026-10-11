@@ -9,7 +9,7 @@ from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGa
 from navpy.modules.nav.nav_state import GeoHoldState, NavPhaseState, NavState
 from navpy.modules.nav.track_recovery import TrackRecovery
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.modules.vision.poi_identity import get_poi_task_id
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
 
 class ConfirmedPoiRelease:

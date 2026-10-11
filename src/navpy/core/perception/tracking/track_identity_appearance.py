@@ -8,8 +8,8 @@ import numpy as np
 
 from navpy.core.ports.appearance_embedding import cosine_distance
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.track_identity_registry import IdentityRegistry
-from navpy.modules.vision.track_identity_types import (
+from navpy.core.perception.tracking.track_identity_registry import IdentityRegistry
+from navpy.core.perception.tracking.track_identity_types import (
     IdentityAppearanceMemory,
     IdentityAppearancePolicy,
     IdentityCounters,

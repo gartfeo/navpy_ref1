@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, Sequence
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.poi_identity import PoiIdentity
+    from navpy.core.perception.detection.poi_identity import PoiIdentity
     from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 

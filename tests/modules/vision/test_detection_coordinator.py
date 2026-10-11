@@ -13,7 +13,7 @@ from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.core.ports.detect_request import DetectRequest
 from navpy.core.ports.detect_response import DetectResponse
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.poi_priority import select_most_centered_poi
+from navpy.core.perception.detection.poi_priority import select_most_centered_poi
 from navpy.modules.vision.tracking_command_router import TrackingCommandRouter
 from navpy.modules.vision.zoom_control_router import ZoomControlRouter
 from tests.detection_factory import make_detected_poi
@@ -432,7 +432,7 @@ class TestDetectionCoordinator(unittest.TestCase):
         new identity then resolves to the ORIGINAL task_id via assign(),
         get_identity(task_id) resolves to the new identity, and no stale
         reverse mapping remains for the evicted task_id."""
-        from navpy.modules.vision.poi_identity import PoiTaskIdAllocator
+        from navpy.core.perception.detection.poi_identity import PoiTaskIdAllocator
 
         allocator = PoiTaskIdAllocator()
 

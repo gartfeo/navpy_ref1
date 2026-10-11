@@ -1313,7 +1313,7 @@ class TestDetectorCompositionTransaction(unittest.TestCase):
                 "navpy.app.perception.real_detector_model_builder.deep_search_config_from_settings",
                 return_value=None,
         ), patch(
-                "navpy.modules.vision.appearance_worker.threading.Thread.start",
+                "navpy.core.perception.tracking.appearance_worker.threading.Thread.start",
                 side_effect=failure,
         ):
             with self.assertRaisesRegex(

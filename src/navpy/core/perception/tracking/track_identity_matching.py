@@ -5,11 +5,11 @@ from __future__ import annotations
 import numpy as np
 
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.track_identity_scoring import (
+from navpy.core.perception.tracking.track_identity_scoring import (
     INFINITE_MATCH_COST,
     IdentityPairScorer,
 )
-from navpy.modules.vision.track_identity_types import (
+from navpy.core.perception.tracking.track_identity_types import (
     IdentityAppearancePolicy,
     IdentityCounters,
     IdentityGeometryPolicy,

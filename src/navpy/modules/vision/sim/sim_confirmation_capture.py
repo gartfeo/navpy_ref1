@@ -8,7 +8,7 @@ import numpy as np
 import pymap3d
 
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.confirmation_frame import (
+from navpy.core.perception.detection.confirmation_frame import (
     CONFIRMATION_FRAME_MAX_CENTER_SCORE,
     is_confirmation_frame_centered,
     should_replace_center_gated_confirmation_frame,

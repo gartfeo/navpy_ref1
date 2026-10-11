@@ -11,8 +11,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from navpy.modules.vision.charuco_board import CharucoBoardSpec
-from navpy.modules.vision.charuco_detector import CharucoBoardDetector
+from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec
+from navpy.plugins.detection.charuco.charuco_detector import CharucoBoardDetector
 from navpy.modules.vision.real_detector_config import (
     DetectorModelConfig,
     RealDetectorConfig,
