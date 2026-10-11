@@ -1,0 +1,39 @@
+{
+ "modules/vision/appearance.py": {"parts": [
+   {"symbols": ["AppearanceEmbedder", "cosine_distance", "l2_normalize"], "final": "core/ports/appearance_embedding.py", "step1": "core/ports/appearance_embedding.py", "vision_path": "y"}
+  ]},
+ "modules/vision/mot_state.py": {"parts": [
+   {"symbols": ["TrackedObject"], "final": "core/ports/tracks.py", "step1": "core/ports/tracks.py", "vision_path": "y"}
+  ]},
+ "modules/vision/real_detector_models.py": {"parts": [
+   {"symbols": ["_build_yolo", "_build_charuco", "_FRAME_DETECTOR_BUILDERS", "_DEEP_SEARCH_BACKENDS", "_deep_search_config", "build_models"], "final": "app/perception/real_detector_model_builder.py", "step1": "app/perception/real_detector_model_builder.py", "vision_path": "n"}
+  ]},
+ "modules/vision/real_detector_ports.py": {"parts": [
+   {"symbols": ["FrameDetector"], "final": "core/ports/detection.py", "step1": "core/ports/detection.py", "vision_path": "y"}
+  ]},
+ "modules/vision/tracker_backends.py": {"parts": [
+   {"symbols": ["create_tracker_backend"], "final": "app/perception/tracker_backend_factory.py", "step1": "app/perception/tracker_backend_factory.py", "vision_path": "n"},
+   {"symbols": ["CustomTrackerBackend"], "final": "plugins/tracking/kalman/custom_tracker_backend.py", "step1": "plugins/tracking/kalman/custom_tracker_backend.py", "vision_path": "y"}
+  ]},
+ "modules/vision/yolo_detector.py": {"parts": [
+   {"symbols": ["Detection"], "final": "core/ports/detection.py", "step1": "core/ports/detection.py", "vision_path": "y"}
+  ]},
+ "modules/navigation/nav/nav_law.py": {"parts": [
+   {"symbols": ["NavCommandMode", "NavInvalidReason", "NavCommand"], "final": "core/ports/nav_command.py", "step1": "core/ports/nav_command.py", "vision_path": "y"}
+  ]},
+ "modules/navigation/navigation_runtime.py": {"parts": [
+   {"symbols": ["LegacyNavigationRuntime"], "final": "core/approach/geo/legacy_navigation_runtime.py", "step1": "core/approach/geo/legacy_navigation_runtime.py", "vision_path": "n"}
+  ]},
+ "modules/nav/mission_navigation.py": {"parts": [
+   {"symbols": ["FallbackMissionPorts", "FallbackMissionNavigation"], "final": "missions/delivery/fallback_mission_navigation.py", "step1": "core/flow/fallback_mission_navigation.py", "vision_path": "n"}
+  ]},
+ "modules/vehicle/message_subscriptions.py": {"parts": [
+   {"symbols": ["Subscription"], "final": "core/ports/subscription.py", "step1": "core/ports/subscription.py", "vision_path": "n"}
+  ]},
+ "modules/vehicle/pose_streams.py": {"parts": [
+   {"symbols": ["SCHED_LOOP_RATE_FALLBACK_HZ", "ARDUPILOT_MESSAGE_RATE_SCHEDULER_FRACTION", "POSE_STREAM_RATE_HZ", "POSE_FRAME_ASSOCIATION_MAX_PERIODS", "POSE_FRAME_ASSOCIATION_ABSOLUTE_MAX_SKEW_S", "pose_frame_association_max_skew_s", "POSE_FRAME_ASSOCIATION_MAX_SKEW_S"], "final": "core/ports/pose_stream_rate.py", "step1": "core/ports/pose_stream_rate.py", "vision_path": "y"}
+  ]},
+ "args/navigation_poi_args.py": {"parts": [
+   {"symbols": ["NAV_POI_COMMANDS", "is_nav_poi_command", "nav_wp_indices"], "final": "plugins/vehicle/ardupilot/nav_waypoints.py", "step1": "plugins/vehicle/ardupilot/nav_waypoints.py", "vision_path": "n"}
+  ]}
+}
