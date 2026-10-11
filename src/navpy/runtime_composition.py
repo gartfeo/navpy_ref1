@@ -27,7 +27,7 @@ from navpy.modules.comm.network_factory import create_network
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.navigation import Navigation
 from navpy.core.perception.geo.zc_util import ZcUtil
-from navpy.modules.navigation.mission_planner import MissionPlanner, MissionPlannerArgs
+from navpy.core.skills.geo_approach.mission_planner import MissionPlanner, MissionPlannerArgs
 from navpy.modules.nav.nav_controller import NavController
 from navpy.modules.vehicle.vehicle_factory import create_vehicle
 from navpy.core.ports.vehicle_contract import IVehicle

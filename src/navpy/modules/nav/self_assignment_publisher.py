@@ -9,7 +9,7 @@ from navpy.core.link.task_assignment_msg import TaskAssignRequestMsg
 from navpy.core.link.task_message_data import TaskAssignMsgData
 from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.types import class_to_task_type
-from navpy.modules.nav.confirmation_ports import ConfirmationMessageBroadcaster
+from navpy.core.review.confirmation_ports import ConfirmationMessageBroadcaster
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
 

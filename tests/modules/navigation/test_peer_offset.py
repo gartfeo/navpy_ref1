@@ -5,8 +5,8 @@ from unittest.mock import Mock
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.approach_strategy import ApproachKind
-from navpy.modules.navigation.peer_offset import (
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
+from navpy.core.skills.acquire.peer_offset import (
     calc_peer_approach_offset,
     select_approach_mount,
 )
@@ -321,10 +321,10 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         """Zoom mount + limits: orbit at the FURTHEST standoff bounded by
         max-zoom recognition (the binding constraint for a high-recognition
         POI), well above the dive-feasibility floor."""
-        from navpy.modules.navigation.orbit_geometry import (
+        from navpy.core.skills.acquire.orbit_geometry import (
             OrbitNavigationLimits, r_nav_min,
         )
-        from navpy.modules.navigation.peer_orbit_plan import (
+        from navpy.core.skills.acquire.peer_orbit_plan import (
             MIN_APPROACH_STANDOFF_M,
             _ORBIT_PIXEL_MARGIN,
         )
@@ -357,12 +357,12 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
     def test_zoom_orbit_track_binds_for_low_recognition_demand(self):
         """With a small recognition demand the 1x tracking bound (12 px) is the
         binding (closer) constraint and the orbit sits there."""
-        from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
+        from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
         from navpy.core.perception.profile.vision_class_profile import (
             MIN_TRACK_PIXELS,
             get_class_detect_size,
         )
-        from navpy.modules.navigation.peer_orbit_plan import _ORBIT_PIXEL_MARGIN
+        from navpy.core.skills.acquire.peer_orbit_plan import _ORBIT_PIXEL_MARGIN
 
         poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=350)  # alt = 150
@@ -387,10 +387,10 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
         """A very high recognition demand drives the camera bound below the
         dive-feasibility floor; the orbit is floored there (recognition no
         longer reachable at max zoom — logged)."""
-        from navpy.modules.navigation.orbit_geometry import (
+        from navpy.core.skills.acquire.orbit_geometry import (
             OrbitNavigationLimits, r_nav_min,
         )
-        from navpy.modules.navigation.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
+        from navpy.core.skills.acquire.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
 
         poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=350)  # alt = 150
@@ -408,10 +408,10 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
     def test_zoom_orbit_falls_back_to_floor_when_focal_unreadable(self):
         """No usable focal length (no base_fy, get_k raises) → the orbit uses
         the dive-feasibility floor rather than crashing."""
-        from navpy.modules.navigation.orbit_geometry import (
+        from navpy.core.skills.acquire.orbit_geometry import (
             OrbitNavigationLimits, r_nav_min,
         )
-        from navpy.modules.navigation.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
+        from navpy.core.skills.acquire.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
 
         poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=350)  # alt = 150
@@ -431,14 +431,14 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
     def test_zoom_orbit_warns_when_floor_breaks_recognition(self):
         """When the dive floor pushes the orbit past the max-zoom recognition
         range, a floor-violation warning names the recognition bound."""
-        from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
+        from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
 
         poi = Location(lat=32.0, lng=34.0, alt=200)
         drone = Location(lat=32.1, lng=34.0, alt=350)  # alt = 150
         mount = _make_mount(-24, fy=2262.0, has_zoom=True, zoom_ratio=10.0)
 
         with self.assertLogs(
-                "navpy.modules.navigation.peer_offset", level="WARNING") as cm:
+                "navpy.core.skills.acquire.peer_offset", level="WARNING") as cm:
             calc_peer_approach_offset(
                 poi, drone, [mount], kind=ApproachKind.ORBIT,
                 orbit_limits=OrbitNavigationLimits(25.0, 45.0, -40.0),
@@ -453,7 +453,7 @@ class TestOrbitBranchesByZoomAvailability(unittest.TestCase):
     def test_no_zoom_mount_ignores_orbit_limits(self):
         """A fixed-FOV mount keeps camera-confirm-range sizing even when
         orbit_limits is supplied (it can't zoom to recover recognition)."""
-        from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
+        from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
         from navpy.core.perception.profile.vision_class_profile import MIN_CONFIRM_PIXELS, get_class_detect_size
 
         poi = Location(lat=32.0, lng=34.0, alt=200)

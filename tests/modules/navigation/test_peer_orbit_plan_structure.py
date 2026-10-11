@@ -3,9 +3,9 @@
 from unittest.mock import Mock, patch
 
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation import peer_offset
-from navpy.modules.navigation import peer_orbit_plan
-from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
+from navpy.core.skills.acquire import peer_offset
+from navpy.core.skills.acquire import peer_orbit_plan
+from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
 
 
 def test_orbit_constants_remain_available_from_peer_offset() -> None:
@@ -20,7 +20,7 @@ def test_orbit_constants_remain_available_from_peer_offset() -> None:
 
 def test_orbit_leaf_uses_the_original_logger_category() -> None:
     assert peer_orbit_plan._DEFAULT_LOGGER.name == (
-        "navpy.modules.navigation.peer_offset"
+        "navpy.core.skills.acquire.peer_offset"
     )
 
 

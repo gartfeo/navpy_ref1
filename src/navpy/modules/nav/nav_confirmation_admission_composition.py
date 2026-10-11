@@ -4,25 +4,25 @@ from __future__ import annotations
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.navigation.approach_strategy import ApproachKind
-from navpy.modules.nav.confirmation_action import (
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
+from navpy.core.skills.confirm.confirmation_action import (
     ConfirmationAction,
     ConfirmationGeoHold,
     FinalApproachConfirmationAdmission,
     FinalApproachConfirmationPorts,
 )
-from navpy.modules.nav.confirmation_frame_policy import ConfirmationFramePolicy
-from navpy.modules.nav.confirmation_legacy_prep import (
+from navpy.core.skills.confirm.confirmation_frame_policy import ConfirmationFramePolicy
+from navpy.core.skills.geo_approach.confirmation_legacy_prep import (
     LegacyReviewPorts,
     LegacyReviewPreparation,
 )
-from navpy.modules.nav.confirmation_local import LocalConfirmationPublisher
-from navpy.modules.nav.confirmation_operator_review import OperatorReviewPublisher
-from navpy.modules.nav.confirmation_recognition import (
+from navpy.core.skills.confirm.confirmation_local import LocalConfirmationPublisher
+from navpy.core.skills.confirm.confirmation_operator_review import OperatorReviewPublisher
+from navpy.core.skills.confirm.confirmation_recognition import (
     RecognitionGate,
     RecognitionGatePorts,
 )
-from navpy.modules.nav.confirmation_review import ConfirmationReview
+from navpy.core.skills.confirm.confirmation_review import ConfirmationReview
 from navpy.modules.nav.nav_composition_types import (
     ConfirmationAdmissionWorkflows,
     DetectionReviewOwnership,
@@ -32,9 +32,9 @@ from navpy.modules.nav.nav_composition_types import (
     PoiMissionOwnership,
     VehicleApproachOwnership,
 )
-from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.approach.final_approach_record_deadline import FinalApproachRecordDeadline
-from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
+from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 

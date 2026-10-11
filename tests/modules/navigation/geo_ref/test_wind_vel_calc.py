@@ -3,7 +3,7 @@ from unittest.mock import Mock, MagicMock
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.wind import Wind
-from navpy.modules.navigation.mission_planner import MissionPlanner
+from navpy.core.skills.geo_approach.mission_planner import MissionPlanner
 
 
 def create_vehicle_mock(wind, air_speed, attitude):

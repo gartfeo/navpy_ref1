@@ -12,7 +12,7 @@ from navpy.modules.nav.nav_composition_types import (
     TrackRecoveryWorkflows,
     VehicleApproachOwnership,
 )
-from navpy.modules.nav.track_recovery import (
+from navpy.core.skills.confirm.track_recovery import (
     GeoHoldCoordinator,
     IdentityReacquisition,
     IdentityReacquisitionPorts,

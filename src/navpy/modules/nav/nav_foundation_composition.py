@@ -7,17 +7,17 @@ from typing import Callable, Optional
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
-from navpy.modules.nav.approach_planner import ApproachPlanner
-from navpy.modules.nav.confirmation_policy import (
+from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
+from navpy.core.skills.acquire.approach_planner import ApproachPlanner
+from navpy.core.skills.confirm.confirmation_policy import (
     ConfirmationTimingPolicy,
     PoiRetryPolicy,
 )
-from navpy.modules.nav.confirmation_reporting import (
+from navpy.core.skills.confirm.confirmation_reporting import (
     ConfirmBlockedReporter,
     ConfirmDebugReporter,
 )
-from navpy.modules.nav.detection_freshness import DetectionFreshnessPolicy
+from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPolicy
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.modules.nav.navigation_speedup import (
     NavigationSpeedupLease,
@@ -53,9 +53,9 @@ from navpy.modules.nav.nav_state import (
 )
 from navpy.modules.nav.nav_status import NavigationStatusReporter
 from navpy.modules.nav.navigation_zoom import ZoomController
-from navpy.modules.nav.pass_tracker import LegacyPassTracker
-from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.poi_retry import PoiRetryState
+from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
+from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.skills.confirm.poi_retry import PoiRetryState
 from navpy.core.approach.final_approach_source_admission import (
     FinalApproachSourceAdmission,
     FinalApproachSourcePorts,
@@ -65,7 +65,7 @@ from navpy.core.approach.final_approach_publication_admission import (
     FinalApproachPublicationAdmissionPorts,
 )
 from navpy.core.approach.final_approach_source_session import FinalApproachSourceSession
-from navpy.modules.nav.vehicle_navigation import (
+from navpy.core.skills.acquire.vehicle_navigation import (
     ApproachCommandPorts,
     LoiterRadiusLease,
     VehicleNavigationCommands,

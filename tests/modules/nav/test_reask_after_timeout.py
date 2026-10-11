@@ -28,12 +28,12 @@ from navpy.core.link.task_confirmation_msg import TaskConfirmResponseMsg
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.approach_strategy import ApproachKind
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.modules.nav.nav_constants import CONFIRM_REASK_MAX_ATTEMPTS
 from navpy.modules.nav.nav_controller import NavController
 from navpy.modules.nav.nav_state import NavState
-from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
+from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from tests.detection_factory import make_detected_poi

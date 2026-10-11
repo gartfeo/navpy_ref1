@@ -6,8 +6,8 @@ from typing import Optional
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.nav.detect_action import DetectAction
-from navpy.modules.nav.peer_geo_tick import DetectPointingPorts
+from navpy.core.skills.search.detect_action import DetectAction
+from navpy.core.skills.acquire.peer_geo_tick import DetectPointingPorts
 from navpy.core.approach.nav_entry import NavEntry, NavEntryPorts
 from navpy.core.approach.nav_exit_cleanup import (
     NavExitCleanup,
@@ -18,7 +18,7 @@ from navpy.modules.nav.nav_oneshot_completion import (
     OneShotCompletionPorts,
 )
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
-from navpy.modules.nav.peer_geo_tick import PeerGeoTick
+from navpy.core.skills.acquire.peer_geo_tick import PeerGeoTick
 from navpy.modules.nav.nav_application import NavApplication, NavShutdown
 from navpy.modules.nav.nav_composition_types import (
     ConfirmationWorkflows,

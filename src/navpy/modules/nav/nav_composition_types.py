@@ -11,24 +11,24 @@ from navpy.core.approach.navigation_source_dispatch import (
 )
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
 from navpy.core.approach.geo.legacy_destination_resolver import LegacyDestinationResolver
-from navpy.modules.nav.approach_planner import ApproachPlanner
-from navpy.modules.nav.confirmation_action import ConfirmationAction
-from navpy.modules.nav.confirmation_policy import (
+from navpy.core.skills.acquire.approach_planner import ApproachPlanner
+from navpy.core.skills.confirm.confirmation_action import ConfirmationAction
+from navpy.core.skills.confirm.confirmation_policy import (
     ConfirmationTimingPolicy,
     PoiRetryPolicy,
 )
-from navpy.modules.nav.confirmation_reporting import (
+from navpy.core.skills.confirm.confirmation_reporting import (
     ConfirmBlockedReporter,
     ConfirmDebugReporter,
 )
 from navpy.core.approach.final_approach_record_deadline import FinalApproachRecordDeadline
-from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
-from navpy.modules.nav.detection_freshness import DetectionFreshnessPolicy
+from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
+from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPolicy
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
-from navpy.modules.nav.navigation_task_action import NavigationTaskAction
+from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
 from navpy.modules.nav.peer_poi_notification import PeerPoiNotifier
 from navpy.modules.nav.peer_task_priority import PeerTaskPriority
-from navpy.modules.nav.poi_selection import PoiSelector
+from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.modules.nav.navigation_task_reset import (
     AutoMissionResume,
     NavigationTaskResetTransaction,
@@ -51,22 +51,22 @@ from navpy.modules.nav.nav_state import (
 from navpy.modules.nav.nav_status import NavigationStatusReporter
 from navpy.modules.nav.navigation_decision import NavigationDecision
 from navpy.modules.nav.navigation_zoom import ZoomController
-from navpy.modules.nav.pass_tracker import LegacyPassTracker
-from navpy.modules.nav.peer_geo import PeerGeoAcquisition
+from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
+from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition
 from navpy.modules.nav.recovery import RecoveryAction
-from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.poi_retry import PoiRetryState
+from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.skills.confirm.poi_retry import PoiRetryState
 from navpy.modules.nav.poi_status_decision import ConfirmationStatusDecision
 from navpy.core.approach.final_approach_source_admission import FinalApproachSourceAdmission
 from navpy.core.approach.final_approach_source_session import FinalApproachSourceSession
 from navpy.core.approach.final_approach_publication_admission import (
     FinalApproachPublicationAdmission,
 )
-from navpy.modules.nav.vehicle_navigation import (
+from navpy.core.skills.acquire.vehicle_navigation import (
     LoiterRadiusLease,
     VehicleNavigationCommands,
 )
-from navpy.modules.nav.track_recovery import GeoHoldCoordinator, TrackRecovery
+from navpy.core.skills.confirm.track_recovery import GeoHoldCoordinator, TrackRecovery
 from navpy.core.ports.detect_data import DetectedObject
 
 

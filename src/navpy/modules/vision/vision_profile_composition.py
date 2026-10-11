@@ -9,7 +9,7 @@ from typing import cast
 from navpy.core.kernel.config.uas_args import UasArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.navigation.approach_strategy import ApproachKind, classify_approach
+from navpy.core.skills.acquire.approach_strategy import ApproachKind, classify_approach
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.vision_camera_factory import build_camera_mounts

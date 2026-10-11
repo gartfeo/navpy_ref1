@@ -15,8 +15,8 @@ import pytest
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.mission_approach_writer import MissionApproachWriter
-from navpy.modules.navigation.peer_poi_mission_writer import PeerPoiMissionWriter
+from navpy.core.skills.geo_approach.mission_approach_writer import MissionApproachWriter
+from navpy.core.skills.geo_approach.peer_poi_mission_writer import PeerPoiMissionWriter
 from navpy.plugins.vehicle.ardupilot.mav_mission import MavMission
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 from navpy.plugins.vehicle.ardupilot.message_store import (

@@ -12,10 +12,10 @@ CONFIRMATION_LINE_LIMITS = {
     "src/gcs/backend/task_confirm_rounds.py": 180,
     "src/gcs/backend/task_confirm_transport.py": 150,
     "src/gcs/backend/task_confirm_uid.py": 80,
-    "src/navpy/modules/nav/confirmation_ports.py": 140,
-    "src/navpy/modules/nav/confirmation_round_state.py": 260,
-    "src/navpy/modules/nav/confirmation_response_state.py": 180,
-    "src/navpy/modules/nav/confirmation_send_gate.py": 120,
+    "src/navpy/core/review/confirmation_ports.py": 140,
+    "src/navpy/core/review/confirmation_round_state.py": 260,
+    "src/navpy/core/review/confirmation_response_state.py": 180,
+    "src/navpy/core/review/confirmation_send_gate.py": 120,
     "src/navpy/modules/swarm/task_ports.py": 80,
 }
 
@@ -47,7 +47,7 @@ def test_public_confirmation_facades_stay_within_behavior_budgets() -> None:
         "TaskConfirmListener",
     )
     round_lines, round_methods = _class_shape(
-        "src/navpy/modules/nav/confirmation_round_state.py",
+        "src/navpy/core/review/confirmation_round_state.py",
         "ConfirmationRoundState",
     )
     assert listener_lines <= 200 and listener_methods <= 15

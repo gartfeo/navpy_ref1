@@ -5,7 +5,7 @@ from datetime import datetime
 import cv2
 import numpy as np
 
-from navpy.modules.nav.confirmation_image_artifacts import save_confirmation_image_artifacts
+from navpy.core.review.confirmation_image_artifacts import save_confirmation_image_artifacts
 
 
 def test_saves_source_thumbnail_and_metadata(tmp_path):

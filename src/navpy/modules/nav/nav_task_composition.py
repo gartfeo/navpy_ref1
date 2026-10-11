@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.navigation.approach_strategy import ApproachKind
-from navpy.modules.nav.navigation_task_action import NavigationTaskAction
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
+from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
 from navpy.modules.nav.peer_poi_notification import (
     PeerPoiNotifier,
     PeerPoiNotifierPorts,
 )
-from navpy.modules.nav.self_detected_approach import (
+from navpy.core.skills.geo_approach.self_detected_approach import (
     SelfDetectedApproach,
     SelfDetectedApproachPorts,
 )
-from navpy.modules.nav.poi_selection import PoiSelector
+from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.core.flow.fallback_mission_navigation import (
     FallbackMissionNavigation,
     FallbackMissionPorts,
@@ -32,19 +32,19 @@ from navpy.modules.nav.nav_composition_types import (
     PoiMissionOwnership,
     VehicleApproachOwnership,
 )
-from navpy.modules.nav.peer_geo import PeerGeoAcquisition, PeerGeoTracker
-from navpy.modules.nav.peer_approach_start import (
+from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition, PeerGeoTracker
+from navpy.core.skills.acquire.peer_approach_start import (
     PeerApproachPorts,
     PeerApproachStarter,
     PeerAssignmentPorts,
     PeerAssignmentSetup,
     PeerSimulationPoiSetup,
 )
-from navpy.modules.nav.peer_approach_ready_gate import (
+from navpy.core.skills.acquire.peer_approach_ready_gate import (
     PeerApproachReadyGate,
     PeerApproachReadyPorts,
 )
-from navpy.modules.nav.peer_navigation import PeerNavigationCoordinator
+from navpy.core.skills.acquire.peer_navigation import PeerNavigationCoordinator
 from navpy.modules.nav.peer_task_priority import (
     PeerTaskPriority,
     PeerTaskPriorityPorts,

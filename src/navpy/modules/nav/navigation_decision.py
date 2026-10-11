@@ -24,9 +24,9 @@ from navpy.modules.nav.nav_state import (
 )
 from navpy.modules.nav.nav_status import NavigationStatusReporter
 from navpy.modules.nav.recovery import RecoveryAction
-from navpy.modules.nav.confirmation_manager import ConfirmationManager
+from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.poi_status_decision import ConfirmationStatusDecision
-from navpy.modules.nav.vehicle_navigation import LoiterRadiusLease
+from navpy.core.skills.acquire.vehicle_navigation import LoiterRadiusLease
 from navpy.core.ports.flight_mode import FlightMode
 
 

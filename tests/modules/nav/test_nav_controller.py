@@ -20,13 +20,13 @@ from unittest.mock import ANY, Mock, MagicMock, call, patch, PropertyMock
 from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.approach_strategy import ApproachKind
-from navpy.modules.navigation.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
-from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
+from navpy.core.skills.acquire.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
+from navpy.core.skills.acquire.peer_offset import OFFSET_LOITER_RADIUS_M
 from navpy.modules.nav.nav_controller import NavController
 from navpy.modules.nav.nav_state import NavState
 from navpy.modules.nav.nav_constants import ALT_HYST
-from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.perception.detection_coordinator import DetectionCoordinator
 from navpy.core.ports.detection_publication import DetectionPublication
@@ -1408,7 +1408,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
 
         with patch(
-            "navpy.modules.nav.peer_geo.pymap3d.geodetic2ned",
+            "navpy.core.skills.acquire.peer_geo.pymap3d.geodetic2ned",
             return_value=np.array([1.0, 2.0, -3.0]),
         ):
             controller.confirmation_action.act()
@@ -1446,7 +1446,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller.detections.detected_pois = [candidate]
 
         with patch(
-            "navpy.modules.nav.track_recovery.GeoRefCalc.calculate_distance",
+            "navpy.core.skills.confirm.track_recovery.GeoRefCalc.calculate_distance",
             return_value=TRACK_REACQUIRE_GATE_RADIUS_M - 1.0,
         ):
             controller.decision.decide()
@@ -1482,7 +1482,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller.detections.detected_pois = [candidate]
 
         with patch(
-            "navpy.modules.nav.track_recovery.GeoRefCalc.calculate_distance",
+            "navpy.core.skills.confirm.track_recovery.GeoRefCalc.calculate_distance",
             return_value=TRACK_REACQUIRE_GATE_RADIUS_M + 1.0,
         ):
             controller.decision.decide()
@@ -1579,7 +1579,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller.detections.detected_pois = [candidate]
 
         with patch(
-            "navpy.modules.nav.track_recovery.GeoRefCalc.calculate_distance",
+            "navpy.core.skills.confirm.track_recovery.GeoRefCalc.calculate_distance",
             return_value=TRACK_REACQUIRE_GATE_RADIUS_M - 1.0,
         ):
             controller.decision.decide()
@@ -1633,7 +1633,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         )
         controller.detections.detected_pois = [candidate]
         with patch(
-            "navpy.modules.nav.track_recovery.GeoRefCalc.calculate_distance",
+            "navpy.core.skills.confirm.track_recovery.GeoRefCalc.calculate_distance",
             return_value=TRACK_REACQUIRE_GATE_RADIUS_M - 1.0,
         ):
             controller.decision.decide()
@@ -2225,7 +2225,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
     """Tests for _act_confirm behavior."""
 
     def test_final_approach_local_gate_still_requests_operator_confirmation(self):
-        from navpy.modules.navigation.approach_strategy import ApproachKind
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         poi = _create_detected_poi(
@@ -2274,8 +2274,8 @@ class TestNavControllerActConfirm(unittest.TestCase):
         current-coordinate hold can strand it or break tracking (live runs
         223744 and 225516), so no navigation rewrite occurs here.
         """
-        from navpy.modules.navigation.approach_strategy import ApproachKind
-        from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind
+        from navpy.core.skills.acquire.peer_offset import OFFSET_LOITER_RADIUS_M
 
         frame = np.zeros((1440, 2560, 3), dtype=np.uint8)
         poi = _create_detected_poi(
@@ -2871,7 +2871,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         explicitly via peer_poi_loiter and the original is captured
         for restore.
         """
-        from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M
+        from navpy.core.skills.acquire.peer_offset import OFFSET_LOITER_RADIUS_M
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         poi = _create_detected_poi(
@@ -2936,7 +2936,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         on the autopilot. Without the cleanup branch in the guard, the
         next mission would inherit our 80m loiter radius.
         """
-        from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M
+        from navpy.core.skills.acquire.peer_offset import OFFSET_LOITER_RADIUS_M
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         poi = _create_detected_poi(
@@ -3038,7 +3038,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         and pin 80m — i.e. _save_loiter_rad's idempotency guard does not
         latch across separate navigation runs.
         """
-        from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M
+        from navpy.core.skills.acquire.peer_offset import OFFSET_LOITER_RADIUS_M
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         poi = _create_detected_poi(
@@ -3117,7 +3117,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         navigation.vehicle_commands.peer_poi.assert_not_called()
 
     def test_extract_confirmation_size_uses_source_bbox_only(self):
-        from navpy.modules.nav.confirmation_frame_policy import (
+        from navpy.core.skills.confirm.confirmation_frame_policy import (
             extract_confirmation_size as _extract_confirmation_size,
         )
 
@@ -3130,7 +3130,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
             _extract_confirmation_size(poi), math.sqrt(50.0**2 + 80.0**2))
 
     def test_extract_confirmation_size_missing_returns_none(self):
-        from navpy.modules.nav.confirmation_frame_policy import (
+        from navpy.core.skills.confirm.confirmation_frame_policy import (
             extract_confirmation_size as _extract_confirmation_size,
         )
 
@@ -4981,7 +4981,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_final_approach_gimbal_orbit_uses_demo_standoff_for_dock(self):
         """SIYI final-approach owner/peers use the same verified 300 m orbit."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         navigation = _create_mock_navigation()
@@ -5017,7 +5017,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_final_approach_gimbal_orbit_uses_relative_height_for_air_pois(self):
         """Co-altitude absolute POIs must not turn AMSL into AGL."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         navigation = _create_mock_navigation()
@@ -5107,7 +5107,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         unrestorable pin) is a known soft leak; we log a warning and
         proceed.
         """
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         vehicle = _create_mock_vehicle()
@@ -5135,7 +5135,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_default_delivery_hub_proceeds_with_warning_when_save_fails(self):
         """Default delivery hub nav: same warning-and-proceed contract as peer-nav."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         vehicle = _create_mock_vehicle()
@@ -5161,7 +5161,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_default_delivery_hub_pass_coordinate_is_normalized_to_absolute_altitude(self):
         """Mission DDH altitude is home-relative; pass distance uses AMSL."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         vehicle = _create_mock_vehicle()
@@ -5191,7 +5191,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_orbit_self_detect_proceeds_with_warning_when_save_fails(self):
         """ORBIT self-detect branch in navigation_task_action.start: same contract."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         poi = _create_detected_poi(obj_id=1)
@@ -5220,7 +5220,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_final_approach_self_detect_does_not_command_poi_geo_orbit(self):
         """Pure-vision self detection starts from pixels, never POI geo."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         poi = _create_detected_poi(obj_id=1)
@@ -5258,7 +5258,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_offset_self_detect_does_not_dispatch_for_vision_nav(self):
         """Pure-vision navigation task cannot derive an offset from POI geo."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         poi = _create_detected_poi(obj_id=1)
@@ -5287,7 +5287,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_ideal_sim_truth_is_renderer_only_not_approach_or_pass_state(self):
         """Ideal POI GPS remains renderer input, never navigation task state."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         poi = _create_detected_poi(obj_id=1)
@@ -5335,7 +5335,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_offset_self_detect_real_detector_still_avoids_poi_geo(self):
         """The pure-vision firewall applies equally to real detections."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         poi = _create_detected_poi(obj_id=1)
@@ -5376,7 +5376,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_offset_self_detect_real_detector_no_geo_needs_no_localization(self):
         """Pure-vision path skips localization, independent of fix quality."""
-        from navpy.modules.navigation.approach_strategy import ApproachKind
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind
         poi = _create_detected_poi(obj_id=1)
         detector = _create_mock_detector()
         detector.is_simulation = False
@@ -5405,7 +5405,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
     def test_offset_self_detect_real_flat_ray_cannot_enter_pure_vision_path(self):
         """Even a callable phantom localizer stays outside pure navigation_task."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         poi = _create_detected_poi(obj_id=1)
@@ -5461,7 +5461,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         vision-nav) fixed-camera config: classify_approach assigns OFFSET
         to every fixed camera, and legacy PN must keep its dev behaviour (no
         lock-time GUIDED switch / offset dispatch)."""
-        from navpy.modules.navigation.approach_strategy import ApproachKind
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind
         poi = _create_detected_poi(obj_id=1)
         vehicle = _create_mock_vehicle()
         vehicle.get_parameter = Mock(return_value=80.0)
@@ -5484,7 +5484,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         """Early self-detect (starting navigation mid-climb) sizes the orbit and
         commands the loiter at the mission scan/navigation task altitude, not
         the climbing altitude — the regression the SITL re-run caught."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         poi = _create_detected_poi(obj_id=1)
@@ -5537,7 +5537,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         peer_poi_loiter, so the radius travels in the DO_REPOSITION command
         (param3) instead of inheriting a stale autopilot WP_LOITER_RAD value.
         """
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
 
@@ -5671,7 +5671,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         """ORBIT navigation task arms within orbit_radius + PEER_APPROACH_MARGIN_M.
         A LOITER flies just outside its commanded radius, so the bare radius
         (no margin) would never arm; the margin lets the peer begin its approach."""
-        from navpy.modules.navigation.approach_strategy import ApproachKind
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind
 
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         # ~153 m from the POI at (40.0, -74.0).
@@ -5698,7 +5698,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         """The ORBIT approach threshold tracks orbit_radius + PEER_APPROACH_MARGIN_M:
         a wider orbit permits approach from farther out, a tighter one requires closing
         in."""
-        from navpy.modules.navigation.approach_strategy import ApproachKind
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind
 
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         # ~450 m from the POI at (40.0, -74.0).
@@ -5725,7 +5725,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         self.assertFalse(controller.peer_navigation.near_poi())
 
     def test_orbit_limits_built_from_vehicle(self):
-        from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
+        from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
 
         vehicle = _create_mock_vehicle()
         vehicle.lim_roll = 45.0
@@ -5762,10 +5762,10 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
     def test_default_delivery_hub_nav_passes_orbit_limits_to_planner(self):
         """The orbit-sizing envelope is forwarded to calc_peer_approach_offset
         so the planner can size the navigation-feasible orbit."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
-        from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits
+        from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
 
         vehicle = _create_mock_vehicle()
         vehicle.lim_roll = 45.0
@@ -5799,7 +5799,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         """The per-class operator-ID demand is computed in NavController and
         forwarded as recognition_px (the max-zoom recognition bound for the
         furthest-standoff ORBIT sizing) — peer_offset stays geometry-only."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         from navpy.core.perception.profile.vision_class_profile import (
@@ -5834,7 +5834,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         """Default delivery hub ORBIT sizes for the scan altitude (not the
         instantaneous one), records the navigation task-altitude gate, and
         commands the loiter at that altitude."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         vehicle = _create_mock_vehicle()
@@ -5869,10 +5869,10 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
     def test_default_delivery_hub_offset_preserves_instantaneous_sizing(self):
         """Default delivery hub OFFSET keeps legacy behavior: no scan-altitude
         substitution, no navigation task-altitude gate, loiter at current alt."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
-        from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M
+        from navpy.core.skills.acquire.peer_offset import OFFSET_LOITER_RADIUS_M
         vehicle = _create_mock_vehicle()
         vehicle.lim_roll = 45.0
         vehicle.min_pitch = -40.0
@@ -5920,7 +5920,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         """Peer-nav that begins mid-climb must size the ORBIT for the
         scan/navigation task altitude (mission waypoint), not the climbing
         altitude, and command the loiter at that altitude."""
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         vehicle = _create_mock_vehicle()
@@ -5969,7 +5969,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
     def test_near_peer_poi_waits_for_navigation_task_altitude(self):
         """ORBIT approach must not activate while the drone is still climbing,
         even once it is horizontally within the orbit radius."""
-        from navpy.modules.navigation.approach_strategy import ApproachKind
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind
 
         vehicle = _create_mock_vehicle()
         # ~153 m horizontally from the POI; climbing.
@@ -6001,7 +6001,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         # height-above-POI subtraction stays in one frame regardless of
         # the frame of the drone_loc passed in (here a relative climbing
         # pose, which must NOT leak into sizing).
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         vehicle = _create_mock_vehicle()  # home_location alt = 100
@@ -6032,7 +6032,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         # Default delivery hub: a RELATIVE POI (alt 0) makes the planning pose
         # RELATIVE at the navigation task altitude (no home needed). Frame
         # follows the POI, not the drone_loc.
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         vehicle = _create_mock_vehicle()
@@ -6062,7 +6062,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
     def test_plan_orbit_approach_legacy_when_no_mission_alt(self):
         # No mission scan altitude -> legacy camera-range sizing: pose
         # unchanged, orbit_limits None, loiter altitude None.
-        from navpy.modules.navigation.approach_strategy import (
+        from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         vehicle = _create_mock_vehicle()
@@ -6088,7 +6088,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
     def test_near_peer_poi_no_altitude_gate_for_legacy_sizing(self):
         # When the orbit was legacy-sized (no navigation task altitude recorded),
         # the altitude gate is disabled — horizontal distance alone permits approach.
-        from navpy.modules.navigation.approach_strategy import ApproachKind
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind
 
         vehicle = _create_mock_vehicle()
         vehicle.location = Mock(side_effect=lambda is_relative: Location(
@@ -7983,7 +7983,7 @@ class TestNavControllerSwarmDispatchSafety(unittest.TestCase):
 
     def test_reset_clears_all_statuses(self):
         """reset() clears all entries including PEER_NOTIFIED."""
-        from navpy.modules.nav.confirmation_manager import ConfirmationManager
+        from navpy.core.review.confirmation_manager import ConfirmationManager
         tm = ConfirmationManager(1, _create_mock_args(), Mock())
 
         t1 = _create_detected_poi(obj_id=1)
@@ -8844,7 +8844,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         geo-arming branch, then call it. Returns the cached
         _peer_poi_loc for assertions.
         """
-        from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
         task_loc = Mock()
         task_loc.lat = lat
         task_loc.lng = lng
@@ -8871,7 +8871,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         (with a positive orbit_radius — to verify the gate is
         kind-based, not radius-based).
         """
-        from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
         task_loc = Mock()
         task_loc.lat = lat
         task_loc.lng = lng
@@ -8935,7 +8935,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         self.detector.update_geo.assert_not_called()
 
     def test_setup_peer_navigation_plans_with_absolute_pose(self):
-        from navpy.modules.navigation.approach_strategy import ApproachKind, ApproachPlan
+        from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
         task_loc = Mock()
         task_loc.lat = 40.5
         task_loc.lng = -74.5
@@ -9031,7 +9031,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         logger.info.reset_mock()
 
         with patch(
-            "navpy.modules.nav.peer_geo.pymap3d.geodetic2ned",
+            "navpy.core.skills.acquire.peer_geo.pymap3d.geodetic2ned",
             return_value=np.array([1.0, 2.0, -3.0]),
         ):
             state = self.controller.peer_geo_acquisition.snapshot(
@@ -9061,7 +9061,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         logger.warning.reset_mock()
 
         with patch(
-            "navpy.modules.nav.peer_geo.pymap3d.geodetic2ned",
+            "navpy.core.skills.acquire.peer_geo.pymap3d.geodetic2ned",
             return_value=np.array([1.0, 2.0, -3.0]),
         ):
             state = self.controller.peer_geo_acquisition.snapshot(
@@ -9087,7 +9087,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         logger.info.reset_mock()
 
         with patch(
-            "navpy.modules.nav.peer_geo.pymap3d.geodetic2ned",
+            "navpy.core.skills.acquire.peer_geo.pymap3d.geodetic2ned",
             side_effect=[
                 np.array([1.0, 2.0, -3.0]),
                 np.array([4.0, 5.0, -6.0]),
@@ -9210,7 +9210,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         self.detector.prepare_geo_acquisition.reset_mock()
 
         with patch(
-            "navpy.modules.nav.peer_geo.pymap3d.geodetic2ned",
+            "navpy.core.skills.acquire.peer_geo.pymap3d.geodetic2ned",
             return_value=np.array([1.0, 2.0, -3.0]),
         ):
             self.controller.detect_action.act()
@@ -9232,7 +9232,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         self.detector.prepare_geo_acquisition.reset_mock()
 
         with patch(
-            "navpy.modules.nav.peer_geo.pymap3d.geodetic2ned",
+            "navpy.core.skills.acquire.peer_geo.pymap3d.geodetic2ned",
             return_value=np.array([1.0, 2.0, -3.0]),
         ):
             self.controller.detect_action.act()
@@ -9250,7 +9250,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         self.detector.prepare_geo_acquisition.reset_mock()
 
         with patch(
-            "navpy.modules.nav.peer_geo.pymap3d.geodetic2ned",
+            "navpy.core.skills.acquire.peer_geo.pymap3d.geodetic2ned",
             return_value=np.array([1.0, 2.0, -3.0]),
         ):
             self.controller.detect_action.act()
@@ -9268,7 +9268,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         self.detector.prepare_geo_acquisition.reset_mock()
 
         with patch(
-            "navpy.modules.nav.peer_geo.pymap3d.geodetic2ned",
+            "navpy.core.skills.acquire.peer_geo.pymap3d.geodetic2ned",
             return_value=np.array([1.0, 2.0, -3.0]),
         ):
             self.controller.detect_action.act()

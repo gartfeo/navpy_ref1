@@ -2,7 +2,7 @@
 import unittest
 import numpy as np
 
-from navpy.utils.image_utils import (
+from navpy.core.review.image_utils import (
     create_confirmation_thumbnail,
     decode_confirmation_thumbnail,
     THUMBNAIL_SIZE,

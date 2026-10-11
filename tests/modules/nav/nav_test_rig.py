@@ -7,7 +7,7 @@ instead of restoring private methods and scalar aliases on NavController.
 
 from __future__ import annotations
 
-from navpy.modules.navigation.approach_strategy import ApproachKind
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.modules.nav.nav_composition import create_nav_application
 from navpy.modules.nav.nav_state import NavState
 from navpy.core.perception.detection_coordination import DetectionCoordination

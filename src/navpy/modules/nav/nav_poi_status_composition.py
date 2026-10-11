@@ -12,12 +12,12 @@ from navpy.modules.nav.nav_composition_types import (
     TrackRecoveryWorkflows,
     VehicleApproachOwnership,
 )
-from navpy.modules.nav.confirmed_poi_release import ConfirmedPoiRelease
-from navpy.modules.nav.poi_presence_review import (
+from navpy.core.skills.confirm.confirmed_poi_release import ConfirmedPoiRelease
+from navpy.core.skills.confirm.poi_presence_review import (
     PoiPresencePorts,
     PoiPresenceReview,
 )
-from navpy.modules.nav.poi_rejection_exit import (
+from navpy.core.skills.confirm.poi_rejection_exit import (
     PoiRejectionExit,
     PoiRejectionPorts,
 )
@@ -25,7 +25,7 @@ from navpy.modules.nav.poi_status_decision import (
     PoiSelectionPorts,
     ConfirmationStatusDecision,
 )
-from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
+from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.core.perception.detection_coordination import DetectionCoordination
 

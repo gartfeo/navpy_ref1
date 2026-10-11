@@ -13,8 +13,8 @@ from navpy.core.link.task_confirmation_msg import (
 )
 from navpy.core.link.msg_meta import MsgMeta
 from navpy.core.ports.network_abc import NetworkAbc
-from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.nav.confirmation_manager import ConfirmationManager
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
+from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from navpy.core.ports.detection_components import ConfirmationEvidence
 from tests.detection_factory import make_detected_poi
@@ -875,7 +875,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
 
         self.poi.set_confirmation_degraded(True)
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ) as spy:
             self.confirmation_manager.review([self.poi])
@@ -890,7 +890,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         from unittest.mock import patch
 
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ) as spy:
             self.confirmation_manager.review([self.poi])
@@ -905,7 +905,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         from unittest.mock import patch
 
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ) as spy:
             self.confirmation_manager.review([self.poi])
@@ -931,10 +931,10 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         ))
 
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ), patch(
-            "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
+            "navpy.core.review.confirmation_manager.save_confirmation_image_artifacts",
         ) as save_spy:
             self.confirmation_manager.review([self.poi])
             sleep(0.2)
@@ -968,10 +968,10 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         self.assertFalse(hasattr(manager, "_log_sys_id"))
 
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ), patch(
-            "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
+            "navpy.core.review.confirmation_manager.save_confirmation_image_artifacts",
         ) as save_spy:
             manager.review([self.poi])
             sleep(0.2)
@@ -986,10 +986,10 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         self.mock_logger.log_path = "C:\\logs\\session"
 
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value=None,
         ), patch(
-            "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
+            "navpy.core.review.confirmation_manager.save_confirmation_image_artifacts",
         ) as save_spy:
             self.confirmation_manager.review([self.poi])
             sleep(0.2)
@@ -1004,10 +1004,10 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         self.mock_logger.log_path = "C:\\logs\\session"
 
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ), patch(
-            "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
+            "navpy.core.review.confirmation_manager.save_confirmation_image_artifacts",
             side_effect=OSError("disk full"),
         ):
             self.confirmation_manager.review([self.poi])
@@ -1030,10 +1030,10 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         self.mock_network.send_image.side_effect = OSError("link failed")
 
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ), patch(
-            "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
+            "navpy.core.review.confirmation_manager.save_confirmation_image_artifacts",
         ) as save_spy:
             self.confirmation_manager.review([self.poi])
             sleep(0.2)
@@ -1050,10 +1050,10 @@ class TestConfirmationImagePropagation(unittest.TestCase):
         self.mock_network.send_image.side_effect = OSError("link failed")
 
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ), patch(
-            "navpy.modules.nav.confirmation_manager.save_confirmation_image_artifacts",
+            "navpy.core.review.confirmation_manager.save_confirmation_image_artifacts",
             side_effect=OSError("disk full"),
         ):
             self.confirmation_manager.review([self.poi])

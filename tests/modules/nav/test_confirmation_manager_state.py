@@ -7,14 +7,14 @@ from unittest.mock import Mock
 import pytest
 
 from navpy.core.link.msg_meta import MsgMeta
-from navpy.modules.nav.confirmation_round_transaction import ConfirmationRequestRef
-from navpy.modules.nav.confirmation_round_runner import ConfirmationRoundRunner
-from navpy.modules.nav.confirmation_round_transaction import (
+from navpy.core.review.confirmation_round_transaction import ConfirmationRequestRef
+from navpy.core.review.confirmation_round_runner import ConfirmationRoundRunner
+from navpy.core.review.confirmation_round_transaction import (
     ConfirmationResponseKind,
     ConfirmationWorkerLease,
 )
-from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState
-from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
+from navpy.core.review.confirmation_manager_state import ConfirmationManagerState
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
 from tests.detection_factory import make_detected_poi
 

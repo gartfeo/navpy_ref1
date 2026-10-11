@@ -35,12 +35,12 @@ from navpy.core.approach.geo.legacy_destination_resolver import (
     LegacyDestinationResolver,
     navigation_poi_location,
 )
-from navpy.modules.navigation.legacy_nav_adjustment import LegacyNavAdjustment
+from navpy.core.skills.geo_approach.legacy_nav_adjustment import LegacyNavAdjustment
 from navpy.core.approach.geo.legacy_final_approach_command import (
     LegacyFinalApproachCommand,
     LegacyFinalApproachCommandPorts,
 )
-from navpy.modules.navigation.mission_planner import MissionPlanner
+from navpy.core.skills.geo_approach.mission_planner import MissionPlanner
 from navpy.core.ports.nav_law import NavLaw
 from navpy.core.approach.nav_law_factory import (
     NavigationLawLifecycle,

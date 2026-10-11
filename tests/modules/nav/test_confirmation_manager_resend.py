@@ -19,9 +19,9 @@ from navpy.core.link.task_confirmation_msg import (
 )
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
-from navpy.modules.nav import confirmation_manager as tm_module
-from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
+from navpy.core.review import confirmation_manager as tm_module
+from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from tests.detection_factory import make_detected_poi
 

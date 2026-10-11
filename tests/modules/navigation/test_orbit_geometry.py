@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from navpy.modules.navigation.orbit_geometry import OrbitNavigationLimits, r_nav_min
+from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits, r_nav_min
 
 
 class TestRNavMin(unittest.TestCase):

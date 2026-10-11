@@ -6,7 +6,7 @@ from typing import Callable
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.nav.confirmation_reporting import ConfirmDebugReporter
+from navpy.core.skills.confirm.confirmation_reporting import ConfirmDebugReporter
 from navpy.modules.nav.nav_constants import FINAL_APPROACH_RECORD_TIMEOUT_S
 from navpy.modules.nav.nav_state import FinalApproachNavState
 from navpy.core.ports.detect_data import DetectedObject

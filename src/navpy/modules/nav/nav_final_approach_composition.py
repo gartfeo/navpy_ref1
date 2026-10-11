@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.navigation.approach_strategy import ApproachKind
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.modules.nav.nav_composition_types import (
     ConfirmationAdmissionWorkflows,
     DetectionReviewOwnership,

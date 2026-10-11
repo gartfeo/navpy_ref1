@@ -23,9 +23,9 @@ from navpy.core.link.swarm_request_msg import (
 )
 from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
-from navpy.modules.nav import confirmation_manager as tm_module
-from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
+from navpy.core.review import confirmation_manager as tm_module
+from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from navpy.core.ports.detection_components import ConfirmationEvidence
 from tests.detection_factory import make_detected_poi
@@ -113,7 +113,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         self.addCleanup(_drain_review_threads)
 
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
             self.confirmation_manager.review([self.poi])
@@ -128,7 +128,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         triggers exactly one additional chunked send_image, without
         re-broadcasting the request."""
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
             self.confirmation_manager.review([self.poi])
@@ -155,7 +155,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         for that task_id is a no-op."""
         self.mock_args.confirm_wait_time_sec = 0.05
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
             self.confirmation_manager.review([self.poi])
@@ -188,7 +188,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             "pending_poi",
             side_effect=pending_poi_then_reset,
         ), patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
             self.confirmation_manager.on_message(self._resource_request(501))
@@ -229,7 +229,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         """D-27: no sequence-gap/RETRANSMIT auto-fire is added -- a
         REQUEST_TYPE_RETRANSMIT message must not trigger a thumbnail resend."""
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
             self.confirmation_manager.review([self.poi])
@@ -243,7 +243,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         """A REQUEST_TYPE_FORCE_CONFIRM message must not trigger a thumbnail
         resend here (out of scope; 02-05 owns FORCE_CONFIRM)."""
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
             self.confirmation_manager.review([self.poi])
@@ -257,7 +257,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         """receiver_id != this drone's sys_id -- on_message's existing guard
         drops it before it reaches the SWARM_REQUEST handler."""
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
             self.confirmation_manager.review([self.poi])
@@ -272,7 +272,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         self.mock_args.confirm_wait_time_sec = 0.3
         start = time.monotonic()
         with patch(
-            "navpy.modules.nav.confirmation_manager.create_confirmation_thumbnail",
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
             return_value="b64-image",
         ):
             self.confirmation_manager.review([self.poi])

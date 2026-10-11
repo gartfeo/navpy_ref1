@@ -7,7 +7,7 @@ from argparse import Namespace
 from navpy.args.vision_args import VisionArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.navigation.approach_strategy import ApproachKind
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle

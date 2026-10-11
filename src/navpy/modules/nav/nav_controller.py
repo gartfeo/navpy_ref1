@@ -7,7 +7,7 @@ from typing import Optional
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.navigation.approach_strategy import ApproachKind
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.modules.navigation.navigation import Navigation
 from navpy.modules.nav.nav_composition import create_nav_application
 from navpy.modules.nav.nav_constants import (

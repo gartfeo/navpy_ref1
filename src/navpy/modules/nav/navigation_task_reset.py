@@ -18,10 +18,10 @@ from navpy.modules.nav.nav_state import (
     GeoHoldState,
     NavigationFailureLatch,
 )
-from navpy.modules.nav.pass_tracker import LegacyPassTracker
-from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.nav.poi_retry import PoiRetryState
-from navpy.modules.nav.vehicle_navigation import LoiterRadiusLease
+from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
+from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.skills.confirm.poi_retry import PoiRetryState
+from navpy.core.skills.acquire.vehicle_navigation import LoiterRadiusLease
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detector_ports import (

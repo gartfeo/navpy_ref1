@@ -28,8 +28,8 @@ from navpy.core.link.types import (
     TaskTypeMsgData,
 )
 from navpy.core.kernel.location import Location
-from navpy.modules.nav.confirmation_dependencies import FreshnessGate
-from navpy.modules.nav.confirmation_round_transaction import (
+from navpy.core.review.confirmation_dependencies import FreshnessGate
+from navpy.core.review.confirmation_round_transaction import (
     ConfirmationRequestRef,
     ConfirmationResponseKind,
 )
@@ -38,12 +38,12 @@ from navpy.modules.nav.peer_poi_dispatch import (
     PeerPoiDispatchWorker,
 )
 from navpy.modules.nav.self_assignment_publisher import SelfAssignmentPublisher
-from navpy.modules.nav.confirmation_coordinator import (
+from navpy.core.review.confirmation_coordinator import (
     ConfirmationCoordinator,
 )
-from navpy.modules.nav.confirmation_media import ConfirmationMedia
-from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState
-from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
+from navpy.core.review.confirmation_media import ConfirmationMedia
+from navpy.core.review.confirmation_manager_state import ConfirmationManagerState
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.swarm.task_state_composition import create_task_state
 from navpy.modules.swarm.task_assignment_planner import MinimumEtaAssignmentPlanner
 from navpy.modules.swarm.task_auction_models import ResponseVerdict
@@ -392,17 +392,17 @@ def test_auction_cleanup_attempts_all_and_surfaces_exception_group() -> None:
 @pytest.mark.parametrize(
     ("relative", "forbidden"),
     [
-        ("src/navpy/modules/nav/confirmation_dependencies.py", {"NetworkAbc"}),
+        ("src/navpy/core/review/confirmation_dependencies.py", {"NetworkAbc"}),
         (
-            "src/navpy/modules/nav/confirmation_round_runner.py",
+            "src/navpy/core/review/confirmation_round_runner.py",
             {"NetworkAbc", "ConfirmationManagerState"},
         ),
         (
-            "src/navpy/modules/nav/confirmation_coordinator.py",
+            "src/navpy/core/review/confirmation_coordinator.py",
             {"NetworkAbc", "ConfirmationManagerState"},
         ),
         (
-            "src/navpy/modules/nav/confirmation_inbound.py",
+            "src/navpy/core/review/confirmation_inbound.py",
             {"ConfirmationManagerState"},
         ),
         ("src/navpy/modules/nav/self_assignment_publisher.py", {"NetworkAbc"}),

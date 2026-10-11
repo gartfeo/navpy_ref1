@@ -11,7 +11,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.nav.nav_state import NavigationTaskState
-from navpy.modules.nav.pass_tracker import LegacyPassTracker
+from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
 
 
 @dataclass(frozen=True)

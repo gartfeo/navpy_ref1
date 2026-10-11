@@ -5,13 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.modules.nav.confirmed_poi_release import ConfirmedPoiRelease
+from navpy.core.skills.confirm.confirmed_poi_release import ConfirmedPoiRelease
 from navpy.modules.nav.peer_task_priority import PeerTaskPriority
 from navpy.modules.nav.nav_state import NavPhaseState, NavState
 from navpy.modules.nav.nav_status import NavigationStatusReporter
-from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.nav.poi_presence_review import PoiPresenceReview
-from navpy.modules.nav.poi_rejection_exit import PoiRejectionExit
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
+from navpy.core.skills.confirm.poi_presence_review import PoiPresenceReview
+from navpy.core.skills.confirm.poi_rejection_exit import PoiRejectionExit
 from navpy.core.ports.detect_data import DetectedObject
 
 

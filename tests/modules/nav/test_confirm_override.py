@@ -17,8 +17,8 @@ from navpy.core.link.swarm_request_msg import (
 )
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.approach_strategy import ApproachKind
-from navpy.modules.nav.confirm_override_listener import ConfirmOverrideListener
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
+from navpy.core.review.confirm_override_listener import ConfirmOverrideListener
 from navpy.modules.nav.nav_controller import NavController
 from navpy.modules.nav.nav_state import NavState
 from navpy.core.ports.flight_mode import FlightMode

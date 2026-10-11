@@ -2,7 +2,7 @@
 
 import pytest
 
-from navpy.modules.nav.confirmation_media import poi_class_name
+from navpy.core.review.confirmation_media import poi_class_name
 
 
 @pytest.mark.parametrize("class_id", [0, 1, 2, 3, 4, 17])

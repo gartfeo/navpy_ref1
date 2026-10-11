@@ -1,0 +1,28 @@
+"""Operator-review hold and confirmation metadata behavior."""
+
+from __future__ import annotations
+
+from navpy.core.skills.confirm.confirmation_local import LocalConfirmationPublisher
+from navpy.core.skills.confirm.confirmation_operator_review import OperatorReviewPublisher
+from navpy.core.ports.detect_data import DetectedObject
+
+
+class ConfirmationReview:
+    """Issue review holds and metadata without polluting final approach."""
+
+    def __init__(
+        self,
+        local: LocalConfirmationPublisher,
+        operator_review: OperatorReviewPublisher,
+    ) -> None:
+        self._local = local
+        self._operator_review = operator_review
+
+    def confirm_local(self, poi: DetectedObject) -> None:
+        self._local.publish(poi)
+
+    def request_operator_review(self, poi: DetectedObject) -> None:
+        self._operator_review.publish(poi)
+
+
+__all__ = ["ConfirmationReview"]

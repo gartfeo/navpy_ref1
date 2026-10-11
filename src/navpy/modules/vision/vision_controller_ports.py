@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from navpy.modules.navigation.approach_strategy import ApproachKind
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.detection_coordinator import DetectionCoordinator

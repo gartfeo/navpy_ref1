@@ -15,7 +15,7 @@ from navpy.core.approach.navigation_command_worker import (
     CommandLoopObserver,
 )
 from navpy.core.approach.navigation_source_dispatch import SourceDispatch
-from navpy.modules.navigation.mission_planner import MissionPlanner
+from navpy.core.skills.geo_approach.mission_planner import MissionPlanner
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.ports.detect_data import DetectedObject
 
