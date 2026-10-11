@@ -25,6 +25,8 @@ modules/navigation/nav/vision_nav/law.py	23	FixedFinalApproachLawConfigProvider	
 modules/navigation/peer_offset.py	25	MIN_APPROACH_STANDOFF_M	navpy.modules.navigation.peer_orbit_plan	re-export (navpy; 4 outside); origin core/skills/acquire/peer_orbit_plan.py
 modules/navigation/peer_offset.py	25	MIN_TRACK_PIXELS	navpy.modules.vision.vision_class_profile	re-export (2 outside); origin core/perception/profile/vision_class_profile.py
 modules/navigation/peer_offset.py	25	_ORBIT_PIXEL_MARGIN	navpy.modules.navigation.peer_orbit_plan	re-export (2 outside); origin core/skills/acquire/peer_orbit_plan.py
+modules/swarm/__init__.py	16	TaskActor	navpy.modules.swarm.task_actor	package-init re-export (no importers); origin core/swarm/task_actor.py
+modules/swarm/__init__.py	17	TaskDispatch	navpy.modules.swarm.task_dispatch	package-init re-export (no importers); origin core/swarm/task_dispatch.py
 modules/vehicle/__init__.py	12	IVehicle	navpy.modules.vehicle.vehicle_contract	package-init re-export across folders (no importers); origin core/ports/vehicle_contract.py
 modules/vehicle/__init__.py	14	create_vehicle	navpy.modules.vehicle.vehicle_factory	wrong-way after the move (no importers); origin app/vehicle_factory.py
 modules/vehicle/__init__.py	15	FlightMode	navpy.modules.vehicle.flight_mode	package-init re-export across folders (no importers); origin core/ports/flight_mode.py

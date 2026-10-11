@@ -16,10 +16,15 @@ PUBLIC_ADAPTERS = {
     "src/navpy/modules/vision/peripheral/siyi/sim/gimbal_siyi_sim.py": "GimbalSiyiSim",
     "src/navpy/modules/vision/poi_zoom_orchestrator.py": "PoiZoomTracker",
 }
+# Top-level *Facet classes in src/navpy on 2026-10-11. The scan covers the
+# whole package so moved files stay in it; finding fewer means one was lost.
+MIN_FACET_CLASSES = 61
 
 
 def _public_class(relative: str, name: str) -> ast.ClassDef:
-    tree = ast.parse((ROOT / relative).read_text(encoding="utf-8"))
+    path = ROOT / relative
+    assert path.is_file(), f"listed adapter is missing: {relative}"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     return next(
         node
         for node in tree.body
@@ -66,11 +71,13 @@ def test_public_adapters_only_construct_focused_capability_facets() -> None:
 
 def test_public_adapter_facets_are_stateless_and_physically_bounded() -> None:
     violations = []
-    for path in sorted((ROOT / "src/navpy/modules").rglob("*.py")):
+    facets = 0
+    for path in sorted((ROOT / "src/navpy").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for owner in (node for node in tree.body if isinstance(node, ast.ClassDef)):
             if not owner.name.endswith("Facet"):
                 continue
+            facets += 1
             methods = [
                 node
                 for node in owner.body
@@ -99,4 +106,5 @@ def test_public_adapter_facets_are_stateless_and_physically_bounded() -> None:
             ]
             if fields:
                 violations.append(f"{path.name}:{owner.name} owns mutable state")
+    assert facets >= MIN_FACET_CLASSES, f"found {facets} facet classes"
     assert not violations, "\n".join(violations)

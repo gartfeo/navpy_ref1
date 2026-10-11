@@ -7,7 +7,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src/navpy"
-FINAL_APPROACH = ROOT / "src/navpy/modules/navigation/nav/vision_nav"
 SCHEDULER = "src/navpy/modules/common/scheduler_cadence.py"
 EXECUTOR = "src/navpy/modules/navigation/nav/vision_nav/command_executor.py"
 SIM_ALIASES = {
@@ -15,21 +14,37 @@ SIM_ALIASES = {
     "src/navpy/modules/vision/sim/sim_timebase.py",
 }
 LEGACY_APIS = {"wall_period_for_sim_period", "loop_sim_speedup"}
+# The final-approach command core, one full path per file: the files do not
+# share one folder after the module separation, and a moved file must fail
+# here rather than drop out of a folder scan.
+VISION_FRAME = "src/navpy/modules/navigation/nav/vision_nav/frame.py"
+FRAME_PROJECTION = "src/navpy/modules/navigation/nav/vision_nav/frame_projection.py"
+LATERAL_RATE = "src/navpy/modules/navigation/nav/vision_nav/lateral_rate.py"
+LAW = "src/navpy/modules/navigation/nav/vision_nav/law.py"
+COMMAND_FRESHNESS = "src/navpy/modules/navigation/nav/vision_nav/command_freshness.py"
+COMMAND_HOLD = "src/navpy/modules/navigation/nav/vision_nav/command_hold.py"
 CORE = {
-    "frame.py": "FinalApproachVisionFrame", "frame_projection.py": "FinalApproachFrameProjector",
-    "source_epoch.py": "SourceEpochLedger", "confirmation.py": "FinalApproachConfirmation",
-    "ingress.py": "FinalApproachIngress", "rate_filter.py": "VerticalRateFilter",
-    "law.py": "VisionNavLaw", "visual_pass.py": "VisualPassDetector",
-    "command_transaction.py": "FinalApproachCommandTransaction",
-    "lateral_rate.py": "LateralRateFilter",
-    "law_config.py": "FinalApproachLawConfig",
-    "command_anchor.py": "FinalApproachCommandAnchor",
-    "law_plan.py": "FinalApproachLawPlan",
+    VISION_FRAME: "FinalApproachVisionFrame",
+    FRAME_PROJECTION: "FinalApproachFrameProjector",
+    "src/navpy/modules/navigation/nav/vision_nav/source_epoch.py": "SourceEpochLedger",
+    "src/navpy/modules/navigation/nav/vision_nav/confirmation.py":
+        "FinalApproachConfirmation",
+    "src/navpy/modules/navigation/nav/vision_nav/ingress.py": "FinalApproachIngress",
+    "src/navpy/modules/navigation/nav/vision_nav/rate_filter.py": "VerticalRateFilter",
+    LAW: "VisionNavLaw",
+    "src/navpy/modules/navigation/nav/vision_nav/visual_pass.py": "VisualPassDetector",
+    "src/navpy/modules/navigation/nav/vision_nav/command_transaction.py":
+        "FinalApproachCommandTransaction",
+    LATERAL_RATE: "LateralRateFilter",
+    "src/navpy/modules/navigation/nav/vision_nav/law_config.py": "FinalApproachLawConfig",
+    "src/navpy/modules/navigation/nav/vision_nav/command_anchor.py":
+        "FinalApproachCommandAnchor",
+    "src/navpy/modules/navigation/nav/vision_nav/law_plan.py": "FinalApproachLawPlan",
 }
 COMMAND_INPUT_FILES = tuple(CORE) + (
-    "command_freshness.py",
-    "command_hold.py",
-    "runtime.py",
+    COMMAND_FRESHNESS,
+    COMMAND_HOLD,
+    "src/navpy/modules/navigation/nav/vision_nav/runtime.py",
 )
 FRAME_FIELDS = (
     "source_name", "source_generation", "task_id", "obj_id", "source_timestamp_s",
@@ -43,9 +58,9 @@ FRAME_FIELDS = (
 # Provenance of the value is pinned by test_yaw_rate_is_gyro_conversion_only.
 # Yaw ANGLES, headings, and the canonical name in any other file stay forbidden.
 GYRO_RATE_ALLOWANCES = {
-    "frame.py": frozenset({"aircraft_yaw_rate_rad_s"}),
-    "frame_projection.py": frozenset({"aircraft_yaw_rate_rad_s", "yaw_rate"}),
-    "lateral_rate.py": frozenset({"aircraft_yaw_rate_rad_s", "yaw_rate_rad_s"}),
+    VISION_FRAME: frozenset({"aircraft_yaw_rate_rad_s"}),
+    FRAME_PROJECTION: frozenset({"aircraft_yaw_rate_rad_s", "yaw_rate"}),
+    LATERAL_RATE: frozenset({"aircraft_yaw_rate_rad_s", "yaw_rate_rad_s"}),
 }
 # Truth-position vocabulary. AGENTS.md allows frame-local vision LOS/pixels,
 # gimbal/camera readback as camera state, pitch/roll attitude, airspeed, wind,
@@ -111,10 +126,20 @@ NON_PERIOD_WORDS = {
 }
 
 def _production() -> list[tuple[str, ast.Module]]:
+    paths = sorted(SRC.rglob("*.py"))
+    assert paths, f"no production sources under {SRC}"
     return [
         (path.relative_to(ROOT).as_posix(), ast.parse(path.read_text("utf-8")))
-        for path in sorted(SRC.rglob("*.py"))
+        for path in paths
     ]
+
+def _source(relative: str) -> str:
+    path = ROOT / relative
+    assert path.is_file(), f"listed file is missing: {relative}"
+    return path.read_text("utf-8")
+
+def _tree(relative: str) -> ast.Module:
+    return ast.parse(_source(relative))
 
 def _path(node: ast.AST) -> tuple[str, ...]:
     if isinstance(node, ast.Name):
@@ -310,13 +335,12 @@ def bad(cadence, frame, dt_s, speedup):
     assert len(_cadence_violations([("synthetic.py", bad)])) == 2
 
 def test_final_approach_scope_and_primitive_frame_cannot_disappear() -> None:
-    trees = {path.name: ast.parse(path.read_text("utf-8"))
-             for path in sorted(FINAL_APPROACH.glob("*.py"))}
+    trees = {relative: _tree(relative) for relative in CORE}
     assert trees
-    for filename, class_name in CORE.items():
-        assert filename in trees
-        assert _definition(trees[filename], class_name, ast.ClassDef) is not None
-    frame = _definition(trees["frame.py"], "FinalApproachVisionFrame", ast.ClassDef)
+    for relative, class_name in CORE.items():
+        assert relative in trees
+        assert _definition(trees[relative], class_name, ast.ClassDef) is not None, relative
+    frame = _definition(trees[VISION_FRAME], "FinalApproachVisionFrame", ast.ClassDef)
     fields = [
         (node.target.id, ast.unparse(node.annotation)) for node in frame.body
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
@@ -326,22 +350,20 @@ def test_final_approach_scope_and_primitive_frame_cannot_disappear() -> None:
 
 def test_final_approach_command_core_has_no_clock_or_forbidden_truth_inputs() -> None:
     clocks, inputs = [], []
-    for filename in CORE:
-        tree = ast.parse((FINAL_APPROACH / filename).read_text("utf-8"))
-        clocks += [f"{filename}:{hit}" for hit in _clock_hits(tree)]
-    for filename in COMMAND_INPUT_FILES:
-        tree = ast.parse((FINAL_APPROACH / filename).read_text("utf-8"))
-        allowed = GYRO_RATE_ALLOWANCES.get(filename, frozenset())
-        inputs += [f"{filename}:{hit}" for hit in _forbidden_inputs(tree, allowed)]
+    for relative in CORE:
+        tree = _tree(relative)
+        clocks += [f"{relative}:{hit}" for hit in _clock_hits(tree)]
+    for relative in COMMAND_INPUT_FILES:
+        tree = _tree(relative)
+        allowed = GYRO_RATE_ALLOWANCES.get(relative, frozenset())
+        inputs += [f"{relative}:{hit}" for hit in _forbidden_inputs(tree, allowed)]
     assert not clocks, "final-approach clock reads:\n  " + "\n  ".join(clocks)
     assert not inputs, "forbidden final-approach inputs:\n  " + "\n  ".join(inputs)
 
 
 def test_hold_wall_clock_is_execution_diagnostics_only() -> None:
-    tree = ast.parse((FINAL_APPROACH / "command_hold.py").read_text("utf-8"))
-    freshness_tree = ast.parse(
-        (FINAL_APPROACH / "command_freshness.py").read_text("utf-8")
-    )
+    tree = _tree(COMMAND_HOLD)
+    freshness_tree = _tree(COMMAND_FRESHNESS)
     owner = _definition(tree, "FinalApproachCommandHold", ast.ClassDef)
     issue = _definition(owner, "issue", ast.FunctionDef)
     freshness = _definition(freshness_tree, "_age_is_fresh", ast.FunctionDef)
@@ -372,7 +394,7 @@ def test_yaw_rate_is_gyro_conversion_only() -> None:
     (2) that it is defined nowhere else in production; (3) that every producer
     fills the frame keyword with a direct call to that conversion.
     """
-    conversion = ast.parse((ROOT / YAW_RATE_CONVERSION).read_text("utf-8"))
+    conversion = _tree(YAW_RATE_CONVERSION)
     definition = _definition(conversion, "aircraft_yaw_rate_rad_s", ast.FunctionDef)
     assert definition is not None
     assert [arg.arg for arg in definition.args.args] == [
@@ -389,7 +411,7 @@ def test_yaw_rate_is_gyro_conversion_only() -> None:
     ]
     assert definitions == [YAW_RATE_CONVERSION]
     for producer in YAW_RATE_PRODUCERS:
-        tree = ast.parse((ROOT / producer).read_text("utf-8"))
+        tree = _tree(producer)
         imported = any(
             isinstance(node, ast.ImportFrom)
             and node.module == "navpy.modules.vision.models.pixel_observation"
@@ -414,7 +436,7 @@ def test_gyro_rate_allowance_is_exact_and_file_scoped() -> None:
         "    return frame.aircraft_yaw_deg, frame.yaw_rate_dps, frame.heading_rate_rad_s\n"
     )
     hits = {hit.split("@", 1)[0]
-            for hit in _forbidden_inputs(angle, GYRO_RATE_ALLOWANCES["frame.py"])}
+            for hit in _forbidden_inputs(angle, GYRO_RATE_ALLOWANCES[VISION_FRAME])}
     assert {"aircraft_yaw_deg", "yaw_rate_dps", "heading_rate_rad_s"} <= hits
     elsewhere = ast.parse("def f(frame):\n    return frame.aircraft_yaw_rate_rad_s\n")
     assert _forbidden_inputs(elsewhere)
@@ -422,7 +444,7 @@ def test_gyro_rate_allowance_is_exact_and_file_scoped() -> None:
 
 
 def test_executor_perf_counter_is_deferred_diagnostics_only() -> None:
-    tree = ast.parse((ROOT / EXECUTOR).read_text("utf-8"))
+    tree = _tree(EXECUTOR)
     owner = _definition(tree, "FinalApproachCommandExecutor", ast.ClassDef)
     execute = _definition(owner, "execute", ast.FunctionDef)
     execute_current = _definition(owner, "_execute_current", ast.FunctionDef)
@@ -478,8 +500,8 @@ def test_command_input_scan_catches_injected_poi_position(tmp_path) -> None:
     Copy a real command-input file, splice the reference in, and re-run the
     production scan over the copy.
     """
-    original = (FINAL_APPROACH / "law.py").read_text("utf-8")
-    allowed = GYRO_RATE_ALLOWANCES.get("law.py", frozenset())
+    original = _source(LAW)
+    allowed = GYRO_RATE_ALLOWANCES.get(LAW, frozenset())
     assert not _forbidden_inputs(ast.parse(original), allowed)
     injected = original.replace(
         "class VisionNavLaw:",

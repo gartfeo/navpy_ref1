@@ -1,47 +1,17 @@
 """Tests for per-waypoint upload progress: Node.js logic + source-level wiring."""
-import os
 import subprocess
 import unittest
+from pathlib import Path
 
-_NODE_TEST = os.path.normpath(os.path.join(
-    os.path.dirname(__file__), "frontend", "test_upload_progress_logic.js",
-))
-
-_APP_FILE = os.path.normpath(os.path.join(
-    os.path.dirname(__file__),
-    "..", "..", "src", "gcs", "frontend", "src", "App.jsx",
-))
-
-_BOTTOM_BAR_FILE = os.path.normpath(os.path.join(
-    os.path.dirname(__file__),
-    "..", "..", "src", "gcs", "frontend", "src", "components", "BottomBar.jsx",
-))
-
-_MISSIONS_FILE = os.path.normpath(os.path.join(
-    os.path.dirname(__file__),
-    "..", "..", "src", "gcs", "backend", "routes", "missions.py",
-))
-
-_WP_BUILDER_FILE = os.path.normpath(os.path.join(
-    os.path.dirname(__file__),
-    "..", "..", "src", "gcs", "backend", "planner", "waypoint_builder.py",
-))
-
-_VEHICLE_MISSION_FACET_FILE = os.path.normpath(os.path.join(
-    os.path.dirname(__file__),
-    "..", "..", "src", "navpy", "modules", "vehicle",
-    "vehicle_public_mission.py",
-))
-
-_WS_HANDLERS_FILE = os.path.normpath(os.path.join(
-    os.path.dirname(__file__),
-    "..", "..", "src", "gcs", "frontend", "src", "hooks", "useWsHandlers.js",
-))
-
-_MISSION_UPLOAD_FILE = os.path.normpath(os.path.join(
-    os.path.dirname(__file__),
-    "..", "..", "src", "navpy", "modules", "vehicle", "mission_upload.py",
-))
+_ROOT = Path(__file__).resolve().parents[2]
+_NODE_TEST = _ROOT / "tests/gcs/frontend/test_upload_progress_logic.js"
+_APP_FILE = _ROOT / "src/gcs/frontend/src/App.jsx"
+_BOTTOM_BAR_FILE = _ROOT / "src/gcs/frontend/src/components/BottomBar.jsx"
+_MISSIONS_FILE = _ROOT / "src/gcs/backend/routes/missions.py"
+_WP_BUILDER_FILE = _ROOT / "src/gcs/backend/planner/waypoint_builder.py"
+_VEHICLE_MISSION_FACET_FILE = _ROOT / "src/navpy/modules/vehicle/vehicle_public_mission.py"
+_WS_HANDLERS_FILE = _ROOT / "src/gcs/frontend/src/hooks/useWsHandlers.js"
+_MISSION_UPLOAD_FILE = _ROOT / "src/navpy/modules/vehicle/mission_upload.py"
 
 
 class TestUploadProgressLogic(unittest.TestCase):
@@ -49,7 +19,7 @@ class TestUploadProgressLogic(unittest.TestCase):
 
     def test_node_logic(self):
         result = subprocess.run(
-            ["node", _NODE_TEST],
+            ["node", str(_NODE_TEST)],
             capture_output=True, text=True, timeout=10,
         )
         self.assertEqual(result.returncode, 0, f"Node test failed:\n{result.stderr}")

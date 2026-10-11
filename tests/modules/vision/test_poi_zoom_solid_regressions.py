@@ -20,6 +20,30 @@ from navpy.modules.vision.poi_zoom_tracker import (
     ZoomTrackingState,
 )
 
+ROOT = Path(__file__).resolve().parents[3]
+# Zoom leaves, one full path each so file moves rewrite them. Every listed file
+# must exist, and other poi_zoom_*.py files beside them are scanned too.
+ZOOM_LEAVES = (
+    "src/navpy/modules/vision/poi_zoom_actuator_epoch.py",
+    "src/navpy/modules/vision/poi_zoom_composition.py",
+    "src/navpy/modules/vision/poi_zoom_continuous.py",
+    "src/navpy/modules/vision/poi_zoom_drive.py",
+    "src/navpy/modules/vision/poi_zoom_drive_outcomes.py",
+    "src/navpy/modules/vision/poi_zoom_drive_strategies.py",
+    "src/navpy/modules/vision/poi_zoom_geometry.py",
+    "src/navpy/modules/vision/poi_zoom_lifecycle.py",
+    "src/navpy/modules/vision/poi_zoom_orchestrator.py",
+    "src/navpy/modules/vision/poi_zoom_ports.py",
+    "src/navpy/modules/vision/poi_zoom_public_view.py",
+    "src/navpy/modules/vision/poi_zoom_readback.py",
+    "src/navpy/modules/vision/poi_zoom_session.py",
+    "src/navpy/modules/vision/poi_zoom_setpoint.py",
+    "src/navpy/modules/vision/poi_zoom_types.py",
+    "src/navpy/modules/vision/poi_zoom_update.py",
+    "src/navpy/modules/vision/continuous_zoom_policy.py",
+    "src/navpy/modules/vision/continuous_zoom_rules.py",
+)
+
 
 def _poi(size_px: float = 20.0, *, cx: float = 960.0) -> SimpleNamespace:
     side = size_px / math.sqrt(2.0)
@@ -318,11 +342,11 @@ def test_active_absolute_target_rebinds_to_replaced_gimbal() -> None:
 
 
 def test_zoom_leaves_have_no_mount_or_navigation_reach_through() -> None:
-    root = Path(__file__).parents[3] / "src" / "navpy" / "modules" / "vision"
-    files = sorted(root.glob("poi_zoom_*.py")) + [
-        root / "continuous_zoom_policy.py",
-        root / "continuous_zoom_rules.py",
-    ]
+    listed = [ROOT / relative for relative in ZOOM_LEAVES]
+    missing = [str(path) for path in listed if not path.is_file()]
+    assert not missing, missing
+    homes = {path.parent for path in listed}
+    files = sorted(set(listed).union(*(home.glob("poi_zoom_*.py") for home in homes)))
     forbidden_names = {"_mount", "vehicle", "geo_ref", "location", "altitude"}
     for path in files:
         if path.name == "poi_zoom_mount_adapters.py":

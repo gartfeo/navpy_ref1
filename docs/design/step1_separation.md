@@ -7,7 +7,8 @@ Each commit goes straight to `main` and leaves both test suites green. Paths are
 a scratch dry-run moved everything, and the architect applied the findings. Replaces the 2026-10-09 draft.
 Inputs in `docs/design/step1/`: `manifest.tsv` (per file: old path, final home, step-1 home, action, vision path,
 reason), `splits.json` (split symbols, per-part vision flag), `reexports.tsv`, `exceptions.tsv`, `final_violations.tsv`.
-`step1/tools/` holds the planning prototypes (import graph, rule checker, dry-run mover); c00 replaces them.
+c00 adds the tools that read them: `scripts/step1_move.py --commit cNN [--dry-run]` (and `--check` for leftovers),
+the loader `scripts/step1_manifest.py`, and the guards `tests/guards/test_step1_*.py`.
 
 ## Final layout (approved 2026-10-11)
 ```
@@ -69,7 +70,7 @@ Files after step 1, not counting new empty `__init__.py` files (56 new packages;
   `core/kernel` by a pure-move split (12 files); importers name the defining module, lines that only re-export go.
 
 ## Exceptions after step 1 (ratchet)
-After step 1, **28 wrong-way import lines (27 file-to-file edges) in 18 files** remain (`check_rules step1` on the
+After step 1, **28 wrong-way import lines (27 file-to-file edges) in 18 files** remain (the layer rules on the
 post-c02 graph). Each has a reason and fixing step in `step1/exceptions.tsv` (`guard=layer`).
 
 | From -> to | Lines | What | Fixed by |
@@ -114,7 +115,7 @@ that way). Then bottom-up, so each layer is checked as it lands. The move tool r
 | # | What | Files |
 |---|---|---|
 | c00 | Guards (layers, ratchet, unresolved imports, pure-vision walk, fresh-process import of every module, registry census) reading `step1/`, move tool, SOLID normalizer, location-independent scanning tests | 0 |
-| c01 | Delete 20 shims/facades, empty 10 facade inits, strip 93 re-exported names on 41 lines in 28 kept modules (`step1/reexports.tsv`), drop the `DetectorAbc` base from 3 classes; importers in `src/navpy`, `src/gcs`, `scripts`, `tests`, `tools` name the defining module; the GCS imports its 7 message modules | 20 deleted |
+| c01 | Delete 20 shims/facades, empty 10 facade inits, strip 95 re-exported names on 43 lines in 29 kept modules (`step1/reexports.tsv`), drop the `DetectorAbc` base from 3 classes; importers in `src/navpy`, `src/gcs`, `scripts`, `tests`, `tools` name the defining module; the GCS imports its 7 message modules | 20 deleted |
 | c02 | 12 pure-move splits into 12 new files (13 parts; `Detection` and `FrameDetector` share `core/ports/detection.py`) | 12 new |
 | c03 | `core/kernel` (types, utils, settings, logging) | 39 |
 | c04 | `core/ports` | 23 |
@@ -153,10 +154,12 @@ that way). Then bottom-up, so each layer is checked as it lands. The move tool r
   logger names such as `peer_orbit_plan`'s), `src/navpy/...` paths, `from pkg import submodule` per submodule. A patch
   on a split module follows the part that looks the name up (16 `real_detector_models` targets go to the builder); on
   a facade, the defining module, or the consumer when it binds at import time. It keeps line endings, never edits
-  vendored files, adds an empty `__init__.py` only where no row brings one, deletes emptied folders with `__pycache__`,
-  and fails on any leftover old directory string, segment-built path or patch prefix.
-- **Splits** keep `from __future__ import annotations`, import only names their code uses (not docstring words), and
-  each new file imports on its own. c02 moves the `TrackedObject` passive-record key to `core/ports/tracks.py`.
+  vendored files, adds an empty `__init__.py` only where no row brings one, deletes emptied folders with their caches
+  (any other file left there, hidden ones too, stops the commit untouched), and fails on any leftover old directory
+  string, segment-built path or patch prefix.
+- **Splits** keep `from __future__ import annotations`, import only names their code uses (not docstring words), keep
+  statement order (a merged part takes its sources in `splits.json` order), and each new file imports on its own.
+  c02 moves the `TrackedObject` passive-record key to `core/ports/tracks.py`.
 - **SOLID guard.** c00 compares each file with its old path at the pinned base: manifest map (with `gcs:` rows),
   per-symbol map for splits, AST normalization of import modules, facade names and dotted strings. A synthetic test
   shows a pure move, a facade rewrite and a split are not material.
