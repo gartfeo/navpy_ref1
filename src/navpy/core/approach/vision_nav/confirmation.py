@@ -7,11 +7,11 @@ from dataclasses import dataclass
 from typing import Callable, Protocol
 
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.frame_projection import (
+from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
 )
-from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachLawPlan
-from navpy.modules.navigation.nav.vision_nav.source_epoch import (
+from navpy.plugins.laws.vision_pn.law_plan import FinalApproachLawPlan
+from navpy.core.approach.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,
 )

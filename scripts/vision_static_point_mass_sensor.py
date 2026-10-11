@@ -10,7 +10,7 @@ from typing import Iterator
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.nav.vision_nav.lateral_rate import (
+from navpy.plugins.laws.vision_pn.lateral_rate import (
     LAT_GYRO_DELAY_ENV,
 )
 from navpy.core.ports.pixel_observation import (

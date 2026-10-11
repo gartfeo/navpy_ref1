@@ -59,7 +59,7 @@ def test_core_composition_modules_do_not_import_compatibility_facades() -> None:
     ).read_text(encoding="utf-8")
     roll_law = (
         REPO_ROOT
-        / "src/navpy/modules/navigation/nav/roll_l1_pitch_nav_law.py"
+        / "src/navpy/plugins/laws/geo/roll_l1_pitch_nav_law.py"
     ).read_text(encoding="utf-8")
     detector_factory_ports = (
         REPO_ROOT

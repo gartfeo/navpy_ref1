@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 from navpy.core.kernel.config.navigation_args import NavigationArgs
-from navpy.modules.navigation.nav.roll_l1 import RollL1Control
-from navpy.modules.navigation.nav.roll_l1_inputs import (
+from navpy.plugins.laws.geo.roll_l1 import RollL1Control
+from navpy.plugins.laws.geo.roll_l1_inputs import (
     PitchLockSettings,
     RollL1AirframeLimits,
     RollL1AttitudeSnapshot,
     RollL1MotionSnapshot,
 )
-from navpy.modules.navigation.nav.roll_l1_core import (
+from navpy.plugins.laws.geo.roll_l1_core import (
     PitchLockPolicy,
     RollL1PitchNav,
     create_pitch_controller,
 )
-from navpy.modules.navigation.nav.roll_l1_pitch_nav_law import RollL1PitchNavLaw
-from navpy.modules.navigation.nav.roll_l1_state import RollL1Parameters
+from navpy.plugins.laws.geo.roll_l1_pitch_nav_law import RollL1PitchNavLaw
+from navpy.plugins.laws.geo.roll_l1_state import RollL1Parameters
 from navpy.core.ports.vehicle_contract import IVehicle
 
 

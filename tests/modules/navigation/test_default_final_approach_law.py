@@ -23,7 +23,7 @@ from navpy.core.kernel.config.navigation_args import (
 )
 from navpy.core.kernel.config.pid_args import PIDArgs
 from navpy.modules.navigation import navigation_composition, navigation_law_builders
-from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
+from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 
 
 _REPO = Path(__file__).resolve().parents[3]

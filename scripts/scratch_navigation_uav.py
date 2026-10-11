@@ -79,7 +79,7 @@ from navpy.core.ports.law_config import (  # noqa: E402
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw  # noqa: E402
+from navpy.plugins.laws.vision_pn.law import VisionNavLaw  # noqa: E402
 from navpy.core.ports.pixel_observation import (  # noqa: E402
     aircraft_yaw_rate_rad_s,
 )

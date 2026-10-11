@@ -18,11 +18,11 @@ from navpy.core.kernel.location import Location
 from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.calc_data import CalcData
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.legacy_final_approach_actuation import LegacyFinalApproachActuation
-from navpy.modules.navigation.legacy_final_approach_calculation import (
+from navpy.core.approach.geo.legacy_final_approach_actuation import LegacyFinalApproachActuation
+from navpy.core.approach.geo.legacy_final_approach_calculation import (
     LegacyFinalApproachCalculator,
 )
-from navpy.modules.navigation.legacy_final_approach_diagnostics import (
+from navpy.core.approach.geo.legacy_final_approach_diagnostics import (
     LegacyFinalApproachDiagnostics,
 )
 from navpy.core.ports.nav_law import NavLaw

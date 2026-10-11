@@ -13,12 +13,12 @@ from navpy.logger.log_events import LogEvent
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.navigation.nav.vision_nav.command_transaction import (
+from navpy.core.approach.vision_nav.command_transaction import (
     FinalApproachCommandOutcome,
     FinalApproachCommandResult,
     FinalApproachLawEvidence,
 )
-from navpy.modules.navigation.nav.vision_nav.diagnostic_capture import (
+from navpy.core.approach.vision_nav.diagnostic_capture import (
     body_bearing_deg,
     copy_attitude,
     copy_camera_matrix,

@@ -9,17 +9,17 @@ import pytest
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.nav.vision_nav.confirmation import (
+from navpy.core.approach.vision_nav.confirmation import (
     FinalApproachConfirmation, FinalApproachConfirmationPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.frame_projection import (
+from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector, FinalApproachProjectionConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
+from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider, FinalApproachLawConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
+from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.detection_publication_store import DetectionPublicationStore
 from navpy.modules.vision.sim.frame_generation_gate import FrameGenerationGate

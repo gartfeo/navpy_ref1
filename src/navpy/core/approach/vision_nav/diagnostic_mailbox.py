@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
-from navpy.modules.navigation.nav.vision_nav.command_freshness import (
+from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandTiming,
 )
 from navpy.core.ports.detect_data import DetectedObject

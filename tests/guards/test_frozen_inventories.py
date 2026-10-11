@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src/navpy"
 SCHEDULER = "src/navpy/core/kernel/scheduler_cadence.py"
-EXECUTOR = "src/navpy/modules/navigation/nav/vision_nav/command_executor.py"
+EXECUTOR = "src/navpy/core/approach/vision_nav/command_executor.py"
 # The SchedulerCadence alias and its two modules were removed in step 1 (c01).
 SIM_ALIASES = frozenset({"SimTimebase", "sim_time", "sim_timebase"})
 SCANNED_ROOTS = ("src", "scripts", "tests", "tools")
@@ -17,33 +17,33 @@ LEGACY_APIS = {"wall_period_for_sim_period", "loop_sim_speedup"}
 # share one folder after the module separation, and a moved file must fail
 # here rather than drop out of a folder scan.
 VISION_FRAME = "src/navpy/core/ports/frame.py"
-FRAME_PROJECTION = "src/navpy/modules/navigation/nav/vision_nav/frame_projection.py"
-LATERAL_RATE = "src/navpy/modules/navigation/nav/vision_nav/lateral_rate.py"
-LAW = "src/navpy/modules/navigation/nav/vision_nav/law.py"
-COMMAND_FRESHNESS = "src/navpy/modules/navigation/nav/vision_nav/command_freshness.py"
-COMMAND_HOLD = "src/navpy/modules/navigation/nav/vision_nav/command_hold.py"
+FRAME_PROJECTION = "src/navpy/core/approach/vision_nav/frame_projection.py"
+LATERAL_RATE = "src/navpy/plugins/laws/vision_pn/lateral_rate.py"
+LAW = "src/navpy/plugins/laws/vision_pn/law.py"
+COMMAND_FRESHNESS = "src/navpy/core/approach/vision_nav/command_freshness.py"
+COMMAND_HOLD = "src/navpy/core/approach/vision_nav/command_hold.py"
 CORE = {
     VISION_FRAME: "FinalApproachVisionFrame",
     FRAME_PROJECTION: "FinalApproachFrameProjector",
-    "src/navpy/modules/navigation/nav/vision_nav/source_epoch.py": "SourceEpochLedger",
-    "src/navpy/modules/navigation/nav/vision_nav/confirmation.py":
+    "src/navpy/core/approach/vision_nav/source_epoch.py": "SourceEpochLedger",
+    "src/navpy/core/approach/vision_nav/confirmation.py":
         "FinalApproachConfirmation",
-    "src/navpy/modules/navigation/nav/vision_nav/ingress.py": "FinalApproachIngress",
-    "src/navpy/modules/navigation/nav/vision_nav/rate_filter.py": "VerticalRateFilter",
+    "src/navpy/core/approach/vision_nav/ingress.py": "FinalApproachIngress",
+    "src/navpy/plugins/laws/vision_pn/rate_filter.py": "VerticalRateFilter",
     LAW: "VisionNavLaw",
-    "src/navpy/modules/navigation/nav/vision_nav/visual_pass.py": "VisualPassDetector",
-    "src/navpy/modules/navigation/nav/vision_nav/command_transaction.py":
+    "src/navpy/core/approach/vision_nav/visual_pass.py": "VisualPassDetector",
+    "src/navpy/core/approach/vision_nav/command_transaction.py":
         "FinalApproachCommandTransaction",
     LATERAL_RATE: "LateralRateFilter",
     "src/navpy/core/ports/law_config.py": "FinalApproachLawConfig",
-    "src/navpy/modules/navigation/nav/vision_nav/command_anchor.py":
+    "src/navpy/plugins/laws/vision_pn/command_anchor.py":
         "FinalApproachCommandAnchor",
-    "src/navpy/modules/navigation/nav/vision_nav/law_plan.py": "FinalApproachLawPlan",
+    "src/navpy/plugins/laws/vision_pn/law_plan.py": "FinalApproachLawPlan",
 }
 COMMAND_INPUT_FILES = tuple(CORE) + (
     COMMAND_FRESHNESS,
     COMMAND_HOLD,
-    "src/navpy/modules/navigation/nav/vision_nav/runtime.py",
+    "src/navpy/core/approach/vision_nav/runtime.py",
 )
 FRAME_FIELDS = (
     "source_name", "source_generation", "task_id", "obj_id", "source_timestamp_s",

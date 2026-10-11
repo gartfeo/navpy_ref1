@@ -10,10 +10,10 @@ import numpy as np
 
 from navpy.core.kernel.config.pid_args import PIDArgs
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.nav.pid.pid import Pid
-from navpy.modules.navigation.nav.pn.pitch_pn import PitchPn
-from navpy.modules.navigation.nav.roll_l1 import RollL1Control
-from navpy.modules.navigation.nav.roll_l1_inputs import (
+from navpy.plugins.laws.geo.pid import Pid
+from navpy.plugins.laws.geo.pitch_pn import PitchPn
+from navpy.plugins.laws.geo.roll_l1 import RollL1Control
+from navpy.plugins.laws.geo.roll_l1_inputs import (
     PitchLockSettings,
     RollL1AirframeLimits,
     RollL1AttitudeSnapshot,

@@ -19,7 +19,7 @@ from navpy.modules.navigation.nav.nav_law_factory import (
     NavAlgorithmSpec,
     get_nav_algorithm_spec,
 )
-from navpy.modules.navigation.nav.vision_nav.runtime_api import (
+from navpy.core.approach.vision_nav.runtime_api import (
     VisionNavConfirmation,
     VisionNavStatus,
 )

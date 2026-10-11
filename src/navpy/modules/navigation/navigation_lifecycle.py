@@ -11,7 +11,7 @@ from navpy.modules.navigation.navigation_postprocess_dispatcher import (
     NavigationPostprocessFailure,
 )
 from navpy.modules.navigation.navigation_mode import NavigationModeSelector, NavigationModeState
-from navpy.modules.navigation.legacy_destination_resolver import LegacyNavigationState
+from navpy.core.approach.geo.legacy_destination_resolver import LegacyNavigationState
 
 
 class NavigationLifecycle:

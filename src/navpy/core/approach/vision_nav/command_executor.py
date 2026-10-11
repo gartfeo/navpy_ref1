@@ -12,35 +12,35 @@ from navpy.core.command.navigation_command_slot import (
     NavigationCommandSlot,
 )
 from navpy.core.kernel.resource_cleanup import CleanupStack
-from navpy.modules.navigation.nav.vision_nav.command_transaction import (
+from navpy.core.approach.vision_nav.command_transaction import (
     FinalApproachCommandOutcome,
     FinalApproachCommandResult,
     FinalApproachCommandTransaction,
 )
-from navpy.modules.navigation.nav.vision_nav.command_hold import (
+from navpy.core.approach.vision_nav.command_hold import (
     FinalApproachCommandHoldStore,
 )
-from navpy.modules.navigation.nav.vision_nav.command_freshness import (
+from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandFreshness,
     FinalApproachCommandTiming,
 )
-from navpy.modules.navigation.nav.vision_nav.command_liveness import (
+from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandFailureSink,
 )
 from navpy.modules.navigation.navigation_postprocess_dispatcher import PostprocessJob
-from navpy.modules.navigation.nav.vision_nav.command_postprocess import (
+from navpy.core.approach.vision_nav.command_postprocess import (
     FinalApproachPostprocessFence,
 )
-from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
+from navpy.core.approach.vision_nav.diagnostic_mailbox import (
     FinalApproachDiagnosticEntry,
     FinalApproachDiagnosticMailbox,
 )
-from navpy.modules.navigation.nav.vision_nav.diagnostics import (
+from navpy.core.approach.vision_nav.diagnostics import (
     FinalApproachCommandDiagnostics,
 )
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
-from navpy.modules.navigation.nav.vision_nav.source_time_ports import (
+from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
+from navpy.core.approach.vision_nav.source_time_ports import (
     FinalApproachCommandSourceTimeObserver,
 )
 

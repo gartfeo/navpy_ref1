@@ -3,7 +3,7 @@ import math
 import pytest
 
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.rate_filter import VerticalRateFilter
+from navpy.plugins.laws.vision_pn.rate_filter import VerticalRateFilter
 
 
 def _frame(ts, angle_deg, generation=0):

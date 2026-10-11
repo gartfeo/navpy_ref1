@@ -20,11 +20,11 @@ from navpy.core.kernel.logging.logger_api import ConsoleLogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
-from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
+from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider,
 )
-from navpy.modules.navigation.nav.vision_nav.runtime_composition import (
+from navpy.core.approach.vision_nav.runtime_composition import (
     FinalApproachVehicleActuator, FinalApproachVehicleDiagnosticReader, compose_final_approach_runtime,
 )
 from navpy.plugins.vehicle.ardupilot.attitude_command import euler_to_quaternion

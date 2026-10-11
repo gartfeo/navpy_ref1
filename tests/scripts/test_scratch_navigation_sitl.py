@@ -249,7 +249,7 @@ def test_a_run_records_which_law_source_flew():
 
     import scripts.scratch_navigation_arms as arms_module
     import scripts.scratch_navigation_uav as uav
-    from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
+    from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 
     options = uav._parser().parse_args(
         ["--connection", "udp:127.0.0.1:14550",

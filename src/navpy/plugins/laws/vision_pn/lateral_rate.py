@@ -7,7 +7,7 @@ import os
 from dataclasses import dataclass
 
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.rate_filter import _low_pass
+from navpy.plugins.laws.vision_pn.rate_filter import _low_pass
 
 
 # Which gyro sample cancels own-yaw motion out of the two-point bearing

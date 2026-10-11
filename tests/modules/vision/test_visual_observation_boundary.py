@@ -10,7 +10,7 @@ import pytest
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.nav.vision_nav.frame_projection import (
+from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )

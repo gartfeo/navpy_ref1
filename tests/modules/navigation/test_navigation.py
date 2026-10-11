@@ -25,47 +25,47 @@ from navpy.modules.navigation.navigation_command_worker import (
 from navpy.plugins.vehicle.ardupilot.final_approach_airframe_config import (
     VehicleFinalApproachLawConfigProvider,
 )
-from navpy.modules.navigation.nav.vision_nav.command_executor import (
+from navpy.core.approach.vision_nav.command_executor import (
     FinalApproachCommandExecutor,
     FinalApproachExecutorPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.command_anchor import (
+from navpy.plugins.laws.vision_pn.command_anchor import (
     FinalApproachLimits,
 )
-from navpy.modules.navigation.nav.vision_nav.command_freshness import (
+from navpy.core.approach.vision_nav.command_freshness import (
     FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
     FinalApproachCommandFreshness,
 )
-from navpy.modules.navigation.nav.vision_nav.command_hold import FinalApproachCommandHold
-from navpy.modules.navigation.nav.vision_nav.command_liveness import (
+from navpy.core.approach.vision_nav.command_hold import FinalApproachCommandHold
+from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandLiveness,
 )
-from navpy.modules.navigation.nav.vision_nav.command_postprocess import (
+from navpy.core.approach.vision_nav.command_postprocess import (
     FinalApproachPostprocessFence,
 )
-from navpy.modules.navigation.nav.vision_nav.command_reset import (
+from navpy.core.approach.vision_nav.command_reset import (
     FinalApproachCommandReset,
     FinalApproachCommandResetPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.command_transaction import (
+from navpy.core.approach.vision_nav.command_transaction import (
     FinalApproachCommandOutcome,
     FinalApproachCommandResult,
     FinalApproachCommandTransaction,
     FinalApproachLawEvidence,
 )
-from navpy.modules.navigation.nav.vision_nav.confirmation import (
+from navpy.core.approach.vision_nav.confirmation import (
     FinalApproachConfirmation,
     FinalApproachConfirmationPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
+from navpy.core.approach.vision_nav.diagnostic_mailbox import (
     FinalApproachDiagnosticMailbox,
 )
-from navpy.modules.navigation.nav.vision_nav.diagnostics import (
+from navpy.core.approach.vision_nav.diagnostics import (
     NavigationFinalApproachDiagnostics,
     FinalApproachDiagnosticSnapshot,
 )
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.ingress import (
+from navpy.core.approach.vision_nav.ingress import (
     FinalApproachIngress,
     FinalApproachIngressPorts,
 )
@@ -73,21 +73,21 @@ from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.command_anchor import ROLL_LIMIT_CAP_DEG
-from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
-from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachPlanOrigin
-from navpy.modules.navigation.nav.vision_nav.runtime import (
+from navpy.plugins.laws.vision_pn.command_anchor import ROLL_LIMIT_CAP_DEG
+from navpy.plugins.laws.vision_pn.law import VisionNavLaw
+from navpy.plugins.laws.vision_pn.law_plan import FinalApproachPlanOrigin
+from navpy.core.approach.vision_nav.runtime import (
     FinalApproachCommandWorkRuntime,
     FinalApproachSessionRuntime,
     VisionNavRuntime,
 )
-from navpy.modules.navigation.nav.vision_nav.runtime_composition import (
+from navpy.core.approach.vision_nav.runtime_composition import (
     FinalApproachVehicleDiagnosticReader,
     compose_final_approach_runtime,
 )
-from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
-from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
-from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassDetector
+from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
+from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
+from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 
 
 @dataclass
@@ -1194,7 +1194,7 @@ def test_mid_navigation_task_law_loss_clears_hold_and_latches_failure():
 
 
 def test_valid_pass_suppression_does_not_require_available_limits():
-    from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassState
+    from navpy.core.approach.vision_nav.visual_pass import VisualPassState
 
     frame = _frame(1.0)
     law = VisionNavLaw(FixedFinalApproachLawConfigProvider(None))

@@ -9,7 +9,7 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.frame_projection import (
+from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )
@@ -17,7 +17,7 @@ from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
+from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTracker
 from navpy.core.perception.pointing.gimbal_rate_types import GimbalRateTrackerConfig
 from navpy.core.perception.pointing.gimbal_tracking_sample import GimbalAngularSample

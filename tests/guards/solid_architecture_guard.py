@@ -151,7 +151,7 @@ PASSIVE_RECORD_FIELD_LIMITS = {
         "FinalApproachVisionFrame",
     ): 15,
     (
-        "src/navpy/modules/navigation/nav/vision_nav/command_transaction.py",
+        "src/navpy/core/approach/vision_nav/command_transaction.py",
         "FinalApproachLawEvidence",
     ): 16,
 }

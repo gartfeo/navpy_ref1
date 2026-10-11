@@ -30,13 +30,13 @@ from navpy.modules.navigation.navigation_source_dispatch import (
 )
 from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
-from navpy.modules.navigation.legacy_destination_resolver import (
+from navpy.core.approach.geo.legacy_destination_resolver import (
     LegacyNavigationState,
     LegacyDestinationResolver,
     navigation_poi_location,
 )
 from navpy.modules.navigation.legacy_nav_adjustment import LegacyNavAdjustment
-from navpy.modules.navigation.legacy_final_approach_command import (
+from navpy.core.approach.geo.legacy_final_approach_command import (
     LegacyFinalApproachCommand,
     LegacyFinalApproachCommandPorts,
 )
@@ -46,8 +46,8 @@ from navpy.modules.navigation.nav.nav_law_factory import (
     NavigationLawLifecycle,
     get_nav_algorithm_spec,
 )
-from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
-from navpy.modules.navigation.nav.vision_nav.runtime_composition import (
+from navpy.plugins.laws.vision_pn.law import VisionNavLaw
+from navpy.core.approach.vision_nav.runtime_composition import (
     FinalApproachVehicleActuator,
     FinalApproachVehicleDiagnosticReader,
     compose_final_approach_runtime,

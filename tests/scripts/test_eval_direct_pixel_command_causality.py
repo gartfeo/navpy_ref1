@@ -5,14 +5,14 @@ import math
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.command_anchor import FinalApproachLimits
-from navpy.modules.navigation.nav.vision_nav.command_transaction import (
+from navpy.plugins.laws.vision_pn.command_anchor import FinalApproachLimits
+from navpy.core.approach.vision_nav.command_transaction import (
     FinalApproachLawEvidence,
 )
-from navpy.modules.navigation.nav.vision_nav.diagnostic_capture import (
+from navpy.core.approach.vision_nav.diagnostic_capture import (
     law_evidence_payload,
 )
-from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachPlanOrigin
+from navpy.plugins.laws.vision_pn.law_plan import FinalApproachPlanOrigin
 from scripts.eval_direct_pixel_command_causality import (
     _OPTIONAL,
     _REQUIRED,

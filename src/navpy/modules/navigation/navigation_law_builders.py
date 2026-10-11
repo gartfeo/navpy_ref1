@@ -11,7 +11,7 @@ from navpy.plugins.vehicle.ardupilot.final_approach_airframe_config import (
     FinalApproachAirframeConfigProvider,
     FinalApproachParameterPort,
 )
-from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
+from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.ports.vehicle_contract import IVehicle
 
 

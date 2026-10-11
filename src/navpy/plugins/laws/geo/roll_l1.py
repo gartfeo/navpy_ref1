@@ -8,12 +8,12 @@ from time import time
 
 import numpy as np
 
-from navpy.modules.navigation.nav.roll_l1_state import (
+from navpy.plugins.laws.geo.roll_l1_state import (
     RollL1Parameters,
     RollL1State,
 )
-from navpy.modules.navigation.nav.roll_l1_inputs import RollL1MotionSnapshot
-from navpy.modules.navigation.nav.roll_l1_waypoint_solver import RollL1WaypointSolver
+from navpy.plugins.laws.geo.roll_l1_inputs import RollL1MotionSnapshot
+from navpy.plugins.laws.geo.roll_l1_waypoint_solver import RollL1WaypointSolver
 from navpy.core.kernel.math_utils import GRAVITY_MSS
 
 

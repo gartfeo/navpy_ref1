@@ -6,7 +6,7 @@ import logging
 import time
 from collections.abc import Callable
 
-from navpy.modules.navigation.nav.vision_nav.source_time_ports import (
+from navpy.core.approach.vision_nav.source_time_ports import (
     CommandOutcome,
     ObservationOutcome,
     SourceNow,

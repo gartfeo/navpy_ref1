@@ -7,16 +7,16 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
-from navpy.modules.navigation.nav.vision_nav.command_hold import (
+from navpy.core.approach.vision_nav.command_hold import (
     FinalApproachCommandHoldStore,
 )
-from navpy.modules.navigation.nav.vision_nav.command_postprocess import (
+from navpy.core.approach.vision_nav.command_postprocess import (
     FinalApproachPostprocessFence,
 )
-from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
+from navpy.core.approach.vision_nav.diagnostic_mailbox import (
     FinalApproachDiagnosticMailbox,
 )
-from navpy.modules.navigation.nav.vision_nav.queued_frame import FinalApproachQueuedFrame
+from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
 
 
 class FinalApproachResettableState(Protocol):

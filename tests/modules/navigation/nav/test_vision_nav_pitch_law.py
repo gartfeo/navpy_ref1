@@ -14,8 +14,8 @@ import math
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.law_plan import VERTICAL_PN_NAVIGATION_CONSTANT
-from navpy.modules.navigation.nav.vision_nav.pitch_law import raw_pitch_current
+from navpy.plugins.laws.vision_pn.law_plan import VERTICAL_PN_NAVIGATION_CONSTANT
+from navpy.plugins.laws.vision_pn.pitch_law import raw_pitch_current
 
 
 def test_raw_pitch_current_matches_the_integrator_formula():

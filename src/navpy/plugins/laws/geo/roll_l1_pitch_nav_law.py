@@ -10,7 +10,7 @@ from navpy.core.ports.nav_law import (
     NavContext,
     NavLaw,
 )
-from navpy.modules.navigation.nav.roll_l1_core import RollL1PitchNav
+from navpy.plugins.laws.geo.roll_l1_core import RollL1PitchNav
 
 
 class RollL1PitchNavLaw(NavLaw):

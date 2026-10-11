@@ -8,21 +8,21 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
-from navpy.modules.navigation.nav.vision_nav.command_freshness import (
+from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandTiming,
 )
-from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
+from navpy.core.approach.vision_nav.diagnostic_mailbox import (
     FinalApproachDiagnosticMailbox,
 )
-from navpy.modules.navigation.nav.vision_nav.frame_projection import (
+from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
 )
-from navpy.modules.navigation.nav.vision_nav.queued_frame import FinalApproachQueuedFrame
-from navpy.modules.navigation.nav.vision_nav.source_epoch import (
+from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
+from navpy.core.approach.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,
 )
-from navpy.modules.navigation.nav.vision_nav.source_time_ports import (
+from navpy.core.approach.vision_nav.source_time_ports import (
     ObservationOutcome,
     FinalApproachObservationSourceTimeObserver,
 )

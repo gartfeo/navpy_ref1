@@ -8,17 +8,17 @@ from dataclasses import dataclass
 from typing import Callable, Protocol
 
 from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.nav.vision_nav.command_transaction import (
+from navpy.core.approach.vision_nav.command_transaction import (
     FinalApproachAttitudeActuator,
 )
-from navpy.modules.navigation.nav.vision_nav.command_freshness import (
+from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandFreshness,
     FinalApproachCommandTiming,
 )
-from navpy.modules.navigation.nav.vision_nav.command_liveness import (
+from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandFailureSink,
 )
-from navpy.modules.navigation.nav.vision_nav.source_time_ports import (
+from navpy.core.approach.vision_nav.source_time_ports import (
     FinalApproachCommandSourceTimeObserver,
 )
 

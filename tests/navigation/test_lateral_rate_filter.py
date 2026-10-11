@@ -15,7 +15,7 @@ import math
 import pytest
 
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.lateral_rate import LateralRateFilter
+from navpy.plugins.laws.vision_pn.lateral_rate import LateralRateFilter
 
 
 def _frame(timestamp_s: float, bearing_rad: float) -> FinalApproachVisionFrame:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from navpy.modules.navigation.nav.vision_nav.command_anchor import (
+from navpy.plugins.laws.vision_pn.command_anchor import (
     FinalApproachCommandAnchor,
     advanced_anchor,
     bootstrap_anchor,
@@ -16,7 +16,7 @@ from navpy.modules.navigation.nav.vision_nav.command_anchor import (
 )
 from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.core.ports.law_config import FinalApproachLawConfigProvider
-from navpy.modules.navigation.nav.vision_nav.law_plan import (
+from navpy.plugins.laws.vision_pn.law_plan import (
     LATERAL_PN_NAVIGATION_CONSTANT,
     FinalApproachLawPlan,
     FinalApproachPlanOrigin,
@@ -24,9 +24,9 @@ from navpy.modules.navigation.nav.vision_nav.law_plan import (
     held_plan,
     replace_anchor,
 )
-from navpy.modules.navigation.nav.vision_nav.rate_filter import VerticalRateFilter
-from navpy.modules.navigation.nav.vision_nav.lateral_rate import LateralRateFilter
-from navpy.modules.navigation.nav.vision_nav.pitch_law import raw_pitch_current
+from navpy.plugins.laws.vision_pn.rate_filter import VerticalRateFilter
+from navpy.plugins.laws.vision_pn.lateral_rate import LateralRateFilter
+from navpy.plugins.laws.vision_pn.pitch_law import raw_pitch_current
 from navpy.core.kernel.math_utils import GRAVITY_MSS
 
 # Own named constant.  This used to be `PTCH2SRV_TCONST`, which the law read for

@@ -8,7 +8,7 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.nav.vision_nav.command_transaction import (
+from navpy.core.approach.vision_nav.command_transaction import (
     FinalApproachLawEvidence,
 )
 from navpy.core.ports.frame import FinalApproachVisionFrame

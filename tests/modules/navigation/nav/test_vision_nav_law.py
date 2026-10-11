@@ -7,12 +7,12 @@ from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.command_anchor import (
+from navpy.plugins.laws.vision_pn.command_anchor import (
     PITCH_CEILING_DEG,
     ROLL_LIMIT_CAP_DEG,
 )
-from navpy.modules.navigation.nav.vision_nav.law_plan import VERTICAL_PN_NAVIGATION_CONSTANT
-from navpy.modules.navigation.nav.vision_nav.law import (
+from navpy.plugins.laws.vision_pn.law_plan import VERTICAL_PN_NAVIGATION_CONSTANT
+from navpy.plugins.laws.vision_pn.law import (
     VERTICAL_RATE_FILTER_TAU_S,
     VisionNavLaw,
 )

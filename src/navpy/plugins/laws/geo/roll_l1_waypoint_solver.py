@@ -10,11 +10,11 @@ import numpy as np
 
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.rotation_utils import normalize
-from navpy.modules.navigation.nav.roll_l1_state import (
+from navpy.plugins.laws.geo.roll_l1_state import (
     RollL1Parameters,
     RollL1State,
 )
-from navpy.modules.navigation.nav.roll_l1_inputs import RollL1MotionSnapshot
+from navpy.plugins.laws.geo.roll_l1_inputs import RollL1MotionSnapshot
 from navpy.core.kernel.math_utils import (
     get_distance_NE,
     wrap_180_cd,

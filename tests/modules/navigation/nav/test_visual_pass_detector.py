@@ -1,5 +1,5 @@
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassDetector
+from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 
 
 def _frame(ts, body_x):

@@ -9,13 +9,13 @@ from typing import Protocol
 
 from navpy.modules.navigation.calc_data import CalcData
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.command_anchor import (
+from navpy.plugins.laws.vision_pn.command_anchor import (
     FinalApproachLimits,
     effective_limits,
 )
-from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachLawPlan
-from navpy.modules.navigation.nav.vision_nav.law_plan import FinalApproachPlanOrigin
-from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassPlan
+from navpy.plugins.laws.vision_pn.law_plan import FinalApproachLawPlan
+from navpy.plugins.laws.vision_pn.law_plan import FinalApproachPlanOrigin
+from navpy.core.approach.vision_nav.visual_pass import VisualPassPlan
 
 
 class FinalApproachAttitudeActuator(Protocol):

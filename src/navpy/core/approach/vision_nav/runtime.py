@@ -12,25 +12,25 @@ from navpy.core.command.navigation_command_slot import (
     NavigationCommandLease,
     NavigationCommandSlot,
 )
-from navpy.modules.navigation.nav.vision_nav.command_executor import (
+from navpy.core.approach.vision_nav.command_executor import (
     FinalApproachCommandExecutor,
     FinalApproachCommandWork,
 )
-from navpy.modules.navigation.nav.vision_nav.command_hold import (
+from navpy.core.approach.vision_nav.command_hold import (
     FinalApproachCommandHoldIssuer,
     FinalApproachHeldIssue,
 )
-from navpy.modules.navigation.nav.vision_nav.command_liveness import (
+from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandLiveness,
 )
-from navpy.modules.navigation.nav.vision_nav.command_reset import (
+from navpy.core.approach.vision_nav.command_reset import (
     FinalApproachCommandReset,
 )
-from navpy.modules.navigation.nav.vision_nav.ingress import FinalApproachIngress
-from navpy.modules.navigation.nav.vision_nav.queued_frame import FinalApproachQueuedFrame
-from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
-from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
-from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassDetector
+from navpy.core.approach.vision_nav.ingress import FinalApproachIngress
+from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
+from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
+from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
+from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 from navpy.core.ports.detect_data import DetectedObject
 
 

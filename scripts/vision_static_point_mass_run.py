@@ -8,7 +8,7 @@ from typing import Iterable, Protocol
 
 import numpy as np
 
-from navpy.modules.navigation.nav.vision_nav.frame_projection import (
+from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )
@@ -16,7 +16,7 @@ from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
+from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.ports.pixel_observation import VisualDetection
 from scripts.vision_static_point_mass_plant import (
     air_velocity_ned_mps,

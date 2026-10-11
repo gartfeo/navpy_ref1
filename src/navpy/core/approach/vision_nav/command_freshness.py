@@ -6,7 +6,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.modules.navigation.nav.vision_nav.source_time_ports import SourceNow
+from navpy.core.approach.vision_nav.source_time_ports import SourceNow
 
 
 FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S = 1.0

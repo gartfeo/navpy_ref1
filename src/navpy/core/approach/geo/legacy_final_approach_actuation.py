@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 
-from navpy.modules.navigation.legacy_final_approach_calculation import (
+from navpy.core.approach.geo.legacy_final_approach_calculation import (
     LegacyFinalApproachCalculation,
 )
 

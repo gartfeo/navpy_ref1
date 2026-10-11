@@ -26,7 +26,7 @@ available from the comparison:
 2. law -- `--pitch-controller pn` here (line 89-90) vs `vision-nav-pn` in
    direct_pixel_pn_child.py:63-64
 3. state privileges -- the legacy path consumes truth POI location and
-   vehicle location (src/navpy/modules/navigation/legacy_destination_resolver.py:175-182)
+   vehicle location (src/navpy/core/approach/geo/legacy_destination_resolver.py:175-182)
 4. final-approach runtime -- the vision path runs the final-approach service; the legacy
    path has none (see the pass-detection note above)
 
@@ -65,7 +65,7 @@ from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc  # noqa: E402
 from navpy.modules.navigation.navigation import Navigation  # noqa: E402
 from navpy.modules.navigation.mission_planner import MissionPlanner  # noqa: E402
-from navpy.modules.navigation.nav.vision_nav.visual_pass import (  # noqa: E402
+from navpy.core.approach.vision_nav.visual_pass import (  # noqa: E402
     VisualPassDetector,
 )
 from navpy.core.ports.flight_mode import FlightMode  # noqa: E402

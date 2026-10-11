@@ -5,16 +5,16 @@ from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from navpy.modules.navigation.nav.vision_nav import command_executor
-from navpy.modules.navigation.nav.vision_nav import command_freshness
-from navpy.modules.navigation.nav.vision_nav import command_hold
-from navpy.modules.navigation.nav.vision_nav import command_transaction
-from navpy.modules.navigation.nav.vision_nav import law
-from navpy.modules.navigation.nav.vision_nav import rate_filter
-from navpy.modules.navigation.nav.vision_nav.frame_projection import (
+from navpy.core.approach.vision_nav import command_executor
+from navpy.core.approach.vision_nav import command_freshness
+from navpy.core.approach.vision_nav import command_hold
+from navpy.core.approach.vision_nav import command_transaction
+from navpy.plugins.laws.vision_pn import law
+from navpy.plugins.laws.vision_pn import rate_filter
+from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
 )
-from navpy.modules.navigation.nav.vision_nav.ingress import FinalApproachIngress
+from navpy.core.approach.vision_nav.ingress import FinalApproachIngress
 from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
 from navpy.modules.nav.final_approach_command_dispatch import (
     FinalApproachCommandDispatch,

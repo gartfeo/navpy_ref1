@@ -5,14 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from navpy.core.ports.nav_command import NavCommand
-from navpy.modules.navigation.nav.vision_nav.command_anchor import (
+from navpy.plugins.laws.vision_pn.command_anchor import (
     FinalApproachCommandAnchor,
     clamped_command,
 )
 from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.core.ports.law_config import FinalApproachLawConfig
-from navpy.modules.navigation.nav.vision_nav.lateral_rate import LateralRatePlan
-from navpy.modules.navigation.nav.vision_nav.rate_filter import VerticalRatePlan
+from navpy.plugins.laws.vision_pn.lateral_rate import LateralRatePlan
+from navpy.plugins.laws.vision_pn.rate_filter import VerticalRatePlan
 
 
 # The proportional-navigation gains. They live here, beside the plan that

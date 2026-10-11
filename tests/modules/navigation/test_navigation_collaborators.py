@@ -34,12 +34,12 @@ from navpy.modules.navigation.navigation_mode import (
 )
 from navpy.core.approach.geo.legacy_navigation_runtime import LegacyNavigationRuntime
 from navpy.modules.navigation.navigation_final_approach import FinalApproachNavigationService
-from navpy.modules.navigation.legacy_destination_resolver import (
+from navpy.core.approach.geo.legacy_destination_resolver import (
     LegacyNavigationState,
     LegacyDestinationResolver,
     geodetic_poi_ned,
 )
-from navpy.modules.navigation.legacy_final_approach_command import (
+from navpy.core.approach.geo.legacy_final_approach_command import (
     LegacyFinalApproachCommand,
     LegacyFinalApproachCommandPorts,
 )

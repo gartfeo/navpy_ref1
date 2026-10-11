@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
-from navpy.modules.navigation.nav.vision_nav.command_freshness import (
+from navpy.core.approach.vision_nav.command_freshness import (
     FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
 )
 

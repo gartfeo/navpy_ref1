@@ -8,49 +8,49 @@ import pytest
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.kernel.resource_cleanup import CleanupStack
 from scripts import eval_certificate as certificate
-from navpy.modules.navigation.nav.vision_nav import command_executor as command_executor_module
+from navpy.core.approach.vision_nav import command_executor as command_executor_module
 from navpy.modules.navigation.calc_data import CalcData
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
-from navpy.modules.navigation.nav.vision_nav.command_executor import (
+from navpy.core.approach.vision_nav.command_executor import (
     FinalApproachCommandExecutor,
     FinalApproachExecutorPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.command_freshness import (
+from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandFreshness,
 )
-from navpy.modules.navigation.nav.vision_nav.command_hold import (
+from navpy.core.approach.vision_nav.command_hold import (
     FinalApproachCommandHold,
 )
-from navpy.modules.navigation.nav.vision_nav.command_liveness import (
+from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandLiveness,
 )
-from navpy.modules.navigation.nav.vision_nav.command_postprocess import (
+from navpy.core.approach.vision_nav.command_postprocess import (
     FinalApproachPostprocessFence,
 )
-from navpy.modules.navigation.nav.vision_nav.command_reset import (
+from navpy.core.approach.vision_nav.command_reset import (
     FinalApproachCommandReset,
     FinalApproachCommandResetPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.command_transaction import (
+from navpy.core.approach.vision_nav.command_transaction import (
     FinalApproachCommandOutcome,
     FinalApproachCommandResult,
 )
-from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
+from navpy.core.approach.vision_nav.diagnostic_mailbox import (
     FinalApproachDiagnosticMailbox,
 )
 from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.ingress import (
+from navpy.core.approach.vision_nav.ingress import (
     FinalApproachIngress,
     FinalApproachIngressPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.runtime import (
+from navpy.core.approach.vision_nav.runtime import (
     FinalApproachCommandWorkRuntime,
     FinalApproachSessionRuntime,
     VisionNavRuntime,
 )
-from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
-from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
-from navpy.modules.navigation.nav.vision_nav.source_time_adapter import (
+from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
+from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
+from navpy.core.approach.vision_nav.source_time_adapter import (
     PoseCadenceFinalApproachSourceTimeObserver,
 )
 from navpy.core.kernel.logging import pose_cadence_debug

@@ -33,7 +33,7 @@ from navpy.modules.navigation.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.frame_projection import (
+from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )

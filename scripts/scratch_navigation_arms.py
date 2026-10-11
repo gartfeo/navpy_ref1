@@ -52,7 +52,7 @@ CHILD_RELATIVE = Path("scripts/scratch_navigation_uav.py")
 SOURCE_RELATIVE = Path("src")
 # What the arms are ALLOWED to differ in. Everything else being identical is
 # what makes the miss difference attributable to the treatment.
-TREATMENT_RELATIVE = Path("src/navpy/modules/navigation/nav/vision_nav/law.py")
+TREATMENT_RELATIVE = Path("src/navpy/plugins/laws/vision_pn/law.py")
 # Compared for identity. Bytecode caches and run artifacts are not code and
 # differ for reasons that have nothing to do with the experiment.
 COMPARED_SUFFIXES = (".py",)

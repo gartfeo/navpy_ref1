@@ -7,7 +7,7 @@ import pytest
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.legacy_final_approach_command import (
+from navpy.core.approach.geo.legacy_final_approach_command import (
     LegacyFinalApproachCommand,
     LegacyFinalApproachCommandPorts,
 )
