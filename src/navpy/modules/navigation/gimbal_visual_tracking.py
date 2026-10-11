@@ -23,7 +23,7 @@ from navpy.modules.vision.gimbal_rate_types import (
     TrackingState,
 )
 from navpy.modules.vision.gimbal_tracking_sample import GimbalPoiProjector
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 @dataclass(frozen=True)

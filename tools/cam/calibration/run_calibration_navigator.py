@@ -36,7 +36,7 @@ from cam.calibration.calibration_navigator import (
 )
 from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.frame_provider import FrameProvider
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalAbc, GimbalData
+from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
 
 WINDOW_NAME = "Calibration Navigator"
 

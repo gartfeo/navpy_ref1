@@ -9,8 +9,8 @@ from navpy.modules.navigation.nav.vision_nav.command_anchor import (
     FinalApproachCommandAnchor,
     clamped_command,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfig
+from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.law_config import FinalApproachLawConfig
 from navpy.modules.navigation.nav.vision_nav.lateral_rate import LateralRatePlan
 from navpy.modules.navigation.nav.vision_nav.rate_filter import VerticalRatePlan
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalAbc, GimbalData
+from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
 
 
 class FixedGimbal(GimbalAbc):

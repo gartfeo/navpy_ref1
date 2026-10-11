@@ -14,7 +14,7 @@ from navpy.modules.nav.final_approach_detection_pump_session import (
     FinalApproachPumpSession,
     stop_final_approach_pump_session,
 )
-from navpy.modules.vision.models.detection_event_lease import DetectionEventLease
+from navpy.core.ports.detection_event_lease import DetectionEventLease
 
 
 FINAL_APPROACH_PUMP_STOP_TIMEOUT_S = 2.0

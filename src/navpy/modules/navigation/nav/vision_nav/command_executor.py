@@ -38,7 +38,7 @@ from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
 from navpy.modules.navigation.nav.vision_nav.diagnostics import (
     FinalApproachCommandDiagnostics,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
 from navpy.modules.navigation.nav.vision_nav.source_time_ports import (
     FinalApproachCommandSourceTimeObserver,

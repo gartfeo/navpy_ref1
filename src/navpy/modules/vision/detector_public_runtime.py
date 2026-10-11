@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from navpy.modules.vision.models.detect_request import DetectRequest
-from navpy.modules.vision.models.detect_response import DetectResponse
+from navpy.core.ports.detect_request import DetectRequest
+from navpy.core.ports.detect_response import DetectResponse
 from navpy.modules.vision.real_detector_public_ports import (
     RealEventParts,
     RealLifecycleParts,
@@ -18,11 +18,11 @@ from navpy.modules.vision.real_detector_public_ports import (
 
 if TYPE_CHECKING:
     from navpy.core.kernel.location import Location
-    from navpy.modules.vision.models.detect_data import DetectedObject
-    from navpy.modules.vision.models.detection_publication import (
+    from navpy.core.ports.detect_data import DetectedObject
+    from navpy.core.ports.detection_publication import (
         DetectionPublication,
     )
-    from navpy.modules.vision.models.detection_event_lease import DetectionEventLease
+    from navpy.core.ports.detection_event_lease import DetectionEventLease
 
 
 class DetectorLifecycleFacet:

@@ -4,13 +4,13 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.models.detect_data import (
+from navpy.core.ports.detect_data import (
     DetectStatus,
     DetectionSizeClass,
     DetectedObject,
     DetectResult,
 )
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.simulation_object import SimulationObject
 from tests.detection_factory import make_detected_poi
 

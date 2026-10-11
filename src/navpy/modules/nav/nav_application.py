@@ -8,7 +8,7 @@ from typing import Callable
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.nav.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.modules.nav.nav_network import NavNetworkRuntime
 from navpy.modules.nav.nav_state import ConfirmOverrideInbox

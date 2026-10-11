@@ -10,7 +10,7 @@ from navpy.args.vision_args import VisionArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.geo.zc_util import ZcUtil
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordinator import DetectionCoordinator
 from navpy.modules.vision.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,

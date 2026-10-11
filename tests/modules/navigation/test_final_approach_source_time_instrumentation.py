@@ -38,7 +38,7 @@ from navpy.modules.navigation.nav.vision_nav.command_transaction import (
 from navpy.modules.navigation.nav.vision_nav.diagnostic_mailbox import (
     FinalApproachDiagnosticMailbox,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.ingress import (
     FinalApproachIngress,
     FinalApproachIngressPorts,

@@ -340,7 +340,7 @@ class TestRunGimbalTracker(unittest.TestCase):
 
     def test_operator_zoom_only_sets_initial_hardware_zoom(self):
         from navpy.core.kernel.attitude import Attitude
-        from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+        from navpy.core.ports.gimbal_abc import GimbalData
 
         gimbal = Mock()
         gimbal.is_connected.return_value = True

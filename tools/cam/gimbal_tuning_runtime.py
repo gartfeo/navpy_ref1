@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import cv2
 
 from navpy.core.kernel.resource_cleanup import CleanupStack
-from navpy.modules.vision.models.detect_request import DetectRequest
+from navpy.core.ports.detect_request import DetectRequest
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.detector import Detector
 

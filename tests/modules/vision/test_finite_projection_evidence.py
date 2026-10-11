@@ -8,8 +8,8 @@ from pymap3d import ned2geodetic
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.models.detect_data import DetectStatus
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.detect_data import DetectStatus
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize, ProjectionCameraPort
 from navpy.modules.vision.simulation_object import SimulationObject

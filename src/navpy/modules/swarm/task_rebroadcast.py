@@ -11,7 +11,7 @@ from navpy.modules.comm.messages.types import class_to_task_type
 from navpy.modules.swarm.task_auction_state import TaskAuctionState
 from navpy.modules.swarm.task_rebroadcast_state import TaskRebroadcastState
 from navpy.modules.swarm.task_messaging import TaskMessageSender
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import get_poi_task_id
 
 

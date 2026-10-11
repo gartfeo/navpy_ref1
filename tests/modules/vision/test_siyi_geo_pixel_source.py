@@ -12,7 +12,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.peripheral.gimbal_abc import (
+from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )

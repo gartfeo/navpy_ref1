@@ -17,8 +17,8 @@ from navpy.modules.vision.confirmation_frame import (
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
 from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.frame_provider import FrameSnapshot
-from navpy.modules.vision.models.detect_request import DetectRequest
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.detect_request import DetectRequest
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.real_detector_controls import DetectionQuery
 from navpy.modules.vision.real_detector_diagnostics import (
     DetectorDebugConfig,
@@ -36,7 +36,7 @@ from navpy.modules.vision.real_detector_runtime_state import (
     RuntimeMetrics,
 )
 from navpy.modules.vision.capture_lookup import CaptureLookupCalibration
-from navpy.modules.vision.frame_capture_ports import (
+from navpy.core.ports.frame_capture_ports import (
     CaptureStamp,
     CaptureStampKind,
 )

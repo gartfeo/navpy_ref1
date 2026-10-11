@@ -8,7 +8,7 @@ from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.listener_abc import ListenerAbc
 from navpy.modules.comm.messages.msg_abc import MsgABC
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.nav.confirmation_image_artifacts import (
     save_confirmation_image_artifacts,
 )
@@ -30,7 +30,7 @@ from navpy.modules.nav.confirmation_media import (
 )
 from navpy.modules.nav.confirmation_manager_state import ConfirmationManagerState
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.utils.image_utils import create_confirmation_thumbnail
 
 

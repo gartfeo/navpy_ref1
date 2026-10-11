@@ -6,7 +6,7 @@ from typing import Callable, Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
 from navpy.modules.nav.confirm_override_listener import ConfirmOverrideListener
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
@@ -24,9 +24,9 @@ from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_ports import MessageClockReset
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.detector_ports import SimulationControlPort
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class NavNetworkRuntime:

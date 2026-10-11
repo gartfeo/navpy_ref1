@@ -35,12 +35,12 @@ from navpy.modules.comm.messages.types import (
     TaskDispatchStatus,
     TaskTypeMsgData,
 )
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_state_composition import create_task_state
 from navpy.modules.swarm.task_dispatch import TaskDispatch
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 
 
 class FakeTimer:

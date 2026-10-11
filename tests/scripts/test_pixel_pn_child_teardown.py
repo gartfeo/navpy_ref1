@@ -27,7 +27,7 @@ from navpy.core.kernel.exception_groups import (
     _FallbackBaseExceptionGroup,
     _FallbackExceptionGroup,
 )
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 from navpy.modules.vision.sim import determinism_journal, determinism_trace
 from navpy.modules.vision.sim.determinism_events import (
     ASSOCIATION_COMMITTED,

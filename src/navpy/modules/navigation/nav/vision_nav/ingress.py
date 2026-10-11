@@ -26,7 +26,7 @@ from navpy.modules.navigation.nav.vision_nav.source_time_ports import (
     ObservationOutcome,
     FinalApproachObservationSourceTimeObserver,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class FinalApproachIngressCommandReset(Protocol):

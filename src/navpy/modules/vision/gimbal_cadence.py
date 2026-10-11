@@ -7,7 +7,7 @@ import time
 from typing import Protocol
 
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
-from navpy.modules.vision.worker_failure import WorkerFailureLatch
+from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 
 class GimbalStep(Protocol):

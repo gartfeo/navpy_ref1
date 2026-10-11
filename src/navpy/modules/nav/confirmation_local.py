@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import get_poi_task_id
 
 

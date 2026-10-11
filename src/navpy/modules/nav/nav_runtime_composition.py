@@ -44,7 +44,7 @@ from navpy.modules.nav.navigation_transition_handler import (
     TransitionPorts,
 )
 from navpy.modules.nav.final_approach_nav_workflow import FinalApproachNavWorkflow
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
 

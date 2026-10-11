@@ -12,7 +12,7 @@ from navpy.modules.nav.confirmation_round_transaction import (
     ConfirmationRound,
 )
 from navpy.modules.nav.confirmation_worker_state import ConfirmationWorkerState
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class ConfirmationSendGate:

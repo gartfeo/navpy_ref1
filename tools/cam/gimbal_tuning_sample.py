@@ -10,8 +10,8 @@ from navpy.modules.vision.gimbal_rate_types import (
     GimbalTrackResult,
 )
 from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_components import BoundingBox
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_components import BoundingBox
 
 from .gimbal_tuning_geometry import TrackingCommand, normalize_bbox
 from .gimbal_tuning_overlay import OverlayPoi

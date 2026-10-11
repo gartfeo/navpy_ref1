@@ -11,7 +11,7 @@ from navpy.modules.vision.deep_search import DeepSearchDetector
 from navpy.modules.vision.real_detector_ports import CleanupAction
 from navpy.core.ports.detection import FrameDetector
 from navpy.modules.vision.real_detector_state import ConfirmationFrameStore
-from navpy.modules.vision.tracker_backends import TrackerBackend
+from navpy.core.ports.tracker_backends import TrackerBackend
 
 
 def _raise_cleanup_errors(errors: tuple[BaseException, ...]) -> None:

@@ -16,7 +16,7 @@ from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
-from navpy.modules.vision.peripheral.gimbal_abc import (
+from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )

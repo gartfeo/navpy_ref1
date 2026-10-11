@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from navpy.modules.vision.peripheral.camera_abc import CameraAbc
+from navpy.core.ports.camera_abc import CameraAbc
 
 
 class FovCamera(CameraAbc):

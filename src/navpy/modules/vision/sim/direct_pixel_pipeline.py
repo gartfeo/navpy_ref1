@@ -27,7 +27,7 @@ from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.ports.pose_stream_rate import (
     pose_frame_association_max_skew_s,
 )
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.sim.direct_pixel_render import DirectPixelRenderer
 from navpy.modules.vision.sim.direct_pixel_trace import (
     DirectPixelTrace,

@@ -11,13 +11,13 @@ from navpy.modules.comm.messages.swarm_heartbeat_msg import (
 )
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
 from navpy.modules.comm.messages.types import TaskTypeMsgData
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
 from navpy.modules.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
 from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot
 from navpy.modules.swarm.task_messaging import TaskMessageSender
 from navpy.modules.swarm.task_msg_refs import MsgRef
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 
 
 def _presence(

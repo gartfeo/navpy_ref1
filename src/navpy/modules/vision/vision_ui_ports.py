@@ -9,8 +9,8 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.gimbal_rate_tracker import GimbalTrackResult
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 

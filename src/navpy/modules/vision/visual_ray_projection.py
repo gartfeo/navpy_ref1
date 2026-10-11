@@ -6,13 +6,13 @@ import math
 
 import numpy as np
 
-from navpy.modules.vision.models.pixel_observation import (
+from navpy.core.ports.pixel_observation import (
     CameraToBodyTransform,
     PixelCalibration,
     PixelObservation,
     PixelProjectionKind,
 )
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.kernel.euler_utils import get_euler_by_sequence
 from navpy.core.kernel.simple_rotation import Rotation
 

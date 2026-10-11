@@ -16,11 +16,11 @@ from navpy.core.kernel.config.uas_args import UasArgs
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.vision.models.detect_data import (
+from navpy.core.ports.detect_data import (
     DetectedObject,
     DetectStatus,
 )
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.detector_sim import DetectorSim, SimFrameGenerator
 from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
 from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState

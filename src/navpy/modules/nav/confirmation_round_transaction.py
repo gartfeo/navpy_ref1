@@ -9,7 +9,7 @@ from enum import Enum, unique
 from typing import Optional, TypeVar
 
 from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 _ResultT = TypeVar("_ResultT")

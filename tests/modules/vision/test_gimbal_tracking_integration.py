@@ -77,7 +77,7 @@ class TestDetectorSimTracking(unittest.TestCase):
 
     def _make_detector(self, with_tracker=True):
         from navpy.modules.vision.sim.detector_sim import DetectorSim
-        from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+        from navpy.core.ports.gimbal_abc import GimbalData
         from navpy.core.kernel.config.uas_args import UasArgs
         from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
         from tests.conftest import create_mock_args
@@ -186,7 +186,7 @@ class TestProjectPoi(unittest.TestCase):
     """Test project_poi vs detect separation."""
 
     def test_project_poi_ignores_is_valid(self):
-        from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+        from navpy.core.ports.gimbal_abc import GimbalData
         from navpy.modules.vision.simulation_object import SimulationObject
         from navpy.core.kernel.config.uas_args import UasArgs
         from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
@@ -243,7 +243,7 @@ class TestProjectPoi(unittest.TestCase):
         )
         self.assertIsNotNone(result)
 
-        from navpy.modules.vision.models.detect_data import DetectStatus
+        from navpy.core.ports.detect_data import DetectStatus
         detect_result = projector.detect(
             Location(32.0, 34.8, 200.0, is_absolute=True),
             poi,
@@ -298,7 +298,7 @@ class TestBodyFrameReporting(unittest.TestCase):
 
     def test_lock_mode_reports_body_frame_yaw(self):
         from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim import GimbalSiyiSim
-        from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+        from navpy.core.ports.gimbal_abc import GimbalData
 
         vehicle = Mock()
         vehicle.attitude = Attitude(0, 90, 0)
@@ -396,7 +396,7 @@ class TestSecondLaunchGeoPointing(unittest.TestCase):
         from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim import (
             GimbalSiyiSim,
         )
-        from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+        from navpy.core.ports.gimbal_abc import GimbalData
         from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
 
         vehicle = Mock()

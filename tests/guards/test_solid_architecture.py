@@ -74,7 +74,7 @@ def test_passive_record_allowance_rejects_mutation_escapes() -> None:
         '        object.__setattr__(self, "field_0", 999.0)\n'
         "        return self.field_0\n"
     )
-    path = "src/navpy/modules/navigation/nav/vision_nav/frame.py"
+    path = "src/navpy/core/ports/frame.py"
     violations = scan_global_class_limits({path: source})
     assert any(violation.code == "owned-fields" for violation in violations)
 

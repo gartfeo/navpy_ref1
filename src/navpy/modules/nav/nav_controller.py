@@ -21,7 +21,7 @@ from navpy.modules.nav.nav_constants import (
     POI_CLOSE_DIST,
     FINAL_APPROACH_RECORD_TIMEOUT_S,
 )
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
 

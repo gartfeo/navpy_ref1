@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,
@@ -41,7 +41,7 @@ from navpy.modules.nav.final_approach_publication_admission import (
     FinalApproachPublicationAdmissionPorts,
 )
 from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 from navpy.modules.vision.sim.detection_publication_store import (
     DetectionPublicationStore,
 )

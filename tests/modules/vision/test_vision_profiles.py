@@ -33,7 +33,7 @@ from navpy.modules.vision.vision_profile_loader import (
 )
 from navpy.modules.vision.vision_tracking_composition import build_tracking_config
 from navpy.modules.vision.vision_zoom_profile import build_zoom_config
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 
 
 class TestLoadProfiles(unittest.TestCase):

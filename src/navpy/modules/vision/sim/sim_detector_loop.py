@@ -15,7 +15,7 @@ from navpy.modules.vision.sim.sim_runtime_ports import (
     ErrorSink,
     FrameOutcomeSink,
 )
-from navpy.modules.vision.worker_failure import WorkerFailureLatch
+from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 
 class SimDetectorWorker:

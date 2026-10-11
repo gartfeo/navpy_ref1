@@ -4,7 +4,7 @@ from unittest.mock import Mock, call
 
 from navpy.modules.vision.continuous_zoom_policy import ContinuousZoomPolicy
 from navpy.modules.vision.gimbal_rate_tracker import GimbalTrackResult, TrackingState
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalAbc
+from navpy.core.ports.gimbal_abc import GimbalAbc
 from navpy.modules.vision.vision_class_profile import MIN_TRACK_PIXELS
 from navpy.modules.vision.zoom_calibration import (
     ZoomCalibrationEntry,

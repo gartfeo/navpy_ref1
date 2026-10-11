@@ -28,7 +28,7 @@ from navpy.modules.comm.messages.swarm_ack_msg import (
     SwarmAckMsg,
 )
 from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
 from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
 from navpy.modules.swarm.task_actor_slots import SelectedTaskSlot, SlotState

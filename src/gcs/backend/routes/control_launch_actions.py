@@ -5,7 +5,7 @@ import asyncio
 import logging
 from fastapi import HTTPException
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_COMPONENT_ARM_DISARM
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 from gcs.backend.vehicle_manager import VehicleManager
 from gcs.backend.broadcast import ConnectionManager
 from gcs.backend.settings_model import GcsSettings

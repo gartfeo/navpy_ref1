@@ -8,8 +8,8 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.frame_generation_gate import FrameGeneration
 from navpy.modules.vision.simulation_object import SimulationObject
 

@@ -6,7 +6,7 @@ import math
 from typing import Optional
 
 from navpy.modules.nav.confirmation_reporting import ConfirmDebugReporter
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_size import characteristic_pixels
 
 

@@ -8,7 +8,7 @@ from navpy.modules.nav.confirmation_policy import PoiRetryPolicy
 from navpy.modules.nav.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.modules.nav.nav_state import GeoHoldState, NavPhaseState, NavState
 from navpy.modules.nav.track_recovery import TrackRecovery
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import get_poi_task_id
 
 

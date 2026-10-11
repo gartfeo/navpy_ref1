@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.peripheral.siyi.hardware.commands import (
     SiyiHardwareCommands,
 )

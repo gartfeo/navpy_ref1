@@ -53,8 +53,8 @@ from collections.abc import Callable
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-from navpy.modules.vehicle.vehicle_contract import IVehicle
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
 from navpy.modules.vision.sim.direct_dispatch_metrics import (
     DirectPixelSourceMetrics,

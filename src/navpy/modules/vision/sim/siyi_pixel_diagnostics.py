@@ -10,7 +10,7 @@ import numpy as np
 import pymap3d
 
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.sim.ideal_poi_projector import (
     UasFrameConvention,
     poi_los_uas,

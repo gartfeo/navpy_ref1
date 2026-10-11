@@ -6,7 +6,7 @@ from typing import Iterable, Optional, TYPE_CHECKING
 from navpy.modules.vision.poi_identity import get_poi_task_id
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.models.detect_data import DetectedObject
+    from navpy.core.ports.detect_data import DetectedObject
 
 
 def select_most_centered_poi(pois: Iterable["DetectedObject"]) -> Optional["DetectedObject"]:

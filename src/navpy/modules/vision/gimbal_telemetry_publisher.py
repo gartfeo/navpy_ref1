@@ -11,7 +11,7 @@ from navpy.modules.vision.gimbal_telemetry_messages import (
     GimbalTelemetryEmitter,
     GimbalTelemetryLogger,
 )
-from navpy.modules.vision.worker_failure import WorkerFailureLatch
+from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 if TYPE_CHECKING:
     from navpy.modules.vision.vision_profile_types import CameraMountSpec

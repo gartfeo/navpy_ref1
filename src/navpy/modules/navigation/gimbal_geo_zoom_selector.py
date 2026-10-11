@@ -16,7 +16,7 @@ from navpy.modules.vision.vision_camera_calibration import (
 )
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+    from navpy.core.ports.gimbal_abc import GimbalData
 
 
 class GeoZoomSelector:

@@ -1,4 +1,4 @@
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassDetector
 
 

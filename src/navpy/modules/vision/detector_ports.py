@@ -5,19 +5,19 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol, Sequence
 
-from navpy.modules.vision.worker_failure import FailureHealthPort
+from navpy.core.ports.worker_failure import FailureHealthPort
 
 if TYPE_CHECKING:
     from navpy.core.kernel.attitude import Attitude
     from navpy.core.kernel.location import Location
     from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
     from navpy.modules.vision.camera_mount import CameraMount
-    from navpy.modules.vision.models.detect_data import DetectedObject
-    from navpy.modules.vision.models.detection_event_lease import DetectionEventLease
-    from navpy.modules.vision.models.detection_publication import DetectionPublication
-    from navpy.modules.vision.models.detect_request import DetectRequest
-    from navpy.modules.vision.models.detect_response import DetectResponse
-    from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+    from navpy.core.ports.detect_data import DetectedObject
+    from navpy.core.ports.detection_event_lease import DetectionEventLease
+    from navpy.core.ports.detection_publication import DetectionPublication
+    from navpy.core.ports.detect_request import DetectRequest
+    from navpy.core.ports.detect_response import DetectResponse
+    from navpy.core.ports.gimbal_abc import GimbalData
     from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 

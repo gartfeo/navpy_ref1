@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Iterable
 
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 
 
 class FrameAdmission(Enum):

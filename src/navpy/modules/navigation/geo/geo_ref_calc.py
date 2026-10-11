@@ -17,7 +17,7 @@ from navpy.modules.navigation.geo.los_angle_calculator import LosAngleCalculator
 from navpy.modules.navigation.geo.uas_frame_transform import UasFrameTransform
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+    from navpy.core.ports.gimbal_abc import GimbalData
 
 
 class GeoRefCalc:

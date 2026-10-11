@@ -12,7 +12,7 @@ from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.core.ports.tracks import TrackedObject
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 
 

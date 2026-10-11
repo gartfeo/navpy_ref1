@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Protocol
 
 from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.command_anchor import (
     FinalApproachLimits,
     effective_limits,

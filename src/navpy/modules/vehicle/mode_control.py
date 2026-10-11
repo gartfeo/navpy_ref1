@@ -4,7 +4,7 @@ from __future__ import annotations
 from pymavlink import mavutil
 from pymavlink.dialects.v20.ardupilotmega import MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
 
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 from navpy.modules.vehicle.link_state import HeartbeatState
 from navpy.modules.vehicle.logger_ref import LoggerRef
 from navpy.modules.vehicle.mav_transport import MavTransport

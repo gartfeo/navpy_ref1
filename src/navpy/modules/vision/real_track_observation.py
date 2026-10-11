@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from navpy.modules.vision.models.detection_components import BoundingBox
+from navpy.core.ports.detection_components import BoundingBox
 from navpy.core.ports.tracks import TrackedObject
 
 

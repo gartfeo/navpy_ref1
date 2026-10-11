@@ -8,12 +8,12 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )
-from navpy.modules.navigation.nav.vision_nav.law_config import (
+from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
 )
@@ -21,13 +21,13 @@ from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTracker
 from navpy.modules.vision.gimbal_rate_types import GimbalRateTrackerConfig
 from navpy.modules.vision.gimbal_tracking_sample import GimbalAngularSample
-from navpy.modules.vision.models.pixel_observation import (
+from navpy.core.ports.pixel_observation import (
     PixelCalibration,
     PixelObservation,
     PixelProjectionKind,
     VisualDetection,
 )
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.visual_ray_projection import (
     camera_to_body_from_gimbal,
 )

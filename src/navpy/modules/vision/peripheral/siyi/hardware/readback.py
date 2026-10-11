@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.peripheral.siyi.hardware.ports import MonotonicClock
 from navpy.modules.vision.peripheral.siyi.hardware.state import SiyiReadbackStore
 

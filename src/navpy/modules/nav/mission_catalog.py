@@ -4,7 +4,7 @@ from typing import Optional
 
 from navpy.core.kernel.location import Location
 from navpy.modules.nav.mission_metadata import read_mission_metadata
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 
 
 class MissionCatalog:

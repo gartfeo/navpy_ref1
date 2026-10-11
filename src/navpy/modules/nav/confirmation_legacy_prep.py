@@ -10,7 +10,7 @@ from navpy.modules.navigation.approach_strategy import ApproachKind
 from navpy.modules.navigation.peer_offset import OFFSET_LOITER_RADIUS_M
 from navpy.modules.nav.nav_state import NavigationTaskState
 from navpy.modules.nav.vehicle_navigation import LoiterRadiusLease
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 @dataclass(frozen=True)

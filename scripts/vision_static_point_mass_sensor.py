@@ -13,14 +13,14 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.modules.navigation.nav.vision_nav.lateral_rate import (
     LAT_GYRO_DELAY_ENV,
 )
-from navpy.modules.vision.models.pixel_observation import (
+from navpy.core.ports.pixel_observation import (
     CameraToBodyTransform,
     PixelCalibration,
     PixelObservation,
     PixelProjectionKind,
     VisualDetection,
 )
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.visual_ray_projection import (
     body_ray_to_pixel,
     camera_to_body_from_gimbal,

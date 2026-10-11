@@ -6,8 +6,8 @@ import math
 from dataclasses import dataclass
 
 from navpy.core.ports.nav_command import NavCommand, NavCommandMode
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
-from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfig
+from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.law_config import FinalApproachLawConfig
 
 # The command may not pitch down past this, whatever the loop asks for.  A converged
 # course needs roughly -45 deg at worst; reaching -70 means the loop has already

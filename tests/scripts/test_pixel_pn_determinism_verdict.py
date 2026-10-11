@@ -15,7 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from navpy.modules.vehicle.admission_tap import AdmissionTap
+from navpy.core.ports.admission_tap import AdmissionTap
 from navpy.modules.vision.sim.determinism_admission_ledger import PassObserver
 from navpy.modules.vision.sim.determinism_eligibility import (
     ELIGIBLE,

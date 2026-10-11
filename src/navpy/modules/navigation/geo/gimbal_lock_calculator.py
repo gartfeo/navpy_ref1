@@ -18,7 +18,7 @@ from navpy.core.kernel.euler_utils import get_att_by_sequence, get_euler_by_sequ
 from navpy.core.kernel.simple_rotation import Rotation
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+    from navpy.core.ports.gimbal_abc import GimbalData
 
 
 class GimbalLockCalculator:

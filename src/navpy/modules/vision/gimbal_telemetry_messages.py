@@ -23,7 +23,7 @@ from navpy.core.kernel.simple_rotation import Rotation
 
 if TYPE_CHECKING:
     from navpy.modules.vision.camera_mount import CameraMount
-    from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+    from navpy.core.ports.gimbal_abc import GimbalData
     from navpy.modules.vision.vision_profile_types import CameraMountSpec
 
 

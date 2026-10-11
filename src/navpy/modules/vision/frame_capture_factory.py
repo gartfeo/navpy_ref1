@@ -15,7 +15,7 @@ from navpy.modules.vision.frame_capture_opencv import (
     open_jetson_capture,
     open_source_capture,
 )
-from navpy.modules.vision.frame_capture_ports import (
+from navpy.core.ports.frame_capture_ports import (
     CaptureLogger,
     FrameCaptureBackend,
 )

@@ -23,7 +23,7 @@ if not __package__:
         sys.path.insert(0, import_path)
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.models.detect_request import DetectRequest
+from navpy.core.ports.detect_request import DetectRequest
 from navpy.modules.vision.detector import (
     Detector,
     DetectorDependencies,

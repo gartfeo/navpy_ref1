@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from navpy.modules.vision.frame_capture_factory import open_capture_backend
 from navpy.modules.vision.frame_capture_logging import SafeCaptureLogger
-from navpy.modules.vision.frame_capture_ports import (
+from navpy.core.ports.frame_capture_ports import (
     CaptureLogger,
 )
 from navpy.modules.vision.frame_capture_session import (
@@ -22,7 +22,7 @@ from navpy.modules.vision.frame_capture_worker import (
     FrameCaptureWorkerPorts,
 )
 from navpy.modules.vision.frame_publication import FramePublicationStore
-from navpy.modules.vision.worker_failure import WorkerFailureLatch
+from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 _STOP_WARNING_S = 2.0
 

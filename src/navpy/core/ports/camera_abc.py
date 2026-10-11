@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 
-from navpy.modules.vision.worker_failure import StaticFailureHealth
+from navpy.core.ports.worker_failure import StaticFailureHealth
 
 
 class CameraAbc(StaticFailureHealth, ABC):

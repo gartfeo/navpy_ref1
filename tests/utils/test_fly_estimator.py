@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock
 
 from navpy.core.kernel.location import Location
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.utils.fly_estimator import FlyEstimator
 
 

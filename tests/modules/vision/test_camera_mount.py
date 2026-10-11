@@ -10,10 +10,10 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.camera_mount import CameraMount
-from navpy.modules.vision.peripheral.camera_abc import CameraAbc
+from navpy.core.ports.camera_abc import CameraAbc
 from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
 from navpy.modules.vision.peripheral.fixed_gimbal import FixedGimbal
-from navpy.modules.vision.peripheral.gimbal_abc import (
+from navpy.core.ports.gimbal_abc import (
     GimbalAbc,
     GimbalData,
     GimbalMountSetup,
@@ -1036,7 +1036,7 @@ class TestCameraMountWithGimbalSim(unittest.TestCase):
             VehicleAttitudeReader,
         )
         from navpy.modules.vision.sim.gimbal_sim import GimbalSim
-        from navpy.modules.vehicle.vehicle_contract import IVehicle
+        from navpy.core.ports.vehicle_contract import IVehicle
 
         vehicle = Mock(spec=IVehicle)
         vehicle.attitude = Attitude(-45, 0, 0)

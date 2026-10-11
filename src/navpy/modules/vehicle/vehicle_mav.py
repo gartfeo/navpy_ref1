@@ -9,7 +9,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger, ILogger
 from navpy.modules.vehicle.vehicle_composition import build_vehicle_parts
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vehicle.vehicle_public_control import (
     VehicleCommandFacet,
     VehicleFlightControlFacet,

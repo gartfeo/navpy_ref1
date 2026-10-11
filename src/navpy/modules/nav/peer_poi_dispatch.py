@@ -10,7 +10,7 @@ from navpy.core.kernel.location import Location
 from navpy.modules.nav.peer_dispatch_quiescence import (
     await_peer_dispatch_quiescence,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import (
     get_poi_task_id,
     same_poi_identity,

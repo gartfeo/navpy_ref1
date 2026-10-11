@@ -16,7 +16,7 @@ LEGACY_APIS = {"wall_period_for_sim_period", "loop_sim_speedup"}
 # The final-approach command core, one full path per file: the files do not
 # share one folder after the module separation, and a moved file must fail
 # here rather than drop out of a folder scan.
-VISION_FRAME = "src/navpy/modules/navigation/nav/vision_nav/frame.py"
+VISION_FRAME = "src/navpy/core/ports/frame.py"
 FRAME_PROJECTION = "src/navpy/modules/navigation/nav/vision_nav/frame_projection.py"
 LATERAL_RATE = "src/navpy/modules/navigation/nav/vision_nav/lateral_rate.py"
 LAW = "src/navpy/modules/navigation/nav/vision_nav/law.py"
@@ -35,7 +35,7 @@ CORE = {
     "src/navpy/modules/navigation/nav/vision_nav/command_transaction.py":
         "FinalApproachCommandTransaction",
     LATERAL_RATE: "LateralRateFilter",
-    "src/navpy/modules/navigation/nav/vision_nav/law_config.py": "FinalApproachLawConfig",
+    "src/navpy/core/ports/law_config.py": "FinalApproachLawConfig",
     "src/navpy/modules/navigation/nav/vision_nav/command_anchor.py":
         "FinalApproachCommandAnchor",
     "src/navpy/modules/navigation/nav/vision_nav/law_plan.py": "FinalApproachLawPlan",
@@ -108,7 +108,7 @@ RANGE_WORDS = {"distance", "dist", "slant"}
 # latitude is caught only beside a coordinate unit or a truth subject. A bare
 # `lat` stays legal -- that ambiguity is the accepted residual.
 COORDINATE_UNIT_WORDS = {"deg", "degrees", "rad", "radians", "e7"}
-YAW_RATE_CONVERSION = "src/navpy/modules/vision/models/pixel_observation.py"
+YAW_RATE_CONVERSION = "src/navpy/core/ports/pixel_observation.py"
 YAW_RATE_PRODUCERS = (
     "src/navpy/modules/vision/real_detected_object_builder.py",
     "src/navpy/modules/vision/sim/finite_poi_projector.py",
@@ -417,7 +417,7 @@ def test_yaw_rate_is_gyro_conversion_only() -> None:
         tree = _tree(producer)
         imported = any(
             isinstance(node, ast.ImportFrom)
-            and node.module == "navpy.modules.vision.models.pixel_observation"
+            and node.module == "navpy.core.ports.pixel_observation"
             and any(alias.name == "aircraft_yaw_rate_rad_s" and alias.asname is None
                     for alias in node.names)
             for node in ast.walk(tree)

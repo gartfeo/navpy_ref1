@@ -11,8 +11,8 @@ from navpy.modules.nav.final_approach_source_contracts import (
     DetectionInboxLease,
     NavSourceBatch,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.modules.vision.poi_identity import get_poi_task_id
 from navpy.modules.vision.poi_priority import find_poi_by_task_id
 

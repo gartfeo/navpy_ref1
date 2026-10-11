@@ -11,7 +11,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
 )
 
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.kernel.location import Location
 from navpy.modules.vehicle.logger_ref import LoggerRef
 from navpy.modules.vehicle.mav_transport import MavTransport

@@ -68,10 +68,10 @@ from navpy.modules.navigation.mission_planner import MissionPlanner  # noqa: E40
 from navpy.modules.navigation.nav.vision_nav.visual_pass import (  # noqa: E402
     VisualPassDetector,
 )
-from navpy.modules.vehicle.flight_mode import FlightMode  # noqa: E402
+from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
-from navpy.modules.vehicle.vehicle_contract import IVehicle  # noqa: E402
-from navpy.modules.vision.models.detect_data import DetectedObject  # noqa: E402
+from navpy.core.ports.vehicle_contract import IVehicle  # noqa: E402
+from navpy.core.ports.detect_data import DetectedObject  # noqa: E402
 from navpy.modules.vision.sim.direct_poi_pixel_source import (  # noqa: E402
     DirectPoiPixelSource,
 )

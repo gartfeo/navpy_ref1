@@ -27,7 +27,7 @@ from navpy.modules.nav.recovery import RecoveryAction
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.poi_status_decision import ConfirmationStatusDecision
 from navpy.modules.nav.vehicle_navigation import LoiterRadiusLease
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 
 
 @dataclass(frozen=True)

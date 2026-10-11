@@ -41,7 +41,7 @@ from navpy.modules.navigation.legacy_final_approach_command import (
     LegacyFinalApproachCommandPorts,
 )
 from navpy.modules.navigation.mission_planner import MissionPlanner
-from navpy.modules.navigation.nav.nav_law import NavLaw
+from navpy.core.ports.nav_law import NavLaw
 from navpy.modules.navigation.nav.nav_law_factory import (
     NavigationLawLifecycle,
     get_nav_algorithm_spec,
@@ -55,7 +55,7 @@ from navpy.modules.navigation.nav.vision_nav.runtime_composition import (
 from navpy.modules.vehicle.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 
 
 @dataclass(frozen=True)

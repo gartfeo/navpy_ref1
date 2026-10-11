@@ -13,10 +13,10 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.kernel.rotation_utils import normalize
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
-from navpy.modules.vision.peripheral.gimbal_abc import (
+from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )

@@ -5,7 +5,7 @@ from __future__ import annotations
 from navpy.core.kernel.location import Location
 from navpy.modules.navigation.legacy_destination_resolver import LegacyNavigationState
 from navpy.modules.navigation.mission_planner import MissionPlanner
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 
 
 class LegacyNavAdjustment:

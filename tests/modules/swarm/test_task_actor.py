@@ -3,7 +3,7 @@ import unittest
 from dataclasses import replace
 from unittest.mock import Mock, patch
 
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.comm.message_filter import MessageFilter
 from navpy.modules.comm.messages.task_assignment_msg import (
     TaskAssignResponseMsg,
@@ -32,11 +32,11 @@ from navpy.modules.comm.messages.swarm_heartbeat_msg import (
 )
 from navpy.modules.comm.messages.types import TaskDispatchStatus, TaskTypeMsgData
 from navpy.core.kernel.location import Location
-from navpy.modules.comm.network_abc import NetworkAbc
-from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
+from navpy.core.ports.network_abc import NetworkAbc
+from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from tests.detection_factory import make_detected_poi
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.comm.messages.types import MsgType
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_dispatch import TaskDispatch

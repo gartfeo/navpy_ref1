@@ -11,7 +11,7 @@ from navpy.modules.vision.tracker_backends_boxmot import (
 )
 from navpy.modules.vision.tracker_config import tracker_config_from_settings
 from navpy.plugins.tracking.kalman.custom_tracker_backend import CustomTrackerBackend
-from navpy.modules.vision.tracker_backends import TrackerBackend
+from navpy.core.ports.tracker_backends import TrackerBackend
 
 
 def create_tracker_backend(

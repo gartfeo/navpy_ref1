@@ -11,8 +11,8 @@ import pymap3d
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
-from navpy.modules.vision.models.detection_components import (
+from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
+from navpy.core.ports.detection_components import (
     ConfirmationEvidence,
     DetectionClassification,
     DetectionGeoDiagnostics,
@@ -22,13 +22,13 @@ from navpy.modules.vision.models.detection_components import (
     SourceTiming,
     TrackingEvidence,
 )
-from navpy.modules.vision.models.pixel_observation import (
+from navpy.core.ports.pixel_observation import (
     PixelCalibration,
     PixelObservation,
     PixelProjectionKind,
     aircraft_yaw_rate_rad_s,
 )
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.ideal_camera_state import IdealCameraReader
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize
 from navpy.modules.vision.sim.sim_runtime_ports import TimestampReader

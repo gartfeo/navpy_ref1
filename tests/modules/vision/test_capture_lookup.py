@@ -29,7 +29,7 @@ from navpy.modules.vision.capture_lookup import (
     quarantine_window_s,
     validate_calibration,
 )
-from navpy.modules.vision.frame_capture_ports import (
+from navpy.core.ports.frame_capture_ports import (
     CaptureStamp,
     CaptureStampKind,
 )

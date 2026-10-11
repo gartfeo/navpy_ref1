@@ -35,14 +35,14 @@ from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc  # noqa: E402
 from navpy.modules.navigation.navigation import Navigation  # noqa: E402
 from navpy.modules.navigation.mission_planner import MissionPlanner  # noqa: E402
-from navpy.modules.vehicle.flight_mode import FlightMode  # noqa: E402
-from navpy.modules.vehicle.vehicle_contract import IVehicle  # noqa: E402
+from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
+from navpy.core.ports.vehicle_contract import IVehicle  # noqa: E402
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation  # noqa: E402
 from navpy.modules.vision.sim.siyi_geo_pixel_source import (  # noqa: E402
     SiyiGeoPixelSource,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject  # noqa: E402
+from navpy.core.ports.detect_data import DetectedObject  # noqa: E402
 from navpy.modules.vision.vision_profile_composition import build_vision_profile  # noqa: E402
 from navpy.modules.vision.vision_tracking_composition import build_tracking_config  # noqa: E402
 from navpy.modules.vision.vision_zoom_profile import build_zoom_config  # noqa: E402

@@ -27,7 +27,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_TYPE_ONBOARD_CONTROLLER,
 )
 
-from navpy.modules.vehicle.admission_tap import (
+from navpy.core.ports.admission_tap import (
     AdmissionRuling,
     AdmissionSubscription,
     AdmissionTap,
@@ -45,7 +45,7 @@ from navpy.modules.vehicle.mission_inbox import MissionInbox
 from navpy.modules.vehicle.parameter_repository import ParameterRepository
 from navpy.modules.vehicle.vehicle_identity import VehicleIdentity
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
-from navpy.modules.vehicle.vehicle_runtime_interfaces import VehicleMessaging
+from navpy.core.ports.vehicle_runtime_interfaces import VehicleMessaging
 
 TARGET = 42
 # Bounds a FAILING run only: every wait below is released by the test itself.

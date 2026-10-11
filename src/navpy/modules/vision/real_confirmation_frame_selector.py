@@ -9,7 +9,7 @@ import numpy as np
 from navpy.modules.vision.confirmation_frame import (
     should_replace_confirmation_frame,
 )
-from navpy.modules.vision.models.detection_components import BoundingBox
+from navpy.core.ports.detection_components import BoundingBox
 from navpy.modules.vision.real_detector_state import ConfirmationFrameStore
 
 

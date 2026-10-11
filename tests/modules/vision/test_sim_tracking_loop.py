@@ -17,7 +17,7 @@ from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
 from navpy.modules.vision.gimbal_rate_tracker import GimbalRateTrackerConfig
 from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
-from navpy.modules.vision.peripheral.gimbal_abc import (
+from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )

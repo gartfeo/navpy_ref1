@@ -14,7 +14,7 @@ from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
 
-from navpy.modules.vehicle.admission_tap import AdmissionTap
+from navpy.core.ports.admission_tap import AdmissionTap
 from navpy.modules.vehicle.inbound_router import (
     AUTOPILOT_TELEMETRY_TYPES,
     message_boot_time_ms,

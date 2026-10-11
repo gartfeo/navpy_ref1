@@ -11,7 +11,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.approach_strategy import ApproachKind, classify_approach
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.vision_camera_factory import build_camera_mounts
 from navpy.modules.vision.vision_detector_profile import get_detector_settings
 from navpy.modules.vision.vision_profile_loader import resolve_profile

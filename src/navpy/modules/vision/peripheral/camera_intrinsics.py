@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from navpy.modules.vision.peripheral.camera_abc import CameraAbc
+from navpy.core.ports.camera_abc import CameraAbc
 from navpy.modules.vision.peripheral.camera_intrinsics_calibration import (
     normalize_zoom_map,
 )

@@ -6,7 +6,7 @@ import threading
 from contextlib import AbstractContextManager
 from typing import Any, Optional, Protocol, Sequence, TypeVar
 
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.sim.detection_publication_store import PublicationSlot
 from navpy.modules.vision.sim.frame_generation_gate import FrameGeneration
 from navpy.core.ports.subscription import Subscription

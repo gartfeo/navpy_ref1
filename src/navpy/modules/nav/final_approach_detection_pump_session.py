@@ -11,7 +11,7 @@ from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.modules.nav.final_approach_detection_dispatch import (
     FinalApproachDetectionDispatch,
 )
-from navpy.modules.vision.models.detection_event_lease import DetectionEventLease
+from navpy.core.ports.detection_event_lease import DetectionEventLease
 
 
 class FinalApproachPumpSession:

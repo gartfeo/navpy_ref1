@@ -16,8 +16,8 @@ from navpy.modules.navigation.navigation_command_worker import (
 )
 from navpy.modules.navigation.navigation_source_dispatch import SourceDispatch
 from navpy.modules.navigation.mission_planner import MissionPlanner
-from navpy.modules.vehicle.vehicle_contract import IVehicle
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class Navigation:

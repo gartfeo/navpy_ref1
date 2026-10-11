@@ -3,7 +3,7 @@ from __future__ import annotations
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_ONBOARD_CONTROLLER, MAV_COMP_ID_ONBOARD_COMPUTER
 
 from navpy.args.conn_args import ConnArgs
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
 from navpy.core.kernel.logging.cache_logger import ILogger, ConsoleLogger
 

@@ -8,7 +8,7 @@ import zmq
 
 from navpy.args.conn.wifi_network_args import WifiNetworkArgs
 from navpy.modules.comm.message_filter import MessageFilter
-from navpy.modules.comm.network_abc import NetworkAbc, DEFAULT_CHUNK_SIZE
+from navpy.core.ports.network_abc import NetworkAbc, DEFAULT_CHUNK_SIZE
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.utils.serializer_abc import JsonSerializer
 

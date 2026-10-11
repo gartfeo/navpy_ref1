@@ -7,7 +7,7 @@ from typing import Optional
 
 import numpy as np
 
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 
 
 @dataclass(frozen=True)

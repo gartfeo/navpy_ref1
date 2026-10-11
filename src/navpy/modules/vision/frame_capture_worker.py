@@ -8,12 +8,12 @@ from typing import Callable
 import numpy as np
 
 from navpy.modules.vision.frame_capture_logging import SafeCaptureLogger
-from navpy.modules.vision.frame_capture_ports import CaptureStamp
+from navpy.core.ports.frame_capture_ports import CaptureStamp
 from navpy.modules.vision.frame_capture_session import (
     CaptureSession,
     record_unexpected_return,
 )
-from navpy.modules.vision.worker_failure import WorkerFailureLatch
+from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 
 @dataclass(frozen=True)

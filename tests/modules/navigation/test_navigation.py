@@ -64,12 +64,12 @@ from navpy.modules.navigation.nav.vision_nav.diagnostics import (
     NavigationFinalApproachDiagnostics,
     FinalApproachDiagnosticSnapshot,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.ingress import (
     FinalApproachIngress,
     FinalApproachIngressPorts,
 )
-from navpy.modules.navigation.nav.vision_nav.law_config import (
+from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider,
     FinalApproachLawConfig,
 )

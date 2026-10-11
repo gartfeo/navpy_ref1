@@ -13,7 +13,7 @@ import inspect
 from collections.abc import Callable
 from types import SimpleNamespace
 
-from navpy.modules.vehicle.admission_tap import AdmissionRuling
+from navpy.core.ports.admission_tap import AdmissionRuling
 from navpy.modules.vision.sim import determinism_trace as trace_module
 from navpy.modules.vision.sim.determinism_admission_ledger import PassObserver
 from navpy.modules.vision.sim.determinism_command_log import NULL_COMMAND_LOOP

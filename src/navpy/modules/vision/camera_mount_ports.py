@@ -11,8 +11,8 @@ from navpy.modules.vision.camera_mount_types import (
     LiveZoomSample,
     ZoomWrite,
 )
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
-from navpy.modules.vision.worker_failure import FailureHealthPort
+from navpy.core.ports.gimbal_abc import GimbalData
+from navpy.core.ports.worker_failure import FailureHealthPort
 
 
 class CameraOpticsPort(Protocol):

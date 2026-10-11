@@ -17,7 +17,7 @@ from navpy.modules.navigation.nav.roll_l1_core import (
 )
 from navpy.modules.navigation.nav.roll_l1_pitch_nav_law import RollL1PitchNavLaw
 from navpy.modules.navigation.nav.roll_l1_state import RollL1Parameters
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 
 
 def compose_roll_l1_nav(

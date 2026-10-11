@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from typing import Optional
 
-from navpy.modules.vision.frame_capture_ports import CaptureLogger
+from navpy.core.ports.frame_capture_ports import CaptureLogger
 
 
 _SUBPROCESS_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)

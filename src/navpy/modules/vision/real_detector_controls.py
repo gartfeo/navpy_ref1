@@ -9,8 +9,8 @@ from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
 from navpy.modules.vision.lost_poi_bridge import LostPoiBridge
-from navpy.modules.vision.models.detect_request import DetectRequest
-from navpy.modules.vision.models.detect_response import DetectResponse
+from navpy.core.ports.detect_request import DetectRequest
+from navpy.core.ports.detect_response import DetectResponse
 from navpy.modules.vision.real_detector_ports import (
     GimbalGeoCommandPort,
     GimbalTrackingCommandPort,
@@ -29,7 +29,7 @@ from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.poi_priority import prioritize_pois
 from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 from navpy.modules.vision.track_identity import TrackIdentityResolver
-from navpy.modules.vision.tracker_backends import TrackerBackend
+from navpy.core.ports.tracker_backends import TrackerBackend
 
 
 class DetectorTrackingControl:

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pymavlink import mavutil
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.modules.vehicle.admission_tap import (
+from navpy.core.ports.admission_tap import (
     AdmissionSubscription,
     RulingCallback,
 )

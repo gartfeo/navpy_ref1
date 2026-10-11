@@ -4,7 +4,7 @@ from typing import Optional
 
 from navpy.args.conn.serial_network_args import SerialNetworkArgs
 from navpy.modules.comm.message_filter import MessageFilter
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.comm.serial.serial_interface_rfd900 import SerialInterfaceRFD900
 from navpy.modules.comm.serial.serial_listener import ISerialListener
 from navpy.modules.comm.serial.sim.serial_sim_client import SerialSimClient

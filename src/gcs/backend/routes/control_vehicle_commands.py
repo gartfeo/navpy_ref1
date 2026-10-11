@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from fastapi import HTTPException
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_COMPONENT_ARM_DISARM, MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 from gcs.backend.vehicle_manager import VehicleManager
 
 log = logging.getLogger("gcs.backend.routes.control")

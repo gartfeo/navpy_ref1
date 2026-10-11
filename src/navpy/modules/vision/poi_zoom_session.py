@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_zoom_types import (
     PoiZoomTrackerConfig,
     ZoomTrackResult,

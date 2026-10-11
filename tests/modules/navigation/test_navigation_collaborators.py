@@ -48,7 +48,7 @@ from navpy.modules.navigation.nav.nav_law_factory import (
     NavAlgorithmSpec,
     get_nav_algorithm_spec,
 )
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from tests.detection_factory import make_detected_poi
 
 

@@ -7,8 +7,8 @@ from contextlib import contextmanager
 from dataclasses import replace
 from typing import Iterator, Optional, Sequence, TypeVar
 
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.modules.vision.sim.detection_publication_store import (
     DetectionPublicationStore,
     PublicationSlot,

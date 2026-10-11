@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from navpy.modules.vision.frame_capture_ports import CaptureLogger
+from navpy.core.ports.frame_capture_ports import CaptureLogger
 from navpy.modules.vision.frame_capture_runtime import (
     FrameProviderParts,
     build_frame_provider_parts,

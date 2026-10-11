@@ -37,7 +37,7 @@ sys.path[:0] = [str(WORKTREE / "src"), str(WORKTREE), str(SCRIPTS)]
 from navpy.args.conn_args import ConnArgs  # noqa: E402
 from navpy.core.kernel.config.logger_args import LoggerArgs  # noqa: E402
 from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
-from navpy.modules.vehicle.flight_mode import FlightMode  # noqa: E402
+from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
 from navpy.modules.vehicle.pose_streams import request_pose_streams  # noqa: E402
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
 

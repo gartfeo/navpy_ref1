@@ -12,8 +12,8 @@ from navpy.modules.vision.detection_aggregation import DetectionAggregator
 from navpy.modules.vision.detection_identity_registry import (
     DetectionIdentityRegistry,
 )
-from navpy.modules.vision.models.detect_request import DetectRequest
-from navpy.modules.vision.models.detection_event_lease import (
+from navpy.core.ports.detect_request import DetectRequest
+from navpy.core.ports.detection_event_lease import (
     DetectionLeaseDispatch,
 )
 from navpy.modules.vision.sim.detection_publication_store import (

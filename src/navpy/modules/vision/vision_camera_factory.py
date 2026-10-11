@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalAbc, GimbalData
+from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
 from navpy.modules.vision.peripheral.camera_intrinsics import CameraIntrinsics
 from navpy.modules.vision.vision_camera_calibration import parse_zoom_calibration
 from navpy.modules.vision.vision_detector_profile import get_detector_settings
@@ -21,7 +21,7 @@ from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
 
 if TYPE_CHECKING:
     from navpy.core.kernel.scheduler_cadence import SchedulerCadence
-    from navpy.modules.vehicle.vehicle_contract import IVehicle
+    from navpy.core.ports.vehicle_contract import IVehicle
 
 
 def _positive_integer(value: object, name: str) -> int:

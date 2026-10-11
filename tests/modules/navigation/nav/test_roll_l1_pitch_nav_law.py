@@ -29,7 +29,7 @@ from navpy.core.ports.nav_command import (
     NavCommandMode,
     NavInvalidReason,
 )
-from navpy.modules.navigation.nav.nav_law import NavContext
+from navpy.core.ports.nav_law import NavContext
 from navpy.modules.navigation.nav.roll_l1_core import (
     PitchPidController,
 )

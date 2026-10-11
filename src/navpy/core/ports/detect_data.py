@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from enum import Enum, unique
 
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.models.detection_components import (
+from navpy.core.ports.detection_components import (
     ConfirmationEvidence,
     DetectionClassification,
     DetectionGeoDiagnostics,
@@ -22,7 +22,7 @@ from navpy.modules.vision.models.detection_components import (
     SourceTiming,
     TrackingEvidence,
 )
-from navpy.modules.vision.models.pixel_observation import (
+from navpy.core.ports.pixel_observation import (
     PixelObservation,
     VisualDetection,
 )

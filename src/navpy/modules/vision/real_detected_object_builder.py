@@ -5,8 +5,8 @@ from __future__ import annotations
 import time
 
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
-from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
-from navpy.modules.vision.models.detection_components import (
+from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
+from navpy.core.ports.detection_components import (
     ConfirmationEvidence,
     DetectionClassification,
     DetectionGeoDiagnostics,
@@ -16,7 +16,7 @@ from navpy.modules.vision.models.detection_components import (
     SourceTiming,
     TrackingEvidence,
 )
-from navpy.modules.vision.models.pixel_observation import (
+from navpy.core.ports.pixel_observation import (
     PixelCalibration,
     PixelObservation,
     PixelProjectionKind,

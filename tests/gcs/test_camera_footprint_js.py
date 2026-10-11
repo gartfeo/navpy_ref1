@@ -1177,7 +1177,7 @@ class TestLiveGimbalEndToEndContract(unittest.TestCase):
         from navpy.modules.vision.camera_mount_types import CameraMountOptics
         from navpy.modules.vision.vision_profile_types import CameraMountSpec
         from navpy.modules.vision.gimbal_telemetry_publisher import GimbalTelemetryPublisher
-        from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+        from navpy.core.ports.gimbal_abc import GimbalData
 
         class FakeMount:
             def get_gimbal_data(self):

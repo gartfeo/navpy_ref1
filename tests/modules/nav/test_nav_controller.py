@@ -27,11 +27,11 @@ from navpy.modules.nav.nav_controller import NavController
 from navpy.modules.nav.nav_state import NavState
 from navpy.modules.nav.nav_constants import ALT_HYST
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 from navpy.modules.vision.detection_coordinator import DetectionCoordinator
-from navpy.modules.vision.models.detection_publication import DetectionPublication
-from navpy.modules.vision.models.detect_response import DetectResponse
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.detection_publication import DetectionPublication
+from navpy.core.ports.detect_response import DetectResponse
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 from navpy.modules.vision.zoom_tracking_types import ZoomTrackingState
 from navpy.modules.comm.messages.task_availability_msg import AvailableTaskRequestMsg
@@ -51,7 +51,7 @@ from navpy.modules.comm.messages.swarm_heartbeat_msg import (
     SwarmNodeState,
 )
 from navpy.modules.comm.messages.types import MsgType, TaskTypeMsgData
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.modules.swarm.task_actor_slots import SlotState
 from tests.modules.nav.nav_test_rig import (

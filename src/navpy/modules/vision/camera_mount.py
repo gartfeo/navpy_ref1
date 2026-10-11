@@ -21,8 +21,8 @@ from navpy.modules.vision.camera_mount_zoom_readback import (
 )
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.peripheral.camera_abc import CameraAbc
-    from navpy.modules.vision.peripheral.gimbal_abc import GimbalAbc
+    from navpy.core.ports.camera_abc import CameraAbc
+    from navpy.core.ports.gimbal_abc import GimbalAbc
     from navpy.modules.vision.zoom_calibration import ZoomCalibrationTable
 
 

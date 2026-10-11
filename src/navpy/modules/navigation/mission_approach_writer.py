@@ -20,7 +20,7 @@ from pymavlink.mavextra import wrap_360
 from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 
 
 class MissionApproachVehicle(Protocol):

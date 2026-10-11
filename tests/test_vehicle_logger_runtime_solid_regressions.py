@@ -240,7 +240,7 @@ def test_vehicle_lifecycle_defers_dependencies_until_heartbeat_quiesces():
 
 
 def test_composite_vehicle_preserves_legacy_constructor_and_abstract_surface():
-    contract = importlib.import_module("navpy.modules.vehicle.vehicle_contract")
+    contract = importlib.import_module("navpy.core.ports.vehicle_contract")
     legacy_abstracts = {
         "air_speed",
         "attitude",

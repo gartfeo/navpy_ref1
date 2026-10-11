@@ -1,13 +1,13 @@
 from typing import Optional
 
 from navpy.args.conn.network_args import NetworkArgs, NetworkType
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.comm.message_filter import MessageFilter
 from navpy.modules.comm.network_serial import NetworkSerial
 from navpy.modules.comm.network_wifi import NetworkWifi
 from navpy.modules.comm.network_mavlink import NetworkMavlink
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 
 
 def create_network(args: NetworkArgs, node_id: int, logger: ILogger, vehicle: Optional[IVehicle]) -> Optional[NetworkAbc]:

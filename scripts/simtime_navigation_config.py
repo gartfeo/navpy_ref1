@@ -10,7 +10,7 @@ from scripts.eval_param_file import parse_parm
 from navpy.modules.navigation.nav.final_approach_airframe_config import (
     FinalApproachAirframeConfigProvider, FinalApproachParameterPort,
 )
-from navpy.modules.navigation.nav.vision_nav.law_config import FinalApproachLawConfig
+from navpy.core.ports.law_config import FinalApproachLawConfig
 
 LIMIT_PARAMETERS = ("PTCH_LIM_MIN_DEG", "PTCH_LIM_MAX_DEG", "ROLL_LIMIT_DEG", "PTCH2SRV_TCONST")
 

@@ -13,7 +13,7 @@ from navpy.core.kernel.location import Location
 from navpy.modules.nav.nav_constants import ALT_HYST
 from navpy.modules.nav.nav_state import NavPhaseState, NavState
 from navpy.modules.nav.nav_status import NavigationStatusReporter
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 
 
 @dataclass(frozen=True)

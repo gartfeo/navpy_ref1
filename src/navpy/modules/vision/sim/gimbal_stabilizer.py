@@ -8,7 +8,7 @@ from dataclasses import replace
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.rotation_utils import calculate_euler_angles
 from navpy.modules.vision.gimbal_attitude_reader import AircraftAttitudeReader
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.kernel.euler_utils import get_att_by_sequence, get_euler_by_sequence
 
 

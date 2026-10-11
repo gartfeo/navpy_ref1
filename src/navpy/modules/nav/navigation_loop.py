@@ -19,8 +19,8 @@ from navpy.modules.nav.navigation_transition_handler import (
     NavigationTransitionHandler,
 )
 from navpy.modules.vision.detector_ports import DetectionEventPort, DetectionSnapshotPort
-from navpy.modules.vision.models.detect_request import DetectRequest
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detect_request import DetectRequest
+from navpy.core.ports.detection_publication import DetectionPublication
 
 
 NAV_LOOP_JOIN_TIMEOUT_S = 2.0

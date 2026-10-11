@@ -9,7 +9,7 @@ from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.modules.navigation.gimbal_navigation_state import GimbalTrackingSetup
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.sim.sim_detector_assembly import (
     SimDetectorDependencies,

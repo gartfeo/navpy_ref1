@@ -6,8 +6,8 @@ from typing import Protocol
 
 from navpy.modules.nav.confirmation_reporting import ConfirmDebugReporter
 from navpy.modules.nav.detection_freshness import DetectionFreshnessPolicy
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.modules.vision.poi_identity import get_poi_task_id
 from navpy.modules.vision.poi_priority import find_poi_by_task_id
 

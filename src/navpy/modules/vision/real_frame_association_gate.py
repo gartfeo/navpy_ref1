@@ -19,7 +19,7 @@ from navpy.core.ports.pose_stream_rate import (
     POSE_FRAME_ASSOCIATION_MAX_SKEW_S,
 )
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
-from navpy.modules.vision.frame_capture_ports import CaptureStampKind
+from navpy.core.ports.frame_capture_ports import CaptureStampKind
 
 
 @dataclass(frozen=True)

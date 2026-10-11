@@ -22,8 +22,8 @@ from navpy.modules.nav.pass_tracker import LegacyPassTracker
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.poi_retry import PoiRetryState
 from navpy.modules.nav.vehicle_navigation import LoiterRadiusLease
-from navpy.modules.vehicle.flight_mode import FlightMode
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.flight_mode import FlightMode
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.detector_ports import (
     DetectorResetPort,
     GeoPointingPort,

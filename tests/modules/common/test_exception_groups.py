@@ -8,8 +8,8 @@ from navpy.core.kernel.exception_groups import (
     _FallbackBaseExceptionGroup,
     _FallbackExceptionGroup,
 )
-from navpy.modules.vision.models.detect_data import DetectionSizeClass, DetectedObject
-from navpy.modules.vision.models.detection_components import (
+from navpy.core.ports.detect_data import DetectionSizeClass, DetectedObject
+from navpy.core.ports.detection_components import (
     ConfirmationEvidence,
     DetectionClassification,
     DetectionGeoDiagnostics,
@@ -19,7 +19,7 @@ from navpy.modules.vision.models.detection_components import (
     SourceTiming,
     TrackingEvidence,
 )
-from navpy.modules.vision.models.pixel_observation import (
+from navpy.core.ports.pixel_observation import (
     CameraToBodyTransform,
     PixelCalibration,
     PixelObservation,

@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Protocol
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_publication import DetectionPublication
 
 
 class FinalApproachSourceCommandRouter(Protocol):

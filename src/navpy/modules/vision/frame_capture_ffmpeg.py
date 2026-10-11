@@ -11,7 +11,7 @@ from typing import Optional
 
 import numpy as np
 
-from navpy.modules.vision.frame_capture_ports import (
+from navpy.core.ports.frame_capture_ports import (
     CaptureLogger,
     CaptureRunState,
     CaptureStamp,

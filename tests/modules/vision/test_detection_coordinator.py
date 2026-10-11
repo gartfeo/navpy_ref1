@@ -9,10 +9,10 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.modules.vision.detection_coordinator import DetectionCoordinator
 from navpy.modules.vision.detector_lifecycle_fleet import DetectorLifecycleFleet
-from navpy.modules.vision.models.detection_publication import DetectionPublication
-from navpy.modules.vision.models.detect_request import DetectRequest
-from navpy.modules.vision.models.detect_response import DetectResponse
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.detection_publication import DetectionPublication
+from navpy.core.ports.detect_request import DetectRequest
+from navpy.core.ports.detect_response import DetectResponse
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.poi_priority import select_most_centered_poi
 from navpy.modules.vision.tracking_command_router import TrackingCommandRouter
 from navpy.modules.vision.zoom_control_router import ZoomControlRouter

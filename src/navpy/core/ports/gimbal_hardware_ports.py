@@ -7,7 +7,7 @@ from typing import Protocol
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 
 
 class GimbalActuatorPort(Protocol):

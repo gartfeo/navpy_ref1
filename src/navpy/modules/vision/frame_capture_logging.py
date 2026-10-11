@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from navpy.modules.vision.frame_capture_ports import CaptureLogger
+from navpy.core.ports.frame_capture_ports import CaptureLogger
 
 
 class SafeCaptureLogger:

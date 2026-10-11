@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Optional, Protocol
 
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.comm.messages.msg_abc import MsgABC
 from navpy.core.kernel.location import Location
 

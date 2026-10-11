@@ -10,11 +10,11 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.models.pixel_observation import PixelCalibration
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.pixel_observation import PixelCalibration
+from navpy.core.ports.gimbal_abc import GimbalData
 
 if TYPE_CHECKING:
-    from navpy.modules.vision.models.detect_data import DetectionSizeClass
+    from navpy.core.ports.detect_data import DetectionSizeClass
 
 
 BoundingBox = tuple[float, float, float, float]

@@ -15,7 +15,7 @@ import threading
 from types import SimpleNamespace
 
 from navpy.modules.navigation.calc_data import CalcData
-from navpy.modules.vehicle.admission_tap import AdmissionRuling, AdmissionTap
+from navpy.core.ports.admission_tap import AdmissionRuling, AdmissionTap
 from navpy.modules.vehicle.inbound_router import (
     AUTOPILOT_TELEMETRY_TYPES,
     REJECT_STALE_BOOT,

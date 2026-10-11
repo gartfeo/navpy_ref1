@@ -8,7 +8,7 @@ from navpy.modules.vehicle.sim_autopilot import (
     SimAutopilotState,
 )
 from navpy.modules.vehicle.parameter_repository import ParameterRepository
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
 
 

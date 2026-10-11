@@ -21,7 +21,7 @@ from navpy.modules.vision.real_detector_stop_transaction import (
 )
 from navpy.modules.vision.real_detector_worker_shutdown import WorkerThread
 from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
-from navpy.modules.vision.worker_failure import WorkerFailureLatch
+from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 
 class PoseStreamRequester:

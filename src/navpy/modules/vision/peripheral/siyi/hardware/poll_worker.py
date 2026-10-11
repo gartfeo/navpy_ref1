@@ -13,7 +13,7 @@ from navpy.modules.vision.peripheral.siyi.hardware.polling import (
 from navpy.modules.vision.peripheral.siyi.hardware.shutdown import (
     stop_poll_thread,
 )
-from navpy.modules.vision.worker_failure import WorkerFailureLatch
+from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 
 @dataclass

@@ -12,7 +12,7 @@ from navpy.modules.vision.gimbal_rate_types import (
     GimbalTrackResult,
     TrackingState,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_zoom_ports import ZoomLogger
 from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
 from navpy.modules.vision.poi_zoom_types import ZoomStopPlan, ZoomTrackResult

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detection_publication import DetectionPublication
 
 
 @dataclass(frozen=True)

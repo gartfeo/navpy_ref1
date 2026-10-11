@@ -18,7 +18,7 @@ from navpy.modules.nav.nav_state import ConfirmGateState, GeoHoldState
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.poi_retry import PoiRetryState
 from navpy.modules.vision.detector_ports import ZoomControlPort
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import get_poi_task_id
 from navpy.modules.vision.poi_zoom_types import ZoomTrackResult
 

@@ -12,7 +12,7 @@ from navpy.modules.nav.nav_status import NavigationStatusReporter
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.nav.poi_presence_review import PoiPresenceReview
 from navpy.modules.nav.poi_rejection_exit import PoiRejectionExit
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 @dataclass(frozen=True)

@@ -25,7 +25,7 @@ from navpy.modules.nav.confirmation_round_transaction import (
 )
 from navpy.modules.nav.confirmation_media import ConfirmationMedia
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 # ConnectionError and TimeoutError are OSError subclasses. Programmer and

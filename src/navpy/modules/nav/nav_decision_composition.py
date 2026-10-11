@@ -23,7 +23,7 @@ from navpy.modules.nav.navigation_decision import (
     NavigationDecisionPorts,
 )
 from navpy.modules.nav.recovery import RecoveryAction, RecoveryPorts
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.detection_coordination import DetectionCoordination
 
 

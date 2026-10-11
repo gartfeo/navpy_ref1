@@ -12,7 +12,7 @@ from navpy.modules.comm.listener_abc import ListenerAbc
 from navpy.modules.comm.messages.msg_abc import MsgABC
 from navpy.modules.comm.messages.task_message_data import TaskAssignMsgData
 from navpy.modules.comm.messages.types import MsgType
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.swarm.swarm_presence import PeerStatusPorts, SwarmPresence
 from navpy.modules.swarm.task_ack_routing import TaskAckRouter
 from navpy.modules.swarm.task_ack_timing import ASSIGN_ACK_TIMING
@@ -36,8 +36,8 @@ from navpy.modules.swarm.task_ports import (
     MessageClockReset,
 )
 from navpy.modules.swarm.task_rebroadcast import TaskRebroadcastCoordinator
-from navpy.modules.vehicle.vehicle_contract import IVehicle
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.utils.fly_estimator import FlyEstimator
 
 

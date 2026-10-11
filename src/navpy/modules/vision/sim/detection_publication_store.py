@@ -7,9 +7,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_event_lease import DetectionEventLease
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_event_lease import DetectionEventLease
+from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.modules.vision.sim.detection_event_stream import DetectionEventStream
 from navpy.modules.vision.sim.detection_snapshot_state import DetectionSnapshot
 from navpy.modules.vision.poi_priority import prioritize_pois

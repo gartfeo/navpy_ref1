@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from navpy.modules.nav.final_approach_source_contracts import DetectionInboxLease
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_publication import DetectionPublication
 
 
 @dataclass(frozen=True)

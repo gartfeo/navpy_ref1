@@ -9,7 +9,7 @@ from typing import Protocol
 import numpy as np
 
 from navpy.modules.vision.deep_search import merge_deep_search_detections
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.tracks import TrackedObject
 from navpy.modules.vision.real_detector_inference_state import (
     DetectionBatch,
@@ -29,7 +29,7 @@ from navpy.modules.vision.real_detection_mapper import DetectedObjectMapper
 from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.poi_priority import find_poi_by_id
 from navpy.modules.vision.track_identity import TrackIdentityResolver
-from navpy.modules.vision.tracker_backends import TrackerBackend
+from navpy.core.ports.tracker_backends import TrackerBackend
 
 
 class TrackingRecoveryPort(Protocol):

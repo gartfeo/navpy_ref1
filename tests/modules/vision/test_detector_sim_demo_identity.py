@@ -23,12 +23,12 @@ from navpy.core.kernel.logging.cache_logger import ConsoleLogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.camera_mount import CameraMount
 from navpy.modules.vision.detection_coordinator import DetectionCoordinator
 from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
-from navpy.modules.vision.models.detect_request import DetectRequest
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.detect_request import DetectRequest
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.detector_sim import DetectorSim
 from navpy.modules.vision.sim.gimbal_sim import GimbalSim
 from tests.conftest import create_test_camera, create_mock_args

@@ -25,8 +25,8 @@ from navpy.modules.navigation.legacy_final_approach_calculation import (
 from navpy.modules.navigation.legacy_final_approach_diagnostics import (
     LegacyFinalApproachDiagnostics,
 )
-from navpy.modules.navigation.nav.nav_law import NavLaw
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.nav_law import NavLaw
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class LegacyFinalApproachVehicle(Protocol):

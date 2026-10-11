@@ -12,7 +12,7 @@ from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
 from navpy.modules.navigation.legacy_final_approach_calculation import (
     LegacyFinalApproachCalculation,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class LegacyFinalApproachDiagnostics:

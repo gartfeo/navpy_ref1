@@ -5,7 +5,7 @@ import asyncio
 import logging
 import math
 from typing import Callable
-from navpy.modules.vehicle.vehicle_control_interfaces import VehicleParameters
+from navpy.core.ports.vehicle_control_interfaces import VehicleParameters
 from gcs.backend.models import VehicleAssignment, FencePlan, FenceOutcome
 from gcs.backend.vehicle_manager import VehicleEntry
 from gcs.backend.full_params import FullParamCache

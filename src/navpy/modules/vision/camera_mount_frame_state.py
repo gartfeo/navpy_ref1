@@ -19,7 +19,7 @@ from navpy.modules.vision.camera_mount_ports import (
     GimbalFramePort,
 )
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 
 
 class MountFrameStateCapture:

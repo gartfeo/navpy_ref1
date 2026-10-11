@@ -9,7 +9,7 @@ from typing import Any, Optional, TYPE_CHECKING
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
-from navpy.modules.navigation.gimbal_hardware_ports import (
+from navpy.core.ports.gimbal_hardware_ports import (
     GimbalActuatorPort,
     GimbalMountPort,
 )
@@ -18,7 +18,7 @@ from navpy.modules.vision.gimbal_rate_tracker import (
     GimbalRateTrackerConfig,
 )
 from navpy.modules.vision.gimbal_rate_types import GimbalTrackResult
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_zoom_orchestrator import PoiZoomTracker
 from navpy.modules.vision.poi_zoom_types import (
     PoiZoomTrackerConfig,

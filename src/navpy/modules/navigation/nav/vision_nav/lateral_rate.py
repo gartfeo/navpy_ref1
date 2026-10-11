@@ -6,7 +6,7 @@ import math
 import os
 from dataclasses import dataclass
 
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.rate_filter import _low_pass
 
 

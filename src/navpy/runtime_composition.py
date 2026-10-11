@@ -22,7 +22,7 @@ from navpy.args.vision_args import VisionArgs
 from navpy.core.kernel.logging.logger_api import ILogger
 from navpy.core.kernel.logging.logger_factory import initialize_logger
 from navpy.logger.status_logger_network import GroundStationLoggerNetwork
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.comm.network_factory import create_network
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.navigation import Navigation
@@ -30,7 +30,7 @@ from navpy.modules.navigation.geo.zc_util import ZcUtil
 from navpy.modules.navigation.mission_planner import MissionPlanner, MissionPlannerArgs
 from navpy.modules.nav.nav_controller import NavController
 from navpy.modules.vehicle.vehicle_factory import create_vehicle
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vehicle.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )

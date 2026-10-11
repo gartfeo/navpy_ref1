@@ -8,7 +8,7 @@ import pytest
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.sim_camera_ports import TrackingCameraPort
 from navpy.modules.vision.sim.sim_detection_gap import ForcedDetectionGapPolicy
 from navpy.modules.vision.sim.sim_detection_context import SimDetectionContext

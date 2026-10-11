@@ -7,10 +7,10 @@ from collections import deque
 from collections.abc import Callable
 from typing import Sequence
 
-from navpy.modules.vision.models.detection_event_lease import (
+from navpy.core.ports.detection_event_lease import (
     DetectionLeaseDispatch,
 )
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detection_publication import DetectionPublication
 
 
 class PublicationEventLease:

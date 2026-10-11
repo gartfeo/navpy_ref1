@@ -36,7 +36,7 @@ import math
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.core.kernel.euler_utils import get_euler_by_sequence
 from navpy.core.kernel.simple_rotation import Rotation
 

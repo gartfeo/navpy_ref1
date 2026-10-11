@@ -9,7 +9,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_CMD_NAV_WAYPOINT,
 )
 
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.kernel.location import Location
 from navpy.modules.nav.mission_encoding import (
     META_DEFAULT_DELIVERY_HUB,

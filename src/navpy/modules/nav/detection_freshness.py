@@ -7,7 +7,7 @@ from typing import Callable, Optional, Protocol
 
 from navpy.modules.nav.detection_snapshot import DetectionSnapshot
 from navpy.modules.nav.nav_constants import CONFIRM_FRESH_DETECTION_MAX_AGE_S
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_priority import find_poi_by_task_id
 
 

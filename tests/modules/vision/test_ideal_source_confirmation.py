@@ -16,11 +16,11 @@ from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector, FinalApproachProjectionConfig,
 )
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
-from navpy.modules.navigation.nav.vision_nav.law_config import (
+from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider, FinalApproachLawConfig,
 )
 from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.detection_publication_store import DetectionPublicationStore
 from navpy.modules.vision.sim.frame_generation_gate import FrameGenerationGate
 from navpy.modules.vision.sim.ideal_pose_source import IdealPoseSample

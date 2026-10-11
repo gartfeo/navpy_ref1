@@ -7,14 +7,14 @@ from copy import deepcopy
 from typing import List, Optional
 
 from navpy.core.kernel.geometry import iou_cxcywh
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_event_lease import (
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_event_lease import (
     DetectionEventLease,
     DetectionLeaseDispatch,
 )
-from navpy.modules.vision.models.detection_publication import DetectionPublication
-from navpy.modules.vision.models.detect_request import DetectRequest
-from navpy.modules.vision.models.detect_response import DetectResponse
+from navpy.core.ports.detection_publication import DetectionPublication
+from navpy.core.ports.detect_request import DetectRequest
+from navpy.core.ports.detect_response import DetectResponse
 from navpy.modules.vision.sim.detection_publication_store import (
     DetectionPublicationStore,
 )

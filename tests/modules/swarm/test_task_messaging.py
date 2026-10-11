@@ -14,7 +14,7 @@ from navpy.modules.comm.messages.swarm_ack_msg import (
 from navpy.modules.comm.messages.swarm_heartbeat_msg import SwarmNodeState
 from navpy.modules.comm.messages.ttl_defaults import get_ttl_ms
 from navpy.modules.comm.messages.types import MsgType
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.swarm.task_messaging import TaskMessageRouter, TaskMessageSender
 from navpy.modules.swarm.task_msg_refs import msg_ref
 

@@ -16,7 +16,7 @@ from navpy.core.ports.detection import FrameDetector
 from navpy.modules.vision.real_detector_ports import ModelResourceCloser
 from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.track_identity import TrackIdentityResolver
-from navpy.modules.vision.tracker_backends import TrackerBackend
+from navpy.core.ports.tracker_backends import TrackerBackend
 
 
 @dataclass(frozen=True)

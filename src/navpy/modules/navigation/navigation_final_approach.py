@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Iterable, Optional
 
 from navpy.modules.navigation.navigation_mode import NavigationModeState
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class FinalApproachNavigationService:

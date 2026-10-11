@@ -11,7 +11,7 @@ from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 from navpy.core.kernel.logging.cache_logger import ILogger
 
 if TYPE_CHECKING:
-    from navpy.modules.vehicle.admission_tap import (
+    from navpy.core.ports.admission_tap import (
         AdmissionSubscription,
         RulingCallback,
     )

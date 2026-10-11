@@ -22,7 +22,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 
 from navpy.modules.vehicle.vehicle_mav import VehicleMav
 from navpy.modules.vehicle.attitude_command import euler_to_quaternion
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 from navpy.modules.vehicle.inbound_router import InboundMessageRouter
 from navpy.modules.vehicle.mission_inbox import MissionInbox
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger

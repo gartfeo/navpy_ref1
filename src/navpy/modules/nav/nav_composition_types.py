@@ -67,7 +67,7 @@ from navpy.modules.nav.vehicle_navigation import (
     VehicleNavigationCommands,
 )
 from navpy.modules.nav.track_recovery import GeoHoldCoordinator, TrackRecovery
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 @dataclass(frozen=True)

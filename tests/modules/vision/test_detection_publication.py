@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detection_publication import DetectionPublication
 
 
 def _publication(pois):

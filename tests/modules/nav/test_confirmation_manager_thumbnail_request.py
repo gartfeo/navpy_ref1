@@ -21,13 +21,13 @@ from navpy.modules.comm.messages.swarm_request_msg import (
     SwarmRequestMsg, REQUEST_TYPE_RESOURCE, REQUEST_TYPE_RETRANSMIT,
     REQUEST_TYPE_FORCE_CONFIRM, SUBJECT_TYPE_THUMBNAIL,
 )
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
 from navpy.modules.nav import confirmation_manager as tm_module
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
-from navpy.modules.vision.models.detection_components import ConfirmationEvidence
+from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
+from navpy.core.ports.detection_components import ConfirmationEvidence
 from tests.detection_factory import make_detected_poi
 
 

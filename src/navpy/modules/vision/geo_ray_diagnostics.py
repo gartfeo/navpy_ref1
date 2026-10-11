@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from navpy.core.kernel.attitude import Attitude
     from navpy.core.kernel.location import Location
     from navpy.modules.navigation.geo.geo_ref_calc import GeoRefCalc
-    from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+    from navpy.core.ports.gimbal_abc import GimbalData
 
 
 PixelValidator = Callable[[float, float], bool]

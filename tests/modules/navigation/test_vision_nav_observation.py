@@ -5,13 +5,13 @@ import numpy as np
 import pytest
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )
-from navpy.modules.vision.models.pixel_observation import PixelProjectionKind
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.pixel_observation import PixelProjectionKind
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.visual_ray_projection import body_ray_to_pixel
 from tests.detection_factory import make_detected_poi
 

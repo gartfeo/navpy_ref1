@@ -30,7 +30,7 @@ from navpy.modules.vision.real_detector_ports import ModelResourceCloser
 from navpy.modules.vision.real_detector_runtime_state import RuntimeMetrics
 from navpy.modules.vision.poi_lock import PoiLock
 from navpy.modules.vision.track_identity import TrackIdentityResolver
-from navpy.modules.vision.tracker_backends import TrackerBackend
+from navpy.core.ports.tracker_backends import TrackerBackend
 from navpy.app.perception.tracker_backend_factory import create_tracker_backend
 from navpy.modules.vision.yolo_detector import YoloDetector
 from navpy.modules.vision.real_detector_models import RealDetectorModels, close_model_resources

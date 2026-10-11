@@ -12,7 +12,7 @@ from navpy.modules.navigation.nav.final_approach_airframe_config import (
     FinalApproachParameterPort,
 )
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 
 
 LawBuilder = Callable[[], NavigationLawLifecycle]

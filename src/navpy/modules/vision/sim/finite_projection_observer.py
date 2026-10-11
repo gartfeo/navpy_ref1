@@ -5,7 +5,7 @@ from typing import Optional, Protocol
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.models.detect_data import DetectedObject, DetectResult, DetectStatus
+from navpy.core.ports.detect_data import DetectedObject, DetectResult, DetectStatus
 from navpy.modules.vision.sim.finite_projection_evidence import EvidenceErrorSink, EvidenceSink, ProjectionCapture
 from navpy.modules.vision.sim.sim_camera_ports import FrameSize, PixelValidator
 from navpy.modules.vision.simulation_object import SimulationObject

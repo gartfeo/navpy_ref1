@@ -12,10 +12,10 @@ import numpy as np
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.modules.navigation.gimbal_navigation import GimbalNavigation
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.ports.pose_stream_rate import pose_frame_association_max_skew_s
-from navpy.modules.vehicle.vehicle_contract import IVehicle
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
 from navpy.modules.vision.sim.pose_associator import PoseAssociator
 from navpy.modules.vision.sim.pose_stream_link import PoseStreamLink

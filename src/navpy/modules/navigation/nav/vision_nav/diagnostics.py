@@ -28,8 +28,8 @@ from navpy.modules.navigation.nav.vision_nav.diagnostic_capture import (
     law_evidence_payload,
     optional_float,
 )
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.detect_data import DetectedObject
 
 
 @dataclass(frozen=True)

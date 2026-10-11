@@ -9,11 +9,11 @@ from typing import Callable, Optional, Protocol
 from navpy.modules.nav.final_approach_source_watchdog import (
     FinalApproachSourceReceiptWatchdog,
 )
-from navpy.modules.vision.models.detection_event_lease import (
+from navpy.core.ports.detection_event_lease import (
     DetectionEventLease,
     DetectionLeaseDispatch,
 )
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detection_publication import DetectionPublication
 
 
 class FinalApproachEventHandler(Protocol):

@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.worker_failure import StaticFailureHealth
+from navpy.core.ports.worker_failure import StaticFailureHealth
 
 
 @dataclass

@@ -9,7 +9,7 @@ from typing import Callable, Optional, Tuple
 
 import numpy as np
 
-from navpy.modules.vision.frame_capture_ports import CaptureStamp
+from navpy.core.ports.frame_capture_ports import CaptureStamp
 
 
 @dataclass(frozen=True)

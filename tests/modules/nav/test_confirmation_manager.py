@@ -12,11 +12,11 @@ from navpy.modules.comm.messages.task_confirmation_msg import (
     TaskConfirmResponseMsg,
 )
 from navpy.modules.comm.messages.msg_meta import MsgMeta
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
-from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
-from navpy.modules.vision.models.detection_components import ConfirmationEvidence
+from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
+from navpy.core.ports.detection_components import ConfirmationEvidence
 from tests.detection_factory import make_detected_poi
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
@@ -839,7 +839,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
 
         from navpy.core.kernel.config.nav_args import NavArgs
         from navpy.core.kernel.logging.cache_logger import ILogger
-        from navpy.modules.comm.network_abc import NetworkAbc
+        from navpy.core.ports.network_abc import NetworkAbc
 
         self.mock_logger = MagicMock(spec=ILogger)
         self.mock_args = MagicMock(spec=NavArgs)

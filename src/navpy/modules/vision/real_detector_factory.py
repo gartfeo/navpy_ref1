@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import cast
 
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.vision.charuco_board import charuco_board_spec_from_settings
 from navpy.core.kernel.config.detector_backend import (
     DetectorBackend,

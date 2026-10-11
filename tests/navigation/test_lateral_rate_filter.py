@@ -14,7 +14,7 @@ import math
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.lateral_rate import LateralRateFilter
 
 

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
-from navpy.modules.vision.models.pixel_observation import VisualDetection
+from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.pixel_observation import VisualDetection
 from scripts import vision_static_point_mass as point_mass
 from scripts import vision_static_point_mass_run as point_mass_run
 from scripts import vision_static_point_mass_sensor as point_mass_sensor

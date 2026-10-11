@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.sim.frame_generation_gate import FrameGeneration
 from navpy.modules.vision.sim.projection_run_recorder import ProjectionRunRecorder, projection_frame_scope
 from navpy.modules.vision.sim.sim_confirmation_capture import ConfirmationCapture

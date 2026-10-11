@@ -16,7 +16,7 @@ from navpy.core.ports.pose_stream_rate import (
     POSE_FRAME_ASSOCIATION_ABSOLUTE_MAX_SKEW_S,
 )
 from navpy.modules.vision.capture_interpolation import AttitudeAtLookup
-from navpy.modules.vision.frame_capture_ports import (
+from navpy.core.ports.frame_capture_ports import (
     CaptureStamp,
     CaptureStampKind,
 )

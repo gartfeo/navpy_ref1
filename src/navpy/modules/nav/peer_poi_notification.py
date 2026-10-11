@@ -9,7 +9,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.modules.nav.confirmation_manager import ConfirmationManager
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.modules.vision.poi_identity import same_poi_identity
 
 

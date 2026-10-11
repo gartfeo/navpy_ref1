@@ -124,7 +124,7 @@ def test_source_driven_tick_without_event_waits_without_failure_or_command():
     workflow = FinalApproachNavWorkflow(
         FinalApproachNavPorts(
             vehicle_mode=lambda: __import__(
-                "navpy.modules.vehicle.flight_mode", fromlist=["FlightMode"]
+                "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
             request_guided=MagicMock(),
             mark_guided_session=MagicMock(),
@@ -151,7 +151,7 @@ def test_mode_loss_closes_source_pump_before_requesting_guided_again():
     workflow = FinalApproachNavWorkflow(
         FinalApproachNavPorts(
             vehicle_mode=lambda: __import__(
-                "navpy.modules.vehicle.flight_mode", fromlist=["FlightMode"]
+                "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.AUTO,
             request_guided=request_guided,
             mark_guided_session=MagicMock(),
@@ -183,7 +183,7 @@ def test_command_liveness_failure_stops_open_source_session():
     workflow = FinalApproachNavWorkflow(
         FinalApproachNavPorts(
             vehicle_mode=lambda: __import__(
-                "navpy.modules.vehicle.flight_mode", fromlist=["FlightMode"]
+                "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
             request_guided=MagicMock(),
             mark_guided_session=MagicMock(),
@@ -246,7 +246,7 @@ def test_successful_vision_source_bootstrap_opens_exclusive_pump():
     workflow = FinalApproachNavWorkflow(
         FinalApproachNavPorts(
             vehicle_mode=lambda: __import__(
-                "navpy.modules.vehicle.flight_mode", fromlist=["FlightMode"]
+                "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
             request_guided=MagicMock(),
             mark_guided_session=MagicMock(),
@@ -286,7 +286,7 @@ def test_polling_vision_dispatch_stays_on_worker_path_without_event_pump():
     workflow = FinalApproachNavWorkflow(
         FinalApproachNavPorts(
             vehicle_mode=lambda: __import__(
-                "navpy.modules.vehicle.flight_mode", fromlist=["FlightMode"]
+                "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
             request_guided=MagicMock(),
             mark_guided_session=MagicMock(),
@@ -325,7 +325,7 @@ def test_source_driven_legacy_bootstrap_does_not_open_pump():
     workflow = FinalApproachNavWorkflow(
         FinalApproachNavPorts(
             vehicle_mode=lambda: __import__(
-                "navpy.modules.vehicle.flight_mode", fromlist=["FlightMode"]
+                "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
             request_guided=MagicMock(),
             mark_guided_session=MagicMock(),

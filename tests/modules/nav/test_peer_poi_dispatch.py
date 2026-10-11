@@ -11,7 +11,7 @@ from navpy.modules.nav.peer_poi_dispatch import (
     PeerPoiDispatchPorts,
     PeerPoiDispatchWorker,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 from tests.detection_factory import make_detected_poi
 
 

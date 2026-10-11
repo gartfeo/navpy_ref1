@@ -13,8 +13,8 @@ from navpy.modules.vision.confirmation_frame import (
     is_confirmation_frame_centered,
     should_replace_center_gated_confirmation_frame,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_components import ConfirmationEvidence
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_components import ConfirmationEvidence
 from navpy.modules.vision.sim.sim_camera_ports import CaptureCameraPort
 from navpy.modules.vision.sim.sim_detector_state import SimCaptureState
 from navpy.modules.vision.sim.sim_runtime_ports import (

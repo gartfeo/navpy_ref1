@@ -5,7 +5,7 @@ from __future__ import annotations
 from _thread import RLock as RLockType
 
 from navpy.core.kernel.location import Location
-from navpy.modules.vehicle.flight_mode import FlightMode
+from navpy.core.ports.flight_mode import FlightMode
 from navpy.modules.vehicle.preflight_health import PrearmCheckState
 from navpy.modules.vehicle.vehicle_public_ports import (
     HealthParts,

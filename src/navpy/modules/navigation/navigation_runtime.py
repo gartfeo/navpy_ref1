@@ -12,7 +12,7 @@ from typing import Any, Iterable, Optional, Protocol
 
 from navpy.modules.navigation.calc_data import CalcData
 from navpy.modules.navigation.navigation_postprocess_dispatcher import PostprocessJob
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class NavigationIngress(Protocol):

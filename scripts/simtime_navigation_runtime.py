@@ -21,7 +21,7 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.modules.navigation.navigation_command_slot import NavigationCommandSlot
 from navpy.modules.navigation.nav.vision_nav.law import VisionNavLaw
-from navpy.modules.navigation.nav.vision_nav.law_config import (
+from navpy.core.ports.law_config import (
     FixedFinalApproachLawConfigProvider,
 )
 from navpy.modules.navigation.nav.vision_nav.runtime_composition import (

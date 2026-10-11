@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.peripheral.gimbal_abc import (
+from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )

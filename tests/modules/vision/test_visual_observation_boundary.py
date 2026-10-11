@@ -14,8 +14,8 @@ from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject, DetectionSizeClass
-from navpy.modules.vision.models.detection_components import (
+from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
+from navpy.core.ports.detection_components import (
     ConfirmationEvidence,
     DetectionClassification,
     DetectionGeoDiagnostics,
@@ -25,12 +25,12 @@ from navpy.modules.vision.models.detection_components import (
     SourceTiming,
     TrackingEvidence,
 )
-from navpy.modules.vision.models.pixel_observation import (
+from navpy.core.ports.pixel_observation import (
     PixelCalibration,
     PixelObservation,
     PixelProjectionKind,
 )
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
 from navpy.modules.vision.sim.ideal_poi_projector import (
     IdealPoiProjector,

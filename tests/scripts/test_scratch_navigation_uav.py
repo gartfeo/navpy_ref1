@@ -348,7 +348,7 @@ def test_the_frame_gets_an_euler_yaw_rate_not_a_body_rate():
     # Behavioural, not only structural: in a coordinated turn the body rate and
     # the Euler rate must actually come apart, or the guard is pinning a
     # conversion that does nothing.
-    from navpy.modules.vision.models.pixel_observation import (
+    from navpy.core.ports.pixel_observation import (
         aircraft_yaw_rate_rad_s,
     )
     turn_rate = 0.3

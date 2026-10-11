@@ -6,7 +6,7 @@ from collections.abc import Callable
 from enum import Enum, auto
 from typing import Protocol
 
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detection_publication import DetectionPublication
 
 
 class DetectionLeaseDispatch(Enum):

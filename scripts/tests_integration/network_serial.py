@@ -7,8 +7,8 @@ from unittest.mock import Mock
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 from navpy.core.kernel.location import Location
 from navpy.modules.comm.network_serial import NetworkSerial
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vehicle.vehicle_contract import IVehicle
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.modules.swarm.task_actor import TaskActor
 from navpy.core.kernel.logging.cache_logger import ConsoleCacheLogger
 

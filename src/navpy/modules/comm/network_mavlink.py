@@ -12,7 +12,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 
 from navpy.modules.comm.messages.msg_abc import MsgABC, MsgRegistry
 from navpy.modules.comm.message_filter import MessageFilter
-from navpy.modules.comm.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import NetworkAbc
 from navpy.modules.comm.image_transfer import ImageTransferType
 
 # MAVLink ENCAPSULATED_DATA payload size

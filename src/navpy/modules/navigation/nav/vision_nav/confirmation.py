@@ -6,7 +6,7 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
-from navpy.modules.navigation.nav.vision_nav.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.modules.navigation.nav.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
 )
@@ -15,7 +15,7 @@ from navpy.modules.navigation.nav.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class FinalApproachConfirmationLaw(Protocol):

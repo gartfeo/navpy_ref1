@@ -15,10 +15,10 @@ from navpy.modules.vision.gimbal_tracking_sample import (
     GimbalAngularSample,
     GimbalPoiProjector,
 )
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.pixel_observation import PixelCalibration
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.pixel_observation import PixelCalibration
 from tests.detection_factory import make_detected_poi
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.poi_angle_estimator import (
     PoiAngleEstimatorConfig,
 )

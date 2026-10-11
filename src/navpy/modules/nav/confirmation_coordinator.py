@@ -15,7 +15,7 @@ from navpy.modules.nav.confirmation_round_runner import ConfirmationRoundRunner
 from navpy.modules.nav.confirmation_round_transaction import ConfirmationWorkerLease
 from navpy.modules.nav.self_assignment_publisher import SelfAssignmentPublisher
 from navpy.modules.nav.confirmation_registry_state import ConfirmationStatus
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class ConfirmationCoordinator:

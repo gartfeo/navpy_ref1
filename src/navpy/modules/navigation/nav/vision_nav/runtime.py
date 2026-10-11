@@ -31,7 +31,7 @@ from navpy.modules.navigation.nav.vision_nav.queued_frame import FinalApproachQu
 from navpy.modules.navigation.nav.vision_nav.runtime_state import FinalApproachRuntimeStatus
 from navpy.modules.navigation.nav.vision_nav.source_epoch import SourceEpochLedger
 from navpy.modules.navigation.nav.vision_nav.visual_pass import VisualPassDetector
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class FinalApproachCommandWorkRuntime:

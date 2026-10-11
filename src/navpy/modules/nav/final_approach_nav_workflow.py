@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Callable, ContextManager, Optional, Protocol
 
 from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
-from navpy.modules.vehicle.flight_mode import FlightMode
-from navpy.modules.vision.models.detect_data import DetectedObject
+from navpy.core.ports.flight_mode import FlightMode
+from navpy.core.ports.detect_data import DetectedObject
 
 
 class NavPeerNotifier(Protocol):

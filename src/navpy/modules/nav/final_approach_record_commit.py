@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from typing import Optional, Protocol
 
 from navpy.modules.nav.final_approach_source_contracts import NavSourceBatch
-from navpy.modules.vision.models.detect_data import DetectedObject
-from navpy.modules.vision.models.detection_publication import DetectionPublication
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_publication import DetectionPublication
 
 
 class FinalApproachRecordDeferral(Protocol):

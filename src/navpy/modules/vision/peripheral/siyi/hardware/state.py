@@ -7,7 +7,7 @@ import threading
 from dataclasses import dataclass, replace
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 
 
 _ParsedAttitude = tuple[int, float, float, float, float]

@@ -20,12 +20,12 @@ import numpy as np
 from navpy.core.kernel.attitude import Attitude
 from navpy.modules.vision.camera_mount_types import CameraMountFrameState
 from navpy.modules.vision.capture_lookup import CaptureLookupCalibration
-from navpy.modules.vision.frame_capture_ports import (
+from navpy.core.ports.frame_capture_ports import (
     CaptureStamp,
     CaptureStampKind,
 )
 from navpy.modules.vision.frame_publication import FramePublicationStore
-from navpy.modules.vision.peripheral.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.modules.vision.real_frame_association import FrameAssociationBuilder
 
 ROLL_RATE_DEG_S = 80.0
