@@ -23,7 +23,7 @@ from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.skills.acquire.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
 from navpy.core.skills.acquire.peer_offset import OFFSET_LOITER_RADIUS_M
-from navpy.modules.nav.nav_controller import NavController
+from navpy.app.flow.nav_controller import NavController
 from navpy.core.flow.nav_state import NavState
 from navpy.core.flow.nav_constants import ALT_HYST
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
@@ -5004,7 +5004,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         )
 
         with patch(
-                "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+                "navpy.app.flow.nav_composition.calc_peer_approach_offset",
                 return_value=camera_sized,
         ):
             plan, _ = controller.fallback_navigation.plan_orbit_approach(
@@ -5049,7 +5049,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
                 orbit_radius=666.0,
             )
             with self.subTest(height_above_poi_m=height_above_poi_m), patch(
-                    "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+                    "navpy.app.flow.nav_composition.calc_peer_approach_offset",
                     return_value=camera_sized,
             ):
                 plan, _ = controller.fallback_navigation.plan_orbit_approach(
@@ -5115,7 +5115,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         navigation = _create_mock_navigation()
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.OFFSET,
                 approach_location=Location(40.001, -74.001, 100.0),
@@ -5145,7 +5145,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.mission.default_delivery_hub = Location(40.001, -74.001, 100.0)
 
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.001, -74.001, 100.0),
@@ -5204,7 +5204,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         )
 
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.001, -74.001, 100.0),
@@ -5277,7 +5277,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             orbit_radius=80.0,
         )
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=plan,
         ) as calc, patch.object(controller.vehicle_navigation, "dispatch_approach") as dispatch:
             controller.navigation_task_action.start(poi)
@@ -5312,7 +5312,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             orbit_radius=0.0,
         )
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=plan,
         ) as calc, patch.object(controller.vehicle_navigation, "dispatch_approach") as dispatch:
             controller.navigation_task_action.start(poi)
@@ -5362,7 +5362,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             orbit_radius=0.0,
         )
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=plan,
         ) as calc, patch.object(controller.vehicle_navigation, "dispatch_approach") as dispatch:
             controller.navigation_task_action.start(poi)
@@ -5389,7 +5389,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             _create_mock_args(), logger, approach_kind=ApproachKind.OFFSET,
         )
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
         ) as calc, patch.object(controller.vehicle_navigation, "dispatch_approach") as dispatch:
             controller.navigation_task_action.start(poi)
 
@@ -5433,7 +5433,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             orbit_radius=80.0,
         )
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=plan,
         ) as calc, patch.object(
             controller.vehicle_navigation, "dispatch_approach",
@@ -5472,7 +5472,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             _create_mock_args(), Mock(), approach_kind=ApproachKind.OFFSET,
         )
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
         ) as calc, patch.object(controller.vehicle_navigation, "dispatch_approach") as dispatch:
             controller.navigation_task_action.start(poi)
 
@@ -5512,7 +5512,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.mission.scan_altitude_rel = 150.0  # mission scan/navigation task alt
 
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.001, -74.001, 1296.0),
@@ -5778,7 +5778,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.001, -74.001, 0.0),
@@ -5817,7 +5817,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.001, -74.001, 0.0),
@@ -5851,7 +5851,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.001, -74.001, 0.0),
@@ -5886,7 +5886,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.OFFSET,
                 approach_location=Location(40.002, -74.002, 0.0),
@@ -5945,7 +5945,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         )
 
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.5, -74.5, 1300.0, is_absolute=True),
@@ -6014,7 +6014,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.mission.scan_altitude_rel = 150.0
         drone_rel = Location(40.0, -74.0, 30.0, is_absolute=False)
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.5, -74.5, 0.0),
@@ -6045,7 +6045,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.mission.scan_altitude_rel = 150.0
         drone_rel = Location(40.0, -74.0, 30.0, is_absolute=False)
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.5, -74.5, 0.0),
@@ -6073,7 +6073,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.mission.scan_altitude_rel = None
         drone = Location(40.0, -74.0, 30.0, is_absolute=False)
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=Location(40.5, -74.5, 0.0),
@@ -6117,7 +6117,7 @@ class TestNavControllerLifecycle(unittest.TestCase):
     def test_raise_if_failed_delegates_to_application(self):
         application = Mock()
         with patch(
-            "navpy.modules.nav.nav_controller.create_nav_application",
+            "navpy.app.flow.nav_controller.create_nav_application",
             return_value=application,
         ):
             controller = NavController(
@@ -8861,7 +8861,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
             orbit_radius=686.0,
         )
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=plan,
         ):
             self.controller.peer_navigation.setup()
@@ -8890,7 +8890,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
             orbit_radius=80.0,
         )
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=plan,
         ):
             self.controller.peer_navigation.setup()
@@ -8953,7 +8953,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
         )
 
         with patch(
-            "navpy.modules.nav.nav_composition.calc_peer_approach_offset",
+            "navpy.app.flow.nav_composition.calc_peer_approach_offset",
             return_value=plan,
         ) as calc:
             self.controller.peer_navigation.setup()

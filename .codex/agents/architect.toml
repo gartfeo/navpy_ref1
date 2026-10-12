@@ -15,14 +15,15 @@ Design systems, decompose modules, enforce SOLID principles, and analyze depende
 
 ## Domain Knowledge
 
-### NavPy Module Architecture (`src/navpy/`)
-- **common** — Shared types: `Location`, `Attitude`, `Wind`
-- **vehicle** — `IVehicle` ABC, MAVLink implementation via `VehicleMav`
-- **vision** — Detection: `DetectorAbc` -> `Detector`/`DetectorSim`
-- **navigation** — Navigation algorithms, `GeoRefCalc`, `ZcUtil`, L1/PID/PN navigation
-- **nav** — `NavController` state machine (`nav_state.NavState`): ONHOLD, DETECT, CONFIRM, NAV, RESET, RECOVERY
-- **comm** — Network: `NetworkAbc` -> `NetworkWifi`/`NetworkSerial`/`NetworkMavlink`
-- **swarm** — Multi-vehicle: `TaskActor`, `TaskDispatch`
+### NavPy Module Architecture (`src/navpy/`; layout: `docs/design/step1_separation.md`)
+- **core/kernel** — Shared types: `Location`, `Attitude`, `Wind`; settings, logging
+- **core/ports** — Contracts: `IVehicle`, `NetworkAbc`, detector types
+- **core/perception** — Camera, detection (`Detector`), tracking, `GeoRefCalc`, `ZcUtil`
+- **core/approach**, **plugins/laws** — Final-approach engine; law math (vision PN, geo PID/PN)
+- **core/flow** — State machine (`nav_state.NavState`): ONHOLD, DETECT, CONFIRM, NAV, RESET, RECOVERY; `NavController` wiring in `app/flow`
+- **core/link**, **plugins/radio** — Messages; `NetworkWifi`/`NetworkSerial`/`NetworkMavlink`
+- **core/swarm** — Multi-vehicle: `TaskActor`, `TaskDispatch`
+- **plugins/vehicle/ardupilot** — `VehicleMav`; **sim** — `DetectorSim` and other simulator plugins
 
 ### GCS Architecture (`src/gcs/`)
 - **Backend**: FastAPI, route modules in `src/gcs/backend/routes/`
@@ -30,7 +31,7 @@ Design systems, decompose modules, enforce SOLID principles, and analyze depende
 
 ### Key Patterns
 - ABC interfaces with `@abstractmethod`
-- Args dataclasses in `src/navpy/args/`
+- Args dataclasses in `*_args.py` (`src/navpy/core/kernel/config/`, `src/navpy/app/`, plugins)
 - Factory functions: `create_vehicle()`, `create_network()`
 - Orchestrator pattern: top-level components wire hooks, no business logic
 

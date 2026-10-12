@@ -33,7 +33,7 @@ from navpy.core.ports.nav_law import NavContext
 from navpy.plugins.laws.geo.roll_l1_core import (
     PitchPidController,
 )
-from navpy.modules.navigation.nav.roll_l1_composition import (
+from navpy.app.approach.roll_l1_composition import (
     compose_roll_l1_law,
     compose_roll_l1_nav,
 )

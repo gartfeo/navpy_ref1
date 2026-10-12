@@ -31,18 +31,17 @@ neither delivery nor pickup owns it. SAR never builds it.
 - **Rejected:** see the table at the end.
 
 ## Why change: today's coupling
-Paths are under `src/navpy/modules/` unless they start with `gcs/`, `scripts/`
-or `runtime_composition.py`.
+Paths are under `src/navpy/` (step-1 layout) unless they start with `gcs/` or `scripts/`.
 
 | Fact | Evidence |
 |---|---|
-| The vehicle runtime is one fixed flow: DETECT → CONFIRM → NAV → RESET | `nav/nav_state.py:14-20` |
-| Every confirmed POI goes to the final approach | `nav/confirmed_poi_release.py:45` |
-| The final-approach engine is built and started at boot for every vehicle | `runtime_composition.py:169-179` |
-| `final_approach.is_active` means "a vision law is configured", which is true from boot. 17 gates read it, including the one that gates operator review on the law's preview | `navigation/navigation_final_approach.py:17-20`, `nav/confirmation_action.py:49-62` |
-| RESET and RECOVERY restart AUTO at item 1 (the takeoff). A rejection resumes the leg | `nav/recovery.py:89-91`, `nav/navigation_task_reset.py:241-252` |
-| Fleet tasks exist only for docks. The auction needs exactly 3 live UAVs | `comm/messages/types.py:37`, `swarm/task_actor_slots.py:11` |
-| Only class 0 (dock) has class settings, and the sim renders only class 0 | `vision/vision_class_profile.py:66-70`, `vision/sim/finite_poi_projector.py:149` |
+| The vehicle runtime is one fixed flow: DETECT → CONFIRM → NAV → RESET | `core/flow/nav_state.py:14-20` |
+| Every confirmed POI goes to the final approach | `core/skills/confirm/confirmed_poi_release.py:45` |
+| The final-approach engine is built and started at boot for every vehicle | `app/runtime_composition.py:169-179` |
+| `final_approach.is_active` means "a vision law is configured", which is true from boot. 17 gates read it, including the one that gates operator review on the law's preview | `core/approach/navigation_final_approach.py:17-20`, `core/skills/confirm/confirmation_action.py:49-62` |
+| RESET and RECOVERY restart AUTO at item 1 (the takeoff). A rejection resumes the leg | `core/flow/recovery.py:89-91`, `core/flow/navigation_task_reset.py:241-252` |
+| Fleet tasks exist only for docks. The auction needs exactly 3 live UAVs | `core/link/types.py:37`, `core/swarm/task_actor_slots.py:11` |
+| Only class 0 (dock) has class settings, and the sim renders only class 0 | `core/perception/profile/vision_class_profile.py:66-70`, `sim/camera/finite_poi_projector.py:149` |
 | The GCS refuses an upload without a delivery hub. Scan altitude comes from the dock preset | `gcs/frontend/src/hooks/useMissionUpload.js:47-51`, `gcs/frontend/src/utils/trackGenerator.js:11` |
 
 ## Three layers (destination)
@@ -54,7 +53,7 @@ Behaviors        flight activities + services
 Platform         vehicle · comms · fleet · perception · supervisor · operator channel · GCS shell
 ```
 - Dependencies point down only. The guard is tightened in stages:
-  - **Now:** mission and hook code may not import `navigation.nav.vision_nav`. Today nothing in `nav/` imports it, so the rule is free.
+  - **Now:** mission and hook code may not import `core/approach/vision_nav` or `plugins/laws/vision_pn` Today nothing in the flow, skill and review code (`core/flow/`, `core/skills/`, `core/review/`, `app/flow/`) imports them, so the rule is free.
   - **At extraction:** widen it one package at a time.
   - Most vision→navigation imports are geo and gimbal code, which belongs to platform Perception and moves there.
 - Something belongs in the platform if every mission needs it, if it carries no mission meaning, or if safety needs it to behave the same everywhere.
@@ -85,7 +84,7 @@ are chosen whole and never blended.
 | observe | orbits a geo point with the gimbal on it | done, lost | peer loiter + geo pointing |
 | acquire | flies to a reported POI until its own vision sees it | acquired, not_found | peer orbit + ready gate |
 | line_up | climbs back to the detection altitude and lines up on the crossing heading before each pass (pickup) | ready, aborted | missing |
-| final_approach(profile) | pure-vision approach. Profiles: `dive` (dock), `line_dive` (capture segment) | passed, lost, aborted:<reason> | NAV + `navigation/nav/vision_nav/` |
+| final_approach(profile) | pure-vision approach. Profiles: `dive` (dock), `line_dive` (capture segment) | passed, lost, aborted:<reason> | NAV + `core/approach/vision_nav/`, `plugins/laws/vision_pn/` |
 | track (later) | follows a moving POI | — | missing |
 
 **Services.** They are always on and hold no flight lease:
@@ -96,7 +95,7 @@ are chosen whole and never blended.
 
 Services may borrow the camera under a priority lease. Today AUTO keeps flying
 during CONFIRM, and review and peer offers already run alongside it
-(`nav/self_detected_approach.py:43-45`, `nav/confirmation_coordinator.py:47-54`).
+(`core/skills/geo_approach/self_detected_approach.py:43-45`, `core/review/confirmation_coordinator.py:47-54`).
 This names what exists.
 
 **Supervisor actions:** HOLD, RTL, finish. Each must command a safe state, not
@@ -108,7 +107,7 @@ just stop.
 - Each SNAP is stamped with the profile, a hash of the law config and environment, the NavPy and firmware commits, and the outcome.
 - The pure-vision guard scans the whole `vision_nav` package, with an allow-list for diagnostics. A hand-kept file list would miss files; `pitch_law.py` is missed today.
 - **Decided (2026-10-09): approach laws are plugins, not legacy.** PID (AAS_DEL_CTRL 0) and PN (1), both geo-based, and vision PN (2) are our proof-of-concept laws. They can be selected through one law registry, and contractors' laws join the same way.
-  - Today their branches are spread across about 40 files in `nav/`, `navigation/` and `vision/`: `legacy_*`, `roll_l1*`, `ApproachKind`, and the 21 files that read `final_approach.is_active`. The self-detect orbit is one of them.
+  - Today their branches are spread across about 40 files in `app/`, `core/approach/`, `core/skills/`, `core/review/` and `plugins/laws/geo/`: `legacy_*`, `roll_l1*`, `ApproachKind`, and the 21 files that read `final_approach.is_active`. The self-detect orbit is one of them.
   - Target: each law is one plugin that only takes inputs and returns commands: no vehicle access, no mode writes, no flight behavior of its own. The orbit prep, recovery climb and floor around PID/PN move into a geo-approach skill that drives those laws. The vision-approach skill drives the vision laws. Nothing outside the final approach branches on which law is selected, and a guard test enforces that.
   - Each law declares its required inputs and their quality, for example GPS with a CEP, camera frames with a rate, latency and jitter, gimbal readback, attitude, and real airspeed. Requirements can depend on the profile. The platform gives a law only the inputs it declared.
   - **Decided (2026-10-09): this all happens at setup, before the sortie.**
@@ -121,11 +120,11 @@ just stop.
 ## Mission modules
 **Decided (2026-10-08): a graph runner, no hooks step.** Today's divergence points
 become edges and skills of each module's graph:
-- after confirm (`nav/confirmed_poi_release.py:45`);
-- after the approach (`nav/navigation_decision.py:193-196`);
-- resume vs restart (`nav/recovery.py:89-91` against `nav/navigation_task_reset.py:241-252`);
-- work source (`nav/navigation_task_action.py:50-82`);
-- bid eligibility (`swarm/task_capability.py:37-51`). A backup or scout bids a sentinel cost, so it neither wins "catch" nor stalls the auction.
+- after confirm (`core/skills/confirm/confirmed_poi_release.py:45`);
+- after the approach (`core/flow/navigation_decision.py:193-196`);
+- resume vs restart (`core/flow/recovery.py:89-91` against `core/flow/navigation_task_reset.py:241-252`);
+- work source (`core/skills/search/navigation_task_action.py:50-82`);
+- bid eligibility (`core/swarm/task_capability.py:37-51`). A backup or scout bids a sentinel cost, so it neither wins "catch" nor stalls the auction.
 
 Rules:
 - The module id and role are latched at arming as a pre-arm check, never mid-flight. ONHOLD also happens in flight.
@@ -154,14 +153,14 @@ A straight sequence is the special case with one edge per node. Retries are loop
   - every outcome of every node has an edge;
   - every node is reachable;
   - each graph has a safe end.
-- **Today** NavState is such a graph, hard-coded: its edges are 20 `phase.request` calls in 6 files under `nav/`.
+- **Today** NavState is such a graph, hard-coded: its edges are 20 `phase.request` calls in 6 files of `core/flow/` and `core/skills/confirm/`.
 - **Decided:** the runner arrives with pickup, which needs loops and roles. Delivery's flow is its first graph and must pass today's tests and eval unchanged. Spec: `docs/design/flow_runner.md`.
 
 **Delivery** moves out of the platform into its own module, and is then
 paused: its tests and eval stay green, but it gets no new features. When it
 resumes, a dock the drone found itself is circled first, then approached
 (owner's choice). Today the vision law skips that circle
-(`nav/self_detected_approach.py:44`).
+(`core/skills/geo_approach/self_detected_approach.py:44`).
 
 **In-flight pickup** has three roles: scout, catcher and backup.
 ```
@@ -170,7 +169,7 @@ catcher: hold -> assigned "catch" -> acquire(line) -> line_up -> final_approach(
          passed -> review(scout or operator) -> confirmed -> [finish] -> RTL
          rejected or lost -> passes < N ? line_up : [operator hands task to backup]
 ```
-- RESET splits into end-of-pass and end-of-task. Today RESET clears the task, the detector identities and the task actor (`nav/navigation_task_reset.py:139-171`).
+- RESET splits into end-of-pass and end-of-task. Today RESET clears the task, the detector identities and the task actor (`core/flow/navigation_task_reset.py:139-171`).
 - The pass budget lives in task state, not in DO_JUMP counts or Lua.
 - A miss is detected after the pass, and the catcher goes around and retries until the budget is spent. There is no automatic break-off before contact and no GPS check, because GPS is about 10 m at best. The operator can use "Cancel task" or E-STOP at any time.
 - No AUTO leg and no abort target crosses the capture corridor. AUTO holds only the line-up at the detection altitude, and every pass ends in a climb-out.
@@ -251,12 +250,12 @@ The file-by-file split, positioning sources and slice order are in
 0. **Now, in parallel:**
    - the pickup-dive Monte Carlo, which needs no code change and is a go/no-go for the demo;
    - the bug tasks already opened (floor, dead peers, unknown kinds, eval, guard, param refresh).
-1. **Storage, minimal.** How the module id and role reach the vehicle. Plan metadata is bit-packed and unversioned today (`nav/mission_encoding.py:1-13`).
+1. **Storage, minimal.** How the module id and role reach the vehicle. Plan metadata is bit-packed and unversioned today (`plugins/vehicle/ardupilot/mission_encoding.py:1-13`).
 2. **Graph runner and split:**
    - the flow runner, with delivery's graph reproducing today's flow;
    - extract delivery into its own module (DDH, dock preset, DOCK task kind, self-detect circle, one-shot finish), then pause it;
    - build the final approach per module;
-   - move goto, loiter, geo and gimbal off the `navigation/` hub;
+   - move goto, loiter, geo and gimbal off the `Navigation` hub (`app/approach/navigation.py`);
    - scope `is_active` by role;
    - put every law behind the law registry as a plugin.
 3. **Pickup on 3 UAVs in SITL:**

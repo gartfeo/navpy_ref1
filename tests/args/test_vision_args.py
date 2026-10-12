@@ -1,6 +1,6 @@
 """Tests for vision CLI arguments."""
 
-from navpy.args.navpy_argparse import make_parser
+from navpy.app.navpy_argparse import make_parser
 
 
 def test_detector_debug_show_defaults_false():
@@ -21,7 +21,7 @@ def test_detector_debug_show_flag_sets_true():
 
 def test_real_detector_defaults_to_charuco_without_a_model_path():
     """The default real backend is the ChArUco dock board, never a bench model."""
-    from navpy.args.vision_args import VisionArgs
+    from navpy.app.vision_args import VisionArgs
 
     args = make_parser(description="test").parse_args(["-ss", "1"])
     vision_args = VisionArgs.from_args(args)
@@ -33,7 +33,7 @@ def test_real_detector_defaults_to_charuco_without_a_model_path():
 
 
 def test_yolo_backend_is_explicit_opt_in_with_model_path():
-    from navpy.args.vision_args import VisionArgs
+    from navpy.app.vision_args import VisionArgs
 
     args = make_parser(description="test").parse_args([
         "-ss", "1",

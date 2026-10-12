@@ -4,7 +4,7 @@ from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 
-from navpy.modules.vision.frame_capture_factory import open_capture_backend
+from navpy.app.perception.frame_capture_factory import open_capture_backend
 from navpy.plugins.camera.opencv.frame_capture_opencv import OpenCvFrameCapture
 
 from tests.modules.vision.test_frame_provider import _Logger
@@ -14,11 +14,11 @@ def test_opencv_wrapper_failure_releases_raw_capture() -> None:
     capture = Mock()
     capture.isOpened.return_value = True
     with patch(
-        "navpy.modules.vision.frame_capture_factory.open_source_capture",
+        "navpy.app.perception.frame_capture_factory.open_source_capture",
         return_value=capture,
     ):
         with patch(
-            "navpy.modules.vision.frame_capture_factory.OpenCvFrameCapture",
+            "navpy.app.perception.frame_capture_factory.OpenCvFrameCapture",
             side_effect=RuntimeError("wrapper failed"),
         ):
             with pytest.raises(RuntimeError, match="wrapper failed"):
@@ -31,7 +31,7 @@ def test_opencv_dimension_failure_releases_owned_capture() -> None:
     capture = Mock()
     capture.isOpened.return_value = True
     with patch(
-        "navpy.modules.vision.frame_capture_factory.open_source_capture",
+        "navpy.app.perception.frame_capture_factory.open_source_capture",
         return_value=capture,
     ):
         with patch.object(
@@ -50,7 +50,7 @@ def test_factory_recheck_false_releases_raw_capture() -> None:
     capture = Mock()
     capture.isOpened.return_value = False
     with patch(
-        "navpy.modules.vision.frame_capture_factory.open_source_capture",
+        "navpy.app.perception.frame_capture_factory.open_source_capture",
         return_value=capture,
     ):
         assert open_capture_backend(0, _Logger()) is None
@@ -62,7 +62,7 @@ def test_factory_recheck_error_releases_raw_capture() -> None:
     capture = Mock()
     capture.isOpened.side_effect = RuntimeError("recheck failed")
     with patch(
-        "navpy.modules.vision.frame_capture_factory.open_source_capture",
+        "navpy.app.perception.frame_capture_factory.open_source_capture",
         return_value=capture,
     ):
         with pytest.raises(RuntimeError, match="recheck failed"):
@@ -74,15 +74,15 @@ def test_factory_recheck_error_releases_raw_capture() -> None:
 def test_jetson_wrapper_failure_releases_raw_capture() -> None:
     capture = Mock()
     with patch(
-        "navpy.modules.vision.frame_capture_factory._IS_JETSON",
+        "navpy.app.perception.frame_capture_factory._IS_JETSON",
         True,
     ):
         with patch(
-            "navpy.modules.vision.frame_capture_factory.open_jetson_capture",
+            "navpy.app.perception.frame_capture_factory.open_jetson_capture",
             return_value=capture,
         ):
             with patch(
-                "navpy.modules.vision.frame_capture_factory.OpenCvFrameCapture",
+                "navpy.app.perception.frame_capture_factory.OpenCvFrameCapture",
                 side_effect=RuntimeError("wrapper failed"),
             ):
                 with pytest.raises(RuntimeError, match="wrapper failed"):

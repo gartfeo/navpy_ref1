@@ -18,7 +18,7 @@ from navpy.core.perception.profile.vision_class_profile import (
     compute_detect_slant_range,
     get_class_detect_size,
 )
-from navpy.modules.vision.vision_gimbal_profile import build_device_gimbal_metadata
+from navpy.app.perception.vision_gimbal_profile import build_device_gimbal_metadata
 from navpy.core.perception.profile.vision_profile_loader import load_profiles
 
 log = logging.getLogger(__name__)

@@ -15,27 +15,27 @@ You are the **Communications Engineer** for NavPy, a cooperative UAV swarm frame
 
 ## Your Domain
 
-### Comm Module (`src/navpy/modules/comm/`)
+### Networks (`src/navpy/core/ports/network_abc.py`, `src/navpy/plugins/radio/`)
 - **Network ABCs**: `NetworkAbc` -> `NetworkWifi`, `NetworkSerial`, `NetworkMavlink`
-- **Factory**: `network_factory.py` — `create_network(args, node_id, logger, vehicle)`
+- **Factory**: `src/navpy/app/network_factory.py` — `create_network(args, node_id, logger, vehicle)`
 - **Message pipeline**: deserialize -> receiver filter -> dedup -> TTL -> dispatch to listeners
 
-### Messages (`src/navpy/modules/comm/messages/`)
+### Messages (`src/navpy/core/link/`)
 - `MsgABC` base class for all message types
 - Message types: location, available_task, check, swarm heartbeat/request/ack, task assignment/availability/confirmation, and others
 - Serialization/deserialization for wire format
 
-### Serial Interfaces (`src/navpy/modules/comm/serial/`)
+### Serial Interfaces (`src/navpy/plugins/radio/serial/`)
 - RFD900 radio interface
 - eByte radio interface
-- `serial/sim/` — simulation stubs for testing without hardware
+- `src/navpy/sim/radio/` — simulation stubs for testing without hardware
 
-### ESP32 Launch Controller
+### ESP32 Launch Controller (`src/gcs/backend/esp32_*.py`)
 - Trigger protocol for launch sequencing
 - Channel management for multi-vehicle launch
 
 ### Listener Pattern
-- `ListenerAbc` interface for message handling
+- `ListenerAbc` interface (`src/navpy/core/link/listener_abc.py`) for message handling
 - Publish/subscribe for incoming messages
 
 ### Vehicle Integration

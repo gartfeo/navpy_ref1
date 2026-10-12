@@ -22,7 +22,7 @@ from navpy.core.kernel.config.navigation_args import (
     NavigationArgs,
 )
 from navpy.core.kernel.config.pid_args import PIDArgs
-from navpy.modules.navigation import navigation_composition, navigation_law_builders
+from navpy.app.approach import navigation_composition, navigation_law_builders
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 
 

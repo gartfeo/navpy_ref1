@@ -35,7 +35,7 @@ from navpy.core.perception.pipeline.real_detector_config import (
     DetectorPipelineConfig,
 )
 from navpy.core.perception.profile.vision_profile_loader import resolve_profile
-from navpy.modules.vision.vision_camera_factory import build_camera_mounts
+from navpy.app.perception.vision_camera_factory import build_camera_mounts
 from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
 
 

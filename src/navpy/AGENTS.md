@@ -6,21 +6,29 @@ or navigation-log analysis.
 ## Architecture
 
 NavPy provides mission-agnostic navigation and swarm coordination; mission
-modules plug in on top (see root `AGENTS.md`). Source lives in `src/navpy/`.
+modules plug in on top (see root `AGENTS.md`). Source lives in `src/navpy/`;
+layout and import rules: `docs/design/step1_separation.md`.
 
-- `modules/common`: shared types such as `Location`, `Attitude`, `Wind`
-- `modules/vehicle`: `IVehicle` and MAVLink implementation via `VehicleMav`
-- `modules/vision`: detector abstractions and implementations
-- `modules/navigation`: navigation algorithms, `GeoRefCalc`, `ZcUtil`, L1/PID/PN navigation
-- `modules/nav`: `NavController` state machine (`nav_state.NavState`): `ONHOLD`, `DETECT`,
-  `CONFIRM`, `NAV`, `RESET`, `RECOVERY`
-- `modules/comm`: `NetworkWifi`, `NetworkSerial`, `NetworkMavlink`
-- `modules/swarm`: `TaskActor`, `TaskDispatch`, multi-vehicle coordination
+- `core/kernel`: shared types such as `Location`, `Attitude`, `Wind`; settings
+  (`config/`), logging
+- `core/ports`: contracts such as `IVehicle` (`vehicle_contract.py`) and detector types
+- `core/link`: swarm message set and codec
+- `core/perception`: camera, detection, tracking, `GeoRefCalc`, `ZcUtil` (`geo/`), zoom
+- `core/command`, `core/approach`, `core/skills`, `core/review`: actuator owners,
+  final-approach engine, skills, operator POI review
+- `core/flow`: per-UAV loop and state machine (`nav_state.NavState`): `ONHOLD`,
+  `DETECT`, `CONFIRM`, `NAV`, `RESET`, `RECOVERY`
+- `core/swarm`: `TaskActor`, `TaskDispatch`, multi-vehicle coordination
   (assignment acks: `docs/design/swarm-task-assignment-ack.md`)
+- `plugins/`: `vehicle/ardupilot` (`VehicleMav`), `radio` (`NetworkWifi`,
+  `NetworkSerial`, `NetworkMavlink`), camera, gimbal, detection, tracking,
+  `laws` (vision PN, geo PID/PN math)
+- `sim/`: simulator plugins and sim world
+- `app/`: argparse, wiring, `NavController` (`app/flow/nav_controller.py`)
 
 Common patterns: ABC interfaces with `@abstractmethod`, args dataclasses in
-`src/navpy/args/`, factory functions such as `create_vehicle()` and
-`create_network()`.
+`src/navpy/core/kernel/config/` and `src/navpy/app/`, factory functions such as
+`create_vehicle()` and `create_network()` (`src/navpy/app/`).
 
 ## Navigation parameters
 
@@ -28,7 +36,7 @@ Priority: `CLI arg > MAVLink param > default`.
 
 Important params: `AAS_DEL_PITCH`, `AAS_DEL_THR`, `AAS_DEL_DIR`,
 `AAS_USE_TRN`, `AAS_DEL_PLD`, `AAS_DEL_PLRD` (authoritative list:
-`src/navpy/args/navigation_args.py`).
+`src/navpy/core/kernel/config/navigation_args.py`).
 
 ## Running / simulation
 

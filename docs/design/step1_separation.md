@@ -1,5 +1,8 @@
 # Refactor step 1: separate modules (draft, 2026-10-11)
 
+**Status.** c00-c18 have landed: every manifest row is at its step-1 home and the old folders are gone.
+The SOLID re-pin and the normalizer removal follow in a separate commit; the old-path columns below are history.
+
 **Scope.** Step 1 only moves code: `git mv` plus import updates, no behavior change, no new abstractions.
 Each commit goes straight to `main` and leaves both test suites green. Paths are under `src/navpy/`.
 

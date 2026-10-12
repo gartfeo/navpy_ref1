@@ -34,12 +34,12 @@ WORKTREE = Path(__file__).resolve().parent.parent
 SCRIPTS = Path(__file__).resolve().parent
 sys.path[:0] = [str(WORKTREE / "src"), str(WORKTREE), str(SCRIPTS)]
 
-from navpy.args.conn_args import ConnArgs  # noqa: E402
+from navpy.app.conn_args import ConnArgs  # noqa: E402
 from navpy.core.kernel.config.logger_args import LoggerArgs  # noqa: E402
 from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
 from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
 from navpy.plugins.vehicle.ardupilot.pose_streams import request_pose_streams  # noqa: E402
-from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
+from navpy.app.vehicle_factory import create_vehicle  # noqa: E402
 
 from scratch_plant_id_child import (  # noqa: E402
     COMMAND_RATE_HZ,

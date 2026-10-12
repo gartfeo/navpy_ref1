@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 import time
 from navpy.plugins.gimbal.siyi.gimbal_siyi import GimbalSiyi
-from navpy.modules.vision.vision_gimbal_profile import build_gimbal_data
+from navpy.app.perception.vision_gimbal_profile import build_gimbal_data
 from navpy.core.perception.profile.vision_profile_loader import (
     get_devices,
     resolve_profile,

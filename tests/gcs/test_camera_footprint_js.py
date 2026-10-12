@@ -15,7 +15,7 @@ from navpy.core.perception.profile.vision_class_profile import (
 
 # Per-class characteristic sizes are OWNED by the backend. Pin the dock
 # (class 0, the only class) diagonal from the single source so the JS expectations
-# below track navpy.modules.vision.vision_profiles, not stale hardcoded numbers.
+# below track navpy.core.perception.profile.vision_class_profile, not stale hardcoded numbers.
 CLASS_0_SIZE = get_class_detect_size(0)
 
 

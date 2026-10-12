@@ -6,7 +6,7 @@ import pytest
 
 from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
 from navpy.core.perception.profile.vision_profile_loader import load_profiles
-from navpy.modules.vision.real_detector_factory import RealDetectorFactory
+from navpy.app.perception.real_detector_factory import RealDetectorFactory
 
 
 @pytest.mark.parametrize("also_current", [False, True])

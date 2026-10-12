@@ -29,7 +29,7 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.flow.nav_constants import CONFIRM_FRESH_DETECTION_MAX_AGE_S
-from navpy.modules.nav.nav_controller import NavController
+from navpy.app.flow.nav_controller import NavController
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.flight_mode import FlightMode

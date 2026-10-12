@@ -64,7 +64,7 @@ def test_the_child_itself_is_in_its_own_closure() -> None:
 def test_imports_that_are_not_scripts_local_are_left_alone(tmp_path: Path) -> None:
     """navpy is hashed as a tree, and the standard library is not under test."""
     entry = _write(
-        tmp_path, "entry", "import time\nfrom navpy.modules.navigation import navigation\n"
+        tmp_path, "entry", "import time\nfrom navpy.app.approach import navigation\n"
     )
 
     assert script_import_closure(entry, tmp_path) == (entry.resolve(),)

@@ -17,7 +17,7 @@ from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
     RealDetectorConfig,
 )
-from navpy.modules.vision.real_detector_factory import RealDetectorFactory
+from navpy.app.perception.real_detector_factory import RealDetectorFactory
 from navpy.app.perception.real_detector_model_builder import build_models
 from navpy.core.perception.pipeline.real_detector_runtime_state import RuntimeMetrics
 from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
@@ -148,7 +148,7 @@ def test_yolo_models_build_yolo_and_deep_search_unchanged():
 
 
 def test_vision_composition_passes_cli_backend_to_real_factory():
-    from navpy.modules.vision.vision_controller_composition import (
+    from navpy.app.perception.vision_controller_composition import (
         build_vision_controller,
     )
 
@@ -161,10 +161,10 @@ def test_vision_composition_passes_cli_backend_to_real_factory():
         debug_show=False,
     )
     with patch(
-        "navpy.modules.vision.vision_controller_composition.build_vision_profile",
+        "navpy.app.perception.vision_controller_composition.build_vision_profile",
         return_value=profile,
     ), patch(
-        "navpy.modules.vision.real_detector_factory.RealDetectorFactory",
+        "navpy.app.perception.real_detector_factory.RealDetectorFactory",
         side_effect=stop,
     ) as factory:
         with pytest.raises(RuntimeError, match="stop after factory"):

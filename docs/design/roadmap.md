@@ -2,7 +2,7 @@
 
 This roadmap merges the step orders from `mission_modules.md`, `architecture_split.md`,
 `flow_runner.md` and `component_ports.md`. It was planned against origin/main `0c7f2ad`
-(after PR #14), and code paths are under `src/navpy/modules/`.
+(after PR #14), and code paths are under `src/navpy/` (step-1 layout).
 
 **Owner re-order (2026-10-09):** first a clean `main` (done), then the refactor, then the rest. Refactor step 1 only separates modules: `step1_separation.md`.
 
@@ -36,7 +36,7 @@ R1 resyncs these points:
 | Step | What | Kind | Size |
 |---|---|---|---|
 | R8 | One law registry replaces 3 tables. Every law (vision PN, PN, PID) is a plugin: inputs in, commands out, nothing else. It declares its required inputs and their quality (GPS CEP, frame rate, latency, real airspeed), and gets only those. The law is chosen at setup and never changes in flight. `NavLaw` stays where it is | keep | M |
-| R9 | Flow types (`modules/flow/`) and delivery's label graph in `missions/delivery/`. The PID/PN orbit prep, recovery climb and floor move into a geo-approach skill that drives those laws. They are still gated each tick. Adds the layer guard | keep | M |
+| R9 | Flow types (`core/flow/`) and delivery's label graph in `missions/delivery/`. The PID/PN orbit prep, recovery climb and floor move into a geo-approach skill that drives those laws. They are still gated each tick. Adds the layer guard | keep | M |
 | R10 | `take()` replaces `phase.request` at the 21 sites, so only the runner picks edges | keep | M |
 | R11 | Task kinds belong to the module, so comm stops knowing about docks | keep | M |
 | R12 | An approach ends passed, lost or aborted:<reason>, carried through both failure latches | keep | L |
@@ -100,13 +100,13 @@ R1 resyncs these points:
 
 ## Review findings each step must keep
 - **R9, R12:** today the law can switch at a reset, so the geo-approach skill's pieces stay gated each tick until R22 latches the law at arming.
-- **R13:** the law reads airspeed from the vision frame (`navigation/nav/vision_nav/ingress.py:101`), and a frame with airspeed ≤ 0 is dropped.
+- **R13:** the law reads airspeed from the vision frame (`core/approach/vision_nav/ingress.py:101`), and a frame with airspeed ≤ 0 is dropped.
 - **R15:** a new class shifts the min and max class sizes, and with them the dock's maximum detection distance and the GCS confirm range.
 - **R22:**
   - The GCS writes the params after NavPy has booted, so they are read at the arm edge.
   - Onhold happens only for invalid values, a forced arm or a restart in flight.
   - Run `npm test` and `npm run build`.
-- **R23:** `can_fly` applies the role policy too (`swarm/task_capability.py:155`).
+- **R23:** `can_fly` applies the role policy too (`core/swarm/task_capability.py:155`).
 - **R25:** NAV exit stops tracking and centres the gimbal, so pass 2 must acquire again.
 - **R27:** the advert path skips confirmed POIs, and today the scout's review self-assigns the task.
 - **R28:**

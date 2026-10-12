@@ -13,7 +13,7 @@ log = logging.getLogger("gcs.backend.vehicle_manager")
 
 import math
 from typing import Any
-from navpy.modules.vision.vision_gimbal_profile import MAX_GIMBAL_DEVICE_ID, MIN_GIMBAL_DEVICE_ID
+from navpy.app.perception.vision_gimbal_profile import MAX_GIMBAL_DEVICE_ID, MIN_GIMBAL_DEVICE_ID
 from navpy.plugins.vehicle.ardupilot.mavlink_camera_components import GIMBAL_DEVICE_ID_BY_CAMERA_COMPONENT
 from gcs.backend.vehicle_status import (
     GIMBAL_TELEMETRY_STALE_S, CAMERA_OPTICS_STALE_S, _LOG_GIMBAL_TELEM,

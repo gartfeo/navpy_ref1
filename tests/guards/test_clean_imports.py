@@ -55,7 +55,7 @@ def test_navpy_imports_succeed_in_a_clean_process(statement: str) -> None:
 def test_core_composition_modules_do_not_import_compatibility_facades() -> None:
     roll_composition = (
         REPO_ROOT
-        / "src/navpy/modules/navigation/nav/roll_l1_composition.py"
+        / "src/navpy/app/approach/roll_l1_composition.py"
     ).read_text(encoding="utf-8")
     roll_law = (
         REPO_ROOT
@@ -63,7 +63,7 @@ def test_core_composition_modules_do_not_import_compatibility_facades() -> None:
     ).read_text(encoding="utf-8")
     detector_factory_ports = (
         REPO_ROOT
-        / "src/navpy/modules/vision/vision_detector_factory_ports.py"
+        / "src/navpy/app/perception/vision_detector_factory_ports.py"
     ).read_text(encoding="utf-8")
     bus_registry = (
         REPO_ROOT

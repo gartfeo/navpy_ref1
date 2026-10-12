@@ -1,7 +1,7 @@
 # Design: flow runner (draft, 2026-10-08)
 
 Status: for review; nothing is implemented. Implements "Flows are graphs" (`docs/design/mission_modules.md`, Mission modules)
-and replaces S3's FlowHooks (`docs/design/architecture_split.md`, Slices). Paths are under `src/navpy/modules/`
+and replaces S3's FlowHooks (`docs/design/architecture_split.md`, Slices). Paths are under `src/navpy/` (step-1 layout)
 unless they start with `tests/`, `scripts/`, `docs/` or `src/`. UNVERIFIED = not checked.
 
 ## 1. Concepts
@@ -16,12 +16,12 @@ unless they start with `tests/`, `scripts/`, `docs/` or `src/`. UNVERIFIED = not
   are module edges with a scope. Services (review, tasking, report and offer, presence) run on their own
   threads and never call the runner.
 - **Task context** (node graphs only): `task_id`, `track_id`, `anchor`, `budget`, `passes`, written only
-  by edge actions at commit. Delivery has none; its owners stay put (`nav/nav_state.py:118-194`).
+  by edge actions at commit. Delivery has none; its owners stay put (`core/flow/nav_state.py:118-194`).
 - **Lifecycle:** enter; tick and act each loop tick; outcome; exit. Exit runs on every transition, on
   preemption (`aborted:<event>`) and, in node graphs, at stop or after a fatal loop exit (`aborted:shutdown`,
-  best effort, after the loop quiesced). Delivery keeps NavShutdown as is (`nav/nav_application.py:48-66`):
+  best effort, after the loop quiesced). Delivery keeps NavShutdown as is (`core/flow/nav_application.py:48-66`):
   its NAV exit would report an extra SNAP. The reset transaction keeps restoring the lease owners
-  (`nav/navigation_task_reset.py:139-146`). A fatal stop in a non-safe node relies on the lost-companion fallback.
+  (`core/flow/navigation_task_reset.py:139-146`). A fatal stop in a non-safe node relies on the lost-companion fallback.
 
 ## 2. API sketch
 ```python
@@ -46,45 +46,45 @@ class FlowRunner:
 tick and act are separate because the transition runs between them; tests read the requested state after `decide()`.
 
 ## 3. Tick algorithm
-Same thread and order as today (`nav/navigation_loop.py:118-124`):
+Same thread and order as today (`core/flow/navigation_loop.py:118-124`):
 1. Sense if armed, else clear detections.
 2. Platform guard. A hit takes its fixed edge and ends the decide phase.
 3. Module safety checks in scope, then operator checks from task mailboxes (pickup: cancel). A hit ends it.
 4. Node decide: the committed skill's tick(), skipped only while a failed transition awaits retry. Label
-   graphs run steps 2-4 as today's chain, in today's order (`nav/navigation_decision.py:229-241`).
+   graphs run steps 2-4 as today's chain, in today's order (`core/flow/navigation_decision.py:229-241`).
 5. `take(outcome)`. Label graphs resolve (`phase.current`, outcome) and call `phase.request(to)` where
    today's request sits, so other threads see the label at the same point. Node graphs resolve against the
    committed node (first edge whose guard passes), record the edge and publish its label; during a pending
    retry only platform and module edges retarget. At most one take per decide.
-6. `act()`. Label graphs keep today's rule verbatim (`nav/navigation_loop.py:86-98`, `nav/navigation_transition_handler.py:68-80`):
+6. `act()`. Label graphs keep today's rule verbatim (`core/flow/navigation_loop.py:86-98`, `core/flow/navigation_transition_handler.py:68-80`):
    if published != committed, exit(committed), redirect, the (committed, effective) pair's actions,
    enter(effective), commit; then act. No edge is consulted. Node graphs, if a recorded edge leaves the
    committed node or a retry is pending: exit(reason), redirect, actions (context writes staged), enter (a
    refusal runs exit("refused") and takes its refusal edge), commit with the staged writes, a log row; act.
-7. Failures. An OSError is logged, nothing commits, the next act retries from the exit (`nav/navigation_loop.py:190-194`);
+7. Failures. An OSError is logged, nothing commits, the next act retries from the exit (`core/flow/navigation_loop.py:190-194`);
    anything else stops the loop, including the NAV exit's ExceptionGroup and NavEntry's RuntimeError
-   (`nav/nav_transition.py:65-66`, `nav/nav_entry.py:40-44`). Today's exits are not idempotent: a retry after
+   (`core/flow/nav_transition.py:65-66`, `core/approach/nav_entry.py:40-44`). Today's exits are not idempotent: a retry after
    a good NAV exit reports a second SNAP (`scripts/eval_ideal_three_uav_vehicle.py:57` wants one). New exits
    are idempotent, service actions carry a key (task_id, edge, episode), vehicle commands may repeat.
-- A stay runs nothing and carries no actions. An exit closes what its enter opened (`nav/nav_exit_cleanup.py:38-68`).
+- A stay runs nothing and carries no actions. An exit closes what its enter opened (`core/approach/nav_exit_cleanup.py:38-68`).
 
 ## 4. Events and services
 No queue: each input is a latest-value slot or a consume-once latch read at a fixed tick point.
 
 | Input | Written by | Read as |
 |---|---|---|
-| review verdict | review workers, network listener (`nav/confirmation_coordinator.py:47-54`) | the waiting node's outcome; a deny after CONFIRMED is the late-deny cancel |
-| PEER_NOTIFIED | peer-dispatch worker (`nav/nav_network.py:84-87`) | delivery: pending or lost, like no status |
+| review verdict | review workers, network listener (`core/review/confirmation_coordinator.py:47-54`) | the waiting node's outcome; a deny after CONFIRMED is the late-deny cancel |
+| PEER_NOTIFIED | peer-dispatch worker (`core/swarm/nav_network.py:84-87`) | delivery: pending or lost, like no status |
 | failure latch, visual pass | final-approach worker | failed, passed |
-| assignment | network listener (`swarm/task_actor.py:133-137`) | delivery: inside DETECT's act; pickup: `assigned`, only after APPLIED |
+| assignment | network listener (`core/swarm/task_actor.py:133-137`) | delivery: inside DETECT's act; pickup: `assigned`, only after APPLIED |
 | cancel (pickup) | network listener; free request_type, acked | operator check `cancel` |
 
 - Pickup's new mailboxes carry the task id and drop mismatches; delivery's latches stay as they are.
 - Node-graph actions and pickup skills write mode and mission through a fence that re-reads armed, mode and
   hold latches at write time (`docs/design/mission_modules.md:74-76`); the mode is the last HEARTBEAT's
-  (`vehicle/mode_control.py:54-62`), so it narrows, not closes, the operator-override race. Delivery is unchanged.
+  (`plugins/vehicle/ardupilot/mode_control.py:54-62`), so it narrows, not closes, the operator-override race. Delivery is unchanged.
 - `rtl` sets a sortie-done latch beside the one-shot latch; the platform guard holds while it is set, and
-  only disarm clears it (`nav/navigation_decision.py:78`). Nothing reads back a mode it just wrote.
+  only disarm clears it (`core/flow/navigation_decision.py:78`). Nothing reads back a mode it just wrote.
 
 ## 5. Load checks
 At composition (startup fails) and in one parametrized test per graph:
@@ -103,22 +103,22 @@ At composition (startup fails) and in one parametrized test per graph:
    map cover exactly the graph's labels.
 
 Delivery's nodes declare what today's chain emits from their label; its legacy floor fires only under a
-legacy law (`nav/recovery.py:50-51`). **Invariant:** act (and tick) runs only between enter and exit.
+legacy law (`core/flow/recovery.py:50-51`). **Invariant:** act (and tick) runs only between enter and exit.
 
 ## 6. NavState view
 - The label is published at take() and committed after enter(), as today: the event pump's session check
-  reads the published label (`nav/nav_final_approach_composition.py:217-226`).
+  reads the published label (`app/flow/nav_final_approach_composition.py:217-226`).
 - Delivery: NavPhaseState stays the runner's state and graph-free. Kept: StateActionDispatcher's act rule and
   ValueError (its constructor only gains an optional label set, default every NavState); `_actions` keyed by
   NavState with bound methods (`tests/modules/nav/nav_test_rig.py:179-183`); the handler's on_change,
   enter_reset, `_nav`, TransitionOutcome. Changed: the handler takes its three tables (only
-  `nav/nav_runtime_composition.py:100` builds it). take() lives on a runner object injected beside `phase`
+  `app/flow/nav_runtime_composition.py:100` builds it). take() lives on a runner object injected beside `phase`
   into the 7 producers, all built in composition; what the rig reads stays (`nav_test_rig.py:148-175`).
 - Pickup nodes may share a label, but the approach must be NAV: the event pump and the source session gate
   on it. The GCS reads module and node from the heartbeat state byte (`docs/design/mission_modules.md:213`).
 
 ## 7. Delivery graph v1 and its code mapping
-Files under `nav/`; `dec` = `navigation_decision.py`, `rec` = `recovery.py`, `rej` = `poi_rejection_exit.py`,
+Files under `core/flow/`, except `rej`, `rel` (`core/skills/confirm/`) and `nav_runtime_composition.py` (`app/flow/`); `dec` = `navigation_decision.py`, `rec` = `recovery.py`, `rej` = `poi_rejection_exit.py`,
 `rel` = `confirmed_poi_release.py`. Tables today: `navigation_transition_handler.py:44-63`, `nav_runtime_composition.py:136-147`.
 ```
 graph delivery/uav   ids=NavState   start=ONHOLD   safe={ONHOLD, DETECT}
@@ -159,7 +159,7 @@ no outcome, tick ends: GUIDED wait (dec:165-187); legacy altitude unknown (rec:5
 ## 8. Pickup graphs (shape; details in the pickup step)
 Actions: report, offer, release, end_task (today's reset transaction), resume_leg (AutoMissionResume), rtl
 (RTL plus the sortie-done latch), end_pass (fence the source; reset the failure and visual-pass latches and
-command state; keep task, track and passes). No finish: OneShotCompletion disarms in sim (`nav/nav_oneshot_completion.py:58-68`).
+command state; keep task, track and passes). No finish: OneShotCompletion disarms in sim (`core/flow/nav_oneshot_completion.py:58-68`).
 ```
 all      onhold: ONHOLD, safe, act pause; released -> search (scout) or hold (catcher)
          GUIDED nodes: mode_left -> standby {end_pass in a pass; report}; standby: safe, passive, task kept

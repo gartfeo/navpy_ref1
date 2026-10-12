@@ -2,8 +2,8 @@
 
 import pytest
 
-from navpy.args.conn_args import ConnArgs
-from navpy.args.navpy_argparse import make_parser
+from navpy.app.conn_args import ConnArgs
+from navpy.app.navpy_argparse import make_parser
 
 
 def test_source_system_is_the_single_node_identity():

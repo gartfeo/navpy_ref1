@@ -16,7 +16,7 @@ from gcs.backend.navpy_process_manager import (
     _normalize_log_level,
 )
 from gcs.backend.navpy_process_instance import terminate_navpy_instance
-from navpy.runtime_ready import NAVPY_RUNTIME_READY_MARKER, emit_runtime_ready
+from navpy.app.runtime_ready import NAVPY_RUNTIME_READY_MARKER, emit_runtime_ready
 
 
 class TestNavpyProcessManager(unittest.TestCase):
@@ -27,7 +27,7 @@ class TestNavpyProcessManager(unittest.TestCase):
 
     def test_runtime_marker_includes_emitting_python_pid(self):
         output = StringIO()
-        with patch("navpy.runtime_ready.os.getpid", return_value=4321), \
+        with patch("navpy.app.runtime_ready.os.getpid", return_value=4321), \
              redirect_stdout(output):
             emit_runtime_ready({"mission_items": 10})
 

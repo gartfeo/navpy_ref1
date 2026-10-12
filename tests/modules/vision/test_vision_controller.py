@@ -39,7 +39,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_init_with_default_profile(self):
         """VisionController initializes with default profile."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = self._create_vision_args(profile_name="")
 
@@ -52,7 +52,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_init_with_named_profile(self):
         """VisionController initializes with named profile."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = self._create_vision_args(profile_name="c270hd")
 
@@ -64,7 +64,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_init_creates_mounts(self):
         """VisionController creates camera mounts."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = self._create_vision_args()
 
@@ -77,7 +77,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_init_creates_detectors(self):
         """VisionController creates one detector per mount."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = self._create_vision_args()
 
@@ -89,7 +89,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_init_creates_coordinator(self):
         """VisionController creates DetectionCoordinator."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
         from navpy.core.perception.detection_coordinator import DetectionCoordinator
 
         vision_args = self._create_vision_args()
@@ -103,7 +103,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_detector_property_returns_coordinator(self):
         """detector property returns coordinator for NavController compatibility."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = self._create_vision_args()
 
@@ -115,7 +115,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_geo_ref_created(self):
         """VisionController creates GeoRefCalc."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = self._create_vision_args()
 
@@ -127,7 +127,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_siyi_zr10_detector_exposes_zoom_status(self):
         """The SIYI profile exposes read-only zoom status."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = self._create_vision_args(profile_name="siyi_zr10")
         controller = VisionController(
@@ -139,7 +139,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_c270hd_detector_has_no_zoom_status(self):
         """A fixed camera without zoom exposes no zoom result."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = self._create_vision_args(profile_name="c270hd")
         controller = VisionController(
@@ -151,7 +151,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
 
     def test_invalid_profile_raises(self):
         """VisionController raises for invalid profile name."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = self._create_vision_args(profile_name="nonexistent_xyz")
 
@@ -173,7 +173,7 @@ class TestVisionControllerMultiCamera(unittest.TestCase):
 
     def test_dual_camera_profile(self):
         """VisionController creates two mounts for dual camera profile."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
         vision_args.profile_name = "novoxy_dual"
@@ -190,7 +190,7 @@ class TestVisionControllerMultiCamera(unittest.TestCase):
 
     def test_dual_camera_mount_names(self):
         """Multi-camera mounts have distinct names."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
         vision_args.profile_name = "novoxy_dual"
@@ -230,7 +230,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
 
     def _create_controller(self):
         """Helper to create controller."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
         vision_args.profile_name = "c270hd"
@@ -914,7 +914,7 @@ class TestVisionControllerUiStep(unittest.TestCase):
 
     def _create_controller(self):
         """Helper to create controller."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
         vision_args.profile_name = "c270hd"
@@ -971,7 +971,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
 
     def test_creates_sim_detectors(self):
         """VisionController creates DetectorSim instances."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
         from navpy.sim.detection.detector_sim import DetectorSim
 
         vision_args = Mock()
@@ -989,7 +989,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
 
     def test_sim_detector_has_mount(self):
         """Sim detector has associated mount."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
         vision_args.profile_name = "c270hd"
@@ -1007,7 +1007,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
 
     def test_ideal_360_profile_creates_lightweight_ideal_detector(self):
         """ideal_360 sim profile disables frame generation, tracking and zoom."""
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
         vision_args.profile_name = "ideal_360"
@@ -1030,7 +1030,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
 
     def test_sim_debug_snapshot_preserves_missing_intrinsics(self):
         """Missing K remains None so panel fallback geometry stays active."""
-        from navpy.modules.vision.sim_detector_factory import SimDetectorFactory
+        from navpy.app.perception.sim_detector_factory import SimDetectorFactory
         from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
 
         mount = Mock()
@@ -1056,7 +1056,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         spec = CameraMountSpec(mount, {}, 1, 0)
 
         with patch(
-            "navpy.modules.vision.sim_detector_factory.DetectorSim",
+            "navpy.app.perception.sim_detector_factory.DetectorSim",
             return_value=detector,
         ):
             node = factory.create(spec, {}, 0)
@@ -1081,7 +1081,7 @@ class TestVisionControllerRealDetector(unittest.TestCase):
 
     def test_create_real_detector_enables_poi_lock(self):
         """Real detector creation explicitly enables POI lock."""
-        from navpy.modules.vision.real_detector_factory import RealDetectorFactory
+        from navpy.app.perception.real_detector_factory import RealDetectorFactory
         from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
 
         mount = Mock()
@@ -1113,7 +1113,7 @@ class TestVisionControllerRealDetector(unittest.TestCase):
 
 class TestVisionControllerAdapter(unittest.TestCase):
     def test_exact_public_adapter_delegates_through_one_port_bundle(self):
-        from navpy.modules.vision.vision_controller import VisionController
+        from navpy.app.perception.vision_controller import VisionController
 
         ports = Mock()
         ports.coordinator = Mock()
@@ -1126,7 +1126,7 @@ class TestVisionControllerAdapter(unittest.TestCase):
         ports.approach_kind = Mock()
         ports.lifecycle.stop.return_value = True
         with patch(
-            "navpy.modules.vision.vision_controller.build_vision_controller",
+            "navpy.app.perception.vision_controller.build_vision_controller",
             return_value=ports,
         ) as build:
             controller = VisionController(
@@ -1159,7 +1159,7 @@ class TestVisionControllerAdapter(unittest.TestCase):
 
 class TestVisionDetectorConstruction(unittest.TestCase):
     def test_ideal_sensor_rejects_real_detector_before_model_loading(self):
-        from navpy.modules.vision.vision_controller_composition import (
+        from navpy.app.perception.vision_controller_composition import (
             build_vision_controller,
         )
         from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
@@ -1175,7 +1175,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
             debug_show=False,
         )
         with patch(
-            "navpy.modules.vision.vision_controller_composition.build_vision_profile",
+            "navpy.app.perception.vision_controller_composition.build_vision_profile",
             return_value=profile,
         ):
             with self.assertRaisesRegex(ValueError, "simulator-only"):
@@ -1191,7 +1191,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         mount.stop.assert_called_once_with()
 
     def test_factory_failure_rolls_back_prior_detectors_in_reverse(self):
-        from navpy.modules.vision.vision_detector_factory_ports import (
+        from navpy.app.perception.vision_detector_factory_ports import (
             VisionDetectorNode,
             build_detector_nodes,
         )
@@ -1225,7 +1225,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         )
 
     def test_missing_real_model_rolls_back_profile_mounts(self):
-        from navpy.modules.vision.vision_controller_composition import (
+        from navpy.app.perception.vision_controller_composition import (
             build_vision_controller,
         )
         from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
@@ -1249,7 +1249,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         vision_args.debug_show = False
 
         with patch(
-            "navpy.modules.vision.vision_controller_composition.build_vision_profile",
+            "navpy.app.perception.vision_controller_composition.build_vision_profile",
             return_value=profile,
         ):
             with self.assertRaisesRegex(ValueError, "does not exist"):

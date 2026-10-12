@@ -19,7 +19,7 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.review.confirm_override_listener import ConfirmOverrideListener
-from navpy.modules.nav.nav_controller import NavController
+from navpy.app.flow.nav_controller import NavController
 from navpy.core.flow.nav_state import NavState
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.ports.detect_response import DetectResponse

@@ -11,7 +11,7 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from navpy.runtime_ready import parse_runtime_ready
+from navpy.app.runtime_ready import parse_runtime_ready
 
 
 _OUTPUT_BUFFER_SIZE = 100

@@ -97,7 +97,7 @@ class VisionController:
         self._ports = object()
 {methods}
 """
-    exact = {"src/navpy/modules/vision/vision_controller.py": controller}
+    exact = {"src/navpy/app/perception/vision_controller.py": controller}
     assert not scan_global_class_limits(exact, exclusions={})
 
     wrong_path = {"src/navpy/vision_controller.py": controller}
@@ -108,7 +108,7 @@ class VisionController:
     wrong_shape = controller.replace("self._ports", "self._hidden")
     assert "direct-methods" in _codes(
         scan_global_class_limits(
-            {"src/navpy/modules/vision/vision_controller.py": wrong_shape},
+            {"src/navpy/app/perception/vision_controller.py": wrong_shape},
             exclusions={},
         )
     )
@@ -119,7 +119,7 @@ class VisionController:
     )
     assert "direct-methods" in _codes(
         scan_global_class_limits(
-            {"src/navpy/modules/vision/vision_controller.py": extra_shape},
+            {"src/navpy/app/perception/vision_controller.py": extra_shape},
             exclusions={},
         )
     )

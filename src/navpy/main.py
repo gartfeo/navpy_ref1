@@ -1,7 +1,7 @@
 """NavPy command-line entry point."""
 
-from navpy.args.navpy_argparse import make_parser
-from navpy.runtime_composition import compose_runtime
+from navpy.app.navpy_argparse import make_parser
+from navpy.app.runtime_composition import compose_runtime
 
 
 def main(args) -> int:

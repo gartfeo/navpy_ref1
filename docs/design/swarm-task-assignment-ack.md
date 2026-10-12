@@ -287,8 +287,8 @@ Commits: 1, 2 separately; 3+4+4a–4c together (either side alone breaks the
 handshake, and a helper that stops bidding before owners read its state would
 stall them); 4d separately; GCS 6a–6c after 4c.
 
-1. **Refs and timing.** Leaf `swarm/task_msg_refs.py` (`MsgRef`, `OwnerRef`,
-   `msg_ref()`); `SWARM_RESEND_INTERVAL_MS`; `swarm/task_ack_timing.py` with
+1. **Refs and timing.** Leaf `core/swarm/task_msg_refs.py` (`MsgRef`, `OwnerRef`,
+   `msg_ref()`); `SWARM_RESEND_INTERVAL_MS`; `core/swarm/task_ack_timing.py` with
    derived policies. Tests: `test_task_ack_timing.py`, `test_task_msg_refs.py`.
 2. **Sending and routing acks.** `TaskMessageSender` pre-stamps meta and
    returns each copy's UID; `ack(message, status)` with the acked message's
@@ -304,7 +304,7 @@ stall them); 4d separately; GCS 6a–6c after 4c.
    shutdown log dropped dispatches.
 4. **Helper.** Rewrite `SelectedTaskSlot` to the table (replaces
    `try_accept`/`release_if_held`/`clear`, keeps class name and exports); new
-   `swarm/task_assign_reply.py` `AssignReplies` (accept repeat bound to a slot
+   `core/swarm/task_assign_reply.py` `AssignReplies` (accept repeat bound to a slot
    token, reject repeats keyed by (owner, task), shared lock); participation
    acks step 3 and dispatches on the offer kind; `TaskActor` wires the route,
    `reset()`/`clear_selected_poi()` release only ASSIGNED, `shutdown()`

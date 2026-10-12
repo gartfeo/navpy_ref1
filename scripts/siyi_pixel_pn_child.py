@@ -22,30 +22,30 @@ for _import_root in (WORKTREE, WORKTREE / "src"):
         sys.path.remove(_path)
     sys.path.insert(0, _path)
 
-from navpy.args.conn_args import ConnArgs  # noqa: E402
+from navpy.app.conn_args import ConnArgs  # noqa: E402
 from navpy.core.kernel.config.navigation_args import NavigationArgs  # noqa: E402
 from navpy.core.kernel.config.logger_args import LoggerArgs  # noqa: E402
 from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs  # noqa: E402
-from navpy.args.navpy_argparse import make_parser  # noqa: E402
+from navpy.app.navpy_argparse import make_parser  # noqa: E402
 from navpy.core.kernel.config.uas_args import UasArgs  # noqa: E402
 from navpy.core.approach.logs.navigation_logger import ClosestSnap  # noqa: E402
 from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
 from navpy.core.kernel.location import Location  # noqa: E402
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc  # noqa: E402
-from navpy.modules.navigation.navigation import Navigation  # noqa: E402
+from navpy.app.approach.navigation import Navigation  # noqa: E402
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner  # noqa: E402
 from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
 from navpy.core.ports.vehicle_contract import IVehicle  # noqa: E402
-from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
+from navpy.app.vehicle_factory import create_vehicle  # noqa: E402
 from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation  # noqa: E402
 from navpy.sim.detection.siyi_geo_pixel_source import (  # noqa: E402
     SiyiGeoPixelSource,
 )
 from navpy.core.ports.detect_data import DetectedObject  # noqa: E402
-from navpy.modules.vision.vision_profile_composition import build_vision_profile  # noqa: E402
-from navpy.modules.vision.vision_tracking_composition import build_tracking_config  # noqa: E402
-from navpy.modules.vision.vision_zoom_profile import build_zoom_config  # noqa: E402
+from navpy.app.perception.vision_profile_composition import build_vision_profile  # noqa: E402
+from navpy.app.perception.vision_tracking_composition import build_tracking_config  # noqa: E402
+from navpy.app.perception.vision_zoom_profile import build_zoom_config  # noqa: E402
 from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class  # noqa: E402
 # QUALIFIED, not bare. A bare `from pixel_pn_flight_control_trace import ...`
 # resolves only when scripts/ happens to be on sys.path -- true when this file

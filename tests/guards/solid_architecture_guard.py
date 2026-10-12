@@ -224,7 +224,7 @@ FACADE_METHOD_ALLOWANCES = {
         "PoiZoomTracker",
     ): FacadeMethodAllowance(1, 17, frozenset({"_parts"})),
     (
-        "src/navpy/modules/vision/vision_controller.py",
+        "src/navpy/app/perception/vision_controller.py",
         "VisionController",
     ): FacadeMethodAllowance(16, 16, frozenset({"_ports"})),
     (

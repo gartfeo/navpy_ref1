@@ -2,13 +2,13 @@
 
 **Goal:** any part can later be bought, contracted out or rewritten without touching the rest.
 Missions and flows are covered in `mission_modules.md` and `flow_runner.md`. This doc covers
-the parts underneath them. Paths are under `src/navpy/modules/`. Evidence is from code reading
+the parts underneath them. Paths are under `src/navpy/` (step-1 layout). Evidence is from code reading
 only.
 
 ## Rules
 1. **Port.**
    - Each replaceable part sits behind a port: neutral data types, timing and invariants.
-   - The core owns ports and their types (`navpy/ports/`). An implementation never defines a shared type.
+   - The core owns ports and their types (`core/ports/`). An implementation never defines a shared type.
 2. **Registry.**
    - Each port has one registry.
    - The composition root picks the implementations from the vehicle profile, which is config.
@@ -75,14 +75,14 @@ flowchart LR
 ## Ports
 | # | Port | In → out | Today | Main gap |
 |---|---|---|---|---|
-| 1 | Vehicle | mode intents (hold, mission, external control), setpoints, neutral mission items → telemetry | `IVehicle` (11 ABCs), one implementation | MAVLink types and ArduPlane modes leak in; mission writers build raw MAVLink (`navigation/mission_approach_writer.py:10-18`). Acceptable while only ArduPilot is in scope |
-| 2 | Camera | → frame + `CaptureStamp` | `FrameCaptureBackend` | backend choice is hard-imported (`vision/frame_capture_runtime.py:10,68`) |
+| 1 | Vehicle | mode intents (hold, mission, external control), setpoints, neutral mission items → telemetry | `IVehicle` (11 ABCs), one implementation | MAVLink types and ArduPlane modes leak in; mission writers build raw MAVLink (`core/skills/geo_approach/mission_approach_writer.py:10-18`). Acceptable while only ArduPilot is in scope |
+| 2 | Camera | → frame + `CaptureStamp` | `FrameCaptureBackend` | backend choice is hard-imported (`core/perception/camera/frame_capture_runtime.py:10,68`) |
 | 3 | Gimbal | modes (stow, hold, geo-point, rate), zoom → readback at time t | fat `GimbalAbc` | SIYI mode numbers in navigation; 7 direct callers; readback taken at pairing, not capture (moving gimbal fails closed) |
 | 4 | Detection | frame + seq → boxes, class from a catalog, confidence | `FrameDetector` | dock-only classes; `Detection` lives in `yolo_detector.py`; 6 name checks |
 | 5 | Tracking | detections + capture time → stable-id tracks (measured or predicted) + locked POI | `TrackerBackend`, inner engine only | identity, lock and bridge are concrete; no capture time; the sim skips it |
 | 6 | Final-approach law | `VisionFrame` → plan (command, within limits, reason, evidence); plan, commit, reset | 3 implicit Protocols | PN-shaped plan; hardcoded in 5 places |
-| 7 | Swarm coordinator | fleet state, task offer/assign/release/handover → assignments | none; nav builds `TaskActor` (`nav/nav_network.py:24,59`) | add the port; take task data, not `DetectedObject` |
-| 8 | Allocator | offers + costs → assignments | `TaskAssignmentPlanner` (Hungarian) | hardcoded (`swarm/task_actor.py:66`); CBBA replaces the coordinator, not this |
+| 7 | Swarm coordinator | fleet state, task offer/assign/release/handover → assignments | none; nav builds `TaskActor` (`core/swarm/nav_network.py:24,59`) | add the port; take task data, not `DetectedObject` |
+| 8 | Allocator | offers + costs → assignments | `TaskAssignmentPlanner` (Hungarian) | hardcoded (`core/swarm/task_actor.py:66`); CBBA replaces the coordinator, not this |
 | 9 | Link | messages ↔ bytes over a radio | `NetworkAbc` | codec inside the messages (pymavlink imports); RFD900 hardcoded; custom message ids need a custom ArduPilot build |
 | 10 | Positioning | none | autopilot EKF3 (decided) | none in NavPy |
 | 11 | Mission module | graph, skills, task kinds, params, GCS plugin | designed (`flow_runner.md`) | task kinds closed to DOCK |
@@ -90,7 +90,7 @@ flowchart LR
 
 ## Order
 Each step is small. C0-C2 change no behavior. `roadmap.md` says which land before the demo.
-- **C0 Types.** Move shared types into `navpy/ports/`, with no shims.
+- **C0 Types.** Move shared types into `core/ports/`, with no shims.
 - **C1 Registry and profile.**
   - Replace the if-chains: detector, law, gimbal, capture, network, vehicle.
   - Add the guard test.

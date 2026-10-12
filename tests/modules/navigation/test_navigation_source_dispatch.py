@@ -6,7 +6,7 @@ from typing import get_type_hints
 
 import pytest
 
-from navpy.modules.navigation.navigation_composition import NavigationComposition
+from navpy.app.approach.navigation_composition import NavigationComposition
 from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
     NavigationSourceDispatchSlot,

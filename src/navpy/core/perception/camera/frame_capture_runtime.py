@@ -7,7 +7,7 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup
 import threading
 from dataclasses import dataclass
 
-from navpy.modules.vision.frame_capture_factory import open_capture_backend
+from navpy.app.perception.frame_capture_factory import open_capture_backend
 from navpy.core.perception.camera.frame_capture_logging import SafeCaptureLogger
 from navpy.core.ports.frame_capture_ports import (
     CaptureLogger,

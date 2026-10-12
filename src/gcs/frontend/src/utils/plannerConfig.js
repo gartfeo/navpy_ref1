@@ -22,7 +22,7 @@ let USABLE_FLIGHT_KM = FLIGHT_BUDGET_KM - SAFETY_RESERVE_KM - MIN_LAUNCH_ZONE_BU
 let ALTITUDE_SEPARATION_M = 20.0;
 let UAVS_PER_SET = 3;
 
-// Mirror of navpy.modules.vision.vision_class_profile.DOCK_PRESET_NAME: the
+// Mirror of navpy.core.perception.profile.vision_class_profile.DOCK_PRESET_NAME: the
 // single preset every zone targets.
 export const DOCK_PRESET_NAME = 'dock';
 
@@ -38,7 +38,7 @@ let DEVICE_CONFIGS = null;
 export const MIN_DETECT_PIXELS = 8;
 export const MIN_CONFIRM_PIXELS = 20;
 
-// Mirror of navpy.modules.vision.vision_class_profile.DOCK_DETECT_CLASS_ID:
+// Mirror of navpy.core.perception.profile.vision_class_profile.DOCK_DETECT_CLASS_ID:
 // the detector class id of the dock.
 export const DOCK_DETECT_CLASS_ID = 0;
 
@@ -51,7 +51,7 @@ export const DOCK_DETECT_CLASS_ID = 0;
 // (computeMaxDetectDist, getDockDetectSize) don't return NaN
 // before the catalog arrives. The planner UI is gated on `plannerReady`, so
 // these defaults are not used for any operator-visible computation; they
-// mirror the backend (navpy.modules.vision.vision_class_profile.get_class_detect_size)
+// mirror the backend (navpy.core.perception.profile.vision_class_profile.get_class_detect_size)
 // purely to keep early calls numerically sane.
 const FALLBACK_CLASS_DETECT_SIZES = { [DOCK_DETECT_CLASS_ID]: 4.3012 };
 

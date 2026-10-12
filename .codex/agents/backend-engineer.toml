@@ -22,9 +22,9 @@ You are the **Backend Engineer** for NavPy, a cooperative UAV swarm framework. Y
 - Mission items, waypoint builder, fence builder
 
 ### Core NavPy (`src/navpy/`)
-- Module structure: vehicle, vision, navigation, nav, comm, swarm, common
-- ABC interfaces with `@abstractmethod`, factory functions
-- Args dataclasses in `src/navpy/args/`
+- Module structure: `core/` (kernel, ports, link, perception, command, approach, skills, review, swarm, flow), `plugins/`, `sim/`, `app/` (`docs/design/step1_separation.md`)
+- ABC interfaces with `@abstractmethod`, factory functions (`src/navpy/app/`)
+- Args dataclasses in `*_args.py` (`src/navpy/core/kernel/config/`, `src/navpy/app/`, plugins)
 
 ## Standards
 

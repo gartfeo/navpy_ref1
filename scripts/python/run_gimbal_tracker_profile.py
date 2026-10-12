@@ -11,13 +11,13 @@ from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetu
 from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
-from navpy.modules.vision.vision_camera_factory import (
+from navpy.app.perception.vision_camera_factory import (
     build_camera_model,
     build_zoom_calibration,
 )
-from navpy.modules.vision.vision_gimbal_profile import build_gimbal_data
-from navpy.modules.vision.vision_tracking_composition import build_tracking_config
-from navpy.modules.vision.vision_zoom_profile import build_zoom_config
+from navpy.app.perception.vision_gimbal_profile import build_gimbal_data
+from navpy.app.perception.vision_tracking_composition import build_tracking_config
+from navpy.app.perception.vision_zoom_profile import build_zoom_config
 from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
 from navpy.core.perception.profile.vision_profile_loader import (
     get_devices,

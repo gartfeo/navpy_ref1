@@ -353,7 +353,7 @@ def test_navigation_stream_retains_only_close_failure_for_retry():
 
 
 def test_runtime_resource_stack_attempts_all_cleanup_and_retries_only_failures():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     attempts = 0
 
@@ -378,7 +378,7 @@ def test_runtime_resource_stack_attempts_all_cleanup_and_retries_only_failures()
 
 
 def test_failed_quiescence_defers_dependents_but_closes_independent_resources():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     controller_attempts = iter((False, True))
     stack = resources.RuntimeResourceStack()
@@ -414,7 +414,7 @@ def test_failed_quiescence_defers_dependents_but_closes_independent_resources():
 
 
 def test_quiescence_and_independent_failures_are_aggregated_and_retryable():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     controller_attempts = iter((OSError("controller stuck"), None))
     window_attempts = iter((OSError("window close failed"), None))
@@ -457,7 +457,7 @@ def test_quiescence_and_independent_failures_are_aggregated_and_retryable():
 
 
 def test_runtime_resource_stack_reentrant_close_does_not_double_run_action():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     stack = resources.RuntimeResourceStack()
     events: list[str] = []
     entered = False
@@ -476,7 +476,7 @@ def test_runtime_resource_stack_reentrant_close_does_not_double_run_action():
 
 
 def test_runtime_resource_stack_serializes_concurrent_close():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     stack = resources.RuntimeResourceStack()
     entered = threading.Event()
     release = threading.Event()
@@ -514,7 +514,7 @@ def test_runtime_resource_stack_serializes_concurrent_close():
 
 
 def test_runtime_cleanup_stops_controller_before_navigation_and_later_resources():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     stack = resources.RuntimeResourceStack()
     for label in ("logger", "vehicle", "network", "vision", "navigation"):
@@ -534,7 +534,7 @@ def test_runtime_cleanup_stops_controller_before_navigation_and_later_resources(
 
 
 def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
-    composition = importlib.import_module("navpy.runtime_composition")
+    composition = importlib.import_module("navpy.app.runtime_composition")
     registrations: list[tuple[str, str, object]] = []
 
     class ResourceSpy:
@@ -614,7 +614,7 @@ def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
 
 
 def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
-    composition = importlib.import_module("navpy.runtime_composition")
+    composition = importlib.import_module("navpy.app.runtime_composition")
     registrations: list[tuple[str, str]] = []
 
     class ResourceSpy:
@@ -666,7 +666,7 @@ def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
 
 
 def test_unsafe_vision_stop_retains_runtime_dependencies_until_retry():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     attempts = iter((False, True))
     gate = resources.VehicleCloseGate(lambda: events.append("vehicle"))
@@ -707,7 +707,7 @@ def test_unsafe_vision_stop_retains_runtime_dependencies_until_retry():
 
 
 def test_completed_vision_retry_releases_retained_vehicle_ownership():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     attempts = iter((False, True))
     gate = resources.VehicleCloseGate(lambda: events.append("vehicle"))
@@ -723,7 +723,7 @@ def test_completed_vision_retry_releases_retained_vehicle_ownership():
 
 
 def test_runtime_ready_signal_follows_initial_health_and_precedes_ui():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     session = resources.RuntimeSession(
         resources=resources.RuntimeResourceStack(),
@@ -741,7 +741,7 @@ def test_runtime_ready_signal_follows_initial_health_and_precedes_ui():
 
 
 def test_runtime_ready_signal_is_not_emitted_when_initial_health_fails():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     failure = RuntimeError("initial health failed")
     session = resources.RuntimeSession(
@@ -761,7 +761,7 @@ def test_runtime_ready_signal_is_not_emitted_when_initial_health_fails():
 
 
 def test_persistent_vision_stop_error_survives_runtime_retry():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     sentinel = OSError("physical gimbal disconnect failed")
     gate = resources.VehicleCloseGate(lambda: None)
     stack = resources.RuntimeResourceStack()
@@ -792,7 +792,7 @@ def test_persistent_vision_stop_error_survives_runtime_retry():
 
 
 def test_runtime_session_aggregates_run_and_cleanup_failures():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     stack = resources.RuntimeResourceStack()
     stack.own("logger", lambda: (_ for _ in ()).throw(OSError("close failed")))
     session = resources.RuntimeSession(
@@ -814,7 +814,7 @@ def test_runtime_session_aggregates_run_and_cleanup_failures():
 
 
 def test_runtime_session_retries_retained_quiescence_before_failing():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     vision_attempts = iter((False, True))
     stack = resources.RuntimeResourceStack()
@@ -851,7 +851,7 @@ def test_runtime_session_retries_retained_quiescence_before_failing():
 
 
 def test_runtime_session_keyboard_interrupt_is_clean_exit_after_cleanup():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     stack = resources.RuntimeResourceStack()
     stack.own("controller", lambda: events.append("controller"))
@@ -869,7 +869,7 @@ def test_runtime_session_keyboard_interrupt_is_clean_exit_after_cleanup():
 
 
 def test_runtime_session_stops_pumping_when_controller_health_fails():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     failure = TypeError("navigation worker failed")
     checks = iter((None, failure, failure))
@@ -906,7 +906,7 @@ def test_runtime_session_stops_pumping_when_controller_health_fails():
 
 
 def test_runtime_session_checks_health_after_controller_cleanup():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     events: list[str] = []
     worker_failed = False
     stack = resources.RuntimeResourceStack()
@@ -938,7 +938,7 @@ def test_runtime_session_checks_health_after_controller_cleanup():
 
 
 def test_runtime_session_aggregates_ui_and_late_worker_failures():
-    resources = importlib.import_module("navpy.runtime_resources")
+    resources = importlib.import_module("navpy.app.runtime_resources")
     ui_error = RuntimeError("UI pump failed")
     worker_error = TypeError("late navigation failure")
     worker_failed = False

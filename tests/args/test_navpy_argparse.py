@@ -1,6 +1,6 @@
 """Regression tests for the fully composed NavPy command-line parser."""
 
-from navpy.args.navpy_argparse import make_parser
+from navpy.app.navpy_argparse import make_parser
 
 
 def test_full_parser_help_renders_literal_percent_sign() -> None:

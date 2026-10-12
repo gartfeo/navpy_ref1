@@ -2,10 +2,10 @@ import argparse
 import sys
 
 from navpy.core.kernel.config.logger_args import LoggerArgs
-from navpy.modules.vehicle.vehicle_factory import create_vehicle
+from navpy.app.vehicle_factory import create_vehicle
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner, MissionPlannerArgs
 from navpy.core.kernel.logging.cache_logger import ConsoleCacheLogger
-from navpy.args.conn_args import ConnArgs
+from navpy.app.conn_args import ConnArgs
 
 
 def main(args):

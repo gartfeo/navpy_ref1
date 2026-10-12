@@ -22,8 +22,8 @@ from navpy.core.ports.gimbal_abc import (
 )
 from navpy.sim.gimbal.siyi.gimbal_siyi_sim import GimbalSiyiSim
 from navpy.core.perception.profile.vision_camera_calibration import read_camera_zoom_calibration
-from navpy.modules.vision.vision_tracking_composition import build_tracking_config
-from navpy.modules.vision.vision_zoom_profile import build_zoom_config
+from navpy.app.perception.vision_tracking_composition import build_tracking_config
+from navpy.app.perception.vision_zoom_profile import build_zoom_config
 from navpy.core.perception.profile.vision_profile_loader import get_devices, resolve_profile
 from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class
 from navpy.core.perception.profile.vision_class_profile import get_class_detect_size

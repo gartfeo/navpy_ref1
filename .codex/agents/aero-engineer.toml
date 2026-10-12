@@ -19,7 +19,7 @@ You are a **Staff Aerodynamic Engineer** advising NavPy, a cooperative UAV swarm
 ### Wind Effects
 - Wind triangle: headwind/crosswind decomposition
 - Groundspeed corrections for navigation
-- `src/navpy/utils/fly_estimator.py` — flight time estimation accounting for wind
+- `src/navpy/core/swarm/fly_estimator.py` — flight time estimation accounting for wind
 
 ### Final-Approach Geometry
 - Final-approach descent angle: `AAS_DEL_PITCH` parameter

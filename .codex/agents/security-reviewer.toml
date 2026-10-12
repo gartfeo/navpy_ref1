@@ -26,7 +26,7 @@ You are the **Security Reviewer** for NavPy, a cooperative UAV swarm framework. 
 - WebSocket `/ws/telemetry`: connection authentication, message validation
 
 ### Communication Security
-- Radio link encryption: RFD900, eByte transports (`src/navpy/modules/comm/serial/`)
+- Radio link encryption: RFD900, eByte transports (`src/navpy/plugins/radio/serial/`)
 - Key management for encrypted channels
 - Network layer (`NetworkAbc` implementations): secure transport options
 - Message pipeline: dedup and TTL as replay mitigation

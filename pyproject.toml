@@ -47,7 +47,7 @@ exclude = ["tests*", "scripts*", "terrain*"]
 
 # Ship non-Python data files (e.g. vision_profiles.json) inside the installed
 # package — otherwise `pip install .` drops them and navpy crashes at import
-# (FileNotFoundError: .../navpy/modules/vision/vision_profiles.json).
+# (FileNotFoundError: .../navpy/core/perception/profile/vision_profiles.json).
 [tool.setuptools.package-data]
 "*" = ["*.json"]
 

@@ -16,23 +16,23 @@ import pymap3d
 WORKTREE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WORKTREE / "src"))
 
-from navpy.args.conn_args import ConnArgs  # noqa: E402
+from navpy.app.conn_args import ConnArgs  # noqa: E402
 from navpy.core.kernel.config.logger_args import LoggerArgs  # noqa: E402
-from navpy.args.navpy_argparse import make_parser  # noqa: E402
+from navpy.app.navpy_argparse import make_parser  # noqa: E402
 from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
 from navpy.core.kernel.location import Location  # noqa: E402
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402
 from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation  # noqa: E402
 from navpy.plugins.vehicle.ardupilot.pose_streams import request_pose_streams  # noqa: E402
-from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
+from navpy.app.vehicle_factory import create_vehicle  # noqa: E402
 from navpy.core.perception.profile.vision_camera_calibration import (  # noqa: E402
     read_camera_zoom_calibration,
 )
-from navpy.modules.vision.vision_profile_composition import (  # noqa: E402
+from navpy.app.perception.vision_profile_composition import (  # noqa: E402
     build_vision_profile,
 )
-from navpy.modules.vision.vision_tracking_composition import build_tracking_config  # noqa: E402
-from navpy.modules.vision.vision_zoom_profile import build_zoom_config  # noqa: E402
+from navpy.app.perception.vision_tracking_composition import build_tracking_config  # noqa: E402
+from navpy.app.perception.vision_zoom_profile import build_zoom_config  # noqa: E402
 from navpy.core.perception.profile.vision_class_profile import (  # noqa: E402
     get_class_detect_size,
     get_min_pixels_for_class,

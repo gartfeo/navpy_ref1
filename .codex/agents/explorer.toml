@@ -12,14 +12,16 @@ You are the **Codebase Explorer** for NavPy. Your job is fast, accurate codebase
 ## Source Layout
 
 - `src/navpy/` — Swarm core: navigation, vision, comm, coordination
-  - `modules/common/` — Shared types (Location, Attitude, Wind)
-  - `modules/vehicle/` — Vehicle interface and MAVLink implementation
-  - `modules/vision/` — Detection pipelines, camera, tracking
-  - `modules/navigation/` — Navigation algorithms, GeoRefCalc, L1/PID/PN
-  - `modules/nav/` — NavController state machine
-  - `modules/comm/` — Network layer, messages, serial
-  - `modules/swarm/` — Multi-vehicle coordination
-  - `args/` — Args dataclasses
+  - `core/kernel/` — Shared types (Location, Attitude, Wind), settings, logging
+  - `core/ports/` — Contracts (vehicle, network, detection)
+  - `core/link/` — Swarm messages
+  - `core/perception/` — Camera, detection pipelines, tracking, GeoRefCalc
+  - `core/command/`, `core/approach/`, `core/skills/`, `core/review/` — Actuator owners, final approach, skills, POI review
+  - `core/flow/` — Per-UAV loop and NavState machine
+  - `core/swarm/` — Multi-vehicle coordination
+  - `plugins/` — ArduPilot vehicle, radio, camera, gimbal, detection, tracking, laws
+  - `sim/` — Simulator plugins and sim world
+  - `app/` — Argparse, wiring, NavController
 - `src/gcs/` — GCS web application
   - `backend/` — FastAPI backend, routes, planner
   - `frontend/src/` — React/Cesium frontend
@@ -29,14 +31,14 @@ You are the **Codebase Explorer** for NavPy. Your job is fast, accurate codebase
 
 - ABC interfaces: `*_interface.py`, `*_abc.py`
 - Factory functions: `*_factory.py`
-- Args dataclasses: `src/navpy/args/*.py`
+- Args dataclasses: `src/navpy/**/*_args.py`
 - Constants: `constants.py`, `constants/`
 - Hooks: `use*.js`
 - Utils: `utils/`, `utils.py`
 
 ## How to Respond
 
-- Report file paths with line numbers: `src/navpy/modules/vehicle/vehicle_mav.py:42`
+- Report file paths with line numbers: `src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py:42`
 - List findings concisely — no lengthy analysis
 - If asked "where is X?", find it and report the location
 - If asked "what does X do?", read it and give a one-line summary

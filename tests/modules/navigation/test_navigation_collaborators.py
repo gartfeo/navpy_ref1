@@ -21,7 +21,7 @@ from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorkerPorts,
     _next_fixed_deadline,
 )
-from navpy.modules.navigation.navigation import Navigation
+from navpy.app.approach.navigation import Navigation
 from navpy.core.approach.navigation_lifecycle import NavigationLifecycle
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.core.approach.navigation_mode import (
@@ -1235,7 +1235,7 @@ def test_navigation_construction_defers_worker_start_until_explicit_start():
     )
 
     with patch(
-        "navpy.modules.navigation.navigation.compose_navigation",
+        "navpy.app.approach.navigation.compose_navigation",
         return_value=composition,
     ):
         navigation = Navigation(

@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.vision_camera_factory import build_camera_model, build_camera_mounts
+from navpy.app.perception.vision_camera_factory import build_camera_model, build_camera_mounts
 from navpy.core.perception.profile.vision_class_profile import (
     DETECTOR_CLASS_DIMENSIONS,
     MIN_CONFIRM_PIXELS,
@@ -19,7 +19,7 @@ from navpy.core.perception.profile.vision_class_profile import (
     get_min_pixels_for_class,
 )
 from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
-from navpy.modules.vision.vision_gimbal_profile import (
+from navpy.app.perception.vision_gimbal_profile import (
     build_gimbal_data,
     resolve_gimbal_device_id,
     resolve_gimbal_seq,
@@ -31,8 +31,8 @@ from navpy.core.perception.profile.vision_profile_loader import (
     load_profiles,
     resolve_profile,
 )
-from navpy.modules.vision.vision_tracking_composition import build_tracking_config
-from navpy.modules.vision.vision_zoom_profile import build_zoom_config
+from navpy.app.perception.vision_tracking_composition import build_tracking_config
+from navpy.app.perception.vision_zoom_profile import build_zoom_config
 from navpy.core.ports.gimbal_abc import GimbalData
 
 

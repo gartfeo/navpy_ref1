@@ -70,7 +70,8 @@ To run the GCS app with SITL, use the isolated launcher described in
 ## Detector and arguments
 
 Command line arguments for cameras, navigation, vision and networking are
-defined under `src/navpy/args/`. `--detector-type` selects `sim` (default) or
+defined in `*_args.py` files (`src/navpy/core/kernel/config/`, `src/navpy/app/`,
+plugins) and collected by `src/navpy/app/navpy_argparse.py`. `--detector-type` selects `sim` (default) or
 `real`; the real detector defaults to a ChArUco board detector
 (`--detector-backend charuco`, board geometry from the vision profile). The
 YOLO face model is a bench-only opt-in: `--detector-backend yolo
@@ -78,7 +79,7 @@ YOLO face model is a bench-only opt-in: `--detector-backend yolo
 
 ## Swarm messages
 
-Swarm messages are dataclasses under `src/navpy/modules/comm/messages/` that
+Swarm messages are dataclasses under `src/navpy/core/link/` that
 convert to and from MAVLink packets of the project's pymavlink fork (declared
 in `pyproject.toml`). See `tests/modules/comm/test_mavlink_conversion.py` for
 round-trip examples.
