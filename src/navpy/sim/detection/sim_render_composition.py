@@ -50,6 +50,11 @@ from navpy.sim.detection.sim_source_composition import (
 from navpy.sim.detection.sim_poi_catalog import SimPoiCatalog
 from navpy.sim.camera.sim_poi_projector import SimPoiProjector
 from navpy.sim.detection.sim_tracking_update import SimTrackingUpdater
+from navpy.sim.world.fleet_dock_world import (
+    FleetDockWorld,
+    fleet_docks_path,
+    load_fleet_docks,
+)
 from navpy.sim.world.poi_provider import PoiProvider
 
 
@@ -72,12 +77,7 @@ def build_render_foundation(
     options: SimDetectorOptions,
     source: SimSourceGraph,
 ) -> SimRenderFoundation:
-    poi_provider = SimPoiCatalog(PoiProvider(
-        dependencies.args,
-        dependencies.vehicle,
-        dependencies.zc_util,
-        dependencies.logger,
-    ))
+    poi_provider = SimPoiCatalog(_build_poi_world(dependencies))
     navigation = _build_navigation(dependencies, options)
     capture = _build_capture(dependencies, options)
     gap = ForcedGapState()
@@ -123,6 +123,27 @@ def build_render_foundation(
         source_clock,
         ideal_camera,
         evidence_recorder,
+    )
+
+
+def _build_poi_world(
+    dependencies: SimDetectorDependencies,
+) -> FleetDockWorld | PoiProvider:
+    """Fleet docks when the run names a dock file; else docks on mission waypoints."""
+    path = fleet_docks_path()
+    if path is not None:
+        return FleetDockWorld(
+            load_fleet_docks(path),
+            dependencies.args,
+            dependencies.vehicle,
+            dependencies.zc_util,
+            dependencies.logger,
+        )
+    return PoiProvider(
+        dependencies.args,
+        dependencies.vehicle,
+        dependencies.zc_util,
+        dependencies.logger,
     )
 
 
