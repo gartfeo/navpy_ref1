@@ -16,10 +16,10 @@ from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
 from navpy.modules.vision.vision_controller_ports import VisionControllerPorts
-from navpy.modules.vision.vision_debug_hud import SimTrackerHudRenderer
-from navpy.modules.vision.vision_debug_panel import SimPanelRenderer
-from navpy.modules.vision.vision_debug_pois import SimPoiOverlayRenderer
-from navpy.modules.vision.vision_debug_window import VisionDebugWindow
+from navpy.sim.debug_view.vision_debug_hud import SimTrackerHudRenderer
+from navpy.sim.debug_view.vision_debug_panel import SimPanelRenderer
+from navpy.sim.debug_view.vision_debug_pois import SimPoiOverlayRenderer
+from navpy.sim.debug_view.vision_debug_window import VisionDebugWindow
 from navpy.modules.vision.vision_detector_factory_ports import (
     VisionDetectorFactory,
     build_detector_nodes,
@@ -28,7 +28,7 @@ from navpy.modules.vision.vision_detector_factory_ports import (
 )
 from navpy.core.perception.vision_lifecycle import VisionLifecycle
 from navpy.modules.vision.vision_profile_composition import build_vision_profile
-from navpy.modules.vision.vision_sim_debug_view import (
+from navpy.sim.debug_view.vision_sim_debug_view import (
     StackedSimulatorView,
     VisionUiDispatcher,
 )

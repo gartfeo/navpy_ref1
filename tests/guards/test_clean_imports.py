@@ -28,7 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
         "import navpy.main",
         (
             "from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc; "
-            "from navpy.modules.vision.sim.detector_sim import DetectorSim"
+            "from navpy.sim.detection.detector_sim import DetectorSim"
         ),
     ),
 )

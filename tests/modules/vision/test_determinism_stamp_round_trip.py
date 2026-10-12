@@ -48,7 +48,7 @@ from navpy.plugins.vehicle.ardupilot.pose_telemetry import (
     attitude_sample_from_message,
     simulator_truth_source_time_s,
 )
-from navpy.modules.vision.sim.determinism_slots import (
+from navpy.sim.determinism.determinism_slots import (
     slot_index,
     source_microseconds,
     source_seconds_of,

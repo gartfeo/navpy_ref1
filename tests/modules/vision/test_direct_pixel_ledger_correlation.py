@@ -25,13 +25,13 @@ import pytest
 
 from navpy.plugins.vehicle.ardupilot import inbound_router
 from navpy.plugins.vehicle.ardupilot.inbound_router import REJECT_STALE_BOOT
-from navpy.modules.vision.sim import determinism_trace
-from navpy.modules.vision.sim.determinism_eligibility import (
+from navpy.sim.determinism import determinism_trace
+from navpy.sim.determinism.determinism_eligibility import (
     INSPECTABLE,
     Verdict,
     judge,
 )
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     ASSOCIATION_REFUSED,
     EVENT_ASSOCIATION,
@@ -39,10 +39,10 @@ from navpy.modules.vision.sim.determinism_events import (
     SUBSCRIPTION_CLOSED,
     SUBSCRIPTION_OPENED,
 )
-from navpy.modules.vision.sim.determinism_evidence import sealed_capture
-from navpy.modules.vision.sim.determinism_labels import case_labels
-from navpy.modules.vision.sim.determinism_row_log import BoundedRowLog
-from navpy.modules.vision.sim.direct_poi_pixel_source import (
+from navpy.sim.determinism.determinism_evidence import sealed_capture
+from navpy.sim.determinism.determinism_labels import case_labels
+from navpy.sim.determinism.determinism_row_log import BoundedRowLog
+from navpy.sim.detection.direct_poi_pixel_source import (
     DirectPoiPixelSource,
 )
 from tests.modules.vision import determinism_case_factory as factory

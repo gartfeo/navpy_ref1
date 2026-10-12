@@ -37,28 +37,28 @@ from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
     FinalApproachProjectionConfig,
 )
-from navpy.modules.vision.sim import determinism_command_log
-from navpy.modules.vision.sim import determinism_events
-from navpy.modules.vision.sim import determinism_journal
-from navpy.modules.vision.sim import determinism_trace
-from navpy.modules.vision.sim import direct_poi_pixel_source as source_module
-from navpy.modules.vision.sim import pose_stream_link
-from navpy.modules.vision.sim.determinism_slots import (
+from navpy.sim.determinism import determinism_command_log
+from navpy.sim.determinism import determinism_events
+from navpy.sim.determinism import determinism_journal
+from navpy.sim.determinism import determinism_trace
+from navpy.sim.detection import direct_poi_pixel_source as source_module
+from navpy.sim.detection import pose_stream_link
+from navpy.sim.determinism.determinism_slots import (
     PAYLOAD_UNREADABLE,
     command_digest,
     frame_digest,
 )
-from navpy.modules.vision.sim.determinism_trace_summary import summarise
-from navpy.modules.vision.sim.direct_dispatch_metrics import (
+from navpy.sim.determinism.determinism_trace_summary import summarise
+from navpy.sim.detection.direct_dispatch_metrics import (
     DirectPublishState,
     LegBoundary,
 )
-from navpy.modules.vision.sim.direct_pixel_trace import command_loop_observer
-from navpy.modules.vision.sim.direct_poi_pixel_source import (
+from navpy.sim.detection.direct_pixel_trace import command_loop_observer
+from navpy.sim.detection.direct_poi_pixel_source import (
     DIRECT_PIXEL_POSE_MESSAGE_TYPES,
     DirectPoiPixelSource,
 )
-from navpy.modules.vision.sim.direct_pixel_pipeline import DIRECT_PIXEL_SOURCE_NAME
+from navpy.sim.detection.direct_pixel_pipeline import DIRECT_PIXEL_SOURCE_NAME
 
 
 CURRENT = Location(40.0, 44.0, 1000.0, is_absolute=True)
@@ -2246,7 +2246,7 @@ def test_a_command_that_escapes_as_a_base_exception_is_still_a_crash() -> None:
 # ``DeterminismTrace``. Neither holds the other. These are the names that would
 # have to appear for that to stop being true.
 COMMAND_LOG_NAMES = frozenset({"CommandLoopLog", "command_log", "_commands"})
-COMMAND_LOG_MODULE = "navpy.modules.vision.sim.determinism_command_log"
+COMMAND_LOG_MODULE = "navpy.sim.determinism.determinism_command_log"
 
 
 def _module_tree(module) -> ast.Module:
@@ -2539,7 +2539,7 @@ def test_no_command_loop_is_reachable_from_the_journal_at_any_depth() -> None:
 
 # The names the ATTITUDE ledger answers to on a trace, and its module.
 LEDGER_NAMES = frozenset({"AdmissionLedger", "ledger", "_ledger"})
-LEDGER_MODULE = "navpy.modules.vision.sim.determinism_admission_ledger"
+LEDGER_MODULE = "navpy.sim.determinism.determinism_admission_ledger"
 
 
 def _imported_names(module) -> set[str]:
@@ -2569,7 +2569,7 @@ def test_the_attitude_ledger_and_the_other_stores_cannot_name_each_other() -> (
     3. The ledger and the observer hold exactly their slots, so nothing can
        be parked on either.
     """
-    from navpy.modules.vision.sim import (
+    from navpy.sim.determinism import (
         determinism_admission_ledger as ledger_module,
     )
 
@@ -2594,8 +2594,8 @@ def test_the_attitude_ledger_and_the_other_stores_cannot_name_each_other() -> (
     reached = _imported_names(ledger_module)
     for forbidden in (
         COMMAND_LOG_MODULE,
-        "navpy.modules.vision.sim.determinism_journal",
-        "navpy.modules.vision.sim.determinism_trace",
+        "navpy.sim.determinism.determinism_journal",
+        "navpy.sim.determinism.determinism_trace",
     ):
         assert forbidden not in reached, (
             f"the ATTITUDE ledger's module imports {forbidden}"
@@ -2643,7 +2643,7 @@ def test_no_store_reaches_the_attitude_ledger_or_is_reached_from_it() -> None:
         REJECT_STALE_BOOT,
         message_boot_time_ms,
     )
-    from navpy.modules.vision.sim import (
+    from navpy.sim.determinism import (
         determinism_admission_ledger as ledger_module,
     )
 

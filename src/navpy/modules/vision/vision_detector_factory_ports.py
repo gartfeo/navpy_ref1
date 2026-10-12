@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Optional, Protocol
 
 from navpy.core.perception.detector_ports import DetectorFleetMember
-from navpy.modules.vision.vision_ui_ports import (
+from navpy.sim.debug_view.vision_ui_ports import (
     DetectorUiStepPort,
     SimDebugSource,
 )

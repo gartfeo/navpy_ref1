@@ -14,10 +14,10 @@ from collections.abc import Callable
 from types import SimpleNamespace
 
 from navpy.core.ports.admission_tap import AdmissionRuling
-from navpy.modules.vision.sim import determinism_trace as trace_module
-from navpy.modules.vision.sim.determinism_admission_ledger import PassObserver
-from navpy.modules.vision.sim.determinism_command_log import NULL_COMMAND_LOOP
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism import determinism_trace as trace_module
+from navpy.sim.determinism.determinism_admission_ledger import PassObserver
+from navpy.sim.determinism.determinism_command_log import NULL_COMMAND_LOOP
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     ASSOCIATION_FENCED,
     ASSOCIATION_REFUSED,
@@ -38,8 +38,8 @@ from navpy.modules.vision.sim.determinism_events import (
     SUBSCRIPTION_CLOSED,
     SUBSCRIPTION_OPENED,
 )
-from navpy.modules.vision.sim.direct_dispatch_metrics import LegBoundary
-from navpy.modules.vision.sim.direct_pixel_trace import (
+from navpy.sim.detection.direct_dispatch_metrics import LegBoundary
+from navpy.sim.detection.direct_pixel_trace import (
     DirectPixelTrace,
     DisabledPixelTrace,
     build_direct_pixel_trace,

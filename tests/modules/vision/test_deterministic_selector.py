@@ -3,10 +3,10 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from navpy.modules.vision.sim.deterministic_selection_types import (
+from navpy.sim.determinism.deterministic_selection_types import (
     SelectionConfig, SelectionStream, SlotKey, SourceSample,
 )
-from navpy.modules.vision.sim.deterministic_selector import DeterministicSelector
+from navpy.sim.determinism.deterministic_selector import DeterministicSelector
 
 A, T, V = SelectionStream
 

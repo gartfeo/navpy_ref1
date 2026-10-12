@@ -36,9 +36,9 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, TypeVar
 
-from navpy.modules.vision.sim.determinism_evidence import SUMMARY_NAME
-from navpy.modules.vision.sim.determinism_trace import TraceCapture
-from navpy.modules.vision.sim.determinism_trace_summary import (
+from navpy.sim.determinism.determinism_evidence import SUMMARY_NAME
+from navpy.sim.determinism.determinism_trace import TraceCapture
+from navpy.sim.determinism.determinism_trace_summary import (
     summarise_capture,
 )
 

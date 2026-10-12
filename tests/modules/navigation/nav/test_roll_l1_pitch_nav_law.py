@@ -19,7 +19,7 @@ from unittest.mock import Mock
 import numpy as np
 
 from navpy.core.kernel.config.navigation_args import NavigationArgs
-from navpy.args.navigation_poi_args import NavigationPoiArgs
+from navpy.sim.world.navigation_poi_args import NavigationPoiArgs
 from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs
 from navpy.core.kernel.config.pid_args import PIDArgs
 from navpy.core.kernel.attitude import Attitude

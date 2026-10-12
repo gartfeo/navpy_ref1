@@ -18,8 +18,8 @@ from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
 
-from navpy.modules.vision.sim.determinism_admission_ledger import PassObserver
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_admission_ledger import PassObserver
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     LIFECYCLE_ACTIVATED,
     LIFECYCLE_CLOSED,
@@ -28,7 +28,7 @@ from navpy.modules.vision.sim.determinism_events import (
     SUBSCRIPTION_OPENED,
     TRUTH_RECORDED,
 )
-from navpy.modules.vision.sim.determinism_evidence import (
+from navpy.sim.determinism.determinism_evidence import (
     SUMMARY_NAME,
     evidence_manifest,
     file_record,
@@ -36,11 +36,11 @@ from navpy.modules.vision.sim.determinism_evidence import (
     trace_lines,
     trace_record,
 )
-from navpy.modules.vision.sim.determinism_reader import (
+from navpy.sim.determinism.determinism_reader import (
     CaseEvidence,
     read_evidence,
 )
-from navpy.modules.vision.sim.determinism_trace import (
+from navpy.sim.determinism.determinism_trace import (
     DeterminismTrace,
     TraceCapture,
 )

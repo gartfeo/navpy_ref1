@@ -23,8 +23,8 @@ from typing import Any
 
 import pytest
 
-from navpy.modules.vision.sim.determinism_admission_ledger import AdmissionLedger
-from navpy.modules.vision.sim.determinism_evidence import (
+from navpy.sim.determinism.determinism_admission_ledger import AdmissionLedger
+from navpy.sim.determinism.determinism_evidence import (
     MANIFEST_KEYS,
     MANIFEST_NAME,
     SUMMARY_NAME,
@@ -34,23 +34,23 @@ from navpy.modules.vision.sim.determinism_evidence import (
     sealed_capture,
     trace_record,
 )
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     EVENT_VIOLATION,
     STAGE_STAGED,
     TRUTH_RECORDED,
     VIOLATION_SOURCE_REPEATED,
 )
-from navpy.modules.vision.sim.determinism_reader import (
+from navpy.sim.determinism.determinism_reader import (
     read_case,
     read_evidence,
 )
-from navpy.modules.vision.sim.determinism_row_log import BoundedRowLog
-from navpy.modules.vision.sim.determinism_trace import (
+from navpy.sim.determinism.determinism_row_log import BoundedRowLog
+from navpy.sim.determinism.determinism_trace import (
     DeterminismTrace,
     TraceCapture,
 )
-from navpy.modules.vision.sim.determinism_trace_decode import EvidenceRefused
+from navpy.sim.determinism.determinism_trace_decode import EvidenceRefused
 from tests.modules.vision.determinism_case_factory import (
     IDENTITY,
     PERIOD_US,

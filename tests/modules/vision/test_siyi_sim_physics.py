@@ -3,15 +3,15 @@
 import unittest
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import GimbalPhysics
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
+from navpy.sim.gimbal.siyi.gimbal_physics import GimbalPhysics
+from navpy.sim.gimbal.siyi.gimbal_angles import (
     MAX_SLEW_RATE,
     MODE_FOLLOW,
     MODE_FPV,
     MODE_LOCK,
     wrap180 as _wrap180,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_zoom_plant import ZOOM_INCREMENTAL_SPEED
+from navpy.sim.gimbal.siyi.gimbal_zoom_plant import ZOOM_INCREMENTAL_SPEED
 from navpy.plugins.gimbal.siyi.siyi_sdk import ZR10
 
 

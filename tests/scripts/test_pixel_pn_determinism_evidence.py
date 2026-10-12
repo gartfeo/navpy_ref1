@@ -31,14 +31,14 @@ from typing import Any
 import pytest
 
 from navpy.core.kernel.exception_groups import ExceptionGroup
-from navpy.modules.vision.sim.determinism_admission_ledger import PassObserver
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_admission_ledger import PassObserver
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     EVENT_TRUTH,
     LIFECYCLE_CLOSED,
     TRUTH_RECORDED,
 )
-from navpy.modules.vision.sim.determinism_evidence import (
+from navpy.sim.determinism.determinism_evidence import (
     KIND_COMMAND,
     KIND_LEDGER,
     KIND_PASS,
@@ -48,9 +48,9 @@ from navpy.modules.vision.sim.determinism_evidence import (
     TRACE_NAME,
     trace_lines,
 )
-from navpy.modules.vision.sim.determinism_eligibility import case_verdict
-from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
-from navpy.modules.vision.sim.determinism_trace_summary import (
+from navpy.sim.determinism.determinism_eligibility import case_verdict
+from navpy.sim.determinism.determinism_trace import DeterminismTrace
+from navpy.sim.determinism.determinism_trace_summary import (
     summarise_capture,
 )
 from scripts import pixel_pn_determinism_evidence as evidence

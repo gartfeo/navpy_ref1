@@ -116,7 +116,7 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "CameraIntrinsics",
     ): 150,
     (
-        "src/navpy/modules/vision/sim/sim_detector_loop.py",
+        "src/navpy/sim/detection/sim_detector_loop.py",
         "SimDetectorWorker",
     ): 150,
 }
@@ -232,15 +232,15 @@ FACADE_METHOD_ALLOWANCES = {
         "GimbalSiyi",
     ): FacadeMethodAllowance(1, 22, frozenset({"_parts"})),
     (
-        "src/navpy/modules/vision/peripheral/siyi/sim/gimbal_physics.py",
+        "src/navpy/sim/gimbal/siyi/gimbal_physics.py",
         "GimbalPhysics",
     ): FacadeMethodAllowance(1, 20, frozenset({"_parts"})),
     (
-        "src/navpy/modules/vision/peripheral/siyi/sim/gimbal_siyi_sim.py",
+        "src/navpy/sim/gimbal/siyi/gimbal_siyi_sim.py",
         "GimbalSiyiSim",
     ): FacadeMethodAllowance(1, 22, frozenset({"_parts"})),
     (
-        "src/navpy/modules/vision/sim/detector_sim.py",
+        "src/navpy/sim/detection/detector_sim.py",
         "DetectorSim",
     ): FacadeMethodAllowance(1, 36, frozenset({"_parts"})),
 }

@@ -14,15 +14,15 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
-from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
+from navpy.sim.gimbal.gimbal_attitude_reader import VehicleAttitudeReader
 from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTrackerConfig
 from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim import GimbalSiyiSim
-from navpy.modules.vision.sim.detector_sim import DetectorSim
+from navpy.sim.gimbal.siyi.gimbal_siyi_sim import GimbalSiyiSim
+from navpy.sim.detection.detector_sim import DetectorSim
 
 
 def _make_vehicle(lat=32.0, lng=34.8, alt=200.0, yaw=0.0, pitch=0.0, roll=0.0):
@@ -192,7 +192,7 @@ class TestMultiCameraObjIdInvariant(unittest.TestCase):
 
     def test_sequential_pois_get_sequential_uids(self):
         """POIs created in the same order get the same uids."""
-        from navpy.modules.vision.simulation_object import SimulationObject
+        from navpy.sim.world.simulation_object import SimulationObject
 
         loc1 = Location(32.001, 34.801, 0.0)
         loc2 = Location(32.002, 34.802, 0.0)

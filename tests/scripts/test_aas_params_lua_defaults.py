@@ -11,7 +11,7 @@ import pytest
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.config.navigation_args import NavigationArgs
-from navpy.args.navigation_poi_args import NavigationPoiArgs, encode_wp_bitmask
+from navpy.sim.world.navigation_poi_args import NavigationPoiArgs, encode_wp_bitmask
 
 LUA = Path(__file__).resolve().parents[2] / "scripts" / "lua" / "aas_params.lua"
 _TABLE = re.compile(r'param:add_table\(PARAM_TABLE_KEY,\s*"([A-Z_]+)"')

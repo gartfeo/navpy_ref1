@@ -5,13 +5,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from navpy.core.approach.calc_data import CalcData
-from navpy.modules.vision.sim.determinism_command_log import (
+from navpy.sim.determinism.determinism_command_log import (
     COMMAND_RAISED,
     COMMAND_UNREADABLE,
     NULL_COMMAND_LOOP,
     CommandLoopLog,
 )
-from navpy.modules.vision.sim.determinism_slots import command_digest
+from navpy.sim.determinism.determinism_slots import command_digest
 
 
 def test_an_unstarted_log_has_no_current_iteration() -> None:

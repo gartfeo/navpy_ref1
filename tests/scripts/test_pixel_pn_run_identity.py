@@ -26,7 +26,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from navpy.modules.vision.sim import determinism_trace
+from navpy.sim.determinism import determinism_trace
 from scripts import pixel_pn_run_identity as run_identity
 from scripts.eval_source_identity import script_import_closure, source_identity
 from scripts.pixel_pn_case_manifest import MANIFEST_NAME as CASE_MANIFEST

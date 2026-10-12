@@ -42,7 +42,7 @@ from navpy.core.approach.final_approach_publication_admission import (
 )
 from navpy.core.approach.final_approach_source_contracts import NavSourceBatch
 from navpy.core.ports.flight_mode import FlightMode
-from navpy.modules.vision.sim.detection_publication_store import (
+from navpy.sim.detection.detection_publication_store import (
     DetectionPublicationStore,
 )
 from tests.detection_factory import make_detected_poi

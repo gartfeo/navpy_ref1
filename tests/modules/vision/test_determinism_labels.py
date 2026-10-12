@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import replace
 from types import SimpleNamespace
 
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_REFUSED,
     DISCARD_PENDING_LEG_ENDED,
     EVENT_VIOLATION,
@@ -23,18 +23,18 @@ from navpy.modules.vision.sim.determinism_events import (
     STAGE_STAGED,
     VIOLATION_SOURCE_REPEATED,
 )
-from navpy.modules.vision.sim.determinism_labels import (
+from navpy.sim.determinism.determinism_labels import (
     NOT_APPLICABLE,
     UNKNOWN,
     case_labels,
 )
-from navpy.modules.vision.sim.determinism_row_layouts import (
+from navpy.sim.determinism.determinism_row_layouts import (
     association_row,
     discard_row,
     output_row,
     stage_row,
 )
-from navpy.modules.vision.sim.determinism_trace import TraceCapture
+from navpy.sim.determinism.determinism_trace import TraceCapture
 from tests.modules.vision.determinism_case_factory import (
     PERIOD_US,
     eligible_capture,

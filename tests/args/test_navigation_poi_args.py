@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.args.navigation_poi_args import (
+from navpy.sim.world.navigation_poi_args import (
     NavigationPoiArgs,
     decode_wp_bitmask,
     encode_wp_bitmask,

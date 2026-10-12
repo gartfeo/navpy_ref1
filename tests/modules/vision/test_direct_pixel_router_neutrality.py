@@ -33,9 +33,9 @@ from navpy.core.approach.navigation_command_worker import (
 )
 from navpy.plugins.vehicle.ardupilot import inbound_router
 from navpy.plugins.vehicle.ardupilot.inbound_router import REJECT_STALE_BOOT
-from navpy.modules.vision.sim import determinism_trace
-from navpy.modules.vision.sim.determinism_eligibility import ELIGIBLE, judge
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism import determinism_trace
+from navpy.sim.determinism.determinism_eligibility import ELIGIBLE, judge
+from navpy.sim.determinism.determinism_events import (
     EVENT_LIFECYCLE,
     EVENT_SUBSCRIPTION,
     LIFECYCLE_ACTIVATED,
@@ -43,14 +43,14 @@ from navpy.modules.vision.sim.determinism_events import (
     SUBSCRIPTION_CLOSED,
     SUBSCRIPTION_OPENED,
 )
-from navpy.modules.vision.sim.determinism_evidence import sealed_capture
-from navpy.modules.vision.sim.determinism_slots import (
+from navpy.sim.determinism.determinism_evidence import sealed_capture
+from navpy.sim.determinism.determinism_slots import (
     PAYLOAD_UNREADABLE,
     command_digest,
     frame_digest,
 )
-from navpy.modules.vision.sim.direct_pixel_trace import command_loop_observer
-from navpy.modules.vision.sim.direct_poi_pixel_source import (
+from navpy.sim.detection.direct_pixel_trace import command_loop_observer
+from navpy.sim.detection.direct_poi_pixel_source import (
     DirectPoiPixelSource,
 )
 from tests.modules.vision import determinism_case_factory as factory

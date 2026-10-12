@@ -26,17 +26,17 @@ from typing import Any
 
 import pytest
 
-from navpy.modules.vision.sim.determinism_admission_ledger import (
+from navpy.sim.determinism.determinism_admission_ledger import (
     AdmissionLedger,
     LedgerCapture,
     PassObserver,
 )
-from navpy.modules.vision.sim.determinism_command_log import (
+from navpy.sim.determinism.determinism_command_log import (
     COMMAND_RAISED,
     CommandCapture,
     CommandLoopLog,
 )
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     ASSOCIATION_FENCED,
     DISCARD_UNBRACKETABLE,
@@ -55,7 +55,7 @@ from navpy.modules.vision.sim.determinism_events import (
     SUBSCRIPTION_OPENED,
     TRUTH_RECORDED,
 )
-from navpy.modules.vision.sim.determinism_evidence import (
+from navpy.sim.determinism.determinism_evidence import (
     GATE_VARIABLES,
     KIND_COMMAND,
     KIND_LEDGER,
@@ -74,14 +74,14 @@ from navpy.modules.vision.sim.determinism_evidence import (
     trace_lines,
     trace_record,
 )
-from navpy.modules.vision.sim.determinism_journal import RowJournal
-from navpy.modules.vision.sim.determinism_row_log import TraceStatus
-from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
-from navpy.modules.vision.sim.determinism_trace_gate import (
+from navpy.sim.determinism.determinism_journal import RowJournal
+from navpy.sim.determinism.determinism_row_log import TraceStatus
+from navpy.sim.determinism.determinism_trace import DeterminismTrace
+from navpy.sim.determinism.determinism_trace_gate import (
     DETERMINISM_TRACE_CAPACITY_ENV,
     DETERMINISM_TRACE_ENV,
 )
-from navpy.modules.vision.sim.determinism_trace_summary import (
+from navpy.sim.determinism.determinism_trace_summary import (
     summarise,
     summarise_capture,
 )

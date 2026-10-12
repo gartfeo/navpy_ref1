@@ -16,7 +16,7 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
-from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
+from navpy.sim.gimbal.gimbal_attitude_reader import VehicleAttitudeReader
 from navpy.core.perception.pointing.gimbal_rate_tracker import (
     GimbalRateTracker,
     GimbalRateTrackerConfig,
@@ -76,7 +76,7 @@ class TestDetectorSimTracking(unittest.TestCase):
     """Test DetectorSim start/stop_tracking and detect_pois integration."""
 
     def _make_detector(self, with_tracker=True):
-        from navpy.modules.vision.sim.detector_sim import DetectorSim
+        from navpy.sim.detection.detector_sim import DetectorSim
         from navpy.core.ports.gimbal_abc import GimbalData
         from navpy.core.kernel.config.uas_args import UasArgs
         from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
@@ -187,20 +187,20 @@ class TestProjectPoi(unittest.TestCase):
 
     def test_project_poi_ignores_is_valid(self):
         from navpy.core.ports.gimbal_abc import GimbalData
-        from navpy.modules.vision.simulation_object import SimulationObject
+        from navpy.sim.world.simulation_object import SimulationObject
         from navpy.core.kernel.config.uas_args import UasArgs
         from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-        from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
-        from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
-        from navpy.modules.vision.sim.ideal_poi_projector import (
+        from navpy.sim.camera.finite_poi_projector import FinitePoiProjector
+        from navpy.sim.camera.ideal_camera_state import IdealCameraState
+        from navpy.sim.camera.ideal_poi_projector import (
             IdealPoiProjector,
             UasFrameConvention,
         )
-        from navpy.modules.vision.sim.sim_camera_ports import (
+        from navpy.sim.camera.sim_camera_ports import (
             FrameSize,
             ProjectionCameraPort,
         )
-        from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
+        from navpy.sim.camera.sim_poi_projector import SimPoiProjector
 
         mount = Mock()
         mount.image_width = 1920
@@ -256,8 +256,8 @@ class TestGimbalPhysicsModeSwitch(unittest.TestCase):
     """Test yaw conversion when switching between FOLLOW and LOCK modes."""
 
     def test_follow_to_lock_preserves_pointing(self):
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import GimbalPhysics
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
+        from navpy.sim.gimbal.siyi.gimbal_physics import GimbalPhysics
+        from navpy.sim.gimbal.siyi.gimbal_angles import (
             MODE_FOLLOW,
             MODE_LOCK,
         )
@@ -269,8 +269,8 @@ class TestGimbalPhysicsModeSwitch(unittest.TestCase):
         self.assertAlmostEqual(physics.yaw, 100.0, places=1)
 
     def test_lock_to_follow_roundtrips(self):
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import GimbalPhysics
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
+        from navpy.sim.gimbal.siyi.gimbal_physics import GimbalPhysics
+        from navpy.sim.gimbal.siyi.gimbal_angles import (
             MODE_FOLLOW,
             MODE_LOCK,
         )
@@ -283,8 +283,8 @@ class TestGimbalPhysicsModeSwitch(unittest.TestCase):
         self.assertAlmostEqual(physics.yaw, 10.0, places=1)
 
     def test_same_mode_is_noop(self):
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_physics import GimbalPhysics
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import MODE_FOLLOW
+        from navpy.sim.gimbal.siyi.gimbal_physics import GimbalPhysics
+        from navpy.sim.gimbal.siyi.gimbal_angles import MODE_FOLLOW
         physics = GimbalPhysics(initial_yaw=5.0)
         physics.set_motion_mode(MODE_FOLLOW)
         physics.set_vehicle_attitude(Attitude(0, 90, 0))
@@ -297,7 +297,7 @@ class TestBodyFrameReporting(unittest.TestCase):
     """Test that GimbalSiyiSim reports body-frame angles in LOCK mode."""
 
     def test_lock_mode_reports_body_frame_yaw(self):
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim import GimbalSiyiSim
+        from navpy.sim.gimbal.siyi.gimbal_siyi_sim import GimbalSiyiSim
         from navpy.core.ports.gimbal_abc import GimbalData
 
         vehicle = Mock()
@@ -393,7 +393,7 @@ class TestSecondLaunchGeoPointing(unittest.TestCase):
     """
 
     def _build(self):
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim import (
+        from navpy.sim.gimbal.siyi.gimbal_siyi_sim import (
             GimbalSiyiSim,
         )
         from navpy.core.ports.gimbal_abc import GimbalData

@@ -9,8 +9,8 @@ from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )
-from navpy.modules.vision.sim.gimbal_sim import GimbalSim
-from navpy.modules.vision.sim.gimbal_stabilizer import GimbalStabilizer
+from navpy.sim.gimbal.gimbal_sim import GimbalSim
+from navpy.sim.gimbal.gimbal_stabilizer import GimbalStabilizer
 
 
 @dataclass

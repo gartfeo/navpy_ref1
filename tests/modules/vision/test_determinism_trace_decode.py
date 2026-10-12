@@ -14,12 +14,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from navpy.modules.vision.sim import determinism_events as events
-from navpy.modules.vision.sim.determinism_command_log import (
+from navpy.sim.determinism import determinism_events as events
+from navpy.sim.determinism.determinism_command_log import (
     COMMAND_RAISED,
     COMMAND_UNREADABLE,
 )
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     ASSOCIATION_FENCED,
     ASSOCIATION_REFUSED,
@@ -46,8 +46,8 @@ from navpy.modules.vision.sim.determinism_events import (
     TRUTH_UNREADABLE,
     VIOLATION_SOURCE_REPEATED,
 )
-from navpy.modules.vision.sim.determinism_evidence import trace_lines
-from navpy.modules.vision.sim.determinism_row_layouts import (
+from navpy.sim.determinism.determinism_evidence import trace_lines
+from navpy.sim.determinism.determinism_row_layouts import (
     association_row,
     discard_row,
     lifecycle_row,
@@ -56,8 +56,8 @@ from navpy.modules.vision.sim.determinism_row_layouts import (
     subscription_row,
     truth_row,
 )
-from navpy.modules.vision.sim.determinism_slots import slot_index
-from navpy.modules.vision.sim.determinism_trace_decode import (
+from navpy.sim.determinism.determinism_slots import slot_index
+from navpy.sim.determinism.determinism_trace_decode import (
     DecodedTrace,
     EvidenceRefused,
     decode_trace,

@@ -2,11 +2,11 @@
 from collections.abc import Iterator
 import random
 
-from navpy.modules.vision.sim.deterministic_selection_types import (
+from navpy.sim.determinism.deterministic_selection_types import (
     ClosingSamples, SelectionConfig, SelectionDecision, SelectionStream, SlotKey,
     SourceSample,
 )
-from navpy.modules.vision.sim.deterministic_selector import DeterministicSelector
+from navpy.sim.determinism.deterministic_selector import DeterministicSelector
 
 STREAMS = tuple(SelectionStream)
 PACKETS = (

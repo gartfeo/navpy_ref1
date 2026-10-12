@@ -111,8 +111,8 @@ COORDINATE_UNIT_WORDS = {"deg", "degrees", "rad", "radians", "e7"}
 YAW_RATE_CONVERSION = "src/navpy/core/ports/pixel_observation.py"
 YAW_RATE_PRODUCERS = (
     "src/navpy/core/perception/pipeline/real_detected_object_builder.py",
-    "src/navpy/modules/vision/sim/finite_poi_projector.py",
-    "src/navpy/modules/vision/sim/ideal_poi_projector.py",
+    "src/navpy/sim/camera/finite_poi_projector.py",
+    "src/navpy/sim/camera/ideal_poi_projector.py",
 )
 CLOCK_MODULES = {"time", "timeit", "datetime"}
 CLOCK_CALLS = {

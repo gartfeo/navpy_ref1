@@ -12,12 +12,12 @@ from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
-from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
+from navpy.sim.gimbal.gimbal_attitude_reader import VehicleAttitudeReader
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.ports.detect_request import DetectRequest
-from navpy.modules.vision.sim.detector_sim import DetectorSim
-from navpy.modules.vision.sim.gimbal_sim import GimbalSim
-from navpy.modules.vision.simulation_object import SimulationObject
+from navpy.sim.detection.detector_sim import DetectorSim
+from navpy.sim.gimbal.gimbal_sim import GimbalSim
+from navpy.sim.world.simulation_object import SimulationObject
 from tests.conftest import create_test_camera, create_mock_args
 from tests.detection_factory import make_detected_poi
 
@@ -227,10 +227,10 @@ class DetectorTestCase(unittest.TestCase):
     def test_get_detect_data_returns_primary_poi_first(self):
         import threading
 
-        from navpy.modules.vision.sim.detection_publication_buffer import (
+        from navpy.sim.detection.detection_publication_buffer import (
             DetectionPublicationBuffer,
         )
-        from navpy.modules.vision.sim.detection_publication_store import (
+        from navpy.sim.detection.detection_publication_store import (
             DetectionPublicationStore,
         )
 

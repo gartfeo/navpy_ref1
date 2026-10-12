@@ -1,0 +1,74 @@
+"""Typed input and output records for simulator detector composition."""
+
+from __future__ import annotations
+
+from argparse import Namespace
+from dataclasses import dataclass
+from typing import Optional
+
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.scheduler_cadence import SchedulerCadence
+from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
+from navpy.core.perception.geo.zc_util import ZcUtil
+from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
+from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.core.perception.camera.camera_mount import CameraMount
+from navpy.sim.detection.detection_publication_buffer import (
+    DetectionPublicationBuffer,
+)
+from navpy.sim.detection.sim_detection_pipeline import SimDetectionPipeline
+from navpy.sim.detection.sim_detector_controls import (
+    SimDetectorIdentity,
+    SimGeoControls,
+    SimPoiControls,
+    SimTrackingControls,
+    SimZoomControls,
+)
+from navpy.sim.detection.sim_detector_lifecycle import SimDetectorLifecycle
+from navpy.sim.detection.sim_detector_loop import SimDetectorWorker
+from navpy.sim.detection.sim_runtime_ports import ConfirmationFrameFactory
+from navpy.sim.camera.sim_poi_projector import SimPoiProjector
+from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
+
+
+@dataclass(frozen=True)
+class SimDetectorDependencies:
+    vehicle: IVehicle
+    mount: CameraMount
+    geo_ref: GeoRefCalc
+    logger: ILogger
+    args: Namespace
+    zc_util: Optional[ZcUtil]
+    scheduler_cadence: Optional[SchedulerCadence]
+
+
+@dataclass(frozen=True)
+class SimDetectorOptions:
+    sim_assets_path: Optional[str]
+    tracking_config: Optional[GimbalTrackingSetup]
+    zoom_config: Optional[PoiZoomTrackerConfig]
+    ideal_360: bool
+    frame_generator_factory: ConfirmationFrameFactory
+
+
+@dataclass(frozen=True)
+class SimDetectorPorts:
+    identity: SimDetectorIdentity
+    detection: DetectionPublicationBuffer
+    tracking: SimTrackingControls
+    zoom: SimZoomControls
+    geo: SimGeoControls
+    simulation: SimPoiControls
+    lifecycle: SimDetectorLifecycle
+    cadence: SimDetectorWorker
+    renderer: SimDetectionPipeline
+    projector: SimPoiProjector
+    navigation: Optional[GimbalNavigation]
+
+
+__all__ = [
+    "SimDetectorDependencies",
+    "SimDetectorOptions",
+    "SimDetectorPorts",
+]

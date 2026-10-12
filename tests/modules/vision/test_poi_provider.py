@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, patch, PropertyMock
 
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.poi_provider import PoiProvider
+from navpy.sim.world.poi_provider import PoiProvider
 
 
 def _make_mocks(poi_alt=150, poi_wp_indices=None):
@@ -44,7 +44,7 @@ def _provider_args(use_terrain=None):
 class TestRefreshDoesNotModifyMission(unittest.TestCase):
     """Normal refresh (location=None) must never call update_mission_item_location or upload_mission."""
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_refresh_does_not_modify_mission(self, mock_args_cls):
         args_inst = Mock()
         args_inst.poi_alt = 150.0
@@ -62,7 +62,7 @@ class TestRefreshDoesNotModifyMission(unittest.TestCase):
         vehicle.update_mission_item_location.assert_not_called()
         vehicle.upload_mission.assert_not_called()
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_init_does_not_modify_mission(self, mock_args_cls):
         args_inst = Mock()
         args_inst.poi_alt = 150.0
@@ -80,7 +80,7 @@ class TestRefreshDoesNotModifyMission(unittest.TestCase):
 class TestSetSimPoiDoesNotModifyMission(unittest.TestCase):
     """set_sim_poi must NOT modify or re-upload the vehicle mission."""
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_set_sim_poi_does_not_modify_mission(self, mock_args_cls):
         args_inst = Mock()
         args_inst.poi_alt = 150.0
@@ -98,7 +98,7 @@ class TestSetSimPoiDoesNotModifyMission(unittest.TestCase):
         vehicle.update_mission_item_location.assert_not_called()
         vehicle.upload_mission.assert_not_called()
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_set_sim_poi_adds_poi_with_correct_location(self, mock_args_cls):
         args_inst = Mock()
         args_inst.poi_alt = 150.0
@@ -121,7 +121,7 @@ class TestSetSimPoiDoesNotModifyMission(unittest.TestCase):
 class TestSimPoiAltitude(unittest.TestCase):
     """Verify that set_sim_poi uses the provided location's altitude, not configured poi_alt."""
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_sim_poi_ground_altitude(self, mock_args_cls):
         """set_sim_poi with alt=0 places POI at ground level (home_alt), not home_alt + poi_alt."""
         args_inst = Mock()
@@ -141,7 +141,7 @@ class TestSimPoiAltitude(unittest.TestCase):
         self.assertAlmostEqual(poi.g_loc.alt, 100.0)
         self.assertEqual(poi.height, 0.0)
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_sim_poi_preserves_nonzero_alt(self, mock_args_cls):
         """set_sim_poi with alt=50 places POI at home_alt + 50."""
         args_inst = Mock()
@@ -165,7 +165,7 @@ class TestSimPoiAltitude(unittest.TestCase):
 class TestRefreshDoesNotDownload(unittest.TestCase):
     """refresh() must never trigger a mission download."""
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_refresh_does_not_download(self, mock_args_cls):
         args_inst = Mock()
         args_inst.poi_alt = 150.0
@@ -186,7 +186,7 @@ class TestRefreshDoesNotDownload(unittest.TestCase):
 class TestPoiAltitudeComputed(unittest.TestCase):
     """Verify POI objects receive correct terrain-relative altitude."""
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_poi_altitude_no_terrain(self, mock_args_cls):
         """Without zc_util, POI altitude = home_alt + poi_alt."""
         args_inst = Mock()
@@ -206,7 +206,7 @@ class TestPoiAltitudeComputed(unittest.TestCase):
         self.assertEqual(poi.height, 150.0)
         self.assertTrue(poi.g_loc.is_absolute)
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_poi_altitude_terrain_disabled_ignores_terrain_sources(self, mock_args_cls):
         """Disabled terrain must not let environment altitude shift certification POIs."""
         args_inst = Mock()
@@ -227,7 +227,7 @@ class TestPoiAltitudeComputed(unittest.TestCase):
         zc_util.get_elevation.assert_not_called()
         self.assertAlmostEqual(poi.g_loc.alt, 250.0)
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_poi_altitude_bare_mock_args_do_not_enable_terrain(self, mock_args_cls):
         """Mock-created attributes must not accidentally enable terrain correction."""
         args_inst = Mock()
@@ -248,7 +248,7 @@ class TestPoiAltitudeComputed(unittest.TestCase):
         zc_util.get_elevation.assert_not_called()
         self.assertAlmostEqual(poi.g_loc.alt, 250.0)
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_poi_altitude_with_terrain(self, mock_args_cls):
         """With zc_util, altitude accounts for terrain delta."""
         args_inst = Mock()
@@ -269,7 +269,7 @@ class TestPoiAltitudeComputed(unittest.TestCase):
         # g_loc.alt = home_alt(100) + 180 = 280
         self.assertAlmostEqual(poi.g_loc.alt, 280.0)
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_poi_altitude_prefers_vehicle_terrain_height(self, mock_args_cls):
         """Sim POI altitude should match vehicle terrain when available."""
         args_inst = Mock()
@@ -290,7 +290,7 @@ class TestPoiAltitudeComputed(unittest.TestCase):
         zc_util.get_elevation.assert_not_called()
         self.assertAlmostEqual(poi.g_loc.alt, 323.75)
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_poi_altitude_preserves_fractional_terrain_delta(self, mock_args_cls):
         """Terrain correction must not truncate sub-meter POI altitude."""
         args_inst = Mock()
@@ -310,7 +310,7 @@ class TestPoiAltitudeComputed(unittest.TestCase):
         poi = tp.pois[0]
         self.assertAlmostEqual(poi.g_loc.alt, 101.5)
 
-    @patch('navpy.modules.vision.poi_provider.NavigationPoiArgs')
+    @patch('navpy.sim.world.poi_provider.NavigationPoiArgs')
     def test_poi_uses_waypoint_coords(self, mock_args_cls):
         """Normal refresh uses the waypoint's lat/lng, not overwritten values."""
         args_inst = Mock()

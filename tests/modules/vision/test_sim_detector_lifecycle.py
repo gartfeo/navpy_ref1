@@ -13,20 +13,20 @@ from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.subscription import Subscription
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.sim.detection_publication_store import (
+from navpy.sim.detection.detection_publication_store import (
     DetectionPublicationStore,
 )
-from navpy.modules.vision.sim.frame_generation_gate import FrameGenerationGate
-from navpy.modules.vision.sim.ideal_pose_source import IdealPoseSource
-from navpy.modules.vision.sim.pose_inbox import PoseInbox
-from navpy.modules.vision.sim.sim_detector_lifecycle import SimDetectorLifecycle
-from navpy.modules.vision.sim.sim_detector_loop import SimDetectorWorker
-from navpy.modules.vision.sim.sim_detector_reset import SimDetectorReset
-from navpy.modules.vision.sim.sim_source_activation import SimSourceActivation
-from navpy.modules.vision.sim.scheduler_cadence_lease import (
+from navpy.sim.detection.frame_generation_gate import FrameGenerationGate
+from navpy.sim.detection.ideal_pose_source import IdealPoseSource
+from navpy.sim.detection.pose_inbox import PoseInbox
+from navpy.sim.detection.sim_detector_lifecycle import SimDetectorLifecycle
+from navpy.sim.detection.sim_detector_loop import SimDetectorWorker
+from navpy.sim.detection.sim_detector_reset import SimDetectorReset
+from navpy.sim.detection.sim_source_activation import SimSourceActivation
+from navpy.sim.detection.scheduler_cadence_lease import (
     SchedulerCadenceLease,
 )
-from navpy.modules.vision.sim.source_frame_coordinator import SourceFrameCoordinator
+from navpy.sim.detection.source_frame_coordinator import SourceFrameCoordinator
 
 
 def _coordinator():
@@ -524,7 +524,7 @@ def test_delayed_worker_cannot_run_after_failed_coordinator_stop() -> None:
 
 
 def test_detector_construction_defers_stream_and_mount_side_effects():
-    from navpy.modules.vision.sim.detector_sim import DetectorSim
+    from navpy.sim.detection.detector_sim import DetectorSim
     from tests.conftest import create_mock_args
 
     vehicle = Mock()
@@ -550,10 +550,10 @@ def test_detector_construction_defers_stream_and_mount_side_effects():
 
     with (
         patch(
-            "navpy.modules.vision.sim.sim_source_composition.request_pose_streams"
+            "navpy.sim.detection.sim_source_composition.request_pose_streams"
         ) as request_pose,
         patch(
-            "navpy.modules.vision.sim.sim_source_composition."
+            "navpy.sim.detection.sim_source_composition."
             "request_simulator_truth_pose_stream"
         ) as request_truth,
     ):
@@ -590,7 +590,7 @@ def test_detector_construction_defers_stream_and_mount_side_effects():
 
 
 def test_ideal_source_rate_follows_ardupilot_scheduler_capacity():
-    from navpy.modules.vision.sim.sim_source_composition import (
+    from navpy.sim.detection.sim_source_composition import (
         source_stream_rate_hz,
     )
 
@@ -606,11 +606,11 @@ def test_ideal_source_rate_follows_ardupilot_scheduler_capacity():
 
 
 def test_ideal_receipt_tolerance_tracks_wall_cadence_but_reorder_stays_raw():
-    from navpy.modules.vision.sim.sim_detector_config import (
+    from navpy.sim.detection.sim_detector_config import (
         SimDetectorDependencies,
         SimDetectorOptions,
     )
-    from navpy.modules.vision.sim.sim_source_composition import build_source_graph
+    from navpy.sim.detection.sim_source_composition import build_source_graph
 
     vehicle = SimpleNamespace(
         target_system=1,
@@ -645,10 +645,10 @@ def test_ideal_receipt_tolerance_tracks_wall_cadence_but_reorder_stays_raw():
 
     with (
         patch(
-            "navpy.modules.vision.sim.sim_source_composition.PoseFrameClock"
+            "navpy.sim.detection.sim_source_composition.PoseFrameClock"
         ) as clock_type,
         patch(
-            "navpy.modules.vision.sim.sim_source_composition.PoseAssociator"
+            "navpy.sim.detection.sim_source_composition.PoseAssociator"
         ) as associator_type,
     ):
         build_source_graph(dependencies, options)

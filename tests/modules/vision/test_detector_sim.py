@@ -21,29 +21,29 @@ from navpy.core.ports.detect_data import (
     DetectStatus,
 )
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.sim.detector_sim import DetectorSim, SimFrameGenerator
-from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
-from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
-from navpy.modules.vision.sim.ideal_poi_projector import (
+from navpy.sim.detection.detector_sim import DetectorSim, SimFrameGenerator
+from navpy.sim.camera.finite_poi_projector import FinitePoiProjector
+from navpy.sim.camera.ideal_camera_state import IdealCameraState
+from navpy.sim.camera.ideal_poi_projector import (
     IdealPoiProjector,
     UasFrameConvention,
     ideal_angular_camera_matrix,
 )
-from navpy.modules.vision.sim.sim_camera_ports import (
+from navpy.sim.camera.sim_camera_ports import (
     CaptureCameraPort,
     FrameSize,
     ProjectionCameraPort,
 )
-from navpy.modules.vision.sim.sim_confirmation_capture import ConfirmationCapture
-from navpy.modules.vision.sim.sim_detector_controls import (
+from navpy.sim.detection.sim_confirmation_capture import ConfirmationCapture
+from navpy.sim.detection.sim_detector_controls import (
     SimDetectorIdentity,
     SimGeoControls,
     SimTrackingControls,
     SimZoomControls,
 )
-from navpy.modules.vision.sim.sim_detector_state import SimCaptureState
-from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
-from navpy.modules.vision.simulation_object import SimulationObject
+from navpy.sim.detection.sim_detector_state import SimCaptureState
+from navpy.sim.camera.sim_poi_projector import SimPoiProjector
+from navpy.sim.world.simulation_object import SimulationObject
 from navpy.core.perception.visual_ray_projection import observation_body_ray
 from tests.detection_factory import make_detected_poi
 
@@ -481,7 +481,7 @@ class TestDetectorSimAdapter:
     def test_adapter_is_not_a_thread_and_owns_exactly_one_field(self):
         ports = Mock()
         with patch(
-            "navpy.modules.vision.sim.detector_sim.build_sim_detector",
+            "navpy.sim.detection.detector_sim.build_sim_detector",
             return_value=ports,
         ):
             detector = DetectorSim(Mock(), Mock(), Mock(), Mock(), Mock())
@@ -544,8 +544,8 @@ def test_sim_projection_files_do_not_use_virtual_gimbal_pointing():
         "set_att(",
     )
     modules = (
-        "navpy.modules.vision.sim.ideal_poi_projector",
-        "navpy.modules.vision.sim.sim_poi_projector",
+        "navpy.sim.camera.ideal_poi_projector",
+        "navpy.sim.camera.sim_poi_projector",
     )
     for module_name in modules:
         module = __import__(module_name, fromlist=["unused"])

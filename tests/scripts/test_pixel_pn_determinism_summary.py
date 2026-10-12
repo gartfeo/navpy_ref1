@@ -28,12 +28,12 @@ from pathlib import Path
 import pytest
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_events import (
     OUTPUT_EMPTY,
     TRUTH_RECORDED,
 )
-from navpy.modules.vision.sim.determinism_evidence import MANIFEST_NAME
-from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
+from navpy.sim.determinism.determinism_evidence import MANIFEST_NAME
+from navpy.sim.determinism.determinism_trace import DeterminismTrace
 from scripts.pixel_pn_determinism_evidence import (
     INTERRUPTED_DESCRIBING,
     INTERRUPTED_UNWRITTEN,

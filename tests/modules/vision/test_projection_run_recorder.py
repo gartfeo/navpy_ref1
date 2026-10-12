@@ -7,11 +7,11 @@ from pathlib import Path
 import threading
 
 import pytest
-from navpy.modules.vision.sim.frame_generation_gate import FrameGeneration
-from navpy.modules.vision.sim.projection_capture_check import check_projection_capture
-from navpy.modules.vision.sim.projection_run_recorder import ProjectionRunRecorder, create_projection_recorder
-from navpy.modules.vision.sim.run_evidence_file import EvidenceBudget, RunEvidenceFile
-from navpy.modules.vision.sim.sim_frame_types import FrameContext
+from navpy.sim.detection.frame_generation_gate import FrameGeneration
+from navpy.sim.camera.projection_capture_check import check_projection_capture
+from navpy.sim.camera.projection_run_recorder import ProjectionRunRecorder, create_projection_recorder
+from navpy.sim.camera.run_evidence_file import EvidenceBudget, RunEvidenceFile
+from navpy.sim.detection.sim_frame_types import FrameContext
 from tests.modules.vision.test_finite_projection_evidence import rig
 from navpy.core.kernel.attitude import Attitude
 
@@ -242,7 +242,7 @@ def test_timestamp_mismatch_keeps_original_detection_but_invalidates_capture(tmp
 def test_manifest_publication_failure_leaves_no_completion_manifest(tmp_path, monkeypatch):
     file = output(tmp_path)
     file.emit('test',{})
-    monkeypatch.setattr('navpy.modules.vision.sim.run_evidence_file.os.link', lambda *args: (_ for _ in ()).throw(OSError('link failed')))
+    monkeypatch.setattr('navpy.sim.camera.run_evidence_file.os.link', lambda *args: (_ for _ in ()).throw(OSError('link failed')))
     with pytest.raises(OSError):
         file.close()
     assert not file.status['complete'] and not file.path.with_suffix('.manifest.json').exists()

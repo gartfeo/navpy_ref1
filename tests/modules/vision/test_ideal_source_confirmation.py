@@ -21,21 +21,21 @@ from navpy.core.ports.law_config import (
 )
 from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.sim.detection_publication_store import DetectionPublicationStore
-from navpy.modules.vision.sim.frame_generation_gate import FrameGenerationGate
-from navpy.modules.vision.sim.ideal_pose_source import IdealPoseSample
-from navpy.modules.vision.sim.ideal_poi_projector import (
+from navpy.sim.detection.detection_publication_store import DetectionPublicationStore
+from navpy.sim.detection.frame_generation_gate import FrameGenerationGate
+from navpy.sim.detection.ideal_pose_source import IdealPoseSample
+from navpy.sim.camera.ideal_poi_projector import (
     IdealPoiProjector, UasFrameConvention,
 )
-from navpy.modules.vision.sim.pose_associator import PoseAssociator
-from navpy.modules.vision.sim.pose_inbox import PoseInbox
-from navpy.modules.vision.sim.sim_camera_ports import FrameSize
-from navpy.modules.vision.sim.sim_detector_execution import SimDetectorExecution
-from navpy.modules.vision.sim.sim_detector_state import ForcedGapState, SimCaptureState
-from navpy.modules.vision.sim.sim_render_composition import build_pipeline
-from navpy.modules.vision.sim.sim_poi_projector import SimPoiProjector
-from navpy.modules.vision.sim.source_frame_coordinator import SourceFrameCoordinator
-from navpy.modules.vision.simulation_object import SimulationObject
+from navpy.sim.detection.pose_associator import PoseAssociator
+from navpy.sim.detection.pose_inbox import PoseInbox
+from navpy.sim.camera.sim_camera_ports import FrameSize
+from navpy.sim.detection.sim_detector_execution import SimDetectorExecution
+from navpy.sim.detection.sim_detector_state import ForcedGapState, SimCaptureState
+from navpy.sim.detection.sim_render_composition import build_pipeline
+from navpy.sim.camera.sim_poi_projector import SimPoiProjector
+from navpy.sim.detection.source_frame_coordinator import SourceFrameCoordinator
+from navpy.sim.world.simulation_object import SimulationObject
 
 
 def _render_associated_frame(body_rates, compass_yaw):

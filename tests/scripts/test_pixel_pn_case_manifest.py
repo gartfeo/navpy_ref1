@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-from navpy.modules.vision.sim import determinism_trace
+from navpy.sim.determinism import determinism_trace
 from scripts import pixel_pn_case_manifest as case_module
 from scripts.pixel_pn_case_manifest import (
     MANIFEST_NAME,

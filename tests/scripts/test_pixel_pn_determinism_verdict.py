@@ -16,25 +16,25 @@ from types import SimpleNamespace
 from typing import Any
 
 from navpy.core.ports.admission_tap import AdmissionTap
-from navpy.modules.vision.sim.determinism_admission_ledger import PassObserver
-from navpy.modules.vision.sim.determinism_eligibility import (
+from navpy.sim.determinism.determinism_admission_ledger import PassObserver
+from navpy.sim.determinism.determinism_eligibility import (
     ELIGIBLE,
     INSPECTABLE,
     case_verdict,
 )
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     LIFECYCLE_ACTIVATED,
     LIFECYCLE_CLOSED,
     SUBSCRIPTION_CLOSED,
     SUBSCRIPTION_OPENED,
 )
-from navpy.modules.vision.sim.determinism_evidence import (
+from navpy.sim.determinism.determinism_evidence import (
     MANIFEST_NAME,
     SOURCE_CLOSE_STEP,
     TRACE_NAME,
 )
-from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
+from navpy.sim.determinism.determinism_trace import DeterminismTrace
 from scripts.pixel_pn_admission_ledger import subscribe_admission_ledger
 from scripts.pixel_pn_determinism_evidence import write_determinism_evidence
 from scripts.pixel_pn_determinism_verdict import (

@@ -20,10 +20,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from navpy.modules.vision.sim.determinism_command_log import CommandLoopLog
-from navpy.modules.vision.sim.determinism_events import TRUTH_RECORDED
-from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
-from navpy.modules.vision.sim.determinism_trace_summary import summarise
+from navpy.sim.determinism.determinism_command_log import CommandLoopLog
+from navpy.sim.determinism.determinism_events import TRUTH_RECORDED
+from navpy.sim.determinism.determinism_trace import DeterminismTrace
+from navpy.sim.determinism.determinism_trace_summary import summarise
 
 PERIOD_US = 20_000  # 50 Hz autopilot scheduler period.
 

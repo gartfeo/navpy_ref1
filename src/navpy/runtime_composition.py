@@ -14,7 +14,7 @@ import cv2
 from navpy.args.conn.network_args import NetworkArgs
 from navpy.args.conn_args import ConnArgs
 from navpy.core.kernel.config.navigation_args import NavigationArgs
-from navpy.args.navigation_poi_args import NavigationPoiArgs
+from navpy.sim.world.navigation_poi_args import NavigationPoiArgs
 from navpy.core.kernel.config.logger_args import LoggerArgs
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.args.navpy_argparse import make_parser

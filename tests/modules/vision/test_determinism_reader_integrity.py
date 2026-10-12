@@ -7,16 +7,16 @@ from types import CodeType
 
 import pytest
 
-from navpy.modules.vision.sim.determinism_evidence import sealed_capture
-from navpy.modules.vision.sim.determinism_command_log import CommandLoopLog
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_evidence import sealed_capture
+from navpy.sim.determinism.determinism_command_log import CommandLoopLog
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     EVENT_ASSOCIATION,
     EVENT_VIOLATION,
     TRUTH_RECORDED,
 )
-from navpy.modules.vision.sim.determinism_reader import read_evidence
-from navpy.modules.vision.sim.determinism_trace_decode import EvidenceRefused
+from navpy.sim.determinism.determinism_reader import read_evidence
+from navpy.sim.determinism.determinism_trace_decode import EvidenceRefused
 from tests.modules.vision.determinism_case_factory import (
     eligible_trace,
     evidence_bytes,

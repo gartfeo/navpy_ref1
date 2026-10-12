@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from navpy.modules.vision.sim import determinism_trace
+from navpy.sim.determinism import determinism_trace
 from scripts import eval_direct_pixel_pn as pn
 from scripts import eval_direct_pixel_pn_three_uav as three
 

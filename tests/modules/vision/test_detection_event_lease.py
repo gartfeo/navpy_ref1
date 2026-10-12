@@ -16,7 +16,7 @@ from navpy.core.ports.detect_request import DetectRequest
 from navpy.core.ports.detection_event_lease import (
     DetectionLeaseDispatch,
 )
-from navpy.modules.vision.sim.detection_publication_store import (
+from navpy.sim.detection.detection_publication_store import (
     DetectionPublicationStore,
 )
 from tests.detection_factory import make_detected_poi

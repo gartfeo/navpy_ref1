@@ -20,7 +20,7 @@ from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim import GimbalSiyiSim
+from navpy.sim.gimbal.siyi.gimbal_siyi_sim import GimbalSiyiSim
 from navpy.core.perception.profile.vision_camera_calibration import read_camera_zoom_calibration
 from navpy.modules.vision.vision_tracking_composition import build_tracking_config
 from navpy.modules.vision.vision_zoom_profile import build_zoom_config

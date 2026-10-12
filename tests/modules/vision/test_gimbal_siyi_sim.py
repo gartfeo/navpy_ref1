@@ -9,34 +9,34 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.camera_intrinsics import CameraIntrinsics
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_angles import (
+from navpy.sim.gimbal.siyi.gimbal_angles import (
     GimbalAngularPlant,
     MODE_FOLLOW,
     MODE_FPV,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_frame_transform import (
+from navpy.sim.gimbal.siyi.gimbal_frame_transform import (
     zyx_to_matrix,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_control import (
+from navpy.sim.gimbal.siyi.gimbal_siyi_control import (
     SiyiSimControl,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_lifecycle import (
+from navpy.sim.gimbal.siyi.gimbal_siyi_lifecycle import (
     SiyiSimLifecycle,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_readback import (
+from navpy.sim.gimbal.siyi.gimbal_siyi_readback import (
     SiyiSimReadback,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim import (
+from navpy.sim.gimbal.siyi.gimbal_siyi_sim import (
     GimbalSiyiSim,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_state import (
+from navpy.sim.gimbal.siyi.gimbal_siyi_state import (
     SiyiSimState,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_step import (
+from navpy.sim.gimbal.siyi.gimbal_siyi_step import (
     SIYI_PHYSICS_STEP_S,
     SiyiSimStepper,
 )
-from navpy.modules.vision.peripheral.siyi.sim.gimbal_zoom_plant import (
+from navpy.sim.gimbal.siyi.gimbal_zoom_plant import (
     GimbalZoomPlant,
 )
 from navpy.core.kernel.euler_utils import get_euler_by_sequence

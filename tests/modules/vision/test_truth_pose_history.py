@@ -6,13 +6,13 @@ import pytest
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.sim.truth_pose_history import (
+from navpy.sim.detection.truth_pose_history import (
     TIME_AXIS_RECEIPT,
     TIME_AXIS_SOURCE,
     TruthPoseHistory,
     wrap_degrees,
 )
-from navpy.modules.vision.sim.truth_pose_time_axis import (
+from navpy.sim.detection.truth_pose_time_axis import (
     TRUTH_POSE_TIME_AXIS_ENV,
     resolve_truth_pose_time_axis,
 )

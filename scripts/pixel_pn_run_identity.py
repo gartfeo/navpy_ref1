@@ -46,7 +46,7 @@ if SCRIPTS not in sys.path:
     sys.path.insert(0, SCRIPTS)
 
 import navpy  # noqa: E402
-from navpy.modules.vision.sim import determinism_trace  # noqa: E402
+from navpy.sim.determinism import determinism_trace  # noqa: E402
 from eval_source_identity import (  # noqa: E402
     script_import_closure,
     source_identity,

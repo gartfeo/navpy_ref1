@@ -7,9 +7,9 @@ from navpy.core.kernel.config.uas_args import UasArgs
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.ports.detect_data import DetectStatus
-from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
-from navpy.modules.vision.sim.sim_camera_ports import FrameSize
-from navpy.modules.vision.sim.sim_render_composition import _build_projector
+from navpy.sim.camera.ideal_camera_state import IdealCameraState
+from navpy.sim.camera.sim_camera_ports import FrameSize
+from navpy.sim.detection.sim_render_composition import _build_projector
 from tests.modules.vision.test_finite_projection_evidence import rig
 
 

@@ -10,9 +10,9 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.ports.detect_data import DetectStatus
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.sim.finite_poi_projector import FinitePoiProjector
-from navpy.modules.vision.sim.sim_camera_ports import FrameSize, ProjectionCameraPort
-from navpy.modules.vision.simulation_object import SimulationObject
+from navpy.sim.camera.finite_poi_projector import FinitePoiProjector
+from navpy.sim.camera.sim_camera_ports import FrameSize, ProjectionCameraPort
+from navpy.sim.world.simulation_object import SimulationObject
 
 
 def rig(sink, *, valid=False, pixels=(1293, 355), error_sink=None):
@@ -118,7 +118,7 @@ def test_zero_distance_records_early_exit_without_fabricated_pixels():
 def test_log_sink_is_explicitly_opt_in_and_binds_process_vehicle_and_sequence(monkeypatch):
     import json
     import os
-    from navpy.modules.vision.sim.finite_projection_evidence import projection_log_sink
+    from navpy.sim.camera.finite_projection_evidence import projection_log_sink
     debug = Mock()
     monkeypatch.delenv('NAVPY_SIM_PROJECTION_EVIDENCE', raising=False)
     assert projection_log_sink(debug, 3) is None
@@ -225,7 +225,7 @@ def test_concurrent_projections_keep_separate_inputs_and_results():
 
 
 def test_snapshot_failure_marks_record_incomplete_without_changing_detection(monkeypatch):
-    from navpy.modules.vision.sim.finite_projection_evidence import GimbalSnapshot
+    from navpy.sim.camera.finite_projection_evidence import GimbalSnapshot
     records = []
     projector, _, _, _, loc, poi, *_ = rig(records.append, valid=True, pixels=(640, 360))
     monkeypatch.setattr(GimbalSnapshot, 'capture', Mock(side_effect=ValueError('snapshot unavailable')))
@@ -245,7 +245,7 @@ def test_invalid_frame_timestamp_does_not_certify_identity(timestamp):
 
 
 def test_real_json_sink_surfaces_nonfinite_serialization_failure(monkeypatch):
-    from navpy.modules.vision.sim.finite_projection_evidence import projection_log_sink
+    from navpy.sim.camera.finite_projection_evidence import projection_log_sink
     monkeypatch.setenv('NAVPY_SIM_PROJECTION_EVIDENCE', '1')
     debug, warnings = Mock(), Mock()
     projector, _, _, _, loc, poi, *_ = rig(projection_log_sink(debug, 3),
@@ -259,7 +259,7 @@ def test_real_json_sink_surfaces_nonfinite_serialization_failure(monkeypatch):
 
 def test_numpy_timestamps_are_copied_as_json_numbers(monkeypatch):
     import json
-    from navpy.modules.vision.sim.finite_projection_evidence import projection_log_sink
+    from navpy.sim.camera.finite_projection_evidence import projection_log_sink
     monkeypatch.setenv('NAVPY_SIM_PROJECTION_EVIDENCE', '1')
     debug = Mock()
     projector, _, _, _, loc, poi, _, raw = rig(projection_log_sink(debug, 3),
@@ -273,7 +273,7 @@ def test_numpy_timestamps_are_copied_as_json_numbers(monkeypatch):
 
 
 def test_input_snapshot_failure_keeps_incomplete_record_without_emit_failure(monkeypatch):
-    from navpy.modules.vision.sim.finite_projection_evidence import ProjectionCapture
+    from navpy.sim.camera.finite_projection_evidence import ProjectionCapture
     records, warnings = [], Mock()
     projector, _, _, _, loc, poi, *_ = rig(records.append, valid=True, pixels=(640, 360), error_sink=warnings)
     monkeypatch.setattr(ProjectionCapture, 'inputs', Mock(side_effect=ValueError('input snapshot unavailable')))

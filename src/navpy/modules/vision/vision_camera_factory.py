@@ -117,7 +117,7 @@ def _build_gimbal(
 ) -> GimbalAbc:
     from navpy.core.kernel.config.uas_args import UasArgs
     from navpy.plugins.gimbal.fixed.fixed_gimbal import FixedGimbal
-    from navpy.modules.vision.sim.gimbal_sim import GimbalSim
+    from navpy.sim.gimbal.gimbal_sim import GimbalSim
 
     raw_gimbal = device.get("gimbal", {})
     if not isinstance(raw_gimbal, Mapping):  # validated by build_gimbal_data
@@ -135,8 +135,8 @@ def _build_gimbal(
             logger,
         )
     if gimbal_type == "siyi" and use_sim_gimbal:
-        from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
-        from navpy.modules.vision.peripheral.siyi.sim.gimbal_siyi_sim import GimbalSiyiSim
+        from navpy.sim.gimbal.gimbal_attitude_reader import VehicleAttitudeReader
+        from navpy.sim.gimbal.siyi.gimbal_siyi_sim import GimbalSiyiSim
 
         return GimbalSiyiSim(
             gimbal_data,
@@ -145,7 +145,7 @@ def _build_gimbal(
             scheduler_cadence=scheduler_cadence,
         )
     if use_sim_gimbal and is_stabilized:
-        from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
+        from navpy.sim.gimbal.gimbal_attitude_reader import VehicleAttitudeReader
 
         return GimbalSim(
             gimbal_data,

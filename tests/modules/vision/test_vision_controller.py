@@ -936,7 +936,7 @@ class TestVisionControllerUiStep(unittest.TestCase):
 
     def test_ui_step_with_mock_detector_exit(self):
         """ui_step returns False when detector signals exit."""
-        from navpy.modules.vision.vision_sim_debug_view import VisionUiDispatcher
+        from navpy.sim.debug_view.vision_sim_debug_view import VisionUiDispatcher
 
         mock_detector = Mock()
         mock_detector.ui_step.return_value = False
@@ -949,7 +949,7 @@ class TestVisionControllerUiStep(unittest.TestCase):
 
     def test_ui_dispatch_uses_only_the_explicit_ui_port(self):
         """Dispatch does not probe detector capabilities or implementation type."""
-        from navpy.modules.vision.vision_sim_debug_view import VisionUiDispatcher
+        from navpy.sim.debug_view.vision_sim_debug_view import VisionUiDispatcher
 
         class StrictUi:
             def ui_step(self):
@@ -972,7 +972,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
     def test_creates_sim_detectors(self):
         """VisionController creates DetectorSim instances."""
         from navpy.modules.vision.vision_controller import VisionController
-        from navpy.modules.vision.sim.detector_sim import DetectorSim
+        from navpy.sim.detection.detector_sim import DetectorSim
 
         vision_args = Mock()
         vision_args.profile_name = "c270hd"

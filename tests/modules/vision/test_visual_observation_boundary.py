@@ -31,14 +31,14 @@ from navpy.core.ports.pixel_observation import (
     PixelProjectionKind,
 )
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
-from navpy.modules.vision.sim.ideal_poi_projector import (
+from navpy.sim.camera.ideal_camera_state import IdealCameraState
+from navpy.sim.camera.ideal_poi_projector import (
     IdealPoiProjector,
     UasFrameConvention,
     ideal_angular_camera_matrix,
 )
-from navpy.modules.vision.sim.sim_camera_ports import FrameSize
-from navpy.modules.vision.simulation_object import SimulationObject
+from navpy.sim.camera.sim_camera_ports import FrameSize
+from navpy.sim.world.simulation_object import SimulationObject
 from navpy.core.perception.visual_ray_projection import (
     body_ray_to_pixel,
     camera_to_body_from_gimbal,

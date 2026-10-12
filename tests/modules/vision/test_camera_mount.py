@@ -1032,10 +1032,10 @@ class TestCameraMountWithGimbalSim(unittest.TestCase):
     def test_mount_with_gimbal_sim(self):
         """CameraMount works with GimbalSim."""
         from unittest.mock import Mock
-        from navpy.modules.vision.gimbal_attitude_reader import (
+        from navpy.sim.gimbal.gimbal_attitude_reader import (
             VehicleAttitudeReader,
         )
-        from navpy.modules.vision.sim.gimbal_sim import GimbalSim
+        from navpy.sim.gimbal.gimbal_sim import GimbalSim
         from navpy.core.ports.vehicle_contract import IVehicle
 
         vehicle = Mock(spec=IVehicle)

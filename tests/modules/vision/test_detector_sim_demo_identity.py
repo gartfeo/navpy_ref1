@@ -26,11 +26,11 @@ from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.detection_coordinator import DetectionCoordinator
-from navpy.modules.vision.gimbal_attitude_reader import VehicleAttitudeReader
+from navpy.sim.gimbal.gimbal_attitude_reader import VehicleAttitudeReader
 from navpy.core.ports.detect_request import DetectRequest
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.sim.detector_sim import DetectorSim
-from navpy.modules.vision.sim.gimbal_sim import GimbalSim
+from navpy.sim.detection.detector_sim import DetectorSim
+from navpy.sim.gimbal.gimbal_sim import GimbalSim
 from tests.conftest import create_test_camera, create_mock_args
 
 UAV_LAT = 40.30

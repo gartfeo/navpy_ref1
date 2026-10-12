@@ -28,9 +28,9 @@ from navpy.core.approach.vision_nav.runtime_composition import (
     FinalApproachVehicleActuator, FinalApproachVehicleDiagnosticReader, compose_final_approach_runtime,
 )
 from navpy.plugins.vehicle.ardupilot.attitude_command import euler_to_quaternion
-from navpy.modules.vision.sim.direct_pixel_render import DirectPixelRenderer
-from navpy.modules.vision.sim.pose_associator import AssociatedPose
-from navpy.modules.vision.sim.sim_camera_ports import FrameSize
+from navpy.sim.detection.direct_pixel_render import DirectPixelRenderer
+from navpy.sim.detection.pose_associator import AssociatedPose
+from navpy.sim.camera.sim_camera_ports import FrameSize
 from scripts.simtime_navigation_config import resolve_config
 from scripts.simtime_navigation_protocol import ATTITUDE, CameraSchedule, Snapshot, StepCommand
 

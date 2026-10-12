@@ -11,7 +11,7 @@ import math
 import struct
 from types import SimpleNamespace
 
-from navpy.modules.vision.sim.determinism_slots import (
+from navpy.sim.determinism.determinism_slots import (
     PAYLOAD_UNREADABLE,
     frame_digest,
     scheduler_slot_period_us,

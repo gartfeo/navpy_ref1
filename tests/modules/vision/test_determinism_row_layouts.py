@@ -10,9 +10,9 @@ import struct
 from types import SimpleNamespace
 
 import pytest
-from navpy.modules.vision.sim.determinism_truth_sample import UNAVAILABLE
+from navpy.sim.determinism.determinism_truth_sample import UNAVAILABLE
 
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_events import (
     EVENT_ASSOCIATION,
     EVENT_DECIMATE,
     EVENT_LIFECYCLE,
@@ -23,7 +23,7 @@ from navpy.modules.vision.sim.determinism_events import (
     OUTPUT_WORKER_ITERATION,
     STAGE_PAYLOAD_DIGEST,
 )
-from navpy.modules.vision.sim.determinism_row_layouts import (
+from navpy.sim.determinism.determinism_row_layouts import (
     association_row,
     discard_row,
     lifecycle_row,

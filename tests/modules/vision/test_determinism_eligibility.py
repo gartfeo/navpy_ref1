@@ -18,8 +18,8 @@ from typing import Any
 
 import pytest
 
-from navpy.modules.vision.sim.determinism_command_log import COMMAND_UNREADABLE
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_command_log import COMMAND_UNREADABLE
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_FENCED,
     ASSOCIATION_RULING,
     DISCARD_PUBLISH_OVERWRITTEN,
@@ -31,28 +31,28 @@ from navpy.modules.vision.sim.determinism_events import (
     TRUTH_RECORDED,
     VIOLATION_SOURCE_REPEATED,
 )
-from navpy.modules.vision.sim.determinism_eligibility import (
+from navpy.sim.determinism.determinism_eligibility import (
     ELIGIBLE,
     INSPECTABLE,
     judge,
     refusal,
 )
-from navpy.modules.vision.sim.determinism_evidence import (
+from navpy.sim.determinism.determinism_evidence import (
     EVIDENCE_STEP,
     SOURCE_CLOSE_STEP,
     sealed_capture,
 )
-from navpy.modules.vision.sim.determinism_ledger_rules import owed_rulings
-from navpy.modules.vision.sim.determinism_reader import CaseEvidence
-from navpy.modules.vision.sim.determinism_row_layouts import (
+from navpy.sim.determinism.determinism_ledger_rules import owed_rulings
+from navpy.sim.determinism.determinism_reader import CaseEvidence
+from navpy.sim.determinism.determinism_row_layouts import (
     discard_row,
     stage_row,
 )
-from navpy.modules.vision.sim.determinism_trace import (
+from navpy.sim.determinism.determinism_trace import (
     DeterminismTrace,
     TraceCapture,
 )
-from navpy.modules.vision.sim.determinism_trace_decode import EvidenceRefused
+from navpy.sim.determinism.determinism_trace_decode import EvidenceRefused
 from tests.modules.vision.determinism_case_factory import (
     IDENTITY,
     PERIOD_US,

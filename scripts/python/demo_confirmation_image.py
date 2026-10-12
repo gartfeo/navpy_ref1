@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import cv2
 
-from navpy.modules.vision.sim.sim_frame_generator import SimFrameGenerator
+from navpy.sim.camera.sim_frame_generator import SimFrameGenerator
 from navpy.core.review.image_utils import create_detection_thumbnail, save_confirmation_image, PoiInfo
 
 

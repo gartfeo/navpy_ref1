@@ -12,24 +12,24 @@ import pytest
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.modules.vision.sim.detection_publication_store import (
+from navpy.sim.detection.detection_publication_store import (
     DetectionPublicationStore,
 )
-from navpy.modules.vision.sim.frame_generation_gate import (
+from navpy.sim.detection.frame_generation_gate import (
     FrameGeneration,
     FrameGenerationGate,
 )
-from navpy.modules.vision.sim.pose_inbox import PoseInbox
-from navpy.modules.vision.sim.pose_frame_clock import PoseFrameClock
-from navpy.modules.vision.sim.sim_detection_context import SimDetectionContext
-from navpy.modules.vision.sim.sim_detection_gap import ForcedDetectionGapPolicy
-from navpy.modules.vision.sim.sim_detection_pipeline import SimDetectionPipeline
-from navpy.modules.vision.sim.sim_detector_state import ForcedGapState
-from navpy.modules.vision.sim.sim_frame_timestamp import SimFrameTimestampResolver
-from navpy.modules.vision.sim.sim_frame_transactions import DetectionFrameTransactions
-from navpy.modules.vision.sim.sim_poi_catalog import SimPoiCatalog
-from navpy.modules.vision.sim.source_frame_coordinator import SourceFrameCoordinator
-from navpy.modules.vision.simulation_object import SimulationObject
+from navpy.sim.detection.pose_inbox import PoseInbox
+from navpy.sim.detection.pose_frame_clock import PoseFrameClock
+from navpy.sim.detection.sim_detection_context import SimDetectionContext
+from navpy.sim.detection.sim_detection_gap import ForcedDetectionGapPolicy
+from navpy.sim.detection.sim_detection_pipeline import SimDetectionPipeline
+from navpy.sim.detection.sim_detector_state import ForcedGapState
+from navpy.sim.detection.sim_frame_timestamp import SimFrameTimestampResolver
+from navpy.sim.detection.sim_frame_transactions import DetectionFrameTransactions
+from navpy.sim.detection.sim_poi_catalog import SimPoiCatalog
+from navpy.sim.detection.source_frame_coordinator import SourceFrameCoordinator
+from navpy.sim.world.simulation_object import SimulationObject
 from tests.detection_factory import make_detected_poi
 
 

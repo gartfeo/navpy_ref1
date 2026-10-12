@@ -8,7 +8,7 @@ Run by path with the directory a case's determinism files were written to
 It prints the verdict as JSON: the status, the failed rules, and each
 rule's reason. It exits 0 when the case is ELIGIBLE and 1 when it is
 INSPECTABLE, so a harness can gate on it. The reading and the rules are
-``navpy.modules.vision.sim.determinism_eligibility``'s, D8 of the
+``navpy.sim.determinism.determinism_eligibility``'s, D8 of the
 LANDING2 step-1 plan; this is only their
 command line.
 """
@@ -22,7 +22,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from navpy.modules.vision.sim.determinism_eligibility import (
+from navpy.sim.determinism.determinism_eligibility import (
     Verdict,
     case_verdict,
 )

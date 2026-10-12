@@ -16,11 +16,11 @@ from navpy.core.ports.gimbal_abc import (
     GimbalData,
     GimbalMountSetup,
 )
-from navpy.modules.vision.sim.siyi_geo_pixel_source import (
+from navpy.sim.detection.siyi_geo_pixel_source import (
     SIYI_GEO_POSE_MESSAGE_TYPES,
     SiyiGeoPixelSource,
 )
-from navpy.modules.vision.sim.siyi_pixel_diagnostics import SiyiSightRecorder
+from navpy.sim.detection.siyi_pixel_diagnostics import SiyiSightRecorder
 from scripts.siyi_pixel_pn_child import (
     _command_poi_approach,
     _command_poi_loiter,

@@ -28,18 +28,18 @@ from navpy.core.kernel.exception_groups import (
     _FallbackExceptionGroup,
 )
 from navpy.core.ports.flight_mode import FlightMode
-from navpy.modules.vision.sim import determinism_journal, determinism_trace
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism import determinism_journal, determinism_trace
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     ASSOCIATION_FENCED,
     OUTPUT_EMPTY,
     TRUTH_RECORDED,
 )
-from navpy.modules.vision.sim.determinism_evidence import (
+from navpy.sim.determinism.determinism_evidence import (
     KIND_ROW,
     MANIFEST_NAME,
 )
-from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
+from navpy.sim.determinism.determinism_trace import DeterminismTrace
 from scripts import direct_pixel_pn_child as child
 from scripts.pixel_pn_admission_ledger import NO_ADMISSION_TAP
 from scripts.pixel_pn_child_teardown import (

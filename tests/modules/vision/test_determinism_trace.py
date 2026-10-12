@@ -21,11 +21,11 @@ from navpy.plugins.vehicle.ardupilot.inbound_router import (
     REJECT_STALE_BOOT,
     message_boot_time_ms,
 )
-from navpy.modules.vision.sim import determinism_events
-from navpy.modules.vision.sim.determinism_admission_ledger import PassObserver
-from navpy.modules.vision.sim.determinism_journal import RowJournal
-from navpy.modules.vision.sim import determinism_trace as trace_module
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism import determinism_events
+from navpy.sim.determinism.determinism_admission_ledger import PassObserver
+from navpy.sim.determinism.determinism_journal import RowJournal
+from navpy.sim.determinism import determinism_trace as trace_module
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     TRUTH_UNREADABLE,
     TRUTH_RECORDED,
@@ -52,22 +52,22 @@ from navpy.modules.vision.sim.determinism_events import (
     VIOLATION_SOURCE_REGRESSED,
     VIOLATION_SOURCE_REPEATED,
 )
-from navpy.modules.vision.sim.determinism_row_log import BoundedRowLog
-from navpy.modules.vision.sim.determinism_trace_gate import (
+from navpy.sim.determinism.determinism_row_log import BoundedRowLog
+from navpy.sim.determinism.determinism_trace_gate import (
     DEFAULT_TRACE_CAPACITY,
     DETERMINISM_TRACE_CAPACITY_ENV,
     DETERMINISM_TRACE_ENV,
 )
-from navpy.modules.vision.sim.determinism_trace import (
+from navpy.sim.determinism.determinism_trace import (
     DeterminismTrace,
     build_trace,
 )
-from navpy.modules.vision.sim.determinism_slots import (
+from navpy.sim.determinism.determinism_slots import (
     PAYLOAD_UNREADABLE,
     frame_digest,
 )
-from navpy.modules.vision.sim import determinism_trace_gate as gate
-from navpy.modules.vision.sim.determinism_trace_summary import (
+from navpy.sim.determinism import determinism_trace_gate as gate
+from navpy.sim.determinism.determinism_trace_summary import (
     summarise,
 )
 
@@ -1318,7 +1318,7 @@ def test_a_truth_row_carries_the_watermark_it_was_recorded_under() -> None:
     """A TRUTH row keeps the newest ATTITUDE stamp known when its sample
     arrived, and that stamp's slot: the lower bound an offline label is
     read from. A mutation that dropped both survived every test before."""
-    from navpy.modules.vision.sim.determinism_truth_sample import UNAVAILABLE
+    from navpy.sim.determinism.determinism_truth_sample import UNAVAILABLE
     journal = RowJournal(PERIOD_US, 8)
     journal.record_truth(epoch=1, outcome=TRUTH_UNREADABLE)
     journal.record_association(

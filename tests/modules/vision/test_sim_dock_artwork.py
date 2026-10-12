@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 
-from navpy.modules.vision.sim.sim_frame_generator import SimFrameGenerator
+from navpy.sim.camera.sim_frame_generator import SimFrameGenerator
 
 
 def test_background_alone_renders_default_dock_at_existing_canvas_size(tmp_path):

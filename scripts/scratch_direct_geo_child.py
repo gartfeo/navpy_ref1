@@ -72,7 +72,7 @@ from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
 from navpy.modules.vehicle.vehicle_factory import create_vehicle  # noqa: E402
 from navpy.core.ports.vehicle_contract import IVehicle  # noqa: E402
 from navpy.core.ports.detect_data import DetectedObject  # noqa: E402
-from navpy.modules.vision.sim.direct_poi_pixel_source import (  # noqa: E402
+from navpy.sim.detection.direct_poi_pixel_source import (  # noqa: E402
     DirectPoiPixelSource,
 )
 from navpy.core.perception.visual_ray_projection import (  # noqa: E402

@@ -6,14 +6,14 @@ from unittest.mock import Mock
 import pytest
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.kernel.attitude import Attitude
-from navpy.modules.vision.sim.sim_detection_context import SimDetectionContext
-from navpy.modules.vision.sim.sim_detection_pipeline import SimDetectionPipeline
-from navpy.modules.vision.sim.sim_frame_timestamp import SimFrameTimestampResolver
-from navpy.modules.vision.sim.sim_frame_transactions import DetectionFrameTransactions
-from navpy.modules.vision.sim.projection_run_recorder import ProjectionRunRecorder, create_projection_recorder
-from navpy.modules.vision.sim.run_evidence_file import EvidenceBudget, RunEvidenceFile
-from navpy.modules.vision.sim.sim_detector_stop_transaction import SimDetectorStopTransaction
-from navpy.modules.vision.sim.sim_execution_composition import build_execution_graph
+from navpy.sim.detection.sim_detection_context import SimDetectionContext
+from navpy.sim.detection.sim_detection_pipeline import SimDetectionPipeline
+from navpy.sim.detection.sim_frame_timestamp import SimFrameTimestampResolver
+from navpy.sim.detection.sim_frame_transactions import DetectionFrameTransactions
+from navpy.sim.camera.projection_run_recorder import ProjectionRunRecorder, create_projection_recorder
+from navpy.sim.camera.run_evidence_file import EvidenceBudget, RunEvidenceFile
+from navpy.sim.detection.sim_detector_stop_transaction import SimDetectorStopTransaction
+from navpy.sim.detection.sim_execution_composition import build_execution_graph
 from tests.modules.vision.test_finite_projection_evidence import rig
 from tests.modules.vision.test_sim_frame_transactions import _coordinator
 
@@ -105,13 +105,13 @@ def test_configured_factory_opens_once_and_default_ideal_does_no_io(tmp_path, mo
 def test_real_render_composition_owns_recorder_and_binds_pipeline(tmp_path,monkeypatch):
     from navpy.core.kernel.config.uas_args import UasArgs
     from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-    from navpy.modules.vision.sim.sim_render_composition import build_render_foundation, build_pipeline
+    from navpy.sim.detection.sim_render_composition import build_render_foundation, build_pipeline
     _,camera,_,_,loc,poi,*_ = rig(None)
     for key,value in dict(NAVPY_SIM_PROJECTION_RECORDER='1',NAVPY_SIM_EVIDENCE_DIR=str(tmp_path),
                           NAVPY_SIM_EVIDENCE_RUN_ID='render',NAVPY_SIM_EVIDENCE_MAX_RECORDS='20',
                           NAVPY_SIM_EVIDENCE_MAX_BYTES='100000').items():
         monkeypatch.setenv(key,value)
-    monkeypatch.setattr('navpy.modules.vision.sim.sim_render_composition.PoiProvider',
+    monkeypatch.setattr('navpy.sim.detection.sim_render_composition.PoiProvider',
                         lambda *args: SimpleNamespace(pois=[poi]))
     mount = SimpleNamespace(get_k=camera.read_matrix,get_gimbal_data=camera.read_gimbal,
                             is_valid=camera.pixel_valid,image_width=1280,image_height=720,name='camera',
@@ -132,7 +132,7 @@ def test_real_render_composition_owns_recorder_and_binds_pipeline(tmp_path,monke
 
 
 def test_composition_failure_closes_recorder_and_preserves_original_error(tmp_path,monkeypatch):
-    from navpy.modules.vision.sim.projection_run_recorder import rollback_projection_recorder
+    from navpy.sim.camera.projection_run_recorder import rollback_projection_recorder
     file = RunEvidenceFile(tmp_path,'rollback',3,EvidenceBudget(2,10000))
     recorder = ProjectionRunRecorder(file)
     cause = ValueError('construction failed')
@@ -197,10 +197,10 @@ def test_recorder_io_failure_keeps_pipeline_result_or_original_exception(tmp_pat
 def test_pre_emit_failure_latches_incomplete_through_production_error_callback(tmp_path,monkeypatch,stage):
     from navpy.core.kernel.config.uas_args import UasArgs
     from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
-    from navpy.modules.vision.sim.finite_projection_evidence import ProjectionCapture
-    from navpy.modules.vision.sim.ideal_camera_state import IdealCameraState
-    from navpy.modules.vision.sim.sim_camera_ports import FrameSize
-    from navpy.modules.vision.sim.sim_render_composition import _build_projector
+    from navpy.sim.camera.finite_projection_evidence import ProjectionCapture
+    from navpy.sim.camera.ideal_camera_state import IdealCameraState
+    from navpy.sim.camera.sim_camera_ports import FrameSize
+    from navpy.sim.detection.sim_render_composition import _build_projector
     from tests.modules.vision.test_projection_run_recorder import frame
     file = RunEvidenceFile(tmp_path,stage,3,EvidenceBudget(20,100000))
     recorder = ProjectionRunRecorder(file)
@@ -213,7 +213,7 @@ def test_pre_emit_failure_latches_incomplete_through_production_error_callback(t
     if stage == 'finish':
         monkeypatch.setattr(ProjectionCapture,'finish',Mock(side_effect=ValueError('before writer')))
     else:
-        monkeypatch.setattr('navpy.modules.vision.sim.projection_run_recorder.asdict',Mock(side_effect=ValueError('before writer')))
+        monkeypatch.setattr('navpy.sim.camera.projection_run_recorder.asdict',Mock(side_effect=ValueError('before writer')))
     with recorder.frame(frame(1),4):
         composed.detect(loc,poi,Attitude(0,40,0),timestamp_s=1.)
     recorder.close()

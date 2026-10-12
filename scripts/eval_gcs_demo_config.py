@@ -21,7 +21,7 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, load_scenario_manifest
 from scripts.eval_certificate_source_time import SOURCE_TIME_ENV, SOURCE_TIME_SUBDIR
 
-from navpy.args.navigation_poi_args import encode_wp_bitmask
+from navpy.sim.world.navigation_poi_args import encode_wp_bitmask
 
 
 NAVIGATION_SPEEDUP_ENV = "GCS_SIM_NAVIGATION_SPEEDUP"

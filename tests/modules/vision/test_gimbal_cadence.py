@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from navpy.modules.vision import gimbal_cadence
-from navpy.modules.vision.gimbal_cadence import FixedCadenceRunner
+from navpy.sim.gimbal import gimbal_cadence
+from navpy.sim.gimbal.gimbal_cadence import FixedCadenceRunner
 
 
 @dataclass

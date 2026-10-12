@@ -25,12 +25,12 @@ from typing import Any
 
 import pytest
 
-from navpy.modules.vision.sim import determinism_journal
-from navpy.modules.vision.sim.determinism_admission_ledger import (
+from navpy.sim.determinism import determinism_journal
+from navpy.sim.determinism.determinism_admission_ledger import (
     AdmissionLedger,
 )
-from navpy.modules.vision.sim.determinism_command_log import CommandLoopLog
-from navpy.modules.vision.sim.determinism_events import (
+from navpy.sim.determinism.determinism_command_log import CommandLoopLog
+from navpy.sim.determinism.determinism_events import (
     ASSOCIATION_COMMITTED,
     DISCARD_UNBRACKETABLE,
     LIFECYCLE_CLOSED,
@@ -39,11 +39,11 @@ from navpy.modules.vision.sim.determinism_events import (
     SUBSCRIPTION_OPENED,
     TRUTH_RECORDED,
 )
-from navpy.modules.vision.sim.determinism_journal import RowJournal
-from navpy.modules.vision.sim.determinism_row_log import BoundedRowLog
-from navpy.modules.vision.sim.determinism_seal import SealState
-from navpy.modules.vision.sim.determinism_slots import command_digest
-from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
+from navpy.sim.determinism.determinism_journal import RowJournal
+from navpy.sim.determinism.determinism_row_log import BoundedRowLog
+from navpy.sim.determinism.determinism_seal import SealState
+from navpy.sim.determinism.determinism_slots import command_digest
+from navpy.sim.determinism.determinism_trace import DeterminismTrace
 
 PERIOD_US = 20_000  # 50 Hz autopilot scheduler period.
 # Bounds a FAILING run only. Every wait below is released by an event the test

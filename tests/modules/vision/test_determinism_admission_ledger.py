@@ -21,11 +21,11 @@ from navpy.plugins.vehicle.ardupilot.inbound_router import (
     REJECT_STALE_BOOT,
     message_boot_time_ms,
 )
-from navpy.modules.vision.sim.determinism_admission_ledger import (
+from navpy.sim.determinism.determinism_admission_ledger import (
     AdmissionLedger,
     PassObserver,
 )
-from navpy.modules.vision.sim.determinism_command_log import CommandLoopLog
+from navpy.sim.determinism.determinism_command_log import CommandLoopLog
 
 
 def _ruling(

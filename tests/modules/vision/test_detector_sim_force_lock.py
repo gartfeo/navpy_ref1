@@ -3,7 +3,7 @@ for the GCS (F06: previously force-lock was a silent no-op in sim)."""
 import unittest
 
 from navpy.core.ports.detect_request import DetectRequest
-from navpy.modules.vision.sim.detection_publication_buffer import (
+from navpy.sim.detection.detection_publication_buffer import (
     DetectionPublicationBuffer,
 )
 from tests.detection_factory import make_detected_poi

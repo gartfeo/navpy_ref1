@@ -108,9 +108,9 @@ def image_motion_split(peer: dict, snapshots: list[Snapshot]) -> list[dict]:
     from simtime_navigation_runtime import BoundaryAttitude, BoundaryTruth
     from navpy.core.kernel.attitude import Attitude
     from navpy.core.kernel.location import Location
-    from navpy.modules.vision.sim.direct_pixel_render import DirectPixelRenderer
-    from navpy.modules.vision.sim.pose_associator import AssociatedPose
-    from navpy.modules.vision.sim.sim_camera_ports import FrameSize
+    from navpy.sim.detection.direct_pixel_render import DirectPixelRenderer
+    from navpy.sim.detection.pose_associator import AssociatedPose
+    from navpy.sim.camera.sim_camera_ports import FrameSize
     import math
     renderer = DirectPixelRenderer(Location(*peer["dock"], is_absolute=True), source_name="simtime-ideal360",
         aircraft_sequence="ZYX", aircraft_degrees=True, frame_size=FrameSize(1920,1080),

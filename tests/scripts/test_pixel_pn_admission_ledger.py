@@ -19,8 +19,8 @@ from navpy.plugins.vehicle.ardupilot.inbound_router import (
     AUTOPILOT_TELEMETRY_TYPES,
     message_boot_time_ms,
 )
-from navpy.modules.vision.sim.determinism_events import SUBSCRIPTION_OPENED
-from navpy.modules.vision.sim.determinism_trace import DeterminismTrace
+from navpy.sim.determinism.determinism_events import SUBSCRIPTION_OPENED
+from navpy.sim.determinism.determinism_trace import DeterminismTrace
 from scripts.pixel_pn_admission_ledger import (
     ADMISSION_MESSAGE_TYPE,
     NO_ADMISSION_TAP,

@@ -11,7 +11,7 @@ from navpy.core.ports.detect_data import (
     DetectResult,
 )
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.modules.vision.simulation_object import SimulationObject
+from navpy.sim.world.simulation_object import SimulationObject
 from tests.detection_factory import make_detected_poi
 
 

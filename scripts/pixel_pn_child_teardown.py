@@ -72,12 +72,12 @@ from navpy.core.kernel.exception_groups import (  # noqa: E402
     BaseExceptionGroup,
     ExceptionGroup,
 )
-from navpy.modules.vision.sim.determinism_evidence import (  # noqa: E402
+from navpy.sim.determinism.determinism_evidence import (  # noqa: E402
     EVIDENCE_STEP,
     SOURCE_CLOSE_STEP,
     WORKER_STOPPED,
 )
-from navpy.modules.vision.sim.determinism_trace import (  # noqa: E402
+from navpy.sim.determinism.determinism_trace import (  # noqa: E402
     DeterminismTrace,
 )
 from pixel_pn_determinism_evidence import (  # noqa: E402

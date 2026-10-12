@@ -37,10 +37,10 @@ SCRIPTS = str(Path(__file__).resolve().parent)
 if SCRIPTS not in sys.path:
     sys.path.insert(0, SCRIPTS)
 
-from navpy.modules.vision.sim.determinism_events import (  # noqa: E402
+from navpy.sim.determinism.determinism_events import (  # noqa: E402
     EVENT_SUBSCRIPTION,
 )
-from navpy.modules.vision.sim.determinism_trace import (  # noqa: E402
+from navpy.sim.determinism.determinism_trace import (  # noqa: E402
     DeterminismTrace,
 )
 from pixel_pn_determinism_summary import artifact_repr  # noqa: E402

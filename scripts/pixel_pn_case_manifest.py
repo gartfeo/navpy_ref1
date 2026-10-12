@@ -29,7 +29,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from navpy.modules.vision.sim import determinism_trace
+from navpy.sim.determinism import determinism_trace
 
 MANIFEST_NAME = "case.json"
 # Parsed arguments that do not change what one case flies.
