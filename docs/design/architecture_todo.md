@@ -42,7 +42,6 @@ return to them later. Paths are under `src/navpy/` (step-1 layout) unless noted.
 8. **Delivery SITL eval.**
    - Run it and report whether the circle happens under the vision law. Its `Self-detect orbit:` gate matches the owner's flow: circle until confirmed, then approach.
    - Report only; delivery is paused.
-9. **Re-pin the SOLID guard** (`tests/guards/solid_architecture_guard.py:16`, the PINNED_BASE commit is missing), so the size limits run during the split. Owner decision pending.
 
 ## Vendor seams (so a contractor's module plugs in; 2026-10-08)
 14. **Approach law.**
@@ -51,7 +50,6 @@ return to them later. Paths are under `src/navpy/` (step-1 layout) unless noted.
     - Harnesses take a law factory.
 15. **Detection.**
     - One backend registry; today 6 places check names (`core/kernel/config/detector_backend.py:16-24`, `core/perception/pipeline/real_detector_models.py:134-144`).
-    - Move `Detection` out of `yolo_detector.py`.
     - A class catalog instead of dock-only.
     - A contract test and a labelled replay kit.
 16. **Tracking.**
@@ -59,3 +57,14 @@ return to them later. Paths are under `src/navpy/` (step-1 layout) unless noted.
     - Pass capture time.
     - Run the tracker in the sim; today `sim/camera/finite_poi_projector.py:146` uses truth ids.
 17. **Vendor code runs out of process**, and receives only the vision frame. That boundary is the pure-vision guard, because import scans can't check a binary.
+
+## Found after step 1 (2026-10-12; all predate step 1)
+20. **Simtime evals can't run.** The harness and the lockstep firmware disagree on names.
+    - The harness exports `NAVPY_NAVIGATION_MODE`, `_START_US` and `_COUNT`, and its peer listens on `navpy-navigation.sock` (`scripts/simtime_step_artifacts.py:52-58`).
+    - The firmware reads `NAVPY_GUIDANCE_*` and connects to `navpy-guidance.sock` (`ArduPlane/NavPyGuidanceStep.cpp:88-104,126` in `/home/gart/navpy-simtime-step-handshake`).
+    - Rebuild the firmware with the new names, or switch the harness back.
+21. **`scripts/eval_simtime_navigation.py` fails when run directly** ("No module named 'scripts'", from `scripts/eval_navigation_vehicle_config.py:12`) unless `PYTHONPATH` includes the repo root.
+22. **The navigation eval misses its 0.5 m SNAP gate at speedup 10** (`scripts/eval_navigation_cases.py`). Lateral misses are 1.3-4.3 m, on `2c887d9` and `cc430e8` alike. Investigate, or set the gate from a measured baseline.
+23. **4 `test_board_detector` tests fail** (IndexError at `tools/cam/calibration/board_detector.py:34`), since `9db0a26`.
+24. **`tools/cam/calibration/camer_calibration3.py:39` `_collect_detections` has no annotations.** The SOLID re-pin to `e9b1591` stopped reporting it.
+25. **`.sitl-runs/` is not in `.gitignore`**, so eval runs leave untracked files.
