@@ -12,13 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from tests.guards.solid_step1_normalizer import MovedBaseline
-from tests.guards.solid_step1_relocation import Piece, Relocation
 
-
-# Until refactor step 1 re-pins this base (c18), the repo-level gates compare
-# a file the step moved with its old path (solid_step1_relocation.py).
-PINNED_BASE = "e0fa68d4504f1c955c1b27d81985cc81413bc1c0"
+PINNED_BASE = "e9b1591f06878b794b46b7005780a6af74b1e796"
 MATERIAL_ROOTS = ("src/navpy", "src/gcs", "scripts", "tools")
 MAX_CLASS_LINES = 200
 MAX_DIRECT_METHODS = 15
@@ -330,28 +325,12 @@ def apply_exact_exclusions(
 def material_sources(
     current: Mapping[str, str],
     pinned: Mapping[str, str],
-    relocation: Relocation | None = None,
 ) -> dict[str, str]:
-    """Files whose AST differs from the pinned base. With the step-1
-    `relocation`, a file is compared with its old path, and a pure move, a
-    facade rewrite or a pure-move split is not a difference. A split part or
-    split rest is always checked for what it owns, even when unchanged: a
-    source left whole beside a new part still holds the part's code twice."""
-    baseline = (
-        None if relocation is None else MovedBaseline(pinned, relocation, current)
-    )
     return {
         relative: source
         for relative, source in current.items()
-        if (
-            baseline.is_material(relative, source)
-            if baseline is not None and relocation.is_split(relative)
-            else not (
-                relative in pinned
-                and _ast_shape(source, relative) == _ast_shape(pinned[relative], relative)
-            )
-            and (baseline is None or baseline.is_material(relative, source))
-        )
+        if relative not in pinned
+        or _ast_shape(source, relative) != _ast_shape(pinned[relative], relative)
     }
 
 
@@ -463,10 +442,9 @@ def scan_material_limits(
     current: Mapping[str, str],
     pinned: Mapping[str, str],
     exclusions: Mapping[str, str] = VENDORED_SHA256,
-    relocation: Relocation | None = None,
 ) -> list[Violation]:
     kept, violations = apply_exact_exclusions(current, exclusions)
-    for relative, source in material_sources(kept, pinned, relocation).items():
+    for relative, source in material_sources(kept, pinned).items():
         module_lines = len(source.splitlines())
         module_limit = EXPERIMENT_MODULE_LINE_DEBT.get(
             relative, MAX_MATERIAL_MODULE_LINES
@@ -508,7 +486,6 @@ def scan_new_definition_annotations(
     current: Mapping[str, str],
     pinned: Mapping[str, str],
     exclusions: Mapping[str, str] = VENDORED_SHA256,
-    relocation: Relocation | None = None,
 ) -> list[Violation]:
     kept, violations = apply_exact_exclusions(current, exclusions)
     for relative, source in kept.items():
@@ -519,12 +496,18 @@ def scan_new_definition_annotations(
                 definition.node, (ast.FunctionDef, ast.AsyncFunctionDef)
             )
         ]
-        pieces = (
-            (Piece(relative),)
-            if relocation is None
-            else relocation.pieces(relative)
+        old_source = pinned.get(relative)
+        old_names = (
+            {
+                definition.qualname
+                for definition in _definitions(_parse(old_source, relative))
+                if isinstance(
+                    definition.node, (ast.FunctionDef, ast.AsyncFunctionDef)
+                )
+            }
+            if old_source is not None
+            else set()
         )
-        old_names = _old_function_names(pieces, pinned)
         for definition in current_functions:
             if definition.qualname in old_names:
                 continue
@@ -606,25 +589,6 @@ def _definitions(tree: ast.AST) -> list[Definition]:
     visitor = _DefinitionVisitor()
     visitor.visit(tree)
     return visitor.definitions
-
-
-def _old_function_names(
-    pieces: Iterable[Piece], pinned: Mapping[str, str]
-) -> set[str]:
-    """Qualified function names the pieces held at the pinned base; a split
-    part holds only the definitions under the symbols it took."""
-    names: set[str] = set()
-    for piece in pieces:
-        old_source = pinned.get(piece.old_path)
-        if old_source is None:
-            continue
-        names.update(
-            definition.qualname
-            for definition in _definitions(_parse(old_source, piece.old_path))
-            if isinstance(definition.node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and piece.holds(definition.qualname)
-        )
-    return names
 
 
 class _DefinitionVisitor(ast.NodeVisitor):
