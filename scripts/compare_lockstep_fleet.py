@@ -13,6 +13,7 @@ from eval_lockstep_fleet import HOME, digest, driver_identity, resolve_home
 from eval_simtime_step import wsl_path
 from gcs.backend.instance_ports import sysids_for_chat
 from noise_isolation_profiles import PROFILES
+from simtime_firmware_contract import GUIDANCE_CSV, POSE_CSV
 
 
 def launch_path(path: Path) -> str:
@@ -54,7 +55,8 @@ def read_run(directory: Path, *, noise_profile: str | None = None,
         raise ValueError("wrong shared profile owner")
     command = json.loads((directory / "command.json").read_text())
     expected_flags = {'--instances', '--home', '--speedup', '--dist', '--defaults',
-                      '--sitl-binary', '--sitl-root', '--single-boot', '--eval'}
+                      '--sitl-binary', '--sitl-root', '--single-boot', '--eval',
+                      '--loopback-only'}
     if {arg for arg in command if arg.startswith('--')} != expected_flags:
         raise ValueError('unexpected launch options')
     for flag, expected in (("--instances", str(count)), ("--home", expected_home),
@@ -75,7 +77,7 @@ def read_run(directory: Path, *, noise_profile: str | None = None,
     for vehicle in vehicles:
         case = directory / str(vehicle)
         required |= {f"{vehicle}/{name}" for name in (
-            "peer.json", "identity.json", "navpy-navigation.csv", "peer-command.json",
+            "peer.json", "identity.json", GUIDANCE_CSV, "peer-command.json",
             "launch-probe.sh", "navigation-defaults.parm", "flight.BIN",
             "logs-before.json", "logs-after.json", "bin-binding.json")}
         if noise_profile is not None:
@@ -84,8 +86,8 @@ def read_run(directory: Path, *, noise_profile: str | None = None,
                 "logs-before.json", "logs-after.json", "bin-binding.json",
                 "navigation_debug.csv", "navigation_compact.csv")}
         if pose_capture:
-            required.add(f"{vehicle}/navpy-pose.csv")
-        elif (case / "navpy-pose.csv").exists():
+            required.add(f"{vehicle}/{POSE_CSV}")
+        elif (case / POSE_CSV).exists():
             raise ValueError("unexpected pose capture")
         for name, key in (("launch-probe.sh", "wrapper_sha256"),
                           ("navigation-defaults.parm", "defaults_sha256")):

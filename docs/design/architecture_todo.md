@@ -59,11 +59,11 @@ return to them later. Paths are under `src/navpy/` (step-1 layout) unless noted.
 17. **Vendor code runs out of process**, and receives only the vision frame. That boundary is the pure-vision guard, because import scans can't check a binary.
 
 ## Found after step 1 (2026-10-12; all predate step 1)
-20. **Simtime evals can't run.** The harness and the lockstep firmware disagree on names.
+20. **Done 2026-10-13 (step 2 of `deterministic_demo_eval.md`): the harness takes the firmware's names from `scripts/simtime_firmware_contract.py`, pinned by a test against the binary.** **Simtime evals can't run.** The harness and the lockstep firmware disagree on names.
     - The harness exports `NAVPY_NAVIGATION_MODE`, `_START_US` and `_COUNT`, and its peer listens on `navpy-navigation.sock` (`scripts/simtime_step_artifacts.py:52-58`).
     - The firmware reads `NAVPY_GUIDANCE_*` and connects to `navpy-guidance.sock` (`ArduPlane/NavPyGuidanceStep.cpp:88-104,126` in `/home/gart/navpy-simtime-step-handshake`).
     - Rebuild the firmware with the new names, or switch the harness back.
-21. **`scripts/eval_simtime_navigation.py` fails when run directly** ("No module named 'scripts'", from `scripts/eval_navigation_vehicle_config.py:12`) unless `PYTHONPATH` includes the repo root.
+21. **Done 2026-10-13 (step 2).** **`scripts/eval_simtime_navigation.py` fails when run directly** ("No module named 'scripts'", from `scripts/eval_navigation_vehicle_config.py:12`) unless `PYTHONPATH` includes the repo root.
 22. **The navigation eval misses its 0.5 m SNAP gate at speedup 10** (`scripts/eval_navigation_cases.py`). Lateral misses are 1.3-4.3 m, on `2c887d9` and `cc430e8` alike. Investigate, or set the gate from a measured baseline.
 23. **4 `test_board_detector` tests fail** (IndexError at `tools/cam/calibration/board_detector.py:34`), since `9db0a26`.
 24. **`tools/cam/calibration/camer_calibration3.py:39` `_collect_detections` has no annotations.** The SOLID re-pin to `e9b1591` stopped reporting it.

@@ -19,6 +19,9 @@ from simtime_navigation_faults import FAULTS, StrayInjector, validate_failure
 from simtime_navigation_identity import record_identity
 from lockstep_evaluation_lifecycle import stop_owned_supervisor
 from scripts.eval_gcs_demo_execution import exclusive_evaluator_lock
+from simtime_firmware_contract import (
+    GUIDANCE_COMPLETE_MARKER, GUIDANCE_INVALID_MARKER, GUIDANCE_PEER_READY_MARKER,
+)
 
 
 def run_case(args: argparse.Namespace, case: Path) -> dict:
@@ -55,21 +58,22 @@ def _run_case(args: argparse.Namespace, case: Path) -> dict:
             command.append("--delayed")
         (case / "peer-command.json").write_text(json.dumps(command))
         peer = subprocess.Popen(command, stdout=peer_log, stderr=subprocess.STDOUT)
-        wait_marker(case / "peer.log", peer, ("NAVPY_NAVIGATION_PEER_READY",), 60)
+        wait_marker(case / "peer.log", peer, (GUIDANCE_PEER_READY_MARKER,), 60)
         log = (case / "supervisor.log").open("wb")
         streams.append(log)
         command = [sys.executable, str(ROOT / "scripts/swarm_run.py"), "--eval",
                    "--single-boot", "--instances", "1", "--dist", "0",
                    "--speedup", str(args.speedup), "--sitl-root", args.firmware_root,
-                   "--sitl-binary", paths["wrapper"], "--defaults", paths["defaults"]]
+                   "--sitl-binary", paths["wrapper"], "--defaults", paths["defaults"],
+                   "--loopback-only"]
         (case / "command.json").write_text(json.dumps(command, indent=2))
         supervisor = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
         if args.fault == "stray":
             wait_marker(case / "supervisor.log", supervisor, ("Starting sketch 'ArduPlane'",), 40)
             injector = StrayInjector(ip.monitor_port(chat), vehicle, case)
         marker = wait_marker(case / "supervisor.log", supervisor,
-                             ("NAVPY_NAVIGATION_COMPLETE", "NAVPY_NAVIGATION_INVALID"), 180)
-        expected = "NAVPY_NAVIGATION_COMPLETE" if args.fault == "none" else "NAVPY_NAVIGATION_INVALID"
+                             (GUIDANCE_COMPLETE_MARKER, GUIDANCE_INVALID_MARKER), 180)
+        expected = GUIDANCE_COMPLETE_MARKER if args.fault == "none" else GUIDANCE_INVALID_MARKER
         if marker != expected:
             raise RuntimeError(marker)
         peer.wait(timeout=15)

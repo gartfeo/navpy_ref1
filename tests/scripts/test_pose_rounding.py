@@ -9,6 +9,7 @@ from scripts.pose_rounding_evidence import FIELDS, validate_pairs
 from scripts import simtime_step_artifacts as artifacts
 from scripts.simtime_navigation_protocol import Snapshot
 from tests.scripts.test_simtime_navigation_protocol import packet
+from scripts.simtime_firmware_contract import GUIDANCE_CSV, POSE_CSV
 
 
 def pair_fixture():
@@ -87,18 +88,18 @@ def test_collector_keeps_originals_if_pose_evidence_is_missing(tmp_path, monkeyp
     instance, case = tmp_path / "instance", tmp_path / "case"
     instance.mkdir()
     case.mkdir()
-    (instance / "navpy-navigation.csv").write_text("original")
+    (instance / GUIDANCE_CSV).write_text("original")
     monkeypatch.setattr(artifacts, "owned_directory", lambda *args: instance)
     with pytest.raises(ValueError, match="missing"):
         artifacts.collect(tmp_path, 121, case, "navigation-pose")
-    assert (instance / "navpy-navigation.csv").read_text() == "original"
+    assert (instance / GUIDANCE_CSV).read_text() == "original"
 
 
 def test_collector_preserves_both_verified_files(tmp_path, monkeypatch):
     instance, case = tmp_path / "instance", tmp_path / "case"
     instance.mkdir()
     case.mkdir()
-    names = ("navpy-navigation.csv", "navpy-pose.csv")
+    names = (GUIDANCE_CSV, POSE_CSV)
     for name in names:
         (instance / name).write_text(name)
     monkeypatch.setattr(artifacts, "owned_directory", lambda *args: instance)
@@ -109,8 +110,8 @@ def test_collector_preserves_both_verified_files(tmp_path, monkeypatch):
 
 
 def test_ordinary_collector_rejects_undeclared_capture(tmp_path, monkeypatch):
-    (tmp_path / "navpy-navigation.csv").touch()
-    (tmp_path / "navpy-pose.csv").touch()
+    (tmp_path / GUIDANCE_CSV).touch()
+    (tmp_path / POSE_CSV).touch()
     monkeypatch.setattr(artifacts, "owned_directory", lambda *args: tmp_path)
     with pytest.raises(ValueError, match="unexpected pose"):
         artifacts.collect(tmp_path, 121, tmp_path, "navigation")

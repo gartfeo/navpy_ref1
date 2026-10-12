@@ -9,6 +9,7 @@ from pathlib import Path
 import struct
 
 from simtime_navigation_protocol import Snapshot, WINDOW_SIZE
+from simtime_firmware_contract import GUIDANCE_CSV, POSE_CSV
 
 FIELDS = ("version,boot0,boot1,vehicle,step,tick,source_us,truth_us,publish_us,conversion_us,"
           "sequence,physics_sequence,expected_physics_sequence,branch,ftype_size,valid,"
@@ -82,13 +83,13 @@ def read_pairs(case: Path, peer: dict) -> tuple[list[dict], list[PosePair]]:
     manifest = json.loads((case.parent / "fleet.json").read_text())
     if manifest.get("pose_capture") is not True or manifest.get("noise_profile") != "noise-off-1000":
         raise ValueError("pose pairs require the declared capture profile")
-    for name in ("navpy-pose.csv", "peer.json", "identity.json", "navpy-navigation.csv"):
+    for name in (POSE_CSV, "peer.json", "identity.json", GUIDANCE_CSV):
         expected = manifest["evidence_sha256"].get(f"{case.name}/{name}")
         if hashlib.sha256((case / name).read_bytes()).hexdigest() != expected:
             raise ValueError(f"unbound pose experiment evidence: {name}")
     if peer != json.loads((case / "peer.json").read_text()):
         raise ValueError("pose pairs supplied a different peer")
-    with (case / "navpy-pose.csv").open() as stream:
+    with (case / POSE_CSV).open() as stream:
         reader = csv.DictReader(stream)
         if reader.fieldnames != FIELDS:
             raise ValueError("pose CSV header mismatch")

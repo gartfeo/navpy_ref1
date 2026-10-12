@@ -11,6 +11,7 @@ from eval_lockstep_fleet import ROOT, digest, run
 from pose_precision_evidence import bits, read_precision
 from run_pose_matrix import BASELINE, canonical_hash, contract_file
 from simtime_step_launch import require_base_interpreter
+from simtime_firmware_contract import POSE_CAPTURE_ENV, RENDER_POSE_ENV
 
 FIRMWARE = ROOT / "docs/validation/navigation-pose-precision-firmware-20260921.json"
 
@@ -39,9 +40,9 @@ def check_run(directory: Path, source: str, baseline: dict, firmware: dict) -> d
         raise ValueError("unreviewed precision firmware")
     case = directory / str(vehicle)
     lines = (case / "launch-probe.sh").read_text().splitlines()
-    if (lines.count("unset NAVPY_RENDER_POSE") != 1 or lines.count("unset NAVPY_POSE_CAPTURE") != 1 or
-            [s for s in lines if s.startswith("export NAVPY_RENDER_POSE")] != [f"export NAVPY_RENDER_POSE={source}"] or
-            [s for s in lines if s.startswith("export NAVPY_POSE_CAPTURE")] != ["export NAVPY_POSE_CAPTURE=1"]):
+    if (lines.count(f"unset {RENDER_POSE_ENV}") != 1 or lines.count(f"unset {POSE_CAPTURE_ENV}") != 1 or
+            [s for s in lines if s.startswith(f"export {RENDER_POSE_ENV}")] != [f"export {RENDER_POSE_ENV}={source}"] or
+            [s for s in lines if s.startswith(f"export {POSE_CAPTURE_ENV}")] != [f"export {POSE_CAPTURE_ENV}=1"]):
         raise ValueError("precision wrapper source mismatch")
     rows, pairs = read_precision(case, json.loads((case / "peer.json").read_text()), source)
     normalized = [{key: value for key, value in row.items() if key not in ("boot0", "boot1")}

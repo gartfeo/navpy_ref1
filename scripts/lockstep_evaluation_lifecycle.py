@@ -9,6 +9,7 @@ import time
 
 from gcs.backend import instance_registry as registry
 from simtime_navigation_protocol import WINDOW_SIZE
+from simtime_firmware_contract import GUIDANCE_COMPLETE_MARKER, GUIDANCE_INVALID_MARKER
 
 
 def stop_owned_supervisor(root: Path, chat: int, supervisor: subprocess.Popen | None, log: Path) -> None:
@@ -33,9 +34,9 @@ def stop_owned_supervisor(root: Path, chat: int, supervisor: subprocess.Popen | 
 
 
 def completion_count(text: str, expected: int) -> bool:
-    if "NAVPY_NAVIGATION_INVALID" in text:
+    if GUIDANCE_INVALID_MARKER in text:
         raise RuntimeError("simulator invalidated the run")
-    count = text.count(f"NAVPY_NAVIGATION_COMPLETE count={WINDOW_SIZE}")
+    count = text.count(f"{GUIDANCE_COMPLETE_MARKER} count={WINDOW_SIZE}")
     if count > expected:
         raise RuntimeError("extra simulator completion")
     return count == expected

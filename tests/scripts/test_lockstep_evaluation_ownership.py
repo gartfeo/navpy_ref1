@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts import eval_simtime_navigation as evaluator
+from scripts.simtime_firmware_contract import GUIDANCE_COMPLETE_MARKER, GUIDANCE_INVALID_MARKER
 
 
 def test_prepare_failure_does_not_stop_existing_stack(monkeypatch, tmp_path):
@@ -47,11 +48,11 @@ def test_foreign_supervisor_is_never_stopped(monkeypatch, tmp_path):
 
 def test_all_three_completions_required():
     from scripts.lockstep_evaluation_lifecycle import completion_count
-    line = "NAVPY_NAVIGATION_COMPLETE count=3000\n"
+    line = f"{GUIDANCE_COMPLETE_MARKER} count=3000\n"
     assert not completion_count(line, 3)
     assert not completion_count(line * 2, 3)
     assert completion_count(line * 3, 3)
     with pytest.raises(RuntimeError, match="extra"):
         completion_count(line * 4, 3)
     with pytest.raises(RuntimeError, match="invalidated"):
-        completion_count(line * 3 + "NAVPY_NAVIGATION_INVALID late", 3)
+        completion_count(line * 3 + f"{GUIDANCE_INVALID_MARKER} late", 3)

@@ -13,13 +13,16 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
+sys.path[:0] = [str(ROOT), str(ROOT / "src")]  # `scripts.*` imports need the repo root
 from gcs.backend import instance_ports as ip, instance_registry as registry  # noqa: E402
 import swarm_run  # noqa: E402
 from simtime_step_launch import require_base_interpreter, wait_launch_unlock  # noqa: E402
 from simtime_step_peer import DELAYS_S, FAULTS  # noqa: E402
 from simtime_step_failures import validate_failure  # noqa: E402
 from simtime_step_disabled import observe_disabled  # noqa: E402
+from simtime_firmware_contract import (
+    STEP_COMPLETE_MARKER, STEP_CSV, STEP_INVALID_MARKER, STEP_PEER_READY_MARKER,
+)
 
 
 def wsl_path(path: Path) -> str:
@@ -56,7 +59,7 @@ def wait_marker(path: Path, process: subprocess.Popen, markers: tuple[str, ...],
 
 
 def validate_evidence(case: Path, mode: str, expected_vehicle: int) -> dict:
-    with (case / "navpy-step.csv").open(encoding="utf-8") as stream:
+    with (case / STEP_CSV).open(encoding="utf-8") as stream:
         metadata = next(stream).strip()
         rows = list(csv.DictReader(stream))
     if len(rows) != 1000:
@@ -124,21 +127,22 @@ def run_case(firmware: str, case: Path, speed: float, mode: str, fault: str) -> 
             if mode == "delayed":
                 command.append("--delayed")
             peer = subprocess.Popen(command, stdout=peer_log, stderr=subprocess.STDOUT)
-            wait_marker(case / "peer.log", peer, ("NAVPY_STEP_PEER_READY",), 20)
+            wait_marker(case / "peer.log", peer, (STEP_PEER_READY_MARKER,), 20)
         log = (case / "supervisor.log").open("wb")
         streams.append(log)
         command = [sys.executable, str(ROOT / "scripts/swarm_run.py"), "--eval",
                    "--single-boot",
                    "--instances", "1", "--dist", "0", "--speedup", str(speed),
-                   "--sitl-root", firmware, "--sitl-binary", paths["wrapper"]]
+                   "--sitl-root", firmware, "--sitl-binary", paths["wrapper"],
+                   "--loopback-only"]
         (case / "command.json").write_text(json.dumps(command, indent=2))
         supervisor = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
         started = time.monotonic()
-        markers = (("instances streaming telemetry at SIM_SPEEDUP=", "NAVPY_STEP_INVALID")
-                   if mode == "off" else ("NAVPY_STEP_COMPLETE", "NAVPY_STEP_INVALID"))
+        markers = (("instances streaming telemetry at SIM_SPEEDUP=", STEP_INVALID_MARKER)
+                   if mode == "off" else (STEP_COMPLETE_MARKER, STEP_INVALID_MARKER))
         marker = wait_marker(case / "supervisor.log", supervisor, markers, 150)
         outcome["wall_s"] = time.monotonic() - started
-        expected = (markers[0] if fault == "none" else "NAVPY_STEP_INVALID")
+        expected = (markers[0] if fault == "none" else STEP_INVALID_MARKER)
         if marker != expected:
             raise RuntimeError(f"expected {expected}, got {marker}")
         if fault == "none":
@@ -191,7 +195,7 @@ def run_case(firmware: str, case: Path, speed: float, mode: str, fault: str) -> 
         if mode != "off":
             outcome |= validate_evidence(case, mode, vehicle)
         log_text = (case / "supervisor.log").read_text(encoding="utf-8", errors="replace")
-        if mode == "off" and "NAVPY_STEP" in log_text:
+        if mode == "off" and (STEP_COMPLETE_MARKER in log_text or STEP_INVALID_MARKER in log_text):
             raise ValueError("default-off simulator activated the probe")
         attempts = re.findall(r"instances streaming telemetry.*?\(attempt (\d+)\)", log_text)
         if log_text.count("Starting sketch 'ArduPlane'") != 1 or attempts != ["1"]:

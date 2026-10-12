@@ -11,6 +11,7 @@ from compare_noise_matrix import verify_profile
 from eval_lockstep_fleet import ROOT, digest, run
 from pose_rounding_evidence import read_pairs
 from simtime_step_launch import require_base_interpreter
+from simtime_firmware_contract import POSE_CAPTURE_ENV
 
 BASELINE = ROOT / "docs/validation/navigation-pose-baseline-20260921.json"
 
@@ -49,9 +50,9 @@ def check_run(directory: Path, capture: bool, baseline: dict) -> dict:
     if canonical_hash(history) != baseline["normalized_history_sha256"]:
         raise ValueError("instrumented flight differs from frozen full legacy history")
     wrapper = (directory / str(vehicle) / "launch-probe.sh").read_text()
-    expected_lines = (["export NAVPY_POSE_CAPTURE=1"] if capture else [])
-    actual_lines = [line for line in wrapper.splitlines() if line.startswith("export NAVPY_POSE_CAPTURE")]
-    if actual_lines != expected_lines or wrapper.splitlines().count("unset NAVPY_POSE_CAPTURE") != 1:
+    expected_lines = ([f"export {POSE_CAPTURE_ENV}=1"] if capture else [])
+    actual_lines = [line for line in wrapper.splitlines() if line.startswith(f"export {POSE_CAPTURE_ENV}")]
+    if actual_lines != expected_lines or wrapper.splitlines().count(f"unset {POSE_CAPTURE_ENV}") != 1:
         raise ValueError("pose capture setting differs from wrapper")
     pose_hash = None
     branches = []

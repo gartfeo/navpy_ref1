@@ -13,6 +13,7 @@ from scripts.simtime_navigation_identity import source_hashes
 from scripts.simtime_navigation_protocol import GUIDED, TAKEOFF_ARM, HEADER, STATE, Snapshot, StepCommand
 from scripts.simtime_navigation_runtime import SynchronousNavigation
 from tests.scripts.test_simtime_navigation_protocol import packet
+from scripts.simtime_firmware_contract import GUIDANCE_CSV
 
 
 @pytest.fixture(params=[None, -1, 0, 37, 100])
@@ -138,7 +139,7 @@ def test_run_rejects_unbound_identity_before_replay(monkeypatch, tmp_path, failu
     from scripts import replay_navigation_trace as analyzer
     case = tmp_path / "121"
     case.mkdir()
-    for name in ("peer.json", "identity.json", "navpy-navigation.csv", "navigation_debug.csv", "navigation_compact.csv"):
+    for name in ("peer.json", "identity.json", GUIDANCE_CSV, "navigation_debug.csv", "navigation_compact.csv"):
         (case / name).write_text("{}")
     identity = {"runtime": {"python": "wrong" if failure == "environment" else sys.version, "packages": {}}}
     monkeypatch.setattr(analyzer, "validate", lambda *a, **kw: ({"identity": identity}, []))
@@ -157,3 +158,7 @@ def test_replay_requires_declared_zero_interval(capture, tmp_path):
     debug.write_text(debug.read_text().replace("min_log_interval_s=0.0", "min_log_interval_s=0.1"))
     with pytest.raises(ValueError, match="configuration missing"):
         verify_live_rows(live, output)
+
+
+def test_source_identity_covers_the_firmware_contract_the_peer_imports():
+    assert "scripts/simtime_firmware_contract.py" in source_hashes(Path(__file__).resolve().parents[2])

@@ -12,6 +12,8 @@ from gcs.backend import instance_ports as ip
 
 
 WSL_BASH_ARGV = ("wsl", "--exec", "bash", "-lc")
+# Discard-port sink for run_swarm.sh `pi` endpoints that must not leave the host.
+LOOPBACK_SINK = "127.0.0.1:9"
 
 
 def resolve_chat(
@@ -183,6 +185,7 @@ def launch_command(
     defaults_path: str | None = None,
     firmware_root: str | None = None,
     binary_path: str | None = None,
+    loopback_only: bool = False,
 ) -> str:
     """Build one inline-environment invocation of ``run_swarm.sh``.
 
@@ -215,6 +218,12 @@ def launch_command(
         environment.append(f"ARDUPILOT_DIR={shlex.quote(firmware_root)}")
         executable = binary_path or f"{firmware_root.rstrip('/')}/build/sitl/bin/arduplane"
         environment.append(f"BIN={shlex.quote(executable)}")
+    if loopback_only:
+        # run_swarm.sh `pi` defaults point serial2 and extra router endpoints at
+        # LAN hosts; an empty value would fall back to those defaults, so name
+        # loopback sinks instead.
+        environment += [f"PI_TARGETS_CSV={LOOPBACK_SINK}",
+                        f"PI_ROUTER_EXTRA_CSV={LOOPBACK_SINK}"]
     if keep_instance_state:
         environment.append("CLONE_FROM_TEMPLATE=0")
     if home_coords:

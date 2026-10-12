@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 from eval_simtime_step import validate_evidence  # noqa: E402
 from compare_simtime_steps import compare, summarize, revalidate  # noqa: E402
 from simtime_step_failures import validate_failure  # noqa: E402
+from scripts.simtime_firmware_contract import STEP_CSV, STEP_INVALID_MARKER
 
 
 def evidence(case, *, changes=None, peer_change=None, count=1000):
@@ -20,7 +21,7 @@ def evidence(case, *, changes=None, peer_change=None, count=1000):
              "wall_us": index * 2000} for index in range(1, count + 1)]
     if changes:
         rows[9].update(changes)
-    with (case / "navpy-step.csv").open("w", newline="") as stream:
+    with (case / STEP_CSV).open("w", newline="") as stream:
         stream.write("# NVSTEP01,boot=00000000000000010000000000000002,handshake=1,vehicle=121\n")
         writer = csv.DictWriter(stream, fieldnames=rows[0])
         writer.writeheader()
@@ -99,14 +100,14 @@ def test_compare_excludes_only_host_measurements():
 @pytest.mark.parametrize("error,boots", [("connect", 1), ("deadline", 2)])
 def test_negative_trial_cannot_pass_for_wrong_cause_or_retry(tmp_path, error, boots):
     (tmp_path / "supervisor.log").write_text(
-        "Starting sketch 'ArduPlane'\n" * boots + f"NAVPY_STEP_INVALID {error} step=5\n")
+        "Starting sketch 'ArduPlane'\n" * boots + f"{STEP_INVALID_MARKER} {error} step=5\n")
     with pytest.raises(ValueError):
         validate_failure(tmp_path, "timeout")
 
 
 def test_intended_timeout_evidence(tmp_path):
     (tmp_path / "supervisor.log").write_text(
-        "Starting sketch 'ArduPlane'\nNAVPY_STEP_INVALID deadline step=5\n")
+        f"Starting sketch 'ArduPlane'\n{STEP_INVALID_MARKER} deadline step=5\n")
     (tmp_path / "peer.json").write_text(json.dumps(
         {"fault": "timeout", "records": [{"step": i} for i in range(1, 6)]}))
     assert validate_failure(tmp_path, "timeout")["failed_step"] == 5
@@ -118,7 +119,7 @@ def test_comparison_produces_cross_speed_evidence(tmp_path):
         case.mkdir()
         (case / "result.json").write_text(json.dumps(
             {"speed": speed, "mode": "observe", "fault": "none", "passed": True}))
-        (case / "navpy-step.csv").write_text(
+        (case / STEP_CSV).write_text(
             "# metadata\nstep,tick,before_us,after_us,complete_us,wait_us,wall_us\n"
             "1,10,1000,1000,1000,0,2000\n")
     reports = summarize(tmp_path)

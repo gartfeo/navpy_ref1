@@ -9,6 +9,7 @@ from scripts import simtime_step_artifacts as artifacts
 from scripts.pose_precision_evidence import PRECAST_FIELDS, validate_precision
 from scripts.pose_rounding_evidence import validate_pairs
 from tests.scripts.test_pose_rounding import pair_fixture
+from scripts.simtime_firmware_contract import GUIDANCE_CSV, POSE_CAPTURE_ENV, RENDER_POSE_ENV
 
 
 @pytest.mark.parametrize("source", ["rounded", "precast"])
@@ -22,20 +23,20 @@ def test_wrapper_declares_pose_source_and_clears_inherited_choice(tmp_path, monk
     monkeypatch.setattr(artifacts, "owned_directory", lambda *args: instance)
     result = artifacts.prepare(tmp_path, 121, case, f"navigation-pose-{source}")
     lines = Path(result["wrapper"]).read_text().splitlines()
-    assert lines.count("unset NAVPY_RENDER_POSE") == 1
-    assert lines.count("export NAVPY_POSE_CAPTURE=1") == 1
-    assert lines.count(f"export NAVPY_RENDER_POSE={source}") == 1
+    assert lines.count(f"unset {RENDER_POSE_ENV}") == 1
+    assert lines.count(f"export {POSE_CAPTURE_ENV}=1") == 1
+    assert lines.count(f"export {RENDER_POSE_ENV}={source}") == 1
 
 
 def test_precision_collector_requires_pose_evidence(tmp_path, monkeypatch):
     instance, case = tmp_path / "instance", tmp_path / "case"
     instance.mkdir()
     case.mkdir()
-    (instance / "navpy-navigation.csv").write_text("control")
+    (instance / GUIDANCE_CSV).write_text("control")
     monkeypatch.setattr(artifacts, "owned_directory", lambda *args: instance)
     with pytest.raises(ValueError, match="missing"):
         artifacts.collect(tmp_path, 121, case, "navigation-pose-precast")
-    assert (instance / "navpy-navigation.csv").is_file()
+    assert (instance / GUIDANCE_CSV).is_file()
 
 
 def precision_fixture(source):

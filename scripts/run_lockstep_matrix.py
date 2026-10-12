@@ -17,7 +17,7 @@ def main() -> None:
     args = parser.parse_args()
     require_base_interpreter()
     root = ROOT / ".sitl-runs" / f"lockstep-matrix-{datetime.now():%Y%m%d-%H%M%S}"
-    root.mkdir()
+    root.mkdir(parents=True)  # a fresh checkout has no .sitl-runs
     cells = [(1, 1., False)] + [(3, speed, delay) for repeat, speed, delay
                                  in itertools.product(range(3), (10., 1.), (False, True))]
     ledger = dict(version=1, policy="one attempt per declared cell; abort on first rejection",

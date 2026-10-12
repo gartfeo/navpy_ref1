@@ -18,6 +18,7 @@ from replay_navigation_trace import digest, run as replay_recorded, verify_live_
 from replay_pose_rounding import replay_arm
 from run_pose_matrix import BASELINE, cells, contract_file
 from simtime_navigation_protocol import RenderTruth, Snapshot
+from simtime_firmware_contract import POSE_CSV
 
 ORIGINAL_REVERSAL_US = 83106312
 FIRMWARE = ROOT / "docs/validation/navigation-pose-firmware-20260921.json"
@@ -196,7 +197,7 @@ def run(matrix: Path, output: Path, baseline: Path, firmware: Path) -> dict:
         original_image_motion_split=image_motion_split(peer,snapshots),
         common_window_us=[start, end], arms=arms, displacement=bias,
         branch_counts=dict(Counter(row["branch"] for row in rows)), origin_changes=origin_changes,
-        evidence_sha256={name:digest(case / name) for name in ("peer.json", "navpy-pose.csv", "identity.json")},
+        evidence_sha256={name:digest(case / name) for name in ("peer.json", POSE_CSV, "identity.json")},
         limits="Direct rounding-to-renderer-to-law path on one recorded trajectory. Mean displacement and varying error both change. Recorded attitude/trajectory retain closed-loop feedback. No claim of closed-loop stability, approach improvement or docking.")
     (output / "analysis.json").write_text(json.dumps(result, indent=2))
     return result

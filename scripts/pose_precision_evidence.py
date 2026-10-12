@@ -9,6 +9,7 @@ import struct
 
 from pose_rounding_evidence import FIELDS as V1_FIELDS, PosePair, validate_pairs
 from simtime_navigation_protocol import Snapshot, WINDOW_SIZE
+from simtime_firmware_contract import GUIDANCE_CSV, POSE_CSV
 
 PRECAST_FIELDS = ["precast_lat_hex", "precast_lng_hex", "precast_alt_hex"]
 FIELDS = V1_FIELDS + ["pose_source"] + PRECAST_FIELDS
@@ -53,13 +54,13 @@ def read_precision(case: Path, peer: dict, source: str) -> tuple[list[dict], lis
     if (manifest.get("pose_capture") is not True or manifest.get("pose_source") != source or
             manifest.get("noise_profile") != "noise-off-1000"):
         raise ValueError("undeclared precision capture")
-    for name in ("navpy-pose.csv", "peer.json", "identity.json", "navpy-navigation.csv"):
+    for name in (POSE_CSV, "peer.json", "identity.json", GUIDANCE_CSV):
         expected = manifest["evidence_sha256"].get(f"{case.name}/{name}")
         if hashlib.sha256((case / name).read_bytes()).hexdigest() != expected:
             raise ValueError(f"unbound precision evidence: {name}")
     if peer != json.loads((case / "peer.json").read_text()):
         raise ValueError("different precision peer")
-    with (case / "navpy-pose.csv").open() as stream:
+    with (case / POSE_CSV).open() as stream:
         reader = csv.DictReader(stream)
         if reader.fieldnames != FIELDS:
             raise ValueError("precision CSV header mismatch")

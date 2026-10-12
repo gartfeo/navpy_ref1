@@ -6,6 +6,7 @@ import pytest
 
 from scripts.simtime_navigation_faults import corrupt, validate_failure
 from scripts.simtime_navigation_protocol import COMMAND, HEADER, Identity, StepCommand
+from scripts.simtime_firmware_contract import GUIDANCE_CSV, GUIDANCE_INVALID_MARKER
 
 
 def test_late_apply_and_nonfinite_injections_hit_the_declared_fields() -> None:
@@ -21,7 +22,7 @@ def test_late_apply_and_nonfinite_injections_hit_the_declared_fields() -> None:
 ])
 def test_unrelated_failure_cannot_pass_a_negative_trial(tmp_path, reason, step, boots) -> None:
     (tmp_path / "supervisor.log").write_text(
-        "Starting sketch 'ArduPlane'\n" * boots + f"NAVPY_NAVIGATION_INVALID {reason} step={step}\n")
+        "Starting sketch 'ArduPlane'\n" * boots + f"{GUIDANCE_INVALID_MARKER} {reason} step={step}\n")
     (tmp_path / "injection.json").write_text(json.dumps({"fault": "late", "step": 5}))
     with pytest.raises(ValueError):
         validate_failure(tmp_path, "late")
@@ -29,7 +30,7 @@ def test_unrelated_failure_cannot_pass_a_negative_trial(tmp_path, reason, step, 
 
 def test_exact_failure_requires_the_injection_record(tmp_path) -> None:
     (tmp_path / "supervisor.log").write_text(
-        "Starting sketch 'ArduPlane'\nNAVPY_NAVIGATION_INVALID apply_step step=5\n")
+        f"Starting sketch 'ArduPlane'\n{GUIDANCE_INVALID_MARKER} apply_step step=5\n")
     with pytest.raises(FileNotFoundError):
         validate_failure(tmp_path, "late")
     (tmp_path / "injection.json").write_text(json.dumps({"fault": "late", "step": 5}))
@@ -38,7 +39,7 @@ def test_exact_failure_requires_the_injection_record(tmp_path) -> None:
 
 def test_completed_control_evidence_invalidates_a_negative_trial(tmp_path) -> None:
     (tmp_path / "supervisor.log").write_text(
-        "Starting sketch 'ArduPlane'\nNAVPY_NAVIGATION_INVALID logger_not_ready step=2\n")
-    (tmp_path / "navpy-navigation.csv").touch()
+        f"Starting sketch 'ArduPlane'\n{GUIDANCE_INVALID_MARKER} logger_not_ready step=2\n")
+    (tmp_path / GUIDANCE_CSV).touch()
     with pytest.raises(ValueError, match="evidence"):
         validate_failure(tmp_path, "logger")

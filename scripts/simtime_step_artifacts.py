@@ -10,6 +10,9 @@ import shlex
 import shutil
 import signal
 from simtime_navigation_protocol import WINDOW_SIZE
+from simtime_firmware_contract import (
+    GUIDANCE_COUNT_ENV, GUIDANCE_CSV, GUIDANCE_MODE_CLOSED_LOOP, GUIDANCE_MODE_ENV, GUIDANCE_SOCKET, GUIDANCE_START_US_ENV, POSE_CAPTURE_ENV, POSE_CSV, RENDER_POSE_ENV, STEP_CSV, STEP_MODE_ENV, STEP_SOCKET, STEP_START_US_ENV,
+)
 
 
 def owned_directory(root: Path, vehicle: int) -> Path:
@@ -35,7 +38,7 @@ def owned_directory(root: Path, vehicle: int) -> Path:
 
 def prepare(root: Path, vehicle: int, case: Path, mode: str) -> dict:
     directory = owned_directory(root, vehicle)
-    for name in ("navpy-step.sock", "navpy-step.csv", "navpy-navigation.sock", "navpy-navigation.csv", "navpy-pose.csv"):
+    for name in (STEP_SOCKET, STEP_CSV, GUIDANCE_SOCKET, GUIDANCE_CSV, POSE_CSV):
         if (directory / name).exists() or (directory / name).is_symlink():
             raise RuntimeError(f"uncollected artifact: {name}")
     storage = directory / "eeprom.bin"
@@ -48,22 +51,22 @@ def prepare(root: Path, vehicle: int, case: Path, mode: str) -> dict:
     binary = root / "build/sitl/bin/arduplane"
     with wrapper.open("x", encoding="utf-8", newline="\n") as output:
         output.write("#!/bin/sh\n")
-        output.write("unset NAVPY_STEP_MODE NAVPY_STEP_START_US\n")
-        output.write("unset NAVPY_NAVIGATION_MODE NAVPY_NAVIGATION_START_US NAVPY_NAVIGATION_COUNT\n")
-        output.write("unset NAVPY_POSE_CAPTURE\n")
-        output.write("unset NAVPY_RENDER_POSE\n")
+        output.write(f"unset {STEP_MODE_ENV} {STEP_START_US_ENV}\n")
+        output.write(f"unset {GUIDANCE_MODE_ENV} {GUIDANCE_START_US_ENV} {GUIDANCE_COUNT_ENV}\n")
+        output.write(f"unset {POSE_CAPTURE_ENV}\n")
+        output.write(f"unset {RENDER_POSE_ENV}\n")
         if mode.startswith("navigation"):
-            output.write("export NAVPY_NAVIGATION_MODE=closed-loop\n")
-            output.write("export NAVPY_NAVIGATION_START_US=40000000\n")
-            output.write(f"export NAVPY_NAVIGATION_COUNT={WINDOW_SIZE}\n")
+            output.write(f"export {GUIDANCE_MODE_ENV}={GUIDANCE_MODE_CLOSED_LOOP}\n")
+            output.write(f"export {GUIDANCE_START_US_ENV}=40000000\n")
+            output.write(f"export {GUIDANCE_COUNT_ENV}={WINDOW_SIZE}\n")
             if mode.startswith("navigation-pose"):
-                output.write("export NAVPY_POSE_CAPTURE=1\n")
+                output.write(f"export {POSE_CAPTURE_ENV}=1\n")
             if mode in ("navigation-pose-rounded", "navigation-pose-precast"):
-                output.write(f"export NAVPY_RENDER_POSE={mode.rsplit('-', 1)[1]}\n")
+                output.write(f"export {RENDER_POSE_ENV}={mode.rsplit('-', 1)[1]}\n")
         elif mode != "off":
             probe_mode = "observe" if mode == "observe" else "handshake"
-            output.write(f"export NAVPY_STEP_MODE={probe_mode}\n")
-            output.write("export NAVPY_STEP_START_US=40000000\n")
+            output.write(f"export {STEP_MODE_ENV}={probe_mode}\n")
+            output.write(f"export {STEP_START_US_ENV}=40000000\n")
         output.write(f"exec {shlex.quote(str(binary))} \"$@\"\n")
     wrapper.chmod(0o700)
     result = {"directory": str(directory), "wrapper": str(wrapper)}
@@ -79,11 +82,11 @@ def prepare(root: Path, vehicle: int, case: Path, mode: str) -> dict:
 
 def collect(root: Path, vehicle: int, case: Path, mode: str = "observe") -> dict:
     directory = owned_directory(root, vehicle)
-    source = directory / ("navpy-navigation.csv" if mode.startswith("navigation") else "navpy-step.csv")
+    source = directory / (GUIDANCE_CSV if mode.startswith("navigation") else STEP_CSV)
     if not source.exists():
         return {"collected": False}
     sources = [source]
-    pose = directory / "navpy-pose.csv"
+    pose = directory / POSE_CSV
     if mode.startswith("navigation-pose"):
         sources.append(pose)
     elif pose.exists() or pose.is_symlink():

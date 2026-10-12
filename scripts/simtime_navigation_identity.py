@@ -11,7 +11,7 @@ import subprocess
 def source_hashes(root: Path) -> dict[str, str]:
     paths = sorted((root / "scripts").glob("*simtime*navigation*.py"))
     paths += [root / "scripts" / name for name in (
-        "simtime_step_artifacts.py", "simtime_navigation_config.py",
+        "simtime_step_artifacts.py", "simtime_navigation_config.py", "simtime_firmware_contract.py",
         "eval_param_file.py", "eval_param_float32.py")]
     paths += sorted((root / "src/navpy").rglob("*.py"))
     return {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()

@@ -8,13 +8,14 @@ import pytest
 
 from scripts import compare_lockstep_fleet as check
 from scripts.eval_lockstep_fleet import HOME, resolve_home, run
+from scripts.simtime_firmware_contract import GUIDANCE_CSV
 
 
 def fixture(tmp_path, monkeypatch):
     root = tmp_path / 'run'
     case = root / '121'
     case.mkdir(parents=True)
-    for name in ('peer.json', 'identity.json', 'navpy-navigation.csv', 'peer-command.json',
+    for name in ('peer.json', 'identity.json', GUIDANCE_CSV, 'peer-command.json',
                  'launch-probe.sh', 'navigation-defaults.parm', 'flight.BIN',
                  'logs-before.json', 'logs-after.json', 'bin-binding.json'):
         (case / name).write_text('{}' if name == 'peer.json' else name)
@@ -24,7 +25,7 @@ def fixture(tmp_path, monkeypatch):
     command = ['python', 'swarm_run.py', '--eval', '--single-boot', '--instances', '1',
                '--home', check.HOME, '--speedup', '1.0', '--dist', '0', '--sitl-root', '/own',
                '--defaults', check.wsl_path(case / 'navigation-defaults.parm'),
-               '--sitl-binary', check.wsl_path(case / 'launch-probe.sh')]
+               '--sitl-binary', check.wsl_path(case / 'launch-probe.sh'), '--loopback-only']
     (root / 'command.json').write_text(json.dumps(command))
     manifest = dict(version=1, run_id='fixture-run', camera_hz=40, supervisor_alive=False, status='captured', errors=[],
         instances=1, home=check.HOME, firmware_root='/own', template_directories=[], driver_sha256={'a': 'b'},
@@ -42,6 +43,15 @@ def fixture(tmp_path, monkeypatch):
 def test_valid_artifact_bindings_are_accepted(tmp_path, monkeypatch):
     root, _ = fixture(tmp_path, monkeypatch)
     assert list(check.read_run(root)[1]) == [121]
+
+
+def test_a_run_launched_without_loopback_only_is_rejected(tmp_path, monkeypatch):
+    root, _ = fixture(tmp_path, monkeypatch)
+    command = json.loads((root / 'command.json').read_text())
+    command.remove('--loopback-only')
+    (root / 'command.json').write_text(json.dumps(command))
+    with pytest.raises(ValueError, match="unexpected launch options"):
+        check.read_run(root)
 
 
 def test_explicit_home_is_bound_to_manifest_and_launch(tmp_path, monkeypatch, capsys):

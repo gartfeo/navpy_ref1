@@ -12,6 +12,7 @@ import time
 from types import FrameType
 
 from simtime_step_protocol import StepSequence, WINDOW_SIZE, WIRE
+from simtime_firmware_contract import STEP_PEER_READY_MARKER, STEP_SOCKET
 
 
 # Deliberate experimental perturbation, not scheduling logic or a retry policy.
@@ -33,7 +34,7 @@ def reply_packet(packet: bytes, fault: str) -> bytes:
 
 def serve(directory: Path, *, delayed: bool, fault: str) -> dict:
     """Never remove a pre-existing endpoint; own this socket for one run only."""
-    address = directory / "navpy-step.sock"
+    address = directory / STEP_SOCKET
     sequence = StepSequence()
     records = []
     with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as listener:
@@ -42,7 +43,7 @@ def serve(directory: Path, *, delayed: bool, fault: str) -> dict:
         identity = address.stat().st_ino
         try:
             listener.listen(1)
-            print("NAVPY_STEP_PEER_READY", flush=True)
+            print(STEP_PEER_READY_MARKER, flush=True)
             connection, _ = listener.accept()
             with connection:
                 connection.settimeout(10.0)

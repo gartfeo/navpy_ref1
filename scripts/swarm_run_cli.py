@@ -50,6 +50,9 @@ def build_parser(default_speedup: float) -> argparse.ArgumentParser:
     parser.add_argument("--chat", type=int, default=None)
     parser.add_argument("--single-boot", action="store_true",
                         help="experimental launch: no parameter healing or automatic relaunch")
+    parser.add_argument("--loopback-only", action="store_true",
+                        help="no LAN companion targets, extra router endpoints or Mission Planner port "
+                             "(lockstep experiments must not reach other machines)")
     parser.add_argument(
         "--eval",
         action="store_true",

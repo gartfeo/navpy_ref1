@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import builtins
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+# The lockstep scripts run with scripts/ as their own directory and import
+# their siblings by bare name; tests import them the same way.
+SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 SUMMARY_WRITE_FAILURES = ("second_interrupt", "broken_stdout", "unwritable")
 

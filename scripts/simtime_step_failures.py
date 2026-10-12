@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import re
+from simtime_firmware_contract import STEP_COMPLETE_MARKER, STEP_CSV, STEP_INVALID_MARKER
 
 
 EXPECTED = {
@@ -19,13 +20,13 @@ EXPECTED = {
 
 def validate_failure(case: Path, fault: str) -> dict:
     log = (case / "supervisor.log").read_text(encoding="utf-8", errors="replace")
-    failures = re.findall(r"NAVPY_STEP_INVALID (\w+) step=(\d+)", log)
+    failures = re.findall(rf"{STEP_INVALID_MARKER} (\w+) step=(\d+)", log)
     reason, step = EXPECTED[fault]
-    if failures != [(reason, str(step))] or "NAVPY_STEP_COMPLETE" in log:
+    if failures != [(reason, str(step))] or STEP_COMPLETE_MARKER in log:
         raise ValueError(f"wrong failure evidence: {failures}")
     if log.count("Starting sketch 'ArduPlane'") != 1:
         raise ValueError("negative trial must use exactly one simulator boot")
-    if (case / "navpy-step.csv").exists():
+    if (case / STEP_CSV).exists():
         raise ValueError("negative trial produced a complete AP window")
     peer = json.loads((case / "peer.json").read_text())
     if peer["fault"] != fault or len(peer["records"]) != 5:

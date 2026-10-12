@@ -22,11 +22,12 @@ from scripts.simtime_navigation_protocol import (  # noqa: E402
 from scripts.simtime_navigation_faults import FAULTS, corrupt  # noqa: E402
 from scripts.simtime_navigation_config import read_defaults  # noqa: E402
 from scripts.simtime_navigation_runtime import SynchronousNavigation  # noqa: E402
+from scripts.simtime_firmware_contract import GUIDANCE_PEER_READY_MARKER, GUIDANCE_SOCKET
 
 
 def serve(args: argparse.Namespace) -> dict:
     parameters, throttle_policy = read_defaults(args.defaults, args.throttle_percent)
-    address = args.directory / "navpy-navigation.sock"
+    address = args.directory / GUIDANCE_SOCKET
     sequence = SnapshotSequence()
     records = []
     engine = SynchronousNavigation(
@@ -40,7 +41,7 @@ def serve(args: argparse.Namespace) -> dict:
         inode = address.stat().st_ino
         try:
             listener.listen(1)
-            print("NAVPY_NAVIGATION_PEER_READY", flush=True)
+            print(GUIDANCE_PEER_READY_MARKER, flush=True)
             connection, _ = listener.accept()
             with connection:
                 connection.settimeout(10.)

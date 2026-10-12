@@ -64,10 +64,10 @@ def run_supervisor(
 ) -> None:
     """Launch, verify, supervise, and propagate the WSL process exit code."""
     offset = ip.VEHICLES_PER_CHAT * chat
-    win_ports = ",".join(
-        str(port)
-        for port in ip.router_win_ports(chat) + [ip.verify_port(chat)]
-    )
+    exported = ip.router_win_ports(chat)
+    if getattr(args, "loopback_only", False):
+        exported = [port for port in exported if port != ip.mission_planner_port(chat)]
+    win_ports = ",".join(str(port) for port in exported + [ip.verify_port(chat)])
     runtime.exit_hooks.register(runtime.cleanup, chat)
     runtime.cleanup(chat)
     runtime.emit(
@@ -133,6 +133,7 @@ def _launch_with_retries(
             defaults_path=getattr(args, "defaults", None),
             firmware_root=getattr(args, "sitl_root", None),
             binary_path=getattr(args, "sitl_binary", None),
+            **({"loopback_only": True} if getattr(args, "loopback_only", False) else {}),
         )
         process, relays = launch.start(command)
         result = launch.verify(chat, args.instances, args.speedup, launched_at)

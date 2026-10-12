@@ -22,6 +22,7 @@ from simtime_step_launch import require_base_interpreter, wait_launch_unlock
 from swarm_run_cli import _home_coords
 import swarm_run
 from noise_isolation_profiles import PROFILES, prepare_profile, log_operation
+from simtime_firmware_contract import GUIDANCE_PEER_READY_MARKER
 
 HOME = "40.3117414,44.4552111,1294.85,0"
 
@@ -163,12 +164,13 @@ def run(args: argparse.Namespace, directory: Path) -> dict:
                     command.append("--delayed")
                 (case / "peer-command.json").write_text(json.dumps(command))
                 peers[vehicle] = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT)
-                wait_marker(case / "peer.log", peers[vehicle], ("NAVPY_NAVIGATION_PEER_READY",), 60)
+                wait_marker(case / "peer.log", peers[vehicle], (GUIDANCE_PEER_READY_MARKER,), 60)
             shared = paths[manifest["shared_profile_vehicle"]]
             command = [sys.executable, str(ROOT / "scripts/swarm_run.py"), "--eval", "--single-boot",
                        "--instances", str(args.instances), "--dist", "0", "--home", manifest["home"],
                        "--speedup", str(args.speedup), "--sitl-root", args.firmware_root,
-                       "--sitl-binary", shared["wrapper"], "--defaults", shared["defaults"]]
+                       "--sitl-binary", shared["wrapper"], "--defaults", shared["defaults"],
+                       "--loopback-only"]
             (directory / "command.json").write_text(json.dumps(command, indent=2))
             stream = (directory / "supervisor.log").open("wb")
             streams.append(stream)

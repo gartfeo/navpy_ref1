@@ -9,6 +9,7 @@ import struct
 import socket
 import threading
 import time
+from simtime_firmware_contract import GUIDANCE_CSV, GUIDANCE_INVALID_MARKER
 
 FAULTS = ("none", "logger", "boot", "late", "nonfinite", "short", "long",
           "duplicate", "disconnect", "timeout", "expired", "rejected", "stray")
@@ -83,14 +84,14 @@ class StrayInjector:
 
 def validate_failure(case: Path, fault: str) -> dict:
     log = (case / "supervisor.log").read_text(encoding="utf-8", errors="replace")
-    matches = re.findall(r"NAVPY_NAVIGATION_INVALID (\w+) step=(\d+)", log)
+    matches = re.findall(rf"{GUIDANCE_INVALID_MARKER} (\w+) step=(\d+)", log)
     reason, step = EXPECTED[fault]
     if len(matches) != 1 or matches[0][0] != reason:
         raise ValueError(f"wrong rejection: expected {reason}, observed {matches}")
     actual_step = int(matches[0][1])
     if (step is not None and actual_step != step) or (step is None and actual_step < 5):
         raise ValueError("wrong rejection step")
-    if log.count("Starting sketch 'ArduPlane'") != 1 or (case / "navpy-navigation.csv").exists():
+    if log.count("Starting sketch 'ArduPlane'") != 1 or (case / GUIDANCE_CSV).exists():
         raise ValueError("invalid run lifecycle/evidence")
     if fault != "logger":
         injected = json.loads((case / "injection.json").read_text())

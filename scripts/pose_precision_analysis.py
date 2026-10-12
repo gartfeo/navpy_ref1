@@ -17,6 +17,7 @@ from replay_navigation_trace import digest, run as replay_recorded
 from run_pose_matrix import BASELINE, contract_file
 from run_pose_precision_matrix import FIRMWARE, cells, check_run
 from simtime_navigation_protocol import Snapshot
+from simtime_firmware_contract import POSE_CSV
 
 
 def require_matrix(report: dict, baseline_path: Path, firmware_path: Path) -> None:
@@ -128,7 +129,7 @@ def run(matrix: Path, output: Path, baseline: Path, firmware: Path) -> dict:
             pass_source_us=own_end, phase_duration_s=(own_end-own_start)/1e6,
             closest_approach=closest_approach(flight["pairs"],flight["peer"]["dock"],flight["seed"],flight["first_pass"]),
             exact_replay=flight["replay"]["exact_replay"], causality=flight["replay"]["causality"],
-            evidence_sha256={n:digest(flight["case"] / n) for n in ("peer.json", "navpy-pose.csv")})
+            evidence_sha256={n:digest(flight["case"] / n) for n in ("peer.json", POSE_CSV)})
     result = dict(version=2, matrix_sha256=digest(matrix), common_window_us=[start,end], arms=arms,
         method_sha256={n:digest(ROOT / "scripts" / n) for n in ("pose_precision_analysis.py",
             "pose_precision_evidence.py", "run_pose_precision_matrix.py", "replay_navigation_trace.py",

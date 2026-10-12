@@ -22,6 +22,9 @@ from simtime_navigation_protocol import (
 )
 from simtime_navigation_identity import source_hashes
 from scripts.simtime_navigation_config import validate_evidence, validate_command
+from scripts.simtime_firmware_contract import (
+    GUIDANCE_COMPLETE_MARKER, GUIDANCE_CSV, GUIDANCE_INVALID_MARKER,
+)
 
 
 def validate_source_identity(identity_record: dict, case: Path) -> None:
@@ -48,7 +51,7 @@ def validate(case: Path, *, lifecycle_count: int = 1,
     identity_record = json.loads((case / "identity.json").read_text())
     validate_source_identity(identity_record, case)
     parameters = validate_evidence(case, lifecycle_dir, peer, identity_record)
-    with (case / "navpy-navigation.csv").open() as stream:
+    with (case / GUIDANCE_CSV).open() as stream:
         rows = list(csv.DictReader(stream))
     records = peer["records"]
     if len(rows) != WINDOW_SIZE or len(records) != WINDOW_SIZE:
@@ -101,8 +104,8 @@ def validate(case: Path, *, lifecycle_count: int = 1,
     log = (lifecycle_dir / "supervisor.log").read_text(encoding="utf-8", errors="replace")
     attempts = re.findall(r"instances streaming telemetry.*?\(attempt (\d+)\)", log)
     if (log.count("Starting sketch 'ArduPlane'") != lifecycle_count or attempts != ["1"]
-            or "NAVPY_NAVIGATION_INVALID" in log
-            or log.count("NAVPY_NAVIGATION_COMPLETE count=3000") != lifecycle_count):
+            or GUIDANCE_INVALID_MARKER in log
+            or log.count(f"{GUIDANCE_COMPLETE_MARKER} count=3000") != lifecycle_count):
         raise ValueError("invalid simulator lifecycle")
     first = normalized[0]["snapshot"]["truth"]
     phase = normalized[peer["seed_step"] - 1]["snapshot"]
@@ -118,7 +121,7 @@ def validate(case: Path, *, lifecycle_count: int = 1,
                     (int(rows[-1]["wall_us"]) - int(rows[0]["wall_us"])),
                "max_receipt_s": max(r["elapsed_s"] for r in records),
                "sha256": {name: hashlib.sha256(((lifecycle_dir if name.endswith('.log') else case) / name).read_bytes()).hexdigest()
-                          for name in ("peer.json", "navpy-navigation.csv", "supervisor.log", "teardown.log")}}
+                          for name in ("peer.json", GUIDANCE_CSV, "supervisor.log", "teardown.log")}}
     return summary, normalized
 
 

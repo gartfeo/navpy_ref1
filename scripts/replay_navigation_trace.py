@@ -30,6 +30,7 @@ from scripts.simtime_navigation_protocol import (
 )
 from navpy.core.approach.logs.navigation_logger import NavigationLogger
 from navpy.core.kernel.location import Location
+from scripts.simtime_firmware_contract import GUIDANCE_CSV
 
 
 class FullRateLogger(NavigationLogger):
@@ -136,7 +137,7 @@ def run(case: Path, lifecycle: Path, count: int, output: Path) -> dict:
     if sys.version != recorded["python"] or versions != recorded["packages"]:
         raise ValueError("replay must use the recorded Python/package environment")
     bound = {name: digest(case / name) for name in (
-        "peer.json", "identity.json", "navpy-navigation.csv", "navigation_debug.csv", "navigation_compact.csv")}
+        "peer.json", "identity.json", GUIDANCE_CSV, "navigation_debug.csv", "navigation_compact.csv")}
     fleet_bound = (lifecycle / "fleet.json").is_file()
     if count == 3 or fleet_bound:
         manifest = json.loads((lifecycle / "fleet.json").read_text())

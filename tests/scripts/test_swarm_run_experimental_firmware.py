@@ -56,3 +56,12 @@ def test_invalid_preflight_exits_before_wsl():
         with pytest.raises(SystemExit, match="requires an isolated firmware root"):
             wsl.ensure_experimental_paths(None, "/tmp/binary")
     run.assert_not_called()
+
+
+def test_loopback_only_replaces_lan_endpoints():
+    assert "PI_TARGETS_CSV" not in command()
+    local = command(loopback_only=True)
+    assert f"PI_TARGETS_CSV={wsl.LOOPBACK_SINK}" in local
+    assert f"PI_ROUTER_EXTRA_CSV={wsl.LOOPBACK_SINK}" in local
+    assert "192.168" not in local
+    assert build_parser(10).parse_args(["--loopback-only"]).loopback_only

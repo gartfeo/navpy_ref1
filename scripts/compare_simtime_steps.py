@@ -6,6 +6,7 @@ import json
 from itertools import combinations
 from pathlib import Path
 import re
+from simtime_firmware_contract import STEP_CSV
 
 
 HOST_COLUMNS = {"wait_us", "wall_us"}
@@ -55,7 +56,7 @@ def summarize(root: Path) -> list[dict]:
         selected = [(path, result) for path, result in cases if result["speed"] == speed]
         if not any(result["mode"] == "observe" for _, result in selected):
             raise ValueError(f"speed {speed} has no observation baseline")
-        rows = {path: read_rows(path / "navpy-step.csv") for path, _ in selected}
+        rows = {path: read_rows(path / STEP_CSV) for path, _ in selected}
         baselines.append(next(path for path, result in selected if result["mode"] == "observe"))
         for (left, a), (right, b) in combinations(selected, 2):
             kind = "baseline-repeat" if a["mode"] == b["mode"] == "observe" else "condition-comparison"
@@ -63,8 +64,8 @@ def summarize(root: Path) -> list[dict]:
                             **compare(rows[left], rows[right])})
     for left, right in zip(baselines, baselines[1:]):
         reports.append({"left": left.name, "right": right.name, "kind": "cross-speed-baseline",
-                        **compare(read_rows(left / "navpy-step.csv"),
-                                  read_rows(right / "navpy-step.csv"))})
+                        **compare(read_rows(left / STEP_CSV),
+                                  read_rows(right / STEP_CSV))})
     return reports
 
 
