@@ -412,9 +412,9 @@ def test_resolved_plan_requires_owner_identity_and_command_bearing_nav_rows(tmp_
 
     plan = scenario.resolve_demo_plan(ids, mission)
 
-    assert [poi.nav_waypoint_ordinal for poi in plan.pois] == [3, 4, 7]
+    assert [poi.nav_waypoint_ordinal for poi in plan.pois] == [2, 3, 6]
     assert [poi.lat for poi in plan.pois] == pytest.approx(
-        [rows[index - 1]["lat"] for index in (3, 4, 7)]
+        [rows[index - 1]["lat"] for index in (2, 3, 6)]
     )
     path = tmp_path / "resolved-plan.json"
     scenario.persist_resolved_plan(plan, path)
@@ -499,9 +499,9 @@ def test_assignment_audit_derives_global_map_from_accepted_owner_requests():
     plan = scenario.resolve_demo_plan(ids, {"sys_id": 7, "waypoints": rows})
     text = "\n".join((
         "INFO Task assign request: sender=7 receiver=4 task_id=1 "
-        "at (40.000300, 44.000300)",
+        "at (40.000200, 44.000200)",
         "INFO Task assign request: sender=7 receiver=9 task_id=3 "
-        "at (40.000700, 44.000700)",
+        "at (40.000600, 44.000600)",
         "INFO Task assign response: sender=4 receiver=7 task_id=1 accepted=True",
         "INFO Task assign response: sender=9 receiver=7 task_id=3 accepted=True",
     ))
@@ -532,9 +532,9 @@ def test_assignment_audit_joins_detector_task_ids_to_plan_by_coordinate():
     )
     text = "\n".join((
         "INFO Task assign request: sender=7 receiver=4 task_id=3 "
-        "at (40.000300, 44.000300)",
+        "at (40.000200, 44.000200)",
         "INFO Task assign request: sender=7 receiver=9 task_id=1 "
-        "at (40.000700, 44.000700)",
+        "at (40.000600, 44.000600)",
         "INFO Task assign response: sender=4 receiver=7 task_id=3 accepted=True",
         "INFO Task assign response: sender=9 receiver=7 task_id=1 accepted=True",
     ))
@@ -552,12 +552,12 @@ def test_assignment_audit_joins_detector_task_ids_to_plan_by_coordinate():
         (lambda text: "\n".join(text.splitlines()[:2]), "response"),
         (
             lambda text: text.replace("task_id=3", "task_id=1")
-            .replace("40.000700", "40.000300")
-            .replace("44.000700", "44.000300"),
+            .replace("40.000600", "40.000200")
+            .replace("44.000600", "44.000200"),
             "same auction|same resolved-plan",
         ),
-        (lambda text: text.replace("40.000700", "41.000700"), "plan coordinate"),
-        (lambda text: text.replace("40.000300", "400.000300"), "plan coordinate"),
+        (lambda text: text.replace("40.000600", "41.000600"), "plan coordinate"),
+        (lambda text: text.replace("40.000200", "400.000200"), "plan coordinate"),
         (lambda text: text.replace("accepted=True", "accepted=False", 1), "rejected"),
     ],
 )
@@ -583,9 +583,9 @@ def test_assignment_audit_rejects_incomplete_or_inconsistent_evidence(
     )
     valid = "\n".join((
         "INFO Task assign request: sender=7 receiver=4 task_id=1 "
-        "at (40.000300, 44.000300)",
+        "at (40.000200, 44.000200)",
         "INFO Task assign request: sender=7 receiver=9 task_id=3 "
-        "at (40.000700, 44.000700)",
+        "at (40.000600, 44.000600)",
         "INFO Task assign response: sender=4 receiver=7 task_id=1 accepted=True",
         "INFO Task assign response: sender=9 receiver=7 task_id=3 accepted=True",
     ))

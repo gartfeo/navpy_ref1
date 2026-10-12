@@ -34,10 +34,17 @@ from navpy.core.ports.flight_mode import FlightMode
 class InactiveGuardPorts:
     vehicle_armed: Callable[[], bool]
     clear_navigation_task: Callable[[], None]
+    # A swarm-assigned peer task flies to its dock from wherever the UAV is,
+    # so the detection-waypoint hold does not apply to it; own search still
+    # waits (DetectAction). Disarm or a manual mode cancels it like any task.
+    peer_task_assigned: Callable[[], bool]
 
 
 class InactiveNavigationGuard:
-    """Hold navigation while disarmed, manual, or before the detect waypoint."""
+    """Hold navigation while disarmed, manual, or before the detect waypoint.
+
+    The detect-waypoint hold does not apply once a peer task is assigned.
+    """
 
     ACTIVE_MODES = frozenset({FlightMode.GUIDED, FlightMode.AUTO, FlightMode.LOITER})
 
@@ -71,6 +78,7 @@ class InactiveNavigationGuard:
             or self._navigation_task.navigation_poi_location is not None
             or self._navigation_task.peer_navigation
             or self._mission.default_delivery_hub_active
+            or self._ports.peer_task_assigned()
         )
         if not self._ports.vehicle_armed():
             if has_active_task:
@@ -86,8 +94,8 @@ class InactiveNavigationGuard:
             self._phase.request(NavState.ONHOLD)
             return True
         if (
-            mode == FlightMode.AUTO
-            and not self._mission_pass.passed_detection_waypoint(next_waypoint)
+            not self._ports.peer_task_assigned()
+            and self._mission_pass.holds_own_search(mode, next_waypoint)
         ):
             self._status.ignore(1, f"ONHOLD: WAYPOINT {next_waypoint}")
             self._phase.request(NavState.ONHOLD)

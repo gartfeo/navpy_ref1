@@ -27,7 +27,10 @@ from navpy.sim.world.navigation_poi_args import encode_wp_bitmask
 NAVIGATION_SPEEDUP_ENV = "GCS_SIM_NAVIGATION_SPEEDUP"
 
 
-def launch_command(launch_token: str | None = None) -> list[str]:
+def launch_command(
+    launch_token: str | None = None,
+    home: str | None = None,
+) -> list[str]:
     """Use only the isolated launcher; its directory owns the slot."""
     command = [sys.executable, str(GCS_LAUNCH), "--no-browser"]
     if launch_token is not None:
@@ -39,6 +42,10 @@ def launch_command(launch_token: str | None = None) -> list[str]:
             "--launch-token",
             launch_token,
         ))
+    if home is not None:
+        if type(home) is not str or not home:
+            raise ValueError("home must be a non-empty LAT,LON,ALT,HEADING string")
+        command.extend(("--home", home))
     return command
 
 

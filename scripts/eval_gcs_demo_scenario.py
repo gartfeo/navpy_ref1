@@ -12,7 +12,13 @@ from typing import cast
 from scripts.eval_gcs_demo_constants import SCENARIO_MANIFEST_PATH
 from scripts.eval_gcs_demo_models import ThreeUavIds, positive_int
 from scripts.eval_gcs_demo_ports import JsonValue
+from scripts.eval_gcs_demo_scenario_missions import exact_keys, parse_home, scenario_missions
 from navpy.plugins.vehicle.ardupilot.nav_waypoints import is_nav_poi_command
+
+
+SCENARIO_SCHEMA_VERSION = 2
+# Owner track rows only: NavPy also counts the appended hub row the GCS parser drops.
+CERTIFIED_POI_NAV_WAYPOINT_ORDINALS = (2, 3, 6)
 
 
 @dataclass(frozen=True)
@@ -27,6 +33,8 @@ class ScenarioManifest:
     slots: tuple[ScenarioSlot, ScenarioSlot, ScenarioSlot]
     owner_slot: str
     poi_nav_waypoint_ordinals: tuple[int, int, int]
+    home: str
+    missions: tuple[Mapping[str, JsonValue], ...]
 
     @property
     def owner_index(self) -> int:
@@ -82,25 +90,15 @@ def _load_json_object(path: Path, label: str) -> dict[str, JsonValue]:
     return cast(dict[str, JsonValue], payload)
 
 
-def _exact_keys(
-    payload: Mapping[str, JsonValue],
-    expected: set[str],
-    label: str,
-) -> None:
-    actual = set(payload)
-    if actual != expected:
-        raise ValueError(f"{label} keys must be {sorted(expected)}, got {sorted(actual)}")
-
-
 def load_scenario_manifest(path: Path = SCENARIO_MANIFEST_PATH) -> ScenarioManifest:
     payload = _load_json_object(path, "three-UAV scenario manifest")
-    _exact_keys(
+    exact_keys(
         payload,
-        {"schema_version", "slots", "owner_slot", "poi_nav_waypoint_ordinals"},
+        {"schema_version", "slots", "owner_slot", "poi_nav_waypoint_ordinals", "home", "missions"},
         "scenario manifest",
     )
-    if type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
-        raise ValueError("scenario manifest schema_version must be 1")
+    if type(payload["schema_version"]) is not int or payload["schema_version"] != SCENARIO_SCHEMA_VERSION:
+        raise ValueError(f"scenario manifest schema_version must be {SCENARIO_SCHEMA_VERSION}")
     raw_slots = payload["slots"]
     if not isinstance(raw_slots, list) or len(raw_slots) != 3:
         raise ValueError("scenario manifest requires exactly three slots")
@@ -108,7 +106,7 @@ def load_scenario_manifest(path: Path = SCENARIO_MANIFEST_PATH) -> ScenarioManif
     for index, raw in enumerate(raw_slots):
         if not isinstance(raw, dict):
             raise ValueError(f"scenario slot {index} must be an object")
-        _exact_keys(raw, {"name", "role"}, f"scenario slot {index}")
+        exact_keys(raw, {"name", "role"}, f"scenario slot {index}")
         name, role = raw["name"], raw["role"]
         if type(name) is not str or not name or role not in {"owner", "peer"}:
             raise ValueError(f"invalid scenario slot {raw!r}")
@@ -125,9 +123,10 @@ def load_scenario_manifest(path: Path = SCENARIO_MANIFEST_PATH) -> ScenarioManif
     if not isinstance(raw_ordinals, list):
         raise ValueError("POI NAV waypoint ordinals must be a list")
     ordinals = tuple(positive_int("POI NAV waypoint ordinal", item) for item in raw_ordinals)
-    if ordinals != (3, 4, 7):
-        raise ValueError("the certified scenario POI NAV waypoint ordinals must be [3, 4, 7]")
-    return ScenarioManifest(1, tuple(slots), owner_slot, ordinals)  # type: ignore[arg-type]
+    if ordinals != CERTIFIED_POI_NAV_WAYPOINT_ORDINALS:
+        raise ValueError(f"the certified scenario POI NAV waypoint ordinals must be {list(CERTIFIED_POI_NAV_WAYPOINT_ORDINALS)}")
+    missions = scenario_missions(payload["missions"], names, owner_slot, ordinals)
+    return ScenarioManifest(SCENARIO_SCHEMA_VERSION, tuple(slots), owner_slot, ordinals, parse_home(payload["home"]), missions)  # type: ignore[arg-type]
 
 
 def _coordinate(waypoint: JsonValue, ordinal: int) -> tuple[float, float]:
@@ -239,14 +238,14 @@ def load_resolved_plan(path: Path) -> DemoMissionPlan:
 
 
 def parse_resolved_plan(payload: Mapping[str, JsonValue]) -> DemoMissionPlan:
-    _exact_keys(payload, {"schema_version", "manifest_schema_version", "owner_slot", "vehicles", "pois"}, "resolved plan")
+    exact_keys(payload, {"schema_version", "manifest_schema_version", "owner_slot", "vehicles", "pois"}, "resolved plan")
     if (
         type(payload["schema_version"]) is not int
         or type(payload["manifest_schema_version"]) is not int
         or payload["schema_version"] != 1
-        or payload["manifest_schema_version"] != 1
+        or payload["manifest_schema_version"] != SCENARIO_SCHEMA_VERSION
     ):
-        raise ValueError("resolved plan schema versions must be 1")
+        raise ValueError(f"resolved plan schema versions must be 1 and {SCENARIO_SCHEMA_VERSION}")
     manifest = load_scenario_manifest()
     if payload["owner_slot"] != manifest.owner_slot:
         raise ValueError("resolved plan owner slot does not match the manifest")
@@ -259,7 +258,7 @@ def parse_resolved_plan(payload: Mapping[str, JsonValue]) -> DemoMissionPlan:
     for index, raw in enumerate(raw_vehicles):
         if not isinstance(raw, dict):
             raise ValueError(f"resolved vehicle {index} must be an object")
-        _exact_keys(raw, {"slot", "role", "sys_id"}, f"resolved vehicle {index}")
+        exact_keys(raw, {"slot", "role", "sys_id"}, f"resolved vehicle {index}")
         slot = manifest.slots[index]
         if raw["slot"] != slot.name or raw["role"] != slot.role:
             raise ValueError("resolved vehicle order/roles do not match the manifest")
@@ -269,7 +268,7 @@ def parse_resolved_plan(payload: Mapping[str, JsonValue]) -> DemoMissionPlan:
     for task_id, (raw, ordinal) in enumerate(zip(raw_pois, manifest.poi_nav_waypoint_ordinals), start=1):
         if not isinstance(raw, dict):
             raise ValueError(f"resolved POI {task_id} must be an object")
-        _exact_keys(raw, {"task_id", "nav_waypoint_ordinal", "lat", "lon"}, f"resolved POI {task_id}")
+        exact_keys(raw, {"task_id", "nav_waypoint_ordinal", "lat", "lon"}, f"resolved POI {task_id}")
         if (
             type(raw["task_id"]) is not int
             or type(raw["nav_waypoint_ordinal"]) is not int
@@ -281,10 +280,11 @@ def parse_resolved_plan(payload: Mapping[str, JsonValue]) -> DemoMissionPlan:
         pois.append(ResolvedPoi(task_id, ordinal, lat, lon))
     if len({(poi.lat, poi.lon) for poi in pois}) != 3:
         raise ValueError("resolved plan POI coordinates must be unique")
-    return DemoMissionPlan(1, 1, manifest.owner_slot, tuple(vehicles), tuple(pois))  # type: ignore[arg-type]
+    return DemoMissionPlan(1, manifest.schema_version, manifest.owner_slot, tuple(vehicles), tuple(pois))  # type: ignore[arg-type]
 
 
 __all__ = [
+    "CERTIFIED_POI_NAV_WAYPOINT_ORDINALS",
     "DemoMissionPlan",
     "ResolvedPoi",
     "ResolvedVehicle",

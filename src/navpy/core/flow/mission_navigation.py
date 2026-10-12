@@ -11,6 +11,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.flow.nav_state import NavigationTaskState
+from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
 
 
@@ -42,6 +43,13 @@ class MissionPassPolicy:
 
     def passed_detection_waypoint(self, next_waypoint: int) -> bool:
         return next_waypoint > self._args.min_wp
+
+    def holds_own_search(self, mode: FlightMode, next_waypoint: int) -> bool:
+        """Own search (detecting and offering POIs) waits for the detect waypoint in AUTO."""
+        return (
+            mode == FlightMode.AUTO
+            and not self.passed_detection_waypoint(next_waypoint)
+        )
 
     def passed_poi(self) -> bool:
         navigation_passed = self._ports.poi_passed_override()

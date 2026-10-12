@@ -1,0 +1,287 @@
+"""The demo eval's scenario missions: upload, readback, POI resolution, home."""
+
+from __future__ import annotations
+
+import copy
+import importlib
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from gcs.backend.mission_validator import parse_mission_items
+from gcs.backend.models import VehicleAssignment
+from gcs.backend.planner.mission_items import build_mission
+from gcs.backend.routes.mission_upload_helpers import assignment_geometry
+from navpy.plugins.vehicle.ardupilot.mission_store import MissionStore
+from navpy.plugins.vehicle.ardupilot.nav_waypoints import nav_wp_indices
+
+from scripts import eval_gcs_navigation_demo  # noqa: F401  (repository bootstrap)
+
+scenario = importlib.import_module("scripts.eval_gcs_demo_scenario")
+scenario_missions = importlib.import_module("scripts.eval_gcs_demo_scenario_missions")
+upload = importlib.import_module("scripts.eval_gcs_demo_upload")
+mission_upload = importlib.import_module("scripts.eval_gcs_demo_mission_upload")
+models = importlib.import_module("scripts.eval_gcs_demo_models")
+mission = importlib.import_module("scripts.eval_gcs_demo_mission")
+config = importlib.import_module("scripts.eval_gcs_demo_config")
+process = importlib.import_module("scripts.eval_gcs_demo_process")
+
+SYS_IDS = (7, 4, 9)
+TAKEOFF_ALTITUDE_M = 40.0  # settings default the eval leaves unset
+
+
+def _onboard(assignment: dict) -> SimpleNamespace:
+    """Encode one assignment as the upload route does; hold it as the vehicle does."""
+    model = VehicleAssignment(**assignment)
+    track, polygon, backbone, launch_point, hub = assignment_geometry(model)
+    loader = build_mission(
+        track,
+        model.altitude_m,
+        model.sys_id,
+        model.corridor_count,
+        model.search_pattern,
+        polygon,
+        backbone,
+        launch_point,
+        model.corridor_altitude_m,
+        hub,
+        TAKEOFF_ALTITUDE_M,
+    )
+    store = MissionStore(model.sys_id, message_store=None)
+    store.replace(loader)
+    return SimpleNamespace(
+        get_mission_item=store.get,
+        get_mission_item_location=store.get_location,
+        mission_items_count=store.count,
+    )
+
+
+def _parsed(assignment: dict) -> tuple[SimpleNamespace, dict]:
+    vehicle = _onboard(assignment)
+    return vehicle, parse_mission_items(
+        vehicle,
+        vehicle.mission_items_count,
+        assignment["sys_id"],
+    )
+
+
+def _write_manifest(tmp_path, edit) -> object:
+    raw = json.loads(scenario.SCENARIO_MANIFEST_PATH.read_text(encoding="utf-8"))
+    edit(raw)
+    path = tmp_path / "scenario.json"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    return path
+
+
+def test_scenario_binds_one_mission_per_slot_in_upload_api_shape():
+    manifest = scenario.load_scenario_manifest()
+
+    assignments = scenario_missions.bind_missions(manifest.missions, SYS_IDS)
+
+    assert manifest.poi_nav_waypoint_ordinals == (2, 3, 6)
+    assert [(a["sys_id"], a["zone_index"]) for a in assignments] == [(7, 0), (4, 1), (9, 2)]
+    for assignment in assignments:
+        VehicleAssignment(**assignment)  # extra="forbid": the exact API shape
+    assignments[0]["waypoints"].clear()
+    assert manifest.missions[0]["waypoints"], "bindings must not alias the manifest"
+
+
+def test_every_scenario_mission_reads_back_exactly_after_encode_and_parse():
+    manifest = scenario.load_scenario_manifest()
+
+    for assignment in scenario_missions.bind_missions(manifest.missions, SYS_IDS):
+        _vehicle, parsed = _parsed(assignment)
+        readback = upload.mission_assignment(
+            parsed,
+            expected_sys_id=assignment["sys_id"],
+            zone_index=assignment["zone_index"],
+        )
+
+        assert readback == assignment
+
+
+def test_resolved_pois_are_the_mission_items_navpy_selects():
+    manifest = scenario.load_scenario_manifest()
+    owner = scenario_missions.bind_missions(manifest.missions, SYS_IDS)[manifest.owner_index]
+    vehicle, parsed = _parsed(owner)
+
+    plan = scenario.resolve_demo_plan(models.ThreeUavIds.from_values(SYS_IDS), parsed)
+
+    navpy_rows = nav_wp_indices(vehicle)
+    # NavPy also counts the appended hub row; the GCS parser drops it.
+    assert len(navpy_rows) == len(owner["waypoints"]) + 1
+    gcs_rows = {row["nav_waypoint_ordinal"]: row for row in parsed["waypoints"]}
+    for poi in plan.pois:
+        expected = owner["waypoints"][poi.nav_waypoint_ordinal - 1]
+        assert (poi.lat, poi.lon) == (expected["lat"], expected["lon"])
+        assert (
+            navpy_rows[poi.nav_waypoint_ordinal - 1]
+            == gcs_rows[poi.nav_waypoint_ordinal]["mission_sequence"]
+        )
+
+
+def test_manifest_rejects_a_poi_ordinal_on_the_appended_hub_row(tmp_path):
+    def drop_last_owner_waypoint(raw):
+        # Every mission loses its last row so the equal-search-path check still
+        # passes and the owner's ordinal 6 lands on the appended hub row.
+        for mission in raw["missions"]:
+            mission["waypoints"].pop()
+
+    path = _write_manifest(tmp_path, drop_last_owner_waypoint)
+
+    with pytest.raises(ValueError, match="default-delivery-hub row"):
+        scenario.load_scenario_manifest(path)
+
+
+def test_scenario_search_paths_are_equal():
+    lengths = [
+        scenario_missions.search_path_m(mission["waypoints"])
+        for mission in scenario.load_scenario_manifest().missions
+    ]
+
+    assert max(lengths) - min(lengths) < 0.01
+
+
+def test_manifest_rejects_unequal_search_paths(tmp_path):
+    def shorten_peer_line(raw):
+        # Ends peer 1's last line 0.0010 degree (about 111 m) short.
+        raw["missions"][1]["waypoints"][-1]["lat"] = 40.3038
+
+    path = _write_manifest(tmp_path, shorten_peer_line)
+
+    with pytest.raises(ValueError, match="search paths must be equal"):
+        scenario.load_scenario_manifest(path)
+
+
+def test_manifest_rejects_a_coordinate_the_encoder_would_move(tmp_path):
+    def unencodable(raw):
+        # int(40.302322 * 1e7) truncates to 403023219.
+        raw["missions"][0]["waypoints"][2]["lat"] = 40.302322
+
+    path = _write_manifest(tmp_path, unencodable)
+
+    with pytest.raises(ValueError, match="does not survive mission-item encoding"):
+        scenario.load_scenario_manifest(path)
+
+
+@pytest.mark.parametrize(
+    "edit, message",
+    [
+        (lambda raw: raw.update(schema_version=1), "schema_version must be 2"),
+        (lambda raw: raw.pop("missions"), "keys must be"),
+        (lambda raw: raw["missions"].pop(), "exactly three missions"),
+        (lambda raw: raw["missions"][1].update(extra=1), "keys must be"),
+        (lambda raw: raw.update(home="40.3,44.4"), "LAT,LON,ALT,HEADING"),
+        (lambda raw: raw["missions"][0].update(altitude_m=240.1), "float32"),
+        (lambda raw: raw.update(poi_nav_waypoint_ordinals=[2, 3, 7]), r"must be \[2, 3, 6]"),
+    ],
+)
+def test_manifest_schema_is_strict(tmp_path, edit, message):
+    path = _write_manifest(tmp_path, edit)
+
+    with pytest.raises(ValueError, match=message):
+        scenario.load_scenario_manifest(path)
+
+
+def _upload_context(monkeypatch, tamper=lambda sys_id, parsed: None):
+    """GET /mission answers with each scenario mission encoded and parsed for real."""
+    expected = scenario_missions.bind_missions(
+        scenario.load_scenario_manifest().missions,
+        SYS_IDS,
+    )
+    onboard = {}
+    for assignment in expected:
+        _vehicle, parsed = _parsed(assignment)
+        tamper(assignment["sys_id"], parsed)
+        onboard[f"/api/vehicles/{assignment['sys_id']}/mission"] = parsed
+    uploaded = []
+    monkeypatch.setattr(
+        mission_upload,
+        "upload_mission_assignments",
+        lambda _context, assignments: uploaded.append(assignments),
+    )
+    api = SimpleNamespace(get_json=lambda path, timeout: copy.deepcopy(onboard[path]))
+    return SimpleNamespace(sys_ids=SYS_IDS, api=api), expected, uploaded
+
+
+def test_upload_accepts_the_scenario_missions_read_back_onboard(monkeypatch):
+    context, expected, uploaded = _upload_context(monkeypatch)
+
+    mission_upload.upload_scenario_missions(context)
+
+    assert uploaded == [expected]
+
+
+def _set_owner_third_altitude(sys_id, parsed):
+    if sys_id == 7:
+        parsed["waypoints"][2]["alt"] = 241.0
+
+
+def _drift_last_vehicle(sys_id, parsed):
+    if sys_id == 9:
+        parsed["waypoints"][0]["lat"] = round(parsed["waypoints"][0]["lat"] - 1e-7, 7)
+
+
+@pytest.mark.parametrize(
+    "tamper, sys_id",
+    [(_set_owner_third_altitude, 7), (_drift_last_vehicle, 9)],
+    ids=["non-first-row-altitude", "coordinate"],
+)
+def test_upload_rejects_an_onboard_mission_that_differs(monkeypatch, tamper, sys_id):
+    context, _expected, _uploaded = _upload_context(monkeypatch, tamper)
+
+    with pytest.raises(models.RegressionError, match=f"vehicle {sys_id} onboard mission differs"):
+        mission_upload.upload_scenario_missions(context)
+
+
+def test_missions_upload_after_configuration_and_before_companion_restart(monkeypatch):
+    calls = []
+
+    class Stop(Exception):
+        pass
+
+    def record(name, result=None):
+        def step(*_args, **_kwargs):
+            calls.append(name)
+            return result
+        return step
+
+    def restart(*_args, **_kwargs):
+        calls.append("restart_companions")
+        raise Stop
+
+    monkeypatch.setattr(mission, "wait_for_vehicles", record("wait_for_vehicles"))
+    monkeypatch.setattr(mission, "wait_for_companions", record("wait_for_companions"))
+    monkeypatch.setattr(mission, "configure_vehicle_params", record("configure_vehicle_params"))
+    monkeypatch.setattr(mission, "upload_scenario_missions", record("upload_scenario_missions"))
+    monkeypatch.setattr(mission, "restart_companions", restart)
+
+    with pytest.raises(Stop):
+        mission.run_mission(SimpleNamespace(sys_ids=SYS_IDS), None, 1.0, 0.0)
+
+    assert calls == [
+        "wait_for_vehicles",
+        "wait_for_companions",
+        "configure_vehicle_params",
+        "upload_scenario_missions",
+        "restart_companions",
+    ]
+
+
+def test_eval_launch_pins_the_scenario_home(monkeypatch):
+    commands = []
+    monkeypatch.setattr(process, "owned_entry", lambda _env: None)
+
+    def run_process(command, _env, *, timeout_s):
+        commands.append(command)
+        return SimpleNamespace(returncode=1, stdout="", stderr="stopped by test")
+
+    monkeypatch.setattr(process, "run_process", run_process)
+
+    with pytest.raises(models.RegressionError, match="stopped by test"):
+        process.launch_stack({}, 1.0)
+
+    home = scenario.load_scenario_manifest().home
+    assert commands[0][-2:] == ["--home", home]
+    assert config.launch_command()[-1] == "--no-browser"

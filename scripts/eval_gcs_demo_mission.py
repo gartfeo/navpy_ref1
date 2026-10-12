@@ -39,6 +39,7 @@ from scripts.eval_gcs_demo_stack_ops import (
     wait_for_missions,
     wait_for_vehicles,
 )
+from scripts.eval_gcs_demo_mission_upload import upload_scenario_missions
 
 
 def _object(value: JsonValue, label: str) -> dict[str, JsonValue]:
@@ -258,6 +259,7 @@ def run_mission(
     wait_for_vehicles(context, timeout_s)
     wait_for_companions(context, timeout_s)
     command_bounds = configure_vehicle_params(context, timeout_s)
+    upload_scenario_missions(context)
     restart_companions(context, timeout_s)
     verify_aas_profile(context)
     start_esp32_simulator(context)

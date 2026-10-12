@@ -134,6 +134,10 @@ def compose_nav_application(
             lambda: vehicle.location(False),
             lambda: vehicle.attitude,
         ),
+        lambda: navigation_workflows.mission_navigation.mission_pass.holds_own_search(
+            vehicle.get_mode,
+            vehicle.mission_items_next,
+        ),
     )
     actions = StateActionDispatcher(
         state.phase,

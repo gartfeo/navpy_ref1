@@ -10,6 +10,7 @@ from scripts import eval_ideal_three_uav_analysis as analysis
 from scripts import eval_ideal_three_uav as exact_cli
 from scripts import eval_ideal_three_uav_runtime as runtime
 from scripts.eval_gcs_demo_config import aas_params_for
+from scripts.eval_gcs_demo_constants import EXPECTED_NAV_LAST_WP_ORDINAL
 from scripts.eval_gcs_demo_models import MissionArtifacts
 from scripts.eval_gcs_demo_upload import (
     mission_assignment,
@@ -52,7 +53,7 @@ def _write_source_time_evidence(path: Path) -> None:
                 "scheduler_rate_hz": 50.0,
                 "mission_items": 16,
                 "targ_wps": aas_params_for(sys_id, 4)["targ_wps"],
-                "nav_last_wp": 2,
+                "nav_last_wp": EXPECTED_NAV_LAST_WP_ORDINAL,
                 "nav_min_wp_seq": 9,
             },
         })
@@ -89,7 +90,7 @@ def _write_source_time_evidence(path: Path) -> None:
     nav_start_bindings = [
         {
             "sys_id": sys_id,
-            "nav_waypoint_ordinal": 2,
+            "nav_waypoint_ordinal": EXPECTED_NAV_LAST_WP_ORDINAL,
             "mission_sequence": 9,
             "mission_count": 16,
         }
@@ -241,7 +242,7 @@ def test_run_ideal_mission_restarts_ready_after_confirmed_configuration(
     nav_bindings = [
         {
             "sys_id": sys_id,
-            "nav_waypoint_ordinal": 2,
+            "nav_waypoint_ordinal": EXPECTED_NAV_LAST_WP_ORDINAL,
             "mission_sequence": 9,
             "mission_count": 16,
         }

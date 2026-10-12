@@ -599,11 +599,11 @@ class TestDemoAuditReadsTheListenerLog:
                 owner, peer, (peer * 10, ref_seq), (10, seq),
             ))
 
-        offer(peer_a, 1, 40.0003, 50)
-        offer(peer_a, 1, 40.0003, 52)  # repeated step 3
-        offer(peer_b, 3, 40.0007, 51)
+        offer(peer_a, 1, 40.0002, 50)
+        offer(peer_a, 1, 40.0002, 52)  # repeated step 3
+        offer(peer_b, 3, 40.0006, 51)
         answer(peer_b, 3, 5, accepted=False)
-        offer(peer_b, 3, 40.0007, 60)
+        offer(peer_b, 3, 40.0006, 60)
         answer(peer_a, 1, 7)
         answer(peer_a, 1, 9)  # repeated step 4
         apply(peer_a, 7, 53)

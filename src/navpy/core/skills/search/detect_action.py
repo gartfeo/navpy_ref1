@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
 from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.skills.search.poi_selection import PoiSelector
@@ -21,6 +23,7 @@ class DetectAction:
         peer_notifier: PeerPoiNotifier,
         confirmation_manager: ConfirmationManager,
         peer_geo: PeerGeoTick,
+        own_search_held: Callable[[], bool],
     ) -> None:
         self._detections = detections
         self._selector = selector
@@ -28,8 +31,16 @@ class DetectAction:
         self._peer_notifier = peer_notifier
         self._confirmation_manager = confirmation_manager
         self._peer_geo = peer_geo
+        self._own_search_held = own_search_held
 
     def act(self) -> None:
+        if self._own_search_held():
+            # Before the detect waypoint only an assigned peer task runs:
+            # own detections are neither offered nor taken up.
+            if self._confirmation_manager.active_poi is None:
+                self._navigation_task.handle_new_poi(None)
+            self._peer_geo.update()
+            return
         selection = self._detections.selection()
         own, peers = self._selector.select(
             list(selection.pois),

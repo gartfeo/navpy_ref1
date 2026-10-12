@@ -493,6 +493,33 @@ class TestNavControllerStateTransitions(unittest.TestCase):
 
         self.assertEqual(controller.phase.current, NavState.ONHOLD)
 
+    def test_decide_assigned_peer_task_skips_min_wp_hold(self):
+        """A peer assigned while still flying out to its zone (AUTO, before the
+        detect waypoint) starts its peer approach instead of holding."""
+        vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=1)
+        args = _create_mock_args(min_wp=3)
+        controller = _create_controller(vehicle=vehicle, args=args)
+        controller.network.task_actor = Mock()
+        controller.network.task_actor.selected_poi.return_value = Mock()
+
+        controller.decision.decide()
+
+        self.assertEqual(controller.phase.current, NavState.DETECT)
+
+    def test_manual_mode_cancels_a_pending_peer_assignment(self):
+        """An assignment not yet taken up is an active task: a manual mode
+        clears it, so returning to AUTO before the detect waypoint holds."""
+        vehicle = _create_mock_vehicle(mode=FlightMode.MANUAL, next_wp=1)
+        args = _create_mock_args(min_wp=3)
+        controller = _create_controller(vehicle=vehicle, args=args)
+        controller.network.task_actor = Mock()
+        controller.network.task_actor.selected_poi.return_value = Mock()
+
+        controller.decision.decide()
+
+        controller.network.task_actor.reset.assert_called()
+        self.assertEqual(controller.phase.current, NavState.ONHOLD)
+
     def test_decide_detect_after_min_wp_auto(self):
         """_decide transitions to DETECT after min waypoint in AUTO mode."""
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
@@ -2154,6 +2181,26 @@ class TestNavControllerActDetect(unittest.TestCase):
 
         self.assertIsNotNone(controller.confirmation_manager.active_poi)
         self.assertEqual(controller.confirmation_manager.active_poi.identity.obj_id, 1)
+
+    def test_act_detect_before_detect_waypoint_runs_only_the_peer_task(self):
+        """Before the detect waypoint (AUTO) an assigned peer task starts, but
+        own detections are neither offered to the swarm nor taken up."""
+        pois = [_create_detected_poi(obj_id=1), _create_detected_poi(obj_id=2)]
+        detector = _create_mock_detector(detections=pois)
+        vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=1)
+        args = _create_mock_args(min_wp=3)
+        controller = _create_controller(vehicle=vehicle, detector=detector, args=args)
+        controller.network.task_actor = Mock()
+        location_msg = Mock(lat=40.001, lng=-74.001, alt=0.0)
+        controller.network.task_actor.selected_poi.return_value = Mock(location=location_msg)
+
+        controller.sensor.sense()
+        controller.phase.current = NavState.DETECT
+        controller.detect_action.act()
+
+        controller.network.task_actor.notify_pois.assert_not_called()
+        self.assertIsNone(controller.confirmation_manager.active_poi)
+        self.assertTrue(controller.navigation_task.peer_navigation)
 
     def test_act_detect_skips_confirmed_poi(self):
         """_act_detect skips already confirmed POIs."""

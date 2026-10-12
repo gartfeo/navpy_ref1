@@ -140,7 +140,7 @@ def _write_resolved_plan(log_dir: Path) -> None:
         json.dumps(
             {
                 "schema_version": 1,
-                "manifest_schema_version": 1,
+                "manifest_schema_version": 2,
                 "owner_slot": "owner",
                 "vehicles": [
                     {"slot": "owner", "role": "owner", "sys_id": 4},
@@ -148,9 +148,9 @@ def _write_resolved_plan(log_dir: Path) -> None:
                     {"slot": "peer-2", "role": "peer", "sys_id": 6},
                 ],
                 "pois": [
-                    {"task_id": 1, "nav_waypoint_ordinal": 3, "lat": 40.1000, "lon": 44.1000},
-                    {"task_id": 2, "nav_waypoint_ordinal": 4, "lat": 40.0005, "lon": 44.0},
-                    {"task_id": 3, "nav_waypoint_ordinal": 7, "lat": 40.0006, "lon": 44.0},
+                    {"task_id": 1, "nav_waypoint_ordinal": 2, "lat": 40.1000, "lon": 44.1000},
+                    {"task_id": 2, "nav_waypoint_ordinal": 3, "lat": 40.0005, "lon": 44.0},
+                    {"task_id": 3, "nav_waypoint_ordinal": 6, "lat": 40.0006, "lon": 44.0},
                 ]
             }
         ),
@@ -1079,13 +1079,13 @@ def test_configuration_keeps_explicit_ten_x_navigation_and_no_multicontainer_sco
     assert settings["launch"]["launch_type"] == "container"
     assert "container_gap_s" not in settings["launch"]
     assert settings["camera"]["vision_profile"] == "siyi_zr10"
-    assert evaluator.aas_params_for(4, 4)["targ_wps"] == 76
+    assert evaluator.aas_params_for(4, 4)["targ_wps"] == 38
     assert evaluator.aas_params_for(5, 4)["targ_wps"] == 0
     assert evaluator.aas_params_for(4, 4)["del_ctrl"] == 2
     assert evaluator.aas_params_for(4, 4)["del_dir"] is True
     assert evaluator.aas_params_for(4, 4)["use_trn"] is True
     assert evaluator.aas_params_for(4, 4)["targ_alt"] == 0.0
-    assert evaluator.aas_params_for(4, 4)["nav_last_wp"] == 2
+    assert evaluator.aas_params_for(4, 4)["nav_last_wp"] == 1
     assert evaluator.aas_params_for(4, 4)["nav_auto_cm"] is False
     assert evaluator.aas_params_for(4, 4)["nav_cm_fl"] is False
     assert evaluator.aas_params_for(4, 4)["nav_cwt"] == 30.0

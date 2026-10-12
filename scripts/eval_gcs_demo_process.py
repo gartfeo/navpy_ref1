@@ -30,6 +30,7 @@ from scripts.eval_gcs_demo_models import (
     ThreeUavIds,
 )
 from scripts.eval_gcs_demo_ports import JsonValue
+from scripts.eval_gcs_demo_scenario import load_scenario_manifest
 
 
 T = TypeVar("T")
@@ -73,7 +74,8 @@ def launch_stack(env: dict[str, str], timeout_s: float) -> StackContext:
     launch_token = secrets.token_hex(16)
     backend_offset = BACKEND_LOG.stat().st_size if BACKEND_LOG.exists() else 0
     result = run_process(
-        launch_command(launch_token),
+        # The scenario pins the SITL start point instead of the launcher default.
+        launch_command(launch_token, load_scenario_manifest().home),
         env,
         timeout_s=min(timeout_s, 60.0),
     )

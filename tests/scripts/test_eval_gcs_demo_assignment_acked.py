@@ -18,7 +18,7 @@ from scripts.eval_gcs_demo_scenario import resolve_demo_plan
 
 OWNER = 7
 # Plan tasks 1 and 3 by coordinate; the owner keeps plan task 2.
-_COORDINATES = {1: "40.000300, 44.000300", 3: "40.000700, 44.000700"}
+_COORDINATES = {1: "40.000200, 44.000200", 3: "40.000600, 44.000600"}
 
 
 def _plan():
