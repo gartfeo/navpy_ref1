@@ -1,7 +1,8 @@
-"""Resolved-plan-driven analysis for the exact three-UAV demo."""
+"""Resolved-plan-driven analysis for one explicit demo scenario."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
@@ -14,17 +15,21 @@ from scripts.eval_gcs_demo_assignment_lines import LogFormat, parse_assignment_l
 from scripts.eval_gcs_demo_command_bounds import load_command_bounds
 from scripts.eval_gcs_demo_constants import (
     NAVIGATION_SPEEDUP_OVERRIDE,
-    SIM_SPEEDUP,
     backend_log_path,
 )
 from scripts.eval_gcs_demo_models import (
     GateLimits,
     RunReport,
-    ThreeUavIds,
     finite_number,
 )
 from scripts.eval_gcs_demo_ports import JsonValue
-from scripts.eval_gcs_demo_scenario import DemoMissionPlan, load_resolved_plan
+from scripts.eval_gcs_demo_gate_profiles import (
+    CERTIFIED_PROFILE,
+    OWNER_ONLY_SLICE_PROFILE,
+    PROFILE_SIM_SPEEDUP,
+)
+from scripts.eval_gcs_demo_inputs import require_recorded_scenario
+from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario, load_resolved_plan
 from scripts.eval_gcs_demo_poi_binding import final_approach_poi_binding_errors
 from scripts.eval_gcs_demo_vehicle import analyze_vehicle
 
@@ -53,14 +58,14 @@ def approval_counts(
     plan: DemoMissionPlan,
 ) -> tuple[dict[int, int], list[str]]:
     errors: list[str] = []
-    ids = ThreeUavIds.from_values(plan.sys_ids)
-    expected = set(ids.values)
+    ids = plan.sys_ids
+    expected = set(ids)
     observed = {int(item["sys_id"]) for item in approvals}
     if observed - expected:
         errors.append(f"approval artifact contains unknown sysids {sorted(observed - expected)}")
     counts = {
         sys_id: sum(item["sys_id"] == sys_id for item in approvals)
-        for sys_id in ids.values
+        for sys_id in ids
     }
     for sys_id, count in counts.items():
         if count != 1:
@@ -96,9 +101,50 @@ def global_assignment_evidence(
     return AssignmentEvidence(assignments, [], acked)
 
 
+def owner_only_assignment_evidence(
+    log_dir: Path,
+    plan: DemoMissionPlan,
+) -> AssignmentEvidence:
+    """The slice's one assignment, {owner: its one POI}, from the scenario.
+
+    The backend log must hold no task-assignment line: with no peer, no
+    request, response or APPLIED exists. Its absence alone proves nothing
+    (the listener suppresses adverts with one vehicle); the NavPy log gate
+    and, later, the journal's message counts carry that proof.
+    """
+    if plan.peers or len(plan.pois) != 1:
+        raise ValueError("an owner-only assignment needs one vehicle and one POI")
+    assignments = {plan.owner.sys_id: plan.pois[0].task_id}
+    try:
+        backend_log = backend_log_path(log_dir).read_text(
+            encoding="utf-8",
+            errors="strict",
+        )
+        lines = parse_assignment_lines(backend_log)
+    except (OSError, UnicodeError, TypeError, ValueError) as error:
+        return AssignmentEvidence(
+            assignments, [f"invalid global assignment evidence: {error}"], False,
+        )
+    count = len(lines.requests) + len(lines.responses) + len(lines.acks)
+    errors = (
+        [f"owner-only slice backend log holds {count} task-assignment lines"]
+        if count
+        else []
+    )
+    return AssignmentEvidence(assignments, errors, False)
+
+
+#: Gate profile -> how the run's global assignment is established.
+_ASSIGNMENT_EVIDENCE: dict[str, Callable[[Path, DemoMissionPlan], AssignmentEvidence]] = {
+    CERTIFIED_PROFILE: global_assignment_evidence,
+    OWNER_ONLY_SLICE_PROFILE: owner_only_assignment_evidence,
+}
+
+
 def analyze_run(
     log_dir: Path,
     *,
+    scenario: DemoScenario,
     sys_ids: Sequence[int] | None = None,
     approvals: list[dict[str, JsonValue]] | None = None,
     limits: GateLimits = GateLimits(),
@@ -106,14 +152,24 @@ def analyze_run(
 ) -> RunReport:
     if not isinstance(limits, GateLimits):
         raise TypeError("limits must be GateLimits")
+    if not isinstance(scenario, DemoScenario):
+        raise TypeError("scenario must be a loaded DemoScenario")
+    # Every caller (the CLI, the run comparison) gets the same refusal.
+    require_recorded_scenario(log_dir, scenario)
     requested_speedup = finite_number("navigation_speedup", navigation_speedup)
-    supplied_ids = ThreeUavIds.from_values(sys_ids) if sys_ids is not None else None
+    sim_speedup = PROFILE_SIM_SPEEDUP[scenario.gate_profile]
+    if requested_speedup > 0.0 and scenario.gate_profile != CERTIFIED_PROFILE:
+        # The slice's cadence is lockstep's factor; no override may relax it.
+        raise ValueError(
+            f"gate profile {scenario.gate_profile!r} has no navigation_speedup override"
+        )
+    supplied_ids = scenario.uav_ids(sys_ids) if sys_ids is not None else None
     supplied_approvals = (
         validate_approval_records(approvals) if approvals is not None else None
     )
-    plan = load_resolved_plan(log_dir / "demo_mission_plan.json")
+    plan = load_resolved_plan(log_dir / "demo_mission_plan.json", scenario)
     command_bounds = load_command_bounds(log_dir / "demo_command_bounds.json")
-    plan_ids = ThreeUavIds.from_values(plan.sys_ids)
+    plan_ids = scenario.uav_ids(plan.sys_ids)
     if supplied_ids is not None and supplied_ids.values != plan_ids.values:
         raise ValueError(
             f"supplied sysids {supplied_ids.values} do not match resolved plan "
@@ -127,7 +183,7 @@ def analyze_run(
         else load_approval_records(log_dir / "operator_approvals.json")
     )
     counts, approval_errors = approval_counts(approval_rows, plan)
-    evidence = global_assignment_evidence(log_dir, plan)
+    evidence = _ASSIGNMENT_EVIDENCE[scenario.gate_profile](log_dir, plan)
     assignments = evidence.assignments
     errors = approval_errors + evidence.errors + mission_assignment_errors(
         log_dir,
@@ -143,17 +199,23 @@ def analyze_run(
             approval_count=counts[vehicle.sys_id],
             limits=limits,
             navigation_speedup=requested_speedup,
+            launch_speedup=sim_speedup,
             command_bounds=command_bounds.for_vehicle(vehicle.sys_id),
             assignment_acked=evidence.acked,
+            gate_profile=scenario.gate_profile,
         )
         for vehicle in plan.vehicles
     ]
-    passed = not errors and len(reports) == 3 and all(report.passed for report in reports)
+    passed = (
+        not errors
+        and len(reports) == len(scenario.slots)
+        and all(report.passed for report in reports)
+    )
     return RunReport(
         passed=passed,
         log_dir=str(log_dir.resolve()),
         sys_ids=list(plan_ids.values),
-        sim_speedup=SIM_SPEEDUP,
+        sim_speedup=sim_speedup,
         navigation_speedup_override=requested_speedup,
         approvals=approval_rows,
         global_assignments=assignments,
@@ -169,4 +231,5 @@ __all__ = [
     "approval_counts",
     "global_assignment_evidence",
     "mission_assignment_errors",
+    "owner_only_assignment_evidence",
 ]

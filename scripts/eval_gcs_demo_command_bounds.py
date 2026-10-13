@@ -7,7 +7,7 @@ import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from scripts.eval_gcs_demo_models import FinalApproachCommand, ThreeUavIds, positive_int
+from scripts.eval_gcs_demo_models import FinalApproachCommand, UavIds, positive_int
 from scripts.eval_gcs_demo_ports import JsonValue
 
 
@@ -43,12 +43,15 @@ class VehicleCommandBounds:
 @dataclass(frozen=True)
 class DemoCommandBounds:
     schema_version: int
-    vehicles: tuple[VehicleCommandBounds, VehicleCommandBounds, VehicleCommandBounds]
+    #: One per scenario vehicle; analysis checks them against the resolved plan.
+    vehicles: tuple[VehicleCommandBounds, ...]
 
     def __post_init__(self) -> None:
         if self.schema_version != 1:
             raise ValueError("command-bounds schema_version must be 1")
-        ThreeUavIds.from_values(item.sys_id for item in self.vehicles)
+        if not self.vehicles:
+            raise ValueError("demo command bounds require at least one vehicle")
+        UavIds.from_values((item.sys_id for item in self.vehicles), len(self.vehicles))
 
     def for_vehicle(self, sys_id: int) -> VehicleCommandBounds:
         checked = positive_int("command-bounds sys_id", sys_id)
@@ -165,8 +168,8 @@ def parse_command_bounds(payload: JsonValue) -> DemoCommandBounds:
     if set(body) != {"schema_version", "vehicles"} or body["schema_version"] != 1:
         raise ValueError("invalid demo command-bounds schema")
     raw_vehicles = body["vehicles"]
-    if not isinstance(raw_vehicles, list) or len(raw_vehicles) != 3:
-        raise ValueError("demo command bounds require exactly three vehicles")
+    if not isinstance(raw_vehicles, list) or not raw_vehicles:
+        raise ValueError("demo command bounds require a non-empty vehicle list")
     keys = {
         "sys_id",
         "pitch_min_deg",
@@ -186,7 +189,7 @@ def parse_command_bounds(payload: JsonValue) -> DemoCommandBounds:
             _finite("roll_limit_deg", item["roll_limit_deg"]),
             _finite("throttle", item["throttle"]),
         ))
-    return DemoCommandBounds(1, tuple(vehicles))  # type: ignore[arg-type]
+    return DemoCommandBounds(1, tuple(vehicles))
 
 
 def persist_command_bounds(bounds: DemoCommandBounds, path: Path) -> None:

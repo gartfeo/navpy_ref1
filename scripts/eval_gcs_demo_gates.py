@@ -17,6 +17,8 @@ from scripts.eval_gcs_demo_constants import (
 )
 from scripts.eval_gcs_demo_evidence import navigation_speedup_errors
 from scripts.eval_gcs_demo_models import EpisodeMetrics, RegressionError
+from scripts.eval_gcs_demo_gate_profiles import CERTIFIED_PROFILE
+from scripts.eval_gcs_demo_role_gates import ROLE_GATES
 
 from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class
 from navpy.core.perception.profile.vision_profile_loader import load_profiles
@@ -31,10 +33,6 @@ _MOUNT_RE = re.compile(
     r"fixed=(?P<fixed>True|False)"
 )
 _IDEAL_360_ACTIVE_RE = re.compile(r"static ideal 360 enabled", re.IGNORECASE)
-_ASSIGNED_RE = re.compile(r"\bTask \d+ assigned by owner \d+\b")
-# Logged when the peer approach is dispatched; a GUIDED_LOITER alone can be a
-# free peer's default delivery hub return, before any assignment.
-_PEER_APPROACH = "Peer navigation started"
 
 
 @lru_cache(maxsize=1)
@@ -167,19 +165,6 @@ def _ordered_workflow_errors(navigation_text: str) -> list[str]:
     return errors
 
 
-def _peer_assignment_errors(navigation_text: str) -> list[str]:
-    """A peer flies its task only once its owner applied it (acked logs)."""
-    assigned = _ASSIGNED_RE.search(navigation_text)
-    if assigned is None:
-        return ["peer never logged 'Task T assigned by owner O'"]
-    approach = navigation_text.find(_PEER_APPROACH)
-    if approach < 0:
-        return [f"peer never logged {_PEER_APPROACH!r}"]
-    if approach < assigned.start():
-        return [f"peer logged {_PEER_APPROACH!r} before 'Task T assigned by owner O'"]
-    return []
-
-
 def workflow_errors(
     navigation_text: str,
     *,
@@ -188,23 +173,15 @@ def workflow_errors(
     navigation_speedup: float,
     launch_speedup: float = SIM_SPEEDUP,
     assignment_acked: bool = False,
+    gate_profile: str = CERTIFIED_PROFILE,
 ) -> list[str]:
     if role not in {"owner", "peer"}:
         raise ValueError(f"invalid demo role {role!r}")
+    role_gates = ROLE_GATES.get(gate_profile)
+    if role_gates is None:
+        raise ValueError(f"invalid gate profile {gate_profile!r}")
     errors = sensor_config_errors(navigation_text) + _ordered_workflow_errors(navigation_text)
-    if role == "owner":
-        for task_id in (2, 3):
-            if f"Rebroadcast task {task_id}" not in navigation_text and re.search(rf"\bTask {task_id} accepted by \d+\b", navigation_text) is None:
-                errors.append(f"owner did not dispatch task {task_id} to peers")
-        if "Self-detect orbit:" not in navigation_text:
-            errors.append("owner did not keep a POI-centred self-detect orbit")
-    else:
-        if "No POI is set" not in navigation_text:
-            errors.append("peer did not start with targ_wps=0")
-        if "GUIDED_LOITER" not in navigation_text:
-            errors.append("peer did not execute GUIDED_LOITER assignment approach")
-        if assignment_acked:
-            errors.extend(_peer_assignment_errors(navigation_text))
+    errors.extend(role_gates(navigation_text, role, assignment_acked))
     if approval_count != 1:
         errors.append(f"expected exactly one audited approval, found {approval_count}")
     lowered = navigation_text.lower()

@@ -37,7 +37,7 @@ from gcs.backend import instance_registry as registry  # noqa: E402
 from navpy.sim.lockstep.coordinator import StepLink, run  # noqa: E402
 from navpy.sim.lockstep.scripted_operator import ScriptedOperator  # noqa: E402
 from scripts import lockstep_wsl  # noqa: E402
-from scripts.eval_gcs_demo_scenario import load_scenario_manifest  # noqa: E402
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario  # noqa: E402
 
 SYSID = 1
 #: Seconds of sim time flown after the operator's script finished.
@@ -72,7 +72,7 @@ def run_once(run_dir: Path, ticks: int, host_delay_seed: int, jitter_seed: int, 
     record = run_dir / lockstep_wsl.PROCESSES_FILE
     instance = ip.VEHICLES_PER_CHAT * slot  # slot-derived: no shared SITL ports
     run_name = f"{run_dir.name}-{secrets.token_hex(4)}"
-    home = load_scenario_manifest().home
+    home = load_scenario(CERTIFIED_SCENARIO_PATH).home
     operator = ScriptedOperator(SYSID, home)
     state: dict = {"root": None, "link": None}
     failure: BaseException | None = None

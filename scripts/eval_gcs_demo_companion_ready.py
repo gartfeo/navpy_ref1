@@ -5,9 +5,8 @@ from __future__ import annotations
 import math
 
 from scripts.eval_gcs_demo_config import aas_params_for
-from scripts.eval_gcs_demo_models import RegressionError, StackContext, ThreeUavIds
+from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_ports import JsonValue
-from scripts.eval_gcs_demo_scenario import owner_sys_id_for
 
 
 def _object(value: JsonValue, label: str) -> dict[str, JsonValue]:
@@ -27,9 +26,10 @@ def restart_configured_companions_ready(
     timeout_s: float,
     nav_start_bindings: list[dict[str, JsonValue]],
 ) -> list[dict[str, JsonValue]]:
-    """Use the operator API and require three fresh, hydrated runtimes."""
-    ids = ThreeUavIds.from_values(context.sys_ids)
-    owner = owner_sys_id_for(ids)
+    """Use the operator API and require one fresh, hydrated runtime per slot."""
+    scenario = context.scenario
+    ids = scenario.uav_ids(context.sys_ids)
+    owner = scenario.owner_sys_id(ids)
     binding_by_sys_id = {
         int(binding["sys_id"]): binding for binding in nav_start_bindings
     }
@@ -37,8 +37,8 @@ def restart_configured_companions_ready(
         raise RegressionError("nav-start binding sysids do not match companions")
     expected = {
         sys_id: {
-            "targ_wps": int(aas_params_for(sys_id, owner)["targ_wps"]),
-            "nav_last_wp": int(aas_params_for(sys_id, owner)["nav_last_wp"]),
+            "targ_wps": int(aas_params_for(scenario, sys_id, owner)["targ_wps"]),
+            "nav_last_wp": int(aas_params_for(scenario, sys_id, owner)["nav_last_wp"]),
             "nav_min_wp_seq": int(
                 binding_by_sys_id[sys_id]["mission_sequence"]
             ),
@@ -96,7 +96,7 @@ def capture_post_restart_status(
     restart_instances: list[dict[str, JsonValue]],
 ) -> list[dict[str, JsonValue]]:
     """Recheck that each exact ready generation is still live."""
-    ids = ThreeUavIds.from_values(context.sys_ids)
+    ids = context.scenario.uav_ids(context.sys_ids)
     expected = {
         int(instance["sys_id"]): instance for instance in restart_instances
     }

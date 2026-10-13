@@ -13,8 +13,12 @@ from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_NAV_WAYPOINT
 
 from scripts.eval_gcs_demo_assignment_audit import derive_global_assignment_map
 from scripts.eval_gcs_demo_assignment_lines import LogFormat, parse_assignment_lines
-from scripts.eval_gcs_demo_models import ThreeUavIds
-from scripts.eval_gcs_demo_scenario import resolve_demo_plan
+from scripts.eval_gcs_demo_models import UavIds
+from scripts.eval_gcs_demo_scenario import (
+    CERTIFIED_SCENARIO_PATH,
+    load_scenario,
+    resolve_demo_plan,
+)
 
 OWNER = 7
 # Plan tasks 1 and 3 by coordinate; the owner keeps plan task 2.
@@ -34,8 +38,9 @@ def _plan():
         for ordinal in range(1, 8)
     ]
     return resolve_demo_plan(
-        ThreeUavIds.from_values((OWNER, 4, 9)),
+        UavIds.from_values((OWNER, 4, 9), 3),
         {"sys_id": OWNER, "waypoints": rows},
+        load_scenario(CERTIFIED_SCENARIO_PATH),
     )
 
 

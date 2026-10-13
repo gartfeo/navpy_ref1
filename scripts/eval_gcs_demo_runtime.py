@@ -1,4 +1,4 @@
-"""Top-level live-run orchestration for the exact three-UAV scenario."""
+"""Top-level live-run orchestration for one explicit demo scenario."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from scripts.eval_gcs_demo_models import (
 )
 from scripts.eval_gcs_demo_mission import run_mission
 from scripts.eval_gcs_demo_process import SystemClock, with_owned_stack
-from scripts.eval_gcs_demo_scenario import load_scenario_manifest
+from scripts.eval_gcs_demo_scenario import DemoScenario
 
 
 def execute_live_run(
@@ -28,6 +28,7 @@ def execute_live_run(
     timeout_s: float,
     confirmation_delay_s: float = 15.0,
     *,
+    scenario: DemoScenario,
     navigation_speedup: float = 0.0,
 ) -> MissionArtifacts:
     timeout = finite_number("live-run timeout", timeout_s)
@@ -37,17 +38,18 @@ def execute_live_run(
     speedup = finite_number("navigation speedup", navigation_speedup)
     if not isinstance(run_dir, Path):
         raise TypeError("run_dir must be a Path")
-    load_scenario_manifest()
+    if not isinstance(scenario, DemoScenario):
+        raise TypeError("scenario must be a loaded DemoScenario")
     run_dir.mkdir(parents=True, exist_ok=True)
     if any(run_dir.glob("uav_*_navigation.log")):
         raise RegressionError(
             f"run directory already contains navigation logs: {run_dir}"
         )
     # Input faults stop the run before anything is launched.
-    dem_tiles(scenario_points())
+    dem_tiles(scenario_points(scenario))
     settings_path = run_dir / "gcs_settings.json"
     settings_path.write_text(
-        json.dumps(build_settings(), indent=2),
+        json.dumps(build_settings(scenario), indent=2),
         encoding="utf-8",
     )
     env = build_environment(
@@ -59,6 +61,7 @@ def execute_live_run(
     write_input_manifest(
         run_dir, env, sitl_inputs, sitl_root_host,
         {"confirmation_delay_s": delay, "navigation_speedup": speedup, "timeout_s": timeout},
+        scenario,
     )
     # One launch: the backend writes its complete log into the run.
     mission = with_owned_stack(
@@ -67,6 +70,7 @@ def execute_live_run(
         lambda context: run_mission(context, run_dir, timeout, delay),
         sitl_root.launch_arguments(),
         clock=SystemClock(),
+        scenario=scenario,
     )
     if not isinstance(mission, MissionArtifacts):
         raise TypeError("mission action returned an invalid artifact")

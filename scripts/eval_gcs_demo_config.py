@@ -8,7 +8,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from scripts.eval_gcs_demo_constants import (
-    EXPECTED_UAV_COUNT,
     EXPECTED_NAV_LAST_WP_ORDINAL,
     GCS_LAUNCH,
     GCS_LOG_SUBDIR,
@@ -18,7 +17,7 @@ from scripts.eval_gcs_demo_constants import (
 )
 from scripts.eval_gcs_demo_models import finite_number, positive_int
 from scripts.eval_gcs_demo_ports import JsonValue
-from scripts.eval_gcs_demo_scenario import DemoMissionPlan, load_scenario_manifest
+from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario
 from scripts.eval_certificate_source_time import SOURCE_TIME_ENV, SOURCE_TIME_SUBDIR
 
 from gcs.backend.diagnostics import SESSION_ID_ENV as DIAGNOSTICS_SESSION_ID_ENV
@@ -64,9 +63,17 @@ def launch_command(
     launch_token: str | None = None,
     home: str | None = None,
     sitl_arguments: Sequence[str] = (),
+    *,
+    instances: int | None = None,
 ) -> list[str]:
-    """Use only the isolated launcher; its directory owns the slot."""
+    """Use only the isolated launcher; its directory owns the slot.
+
+    *instances* is the scenario's slot count: the launcher starts that many
+    SITL vehicles of the slot's reserved sysids, in order.
+    """
     command = [sys.executable, str(GCS_LAUNCH), "--headless"]
+    if instances is not None:
+        command.extend(("-n", str(positive_int("instances", instances))))
     if launch_token is not None:
         if type(launch_token) is not str or not launch_token:
             raise ValueError("launch token must be a non-empty string")
@@ -88,12 +95,13 @@ def stop_command() -> list[str]:
     return [sys.executable, str(GCS_STOP)]
 
 
-def build_settings() -> dict[str, JsonValue]:
+def build_settings(scenario: DemoScenario) -> dict[str, JsonValue]:
+    vehicle_count = len(scenario.slots)
     return {
         # Stated, not left to the model default: the mission upload builds the
         # takeoff row from it.
         "flight": {
-            "uavs_per_set": EXPECTED_UAV_COUNT,
+            "uavs_per_set": vehicle_count,
             "takeoff_altitude_m": TAKEOFF_ALTITUDE_M,
         },
         "camera": {
@@ -114,7 +122,7 @@ def build_settings() -> dict[str, JsonValue]:
         "simulation": {
             "sim_mode": True,
             "dev_mode": True,
-            "simulated_vehicle_count": EXPECTED_UAV_COUNT,
+            "simulated_vehicle_count": vehicle_count,
             "companion_lifecycle": "explicit",
         },
     }
@@ -139,20 +147,27 @@ def _base_aas_params(poi_mask: int) -> dict[str, JsonValue]:
     }
 
 
-def aas_params_for(sys_id: int, owner_sys_id: int) -> dict[str, JsonValue]:
-    """Compatibility helper derived from the checked manifest and encoder."""
+def aas_params_for(
+    scenario: DemoScenario,
+    sys_id: int,
+    owner_sys_id: int,
+) -> dict[str, JsonValue]:
+    """The owner gets the scenario's POI ordinals; every peer gets none."""
     checked_sys_id = positive_int("sys_id", sys_id)
     checked_owner = positive_int("owner_sys_id", owner_sys_id)
-    scenario = load_scenario_manifest()
     poi_mask = encode_wp_bitmask(list(scenario.poi_nav_waypoint_ordinals))
     return _base_aas_params(poi_mask if checked_sys_id == checked_owner else 0)
 
 
-def aas_params_for_plan(sys_id: int, plan: DemoMissionPlan) -> dict[str, JsonValue]:
+def aas_params_for_plan(
+    scenario: DemoScenario,
+    sys_id: int,
+    plan: DemoMissionPlan,
+) -> dict[str, JsonValue]:
     checked_sys_id = positive_int("sys_id", sys_id)
     if checked_sys_id not in plan.sys_ids:
         raise ValueError(f"sys_id {checked_sys_id} is not in the resolved plan")
-    return aas_params_for(checked_sys_id, plan.owner.sys_id)
+    return aas_params_for(scenario, checked_sys_id, plan.owner.sys_id)
 
 
 def _canonical_number(value: float) -> str:

@@ -13,11 +13,8 @@ from scripts.eval_gcs_demo_companion_ready import (
     capture_post_restart_status,
     restart_configured_companions_ready,
 )
-from scripts.eval_gcs_demo_config import (
-    aas_params_for,
-    build_environment,
-    build_settings,
-)
+from scripts.eval_gcs_demo_config import build_environment, build_settings
+from scripts.eval_gcs_demo_constants import EXPECTED_NAV_LAST_WP_ORDINAL
 from scripts.eval_gcs_demo_mission import (
     approve_requests_until_snap,
     prepare_container_launch,
@@ -32,6 +29,7 @@ from scripts.eval_gcs_demo_models import (
 from scripts.eval_gcs_demo_lifecycle import wait_for_companions
 from navpy.core.kernel.logging.pose_cadence_naming import NAMING_ENV as POSE_CADENCE_NAMING_ENV
 from scripts.eval_gcs_demo_process import SystemClock, with_owned_stack
+from scripts.eval_gcs_demo_scenario import DemoScenario
 from scripts.eval_gcs_demo_stack_ops import (
     configure_vehicle_params,
     start_esp32_simulator,
@@ -52,8 +50,8 @@ from scripts.eval_certificate_source_time import SOURCE_TIME_FLUSH_GRACE_S
 IDEAL_PROFILE = "ideal_360"
 
 
-def build_ideal_settings() -> dict:
-    settings = deepcopy(build_settings())
+def build_ideal_settings(scenario: DemoScenario) -> dict:
+    settings = deepcopy(build_settings(scenario))
     # This eval exercises the interactive lifecycle: auto-connect, companions
     # auto-started and restarted after the parameter write.
     settings["connection"] = {"auto_connect": True}
@@ -104,15 +102,9 @@ def run_ideal_mission(
     artifacts: MissionArtifacts | None = None
     try:
         upload_mission_assignments(context, shifted_assignments)
-        owner_sys_id = context.sys_ids[0]
         nav_start_bindings = capture_nav_start_bindings(
             context,
-            {
-                sys_id: int(
-                    aas_params_for(sys_id, owner_sys_id)["nav_last_wp"]
-                )
-                for sys_id in context.sys_ids
-            },
+            {sys_id: EXPECTED_NAV_LAST_WP_ORDINAL for sys_id in context.sys_ids},
         )
         command_bounds = configure_vehicle_params(context, timeout_s)
         verify_aas_profile(context)
@@ -166,6 +158,7 @@ def run_ideal_mission(
         artifacts = MissionArtifacts(
             context.sys_ids,
             approvals,
+            len(context.scenario.slots),
             str((run_dir / "demo_mission_plan.json").resolve()),
         )
     except BaseException as error:
@@ -195,6 +188,7 @@ def run_ideal_mission(
 def execute_ideal_live_run(
     run_dir: Path,
     timeout_s: float,
+    scenario: DemoScenario,
 ) -> MissionArtifacts:
     """Execute in the fresh evidence directory already claimed by the caller."""
     timeout = finite_number("ideal live-run timeout", timeout_s)
@@ -203,7 +197,7 @@ def execute_ideal_live_run(
     if not run_dir.is_dir():
         raise RegressionError("ideal live run requires a caller-owned directory")
     settings_path = run_dir / "gcs_settings.json"
-    _write_json(settings_path, build_ideal_settings())
+    _write_json(settings_path, build_ideal_settings(scenario))
     environment = build_environment(settings_path, run_dir)
     # This eval restarts companions and selects the new generation by pid.
     environment[POSE_CADENCE_NAMING_ENV] = "pid"
@@ -217,7 +211,9 @@ def execute_ideal_live_run(
         return run_ideal_mission(context, run_dir, timeout)
 
     # The backend writes its complete log into the run (GCS_LOG_DIR).
-    return with_owned_stack(environment, timeout, action, clock=SystemClock())
+    return with_owned_stack(
+        environment, timeout, action, clock=SystemClock(), scenario=scenario
+    )
 
 
 __all__ = [

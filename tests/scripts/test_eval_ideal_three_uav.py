@@ -12,6 +12,7 @@ from scripts import eval_ideal_three_uav_runtime as runtime
 from scripts.eval_gcs_demo_config import aas_params_for
 from scripts.eval_gcs_demo_constants import EXPECTED_NAV_LAST_WP_ORDINAL
 from scripts.eval_gcs_demo_models import MissionArtifacts
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 from scripts.eval_gcs_demo_upload import (
     mission_assignment,
     mission_assignment_digest,
@@ -22,6 +23,8 @@ from tests.scripts.test_eval_gcs_navigation_demo import (
     _write_episode,
     _write_resolved_plan,
 )
+
+CERTIFIED = load_scenario(CERTIFIED_SCENARIO_PATH)
 
 
 def _write_source_time_evidence(path: Path) -> None:
@@ -52,7 +55,7 @@ def _write_source_time_evidence(path: Path) -> None:
                 "process_pid": process_pid,
                 "scheduler_rate_hz": 50.0,
                 "mission_items": 16,
-                "targ_wps": aas_params_for(sys_id, 4)["targ_wps"],
+                "targ_wps": aas_params_for(CERTIFIED, sys_id, 4)["targ_wps"],
                 "nav_last_wp": EXPECTED_NAV_LAST_WP_ORDINAL,
                 "nav_min_wp_seq": 9,
             },
@@ -225,6 +228,7 @@ def test_run_ideal_mission_restarts_ready_after_confirmed_configuration(
     shifted = [{"version": "shifted"}]
     context = SimpleNamespace(
         sys_ids=(4, 5, 6),
+        scenario=CERTIFIED,
         api=SimpleNamespace(),
         backend_tail=SimpleNamespace(read_new=lambda: "", text="backend"),
     )
@@ -312,7 +316,7 @@ def test_run_ideal_mission_restarts_ready_after_confirmed_configuration(
 
 def test_execute_ideal_live_run_uses_one_owned_stack(monkeypatch, tmp_path: Path):
     calls: list[str] = []
-    mission = MissionArtifacts((4, 5, 6), [])
+    mission = MissionArtifacts((4, 5, 6), [], 3)
     context = SimpleNamespace(
         backend_tail=SimpleNamespace(read_new=lambda: "", text=""),
         launch_evidence={"sitl_verified": True},
@@ -320,7 +324,8 @@ def test_execute_ideal_live_run_uses_one_owned_stack(monkeypatch, tmp_path: Path
     monkeypatch.setattr(runtime, "build_environment", lambda *_: {})
     monkeypatch.setattr(runtime, "run_ideal_mission", lambda *_: calls.append("mission") or mission)
 
-    def with_stack(_environment, _timeout, action, *, clock):
+    def with_stack(_environment, _timeout, action, *, clock, scenario):
+        assert scenario is CERTIFIED
         calls.append("launch")
         return action(context)
 
@@ -328,7 +333,7 @@ def test_execute_ideal_live_run_uses_one_owned_stack(monkeypatch, tmp_path: Path
 
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    result = runtime.execute_ideal_live_run(run_dir, 30.0)
+    result = runtime.execute_ideal_live_run(run_dir, 30.0, CERTIFIED)
 
     assert result is mission
     assert calls == ["launch", "mission"]
@@ -368,6 +373,7 @@ def test_ideal_analysis_uses_ready_python_pid_for_source_cadence(tmp_path):
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 
@@ -395,6 +401,7 @@ def test_ideal_analysis_accepts_isolated_fixed_grid_phase_compression(tmp_path):
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 
@@ -408,6 +415,7 @@ def test_ideal_analysis_binds_audited_approval_to_final_approach_poi(tmp_path):
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 
@@ -439,6 +447,7 @@ def test_ideal_analysis_fails_when_ready_python_pid_has_no_worker_evidence(tmp_p
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 
@@ -464,6 +473,7 @@ def test_ideal_analysis_fails_slow_active_command_cadence(tmp_path):
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 
@@ -513,6 +523,7 @@ def test_ideal_analysis_rejects_ten_second_source_stage_gaps(
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 
@@ -537,6 +548,7 @@ def test_ideal_analysis_requires_ten_fresh_observations(tmp_path):
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 
@@ -561,6 +573,7 @@ def test_ideal_analysis_rejects_zero_command_wall_gaps(tmp_path):
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 
@@ -609,6 +622,7 @@ def test_ideal_analysis_rejects_invalid_runtime_readiness_identity(
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 
@@ -640,6 +654,7 @@ def test_ideal_analysis_rejects_guided_failure_and_missing_third_snap(tmp_path):
 
     report = analysis.analyze_ideal_run(
         tmp_path,
+        scenario=CERTIFIED,
         approvals=approvals,
     )
 

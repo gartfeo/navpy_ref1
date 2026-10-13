@@ -11,10 +11,9 @@ from scripts.eval_gcs_demo_command_bounds import (
 )
 from scripts.eval_gcs_demo_config import aas_params_for
 from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
-from scripts.eval_gcs_demo_models import RegressionError, StackContext, ThreeUavIds
+from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_process import wait_until
-from scripts.eval_gcs_demo_scenario import owner_sys_id_for
 
 
 def _object(value: JsonValue, label: str) -> dict[str, JsonValue]:
@@ -53,7 +52,7 @@ def wait_for_vehicles(
         return [vehicles[sys_id] for sys_id in context.sys_ids]
 
     return wait_until(
-        "three linked GCS vehicles",
+        "every scenario vehicle linked to the GCS",
         timeout_s,
         probe,
         interval_s=1.0,
@@ -112,8 +111,9 @@ def configure_vehicle_params(
     timeout_s: float,
 ) -> DemoCommandBounds:
     wait_for_vehicles(context, timeout_s)
-    ids = ThreeUavIds.from_values(context.sys_ids)
-    owner = owner_sys_id_for(ids)
+    scenario = context.scenario
+    ids = scenario.uav_ids(context.sys_ids)
+    owner = scenario.owner_sys_id(ids)
     bounds = []
     for sys_id in ids.values:
         snapshot = context.api.get_json(
@@ -126,19 +126,20 @@ def configure_vehicle_params(
             roll_limit_deg=FINAL_APPROACH_ROLL_LIMIT_DEG,
         ))
         _ensure_roll_limit(context, sys_id, snapshot)
-        aas = aas_params_for(sys_id, owner)
+        aas = aas_params_for(scenario, sys_id, owner)
         written = context.api.put_json(
             f"/api/vehicles/{sys_id}/params",
             {"params": aas},
             timeout=60.0,
         )
         require_write_results(written, aas, f"vehicle {sys_id} AAS")
-    return DemoCommandBounds(1, tuple(bounds))  # type: ignore[arg-type]
+    return DemoCommandBounds(1, tuple(bounds))
 
 
 def verify_aas_profile(context: StackContext) -> None:
-    ids = ThreeUavIds.from_values(context.sys_ids)
-    owner = owner_sys_id_for(ids)
+    scenario = context.scenario
+    ids = scenario.uav_ids(context.sys_ids)
+    owner = scenario.owner_sys_id(ids)
     for sys_id in ids.values:
         payload = _object(
             context.api.get_json(f"/api/vehicles/{sys_id}/params", timeout=90.0),
@@ -146,7 +147,7 @@ def verify_aas_profile(context: StackContext) -> None:
         )
         params = _object(payload.get("params"), "vehicle AAS params values")
         mismatches: list[str] = []
-        for name, wanted in aas_params_for(sys_id, owner).items():
+        for name, wanted in aas_params_for(scenario, sys_id, owner).items():
             actual = params.get(name)
             if isinstance(wanted, bool):
                 equal = actual is wanted
@@ -191,7 +192,7 @@ def wait_for_missions(context: StackContext, timeout_s: float) -> None:
         )
 
     wait_until(
-        "three onboard missions",
+        "every scenario vehicle's onboard mission",
         timeout_s,
         probe,
         interval_s=1.0,

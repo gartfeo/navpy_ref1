@@ -8,6 +8,9 @@ import pytest
 
 from scripts import eval_ideal_three_uav as cli
 from scripts import eval_ideal_three_uav_runtime as runtime
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
+
+CERTIFIED = load_scenario(CERTIFIED_SCENARIO_PATH)
 
 
 @pytest.fixture(autouse=True)
@@ -51,7 +54,7 @@ def test_existing_verdict_is_preserved_before_runtime_entry(monkeypatch, tmp_pat
 
 def test_runtime_requires_a_claimed_directory(tmp_path):
     with pytest.raises(runtime.RegressionError, match="requires a caller-owned directory"):
-        runtime.execute_ideal_live_run(tmp_path / "missing", 30.0)
+        runtime.execute_ideal_live_run(tmp_path / "missing", 30.0, CERTIFIED)
     assert not (tmp_path / "missing").exists()
 
 
@@ -119,8 +122,9 @@ def test_new_run_records_success(monkeypatch, tmp_path, capsys, collision):
         calls.append("lock")
         yield
 
-    def execute(directory, _timeout):
+    def execute(directory, _timeout, scenario):
         assert directory == run and run.is_dir()
+        assert scenario.path == CERTIFIED_SCENARIO_PATH
         calls.append("execute")
         if collision:
             (run / "final.json").write_bytes(b"another verdict")

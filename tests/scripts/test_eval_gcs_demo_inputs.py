@@ -16,6 +16,9 @@ from scripts import eval_gcs_demo_process as process
 from scripts import eval_gcs_demo_sitl_root as sitl_root
 from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
 from scripts.eval_gcs_demo_models import RegressionError
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
+
+CERTIFIED = load_scenario(CERTIFIED_SCENARIO_PATH)
 
 
 STOCK = "# stock\nARMING_CHECK 1\nSR0_EXTRA1,0\nKEEP_ME 3\n"
@@ -106,7 +109,7 @@ def test_corrupt_dem_tile_is_an_input_fault(tmp_path):
 
 
 def test_scenario_points_are_covered_by_the_tracked_dem():
-    points = inputs.scenario_points()
+    points = inputs.scenario_points(CERTIFIED)
     assert len(points) > 20
     assert list(inputs.dem_tiles(points)) == ["N40E044.hgt"]
 
@@ -168,10 +171,11 @@ def test_real_environment_keeps_the_registry_path(tmp_path):
 
 
 def test_manifest_and_host_sidecar(tmp_path, monkeypatch):
-    monkeypatch.setattr(inputs, "navpy_inputs", lambda: {"dem": {}})
+    monkeypatch.setattr(inputs, "navpy_inputs", lambda _scenario: {"dem": {}})
     env = {"PATH": "C:\\bin"}
     manifest = inputs.write_input_manifest(
-        tmp_path, env, {"files": {"a": "1"}}, "/home/u/r", {"confirmation_delay_s": 15.0}
+        tmp_path, env, {"files": {"a": "1"}}, "/home/u/r", {"confirmation_delay_s": 15.0},
+        CERTIFIED,
     )
     written = json.loads((tmp_path / inputs.INPUT_MANIFEST).read_text(encoding="utf-8"))
     assert written == manifest

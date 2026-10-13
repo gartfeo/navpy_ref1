@@ -1,4 +1,4 @@
-"""CLI for the exact three-UAV GCS final approach evaluator."""
+"""CLI for the scenario-driven GCS final approach evaluator."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from scripts.eval_gcs_demo_models import (
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_process import exclusive_evaluator_lock
 from scripts.eval_gcs_demo_runtime import execute_live_run
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 
 
 def report_dict(report: RunReport) -> dict[str, JsonValue]:
@@ -27,7 +28,14 @@ def report_dict(report: RunReport) -> dict[str, JsonValue]:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Exact source-driven three-UAV GCS final-approach regression"
+        description="Exact source-driven GCS final-approach regression"
+    )
+    parser.add_argument(
+        "--scenario",
+        type=Path,
+        default=CERTIFIED_SCENARIO_PATH,
+        metavar="PATH",
+        help="scenario file to fly and gate (default: the certified three-UAV scenario)",
     )
     parser.add_argument(
         "--analyze-only",
@@ -69,9 +77,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     delay = finite_number("--confirmation-delay-s", args.confirmation_delay_s)
     speedup = finite_number("--navigation-speedup", args.navigation_speedup)
     limits = GateLimits()
+    try:
+        scenario = load_scenario(args.scenario)
+    except (TypeError, ValueError) as error:
+        raise RegressionError(f"invalid --scenario: {error}") from error
     if args.analyze_only is not None:
         report = analyze_run(
             args.analyze_only,
+            scenario=scenario,
             limits=limits,
             navigation_speedup=speedup,
         )
@@ -85,10 +98,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 run_dir,
                 timeout,
                 delay,
+                scenario=scenario,
                 navigation_speedup=speedup,
             )
             report = analyze_run(
                 run_dir,
+                scenario=scenario,
                 sys_ids=mission.sys_ids,
                 approvals=mission.approvals,
                 limits=limits,

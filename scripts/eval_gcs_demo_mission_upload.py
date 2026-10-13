@@ -8,7 +8,6 @@ from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_DO_JUMP, MAV_FRAME_GLOB
 
 from scripts.eval_gcs_demo_config import TAKEOFF_ALTITUDE_M
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
-from scripts.eval_gcs_demo_scenario import load_scenario_manifest
 from scripts.eval_gcs_demo_scenario_missions import bind_missions
 from scripts.eval_gcs_demo_upload import mission_assignment, upload_mission_assignments
 
@@ -85,7 +84,7 @@ def upload_scenario_missions(context: StackContext) -> None:
     Runs before the companion restart, so the companions start on them. The
     upload route only warns on field mismatches, so this check is the gate.
     """
-    expected = bind_missions(load_scenario_manifest().missions, context.sys_ids)
+    expected = bind_missions(context.scenario.missions, context.sys_ids)
     upload_mission_assignments(context, expected)
     for assignment in expected:
         sys_id = assignment["sys_id"]

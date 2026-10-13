@@ -29,6 +29,8 @@ mission = importlib.import_module("scripts.eval_gcs_demo_mission")
 config = importlib.import_module("scripts.eval_gcs_demo_config")
 process = importlib.import_module("scripts.eval_gcs_demo_process")
 
+CERTIFIED = scenario.load_scenario(scenario.CERTIFIED_SCENARIO_PATH)
+
 SYS_IDS = (7, 4, 9)
 TAKEOFF_ALTITUDE_M = 40.0  # settings default the eval leaves unset
 
@@ -73,7 +75,7 @@ def _parsed(assignment: dict) -> tuple[SimpleNamespace, dict]:
 
 
 def _write_manifest(tmp_path, edit) -> object:
-    raw = json.loads(scenario.SCENARIO_MANIFEST_PATH.read_text(encoding="utf-8"))
+    raw = json.loads(scenario.CERTIFIED_SCENARIO_PATH.read_text(encoding="utf-8"))
     edit(raw)
     path = tmp_path / "scenario.json"
     path.write_text(json.dumps(raw), encoding="utf-8")
@@ -81,7 +83,7 @@ def _write_manifest(tmp_path, edit) -> object:
 
 
 def test_scenario_binds_one_mission_per_slot_in_upload_api_shape():
-    manifest = scenario.load_scenario_manifest()
+    manifest = CERTIFIED
 
     assignments = scenario_missions.bind_missions(manifest.missions, SYS_IDS)
 
@@ -94,7 +96,7 @@ def test_scenario_binds_one_mission_per_slot_in_upload_api_shape():
 
 
 def test_every_scenario_mission_reads_back_exactly_after_encode_and_parse():
-    manifest = scenario.load_scenario_manifest()
+    manifest = CERTIFIED
 
     for assignment in scenario_missions.bind_missions(manifest.missions, SYS_IDS):
         _vehicle, parsed = _parsed(assignment)
@@ -108,11 +110,11 @@ def test_every_scenario_mission_reads_back_exactly_after_encode_and_parse():
 
 
 def test_resolved_pois_are_the_mission_items_navpy_selects():
-    manifest = scenario.load_scenario_manifest()
+    manifest = CERTIFIED
     owner = scenario_missions.bind_missions(manifest.missions, SYS_IDS)[manifest.owner_index]
     vehicle, parsed = _parsed(owner)
 
-    plan = scenario.resolve_demo_plan(models.ThreeUavIds.from_values(SYS_IDS), parsed)
+    plan = scenario.resolve_demo_plan(models.UavIds.from_values(SYS_IDS, 3), parsed, CERTIFIED)
 
     navpy_rows = nav_wp_indices(vehicle)
     # NavPy also counts the appended hub row; the GCS parser drops it.
@@ -137,13 +139,13 @@ def test_manifest_rejects_a_poi_ordinal_on_the_appended_hub_row(tmp_path):
     path = _write_manifest(tmp_path, drop_last_owner_waypoint)
 
     with pytest.raises(ValueError, match="default-delivery-hub row"):
-        scenario.load_scenario_manifest(path)
+        scenario.load_scenario(path)
 
 
 def test_scenario_search_paths_are_equal():
     lengths = [
         scenario_missions.search_path_m(mission["waypoints"])
-        for mission in scenario.load_scenario_manifest().missions
+        for mission in CERTIFIED.missions
     ]
 
     assert max(lengths) - min(lengths) < 0.01
@@ -157,7 +159,7 @@ def test_manifest_rejects_unequal_search_paths(tmp_path):
     path = _write_manifest(tmp_path, shorten_peer_line)
 
     with pytest.raises(ValueError, match="search paths must be equal"):
-        scenario.load_scenario_manifest(path)
+        scenario.load_scenario(path)
 
 
 def test_manifest_rejects_a_coordinate_the_encoder_would_move(tmp_path):
@@ -168,7 +170,7 @@ def test_manifest_rejects_a_coordinate_the_encoder_would_move(tmp_path):
     path = _write_manifest(tmp_path, unencodable)
 
     with pytest.raises(ValueError, match="does not survive mission-item encoding"):
-        scenario.load_scenario_manifest(path)
+        scenario.load_scenario(path)
 
 
 @pytest.mark.parametrize(
@@ -176,7 +178,7 @@ def test_manifest_rejects_a_coordinate_the_encoder_would_move(tmp_path):
     [
         (lambda raw: raw.update(schema_version=1), "schema_version must be 2"),
         (lambda raw: raw.pop("missions"), "keys must be"),
-        (lambda raw: raw["missions"].pop(), "exactly three missions"),
+        (lambda raw: raw["missions"].pop(), "exactly one mission per slot"),
         (lambda raw: raw["missions"][1].update(extra=1), "keys must be"),
         (lambda raw: raw.update(home="40.3,44.4"), "LAT,LON,ALT,HEADING"),
         (lambda raw: raw["missions"][0].update(altitude_m=240.1), "float32"),
@@ -187,13 +189,13 @@ def test_manifest_schema_is_strict(tmp_path, edit, message):
     path = _write_manifest(tmp_path, edit)
 
     with pytest.raises(ValueError, match=message):
-        scenario.load_scenario_manifest(path)
+        scenario.load_scenario(path)
 
 
 def _upload_context(monkeypatch, tamper=lambda sys_id, parsed: None):
     """GET /mission answers with each scenario mission encoded and parsed for real."""
     expected = scenario_missions.bind_missions(
-        scenario.load_scenario_manifest().missions,
+        CERTIFIED.missions,
         SYS_IDS,
     )
     onboard = {}
@@ -208,7 +210,8 @@ def _upload_context(monkeypatch, tamper=lambda sys_id, parsed: None):
         lambda _context, assignments: uploaded.append(assignments),
     )
     api = SimpleNamespace(get_json=lambda path, timeout: copy.deepcopy(onboard[path]))
-    return SimpleNamespace(sys_ids=SYS_IDS, api=api, clock=SystemClock()), expected, uploaded
+    context = SimpleNamespace(sys_ids=SYS_IDS, api=api, clock=SystemClock(), scenario=CERTIFIED)
+    return context, expected, uploaded
 
 
 def test_upload_accepts_the_scenario_missions_read_back_onboard(monkeypatch):
@@ -275,7 +278,7 @@ def test_upload_rejects_raw_rows_the_parsed_readback_skips(monkeypatch, tamper, 
 
 
 def test_parsed_mission_carries_every_stored_row_after_home():
-    assignment = scenario_missions.bind_missions(scenario.load_scenario_manifest().missions, SYS_IDS)[0]
+    assignment = scenario_missions.bind_missions(CERTIFIED.missions, SYS_IDS)[0]
     vehicle, parsed = _parsed(assignment)
     assert [row["seq"] for row in parsed["items"]] == list(range(1, vehicle.mission_items_count))
     assert parsed["items"] == mission_upload.expected_items(assignment)
@@ -330,8 +333,14 @@ def test_eval_launch_pins_the_scenario_home(monkeypatch, tmp_path):
     monkeypatch.setattr(process, "run_process", run_process)
 
     with pytest.raises(models.RegressionError, match="stopped by test"):
-        process.launch_stack({"GCS_LOG_DIR": str(tmp_path / "gcs")}, 1.0, clock=SystemClock())
+        process.launch_stack(
+            {"GCS_LOG_DIR": str(tmp_path / "gcs"), "NAVPY_LOG_DIR": str(tmp_path)},
+            1.0,
+            clock=SystemClock(),
+            scenario=CERTIFIED,
+        )
 
-    home = scenario.load_scenario_manifest().home
+    home = CERTIFIED.home
     assert commands[0][-2:] == ["--home", home]
+    assert commands[0][3:5] == ["-n", "3"]
     assert config.launch_command()[-1] == "--headless"

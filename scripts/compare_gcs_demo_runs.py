@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 for directory in (ROOT, ROOT / "src"):
     sys.path.insert(0, str(directory))
 
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 from scripts.gcs_demo_comparison import compare_runs
 
 
@@ -19,6 +20,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("runs", type=Path, nargs="+")
     parser.add_argument("--output", type=Path, required=True,
                         help="new report file outside all input directories")
+    parser.add_argument("--scenario", type=Path, default=CERTIFIED_SCENARIO_PATH,
+                        help="the runs' scenario file (default: the certified scenario)")
     args = parser.parse_args(argv)
     output = args.output.resolve()
     if any(output.is_relative_to(run.resolve()) for run in args.runs):
@@ -26,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
     if output.exists():
         parser.error("output already exists; preserve previous reports")
     try:
-        report = compare_runs(args.runs)
+        report = compare_runs(args.runs, load_scenario(args.scenario))
     except (OSError, ValueError, TypeError) as error:
         parser.error(str(error))
     serialized = json.dumps(report, indent=2, allow_nan=False) + "\n"

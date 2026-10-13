@@ -58,7 +58,7 @@ def _tracked(context: StackContext) -> dict[int, bool]:
 def wait_for_companions(context: StackContext, timeout_s: float) -> None:
     expected = set(context.sys_ids)
     wait_until(
-        "three running NavPy companions",
+        "every scenario vehicle's NavPy companion running",
         timeout_s,
         lambda: companion_ids(context) == expected,
         interval_s=1.0,

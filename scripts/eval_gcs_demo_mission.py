@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Mapping
 
-from scripts.eval_gcs_demo_api import TelemetryEventStream
 from scripts.eval_gcs_demo_command_bounds import persist_command_bounds
 from scripts.eval_gcs_demo_confirmation import (
     ConfirmationRequest,
@@ -19,13 +17,11 @@ from scripts.eval_gcs_demo_models import (
     MissionArtifacts,
     RegressionError,
     StackContext,
-    ThreeUavIds,
     finite_number,
 )
-from scripts.eval_gcs_demo_ports import EventStreamPort, JsonValue
+from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import (
     DemoMissionPlan,
-    owner_sys_id_for,
     persist_resolved_plan,
     resolve_demo_plan,
 )
@@ -46,44 +42,35 @@ def _object(value: JsonValue, label: str) -> dict[str, JsonValue]:
     return value
 
 
-def navigation_log(log_dir: Path, sys_id: int) -> Path:
-    return log_dir / f"uav_{sys_id}_navigation.log"
+def _navigation_text(context: StackContext, sys_id: int) -> str:
+    """Every NavPy log line of *sysid* so far, through the context's port."""
+    tail = context.navigation_tail(sys_id)
+    tail.read_new()
+    return tail.text
 
 
-def _has_snap(log_dir: Path, sys_id: int) -> bool:
-    try:
-        text = navigation_log(log_dir, sys_id).read_text(
-            encoding="utf-8",
-            errors="replace",
-        )
-    except FileNotFoundError:
-        return False
-    return "SNAP(VISION-NAV" in text
+def _has_snap(context: StackContext, sys_id: int) -> bool:
+    return "SNAP(VISION-NAV" in _navigation_text(context, sys_id)
 
 
-def all_have_snap(log_dir: Path, sys_ids: tuple[int, int, int]) -> bool:
-    return all(_has_snap(log_dir, sys_id) for sys_id in sys_ids)
+def all_have_snap(context: StackContext) -> bool:
+    return all(_has_snap(context, sys_id) for sys_id in context.sys_ids)
 
 
-def final_approach_nav_started(log_dir: Path, sys_id: int) -> bool:
-    try:
-        text = navigation_log(log_dir, sys_id).read_text(
-            encoding="utf-8",
-            errors="replace",
-        )
-    except FileNotFoundError:
-        return False
+def final_approach_nav_started(context: StackContext, sys_id: int) -> bool:
+    text = _navigation_text(context, sys_id)
     process_start = text.rfind("Heartbeat from system")
     current = text[process_start:] if process_start >= 0 else text
     return "INIT: NAV MODE" in current
 
 
 def resolve_live_plan(context: StackContext, log_dir: Path) -> DemoMissionPlan:
-    ids = ThreeUavIds.from_values(context.sys_ids)
-    owner = owner_sys_id_for(ids)
+    scenario = context.scenario
+    ids = scenario.uav_ids(context.sys_ids)
+    owner = scenario.owner_sys_id(ids)
     mission = context.api.get_json(f"/api/vehicles/{owner}/mission", timeout=90.0)
-    plan = resolve_demo_plan(ids, _object(mission, "owner mission"))
-    persist_resolved_plan(plan, log_dir / "demo_mission_plan.json")
+    plan = resolve_demo_plan(ids, _object(mission, "owner mission"), scenario)
+    persist_resolved_plan(plan, log_dir / "demo_mission_plan.json", scenario)
     return plan
 
 
@@ -130,14 +117,18 @@ def approve_requests_until_snap(
     log_dir: Path,
     timeout_s: float,
     confirmation_delay_s: float,
-    *,
-    event_stream_factory: Callable[[str], EventStreamPort] = TelemetryEventStream,
 ) -> list[dict[str, JsonValue]]:
     vehicle_ids = set(context.sys_ids)
-    if len(vehicle_ids) != 3:
+    vehicle_count = len(context.scenario.slots)
+    if len(vehicle_ids) != vehicle_count:
         raise RegressionError(
-            "confirmation workflow requires three unique vehicles"
+            f"confirmation workflow requires {vehicle_count} unique vehicles, "
+            "one per scenario slot"
         )
+
+    def has_snap(sys_id: int) -> bool:
+        return _has_snap(context, sys_id)
+
     observed_sys_ids: set[int] = set()
     attempted_sys_ids: set[int] = set()
     accepted_approvals: list[dict[str, JsonValue]] = []
@@ -151,7 +142,7 @@ def approve_requests_until_snap(
         observed_sys_ids.add(request.sys_id)
 
     def before_approve(request: ConfirmationRequest) -> None:
-        if final_approach_nav_started(log_dir, request.sys_id):
+        if final_approach_nav_started(context, request.sys_id):
             raise RegressionError(
                 f"vehicle {request.sys_id} entered NAV before delayed operator "
                 f"approval for local task {request.local_task_id}"
@@ -165,11 +156,11 @@ def approve_requests_until_snap(
 
     try:
         approvals = run_confirmation_workflow(
-            event_stream=event_stream_factory(context.api.websocket_url),
+            event_stream=context.event_stream_factory(context.api.websocket_url),
             api=context.api,
             expected_sys_ids=vehicle_ids,
             trigger=lambda: trigger_all(context),
-            stop_when=lambda: all_have_snap(log_dir, context.sys_ids),
+            stop_when=lambda: all_have_snap(context),
             requested_delay_s=confirmation_delay_s,
             timeout_s=timeout_s,
             clock=context.clock,
@@ -187,7 +178,7 @@ def approve_requests_until_snap(
             error.approvals,
             status="timeout",
             reason=str(error),
-            has_snap=_has_snap,
+            has_snap=has_snap,
         )
         if evidence_errors:
             raise RegressionError(
@@ -209,7 +200,7 @@ def approve_requests_until_snap(
             accepted_approvals,
             status="workflow_error",
             reason=f"{type(error).__name__}: {error}",
-            has_snap=_has_snap,
+            has_snap=has_snap,
         )
         if evidence_errors:
             raise RegressionError(
@@ -224,7 +215,7 @@ def approve_requests_until_snap(
     approved_sysids = {item["sys_id"] for item in approvals}
     if (
         approved_sysids != vehicle_ids
-        or len(approvals) != 3
+        or len(approvals) != vehicle_count
     ):
         missing_snap, evidence_errors = _persist_confirmation_failure(
             context,
@@ -234,7 +225,7 @@ def approve_requests_until_snap(
             approvals,
             status="approval_mismatch",
             reason="SNAP approvals are not exactly one local confirmation per vehicle",
-            has_snap=_has_snap,
+            has_snap=has_snap,
         )
         detail = (
             "SNAP approvals are not exactly one local confirmation per vehicle: "
@@ -282,6 +273,7 @@ def run_mission(
     return MissionArtifacts(
         context.sys_ids,
         approvals,
+        len(context.scenario.slots),
         str((log_dir / "demo_mission_plan.json").resolve()),
     )
 

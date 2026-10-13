@@ -11,7 +11,12 @@ from pathlib import Path
 from types import TracebackType
 from typing import Callable, Mapping, Sequence, TypeVar
 
-from scripts.eval_gcs_demo_api import FileTail, GcsApi
+from scripts.eval_gcs_demo_api import (
+    FileTail,
+    GcsApi,
+    NavigationLogTails,
+    TelemetryEventStream,
+)
 from scripts.eval_gcs_demo_config import launch_command, stop_command
 from scripts.eval_gcs_demo_constants import (
     ROOT,
@@ -24,16 +29,17 @@ from scripts.eval_gcs_demo_execution import (
     run_process,
     wait_until,
 )
-from scripts.eval_gcs_demo_models import (
-    RegressionError,
-    StackContext,
-    ThreeUavIds,
-)
+from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_ports import ClockPort, JsonValue
-from scripts.eval_gcs_demo_scenario import load_scenario_manifest
+from scripts.eval_gcs_demo_scenario import DemoScenario
+from scripts.eval_gcs_demo_stack_identity import (
+    backend_log_file,
+    flown_sys_ids,
+    navigation_log_dir,
+    reserved_sys_ids,
+)
 
 from gcs.backend import instance_ports
-from gcs.backend.runtime_paths import LOG_DIR_ENV
 
 
 T = TypeVar("T")
@@ -74,6 +80,7 @@ def launch_stack(
     sitl_arguments: Sequence[str] = (),
     *,
     clock: ClockPort,
+    scenario: DemoScenario,
 ) -> StackContext:
     if owned_entry(env) is not None:
         raise PreexistingOwnedStackError(
@@ -82,9 +89,16 @@ def launch_stack(
         )
     launch_token = secrets.token_hex(16)
     backend_log = backend_log_file(env)
+    navigation_dir = navigation_log_dir(env)
     result = run_process(
-        # The scenario pins the SITL start point instead of the launcher default.
-        launch_command(launch_token, load_scenario_manifest().home, sitl_arguments),
+        # The scenario pins the SITL start point instead of the launcher
+        # default, and launches one SITL vehicle per scenario slot.
+        launch_command(
+            launch_token,
+            scenario.home,
+            sitl_arguments,
+            instances=len(scenario.slots),
+        ),
         env,
         timeout_s=min(timeout_s, 60.0),
     )
@@ -100,7 +114,7 @@ def launch_stack(
         transient_exceptions=(OSError,),
         clock=clock,
     )
-    sys_ids = ThreeUavIds.from_values(entry.get("sysids", ())).values
+    sys_ids = flown_sys_ids(entry, scenario)
     chat_index = entry.get("chat_index")
     if type(chat_index) is not int:
         raise TypeError("owned GCS registry chat index must be an integer")
@@ -151,20 +165,12 @@ def launch_stack(
         sys_ids,
         FileTail(backend_log, 0),
         clock,
+        scenario,
+        TelemetryEventStream,
+        NavigationLogTails(navigation_dir),
         evidence,
         instance_ports.monitor_device(chat_index),
     )
-
-
-def backend_log_file(env: Mapping[str, str]) -> Path:
-    """The run's own backend log; a second launch into the same run is refused."""
-    log_dir = env.get(LOG_DIR_ENV, "").strip()
-    if not log_dir:
-        raise RegressionError(f"the run environment sets no {LOG_DIR_ENV}")
-    path = Path(log_dir) / "backend.log"
-    if path.exists():
-        raise RegressionError(f"the run already has a backend log: {path}")
-    return path
 
 
 def _verified_launch_entry(
@@ -199,7 +205,7 @@ def _verified_launch_entry(
         or float(pid_start) <= 0.0
     ):
         raise RegressionError(f"invalid verified SITL registry entry: {entry}")
-    ThreeUavIds.from_values(entry.get("sysids", ()))
+    reserved_sys_ids(entry)
     return entry
 
 
@@ -224,13 +230,16 @@ def with_owned_stack(
     sitl_arguments: Sequence[str] = (),
     *,
     clock: ClockPort,
+    scenario: DemoScenario,
 ) -> T:
     """Attempt companion stop, close, scoped stop, and tail; report every failure."""
     context: StackContext | None = None
     result: T | None = None
     errors: list[BaseException] = []
     try:
-        context = launch_stack(env, timeout_s, sitl_arguments, clock=clock)
+        context = launch_stack(
+            env, timeout_s, sitl_arguments, clock=clock, scenario=scenario
+        )
         result = action(context)
     except PreexistingOwnedStackError:
         raise
