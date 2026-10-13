@@ -31,8 +31,13 @@ def poi_ground_location(
     detect_data: DetectedObject,
     poi_ned: Optional[np.ndarray],
     allow_fallback: bool,
+    reference_height_m: Optional[float] = None,
 ) -> Optional[Location]:
-    """Back-project a legacy detection ray to terrain."""
+    """Back-project a legacy detection ray to terrain.
+
+    ``reference_height_m`` overrides the detection's own reference height (in
+    the sim that is the simulated POI's height, i.e. truth).
+    """
     if zc_util is None:
         return None
     if poi_ned is None:
@@ -46,7 +51,11 @@ def poi_ground_location(
     return zc_util.ray_to_terrain_ned(
         detect_data.geo.camera_location,
         poi_ned,
-        delta_alt=detect_data.geo.reference_height_m,
+        delta_alt=(
+            detect_data.geo.reference_height_m
+            if reference_height_m is None
+            else reference_height_m
+        ),
         allow_fallback=allow_fallback,
     )
 
@@ -199,6 +208,7 @@ class LegacyDestinationResolver:
         detect_data: DetectedObject,
         poi_ned: Optional[np.ndarray] = None,
         allow_fallback: bool = True,
+        reference_height_m: Optional[float] = None,
     ) -> Optional[Location]:
         return poi_ground_location(
             zc_util=self._zc_util,
@@ -206,6 +216,7 @@ class LegacyDestinationResolver:
             detect_data=detect_data,
             poi_ned=poi_ned,
             allow_fallback=allow_fallback,
+            reference_height_m=reference_height_m,
         )
 
     def locked_distance(self) -> Optional[float]:

@@ -1,4 +1,4 @@
-"""Legacy ORBIT preparation for a locally detected POI."""
+"""Circle a locally detected POI while it waits for confirmation."""
 
 from __future__ import annotations
 
@@ -10,6 +10,10 @@ from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.flow.nav_state import NavigationTaskState
 from navpy.core.ports.detect_data import DetectedObject
+
+# The waiting circle takes the POI to sit on the terrain: a few metres of real
+# height move the circle centre by a few metres, well inside the circle.
+WAITING_CIRCLE_REFERENCE_HEIGHT_M = 0.0
 
 
 @dataclass(frozen=True)
@@ -26,7 +30,7 @@ class SelfDetectedApproachPorts:
 
 
 class SelfDetectedApproach:
-    """Prepare legacy POI-centered ORBIT geometry for a local POI."""
+    """Command a POI-centred ORBIT for a local POI until it is confirmed."""
 
     def __init__(
         self,
@@ -41,14 +45,31 @@ class SelfDetectedApproach:
         self._logger = logger
 
     def prepare(self, poi: DetectedObject) -> None:
-        if self._ports.final_approach_active():
-            return
         if self._navigation_task.orbit_radius_m > 0:
             return
         if self._approach_kind != ApproachKind.ORBIT:
             return
-        poi_location = self.poi_location(poi)
+        # Circle the POI until it is confirmed (owner, 2026-10-07), so it
+        # stays inside the turn and in view. Under the vision law only the
+        # camera's ground estimate centres the circle, and it is not stored
+        # where the approach could read it. No sim truth: not the POI's
+        # position and not its height (the POI is taken to sit on the ground).
+        final_approach = self._ports.final_approach_active()
+        poi_location = (
+            self._ports.ground_location(
+                poi,
+                allow_fallback=False,
+                reference_height_m=WAITING_CIRCLE_REFERENCE_HEIGHT_M,
+            )
+            if final_approach
+            else self.poi_location(poi)
+        )
         if poi_location is None:
+            if final_approach:
+                self._logger.warning(
+                    "Self-detect orbit skipped: no ground estimate for the POI",
+                    key="nav",
+                )
             return
         plan, loiter_alt = self._ports.plan_orbit(
             poi_location,
@@ -57,9 +78,10 @@ class SelfDetectedApproach:
         )
         if not plan.orbit_radius or plan.orbit_radius <= 0:
             return
-        self._navigation_task.navigation_poi_location = (
-            self._ports.absolute_location(poi_location)
-        )
+        if not final_approach:
+            self._navigation_task.navigation_poi_location = (
+                self._ports.absolute_location(poi_location)
+            )
         self._navigation_task.orbit_radius_m = plan.orbit_radius
         self._navigation_task.orbit_approach_alt_rel_m = loiter_alt
         if not self._ports.save_loiter_radius():

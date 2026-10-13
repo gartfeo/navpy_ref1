@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.sim.gimbal.gimbal_cadence import FixedCadenceRunner
@@ -18,14 +19,18 @@ class SiyiSimLifecycle:
         state: SiyiSimState,
         runner: FixedCadenceRunner,
         logger: ILogger,
+        catch_up: Callable[[], None] | None = None,
     ) -> None:
         self._state = state
         self._runner = runner
         self._logger = logger
+        # Pays owed aircraft time before start/stop clears the commands.
+        self._catch_up = catch_up
         self._lifecycle_lock = threading.Lock()
 
     def start(self) -> None:
         with self._lifecycle_lock:
+            self._pay_owed_time()
             with self._state.lock:
                 if self._state.started and self._runner.is_running:
                     return
@@ -40,6 +45,7 @@ class SiyiSimLifecycle:
 
     def stop(self) -> bool:
         with self._lifecycle_lock:
+            self._pay_owed_time()
             with self._state.lock:
                 self._state.started = False
                 self._clear_commands()
@@ -51,6 +57,10 @@ class SiyiSimLifecycle:
 
     def raise_if_failed(self) -> None:
         self._runner.raise_if_failed()
+
+    def _pay_owed_time(self) -> None:
+        if self._catch_up is not None:
+            self._catch_up()
 
     def _clear_commands(self) -> None:
         self._state.angular.set_speed(0.0, 0.0)

@@ -5265,36 +5265,60 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         self.assertEqual(controller.navigation_task.orbit_radius_m, 300.0)
         self.assertIsNone(controller.loiter_radius.original)
 
-    def test_final_approach_self_detect_does_not_command_poi_geo_orbit(self):
-        """Pure-vision self detection starts from pixels, never POI geo."""
+    def _final_approach_orbit_rig(self, ground):
         from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         poi = _create_detected_poi(obj_id=1)
-        poi_loc = Location(
-            poi.geo.truth_poi_location.lat,
-            poi.geo.truth_poi_location.lng,
-            100.0,
-            is_absolute=True,
-        )
-        _set_poi_truth_location(poi, poi_loc)
+        # Sim truth sits elsewhere: the circle must never use it.
+        _set_poi_truth_location(
+            poi, Location(40.009, -74.009, 999.0, is_absolute=True))
         vehicle = _create_mock_vehicle()
         vehicle.get_parameter = Mock(return_value=80.0)
         navigation = _create_mock_navigation()
         navigation.final_approach.is_active = True
+        navigation.legacy_pois.ground_location = Mock(return_value=ground)
+        logger = Mock()
         controller = create_nav_test_rig(
             vehicle, _create_mock_detector(), navigation,
-            _create_mock_args(), Mock(), approach_kind=ApproachKind.ORBIT,
+            _create_mock_args(), logger, approach_kind=ApproachKind.ORBIT,
         )
         controller.fallback_navigation.plan_orbit_approach = Mock(return_value=(
             ApproachPlan(
                 kind=ApproachKind.ORBIT,
-                approach_location=poi_loc,
+                approach_location=ground,
                 offset_distance=300.0,
                 orbit_radius=300.0,
             ),
             115.0,
         ))
+        return controller, navigation, logger, poi
+
+    def test_final_approach_self_detect_circles_the_ground_estimate(self):
+        """The UAV circles its own POI until confirmed (owner, 2026-10-07).
+
+        Behaviour change: it used to keep flying AUTO, turn away and lose the
+        dock while waiting (run demo-rect-a). Under the vision law the circle
+        is centred on the camera's ground estimate, never sim truth, and that
+        estimate is not stored where the approach could read it.
+        """
+        ground = Location(40.002, -74.002, 95.0, is_absolute=True)
+        controller, navigation, _, poi = self._final_approach_orbit_rig(ground)
+
+        controller.navigation_task_action.start(poi)
+
+        navigation.legacy_pois.ground_location.assert_called_once_with(
+            poi, allow_fallback=False, reference_height_m=0.0)
+        self.assertEqual(
+            controller.fallback_navigation.plan_orbit_approach.call_args.args[0],
+            ground)
+        loiter = navigation.vehicle_commands.peer_poi_loiter
+        loiter.assert_called_once_with(ground, 300.0, 115.0)
+        self.assertEqual(controller.navigation_task.orbit_radius_m, 300.0)
+        self.assertIsNone(controller.navigation_task.navigation_poi_location)
+
+    def test_final_approach_self_detect_without_ground_estimate_does_not_circle(self):
+        controller, navigation, logger, poi = self._final_approach_orbit_rig(None)
 
         controller.navigation_task_action.start(poi)
 
@@ -5302,6 +5326,9 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         navigation.vehicle_commands.peer_poi_loiter.assert_not_called()
         self.assertEqual(controller.navigation_task.orbit_radius_m, 0.0)
         self.assertIsNone(controller.navigation_task.navigation_poi_location)
+        self.assertTrue(any(
+            "no ground estimate" in c.args[0]
+            for c in logger.warning.call_args_list))
 
     def test_offset_self_detect_does_not_dispatch_for_vision_nav(self):
         """Pure-vision navigation task cannot derive an offset from POI geo."""

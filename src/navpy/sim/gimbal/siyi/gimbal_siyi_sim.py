@@ -60,9 +60,9 @@ def build_siyi_sim(
         scheduler_cadence,
     )
     return SiyiSimPorts(
-        SiyiSimControl(state, logger),
+        SiyiSimControl(state, logger, stepper.catch_up),
         SiyiSimReadback(state),
-        SiyiSimLifecycle(state, runner, logger),
+        SiyiSimLifecycle(state, runner, logger, stepper.catch_up),
     )
 
 
