@@ -77,6 +77,7 @@ from tools.tuning.hitl_bridge.plant_options import DEFAULT_SERVO_SPEED_S, PlantO
 from tools.tuning.hitl_bridge.rail import RailGeometry, RailLaunch, spec_stroke
 from tools.tuning.private_data import LAUNCH_PROFILE_NAME, hitl_data_dir
 from tools.tuning.hitl_bridge.transport import DEFAULT_SERIAL_BAUD, Transport, make_transport
+from tools.tuning.hitl_bridge.unreal_pose import PoseOut, add_unreal_arguments, unreal_pose_option
 
 # Origin defaults = SIM_OPOS_LAT/LNG/ALT/HDG defaults (fork libraries/SITL/SITL.cpp:447-462),
 # so the board and the bridge agree when neither is set.
@@ -175,7 +176,7 @@ def build_parser() -> argparse.ArgumentParser:
                      help="a fresh run folder (model copy, script, console log) is made under it")
     p.add_argument("--log-csv", type=Path, default=None,
                    help="link log; default hitl_link_<UTC time>.csv in the current directory")
-    return p
+    return add_unreal_arguments(p)
 
 
 def _default_log_path(now: datetime) -> Path:
@@ -253,7 +254,7 @@ def main(argv: Optional[list[str]] = None, make_plant: Optional[PlantFactory] = 
         except (ValueError, RuntimeError, OSError) as exc:          # FileNotFoundError is an OSError
             print(f"bridge: {exc}", file=sys.stderr)
             return EXIT_BAD_SETUP
-        return _serve(args, transport, plant, launch)
+        return _serve(args, transport, plant, launch, unreal_pose_option(args))
     finally:
         if plant is not None:
             plant.close()
@@ -263,7 +264,7 @@ def main(argv: Optional[list[str]] = None, make_plant: Optional[PlantFactory] = 
             signal.signal(signum, handler)
 
 
-def _serve(args: argparse.Namespace, transport: Transport, plant: Plant, launch: Launch) -> int:
+def _serve(args: argparse.Namespace, transport: Transport, plant: Plant, launch: Launch, pose_out: PoseOut) -> int:
     stepper = BoardClockStepper(plant, launch, wind_option(args), loop_rate_hz=args.loop_rate_hz,
                                 ground_alt_msl_m=args.origin_alt)
     now = datetime.now(timezone.utc)
@@ -281,7 +282,7 @@ def _serve(args: argparse.Namespace, transport: Transport, plant: Plant, launch:
     start = time.perf_counter()
     code = EXIT_OK
     try:
-        run_bridge(link, Bridge(stepper), log, lambda: time.perf_counter() - start, stop)
+        run_bridge(link, Bridge(stepper), log, lambda: time.perf_counter() - start, stop, after_reply=pose_out)
         print(f"bridge: stopping: {stop.reason}")
     except KeyboardInterrupt:
         pass
@@ -291,8 +292,9 @@ def _serve(args: argparse.Namespace, transport: Transport, plant: Plant, launch:
     finally:
         link.close()
         log.close()
+        pose_out.close()
         print(f"bridge: {log.rows} frames logged, {stepper.reinits} resets to the origin "
               f"({stepper.armed_reinits} while armed), {stepper.gaps} gaps stepped across, "
               f"{stepper.retransmits} frames resent, {stepper.conflicts} conflicting frames, {stepper.crashes} crashes, "
-              f"link {link.stats}")
+              f"link {link.stats}{pose_out.summary()}")
     return code

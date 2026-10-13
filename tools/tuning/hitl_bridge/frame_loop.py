@@ -9,7 +9,9 @@ For each HIL_ACTUATOR_CONTROLS frame, in order (HIL link contract v2):
   3. HIL_STATE_QUATERNION is sent with this frame's time_usec (while the launcher holds the
      aircraft, the launcher's state: at rest, or moving along the catapult rail),
   4. one CSV row is written (frame index, board time, PC receive time, dt, event, flags,
-     commands, key state).
+     commands, key state),
+  5. optionally (after_reply, e.g. unreal_pose.UnrealPoseSender) the answered state goes to a
+     renderer with its board time; it runs after the reply and must never block.
 Board time going back or jumping more than board_clock.MAX_FORWARD_JUMP_US is a board reboot:
 the aircraft goes back to the origin (an ALERT when the previous frame was armed). A forward
 jump longer than board_clock.GAP_FACTOR loop periods is stepped across with the held outputs and
@@ -22,16 +24,19 @@ from __future__ import annotations
 import csv
 import math
 import threading
-from typing import Callable, TextIO
+from typing import Callable, Optional, TextIO
 
 from pymavlink.dialects.v20 import common as mavlink2
 
 from tools.tuning.hitl_bridge.link import ARMED_FLAG, LOCKSTEP_FLAG, MavlinkLink
 from tools.tuning.hitl_bridge.board_clock import (CONFLICT, CRASH, GAP, REINIT, RETRANSMIT, BoardClockStepper,
                                                   StepResult)
+from tools.tuning.hitl_bridge.physics import PlantState
 from tools.tuning.hitl_bridge.state_fields import hil_state_fields
 
 ActuatorMessage = mavlink2.MAVLink_hil_actuator_controls_message
+# Called with (board time us, the state answered at that board time) after the reply was sent.
+AfterReply = Callable[[int, PlantState], None]
 
 LOG_COLUMNS = (
     "frame", "board_time_us", "board_dt_us", "pc_rx_s", "event", "flags", "substeps", "lost_frames", "armed",
@@ -49,6 +54,7 @@ class Bridge:
         self.stepper = stepper
         self.frames = 0                 # actuator frames handled: the log's frame index
         self.lockstep_seen = False
+        self.state: Optional[PlantState] = None     # the state the last frame was answered with
 
     def handle(self, msg: ActuatorMessage, pc_rx_s: float) -> tuple[dict, dict, StepResult]:
         controls = tuple(msg.controls)
@@ -57,6 +63,7 @@ class Bridge:
         result = self.stepper.on_actuators(msg.time_usec, controls, armed, msg.flags)
         self.frames += 1
         state = self.stepper.board_state(msg.time_usec)
+        self.state = state
         fields = hil_state_fields(state)
         row = {
             "frame": self.frames, "board_time_us": msg.time_usec, "board_dt_us": result.board_dt_us,
@@ -128,7 +135,8 @@ def describe_event(result: StepResult, time_us: int, frame: int) -> str:
 
 
 def run_bridge(link: MavlinkLink, bridge: Bridge, log: LinkLog, clock: Callable[[], float],
-               should_stop: Callable[[], bool], say: Callable[[str], None] = print) -> None:
+               should_stop: Callable[[], bool], say: Callable[[str], None] = print,
+               after_reply: Optional[AfterReply] = None) -> None:
     """Serve actuator frames until should_stop(); every frame gets its own reply, in order."""
     while not should_stop():
         frames = link.receive(should_stop)
@@ -143,6 +151,8 @@ def run_bridge(link: MavlinkLink, bridge: Bridge, log: LinkLog, clock: Callable[
             row["sent"] = int(sent)
             row["pc_tx_s"] = f"{clock():.6f}" if sent else ""
             log.write(row)
+            if after_reply is not None and bridge.state is not None:
+                after_reply(msg.time_usec, bridge.state)
 
 
 class StopConditions:
