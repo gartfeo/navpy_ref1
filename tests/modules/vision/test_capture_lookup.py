@@ -305,8 +305,11 @@ class TestImplementationChecks:
         import threading
 
         from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+        from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import (
+            MESSAGE_HISTORY_POLICY,
+        )
 
-        store = MessageStore()
+        store = MessageStore(MESSAGE_HISTORY_POLICY)
         stop = threading.Event()
 
         def writer() -> None:

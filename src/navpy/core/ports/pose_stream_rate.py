@@ -42,3 +42,9 @@ def pose_frame_association_max_skew_s(rate_hz: object) -> float:
 POSE_FRAME_ASSOCIATION_MAX_SKEW_S = pose_frame_association_max_skew_s(
     POSE_STREAM_RATE_HZ,
 )
+
+# Enough retained ATTITUDE samples to bracket a lookup that sits a full
+# admitted capture latency behind now: the 0.5 s absolute skew ceiling at the
+# 40 Hz pose rate is 20 samples; 64 leaves margin. The frame association reads
+# this many and the vehicle's message history keeps this many, one source.
+ATTITUDE_HISTORY_COUNT = 64

@@ -27,6 +27,7 @@ from navpy.core.kernel.location import Location
 from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState, PacketLossTracker
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import MESSAGE_HISTORY_POLICY
 from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
 from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
@@ -127,7 +128,7 @@ class RouterVehicle:
     def __init__(self) -> None:
         self.logger = BusLogger()
         logger_ref = SimpleNamespace(value=self.logger)
-        self._store = MessageStore()
+        self._store = MessageStore(MESSAGE_HISTORY_POLICY)
         self._callbacks = CallbackRegistry(logger_ref)
         self._router = InboundMessageRouter(
             VehicleIdentity(

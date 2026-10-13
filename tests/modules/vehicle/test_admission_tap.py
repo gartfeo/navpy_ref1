@@ -52,6 +52,9 @@ TARGET = 42
 WAIT_S = 10.0
 # The types the router stores in the sequence below.
 STORED = ("ATTITUDE", "VFR_HUD", "SYS_STATUS")
+# A test history policy: keep every stored type deep enough to see the
+# whole sequence, so the test reads everything the router published.
+HISTORY_POLICY = {message_type: 16 for message_type in STORED}
 IDENTITIES = pytest.mark.parametrize(
     "mav_type", [MAV_TYPE_ONBOARD_CONTROLLER, MAV_TYPE_GCS], ids=["onboard", "gcs"]
 )
@@ -60,7 +63,7 @@ IDENTITIES = pytest.mark.parametrize(
 def _router(
     mav_type: int = MAV_TYPE_ONBOARD_CONTROLLER,
 ) -> tuple[InboundMessageRouter, MessageStore, CallbackRegistry]:
-    store = MessageStore()
+    store = MessageStore(HISTORY_POLICY)
     callbacks = CallbackRegistry()
     router = InboundMessageRouter(
         VehicleIdentity(TARGET, TARGET, MAV_COMP_ID_ONBOARD_COMPUTER, mav_type),
