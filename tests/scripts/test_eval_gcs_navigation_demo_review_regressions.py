@@ -62,7 +62,7 @@ def _final_approach_row(
     obs: float,
     roll: str,
     issued: str = "True",
-    passed: str = "False",
+    missed: str = "False",
     source: str = "measured",
     generation: int = 4,
     task: int = 1,
@@ -85,7 +85,7 @@ def _final_approach_row(
             f"cmd_pitch={pitch}" if roll else "cmd_pitch=",
             f"cmd_thr={throttle}" if roll else "cmd_thr=",
             f"issued={issued}",
-            f"passed={passed}",
+            f"missed={missed}",
         )
     )
     return f"{wall},EVENT:FINAL_APPROACH_CMD,{payload},,,,,,,,,\n"
@@ -192,7 +192,7 @@ def test_final_approach_command_rows_are_atomic_ordered_and_retain_unissued(tmp_
         + _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
         + _final_approach_row("12:00:00.010", obs=1.1, roll="", issued="False")
         + _final_approach_row(
-            "12:00:00.020", obs=1.2, roll="", issued="False", passed="True"
+            "12:00:00.020", obs=1.2, roll="", issued="False", missed="True"
         ),
         encoding="utf-8",
     )
@@ -204,29 +204,37 @@ def test_final_approach_command_rows_are_atomic_ordered_and_retain_unissued(tmp_
     assert [record.issued for record in records] == [True, False, False]
     assert records[0].source_key == ("measured", 4, 1, 11)
     assert records[1].cmd_roll is None
-    assert records[2].passed is True
+    assert records[2].missed is True
 
 
-def test_final_approach_episode_allows_repeated_pass_suppression_before_snap(tmp_path):
+ARMED_ROW = (
+    "12:00:00.000,EVENT:DOCK_ARMED,vehicle=7;task=1;dock=11;episode=1,,,,,,,,,\n"
+)
+DOCKED_ROW = (
+    "12:00:00.025,EVENT:DOCKED,vehicle=7;task=1;dock=11;episode=1;"
+    "aircraft_ts=1.25;closest_3d_m=0.3;closest_h_m=0.2;closest_v_m=0.2,,,,,,,,,\n"
+)
+SNAP_ROW = "12:00:00.030,EVENT:SNAP_COMPONENTS,algorithm=VISION-NAV-PN,,,,,,,,,\n"
+
+
+def test_final_approach_episode_allows_unissued_rows_before_docked(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     metrics = importlib.import_module("scripts.eval_gcs_demo_metrics")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
-        _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
-        + _final_approach_row(
-            "12:00:00.010", obs=1.1, roll="", issued="False", passed="True"
-        )
-        + _final_approach_row(
-            "12:00:00.020", obs=1.2, roll="", issued="False", passed="True"
-        )
-        + "12:00:00.030,EVENT:SNAP_COMPONENTS,algorithm=VISION-NAV-PN,,,,,,,,,\n",
+        ARMED_ROW
+        + _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
+        + _final_approach_row("12:00:00.010", obs=1.1, roll="", issued="False")
+        + _final_approach_row("12:00:00.020", obs=1.2, roll="", issued="False")
+        + DOCKED_ROW
+        + SNAP_ROW,
         encoding="utf-8",
     )
 
-    episodes = evidence.parse_final_approach_command_episodes(path)
+    episodes = evidence.parse_final_approach_command_episodes(path, vehicle_id=7)
 
     assert len(episodes) == 1
-    assert [command.passed for command in episodes[0]] == [False, True, True]
+    assert [command.issued for command in episodes[0]] == [True, False, False]
     assert metrics.score_final_approach_commands(
         episodes[0],
         roll_limit_deg=45.0,
@@ -238,50 +246,40 @@ def test_final_approach_episode_allows_repeated_pass_suppression_before_snap(tmp
     )
 
 
-def test_pass_suppressed_tail_cannot_mask_slow_issued_timing(tmp_path):
+@pytest.mark.parametrize(("issued", "roll"), (("True", "11.0"), ("False", "")))
+def test_final_approach_episode_rejects_any_command_row_after_docked(
+    tmp_path, issued, roll,
+):
+    """Rows after DOCKED would also dilute the cadence score: rejected."""
+    evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
+    path = tmp_path / "navigation_debug.csv"
+    path.write_text(
+        ARMED_ROW
+        + _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
+        + DOCKED_ROW
+        + _final_approach_row("12:00:00.027", obs=1.3, roll=roll, issued=issued)
+        + SNAP_ROW,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="after DOCKED"):
+        evidence.parse_final_approach_command_episodes(path, vehicle_id=7)
+
+
+def test_a_missed_dock_episode_cannot_be_scored(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     metrics = importlib.import_module("scripts.eval_gcs_demo_metrics")
-    path = tmp_path / "navigation_debug.csv"
-    issued = "".join(
-        _final_approach_row(
-            f"12:00:00.{index * 50:03d}",
-            obs=1.0 + index * 0.1,
-            roll="10.0",
-        )
-        for index in range(10)
-    )
-    passed = "".join(
-        _final_approach_row(
-            f"12:00:00.{450 + index * 10:03d}",
-            obs=1.9 + index * 0.1,
-            roll="",
-            issued="False",
-            passed="True",
-        )
-        for index in range(1, 31)
-    )
-    path.write_text(issued + passed, encoding="utf-8")
-
-    timing = metrics.final_approach_timing(evidence.parse_final_approach_commands(path))
-
-    assert timing.observed_speedup == pytest.approx(2.0)
-    assert timing.median_wall_gap_s == pytest.approx(0.05)
-
-
-def test_final_approach_episode_rejects_an_issued_command_after_pass(tmp_path):
-    evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
         _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
         + _final_approach_row(
-            "12:00:00.010", obs=1.1, roll="", issued="False", passed="True"
-        )
-        + _final_approach_row("12:00:00.020", obs=1.2, roll="11.0"),
+            "12:00:00.010", obs=1.1, roll="", issued="False", missed="True"
+        ),
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="after pass"):
-        evidence.parse_final_approach_command_episodes(path)
+    with pytest.raises(ValueError, match="missed its dock"):
+        metrics.final_approach_timing(evidence.parse_final_approach_commands(path))
 
 
 def test_final_approach_bool_tokens_are_strict(tmp_path):
@@ -323,9 +321,7 @@ def test_source_gap_is_raw_and_observed_speedup_is_a_ratio(tmp_path):
     path.write_text(
         _final_approach_row("12:00:00.000", obs=1.0, roll="10")
         + _final_approach_row("12:00:00.010", obs=1.1, roll="11")
-        + _final_approach_row(
-            "12:00:00.020", obs=1.2, roll="", issued="False", passed="True"
-        ),
+        + _final_approach_row("12:00:00.020", obs=1.2, roll="", issued="False"),
         encoding="utf-8",
     )
     timing = metrics.final_approach_timing(evidence.parse_final_approach_commands(path))
@@ -333,7 +329,7 @@ def test_source_gap_is_raw_and_observed_speedup_is_a_ratio(tmp_path):
     assert timing.observed_speedup == pytest.approx(10.0)
 
 
-def test_saturation_touching_explicit_pass_is_still_scored(tmp_path):
+def test_saturation_touching_the_unissued_tail_is_still_scored(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     metrics = importlib.import_module("scripts.eval_gcs_demo_metrics")
     path = tmp_path / "navigation_debug.csv"
@@ -344,9 +340,7 @@ def test_saturation_touching_explicit_pass_is_still_scored(tmp_path):
             )
             for index in range(3)
         )
-        + _final_approach_row(
-            "12:00:00.030", obs=1.3, roll="", issued="False", passed="True"
-        ),
+        + _final_approach_row("12:00:00.030", obs=1.3, roll="", issued="False"),
         encoding="utf-8",
     )
     score = metrics.score_final_approach_commands(
@@ -675,10 +669,6 @@ def test_gate_and_navigation_speedup_reject_bad_numbers_before_io(bad, tmp_path)
     models = importlib.import_module("scripts.eval_gcs_demo_models")
     config = importlib.import_module("scripts.eval_gcs_demo_config")
     with pytest.raises((TypeError, ValueError)):
-        models.GateLimits(
-            truth=models.TruthLimits(max_snap_distance_m=bad),
-        )
-    with pytest.raises((TypeError, ValueError)):
         config.build_environment(
             tmp_path / "settings.json",
             tmp_path / "logs",
@@ -694,7 +684,6 @@ def test_gate_limits_are_composed_from_focused_limit_groups():
     limits = models.GateLimits()
     assert isinstance(limits.cadence, models.CadenceLimits)
     assert isinstance(limits.roll_quality, models.RollQualityLimits)
-    assert isinstance(limits.truth, models.TruthLimits)
 
 
 def test_zero_and_positive_navigation_speedup_environment_contract(tmp_path):

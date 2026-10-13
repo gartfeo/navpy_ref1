@@ -30,6 +30,7 @@ from navpy.app.flow.nav_runtime_composition import compose_nav_application
 from navpy.app.flow.nav_final_approach_composition import (
     compose_final_approach_workflows,
 )
+from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
@@ -43,6 +44,7 @@ def create_nav_application(
     approach_kind: ApproachKind = ApproachKind.OFFSET,
     vision_profile: Optional[dict] = None,
     scheduler_cadence: Optional[SchedulerCadence] = None,
+    dock_contact: Optional[DockContactSensor] = None,
 ) -> NavApplication:
     """Build the application from bounded semantic ownership stages."""
 
@@ -58,7 +60,10 @@ def create_nav_application(
         bind_source_dispatch=navigation.bind_final_approach_source_dispatch,
         algorithm_info=lambda: navigation.algorithm_info,
     )
-    state = compose_state_ownership(scheduler_cadence)
+    state = compose_state_ownership(
+        scheduler_cadence,
+        navigation.final_approach.latch_failure,
+    )
     poi = compose_poi_mission_ownership(
         vehicle,
         detection,
@@ -163,6 +168,7 @@ def create_nav_application(
         decision,
         navigation_capabilities,
         final_approach.nav,
+        dock_contact,
     )
 
 

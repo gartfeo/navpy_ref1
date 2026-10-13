@@ -18,6 +18,7 @@ from navpy.sim.detection.sim_control_ports import (
     ZoomNavigationPort,
 )
 from navpy.sim.detection.sim_detector_state import SimCaptureState
+from navpy.sim.world.simulation_object import SimulationObject
 from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
 
 
@@ -181,6 +182,10 @@ class SimPoiControls:
 
     def __init__(self, poi_provider: PoiProviderMutationPort) -> None:
         self._poi_provider = poi_provider
+
+    def docks(self) -> tuple[SimulationObject, ...]:
+        """The world's current docks (the contact sensor's dock truth)."""
+        return tuple(self._poi_provider.pois or ())
 
     def set_sim_poi(
         self,

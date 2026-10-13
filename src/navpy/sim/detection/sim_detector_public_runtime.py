@@ -95,6 +95,9 @@ class SimDetectorSimulationFacet:
     def is_simulation(self) -> bool:
         return self._parts.identity.is_simulation
 
+    def sim_docks(self) -> tuple[SimulationObject, ...]:
+        return self._parts.simulation.docks()
+
     def set_sim_poi(
         self,
         command_index: int,

@@ -33,4 +33,37 @@ class FinalApproachCommandLiveness:
             self._failed = False
 
 
-__all__ = ["FinalApproachCommandFailureSink", "FinalApproachCommandLiveness"]
+class FinalApproachEpisodeFailureGate(Protocol):
+    def latch_failure(self) -> bool: ...
+
+
+class FinalApproachEpisodeFailures:
+    """Worker failure sink: the episode latch first, then the liveness signal.
+
+    A worker failure (stale frame, expired held command, law failure) ends the
+    episode at the moment it happens, under the runtime lock, so whichever of
+    it and a dock contact comes first wins (physical_docking.md). After a
+    contact the failure is dropped.
+    """
+
+    def __init__(
+        self,
+        lock: rt.RLock,
+        episode: FinalApproachEpisodeFailureGate,
+        liveness: FinalApproachCommandLiveness,
+    ) -> None:
+        self._lock = lock
+        self._episode = episode
+        self._liveness = liveness
+
+    def mark_failed(self) -> None:
+        with self._lock:
+            if self._episode.latch_failure():
+                self._liveness.mark_failed()
+
+
+__all__ = [
+    "FinalApproachCommandFailureSink",
+    "FinalApproachCommandLiveness",
+    "FinalApproachEpisodeFailures",
+]

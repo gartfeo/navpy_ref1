@@ -51,7 +51,8 @@ EXPERIMENT_MODULE_LINE_DEBT = {
     "scripts/scratch_sitl_uav.py": 806,
     "scripts/sitl_truth_pose.py": 530,
     "scripts/siyi_geo_track_child.py": 352,
-    "scripts/siyi_pixel_pn_child.py": 327,
+    # +2: arms the sim dock contact sensor, its completion (physical_docking.md).
+    "scripts/siyi_pixel_pn_child.py": 329,
 }
 EXPERIMENT_FUNCTION_LINE_DEBT = {
     ("scripts/eval_direct_pixel_pn.py", "run_case"): 215,
@@ -141,14 +142,10 @@ PASSIVE_RECORD_FIELD_LIMITS = {
         "RealFrameAssociation",
     ): 17,
     ("src/navpy/plugins/tracking/boxmot/track_export_memory.py", "_MemoryState"): 13,
-    # 17 = the original 15 plus the two camera-state angles the visual pass
-    # needs to tell a dock lost centred (hit) from one lost at an image edge
-    # (a7). Flat floats, because test_frozen_inventories pins the frame to
-    # primitive fields.
     (
         "src/navpy/core/ports/frame.py",
         "FinalApproachVisionFrame",
-    ): 17,
+    ): 15,
     (
         "src/navpy/core/approach/vision_nav/command_transaction.py",
         "FinalApproachLawEvidence",
@@ -222,10 +219,12 @@ FACADE_METHOD_ALLOWANCES = {
         "src/navpy/core/perception/zoom/poi_zoom_orchestrator.py",
         "PoiZoomTracker",
     ): FacadeMethodAllowance(1, 17, frozenset({"_parts"})),
+    # 17: + dock_contact, the sim net stand-in handed to navigation
+    # (physical_docking.md); None in a real build.
     (
         "src/navpy/app/perception/vision_controller.py",
         "VisionController",
-    ): FacadeMethodAllowance(16, 16, frozenset({"_ports"})),
+    ): FacadeMethodAllowance(17, 17, frozenset({"_ports"})),
     (
         "src/navpy/plugins/gimbal/siyi/gimbal_siyi.py",
         "GimbalSiyi",
@@ -238,10 +237,12 @@ FACADE_METHOD_ALLOWANCES = {
         "src/navpy/sim/gimbal/siyi/gimbal_siyi_sim.py",
         "GimbalSiyiSim",
     ): FacadeMethodAllowance(1, 22, frozenset({"_parts"})),
+    # 37: + sim_docks, the world's dock truth read by the contact sensor
+    # (physical_docking.md).
     (
         "src/navpy/sim/detection/detector_sim.py",
         "DetectorSim",
-    ): FacadeMethodAllowance(1, 36, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 37, frozenset({"_parts"})),
 }
 
 

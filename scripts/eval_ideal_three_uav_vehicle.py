@@ -46,8 +46,9 @@ def _truth_errors(
     navigation_text: str,
     compact_path: Path,
     debug_path: Path,
-    max_snap_distance_m: float,
 ) -> list[str]:
+    """SNAP integrity only: docking is counted from DOCKED, and the SNAP
+    distance is a diagnostic (physical_docking.md, Evidence)."""
     errors: list[str] = []
     navigation_count = navigation_text.count("SNAP(VISION-NAV")
     compact_snaps = parse_compact_snap_distances(compact_path)
@@ -83,13 +84,6 @@ def _truth_errors(
         metrics.snap_distance_m = candidates[-1]
     if len(candidates) == 3 and max(candidates) - min(candidates) > 0.25:
         errors.append(f"navigation/compact/debug SNAP disagreement: {candidates}")
-    if metrics.snap_distance_m is not None and (
-        metrics.snap_distance_m >= max_snap_distance_m
-    ):
-        errors.append(
-            f"truth SNAP distance {metrics.snap_distance_m:.3f}m is not < "
-            f"{max_snap_distance_m:.3f}m"
-        )
     return errors
 
 
@@ -99,7 +93,6 @@ def analyze_ideal_vehicle(
     role: str,
     *,
     approval_count: int,
-    max_snap_distance_m: float,
     source_metrics: dict[str, object] | None = None,
     source_errors: Sequence[str] = (),
 ) -> VehicleReport:
@@ -144,7 +137,9 @@ def analyze_ideal_vehicle(
     if approval_count != 1:
         errors.append(f"expected exactly one approval, found {approval_count}")
     try:
-        episodes = parse_final_approach_command_episodes(paths["debug"])
+        episodes = parse_final_approach_command_episodes(
+            paths["debug"], vehicle_id=sys_id
+        )
         if len(episodes) != 1:
             errors.append(
                 f"expected exactly one final-approach command episode, found {len(episodes)}"
@@ -189,7 +184,6 @@ def analyze_ideal_vehicle(
                 mission_text,
                 paths["compact"],
                 paths["debug"],
-                max_snap_distance_m,
             )
         )
     except (OSError, UnicodeError, ValueError) as error:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, unique
+from collections.abc import Callable
 from typing import Optional
 
 from navpy.core.kernel import runtime_time as rt
@@ -133,20 +134,30 @@ class NavigationTaskState:
 
 
 class NavigationFailureLatch:
-    """Thread-safe one-shot failure signal, separate from nav-thread state."""
+    """Thread-safe one-shot failure signal, separate from nav-thread state.
 
-    def __init__(self) -> None:
+    ``admit`` arbitrates with the final-approach episode latch (first latch
+    wins): once the episode docked, a later NAV_FAIL is ignored, and an
+    admitted NAV_FAIL makes a later contact ignored.
+    """
+
+    def __init__(self, admit: Optional[Callable[[], bool]] = None) -> None:
         self._lock = rt.Lock()
         self._failed = False
+        self._admit = admit
 
     @property
     def failed(self) -> bool:
         with self._lock:
             return self._failed
 
-    def mark_failed(self) -> None:
+    def mark_failed(self) -> bool:
+        """Latch a failure; False when the episode already docked."""
+        if self._admit is not None and not self._admit():
+            return False
         with self._lock:
             self._failed = True
+        return True
 
     def consume(self) -> bool:
         with self._lock:

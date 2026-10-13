@@ -91,26 +91,11 @@ class RollQualityLimits:
 
 
 @dataclass(frozen=True)
-class TruthLimits:
-    """Simulation-truth scoring limits kept outside the command path."""
-
-    max_snap_distance_m: float = 0.5
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "max_snap_distance_m",
-            _finite("max_snap_distance_m", self.max_snap_distance_m),
-        )
-
-
-@dataclass(frozen=True)
 class GateLimits:
     """Read-only view composed from focused certification policies."""
 
     cadence: CadenceLimits = field(default_factory=CadenceLimits)
     roll_quality: RollQualityLimits = field(default_factory=RollQualityLimits)
-    truth: TruthLimits = field(default_factory=TruthLimits)
 
     @property
     def min_observations(self) -> int:
@@ -156,10 +141,6 @@ class GateLimits:
     def max_roll_step_deg(self) -> float:
         return self.roll_quality.max_roll_step_deg
 
-    @property
-    def max_snap_distance_m(self) -> float:
-        return self.truth.max_snap_distance_m
-
     def speedup_bounds(self, expected_speedup: float) -> tuple[float, float]:
         return self.cadence.speedup_bounds(expected_speedup)
 
@@ -168,5 +149,4 @@ __all__ = [
     "CadenceLimits",
     "GateLimits",
     "RollQualityLimits",
-    "TruthLimits",
 ]

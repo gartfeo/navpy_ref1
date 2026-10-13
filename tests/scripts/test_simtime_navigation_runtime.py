@@ -137,3 +137,36 @@ def test_missing_throttle_configuration_cannot_silently_delegate_to_tecs() -> No
             engine.advance(snapshot, 100.)
     finally:
         engine.close()
+
+
+def _fly_through_dock(east_deg: float) -> list[bool]:
+    """A lockstep leg flying north at ~22 m/s through (or past) the dock."""
+    from scripts.simtime_navigation_runtime import SynchronousNavigation
+    step_deg = 0.44 / 111_132.0
+    engine = SynchronousNavigation(Location(40.01, 44., 1300., is_absolute=True),
+                                   speedup=10, wall_now=lambda: 100.)
+    passed = []
+    try:
+        for index in range(40):
+            snap = Snapshot.decode(packet(index + 1))
+            snap = replace(snap, truth=replace(
+                snap.truth, latitude=40.01 + (index - 30) * step_deg,
+                longitude=44. + east_deg, altitude=1300.))
+            _, evidence = engine.advance(snap, 100.)
+            passed.append(evidence["passed"])
+    finally:
+        engine.close()
+    return passed
+
+
+def test_lockstep_completes_on_dock_contact_and_stays_completed() -> None:
+    """Codex P2: `passed` came only from the removed visual pass, so
+    score_one_uav rejected every capture. It is now the contact sensor's."""
+    passed = _fly_through_dock(0.2 / 85_276.0)  # 0.2 m east of the dock
+    first = passed.index(True)
+    assert 29 <= first <= 31  # the step whose segment crosses the dock
+    assert all(passed[first:])
+
+
+def test_lockstep_flying_past_the_net_never_completes() -> None:
+    assert not any(_fly_through_dock(2.0 / 85_276.0))  # 2 m east of the dock

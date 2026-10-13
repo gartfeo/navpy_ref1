@@ -140,10 +140,6 @@ def _pixel_observation(
             aircraft_roll_deg,
             association.uas_body_rates_rad_s,
         ),
-        image_size_px=(
-            float(association.frame_width),
-            float(association.frame_height),
-        ),
     )
 
 

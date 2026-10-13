@@ -17,7 +17,6 @@ from navpy.app.flow.nav_composition_types import (
     PoiMissionOwnership,
     VehicleApproachOwnership,
 )
-from navpy.app.flow.final_approach_optics import mount_half_fov_reader
 from navpy.app.flow.nav_confirmation_admission_composition import (
     compose_confirmation_admission_workflows,
 )
@@ -129,19 +128,11 @@ def compose_final_approach_nav(
     detection: DetectionCoordination,
     deadline: FinalApproachRecordDeferral,
 ) -> FinalApproachNavWorkflow:
-    current_half_fov_deg = mount_half_fov_reader(
-        lambda: detection.mounts.mounts
-    )
     commands = FinalApproachCommandDispatch(
         FinalApproachCommandPorts(
             nav=navigation.nav,
             mark_failed=state.navigation_failures.mark_failed,
             logger=logger,
-            latch_pass_on_detection_loss=lambda: (
-                navigation.final_approach.latch_pass_on_detection_loss(
-                    current_half_fov_deg
-                )
-            ),
         ),
         observation.source,
     )
@@ -209,6 +200,7 @@ def compose_final_approach_nav(
             command_liveness_failed=(
                 navigation.final_approach.consume_command_liveness_failure
             ),
+            dock_missed=navigation.final_approach.consume_missed_dock,
         ),
         observation.source,
         commands,

@@ -676,6 +676,7 @@ def test_reset_between_bootstrap_dispatch_and_activation_invalidates_work():
             active_poi=lambda: poi,
             vision_nav_active=lambda: True,
             command_liveness_failed=lambda: False,
+            dock_missed=lambda: False,
         ),
         source,
         commands,
@@ -733,15 +734,16 @@ def test_command_failure_latch_survives_diagnostic_logger_exceptions():
     logger = Mock()
     logger.info.side_effect = RuntimeError("logger unavailable")
     commands = FinalApproachCommandDispatch(
-        FinalApproachCommandPorts(Mock(), failed, logger, lambda: False),
+        FinalApproachCommandPorts(Mock(), failed, logger),
         Mock(),
     )
 
     commands.mark_no_detection(active)
     commands.mark_navigation_rejected(active)
     commands.mark_source_liveness_expired(active)
+    commands.mark_missed_dock(active)
 
-    assert failed.call_count == 3
+    assert failed.call_count == 4
 
 
 def test_regular_event_matches_active_task_before_source_admission():
@@ -777,18 +779,16 @@ def test_regular_event_matches_active_task_before_source_admission():
     reset_source.assert_called_once_with()
 
 
-def test_ideal_360_empty_publication_still_rejects_without_the_loss_pass():
-    """The a7 centred-loss pass belongs to the polling no-detection path only:
-    an empty source publication on the event pump stays navigation_rejected,
-    even when a loss latch would have accepted it."""
+def test_ideal_360_empty_publication_still_rejects_as_navigation_rejected():
+    """An empty source publication on the event pump is navigation_rejected:
+    losing the dock is never success (physical_docking.md)."""
     active = make_detected_poi(obj_id=7, task_id=17, timestamp=1.0)
     failed = Mock()
     logger = Mock()
-    latch = Mock(return_value=True)
     source = Mock()
     source.source_event_poi.return_value = None
     commands = FinalApproachCommandDispatch(
-        FinalApproachCommandPorts(Mock(), failed, logger, latch),
+        FinalApproachCommandPorts(Mock(), failed, logger),
         source,
     )
     handler = FinalApproachSourceEventHandler(
@@ -805,9 +805,23 @@ def test_ideal_360_empty_publication_still_rejects_without_the_loss_pass():
     publication = Mock(source_discontinuity=False, source_name="ideal_360")
 
     assert handler.handle(publication) is False
-    latch.assert_not_called()
     failed.assert_called_once_with()
     assert logger.info.call_args.args[0].startswith("NAV_FAIL: navigation_rejected")
+
+
+def test_failure_after_docking_is_ignored_and_not_logged():
+    """mark_failed returns False once the episode docked: no NAV_FAIL text."""
+    active = make_detected_poi(obj_id=7, task_id=17)
+    logger = Mock()
+    commands = FinalApproachCommandDispatch(
+        FinalApproachCommandPorts(Mock(), Mock(return_value=False), logger),
+        Mock(),
+    )
+
+    commands.mark_no_detection(active)
+    commands.mark_missed_dock(active)
+
+    logger.info.assert_not_called()
 
 
 def test_empty_named_discontinuity_allows_lower_clock_in_new_epoch():

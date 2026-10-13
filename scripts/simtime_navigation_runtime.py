@@ -31,6 +31,11 @@ from navpy.plugins.vehicle.ardupilot.attitude_command import euler_to_quaternion
 from navpy.sim.detection.direct_pixel_render import DirectPixelRenderer
 from navpy.sim.detection.pose_associator import AssociatedPose
 from navpy.sim.camera.sim_camera_ports import FrameSize
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.dock_contact import DockContactIdentity
+from navpy.core.ports.pose_stream_rate import SCHED_LOOP_RATE_FALLBACK_HZ
+from navpy.sim.world.dock_contact_sensor import PositionSample, SimDockContactSensor
+from navpy.sim.world.simulation_object import SimulationObject
 from scripts.simtime_navigation_config import resolve_config
 from scripts.simtime_navigation_protocol import ATTITUDE, CameraSchedule, Snapshot, StepCommand
 
@@ -64,6 +69,11 @@ class StepActuator:
             tuple(euler_to_quaternion(roll, pitch, 0.0)), 0.0 if thr is None else thr)
 
 
+# The lockstep steps once per ArduPlane scheduler tick (its 40 Hz camera is
+# 4 of every 5 ticks), so truth arrives at this rate, every step.
+LOCKSTEP_STEP_RATE_HZ = SCHED_LOOP_RATE_FALLBACK_HZ
+
+
 class SynchronousNavigation:
     def __init__(self, dock: Location, *, speedup: float,
                  camera_fraction: tuple[int, int] = (4, 5),
@@ -86,6 +96,8 @@ class SynchronousNavigation:
         self.seed_step: int | None = None
         self.command_count = 0
         self._drained = False
+        self._dock = dock
+        self._contact: SimDockContactSensor | None = None
         self._renderer = DirectPixelRenderer(
             dock, source_name="simtime-ideal360", aircraft_sequence="ZYX",
             aircraft_degrees=True, frame_size=FrameSize(1920, 1080),
@@ -128,6 +140,11 @@ class SynchronousNavigation:
         if snapshot.limits != self._limits:
             raise ValueError("law configuration changed")
         runtime = self._composition.runtime
+        if self._contact is not None:
+            # Every step, before this step's command: completion is contact.
+            truth = snapshot.truth
+            self._contact.sample(PositionSample(self._source_s, Location(
+                truth.latitude, truth.longitude, truth.altitude, is_absolute=True), 0.0))
         evidence = {"active": True, "captured": self._camera.due()}
         if evidence["captured"]:
             obs, truth = snapshot.observation, snapshot.truth
@@ -147,6 +164,7 @@ class SynchronousNavigation:
                 if not self._composition.confirmation.record_final_approach_confirmed_detection(detection):
                     raise ValueError("confirmation seed unavailable")
                 self.seed_step = snapshot.identity.step
+                self._arm_contact(snapshot.identity.vehicle, detection)
             if not runtime.nav(detection):
                 raise ValueError("frame admission rejected")
         work = runtime.take_work()
@@ -164,6 +182,16 @@ class SynchronousNavigation:
         if self._actuator.command.kind == ATTITUDE:
             self.command_count += 1
         return self._actuator.command, evidence
+
+    def _arm_contact(self, vehicle: int, detection: DetectedObject) -> None:
+        """The sim contact sensor for the seeded task, the dock its only dock."""
+        identity = DockContactIdentity(
+            vehicle, detection.identity.task_id, detection.identity.obj_id, 1)
+        dock = SimulationObject(identity.dock_uid, self._dock, 0)
+        session = self._composition.runtime.session
+        self._contact = SimDockContactSensor(lambda: (dock,), LOCKSTEP_STEP_RATE_HZ)
+        session.begin_dock_episode(identity)
+        self._contact.arm(identity, session.latch_docked)
 
     def close(self) -> None:
         if self._composition is not None:

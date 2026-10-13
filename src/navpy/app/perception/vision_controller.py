@@ -13,6 +13,7 @@ from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.detection_coordination import DetectionCoordination
+from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.perception.detection_coordinator import DetectionCoordinator
 from navpy.core.perception.detector_ports import DetectorFleetMember
 from navpy.app.perception.vision_controller_composition import (
@@ -42,6 +43,10 @@ class VisionController:
             zc_util,
             scheduler_cadence,
         )
+
+    @property
+    def dock_contact(self) -> DockContactSensor | None:
+        return self._ports.dock_contact
 
     @property
     def coordinator(self) -> DetectionCoordinator:

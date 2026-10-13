@@ -11,7 +11,6 @@ from scripts.eval_gcs_demo_limits import (
     CadenceLimits,
     GateLimits,
     RollQualityLimits,
-    TruthLimits,
 )
 
 
@@ -67,15 +66,45 @@ class FinalApproachCommand:
     cmd_pitch: float | None
     cmd_thr: float | None
     issued: bool
-    passed: bool
-    # None for FINAL_APPROACH_CMD rows. Set for a FINAL_APPROACH_PASS row: a
-    # pass latched without a new frame (e.g. "centred_loss"); its obs_ts is the
-    # last commanded frame's, so it is not a cadence sample.
-    pass_reason: str | None = None
+    # The aft gate declared the dock missed (NAV_FAIL: missed_dock).
+    missed: bool
 
     @property
     def source_key(self) -> tuple[str, int, int, int]:
         return self.source, self.generation, self.task, self.obj
+
+
+@dataclass(frozen=True)
+class DockArmed:
+    """One DOCK_ARMED row: the episode the contact sensor was armed for."""
+
+    vehicle: int
+    task: int
+    dock: int
+    episode: int
+
+    @property
+    def identity(self) -> tuple[int, int, int, int]:
+        return self.vehicle, self.task, self.dock, self.episode
+
+
+@dataclass(frozen=True)
+class DockedEvidence:
+    """One DOCKED row: the sim contact sensor's success event."""
+
+    wall_s: float
+    vehicle: int
+    task: int
+    dock: int
+    episode: int
+    aircraft_ts: float
+    closest_3d_m: float
+    closest_h_m: float
+    closest_v_m: float
+
+    @property
+    def identity(self) -> tuple[int, int, int, int]:
+        return self.vehicle, self.task, self.dock, self.episode
 
 
 @dataclass(frozen=True)
@@ -184,7 +213,6 @@ __all__ = [
     "FinalApproachScore",
     "FinalApproachTiming",
     "ThreeUavIds",
-    "TruthLimits",
     "VehicleReport",
     "finite_number",
     "positive_int",

@@ -12,11 +12,7 @@ from scripts.eval_gcs_demo_analysis import (
 )
 from scripts.eval_gcs_demo_audit import validate_approval_records
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
-from scripts.eval_gcs_demo_models import (
-    RunReport,
-    ThreeUavIds,
-    finite_number,
-)
+from scripts.eval_gcs_demo_models import RunReport, ThreeUavIds
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import load_resolved_plan
 from scripts.eval_ideal_three_uav_source_time import load_source_time_evidence
@@ -28,11 +24,7 @@ def analyze_ideal_run(
     *,
     sys_ids: Sequence[int] | None = None,
     approvals: list[dict[str, JsonValue]] | None = None,
-    max_snap_distance_m: float = 1.0,
 ) -> RunReport:
-    limit = finite_number("max_snap_distance_m", max_snap_distance_m)
-    if limit <= 0.0:
-        raise ValueError("max_snap_distance_m must be positive")
     plan = load_resolved_plan(log_dir / "demo_mission_plan.json")
     plan_ids = ThreeUavIds.from_values(plan.sys_ids)
     if sys_ids is not None:
@@ -60,7 +52,6 @@ def analyze_ideal_run(
             vehicle.sys_id,
             vehicle.role,
             approval_count=counts[vehicle.sys_id],
-            max_snap_distance_m=limit,
             source_metrics=source_time.metrics_by_sys_id.get(vehicle.sys_id),
             source_errors=source_time.errors_by_sys_id.get(vehicle.sys_id, ()),
         )

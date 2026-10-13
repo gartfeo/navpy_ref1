@@ -11,7 +11,9 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
+from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.plugins.vehicle.ardupilot.pose_streams import resolve_pose_stream_rate_hz
 from navpy.sim.detection.detector_sim import DetectorSim
 from navpy.sim.sim_cv_threads import apply_sim_cv_threads
 from navpy.app.perception.vision_detector_factory_ports import VisionDetectorNode
@@ -19,6 +21,8 @@ from navpy.core.perception.profile.vision_profile_types import CameraMountSpec, 
 from navpy.app.perception.vision_tracking_composition import build_tracking_config
 from navpy.sim.debug_view.vision_ui_ports import SimDebugSnapshot, SimDebugSource
 from navpy.app.perception.vision_zoom_profile import build_zoom_config
+from navpy.sim.world.dock_contact_feed import SimDockContactFeed
+from navpy.sim.world.dock_contact_sensor import SimDockContactSensor
 
 
 class SimDetectorFactory:
@@ -42,7 +46,33 @@ class SimDetectorFactory:
         self._zc_util = zc_util
         self._scheduler_cadence = scheduler_cadence
         self._assets_path = Path(__file__).resolve().parents[4] / ".sim"
+        self._dock_contact: SimDockContactSensor | None = None
+        self._dock_contact_feed: SimDockContactFeed | None = None
         apply_sim_cv_threads()
+
+    @property
+    def dock_contact(self) -> DockContactSensor | None:
+        """The net stand-in; only for a simulated autopilot (else None)."""
+        return self._dock_contact
+
+    def _wire_dock_contact(self, detector: DetectorSim) -> None:
+        # One sensor per process, on the first detector's world: every
+        # detector loads the same docks, so a dock uid is the same in each.
+        if self._dock_contact is not None:
+            return
+        if not self._vehicle.is_simulated_autopilot():
+            return
+        # The same rate the sim detector requests the position stream at.
+        sensor = SimDockContactSensor(
+            detector.sim_docks,
+            resolve_pose_stream_rate_hz(self._vehicle),
+        )
+        # The subscription lives as long as the vehicle link that feeds it.
+        self._dock_contact_feed = SimDockContactFeed(
+            sensor,
+            self._vehicle.on_message,
+        )
+        self._dock_contact = sensor
 
     def create(
         self,
@@ -81,6 +111,7 @@ class SimDetectorFactory:
             scheduler_cadence=self._scheduler_cadence,
             ideal_360=ideal_360,
         )
+        self._wire_dock_contact(detector)
         if ideal_360:
             self._logger.info(
                 f"DetectorSim({mount_spec.mount.name}): "

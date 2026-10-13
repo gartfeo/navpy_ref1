@@ -79,13 +79,14 @@ ApproachCalculator = Callable[..., ApproachPlan]
 
 def compose_state_ownership(
     scheduler_cadence: Optional[SchedulerCadence],
+    admit_failure: Optional[Callable[[], bool]] = None,
 ) -> NavStateOwnership:
     return NavStateOwnership(
         clock=NavClock(scheduler_cadence),
         phase=NavPhaseState(),
         detections=DetectionSnapshot(),
         navigation_task=NavigationTaskState(),
-        navigation_failures=NavigationFailureLatch(),
+        navigation_failures=NavigationFailureLatch(admit_failure),
         final_approach=FinalApproachNavState(),
         geo_hold=GeoHoldState(),
         confirm=ConfirmGateState(),

@@ -553,6 +553,7 @@ def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
         geo_ref=object(),
         coordination=object(),
         approach_kind=object(),
+        dock_contact=None,
         profile=object(),
         is_quiescent=True,
         raise_if_failed=MagicMock(),

@@ -100,7 +100,11 @@ def _write_episode(
         "\n".join(compact_rows) + "\n", encoding="utf-8"
     )
 
-    debug_rows = ["ts,event,payload,,,,,,,,,"]
+    debug_rows = [
+        "ts,event,payload,,,,,,,,,",
+        f"{_clock(0, wall_step_s)},EVENT:DOCK_ARMED,"
+        f"vehicle={sys_id};task=1;dock=11;episode=1,,,,,,,,,",
+    ]
     for index, roll in enumerate(rolls):
         dt = "" if index == 0 else f"{wall_step_s * 1000:.0f}"
         timestamp = _clock(index, wall_step_s)
@@ -108,15 +112,21 @@ def _write_episode(
             f"{timestamp},EVENT:FINAL_APPROACH_CMD,source=camera;generation=4;"
             f"task=1;obj=11;obs_ts={1000 + index * source_step_s:.3f};"
             f"dt_wall_ms={dt};body_bearing_deg=2.5;cmd_roll={roll:.2f};"
-            "cmd_pitch=-10;cmd_thr=0.55;issued=True;passed=False,,,,,,,,,"
+            "cmd_pitch=-10;cmd_thr=0.55;issued=True;missed=False,,,,,,,,,"
         )
-    pass_index = len(rolls)
+    # One unissued (aft-gated) row, then the contact sensor's DOCKED row.
+    tail_index = len(rolls)
     debug_rows.append(
-        f"{_clock(pass_index, wall_step_s)},EVENT:FINAL_APPROACH_CMD,"
+        f"{_clock(tail_index, wall_step_s)},EVENT:FINAL_APPROACH_CMD,"
         "source=camera;generation=4;task=1;obj=11;"
-        f"obs_ts={1000 + pass_index * source_step_s:.3f};"
+        f"obs_ts={1000 + tail_index * source_step_s:.3f};"
         f"dt_wall_ms={wall_step_s * 1000:.0f};body_bearing_deg=2.5;"
-        "cmd_roll=;cmd_pitch=;cmd_thr=;issued=False;passed=True,,,,,,,,,"
+        "cmd_roll=;cmd_pitch=;cmd_thr=;issued=False;missed=False,,,,,,,,,"
+    )
+    debug_rows.append(
+        f"{_clock(tail_index, wall_step_s)},EVENT:DOCKED,"
+        f"vehicle={sys_id};task=1;dock=11;episode=1;aircraft_ts=1000.5;"
+        "closest_3d_m=0.3;closest_h_m=0.2;closest_v_m=0.2,,,,,,,,,"
     )
     debug_rows.append(
         f"{_clock(len(rolls), wall_step_s)},EVENT:SNAP_COMPONENTS,"
@@ -350,7 +360,9 @@ def test_missing_nav_controller_pass_reset_fails(tmp_path):
     assert any("coordinate pass reset" in error for error in report.errors)
 
 
-def test_half_meter_truth_boundary_is_strict(tmp_path):
+def test_docking_counts_from_docked_and_snap_is_diagnostic(tmp_path):
+    """physical_docking.md: a SNAP at or above 0.5 m (SNAP's samples miss the
+    sensor's crossing segment) does not overrule a valid DOCKED row."""
     rolls = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
     _write_episode(tmp_path, 1, rolls, snap_m=0.5)
 
@@ -358,8 +370,28 @@ def test_half_meter_truth_boundary_is_strict(tmp_path):
         tmp_path, 1, "owner", approval_count=1
     )
 
+    assert report.passed is True, report.errors
+    assert report.metrics.snap_distance_m == pytest.approx(0.5)
+
+
+def test_an_episode_without_docked_fails_even_with_a_close_snap(tmp_path):
+    rolls = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+    _write_episode(tmp_path, 1, rolls, snap_m=0.1)
+    debug = tmp_path / "uav_1_navigation_debug.csv"
+    debug.write_text(
+        "".join(
+            line for line in debug.read_text(encoding="utf-8").splitlines(True)
+            if "EVENT:DOCKED" not in line
+        ),
+        encoding="utf-8",
+    )
+
+    report = evaluator.analyze_vehicle(
+        tmp_path, 1, "owner", approval_count=1
+    )
+
     assert report.passed is False
-    assert any("is not < 0.50m" in error for error in report.errors)
+    assert any("SNAP without DOCKED" in error for error in report.errors)
 
 
 def test_operator_confirmation_source_must_reach_profile_pixels(tmp_path):
@@ -862,7 +894,8 @@ def test_acked_run_fails_a_peer_that_never_started_its_peer_approach(tmp_path):
             "POI 99 confirmed by ground station.",
         ),
         ("navigation", "POI: P1", "POI: P99"),
-        ("debug", "task=1;obj=11", "task=99;obj=11"),
+        # The CMD rows and the DOCKED row move to task 99 together.
+        ("debug", "task=1;", "task=99;"),
     ],
 )
 def test_exact_run_binds_approval_confirmation_selection_and_commands(
@@ -1078,15 +1111,14 @@ def test_configuration_keeps_explicit_ten_x_navigation_and_no_multicontainer_sco
     assert "--chat" not in command
     assert "-gsu" not in command
     assert evaluator.NAVIGATION_SPEEDUP_OVERRIDE == 0.0
-    assert evaluator.GateLimits().max_snap_distance_m == 0.5
     assert evaluator.GateLimits().max_significant_reversals == 1
 
 
-def test_cli_defaults_to_manual_operator_delay_and_half_meter_truth_gate():
+def test_cli_defaults_to_manual_operator_delay_without_a_snap_gate():
     args = evaluator.parse_args([])
 
     assert args.confirmation_delay_s == 15.0
-    assert args.max_snap_distance_m == 0.5
+    assert not hasattr(args, "max_snap_distance_m")
 
 
 def test_second_evaluator_for_same_worktree_is_rejected(tmp_path):

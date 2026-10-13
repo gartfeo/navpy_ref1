@@ -46,8 +46,9 @@ def _truth_errors(
     navigation_snap: float | None,
     compact_snaps: list[float],
     debug_snaps: list[float],
-    limit_m: float,
 ) -> list[str]:
+    """SNAP integrity only: docking is counted from DOCKED, and the SNAP
+    distance is a diagnostic (physical_docking.md, Evidence)."""
     errors: list[str] = []
     if navigation_snap is not None:
         metrics.snap_distance_m = navigation_snap
@@ -82,11 +83,6 @@ def _truth_errors(
                 f"navigation/debug SNAP disagreement: {navigation_snap:.2f}m vs "
                 f"{metrics.snap_distance_m:.2f}m"
             )
-    if metrics.snap_distance_m >= limit_m:
-        errors.append(
-            f"truth SNAP distance {metrics.snap_distance_m:.2f}m is not < "
-            f"{limit_m:.2f}m"
-        )
     return errors
 
 
@@ -214,7 +210,9 @@ def analyze_vehicle(
         )
     )
     try:
-        episodes = parse_final_approach_command_episodes(paths["debug"])
+        episodes = parse_final_approach_command_episodes(
+            paths["debug"], vehicle_id=checked_sys_id
+        )
         compact_snaps = parse_compact_snap_distances(paths["compact"])
         debug_snaps = parse_debug_snap_distances(paths["debug"])
     except (OSError, UnicodeError, ValueError) as error:
@@ -240,7 +238,6 @@ def analyze_vehicle(
             navigation_snap=navigation_snap_distance(mission_text),
             compact_snaps=compact_snaps,
             debug_snaps=debug_snaps,
-            limit_m=limits.truth.max_snap_distance_m,
         )
     )
     return VehicleReport(checked_sys_id, role, not errors, metrics, errors)

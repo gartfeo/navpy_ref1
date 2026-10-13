@@ -166,7 +166,6 @@ class FinitePoiProjector:
                     float(projection_attitude.roll),
                     uas_body_rates_rad_s,
                 ),
-                image_size_px=(float(frame_size.width_px), float(frame_size.height_px)),
             ),
             tracking=TrackingEvidence(bbox_cxcywh=tracking_bbox),
             confirmation=ConfirmationEvidence(),

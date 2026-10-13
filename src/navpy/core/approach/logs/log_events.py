@@ -9,7 +9,7 @@ Two row shapes:
     FINAL_APPROACH_CMD, FINAL_APPROACH_PITCH_STATE, FINAL_APPROACH_PREDICTION,
     FINAL_APPROACH_ATTITUDE_DIAG, FINAL_APPROACH_RESPONSE_STATE,
     FINAL_APPROACH_BEARING_RATE_DIAG, FINAL_APPROACH_VERTICAL_FLOW_DIAG,
-    FINAL_APPROACH_PREVIEW_STATE, FINAL_APPROACH_PASS):
+    FINAL_APPROACH_PREVIEW_STATE, DOCK_ARMED, DOCKED):
       {ts},EVENT:{NAME},{k=v;k=v},,,,,,,,,
     12-column CSV-parseable. Payload uses sanitized k=v pairs.
 """
@@ -47,8 +47,10 @@ class LogEvent(Enum):
     FINAL_APPROACH_BEARING_RATE_DIAG = "FINAL_APPROACH_BEARING_RATE_DIAG"
     FINAL_APPROACH_VERTICAL_FLOW_DIAG = "FINAL_APPROACH_VERTICAL_FLOW_DIAG"
     FINAL_APPROACH_PREVIEW_STATE = "FINAL_APPROACH_PREVIEW_STATE"
-    # A pass latched without a new frame (dock lost centred, visual_pass.py).
-    FINAL_APPROACH_PASS = "FINAL_APPROACH_PASS"
+    # The approach episode the contact sensor is armed for (NAV entry).
+    DOCK_ARMED = "DOCK_ARMED"
+    # Dock contact: the only success of a final approach (physical_docking.md).
+    DOCKED = "DOCKED"
 
 
 def format_snap_event_row(

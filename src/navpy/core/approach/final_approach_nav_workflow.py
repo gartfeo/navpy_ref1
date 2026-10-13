@@ -52,6 +52,8 @@ class FinalApproachNavCommands(Protocol):
         poi: Optional[DetectedObject],
     ) -> None: ...
 
+    def mark_missed_dock(self, poi: Optional[DetectedObject]) -> None: ...
+
 
 class FinalApproachNavRecord(Protocol):
     def commit(
@@ -83,6 +85,7 @@ class FinalApproachNavPorts:
     active_poi: Callable[[], Optional[DetectedObject]]
     vision_nav_active: Callable[[], bool]
     command_liveness_failed: Callable[[], bool]
+    dock_missed: Callable[[], bool]
 
 
 class FinalApproachNavWorkflow:
@@ -110,6 +113,10 @@ class FinalApproachNavWorkflow:
         if not self.ensure_guided_session():
             if self._event_pump.is_open:
                 self._event_pump.close()
+            return
+        if self._ports.dock_missed() is True:
+            self._commands.mark_missed_dock(self._ports.active_poi())
+            self._event_pump.close()
             return
         if self._ports.command_liveness_failed() is True:
             self._commands.mark_source_liveness_expired(

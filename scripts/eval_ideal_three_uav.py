@@ -35,7 +35,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--analyze-only", type=Path, metavar="RUN_DIR")
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--timeout-s", type=float, default=600.0)
-    parser.add_argument("--max-snap-distance-m", type=float, default=1.0)
     return parser.parse_args(argv)
 
 
@@ -129,17 +128,10 @@ def _write_final(run_dir: Path, payload: dict[str, object]) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     timeout = finite_number("--timeout-s", args.timeout_s)
-    max_snap = finite_number(
-        "--max-snap-distance-m",
-        args.max_snap_distance_m,
-    )
-    if timeout <= 0.0 or max_snap <= 0.0:
-        raise RegressionError("timeout and max SNAP distance must be positive")
+    if timeout <= 0.0:
+        raise RegressionError("timeout must be positive")
     if args.analyze_only is not None:
-        report = analyze_ideal_run(
-            args.analyze_only,
-            max_snap_distance_m=max_snap,
-        )
+        report = analyze_ideal_run(args.analyze_only)
         payload = {
             "status": "passed" if report.passed else "failed",
             "report": asdict(report),
@@ -165,7 +157,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             run_dir,
             sys_ids=mission.sys_ids,
             approvals=mission.approvals,
-            max_snap_distance_m=max_snap,
         )
         payload = {
             "status": "passed" if report.passed else "failed",

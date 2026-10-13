@@ -128,6 +128,7 @@ def build_vision_controller(
             approach_kind=profile.approach_kind,
             lifecycle=lifecycle,
             ui=ui,
+            dock_contact=factory.dock_contact,
         )
     except Exception as construction_error:
         cleanup_errors = cleanup_detector_nodes(nodes)

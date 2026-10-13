@@ -16,6 +16,7 @@ class NavEntryPorts:
     request_guided: Callable[[], None]
     navigation_init: Callable[[], None]
     final_approach_active: Callable[[], bool]
+    arm_dock_contact: Callable[[], None]
 
 
 class NavEntry:
@@ -44,6 +45,8 @@ class NavEntry:
             raise RuntimeError("final approach requires minimum zoom")
         self._ports.request_guided()
         self._ports.navigation_init()
+        # After navigation_init (reset_phase), so it arms the new episode.
+        self._ports.arm_dock_contact()
         if not self._ports.final_approach_active():
             self._zoom.set_recognition_demand(False)
         self._logger.info(

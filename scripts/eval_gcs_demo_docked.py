@@ -1,0 +1,127 @@
+"""DOCKED and DOCK_ARMED evidence rows (physical_docking.md).
+
+Docking counts only from a DOCKED row, the sim contact sensor's event,
+matched to the episode's own DOCK_ARMED row and its command time span.
+"""
+
+from __future__ import annotations
+
+from navpy.core.approach.vision_nav.command_freshness import (
+    FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
+)
+from scripts.eval_gcs_demo_models import (
+    DockArmed,
+    DockedEvidence,
+    FinalApproachCommand,
+)
+from scripts.eval_gcs_demo_tokens import (
+    canonical_integer as _integer,
+    finite_number as _float,
+    payload_fields as _payload,
+)
+from scripts.eval_gcs_demo_tokens import seconds_of_day
+
+_DOCKED_FIELDS = (
+    "vehicle",
+    "task",
+    "dock",
+    "episode",
+    "aircraft_ts",
+    "closest_3d_m",
+    "closest_h_m",
+    "closest_v_m",
+)
+_DOCK_ARMED_FIELDS = ("vehicle", "task", "dock", "episode")
+# A held command expires FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S of aircraft
+# time after its frame (command_freshness.py) and the approach then ends as
+# NAV_FAIL, so a genuine contact cannot come later than that after the last
+# commanded frame.
+DOCKED_AFTER_LAST_FRAME_MAX_S = FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S
+# The sim net radius (navpy.sim.world.dock_contact_sensor): contact is
+# strictly inside it, so a DOCKED row outside it contradicts its own decision.
+DOCK_NET_RADIUS_M = 0.5
+
+
+def parse_docked(row: list[str], line_number: int) -> DockedEvidence:
+    if len(row) < 3:
+        raise ValueError(f"DOCKED row {line_number} has fewer than 3 columns")
+    payload = _payload(row[2], _DOCKED_FIELDS, "DOCKED")
+    distances = {
+        name: _float(name, payload[name])
+        for name in ("closest_3d_m", "closest_h_m", "closest_v_m")
+    }
+    if any(value is None or value < 0.0 for value in distances.values()):
+        raise ValueError("DOCKED closest distances must be non-negative")
+    if not distances["closest_3d_m"] < DOCK_NET_RADIUS_M:  # type: ignore[operator]
+        raise ValueError(
+            f"DOCKED closest_3d_m {distances['closest_3d_m']:g} is not inside "
+            f"the {DOCK_NET_RADIUS_M:g} m net"
+        )
+    return DockedEvidence(
+        wall_s=seconds_of_day(row[0]),
+        vehicle=_integer("vehicle", payload["vehicle"], allow_zero=False),
+        task=_integer("task", payload["task"], allow_zero=False),
+        dock=_integer("dock", payload["dock"], allow_zero=True),
+        episode=_integer("episode", payload["episode"], allow_zero=False),
+        aircraft_ts=_float("aircraft_ts", payload["aircraft_ts"]),  # type: ignore[arg-type]
+        closest_3d_m=distances["closest_3d_m"],  # type: ignore[arg-type]
+        closest_h_m=distances["closest_h_m"],  # type: ignore[arg-type]
+        closest_v_m=distances["closest_v_m"],  # type: ignore[arg-type]
+    )
+
+
+def parse_dock_armed(row: list[str], line_number: int) -> DockArmed:
+    if len(row) < 3:
+        raise ValueError(f"DOCK_ARMED row {line_number} has fewer than 3 columns")
+    payload = _payload(row[2], _DOCK_ARMED_FIELDS, "DOCK_ARMED")
+    return DockArmed(
+        vehicle=_integer("vehicle", payload["vehicle"], allow_zero=False),
+        task=_integer("task", payload["task"], allow_zero=False),
+        dock=_integer("dock", payload["dock"], allow_zero=True),
+        episode=_integer("episode", payload["episode"], allow_zero=False),
+    )
+
+
+def docked_errors(
+    docked: DockedEvidence,
+    armed: DockArmed | None,
+    current: list[FinalApproachCommand],
+    vehicle_id: int | None,
+    last_episode: int | None,
+) -> str | None:
+    """Why a DOCKED row does not count, or None when it does."""
+    if not current:
+        return "DOCKED outside a final-approach episode"
+    if armed is None:
+        return "DOCKED without a DOCK_ARMED row for its episode"
+    if docked.identity != armed.identity:
+        return (
+            f"DOCKED {docked.identity} is not the armed episode {armed.identity}"
+        )
+    if vehicle_id is not None and docked.vehicle != vehicle_id:
+        return f"DOCKED for vehicle {docked.vehicle}, not this UAV {vehicle_id}"
+    task, obj = current[-1].task, current[-1].obj
+    if docked.task != task:
+        return f"DOCKED task {docked.task} is not the episode's task {task}"
+    if docked.dock != obj:
+        return f"DOCKED dock {docked.dock} is not the UAV's own dock {obj}"
+    if last_episode is not None and docked.episode <= last_episode:
+        return f"stale DOCKED episode {docked.episode} (after {last_episode})"
+    first_ts = min(command.obs_ts for command in current)
+    last_ts = max(command.obs_ts for command in current)
+    if not first_ts <= docked.aircraft_ts <= last_ts + DOCKED_AFTER_LAST_FRAME_MAX_S:
+        return (
+            f"DOCKED aircraft_ts {docked.aircraft_ts:g} is outside the episode's "
+            f"command span [{first_ts:g}, {last_ts:g}] + "
+            f"{DOCKED_AFTER_LAST_FRAME_MAX_S:g} s"
+        )
+    return None
+
+
+__all__ = [
+    "DOCKED_AFTER_LAST_FRAME_MAX_S",
+    "DOCK_NET_RADIUS_M",
+    "docked_errors",
+    "parse_dock_armed",
+    "parse_docked",
+]

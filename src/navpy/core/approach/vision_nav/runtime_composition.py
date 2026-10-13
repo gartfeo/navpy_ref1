@@ -22,6 +22,7 @@ from navpy.core.approach.vision_nav.command_hold import (
     FinalApproachCommandHold,
 )
 from navpy.core.approach.vision_nav.command_liveness import (
+    FinalApproachEpisodeFailures,
     FinalApproachCommandLiveness,
 )
 from navpy.core.approach.vision_nav.command_postprocess import (
@@ -66,7 +67,8 @@ from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.approach.vision_nav.source_time_adapter import (
     PoseCadenceFinalApproachSourceTimeObserver,
 )
-from navpy.core.approach.vision_nav.pass_evidence import FinalApproachPassEvidence
+from navpy.core.approach.vision_nav.docked_evidence import FinalApproachDockedEvidence
+from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
 from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 
 
@@ -140,8 +142,12 @@ def compose_final_approach_runtime(
         raise TypeError("final-approach vehicle target_system must be an integer")
     source_time = PoseCadenceFinalApproachSourceTimeObserver(sys_id)
     liveness = FinalApproachCommandLiveness()
+    episode = FinalApproachEpisodeLatch()
+    worker_failures = FinalApproachEpisodeFailures(lock, episode, liveness)
     freshness = FinalApproachCommandFreshness(wall_period_s)
-    hold = FinalApproachCommandHold(actuator, source_time, liveness, freshness)
+    hold = FinalApproachCommandHold(
+        actuator, source_time, worker_failures, freshness,
+    )
     projector = FinalApproachFrameProjector(
         FinalApproachProjectionConfig(aircraft_sequence, aircraft_degrees)
     )
@@ -154,10 +160,11 @@ def compose_final_approach_runtime(
         navigation_logger,
         diagnostic_reader,
     )
-    pass_evidence = FinalApproachPassEvidence(
+    docked_evidence = FinalApproachDockedEvidence(
         lock,
-        diagnostics.record_loss_pass,
+        diagnostics.record_docked,
         postprocess_fence,
+        diagnostics.record_dock_armed,
     )
     command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock,
@@ -169,7 +176,8 @@ def compose_final_approach_runtime(
         status,
         liveness,
         postprocess_fence,
-        pass_evidence,
+        docked_evidence,
+        episode,
     ))
     ingress = FinalApproachIngress(
         FinalApproachIngressPorts(
@@ -189,6 +197,7 @@ def compose_final_approach_runtime(
         law,
         visual_pass,
         actuator,
+        episode,
     )
     executor = FinalApproachCommandExecutor(
         FinalApproachExecutorPorts(
@@ -199,23 +208,23 @@ def compose_final_approach_runtime(
             status,
             source_time,
             hold,
-            liveness,
+            worker_failures,
             freshness,
             postprocess_fence,
         )
     )
     runtime = VisionNavRuntime(
         FinalApproachCommandWorkRuntime(
-            slot, ingress, executor, hold, pass_evidence,
+            slot, ingress, executor, hold, docked_evidence,
         ),
         FinalApproachSessionRuntime(
             lock,
             epochs,
             command_reset,
-            visual_pass,
+            episode,
             status,
             liveness,
-            pass_evidence,
+            docked_evidence,
         ),
     )
     return FinalApproachRuntimeComposition(runtime, confirmation)

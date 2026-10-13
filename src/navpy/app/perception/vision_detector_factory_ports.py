@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Optional, Protocol
 
 from navpy.core.perception.detector_ports import DetectorFleetMember
+from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.sim.debug_view.vision_ui_ports import (
     DetectorUiStepPort,
     SimDebugSource,
@@ -28,6 +29,9 @@ class VisionDetectorNode:
 
 
 class VisionDetectorFactory(Protocol):
+    @property
+    def dock_contact(self) -> DockContactSensor | None: ...
+
     def create(
         self,
         mount_spec: CameraMountSpec,

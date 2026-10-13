@@ -2,7 +2,7 @@
 
 Replaces the v1 terminal-divergence rule ("rework"). Codex resolved all 5 v2 findings in v3; v4 adds its 2 v3 findings
 (the thread that requests RESET, and an episode-level latch). Fixes
-`architecture_todo.md` items 35 and 36. Owner approved v4 and the 0.5 m net radius. Nothing is built.
+`architecture_todo.md` items 35 and 36. Owner approved v4 and the 0.5 m net radius. d1-d3 are built (unit-tested); d4 (SITL) is open.
 
 ## Owner ruling (2026-10-13)
 - "In our simulation we can use GPS to check if dock happened."

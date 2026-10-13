@@ -11,8 +11,6 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.core.ports.pixel_observation import VisualDetection
 from navpy.core.perception.visual_ray_projection import (
-    camera_half_fov_deg,
-    camera_off_axis_deg,
     observation_camera_ray,
     unit_vector,
 )
@@ -54,12 +52,6 @@ class FinalApproachFrameProjector:
             camera_ray = observation_camera_ray(observation)
             body_ray = unit_vector(
                 observation.camera_to_body.matrix() @ camera_ray
-            )
-            off_axis_deg = camera_off_axis_deg(camera_ray)
-            half_fov_deg = camera_half_fov_deg(
-                observation.calibration,
-                observation.projection,
-                observation.image_size_px,
             )
             attitude = Attitude(
                 pitch=_finite(observation.aircraft_pitch_deg),
@@ -108,8 +100,6 @@ class FinalApproachFrameProjector:
             air_speed_mps=air_speed,
             aircraft_yaw_rate_rad_s=yaw_rate,
             aircraft_pitch_deg=float(attitude.pitch),
-            camera_off_axis_deg=off_axis_deg,
-            camera_half_fov_deg=half_fov_deg,
         )
 
 

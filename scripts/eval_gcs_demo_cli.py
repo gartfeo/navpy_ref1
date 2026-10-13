@@ -14,7 +14,6 @@ from scripts.eval_gcs_demo_models import (
     GateLimits,
     RegressionError,
     RunReport,
-    TruthLimits,
     finite_number,
 )
 from scripts.eval_gcs_demo_ports import JsonValue
@@ -59,12 +58,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=0.0,
         help="optional NAV call-cadence speedup; zero leaves launch speed unchanged",
     )
-    parser.add_argument(
-        "--max-snap-distance-m",
-        type=float,
-        default=GateLimits().max_snap_distance_m,
-        help="strict truth SNAP distance gate",
-    )
     return parser.parse_args(argv)
 
 
@@ -75,9 +68,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise RegressionError("--timeout-s must be positive")
     delay = finite_number("--confirmation-delay-s", args.confirmation_delay_s)
     speedup = finite_number("--navigation-speedup", args.navigation_speedup)
-    limits = GateLimits(
-        truth=TruthLimits(max_snap_distance_m=args.max_snap_distance_m),
-    )
+    limits = GateLimits()
     if args.analyze_only is not None:
         report = analyze_run(
             args.analyze_only,

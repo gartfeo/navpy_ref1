@@ -216,7 +216,7 @@ class _PassGate:
     @property
     def passed(self) -> bool:
         with self._lock:
-            return self._detector.passed
+            return self._detector.missed  # aft gate: the stop condition
 
 
 def run(options: argparse.Namespace) -> dict[str, object]:

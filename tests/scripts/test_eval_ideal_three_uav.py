@@ -369,7 +369,6 @@ def test_ideal_analysis_uses_ready_python_pid_for_source_cadence(tmp_path):
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     assert report.passed is True, report.errors
@@ -397,7 +396,6 @@ def test_ideal_analysis_accepts_isolated_fixed_grid_phase_compression(tmp_path):
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     owner = next(item for item in report.vehicles if item.sys_id == 4)
@@ -411,7 +409,6 @@ def test_ideal_analysis_binds_audited_approval_to_final_approach_poi(tmp_path):
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     assert report.passed is False
@@ -443,7 +440,6 @@ def test_ideal_analysis_fails_when_ready_python_pid_has_no_worker_evidence(tmp_p
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     peer = next(item for item in report.vehicles if item.sys_id == 5)
@@ -469,7 +465,6 @@ def test_ideal_analysis_fails_slow_active_command_cadence(tmp_path):
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     peer = next(item for item in report.vehicles if item.sys_id == 6)
@@ -519,7 +514,6 @@ def test_ideal_analysis_rejects_ten_second_source_stage_gaps(
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     vehicle = next(item for item in report.vehicles if item.sys_id == 4)
@@ -544,7 +538,6 @@ def test_ideal_analysis_requires_ten_fresh_observations(tmp_path):
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     vehicle = next(item for item in report.vehicles if item.sys_id == 4)
@@ -569,7 +562,6 @@ def test_ideal_analysis_rejects_zero_command_wall_gaps(tmp_path):
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     vehicle = next(item for item in report.vehicles if item.sys_id == 4)
@@ -618,7 +610,6 @@ def test_ideal_analysis_rejects_invalid_runtime_readiness_identity(
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     assert report.passed is False
@@ -650,7 +641,6 @@ def test_ideal_analysis_rejects_guided_failure_and_missing_third_snap(tmp_path):
     report = analysis.analyze_ideal_run(
         tmp_path,
         approvals=approvals,
-        max_snap_distance_m=1.0,
     )
 
     assert report.passed is False

@@ -192,6 +192,7 @@ def _build_session(
         approach_kind=vision.approach_kind,
         vision_profile=vision.profile,
         scheduler_cadence=foundation.scheduler_cadence,
+        dock_contact=vision.dock_contact,
     )
     resources.own_quiescence("controller", controller.stop)
     controller.set_network(foundation.network)

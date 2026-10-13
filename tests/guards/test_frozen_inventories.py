@@ -51,7 +51,7 @@ FRAME_FIELDS = (
     "source_name", "source_generation", "task_id", "obj_id", "source_timestamp_s",
     "body_x", "body_y", "body_z", "control_x", "control_y", "control_z",
     "aircraft_roll_deg", "air_speed_mps", "aircraft_yaw_rate_rad_s",
-    "aircraft_pitch_deg", "camera_off_axis_deg", "camera_half_fov_deg",
+    "aircraft_pitch_deg",
 )
 # The ONLY yaw-token identifiers the command core may touch, per reviewed file.
 # These name an instantaneous gyro-derived body-rate conversion (owner ruling:

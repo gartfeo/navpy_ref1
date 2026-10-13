@@ -48,11 +48,18 @@ class FinalApproachPassPolicy(Protocol):
     def commit(self, plan: VisualPassPlan) -> None: ...
 
 
+class FinalApproachEpisodeOutcome(Protocol):
+    @property
+    def commands_ended(self) -> bool: ...
+
+    def latch_missed(self) -> bool: ...
+
+
 @dataclass(frozen=True)
 class FinalApproachCommandResult:
     calc_data: CalcData | None
     outcome: "FinalApproachCommandOutcome"
-    passed: bool
+    missed: bool
     evidence: "FinalApproachLawEvidence | None" = None
 
     @property
@@ -62,8 +69,11 @@ class FinalApproachCommandResult:
 
 class FinalApproachCommandOutcome(Enum):
     ISSUED = "issued"
-    PASS_SUPPRESSED = "pass_suppressed"
+    # An armed dock seen aft: no command; the second aft frame is the miss.
+    AFT_SUPPRESSED = "aft_suppressed"
     LAW_UNAVAILABLE = "law_unavailable"
+    # The episode already ended (docked or missed): no command, no row.
+    TERMINAL_SUPPRESSED = "terminal_suppressed"
 
 
 @dataclass(frozen=True)
@@ -95,33 +105,57 @@ class FinalApproachLawEvidence:
 
 
 class FinalApproachCommandTransaction:
-    """Mutate law/pass state only at the command boundary."""
+    """Mutate law/aft-gate state only at the command boundary.
+
+    Runs under the runtime lock (slot lease), so it serializes with the
+    contact latch: nothing is actuated once the episode docked or missed.
+    """
 
     def __init__(
         self,
         law: FinalApproachCommandLaw,
         visual_pass: FinalApproachPassPolicy,
         actuator: FinalApproachAttitudeActuator,
+        episode: FinalApproachEpisodeOutcome,
     ) -> None:
         self._law = law
         self._pass = visual_pass
         self._actuator = actuator
+        self._episode = episode
+
+    def terminal_result(self) -> FinalApproachCommandResult | None:
+        """The suppression result once the episode ended, before any check.
+
+        The executor asks this before freshness, so a stale frame after
+        docking neither latches a liveness failure nor writes a command row.
+        """
+        if not self._episode.commands_ended:
+            return None
+        return FinalApproachCommandResult(
+            None,
+            FinalApproachCommandOutcome.TERMINAL_SUPPRESSED,
+            False,
+        )
 
     def execute(self, frame: FinalApproachVisionFrame) -> FinalApproachCommandResult:
+        terminal = self.terminal_result()
+        if terminal is not None:
+            return terminal
         pass_plan = self._pass.plan(frame)
         if pass_plan.suppress_command:
             self._pass.commit(pass_plan)
+            missed = pass_plan.next_state.missed and self._episode.latch_missed()
             return FinalApproachCommandResult(
                 None,
-                FinalApproachCommandOutcome.PASS_SUPPRESSED,
-                pass_plan.next_state.passed,
+                FinalApproachCommandOutcome.AFT_SUPPRESSED,
+                missed,
             )
         law_plan = self._law.plan(frame)
         if law_plan is None:
             return FinalApproachCommandResult(
                 None,
                 FinalApproachCommandOutcome.LAW_UNAVAILABLE,
-                pass_plan.next_state.passed,
+                False,
             )
         command = law_plan.command
         self._actuator.issue(
@@ -154,7 +188,7 @@ class FinalApproachCommandTransaction:
                 cmd_thr=command.cmd_thr,
             ),
             FinalApproachCommandOutcome.ISSUED,
-            pass_plan.next_state.passed,
+            False,
             FinalApproachLawEvidence(
                 control_bearing_deg=control_bearing_deg,
                 lateral_rate_deg_s=math.degrees(
@@ -195,6 +229,7 @@ __all__ = [
     "FinalApproachCommandOutcome",
     "FinalApproachCommandResult",
     "FinalApproachCommandTransaction",
+    "FinalApproachEpisodeOutcome",
     "FinalApproachLawEvidence",
     "FinalApproachPassPolicy",
 ]

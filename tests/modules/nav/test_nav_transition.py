@@ -31,6 +31,7 @@ def test_exit_cleanup_fences_navigation_before_every_other_cleanup():
     )
     cleanup = NavExitCleanup(
         NavExitCleanupPorts(
+            disarm_dock_contact=lambda: events.append("disarm"),
             close_final_approach_source=lambda: events.append("source"),
             navigation_reset=lambda: events.append("fence") or snap,
             detector_stop=lambda: events.append("detector"),
@@ -44,6 +45,7 @@ def test_exit_cleanup_fences_navigation_before_every_other_cleanup():
     assert result.snap is snap
     assert result.errors == ()
     assert events == [
+        "disarm",
         "source",
         "fence",
         "detector",
@@ -65,6 +67,7 @@ def test_exit_cleanup_source_failure_skips_command_reset_but_cleans_independent(
     speedup.restore.side_effect = lambda **kwargs: fail("speedup")
     cleanup = NavExitCleanup(
         NavExitCleanupPorts(
+            disarm_dock_contact=lambda: fail("disarm"),
             close_final_approach_source=lambda: fail("source"),
             navigation_reset=lambda: fail("fence"),
             detector_stop=lambda: fail("detector"),
@@ -75,7 +78,7 @@ def test_exit_cleanup_source_failure_skips_command_reset_but_cleans_independent(
 
     result = cleanup.run()
 
-    assert calls == ["source", "detector", "status", "speedup"]
+    assert calls == ["disarm", "source", "detector", "status", "speedup"]
     assert [str(error) for error in result.errors] == calls
 
 

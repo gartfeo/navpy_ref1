@@ -32,7 +32,6 @@ from navpy.core.skills.geo_approach.mission_planner import MissionPlanner  # noq
 from navpy.core.ports.flight_mode import FlightMode  # noqa: E402
 from navpy.app.vehicle_factory import create_vehicle  # noqa: E402
 from navpy.core.ports.vehicle_contract import IVehicle  # noqa: E402
-from navpy.core.ports.detect_data import DetectedObject  # noqa: E402
 from navpy.sim.detection.direct_pixel_trace import (  # noqa: E402
     command_loop_observer,
 )
@@ -41,6 +40,7 @@ from navpy.sim.detection.direct_poi_pixel_source import (  # noqa: E402
 )
 from pixel_pn_admission_ledger import subscribe_admission_ledger  # noqa: E402
 from pixel_pn_child_teardown import finish_child  # noqa: E402
+from pixel_pn_dock_contact import HarnessDockContact, recording_dispatch  # noqa: E402
 from pixel_pn_failure_report import failure_payload  # noqa: E402
 from pixel_pn_flight_control_trace import FlightControlTrace  # noqa: E402
 from pixel_pn_run_identity import start_identity  # noqa: E402
@@ -181,7 +181,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
     navigation = None
     source = None
     admission = None
-    final_approach_recorded = False
+    dock_contact = None
     trace = FlightControlTrace(options.result.parent / "flight_control_trace.csv")
     try:
         vehicle = create_vehicle(ConnArgs(args), logger)
@@ -203,16 +203,14 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             options.poi_alt,
             is_absolute=True,
         )
-        def dispatch(poi_detection: DetectedObject) -> bool:
-            nonlocal final_approach_recorded
-            if not final_approach_recorded:
-                final_approach_recorded = navigation.final_approach.record_confirmed_detection(
-                    poi_detection
-                )
-                if not final_approach_recorded:
-                    return False
-            return navigation.nav(poi_detection)
-
+        # Completion is dock contact (physical_docking.md): the sim contact
+        # sensor arms when the first frame is recorded for final approach.
+        dock_contact = HarnessDockContact(
+            vehicle, poi, navigation.final_approach, logger,
+        )
+        dispatch = recording_dispatch(
+            navigation.final_approach, navigation.nav, dock_contact,
+        )
         source = DirectPoiPixelSource(
             vehicle,
             poi,
@@ -254,6 +252,8 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         snap = navigation.reset()
         return _result_payload(False, snap, source)
     finally:
+        if dock_contact is not None:
+            dock_contact.close()
         # Every step attempted whatever the others did, the determinism
         # evidence written after all of them, and only then anything raised.
         finish_child(

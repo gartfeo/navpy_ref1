@@ -25,12 +25,6 @@ class FinalApproachVisionFrame:
     air_speed_mps: float = 25.0
     aircraft_yaw_rate_rad_s: float = 0.0
     aircraft_pitch_deg: float = 0.0
-    # Camera state for completion only, never a command input. Angle between
-    # this LOS and the camera's optical axis, and the camera's short-axis half
-    # field of view. The defaults mean "unknown" and fail closed: a dock lost
-    # after such a frame is never counted as centred (visual_pass.py).
-    camera_off_axis_deg: float = 180.0
-    camera_half_fov_deg: float = 0.0
 
     def __post_init__(self) -> None:
         if type(self.source_name) is not str or not self.source_name:
@@ -46,16 +40,11 @@ class FinalApproachVisionFrame:
             self.air_speed_mps,
             self.aircraft_yaw_rate_rad_s,
             self.aircraft_pitch_deg,
-            self.camera_off_axis_deg,
-            self.camera_half_fov_deg,
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("final-approach frame values must be finite")
         if self.air_speed_mps <= 0.0:
             raise ValueError("final-approach frame airspeed must be positive")
-        for angle in (self.camera_off_axis_deg, self.camera_half_fov_deg):
-            if not 0.0 <= angle <= 180.0:
-                raise ValueError("final-approach camera angles must be in [0, 180] deg")
         self._validate_unit(self.body_ray, "body")
         self._validate_unit(self.control_ray, "control")
 

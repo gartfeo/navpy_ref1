@@ -16,9 +16,9 @@ from navpy.core.perception.detection.poi_identity import get_poi_task_id
 @dataclass(frozen=True)
 class FinalApproachCommandPorts:
     nav: Callable[[Optional[DetectedObject]], bool]
-    mark_failed: Callable[[], None]
+    # False when the episode already docked: the failure is ignored.
+    mark_failed: Callable[[], Optional[bool]]
     logger: ILogger
-    latch_pass_on_detection_loss: Callable[[], bool]
 
 
 class FinalApproachCommandPoiResolver(Protocol):
@@ -87,23 +87,19 @@ class FinalApproachCommandDispatch:
         return True
 
     def mark_no_detection(self, active_poi: DetectedObject) -> None:
-        if self._ports.latch_pass_on_detection_loss() is True:
-            # Armed dock lost while centred: the normal pass path
-            # (RESET: PASSED POI) completes the approach, not a failure.
-            self._log(
-                lambda: (
-                    "PASS: dock lost centred "
-                    f"task={get_poi_task_id(active_poi)} "
-                    f"obj={active_poi.identity.obj_id}"
-                )
-            )
-            return
+        # Losing the dock is never success: only contact completes.
         self._mark_failed_and_log(
             lambda: (
                 f"NAV_FAIL: no_detection "
                 f"task={get_poi_task_id(active_poi)} "
                 f"obj={active_poi.identity.obj_id}"
             )
+        )
+
+    def mark_missed_dock(self, poi: DetectedObject | None) -> None:
+        """The armed dock went aft: the approach missed it."""
+        self._mark_failed_and_log(
+            lambda: "NAV_FAIL: missed_dock " + self._poi_identity(poi)
         )
 
     def mark_navigation_rejected(self, poi: DetectedObject) -> None:
@@ -127,7 +123,8 @@ class FinalApproachCommandDispatch:
         )
 
     def _mark_failed_and_log(self, message: Callable[[], str]) -> None:
-        self._ports.mark_failed()
+        if self._ports.mark_failed() is False:
+            return
         self._log(message)
 
     def _log(self, message: Callable[[], str]) -> None:

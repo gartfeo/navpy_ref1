@@ -87,11 +87,11 @@ def test_changed_command_is_reported_even_if_each_approach_passes(runs):
     assert not report["recorded_evidence_equal"]
 
 
-def test_pass_suppressed_tail_is_not_trimmed(runs):
+def test_unissued_tail_before_docked_is_not_trimmed(runs):
     path = runs[1] / "uav_4_navigation_debug.csv"
     lines = path.read_text().splitlines()
-    tail = next(row for row in lines if "passed=True" in row)
-    lines.insert(-1, tail.replace("12:00:00.120", "12:00:00.130").replace(
+    tail = next(row for row in lines if "issued=False" in row)
+    lines.insert(-2, tail.replace("12:00:00.120", "12:00:00.130").replace(
         "obs_ts=1001.200", "obs_ts=1001.300"))
     path.write_text("\n".join(lines) + "\n")
     report = compare_runs(runs)
@@ -128,10 +128,11 @@ def test_changed_poi_is_an_input_mismatch_without_coordinate_tolerance(runs):
 
 def test_good_saved_report_cannot_override_failed_raw_evidence(runs):
     (runs[1] / "report.json").write_text('{"passed":true}')
-    replace(runs[1] / "uav_4_navigation_debug.csv", "dist_3d_m=0.400000", "dist_3d_m=0.500000")
+    # SNAP is diagnostic (physical_docking.md): break the DOCKED evidence.
+    replace(runs[1] / "uav_4_navigation_debug.csv", "closest_3d_m=0.3", "closest_3d_m=0.6")
     report = compare_runs(runs)
     assert not report["all_per_run_gates_pass"]
-    assert report["limits"]["truth"]["max_snap_distance_m"] == 0.5
+    assert "truth" not in report["limits"]  # SNAP is a diagnostic only
 
 
 @pytest.mark.parametrize("settings", ['{"x":NaN}', '{"x":1e999}', '{"x":1,"x":2}'])

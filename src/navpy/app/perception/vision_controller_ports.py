@@ -12,6 +12,7 @@ from navpy.core.perception.detection_coordinator import DetectionCoordinator
 from navpy.core.perception.detector_ports import DetectorFleetMember
 from navpy.core.perception.vision_lifecycle import VisionLifecycle
 from navpy.core.perception.profile.vision_profile_types import VisionProfile
+from navpy.core.ports.dock_contact import DockContactSensor
 
 
 class VisionUiStepPort(Protocol):
@@ -29,6 +30,7 @@ class VisionControllerPorts:
     approach_kind: ApproachKind
     lifecycle: VisionLifecycle
     ui: VisionUiStepPort
+    dock_contact: DockContactSensor | None = None
 
 
 __all__ = ["VisionControllerPorts", "VisionUiStepPort"]

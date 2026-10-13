@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Callable, Iterable, Optional
+from typing import Iterable, Optional
 
 from navpy.core.approach.navigation_mode import NavigationModeState
 from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 
 
 class FinalApproachNavigationService:
@@ -64,18 +65,39 @@ class FinalApproachNavigationService:
                 else final_approach.status.poi_passed_override()
             )
 
-    def latch_pass_on_detection_loss(
-        self,
-        current_half_fov_deg: Callable[[str], Optional[float]],
-    ) -> bool:
-        """Count a dock lost centred after arming as passed (visual_pass.py)."""
+    def begin_dock_episode(self, identity: DockContactIdentity) -> bool:
+        """Expect contact for this armed episode; False with no final approach."""
+        with self._mode_state.session() as active:
+            final_approach = active.final_approach
+            if final_approach is None:
+                return False
+            final_approach.status.begin_dock_episode(identity)
+            return True
+
+    def latch_docked(self, event: DockContactEvent) -> bool:
+        """Contact callback: latch and fence only (physical_docking.md)."""
         with self._mode_state.session() as active:
             final_approach = active.final_approach
             return (
                 final_approach is not None
-                and final_approach.status.latch_pass_on_detection_loss(
-                    current_half_fov_deg
-                ) is True
+                and final_approach.status.latch_docked(event) is True
+            )
+
+    def latch_failure(self) -> bool:
+        """Admit a NAV_FAIL unless the final-approach episode already docked."""
+        with self._mode_state.session() as active:
+            final_approach = active.final_approach
+            return (
+                final_approach is None
+                or final_approach.status.latch_failure() is True
+            )
+
+    def consume_missed_dock(self) -> bool:
+        with self._mode_state.session() as active:
+            final_approach = active.final_approach
+            return (
+                final_approach is not None
+                and final_approach.status.consume_missed_dock() is True
             )
 
     def last_measured_lateral_bearing_deg(self) -> Optional[float]:

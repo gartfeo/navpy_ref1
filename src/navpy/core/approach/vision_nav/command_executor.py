@@ -224,6 +224,9 @@ class FinalApproachCommandExecutor:
     ) -> FinalApproachCommandResult | None:
         ports = self._ports
         ports.hold.clear()
+        terminal = ports.transaction.terminal_result()
+        if terminal is not None:
+            return terminal
         if timing is None or not ports.freshness.is_fresh(timing):
             ports.failures.mark_failed()
             return None

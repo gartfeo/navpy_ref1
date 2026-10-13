@@ -90,42 +90,6 @@ def observation_camera_ray(observation: PixelObservation) -> np.ndarray:
     return unit_vector(camera_ray)
 
 
-def camera_off_axis_deg(camera_ray: np.ndarray) -> float:
-    """Angle between a camera-frame ray and the optical axis (+z)."""
-    cosine = float(np.clip(unit_vector(camera_ray)[2], -1.0, 1.0))
-    return math.degrees(math.acos(cosine))
-
-
-def camera_half_fov_deg(
-    calibration: PixelCalibration,
-    projection: PixelProjectionKind,
-    image_size_px: tuple[float, float] | None,
-) -> float:
-    """Smallest angle from the optical axis to an image edge (deg).
-
-    Uses the real image bounds, so an off-centre principal point narrows the
-    side it is closer to. Unknown or inconsistent bounds return 0.0, which a
-    completion check treats as "never centred" (fail closed).
-    """
-    if image_size_px is None:
-        return 0.0
-    image_width_px, image_height_px = image_size_px
-    edges_px = (
-        (calibration.cx_px, calibration.fx_px),
-        (float(image_width_px) - calibration.cx_px, calibration.fx_px),
-        (calibration.cy_px, calibration.fy_px),
-        (float(image_height_px) - calibration.cy_px, calibration.fy_px),
-    )
-    if not all(math.isfinite(d) and d > 0.0 for d, _f in edges_px):
-        return 0.0
-    nearest = min(distance / focal for distance, focal in edges_px)
-    if projection is PixelProjectionKind.SPHERICAL_EQUIANGULAR:
-        return min(180.0, math.degrees(nearest))
-    if projection is PixelProjectionKind.PINHOLE:
-        return math.degrees(math.atan(nearest))
-    raise ValueError("unsupported pixel projection")
-
-
 def unit_vector(value: object) -> np.ndarray:
     try:
         vector = np.asarray(value, dtype=float).reshape(-1)
@@ -150,8 +114,6 @@ def _finite(value: object) -> bool:
 
 __all__ = [
     "body_ray_to_pixel",
-    "camera_half_fov_deg",
-    "camera_off_axis_deg",
     "camera_to_body_from_gimbal",
     "observation_body_ray",
     "observation_camera_ray",

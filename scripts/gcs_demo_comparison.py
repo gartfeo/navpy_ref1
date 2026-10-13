@@ -162,7 +162,8 @@ def read_run(run_dir: Path) -> dict:
         for vehicle in plan.vehicles:
             try:
                 episodes = parse_final_approach_command_episodes(
-                    run_dir / f"uav_{vehicle.sys_id}_navigation_debug.csv"
+                    run_dir / f"uav_{vehicle.sys_id}_navigation_debug.csv",
+                    vehicle_id=vehicle.sys_id,
                 )
                 if not episodes:
                     raise ValueError("no complete command episode")

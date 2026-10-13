@@ -101,7 +101,6 @@ def test_non_source_dispatch_passes_only_fresh_detection():
             nav=nav,
             mark_failed=MagicMock(),
             logger=MagicMock(),
-            latch_pass_on_detection_loss=lambda: False,
         ),
         MagicMock(),
     )
@@ -132,6 +131,7 @@ def test_source_driven_tick_without_event_waits_without_failure_or_command():
             active_poi=lambda: poi,
             vision_nav_active=lambda: True,
             command_liveness_failed=lambda: False,
+            dock_missed=lambda: False,
         ),
         source,
         commands,
@@ -159,6 +159,7 @@ def test_mode_loss_closes_source_pump_before_requesting_guided_again():
             active_poi=MagicMock(),
             vision_nav_active=lambda: True,
             command_liveness_failed=lambda: False,
+            dock_missed=lambda: False,
         ),
         MagicMock(),
         MagicMock(),
@@ -191,6 +192,7 @@ def test_command_liveness_failure_stops_open_source_session():
             active_poi=lambda: poi,
             vision_nav_active=lambda: True,
             command_liveness_failed=lambda: True,
+            dock_missed=lambda: False,
         ),
         source,
         commands,
@@ -214,7 +216,6 @@ def test_empty_current_publication_fails_without_gap_or_confirmation_deferral():
         nav=MagicMock(),
         mark_failed=MagicMock(),
         logger=MagicMock(),
-        latch_pass_on_detection_loss=lambda: False,
     )
     source = MagicMock()
     source.source_event_poi.return_value = None
@@ -255,6 +256,7 @@ def test_successful_vision_source_bootstrap_opens_exclusive_pump():
             active_poi=lambda: poi,
             vision_nav_active=lambda: True,
             command_liveness_failed=lambda: False,
+            dock_missed=lambda: False,
         ),
         source,
         commands,
@@ -295,6 +297,7 @@ def test_polling_vision_dispatch_stays_on_worker_path_without_event_pump():
             active_poi=lambda: poi,
             vision_nav_active=lambda: True,
             command_liveness_failed=lambda: False,
+            dock_missed=lambda: False,
         ),
         source,
         commands,
@@ -334,6 +337,7 @@ def test_source_driven_legacy_bootstrap_does_not_open_pump():
             active_poi=lambda: poi,
             vision_nav_active=lambda: False,
             command_liveness_failed=lambda: False,
+            dock_missed=lambda: False,
         ),
         source,
         commands,
@@ -348,32 +352,49 @@ def test_source_driven_legacy_bootstrap_does_not_open_pump():
     pump.open.assert_not_called()
 
 
-def _no_detection_dispatch(latch):
+def test_no_detection_is_always_a_failure_never_a_pass():
+    """Losing the dock is never success: only dock contact completes."""
     ports = FinalApproachCommandPorts(
         nav=MagicMock(),
-        mark_failed=MagicMock(),
+        mark_failed=MagicMock(return_value=True),
         logger=MagicMock(),
-        latch_pass_on_detection_loss=latch,
     )
-    return ports, FinalApproachCommandDispatch(ports, MagicMock())
-
-
-def test_no_detection_after_centred_loss_latch_is_not_a_failure():
-    """a7: an armed dock lost centred hands completion to the pass path."""
-    ports, commands = _no_detection_dispatch(MagicMock(return_value=True))
+    commands = FinalApproachCommandDispatch(ports, MagicMock())
     commands.mark_no_detection(MagicMock(task_id=1, obj_id=2))
 
-    ports.latch_pass_on_detection_loss.assert_called_once_with()
-    ports.mark_failed.assert_not_called()
+    ports.mark_failed.assert_called_once_with()
     message = ports.logger.info.call_args.args[0]
-    assert message.startswith("PASS: dock lost centred")
+    assert message.startswith("NAV_FAIL: no_detection")
 
 
-def test_no_detection_without_an_exact_true_latch_fails():
-    for latched in (False, None, MagicMock()):
-        ports, commands = _no_detection_dispatch(MagicMock(return_value=latched))
-        commands.mark_no_detection(MagicMock(task_id=1, obj_id=2))
+def test_missed_dock_ends_the_tick_as_nav_fail_before_any_source_work():
+    poi = MagicMock()
+    source = MagicMock()
+    commands = MagicMock()
+    pump = MagicMock()
+    pump.is_open = True
+    workflow = FinalApproachNavWorkflow(
+        FinalApproachNavPorts(
+            vehicle_mode=lambda: __import__(
+                "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
+            ).FlightMode.GUIDED,
+            request_guided=MagicMock(),
+            mark_guided_session=MagicMock(),
+            active_poi=lambda: poi,
+            vision_nav_active=lambda: True,
+            command_liveness_failed=lambda: False,
+            dock_missed=lambda: True,
+        ),
+        source,
+        commands,
+        MagicMock(),
+        MagicMock(),
+        pump,
+        nullcontext,
+    )
 
-        ports.mark_failed.assert_called_once_with()
-        message = ports.logger.info.call_args.args[0]
-        assert message.startswith("NAV_FAIL: no_detection")
+    workflow.act_nav()
+
+    commands.mark_missed_dock.assert_called_once_with(poi)
+    pump.close.assert_called_once_with()
+    source.collect.assert_not_called()

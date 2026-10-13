@@ -168,10 +168,6 @@ class IdealPoiProjector:
                     float(yaw_free_attitude.roll),
                     uas_body_rates_rad_s,
                 ),
-                image_size_px=(
-                    float(self._frame_size.width_px),
-                    float(self._frame_size.height_px),
-                ),
             ),
             tracking=TrackingEvidence(),
             confirmation=ConfirmationEvidence(supports_frame=False),

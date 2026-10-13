@@ -21,6 +21,7 @@ from navpy.core.flow.nav_constants import (
     POI_CLOSE_DIST,
     FINAL_APPROACH_RECORD_TIMEOUT_S,
 )
+from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
@@ -38,6 +39,7 @@ class NavController:
         approach_kind: ApproachKind = ApproachKind.OFFSET,
         vision_profile: Optional[dict] = None,
         scheduler_cadence: Optional[SchedulerCadence] = None,
+        dock_contact: Optional[DockContactSensor] = None,
     ) -> None:
         self._application = create_nav_application(
             vehicle,
@@ -48,6 +50,7 @@ class NavController:
             approach_kind,
             vision_profile,
             scheduler_cadence,
+            dock_contact,
         )
 
     def set_network(self, network) -> None:

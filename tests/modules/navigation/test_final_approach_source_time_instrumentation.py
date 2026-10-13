@@ -44,7 +44,8 @@ from navpy.core.approach.vision_nav.ingress import (
     FinalApproachIngress,
     FinalApproachIngressPorts,
 )
-from navpy.core.approach.vision_nav.pass_evidence import FinalApproachPassEvidence
+from navpy.core.approach.vision_nav.docked_evidence import FinalApproachDockedEvidence
+from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
 from navpy.core.approach.vision_nav.runtime import (
     FinalApproachCommandWorkRuntime,
     FinalApproachSessionRuntime,
@@ -93,23 +94,35 @@ class _Projector:
 
 class _IssuedTransaction:
     @staticmethod
+    def terminal_result():
+        return None
+
+    @staticmethod
     def execute(_frame):
         return FinalApproachCommandResult(
             CalcData(0.0, 0.0, 1.0, 2.0, 0.5),
             outcome=FinalApproachCommandOutcome.ISSUED,
-            passed=False,
+            missed=False,
         )
 
 
 class _UnissuedTransaction:
+    @staticmethod
+    def terminal_result():
+        return None
+
     def __init__(self, outcome):
         self._outcome = outcome
 
     def execute(self, _frame):
-        return FinalApproachCommandResult(None, self._outcome, passed=False)
+        return FinalApproachCommandResult(None, self._outcome, missed=False)
 
 
 class _ActuatorFailureTransaction:
+    @staticmethod
+    def terminal_result():
+        return None
+
     @staticmethod
     def execute(_frame):
         raise RuntimeError("actuator failed")
@@ -161,8 +174,9 @@ def _runtime(
     )
     law = Mock()
     visual_pass = Mock()
-    pass_evidence = FinalApproachPassEvidence(
-        lock, lambda _frame: None, postprocess_fence,
+    episode = FinalApproachEpisodeLatch()
+    docked_evidence = FinalApproachDockedEvidence(
+        lock, lambda _event: None, postprocess_fence, lambda _identity: None,
     )
     command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock,
@@ -174,7 +188,8 @@ def _runtime(
         status,
         liveness,
         postprocess_fence,
-        pass_evidence,
+        docked_evidence,
+        episode,
     ))
     ingress = FinalApproachIngress(
         FinalApproachIngressPorts(
@@ -202,16 +217,16 @@ def _runtime(
     executor = FinalApproachCommandExecutor(executor_ports)
     runtime = VisionNavRuntime(
         FinalApproachCommandWorkRuntime(
-            slot, ingress, executor, hold, pass_evidence,
+            slot, ingress, executor, hold, docked_evidence,
         ),
         FinalApproachSessionRuntime(
             lock,
             epochs,
             command_reset,
-            visual_pass,
+            episode,
             status,
             liveness,
-            pass_evidence,
+            docked_evidence,
         ),
     )
     return runtime, lock
@@ -496,7 +511,7 @@ def test_stale_lease_duplicate_and_regression_emit_no_worker_rows(monkeypatch):
     ("outcome", "liveness_failed"),
     [
         (FinalApproachCommandOutcome.LAW_UNAVAILABLE, True),
-        (FinalApproachCommandOutcome.PASS_SUPPRESSED, False),
+        (FinalApproachCommandOutcome.AFT_SUPPRESSED, False),
     ],
 )
 def test_unissued_results_emit_no_worker_row(

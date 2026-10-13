@@ -30,6 +30,7 @@ from navpy.core.approach.vision_nav.diagnostic_capture import (
 )
 from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,7 @@ class FinalApproachCommandDiagnostic:
     frame: FinalApproachVisionFrame
     command: FinalApproachCommandValues | None
     outcome: FinalApproachCommandOutcome | None
-    passed: bool
+    missed: bool
     snapshot: FinalApproachDiagnosticSnapshot | None
     poi_location: Location | None
     camera_location: Location | None
@@ -103,7 +104,7 @@ class NavigationFinalApproachDiagnostics:
         camera_location = copy_location(debug_camera(poi))
         needs_snapshot = calc is not None or (
             result is not None
-            and result.outcome is FinalApproachCommandOutcome.PASS_SUPPRESSED
+            and result.outcome is FinalApproachCommandOutcome.AFT_SUPPRESSED
             and poi_location is not None
         )
         snapshot = self._reader.read() if needs_snapshot else None
@@ -119,7 +120,7 @@ class NavigationFinalApproachDiagnostics:
                 )
             ),
             outcome=None if result is None else result.outcome,
-            passed=bool(result is not None and result.passed),
+            missed=bool(result is not None and result.missed),
             snapshot=_copy_snapshot(snapshot),
             poi_location=poi_location,
             camera_location=camera_location,
@@ -133,10 +134,13 @@ class NavigationFinalApproachDiagnostics:
     def record(self, diagnostic: object) -> None:
         if not isinstance(diagnostic, FinalApproachCommandDiagnostic):
             raise TypeError("invalid final-approach command diagnostic")
+        if diagnostic.outcome is FinalApproachCommandOutcome.TERMINAL_SUPPRESSED:
+            # The episode ended (docked or missed): no command row after it.
+            return
         if diagnostic.command is None:
             self._record_event(diagnostic)
-            if diagnostic.outcome is FinalApproachCommandOutcome.PASS_SUPPRESSED:
-                self._sample_pass_frame(
+            if diagnostic.outcome is FinalApproachCommandOutcome.AFT_SUPPRESSED:
+                self._sample_aft_frame(
                     diagnostic.poi_location,
                     diagnostic.snapshot,
                 )
@@ -146,24 +150,36 @@ class NavigationFinalApproachDiagnostics:
             self._record_event(diagnostic)
             self._record_law_evidence(diagnostic)
 
-    def record_loss_pass(self, frame: FinalApproachVisionFrame) -> None:
-        """Evidence row for a pass latched when the dock was lost centred."""
+    def record_dock_armed(self, identity: DockContactIdentity) -> None:
+        """The approach's own episode identity, before its command rows."""
         self._logger.log_event(
-            LogEvent.FINAL_APPROACH_PASS,
+            LogEvent.DOCK_ARMED,
             {
-                "source": frame.source_name,
-                "generation": frame.source_generation,
-                "task": frame.task_id,
-                "obj": frame.obj_id,
-                "obs_ts": frame.source_timestamp_s,
-                "body_bearing_deg": body_bearing_deg(frame),
-                "reason": "centred_loss",
-                "camera_off_axis_deg": frame.camera_off_axis_deg,
-                "camera_half_fov_deg": frame.camera_half_fov_deg,
+                "vehicle": identity.vehicle,
+                "task": identity.task_id,
+                "dock": identity.dock_uid,
+                "episode": identity.episode,
             },
         )
 
-    def _sample_pass_frame(
+    def record_docked(self, event: DockContactEvent) -> None:
+        """Evidence row for a dock contact (the sim net stand-in)."""
+        identity = event.identity
+        self._logger.log_event(
+            LogEvent.DOCKED,
+            {
+                "vehicle": identity.vehicle,
+                "task": identity.task_id,
+                "dock": identity.dock_uid,
+                "episode": identity.episode,
+                "aircraft_ts": event.aircraft_time_s,
+                "closest_3d_m": event.closest_3d_m,
+                "closest_h_m": event.closest_h_m,
+                "closest_v_m": event.closest_v_m,
+            },
+        )
+
+    def _sample_aft_frame(
         self,
         poi_location: Location | None,
         snapshot: FinalApproachDiagnosticSnapshot | None,
@@ -192,7 +208,7 @@ class NavigationFinalApproachDiagnostics:
                 "cmd_pitch": "" if command is None else command.pitch_deg,
                 "cmd_thr": "" if command is None else command.throttle,
                 "issued": diagnostic.outcome is FinalApproachCommandOutcome.ISSUED,
-                "passed": diagnostic.passed,
+                "missed": diagnostic.missed,
             },
             timestamp=diagnostic.event_timestamp,
         )

@@ -646,6 +646,11 @@ class _FakeNavigation:
         self._dispatch = None
         self._observer = None
         self._started = False
+        # Read when the child builds its recording dispatch (dock contact).
+        self.final_approach = SimpleNamespace()
+
+    def nav(self, _detection) -> bool:
+        return True
 
     def bind_final_approach_source_dispatch(self, dispatch, observer) -> None:
         self._dispatch = dispatch
@@ -745,6 +750,11 @@ class _ChildRun:
             "MissionPlanner": lambda *_: SimpleNamespace(),
             "Navigation": lambda *_, **__: self.navigation,
             "DirectPoiPixelSource": lambda *_, **__: self.source,
+            # The sim contact sensor needs a position stream; its own wiring
+            # is covered by test_pixel_pn_dock_contact.py.
+            "HarnessDockContact": lambda *_, **__: SimpleNamespace(
+                arm=lambda _detection: None, close=lambda: None,
+            ),
             "start_identity": self._start_identity,
         }
         for name, factory in built.items():

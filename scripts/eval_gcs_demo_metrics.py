@@ -29,39 +29,21 @@ def _significant_reversals(rolls: Sequence[float], threshold: float) -> int:
 
 
 def _validated_episode(commands: Sequence[FinalApproachCommand]) -> list[FinalApproachCommand]:
+    """One source identity and no miss: the parser ends it at DOCKED."""
     episode = list(commands)
     if not episode:
         return episode
     if len({command.source_key for command in episode}) != 1:
         raise ValueError("final-approach episode changed atomic source identity")
-    pass_indices = [index for index, command in enumerate(episode) if command.passed]
-    expected_pass_indices = (
-        list(range(pass_indices[0], len(episode))) if pass_indices else []
-    )
-    if not pass_indices or pass_indices != expected_pass_indices or any(
-        command.issued for command in episode[pass_indices[0]:]
-    ):
-        raise ValueError(
-            "final-approach episode requires trailing pass-suppressed rows"
-        )
+    if any(command.missed for command in episode):
+        raise ValueError("final-approach episode missed its dock")
     return episode
 
 
 def final_approach_timing(commands: Sequence[FinalApproachCommand]) -> FinalApproachTiming:
     episode = _validated_episode(commands)
-    first_pass = next(
-        (index for index, command in enumerate(episode) if command.passed),
-        len(episode) - 1,
-    )
-    # Pass-suppressed rows are retained to prove the controller remains
-    # inactive until SNAP, but they are not part of the issued navigation phase
-    # and must not be allowed to improve its cadence/speedup score.
-    # A FINAL_APPROACH_PASS row carries the last commanded frame's obs_ts, not
-    # a new frame, so it is not a cadence sample either.
-    timed_end = first_pass if episode and episode[first_pass].pass_reason else first_pass + 1
-    timed_episode = episode[:timed_end]
-    wall_gaps = positive_deltas(command.wall_s for command in timed_episode)
-    source_gaps = positive_deltas(command.obs_ts for command in timed_episode)
+    wall_gaps = positive_deltas(command.wall_s for command in episode)
+    source_gaps = positive_deltas(command.obs_ts for command in episode)
     if any(gap <= 0.0 for gap in wall_gaps):
         raise ValueError("final-approach wall timestamps must be strictly increasing")
     if any(gap <= 0.0 for gap in source_gaps):
@@ -91,12 +73,7 @@ def score_final_approach_commands(
     threshold = finite_number("significant_roll_deg", significant_roll_deg)
     if limit <= 0.0 or margin > limit:
         raise ValueError("roll limit must be positive and margin <= limit")
-    issued: list[FinalApproachCommand] = []
-    for command in _validated_episode(commands):
-        if command.issued:
-            issued.append(command)
-        if command.passed:
-            break
+    issued = [command for command in _validated_episode(commands) if command.issued]
     rolls = [command.cmd_roll for command in issued if command.cmd_roll is not None]
     if len(rolls) != len(issued):
         raise ValueError("issued final-approach command is missing roll evidence")

@@ -1,7 +1,7 @@
 import math
 import threading
 from contextlib import nullcontext
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from io import StringIO
 from unittest.mock import Mock
 
@@ -42,11 +42,13 @@ from navpy.core.approach.vision_nav.command_hold import (
 )
 from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandLiveness,
+    FinalApproachEpisodeFailures,
 )
-from navpy.core.approach.vision_nav.pass_evidence import (
-    FinalApproachPassEvidence,
-    FinalApproachPassEvidenceWork,
+from navpy.core.approach.vision_nav.docked_evidence import (
+    FinalApproachDockedEvidence,
 )
+from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
+from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 from navpy.core.approach.vision_nav.command_postprocess import (
     FinalApproachPostprocessFence,
 )
@@ -176,8 +178,6 @@ class Projector:
             frame.source_timestamp_s, *frame.body_ray, *frame.control_ray,
             frame.aircraft_roll_deg,
             frame.air_speed_mps if air_speed_mps is None else air_speed_mps,
-            camera_off_axis_deg=frame.camera_off_axis_deg,
-            camera_half_fov_deg=frame.camera_half_fov_deg,
         )
 
 
@@ -253,26 +253,32 @@ def _runtime(
         FixedFinalApproachLawConfigProvider(config)
     )
     visual_pass = VisualPassDetector()
-    loss_passes = []
+    episode = FinalApproachEpisodeLatch()
+    docked_rows = []
     status = FinalApproachRuntimeStatus()
     actuator = Actuator()
     source_time = source_time or _SourceTimeObserver()
     liveness = FinalApproachCommandLiveness()
+    worker_failures = FinalApproachEpisodeFailures(lock, episode, liveness)
     postprocess_fence = FinalApproachPostprocessFence()
     freshness = FinalApproachCommandFreshness(wall_period_s)
-    hold = FinalApproachCommandHold(actuator, source_time, liveness, freshness)
+    hold = FinalApproachCommandHold(
+        actuator, source_time, worker_failures, freshness,
+    )
     diagnostics = (
         Diagnostics(lock)
         if diagnostics_factory is None
         else diagnostics_factory(lock)
     )
-    loss_recorder = [loss_passes.append]
-    pass_evidence = FinalApproachPassEvidence(
-        lock, lambda frame: loss_recorder[0](frame), postprocess_fence,
+    docked_recorder = [docked_rows.append]
+    armed_rows = []
+    docked_evidence = FinalApproachDockedEvidence(
+        lock, lambda event: docked_recorder[0](event), postprocess_fence,
+        armed_rows.append,
     )
     command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock, slot, mailbox, hold, law, visual_pass, status, liveness,
-        postprocess_fence, pass_evidence,
+        postprocess_fence, docked_evidence, episode,
     ))
     ingress = FinalApproachIngress(FinalApproachIngressPorts(
         lock, slot, Projector(), epochs, mailbox, source_time, command_reset,
@@ -280,23 +286,26 @@ def _runtime(
     confirmation = FinalApproachConfirmation(FinalApproachConfirmationPorts(
         lock, Projector(), epochs, law,
     ))
-    transaction = FinalApproachCommandTransaction(law, visual_pass, actuator)
+    transaction = FinalApproachCommandTransaction(
+        law, visual_pass, actuator, episode,
+    )
     executor = FinalApproachCommandExecutor(FinalApproachExecutorPorts(
         slot, transaction, mailbox, diagnostics, status, source_time, hold,
-        liveness, freshness, postprocess_fence,
+        worker_failures, freshness, postprocess_fence,
     ))
     runtime = VisionNavRuntime(
         FinalApproachCommandWorkRuntime(
-            slot, ingress, executor, hold, pass_evidence,
+            slot, ingress, executor, hold, docked_evidence,
         ),
         FinalApproachSessionRuntime(
-            lock, epochs, command_reset, visual_pass, status, liveness,
-            pass_evidence,
+            lock, epochs, command_reset, episode, status, liveness,
+            docked_evidence,
         ),
     )
     runtime._test_confirmation = confirmation
-    runtime._test_loss_passes = loss_passes
-    runtime._test_loss_recorder = loss_recorder
+    runtime._test_docked_rows = docked_rows
+    runtime._test_armed_rows = armed_rows
+    runtime._test_docked_recorder = docked_recorder
     return runtime, actuator, diagnostics, mailbox
 
 
@@ -769,7 +778,7 @@ def test_initial_aft_does_not_invent_an_acquisition_turn():
     assert not runtime.poi_passed_override()
 
 
-def test_duplicate_and_regressed_aft_frames_never_add_pass_evidence():
+def test_duplicate_and_regressed_aft_frames_never_add_miss_evidence():
     runtime, actuator, _, _ = _runtime()
     runtime.nav(RichPoi(_frame(1.0)))
     _execute_one(runtime)
@@ -784,85 +793,242 @@ def test_duplicate_and_regressed_aft_frames_never_add_pass_evidence():
     assert len(actuator.calls) == 1
 
 
-def test_second_fresh_aft_latches_pass_without_command():
-    runtime, _, _, _ = _runtime()
+_AFT = (-1.0, 0.0, 0.0)
+
+
+def test_second_fresh_aft_is_a_missed_dock_without_command():
+    """An aft dock is a miss (NAV_FAIL: missed_dock), never a pass."""
+    runtime, actuator, _, _ = _runtime()
     runtime.nav(RichPoi(_frame(1.0)))
     _execute_one(runtime)
     for ts in (2.0, 3.0):
-        runtime.nav(RichPoi(_frame(ts, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
+        runtime.nav(RichPoi(_frame(ts, body=_AFT, control=_AFT)))
         assert _execute_one(runtime) is None
-    assert runtime.poi_passed_override()
+    assert not runtime.poi_passed_override()
+    assert runtime.session.consume_missed_dock() is True
+    assert runtime.session.consume_missed_dock() is False
+    assert len(actuator.calls) == 1
 
 
-_ZR10_1X_HALF_FOV_DEG = 14.4
+def test_ideal_360_visible_aft_dock_after_the_miss_never_commands():
+    """ideal_360 keeps an aft dock in view: frames keep coming, no command."""
+    runtime, actuator, diagnostics, _ = _runtime()
+    runtime.nav(RichPoi(_frame(1.0)))
+    _execute_one(runtime)
+    for ts in (2.0, 3.0, 4.0, 5.0):
+        runtime.nav(RichPoi(_frame(ts, body=_AFT, control=_AFT)))
+        _execute_one(runtime)
+    # A source reset erases the aft gate but not the episode's miss.
+    runtime.invalidate_commands()
+    runtime.nav(RichPoi(_frame(6.0)))
+    _execute_one(runtime)
+    assert len(actuator.calls) == 1
+    assert runtime.session.latch_docked(_contact()) is False
 
 
-def _centred(ts, **changes):
-    return replace(
-        _frame(ts, **changes),
-        camera_off_axis_deg=2.3,
-        camera_half_fov_deg=_ZR10_1X_HALF_FOV_DEG,
-    )
+def _identity(episode=1, task_id=1, dock_uid=2, vehicle=7):
+    return DockContactIdentity(vehicle, task_id, dock_uid, episode)
 
 
-def _same_optics(_source_name):
-    return _ZR10_1X_HALF_FOV_DEG
+def _contact(identity=None):
+    return DockContactEvent(identity or _identity(), 12.5, 0.3, 0.2, 0.1)
 
 
-def test_centred_loss_latches_once_and_stages_evidence_for_the_worker():
-    """a7: the latch is terminal, writes nothing itself, stages one row."""
-    runtime, _, _, _ = _runtime()
-    centred = _centred(1.0)
-    runtime.nav(RichPoi(centred))
+def _armed_runtime():
+    runtime, actuator, diagnostics, mailbox = _runtime()
+    runtime.session.begin_dock_episode(_identity())
+    return runtime, actuator, diagnostics, mailbox
+
+
+def test_contact_latches_once_and_stages_evidence_for_the_worker():
+    """The callback latches and fences; it writes nothing itself."""
+    runtime, _, _, _ = _armed_runtime()
+    runtime.nav(RichPoi(_frame(1.0)))
     _execute_one(runtime)
 
-    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
-    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    assert runtime._test_armed_rows == [_identity()]  # written at arming
+    assert runtime.session.latch_docked(_contact()) is True
+    assert runtime.session.latch_docked(_contact()) is False
     assert runtime.poi_passed_override()
-    assert runtime._test_loss_passes == []
+    assert runtime._test_docked_rows == []
     assert runtime.has_command_pending_or_in_flight()
 
     work = runtime.take_work()
     assert runtime.execute_work(work) is None
     runtime.finish_work(work)
     _run_postprocess(runtime, work)
-    [reported] = runtime._test_loss_passes
-    assert reported.continuity_key == centred.continuity_key
-    assert reported.source_timestamp_s == 1.0
-    assert reported.camera_off_axis_deg == 2.3
+    assert runtime._test_docked_rows == [_contact()]
     assert runtime.take_work() is None
 
 
-def test_loss_without_a_centred_last_frame_neither_passes_nor_stages():
-    runtime, _, _, _ = _runtime()
-    runtime.nav(RichPoi(_frame(1.0)))
-    _execute_one(runtime)
-
-    assert runtime.latch_pass_on_detection_loss(_same_optics) is False
+@pytest.mark.parametrize(
+    "identity",
+    (
+        _identity(episode=2),
+        _identity(dock_uid=3),
+        _identity(task_id=9),
+        _identity(vehicle=8),
+    ),
+)
+def test_contact_for_another_episode_dock_task_or_vehicle_is_ignored(identity):
+    runtime, _, _, _ = _armed_runtime()
+    assert runtime.session.latch_docked(_contact(identity)) is False
     assert not runtime.poi_passed_override()
-    assert not isinstance(runtime.take_work(), FinalApproachPassEvidenceWork)
+    assert runtime.take_work() is None
 
 
-def test_loss_after_an_optics_change_is_not_a_pass():
-    """A zoom-in after the last frame: the dropout stays a failure."""
+def test_unarmed_runtime_never_docks():
     runtime, _, _, _ = _runtime()
-    runtime.nav(RichPoi(_centred(1.0)))
-    _execute_one(runtime)
-
-    assert runtime.latch_pass_on_detection_loss(lambda _name: 2.0) is False
-    assert runtime.latch_pass_on_detection_loss(lambda _name: None) is False
+    assert runtime.session.latch_docked(_contact()) is False
     assert not runtime.poi_passed_override()
 
 
-def test_due_held_refresh_after_the_loss_latch_does_not_actuate():
-    """Finding 2: the latch retires the hold and queued frames atomically."""
+def test_reset_phase_clears_the_episode_latch_but_invalidate_does_not():
+    runtime, _, _, _ = _armed_runtime()
+    assert runtime.session.latch_docked(_contact()) is True
+    runtime.invalidate_commands()
+    runtime.clear_source_discontinuity_state("cam")
+    assert runtime.poi_passed_override()
+    runtime.reset_phase()
+    assert not runtime.poi_passed_override()
+    assert runtime.session.latch_docked(_contact()) is False  # no armed episode
+
+
+def test_contact_then_detection_loss_or_nav_fail_is_ignored():
+    """Race: contact first; a later loss/NAV_FAIL is not admitted."""
+    runtime, _, _, _ = _armed_runtime()
+    assert runtime.session.latch_docked(_contact()) is True
+    assert runtime.session.latch_failure() is False
+    assert runtime.poi_passed_override()
+
+
+def test_nav_fail_then_contact_is_ignored():
+    """Race: a NAV_FAIL latched first wins; the contact stages nothing."""
+    runtime, _, _, _ = _armed_runtime()
+    assert runtime.session.latch_failure() is True
+    assert runtime.session.latch_docked(_contact()) is False
+    assert not runtime.poi_passed_override()
+    assert runtime.take_work() is None
+
+
+def test_contact_source_reset_then_late_frame_issues_zero_commands():
+    """Race: contact, a source reset, then a late frame: still no command."""
     aircraft_now_s = [1.0]
-    runtime, actuator, _, _ = _runtime()
-    assert runtime.nav(_advancing_poi(_centred(1.0), aircraft_now_s))
+    runtime, actuator, diagnostics, _ = _armed_runtime()
+    assert runtime.nav(_advancing_poi(_frame(1.0), aircraft_now_s))
     assert _execute_one(runtime) is not None
-    assert runtime.nav(_advancing_poi(_centred(1.01), aircraft_now_s))
+    assert runtime.session.latch_docked(_contact()) is True
+    _run_postprocess(runtime, runtime.take_work())
 
-    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    runtime.invalidate_commands()  # detector source reset
+    aircraft_now_s[0] = 1.1
+    late = _frame(1.1, source="cam", generation=1)
+    assert runtime.nav(_advancing_poi(late, aircraft_now_s))
+    assert _execute_one(runtime) is None
+    aircraft_now_s[0] = 1.0 + 2.0 * ATTITUDE_REFRESH_S
+    assert runtime.take_work() is None  # no held refresh after docking
+
+    assert len(actuator.calls) == 1
+    assert runtime.poi_passed_override()
+    terminal = [
+        record for record in diagnostics.records
+        if record[2] is not None
+        and record[2].outcome is FinalApproachCommandOutcome.TERMINAL_SUPPRESSED
+    ]
+    assert len(terminal) == 1
+
+
+def test_contact_source_reset_then_stale_frame_writes_no_row_and_no_liveness():
+    """The terminal state is checked before freshness: a stale late frame
+    after docking neither latches a liveness failure nor writes a row."""
+    aircraft_now_s = [1.0]
+    runtime, actuator, diagnostics, _ = _armed_runtime()
+    assert runtime.nav(_advancing_poi(_frame(1.0), aircraft_now_s))
+    assert _execute_one(runtime) is not None
+    assert runtime.session.latch_docked(_contact()) is True
+    _run_postprocess(runtime, runtime.take_work())
+
+    runtime.invalidate_commands()  # detector source reset
+    stale = _frame(1.1, source="cam", generation=1)
+    assert runtime.nav(_advancing_poi(stale, aircraft_now_s))
+    aircraft_now_s[0] = 1.1 + 5.0  # the frame is long stale when executed
+    assert _execute_one(runtime) is None
+
+    assert not runtime.consume_command_liveness_failure()
+    assert len(actuator.calls) == 1
+    [_, _, last] = diagnostics.records[-1]
+    assert last.outcome is FinalApproachCommandOutcome.TERMINAL_SUPPRESSED
+
+
+def test_terminal_suppressed_result_writes_no_command_row():
+    events = []
+
+    class EventLogger:
+        @staticmethod
+        def log_event(event, payload, *, timestamp=None):
+            events.append(event)
+
+        @staticmethod
+        def capture_event_timestamp():
+            return "12:00:00.000"
+
+    diagnostics = NavigationFinalApproachDiagnostics(EventLogger(), reader=None)
+    result = FinalApproachCommandResult(
+        None, FinalApproachCommandOutcome.TERMINAL_SUPPRESSED, False,
+    )
+    diagnostics.record(diagnostics.capture(_frame(1.0), None, result))
+    assert events == []
+
+
+def test_worker_failure_before_contact_wins_and_the_contact_is_ignored():
+    """Codex P2: a stale frame fails on the worker before the navigation loop
+    consumes it; a contact in that window must not complete the approach."""
+    aircraft_now_s = [1.0]
+    runtime, actuator, _, _ = _armed_runtime()
+    assert runtime.nav(_advancing_poi(_frame(1.0), aircraft_now_s))
+    aircraft_now_s[0] = 1.0 + 5.0  # stale when the worker executes it
+    assert _execute_one(runtime) is None  # freshness failure on the worker
+
+    assert runtime.session.latch_docked(_contact()) is False
+    assert not runtime.poi_passed_override()
+    assert runtime.take_work() is None  # no DOCKED evidence staged
+    assert runtime.consume_command_liveness_failure()
+    assert actuator.calls == []
+
+
+def test_held_command_expiry_before_contact_wins():
+    aircraft_now_s = [1.0]
+    runtime, actuator = _refresh_runtime(1.0, aircraft_now_s)
+    runtime.session.begin_dock_episode(_identity())
+    aircraft_now_s[0] = 1.0 + 5.0  # the held command has expired
+    _held_tick(runtime)
+
+    assert runtime.session.latch_docked(_contact()) is False
+    assert not runtime.poi_passed_override()
+    assert runtime.consume_command_liveness_failure()
+
+
+def test_worker_failure_after_contact_is_dropped():
+    """Contact first wins: a later worker failure neither ends the episode
+    as a failure nor latches liveness."""
+    episode = FinalApproachEpisodeLatch()
+    episode.begin(_identity())
+    assert episode.latch_docked(_contact())
+    liveness = FinalApproachCommandLiveness()
+    FinalApproachEpisodeFailures(threading.RLock(), episode, liveness).mark_failed()
+    assert episode.docked
+    assert not liveness.consume_failure()
+
+
+def test_due_held_refresh_after_contact_does_not_actuate():
+    """The latch retires the hold and queued frames atomically."""
+    aircraft_now_s = [1.0]
+    runtime, actuator, _, _ = _armed_runtime()
+    assert runtime.nav(_advancing_poi(_frame(1.0), aircraft_now_s))
+    assert _execute_one(runtime) is not None
+    assert runtime.nav(_advancing_poi(_frame(1.01), aircraft_now_s))
+
+    assert runtime.session.latch_docked(_contact()) is True
     aircraft_now_s[0] = 1.0 + 2.0 * ATTITUDE_REFRESH_S
 
     for _ in range(3):
@@ -879,36 +1045,36 @@ def test_due_held_refresh_after_the_loss_latch_does_not_actuate():
     assert not runtime.consume_command_liveness_failure()
 
 
-def test_pass_row_follows_an_earlier_command_whose_postprocess_is_pending():
-    """Finding 3: the worker has issued a command but not yet submitted its
-    evidence when the latch happens; FIFO order still puts the pass last."""
-    runtime, _, diagnostics, _ = _runtime()
-    runtime.nav(RichPoi(_centred(1.0)))
+def test_docked_row_follows_an_earlier_command_whose_postprocess_is_pending():
+    """The worker issued a command but not yet submitted its evidence when
+    the contact latches; FIFO order still puts the DOCKED row last."""
+    runtime, _, diagnostics, _ = _armed_runtime()
+    runtime.nav(RichPoi(_frame(1.0)))
     command_work = runtime.take_work()
     assert runtime.execute_work(command_work) is not None
     command_job = runtime.postprocess_job(command_work)
     runtime.finish_work(command_work)
     order = []
     diagnostics.record = lambda diagnostic: order.append("cmd")
-    runtime._test_loss_recorder[0] = lambda frame: order.append("pass")
+    runtime._test_docked_recorder[0] = lambda event: order.append("docked")
 
-    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    assert runtime.session.latch_docked(_contact()) is True
     assert order == []
-    pass_work = runtime.take_work()
-    runtime.execute_work(pass_work)
-    pass_job = runtime.postprocess_job(pass_work)
-    runtime.finish_work(pass_work)
+    docked_work = runtime.take_work()
+    runtime.execute_work(docked_work)
+    docked_job = runtime.postprocess_job(docked_work)
+    runtime.finish_work(docked_work)
 
-    for job in (command_job, pass_job):  # the dispatcher's FIFO order
+    for job in (command_job, docked_job):  # the dispatcher's FIFO order
         job()
-    assert order == ["cmd", "pass"]
+    assert order == ["cmd", "docked"]
 
 
-def test_reset_flushes_untaken_pass_evidence_after_blocked_command_evidence():
-    """Finding 3: a reset before the worker took the pass row waits for the
-    earlier command evidence (fence), then writes the pass row inline."""
-    runtime, _, diagnostics, _ = _runtime()
-    runtime.nav(RichPoi(_centred(1.0)))
+def test_reset_flushes_untaken_docked_evidence_after_blocked_command_evidence():
+    """A reset before the worker took the DOCKED row waits for the earlier
+    command evidence (fence), then writes the DOCKED row inline."""
+    runtime, _, diagnostics, _ = _armed_runtime()
+    runtime.nav(RichPoi(_frame(1.0)))
     command_work = runtime.take_work()
     runtime.execute_work(command_work)
     command_job = runtime.postprocess_job(command_work)
@@ -921,11 +1087,11 @@ def test_reset_flushes_untaken_pass_evidence_after_blocked_command_evidence():
         order.append("cmd")
 
     diagnostics.record = slow_record
-    runtime._test_loss_recorder[0] = lambda frame: order.append("pass")
-    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    runtime._test_docked_recorder[0] = lambda event: order.append("docked")
+    assert runtime.session.latch_docked(_contact()) is True
 
     command_thread = threading.Thread(target=command_job)
-    reset_thread = threading.Thread(target=runtime.invalidate_commands)
+    reset_thread = threading.Thread(target=runtime.reset_phase)
     command_thread.start()
     reset_thread.start()
     reset_thread.join(timeout=0.2)
@@ -935,20 +1101,20 @@ def test_reset_flushes_untaken_pass_evidence_after_blocked_command_evidence():
     command_thread.join(timeout=5.0)
     reset_thread.join(timeout=5.0)
 
-    assert order == ["cmd", "pass"]
+    assert order == ["cmd", "docked"]
     assert runtime.take_work() is None
 
 
-def test_failed_pass_evidence_surfaces_from_the_postprocess_job():
-    runtime, _, _, _ = _runtime()
-    runtime.nav(RichPoi(_centred(1.0)))
+def test_failed_docked_evidence_surfaces_from_the_postprocess_job():
+    runtime, _, _, _ = _armed_runtime()
+    runtime.nav(RichPoi(_frame(1.0)))
     _execute_one(runtime)
 
-    def broken(_frame):
+    def broken(_event):
         raise OSError("evidence sink failed")
 
-    runtime._test_loss_recorder[0] = broken
-    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    runtime._test_docked_recorder[0] = broken
+    assert runtime.session.latch_docked(_contact()) is True
     work = runtime.take_work()
     job = runtime.postprocess_job(work)
     with pytest.raises(OSError, match="evidence sink failed"):
@@ -956,16 +1122,16 @@ def test_failed_pass_evidence_surfaces_from_the_postprocess_job():
     runtime.invalidate_commands()  # the fence slot was released
 
 
-def test_concurrent_loss_latches_stage_exactly_one_pass_row():
-    runtime, _, _, _ = _runtime()
-    runtime.nav(RichPoi(_centred(1.0)))
+def test_concurrent_contacts_stage_exactly_one_docked_row():
+    runtime, _, _, _ = _armed_runtime()
+    runtime.nav(RichPoi(_frame(1.0)))
     _execute_one(runtime)
     start = threading.Barrier(8)
     results = []
 
     def latch():
         start.wait(timeout=5.0)
-        results.append(runtime.latch_pass_on_detection_loss(_same_optics))
+        results.append(runtime.session.latch_docked(_contact()))
 
     threads = [threading.Thread(target=latch) for _ in range(8)]
     for thread in threads:
@@ -973,10 +1139,10 @@ def test_concurrent_loss_latches_stage_exactly_one_pass_row():
     for thread in threads:
         thread.join(timeout=5.0)
 
-    assert results == [True] * 8
+    assert sorted(results) == [False] * 7 + [True]
     work = runtime.take_work()
     _run_postprocess(runtime, work)
-    assert len(runtime._test_loss_passes) == 1
+    assert len(runtime._test_docked_rows) == 1
     assert runtime.take_work() is None
 
 
@@ -1290,7 +1456,8 @@ def test_final_approach_reset_waits_for_owned_postprocess_before_state_reset():
         Mock(),
         Mock(),
         fence,
-        FinalApproachPassEvidence(lock, Mock(), fence),
+        FinalApproachDockedEvidence(lock, Mock(), fence, Mock()),
+        Mock(),
     ))
     thread = threading.Thread(target=reset.invalidate_commands)
     thread.start()
@@ -1304,7 +1471,7 @@ def test_final_approach_reset_waits_for_owned_postprocess_before_state_reset():
     hold.clear.assert_called_once_with()
 
 
-def test_pass_suppressed_frame_finishes_the_snap_segment_after_crossing():
+def test_aft_suppressed_frame_finishes_the_snap_segment_after_crossing():
     poi_location = Location(40.0, 44.0, 100.0, is_absolute=True)
     locations = iter((
         Location(39.99999, 44.0, 100.0, is_absolute=True),
@@ -1344,7 +1511,7 @@ def test_pass_suppressed_frame_finishes_the_snap_segment_after_crossing():
         )
         suppressed = FinalApproachCommandResult(
             None,
-            FinalApproachCommandOutcome.PASS_SUPPRESSED,
+            FinalApproachCommandOutcome.AFT_SUPPRESSED,
             False,
         )
 
@@ -1550,26 +1717,46 @@ def test_mid_navigation_task_law_loss_clears_hold_and_latches_failure():
     assert runtime.consume_command_liveness_failure()
 
 
-def test_valid_pass_suppression_does_not_require_available_limits():
+def test_valid_aft_suppression_does_not_require_available_limits():
     from navpy.core.approach.vision_nav.visual_pass import VisualPassState
 
-    frame = _frame(1.0)
+    frame = _frame(1.0, body=_AFT, control=_AFT)
     law = VisionNavLaw(FixedFinalApproachLawConfigProvider(None))
     visual_pass = VisualPassDetector()
     visual_pass._state = VisualPassState(
         frame.continuity_key,
         armed=True,
         aft_pending=True,
-        passed=True,
     )
     actuator = Actuator()
-    transaction = FinalApproachCommandTransaction(law, visual_pass, actuator)
+    episode = FinalApproachEpisodeLatch()
+    transaction = FinalApproachCommandTransaction(
+        law, visual_pass, actuator, episode,
+    )
 
     result = transaction.execute(frame)
 
     assert not result.issued
-    assert result.outcome is FinalApproachCommandOutcome.PASS_SUPPRESSED
-    assert result.passed
+    assert result.outcome is FinalApproachCommandOutcome.AFT_SUPPRESSED
+    assert result.missed
+    assert episode.consume_missed()
+    assert actuator.calls == []
+
+
+def test_terminal_episode_suppresses_before_the_law_or_the_aft_gate():
+    episode = FinalApproachEpisodeLatch()
+    episode.begin(_identity())
+    assert episode.latch_docked(_contact())
+    actuator = Actuator()
+    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(_DEFAULT_CONFIG))
+    transaction = FinalApproachCommandTransaction(
+        law, VisualPassDetector(), actuator, episode,
+    )
+
+    result = transaction.execute(_frame(1.0))
+
+    assert result.outcome is FinalApproachCommandOutcome.TERMINAL_SUPPRESSED
+    assert not result.missed
     assert actuator.calls == []
 
 
@@ -1585,7 +1772,9 @@ def test_issued_command_carries_exact_frame_local_law_evidence():
     frame = _frame(2.0, control=_ray(yaw_deg=5.0, down_deg=7.0))
     law = VisionNavLaw(FixedFinalApproachLawConfigProvider(_DEFAULT_CONFIG))
     law.seed(_frame(1.0, control=_ray(yaw_deg=3.0, down_deg=5.0)))
-    transaction = FinalApproachCommandTransaction(law, VisualPassDetector(), Actuator())
+    transaction = FinalApproachCommandTransaction(
+        law, VisualPassDetector(), Actuator(), FinalApproachEpisodeLatch(),
+    )
 
     result = transaction.execute(frame)
 

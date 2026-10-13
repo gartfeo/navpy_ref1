@@ -61,7 +61,8 @@ def final_approach_poi_binding_errors(
                 )
             )
             episodes = parse_final_approach_command_episodes(
-                log_dir / f"uav_{sys_id}_navigation_debug.csv"
+                log_dir / f"uav_{sys_id}_navigation_debug.csv",
+                vehicle_id=sys_id,
             )
         except (OSError, UnicodeError, ValueError) as error:
             errors.append(

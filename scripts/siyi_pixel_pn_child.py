@@ -52,6 +52,7 @@ from navpy.core.perception.profile.vision_class_profile import get_min_pixels_fo
 # is RUN, false when pytest imports it as `scripts.siyi_pixel_pn_child`. The
 # bare form made the whole repository test suite fail to COLLECT, so nothing
 # outside tests/scripts was being verified at all.
+from scripts.pixel_pn_dock_contact import HarnessDockContact  # noqa: E402
 from scripts.pixel_pn_flight_control_trace import (  # noqa: E402
     FlightControlTrace,
 )
@@ -147,7 +148,7 @@ def _wait_for_visual_confirmation(
     navigation: Navigation,
     source: SiyiGeoPixelSource,
     timeout_s: float,
-) -> None:
+) -> DetectedObject:
     deadline_s = time.monotonic() + timeout_s
     while time.monotonic() < deadline_s:
         detection = source.latest_detection
@@ -156,7 +157,7 @@ def _wait_for_visual_confirmation(
             and navigation.final_approach.can_confirm_detection(detection)
             and navigation.final_approach.record_confirmed_detection(detection)
         ):
-            return
+            return detection
         time.sleep(0.01)
     raise TimeoutError("SIYI POI never entered final-approach command authority")
 
@@ -165,10 +166,10 @@ def _initialize_confirmed_navigation(
     navigation: Navigation,
     source: SiyiGeoPixelSource,
     timeout_s: float,
-) -> None:
+) -> DetectedObject:
     """Reset final-approach state before recording the frame that seeds handoff."""
     navigation.init()
-    _wait_for_visual_confirmation(navigation, source, timeout_s)
+    return _wait_for_visual_confirmation(navigation, source, timeout_s)
 
 
 def _result_payload(
@@ -277,7 +278,8 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         if not vehicle.set_mode(FlightMode.GUIDED):
             raise RuntimeError("GUIDED mode request was rejected")
         _wait_for_mode(vehicle, FlightMode.GUIDED, 5.0)
-        _initialize_confirmed_navigation(navigation, source, options.timeout)
+        dock_contact = HarnessDockContact(vehicle, poi, navigation.final_approach, logger)
+        dock_contact.arm(_initialize_confirmed_navigation(navigation, source, options.timeout))
         final_approach_recorded = True
         source.activate()
         options.scoring_active.write_text("SIYI_PIXEL_NAV\n", encoding="utf-8")
@@ -294,6 +296,8 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         return _result_payload(False, snap, source)
     finally:
         trace.write()
+        if 'dock_contact' in locals():
+            dock_contact.close()
         if source is not None:
             source.close()
         if navigation is not None:

@@ -36,7 +36,7 @@ class FinalApproachSourceEventHandlerPorts:
     session_active: Callable[[], bool]
     reset_source: Callable[[], None]
     admission: FinalApproachEventAdmission
-    mark_failed: Callable[[], None]
+    mark_failed: Callable[[], Optional[bool]]
     logger: ILogger
     commands: FinalApproachSourceCommandRouter
 
@@ -104,7 +104,8 @@ class FinalApproachSourceEventHandler:
         return False
 
     def _mark_failed(self, message: str) -> None:
-        self._ports.mark_failed()
+        if self._ports.mark_failed() is False:
+            return  # the episode already docked: the failure is ignored
         try:
             self._ports.logger.error(message)
         except Exception:  # noqa: BLE001 - diagnostic sink is non-authoritative

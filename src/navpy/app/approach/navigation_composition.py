@@ -137,7 +137,7 @@ def _vision_runtime_factory(
             wall_period_s=wall_period_s,
         )
         final_approach = NavigationFinalApproachCapabilities(
-            status=built.runtime,
+            status=built.runtime.session,
             confirmation=built.confirmation,
         )
         return RuntimeBuildResult(runtime=built.runtime, final_approach=final_approach)

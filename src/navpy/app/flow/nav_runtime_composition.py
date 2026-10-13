@@ -44,6 +44,8 @@ from navpy.core.flow.navigation_transition_handler import (
     TransitionPorts,
 )
 from navpy.core.approach.final_approach_nav_workflow import FinalApproachNavWorkflow
+from navpy.core.approach.dock_contact_episode import FinalApproachDockContact
+from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
@@ -62,14 +64,25 @@ def compose_nav_application(
     decision: DecisionWorkflows,
     navigation: NavCapabilities,
     final_approach_nav: FinalApproachNavWorkflow,
+    dock_contact_sensor: Optional[DockContactSensor] = None,
 ) -> NavApplication:
     loop: Optional[NavigationLoop] = None
+    dock_contact = FinalApproachDockContact(
+        dock_contact_sensor,
+        lambda: vehicle.target_system,
+        navigation.final_approach.begin_dock_episode,
+        navigation.final_approach.latch_docked,
+        logger,
+    )
     nav_transition = NavTransition(
         NavEntry(
             NavEntryPorts(
                 request_guided=lambda: approach.commands.request_guided(),
                 navigation_init=navigation.init,
                 final_approach_active=lambda: navigation.final_approach.is_active,
+                arm_dock_contact=lambda: dock_contact.arm(
+                    poi.confirmation_manager.active_poi
+                ),
             ),
             state.navigation_task,
             observation.zoom,
@@ -77,6 +90,7 @@ def compose_nav_application(
         ),
         NavExitCleanup(
             NavExitCleanupPorts(
+                disarm_dock_contact=dock_contact.disarm,
                 close_final_approach_source=final_approach_nav.close_source_admission,
                 navigation_reset=navigation.reset,
                 detector_stop=detection.tracking_commands.stop_tracking,
