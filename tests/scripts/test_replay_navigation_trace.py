@@ -58,7 +58,11 @@ def test_exact_replay_recovers_rows_and_restores_logger(capture, tmp_path):
     result = replay(peer, output)
     rows = verify_live_rows(live, output)
     assert result["records"] == 60
-    assert result["commands"] > result["noncapture_reissues"] > 0
+    # Design a2: a held command is refreshed only after ATTITUDE_REFRESH_S of
+    # aircraft time; the 40 Hz camera's one-tick gaps never reach it, so every
+    # ATTITUDE reply in this capture is a fresh command and none is a reissue.
+    assert result["commands"] > 0
+    assert result["noncapture_reissues"] == 0
     assert rows["navigation_debug.csv"]["replay"] > rows["navigation_debug.csv"]["live"]
     assert NavigationLogger.MIN_LOG_INTERVAL == .1
     assert runtime.NavigationLogger is NavigationLogger

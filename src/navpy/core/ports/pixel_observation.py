@@ -86,6 +86,9 @@ class PixelObservation:
     pose_is_frame_atomic: bool | None
     source_name: str
     aircraft_yaw_rate_rad_s: float | None = None
+    # Real image bounds (width, height) in pixels; None = unknown, so the
+    # completion half-FOV fails closed.
+    image_size_px: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True)

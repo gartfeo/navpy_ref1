@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 from navpy.core.approach.navigation_mode import NavigationModeState
 from navpy.core.ports.detect_data import DetectedObject
@@ -62,6 +62,20 @@ class FinalApproachNavigationService:
                 None
                 if final_approach is None
                 else final_approach.status.poi_passed_override()
+            )
+
+    def latch_pass_on_detection_loss(
+        self,
+        current_half_fov_deg: Callable[[str], Optional[float]],
+    ) -> bool:
+        """Count a dock lost centred after arming as passed (visual_pass.py)."""
+        with self._mode_state.session() as active:
+            final_approach = active.final_approach
+            return (
+                final_approach is not None
+                and final_approach.status.latch_pass_on_detection_loss(
+                    current_half_fov_deg
+                ) is True
             )
 
     def last_measured_lateral_bearing_deg(self) -> Optional[float]:

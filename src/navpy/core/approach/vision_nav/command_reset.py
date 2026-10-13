@@ -16,6 +16,7 @@ from navpy.core.approach.vision_nav.command_postprocess import (
 from navpy.core.approach.vision_nav.diagnostic_mailbox import (
     FinalApproachDiagnosticMailbox,
 )
+from navpy.core.approach.vision_nav.pass_evidence import FinalApproachPassEvidence
 from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
 
 
@@ -34,6 +35,7 @@ class FinalApproachCommandResetPorts:
     status: FinalApproachResettableState
     liveness: FinalApproachResettableState
     postprocess_fence: FinalApproachPostprocessFence
+    pass_evidence: FinalApproachPassEvidence
 
 
 class FinalApproachCommandReset:
@@ -44,16 +46,31 @@ class FinalApproachCommandReset:
 
     def invalidate_commands(self) -> None:
         with self._ports.lock:
-            self._invalidate_locked()
-            self._ports.postprocess_fence.drain()
-            self._reset_control_locked()
+            self._retire_and_flush_locked()
 
     def reset_phase(self) -> None:
         with self._ports.lock:
-            self._invalidate_locked()
-            self._ports.postprocess_fence.drain()
-            self._reset_control_locked()
+            self._retire_and_flush_locked()
             self._ports.liveness.reset()
+
+    def retire_after_pass(self) -> None:
+        """Stop all actuation after a pass; keep the terminal pass latch."""
+        with self._ports.lock:
+            self._invalidate_locked()
+            self._ports.hold.clear()
+
+    def _retire_and_flush_locked(self) -> None:
+        self._invalidate_locked()
+        staged = self._ports.pass_evidence.take_staged()
+        self._ports.postprocess_fence.drain()
+        try:
+            # Earlier command evidence has drained; a pass row the worker
+            # never took is written now, before the phase's SNAP. A failure
+            # propagates like a failed drain, never silently.
+            if staged is not None:
+                self._ports.pass_evidence.record_now(staged)
+        finally:
+            self._reset_control_locked()
 
     def _invalidate_locked(self) -> None:
         pending = self._ports.slot.invalidate()

@@ -1,7 +1,7 @@
 import math
 import threading
 from contextlib import nullcontext
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from io import StringIO
 from unittest.mock import Mock
 
@@ -36,9 +36,16 @@ from navpy.core.approach.vision_nav.command_freshness import (
     FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
     FinalApproachCommandFreshness,
 )
-from navpy.core.approach.vision_nav.command_hold import FinalApproachCommandHold
+from navpy.core.approach.vision_nav.command_hold import (
+    ATTITUDE_REFRESH_S,
+    FinalApproachCommandHold,
+)
 from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandLiveness,
+)
+from navpy.core.approach.vision_nav.pass_evidence import (
+    FinalApproachPassEvidence,
+    FinalApproachPassEvidenceWork,
 )
 from navpy.core.approach.vision_nav.command_postprocess import (
     FinalApproachPostprocessFence,
@@ -169,6 +176,8 @@ class Projector:
             frame.source_timestamp_s, *frame.body_ray, *frame.control_ray,
             frame.aircraft_roll_deg,
             frame.air_speed_mps if air_speed_mps is None else air_speed_mps,
+            camera_off_axis_deg=frame.camera_off_axis_deg,
+            camera_half_fov_deg=frame.camera_half_fov_deg,
         )
 
 
@@ -244,6 +253,7 @@ def _runtime(
         FixedFinalApproachLawConfigProvider(config)
     )
     visual_pass = VisualPassDetector()
+    loss_passes = []
     status = FinalApproachRuntimeStatus()
     actuator = Actuator()
     source_time = source_time or _SourceTimeObserver()
@@ -256,9 +266,13 @@ def _runtime(
         if diagnostics_factory is None
         else diagnostics_factory(lock)
     )
+    loss_recorder = [loss_passes.append]
+    pass_evidence = FinalApproachPassEvidence(
+        lock, lambda frame: loss_recorder[0](frame), postprocess_fence,
+    )
     command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock, slot, mailbox, hold, law, visual_pass, status, liveness,
-        postprocess_fence,
+        postprocess_fence, pass_evidence,
     ))
     ingress = FinalApproachIngress(FinalApproachIngressPorts(
         lock, slot, Projector(), epochs, mailbox, source_time, command_reset,
@@ -272,13 +286,26 @@ def _runtime(
         liveness, freshness, postprocess_fence,
     ))
     runtime = VisionNavRuntime(
-        FinalApproachCommandWorkRuntime(slot, ingress, executor, hold),
+        FinalApproachCommandWorkRuntime(
+            slot, ingress, executor, hold, pass_evidence,
+        ),
         FinalApproachSessionRuntime(
             lock, epochs, command_reset, visual_pass, status, liveness,
+            pass_evidence,
         ),
     )
     runtime._test_confirmation = confirmation
+    runtime._test_loss_passes = loss_passes
+    runtime._test_loss_recorder = loss_recorder
     return runtime, actuator, diagnostics, mailbox
+
+
+def _advancing_poi(frame, aircraft_now_s):
+    """Frame whose source (aircraft) clock reads the mutable ``aircraft_now_s``."""
+    return RichPoi(
+        frame,
+        timing=_DiagnosticTiming(detection_now_s=lambda: aircraft_now_s[0]),
+    )
 
 
 def _execute_one(runtime):
@@ -329,13 +356,16 @@ def test_production_composition_shares_one_hold_across_command_owners():
 
 
 def test_empty_autopilot_tick_reissues_cached_primitive_command():
+    aircraft_now_s = [1.0]
     runtime, actuator, _diagnostics, _mailbox = _runtime()
-    assert runtime.nav(
-        RichPoi(_frame(1.0, control=_ray(yaw_deg=4.0, down_deg=6.0)))
-    )
+    assert runtime.nav(_advancing_poi(
+        _frame(1.0, control=_ray(yaw_deg=4.0, down_deg=6.0)),
+        aircraft_now_s,
+    ))
     assert _execute_one(runtime) is not None
     fresh_command = actuator.calls[-1]
 
+    aircraft_now_s[0] += ATTITUDE_REFRESH_S
     held_work = runtime.take_work()
     assert held_work is not None
     try:
@@ -347,8 +377,11 @@ def test_empty_autopilot_tick_reissues_cached_primitive_command():
 
 
 def test_held_command_copies_primitives_from_mutable_fresh_result():
+    aircraft_now_s = [1.0]
     runtime, actuator, _diagnostics, _mailbox = _runtime()
-    assert runtime.nav(RichPoi(_frame(1.0, control=_ray(yaw_deg=4.0))))
+    assert runtime.nav(
+        _advancing_poi(_frame(1.0, control=_ray(yaw_deg=4.0)), aircraft_now_s)
+    )
     fresh = _execute_one(runtime)
     assert fresh is not None
     issued = actuator.calls[-1]
@@ -356,6 +389,7 @@ def test_held_command_copies_primitives_from_mutable_fresh_result():
     fresh.cmd_roll = 999.0
     fresh.cmd_pitch = 999.0
     fresh.cmd_thr = 0.0
+    aircraft_now_s[0] += ATTITUDE_REFRESH_S
     held = _execute_one(runtime)
 
     assert held is not None
@@ -458,10 +492,12 @@ def test_hold_is_cleared_by_reset_discontinuity_and_stale_lease():
 
 
 def test_held_actuator_failure_clears_the_cached_command():
+    aircraft_now_s = [1.0]
     runtime, actuator, _diagnostics, _mailbox = _runtime()
-    assert runtime.nav(RichPoi(_frame(1.0)))
+    assert runtime.nav(_advancing_poi(_frame(1.0), aircraft_now_s))
     assert _execute_one(runtime) is not None
 
+    aircraft_now_s[0] += ATTITUDE_REFRESH_S
     actuator.fail = True
     with pytest.raises(RuntimeError, match="actuator failed"):
         _execute_one(runtime)
@@ -475,9 +511,11 @@ def test_held_actuator_failure_clears_the_cached_command():
 
 
 def test_reset_waits_for_held_issue_then_prevents_later_actuation():
+    aircraft_now_s = [1.0]
     runtime, actuator, _diagnostics, _mailbox = _runtime()
-    assert runtime.nav(RichPoi(_frame(1.0)))
+    assert runtime.nav(_advancing_poi(_frame(1.0), aircraft_now_s))
     assert _execute_one(runtime) is not None
+    aircraft_now_s[0] += ATTITUDE_REFRESH_S
     entered = threading.Event()
     release = threading.Event()
     original_issue = actuator.issue
@@ -520,7 +558,19 @@ def test_reset_waits_for_held_issue_then_prevents_later_actuation():
 
 
 @pytest.mark.parametrize("speedup", [0.5, 1.0, 3.0, 10.0])
-def test_slower_source_still_calls_actuator_once_per_autopilot_slot(speedup):
+def test_worker_sends_new_commands_on_their_slot_and_paces_held_by_aircraft_time(
+    speedup,
+):
+    """Every new command goes out on its AP slot; held re-sends are paced.
+
+    Before design a2 every empty AP slot re-sent the held command (4 fresh +
+    8 held in 12 slots). Worker slots run on the NOMINAL speedup in wall time,
+    so when SITL fell behind nominal the re-sends overran SITL's one datagram
+    per 10 ms of sim input and queued commands for seconds. Now the held
+    command is still freshness-checked on every slot (see the stale tests),
+    but re-sent only once ATTITUDE_REFRESH_S of aircraft time has passed since
+    the last send, so the rate follows aircraft time, not wall-clock slots.
+    """
     class FakeClock:
         now_s = 0.0
 
@@ -541,6 +591,9 @@ def test_slower_source_still_calls_actuator_once_per_autopilot_slot(speedup):
             clock.now_s = math.nextafter(clock.now_s + timeout, math.inf)
             return self._set
 
+    slot_s = 0.02
+    source_period_s = 0.7
+    stop_aircraft_s = 1.5
     command_event = threading.Event()
     source_time = _SourceTimeObserver()
     runtime, actuator, _diagnostics, _mailbox = _runtime(
@@ -549,26 +602,35 @@ def test_slower_source_still_calls_actuator_once_per_autopilot_slot(speedup):
     )
     clock = FakeClock()
     stop_event = FakeStopEvent()
-    next_source_s = 0.02
-    source_period_s = 0.06
-    issue_wall_times = []
+    next_source_s = slot_s
+    published_s = []
+    send_wall_s = []
     original_issue = actuator.issue
 
-    def issue_and_stop(roll_deg, pitch_deg, throttle):
-        original_issue(roll_deg, pitch_deg, throttle)
-        issue_wall_times.append(clock.now_s)
-        if len(issue_wall_times) == 12:
-            stop_event.set()
+    def aircraft_now_s():
+        return clock.now_s * speedup
 
-    actuator.issue = issue_and_stop
+    def issue_and_time(roll_deg, pitch_deg, throttle):
+        original_issue(roll_deg, pitch_deg, throttle)
+        send_wall_s.append(clock.now_s)
+
+    actuator.issue = issue_and_time
 
     def sleep_and_publish(duration_s):
         nonlocal next_source_s
         clock.now_s = math.nextafter(clock.now_s + duration_s, math.inf)
-        source_now_s = clock.now_s * speedup
-        while next_source_s <= source_now_s + 1e-12:
-            assert runtime.nav(RichPoi(_frame(next_source_s)))
+        # Publish only once the aircraft clock reached the frame time, so the
+        # frame never has a negative source age.
+        while next_source_s <= aircraft_now_s():
+            poi = RichPoi(
+                _frame(next_source_s),
+                timing=_DiagnosticTiming(detection_now_s=aircraft_now_s),
+            )
+            assert runtime.nav(poi)
+            published_s.append(aircraft_now_s())
             next_source_s += source_period_s
+        if aircraft_now_s() >= stop_aircraft_s:
+            stop_event.set()
 
     worker = NavigationCommandWorker(NavigationCommandWorkerPorts(
         stop_event=stop_event,
@@ -582,12 +644,118 @@ def test_slower_source_still_calls_actuator_once_per_autopilot_slot(speedup):
 
     worker.run()
 
-    assert len(actuator.calls) == 12
-    assert issue_wall_times == pytest.approx(
-        [0.02 * tick / speedup for tick in range(1, 13)]
-    )
-    assert source_time.command_outcomes.count("fresh") == 4
-    assert source_time.command_outcomes.count("held") == 8
+    send_aircraft_s = [wall_s * speedup for wall_s in send_wall_s]
+    outcomes = source_time.command_outcomes
+    assert len(actuator.calls) == len(outcomes)
+    assert outcomes == ["fresh", "held", "fresh", "held", "fresh"]
+    # Every send lands on an AP slot; new commands on the slot they arrive.
+    for sent_s in send_aircraft_s:
+        assert sent_s / slot_s == pytest.approx(round(sent_s / slot_s))
+    fresh_s = [
+        sent_s
+        for sent_s, outcome in zip(send_aircraft_s, outcomes)
+        if outcome == "fresh"
+    ]
+    assert fresh_s == pytest.approx(published_s)
+    # A held re-send comes on the first slot at least one refresh period
+    # after the previous send: never earlier, never in a burst.
+    for previous_s, sent_s, outcome in zip(
+        send_aircraft_s, send_aircraft_s[1:], outcomes[1:]
+    ):
+        if outcome == "held":
+            assert ATTITUDE_REFRESH_S - 1e-9 <= sent_s - previous_s
+            assert sent_s - previous_s < ATTITUDE_REFRESH_S + slot_s + 1e-9
+
+
+def _refresh_runtime(frame_ts, aircraft_now_s):
+    runtime, actuator, _diagnostics, _mailbox = _runtime()
+    assert runtime.nav(_advancing_poi(_frame(frame_ts), aircraft_now_s))
+    assert _execute_one(runtime) is not None
+    return runtime, actuator
+
+
+def _held_tick(runtime):
+    work = runtime.take_work()
+    assert work is not None
+    try:
+        return runtime.execute_work(work)
+    finally:
+        runtime.finish_work(work)
+
+
+def test_new_command_is_sent_immediately_even_inside_refresh_period():
+    aircraft_now_s = [1.0]
+    runtime, actuator = _refresh_runtime(1.0, aircraft_now_s)
+
+    aircraft_now_s[0] = 1.02
+    assert runtime.nav(_advancing_poi(
+        _frame(1.02, control=_ray(yaw_deg=5.0)), aircraft_now_s
+    ))
+    assert _execute_one(runtime) is not None
+
+    assert len(actuator.calls) == 2
+    assert actuator.calls[0] != actuator.calls[1]
+
+
+def test_held_command_is_resent_only_after_refresh_period_of_aircraft_time():
+    aircraft_now_s = [1.0]
+    runtime, actuator = _refresh_runtime(1.0, aircraft_now_s)
+
+    aircraft_now_s[0] = 1.0 + ATTITUDE_REFRESH_S - 0.01
+    assert _held_tick(runtime) is None
+    assert len(actuator.calls) == 1
+    assert not runtime.consume_command_liveness_failure()
+    assert runtime.has_command_pending_or_in_flight()
+
+    aircraft_now_s[0] = 1.0 + ATTITUDE_REFRESH_S
+    assert _held_tick(runtime) is not None
+    assert actuator.calls == [actuator.calls[0], actuator.calls[0]]
+
+
+def test_long_gap_sends_one_refresh_without_catch_up_burst():
+    aircraft_now_s = [1.0]
+    runtime, actuator = _refresh_runtime(1.0, aircraft_now_s)
+
+    # Nearly two refresh periods pass with no slot; the frame is still fresh.
+    aircraft_now_s[0] = 1.95
+    assert _held_tick(runtime) is not None
+    for _ in range(3):
+        assert _held_tick(runtime) is None
+
+    assert len(actuator.calls) == 2
+    assert not runtime.consume_command_liveness_failure()
+
+
+def test_stale_held_command_fails_closed_on_its_tick_without_refresh_due():
+    aircraft_now_s = [1.9]
+    # Frame source time 1.0, first sent at aircraft time 1.9 (age 0.9 s).
+    runtime, actuator = _refresh_runtime(1.0, aircraft_now_s)
+
+    aircraft_now_s[0] = 1.0 + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
+    assert aircraft_now_s[0] - 1.9 < ATTITUDE_REFRESH_S
+    assert _held_tick(runtime) is None
+
+    assert len(actuator.calls) == 1
+    assert runtime.take_work() is None
+    assert runtime.consume_command_liveness_failure()
+
+
+def test_new_command_resets_the_held_refresh_deadline():
+    aircraft_now_s = [1.0]
+    runtime, actuator = _refresh_runtime(1.0, aircraft_now_s)
+
+    aircraft_now_s[0] = 1.4
+    assert runtime.nav(_advancing_poi(_frame(1.4), aircraft_now_s))
+    assert _execute_one(runtime) is not None
+
+    aircraft_now_s[0] = 1.0 + ATTITUDE_REFRESH_S + 0.1
+    assert _held_tick(runtime) is None
+    assert len(actuator.calls) == 2
+
+    aircraft_now_s[0] = 1.4 + ATTITUDE_REFRESH_S
+    assert _held_tick(runtime) is not None
+    assert len(actuator.calls) == 3
+    assert actuator.calls[2] == actuator.calls[1]
 
 
 def test_initial_aft_does_not_invent_an_acquisition_turn():
@@ -624,6 +792,192 @@ def test_second_fresh_aft_latches_pass_without_command():
         runtime.nav(RichPoi(_frame(ts, body=(-1.0, 0.0, 0.0), control=(-1.0, 0.0, 0.0))))
         assert _execute_one(runtime) is None
     assert runtime.poi_passed_override()
+
+
+_ZR10_1X_HALF_FOV_DEG = 14.4
+
+
+def _centred(ts, **changes):
+    return replace(
+        _frame(ts, **changes),
+        camera_off_axis_deg=2.3,
+        camera_half_fov_deg=_ZR10_1X_HALF_FOV_DEG,
+    )
+
+
+def _same_optics(_source_name):
+    return _ZR10_1X_HALF_FOV_DEG
+
+
+def test_centred_loss_latches_once_and_stages_evidence_for_the_worker():
+    """a7: the latch is terminal, writes nothing itself, stages one row."""
+    runtime, _, _, _ = _runtime()
+    centred = _centred(1.0)
+    runtime.nav(RichPoi(centred))
+    _execute_one(runtime)
+
+    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    assert runtime.poi_passed_override()
+    assert runtime._test_loss_passes == []
+    assert runtime.has_command_pending_or_in_flight()
+
+    work = runtime.take_work()
+    assert runtime.execute_work(work) is None
+    runtime.finish_work(work)
+    _run_postprocess(runtime, work)
+    [reported] = runtime._test_loss_passes
+    assert reported.continuity_key == centred.continuity_key
+    assert reported.source_timestamp_s == 1.0
+    assert reported.camera_off_axis_deg == 2.3
+    assert runtime.take_work() is None
+
+
+def test_loss_without_a_centred_last_frame_neither_passes_nor_stages():
+    runtime, _, _, _ = _runtime()
+    runtime.nav(RichPoi(_frame(1.0)))
+    _execute_one(runtime)
+
+    assert runtime.latch_pass_on_detection_loss(_same_optics) is False
+    assert not runtime.poi_passed_override()
+    assert not isinstance(runtime.take_work(), FinalApproachPassEvidenceWork)
+
+
+def test_loss_after_an_optics_change_is_not_a_pass():
+    """A zoom-in after the last frame: the dropout stays a failure."""
+    runtime, _, _, _ = _runtime()
+    runtime.nav(RichPoi(_centred(1.0)))
+    _execute_one(runtime)
+
+    assert runtime.latch_pass_on_detection_loss(lambda _name: 2.0) is False
+    assert runtime.latch_pass_on_detection_loss(lambda _name: None) is False
+    assert not runtime.poi_passed_override()
+
+
+def test_due_held_refresh_after_the_loss_latch_does_not_actuate():
+    """Finding 2: the latch retires the hold and queued frames atomically."""
+    aircraft_now_s = [1.0]
+    runtime, actuator, _, _ = _runtime()
+    assert runtime.nav(_advancing_poi(_centred(1.0), aircraft_now_s))
+    assert _execute_one(runtime) is not None
+    assert runtime.nav(_advancing_poi(_centred(1.01), aircraft_now_s))
+
+    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    aircraft_now_s[0] = 1.0 + 2.0 * ATTITUDE_REFRESH_S
+
+    for _ in range(3):
+        work = runtime.take_work()
+        if work is None:
+            break
+        try:
+            assert runtime.execute_work(work) is None
+        finally:
+            runtime.finish_work(work)
+    assert runtime.take_work() is None
+    assert len(actuator.calls) == 1
+    assert runtime.poi_passed_override()
+    assert not runtime.consume_command_liveness_failure()
+
+
+def test_pass_row_follows_an_earlier_command_whose_postprocess_is_pending():
+    """Finding 3: the worker has issued a command but not yet submitted its
+    evidence when the latch happens; FIFO order still puts the pass last."""
+    runtime, _, diagnostics, _ = _runtime()
+    runtime.nav(RichPoi(_centred(1.0)))
+    command_work = runtime.take_work()
+    assert runtime.execute_work(command_work) is not None
+    command_job = runtime.postprocess_job(command_work)
+    runtime.finish_work(command_work)
+    order = []
+    diagnostics.record = lambda diagnostic: order.append("cmd")
+    runtime._test_loss_recorder[0] = lambda frame: order.append("pass")
+
+    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    assert order == []
+    pass_work = runtime.take_work()
+    runtime.execute_work(pass_work)
+    pass_job = runtime.postprocess_job(pass_work)
+    runtime.finish_work(pass_work)
+
+    for job in (command_job, pass_job):  # the dispatcher's FIFO order
+        job()
+    assert order == ["cmd", "pass"]
+
+
+def test_reset_flushes_untaken_pass_evidence_after_blocked_command_evidence():
+    """Finding 3: a reset before the worker took the pass row waits for the
+    earlier command evidence (fence), then writes the pass row inline."""
+    runtime, _, diagnostics, _ = _runtime()
+    runtime.nav(RichPoi(_centred(1.0)))
+    command_work = runtime.take_work()
+    runtime.execute_work(command_work)
+    command_job = runtime.postprocess_job(command_work)
+    runtime.finish_work(command_work)
+    order = []
+    release = threading.Event()
+
+    def slow_record(_diagnostic):
+        release.wait(timeout=5.0)
+        order.append("cmd")
+
+    diagnostics.record = slow_record
+    runtime._test_loss_recorder[0] = lambda frame: order.append("pass")
+    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+
+    command_thread = threading.Thread(target=command_job)
+    reset_thread = threading.Thread(target=runtime.invalidate_commands)
+    command_thread.start()
+    reset_thread.start()
+    reset_thread.join(timeout=0.2)
+    assert reset_thread.is_alive()
+    assert order == []
+    release.set()
+    command_thread.join(timeout=5.0)
+    reset_thread.join(timeout=5.0)
+
+    assert order == ["cmd", "pass"]
+    assert runtime.take_work() is None
+
+
+def test_failed_pass_evidence_surfaces_from_the_postprocess_job():
+    runtime, _, _, _ = _runtime()
+    runtime.nav(RichPoi(_centred(1.0)))
+    _execute_one(runtime)
+
+    def broken(_frame):
+        raise OSError("evidence sink failed")
+
+    runtime._test_loss_recorder[0] = broken
+    assert runtime.latch_pass_on_detection_loss(_same_optics) is True
+    work = runtime.take_work()
+    job = runtime.postprocess_job(work)
+    with pytest.raises(OSError, match="evidence sink failed"):
+        job()
+    runtime.invalidate_commands()  # the fence slot was released
+
+
+def test_concurrent_loss_latches_stage_exactly_one_pass_row():
+    runtime, _, _, _ = _runtime()
+    runtime.nav(RichPoi(_centred(1.0)))
+    _execute_one(runtime)
+    start = threading.Barrier(8)
+    results = []
+
+    def latch():
+        start.wait(timeout=5.0)
+        results.append(runtime.latch_pass_on_detection_loss(_same_optics))
+
+    threads = [threading.Thread(target=latch) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5.0)
+
+    assert results == [True] * 8
+    work = runtime.take_work()
+    _run_postprocess(runtime, work)
+    assert len(runtime._test_loss_passes) == 1
+    assert runtime.take_work() is None
 
 
 def test_actuator_failure_mutates_neither_law_anchor_nor_pass_arm():
@@ -752,14 +1106,16 @@ def test_telemetry_read_failures_are_independent_and_nonfatal_after_command():
 
 
 def test_diagnostic_failure_propagates_without_command_failure():
+    aircraft_now_s = [1.0]
     runtime, actuator, diagnostics, mailbox = _runtime()
     diagnostics.fail = True
-    runtime.nav(RichPoi(_frame(1.0)))
+    runtime.nav(_advancing_poi(_frame(1.0), aircraft_now_s))
 
     with pytest.raises(ValueError, match="diagnostics failed"):
         _execute_one(runtime)
 
     assert mailbox.size == 0
+    aircraft_now_s[0] += ATTITUDE_REFRESH_S
     assert _execute_one(runtime) is not None
     assert len(actuator.calls) == 2
 
@@ -934,6 +1290,7 @@ def test_final_approach_reset_waits_for_owned_postprocess_before_state_reset():
         Mock(),
         Mock(),
         fence,
+        FinalApproachPassEvidence(lock, Mock(), fence),
     ))
     thread = threading.Thread(target=reset.invalidate_commands)
     thread.start()

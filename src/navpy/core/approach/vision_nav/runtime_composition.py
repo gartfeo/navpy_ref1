@@ -66,6 +66,7 @@ from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.approach.vision_nav.source_time_adapter import (
     PoseCadenceFinalApproachSourceTimeObserver,
 )
+from navpy.core.approach.vision_nav.pass_evidence import FinalApproachPassEvidence
 from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 
 
@@ -149,6 +150,15 @@ def compose_final_approach_runtime(
     status = FinalApproachRuntimeStatus()
     visual_pass = VisualPassDetector()
     postprocess_fence = FinalApproachPostprocessFence()
+    diagnostics = NavigationFinalApproachDiagnostics(
+        navigation_logger,
+        diagnostic_reader,
+    )
+    pass_evidence = FinalApproachPassEvidence(
+        lock,
+        diagnostics.record_loss_pass,
+        postprocess_fence,
+    )
     command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock,
         slot,
@@ -159,6 +169,7 @@ def compose_final_approach_runtime(
         status,
         liveness,
         postprocess_fence,
+        pass_evidence,
     ))
     ingress = FinalApproachIngress(
         FinalApproachIngressPorts(
@@ -179,10 +190,6 @@ def compose_final_approach_runtime(
         visual_pass,
         actuator,
     )
-    diagnostics = NavigationFinalApproachDiagnostics(
-        navigation_logger,
-        diagnostic_reader,
-    )
     executor = FinalApproachCommandExecutor(
         FinalApproachExecutorPorts(
             slot,
@@ -198,7 +205,9 @@ def compose_final_approach_runtime(
         )
     )
     runtime = VisionNavRuntime(
-        FinalApproachCommandWorkRuntime(slot, ingress, executor, hold),
+        FinalApproachCommandWorkRuntime(
+            slot, ingress, executor, hold, pass_evidence,
+        ),
         FinalApproachSessionRuntime(
             lock,
             epochs,
@@ -206,6 +215,7 @@ def compose_final_approach_runtime(
             visual_pass,
             status,
             liveness,
+            pass_evidence,
         ),
     )
     return FinalApproachRuntimeComposition(runtime, confirmation)

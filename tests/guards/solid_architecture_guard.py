@@ -141,10 +141,14 @@ PASSIVE_RECORD_FIELD_LIMITS = {
         "RealFrameAssociation",
     ): 17,
     ("src/navpy/plugins/tracking/boxmot/track_export_memory.py", "_MemoryState"): 13,
+    # 17 = the original 15 plus the two camera-state angles the visual pass
+    # needs to tell a dock lost centred (hit) from one lost at an image edge
+    # (a7). Flat floats, because test_frozen_inventories pins the frame to
+    # primitive fields.
     (
         "src/navpy/core/ports/frame.py",
         "FinalApproachVisionFrame",
-    ): 15,
+    ): 17,
     (
         "src/navpy/core/approach/vision_nav/command_transaction.py",
         "FinalApproachLawEvidence",

@@ -60,6 +60,7 @@ def test_final_approach_frame_has_exact_primitive_schema_and_is_frozen_slotted()
         "source_timestamp_s", "body_x", "body_y", "body_z",
         "control_x", "control_y", "control_z", "aircraft_roll_deg",
         "air_speed_mps", "aircraft_yaw_rate_rad_s", "aircraft_pitch_deg",
+        "camera_off_axis_deg", "camera_half_fov_deg",
     ]
     assert not hasattr(frame, "__dict__")
     with pytest.raises(FrozenInstanceError):
@@ -149,3 +150,59 @@ def test_nonzero_pitch_roll_transform_matches_yaw_zero_rotation():
     ), 0)
     assert expected is not None
     assert frame.control_ray == pytest.approx(expected.control_ray)
+
+
+def _sized(detection, size=(640.0, 480.0)):
+    return replace(
+        detection,
+        observation=replace(detection.observation, image_size_px=size),
+    )
+
+
+@pytest.mark.parametrize("gimbal_pitch_deg", [0.0, -30.0])
+def test_projector_reports_pixel_off_axis_angle_and_short_half_fov(gimbal_pitch_deg):
+    """a7: camera-state angles come from pixels, intrinsics and image bounds."""
+    gimbal = GimbalData(att=Attitude(gimbal_pitch_deg, 0.0, 0.0), name="cam")
+    centred = _projector().project(_sized(_poi(g_data=gimbal)), 0)
+    offset = _projector().project(_sized(_poi(x_error=820.0, g_data=gimbal)), 0)
+
+    assert centred is not None and offset is not None
+    assert centred.camera_off_axis_deg == pytest.approx(0.0, abs=1e-6)
+    assert offset.camera_off_axis_deg == pytest.approx(45.0)
+    expected_half_fov = math.degrees(math.atan(240.0 / 500.0))
+    assert offset.camera_half_fov_deg == pytest.approx(expected_half_fov)
+
+
+def test_half_fov_uses_real_image_bounds_with_off_centre_principal_point():
+    """Finding 4: cy=240 in a 640x400 image is 160 px from the bottom edge."""
+    asymmetric = _projector().project(_sized(_poi(), (640.0, 400.0)), 0)
+    wide_right = _projector().project(_sized(_poi(), (1000.0, 480.0)), 0)
+
+    assert asymmetric is not None and wide_right is not None
+    assert asymmetric.camera_half_fov_deg == pytest.approx(
+        math.degrees(math.atan(160.0 / 500.0))
+    )
+    assert wide_right.camera_half_fov_deg == pytest.approx(
+        math.degrees(math.atan(240.0 / 500.0))
+    )
+
+
+def test_unknown_or_inconsistent_image_bounds_fail_closed():
+    unknown = _projector().project(_poi(), 0)
+    outside = _projector().project(_sized(_poi(), (300.0, 480.0)), 0)
+
+    assert unknown is not None and outside is not None
+    assert unknown.camera_half_fov_deg == 0.0
+    assert outside.camera_half_fov_deg == 0.0
+
+
+def test_frame_camera_angle_defaults_fail_closed_and_are_bounded():
+    frame = FinalApproachVisionFrame(
+        "cam", 0, 1, 2, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+    )
+    assert frame.camera_off_axis_deg == 180.0
+    assert frame.camera_half_fov_deg == 0.0
+    with pytest.raises(ValueError):
+        replace(frame, camera_off_axis_deg=-1.0)
+    with pytest.raises(ValueError):
+        replace(frame, camera_half_fov_deg=float("nan"))

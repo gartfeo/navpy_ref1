@@ -146,6 +146,23 @@ class NavigationFinalApproachDiagnostics:
             self._record_event(diagnostic)
             self._record_law_evidence(diagnostic)
 
+    def record_loss_pass(self, frame: FinalApproachVisionFrame) -> None:
+        """Evidence row for a pass latched when the dock was lost centred."""
+        self._logger.log_event(
+            LogEvent.FINAL_APPROACH_PASS,
+            {
+                "source": frame.source_name,
+                "generation": frame.source_generation,
+                "task": frame.task_id,
+                "obj": frame.obj_id,
+                "obs_ts": frame.source_timestamp_s,
+                "body_bearing_deg": body_bearing_deg(frame),
+                "reason": "centred_loss",
+                "camera_off_axis_deg": frame.camera_off_axis_deg,
+                "camera_half_fov_deg": frame.camera_half_fov_deg,
+            },
+        )
+
     def _sample_pass_frame(
         self,
         poi_location: Location | None,

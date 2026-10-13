@@ -20,19 +20,23 @@ PARAMETERS = dict(zip(config.LIMIT_PARAMETERS, (-20., 25., 65., .25)), TRIM_THRO
 def test_runtime_matches_normal_provider_including_missing_camera_holds(trim, override):
     expected = FinalApproachAirframeConfigProvider(FinalApproachParameterPort(dict(PARAMETERS, TRIM_THROTTLE=trim).get),
                                              lambda: None if override < 0 else override * 100).read().throttle
+    # A sparse camera leaves gaps longer than the held-command refresh period
+    # (design a2), so both fresh and held (refreshed) commands are checked.
     engine = SynchronousNavigation(Location(40.01, 44., 1300., is_absolute=True), speedup=10,
-                                 wall_now=lambda: 100., trim_throttle_percent=trim)
+                                 camera_fraction=(1, 30), wall_now=lambda: 100.,
+                                 trim_throttle_percent=trim)
     issued = []
     try:
-        for index in range(10):
+        for index in range(60):
             snapshot = Snapshot.decode(packet(index + 1))
             snapshot = replace(snapshot, limits=(*snapshot.limits[:4], override))
-            command, _ = engine.advance(snapshot, 100.)
+            command, evidence = engine.advance(snapshot, 100.)
             if command.kind == ATTITUDE:
                 assert command.mask == 132
                 assert command.throttle == expected
-                issued.append(command)
-        assert len(issued) >= 8
+                issued.append(evidence["captured"])
+        assert issued.count(True) >= 1
+        assert issued.count(False) >= 1
     finally:
         engine.close()
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Union
 
 from navpy.core.approach.calc_data import CalcData
 from navpy.core.command.navigation_command_slot import (
@@ -27,6 +27,10 @@ from navpy.core.approach.vision_nav.command_reset import (
     FinalApproachCommandReset,
 )
 from navpy.core.approach.vision_nav.ingress import FinalApproachIngress
+from navpy.core.approach.vision_nav.pass_evidence import (
+    FinalApproachPassEvidence,
+    FinalApproachPassEvidenceWork,
+)
 from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
 from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
 from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
@@ -43,19 +47,30 @@ class FinalApproachCommandWorkRuntime:
         ingress: FinalApproachIngress,
         executor: FinalApproachCommandExecutor,
         hold: FinalApproachCommandHoldIssuer,
+        pass_evidence: FinalApproachPassEvidence,
     ) -> None:
         self._slot = slot
         self._ingress = ingress
         self._executor = executor
         self._hold = hold
+        self._pass_evidence = pass_evidence
 
     def nav(self, detect_data: DetectedObject) -> bool:
         return self._ingress.nav(detect_data)
 
     def has_command_pending_or_in_flight(self) -> bool:
-        return self._slot.has_pending_or_in_flight() or self._hold.available
+        return (
+            self._slot.has_pending_or_in_flight()
+            or self._hold.available
+            or self._pass_evidence.pending
+        )
 
-    def take_work(self) -> FinalApproachCommandWork | FinalApproachHeldCommandWork | None:
+    def take_work(self) -> _Work | None:
+        # Staged pass evidence first: its row must follow every earlier
+        # command row and precede any newer (pass-suppressed) frame's row.
+        evidence = self._pass_evidence.take_work()
+        if evidence is not None:
+            return evidence
         lease = self._slot.take_or_else(
             lambda: _HELD_COMMAND if self._hold.available else None
         )
@@ -69,10 +84,9 @@ class FinalApproachCommandWorkRuntime:
         payload = lease.payload
         return FinalApproachCommandWork(payload.frame, payload.diagnostic_token, lease)
 
-    def execute_work(
-        self,
-        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
-    ) -> CalcData | None:
+    def execute_work(self, work: _Work) -> CalcData | None:
+        if isinstance(work, FinalApproachPassEvidenceWork):
+            return None
         if isinstance(work, FinalApproachHeldCommandWork):
             issue = self._slot.execute_if_current(
                 work.lease,
@@ -84,16 +98,14 @@ class FinalApproachCommandWorkRuntime:
             return issue.command.calc_data()
         return self._executor.execute(work)
 
-    def finish_work(
-        self,
-        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
-    ) -> None:
+    def finish_work(self, work: _Work) -> None:
+        if isinstance(work, FinalApproachPassEvidenceWork):
+            return
         self._slot.finish(work.lease)
 
-    def postprocess_job(
-        self,
-        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
-    ) -> Callable[[], None] | None:
+    def postprocess_job(self, work: _Work) -> Callable[[], None] | None:
+        if isinstance(work, FinalApproachPassEvidenceWork):
+            return work.postprocess_job()
         if isinstance(work, FinalApproachCommandWork):
             return self._executor.postprocess_job(work)
         return None
@@ -110,6 +122,7 @@ class FinalApproachSessionRuntime:
         visual_pass: VisualPassDetector,
         status: FinalApproachRuntimeStatus,
         liveness: FinalApproachCommandLiveness,
+        pass_evidence: FinalApproachPassEvidence,
     ) -> None:
         self._lock = lock
         self._epochs = epochs
@@ -117,6 +130,7 @@ class FinalApproachSessionRuntime:
         self._visual_pass = visual_pass
         self._status = status
         self._liveness = liveness
+        self._pass_evidence = pass_evidence
 
     def invalidate_commands(self) -> None:
         self._command_reset.invalidate_commands()
@@ -141,6 +155,35 @@ class FinalApproachSessionRuntime:
         with self._lock:
             return self._visual_pass.passed
 
+    def latch_pass_on_detection_loss(
+        self,
+        current_half_fov_deg: Callable[[str], float | None],
+    ) -> bool:
+        """Latch a centred-loss pass, retire command work and stage evidence.
+
+        The camera optics are read outside the command lock (camera state, not
+        a command input); the latch then applies only to that same last frame.
+        """
+        with self._lock:
+            if self._visual_pass.passed:
+                return True
+            frame = self._visual_pass.last_frame
+        if frame is None:
+            return False
+        half_fov_deg = current_half_fov_deg(frame.source_name)
+        with self._lock:
+            if self._visual_pass.passed:
+                return True
+            if self._visual_pass.last_frame is not frame:
+                return False
+            if not self._visual_pass.latch_detection_loss(half_fov_deg):
+                return False
+            # Terminal: nothing may actuate after the pass (no held refresh,
+            # no queued frame); the pass latch itself is kept.
+            self._command_reset.retire_after_pass()
+            self._pass_evidence.stage(frame)
+            return True
+
     def last_measured_lateral_bearing_deg(self) -> float | None:
         return self._status.last_measured_lateral_bearing_deg()
 
@@ -162,24 +205,24 @@ class VisionNavRuntime:
     def has_command_pending_or_in_flight(self) -> bool:
         return self._commands.has_command_pending_or_in_flight()
 
-    def take_work(self) -> FinalApproachCommandWork | FinalApproachHeldCommandWork | None:
+    def take_work(self) -> _Work | None:
         return self._commands.take_work()
 
     def execute_work(
         self,
-        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
+        work: _Work,
     ) -> CalcData | None:
         return self._commands.execute_work(work)
 
     def finish_work(
         self,
-        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
+        work: _Work,
     ) -> None:
         self._commands.finish_work(work)
 
     def postprocess_job(
         self,
-        work: FinalApproachCommandWork | FinalApproachHeldCommandWork,
+        work: _Work,
     ) -> Callable[[], None] | None:
         return self._commands.postprocess_job(work)
 
@@ -201,6 +244,12 @@ class VisionNavRuntime:
     def poi_passed_override(self) -> bool:
         return self._session.poi_passed_override()
 
+    def latch_pass_on_detection_loss(
+        self,
+        current_half_fov_deg: Callable[[str], float | None],
+    ) -> bool:
+        return self._session.latch_pass_on_detection_loss(current_half_fov_deg)
+
     def last_measured_lateral_bearing_deg(self) -> float | None:
         return self._session.last_measured_lateral_bearing_deg()
 
@@ -211,6 +260,11 @@ class FinalApproachHeldCommandWork:
 
 
 _HELD_COMMAND = object()
+_Work = Union[
+    FinalApproachCommandWork,
+    FinalApproachHeldCommandWork,
+    FinalApproachPassEvidenceWork,
+]
 
 
 __all__ = [

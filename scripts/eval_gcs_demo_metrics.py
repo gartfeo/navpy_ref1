@@ -56,7 +56,10 @@ def final_approach_timing(commands: Sequence[FinalApproachCommand]) -> FinalAppr
     # Pass-suppressed rows are retained to prove the controller remains
     # inactive until SNAP, but they are not part of the issued navigation phase
     # and must not be allowed to improve its cadence/speedup score.
-    timed_episode = episode[:first_pass + 1]
+    # A FINAL_APPROACH_PASS row carries the last commanded frame's obs_ts, not
+    # a new frame, so it is not a cadence sample either.
+    timed_end = first_pass if episode and episode[first_pass].pass_reason else first_pass + 1
+    timed_episode = episode[:timed_end]
     wall_gaps = positive_deltas(command.wall_s for command in timed_episode)
     source_gaps = positive_deltas(command.obs_ts for command in timed_episode)
     if any(gap <= 0.0 for gap in wall_gaps):

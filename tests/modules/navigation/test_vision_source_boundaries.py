@@ -101,6 +101,7 @@ def test_non_source_dispatch_passes_only_fresh_detection():
             nav=nav,
             mark_failed=MagicMock(),
             logger=MagicMock(),
+            latch_pass_on_detection_loss=lambda: False,
         ),
         MagicMock(),
     )
@@ -213,6 +214,7 @@ def test_empty_current_publication_fails_without_gap_or_confirmation_deferral():
         nav=MagicMock(),
         mark_failed=MagicMock(),
         logger=MagicMock(),
+        latch_pass_on_detection_loss=lambda: False,
     )
     source = MagicMock()
     source.source_event_poi.return_value = None
@@ -344,3 +346,34 @@ def test_source_driven_legacy_bootstrap_does_not_open_pump():
     workflow.act_nav()
 
     pump.open.assert_not_called()
+
+
+def _no_detection_dispatch(latch):
+    ports = FinalApproachCommandPorts(
+        nav=MagicMock(),
+        mark_failed=MagicMock(),
+        logger=MagicMock(),
+        latch_pass_on_detection_loss=latch,
+    )
+    return ports, FinalApproachCommandDispatch(ports, MagicMock())
+
+
+def test_no_detection_after_centred_loss_latch_is_not_a_failure():
+    """a7: an armed dock lost centred hands completion to the pass path."""
+    ports, commands = _no_detection_dispatch(MagicMock(return_value=True))
+    commands.mark_no_detection(MagicMock(task_id=1, obj_id=2))
+
+    ports.latch_pass_on_detection_loss.assert_called_once_with()
+    ports.mark_failed.assert_not_called()
+    message = ports.logger.info.call_args.args[0]
+    assert message.startswith("PASS: dock lost centred")
+
+
+def test_no_detection_without_an_exact_true_latch_fails():
+    for latched in (False, None, MagicMock()):
+        ports, commands = _no_detection_dispatch(MagicMock(return_value=latched))
+        commands.mark_no_detection(MagicMock(task_id=1, obj_id=2))
+
+        ports.mark_failed.assert_called_once_with()
+        message = ports.logger.info.call_args.args[0]
+        assert message.startswith("NAV_FAIL: no_detection")

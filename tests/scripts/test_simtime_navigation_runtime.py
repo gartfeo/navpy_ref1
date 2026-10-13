@@ -5,7 +5,8 @@ from dataclasses import replace
 import pytest
 
 from navpy.core.kernel.location import Location
-from scripts.simtime_navigation_protocol import ATTITUDE, Snapshot
+from navpy.core.approach.vision_nav.command_hold import ATTITUDE_REFRESH_S
+from scripts.simtime_navigation_protocol import ATTITUDE, NONE, Snapshot
 from tests.scripts.test_simtime_navigation_protocol import packet
 
 
@@ -42,15 +43,39 @@ def test_expired_wall_receipt_invalidates_instead_of_becoming_a_different_flight
         replay((0., 0., .15))
 
 
-def test_missing_camera_tick_reissues_the_previous_command() -> None:
+def test_missing_camera_tick_sends_nothing_inside_the_refresh_period() -> None:
+    # Design a2: a held command is re-sent only once ATTITUDE_REFRESH_S of
+    # aircraft time has passed since the last send (ArduPlane keeps the
+    # override for 3.0 s), so tick 6's one-tick camera gap sends nothing.
     from scripts.simtime_navigation_protocol import COMMAND, HEADER
     output = replay((0.,))
-    # Capture ticks 0,2,3,4,5,7: tick6 must reissue tick5's command.
+    # Capture ticks 0,2,3,4,5,7: tick6 follows tick5's fresh command.
     previous = COMMAND.unpack_from(output[5], HEADER.size)
-    held = COMMAND.unpack_from(output[6], HEADER.size)
-    assert previous[2] == held[2] == ATTITUDE
-    assert previous[3:] == held[3:]
-    assert previous[:2] != held[:2]
+    gap = COMMAND.unpack_from(output[6], HEADER.size)
+    following = COMMAND.unpack_from(output[7], HEADER.size)
+    assert previous[2] == following[2] == ATTITUDE
+    assert gap[2] == NONE
+
+
+def test_held_command_is_resent_after_the_refresh_period_of_source_time() -> None:
+    from scripts.simtime_navigation_runtime import SynchronousNavigation
+    tick_s = .02
+    engine = SynchronousNavigation(Location(40.01, 44., 1300., is_absolute=True),
+                                   speedup=10, camera_fraction=(1, 30),
+                                   wall_now=lambda: 100.)
+    sends = []
+    try:
+        for index in range(60):
+            command, evidence = engine.advance(Snapshot.decode(packet(index + 1)), 100.)
+            if command.kind == ATTITUDE:
+                sends.append((index, evidence["captured"], command))
+    finally:
+        engine.close()
+    # Captures at ticks 0 (confirmation seed) and 30; one held refresh follows
+    # the tick-30 command after one refresh period, with the same payload.
+    assert [(index, captured) for index, captured, _ in sends] == [
+        (30, True), (30 + round(ATTITUDE_REFRESH_S / tick_s), False)]
+    assert sends[0][2] == sends[1][2]
 
 
 def test_drain_stops_admission_and_does_not_compute_discarded_commands() -> None:

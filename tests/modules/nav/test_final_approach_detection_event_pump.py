@@ -733,7 +733,7 @@ def test_command_failure_latch_survives_diagnostic_logger_exceptions():
     logger = Mock()
     logger.info.side_effect = RuntimeError("logger unavailable")
     commands = FinalApproachCommandDispatch(
-        FinalApproachCommandPorts(Mock(), failed, logger),
+        FinalApproachCommandPorts(Mock(), failed, logger, lambda: False),
         Mock(),
     )
 
@@ -775,6 +775,39 @@ def test_regular_event_matches_active_task_before_source_admission():
     admission.admit_event.assert_not_called()
     commands.dispatch_poi.assert_not_called()
     reset_source.assert_called_once_with()
+
+
+def test_ideal_360_empty_publication_still_rejects_without_the_loss_pass():
+    """The a7 centred-loss pass belongs to the polling no-detection path only:
+    an empty source publication on the event pump stays navigation_rejected,
+    even when a loss latch would have accepted it."""
+    active = make_detected_poi(obj_id=7, task_id=17, timestamp=1.0)
+    failed = Mock()
+    logger = Mock()
+    latch = Mock(return_value=True)
+    source = Mock()
+    source.source_event_poi.return_value = None
+    commands = FinalApproachCommandDispatch(
+        FinalApproachCommandPorts(Mock(), failed, logger, latch),
+        source,
+    )
+    handler = FinalApproachSourceEventHandler(
+        FinalApproachSourceEventHandlerPorts(
+            active_poi=lambda: active,
+            session_active=lambda: True,
+            reset_source=Mock(),
+            admission=Mock(),
+            mark_failed=Mock(),
+            logger=Mock(),
+            commands=commands,
+        )
+    )
+    publication = Mock(source_discontinuity=False, source_name="ideal_360")
+
+    assert handler.handle(publication) is False
+    latch.assert_not_called()
+    failed.assert_called_once_with()
+    assert logger.info.call_args.args[0].startswith("NAV_FAIL: navigation_rejected")
 
 
 def test_empty_named_discontinuity_allows_lower_clock_in_new_epoch():

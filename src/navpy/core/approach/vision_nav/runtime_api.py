@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Callable, Protocol, runtime_checkable
 
 from navpy.core.ports.detect_data import DetectedObject
 
@@ -10,6 +10,11 @@ from navpy.core.ports.detect_data import DetectedObject
 @runtime_checkable
 class VisionNavStatus(Protocol):
     def poi_passed_override(self) -> bool: ...
+
+    def latch_pass_on_detection_loss(
+        self,
+        current_half_fov_deg: Callable[[str], float | None],
+    ) -> bool: ...
 
     def last_measured_lateral_bearing_deg(self) -> float | None: ...
 

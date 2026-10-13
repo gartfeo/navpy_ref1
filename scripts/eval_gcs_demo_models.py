@@ -68,6 +68,10 @@ class FinalApproachCommand:
     cmd_thr: float | None
     issued: bool
     passed: bool
+    # None for FINAL_APPROACH_CMD rows. Set for a FINAL_APPROACH_PASS row: a
+    # pass latched without a new frame (e.g. "centred_loss"); its obs_ts is the
+    # last commanded frame's, so it is not a cadence sample.
+    pass_reason: str | None = None
 
     @property
     def source_key(self) -> tuple[str, int, int, int]:

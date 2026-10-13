@@ -19,6 +19,7 @@ from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandFreshness,
 )
 from navpy.core.approach.vision_nav.command_hold import (
+    ATTITUDE_REFRESH_S,
     FinalApproachCommandHold,
 )
 from navpy.core.approach.vision_nav.command_liveness import (
@@ -43,6 +44,7 @@ from navpy.core.approach.vision_nav.ingress import (
     FinalApproachIngress,
     FinalApproachIngressPorts,
 )
+from navpy.core.approach.vision_nav.pass_evidence import FinalApproachPassEvidence
 from navpy.core.approach.vision_nav.runtime import (
     FinalApproachCommandWorkRuntime,
     FinalApproachSessionRuntime,
@@ -158,6 +160,9 @@ def _runtime(
     )
     law = Mock()
     visual_pass = Mock()
+    pass_evidence = FinalApproachPassEvidence(
+        lock, lambda _frame: None, postprocess_fence,
+    )
     command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock,
         slot,
@@ -168,6 +173,7 @@ def _runtime(
         status,
         liveness,
         postprocess_fence,
+        pass_evidence,
     ))
     ingress = FinalApproachIngress(
         FinalApproachIngressPorts(
@@ -194,7 +200,9 @@ def _runtime(
         )
     executor = FinalApproachCommandExecutor(executor_ports)
     runtime = VisionNavRuntime(
-        FinalApproachCommandWorkRuntime(slot, ingress, executor, hold),
+        FinalApproachCommandWorkRuntime(
+            slot, ingress, executor, hold, pass_evidence,
+        ),
         FinalApproachSessionRuntime(
             lock,
             epochs,
@@ -202,6 +210,7 @@ def _runtime(
             visual_pass,
             status,
             liveness,
+            pass_evidence,
         ),
     )
     return runtime, lock
@@ -283,7 +292,9 @@ def test_fresh_ingress_and_issued_command_emit_source_time_rows(monkeypatch):
         "measured",
         "fresh",
     )
-    assert provider_calls == [False, True, False]
+    # Ingress diagnostic (unlocked), freshness and the hold's refresh anchor
+    # (both control, locked), then the worker diagnostic row (unlocked).
+    assert provider_calls == [False, True, True, False]
 
 
 def test_held_command_reuses_raw_timestamp_without_rerunning_transaction(
@@ -298,12 +309,15 @@ def test_held_command_reuses_raw_timestamp_without_rerunning_transaction(
     monkeypatch.setattr(pose_cadence_debug, "record_worker", worker_record)
     runtime, lock = _runtime(transaction=transaction, actuator=actuator)
 
+    aircraft_now_s = [5.03]
+
     def source_now():
         provider_lock_states.append(lock._is_owned())
-        return 5.03
+        return aircraft_now_s[0]
 
     assert runtime.nav(_poi(_frame(5.0), source_now))
     assert _execute_one(runtime) is not None
+    aircraft_now_s[0] += ATTITUDE_REFRESH_S
     assert _execute_one(runtime) is not None
 
     assert transaction.execute.call_count == 1
@@ -313,7 +327,11 @@ def test_held_command_reuses_raw_timestamp_without_rerunning_transaction(
         "fresh",
         "held",
     ]
-    assert provider_lock_states == [False, True, False, True, False]
+    # Fresh: ingress row, freshness, refresh anchor, worker row. Held:
+    # freshness, refresh due check, worker row. Control reads stay locked.
+    assert provider_lock_states == [
+        False, True, True, False, True, True, False,
+    ]
 
 
 def test_all_ingress_outcomes_are_recorded_after_unlock(monkeypatch):
@@ -386,7 +404,7 @@ def test_disabled_observer_never_calls_source_clock_provider(monkeypatch):
     provider.assert_not_called()
 
 
-def test_disabled_runtime_samples_source_clock_only_for_freshness(monkeypatch):
+def test_disabled_runtime_samples_source_clock_only_for_control(monkeypatch):
     monkeypatch.setattr(pose_cadence_debug, "ENABLED", False)
     runtime, lock = _runtime()
     lock_states = []
@@ -398,7 +416,8 @@ def test_disabled_runtime_samples_source_clock_only_for_freshness(monkeypatch):
     assert runtime.nav(_poi(_frame(1.0), source_now))
     assert _execute_one(runtime) is not None
 
-    assert lock_states == [True]
+    # Freshness check and the held-refresh anchor; no diagnostic sampling.
+    assert lock_states == [True, True]
 
 
 def test_source_clock_diagnostic_failure_cannot_change_issued_control(
@@ -413,14 +432,15 @@ def test_source_clock_diagnostic_failure_cannot_change_issued_control(
     def source_now():
         nonlocal calls
         calls += 1
-        if calls == 3:
+        if calls == 4:
             raise OSError("diagnostic source clock failed")
         return 1.02
 
     assert runtime.nav(_poi(_frame(1.0), source_now))
     assert _execute_one(runtime) is not None
 
-    assert calls == 3
+    # Calls: ingress row, freshness, refresh anchor, worker row (fails).
+    assert calls == 4
     assert "diagnostic source clock failed" in caplog.text
 
 
