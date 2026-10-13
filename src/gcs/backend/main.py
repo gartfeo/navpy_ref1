@@ -19,6 +19,7 @@ from gcs.backend.diagnostics import diagnostic_session
 from gcs.backend.route_registration import register_optional_routes
 from gcs.backend.frontend_static import mount_frontend
 from gcs.backend.runtime_paths import frontend_dist_dir, gcs_log_dir
+from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,7 +47,7 @@ def _add_file_logging(log_dir: Path | None = None) -> Path | None:
             if isinstance(h, RotatingFileHandler) and getattr(h, "baseFilename", None) == str(target):
                 return target  # already attached
         handler = RotatingFileHandler(
-            target, maxBytes=5_000_000, backupCount=3, encoding="utf-8",
+            target, maxBytes=rotation_max_bytes(5_000_000), backupCount=3, encoding="utf-8",
         )
         handler.setLevel(logging.INFO)
         handler.setFormatter(logging.Formatter(

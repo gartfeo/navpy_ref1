@@ -183,6 +183,8 @@ class RuntimeSession:
         ui_step: Callable[[], bool],
         sleep: Callable[[float], None],
         ready_signal: Callable[[], None] | None = None,
+        stop_requested: Callable[[], bool] | None = None,
+        acknowledge_stop: Callable[[], None] | None = None,
     ) -> None:
         self._resources = resources
         self._start_vision = start_vision
@@ -191,6 +193,8 @@ class RuntimeSession:
         self._ui_step = ui_step
         self._sleep = sleep
         self._ready_signal = ready_signal
+        self._stop_requested = stop_requested
+        self._acknowledge_stop = acknowledge_stop
 
     def run(self) -> int:
         primary: BaseException | None = None
@@ -206,7 +210,7 @@ class RuntimeSession:
                     ready_pending = False
                 keep_running = self._ui_step()
                 self._health_check()
-                if not keep_running:
+                if not keep_running or self._stop_was_requested():
                     break
                 self._sleep(0.005)
         except KeyboardInterrupt:
@@ -236,7 +240,13 @@ class RuntimeSession:
             raise failures[0]
         if failures:
             _raise_group("runtime execution and cleanup failed", failures)
+        # Ack only a clean stop: every producer joined and the logger drained.
+        if self._acknowledge_stop is not None and self._stop_was_requested():
+            self._acknowledge_stop()
         return 0
+
+    def _stop_was_requested(self) -> bool:
+        return self._stop_requested is not None and self._stop_requested()
 
 
 __all__ = [

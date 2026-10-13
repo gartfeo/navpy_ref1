@@ -1,6 +1,8 @@
 """Pydantic models for GCS settings with typed defaults."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -124,6 +126,11 @@ class SimulationSettings(BaseModel):
         "udp:0.0.0.0:5780",
     ])
     simulated_vehicle_count: int = 3
+    # "auto": connect/discover start each vehicle's companion and the ESP32
+    # simulator, and the telemetry loop restarts exited companions.
+    # "explicit": only the start routes start them and nothing restarts them,
+    # so a run has exactly one companion lifecycle (the deterministic eval).
+    companion_lifecycle: Literal["auto", "explicit"] = "auto"
 
 
 class GcsSettings(BaseModel):

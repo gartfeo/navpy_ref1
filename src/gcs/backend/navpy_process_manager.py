@@ -13,6 +13,7 @@ from gcs.backend.navpy_process_instance import (
     snapshot_navpy_instance,
     terminate_navpy_instance,
 )
+from gcs.backend.navpy_process_stop import STOP_FAILED, stop_navpy_instance
 from gcs.backend.navpy_process_launch import (
     _build_env,
     _foreign_udp_holders,
@@ -109,16 +110,18 @@ class NavpyProcessManager:
                 self._instances.pop(sys_id, None)
         return True
 
-    def stop_all(self) -> None:
-        """Attempt every termination and retain generations that failed."""
+    def stop_all(self) -> dict[int, str]:
+        """Attempt every stop, retain generations that failed, return outcomes."""
         with self._lock:
             instances = list(self._instances.items())
         stopped: list[int] = []
+        outcomes: dict[int, str] = {}
         for sys_id, inst in instances:
             try:
-                self._terminate(inst)
+                outcomes[sys_id] = self._terminate(inst)
                 stopped.append(sys_id)
             except Exception:
+                outcomes[sys_id] = STOP_FAILED
                 log.exception(
                     "Failed to terminate NavPy instance sys_id=%d, pid=%s",
                     sys_id,
@@ -129,6 +132,7 @@ class NavpyProcessManager:
             for sys_id in stopped:
                 if self._instances.get(sys_id) is original.get(sys_id):
                     self._instances.pop(sys_id, None)
+        return outcomes
 
     def get_status(self, sys_id: int) -> dict[str, object] | None:
         with self._lock:
@@ -185,8 +189,8 @@ class NavpyProcessManager:
         return snapshot_navpy_instance(inst)
 
     @staticmethod
-    def _terminate(inst: NavpyInstance) -> None:
-        terminate_navpy_instance(inst, log)
+    def _terminate(inst: NavpyInstance) -> str:
+        return stop_navpy_instance(inst, log)
 
     def _read_output(self, inst: NavpyInstance) -> None:
         read_navpy_output(inst, self._validate_ready_owner)

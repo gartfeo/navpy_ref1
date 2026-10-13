@@ -5,6 +5,7 @@ from logging.handlers import RotatingFileHandler
 
 from navpy.core.kernel.config.logger_args import LoggerArgs
 from navpy.core.kernel.logging.cache_logger import CacheLogger, IStatusLogger
+from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
 
 
 LOG_DIR_ENV = "NAVPY_LOG_DIR"
@@ -41,7 +42,7 @@ def initialize_logger(args: LoggerArgs, sys_id, status_logger: IStatusLogger = N
     # '→' in DetectionCoordinator start_tracking lines). Without this the handler
     # uses the Windows locale codec (cp1252) and raises UnicodeEncodeError on emit.
     file_handler = RotatingFileHandler(
-        log_file, maxBytes=5 * 1024 * 1024, backupCount=2, encoding="utf-8"
+        log_file, maxBytes=rotation_max_bytes(5 * 1024 * 1024), backupCount=2, encoding="utf-8"
     )
     file_handler.setLevel(logging.DEBUG)  # Log DEBUG and above messages to the file
     file_handler.setFormatter(log_formatter)

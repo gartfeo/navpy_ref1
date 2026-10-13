@@ -32,6 +32,7 @@ class MavBusReader:
         stop_event: threading.Event,
         *,
         cooperative_yield: Callable[[], None] = _yield_reader_thread,
+        on_exit: Callable[[], None] = lambda: None,
     ) -> None:
         self._connection = connection
         self._device = device
@@ -39,6 +40,7 @@ class MavBusReader:
         self._heartbeats = heartbeats
         self._stop = stop_event
         self._cooperative_yield = cooperative_yield
+        self._on_exit = on_exit
         self._is_udp = device.startswith(("udp:", "udpin:"))
         self._last_reset_log_s = 0.0
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -46,11 +48,20 @@ class MavBusReader:
     def start(self) -> None:
         self._thread.start()
 
-    def join(self, timeout_s: float | None = None) -> None:
-        if threading.current_thread() is not self._thread:
-            self._thread.join(timeout=timeout_s)
+    def join(self, timeout_s: float | None = None) -> bool:
+        """Whether the reader has stopped (its own thread counts: it exits next)."""
+        if threading.current_thread() is self._thread:
+            return True
+        self._thread.join(timeout=timeout_s)
+        return not self._thread.is_alive()
 
     def _run(self) -> None:
+        try:
+            self._read_until_stopped()
+        finally:
+            self._on_exit()
+
+    def _read_until_stopped(self) -> None:
         while not self._stop.is_set():
             try:
                 message = self._connection.recv_match(blocking=True, timeout=0.5)

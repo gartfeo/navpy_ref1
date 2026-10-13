@@ -14,10 +14,10 @@ from typing import Callable, Mapping, Sequence, TypeVar
 from scripts.eval_gcs_demo_api import FileTail, GcsApi
 from scripts.eval_gcs_demo_config import launch_command, stop_command
 from scripts.eval_gcs_demo_constants import (
-    BACKEND_LOG,
     ROOT,
     SIM_SPEEDUP,
 )
+from scripts.eval_gcs_demo_lifecycle import stop_companions
 from scripts.eval_gcs_demo_execution import (
     SystemClock,
     exclusive_evaluator_lock,
@@ -31,6 +31,9 @@ from scripts.eval_gcs_demo_models import (
 )
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import load_scenario_manifest
+
+from gcs.backend import instance_ports
+from gcs.backend.runtime_paths import LOG_DIR_ENV
 
 
 T = TypeVar("T")
@@ -76,7 +79,7 @@ def launch_stack(
             "a fresh generation"
         )
     launch_token = secrets.token_hex(16)
-    backend_offset = BACKEND_LOG.stat().st_size if BACKEND_LOG.exists() else 0
+    backend_log = backend_log_file(env)
     result = run_process(
         # The scenario pins the SITL start point instead of the launcher default.
         launch_command(launch_token, load_scenario_manifest().home, sitl_arguments),
@@ -95,6 +98,9 @@ def launch_stack(
         transient_exceptions=(OSError,),
     )
     sys_ids = ThreeUavIds.from_values(entry.get("sysids", ())).values
+    chat_index = entry.get("chat_index")
+    if type(chat_index) is not int:
+        raise TypeError("owned GCS registry chat index must be an integer")
     backend = entry.get("backend")
     if type(backend) is not int:
         raise TypeError("owned GCS registry backend port must be an integer")
@@ -139,9 +145,21 @@ def launch_stack(
     return StackContext(
         api,
         sys_ids,
-        FileTail(BACKEND_LOG, backend_offset),
+        FileTail(backend_log, 0),
         evidence,
+        instance_ports.monitor_device(chat_index),
     )
+
+
+def backend_log_file(env: Mapping[str, str]) -> Path:
+    """The run's own backend log; a second launch into the same run is refused."""
+    log_dir = env.get(LOG_DIR_ENV, "").strip()
+    if not log_dir:
+        raise RegressionError(f"the run environment sets no {LOG_DIR_ENV}")
+    path = Path(log_dir) / "backend.log"
+    if path.exists():
+        raise RegressionError(f"the run already has a backend log: {path}")
+    return path
 
 
 def _verified_launch_entry(
@@ -200,7 +218,7 @@ def with_owned_stack(
     action: Callable[[StackContext], T],
     sitl_arguments: Sequence[str] = (),
 ) -> T:
-    """Attempt close, scoped stop, and tail; report every failure."""
+    """Attempt companion stop, close, scoped stop, and tail; report every failure."""
     context: StackContext | None = None
     result: T | None = None
     errors: list[BaseException] = []
@@ -212,6 +230,11 @@ def with_owned_stack(
     except BaseException as error:
         errors.append(error)
     if context is not None:
+        # Before gcs_stop, whose tree kill would cut the companions' logs short.
+        try:
+            stop_companions(context)
+        except BaseException as error:
+            errors.append(error)
         try:
             context.api.close()
         except BaseException as error:

@@ -626,6 +626,10 @@ def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
         def own_independent(label, _action):
             registrations.append(("independent", label))
 
+        @staticmethod
+        def own_quiescence(label, _action):
+            registrations.append(("quiescence", label))
+
     status_logger = MagicMock()
     logger = MagicMock()
     vehicle = MagicMock(source_system=121)
@@ -663,6 +667,8 @@ def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
     cadence_type.assert_called_once_with(vehicle.sim_speedup)
     vehicle.is_simulated_autopilot.assert_not_called()
     assert ("dependent", "simulation cadence") in registrations
+    # The reader dispatches into the logger: the logger waits for it.
+    assert ("quiescence", "vehicle") in registrations
 
 
 def test_unsafe_vision_stop_retains_runtime_dependencies_until_retry():

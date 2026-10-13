@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from gcs.backend.runtime_paths import gcs_log_dir
+from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
 
 
 MAX_FILE_BYTES = 5_000_000
@@ -124,7 +125,8 @@ class DiagnosticSession:
 
     def _rotate_if_needed(self, encoded_size: int) -> None:
         target = self._timeline_path()
-        if not target.exists() or target.stat().st_size + encoded_size <= MAX_FILE_BYTES:
+        limit = rotation_max_bytes(MAX_FILE_BYTES)
+        if limit == 0 or not target.exists() or target.stat().st_size + encoded_size <= limit:
             return
         rollover = target.with_name("timeline.1.jsonl")
         if rollover.exists():

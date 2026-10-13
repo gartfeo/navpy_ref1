@@ -61,59 +61,6 @@ def wait_for_vehicles(
     )
 
 
-def _companion_ids(context: StackContext) -> set[int]:
-    payload = _object(
-        context.api.get_json("/api/control/navpy-sim/status"),
-        "companion status",
-    )
-    statuses = _list(payload.get("instances"), "companion instances")
-    running: set[int] = set()
-    seen: set[int] = set()
-    for raw in statuses:
-        status = _object(raw, "companion instance")
-        sys_id = status.get("sys_id")
-        if type(sys_id) is not int or sys_id <= 0:
-            raise TypeError("companion sys_id must be a positive integer")
-        if sys_id in seen:
-            raise ValueError(f"duplicate companion sys_id {sys_id}")
-        seen.add(sys_id)
-        if status.get("running") is True:
-            running.add(sys_id)
-    return running
-
-
-def wait_for_companions(context: StackContext, timeout_s: float) -> None:
-    expected = set(context.sys_ids)
-    wait_until(
-        "three running NavPy companions",
-        timeout_s,
-        lambda: _companion_ids(context) == expected,
-        interval_s=1.0,
-        transient_exceptions=(RegressionError,),
-    )
-
-
-def wait_for_companions_stopped(context: StackContext, timeout_s: float) -> None:
-    expected = set(context.sys_ids)
-    wait_until(
-        "NavPy companions stopped",
-        timeout_s,
-        lambda: not (_companion_ids(context) & expected),
-        interval_s=1.0,
-        transient_exceptions=(RegressionError,),
-    )
-
-
-def restart_companions(context: StackContext, timeout_s: float) -> None:
-    context.api.post_json("/api/control/navpy-sim/stop-all")
-    wait_for_companions_stopped(context, timeout_s)
-    context.api.post_json(
-        "/api/control/navpy-sim/start-all",
-        {"instances": [{"sys_id": sys_id} for sys_id in context.sys_ids]},
-    )
-    wait_for_companions(context, timeout_s)
-
-
 def require_write_results(
     payload: JsonValue,
     names: Iterable[str],
@@ -254,11 +201,8 @@ def wait_for_missions(context: StackContext, timeout_s: float) -> None:
 __all__ = [
     "configure_vehicle_params",
     "require_write_results",
-    "restart_companions",
     "start_esp32_simulator",
     "verify_aas_profile",
-    "wait_for_companions",
-    "wait_for_companions_stopped",
     "wait_for_missions",
     "wait_for_vehicles",
 ]

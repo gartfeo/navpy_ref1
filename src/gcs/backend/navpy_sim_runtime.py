@@ -105,12 +105,14 @@ def stop_instance(sys_id: int) -> bool:
         return stop_instance_process(sys_id)
 
 
-def stop_all_instances() -> None:
+def stop_all_instances() -> dict[int, str]:
+    """Stop every companion; per sys_id ``acked``, ``terminated`` or ``already_exited``."""
     with _configuration_restart_lock:
         _auto_managed_sysids.clear()
         _hb_exit_streaks.clear()
-        if _navpy_mgr is not None:
-            _navpy_mgr.stop_all()
+        if _navpy_mgr is None:
+            return {}
+        return _navpy_mgr.stop_all()
 
 
 def sim_connection(sys_id: int) -> str:
@@ -163,6 +165,8 @@ def _ensure_auto_navpy_sim_running(
     if settings is None:
         settings = settings_store.get()
     if not settings.simulation.sim_mode:
+        return []
+    if settings.simulation.companion_lifecycle == "explicit":
         return []
     wanted = sorted(_auto_managed_sysids & set(active_sys_ids or []))
     if not wanted:

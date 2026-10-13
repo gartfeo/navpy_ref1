@@ -201,7 +201,7 @@ _HEADERS = {
 }
 
 
-def dump_all() -> None:
+def dump_all(*, strict: bool = False) -> None:
     """Append newly-buffered rows to ``<dir>/pose_cadence_<stream>_uav_<sys>_pid_<pid>.csv``.
 
     Incremental: ``_written`` tracks how many rows of each buffer are already on
@@ -249,7 +249,10 @@ def dump_all() -> None:
                         fh.write(",".join(str(c) for c in row) + "\n")
                 _written[key] = end
             except OSError:
-                pass
+                # The periodic flush retries later; the final (strict) one
+                # must not report a complete flush that lost rows.
+                if strict:
+                    raise
 
 
 # One periodic-flush daemon for this module generation, wired to this module's

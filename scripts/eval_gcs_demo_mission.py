@@ -32,13 +32,12 @@ from scripts.eval_gcs_demo_scenario import (
 )
 from scripts.eval_gcs_demo_stack_ops import (
     configure_vehicle_params,
-    restart_companions,
     start_esp32_simulator,
     verify_aas_profile,
-    wait_for_companions,
     wait_for_missions,
     wait_for_vehicles,
 )
+from scripts.eval_gcs_demo_lifecycle import connect_vehicles, start_companions
 from scripts.eval_gcs_demo_mission_upload import upload_scenario_missions
 
 
@@ -256,12 +255,13 @@ def run_mission(
     timeout_s: float,
     confirmation_delay_s: float,
 ) -> MissionArtifacts:
+    connect_vehicles(context)
     wait_for_vehicles(context, timeout_s)
-    wait_for_companions(context, timeout_s)
     command_bounds = configure_vehicle_params(context, timeout_s)
     upload_scenario_missions(context)
-    restart_companions(context, timeout_s)
     verify_aas_profile(context)
+    # Once, after configuration and upload: the companions read both at start.
+    start_companions(context, timeout_s)
     start_esp32_simulator(context)
     wait_for_missions(context, timeout_s)
     plan = resolve_live_plan(context, log_dir)
@@ -279,11 +279,9 @@ def run_mission(
         timeout_s,
         confirmation_delay_s,
     )
-    context.backend_tail.read_new()
     return MissionArtifacts(
         context.sys_ids,
         approvals,
-        context.backend_tail.text,
         str((log_dir / "demo_mission_plan.json").resolve()),
     )
 

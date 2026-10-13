@@ -12,6 +12,7 @@ from scripts import eval_gcs_demo_sitl_root as demo_inputs
 from scripts import eval_gcs_demo_process as demo_process
 from scripts import eval_gcs_demo_runtime as demo_runtime
 from scripts import eval_gcs_demo_stack_ops as stack_ops
+from scripts.eval_gcs_demo_constants import backend_log_path
 
 
 def _clock(index: int, step_s: float) -> str:
@@ -175,7 +176,9 @@ def _write_resolved_plan(log_dir: Path) -> None:
         ),
         encoding="utf-8",
     )
-    (log_dir / "gcs_backend.log").write_text(
+    backend_log = backend_log_path(log_dir)
+    backend_log.parent.mkdir(parents=True, exist_ok=True)
+    backend_log.write_text(
         "\n".join((
             "INFO Task assign request: sender=4 receiver=5 task_id=2 "
             "at (40.000500, 44.000000)",
@@ -566,43 +569,6 @@ def test_ideal_360_flag_inside_real_profile_fails_sensor_gate(tmp_path):
     )
 
 
-def test_restart_companions_stops_all_then_starts_all_sysids():
-    """The mission-launch recycle must stop every companion, wait for them to
-    be down, then start all configured sysids (so the fresh processes re-read
-    the re-applied params). Covers the ac6ac99e production path."""
-    state = {"running": True}
-    calls: list[tuple[str, object]] = []
-
-    class FakeApi:
-        def post_json(self, path, payload=None, *, timeout=30.0):
-            calls.append((path, payload))
-            if path.endswith("stop-all"):
-                state["running"] = False
-            elif path.endswith("start-all"):
-                state["running"] = True
-            return 200, {}
-
-        def get_json(self, path, *, timeout=30.0):
-            assert path.endswith("navpy-sim/status")
-            return {
-                "instances": [
-                    {"sys_id": s, "running": state["running"]}
-                    for s in (7, 8, 9)
-                ]
-            }
-
-    context = SimpleNamespace(api=FakeApi(), sys_ids=(7, 8, 9))
-    stack_ops.restart_companions(context, timeout_s=5.0)
-
-    paths = [p for p, _ in calls]
-    assert paths == [
-        "/api/control/navpy-sim/stop-all",
-        "/api/control/navpy-sim/start-all",
-    ]
-    start_payload = next(pl for p, pl in calls if p.endswith("start-all"))
-    assert {i["sys_id"] for i in start_payload["instances"]} == {7, 8, 9}
-
-
 def test_legacy_pitch_state_rows_do_not_change_atomic_command_score(tmp_path):
     rolls = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
     _write_episode(tmp_path, 1, rolls, snap_m=0.4)
@@ -741,7 +707,9 @@ def test_exact_three_uav_run_passes_owner_and_peer_workflow_gates(tmp_path):
 
 def _write_acked_backend_log(log_dir: Path) -> None:
     """The same auction in the acked format: copies, a reject, APPLIED."""
-    (log_dir / "gcs_backend.log").write_text(
+    backend_log = backend_log_path(log_dir)
+    backend_log.parent.mkdir(parents=True, exist_ok=True)
+    backend_log.write_text(
         "\n".join((
             "INFO Task assign request: sender=4 receiver=5 task_id=2 "
             "at (40.000500, 44.000000) uid=40:10",
@@ -1101,8 +1069,11 @@ def test_configuration_keeps_explicit_ten_x_navigation_and_no_multicontainer_sco
     # ROLL_LIMIT_DEG is a pre-boot default now, not a full-param write.
     assert demo_inputs.SITL_DEFAULT_OVERRIDES["ROLL_LIMIT_DEG"] == 45.0
     assert not hasattr(evaluator, "full_param_changes")
+    # One lifecycle: no auto-connect and no companion auto-start or restart.
+    assert settings["connection"]["auto_connect"] is False
+    assert settings["simulation"]["companion_lifecycle"] == "explicit"
     command = evaluator.launch_command()
-    assert command[-1] == "--no-browser"
+    assert command[-1] == "--headless"
     assert "--chat" not in command
     assert "-gsu" not in command
     assert evaluator.NAVIGATION_SPEEDUP_OVERRIDE == 0.0
@@ -1195,26 +1166,18 @@ def test_verified_stack_entry_is_bound_to_exact_launch_token(monkeypatch):
         demo_process._verified_launch_entry({}, "ours")
 
 
-def test_live_run_remembers_every_configured_sysid_set(monkeypatch, tmp_path):
-    """A slot sequence A -> B -> A must run A, not configure it twice."""
-    sysid_sequence = [
-        (1, 2, 3),
-        (4, 5, 6),
-        (1, 2, 3),
-    ]
-    configured = []
+def test_live_run_launches_the_stack_once(monkeypatch, tmp_path):
+    """Configuration and mission share one launch: one backend, one companion
+    generation per sysid, one complete log."""
     missions = []
-
     launched_with = []
+    environments = []
 
     def with_owned_stack(env, timeout_s, action, sitl_arguments):
-        del env, timeout_s
-        launched_with.append(list(sitl_arguments))
-        return action(SimpleNamespace(sys_ids=sysid_sequence.pop(0)))
-
-    def configure(context, timeout_s):
         del timeout_s
-        configured.append(context.sys_ids)
+        environments.append(env)
+        launched_with.append(list(sitl_arguments))
+        return action(SimpleNamespace(sys_ids=(1, 2, 3)))
 
     def run_mission(context, log_dir, timeout_s, confirmation_delay_s):
         del log_dir, timeout_s, confirmation_delay_s
@@ -1222,11 +1185,9 @@ def test_live_run_remembers_every_configured_sysid_set(monkeypatch, tmp_path):
         return evaluator.MissionArtifacts(
             context.sys_ids,
             _approval_records(context.sys_ids),
-            "backend evidence",
         )
 
     monkeypatch.setattr(demo_runtime, "with_owned_stack", with_owned_stack)
-    monkeypatch.setattr(demo_runtime, "configure_vehicle_params", configure)
     monkeypatch.setattr(demo_runtime, "run_mission", run_mission)
     root = demo_inputs.SitlRoot("/home/eval/navpy-eval-roots/run-1")
     monkeypatch.setattr(
@@ -1248,10 +1209,11 @@ def test_live_run_remembers_every_configured_sysid_set(monkeypatch, tmp_path):
     )
 
     assert result.sys_ids == (1, 2, 3)
-    assert configured == [(1, 2, 3), (4, 5, 6)]
     assert missions == [(1, 2, 3)]
-    # Every launch of the run boots from the same isolated root.
-    assert launched_with == [root.launch_arguments()] * 3
+    assert launched_with == [root.launch_arguments()]
+    # The run owns its GCS logs, unrotated.
+    assert environments[0]["GCS_LOG_DIR"] == str((tmp_path / "gcs").resolve())
+    assert environments[0]["NAVPY_LOG_ROTATION"] == "off"
     assert manifests == [(
         {"files": {}},
         root.root,

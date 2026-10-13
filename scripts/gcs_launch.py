@@ -49,6 +49,7 @@ sys.path.insert(0, str(SRC_DIR))
 sys.path.insert(0, str(ROOT / "scripts"))  # sibling scripts (swarm_run)
 from gcs.backend import instance_ports as ip  # noqa: E402
 from gcs.backend import instance_registry as reg  # noqa: E402
+from gcs.backend.runtime_paths import gcs_log_dir  # noqa: E402
 import swarm_run  # noqa: E402
 from gcs_launch_sitl_args import add_sitl_arguments, swarm_passthrough  # noqa: E402
 from gcs_launch_list import _print_list, _sitl_status  # noqa: E402,F401
@@ -63,9 +64,16 @@ def git_branch() -> str:
         return ""
 
 
-def _spawn(cmd, cwd, env, shell=False):
-    flags = subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0
-    return subprocess.Popen(cmd, cwd=str(cwd), env=env, shell=shell, creationflags=flags)
+def _spawn(cmd, cwd, env, shell=False, console_log: Path | None = None):
+    """A child in its own console or, headless, windowless with its output in *console_log*."""
+    if console_log is None:
+        flags = subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0
+        return subprocess.Popen(cmd, cwd=str(cwd), env=env, shell=shell, creationflags=flags)
+    flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    console_log.parent.mkdir(parents=True, exist_ok=True)
+    with console_log.open("ab") as out:
+        return subprocess.Popen(cmd, cwd=str(cwd), env=env, shell=shell, creationflags=flags,
+                                stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -77,6 +85,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="list running instances (across all clones) and exit")
     parser.add_argument("--no-browser", action="store_true",
                         help="do not open the browser")
+    parser.add_argument("--headless", action="store_true",
+                        help="evaluators: no frontend or browser, no console windows; "
+                             "child output goes to the GCS log dir")
     parser.add_argument("--sitl", dest="sitl", action="store_true",
                         help="also start the SITL swarm for this chat (default)")
     parser.add_argument("--no-sitl", dest="sitl", action="store_false",
@@ -184,6 +195,7 @@ def main() -> int:
         return 1
 
     n = entry["chat_index"]  # internal slot index; not surfaced to the user
+    console_logs = gcs_log_dir() if args.headless else None
     _print_banner(entry, args, branch)
 
     # Reap any orphan squatting this slot's ports before we spawn fresh ones —
@@ -231,8 +243,8 @@ def main() -> int:
             if args.launch_token:
                 swarm_command.extend(("--launch-token", args.launch_token))
             swarm_command.extend(swarm_passthrough(args))
-            _spawn(swarm_command,
-                   cwd=ROOT, env=os.environ.copy())
+            _spawn(swarm_command, cwd=ROOT, env=os.environ.copy(),
+                   console_log=console_logs and console_logs / "swarm_run.out")
 
         # --- backend (uvicorn) ---
         backend_env = os.environ.copy()
@@ -242,12 +254,15 @@ def main() -> int:
             [sys.executable, "-m", "uvicorn", "gcs.backend.main:app",
              "--host", "0.0.0.0", "--port", str(entry["backend"])],
             cwd=ROOT, env=backend_env,
+            console_log=console_logs and console_logs / "backend.out",
         )
         # Persist the backend pid IMMEDIATELY: if this launcher dies before the
         # frontend spawn below, the launch guard must still see the live (not
         # yet bound) backend process instead of handing the slot to a duplicate.
         reg.record_pids(n, backend_pid=backend.pid)
 
+        if args.headless:
+            return 0
         # --- frontend (vite) ---
         frontend_env = os.environ.copy()
         frontend_env["PORT"] = str(entry["frontend"])

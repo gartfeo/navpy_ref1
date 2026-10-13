@@ -120,7 +120,7 @@ async def disconnect_vehicle(sys_id: int):
     runs on this loop and snapshots the managed set, so clearing here means
     no interleaving can copy the sysid into its wanted list and restart the
     dying process as an unmanaged orphan. Only the blocking process kill
-    (up to ~7s terminate+kill wait) is offloaded to the executor so the
+    (an acked clean stop, or a kill after a missed ack) is offloaded to the executor so the
     event loop never stalls. `stopped` means a tracked instance record was
     removed — the process may already have exited (crashed companion);
     either way the status changed, so broadcast.

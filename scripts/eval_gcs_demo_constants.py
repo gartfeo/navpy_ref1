@@ -16,7 +16,8 @@ if str(SRC) not in sys.path:
 
 GCS_LAUNCH = ROOT / "scripts" / "gcs_launch.py"
 GCS_STOP = ROOT / "scripts" / "gcs_stop.py"
-BACKEND_LOG = ROOT / ".logs" / "gcs" / "backend.log"
+#: The run's GCS log dir (GCS_LOG_DIR): backend.log and diagnostics sessions.
+GCS_LOG_SUBDIR = "gcs"
 SCENARIO_MANIFEST_PATH = ROOT / "scripts" / "eval_gcs_demo_scenario.json"
 
 EXPECTED_UAV_COUNT = 3
@@ -37,8 +38,14 @@ EVALUATOR_LOCK_PATH = (
 )
 
 
+def backend_log_path(run_dir: Path) -> Path:
+    """The run's complete backend log (no rotation, one backend per run)."""
+    return run_dir / GCS_LOG_SUBDIR / "backend.log"
+
+
 __all__ = [
-    "BACKEND_LOG",
+    "GCS_LOG_SUBDIR",
+    "backend_log_path",
     "EVALUATOR_LOCK_PATH",
     "EXPECTED_UAV_COUNT",
     "EXPECTED_NAV_LAST_WP_ORDINAL",

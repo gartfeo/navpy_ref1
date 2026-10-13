@@ -280,7 +280,7 @@ def test_parsed_mission_carries_every_stored_row_after_home():
     assert parsed["items"] == mission_upload.expected_items(assignment)
 
 
-def test_missions_upload_after_configuration_and_before_companion_restart(monkeypatch):
+def test_companions_start_once_after_configuration_and_upload(monkeypatch):
     calls = []
 
     class Stop(Exception):
@@ -292,29 +292,33 @@ def test_missions_upload_after_configuration_and_before_companion_restart(monkey
             return result
         return step
 
-    def restart(*_args, **_kwargs):
-        calls.append("restart_companions")
+    def start(*_args, **_kwargs):
+        calls.append("start_companions")
         raise Stop
 
+    monkeypatch.setattr(mission, "connect_vehicles", record("connect_vehicles"))
     monkeypatch.setattr(mission, "wait_for_vehicles", record("wait_for_vehicles"))
-    monkeypatch.setattr(mission, "wait_for_companions", record("wait_for_companions"))
     monkeypatch.setattr(mission, "configure_vehicle_params", record("configure_vehicle_params"))
     monkeypatch.setattr(mission, "upload_scenario_missions", record("upload_scenario_missions"))
-    monkeypatch.setattr(mission, "restart_companions", restart)
+    monkeypatch.setattr(mission, "verify_aas_profile", record("verify_aas_profile"))
+    monkeypatch.setattr(mission, "start_companions", start)
 
     with pytest.raises(Stop):
         mission.run_mission(SimpleNamespace(sys_ids=SYS_IDS), None, 1.0, 0.0)
 
+    # Companions read the parameters and the mission when they start, so they
+    # start once, after both, and are never restarted.
     assert calls == [
+        "connect_vehicles",
         "wait_for_vehicles",
-        "wait_for_companions",
         "configure_vehicle_params",
         "upload_scenario_missions",
-        "restart_companions",
+        "verify_aas_profile",
+        "start_companions",
     ]
 
 
-def test_eval_launch_pins_the_scenario_home(monkeypatch):
+def test_eval_launch_pins_the_scenario_home(monkeypatch, tmp_path):
     commands = []
     monkeypatch.setattr(process, "owned_entry", lambda _env: None)
 
@@ -325,8 +329,8 @@ def test_eval_launch_pins_the_scenario_home(monkeypatch):
     monkeypatch.setattr(process, "run_process", run_process)
 
     with pytest.raises(models.RegressionError, match="stopped by test"):
-        process.launch_stack({}, 1.0)
+        process.launch_stack({"GCS_LOG_DIR": str(tmp_path / "gcs")}, 1.0)
 
     home = scenario.load_scenario_manifest().home
     assert commands[0][-2:] == ["--home", home]
-    assert config.launch_command()[-1] == "--no-browser"
+    assert config.launch_command()[-1] == "--headless"

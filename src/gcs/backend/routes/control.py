@@ -260,6 +260,8 @@ def auto_start_esp32_sim() -> bool:
     settings = settings_store.get()
     if not settings.simulation.sim_mode:
         return False
+    if settings.simulation.companion_lifecycle == "explicit":
+        return False
     if settings.launch.launch_type != "container":
         return False
     if _esp32_sim is not None:

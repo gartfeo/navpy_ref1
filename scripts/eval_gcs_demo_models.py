@@ -148,6 +148,8 @@ class StackContext:
     sys_ids: tuple[int, int, int]
     backend_tail: TailPort
     launch_evidence: dict[str, JsonValue] | None = None
+    #: The slot's GCS monitor endpoint, for the explicit connect.
+    monitor_device: str | None = None
 
     def __post_init__(self) -> None:
         self.sys_ids = ThreeUavIds.from_values(self.sys_ids).values
@@ -157,7 +159,6 @@ class StackContext:
 class MissionArtifacts:
     sys_ids: tuple[int, int, int]
     approvals: list[dict[str, JsonValue]]
-    backend_log_text: str
     plan_path: str | None = None
 
     def __post_init__(self) -> None:

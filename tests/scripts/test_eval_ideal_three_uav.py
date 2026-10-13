@@ -312,7 +312,7 @@ def test_run_ideal_mission_restarts_ready_after_confirmed_configuration(
 
 def test_execute_ideal_live_run_uses_one_owned_stack(monkeypatch, tmp_path: Path):
     calls: list[str] = []
-    mission = MissionArtifacts((4, 5, 6), [], "")
+    mission = MissionArtifacts((4, 5, 6), [])
     context = SimpleNamespace(
         backend_tail=SimpleNamespace(read_new=lambda: "", text=""),
         launch_evidence={"sitl_verified": True},

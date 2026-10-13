@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from navpy.app.runtime_ready import parse_runtime_ready
+from navpy.app.runtime_stop import NAVPY_STOPPED_MARKER
 
 
 _OUTPUT_BUFFER_SIZE = 100
@@ -111,6 +112,7 @@ class NavpyInstance:
         default_factory=lambda: deque(maxlen=_OUTPUT_BUFFER_SIZE)
     )
     ready_payload: dict[str, object] | None = None
+    stop_acked: bool = False
     _ready_error: str | None = field(default=None, repr=False)
     _ready_or_exit: threading.Event = field(
         default_factory=threading.Event,
@@ -134,6 +136,8 @@ def read_navpy_output(
         for raw_line in iter(stdout.readline, b""):
             line = raw_line.decode("utf-8", errors="replace").rstrip("\n\r")
             inst.output.append(line)
+            if line == NAVPY_STOPPED_MARKER:
+                inst.stop_acked = True
             payload = parse_runtime_ready(line)
             if payload is not None:
                 validation_error: str | None = None

@@ -133,6 +133,7 @@ class MavBus:
             self._membership,
             self._heartbeats,
             self._lifecycle.stop_event,
+            on_exit=self._lifecycle.reader_exited,
         )
         self._lifecycle.bind_reader(reader)
         reader.start()

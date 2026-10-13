@@ -16,13 +16,11 @@ from scripts.eval_gcs_demo_sitl_root import prepare_sitl_root
 from scripts.eval_gcs_demo_models import (
     MissionArtifacts,
     RegressionError,
-    StackContext,
     finite_number,
 )
 from scripts.eval_gcs_demo_mission import run_mission
 from scripts.eval_gcs_demo_process import with_owned_stack
 from scripts.eval_gcs_demo_scenario import load_scenario_manifest
-from scripts.eval_gcs_demo_stack_ops import configure_vehicle_params
 
 
 def execute_live_run(
@@ -62,34 +60,16 @@ def execute_live_run(
         run_dir, env, sitl_inputs, sitl_root_host,
         {"confirmation_delay_s": delay, "navigation_speedup": speedup, "timeout_s": timeout},
     )
-    configured: set[tuple[int, int, int]] = set()
-    mission: MissionArtifacts | None = None
-    for _attempt in range(3):
-        def action(context: StackContext) -> tuple[str, object]:
-            if context.sys_ids not in configured:
-                configure_vehicle_params(context, timeout)
-                configured.add(context.sys_ids)
-                return "configured", context.sys_ids
-            return "mission", run_mission(context, run_dir, timeout, delay)
-
-        kind, payload = with_owned_stack(
-            env, timeout, action, sitl_root.launch_arguments()
-        )
-        if kind == "mission":
-            if not isinstance(payload, MissionArtifacts):
-                raise TypeError("mission action returned an invalid artifact")
-            mission = payload
-            break
-    if mission is None:
-        raise RegressionError(
-            "the auto-allocated GCS sysid set changed after every "
-            "configuration launch"
-        )
-    approvals = validate_approval_records(mission.approvals)
-    (run_dir / "gcs_backend.log").write_text(
-        mission.backend_log_text,
-        encoding="utf-8",
+    # One launch: the backend writes its complete log into the run.
+    mission = with_owned_stack(
+        env,
+        timeout,
+        lambda context: run_mission(context, run_dir, timeout, delay),
+        sitl_root.launch_arguments(),
     )
+    if not isinstance(mission, MissionArtifacts):
+        raise TypeError("mission action returned an invalid artifact")
+    approvals = validate_approval_records(mission.approvals)
     (run_dir / "operator_approvals.json").write_text(
         json.dumps({"approvals": approvals}, indent=2),
         encoding="utf-8",

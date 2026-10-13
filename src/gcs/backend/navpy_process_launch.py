@@ -124,6 +124,8 @@ def _build_navpy_command(
         "mav",
         "--detector-type",
         "sim",
+        # The manager stops it with an acknowledged request on stdin.
+        "--stop-on-stdin",
     ]
     if navigation_speedup > 0.0:
         command.extend(["-gsu", str(navigation_speedup)])
@@ -160,6 +162,7 @@ def launch_navpy_instance(
         navigation_speedup=navigation_speedup,
     )
     kwargs: dict[str, object] = {
+        "stdin": subprocess.PIPE,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.STDOUT,
         "env": _build_env(),

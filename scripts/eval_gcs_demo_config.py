@@ -11,6 +11,7 @@ from scripts.eval_gcs_demo_constants import (
     EXPECTED_UAV_COUNT,
     EXPECTED_NAV_LAST_WP_ORDINAL,
     GCS_LAUNCH,
+    GCS_LOG_SUBDIR,
     GCS_STOP,
     SIM_SPEEDUP,
     VISION_PROFILE,
@@ -20,6 +21,8 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, load_scenario_manifest
 from scripts.eval_certificate_source_time import SOURCE_TIME_ENV, SOURCE_TIME_SUBDIR
 
+from gcs.backend.runtime_paths import LOG_DIR_ENV as GCS_LOG_DIR_ENV
+from navpy.core.kernel.logging.log_rotation import LOG_ROTATION_ENV
 from navpy.sim.sim_cv_threads import SIM_CV_THREADS_ENV
 from navpy.sim.world.navigation_poi_args import encode_wp_bitmask
 
@@ -43,6 +46,8 @@ PINNED_ENV = {
     "MKL_NUM_THREADS": "1",
     SIM_CV_THREADS_ENV: "1",
     "PYTHONUTF8": "1",
+    # One complete backend log and one complete log per companion per run.
+    LOG_ROTATION_ENV: "off",
 }
 #: The persisted ESP32 endpoint is unused while the simulator runs (launch and
 #: status use the simulator's own loopback port); if it were used, it is the
@@ -57,7 +62,7 @@ def launch_command(
     sitl_arguments: Sequence[str] = (),
 ) -> list[str]:
     """Use only the isolated launcher; its directory owns the slot."""
-    command = [sys.executable, str(GCS_LAUNCH), "--no-browser"]
+    command = [sys.executable, str(GCS_LAUNCH), "--headless"]
     if launch_token is not None:
         if type(launch_token) is not str or not launch_token:
             raise ValueError("launch token must be a non-empty string")
@@ -92,7 +97,9 @@ def build_settings() -> dict[str, JsonValue]:
             "vision_device": VISION_PROFILE,
             "vision_zoom": "1",
         },
-        "connection": {"auto_connect": True},
+        # One lifecycle: the eval connects in ordinal order and starts each
+        # companion once; nothing auto-starts or restarts them.
+        "connection": {"auto_connect": False},
         "launch": {
             "launch_type": "container",
             "esp32_host": "127.0.0.1",
@@ -104,6 +111,7 @@ def build_settings() -> dict[str, JsonValue]:
             "sim_mode": True,
             "dev_mode": True,
             "simulated_vehicle_count": EXPECTED_UAV_COUNT,
+            "companion_lifecycle": "explicit",
         },
     }
 
@@ -165,6 +173,7 @@ def build_environment(
         env[NAVIGATION_SPEEDUP_ENV] = _canonical_number(speedup)
     env["GCS_SETTINGS_PATH"] = str(settings_path.resolve())
     env["NAVPY_LOG_DIR"] = str(log_dir.resolve())
+    env[GCS_LOG_DIR_ENV] = str((log_dir / GCS_LOG_SUBDIR).resolve())
     env[SOURCE_TIME_ENV] = str((log_dir / SOURCE_TIME_SUBDIR).resolve())
     env["NAVPY_SIM_LOG_LEVEL"] = "DEBUG"
     return env

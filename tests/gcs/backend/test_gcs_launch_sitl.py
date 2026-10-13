@@ -344,3 +344,48 @@ class TestGcsLaunchHermeticSitl(unittest.TestCase):
         for flag in ("--sitl-root", "--defaults", "--sitl-instance-seed",
                      "--single-boot", "--loopback-only"):
             self.assertNotIn(flag, cmd)
+
+
+class TestGcsLaunchHeadless(unittest.TestCase):
+    """--headless (evaluators): no frontend, every child windowless and logged."""
+
+    def test_headless_spawns_no_frontend_and_logs_each_child(self):
+        m = _load()
+        with patch.object(m, "gcs_log_dir", return_value=pathlib.Path("C:/run/gcs")):
+            rc, spawn = _run(["--headless"], mod=m)
+        self.assertEqual(rc, 0)
+        commands = [str(c.args[0]) for c in spawn.call_args_list]
+        self.assertFalse(any("npm" in cmd for cmd in commands))
+        self.assertEqual(
+            [c.kwargs["console_log"].name for c in spawn.call_args_list],
+            ["swarm_run.out", "backend.out"],
+        )
+
+    def test_interactive_launch_keeps_console_windows_and_frontend(self):
+        rc, spawn = _run(["--no-browser"])
+        self.assertEqual(rc, 0)
+        self.assertTrue(any("npm" in str(c.args[0]) for c in spawn.call_args_list))
+        self.assertTrue(all(c.kwargs.get("console_log") is None for c in spawn.call_args_list))
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows console semantics")
+    def test_headless_child_and_its_children_have_no_console_window(self):
+        # The backend starts NavPy with CREATE_NEW_PROCESS_GROUP only; it must
+        # inherit the hidden console, not get a window of its own.
+        m = _load()
+        log = pathlib.Path(self._tmp()) / "gcs" / "child.out"
+        code = (
+            "import ctypes, subprocess, sys\n"
+            "print(ctypes.windll.kernel32.GetConsoleWindow(), flush=True)\n"
+            "subprocess.run([sys.executable, '-c', 'import ctypes; "
+            "print(ctypes.windll.kernel32.GetConsoleWindow())'], "
+            "creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)\n"
+        )
+        proc = m._spawn([sys.executable, "-c", code], cwd=_ROOT, env=None, console_log=log)
+        proc.wait(timeout=60)
+        self.assertEqual(log.read_text().split(), ["0", "0"])
+
+    def _tmp(self):
+        import tempfile
+        path = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, path, True)
+        return path

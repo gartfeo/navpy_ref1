@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
+import sys
 import time
 from argparse import Namespace
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import NoReturn
 
@@ -35,6 +37,7 @@ from navpy.plugins.vehicle.ardupilot.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )
 from navpy.app.perception.vision_controller import VisionController
+from navpy.app.runtime_stop import StdinStopRequest, acknowledge_stop
 from navpy.app.runtime_resources import (
     RuntimeResourceStack,
     RuntimeSession,
@@ -109,7 +112,9 @@ def _build_foundation(
 
     vehicle = create_vehicle(connection_args, logger)
     close_gate = VehicleCloseGate(vehicle.close)
-    resources.own("vehicle", close_gate.close_vehicle)
+    # Quiescence: the MAVLink reader dispatches into the logger, so the
+    # logger stays open until the reader has really stopped.
+    resources.own_quiescence("vehicle", close_gate.close_vehicle)
     status_logger.set_vehicle(vehicle)
     _log_configuration(args, vehicle, logger)
 
@@ -222,7 +227,19 @@ def _build_session(
         ui_step=vision.ui_step,
         sleep=time.sleep,
         ready_signal=signal_runtime_ready,
+        **_stop_hooks(args),
     )
+
+
+def _stop_hooks(args: Namespace) -> dict[str, Callable[..., object]]:
+    if not getattr(args, "stop_on_stdin", False):
+        return {}
+    request = StdinStopRequest(sys.stdin)
+    request.start()
+    return {
+        "stop_requested": request.requested,
+        "acknowledge_stop": acknowledge_stop,
+    }
 
 
 def compose_runtime(args: Namespace) -> RuntimeSession:

@@ -166,9 +166,12 @@ async def stop_navpy_instance(sys_id: int) -> dict[str, Any]:
 async def stop_all_navpy() -> dict[str, Any]:
     """Stop all NavPy simulation instances."""
     _ensure_sim_mode()
-    await asyncio.to_thread(runtime.stop_all_instances)
+    outcomes = await asyncio.to_thread(runtime.stop_all_instances)
     await broadcast_sim_status()
-    return {"status": "stopped_all"}
+    return {
+        "status": "stopped_all",
+        "outcomes": {str(sys_id): outcome for sys_id, outcome in outcomes.items()},
+    }
 
 
 @router.post("/navpy-sim/restart-ready")
@@ -246,6 +249,8 @@ def auto_start_navpy_sim(sys_id: int) -> bool:
     policy-neutral.
     """
     from gcs.backend.vehicle_manager import vehicle_mgr
+    if settings_store.get().simulation.companion_lifecycle == "explicit":
+        return False
     if vehicle_mgr.get_vehicle(sys_id) is None:
         return False
     return runtime.auto_start_navpy_sim(sys_id)

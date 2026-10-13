@@ -29,12 +29,12 @@ from scripts.eval_gcs_demo_models import (
     StackContext,
     finite_number,
 )
+from scripts.eval_gcs_demo_lifecycle import wait_for_companions
 from scripts.eval_gcs_demo_process import with_owned_stack
 from scripts.eval_gcs_demo_stack_ops import (
     configure_vehicle_params,
     start_esp32_simulator,
     verify_aas_profile,
-    wait_for_companions,
     wait_for_missions,
     wait_for_vehicles,
 )
@@ -53,6 +53,10 @@ IDEAL_PROFILE = "ideal_360"
 
 def build_ideal_settings() -> dict:
     settings = deepcopy(build_settings())
+    # This eval exercises the interactive lifecycle: auto-connect, companions
+    # auto-started and restarted after the parameter write.
+    settings["connection"] = {"auto_connect": True}
+    settings["simulation"] = {**settings["simulation"], "companion_lifecycle": "auto"}
     settings["camera"] = {
         "vision_profile": IDEAL_PROFILE,
         "vision_device": IDEAL_PROFILE,
@@ -158,11 +162,9 @@ def run_ideal_mission(
         )
         _write_json(run_dir / "operator_approvals.json", {"approvals": approvals})
         time.sleep(SOURCE_TIME_FLUSH_GRACE_S)
-        context.backend_tail.read_new()
         artifacts = MissionArtifacts(
             context.sys_ids,
             approvals,
-            context.backend_tail.text,
             str((run_dir / "demo_mission_plan.json").resolve()),
         )
     except BaseException as error:
@@ -202,10 +204,7 @@ def execute_ideal_live_run(
     settings_path = run_dir / "gcs_settings.json"
     _write_json(settings_path, build_ideal_settings())
     environment = build_environment(settings_path, run_dir)
-    context_holder: list[StackContext] = []
-
     def action(context: StackContext) -> MissionArtifacts:
-        context_holder[:] = [context]
         if context.launch_evidence is None:
             raise RegressionError("exact stack has no verified launch evidence")
         _write_json(
@@ -214,19 +213,8 @@ def execute_ideal_live_run(
         )
         return run_ideal_mission(context, run_dir, timeout)
 
-    try:
-        return with_owned_stack(environment, timeout, action)
-    finally:
-        if context_holder:
-            context = context_holder[-1]
-            try:
-                context.backend_tail.read_new()
-            except OSError:
-                pass
-            (run_dir / "gcs_backend.log").write_text(
-                context.backend_tail.text,
-                encoding="utf-8",
-            )
+    # The backend writes its complete log into the run (GCS_LOG_DIR).
+    return with_owned_stack(environment, timeout, action)
 
 
 __all__ = [

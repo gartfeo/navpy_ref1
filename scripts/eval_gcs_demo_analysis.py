@@ -12,7 +12,11 @@ from scripts.eval_gcs_demo_audit import (
 from scripts.eval_gcs_demo_assignment_audit import derive_global_assignment_map
 from scripts.eval_gcs_demo_assignment_lines import LogFormat, parse_assignment_lines
 from scripts.eval_gcs_demo_command_bounds import load_command_bounds
-from scripts.eval_gcs_demo_constants import NAVIGATION_SPEEDUP_OVERRIDE, SIM_SPEEDUP
+from scripts.eval_gcs_demo_constants import (
+    NAVIGATION_SPEEDUP_OVERRIDE,
+    SIM_SPEEDUP,
+    backend_log_path,
+)
 from scripts.eval_gcs_demo_models import (
     GateLimits,
     RunReport,
@@ -79,7 +83,7 @@ def global_assignment_evidence(
 ) -> AssignmentEvidence:
     acked = False
     try:
-        backend_log = (log_dir / "gcs_backend.log").read_text(
+        backend_log = backend_log_path(log_dir).read_text(
             encoding="utf-8",
             errors="strict",
         )

@@ -38,6 +38,11 @@ class MavBusLifecycle:
         self._closed = threading.Event()
         self._lock = threading.Lock()
         self._reader = None
+        # A close that timed out on a busy reader is finished by whichever
+        # side sees both flags: the closer (reader already gone) or the
+        # reader as it exits (close already gave up).
+        self._reader_exited = threading.Event()
+        self._close_timed_out = threading.Event()
 
     @property
     def stop_event(self) -> threading.Event:
@@ -86,9 +91,26 @@ class MavBusLifecycle:
         if self._closed.is_set():
             return
         self._stop.set()
+        if self._reader is not None and not self._reader.join(timeout_s=2.0):
+            self._close_timed_out.set()
+            if not self._reader_exited.is_set():
+                # A handler is still dispatching: stay closing, not closed;
+                # the reader finishes the close as it exits, a retry joins
+                # again, and nothing reports a clean stop meanwhile.
+                raise TimeoutError(f"MavBus reader for {self._device} did not stop")
+        self._finish_close()
+
+    def reader_exited(self) -> None:
+        """The reader thread's last act: finish a close that timed out on it."""
+        self._reader_exited.set()
+        if self._close_timed_out.is_set():
+            with self._lock:
+                self._finish_close()
+
+    def _finish_close(self) -> None:
+        if self._closed.is_set():
+            return
         try:
-            if self._reader is not None:
-                self._reader.join(timeout_s=2.0)
             self._connection.close()
         finally:
             self._unregister()

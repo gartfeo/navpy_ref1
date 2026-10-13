@@ -67,6 +67,14 @@ Frontend:
   use it in chats; slots always auto-resolve by launch directory.
 - Demo (`sim_mode`) + `dev_mode` default on; `connection.auto_connect`
   (default on) auto-discovers + connects on startup in sim mode.
+- `simulation.companion_lifecycle` `"auto"` (default): connect starts NavPy
+  and the ESP32 sim, the telemetry loop restarts exited companions;
+  `"explicit"` (the demo eval): only the start routes start them, nothing
+  restarts them. NavPy stops by an acked stdin request (`NAVPY_STOP_V1` ->
+  `NAVPY_STOPPED_V1`); a missed ack is a job-object kill (`stop-all` reports
+  `terminated`). `gcs_launch.py --headless` (evaluators): no frontend or
+  console windows, child output in `GCS_LOG_DIR`; `NAVPY_LOG_ROTATION=off`
+  keeps logs unrotated.
 - In **dev mode only**, the running git branch is shown in the tab title +
   topbar so parallel instances are distinguishable; non-dev (operator) mode
   hides it (`devMode` gates both, from `settings.simulation.dev_mode`).

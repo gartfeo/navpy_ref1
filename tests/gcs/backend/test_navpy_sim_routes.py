@@ -1385,3 +1385,41 @@ class TestRestartRunningNavpySim(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestExplicitCompanionLifecycle(unittest.TestCase):
+    """companion_lifecycle "explicit": only the start routes start companions."""
+
+    def _settings(self):
+        from gcs.backend.settings_model import GcsSettings
+
+        settings = GcsSettings()
+        settings.simulation.companion_lifecycle = "explicit"
+        return settings
+
+    def test_connect_does_not_auto_start_a_companion(self):
+        with patch.object(navpy_mod.settings_store, "get", return_value=self._settings()), \
+                patch.object(navpy_mod.runtime, "auto_start_navpy_sim") as auto_start:
+            self.assertFalse(navpy_mod.auto_start_navpy_sim(1))
+        auto_start.assert_not_called()
+
+    def test_the_watchdog_restarts_nothing(self):
+        mgr = MagicMock()
+        mgr.get_status.return_value = {"sys_id": 1, "running": False}
+        runtime_mod._navpy_mgr = mgr
+        runtime_mod._auto_managed_sysids.add(1)
+        try:
+            with patch.object(runtime_mod, "start_instance") as start:
+                self.assertEqual(
+                    runtime_mod.ensure_auto_navpy_sim_running([1], self._settings()), [],
+                )
+            start.assert_not_called()
+        finally:
+            runtime_mod._auto_managed_sysids.discard(1)
+            runtime_mod._navpy_mgr = None
+
+    def test_the_esp32_simulator_is_not_auto_started(self):
+        from gcs.backend.routes import control
+
+        with patch.object(control.settings_store, "get", return_value=self._settings()):
+            self.assertFalse(control.auto_start_esp32_sim())

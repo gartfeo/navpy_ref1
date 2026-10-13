@@ -23,7 +23,6 @@ from scripts.eval_gcs_demo_config import (
     stop_command,
 )
 from scripts.eval_gcs_demo_constants import (
-    BACKEND_LOG,
     EVALUATOR_LOCK_PATH,
     EXPECTED_UAV_COUNT,
     FORBIDDEN_VISION_PROFILE,
@@ -59,7 +58,6 @@ from scripts.eval_gcs_demo_process import (
 from scripts.eval_gcs_demo_runtime import execute_live_run
 from scripts.eval_gcs_demo_stack_ops import (
     configure_vehicle_params as _configure_vehicle_params,
-    restart_companions as _restart_companions,
 )
 
 
@@ -67,7 +65,6 @@ _report_dict = report_dict
 
 
 __all__ = [
-    "BACKEND_LOG",
     "EVALUATOR_LOCK_PATH",
     "EXPECTED_UAV_COUNT",
     "EpisodeMetrics",
