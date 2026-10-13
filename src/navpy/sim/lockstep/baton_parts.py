@@ -19,6 +19,10 @@ class ManagedThread:
     has_timer: bool = False
     joiners: list["ManagedThread"] = field(default_factory=list)
     os_thread: threading.Thread | None = None
+    #: Whether a child made without an explicit ``daemon`` is a daemon (threading's rule).
+    daemon: bool = False
+    #: The product-facing thread object (``rt.current_thread()``), if any.
+    handle: object | None = None
 
 
 class ThreadTable:

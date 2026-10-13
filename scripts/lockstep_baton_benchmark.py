@@ -22,7 +22,7 @@ for path in (ROOT, ROOT / "src"):
 import pytest  # noqa: E402
 
 from navpy.sim.lockstep.baton import BatonRuntime  # noqa: E402
-from navpy.sim.lockstep.baton_sync import BatonQueue  # noqa: E402
+from navpy.sim.lockstep.baton_queue import BatonQueue  # noqa: E402
 from tests.modules.lockstep import test_mission_upload_lockstep as upload  # noqa: E402
 
 SAMPLES = 7

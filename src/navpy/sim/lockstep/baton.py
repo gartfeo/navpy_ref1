@@ -61,6 +61,9 @@ class BatonRuntime:
         self._aborted = False
         self._fault: LockstepFault | None = None
         self._in_timer_phase = True
+        #: The OS thread :meth:`spawn` is starting right now, else None: the
+        #: only thread the thread guard lets start (read-only outside spawn).
+        self.starting: threading.Thread | None = None
         self.threads = ThreadTable()
         self.timers = TimerHeap()
 
@@ -136,7 +139,11 @@ class BatonRuntime:
                 self._yielded.release()
 
         thread.os_thread = threading.Thread(target=run, name=f"lockstep-{name}", daemon=True)
-        thread.os_thread.start()
+        self.starting = thread.os_thread
+        try:
+            thread.os_thread.start()
+        finally:
+            self.starting = None
         self.threads.add(thread)
         self._runnable.append(thread)
         return thread

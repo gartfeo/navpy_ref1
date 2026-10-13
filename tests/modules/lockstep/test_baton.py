@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from queue import Empty
 import random
 import threading
 import time
@@ -9,11 +10,11 @@ import time
 import pytest
 
 from navpy.sim.lockstep.baton import BatonRuntime, LockstepFault, audit, check_no_deadlock
+from navpy.sim.lockstep.baton_queue import BatonQueue
 from navpy.sim.lockstep.baton_sync import (
     BatonCondition,
     BatonEvent,
     BatonLock,
-    BatonQueue,
     join,
     sleep,
 )
@@ -83,7 +84,7 @@ def test_an_input_at_the_deadline_tick_wins_over_the_timeout():
         def receiver() -> None:
             try:
                 outcome.append(inbox.get(timeout=0.04))  # deadline = tick 2
-            except TimeoutError:
+            except Empty:
                 outcome.append("timeout")
 
         runtime.spawn(receiver, name="receiver")
@@ -218,7 +219,7 @@ def test_queue_contention_does_not_restart_the_timeout():
     def slow_getter() -> None:
         try:
             queue.get(timeout=0.04)  # deadline tick 2, whatever happens before
-        except TimeoutError:
+        except Empty:
             outcome["slow"] = runtime.now_us
 
     def thief() -> None:

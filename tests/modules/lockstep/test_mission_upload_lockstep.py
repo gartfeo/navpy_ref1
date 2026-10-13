@@ -22,7 +22,9 @@ from navpy.plugins.vehicle.ardupilot import mission_inbox, mission_upload
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.sim.lockstep.baton import BatonRuntime
-from navpy.sim.lockstep.baton_sync import BatonLock, BatonQueue, runtime_shim
+from navpy.sim.lockstep.baton_queue import BatonQueue
+from navpy.sim.lockstep.baton_sync import BatonLock
+from navpy.sim.lockstep.lockstep_runtime import LockstepRuntime, module_port
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder, encoder
 
 TICK_US = 20_000
@@ -69,9 +71,9 @@ def _items(count: int) -> list[mavlink.MAVLink_mission_item_int_message]:
 
 def run_baton_model(monkeypatch, count: int, *, ignore_counts=0, jitter=False):
     runtime = BatonRuntime()
-    shim = runtime_shim(runtime)
-    monkeypatch.setattr(mission_inbox, "rt", shim)
-    monkeypatch.setattr(mission_upload, "rt", shim)
+    port = module_port(LockstepRuntime.create(runtime, epoch_us=0, seed=0, ordinal=1))
+    monkeypatch.setattr(mission_inbox, "rt", port)
+    monkeypatch.setattr(mission_upload, "rt", port)
     link, sink = encoder(*GCS)
     inbox = mission_inbox.MissionInbox()
     uploader = mission_upload.MissionUploader(

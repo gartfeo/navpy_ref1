@@ -46,8 +46,8 @@ class StdinStopRequest:
                 return
 
 
-def acknowledge_stop() -> None:
-    """Flush what cleanup does not own, then publish the ack."""
+def flush_pose_cadence() -> None:
+    """Strictly flush the pose-cadence buffers, the one output cleanup does not own."""
     # Imported here: under its debug env the module starts a flush thread on
     # import, which the GCS backend (it imports the markers) must not get.
     from navpy.core.kernel.logging import pose_cadence_debug
@@ -56,6 +56,11 @@ def acknowledge_stop() -> None:
     # final dump below is the last and only concurrent-free write.
     pose_cadence_debug.stop_flusher()
     pose_cadence_debug.dump_all(strict=True)
+
+
+def acknowledge_stop() -> None:
+    """Flush what cleanup does not own, then publish the ack."""
+    flush_pose_cadence()
     print(NAVPY_STOPPED_MARKER, flush=True)
 
 
@@ -76,4 +81,5 @@ __all__ = [
     "StdinStopRequest",
     "acknowledge_stop",
     "add_args",
+    "flush_pose_cadence",
 ]
