@@ -60,7 +60,12 @@ Frontend:
 - Eval band: `swarm_run.py --eval` allocates chats 40..84 (can never take an
   interactive slot); NavPy companions bind per-vehicle UDP ports
   (`udp:0.0.0.0:5760+10*(g-1)`) that SITL serial0 streams into
-  (`COMPANION_UDP=1`). Do not use `gcs_launch` for eval-only runs. Manual
+  (`COMPANION_UDP=1`). Do not use `gcs_launch` for eval-only runs. Lockstep
+  evals (`scripts/eval_lockstep_single.py`) claim an eval-band slot themselves,
+  start their WSL relay and serial-step SITL from a per-run root, record each
+  process (pid, start time, cwd) at spawn and stop only those records; they
+  never stop by sysid or name. The lockstep backend (step 9) will be the one
+  exception to "no `gcs_launch` for eval-only runs". Manual
   `run_swarm.sh` invocations (WSL, `~/ardupilot/Tools/autotest/run_swarm.sh`)
   must pass `COMPANION_UDP=1` to match launcher-started companions.
 - `--chat N` exists as an advanced manual override of the slot/band — never

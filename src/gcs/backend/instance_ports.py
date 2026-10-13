@@ -48,6 +48,9 @@ GCS_VERIFY_BASE = 16550
 # concurrent stacks never contend for it and a run's port does not depend on
 # whatever ephemeral port the OS hands out.
 ESP32_SIM_BASE = 17550
+# Lockstep relays (TCP, WSL loopback): one per SITL of an eval slot, the
+# coordinator's end of the serial-step link. Its own band, 3 per slot.
+LOCKSTEP_RELAY_BASE = 18550
 # Per-vehicle companion UDP ports. The numbers keep ArduPilot's historical
 # serial0 arithmetic (5760 + 10*instance_idx) but are now Windows-side bind
 # ports: the companion listens here and SITL serial0 (udpclient) streams in.
@@ -147,6 +150,13 @@ def verify_port(n: int) -> int:
 
 def esp32_sim_port(n: int) -> int:
     return ESP32_SIM_BASE + n
+
+
+def lockstep_relay_port(n: int, ordinal: int) -> int:
+    """TCP port of chat *n*'s relay for the SITL with *ordinal* (0-based)."""
+    if not 0 <= ordinal < VEHICLES_PER_CHAT:
+        raise ValueError(f"ordinal must be 0..{VEHICLES_PER_CHAT - 1}, got {ordinal}")
+    return LOCKSTEP_RELAY_BASE + VEHICLES_PER_CHAT * n + ordinal
 
 
 def sysids_for_chat(n: int) -> list[int]:

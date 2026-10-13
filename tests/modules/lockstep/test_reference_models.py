@@ -91,3 +91,10 @@ def test_admission_is_capped_per_io_tick_and_by_usable_space():
     assert uart.io_tick() == READ_BUFFER_BYTES - MAX_ADMIT_PER_IO_TICK
     assert uart.io_tick() == 0  # full: one byte stays free in the ring buffer
     assert uart.header().fifo_bytes == 5
+
+
+def test_the_decoder_skips_boot_text_like_a_real_link():
+    decoder = StreamDecoder()
+    (message,) = decoder.feed(b"0 0 0 " + _messages(1))
+    assert message.seq == 0
+    assert decoder.skipped_bytes == 6

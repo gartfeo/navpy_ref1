@@ -33,16 +33,24 @@ def encoder(src_system: int, src_component: int) -> tuple[mavlink.MAVLink, ByteS
 
 
 class StreamDecoder:
+    """Robust like ``mavfile``: bytes that are no MAVLink frame are skipped and
+    counted (an autopilot prints boot text on its serial ports)."""
+
     def __init__(self) -> None:
         self._parser = mavlink.MAVLink(None)
-        self._parser.robust_parsing = False
+        self._parser.robust_parsing = True
+        self.skipped_bytes = 0
 
     def feed(self, data: bytes) -> list[mavlink.MAVLink_message]:
         messages = []
         for byte in data:
             message = self._parser.parse_char(bytes((byte,)))
-            if message is not None:
-                messages.append(message)
+            if message is None:
+                continue
+            if message.get_type() == "BAD_DATA":
+                self.skipped_bytes += len(message.get_msgbuf())
+                continue
+            messages.append(message)
         return messages
 
 

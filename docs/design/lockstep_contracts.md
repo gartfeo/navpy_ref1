@@ -76,7 +76,8 @@ Step 6 of `deterministic_demo_eval.md`. These are the contracts the lockstep bui
   4. `GCS_MAVLINK::update` parses what was admitted and applies it within its per-loop budget.
   5. Everything written in loop k goes out in frame k+1.
 
-  Whether step 3 runs after the hook in the same loop or one loop later is the firmware's scheduler order. Step 7 pins it with an application-timing test: a `COMMAND_LONG` in reply k yields its `COMMAND_ACK` in a fixed frame, k+1 or k+2, every run. A message split across ticks parses once complete (pinned).
+  Measured at step 7: a `COMMAND_LONG` in reply k yields its `COMMAND_ACK` in frame k+2, in every run. A message split across ticks parses once complete (pinned).
+- **Pacing.** In serial-step the coordinator paces the run: `sync_frame_time` skips its wall sleep. The achieved rate it measures only feeds the SIM2 BIN record, which is off.
 - **Wire** (`NVSTEP02`, version 2, little-endian, no implicit padding; separate from `NVGUID03`). The exact layout and its golden vectors are in `step_wire.py` and `test_step_wire.py`, and the firmware must produce the same bytes:
   - **Frame header** (52 bytes): magic, version, port count, boot id, tick k, `source_us`, out-of-loop advances, `helpers_quiet` (0 or 1), 3 reserved zero bytes.
   - **Frame, per port** (16 bytes): FIFO length, read-buffer fill, egress drop count, egress length; then the egress bytes.
