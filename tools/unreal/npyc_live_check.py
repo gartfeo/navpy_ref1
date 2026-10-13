@@ -13,7 +13,7 @@ Board clock (what turns a frame's board time into an EXPOSURE stamp):
                     "pose sent -> frame received".
 
   .venv\Scripts\python.exe -m tools.unreal.npyc_live_check --mavlink tcp:127.0.0.1:5762 --seconds 30 --out C:\tune_hitl\cam_check
-  .venv\Scripts\python.exe -m tools.unreal.npyc_live_check --pose-at 40.312,44.458,1325,0,-35,90 --seconds 20 --out C:\tune_hitl\cam_bench
+  .venv\Scripts\python.exe -m tools.unreal.npyc_live_check --pose-at 40.31205,44.45800,1335.4,0,-35,90 --seconds 20 --out C:\tune_hitl\cam_bench
 
 Latency in the CSV: frame receipt minus the mapped board time of its pose (EXPOSURE frames only).
 """

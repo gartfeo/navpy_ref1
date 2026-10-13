@@ -20,9 +20,12 @@ board / SITL hil --HIL_ACTUATOR_CONTROLS--> bridge (JSBSim) --HIL_STATE_QUATERNI
   the pose (Pure Vision Approach Constraint); `tests/guards/test_unreal_pose_isolation.py` holds it.
 - The board never waits: the pose is sent after the reply, on a non-blocking socket; a dead or slow
   Unreal only counts dropped poses (`tools/tuning/hitl_bridge/unreal_pose.py`).
-- Altitude: Cesium takes WGS84 ellipsoid heights, so `--unreal-pose HOST:PORT ALT_OFFSET_M` always
-  carries the ellipsoid-minus-MSL offset at the origin; there is no default. aas-hitl measured 23.5 m at
-  Yeghvard (EGM96 cross-check 24.8 m).
+- Altitude: navpy, the bridge and the board use MSL; every Unreal/Cesium height (georeference origin,
+  receiver origin, `--pose-at`, the dock-terrain log) is a WGS84 ellipsoid height. One undulation joins
+  them: `--unreal-pose HOST:PORT ALT_OFFSET_M` always carries it; there is no default. aas-hitl measured
+  23.5 m at Yeghvard (EGM96 cross-check 24.8 m). The Yeghvard origin is the Cesium terrain there
+  (1316.29 m ellipsoid, sampled 2026-10-14) minus 23.5: 1292.8 m MSL, georeference origin 1316.3 m
+  ellipsoid, so an aircraft at rest on the origin stands on the Cesium terrain.
 
 ## Wire formats
 
@@ -63,7 +66,8 @@ ATTITUDE delay above that minimum, not the full link delay.
 1. Unreal (game, UAV1 camera on 18110):
    `& 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' 'C:\repos\unreal-projects\AasSimProject\AasSimProject.uproject' /Game/AAS/Levels/Yeghvard_Default -game -windowed -ResX=1280 -ResY=720 -NavPyEnableNativeCameraStream=1 -NavPyExactVehiclePose=1 -NavPyNativeCameraHeaderVersion=2 -NavPyFixedBodyCamera=1 -NoRayTracing -NoVSync '-ExecCmds="t.IdleWhenNotForeground 0"'`
 2. The bridge as usual plus `--unreal-pose 127.0.0.1:17110 23.5`, with the Yeghvard origin
-   (`--origin-lat 40.3117412 --origin-lon 44.4552112 --origin-alt 1293`) on both the bridge and the board.
+   (`--origin-lat 40.3117412 --origin-lon 44.4552112 --origin-alt 1292.8`) on both the bridge and the board
+   (runner `--origin 40.3117412,44.4552112,1292.8,0`; a board's `SIM_OPOS_ALT` 1292.8).
 3. navpy with frame source `npyc://127.0.0.1:18110`, or the check tool:
    `Set-Location C:\Users\GARTF\Downloads\navpy-temp2; $env:PYTHONPATH = "$PWD\src;$PWD"; .venv\Scripts\python.exe -m tools.unreal.npyc_live_check --mavlink udpin:0.0.0.0:9640 --seconds 60 --out C:\tune_hitl\cam_check`
    (`--mavlink`: any pymavlink link carrying the board's ATTITUDE, e.g. the runner's `--mp-mirror` port
@@ -79,13 +83,20 @@ Unit and loopback tests only prove the mechanism; these are simulation numbers, 
 | Bench pose over the dock, 30 s | 17.0 | 0 | 511 / 511 | 90 / 120 / 167 / 181 ms |
 
 The 147 READ frames of the SITL run all came before ATTITUDE started streaming. ChArUco was detected
-in 158 of 170 checked frames of the dock run.
+in 158 of 170 checked frames of the dock run (from below the terrain, before the altitude fix).
+
+After the altitude and exposure fix (2026-10-14, same laptop): SITL hil + bridge + Unreal 60 s, 24.9 fps,
+0 index gaps, 1472 / 1494 EXPOSURE, 144 / 156 / 168 / 187 ms, mean grey 142 with nothing saturated, the
+aircraft at rest 1.0 m (the rail) above the terrain. Bench pose 15 m above the board: ChArUco in 434 of
+435 frames, mean grey 105. The dock base sits on the terrain (+0.00 m, Unreal log
+`NavPy dock terrain check`).
 
 ## Known limits
 
-- The native camera runs at about 17 fps on this laptop, not the configured 30.
-- The native camera image is very dark (exposure bias -12) and the dock deck lies about 24 m below the
-  Cesium terrain at Yeghvard (deck top 1292.5 m ellipsoid; terrain about 1316 m): the board is seen only
-  from below the terrain surface. Both are scene settings, not part of this stream.
+- The native camera runs at about 17-25 fps on this laptop, not the configured 30.
+- Exposure is fixed, never auto: `NativeCameraExposureBias=-13.0` in the project's `DefaultGame.ini`
+  (one stop per step, `-NavPyNativeCameraExposureBias=<bias>`); the level's cameras keep no own value.
+- With the fixed body camera at -35 deg the board's ChArUco is detected up to about 15 m above it and
+  not from 16.6 m; that limit is the board's pixel size, not the exposure.
 - The current fork SITL puts the HIL link on SERIAL8 (base port + 8), which `sitl-backing --model hil`
   also gives SERIAL5; the live check ran SITL directly with `--serial8=tcp:8168` and serial0 held inside WSL.
