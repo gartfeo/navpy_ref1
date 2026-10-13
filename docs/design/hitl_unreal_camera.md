@@ -63,8 +63,9 @@ ATTITUDE delay above that minimum, not the full link delay.
 
 ## Running it (PowerShell 5.1)
 
-1. Unreal (game, UAV1 camera on 18110):
-   `& 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' 'C:\repos\unreal-projects\AasSimProject\AasSimProject.uproject' /Game/AAS/Levels/Yeghvard_Default -game -windowed -ResX=1280 -ResY=720 -NavPyEnableNativeCameraStream=1 -NavPyExactVehiclePose=1 -NavPyNativeCameraHeaderVersion=2 -NavPyFixedBodyCamera=1 -NoRayTracing -NoVSync '-ExecCmds="t.IdleWhenNotForeground 0"'`
+1. Unreal (game, UAV1 camera on 18110), without sound and pixel streaming, capped at 60 fps and below
+   the bridge in priority (see "Sharing the PC with the board link"):
+   `$ue = Start-Process -PassThru 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList 'C:\repos\unreal-projects\AasSimProject\AasSimProject.uproject','/Game/AAS/Levels/Yeghvard_Default','-game','-windowed','-ResX=1280','-ResY=720','-NavPyEnableNativeCameraStream=1','-NavPyExactVehiclePose=1','-NavPyNativeCameraHeaderVersion=2','-NavPyFixedBodyCamera=1','-NoRayTracing','-NoVSync','-nosound','-ini:Game:[/Script/NavPyUnrealBridge.NavPyGimbalCameraActor]:bEnablePixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableTailPixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableGimbalInset=False','-ExecCmds="t.MaxFPS 60"'; Start-Sleep -Seconds 5; $ue.PriorityClass = 'BelowNormal'`
 2. The bridge as usual plus `--unreal-pose 127.0.0.1:17110 23.5`, with the Yeghvard origin
    (`--origin-lat 40.3117412 --origin-lon 44.4552112 --origin-alt 1292.8`) on both the bridge and the board
    (runner `--origin 40.3117412,44.4552112,1292.8,0`; a board's `SIM_OPOS_ALT` 1292.8).
@@ -91,9 +92,39 @@ aircraft at rest 1.0 m (the rail) above the terrain. Bench pose 15 m above the b
 435 frames, mean grey 105. The dock base sits on the terrain (+0.00 m, Unreal log
 `NavPy dock terrain check`).
 
+## Sharing the PC with the board link (2026-10-14, real board, port-check, check 600 s)
+
+The board counts a 5 ms loop stale when the bridge's reply arrives after its next frame (gate: at most
+5% stale, age at most 50 ms). The first board run with the stream (cam1) failed the gate and the camera:
+
+| Run | Unreal / bridge | stale | age max | camera connections | fps | EXPOSURE | latency p50 / p99 |
+|---|---|---|---|---|---|---|---|
+| hitl4, no Unreal | - / normal | 0.5% | - | - | - | - | - |
+| cam1 | pixel streaming on, old sender / normal | 14.0% | 19.8 ms | 44 | 20.4 | 4804 of 12211 | 105 / 169 ms |
+| cam2 | streaming off, -nosound, new sender / normal | 9.3% | 15.1 ms | 1 | 19.0 | 4539 of 4545 in span | 115 / 164 ms |
+| cam3 | same, Unreal BelowNormal / bridge High | 2.8% | 12.5 ms | 1 | 19.1 | 4515 of 4523 in span | 115 / 147 ms |
+| cam4 | same, the bridge raising itself (committed) | 3.2% | 12.2 ms | 1 | 19.0 | 4441 of 4449 in span | 114 / 156 ms |
+
+- Stale loops were spread evenly, not in bursts, and followed the bridge's reply time: its processing
+  per frame went from 0.6 ms (median, armed) without Unreal to 1.1-1.2 ms with it. The project's default
+  pixel streaming (1080p gimbal every frame, 60 fps tail, inset) kept Unreal at about 10 cores; off, 3.
+- Reconnects: the camera actor closed the socket whenever a send would block (the reader a frame
+  behind), and each reconnect lost the frames in flight. It now keeps one frame in flight, finishes it
+  on later ticks and drops new frames while it is pending (logged at powers of two); only a real socket
+  error closes it.
+- EXPOSURE: a frame is EXPOSURE only when its pose's board time is within 2 s of the newest ATTITUDE. The
+  check ran 600 s, the flight about 210 s; before it Unreal showed the previous run's last pose, after
+  it the pose stayed frozen while ATTITUDE went on, so those frames were READ. `exposure_span` in the check's summary counts the frames from the first to the
+  last EXPOSURE frame.
+- The bridge raises itself to the HIGH priority class on Windows (`process_priority.py`, at the process
+  entry only); Unreal goes to BelowNormal (command above). A bench screen with the board idle did not
+  show the difference; the board runs did.
+- The capture runs on every other game tick (game about 37 fps, capture gate 1/30 s), hence about 19 fps.
+
 ## Known limits
 
-- The native camera runs at about 17-25 fps on this laptop, not the configured 30.
+- The native camera runs at about 17-25 fps on this laptop, not the configured 30 (about 19 fps beside
+  the board link, above).
 - Exposure is fixed, never auto: `NativeCameraExposureBias=-13.0` in the project's `DefaultGame.ini`
   (one stop per step, `-NavPyNativeCameraExposureBias=<bias>`); the level's cameras keep no own value.
 - With the fixed body camera at -35 deg the board's ChArUco is detected up to about 15 m above it and

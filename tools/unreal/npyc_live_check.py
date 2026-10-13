@@ -16,6 +16,12 @@ Board clock (what turns a frame's board time into an EXPOSURE stamp):
   .venv\Scripts\python.exe -m tools.unreal.npyc_live_check --pose-at 40.31205,44.45800,1335.4,0,-35,90 --seconds 20 --out C:\tune_hitl\cam_bench
 
 Latency in the CSV: frame receipt minus the mapped board time of its pose (EXPOSURE frames only).
+A frame is EXPOSURE-stamped only when its pose's board time is within 2 s (board_clock_map.BOARD_CLOCK_MAX_GAP_S) of the newest
+ATTITUDE. Before the flight Unreal still shows the previous run's last pose, and after the runner has
+stopped the bridge the pose stays frozen while ATTITUDE goes on, so those frames are READ by rule. The
+summary's exposure_span counts the frames from the first to the last EXPOSURE frame and how many of them
+are EXPOSURE: the stamping rate while stamping was possible, so a check that outlives the flight does not
+read as missing stamps.
 """
 from __future__ import annotations
 
@@ -157,6 +163,8 @@ def summarize(rows: list[dict], seconds: float) -> dict:
     indices = sorted(int(r["frame_index"]) for r in rows)
     gaps = sum(b - a - 1 for a, b in zip(indices, indices[1:]) if b > a + 1)
     latencies = sorted(float(r["latency_ms"]) for r in rows if r["latency_ms"])
+    exposure_at = [i for i, r in enumerate(rows) if r["stamp_kind"] == "exposure"]
+    span = rows[exposure_at[0]:exposure_at[-1] + 1] if exposure_at else []
 
     def pct(p: float) -> Optional[float]:
         return round(latencies[min(len(latencies) - 1, int(p * len(latencies)))], 2) if latencies else None
@@ -164,6 +172,7 @@ def summarize(rows: list[dict], seconds: float) -> dict:
         "frames": len(rows), "seconds": round(seconds, 2), "fps": round(len(rows) / seconds, 2) if seconds else 0,
         "frame_index_gaps": gaps,
         "exposure_stamped": sum(r["stamp_kind"] == "exposure" for r in rows),
+        "exposure_span": {"frames": len(span), "exposure": len(exposure_at)},
         "latency_ms": {"n": len(latencies), "min": pct(0.0), "p50": pct(0.5), "p90": pct(0.9), "p99": pct(0.99),
                        "max": latencies[-1] if latencies else None,
                        "mean": round(statistics.fmean(latencies), 2) if latencies else None},
