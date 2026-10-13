@@ -1,6 +1,6 @@
-# Final approach: late commands and the stale-command check (draft v3, 2026-10-13)
+# Final approach: late commands and the stale-command check (v4, 2026-10-13)
 
-**Status.** The owner said yes to both directions (fix the delay at its source; judge staleness in aircraft time) and
+**Status.** Approved 2026-10-13: the owner said yes to question 2 ("at least for now; our current goal is the accuracy") and "fix all". Earlier: the owner said yes to both directions (fix the delay at its source; judge staleness in aircraft time) and
 asked for a Codex review. Codex reviewed v1 ("rework", 8 findings) and v2 ("rework", 5 findings on precision); v3
 applies all of them. Codex on v3: "good enough to start a1"; its one remaining point (prove the override stayed active
 from the aircraft side) is applied. Nothing is built. Evidence: runs
@@ -58,6 +58,44 @@ resumes normal GUIDED navigation (`mode_guided.cpp:35-87`, Plane-4.6.3). So:
   - freshness is still checked every command tick, whether or not a refresh is due.
 - If it is the router: fix its endpoint.
 - Either way: verify the deployed firmware's SHA, change no ArduPlane parameters, and do not lower the speed.
+
+## a1 result (2026-10-13, run `.logs/a1-measure-b`, temporary uplink counter, not committed)
+- **Route:** each NavPy talks to its own SITL over a dedicated UDP link (`COMPANION_UDP=1`, `run_swarm.sh` serial0
+  `udpclient`). There is no router on the command path.
+- **SITL input:** IO, including one `recv` per UDP serial port, runs when sim time has moved over 10 ms
+  (`Scheduler.cpp:298-307`).
+- **NavPy uplink during an approach:** about 52 messages per aircraft-second, peak 64 in any second:
+  - `SET_ATTITUDE_TARGET` 44;
+  - `STATUSTEXT` 6.5;
+  - gimbal and camera status 1.5.
+- **With SITL holding 10.1x, there is no queue.** The best-fit delay stays at 0.1-0.8 s without growth. Both peers
+  closed to a 0.0 m miss.
+- **In the failed runs SITL ran slower** (about 6.7x: 30 aircraft-s in 4.5 wall-s). Those runs overlapped with other
+  heavy work on the host. NavPy's command cadence follows the *nominal* speedup in wall time, so per aircraft-second
+  it sent proportionally more than SITL reads, and the queue grew.
+- **So the hop is SITL's input, overrun when SITL falls behind nominal speed.** The a2 send policy (a target per new
+  command plus a 0.5 s aircraft-time refresh) ties the rate to aircraft time and removes the overrun. Cutting
+  `STATUSTEXT` during the approach is a further margin.
+
+## New: the pass detector fires at the start of an approach from the circle
+- In `.logs/a1-measure-b` the owner was approved and entered NAV. Within 70 ms it logged `RESET: PASSED POI`, 630 m
+  from the dock.
+- `VisualPassDetector` (`visual_pass.py:42-59`) arms on any frame with the dock even slightly forward (`body_x > 0`).
+  It then declares a pass after two frames with `body_x <= 0`.
+- From the waiting circle the dock starts almost exactly abeam (about 90° off the nose), so one small turn reads as
+  "ahead, then behind".
+- **Fix (a6):** arm only once the dock is clearly ahead: `body_x >= cos(PASS_ARM_MAX_OFF_NOSE_DEG)`, with the angle
+  named and justified (proposal 60°). `body_x` is the frame-local line of sight, which the Pure Vision constraint
+  allows.
+- **Test:** an abeam start does not pass; an ahead-then-behind sequence does.
+
+## New: what ends an approach at the dock with a gimballed camera
+- Both peers closed to 0.0 m, but the run ended as `NAV_FAIL: no_detection`, not as a pass. The eval then reports
+  "SNAP without passed=True".
+- The pass detector needs two frames with the dock behind the camera. A gimbal camera cannot look behind: pitch stops
+  at -90°, so the sim projector reports `behind_cam` with no detection.
+- **a7 (owner question 2):** define completion for a gimballed narrow-field camera from camera state only (gimbal
+  readback is allowed): the dock last seen near the gimbal's down limit, then lost, counts as passed.
 
 ## Cause 2: the stale check measures the PC clock
 - `command_freshness.py:30-47` checks the frame's producer age in aircraft time (limit 1.0 s), and the receipt age in
@@ -121,6 +159,10 @@ and design item, a5.
 The point-mass bench's under-2 cm miss shows the law converges when commands arrive. It does not promise centimetre
 SITL results.
 
+Added after a1: **a6** (pass arming) and **a7** (completion with a gimbal camera) run before a4.
+
 ## Questions for the owner (recommended answer in bold)
 1. **After a failed approach, retry the same dock without asking you again (until a pass budget runs out)?** Or ask
    again, or go home? **Decide at a5; a1-a3 do not depend on it.**
+2. **A dock last seen near the gimbal's straight-down limit and then lost counts as reached (passed), not as a lost
+   dock?** **Yes**, with the angle named and tested.
