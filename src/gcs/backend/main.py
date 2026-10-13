@@ -19,6 +19,7 @@ from gcs.backend.diagnostics import diagnostic_session
 from gcs.backend.route_registration import register_optional_routes
 from gcs.backend.frontend_static import mount_frontend
 from gcs.backend.runtime_paths import frontend_dist_dir, gcs_log_dir
+from navpy.core.kernel.logging import pose_cadence_debug
 from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
 
 logging.basicConfig(
@@ -27,6 +28,9 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger(__name__)
+# The backend's own MAVLink readers record arrivals too; keep them apart from
+# the companions' files.
+pose_cadence_debug.set_producer("gcs")
 
 STARTUP_AUTOCONNECT_ATTEMPTS = 24
 STARTUP_AUTOCONNECT_SCAN_TIMEOUT_S = 5.0

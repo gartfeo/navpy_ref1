@@ -21,8 +21,10 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, load_scenario_manifest
 from scripts.eval_certificate_source_time import SOURCE_TIME_ENV, SOURCE_TIME_SUBDIR
 
+from gcs.backend.diagnostics import SESSION_ID_ENV as DIAGNOSTICS_SESSION_ID_ENV
 from gcs.backend.runtime_paths import LOG_DIR_ENV as GCS_LOG_DIR_ENV
 from navpy.core.kernel.logging.log_rotation import LOG_ROTATION_ENV
+from navpy.core.kernel.logging.pose_cadence_naming import NAMING_ENV as POSE_CADENCE_NAMING_ENV
 from navpy.sim.sim_cv_threads import SIM_CV_THREADS_ENV
 from navpy.sim.world.navigation_poi_args import encode_wp_bitmask
 
@@ -54,6 +56,8 @@ PINNED_ENV = {
 #: loopback discard port, never a LAN host.
 UNUSED_ESP32_PORT = 9
 TAKEOFF_ALTITUDE_M = 40.0
+#: The run's diagnostics session id and directory name (one backend per run).
+DIAGNOSTICS_SESSION_ID = "demo-eval"
 
 
 def launch_command(
@@ -175,6 +179,9 @@ def build_environment(
     env["NAVPY_LOG_DIR"] = str(log_dir.resolve())
     env[GCS_LOG_DIR_ENV] = str((log_dir / GCS_LOG_SUBDIR).resolve())
     env[SOURCE_TIME_ENV] = str((log_dir / SOURCE_TIME_SUBDIR).resolve())
+    # One generation per producer and sysid (step 4): name by producer, not pid.
+    env[POSE_CADENCE_NAMING_ENV] = "producer"
+    env[DIAGNOSTICS_SESSION_ID_ENV] = DIAGNOSTICS_SESSION_ID
     env["NAVPY_SIM_LOG_LEVEL"] = "DEBUG"
     return env
 

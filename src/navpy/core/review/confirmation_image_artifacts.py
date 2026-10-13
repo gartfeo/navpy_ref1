@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import json
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -31,9 +30,12 @@ def save_confirmation_image_artifacts(
         confidence: float | None,
         frame_bboxes: Iterable[Sequence[float]] | None,
         confirmation_degraded: bool,
-        timestamp: datetime | None = None,
 ) -> ConfirmationImageArtifacts | None:
-    """Save full-source and sent-thumbnail confirmation image artifacts."""
+    """Save full-source and sent-thumbnail confirmation image artifacts.
+
+    Named by vehicle, POI and confirmation round (``_r1``, ``_r2``...), never
+    by wall time, so equal runs write equal names.
+    """
     if not log_path:
         return None
     if source_frame is None or source_frame.size == 0 or not sent_image_b64:
@@ -42,23 +44,7 @@ def save_confirmation_image_artifacts(
     log_dir = Path(log_path)
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    ts = (timestamp or datetime.now()).strftime("%H%M%S%f")
-    prefix = f"uav_{int(sys_id)}_confirmation_t{int(poi_id)}_{ts}"
-    source_path = log_dir / f"{prefix}_source.png"
-    sent_thumbnail_path = log_dir / f"{prefix}_sent_thumb.jpg"
-    metadata_path = log_dir / f"{prefix}_meta.json"
-
-    if not cv2.imwrite(str(source_path), source_frame):
-        raise OSError(f"failed to write source image: {source_path}")
-
-    sent_bytes = base64.b64decode(sent_image_b64)
-    sent_thumbnail_path.write_bytes(sent_bytes)
-
     bbox = _json_float_list(bbox_cxcywh)
-    frame_bbox_values = None
-    if frame_bboxes is not None:
-        frame_bbox_values = [_json_float_list(b) for b in frame_bboxes]
-
     metadata = {
         "sys_id": int(sys_id),
         "poi_id": int(poi_id),
@@ -69,20 +55,54 @@ def save_confirmation_image_artifacts(
         "bbox_cxcywh": bbox,
         "bbox_height_px": bbox[3] if len(bbox) >= 4 else None,
         "frame_shape": [int(v) for v in source_frame.shape],
-        "frame_bboxes": frame_bbox_values,
-        "artifacts": {
-            "source": source_path.name,
-            "sent_thumbnail": sent_thumbnail_path.name,
-            "metadata": metadata_path.name,
-        },
+        "frame_bboxes": (
+            None if frame_bboxes is None
+            else [_json_float_list(b) for b in frame_bboxes]
+        ),
     }
-    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+    sent_bytes = base64.b64decode(sent_image_b64)
+
+    prefix, metadata_path = _claim_round(log_dir, int(sys_id), int(poi_id))
+    source_path = log_dir / f"{prefix}_source.png"
+    sent_thumbnail_path = log_dir / f"{prefix}_sent_thumb.jpg"
+    metadata["artifacts"] = {
+        "source": source_path.name,
+        "sent_thumbnail": sent_thumbnail_path.name,
+        "metadata": metadata_path.name,
+    }
+    # One transaction: a failure removes this round's files, which frees the
+    # round, so a retry neither skips a number nor leaves a partial artifact.
+    try:
+        if not cv2.imwrite(str(source_path), source_frame):
+            raise OSError(f"failed to write source image: {source_path}")
+        sent_thumbnail_path.write_bytes(sent_bytes)
+        metadata_path.write_text(
+            json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8"
+        )
+    except BaseException:
+        for path in (source_path, sent_thumbnail_path, metadata_path):
+            path.unlink(missing_ok=True)
+        raise
 
     return ConfirmationImageArtifacts(
         source_path=source_path,
         sent_thumbnail_path=sent_thumbnail_path,
         metadata_path=metadata_path,
     )
+
+
+def _claim_round(log_dir: Path, sys_id: int, poi_id: int) -> tuple[str, Path]:
+    """The next free round for this POI, claimed by creating its metadata file."""
+    round_number = 1
+    while True:
+        prefix = f"uav_{sys_id}_confirmation_t{poi_id}_r{round_number}"
+        metadata_path = log_dir / f"{prefix}_meta.json"
+        try:
+            metadata_path.open("x").close()
+        except FileExistsError:
+            round_number += 1
+            continue
+        return prefix, metadata_path
 
 
 def _json_float_list(values: Sequence[float]) -> list[float]:

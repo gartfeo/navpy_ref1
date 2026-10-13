@@ -60,6 +60,13 @@ import threading
 from typing import Dict, List, Tuple
 
 from navpy.core.kernel.logging.pose_cadence_flusher import PoseCadenceFlusher
+from navpy.core.kernel.logging.pose_cadence_naming import (
+    file_owner,
+    resolve_naming,
+    starts_fresh,
+    validate_producer,
+    write_rows,
+)
 
 
 def _resolve_output_dir() -> str | None:
@@ -78,6 +85,15 @@ def _resolve_output_dir() -> str | None:
 
 _OUTPUT_DIR = _resolve_output_dir()
 ENABLED = _OUTPUT_DIR is not None
+
+_NAMING = resolve_naming()
+_producer = "navpy"
+
+
+def set_producer(name: str) -> None:
+    """Name this process's files in ``producer`` naming (the GCS backend: ``gcs``)."""
+    global _producer
+    _producer = validate_producer(name)
 # Bounds the rows a Windows hard-terminate (no atexit) can lose to the last
 # quarter wall-second -- at SIM_SPEEDUP=10 that is ~2.5 sim-seconds of tail,
 # which keeps the end-of-navigation task (SNAP) window in the record.
@@ -208,9 +224,9 @@ def dump_all(*, strict: bool = False) -> None:
     disk, so a flush writes only the tail (O(new)) instead of rewriting the whole
     history. The first flush of a key truncates + writes the header; later flushes
     append. Serialized by ``_dump_lock`` so the daemon flusher and atexit can't
-    race the same file. PID-keyed filenames: the GCS eval relaunches NavPy with
-    the same sys_ids (param-write then mission), so a bare-sysid name would let
-    generations overwrite each other.
+    race the same file. PID-keyed filenames by default: an eval that restarts
+    NavPy with the same sys_ids keeps each generation apart; ``producer``
+    naming (``pose_cadence_naming``) gives stable names instead.
     """
     if not ENABLED:
         return
@@ -220,7 +236,7 @@ def dump_all(*, strict: bool = False) -> None:
         if not keys:
             return
         os.makedirs(_OUTPUT_DIR, exist_ok=True)
-        pid = os.getpid()
+        owner = file_owner(_NAMING, _producer)
         for key in keys:
             rows = _buffers[key]
             start = _written.get(key, 0)
@@ -236,17 +252,15 @@ def dump_all(*, strict: bool = False) -> None:
             tail = rows[start:end]
             sys_id, stream = key
             path = os.path.join(
-                _OUTPUT_DIR, f"pose_cadence_{stream}_uav_{sys_id}_pid_{pid}.csv"
+                _OUTPUT_DIR, f"pose_cadence_{stream}_uav_{sys_id}_{owner}.csv"
             )
             try:
-                # 'w' on the first write (truncates any stale file + header),
-                # 'a' thereafter so earlier rows are preserved.
-                with open(path, "w" if start == 0 else "a",
-                          encoding="utf-8", newline="") as fh:
-                    if start == 0:
-                        fh.write(_HEADERS.get(stream, ""))
-                    for row in tail:
-                        fh.write(",".join(str(c) for c in row) + "\n")
+                fresh = starts_fresh(_NAMING, path, start == 0)
+                write_rows(
+                    path,
+                    _HEADERS.get(stream, "") if fresh else None,
+                    (",".join(str(c) for c in row) + "\n" for row in tail),
+                )
                 _written[key] = end
             except OSError:
                 # The periodic flush retries later; the final (strict) one

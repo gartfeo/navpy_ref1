@@ -33,6 +33,14 @@ def main(argv: list[str] | None = None) -> int:
     with output.open("x", encoding="utf-8") as handle:
         handle.write(serialized)
     print(f"Saved comparison: {output}")
+    print(f"Artifacts byte-equal: {report['artifacts_byte_equal']}")
+    for pair in report["comparisons"]:
+        artifacts = pair["artifacts"]
+        if artifacts["status"] == "incomplete":
+            print(f"  run {pair['repeat_index']}: incomplete (missing or changing evidence)")
+            continue
+        print(f"  run {pair['repeat_index']}: {len(artifacts['differing_files'])} differing, "
+              f"{len(artifacts['only_in_reference']) + len(artifacts['only_in_repeat'])} unmatched files")
     print(f"Recorded evidence equal: {report['recorded_evidence_equal']}")
     print("Full scenario repeatability: UNVERIFIED (see report limitations)")
     # A matching sampled record is deliberately not a successful qualification exit.

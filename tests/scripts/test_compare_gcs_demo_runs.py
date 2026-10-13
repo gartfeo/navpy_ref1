@@ -73,6 +73,7 @@ def test_unstarted_attempt_is_not_dropped(runs, tmp_path):
     assert len(report["runs"]) == 3
     assert report["runs"][2]["errors"] == ["run directory is missing"]
     assert report["comparisons"][1]["recorded_inputs"]["status"] == "incomplete"
+    assert report["comparisons"][1]["artifacts"]["status"] == "incomplete"
     assert report["recorded_evidence_equal"] is False
 
 
@@ -81,7 +82,8 @@ def test_changed_command_is_reported_even_if_each_approach_passes(runs):
     report = compare_runs(runs)
     assert report["all_per_run_gates_pass"]
     difference = report["comparisons"][0]["sampled_commands"]["first_difference"]
-    assert difference == {"path": "$.5[0][0].cmd_roll", "left": 12.0, "right": 12.01}
+    # The wall view names vehicles by ordinal (sysid 5 is the plan's second UAV).
+    assert difference == {"path": "$.uav2[0][0].cmd_roll", "left": 12.0, "right": 12.01}
     assert not report["recorded_evidence_equal"]
 
 
@@ -94,7 +96,7 @@ def test_pass_suppressed_tail_is_not_trimmed(runs):
     path.write_text("\n".join(lines) + "\n")
     report = compare_runs(runs)
     difference = report["comparisons"][0]["sampled_commands"]["first_difference"]
-    assert difference["path"] == "$.4[0].length"
+    assert difference["path"] == "$.uav1[0].length"
     assert difference["left"] == 13 and difference["right"] == 14
 
 
@@ -183,3 +185,83 @@ def test_mutated_capture_cannot_be_equal(runs, monkeypatch):
     report = compare_runs(runs)
     assert not report["recorded_evidence_equal"]
     assert all("run evidence changed while being read" in row["errors"] for row in report["runs"])
+
+
+def test_a_self_compare_is_byte_equal_and_host_files_are_ignored(runs):
+    (runs[0] / "input_manifest_host.json").write_text('{"home": "C:/a"}')
+    (runs[1] / "input_manifest_host.json").write_text('{"home": "D:/b"}')
+    report = compare_runs(runs)
+    artifacts = report["comparisons"][0]["artifacts"]
+    assert artifacts["status"] == "equal" and artifacts["compared_files"] > 5
+    assert report["artifacts_byte_equal"] is True
+
+
+def test_a_changed_waypoint_is_a_byte_and_an_input_difference(runs):
+    replace(runs[1] / "demo_mission_plan.json", "40.1,", "40.10000001,")
+    report = compare_runs(runs)
+    artifacts = report["comparisons"][0]["artifacts"]
+    assert artifacts["differing_files"] == ["demo_mission_plan.json"]
+    assert report["artifacts_byte_equal"] is False
+    assert report["comparisons"][0]["recorded_inputs"]["status"] == "different"
+
+
+def test_a_new_or_missing_file_breaks_byte_equality(runs):
+    (runs[1] / "uav_4_confirmation_t1_r2_meta.json").write_text("{}")
+    artifacts = compare_runs(runs)["comparisons"][0]["artifacts"]
+    assert artifacts["status"] == "different"
+    assert artifacts["only_in_repeat"] == ["uav_4_confirmation_t1_r2_meta.json"]
+
+
+def test_the_wall_view_maps_sysids_to_ordinals_and_the_run_dir_to_a_token():
+    from scripts.gcs_demo_artifacts import canonical_view
+
+    run_a = {"sys_ids": [1, 2, 3], "assignments": {"2": 1}, "path": "C:/runs/a/x.json"}
+    run_b = {"sys_ids": [4, 5, 6], "assignments": {"5": 1}, "path": "C:/runs/b/x.json"}
+
+    assert canonical_view(run_a, {1: 1, 2: 2, 3: 3}, "C:/runs/a") == canonical_view(
+        run_b, {4: 1, 5: 2, 6: 3}, "C:/runs/b"
+    ) == {"sys_ids": ["uav1", "uav2", "uav3"], "assignments": {"uav2": 1},
+          "path": "<run_dir>/x.json"}
+
+
+def test_byte_equality_needs_a_stable_snapshot(runs, monkeypatch):
+    real_inventory = comparison._inventory
+    calls = {"n": 0}
+
+    def changing(run_dir):
+        calls["n"] += 1
+        inventory = real_inventory(run_dir)
+        if calls["n"] == 4:  # the second run's final inventory
+            inventory["late.txt"] = "0" * 64
+        return inventory
+
+    monkeypatch.setattr(comparison, "_inventory", changing)
+    report = compare_runs(runs)
+    assert report["comparisons"][0]["artifacts"] == {"status": "incomplete"}
+    assert report["artifacts_byte_equal"] is False
+
+
+def test_two_missing_runs_are_not_byte_equal(tmp_path):
+    report = compare_runs([tmp_path / "a", tmp_path / "b"])
+    assert report["comparisons"][0]["artifacts"] == {"status": "incomplete"}
+    assert report["artifacts_byte_equal"] is False
+
+
+def test_the_wall_view_keeps_sibling_paths_and_maps_approval_sysids():
+    from scripts.gcs_demo_artifacts import canonical_view
+
+    view = canonical_view(
+        {"inside": "C:/runs/a/x", "sibling": "C:/runs/a-other/x",
+         "approval_policy": [{"sys_id": 4, "requested_delay_s": 15.0}],
+         "launch_order": [4, 5]},
+        {4: 1, 5: 2}, "C:/runs/a",
+    )
+    assert view == {"inside": "<run_dir>/x", "sibling": "C:/runs/a-other/x",
+                    "approval_policy": [{"sys_id": "uav1", "requested_delay_s": 15.0}],
+                    "launch_order": ["uav1", "uav2"]}
+
+
+def test_the_cli_reports_an_incomplete_comparison(tmp_path):
+    output = tmp_path / "report.json"
+    assert main([str(tmp_path / "a"), str(tmp_path / "b"), "--output", str(output)]) == 1
+    assert output.exists()

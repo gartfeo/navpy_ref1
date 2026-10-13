@@ -40,6 +40,7 @@ def teardown_module(_module):
     """Leave the module in its default disabled state for the rest of the suite."""
     pcd.stop_flusher()
     os.environ.pop("NAVPY_POSE_CADENCE_DEBUG", None)
+    os.environ.pop("NAVPY_POSE_CADENCE_NAMING", None)
     importlib.reload(pcd)
 
 
@@ -178,3 +179,77 @@ def test_enabled_reload_starts_daemon_that_stop_flusher_joins(monkeypatch, tmp_p
     mod.stop_flusher()
     assert not thread.is_alive()
     assert mod._flusher._thread is None
+
+
+def _reload_producer_naming(monkeypatch, directory):
+    monkeypatch.setenv("NAVPY_POSE_CADENCE_NAMING", "producer")
+    return _reload(monkeypatch, str(directory))
+
+
+def test_producer_naming_gives_stable_names_per_role(monkeypatch, tmp_path):
+    mod = _reload_producer_naming(monkeypatch, tmp_path)
+    mod.record_attitude_arrival(7, 100.0, 1000)
+    mod.dump_all()
+    mod.set_producer("gcs")
+    mod.record_attitude_arrival(8, 100.0, 1000)
+    mod.dump_all()
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "pose_cadence_attitude_arrival_uav_7_navpy.csv",
+        "pose_cadence_attitude_arrival_uav_8_gcs.csv",
+    ]
+
+
+def test_a_later_generation_continues_the_producer_file(monkeypatch, tmp_path):
+    mod = _reload_producer_naming(monkeypatch, tmp_path)
+    mod.record_attitude_arrival(7, 100.0, 1000)
+    mod.dump_all()
+    mod = _reload_producer_naming(monkeypatch, tmp_path)  # a new process generation
+    mod.record_attitude_arrival(7, 200.0, 2000)
+    mod.dump_all()
+
+    assert (tmp_path / "pose_cadence_attitude_arrival_uav_7_navpy.csv").read_text(
+        encoding="utf-8"
+    ).splitlines() == ["wall_s,boot_ms", "100.0,1000", "200.0,2000"]
+
+
+def test_unknown_naming_and_producer_are_rejected(monkeypatch, tmp_path):
+    monkeypatch.setenv("NAVPY_POSE_CADENCE_NAMING", "sysid")
+    with pytest.raises(ValueError, match="NAVPY_POSE_CADENCE_NAMING"):
+        _reload(monkeypatch, str(tmp_path))
+    monkeypatch.delenv("NAVPY_POSE_CADENCE_NAMING")
+    mod = _reload(monkeypatch, str(tmp_path))
+    with pytest.raises(ValueError, match="lowercase"):
+        mod.set_producer("Gcs_1")
+
+
+def test_a_failed_append_is_rolled_back_so_the_retry_does_not_duplicate(tmp_path):
+    from navpy.core.kernel.logging.pose_cadence_naming import write_rows
+
+    path = tmp_path / "rows.csv"
+    write_rows(str(path), "h\n", ["1\n"])
+
+    def failing_lines():
+        yield "2\n"
+        raise OSError("disk full")
+
+    with pytest.raises(OSError):
+        write_rows(str(path), None, failing_lines())
+    write_rows(str(path), None, ["2\n", "3\n"])
+
+    assert path.read_text(encoding="utf-8") == "h\n1\n2\n3\n"
+
+
+def test_a_failed_fresh_write_leaves_an_empty_file_that_restarts_fresh(tmp_path):
+    from navpy.core.kernel.logging.pose_cadence_naming import starts_fresh, write_rows
+
+    path = tmp_path / "rows.csv"
+
+    def failing_lines():
+        yield "1\n"
+        raise OSError("disk full")
+
+    with pytest.raises(OSError):
+        write_rows(str(path), "h\n", failing_lines())
+    assert path.read_text(encoding="utf-8") == ""
+    assert starts_fresh("producer", str(path), True) is True

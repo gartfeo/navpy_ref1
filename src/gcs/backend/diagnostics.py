@@ -7,6 +7,8 @@ connection strings, or raw telemetry.
 from __future__ import annotations
 
 import json
+import os
+import re
 import threading
 import uuid
 import zipfile
@@ -22,6 +24,10 @@ MAX_FILE_BYTES = 5_000_000
 MAX_SESSION_FILES = 2
 MAX_RETAINED_SESSIONS = 10
 MAX_SESSION_AGE_DAYS = 14
+#: An evaluator's fixed session id; it also names the session directory, so
+#: equal runs write equal names. Unset: a random id and a wall-time name.
+SESSION_ID_ENV = "GCS_DIAGNOSTICS_SESSION_ID"
+_SESSION_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 ALLOWED_FIELDS = {
     "client_id", "client_seq", "request_id", "operation_id", "sys_id", "sys_ids",
@@ -59,6 +65,15 @@ def _safe_value(value: Any) -> Any:
     return _safe_scalar(value)
 
 
+def _fixed_session_id() -> str | None:
+    value = os.environ.get(SESSION_ID_ENV, "").strip()
+    if not value:
+        return None
+    if not _SESSION_ID_RE.fullmatch(value):
+        raise ValueError(f"{SESSION_ID_ENV} must match {_SESSION_ID_RE.pattern}")
+    return value
+
+
 class DiagnosticSession:
     def __init__(self, root: Path | None = None) -> None:
         self.root = root or gcs_log_dir() / "sessions"
@@ -80,9 +95,12 @@ class DiagnosticSession:
                 self.root.mkdir(parents=True, exist_ok=True)
                 self._prune()
                 self.started_at = _utc_now()
-                self.session_id = uuid.uuid4().hex
+                fixed = _fixed_session_id()
+                self.session_id = fixed or uuid.uuid4().hex
                 stamp = self.started_at.strftime("%Y%m%dT%H%M%SZ")
-                self.session_dir = self.root / f"{stamp}_{self.session_id[:8]}"
+                self.session_dir = self.root / (
+                    fixed or f"{stamp}_{self.session_id[:8]}"
+                )
                 self.session_dir.mkdir(parents=True, exist_ok=False)
                 self.recording_enabled = True
                 self.emit("session_started", source="backend")

@@ -211,3 +211,22 @@ def test_frontend_event_rejects_unknown_or_sensitive_field_shapes():
     missing_sequence = json.loads(json.dumps(valid))
     del missing_sequence["fields"]["client_seq"]
     assert client.post("/api/diagnostics/events", json=missing_sequence).status_code == 422
+
+
+def test_a_fixed_session_id_names_the_session_without_wall_time(tmp_path, monkeypatch):
+    monkeypatch.setenv(diagnostics.SESSION_ID_ENV, "demo-eval")
+    session = diagnostics.DiagnosticSession(tmp_path)
+
+    assert session.start() == "demo-eval"
+    assert session.session_dir == tmp_path / "demo-eval"
+    session.emit("vehicle_connect_started", source="backend", sys_id=4)
+    record = json.loads(session.timeline_files()[0].read_text(encoding="utf-8").splitlines()[-1])
+    assert record["session_id"] == "demo-eval"
+
+
+def test_an_invalid_fixed_session_id_disables_recording(tmp_path, monkeypatch):
+    monkeypatch.setenv(diagnostics.SESSION_ID_ENV, "../escape")
+    session = diagnostics.DiagnosticSession(tmp_path)
+
+    assert session.start() == ""
+    assert list(tmp_path.iterdir()) == []

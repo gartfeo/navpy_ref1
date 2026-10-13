@@ -24,7 +24,7 @@ SOURCE_TIME_ENV = "NAVPY_POSE_CADENCE_DEBUG"
 SOURCE_TIME_FLUSH_GRACE_S = 0.6
 
 _SOURCE_TIME_FILE_RE = re.compile(
-    r"^pose_cadence_(?P<stream>[a-z_]+)_uav_(?P<sys>\d+)_pid_(?P<pid>\d+)\.csv$"
+    r"^pose_cadence_(?P<stream>[a-z_]+)_uav_(?P<sys>\d+)_(?:pid_(?P<pid>\d+)|(?P<producer>[a-z]+))\.csv$"
 )
 
 

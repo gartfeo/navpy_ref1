@@ -30,6 +30,7 @@ from scripts.eval_gcs_demo_models import (
     finite_number,
 )
 from scripts.eval_gcs_demo_lifecycle import wait_for_companions
+from navpy.core.kernel.logging.pose_cadence_naming import NAMING_ENV as POSE_CADENCE_NAMING_ENV
 from scripts.eval_gcs_demo_process import with_owned_stack
 from scripts.eval_gcs_demo_stack_ops import (
     configure_vehicle_params,
@@ -204,6 +205,8 @@ def execute_ideal_live_run(
     settings_path = run_dir / "gcs_settings.json"
     _write_json(settings_path, build_ideal_settings())
     environment = build_environment(settings_path, run_dir)
+    # This eval restarts companions and selects the new generation by pid.
+    environment[POSE_CADENCE_NAMING_ENV] = "pid"
     def action(context: StackContext) -> MissionArtifacts:
         if context.launch_evidence is None:
             raise RegressionError("exact stack has no verified launch evidence")

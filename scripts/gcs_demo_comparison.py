@@ -10,6 +10,11 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from scripts.gcs_demo_artifacts import (
+    canonical_view,
+    compare_inventories,
+    without_host_only,
+)
 from scripts.eval_gcs_demo_analysis import analyze_run
 from scripts.eval_gcs_demo_audit import load_approval_records
 from scripts.eval_gcs_demo_evidence import parse_final_approach_command_episodes
@@ -97,14 +102,24 @@ def _inventory(run_dir: Path) -> dict[str, str]:
 def read_run(run_dir: Path) -> dict:
     run_dir = run_dir.resolve()
     if not run_dir.is_dir():
-        return {"directory": str(run_dir), "errors": ["run directory is missing"], "sha256": {}}
+        return {"directory": str(run_dir), "errors": ["run directory is missing"],
+                "sha256": {}, "artifacts": {}, "artifacts_stable": False,
+                "sysid_ordinals": {}}
     try:
         before = _inventory(run_dir)
     except OSError as error:
-        return {"directory": str(run_dir), "errors": [f"inventory failed: {error}"], "sha256": {}}
-    result: dict = {"directory": str(run_dir), "errors": [], "sha256": before}
+        return {"directory": str(run_dir), "errors": [f"inventory failed: {error}"],
+                "sha256": {}, "artifacts": {}, "artifacts_stable": False,
+                "sysid_ordinals": {}}
+    # Bytes are compared only from a snapshot that stayed unchanged while read.
+    result: dict = {"directory": str(run_dir), "errors": [], "sha256": before,
+                    "artifacts": without_host_only(before), "artifacts_stable": False,
+                    "sysid_ordinals": {}}
     try:
         plan = load_resolved_plan(run_dir / "demo_mission_plan.json")
+        result["sysid_ordinals"] = {
+            sys_id: index for index, sys_id in enumerate(plan.sys_ids, start=1)
+        }
         approvals = load_approval_records(run_dir / "operator_approvals.json")
         report = analyze_run(run_dir, limits=GateLimits())
         result["report"] = _finite_json(asdict(report))
@@ -117,10 +132,12 @@ def read_run(run_dir: Path) -> dict:
             "settings": _json(run_dir / "gcs_settings.json"),
             "command_bounds": _json(run_dir / "demo_command_bounds.json"),
             "approval_policy": [
-                [row["sys_id"], row["requested_delay_s"]] for row in approvals
+                {"sys_id": row["sys_id"], "requested_delay_s": row["requested_delay_s"]}
+                for row in approvals
             ],
             "observed_approval_delay_s": [
-                [row["sys_id"], row["actual_delay_s"]] for row in approvals
+                {"sys_id": row["sys_id"], "actual_delay_s": row["actual_delay_s"]}
+                for row in approvals
             ],
         }
         # asdict retains tuples; normalize only JSON representation, never numbers.
@@ -170,13 +187,23 @@ def read_run(run_dir: Path) -> dict:
     if before != after:
         result["errors"].append("run evidence changed while being read")
         result["sha256_after"] = after
+    else:
+        result["artifacts_stable"] = True
     return result
 
 
 def _comparison(left: dict, right: dict, field: str) -> dict:
+    """The wall view of one field: sysids as UAV ordinals, the run dir as a token.
+
+    ``first_difference`` is diagnostic only (it equates -0.0 and 0.0); the
+    raw-byte artifact comparison is the equality that counts.
+    """
     if field not in left or field not in right or left["errors"] or right["errors"]:
         return {"status": "incomplete", "first_difference": None}
-    difference = first_difference(left[field], right[field])
+    difference = first_difference(
+        canonical_view(left[field], left["sysid_ordinals"], left["directory"]),
+        canonical_view(right[field], right["sysid_ordinals"], right["directory"]),
+    )
     return {"status": "equal" if difference is None else "different",
             "first_difference": difference}
 
@@ -233,6 +260,11 @@ def compare_runs(directories: list[Path]) -> dict:
     for index, repeat in enumerate(runs[1:], start=1):
         comparisons.append({
             "reference_index": 0, "repeat_index": index,
+            "artifacts": (
+                compare_inventories(runs[0]["artifacts"], repeat["artifacts"])
+                if runs[0]["artifacts_stable"] and repeat["artifacts_stable"]
+                else {"status": "incomplete"}
+            ),
             **{field: _comparison(runs[0], repeat, field) for field in (
                 "recorded_inputs", "outcome", "sampled_commands", "approval_audit",
                 "wall_timestamps", "metrics",
@@ -250,7 +282,10 @@ def compare_runs(directories: list[Path]) -> dict:
         for field in ("recorded_inputs", "outcome", "sampled_commands", "metrics")
     )
     return {
-        "schema_version": 1, "scope": "offline recorded-evidence comparison",
+        "schema_version": 2, "scope": "offline recorded-evidence comparison",
+        "artifacts_byte_equal": all(
+            pair["artifacts"]["status"] == "equal" for pair in comparisons
+        ),
         "full_scenario_repeatability": "unverified",
         "recorded_evidence_equal": recorded_equal, "all_per_run_gates_pass": per_run_pass,
         "limits": asdict(GateLimits()), "limitations": LIMITATIONS,

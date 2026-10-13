@@ -1,9 +1,9 @@
 import base64
 import json
-from datetime import datetime
 
 import cv2
 import numpy as np
+import pytest
 
 from navpy.core.review.confirmation_image_artifacts import save_confirmation_image_artifacts
 
@@ -29,13 +29,13 @@ def test_saves_source_thumbnail_and_metadata(tmp_path):
         confidence=np.float32(0.875),
         frame_bboxes=[(1.0, 2.0, 3.0, 4.0)],
         confirmation_degraded=True,
-        timestamp=datetime(2026, 5, 20, 6, 7, 8, 9001),
     )
 
     assert artifacts is not None
-    assert artifacts.source_path.name == "uav_7_confirmation_t303_060708009001_source.png"
-    assert artifacts.sent_thumbnail_path.name == "uav_7_confirmation_t303_060708009001_sent_thumb.jpg"
-    assert artifacts.metadata_path.name == "uav_7_confirmation_t303_060708009001_meta.json"
+    # Named by vehicle, POI and round, never by wall time.
+    assert artifacts.source_path.name == "uav_7_confirmation_t303_r1_source.png"
+    assert artifacts.sent_thumbnail_path.name == "uav_7_confirmation_t303_r1_sent_thumb.jpg"
+    assert artifacts.metadata_path.name == "uav_7_confirmation_t303_r1_meta.json"
 
     saved_source = cv2.imread(str(artifacts.source_path), cv2.IMREAD_COLOR)
     assert saved_source.shape == source_frame.shape
@@ -77,3 +77,55 @@ def test_returns_none_without_log_path(tmp_path):
 
     assert artifacts is None
     assert list(tmp_path.iterdir()) == []
+
+
+def _save(tmp_path, *, frame=None):
+    return save_confirmation_image_artifacts(
+        log_path=tmp_path,
+        sys_id=3,
+        poi_id=1,
+        source_frame=np.zeros((4, 4, 3), dtype=np.uint8) if frame is None else frame,
+        sent_image_b64=base64.b64encode(b"jpeg bytes").decode("utf-8"),
+        bbox_cxcywh=(1.0, 2.0, 3.0, 4.0),
+        class_id=0,
+        class_name="poi",
+        confidence=1.0,
+        frame_bboxes=None,
+        confirmation_degraded=False,
+    )
+
+
+def test_a_second_round_for_the_same_poi_gets_the_next_number(tmp_path):
+    first = _save(tmp_path)
+    second = _save(tmp_path)
+
+    assert first.metadata_path.name == "uav_3_confirmation_t1_r1_meta.json"
+    assert second.metadata_path.name == "uav_3_confirmation_t1_r2_meta.json"
+
+
+def test_a_failed_write_releases_its_round(tmp_path, monkeypatch):
+    monkeypatch.setattr(cv2, "imwrite", lambda *_args: False)
+    with pytest.raises(OSError, match="source image"):
+        _save(tmp_path)
+    monkeypatch.undo()
+
+    assert _save(tmp_path).metadata_path.name == "uav_3_confirmation_t1_r1_meta.json"
+
+
+def test_a_failed_metadata_write_removes_the_round(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    real_write_text = Path.write_text
+
+    def fail_metadata(self, *args, **kwargs):
+        if self.name.endswith("_meta.json"):
+            raise OSError("disk full")
+        return real_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_metadata)
+    with pytest.raises(OSError, match="disk full"):
+        _save(tmp_path)
+    monkeypatch.undo()
+
+    assert list(tmp_path.iterdir()) == []
+    assert _save(tmp_path).metadata_path.name == "uav_3_confirmation_t1_r1_meta.json"
