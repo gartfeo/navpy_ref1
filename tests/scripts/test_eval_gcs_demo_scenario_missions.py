@@ -8,6 +8,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_DO_JUMP, MAV_CMD_NAV_TAKEOFF, MAV_FRAME_GLOBAL
 
 from gcs.backend.mission_validator import parse_mission_items
 from gcs.backend.models import VehicleAssignment
@@ -48,6 +49,10 @@ def _onboard(assignment: dict) -> SimpleNamespace:
         hub,
         TAKEOFF_ALTITUDE_M,
     )
+    for seq in range(loader.count()):
+        # ArduPilot keeps no frame for the skip jump and reports MAV_FRAME_GLOBAL.
+        if loader.wp(seq).command == MAV_CMD_DO_JUMP:
+            loader.wp(seq).frame = MAV_FRAME_GLOBAL
     store = MissionStore(model.sys_id, message_store=None)
     store.replace(loader)
     return SimpleNamespace(
@@ -233,6 +238,46 @@ def test_upload_rejects_an_onboard_mission_that_differs(monkeypatch, tamper, sys
 
     with pytest.raises(models.RegressionError, match=f"vehicle {sys_id} onboard mission differs"):
         mission_upload.upload_scenario_missions(context)
+
+
+def _raw_row(parsed, command):
+    return next(row for row in parsed["items"] if row["command"] == command)
+
+
+def _raise_owner_takeoff(sys_id, parsed):
+    if sys_id == 7:
+        _raw_row(parsed, MAV_CMD_NAV_TAKEOFF)["z"] = 60.0
+
+
+def _retarget_skip_jump(sys_id, parsed):
+    if sys_id == 4:
+        _raw_row(parsed, MAV_CMD_DO_JUMP)["param1"] += 1.0
+
+
+def _drop_last_metadata_row(sys_id, parsed):
+    if sys_id == 9:
+        parsed["items"].pop()
+
+
+@pytest.mark.parametrize(
+    "tamper, sys_id",
+    [(_raise_owner_takeoff, 7), (_retarget_skip_jump, 4), (_drop_last_metadata_row, 9)],
+    ids=["takeoff-altitude", "skip-jump-target", "missing-metadata-row"],
+)
+def test_upload_rejects_raw_rows_the_parsed_readback_skips(monkeypatch, tamper, sys_id):
+    # Takeoff, the skip jump and metadata never reach the parsed waypoints, so
+    # only the raw rows can show the onboard mission is the intended one.
+    context, _expected, _uploaded = _upload_context(monkeypatch, tamper)
+
+    with pytest.raises(models.RegressionError, match=f"vehicle {sys_id} onboard mission row differs"):
+        mission_upload.upload_scenario_missions(context)
+
+
+def test_parsed_mission_carries_every_stored_row_after_home():
+    assignment = scenario_missions.bind_missions(scenario.load_scenario_manifest().missions, SYS_IDS)[0]
+    vehicle, parsed = _parsed(assignment)
+    assert [row["seq"] for row in parsed["items"]] == list(range(1, vehicle.mission_items_count))
+    assert parsed["items"] == mission_upload.expected_items(assignment)
 
 
 def test_missions_upload_after_configuration_and_before_companion_restart(monkeypatch):

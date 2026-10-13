@@ -234,7 +234,8 @@ class Esp32Simulator:
 
     def start(self):
         """Start the simulator server."""
-        self.server = HTTPServer(("0.0.0.0", self.port), Esp32RequestHandler)
+        # Loopback only: every client (launch, status probe) is this backend.
+        self.server = HTTPServer(("127.0.0.1", self.port), Esp32RequestHandler)
         self._thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self._thread.start()
         print(f"[ESP32-SIM] Simulator running at http://localhost:{self.port}")

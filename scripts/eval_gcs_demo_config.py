@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from scripts.eval_gcs_demo_constants import (
@@ -13,7 +13,6 @@ from scripts.eval_gcs_demo_constants import (
     GCS_LAUNCH,
     GCS_STOP,
     SIM_SPEEDUP,
-    FINAL_APPROACH_ROLL_LIMIT_DEG,
     VISION_PROFILE,
 )
 from scripts.eval_gcs_demo_models import finite_number, positive_int
@@ -21,15 +20,41 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, load_scenario_manifest
 from scripts.eval_certificate_source_time import SOURCE_TIME_ENV, SOURCE_TIME_SUBDIR
 
+from navpy.sim.sim_cv_threads import SIM_CV_THREADS_ENV
 from navpy.sim.world.navigation_poi_args import encode_wp_bitmask
 
 
 NAVIGATION_SPEEDUP_ENV = "GCS_SIM_NAVIGATION_SPEEDUP"
+#: The only inherited variables a run sees (upper case: Windows keys are). What
+#: Windows processes, WSL and the instance registry need, and nothing that can
+#: change NavPy, the backend or SITL behind the manifest's back.
+INHERITED_ENV = frozenset({
+    "APPDATA", "COMSPEC", "GCS_INSTANCE_REGISTRY", "HOME", "HOMEDRIVE",
+    "HOMEPATH", "LOCALAPPDATA", "NUMBER_OF_PROCESSORS", "PATH", "PATHEXT",
+    "PROCESSOR_ARCHITECTURE", "PROGRAMDATA", "SYSTEMDRIVE", "SYSTEMROOT",
+    "TEMP", "TMP", "USERPROFILE", "WINDIR",
+})
+INHERITED_ENV_PREFIXES = ("WSL",)
+#: Pinned for every run: hash order and single-threaded numeric libraries.
+PINNED_ENV = {
+    "PYTHONHASHSEED": "0",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    SIM_CV_THREADS_ENV: "1",
+    "PYTHONUTF8": "1",
+}
+#: The persisted ESP32 endpoint is unused while the simulator runs (launch and
+#: status use the simulator's own loopback port); if it were used, it is the
+#: loopback discard port, never a LAN host.
+UNUSED_ESP32_PORT = 9
+TAKEOFF_ALTITUDE_M = 40.0
 
 
 def launch_command(
     launch_token: str | None = None,
     home: str | None = None,
+    sitl_arguments: Sequence[str] = (),
 ) -> list[str]:
     """Use only the isolated launcher; its directory owns the slot."""
     command = [sys.executable, str(GCS_LAUNCH), "--no-browser"]
@@ -46,6 +71,7 @@ def launch_command(
         if type(home) is not str or not home:
             raise ValueError("home must be a non-empty LAT,LON,ALT,HEADING string")
         command.extend(("--home", home))
+    command.extend(sitl_arguments)
     return command
 
 
@@ -53,13 +79,14 @@ def stop_command() -> list[str]:
     return [sys.executable, str(GCS_STOP)]
 
 
-def build_settings(esp32_port: int) -> dict[str, JsonValue]:
-    if type(esp32_port) is not int:
-        raise TypeError("esp32_port must be an integer")
-    if not 1 <= esp32_port <= 65535:
-        raise ValueError("esp32_port must be in [1, 65535]")
+def build_settings() -> dict[str, JsonValue]:
     return {
-        "flight": {"uavs_per_set": EXPECTED_UAV_COUNT},
+        # Stated, not left to the model default: the mission upload builds the
+        # takeoff row from it.
+        "flight": {
+            "uavs_per_set": EXPECTED_UAV_COUNT,
+            "takeoff_altitude_m": TAKEOFF_ALTITUDE_M,
+        },
         "camera": {
             "vision_profile": VISION_PROFILE,
             "vision_device": VISION_PROFILE,
@@ -69,7 +96,7 @@ def build_settings(esp32_port: int) -> dict[str, JsonValue]:
         "launch": {
             "launch_type": "container",
             "esp32_host": "127.0.0.1",
-            "esp32_port": esp32_port,
+            "esp32_port": UNUSED_ESP32_PORT,
             "default_channel_map": {},
             "launch_order": [],
         },
@@ -85,6 +112,10 @@ def _base_aas_params(poi_mask: int) -> dict[str, JsonValue]:
     return {
         "del_ctrl": 2,
         "del_dir": True,
+        # The template eeprom values the demo has flown with; a fresh eeprom
+        # would register the Lua defaults (1.5 and 150) instead.
+        "del_p_kp": 0.35,
+        "nav_min_alt": -100,
         "use_trn": True,
         "targ_wps": poi_mask,
         "targ_alt": 0.0,
@@ -112,13 +143,6 @@ def aas_params_for_plan(sys_id: int, plan: DemoMissionPlan) -> dict[str, JsonVal
     return aas_params_for(checked_sys_id, plan.owner.sys_id)
 
 
-def full_param_changes() -> list[dict[str, float | str]]:
-    return [
-        {"name": "ROLL_LIMIT_DEG", "value": FINAL_APPROACH_ROLL_LIMIT_DEG},
-        {"name": "SIM_SPEEDUP", "value": SIM_SPEEDUP},
-    ]
-
-
 def _canonical_number(value: float) -> str:
     return format(value, ".15g")
 
@@ -130,31 +154,36 @@ def build_environment(
     navigation_speedup: float = 0.0,
     base_environment: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """Build without mutating the inherited environment."""
+    """Build from the allow-listed inherited variables plus the run's own."""
     speedup = finite_number("navigation_speedup", navigation_speedup)
     source = os.environ if base_environment is None else base_environment
     if not all(type(key) is str and type(value) is str for key, value in source.items()):
         raise TypeError("base_environment must contain string keys and values")
-    env = dict(source)
-    if speedup == 0.0:
-        env.pop(NAVIGATION_SPEEDUP_ENV, None)
-    else:
+    env = {key: value for key, value in source.items() if _inherited(key)}
+    env.update(PINNED_ENV)
+    if speedup != 0.0:
         env[NAVIGATION_SPEEDUP_ENV] = _canonical_number(speedup)
     env["GCS_SETTINGS_PATH"] = str(settings_path.resolve())
     env["NAVPY_LOG_DIR"] = str(log_dir.resolve())
     env[SOURCE_TIME_ENV] = str((log_dir / SOURCE_TIME_SUBDIR).resolve())
     env["NAVPY_SIM_LOG_LEVEL"] = "DEBUG"
-    env["PYTHONUTF8"] = "1"
     return env
+
+
+def _inherited(key: str) -> bool:
+    upper = key.upper()
+    return upper in INHERITED_ENV or upper.startswith(INHERITED_ENV_PREFIXES)
 
 
 __all__ = [
     "NAVIGATION_SPEEDUP_ENV",
     "aas_params_for",
+    "INHERITED_ENV",
+    "PINNED_ENV",
+    "SIM_CV_THREADS_ENV",
     "aas_params_for_plan",
     "build_environment",
     "build_settings",
-    "full_param_changes",
     "launch_command",
     "stop_command",
 ]

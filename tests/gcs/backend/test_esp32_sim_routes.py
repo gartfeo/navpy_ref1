@@ -1,7 +1,10 @@
 """Tests for the ESP32 simulator start/stop route helpers."""
+import os
 import unittest
 from unittest.mock import patch, MagicMock
 
+from gcs.backend import instance_ports as ip
+from gcs.backend.esp32_simulator import Esp32Simulator
 from gcs.backend.routes import control as ctrl_mod
 from gcs.backend.settings_model import GcsSettings
 
@@ -84,9 +87,12 @@ class TestAutoStartEsp32Sim(unittest.TestCase):
         ctrl_mod._esp32_sim = MagicMock()  # already running
         self.assertFalse(ctrl_mod.auto_start_esp32_sim())
 
+    @patch.dict(os.environ, {}, clear=False)
     @patch("gcs.backend.esp32_simulator.Esp32Simulator")
     @patch.object(ctrl_mod.settings_store, "get")
     def test_starts_simulator_in_sim_container_mode(self, mock_get, mock_cls):
+        # A backend started without the isolated launcher keeps the settings port.
+        os.environ.pop("GCS_CHAT_INDEX", None)
         mock_get.return_value = _settings(
             sim_mode=True, launch_type="container", port=8080)
         mock_instance = MagicMock()
@@ -95,6 +101,38 @@ class TestAutoStartEsp32Sim(unittest.TestCase):
         mock_cls.assert_called_once_with(port=8080)
         mock_instance.start.assert_called_once()
         self.assertIs(ctrl_mod._esp32_sim, mock_instance)
+
+    @patch.dict(os.environ, {"GCS_CHAT_INDEX": "7"})
+    @patch("gcs.backend.esp32_simulator.Esp32Simulator")
+    @patch.object(ctrl_mod.settings_store, "get")
+    def test_launcher_slot_owns_the_simulator_port(self, mock_get, mock_cls):
+        # The slot's port, not the persisted one: concurrent stacks never
+        # contend for it and a run's port does not depend on the OS.
+        mock_get.return_value = _settings(
+            sim_mode=True, launch_type="container", port=8080)
+        self.assertTrue(ctrl_mod.auto_start_esp32_sim())
+        mock_cls.assert_called_once_with(port=ip.esp32_sim_port(7))
+
+    @patch("gcs.backend.esp32_simulator.Esp32Simulator")
+    @patch.object(ctrl_mod.settings_store, "get")
+    def test_failed_start_leaves_no_running_simulator(self, mock_get, mock_cls):
+        mock_get.return_value = _settings(sim_mode=True, launch_type="container")
+        mock_cls.return_value.start.side_effect = OSError("address in use")
+        with self.assertRaises(OSError):
+            ctrl_mod.auto_start_esp32_sim()
+        self.assertIsNone(ctrl_mod._esp32_sim)
+
+
+class TestEsp32SimulatorBinding(unittest.TestCase):
+    def test_listens_on_loopback_only(self):
+        # Every client is this backend (launch and status use 127.0.0.1).
+        simulator = Esp32Simulator(port=0)
+        simulator.start()
+        try:
+            self.assertEqual(simulator.server.server_address[0], "127.0.0.1")
+        finally:
+            simulator.stop()
+            simulator.server.server_close()
 
 
 if __name__ == "__main__":

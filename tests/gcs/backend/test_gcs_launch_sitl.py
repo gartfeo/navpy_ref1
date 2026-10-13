@@ -316,3 +316,31 @@ class TestGcsLaunchGuard(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestGcsLaunchHermeticSitl(unittest.TestCase):
+    """An evaluator's isolated SITL inputs reach swarm_run unchanged."""
+
+    def test_flags_are_forwarded(self):
+        rc, spawn = _run([
+            "--chat", "5", "--no-browser",
+            "--sitl-root", "/r", "--sitl-binary", "/r/bin/arduplane",
+            "--sitl-defaults", "/r/defaults.parm", "--sitl-instance-seed", "/r/seed",
+            "--single-boot", "--loopback-only",
+        ])
+        self.assertEqual(rc, 0)
+        cmd = _swarm_cmd(spawn)
+        tail = cmd[cmd.index("--speedup") + 2:]
+        self.assertEqual(tail, [
+            "--sitl-root", "/r", "--sitl-binary", "/r/bin/arduplane",
+            "--defaults", "/r/defaults.parm", "--sitl-instance-seed", "/r/seed",
+            "--single-boot", "--loopback-only",
+        ])
+
+    def test_default_launch_forwards_none_of_them(self):
+        rc, spawn = _run(["--chat", "5", "--no-browser"])
+        self.assertEqual(rc, 0)
+        cmd = _swarm_cmd(spawn)
+        for flag in ("--sitl-root", "--defaults", "--sitl-instance-seed",
+                     "--single-boot", "--loopback-only"):
+            self.assertNotIn(flag, cmd)

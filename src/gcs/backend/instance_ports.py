@@ -44,6 +44,10 @@ GCS_MONITOR_BASE = 15550
 # heartbeats (not just that a serial0 socket opened). Its own band so it never
 # contends with the backend's monitor port or Mission Planner.
 GCS_VERIFY_BASE = 16550
+# The in-backend ESP32 launch simulator (TCP, loopback only). Slot-derived so
+# concurrent stacks never contend for it and a run's port does not depend on
+# whatever ephemeral port the OS hands out.
+ESP32_SIM_BASE = 17550
 # Per-vehicle companion UDP ports. The numbers keep ArduPilot's historical
 # serial0 arithmetic (5760 + 10*instance_idx) but are now Windows-side bind
 # ports: the companion listens here and SITL serial0 (udpclient) streams in.
@@ -141,6 +145,10 @@ def verify_port(n: int) -> int:
     return GCS_VERIFY_BASE + n
 
 
+def esp32_sim_port(n: int) -> int:
+    return ESP32_SIM_BASE + n
+
+
 def sysids_for_chat(n: int) -> list[int]:
     """The global sys_ids a chat's swarm uses: ``3N+1, 3N+2, 3N+3``."""
     base = VEHICLES_PER_CHAT * n
@@ -202,6 +210,7 @@ def ports_for_chat(n: int) -> dict:
         "backend": backend_port(n),
         "gcs_monitor": monitor_port(n),
         "mission_planner": mission_planner_port(n),
+        "esp32_sim": esp32_sim_port(n),
         "sysids": sysids_for_chat(n),
         "companions": companion_ports_for_chat(n),
         "swarm_offset": VEHICLES_PER_CHAT * n,  # -I offset for run_swarm.sh

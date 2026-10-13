@@ -93,6 +93,7 @@ def slot_ports_free(chat: int) -> bool:
         and _port_bindable(ip.backend_port(chat), "tcp")
         and _port_bindable(ip.monitor_port(chat), "udp")
         and _port_bindable(ip.mission_planner_port(chat), "udp")
+        and _port_bindable(ip.esp32_sim_port(chat), "tcp")
         and not any(
             udp_port_held(port) for port in ip.companion_ports_for_chat(chat)
         )

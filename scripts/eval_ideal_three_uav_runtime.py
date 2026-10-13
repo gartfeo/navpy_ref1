@@ -45,15 +45,14 @@ from scripts.eval_gcs_demo_upload import (
     shifted_mission_assignments,
     upload_mission_assignments,
 )
-from scripts.eval_gcs_demo_runtime import free_tcp_port
 from scripts.eval_certificate_source_time import SOURCE_TIME_FLUSH_GRACE_S
 
 
 IDEAL_PROFILE = "ideal_360"
 
 
-def build_ideal_settings(esp32_port: int) -> dict:
-    settings = deepcopy(build_settings(esp32_port))
+def build_ideal_settings() -> dict:
+    settings = deepcopy(build_settings())
     settings["camera"] = {
         "vision_profile": IDEAL_PROFILE,
         "vision_device": IDEAL_PROFILE,
@@ -201,7 +200,7 @@ def execute_ideal_live_run(
     if not run_dir.is_dir():
         raise RegressionError("ideal live run requires a caller-owned directory")
     settings_path = run_dir / "gcs_settings.json"
-    _write_json(settings_path, build_ideal_settings(free_tcp_port()))
+    _write_json(settings_path, build_ideal_settings())
     environment = build_environment(settings_path, run_dir)
     context_holder: list[StackContext] = []
 

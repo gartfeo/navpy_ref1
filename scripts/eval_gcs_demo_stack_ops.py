@@ -9,7 +9,7 @@ from scripts.eval_gcs_demo_command_bounds import (
     DemoCommandBounds,
     command_bounds_from_snapshot,
 )
-from scripts.eval_gcs_demo_config import aas_params_for, full_param_changes
+from scripts.eval_gcs_demo_config import aas_params_for
 from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
 from scripts.eval_gcs_demo_models import RegressionError, StackContext, ThreeUavIds
 from scripts.eval_gcs_demo_ports import JsonValue
@@ -133,6 +133,32 @@ def require_write_results(
         raise RegressionError(f"{label} write failed: {', '.join(failed)}")
 
 
+def _snapshot_value(snapshot: JsonValue, name: str) -> JsonValue:
+    records = snapshot.get("params") if isinstance(snapshot, dict) else None
+    for record in records if isinstance(records, list) else ():
+        if isinstance(record, dict) and record.get("name") == name:
+            return record.get("value")
+    return None
+
+
+def _ensure_roll_limit(context: StackContext, sys_id: int, snapshot: JsonValue) -> None:
+    """Write ROLL_LIMIT_DEG only where boot did not already set it.
+
+    The demo eval's pre-boot defaults set it, so it writes nothing; a run that
+    boots the shared templates (the ideal eval) still gets the write.
+    """
+    value = _snapshot_value(snapshot, "ROLL_LIMIT_DEG")
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isclose(
+        float(value), FINAL_APPROACH_ROLL_LIMIT_DEG, abs_tol=1e-6
+    ):
+        return
+    change = {"name": "ROLL_LIMIT_DEG", "value": FINAL_APPROACH_ROLL_LIMIT_DEG}
+    written = context.api.put_json(
+        f"/api/vehicles/{sys_id}/parameters", {"changes": [change]}, timeout=60.0
+    )
+    require_write_results(written, ("ROLL_LIMIT_DEG",), f"vehicle {sys_id} full-param")
+
+
 def configure_vehicle_params(
     context: StackContext,
     timeout_s: float,
@@ -151,16 +177,7 @@ def configure_vehicle_params(
             snapshot,
             roll_limit_deg=FINAL_APPROACH_ROLL_LIMIT_DEG,
         ))
-        full = context.api.put_json(
-            f"/api/vehicles/{sys_id}/parameters",
-            {"changes": full_param_changes()},
-            timeout=60.0,
-        )
-        require_write_results(
-            full,
-            ("ROLL_LIMIT_DEG", "SIM_SPEEDUP"),
-            f"vehicle {sys_id} full-param",
-        )
+        _ensure_roll_limit(context, sys_id, snapshot)
         aas = aas_params_for(sys_id, owner)
         written = context.api.put_json(
             f"/api/vehicles/{sys_id}/params",

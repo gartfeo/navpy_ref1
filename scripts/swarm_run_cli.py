@@ -94,4 +94,7 @@ def build_parser(default_speedup: float) -> argparse.ArgumentParser:
                         help="isolated firmware/state root for simulator experiments")
     parser.add_argument("--sitl-binary", default=None, metavar="WSL_PATH",
                         help="explicit simulator executable (requires --sitl-root)")
+    parser.add_argument("--sitl-instance-seed", default=None, metavar="WSL_PATH",
+                        help="directory each missing instance directory is copied from "
+                             "(requires --sitl-root): fresh eeprom, known scripts and terrain")
     return parser

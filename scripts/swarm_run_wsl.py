@@ -156,21 +156,27 @@ def cleanup(chat: int, *, wsl_run: Callable[[str], None] = run_wsl) -> None:
     wsl_run(f"{terminate}; sleep 2; {kill}")
 
 
-def ensure_experimental_paths(root: str | None, binary: str | None) -> None:
+def ensure_experimental_paths(
+    root: str | None,
+    binary: str | None,
+    instance_seed: str | None = None,
+) -> None:
     """Validate explicit experimental paths before reserving a machine slot."""
-    if root is None and binary is None:
+    if root is None and binary is None and instance_seed is None:
         return
     # Reuse command validation, including absolute paths and shell quoting.
     try:
-        launch_command(1, 0, "", 1, 0, firmware_root=root, binary_path=binary)
+        launch_command(1, 0, "", 1, 0, firmware_root=root, binary_path=binary,
+                       instance_seed=instance_seed)
     except ValueError as error:
         sys.exit(f"swarm_run: {error}")
     executable = binary or f"{root.rstrip('/')}/build/sitl/bin/arduplane"
-    probe = subprocess.run(wsl_argv(
-        f"test -d {shlex.quote(root)} && test -x {shlex.quote(executable)}"
-    ), capture_output=True)
+    checks = f"test -d {shlex.quote(root)} && test -x {shlex.quote(executable)}"
+    if instance_seed is not None:
+        checks += f" && test -d {shlex.quote(instance_seed)}"
+    probe = subprocess.run(wsl_argv(checks), capture_output=True)
     if probe.returncode != 0:
-        sys.exit("swarm_run: experimental root or executable is unavailable")
+        sys.exit("swarm_run: experimental root, executable or instance seed is unavailable")
 
 
 def launch_command(
@@ -186,6 +192,7 @@ def launch_command(
     firmware_root: str | None = None,
     binary_path: str | None = None,
     loopback_only: bool = False,
+    instance_seed: str | None = None,
 ) -> str:
     """Build one inline-environment invocation of ``run_swarm.sh``.
 
@@ -198,6 +205,12 @@ def launch_command(
     slot index; an experiment that varies wind relative to the vehicle's ground
     track needs the start geometry held fixed across runs, so the caller states
     it explicitly rather than inheriting it.
+
+    ``instance_seed`` names a directory each instance directory is copied from
+    when it does not exist yet, so a run boots from a fresh eeprom with known
+    scripts and terrain instead of the shared templates 1-3, whose mutable
+    eeprom ``run_swarm.sh`` clones.  An existing instance directory is kept, so
+    a relaunch on the same root keeps what its first boot persisted.
     """
     # ArduPilot's sim_vehicle.py accepts only an integer launch speed.  Start
     # fractional requests at its 1x floor; the supervisor then verifies and,
@@ -211,9 +224,11 @@ def launch_command(
     ]
     if binary_path is not None and firmware_root is None:
         raise ValueError("an explicit SITL binary requires an isolated firmware root")
-    for value in (firmware_root, binary_path):
+    if instance_seed is not None and firmware_root is None:
+        raise ValueError("an instance seed requires an isolated firmware root")
+    for value in (firmware_root, binary_path, instance_seed):
         if value is not None and (not value.startswith("/") or "\x00" in value):
-            raise ValueError("SITL root and binary must be absolute WSL paths")
+            raise ValueError("SITL root, binary and instance seed must be absolute WSL paths")
     if firmware_root is not None:
         environment.append(f"ARDUPILOT_DIR={shlex.quote(firmware_root)}")
         executable = binary_path or f"{firmware_root.rstrip('/')}/build/sitl/bin/arduplane"
@@ -224,7 +239,18 @@ def launch_command(
         # loopback sinks instead.
         environment += [f"PI_TARGETS_CSV={LOOPBACK_SINK}",
                         f"PI_ROUTER_EXTRA_CSV={LOOPBACK_SINK}"]
-    if keep_instance_state:
+    seed_prefix = ""
+    if instance_seed is not None:
+        root = firmware_root.rstrip("/")
+        directories = " ".join(
+            shlex.quote(f"{root}/{offset + index}") for index in range(1, instances + 1)
+        )
+        seed_prefix = (
+            f'for d in {directories}; do [ -e "$d" ] || '
+            f'cp -a {shlex.quote(instance_seed)} "$d" || exit 1; done; '
+        )
+    if keep_instance_state or instance_seed is not None:
+        # A seeded instance must never be overwritten by a template eeprom.
         environment.append("CLONE_FROM_TEMPLATE=0")
     if home_coords:
         # Quoted, not interpolated raw: this string is handed to `bash -lc`
@@ -242,7 +268,8 @@ def launch_command(
         # /mnt/c/...
         environment.append(f"DEFAULTS={shlex.quote(defaults_path)}")
     return (
-        " ".join(environment)
+        seed_prefix
+        + " ".join(environment)
         + " ~/ardupilot/Tools/autotest/run_swarm.sh pi "
         f"-n {instances} -d {distance}"
     )

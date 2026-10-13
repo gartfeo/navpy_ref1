@@ -134,6 +134,8 @@ def _launch_with_retries(
             firmware_root=getattr(args, "sitl_root", None),
             binary_path=getattr(args, "sitl_binary", None),
             **({"loopback_only": True} if getattr(args, "loopback_only", False) else {}),
+            **({"instance_seed": args.sitl_instance_seed}
+               if getattr(args, "sitl_instance_seed", None) is not None else {}),
         )
         process, relays = launch.start(command)
         result = launch.verify(chat, args.instances, args.speedup, launched_at)

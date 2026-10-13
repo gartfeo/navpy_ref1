@@ -60,6 +60,22 @@ class TestInstancePorts(unittest.TestCase):
         )
         self.assertEqual(verify & others, set())
 
+    def test_esp32_sim_port_is_slot_derived_and_disjoint(self):
+        rng = range(ip.MAX_CHAT_INDEX + 1)
+        self.assertEqual(ip.esp32_sim_port(0), 17550)
+        self.assertEqual(ip.esp32_sim_port(5), 17555)
+        esp32 = {ip.esp32_sim_port(n) for n in rng}
+        others = (
+            {ip.verify_port(n) for n in rng}
+            | {ip.monitor_port(n) for n in rng}
+            | {ip.mission_planner_port(n) for n in rng}
+            | {ip.frontend_port(n) for n in rng}
+            | {ip.backend_port(n) for n in rng}
+            | {ip.companion_port(s) for s in range(1, ip.MAX_SYSID + 1)}
+        )
+        self.assertEqual(esp32 & others, set())
+        self.assertEqual(ip.ports_for_chat(5)["esp32_sim"], 17555)
+
     def test_sysids_are_globally_unique_and_contiguous(self):
         self.assertEqual(ip.sysids_for_chat(0), [1, 2, 3])
         self.assertEqual(ip.sysids_for_chat(1), [4, 5, 6])

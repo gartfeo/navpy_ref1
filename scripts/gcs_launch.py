@@ -50,6 +50,7 @@ sys.path.insert(0, str(ROOT / "scripts"))  # sibling scripts (swarm_run)
 from gcs.backend import instance_ports as ip  # noqa: E402
 from gcs.backend import instance_registry as reg  # noqa: E402
 import swarm_run  # noqa: E402
+from gcs_launch_sitl_args import add_sitl_arguments, swarm_passthrough  # noqa: E402
 from gcs_launch_list import _print_list, _sitl_status  # noqa: E402,F401
 
 
@@ -111,6 +112,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="correlate this exact launcher with its SITL registry verdict",
     )
+    add_sitl_arguments(parser)
     parser.set_defaults(sitl=True)
     return parser
 
@@ -228,6 +230,7 @@ def main() -> int:
                 swarm_command.extend(("--home", args.home))
             if args.launch_token:
                 swarm_command.extend(("--launch-token", args.launch_token))
+            swarm_command.extend(swarm_passthrough(args))
             _spawn(swarm_command,
                    cwd=ROOT, env=os.environ.copy())
 

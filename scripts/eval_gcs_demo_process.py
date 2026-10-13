@@ -9,7 +9,7 @@ import secrets
 import subprocess
 from pathlib import Path
 from types import TracebackType
-from typing import Callable, Mapping, TypeVar
+from typing import Callable, Mapping, Sequence, TypeVar
 
 from scripts.eval_gcs_demo_api import FileTail, GcsApi
 from scripts.eval_gcs_demo_config import launch_command, stop_command
@@ -65,7 +65,11 @@ def owned_entry(env: Mapping[str, str]) -> dict[str, JsonValue] | None:
     return candidates[0] if candidates else None
 
 
-def launch_stack(env: dict[str, str], timeout_s: float) -> StackContext:
+def launch_stack(
+    env: dict[str, str],
+    timeout_s: float,
+    sitl_arguments: Sequence[str] = (),
+) -> StackContext:
     if owned_entry(env) is not None:
         raise PreexistingOwnedStackError(
             "an owned GCS stack already exists; exact evaluation requires "
@@ -75,7 +79,7 @@ def launch_stack(env: dict[str, str], timeout_s: float) -> StackContext:
     backend_offset = BACKEND_LOG.stat().st_size if BACKEND_LOG.exists() else 0
     result = run_process(
         # The scenario pins the SITL start point instead of the launcher default.
-        launch_command(launch_token, load_scenario_manifest().home),
+        launch_command(launch_token, load_scenario_manifest().home, sitl_arguments),
         env,
         timeout_s=min(timeout_s, 60.0),
     )
@@ -194,13 +198,14 @@ def with_owned_stack(
     env: dict[str, str],
     timeout_s: float,
     action: Callable[[StackContext], T],
+    sitl_arguments: Sequence[str] = (),
 ) -> T:
     """Attempt close, scoped stop, and tail; report every failure."""
     context: StackContext | None = None
     result: T | None = None
     errors: list[BaseException] = []
     try:
-        context = launch_stack(env, timeout_s)
+        context = launch_stack(env, timeout_s, sitl_arguments)
         result = action(context)
     except PreexistingOwnedStackError:
         raise

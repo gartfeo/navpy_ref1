@@ -850,7 +850,6 @@ def test_facade_exact_reexports_and_all_modules_meet_budgets():
         "scripts.eval_gcs_demo_config": (
             "build_settings",
             "aas_params_for",
-            "full_param_changes",
             "build_environment",
         ),
         "scripts.eval_gcs_demo_analysis": ("analyze_vehicle", "analyze_run"),

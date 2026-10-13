@@ -13,6 +13,7 @@ from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.sim.detection.detector_sim import DetectorSim
+from navpy.sim.sim_cv_threads import apply_sim_cv_threads
 from navpy.app.perception.vision_detector_factory_ports import VisionDetectorNode
 from navpy.core.perception.profile.vision_profile_types import CameraMountSpec, VisionProfile
 from navpy.app.perception.vision_tracking_composition import build_tracking_config
@@ -41,6 +42,7 @@ class SimDetectorFactory:
         self._zc_util = zc_util
         self._scheduler_cadence = scheduler_cadence
         self._assets_path = Path(__file__).resolve().parents[4] / ".sim"
+        apply_sim_cv_threads()
 
     def create(
         self,

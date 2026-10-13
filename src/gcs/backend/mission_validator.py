@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_DO_JUMP, MAV_CMD_NAV_TAKEOFF
 from gcs.backend.planner.waypoint_builder import (
@@ -32,6 +33,22 @@ class FleetValidation:
     search_pattern_mismatch: bool = False
 
 
+def raw_mission_item(seq: int, wp: Any) -> dict:
+    """One stored mission item as the vehicle holds it, for exact readback."""
+    return {
+        "seq": seq,
+        "frame": int(wp.frame),
+        "command": int(wp.command),
+        "param1": float(wp.param1),
+        "param2": float(wp.param2),
+        "param3": float(wp.param3),
+        "param4": float(wp.param4),
+        "x": int(wp.x),
+        "y": int(wp.y),
+        "z": float(wp.z),
+    }
+
+
 def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
     """Parse already-downloaded mission items into a full response dict.
 
@@ -41,6 +58,7 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
     returns valid data.
     """
     waypoints = []
+    items = []
     altitude_m = None
     corridor_end_index = None
     polygon_vertices = []
@@ -55,6 +73,9 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
         wp = vehicle.get_mission_item(i)
         if wp is None:
             continue
+        if i > 0:
+            # Seq 0 is home, which the vehicle replaces with its own position.
+            items.append(raw_mission_item(i, wp))
         if i == 0 or wp.command == MAV_CMD_NAV_TAKEOFF:
             continue
         if wp.command == MAV_CMD_DO_JUMP:
@@ -121,6 +142,7 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
         "corridor_backbone": corridor_backbone,
         "launch_point": launch_point,
         "default_delivery_hub": default_delivery_hub,
+        "items": items,
     }
 
 

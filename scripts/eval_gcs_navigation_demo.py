@@ -19,7 +19,6 @@ from scripts.eval_gcs_demo_config import (
     aas_params_for,
     build_environment,
     build_settings,
-    full_param_changes,
     launch_command,
     stop_command,
 )
@@ -96,7 +95,6 @@ __all__ = [
     "build_settings",
     "execute_live_run",
     "exclusive_evaluator_lock",
-    "full_param_changes",
     "launch_command",
     "main",
     "parse_args",

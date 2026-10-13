@@ -1044,6 +1044,13 @@ class TestSlotPortsFree(unittest.TestCase):
              patch.object(reg, "udp_port_held", return_value=False):
             self.assertTrue(reg.slot_ports_free(ip.EVAL_CHAT_MIN))
 
+    def test_esp32_simulator_port_holder_blocks_the_slot(self):
+        chat = ip.EVAL_CHAT_MIN
+        held = ip.esp32_sim_port(chat)
+        with patch.object(reg, "_port_bindable", side_effect=lambda port, kind: port != held), \
+             patch.object(reg, "udp_port_held", return_value=False):
+            self.assertFalse(reg.slot_ports_free(chat))
+
 
 class TestUdpPortHeld(unittest.TestCase):
     def test_detects_reuseaddr_holder_and_release(self):

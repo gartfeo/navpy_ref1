@@ -9,6 +9,8 @@ from gcs.backend.vehicle_manager import vehicle_mgr
 from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.launch_controller import launch_controller, UAVS_PER_CONTAINER
 from gcs.backend.settings_store import settings_store
+from gcs.backend import instance_ports as ip
+from gcs.backend.settings_model import GcsSettings
 from gcs.backend.routes.control_readiness import (
     ReadinessGates, _resolve_channel_map, _readiness_gates_from_settings,
 )
@@ -192,6 +194,12 @@ async def esp32_status():
     return await control_esp32.esp32_status(_esp32_sim=_esp32_sim, settings_store=settings_store)
 
 
+def _default_sim_port(settings: GcsSettings) -> int:
+    """The isolated launcher's slot owns a simulator port; a bare backend keeps settings."""
+    chat = ip.chat_index()
+    return settings.launch.esp32_port if chat is None else ip.esp32_sim_port(chat)
+
+
 @router.post("/launch/esp32-sim/start")
 async def start_esp32_sim(port: int | None = None):
     """Start the ESP32 simulator (sim mode only).
@@ -207,9 +215,10 @@ async def start_esp32_sim(port: int | None = None):
         raise HTTPException(409, "Simulator already running")
 
     from gcs.backend.esp32_simulator import Esp32Simulator
-    sim_port = port or settings.launch.esp32_port
-    _esp32_sim = Esp32Simulator(port=sim_port)
-    _esp32_sim.start()
+    sim_port = port or _default_sim_port(settings)
+    simulator = Esp32Simulator(port=sim_port)
+    simulator.start()  # a bind failure leaves no half-started simulator behind
+    _esp32_sim = simulator
     log.info("ESP32 simulator started on port %d", sim_port)
     return {"status": "started", "port": sim_port}
 
@@ -257,9 +266,10 @@ def auto_start_esp32_sim() -> bool:
         return False
 
     from gcs.backend.esp32_simulator import Esp32Simulator
-    sim_port = settings.launch.esp32_port
-    _esp32_sim = Esp32Simulator(port=sim_port)
-    _esp32_sim.start()
+    sim_port = _default_sim_port(settings)
+    simulator = Esp32Simulator(port=sim_port)
+    simulator.start()  # a bind failure leaves no half-started simulator behind
+    _esp32_sim = simulator
     log.info("Auto-started ESP32 simulator on port %d", sim_port)
     return True
 

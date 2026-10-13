@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts import eval_gcs_navigation_demo as evaluator
+from scripts import eval_gcs_demo_sitl_root as demo_inputs
 from scripts import eval_gcs_demo_process as demo_process
 from scripts import eval_gcs_demo_runtime as demo_runtime
 from scripts import eval_gcs_demo_stack_ops as stack_ops
@@ -1072,12 +1073,16 @@ def test_explicit_empty_approvals_do_not_fall_back_to_disk(tmp_path):
 
 
 def test_configuration_keeps_explicit_ten_x_navigation_and_no_multicontainer_scope():
-    settings = evaluator.build_settings(18123)
+    settings = evaluator.build_settings()
 
     assert settings["simulation"]["simulated_vehicle_count"] == 3
     assert settings["flight"]["uavs_per_set"] == 3
+    assert settings["flight"]["takeoff_altitude_m"] == 40.0
     assert settings["launch"]["launch_type"] == "container"
     assert "container_gap_s" not in settings["launch"]
+    # The simulator owns the launch endpoint; the persisted one stays loopback.
+    assert settings["launch"]["esp32_host"] == "127.0.0.1"
+    assert settings["launch"]["esp32_port"] == 9
     assert settings["camera"]["vision_profile"] == "siyi_zr10"
     assert evaluator.aas_params_for(4, 4)["targ_wps"] == 38
     assert evaluator.aas_params_for(5, 4)["targ_wps"] == 0
@@ -1090,10 +1095,12 @@ def test_configuration_keeps_explicit_ten_x_navigation_and_no_multicontainer_sco
     assert evaluator.aas_params_for(4, 4)["nav_cm_fl"] is False
     assert evaluator.aas_params_for(4, 4)["nav_cwt"] == 30.0
     assert evaluator.aas_params_for(4, 4)["nav_oneshot"] is True
-    assert evaluator.full_param_changes() == [
-        {"name": "ROLL_LIMIT_DEG", "value": 45.0},
-        {"name": "SIM_SPEEDUP", "value": 10.0},
-    ]
+    # Fresh eeproms register the Lua defaults; the run states the flown values.
+    assert evaluator.aas_params_for(5, 4)["del_p_kp"] == 0.35
+    assert evaluator.aas_params_for(5, 4)["nav_min_alt"] == -100
+    # ROLL_LIMIT_DEG is a pre-boot default now, not a full-param write.
+    assert demo_inputs.SITL_DEFAULT_OVERRIDES["ROLL_LIMIT_DEG"] == 45.0
+    assert not hasattr(evaluator, "full_param_changes")
     command = evaluator.launch_command()
     assert command[-1] == "--no-browser"
     assert "--chat" not in command
@@ -1126,7 +1133,7 @@ def test_second_evaluator_for_same_worktree_is_rejected(tmp_path):
 def test_owned_stack_always_uses_scoped_stop_when_launch_fails(monkeypatch):
     stopped = []
 
-    def fail_launch(env, timeout_s):
+    def fail_launch(env, timeout_s, sitl_arguments=()):
         raise evaluator.RegressionError("launch failed")
 
     monkeypatch.setattr(demo_process, "launch_stack", fail_launch)
@@ -1198,8 +1205,11 @@ def test_live_run_remembers_every_configured_sysid_set(monkeypatch, tmp_path):
     configured = []
     missions = []
 
-    def with_owned_stack(env, timeout_s, action):
+    launched_with = []
+
+    def with_owned_stack(env, timeout_s, action, sitl_arguments):
         del env, timeout_s
+        launched_with.append(list(sitl_arguments))
         return action(SimpleNamespace(sys_ids=sysid_sequence.pop(0)))
 
     def configure(context, timeout_s):
@@ -1218,6 +1228,18 @@ def test_live_run_remembers_every_configured_sysid_set(monkeypatch, tmp_path):
     monkeypatch.setattr(demo_runtime, "with_owned_stack", with_owned_stack)
     monkeypatch.setattr(demo_runtime, "configure_vehicle_params", configure)
     monkeypatch.setattr(demo_runtime, "run_mission", run_mission)
+    root = demo_inputs.SitlRoot("/home/eval/navpy-eval-roots/run-1")
+    monkeypatch.setattr(
+        demo_runtime,
+        "prepare_sitl_root",
+        lambda run_dir: (root, {"files": {}}, root.root),
+    )
+    manifests = []
+    monkeypatch.setattr(
+        demo_runtime,
+        "write_input_manifest",
+        lambda run_dir, env, sitl, host, options: manifests.append((sitl, host, options)),
+    )
 
     result = demo_runtime.execute_live_run(
         tmp_path,
@@ -1228,3 +1250,21 @@ def test_live_run_remembers_every_configured_sysid_set(monkeypatch, tmp_path):
     assert result.sys_ids == (1, 2, 3)
     assert configured == [(1, 2, 3), (4, 5, 6)]
     assert missions == [(1, 2, 3)]
+    # Every launch of the run boots from the same isolated root.
+    assert launched_with == [root.launch_arguments()] * 3
+    assert manifests == [(
+        {"files": {}},
+        root.root,
+        {"confirmation_delay_s": 0.0, "navigation_speedup": 0.0, "timeout_s": 1.0},
+    )]
+
+
+@pytest.mark.parametrize("onboard, writes", [(45.0, 0), (30.0, 1), (None, 1)])
+def test_roll_limit_is_written_only_where_boot_did_not_set_it(onboard, writes):
+    # The demo's pre-boot defaults set it; template boots (the ideal eval) do not.
+    puts = []
+    api = SimpleNamespace(put_json=lambda path, body, timeout: puts.append(body) or {
+        "results": {"ROLL_LIMIT_DEG": True}})
+    snapshot = {"params": [] if onboard is None else [{"name": "ROLL_LIMIT_DEG", "value": onboard}]}
+    stack_ops._ensure_roll_limit(SimpleNamespace(api=api), 4, snapshot)
+    assert puts == [{"changes": [{"name": "ROLL_LIMIT_DEG", "value": 45.0}]}] * writes

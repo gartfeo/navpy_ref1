@@ -244,7 +244,7 @@ def _retract_sitl(chat: int) -> None:
 
 def main() -> None:
     args = runner.build_parser(DEFAULT_SPEEDUP).parse_args()
-    wsl.ensure_experimental_paths(args.sitl_root, args.sitl_binary)
+    wsl.ensure_experimental_paths(args.sitl_root, args.sitl_binary, args.sitl_instance_seed)
     ensure_fork_supports_companion_udp()
     if args.defaults is not None:
         # `is not None`, not truthiness: --defaults "" would otherwise be
