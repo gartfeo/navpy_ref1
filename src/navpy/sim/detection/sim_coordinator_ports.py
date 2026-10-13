@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from contextlib import AbstractContextManager
 from typing import Any, Optional, Protocol, Sequence, TypeVar
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.sim.detection.detection_publication_store import PublicationSlot
 from navpy.sim.detection.frame_generation_gate import FrameGeneration
@@ -40,7 +40,7 @@ class PoseSourceCoordinatorPort(Protocol):
     def token(self) -> FrameGeneration: ...
 
     @property
-    def stop_event(self) -> threading.Event: ...
+    def stop_event(self) -> rt.Event: ...
 
     def admit_pose(
         self,
@@ -53,7 +53,7 @@ class PoseSourceCoordinatorPort(Protocol):
 
 class WorkerCoordinatorPort(Protocol[PoseT]):
     @property
-    def stop_event(self) -> threading.Event: ...
+    def stop_event(self) -> rt.Event: ...
 
     def wait_and_pop_pose(self) -> Optional[PoseT]: ...
 

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import time
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
@@ -67,7 +67,7 @@ class ParameterReader:
                 "PARAM_VALUE",
                 cursor,
                 lambda message: self._matches(message, normalized),
-                deadline=time.monotonic() + timeout,
+                deadline=rt.monotonic() + timeout,
             )
             if sample is not None:
                 return sample.message.param_value

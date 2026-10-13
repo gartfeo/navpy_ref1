@@ -19,15 +19,15 @@ from dataclasses import dataclass
 from typing import Optional
 from unittest.mock import MagicMock
 
-from gcs.backend.full_params import (
-    ARMED_TOKEN_TTL_S,
+from gcs.backend.full_param_store import ARMED_TOKEN_TTL_S
+from gcs.backend.full_param_values import (
     ArmedWriteRejected,
-    FullParamCache,
     FullParamError,
     ParamChange,
-    _coerce_to_stored,
-    _mav_param_type_for,
+    coerce_to_stored,
+    mav_param_type_for,
 )
+from gcs.backend.full_params import FullParamCache
 from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import (
     AP_TYPE_FLOAT, AP_TYPE_INT8, AP_TYPE_INT16, AP_TYPE_INT32,
     FLAG_HAS_DEFAULT, PCK_MAGIC, ParamRecord, parse_param_pck,
@@ -87,29 +87,29 @@ class TestCoerceToStored(unittest.TestCase):
     implementations (Codex anti-drift)."""
 
     def test_int_truncates_toward_zero(self):
-        self.assertEqual(_coerce_to_stored(AP_TYPE_INT32, 2.1), 2)
-        self.assertEqual(_coerce_to_stored(AP_TYPE_INT32, 2.9), 2)
-        self.assertEqual(_coerce_to_stored(AP_TYPE_INT32, -3.9), -3)
+        self.assertEqual(coerce_to_stored(AP_TYPE_INT32, 2.1), 2)
+        self.assertEqual(coerce_to_stored(AP_TYPE_INT32, 2.9), 2)
+        self.assertEqual(coerce_to_stored(AP_TYPE_INT32, -3.9), -3)
 
     def test_int_clamps_to_storage_range(self):
-        self.assertEqual(_coerce_to_stored(AP_TYPE_INT8, 200), 127)
-        self.assertEqual(_coerce_to_stored(AP_TYPE_INT8, -200), -128)
-        self.assertEqual(_coerce_to_stored(AP_TYPE_INT16, 70000), 32767)
+        self.assertEqual(coerce_to_stored(AP_TYPE_INT8, 200), 127)
+        self.assertEqual(coerce_to_stored(AP_TYPE_INT8, -200), -128)
+        self.assertEqual(coerce_to_stored(AP_TYPE_INT16, 70000), 32767)
 
     def test_int_result_is_int(self):
-        self.assertIsInstance(_coerce_to_stored(AP_TYPE_INT8, 5.0), int)
+        self.assertIsInstance(coerce_to_stored(AP_TYPE_INT8, 5.0), int)
 
     def test_float_passthrough(self):
-        self.assertEqual(_coerce_to_stored(AP_TYPE_FLOAT, 2.1), 2.1)
+        self.assertEqual(coerce_to_stored(AP_TYPE_FLOAT, 2.1), 2.1)
 
     def test_non_finite_returns_none(self):
-        self.assertIsNone(_coerce_to_stored(AP_TYPE_INT8, float("inf")))
-        self.assertIsNone(_coerce_to_stored(AP_TYPE_INT8, float("nan")))
-        self.assertIsNone(_coerce_to_stored(AP_TYPE_FLOAT, float("inf")))
+        self.assertIsNone(coerce_to_stored(AP_TYPE_INT8, float("inf")))
+        self.assertIsNone(coerce_to_stored(AP_TYPE_INT8, float("nan")))
+        self.assertIsNone(coerce_to_stored(AP_TYPE_FLOAT, float("inf")))
 
     def test_non_numeric_returns_none(self):
-        self.assertIsNone(_coerce_to_stored(AP_TYPE_INT8, "abc"))
-        self.assertIsNone(_coerce_to_stored(AP_TYPE_INT8, None))
+        self.assertIsNone(coerce_to_stored(AP_TYPE_INT8, "abc"))
+        self.assertIsNone(coerce_to_stored(AP_TYPE_INT8, None))
 
 
 # ---------------------------------------------------------------------
@@ -661,7 +661,7 @@ class TestWriteBatch(unittest.IsolatedAsyncioTestCase):
         await cache.write_batch(42, v, [ParamChange(name="AAB", value=2.0)])
         v.set_parameter.assert_called_once()
         kwargs = v.set_parameter.call_args.kwargs
-        self.assertEqual(kwargs["mav_param_type"], _mav_param_type_for(AP_TYPE_FLOAT))
+        self.assertEqual(kwargs["mav_param_type"], mav_param_type_for(AP_TYPE_FLOAT))
 
     async def test_fractional_int_coerced_before_send(self):
         """A raw PUT of 2.1 to an int8 param sends the stored integer 2 and
@@ -675,7 +675,7 @@ class TestWriteBatch(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(v.set_parameter.call_args.args[1], 2)  # stored int, not 2.1
         self.assertEqual(
             v.set_parameter.call_args.kwargs["mav_param_type"],
-            _mav_param_type_for(AP_TYPE_INT8),
+            mav_param_type_for(AP_TYPE_INT8),
         )
         self.assertTrue(result.results["AAA"].ok)
         self.assertEqual(result.results["AAA"].value, 2)

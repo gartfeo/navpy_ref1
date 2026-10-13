@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import math
-import threading
 from collections.abc import Callable
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.swarm_ack_msg import (
@@ -78,7 +78,7 @@ class TaskParticipationCoordinator:
     def __init__(
         self,
         actor_id: int,
-        lock: threading.RLock,
+        lock: rt.RLock,
         selection: SelectedTaskSlot,
         replies: AssignReplies,
         evaluator: TaskCapabilityEvaluator,

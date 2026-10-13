@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.sim.gimbal.gimbal_cadence import FixedCadenceRunner
 from navpy.sim.gimbal.siyi.gimbal_angles import MODE_FOLLOW
@@ -26,7 +26,7 @@ class SiyiSimLifecycle:
         self._logger = logger
         # Pays owed aircraft time before start/stop clears the commands.
         self._catch_up = catch_up
-        self._lifecycle_lock = threading.Lock()
+        self._lifecycle_lock = rt.Lock()
 
     def start(self) -> None:
         with self._lifecycle_lock:

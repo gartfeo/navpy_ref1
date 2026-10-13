@@ -9,14 +9,13 @@ once the beat outlives its own TTL.
 """
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Optional
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.swarm_heartbeat_msg import (
     SwarmHeartbeatMsg,
     SwarmNodeState,
@@ -38,11 +37,11 @@ class CompanionSwarmState:
     def __init__(
         self,
         sys_id: int,
-        monotonic_s: Callable[[], float] = time.monotonic,
+        monotonic_s: Callable[[], float] = rt.monotonic,
     ) -> None:
         self._sys_id = sys_id
         self._monotonic_s = monotonic_s
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._beat: Optional[_Beat] = None
 
     def on_heartbeat(self, msg: MAVLink_message) -> None:

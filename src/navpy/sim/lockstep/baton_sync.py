@@ -223,20 +223,17 @@ def join(runtime: BatonRuntime, thread: ManagedThread, timeout: float | None = N
     return thread.done
 
 
-def module_shims(runtime: BatonRuntime) -> tuple[SimpleNamespace, SimpleNamespace]:
-    """``time`` and ``threading`` stand-ins for a module under the baton."""
-    time_shim = SimpleNamespace(
+def runtime_shim(runtime: BatonRuntime) -> SimpleNamespace:
+    """A ``runtime_time`` (``rt``) stand-in for a module under the baton."""
+    return SimpleNamespace(
         monotonic=runtime.monotonic,
         perf_counter=runtime.monotonic,
         sleep=lambda seconds: sleep(runtime, seconds),
-    )
-    threading_shim = SimpleNamespace(
         Lock=lambda: BatonLock(runtime),
         RLock=lambda: BatonLock(runtime, reentrant=True),
         Condition=lambda lock=None: BatonCondition(runtime, lock),
         Event=lambda: BatonEvent(runtime),
     )
-    return time_shim, threading_shim
 
 
 __all__ = [
@@ -245,6 +242,6 @@ __all__ = [
     "BatonLock",
     "BatonQueue",
     "join",
-    "module_shims",
+    "runtime_shim",
     "sleep",
 ]

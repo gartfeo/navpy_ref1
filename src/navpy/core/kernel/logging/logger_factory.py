@@ -1,8 +1,8 @@
 import logging
 import os
-from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LoggerArgs
 from navpy.core.kernel.logging.cache_logger import CacheLogger, IStatusLogger
 from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
@@ -16,7 +16,7 @@ def _resolve_log_path() -> str:
     override = os.environ.get(LOG_DIR_ENV, "").strip()
     if override:
         return os.path.abspath(os.path.expanduser(override))
-    return f'.logs/{datetime.today().date()}/{datetime.today().strftime("%H%M%S")}/'
+    return f'.logs/{rt.now().date()}/{rt.now().strftime("%H%M%S")}/'
 
 
 def initialize_logger(args: LoggerArgs, sys_id, status_logger: IStatusLogger = None):

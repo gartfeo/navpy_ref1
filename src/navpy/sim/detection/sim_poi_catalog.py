@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
 from navpy.sim.world.simulation_object import SimulationObject
 from navpy.sim.detection.sim_control_ports import PoiProviderMutationPort
@@ -15,7 +15,7 @@ class SimPoiCatalog:
 
     def __init__(self, provider: PoiProviderMutationPort) -> None:
         self._provider = provider
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._pois = tuple(provider.pois or ())
 
     @property

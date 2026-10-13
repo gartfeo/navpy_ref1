@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 import os
-import threading
 from pathlib import Path
 from typing import Any
+
+from navpy.core.kernel import runtime_time as rt
 
 
 def atomic_write_text(path: Path | str, text: str) -> None:
@@ -21,7 +22,7 @@ def atomic_write_text(path: Path | str, text: str) -> None:
     # Unique per process/thread so two writers never share a temp file; a
     # sibling of the target so the rename stays on one filesystem.
     temporary = target.with_name(
-        f".{target.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        f".{target.name}.{os.getpid()}.{rt.get_ident()}.tmp"
     )
     try:
         with temporary.open("w", encoding="utf-8") as handle:

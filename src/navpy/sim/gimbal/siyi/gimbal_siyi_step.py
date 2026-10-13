@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import time
 from dataclasses import replace
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.sim.gimbal.aircraft_step_clock import AircraftStepClock
 from navpy.sim.gimbal.gimbal_attitude_reader import (
@@ -73,8 +73,8 @@ class SiyiSimStepper:
                     self._state.angular.advance(remainder_s)
                     self._state.zoom.advance(remainder_s)
             # Stamped after integration, under the lock: never goes backwards.
-            wall_timestamp_s = time.time()
-            monotonic_s = time.monotonic()
+            wall_timestamp_s = rt.time()
+            monotonic_s = rt.monotonic()
             angular = self._state.angular.snapshot()
             self._state.zoom_sample_seq += 1
             self._state.zoom_updated_monotonic_s = monotonic_s

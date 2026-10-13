@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable, Iterable
 
 from pymavlink.dialects.v20.ardupilotmega import (
@@ -10,6 +9,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_message,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
@@ -67,7 +67,7 @@ class MissionUploader:
                     0,
                     mission_type,
                 ),
-                deadline=time.monotonic() + timeout / 2,
+                deadline=rt.monotonic() + timeout / 2,
             )
             if envelope is not None:
                 first_envelope = envelope
@@ -101,7 +101,7 @@ class MissionUploader:
                             message,
                             mission_type,
                         ),
-                        deadline=time.monotonic() + 3.0,
+                        deadline=rt.monotonic() + 3.0,
                     )
                     ok = ack is not None
                     logger.info(
@@ -115,7 +115,7 @@ class MissionUploader:
                     message,
                     mission_type=mission_type,
                 ),
-                deadline=time.monotonic() + timeout,
+                deadline=rt.monotonic() + timeout,
             )
             if envelope is None:
                 logger.warning(

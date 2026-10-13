@@ -45,7 +45,7 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         stuck_thread = _StuckThread(target=lambda: None, daemon=True)
 
         with patch(
-            "navpy.core.swarm.swarm_heartbeat_runtime.threading.Thread",
+            "navpy.core.swarm.swarm_heartbeat_runtime.rt.Thread",
             return_value=stuck_thread,
         ):
             runtime.start()
@@ -65,7 +65,7 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         thread.is_alive.return_value = False
 
         with patch(
-            "navpy.core.swarm.swarm_heartbeat_runtime.threading.Thread",
+            "navpy.core.swarm.swarm_heartbeat_runtime.rt.Thread",
             return_value=thread,
         ):
             with self.assertRaises(RuntimeError) as raised:
@@ -86,7 +86,7 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
         thread.is_alive.return_value = False
 
         with patch(
-            "navpy.core.swarm.swarm_heartbeat_runtime.threading.Thread",
+            "navpy.core.swarm.swarm_heartbeat_runtime.rt.Thread",
             return_value=thread,
         ):
             with self.assertRaises(KeyboardInterrupt) as raised:

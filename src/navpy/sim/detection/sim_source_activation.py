@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.sim.detection.sim_runtime_ports import ResetAction
 
 
@@ -19,7 +19,7 @@ class SimSourceActivation:
     ) -> None:
         self._request_pose = request_pose
         self._request_truth = request_truth
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._activated = False
 
     @property

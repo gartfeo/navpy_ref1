@@ -11,6 +11,7 @@ import pytest
 from scripts.eval_gcs_demo_confirmation import ConfirmationTimeout, run_confirmation_workflow
 from scripts.eval_gcs_demo_mission import approve_requests_until_snap
 from scripts.eval_gcs_demo_models import RegressionError
+from scripts.eval_gcs_demo_execution import SystemClock
 
 
 class _Clock:
@@ -96,6 +97,7 @@ def test_mission_timeout_preserves_vehicle_states_and_backend_tail(
         "SNAP(VISION-NAV example\n", encoding="utf-8"
     )
     context = SimpleNamespace(
+        clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
         backend_tail=Tail(),
@@ -158,6 +160,7 @@ def test_missing_approval_after_snap_also_retains_vehicle_states(
 
     monkeypatch.setattr(mission, "run_confirmation_workflow", workflow)
     context = SimpleNamespace(
+        clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
         backend_tail=Tail(),
@@ -197,7 +200,9 @@ def test_nav_before_approval_keeps_partial_evidence(tmp_path: Path) -> None:
     (tmp_path / "uav_7_navigation.log").write_text(
         "Heartbeat from system 7\nINIT: NAV MODE\n", encoding="utf-8"
     )
-    context = SimpleNamespace(sys_ids=(7, 4, 9), api=_Api(), backend_tail=Tail())
+    context = SimpleNamespace(
+        sys_ids=(7, 4, 9), api=_Api(), backend_tail=Tail(), clock=SystemClock(),
+    )
     with pytest.raises(RegressionError, match="entered NAV before delayed operator"):
         approve_requests_until_snap(
             context, object(), tmp_path, 0.2, 0.0,
@@ -229,6 +234,7 @@ def test_nav_error_keeps_vehicle_attribution_when_evidence_writes_fail(
 
     monkeypatch.setattr(Path, "write_text", write_text)
     context = SimpleNamespace(
+        clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
         backend_tail=SimpleNamespace(text="backend\n", read_new=lambda: None),
@@ -255,6 +261,7 @@ def test_rejected_approval_is_distinct_from_no_attempt(tmp_path: Path) -> None:
             return super().post_json(path, payload, **kwargs)
 
     context = SimpleNamespace(
+        clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=RejectApi(),
         backend_tail=SimpleNamespace(text="backend rejection\n", read_new=lambda: None),
@@ -282,6 +289,7 @@ def test_backend_log_write_failure_does_not_hide_timeout(monkeypatch, tmp_path: 
 
     monkeypatch.setattr(Path, "write_text", write_text)
     context = SimpleNamespace(
+        clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
         backend_tail=SimpleNamespace(text="backend\n", read_new=lambda: None),
@@ -303,6 +311,7 @@ def test_both_evidence_writes_failing_preserve_missing_snap(monkeypatch, tmp_pat
 
     monkeypatch.setattr(Path, "write_text", write_text)
     context = SimpleNamespace(
+        clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
         backend_tail=SimpleNamespace(text="backend\n", read_new=lambda: None),
@@ -333,6 +342,7 @@ def test_snap_log_read_failure_keeps_original_timeout(monkeypatch, tmp_path: Pat
 
     monkeypatch.setattr(mission, "run_confirmation_workflow", timed_out)
     context = SimpleNamespace(
+        clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
         backend_tail=SimpleNamespace(text="backend\n", read_new=lambda: None),
@@ -366,6 +376,7 @@ def test_success_keeps_failure_artifacts_absent(monkeypatch, tmp_path: Path) -> 
 
     monkeypatch.setattr(mission, "run_confirmation_workflow", workflow)
     context = SimpleNamespace(
+        clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
         backend_tail=SimpleNamespace(text="", read_new=lambda: None),

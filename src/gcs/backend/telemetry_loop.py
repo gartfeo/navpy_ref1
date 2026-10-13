@@ -6,13 +6,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from typing import TYPE_CHECKING
 
 from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.launch_controller import launch_controller
 from gcs.backend.settings_store import settings_store
 from gcs.backend.diagnostics import emit
+from navpy.core.kernel import runtime_time as rt
 
 if TYPE_CHECKING:
     from gcs.backend.vehicle_manager import VehicleManager
@@ -177,7 +177,7 @@ class TelemetryLoop:
                             "lat": snap.get("lat"),
                             "lon": snap.get("lon"),
                             "alt": snap.get("alt"),
-                            "ts": time.time(),
+                            "ts": rt.time(),
                         })
                     # Accel-cal prompts/results are relayed as discrete events,
                     # independent of telemetry change detection, so the wizard
@@ -189,7 +189,7 @@ class TelemetryLoop:
                             "status": evt.get("status"),
                             "step": evt.get("step"),
                             "prompt_text": evt.get("prompt_text"),
-                            "ts": time.time(),
+                            "ts": rt.time(),
                         })
                     if prev is None or _has_changed(prev, snap):
                         changed.append(snap)
@@ -220,11 +220,11 @@ class TelemetryLoop:
                         "vehicles": changed,
                         "active_ids": sorted(active_ids),
                         "seen_ids": sorted(seen_ids),
-                        "ts": time.time(),
+                        "ts": rt.time(),
                     })
 
                 # Periodic NavPy sim status broadcast (~2s) when sim_mode on
-                now = time.time()
+                now = rt.time()
                 if now - last_sim_broadcast >= 2.0:
                     settings = settings_store.get()
                     if settings.simulation.sim_mode:

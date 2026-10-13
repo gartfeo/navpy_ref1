@@ -20,6 +20,7 @@ from navpy.core.link.task_message_data import TaskMsgData
 from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.msg_meta import MsgMeta
 from navpy.core.link.types import TaskTypeMsgData
+from tests.runtime_overlay import RuntimeOverlay
 
 # The companion shares its aircraft's system id; component 191 is what
 # tells it apart from the autopilot.
@@ -180,7 +181,7 @@ class TestRepeatRequestDedupPopup:
 
 
 class _FrozenClock:
-    """Controllable stand-in for the listener module's ``time``."""
+    """Controllable stand-in for the listener module's clock."""
 
     def __init__(self, now: float = 1000.0):
         self.now = now
@@ -330,7 +331,7 @@ class TestDecidedRoundReanswer:
         listener.register_vehicle(1, mock_vehicle)
         clock = _FrozenClock()
 
-        with patch("gcs.backend.task_confirm_listener.time", clock):
+        with patch("gcs.backend.task_confirm_listener.rt", RuntimeOverlay(monotonic=clock.monotonic)):
             listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=11))
             loop.run_until_complete(asyncio.sleep(0.05))
             listener.mark_decided(1, 7, is_confirmed=True, round_uid=_uid(11))
@@ -418,7 +419,7 @@ class TestDecidedRoundReanswer:
         listener.register_vehicle(1, mock_vehicle)
         clock = _FrozenClock()
 
-        with patch("gcs.backend.task_confirm_listener.time", clock):
+        with patch("gcs.backend.task_confirm_listener.rt", RuntimeOverlay(monotonic=clock.monotonic)):
             listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=11))
             # Round A got its thumbnail, and had already asked for one.
             listener._rounds._image_received.add((1, 7))

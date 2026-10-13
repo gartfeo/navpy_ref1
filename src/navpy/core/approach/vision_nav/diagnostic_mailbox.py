@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 
 from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandTiming,
 )
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 
 
@@ -21,7 +21,7 @@ class FinalApproachDiagnosticMailbox:
     """Keep rich POIs out of queued and command-fence payloads."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._next_token = 1
         self._entries: dict[int, FinalApproachDiagnosticEntry] = {}
 

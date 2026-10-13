@@ -13,6 +13,7 @@ from typing import List, Optional
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.device import (
     free_cuda_cache,
     DeviceT,
@@ -26,7 +27,6 @@ from navpy.plugins.tracking.boxmot.track_export_memory import (
 )
 from navpy.plugins.tracking.tracker_config import TrackerBackendConfig
 from navpy.core.ports.detection import Detection
-import time
 
 
 class BotSortTrackerBackend:
@@ -96,7 +96,7 @@ class BotSortTrackerBackend:
                 "BoT-SORT tracker requires the current frame for ReID embeddings "
                 "and camera-motion compensation"
             )
-        now = time.time()
+        now = rt.time()
         if not detections:
             self._memory.prune(set(), now)
             return self._memory.coast(now, max_age_seconds=_EMPTY_DETECTION_COAST_SECONDS)
@@ -197,7 +197,7 @@ class StrongSortTrackerBackend:
     ) -> List[TrackedObject]:
         if frame is None:
             raise ValueError("StrongSORT tracker requires the current frame for ReID embeddings")
-        now = time.time()
+        now = rt.time()
         if not detections:
             self._memory.prune(set(), now)
             return self._memory.coast(now, max_age_seconds=_EMPTY_DETECTION_COAST_SECONDS)

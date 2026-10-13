@@ -77,7 +77,7 @@ class FakeTimers:
 
     def patch(self):
         return patch(
-            "navpy.core.swarm.task_dispatch.threading.Timer",
+            "navpy.core.swarm.task_dispatch.rt.Timer",
             side_effect=self.make,
         )
 

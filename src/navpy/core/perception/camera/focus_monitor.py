@@ -17,12 +17,12 @@ The monitor owns no hardware and no frames: it depends only on an injected
 """
 from __future__ import annotations
 
-import time
 from typing import Callable, Optional, Sequence
 
 import cv2
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.focus_policy import FocusPolicy as _FocusPolicy
 from navpy.core.perception.camera.focus_state import (
     _State,
@@ -60,7 +60,7 @@ class FocusMonitor:
             request_autofocus: Callable[[], None],
             *,
             focus_metric: Callable[..., float] = laplacian_focus,
-            clock: Callable[[], float] = time.monotonic,
+            clock: Callable[[], float] = rt.monotonic,
             settle_delay: float = 0.7,     # lens transit after a zoom command
             af_settle: float = 0.8,        # time for one AF to act before re-measuring
             improve_ratio: float = 1.10,   # AF "helped" iff sharpness rose >10%

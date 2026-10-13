@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.review.confirmation_response_state import (
     ConfirmationResponseLedger,
     matches_round,
@@ -28,7 +28,7 @@ class ConfirmationRoundState:
 
     def __init__(
         self,
-        lock: threading.RLock,
+        lock: rt.RLock,
         registry: ConfirmationRegistryState,
         workers: ConfirmationWorkerState,
     ) -> None:
@@ -47,7 +47,7 @@ class ConfirmationRoundState:
         self,
         poi: DetectedObject,
         lease: ConfirmationWorkerLease,
-        event_factory: Callable[[], threading.Event],
+        event_factory: Callable[[], rt.Event],
         request_ref: Optional[ConfirmationRequestRef] = None,
     ) -> Optional[ConfirmationRound]:
         poi_id = lease.poi_id
@@ -196,7 +196,7 @@ class ConfirmationRoundState:
         for confirmation in confirmations:
             self._retire_exact(confirmation)
 
-    def pending_events(self) -> dict[int, threading.Event]:
+    def pending_events(self) -> dict[int, rt.Event]:
         with self._lock:
             return {
                 poi_id: confirmation.response_event

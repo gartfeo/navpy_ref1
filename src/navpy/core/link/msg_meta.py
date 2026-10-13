@@ -6,11 +6,10 @@ Provides:
 - MsgMetaProvider: singleton that generates unique message IDs per sender
 """
 
-import random
-import time
-import threading
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, Tuple
+
+from navpy.core.kernel import runtime_time as rt
 
 
 @dataclass
@@ -84,13 +83,13 @@ class MsgMetaProvider:
     """
 
     _instance: Optional["MsgMetaProvider"] = None
-    _lock = threading.Lock()
+    _lock = rt.Lock()
 
     def __init__(self):
         """Initialize with random boot_id and sequence counter at 0."""
-        self._boot_id: int = random.randint(0, 0xFFFFFFFF)
+        self._boot_id: int = rt.rng().randint(0, 0xFFFFFFFF)
         self._msg_seq: int = 0
-        self._seq_lock = threading.Lock()
+        self._seq_lock = rt.Lock()
 
     @classmethod
     def get_instance(cls) -> "MsgMetaProvider":
@@ -132,7 +131,7 @@ class MsgMetaProvider:
         return MsgMeta(
             boot_id=self._boot_id,
             msg_seq=self._next_seq(),
-            time_ms=int(time.time() * 1000),
+            time_ms=int(rt.time() * 1000),
             ttl_ms=ttl_ms,
         )
 

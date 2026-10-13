@@ -320,7 +320,7 @@ def test_execute_ideal_live_run_uses_one_owned_stack(monkeypatch, tmp_path: Path
     monkeypatch.setattr(runtime, "build_environment", lambda *_: {})
     monkeypatch.setattr(runtime, "run_ideal_mission", lambda *_: calls.append("mission") or mission)
 
-    def with_stack(_environment, _timeout, action):
+    def with_stack(_environment, _timeout, action, *, clock):
         calls.append("launch")
         return action(context)
 

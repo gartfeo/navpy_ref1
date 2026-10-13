@@ -9,8 +9,9 @@ dump as a plain callback, so it never imports the recorder back.
 from __future__ import annotations
 
 import atexit
-import threading
 from typing import Callable
+
+from navpy.core.kernel import runtime_time as rt
 
 # Bounds a stop() join so a wedged flusher surfaces as a failure instead of a
 # silent "clean stop".
@@ -34,8 +35,8 @@ class PoseCadenceFlusher:
     def __init__(self, flush: Callable[[], None], interval_s: float) -> None:
         self._flush = flush
         self._interval_s = interval_s
-        self._thread: threading.Thread | None = None
-        self._stop: threading.Event | None = None
+        self._thread: rt.Thread | None = None
+        self._stop: rt.Event | None = None
         self._atexit: Callable[[], None] | None = None
         self._started = False
 
@@ -55,8 +56,8 @@ class PoseCadenceFlusher:
         """
         if self._started:
             return
-        stop = threading.Event()
-        thread = threading.Thread(
+        stop = rt.Event()
+        thread = rt.Thread(
             target=self._loop, args=(stop,), name="pose-cadence-flush",
             daemon=True,
         )
@@ -75,7 +76,7 @@ class PoseCadenceFlusher:
             raise
         self._adopt(thread, stop)
 
-    def _adopt(self, thread: threading.Thread, stop: threading.Event) -> None:
+    def _adopt(self, thread: rt.Thread, stop: rt.Event) -> None:
         """Take ownership of a launched generation and arm the atexit drain."""
         self._thread = thread
         self._stop = stop
@@ -108,7 +109,7 @@ class PoseCadenceFlusher:
         self._atexit = None
         self._started = False
 
-    def _loop(self, stop: threading.Event) -> None:
+    def _loop(self, stop: rt.Event) -> None:
         while not stop.wait(self._interval_s):
             self._flush()
 

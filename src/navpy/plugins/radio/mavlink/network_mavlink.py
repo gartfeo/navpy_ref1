@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from typing import Optional, Protocol
 
@@ -10,6 +9,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_encapsulated_data_message,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.msg_abc import MsgABC, MsgRegistry
 from navpy.core.link.message_filter import MessageFilter
 from navpy.core.ports.network_abc import NetworkAbc
@@ -58,7 +58,7 @@ class NetworkMavlink(NetworkAbc):
         )
         self.logger = logger
         self._vehicle = vehicle
-        self._callback_lock = threading.RLock()
+        self._callback_lock = rt.RLock()
         self._vehicle_subscription = self._vehicle.on_message(
             "NAVLINK", self._on_mavlink,
         )

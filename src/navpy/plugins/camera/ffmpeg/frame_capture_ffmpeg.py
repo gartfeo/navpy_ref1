@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
 import subprocess
-import threading
-import time
 from typing import Optional
 
 import numpy as np
@@ -40,10 +39,10 @@ class FfmpegFrameCapture:
         self._height = int(height)
         self._frame_size = self._width * self._height * 3
         self._logger = logger
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._stop_requested = False
         self._closed = False
-        self._stderr_thread: threading.Thread | None = None
+        self._stderr_thread: rt.Thread | None = None
 
     @classmethod
     def open(
@@ -78,7 +77,7 @@ class FfmpegFrameCapture:
                 ) from None
             raise
         try:
-            stderr_thread = threading.Thread(
+            stderr_thread = rt.Thread(
                 target=capture._drain_stderr,
                 args=(process.stderr,),
                 daemon=True,
@@ -114,7 +113,7 @@ class FfmpegFrameCapture:
             # carries no PTS; everything upstream (camera, network, ffmpeg
             # process) is invisible here — CaptureStampKind.READ declares
             # exactly that.
-            read_at_s = time.time()
+            read_at_s = rt.time()
             if len(raw) != self._frame_size:
                 if is_running():
                     self._logger.warning("FrameProvider: ffmpeg pipe closed")
@@ -158,7 +157,7 @@ class FfmpegFrameCapture:
                 raise
             thread = self._stderr_thread
             if thread is not None:
-                if thread is threading.current_thread():
+                if thread is rt.current_thread():
                     raise RuntimeError(
                         "ffmpeg stderr worker cannot close itself"
                     )

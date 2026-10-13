@@ -22,7 +22,7 @@ from navpy.plugins.vehicle.ardupilot import mission_inbox, mission_upload
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.sim.lockstep.baton import BatonRuntime, LockstepFault
-from navpy.sim.lockstep.baton_sync import BatonCondition, BatonLock, BatonQueue, module_shims, sleep
+from navpy.sim.lockstep.baton_sync import BatonCondition, BatonLock, BatonQueue, runtime_shim, sleep
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder, encoder
 from navpy.sim.lockstep.step_wire import Frame
 
@@ -125,12 +125,11 @@ class ScriptedOperator:
     def _start(self, now_us: int) -> None:
         runtime = BatonRuntime(start_us=now_us)
         self._runtime = runtime
-        time_shim, threading_shim = module_shims(runtime)
-        # Until step 8's RuntimeTime port, the mission modules' clock and
-        # primitives are swapped for the run.
+        shim = runtime_shim(runtime)
+        # The coordinator process stays on the wall runtime (its relay link is
+        # host IO), so only the mission modules' ``rt`` is swapped for the run.
         for module in (mission_inbox, mission_upload):
-            self._patch(module, "time", time_shim)
-        self._patch(mission_inbox, "threading", threading_shim)
+            self._patch(module, "rt", shim)
         link, sink = encoder(*GCS_IDENTITY)
         send = BatonLock(runtime, reentrant=True)
         inbox = mission_inbox.MissionInbox()

@@ -19,7 +19,7 @@ from scripts.eval_gcs_demo_models import (
     finite_number,
 )
 from scripts.eval_gcs_demo_mission import run_mission
-from scripts.eval_gcs_demo_process import with_owned_stack
+from scripts.eval_gcs_demo_process import SystemClock, with_owned_stack
 from scripts.eval_gcs_demo_scenario import load_scenario_manifest
 
 
@@ -66,6 +66,7 @@ def execute_live_run(
         timeout,
         lambda context: run_mission(context, run_dir, timeout, delay),
         sitl_root.launch_arguments(),
+        clock=SystemClock(),
     )
     if not isinstance(mission, MissionArtifacts):
         raise TypeError("mission action returned an invalid artifact")

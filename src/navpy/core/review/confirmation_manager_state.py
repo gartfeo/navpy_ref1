@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.review.confirmation_round_state import ConfirmationRoundState
 from navpy.core.review.confirmation_round_transaction import (
     ConfirmationRequestRef,
@@ -23,7 +23,7 @@ class ConfirmationManagerState:
     """Compose POI status, worker leases, and exact confirmation rounds."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self.registry = ConfirmationRegistryState(self._lock)
         self._workers = ConfirmationWorkerState(self._lock)
         self._rounds = ConfirmationRoundState(
@@ -35,7 +35,7 @@ class ConfirmationManagerState:
     def start_review(
         self,
         poi: DetectedObject,
-        event_factory: Callable[[], threading.Event],
+        event_factory: Callable[[], rt.Event],
     ) -> ConfirmationWorkerLease:
         poi_id = get_poi_task_id(poi)
         with self._lock:
@@ -66,7 +66,7 @@ class ConfirmationManagerState:
         self,
         poi: DetectedObject,
         lease: ConfirmationWorkerLease,
-        event_factory: Callable[[], threading.Event],
+        event_factory: Callable[[], rt.Event],
         request_ref: Optional[ConfirmationRequestRef] = None,
     ) -> Optional[ConfirmationRound]:
         return self._rounds.begin(poi, lease, event_factory, request_ref)
@@ -121,7 +121,7 @@ class ConfirmationManagerState:
             rounds = self._rounds.snapshot()
         self._rounds.retire_many(rounds)
 
-    def pending_events(self) -> dict[int, threading.Event]:
+    def pending_events(self) -> dict[int, rt.Event]:
         return self._rounds.pending_events()
 
     @property

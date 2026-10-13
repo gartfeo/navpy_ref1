@@ -1,9 +1,9 @@
 import base64
 import math
-import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.listener_abc import ListenerAbc
 from navpy.core.link.msg_abc import MsgABC
 from navpy.core.link.message_filter import MessageFilter
@@ -77,7 +77,7 @@ class NetworkAbc(ABC):
         self._send_image_header(poi_id, total_size, num_chunks)
 
         if self._inter_chunk_delay_sec > 0:
-            time.sleep(self._inter_chunk_delay_sec * 2)  # Extra delay after header
+            rt.sleep(self._inter_chunk_delay_sec * 2)  # Extra delay after header
 
         # Send chunks
         for seq in range(num_chunks):
@@ -88,7 +88,7 @@ class NetworkAbc(ABC):
             self._send_image_chunk(poi_id, seq, chunk_data)
 
             if self._inter_chunk_delay_sec > 0 and seq < num_chunks - 1:
-                time.sleep(self._inter_chunk_delay_sec)
+                rt.sleep(self._inter_chunk_delay_sec)
 
         return num_chunks
 

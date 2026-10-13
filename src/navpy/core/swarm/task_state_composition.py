@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 from typing import NamedTuple
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.swarm.task_actor_slots import SelectedTaskSlot
 from navpy.core.swarm.task_auction_confirmation import (
     TaskAssignConfirmation,
@@ -26,8 +25,8 @@ class SwarmTaskState(NamedTuple):
 
 
 def create_task_state(
-    lock: threading.RLock,
-    monotonic_s: Callable[[], float] = time.monotonic,
+    lock: rt.RLock,
+    monotonic_s: Callable[[], float] = rt.monotonic,
 ) -> SwarmTaskState:
     peers = PeerRoster(lock, monotonic_s)
     store = _TaskAuctionStore(lock=lock, peers=peers, dispatches={})

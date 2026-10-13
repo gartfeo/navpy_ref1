@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from typing import Callable
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.core.approach.final_approach_detection_dispatch import (
@@ -22,9 +21,9 @@ class FinalApproachPumpSession:
         lease: DetectionEventLease,
     ) -> None:
         self.lease = lease
-        self._lock = threading.Lock()
-        self._stop_lock = threading.Lock()
-        self._lease_close_thread: threading.Thread | None = None
+        self._lock = rt.Lock()
+        self._stop_lock = rt.Lock()
+        self._lease_close_thread: rt.Thread | None = None
         self._lease_close_launch: ThreadLaunchGate | None = None
         self._lease_close_error: BaseException | None = None
         self._lease_closed = False
@@ -32,7 +31,7 @@ class FinalApproachPumpSession:
 
     def acquire_stop(self, deadline_s: float) -> bool:
         return self._stop_lock.acquire(
-            timeout=max(0.0, deadline_s - time.monotonic())
+            timeout=max(0.0, deadline_s - rt.monotonic())
         )
 
     def release_stop(self) -> None:
@@ -56,7 +55,7 @@ class FinalApproachPumpSession:
             launch = self._lease_close_launch
             if thread is None:
                 launch = ThreadLaunchGate()
-                thread = threading.Thread(
+                thread = rt.Thread(
                     target=self._run_lease_close,
                     args=(launch,),
                     name="final-approach-pump-lease-close",
@@ -72,7 +71,7 @@ class FinalApproachPumpSession:
                         self._lease_close_launch = None
                     raise
 
-        remaining_s = max(0.0, deadline_s - time.monotonic())
+        remaining_s = max(0.0, deadline_s - rt.monotonic())
         if not launch.committed:
             launch.wait_until_entered(remaining_s)
         if not launch.committed:
@@ -82,10 +81,10 @@ class FinalApproachPumpSession:
                         self._lease_close_thread = None
                         self._lease_close_launch = None
             return False
-        if thread is threading.current_thread():
+        if thread is rt.current_thread():
             return False
         if thread.is_alive():
-            thread.join(timeout=max(0.0, deadline_s - time.monotonic()))
+            thread.join(timeout=max(0.0, deadline_s - rt.monotonic()))
         if thread.is_alive():
             return False
         with self._lock:
@@ -116,7 +115,7 @@ def stop_final_approach_pump_session(
     retire: Callable[[], None],
 ) -> None:
     """Run one bounded, retryable cleanup transaction."""
-    deadline_s = time.monotonic() + timeout_s
+    deadline_s = rt.monotonic() + timeout_s
     if not session.acquire_stop(deadline_s):
         raise TimeoutError(
             "final-approach event pump cleanup transaction did not become available"

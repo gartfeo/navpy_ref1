@@ -1,13 +1,12 @@
 """Thread-safe positive and temporary-negative parameter cache."""
 from __future__ import annotations
 
-import threading
-import time
+from navpy.core.kernel import runtime_time as rt
 
 
 class ParameterRepository:
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._values: dict[str, float] = {}
         self._missing_until: dict[str, float] = {}
 
@@ -33,7 +32,7 @@ class ParameterRepository:
 
     def mark_missing(self, name: str, retry_after_s: float) -> None:
         with self._lock:
-            self._missing_until[name.upper()] = time.time() + retry_after_s
+            self._missing_until[name.upper()] = rt.time() + retry_after_s
 
     def missing_is_fresh(self, name: str) -> bool:
         normalized = name.upper()
@@ -41,7 +40,7 @@ class ParameterRepository:
             deadline = self._missing_until.get(normalized)
             if deadline is None:
                 return False
-            if time.time() < deadline:
+            if rt.time() < deadline:
                 return True
             self._missing_until.pop(normalized, None)
             return False

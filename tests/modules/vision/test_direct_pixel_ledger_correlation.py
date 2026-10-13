@@ -53,6 +53,7 @@ from tests.modules.vision.direct_pixel_router_bench import (
     attitude_message,
     sim_state_message,
 )
+from tests.runtime_overlay import RuntimeOverlay
 
 # The pairing gate's skew bound is not under test here: wide enough that no
 # scheduling stall between two ingests can refuse a pair.
@@ -138,7 +139,7 @@ def _driven_receipts(monkeypatch: pytest.MonkeyPatch) -> None:
     the host ingests."""
     receipts = itertools.count(100.0, 0.005)
     monkeypatch.setattr(
-        inbound_router, "time", SimpleNamespace(time=lambda: next(receipts))
+        inbound_router, "rt", RuntimeOverlay(time=lambda: next(receipts))
     )
 
 

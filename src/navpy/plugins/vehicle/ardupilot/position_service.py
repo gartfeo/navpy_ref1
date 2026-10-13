@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import math
-import time
 from collections.abc import Callable
 from copy import deepcopy
 
@@ -13,6 +12,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_message,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_mission import MavMission
@@ -21,7 +21,7 @@ from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
 from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
 
 
-MODULE_START_MONOTONIC_S = time.monotonic()
+MODULE_START_MONOTONIC_S = rt.monotonic()
 
 
 def default_elevation_lookup(
@@ -77,7 +77,7 @@ class PositionService:
                 "HOME_POSITION",
                 cursor,
                 self._from_poi,
-                deadline=time.monotonic() + 1.0,
+                deadline=rt.monotonic() + 1.0,
             )
             home = sample.message if sample else None
         if home is None:
@@ -129,7 +129,7 @@ class PositionService:
             lambda message: self._matches_terrain(
                 message, latitude_int, longitude_int,
             ),
-            deadline=time.monotonic() + timeout,
+            deadline=rt.monotonic() + timeout,
         )
         if sample is None:
             return None
@@ -175,11 +175,11 @@ class PositionService:
             0.0,
             0.0,
             0.0,
-            int((time.monotonic() - MODULE_START_MONOTONIC_S) * 1000)
+            int((rt.monotonic() - MODULE_START_MONOTONIC_S) * 1000)
             & 0xFFFFFFFF,
         )
         self._messages.publish(
-            "HOME_POSITION", home, receipt_time_s=time.time(),
+            "HOME_POSITION", home, receipt_time_s=rt.time(),
         )
         return home
 

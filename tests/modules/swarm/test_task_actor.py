@@ -86,7 +86,7 @@ class TaskActorTest(unittest.TestCase):
         # need) and the periodic heartbeat never ticks, so no background
         # thread can broadcast while a test counts broadcasts.
         for target, value in (
-            ("navpy.core.swarm.task_dispatch.threading.Timer", _IdleTimer),
+            ("navpy.core.swarm.task_dispatch.rt.Timer", _IdleTimer),
             (
                 "navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
                 threading.TIMEOUT_MAX,
@@ -388,7 +388,7 @@ class TaskActorTest(unittest.TestCase):
 
         self.network.broadcast.reset_mock()
 
-        with patch("navpy.core.swarm.task_dispatch.threading.Timer", side_effect=make_timer):
+        with patch("navpy.core.swarm.task_dispatch.rt.Timer", side_effect=make_timer):
             self.task_actor.on_message(msg)
             self.task_actor.on_message(msg)
 
@@ -853,7 +853,7 @@ class TaskActorTest(unittest.TestCase):
 
         reject_msg = self._response(6, 20, False)
 
-        with patch("navpy.core.swarm.task_dispatch.threading.Timer", side_effect=make_timer):
+        with patch("navpy.core.swarm.task_dispatch.rt.Timer", side_effect=make_timer):
             self.task_actor.on_message(reject_msg)
 
         self.assertIs(available_dispatch._rebroadcast_timer, timers[0])
@@ -917,7 +917,7 @@ class TaskActorTest(unittest.TestCase):
 
         reject_msg = self._response(5, 10, False)
 
-        with patch("navpy.core.swarm.task_dispatch.threading.Timer", side_effect=make_timer):
+        with patch("navpy.core.swarm.task_dispatch.rt.Timer", side_effect=make_timer):
             self.task_actor.on_message(reject_msg)
 
         self.assertEqual(rejected_dispatch.status, TaskDispatchStatus.AVAILABLE)
@@ -1298,7 +1298,7 @@ class TaskActorTest(unittest.TestCase):
         rebroadcast_timer = Mock()
         rebroadcast_timer.is_alive.return_value = True
         with patch(
-            "navpy.core.swarm.task_dispatch.threading.Timer",
+            "navpy.core.swarm.task_dispatch.rt.Timer",
             return_value=rebroadcast_timer,
         ) as timer_factory:
             self._discover(5, 6)
@@ -1340,7 +1340,7 @@ class TaskActorSilenceTest(unittest.TestCase):
 
     def setUp(self):
         for target, value in (
-            ("navpy.core.swarm.task_dispatch.threading.Timer", _IdleTimer),
+            ("navpy.core.swarm.task_dispatch.rt.Timer", _IdleTimer),
             (
                 "navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S",
                 threading.TIMEOUT_MAX,

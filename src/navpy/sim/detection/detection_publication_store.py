@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_event_lease import DetectionEventLease
 from navpy.core.ports.detection_publication import DetectionPublication
@@ -26,8 +26,9 @@ class DetectionPublicationStore:
     def __init__(self, *, source_driven: bool, capacity: int) -> None:
         self._source_driven = bool(source_driven)
         self._capacity = max(1, int(capacity))
-        self._condition = threading.Condition()
-        self._reservations: set[PublicationSlot] = set()
+        self._condition = rt.Condition()
+        # A dict, not a set: a slot hashes by identity (runtime_time lint).
+        self._reservations: dict[PublicationSlot, None] = {}
         self._snapshot = DetectionSnapshot((), (), None)
         self._events = DetectionEventStream(self._condition)
 
@@ -37,8 +38,8 @@ class DetectionPublicationStore:
 
     def reserve(
         self,
-        invalidated: threading.Event,
-        stopped: threading.Event,
+        invalidated: rt.Event,
+        stopped: rt.Event,
     ) -> Optional[PublicationSlot]:
         while not (invalidated.is_set() or stopped.is_set()):
             with self._condition:
@@ -54,7 +55,7 @@ class DetectionPublicationStore:
                 )
                 if not self._source_driven or occupied < self._capacity:
                     slot = PublicationSlot()
-                    self._reservations.add(slot)
+                    self._reservations[slot] = None
                     return slot
                 self._condition.wait()
         return None
@@ -78,7 +79,7 @@ class DetectionPublicationStore:
                 or slot not in self._reservations
             ):
                 return False
-            self._reservations.remove(slot)
+            del self._reservations[slot]
             self._snapshot = DetectionSnapshot(
                 poi_tuple,
                 poi_tuple,
@@ -98,7 +99,7 @@ class DetectionPublicationStore:
 
     def abandon(self, slot: PublicationSlot) -> None:
         with self._condition:
-            self._reservations.discard(slot)
+            self._reservations.pop(slot, None)
             self._condition.notify_all()
 
     def drain(self) -> list[DetectionPublication]:

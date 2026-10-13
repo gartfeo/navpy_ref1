@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.approach.logs.navigation_logger import NAVIGATION_EVIDENCE_FAILURE_MARKER
@@ -32,7 +32,7 @@ class NavigationPostprocessDispatcher:
 
     def __init__(self, logger: ILogger) -> None:
         self._logger = logger
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._worker: NavigationStreamWorker[Callable[[], None]] | None = None
 
     def start(self) -> None:

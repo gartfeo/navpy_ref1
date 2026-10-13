@@ -305,7 +305,7 @@ class TestCameraMount(unittest.TestCase):
         mount = CameraMount(name="test", camera=camera, gimbal=gimbal)
 
         with patch(
-            "navpy.core.perception.camera.camera_mount_frame_state.time.monotonic",
+            "navpy.core.perception.camera.camera_mount_frame_state.rt.monotonic",
             side_effect=(10.0, 10.005),
         ):
             state = mount.capture_frame_state(1000, 500)

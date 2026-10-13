@@ -1,6 +1,6 @@
-import time
 import serial
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.camera.visca.camera_args import CameraArgs
 
 
@@ -123,7 +123,7 @@ class CameraZoomControllerVisca:
         return nearest_level
 
     def _wait_for_zoom_completion(self, timeout=5):
-        start_time = time.time()
+        start_time = rt.time()
         buffer = bytearray()
 
         while True:
@@ -134,10 +134,10 @@ class CameraZoomControllerVisca:
                 if b'\x90\x51\xff' in buffer:
                     print(f"{self._name}: Zoom completed.")
                     return
-            if time.time() - start_time > timeout:
+            if rt.time() - start_time > timeout:
                 print(f"{self._name}: Zoom completion timed out.")
                 return
-            time.sleep(0.02)
+            rt.sleep(0.02)
 
     def close(self):
         """Close the serial connection."""

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 from typing import Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 from navpy.core.kernel.logging.cache_log_message import LogMessage
@@ -36,14 +35,14 @@ class CacheStatusOutput:
         policy: StatusPolicyPort,
         sink: IStatusLogger | None,
         *,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = rt.time,
     ) -> None:
         self._policy = policy
         self._sink = sink
         self._clock = clock
         self._last_by_key: dict[str, object] = {}
         self._last_update_s = float(clock())
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
 
     @property
     def sink(self) -> IStatusLogger | None:

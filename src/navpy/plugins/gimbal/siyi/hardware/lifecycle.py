@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import threading
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.plugins.gimbal.siyi.hardware.poll_worker import (
@@ -46,7 +46,7 @@ class SiyiHardwareLifecycle:
         )
         self._store = store
         self._poll_worker = SiyiPollWorker(poller, logger)
-        self._lifecycle_lock = threading.Lock()
+        self._lifecycle_lock = rt.Lock()
         self._running = False
 
     def start(self) -> None:

@@ -6,7 +6,7 @@ import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from scripts.eval_gcs_demo_ports import JsonApiPort, JsonValue, TailPort
+from scripts.eval_gcs_demo_ports import ClockPort, JsonApiPort, JsonValue, TailPort
 from scripts.eval_gcs_demo_limits import (
     CadenceLimits,
     GateLimits,
@@ -151,6 +151,8 @@ class StackContext:
     api: JsonApiPort
     sys_ids: tuple[int, int, int]
     backend_tail: TailPort
+    #: The operator's clock: every wait and deadline of the eval reads it.
+    clock: ClockPort
     launch_evidence: dict[str, JsonValue] | None = None
     #: The slot's GCS monitor endpoint, for the explicit connect.
     monitor_device: str | None = None

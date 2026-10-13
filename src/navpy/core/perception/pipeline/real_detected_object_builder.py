@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import time
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from navpy.core.ports.detection_components import (
@@ -194,8 +194,8 @@ def _source_timing(
         camera_frame_timestamp_s=_measurement_timestamp_s(association),
         tracker_timestamp_s=track.timestamp,
         source_receipt_timestamp_s=association.frame_timestamp_s,
-        detection_now_s=time.time,
-        source_receipt_now_s=time.time,
+        detection_now_s=rt.time,
+        source_receipt_now_s=rt.time,
         source_air_speed_mps=association.air_speed_mps,
     )
 

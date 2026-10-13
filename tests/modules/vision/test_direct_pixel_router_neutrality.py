@@ -60,6 +60,7 @@ from tests.modules.vision.direct_pixel_router_bench import (
     attitude_message,
     sim_state_message,
 )
+from tests.runtime_overlay import RuntimeOverlay
 
 # The source test's neutrality schedule (test_direct_poi_pixel_source.py)
 # with one stale ATTITUDE, ``a``, that the router rejects: one clean frame; a
@@ -194,7 +195,7 @@ def _arm(monkeypatch, *, tracing: bool) -> dict[str, Any]:
     monkeypatch.setattr(determinism_trace, "ENABLED", tracing)
     receipts = SimpleNamespace(now=0.0)
     monkeypatch.setattr(
-        inbound_router, "time", SimpleNamespace(time=lambda: receipts.now)
+        inbound_router, "rt", RuntimeOverlay(time=lambda: receipts.now)
     )
     vehicle = RouterVehicle()
     queue: list = []

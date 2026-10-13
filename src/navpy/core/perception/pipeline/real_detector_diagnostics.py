@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.perception.camera.frame_provider import FrameProvider
 from navpy.core.ports.tracks import TrackedObject
@@ -60,7 +60,7 @@ class DetectorDiagnostics:
 
     def get_overlay_tracks(self) -> list[TrackedObject]:
         tracks, _ = self._overlays.snapshot()
-        now_s = time.time()
+        now_s = rt.time()
         return [
             track
             for track in tracks
@@ -80,7 +80,7 @@ class DetectorDiagnostics:
         if frame is None:
             return None
         tracks, locked = self._overlays.snapshot()
-        now_s = time.time()
+        now_s = rt.time()
         tracks = [
             track
             for track in tracks

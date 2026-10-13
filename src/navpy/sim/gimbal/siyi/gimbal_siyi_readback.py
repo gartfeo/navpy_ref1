@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import time
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.sim.gimbal.siyi.gimbal_siyi_state import (
     SiyiSimState,
@@ -64,7 +64,7 @@ class SiyiSimReadback:
         timestamp_s = self._state.zoom_updated_monotonic_s
         if not self._state.started or timestamp_s is None:
             return None
-        return max(0.0, time.monotonic() - timestamp_s)
+        return max(0.0, rt.monotonic() - timestamp_s)
 
 
 __all__ = ["SiyiSimReadback"]

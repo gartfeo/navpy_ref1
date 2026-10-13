@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from time import time
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.laws.geo.roll_l1_state import (
     RollL1Parameters,
     RollL1State,
@@ -29,7 +29,7 @@ class RollL1Control:
 
     def reset(self) -> None:
         self._parameters = self._parameter_reader()
-        self._state = RollL1State(last_update_s=time())
+        self._state = RollL1State(last_update_s=rt.time())
         self._waypoint_solver = RollL1WaypointSolver(
             self._motion_reader,
             self._parameters,

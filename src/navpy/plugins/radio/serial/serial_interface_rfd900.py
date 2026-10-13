@@ -1,10 +1,8 @@
-import random
-import threading
-import time
 from typing import Optional
 
 import serial
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.radio.serial.serial_network_args import SerialNetworkArgs
 from navpy.plugins.radio.serial.serial_listener import ISerialListener
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -40,15 +38,15 @@ class SerialInterfaceRFD900:
 
         # TX state
         self._tx_queue: list[bytes] = []
-        self._tx_lock = threading.Lock()
+        self._tx_lock = rt.Lock()
 
         # RX state
         self._stream = bytearray()    # delimiter accumulator
         self._ascii = bytearray()     # CRLF-terminated lines
 
         # Threads
-        self._tx_thr = threading.Thread(target=self._tx_loop, daemon=True)
-        self._rx_thr = threading.Thread(target=self._rx_loop, daemon=True)
+        self._tx_thr = rt.Thread(target=self._tx_loop, daemon=True)
+        self._rx_thr = rt.Thread(target=self._rx_loop, daemon=True)
         self._tx_thr.start()
         self._rx_thr.start()
 
@@ -92,13 +90,13 @@ class SerialInterfaceRFD900:
 
             if pkt:
                 try:
-                    time.sleep(random.uniform(SEND_JITTER_MIN, SEND_JITTER_MAX))
+                    rt.sleep(rt.rng().uniform(SEND_JITTER_MIN, SEND_JITTER_MAX))
                     self._ser.write(pkt)
                     self._log.debug(f"TX {len(pkt)} bytes")
                 except Exception as exc:
                     self._log.error(f"TX error: {exc}")
             else:
-                time.sleep(LOOP_SLEEP)
+                rt.sleep(LOOP_SLEEP)
 
     # .....................................................................
     # Internal – RX
@@ -108,7 +106,7 @@ class SerialInterfaceRFD900:
             try:
                 chunk = self._ser.read(self._ser.in_waiting or 1)
                 if not chunk:
-                    time.sleep(LOOP_SLEEP)
+                    rt.sleep(LOOP_SLEEP)
                     continue
 
                 self._handle_ascii(chunk)   # strip & log AT responses

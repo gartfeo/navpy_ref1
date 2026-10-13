@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import math
-import threading
-import time
 from dataclasses import dataclass
 from typing import Any, Callable, ContextManager, Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.high_resolution_deadline import wait_until_deadline
 from navpy.core.approach.calc_data import CalcData
@@ -70,8 +69,8 @@ NO_COMMAND_LOOP_OBSERVER = _IgnoreCommandLoop()
 class NavigationCommandWorkerPorts:
     """Narrow synchronization and runtime ports used by the worker."""
 
-    stop_event: threading.Event
-    command_event: threading.Event
+    stop_event: rt.Event
+    command_event: rt.Event
     wall_period_s: Callable[[float], float]
     runtime_session: Callable[[], ContextManager[CommandWorkRuntime]]
     logger: ILogger
@@ -86,8 +85,8 @@ class NavigationCommandWorkerPorts:
     # ~15.6 ms steps.  Accelerated SITL needs sub-tick AP deadlines (4 ms at
     # 10x), so use the high-resolution monotonic counter for scheduling only.
     # Observation/source timestamps remain untouched in their producer clocks.
-    monotonic_s: Callable[[], float] = time.perf_counter
-    sleep_s: Callable[[float], None] = time.sleep
+    monotonic_s: Callable[[], float] = rt.perf_counter
+    sleep_s: Callable[[float], None] = rt.sleep
 
 
 class NavigationCommandWorker:

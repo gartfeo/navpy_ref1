@@ -46,10 +46,9 @@ and one before ``close()`` cancels them, both under ``_lock`` (D3).
 
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
@@ -100,10 +99,10 @@ class DirectPoiPixelSource:
         aircraft_degrees: bool,
         dispatch: Callable[[DetectedObject], bool],
         frame_size: FrameSize = FrameSize(2560, 1440),
-        wall_now_s: Callable[[], float] = time.time,
+        wall_now_s: Callable[[], float] = rt.time,
     ) -> None:
         self._dispatch = dispatch
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._state = DirectPublishState()
         pipeline = build_direct_pixel_pipeline(
             vehicle,

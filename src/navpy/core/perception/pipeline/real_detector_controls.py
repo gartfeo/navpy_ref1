@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import time
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
@@ -168,7 +168,7 @@ class DetectionQuery:
         if request.force_lock_bbox_cxcywh is not None and self._use_poi_lock:
             self._poi_lock.force_lock_bbox(request.force_lock_bbox_cxcywh)
         pois, primary = self._results.snapshot()
-        now_s = time.time()
+        now_s = rt.time()
         pois = [
             poi
             for poi in pois

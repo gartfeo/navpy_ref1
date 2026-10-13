@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.plugins.gimbal.siyi.hardware.polling import (
@@ -18,8 +18,8 @@ from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 @dataclass
 class SiyiPollOwnership:
-    stop_event: threading.Event | None = None
-    thread: threading.Thread | None = None
+    stop_event: rt.Event | None = None
+    thread: rt.Thread | None = None
     launch: ThreadLaunchGate | None = None
 
 
@@ -47,9 +47,9 @@ class SiyiPollWorker:
     def start(self) -> None:
         if self.has_thread:
             raise RuntimeError("SIYI polling worker is already owned")
-        stop_event = threading.Event()
+        stop_event = rt.Event()
         launch = ThreadLaunchGate()
-        thread = threading.Thread(
+        thread = rt.Thread(
             target=self._run,
             args=(stop_event, launch),
             daemon=True,
@@ -82,7 +82,7 @@ class SiyiPollWorker:
 
     def _run(
         self,
-        stop_event: threading.Event,
+        stop_event: rt.Event,
         launch: ThreadLaunchGate,
     ) -> None:
         if not launch.enter():

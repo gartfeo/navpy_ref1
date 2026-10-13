@@ -1269,7 +1269,7 @@ class TestRestartRunningNavpySim(unittest.TestCase):
             return SimpleNamespace(process=SimpleNamespace(pid=200 + sys_id))
 
         with patch.object(runtime_mod, "start_instance", side_effect=start), patch(
-            "gcs.backend.navpy_sim_configured_restart.time.monotonic",
+            "gcs.backend.navpy_sim_configured_restart.rt.monotonic",
             side_effect=(100.0, 100.1, 100.4, 100.9),
         ):
             runtime_mod.restart_configured_navpy_sim(

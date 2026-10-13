@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import math
-import threading
 from collections.abc import Callable
+
+from navpy.core.kernel import runtime_time as rt
 
 
 class FinalApproachSourceReceiptWatchdog:
@@ -17,7 +18,7 @@ class FinalApproachSourceReceiptWatchdog:
     ) -> None:
         self._wall_s = wall_s
         self._maximum_wall_age_s = maximum_wall_age_s
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._armed_at_wall_s: float | None = None
 
     def arm(self) -> None:

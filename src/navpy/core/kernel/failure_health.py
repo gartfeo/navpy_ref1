@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Protocol, Sequence
+
+from navpy.core.kernel import runtime_time as rt
 
 
 class FailureHealthPort(Protocol):
@@ -14,7 +15,7 @@ class ComponentFailureLatch:
     """Remember the first fatal even after its component is detached."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._failure: BaseException | None = None
 
     def raise_if_failed(

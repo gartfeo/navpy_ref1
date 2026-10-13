@@ -100,7 +100,7 @@ class TaskDispatchTest(unittest.TestCase):
             self.assertIsNone(self.task_dispatch._timer_event)
             callback(task_id)
 
-        with patch("navpy.core.swarm.task_dispatch.threading.Timer", side_effect=make_timer):
+        with patch("navpy.core.swarm.task_dispatch.rt.Timer", side_effect=make_timer):
             self.task_dispatch.start_peer_select_timer(callback_after_clear, 5.0)
             self.task_dispatch.start_peer_select_timer(callback_after_clear, 5.0)
 
@@ -164,7 +164,7 @@ class TaskDispatchTest(unittest.TestCase):
             self.assertFalse(self.task_dispatch.has_active_rebroadcast())
             callback(task_id)
 
-        with patch("navpy.core.swarm.task_dispatch.threading.Timer", side_effect=make_timer):
+        with patch("navpy.core.swarm.task_dispatch.rt.Timer", side_effect=make_timer):
             self.task_dispatch.start_rebroadcast(callback_after_clear, 5.0)
             self.assertTrue(self.task_dispatch.has_active_rebroadcast())
 
@@ -207,7 +207,7 @@ class TaskDispatchTest(unittest.TestCase):
         def callback(_task_id):
             self.task_dispatch.start_rebroadcast(lambda task_id: task_id, 2.0)
 
-        with patch("navpy.core.swarm.task_dispatch.threading.Timer", side_effect=make_timer):
+        with patch("navpy.core.swarm.task_dispatch.rt.Timer", side_effect=make_timer):
             self.task_dispatch.start_rebroadcast(callback, 5.0)
             timers[0].fire()
 

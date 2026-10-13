@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 from types import SimpleNamespace
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
@@ -66,7 +65,7 @@ class SiyiGeoPixelSource:
         *,
         min_pixels: float,
         dispatch: Callable[[DetectedObject], bool],
-        wall_now_s: Callable[[], float] = time.time,
+        wall_now_s: Callable[[], float] = rt.time,
     ) -> None:
         self._poi = SimulationObject(1, poi, 2)
         self._mount = mount
@@ -74,7 +73,7 @@ class SiyiGeoPixelSource:
         self._min_pixels = float(min_pixels)
         self._dispatch = dispatch
         self._wall_now_s = wall_now_s
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._state = _SiyiAcquisitionState()
         self._sight = SiyiSightRecorder(geo_ref, self._poi.g_loc)
         self._stream = PoseStreamLink(vehicle)

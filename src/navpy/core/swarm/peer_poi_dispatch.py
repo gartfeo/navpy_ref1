@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import threading
-import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
 from navpy.core.swarm.peer_dispatch_quiescence import (
     await_peer_dispatch_quiescence,
@@ -49,7 +48,7 @@ class _PreparedDispatch:
 
 
 def _run_fenced_if_current(
-    fence: threading.Lock,
+    fence: rt.Lock,
     jobs: Sequence[_DispatchJob],
     is_current: Callable[[_DispatchJob], bool],
     effect: Callable[[], None],
@@ -65,7 +64,7 @@ class _PeerPoiDispatcher:
     def __init__(
         self,
         ports: PeerPoiDispatchPorts,
-        fence: threading.Lock,
+        fence: rt.Lock,
         is_current: Callable[[_DispatchJob], bool],
     ) -> None:
         self._ports = ports
@@ -143,8 +142,8 @@ class PeerPoiDispatchWorker:
 
     def __init__(self, ports: PeerPoiDispatchPorts) -> None:
         self._ports = ports
-        self._condition = threading.Condition()
-        self._execution_fence = threading.Lock()
+        self._condition = rt.Condition()
+        self._execution_fence = rt.Lock()
         self._pending: OrderedDict[int, _DispatchJob] = OrderedDict()
         self._generation = 0
         self._stopped = False
@@ -154,7 +153,7 @@ class PeerPoiDispatchWorker:
             self._execution_fence,
             self._job_is_current,
         )
-        self._thread = threading.Thread(
+        self._thread = rt.Thread(
             target=self._run_thread,
             name="nav-peer-poi-dispatch",
             daemon=True,
@@ -207,7 +206,7 @@ class PeerPoiDispatchWorker:
 
     def stop(self, timeout_s: float = PEER_STOP_TIMEOUT_S) -> None:
         """Fence effects, reject future work, and join the daemon worker."""
-        deadline_s = time.monotonic() + max(0.0, float(timeout_s))
+        deadline_s = rt.monotonic() + max(0.0, float(timeout_s))
         with self._condition:
             self._generation += 1
             self._pending.clear()
@@ -215,12 +214,12 @@ class PeerPoiDispatchWorker:
             self._condition.notify_all()
         await_peer_dispatch_quiescence(
             self._execution_fence,
-            max(0.0, deadline_s - time.monotonic()),
+            max(0.0, deadline_s - rt.monotonic()),
             "stop",
             self._record_failure,
         )
         if self._thread.is_alive():
-            self._thread.join(timeout=max(0.0, deadline_s - time.monotonic()))
+            self._thread.join(timeout=max(0.0, deadline_s - rt.monotonic()))
         if self._thread.is_alive():
             failure = TimeoutError(
                 "Peer POI dispatch did not stop within "

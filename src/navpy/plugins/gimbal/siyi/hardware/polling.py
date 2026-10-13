@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import threading
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.plugins.gimbal.siyi.hardware.ports import MonotonicClock
 from navpy.plugins.gimbal.siyi.hardware.session import SiyiSdkSession
@@ -26,7 +26,7 @@ class SiyiTelemetryPoller:
         self._monotonic = monotonic
         self._logger = logger
 
-    def run(self, stop_event: threading.Event) -> None:
+    def run(self, stop_event: rt.Event) -> None:
         while not stop_event.is_set():
             started_s = self._monotonic()
             self.poll_once()

@@ -49,11 +49,11 @@ a command path, and an interrupt is flagged before it leaves.
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import replace
 from typing import Any, TypeVar
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.sim.determinism.determinism_row_layouts import (
     association_row,
     discard_row,
@@ -107,7 +107,7 @@ class RowJournal:
 
     def __init__(self, period_us: int, capacity: int) -> None:
         self._period_us = int(period_us) if period_us and period_us > 0 else 0
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._log = BoundedRowLog(int(capacity))
         self._watermark_us: int | None = None
         # Sealed, refused and faulted, all under the row lock.

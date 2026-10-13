@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from contextlib import contextmanager
 from dataclasses import replace
 from typing import Iterator, Optional, Sequence, TypeVar
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.sim.detection.detection_publication_store import (
@@ -46,8 +46,8 @@ class SourceFrameCoordinator:
         self._publications = publications
         self._record_outcome = record_outcome
         self._overload_warning = overload_warning
-        self._stop_event = threading.Event()
-        self._reset_lock = threading.RLock()
+        self._stop_event = rt.Event()
+        self._reset_lock = rt.RLock()
         self._overload_active = False
 
     @property
@@ -55,7 +55,7 @@ class SourceFrameCoordinator:
         return self._gate.token
 
     @property
-    def stop_event(self) -> threading.Event:
+    def stop_event(self) -> rt.Event:
         return self._stop_event
 
     @property

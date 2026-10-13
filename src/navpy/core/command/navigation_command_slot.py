@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, TypeVar
+
+from navpy.core.kernel import runtime_time as rt
 
 
 _T = TypeVar("_T")
@@ -21,7 +22,7 @@ class NavigationCommandLease:
 class NavigationCommandSlot:
     """Own pending work, phase invalidation, signaling, and worker leases."""
 
-    def __init__(self, lock: threading.RLock, signal: threading.Event) -> None:
+    def __init__(self, lock: rt.RLock, signal: rt.Event) -> None:
         self._lock = lock
         self._signal = signal
         self._pending: Any = None

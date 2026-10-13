@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Callable, Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.review.confirmation_ports import (
@@ -31,8 +31,8 @@ class ConfirmationCoordinator:
         assignment: SelfAssignmentPublisher,
         round_runner: ConfirmationRoundRunner,
         logger: ILogger,
-        event_factory: Callable[[], threading.Event],
-        thread_factory: Callable[..., threading.Thread],
+        event_factory: Callable[[], rt.Event],
+        thread_factory: Callable[..., rt.Thread],
     ) -> None:
         self._sys_id = sys_id
         self._state = state

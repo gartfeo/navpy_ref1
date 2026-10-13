@@ -50,6 +50,7 @@ from navpy.core.approach.nav_law_factory import (
 )
 from navpy.core.ports.gimbal_abc import GimbalData
 from tests.detection_factory import make_detected_poi
+from navpy.core.kernel import runtime_time as rt
 
 
 def _detection(*, simulation: bool = False):
@@ -289,8 +290,8 @@ def test_command_worker_defaults_to_high_resolution_deadline_clock():
         logger=Mock(),
     )
 
-    assert ports.monotonic_s is time.perf_counter
-    assert ports.sleep_s is time.sleep
+    assert ports.monotonic_s is rt.perf_counter
+    assert ports.sleep_s is rt.sleep
 
 
 def test_command_worker_issues_staged_work_before_preparing_next_source():

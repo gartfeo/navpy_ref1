@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, unique
 from typing import Optional, TypeVar
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.msg_meta import MsgMeta
 from navpy.core.ports.detect_data import DetectedObject
 
@@ -21,7 +21,7 @@ class ConfirmationOutboundTransaction:
     def __init__(self) -> None:
         # A transport can synchronously deliver a response from broadcast().
         # Resolution re-enters this exact transaction on the sending thread.
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
 
     def run(self, action: Callable[[], _ResultT]) -> _ResultT:
         with self._lock:
@@ -32,7 +32,7 @@ class ConfirmationOutboundTransaction:
 class ConfirmationWorkerLease:
     poi_id: Optional[int]
     generation: int
-    cancel_event: threading.Event
+    cancel_event: rt.Event
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ class ConfirmationRequestRef:
 class ConfirmationRound:
     poi_id: int
     generation: int
-    response_event: threading.Event
+    response_event: rt.Event
     poi: DetectedObject
     worker: ConfirmationWorkerLease
     request_ref: Optional[ConfirmationRequestRef] = None

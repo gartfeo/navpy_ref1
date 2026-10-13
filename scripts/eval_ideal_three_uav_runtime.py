@@ -31,7 +31,7 @@ from scripts.eval_gcs_demo_models import (
 )
 from scripts.eval_gcs_demo_lifecycle import wait_for_companions
 from navpy.core.kernel.logging.pose_cadence_naming import NAMING_ENV as POSE_CADENCE_NAMING_ENV
-from scripts.eval_gcs_demo_process import with_owned_stack
+from scripts.eval_gcs_demo_process import SystemClock, with_owned_stack
 from scripts.eval_gcs_demo_stack_ops import (
     configure_vehicle_params,
     start_esp32_simulator,
@@ -217,7 +217,7 @@ def execute_ideal_live_run(
         return run_ideal_mission(context, run_dir, timeout)
 
     # The backend writes its complete log into the run (GCS_LOG_DIR).
-    return with_owned_stack(environment, timeout, action)
+    return with_owned_stack(environment, timeout, action, clock=SystemClock())
 
 
 __all__ = [

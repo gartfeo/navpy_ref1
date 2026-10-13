@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import math
-import threading
 from collections.abc import Iterable, Mapping
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.camera_mount_ports import (
     CameraCalibrationPort,
     CameraOpticsPort,
@@ -28,7 +28,7 @@ class MountOpticsReader:
     def __init__(
         self,
         camera: CameraOpticsPort,
-        lock: threading.RLock,
+        lock: rt.RLock,
     ) -> None:
         self._camera = camera
         self._lock = lock
@@ -139,7 +139,7 @@ class MountLiveOptics:
         camera: CameraZoomPort,
         optics: LiveOpticsPort,
         readback: LiveZoomReadbackPort,
-        lock: threading.RLock,
+        lock: rt.RLock,
     ) -> None:
         self._camera = camera
         self._optics = optics

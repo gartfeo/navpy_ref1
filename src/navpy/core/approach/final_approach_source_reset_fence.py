@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+
+from navpy.core.kernel import runtime_time as rt
 
 
 class FinalApproachSourceResetFence:
@@ -17,7 +18,7 @@ class FinalApproachSourceResetFence:
     ) -> None:
         self._discard_events = discard_events
         self._invalidate_pending = invalidate_pending
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
 
     @contextmanager
     def bootstrap(self) -> Iterator[None]:

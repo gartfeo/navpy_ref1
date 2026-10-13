@@ -6,16 +6,16 @@ import ctypes
 import math
 import os
 import sys
-import threading
-import time
 import weakref
 from numbers import Real
 from typing import Callable, Optional
 
+from navpy.core.kernel import runtime_time as rt
+
 _TIMER_PERIOD_MS = 1
-_timer_resolution_lock = threading.RLock()
+_timer_resolution_lock = rt.RLock()
 _timer_resolution_refcount = 0
-_interpreter_cadence_lock = threading.RLock()
+_interpreter_cadence_lock = rt.RLock()
 _interpreter_cadence_baseline_s: float | None = None
 _interpreter_cadence_requests: dict[object, float] = {}
 # The fastest demo target is a 50 Hz ArduPilot loop at 10x SITL, leaving a
@@ -42,7 +42,7 @@ class SchedulerCadence:
         self,
         speedup_reader: Callable[[], Optional[float]],
         *,
-        wall_clock: Callable[[], float] = time.time,
+        wall_clock: Callable[[], float] = rt.time,
         speed_poll_wall_s: float = SPEED_POLL_WALL_S,
         high_resolution_timer: bool = True,
     ) -> None:
@@ -53,7 +53,7 @@ class SchedulerCadence:
         )
         self._speedup = 1.0
         self._next_speed_sync_wall_s = float(wall_clock())
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._high_resolution_timer_enabled = bool(high_resolution_timer)
         self._high_resolution_timer_active = False
         self._high_resolution_timer_finalizer: Optional[weakref.finalize] = None

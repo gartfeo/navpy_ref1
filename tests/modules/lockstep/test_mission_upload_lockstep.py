@@ -1,7 +1,7 @@
 """Prototype: a multi-tick mission upload under both execution models.
 
 The baton model runs the real ``MissionUploader`` and ``MissionInbox`` threads
-unchanged (only their ``time`` and ``threading`` are the runtime's). The
+unchanged (only their ``rt`` is the runtime's). The
 synchronous model is a hand-written state machine stepped once per tick.
 Both talk real MAVLink bytes to a reference autopilot that answers one tick
 later, and both must produce the same per-tick byte journal.
@@ -22,7 +22,7 @@ from navpy.plugins.vehicle.ardupilot import mission_inbox, mission_upload
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.sim.lockstep.baton import BatonRuntime
-from navpy.sim.lockstep.baton_sync import BatonLock, BatonQueue, module_shims
+from navpy.sim.lockstep.baton_sync import BatonLock, BatonQueue, runtime_shim
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder, encoder
 
 TICK_US = 20_000
@@ -69,10 +69,9 @@ def _items(count: int) -> list[mavlink.MAVLink_mission_item_int_message]:
 
 def run_baton_model(monkeypatch, count: int, *, ignore_counts=0, jitter=False):
     runtime = BatonRuntime()
-    time_shim, threading_shim = module_shims(runtime)
-    monkeypatch.setattr(mission_inbox, "threading", threading_shim)
-    monkeypatch.setattr(mission_inbox, "time", time_shim)
-    monkeypatch.setattr(mission_upload, "time", time_shim)
+    shim = runtime_shim(runtime)
+    monkeypatch.setattr(mission_inbox, "rt", shim)
+    monkeypatch.setattr(mission_upload, "rt", shim)
     link, sink = encoder(*GCS)
     inbox = mission_inbox.MissionInbox()
     uploader = mission_upload.MissionUploader(

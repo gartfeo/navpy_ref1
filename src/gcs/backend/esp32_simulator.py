@@ -13,12 +13,11 @@ Then configure GCS to use http://localhost:8032 as ESP32 address.
 
 import argparse
 import json
-import threading
-import time
-from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from typing import Optional, Callable
+
+from navpy.core.kernel import runtime_time as rt
 
 # Simulated channel configuration
 NUM_CHANNELS = 6
@@ -32,7 +31,7 @@ class Esp32SimulatorState:
         self.active_channel: Optional[int] = None
         self.trigger_log: list = []
         self.on_trigger_callback: Optional[Callable[[int], None]] = None
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
 
     def trigger_channel(self, channel: int) -> bool:
         """Simulate triggering a channel."""
@@ -41,7 +40,7 @@ class Esp32SimulatorState:
                 return False
 
             self.active_channel = channel
-            timestamp = datetime.now().isoformat()
+            timestamp = rt.now().isoformat()
             self.trigger_log.append({
                 "channel": channel,
                 "timestamp": timestamp,
@@ -54,7 +53,7 @@ class Esp32SimulatorState:
                 self.on_trigger_callback(channel)
 
         # Simulate trigger duration
-        time.sleep(TRIGGER_DURATION_MS / 1000.0)
+        rt.sleep(TRIGGER_DURATION_MS / 1000.0)
 
         with self._lock:
             self.active_channel = None
@@ -192,7 +191,7 @@ class Esp32RequestHandler(BaseHTTPRequestHandler):
         def do_trigger():
             _state.trigger_channel(channel)
 
-        thread = threading.Thread(target=do_trigger, daemon=True)
+        thread = rt.Thread(target=do_trigger, daemon=True)
         thread.start()
 
         # Respond immediately
@@ -226,7 +225,7 @@ class Esp32Simulator:
     def __init__(self, port: int = 8032):
         self.port = port
         self.server: Optional[HTTPServer] = None
-        self._thread: Optional[threading.Thread] = None
+        self._thread: Optional[rt.Thread] = None
 
     def set_trigger_callback(self, callback: Callable[[int], None]):
         """Set callback for when a channel is triggered."""
@@ -236,7 +235,7 @@ class Esp32Simulator:
         """Start the simulator server."""
         # Loopback only: every client (launch, status probe) is this backend.
         self.server = HTTPServer(("127.0.0.1", self.port), Esp32RequestHandler)
-        self._thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self._thread = rt.Thread(target=self.server.serve_forever, daemon=True)
         self._thread.start()
         print(f"[ESP32-SIM] Simulator running at http://localhost:{self.port}")
 
@@ -271,7 +270,7 @@ def main():
 
     try:
         while True:
-            time.sleep(1)
+            rt.sleep(1)
     except KeyboardInterrupt:
         print("\nShutting down...")
         sim.stop()

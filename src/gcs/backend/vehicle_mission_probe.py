@@ -4,14 +4,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from navpy.core.kernel import runtime_time as rt
+
 if TYPE_CHECKING:
     from gcs.backend.vehicle_manager import VehicleManager
     from gcs.backend.mission_validator import MissionProbe
 
 log = logging.getLogger("gcs.backend.vehicle_manager")
 
-import threading
-import uuid
 
 def _probe_mission_async(manager: VehicleManager, entry: "VehicleEntry") -> None:
     """Run probe_existing_mission on a daemon thread (off the connect path).
@@ -33,7 +33,7 @@ def _probe_mission_async(manager: VehicleManager, entry: "VehicleEntry") -> None
     # clears it; a reconnect discards the whole entry anyway.
     entry.is_probing = True
     from gcs.backend.diagnostics import emit
-    operation_id = uuid.uuid4().hex
+    operation_id = rt.uuid4().hex
     emit("mission_probe_started", source="backend", sys_id=entry.sys_id,
          operation_id=operation_id)
 
@@ -52,7 +52,7 @@ def _probe_mission_async(manager: VehicleManager, entry: "VehicleEntry") -> None
                  total=len((entry.cached_mission or {}).get("waypoints") or []))
 
     try:
-        threading.Thread(
+        rt.Thread(
             target=_run, name=f"mission-probe-{entry.sys_id}", daemon=True,
         ).start()
     except Exception as e:

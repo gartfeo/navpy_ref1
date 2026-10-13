@@ -1,10 +1,8 @@
-import random
-import threading
-import time
 from typing import Optional
 
 import serial
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.radio.serial.serial_network_args import SerialNetworkArgs
 from navpy.plugins.radio.serial.serial_listener import ISerialListener
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -30,11 +28,11 @@ class SerialInterfaceEbyte:
 
         self.send_buffer = []
         self.running = True
-        self.send_lock = threading.Lock()
-        self.receive_lock = threading.Lock()
+        self.send_lock = rt.Lock()
+        self.receive_lock = rt.Lock()
         self.receive_buffer = bytearray()  # Buffer to accumulate incoming data
-        self.send_thread = threading.Thread(target=self._send_data_thread)
-        self.receive_thread = threading.Thread(target=self._receive_data_thread)
+        self.send_thread = rt.Thread(target=self._send_data_thread)
+        self.receive_thread = rt.Thread(target=self._receive_data_thread)
         self.send_thread.daemon = True
         self.receive_thread.daemon = True
         self.send_thread.start()
@@ -83,11 +81,11 @@ class SerialInterfaceEbyte:
                         packet = None
 
                 if packet:
-                    time.sleep(random.uniform(SEND_DELAY_MIN, SEND_DELAY_MAX))
+                    rt.sleep(rt.rng().uniform(SEND_DELAY_MIN, SEND_DELAY_MAX))
                     self.serial_port.write(packet)
                     self.logger.debug(f"Packet sent. Packet size: {len(packet)} bytes.")
                 else:
-                    time.sleep(LOOP_WAIT)
+                    rt.sleep(LOOP_WAIT)
             except Exception as e:
                 self.logger.error(f"Error in send thread: {e}")
 
@@ -104,7 +102,7 @@ class SerialInterfaceEbyte:
                         self.logger.debug(f"Data received. Buffer size: {len(self.receive_buffer)} bytes.")
                         self._process_receive_buffer()
                 else:
-                    time.sleep(0.01)
+                    rt.sleep(0.01)
             except Exception as e:
                 self.logger.error(f"Error in receive thread: {e}")
 

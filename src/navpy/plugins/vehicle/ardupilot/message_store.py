@@ -1,14 +1,14 @@
 """Thread-safe immutable MAVLink message samples and fresh-response waits."""
 from __future__ import annotations
 
-import threading
-import time
 from collections import defaultdict, deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Iterable
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
+
+from navpy.core.kernel import runtime_time as rt
 
 
 MESSAGE_HISTORY_LIMIT = 1024
@@ -38,7 +38,7 @@ class MessageStore:
     """Publishes atomic samples and retains recent generations per type."""
 
     def __init__(self) -> None:
-        self._condition = threading.Condition()
+        self._condition = rt.Condition()
         self._samples: dict[str, MessageSample] = {}
         self._history: dict[str, deque[MessageSample]] = defaultdict(
             lambda: deque(maxlen=MESSAGE_HISTORY_LIMIT)
@@ -132,7 +132,7 @@ class MessageStore:
                         return sample
                 if self._cursor_was_overrun(types, cursor):
                     raise MessageHistoryOverrun(types, cursor)
-                remaining = deadline - time.monotonic()
+                remaining = deadline - rt.monotonic()
                 if remaining <= 0.0:
                     return None
                 self._condition.wait(remaining)

@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
-import threading
 
 from gcs.backend.navpy_process_instance import (
     NavpyInstance,
@@ -22,6 +21,7 @@ from gcs.backend.navpy_process_launch import (
     _ready_udp_owner_error,
     launch_navpy_instance,
 )
+from navpy.core.kernel import runtime_time as rt
 
 
 log = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class NavpyProcessManager:
 
     def __init__(self) -> None:
         self._instances: dict[int, NavpyInstance] = {}
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
 
     def start(
         self,

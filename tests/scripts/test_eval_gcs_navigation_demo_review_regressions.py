@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts import eval_gcs_navigation_demo as evaluator
+from scripts.eval_gcs_demo_execution import SystemClock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -467,6 +468,7 @@ def test_confirmation_accepts_repeated_vehicle_local_task_ids(
 
     monkeypatch.setattr(mission, "run_confirmation_workflow", confirmation_workflow)
     context = SimpleNamespace(
+        clock=SystemClock(),
         sys_ids=ids.values,
         api=SimpleNamespace(websocket_url="ws://example"),
     )
@@ -832,7 +834,10 @@ def test_owned_stack_cleanup_attempts_every_step_and_aggregates(monkeypatch):
 
     monkeypatch.setattr(process, "stop_stack", stop)
     with pytest.raises(process.RegressionError) as caught:
-        process.with_owned_stack({}, 1.0, lambda _context: (_ for _ in ()).throw(RuntimeError("action failed")))
+        process.with_owned_stack(
+            {}, 1.0, lambda _context: (_ for _ in ()).throw(RuntimeError("action failed")),
+            clock=SystemClock(),
+        )
     assert calls == ["close", "stop", "tail"]
     assert all(text in str(caught.value) for text in ("action failed", "close failed", "stop failed", "tail failed"))
 

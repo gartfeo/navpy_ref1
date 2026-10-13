@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import math
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.core.approach.logs.navigation_logger import NavigationLogger
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
@@ -124,7 +124,7 @@ class FinalApproachVehicleDiagnosticReader:
 
 def compose_final_approach_runtime(
     *,
-    lock: threading.RLock,
+    lock: rt.RLock,
     slot: NavigationCommandSlot,
     sys_id: int,
     actuator: FinalApproachAttitudeActuator,

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import time
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.sim.detection.ideal_pose_source import IdealPoseSample
 from navpy.sim.detection.scheduler_cadence_lease import SchedulerCadenceLease
 from navpy.sim.detection.sim_coordinator_ports import WorkerCoordinatorPort
@@ -94,7 +94,7 @@ class SimDetectorExecution:
     def _run_polling_loop(self) -> None:
         stop_event = self._coordinator.stop_event
         while not stop_event.is_set():
-            started_s = time.monotonic()
+            started_s = rt.monotonic()
             sample = self._polling_pose_reader.read()
             self._detect_pois(
                 sample.location,
@@ -104,7 +104,7 @@ class SimDetectorExecution:
                 frame_receipt_timestamp_s=sample.receipt_time_s,
                 frame_air_speed_mps=sample.air_speed_mps,
             )
-            elapsed_s = time.monotonic() - started_s
+            elapsed_s = rt.monotonic() - started_s
             stop_event.wait(max(
                 0.0,
                 self.wall_period_for_scheduler_period(

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import weakref
-import threading
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.detection.poi_identity import (
     PoiIdentity,
     PoiTaskIdAllocator,
@@ -21,7 +21,7 @@ class DetectionIdentityRegistry:
     """Own task allocation and per-POI source publication mode."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._allocator = PoiTaskIdAllocator()
         self._source_driven = weakref.WeakKeyDictionary()
 

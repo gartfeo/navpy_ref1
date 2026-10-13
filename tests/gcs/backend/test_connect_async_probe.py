@@ -118,7 +118,7 @@ class TestConnectAsyncProbe(unittest.TestCase):
         # Re-kick the probe with thread creation failing. The patch is scoped to
         # this single call, which creates exactly one thread (the probe) — so it
         # can't disturb the MavBus reader thread created during add_vehicle.
-        with patch("gcs.backend.vehicle_manager.threading.Thread") as MockThread:
+        with patch("gcs.backend.vehicle_manager.rt.Thread") as MockThread:
             MockThread.return_value.start.side_effect = RuntimeError("can't start new thread")
             self.mgr._probe_mission_async(entry)  # must not raise
 

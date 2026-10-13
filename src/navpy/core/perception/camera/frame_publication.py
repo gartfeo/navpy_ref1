@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.frame_capture_ports import CaptureStamp
 
 
@@ -38,7 +37,7 @@ class FramePublicationStore:
         wall_time: Callable[[], float] | None = None,
         monotonic: Callable[[], float] | None = None,
     ) -> None:
-        self._condition = threading.Condition(threading.Lock())
+        self._condition = rt.Condition(rt.Lock())
         self._snapshot = FrameSnapshot(None, 0, 0, 0, None)
         self._is_running = False
         self._wall_time = wall_time
@@ -68,7 +67,7 @@ class FramePublicationStore:
                 height=height,
                 sequence=self._snapshot.sequence + 1,
                 published_at_s=(
-                    time.time()
+                    rt.time()
                     if self._wall_time is None
                     else self._wall_time()
                 ),
@@ -107,7 +106,7 @@ class FramePublicationStore:
         timeout: Optional[float] = None,
     ) -> Optional[Tuple[Optional[np.ndarray], int, int, int]]:
         """Block until a publication newer than ``after_seq`` is available."""
-        now = time.monotonic if self._monotonic is None else self._monotonic
+        now = rt.monotonic if self._monotonic is None else self._monotonic
         deadline = None if timeout is None else (now() + timeout)
         with self._condition:
             while self._snapshot.sequence <= after_seq:

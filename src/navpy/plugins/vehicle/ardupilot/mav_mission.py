@@ -1,8 +1,6 @@
 """Serialized public mission gateway composed from focused protocol owners."""
 from __future__ import annotations
 
-import threading
-from _thread import RLock as RLockType
 from collections.abc import Callable, Iterable
 
 from pymavlink.dialects.v20.ardupilotmega import (
@@ -11,6 +9,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 from pymavlink.mavwp import MAVWPLoader
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
@@ -37,7 +36,7 @@ class MavMission:
         downloader: MissionDownloader | None = None,
         uploader: MissionUploader | None = None,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._store = store or MissionStore(target_system, message_store)
         self._downloader = downloader or MissionDownloader(
             target_system,
@@ -51,7 +50,7 @@ class MavMission:
         )
 
     @property
-    def lock(self) -> RLockType:
+    def lock(self) -> rt.LockPort:
         return self._lock
 
     @property

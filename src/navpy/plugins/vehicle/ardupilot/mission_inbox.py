@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import collections
-import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
+
+from navpy.core.kernel import runtime_time as rt
 
 
 MISSION_PROTOCOL_TYPES = frozenset({
@@ -26,7 +26,7 @@ class MissionEnvelope:
 
 class MissionInbox:
     def __init__(self, max_messages: int = 256) -> None:
-        self._condition = threading.Condition()
+        self._condition = rt.Condition()
         self._messages = collections.deque(maxlen=max_messages)
         self._generation = 0
 
@@ -62,7 +62,7 @@ class MissionInbox:
                 for envelope in self._messages:
                     if envelope.generation > cursor and predicate(envelope.message):
                         return envelope
-                remaining = deadline - time.monotonic()
+                remaining = deadline - rt.monotonic()
                 if remaining <= 0.0:
                     return None
                 self._condition.wait(remaining)

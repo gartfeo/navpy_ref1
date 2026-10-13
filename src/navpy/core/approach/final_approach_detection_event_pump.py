@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from typing import Callable
 
@@ -14,6 +13,7 @@ from navpy.core.approach.final_approach_detection_pump_session import (
     FinalApproachPumpSession,
     stop_final_approach_pump_session,
 )
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detection_event_lease import DetectionEventLease
 
 
@@ -44,7 +44,7 @@ class FinalApproachDetectionEventPump:
     ) -> None:
         self._ports = ports
         self._handler = handler
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._session: FinalApproachPumpSession | None = None
         self._prepared = False
         self._dispatch = FinalApproachDetectionDispatch(

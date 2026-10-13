@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import time
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
 from navpy.plugins.gimbal.siyi.hardware.composition import (
@@ -36,7 +36,7 @@ class GimbalSiyi(
         logger: ILogger,
         *,
         sdk_factory: SiyiSdkFactory | None = None,
-        monotonic: MonotonicClock = time.monotonic,
+        monotonic: MonotonicClock = rt.monotonic,
     ) -> None:
         self._parts = build_siyi_hardware(
             data,

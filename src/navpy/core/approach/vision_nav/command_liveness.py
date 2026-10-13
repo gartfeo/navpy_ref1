@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Protocol
+
+from navpy.core.kernel import runtime_time as rt
 
 
 class FinalApproachCommandFailureSink(Protocol):
@@ -14,7 +15,7 @@ class FinalApproachCommandLiveness:
     """Publish one failure until navigation consumes or reset clears it."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._failed = False
 
     def mark_failed(self) -> None:

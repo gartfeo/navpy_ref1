@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import math
-import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
@@ -14,6 +13,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     ATTITUDE_TARGET_TYPEMASK_THROTTLE_IGNORE,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from navpy.plugins.vehicle.ardupilot.pose_telemetry import CommandDiagnostics
 
 
-MODULE_START_MONOTONIC_S = time.monotonic()
+MODULE_START_MONOTONIC_S = rt.monotonic()
 
 
 def euler_to_quaternion(
@@ -85,10 +85,10 @@ class AttitudeCommand:
             requested_yaw=math.degrees(yaw) if yaw is not None else None,
             thrust=thrust or 0.0,
             type_mask=mask,
-            timestamp_s=time.time(),
+            timestamp_s=rt.time(),
         ))
         time_boot_ms = int(
-            (time.monotonic() - MODULE_START_MONOTONIC_S) * 1000
+            (rt.monotonic() - MODULE_START_MONOTONIC_S) * 1000
         ) & 0xFFFFFFFF
         self._transport.call(
             lambda connection: connection.mav.set_attitude_target_send(

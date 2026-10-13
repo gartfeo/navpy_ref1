@@ -10,6 +10,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.vehicle_manager import vehicle_mgr
+from navpy.core.kernel import runtime_time as rt
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -94,7 +95,7 @@ async def telemetry_ws(ws: WebSocket):
             await ws.send_bytes(orjson.dumps({
                 "type": "telemetry",
                 "vehicles": snapshots,
-                "ts": __import__("time").time(),
+                "ts": rt.time(),
             }))
 
         # Keep connection alive, process incoming messages

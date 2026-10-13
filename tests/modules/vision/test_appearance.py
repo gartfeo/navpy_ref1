@@ -334,7 +334,7 @@ class TestAsyncAppearanceEmbedder(unittest.TestCase):
 
         backend = self._fake()
         with patch(
-            "navpy.core.perception.tracking.appearance_worker.threading.Thread.start",
+            "threading.Thread.start",
             side_effect=RuntimeError("thread start failed"),
         ):
             with self.assertRaisesRegex(RuntimeError, "thread start failed"):

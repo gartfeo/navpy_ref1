@@ -13,6 +13,7 @@ from scripts import eval_gcs_demo_process as demo_process
 from scripts import eval_gcs_demo_runtime as demo_runtime
 from scripts import eval_gcs_demo_stack_ops as stack_ops
 from scripts.eval_gcs_demo_constants import backend_log_path
+from scripts.eval_gcs_demo_execution import SystemClock
 
 
 def _clock(index: int, step_s: float) -> str:
@@ -1104,7 +1105,7 @@ def test_second_evaluator_for_same_worktree_is_rejected(tmp_path):
 def test_owned_stack_always_uses_scoped_stop_when_launch_fails(monkeypatch):
     stopped = []
 
-    def fail_launch(env, timeout_s, sitl_arguments=()):
+    def fail_launch(env, timeout_s, sitl_arguments=(), *, clock):
         raise evaluator.RegressionError("launch failed")
 
     monkeypatch.setattr(demo_process, "launch_stack", fail_launch)
@@ -1115,7 +1116,7 @@ def test_owned_stack_always_uses_scoped_stop_when_launch_fails(monkeypatch):
     )
 
     with pytest.raises(evaluator.RegressionError, match="launch failed"):
-        demo_process.with_owned_stack({}, 1.0, lambda context: None)
+        demo_process.with_owned_stack({}, 1.0, lambda context: None, clock=SystemClock())
 
     assert stopped == [evaluator.stop_command()]
 
@@ -1127,7 +1128,7 @@ def test_owned_stack_rejects_preexisting_generation_without_stopping_it(
     monkeypatch.setattr(
         demo_process,
         "launch_stack",
-        lambda *_: (_ for _ in ()).throw(
+        lambda *_, **__: (_ for _ in ()).throw(
             demo_process.PreexistingOwnedStackError("already exists")
         ),
     )
@@ -1138,7 +1139,7 @@ def test_owned_stack_rejects_preexisting_generation_without_stopping_it(
     )
 
     with pytest.raises(evaluator.RegressionError, match="already exists"):
-        demo_process.with_owned_stack({}, 1.0, lambda _context: None)
+        demo_process.with_owned_stack({}, 1.0, lambda _context: None, clock=SystemClock())
 
     assert stopped == []
 
@@ -1173,8 +1174,8 @@ def test_live_run_launches_the_stack_once(monkeypatch, tmp_path):
     launched_with = []
     environments = []
 
-    def with_owned_stack(env, timeout_s, action, sitl_arguments):
-        del timeout_s
+    def with_owned_stack(env, timeout_s, action, sitl_arguments, *, clock):
+        del timeout_s, clock
         environments.append(env)
         launched_with.append(list(sitl_arguments))
         return action(SimpleNamespace(sys_ids=(1, 2, 3)))

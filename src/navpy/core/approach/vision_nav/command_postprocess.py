@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import threading
-import time
+from navpy.core.kernel import runtime_time as rt
 
 
 POSTPROCESS_DRAIN_TIMEOUT_S = 2.0
@@ -13,7 +12,7 @@ class FinalApproachPostprocessFence:
     """Let phase reset wait for diagnostics already owned by the worker."""
 
     def __init__(self) -> None:
-        self._condition = threading.Condition()
+        self._condition = rt.Condition()
         self._in_flight = 0
 
     def begin(self) -> None:
@@ -29,10 +28,10 @@ class FinalApproachPostprocessFence:
                 self._condition.notify_all()
 
     def drain(self) -> None:
-        deadline_s = time.monotonic() + POSTPROCESS_DRAIN_TIMEOUT_S
+        deadline_s = rt.monotonic() + POSTPROCESS_DRAIN_TIMEOUT_S
         with self._condition:
             while self._in_flight:
-                remaining_s = deadline_s - time.monotonic()
+                remaining_s = deadline_s - rt.monotonic()
                 if remaining_s <= 0.0:
                     raise TimeoutError(
                         "final-approach postprocess did not drain before reset"

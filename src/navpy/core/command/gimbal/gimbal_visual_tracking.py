@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import time
 from dataclasses import dataclass, replace
 
 from navpy.core.command.gimbal.gimbal_navigation_state import (
@@ -17,6 +16,7 @@ from navpy.core.command.gimbal.gimbal_loss_recovery import (
     LossRecoveryResult,
 )
 from navpy.core.command.gimbal.gimbal_zoom_control import GimbalZoomController
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.pointing.gimbal_rate_types import (
     GimbalObservationDisposition,
     GimbalTrackResult,
@@ -222,7 +222,7 @@ def _observation_times(
             for value in (explicit_time, poi_now, target_time)
             if value is not None
         ),
-        time.time(),
+        rt.time(),
     )
     return measurement_time, loss_time
 

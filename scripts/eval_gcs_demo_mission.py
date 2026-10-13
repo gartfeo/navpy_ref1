@@ -23,7 +23,6 @@ from scripts.eval_gcs_demo_models import (
     finite_number,
 )
 from scripts.eval_gcs_demo_ports import EventStreamPort, JsonValue
-from scripts.eval_gcs_demo_process import SystemClock
 from scripts.eval_gcs_demo_scenario import (
     DemoMissionPlan,
     owner_sys_id_for,
@@ -90,7 +89,7 @@ def resolve_live_plan(context: StackContext, log_dir: Path) -> DemoMissionPlan:
 
 def prepare_container_launch(context: StackContext, timeout_s: float) -> None:
     timeout = finite_number("container preparation timeout", timeout_s)
-    timer = SystemClock()
+    timer = context.clock
     deadline = timer.monotonic() + timeout
     last_detail: JsonValue = None
     while timer.monotonic() < deadline:
@@ -173,6 +172,7 @@ def approve_requests_until_snap(
             stop_when=lambda: all_have_snap(log_dir, context.sys_ids),
             requested_delay_s=confirmation_delay_s,
             timeout_s=timeout_s,
+            clock=context.clock,
             on_request_observed=on_request_observed,
             before_approve=before_approve,
             on_approval_attempted=on_approval_attempted,

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Iterator, Optional
+
+from navpy.core.kernel import runtime_time as rt
 
 
 @dataclass(frozen=True)
@@ -14,10 +15,10 @@ class FrameGeneration:
 
     epoch: int
     generation: int
-    invalidated: threading.Event = field(
+    invalidated: rt.Event = field(
         compare=False,
         repr=False,
-        default_factory=threading.Event,
+        default_factory=rt.Event,
     )
 
 
@@ -30,7 +31,7 @@ class FrameGenerationGate:
     """Linearize admission, commits, reset closure, and permanent stop."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._epoch = 0
         self._generation = 0
         self._current = FrameGeneration(0, 0)

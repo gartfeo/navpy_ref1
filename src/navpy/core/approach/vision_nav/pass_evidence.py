@@ -12,7 +12,6 @@ postprocess fence drained that earlier evidence.
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -20,6 +19,7 @@ from navpy.core.approach.navigation_postprocess_dispatcher import PostprocessJob
 from navpy.core.approach.vision_nav.command_postprocess import (
     FinalApproachPostprocessFence,
 )
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.frame import FinalApproachVisionFrame
 
 
@@ -53,7 +53,7 @@ class FinalApproachPassEvidence:
 
     def __init__(
         self,
-        lock: threading.RLock,
+        lock: rt.RLock,
         record: Callable[[FinalApproachVisionFrame], None],
         fence: FinalApproachPostprocessFence,
     ) -> None:

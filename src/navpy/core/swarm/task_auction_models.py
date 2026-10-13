@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import math
-import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Protocol, Sequence
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.task_message_data import TaskMsgData
 from navpy.core.swarm.task_dispatch import TaskDispatch
 from navpy.core.swarm.task_msg_refs import MsgRef
@@ -114,7 +114,7 @@ class TaskRebroadcastPlan:
 
 @dataclass
 class _TaskAuctionStore:
-    lock: threading.RLock
+    lock: rt.RLock
     peers: PeerRoster
     dispatches: dict[int, TaskDispatch]
     generation: int = 0

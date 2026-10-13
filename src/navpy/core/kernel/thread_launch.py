@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import threading
+from navpy.core.kernel import runtime_time as rt
 
 
 class ThreadLaunchGate:
     """Either commit a target to dependency use or cancel it permanently."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._entered = threading.Event()
+        self._lock = rt.Lock()
+        self._entered = rt.Event()
         self._cancelled = False
         self._committed = False
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
-import threading
 
 from navpy.core.perception.tracking.appearance_async import AsyncAppearanceEmbedder
 from navpy.core.perception.detection.deep_search import DeepSearchDetector
@@ -37,7 +37,7 @@ class DetectorResources:
         deep_search: DeepSearchDetector | None,
         confirmation_frames: ConfirmationFrameStore,
     ) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._pending_actions: tuple[CleanupAction, ...] = tuple(
             action for action in (
                 tracker.close,

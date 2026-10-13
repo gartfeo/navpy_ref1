@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from typing import Protocol, runtime_checkable
+
+from navpy.core.kernel import runtime_time as rt
 
 
 @runtime_checkable
@@ -30,7 +31,7 @@ def require_failure_health(value: object) -> FailureHealthPort:
 
 class WorkerFailureLatch:
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._failure: BaseException | None = None
 
     def record(self, failure: BaseException) -> None:

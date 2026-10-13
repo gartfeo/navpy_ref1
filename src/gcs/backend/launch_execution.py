@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from typing import TYPE_CHECKING, Callable
 
 from gcs.backend.launch_state import VehicleState, _ALREADY_AIRBORNE_MIN_ALT_M
+from navpy.core.kernel import runtime_time as rt
 
 if TYPE_CHECKING:
     from gcs.backend.launch_controller import LaunchController
@@ -18,7 +18,7 @@ async def _run_vehicle(controller: LaunchController, sys_id: int) -> None:
 
     Acquires _launch_lock so only one vehicle runs at a time.
     """
-    queued_at = time.monotonic()
+    queued_at = rt.monotonic()
     if controller._launch_lock.locked():
         active = [sid for sid, st in controller._states.items()
                   if st in (VehicleState.arming, VehicleState.armed, VehicleState.launching)]
@@ -28,7 +28,7 @@ async def _run_vehicle(controller: LaunchController, sys_id: int) -> None:
     try:
         async with controller._launch_lock:
             log.info("[launch] V%d ACQUIRED launch lock after %.1fs (all states=%s)",
-                     sys_id, time.monotonic() - queued_at,
+                     sys_id, rt.monotonic() - queued_at,
                      {sid: st.value for sid, st in controller._states.items()})
             if controller._abort_event.is_set():
                 await controller._abort_vehicle(sys_id)
@@ -180,11 +180,11 @@ async def _poll(controller: LaunchController, condition: Callable[[], bool], tim
 
     Returns True if condition met, False on timeout, None on abort.
     """
-    start = time.monotonic()
+    start = rt.monotonic()
     while not condition():
         if controller._abort_event.is_set():
             return None
-        if time.monotonic() - start > timeout:
+        if rt.monotonic() - start > timeout:
             return False
         await asyncio.sleep(0.1)
     return True

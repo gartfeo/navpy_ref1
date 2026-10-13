@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests.guards import runtime_time_lint
+
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src/navpy"
 SCHEDULER = "src/navpy/core/kernel/scheduler_cadence.py"
@@ -115,6 +117,9 @@ YAW_RATE_PRODUCERS = (
     "src/navpy/sim/camera/ideal_poi_projector.py",
 )
 CLOCK_MODULES = {"time", "timeit", "datetime"}
+# The RuntimeTime port (``rt``) also serves locks; its clock reads are caught
+# as calls (``rt.monotonic()``) or as imported clock names.
+RUNTIME_PORT = "navpy.core.kernel.runtime_time"
 CLOCK_CALLS = {
     "time", "time_ns", "monotonic", "monotonic_ns", "perf_counter",
     "perf_counter_ns", "process_time", "default_timer", "now", "utcnow",
@@ -190,8 +195,14 @@ def _calls(tree: ast.AST, *suffix: str) -> list[ast.Call]:
     return [node for node in ast.walk(tree) if isinstance(node, ast.Call)
             and (not suffix or _path(node.func)[-len(suffix):] == suffix)]
 
-def _clock_hits(tree: ast.Module) -> list[str]:
+def _clock_hits(tree: ast.Module, relative: str | None = None) -> list[str]:
     hits = []
+    symbols = runtime_time_lint._Symbols(tree, relative)
+    port_clocks = {f"{RUNTIME_PORT}.{name}" for name in CLOCK_CALLS}
+    for node in runtime_time_lint.outermost_references(tree):
+        # any reference to a port clock, called or captured, under any alias
+        if symbols.resolve(node, bound_only=True) & port_clocks:
+            hits.append(f"{ast.unparse(node)}@{node.lineno}")
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             hits += [
@@ -200,11 +211,17 @@ def _clock_hits(tree: ast.Module) -> list[str]:
             ]
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
-            if module.split(".")[0] in CLOCK_MODULES:
+            if module.split(".")[0] in CLOCK_MODULES or (
+                module == RUNTIME_PORT
+                and any(item.name in CLOCK_CALLS for item in node.names)
+            ):
                 hits.append(f"from {module}@{node.lineno}")
         elif isinstance(node, ast.Call):
             call = _path(node.func)
-            if call and call[-1] in CLOCK_CALLS:
+            if (
+                call and call[-1] in CLOCK_CALLS
+                and not symbols.resolve(node.func, bound_only=True) & port_clocks
+            ):
                 hits.append(f"{'.'.join(call)}@{node.lineno}")
             if call == ("getattr",) and len(node.args) > 1:
                 member = node.args[1]
@@ -355,7 +372,7 @@ def test_final_approach_command_core_has_no_clock_or_forbidden_truth_inputs() ->
     clocks, inputs = [], []
     for relative in CORE:
         tree = _tree(relative)
-        clocks += [f"{relative}:{hit}" for hit in _clock_hits(tree)]
+        clocks += [f"{relative}:{hit}" for hit in _clock_hits(tree, relative)]
     for relative in COMMAND_INPUT_FILES:
         tree = _tree(relative)
         allowed = GYRO_RATE_ALLOWANCES.get(relative, frozenset())
@@ -386,6 +403,35 @@ def decide(vehicle, frame, poi_range_m):
     assert _clock_hits(bad)
     found = {hit.split("@", 1)[0] for hit in _forbidden_inputs(bad)}
     assert {"heading", "ground_speed_ned", "poi_range_m"} <= found
+
+def test_final_approach_guard_rejects_captured_runtime_clocks() -> None:
+    captured = ast.parse(
+        "from navpy.core.kernel import runtime_time as rt\n"
+        "read_clock = rt.monotonic\n"
+        "def decide():\n"
+        "    return read_clock()\n"
+    )
+    assert [hit.split("@", 1)[0] for hit in _clock_hits(captured)] == ["rt.monotonic", "read_clock"]
+    aliased = ast.parse(
+        "import navpy.core.kernel\n"
+        "from navpy.core.kernel import runtime_time as rt\n"
+        "clock_api = rt\n"
+        "read_clock = clock_api.monotonic\n"
+        "wall = navpy.core.kernel.runtime_time.time\n"
+    )
+    assert len(_clock_hits(aliased)) == 2
+    locks_only = ast.parse(
+        "from navpy.core.kernel import runtime_time as rt\n"
+        "lock = rt.RLock()\n"
+    )
+    assert _clock_hits(locks_only) == []
+    relative = ast.parse(
+        "from ...kernel.runtime_time import monotonic as read\n"
+        "def decide():\n"
+        "    return read()\n"
+    )
+    hits = _clock_hits(relative, "src/navpy/core/approach/vision_nav/confirmation.py")
+    assert [hit.split("@", 1)[0] for hit in hits] == ["read"]
 
 def test_yaw_rate_is_gyro_conversion_only() -> None:
     """Pin the provenance of `aircraft_yaw_rate_rad_s` to the body-rate gyro.
@@ -462,7 +508,7 @@ def test_executor_perf_counter_is_deferred_diagnostics_only() -> None:
     clocks = [call for call in _calls(owner)
               if _path(call.func)[-1:] in {(name,) for name in CLOCK_CALLS}]
     assert len(clocks) == 2
-    assert {_path(call.func) for call in clocks} == {("time", "perf_counter")}
+    assert {_path(call.func) for call in clocks} == {("rt", "perf_counter")}
     transaction = _calls(execute_current, "transaction", "execute")
     assert len(transaction) == 1
     assert [_path(arg) for arg in transaction[0].args] == [("work", "frame")]

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import queue
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Generic, TypeVar, cast
+
+from navpy.core.kernel import runtime_time as rt
 
 
 _T = TypeVar("_T")
@@ -24,7 +24,7 @@ class NavigationStreamBacklogError(RuntimeError):
 
 @dataclass(frozen=True)
 class _DrainFence:
-    reached: threading.Event
+    reached: rt.Event
 
 
 @dataclass(frozen=True)
@@ -44,14 +44,14 @@ class NavigationStreamWorker(Generic[_T]):
         if type(max_pending) is not int or max_pending <= 0:
             raise ValueError("navigation stream max_pending must be positive")
         self._handler = handler
-        self._queue: queue.Queue[object] = queue.Queue()
-        self._slots = threading.BoundedSemaphore(max_pending)
+        self._queue: rt.Queue[object] = rt.Queue()
+        self._slots = rt.BoundedSemaphore(max_pending)
         self._max_pending = max_pending
-        self._accept_lock = threading.Lock()
-        self._error_lock = threading.Lock()
+        self._accept_lock = rt.Lock()
+        self._error_lock = rt.Lock()
         self._accepting = True
         self._first_error: BaseException | None = None
-        self._thread: threading.Thread | None = None
+        self._thread: rt.Thread | None = None
 
     def submit(self, item: _T) -> bool:
         with self._accept_lock:
@@ -75,7 +75,7 @@ class NavigationStreamWorker(Generic[_T]):
         self,
         timeout_s: float = NAVIGATION_STREAM_JOIN_TIMEOUT_S,
     ) -> None:
-        if threading.current_thread() is self._thread:
+        if rt.current_thread() is self._thread:
             raise TimeoutError("navigation stream worker cannot drain itself")
         with self._accept_lock:
             thread = self._thread
@@ -84,7 +84,7 @@ class NavigationStreamWorker(Generic[_T]):
             if not self._accepting:
                 fence = None
             else:
-                fence = _DrainFence(threading.Event())
+                fence = _DrainFence(rt.Event())
                 self._queue.put(fence)
         if fence is None:
             thread.join(timeout=timeout_s)
@@ -117,7 +117,7 @@ class NavigationStreamWorker(Generic[_T]):
                 thread = self._thread
         if thread is None or not thread.is_alive():
             return
-        if thread is threading.current_thread():
+        if thread is rt.current_thread():
             raise TimeoutError("navigation stream worker cannot join itself")
         thread.join(timeout=NAVIGATION_STREAM_JOIN_TIMEOUT_S)
         if thread.is_alive():
@@ -128,7 +128,7 @@ class NavigationStreamWorker(Generic[_T]):
     def _start_locked(self) -> None:
         if self._thread is not None:
             return
-        thread = threading.Thread(
+        thread = rt.Thread(
             target=self._run,
             name="NavigationStreamWriter",
             daemon=True,

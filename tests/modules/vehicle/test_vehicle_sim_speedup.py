@@ -59,7 +59,7 @@ class SimSpeedupTest(unittest.TestCase):
         capability, _repository, _state, connection = self._capability()
 
         with patch(
-            "navpy.plugins.vehicle.ardupilot.parameter_client.time.monotonic",
+            "navpy.plugins.vehicle.ardupilot.parameter_client.rt.monotonic",
             return_value=100.0,
         ):
             capability.speedup()
@@ -71,7 +71,7 @@ class SimSpeedupTest(unittest.TestCase):
         capability, _repository, state, connection = self._capability()
 
         with patch(
-            "navpy.plugins.vehicle.ardupilot.parameter_client.time.monotonic",
+            "navpy.plugins.vehicle.ardupilot.parameter_client.rt.monotonic",
             side_effect=[float(index * 2) for index in range(15)],
         ):
             values = [capability.speedup() for _ in range(15)]

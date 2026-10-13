@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import copy
 import math
-import threading
-import time
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.camera_mount_hardware import (
     FrameStateCapabilityUnavailable,
 )
@@ -31,7 +30,7 @@ class MountFrameStateCapture:
         gimbal: GimbalFramePort,
         optics: FrameOpticsPort,
         readback: FrameZoomReadbackPort,
-        lock: threading.RLock,
+        lock: rt.RLock,
     ) -> None:
         self._camera = camera
         self._gimbal = gimbal
@@ -96,7 +95,7 @@ class MountFrameStateCapture:
                     zoom_sample_id = str(sample_id)
                     zoom_sample_age_s = candidate_age_s + max(
                         0.0,
-                        time.monotonic() - sample_read_s,
+                        rt.monotonic() - sample_read_s,
                     )
                 else:
                     zoom_command = self._readback.camera_zoom_key()
@@ -126,7 +125,7 @@ class MountFrameStateCapture:
             zoom_level = None
             sample_age_s = None
             sample_id = None
-        sample_read_s = time.monotonic()
+        sample_read_s = rt.monotonic()
         if not isinstance(gimbal_data, GimbalData):
             return None
         return (

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from typing import Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
@@ -20,8 +20,8 @@ class PayloadShutdownPort(Protocol):
 
 
 def stop_poll_thread(
-    thread: threading.Thread | None,
-    stop_event: threading.Event | None,
+    thread: rt.Thread | None,
+    stop_event: rt.Event | None,
     launch: ThreadLaunchGate | None,
     timeout_s: float,
     logger: ILogger,

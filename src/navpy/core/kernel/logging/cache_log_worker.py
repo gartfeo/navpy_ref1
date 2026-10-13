@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import logging
-import queue
-import threading
 from collections.abc import Callable
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_log_message import LogMessage
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
@@ -26,11 +25,11 @@ class CacheLogWorker:
     ) -> None:
         self._handler = handler
         self._on_error = on_error or self._log_error
-        self._queue: queue.Queue[object] = queue.Queue()
-        self._accept_lock = threading.Lock()
+        self._queue: rt.Queue[object] = rt.Queue()
+        self._accept_lock = rt.Lock()
         self._accepting = True
         self._launch = ThreadLaunchGate()
-        self._thread = threading.Thread(
+        self._thread = rt.Thread(
             target=self._run_generation,
             name="CacheLoggerWorker",
             daemon=True,
@@ -65,7 +64,7 @@ class CacheLogWorker:
                 self._queue.put(_STOP)
         if self._launch.cancel_before_commit():
             return
-        if threading.current_thread() is self._thread:
+        if rt.current_thread() is self._thread:
             return
         self._thread.join(timeout=CACHE_WORKER_JOIN_TIMEOUT_S)
         if self._thread.is_alive():

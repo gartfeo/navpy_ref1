@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from typing import Optional
 
 from gcs.backend.broadcast import manager as ws_manager
@@ -18,6 +17,7 @@ from gcs.backend.task_confirm_rounds import (
     round_uid,
 )
 from gcs.backend.task_confirm_transport import ConfirmationTransport
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
 from navpy.core.link.msg_abc import MsgRegistry
 
@@ -80,7 +80,7 @@ class TaskConfirmListener:
             sys_id,
             task.task_id,
             uid,
-            time.monotonic(),
+            rt.monotonic(),
             self._HANDLED_TTL_S,
         )
         if action is RequestAction.ANSWER:
@@ -122,14 +122,14 @@ class TaskConfirmListener:
             task_id,
             is_confirmed,
             round_uid,
-            time.monotonic(),
+            rt.monotonic(),
         )
 
     def _maybe_request_thumbnail(self, sys_id: int, task_id: int) -> None:
         uid = self._rounds.thumbnail_request_due(
             sys_id,
             task_id,
-            time.monotonic(),
+            rt.monotonic(),
             self._THUMBNAIL_GRACE_S,
         )
         if uid is not None:

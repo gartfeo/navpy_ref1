@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Optional
 
 from navpy.core.approach.logs.navigation_logger import ClosestSnap, NavigationLogger
@@ -12,6 +11,7 @@ from navpy.core.approach.navigation_postprocess_dispatcher import (
 )
 from navpy.core.approach.navigation_mode import NavigationModeSelector, NavigationModeState
 from navpy.core.approach.geo.legacy_destination_resolver import LegacyNavigationState
+from navpy.core.kernel import runtime_time as rt
 
 
 class NavigationLifecycle:
@@ -25,7 +25,7 @@ class NavigationLifecycle:
         navigation_logger: NavigationLogger,
         command_session: NavigationCommandSession,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._mode_state = mode_state
         self._selector = selector
         self._legacy_state = legacy_state

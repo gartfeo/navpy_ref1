@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import math
-import threading
-import time
 from typing import TYPE_CHECKING
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
 from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
@@ -17,7 +16,7 @@ if TYPE_CHECKING:
 
 class SimAutopilotState:
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._value = 1.0
         self._next_probe_s = 0.0
         self._probes = 0
@@ -72,7 +71,7 @@ class SimAutopilotCapability:
     def speedup(self) -> float:
         cached = self._repository.get("SIM_SPEEDUP")
         self._state.observe(cached)
-        now_s = time.monotonic()
+        now_s = rt.monotonic()
         value, _next_probe, _probes, seen = self._state.snapshot()
         if cached is None and self._state.reserve_probe(now_s, 1.0, 10):
             try:

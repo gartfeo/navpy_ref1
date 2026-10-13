@@ -1,8 +1,8 @@
 import socket
-import threading
 import struct
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.radio.serial.serial_listener import ISerialListener
 from navpy.core.kernel.logging.cache_logger import ILogger
 
@@ -16,7 +16,7 @@ class SerialSimClient:
         self.client_socket.connect((host, port))
         self.logger = logger
         self.running = True
-        threading.Thread(target=self.receive_loop, daemon=True).start()
+        rt.Thread(target=self.receive_loop, daemon=True).start()
 
         logger.info(f'Network: Creating Serial Socket Sim: {host}, baud: {port}')
 

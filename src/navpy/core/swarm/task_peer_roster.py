@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.ttl_defaults import get_ttl_ms
 from navpy.core.link.types import MsgType
@@ -58,8 +57,8 @@ class PeerRoster:
 
     def __init__(
         self,
-        lock: threading.RLock,
-        monotonic_s: Callable[[], float] = time.monotonic,
+        lock: rt.RLock,
+        monotonic_s: Callable[[], float] = rt.monotonic,
     ) -> None:
         self._lock = lock
         self._monotonic_s = monotonic_s

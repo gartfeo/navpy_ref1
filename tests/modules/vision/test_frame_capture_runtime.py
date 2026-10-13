@@ -145,7 +145,7 @@ class TestFrameCaptureRuntime(unittest.TestCase):
             return_value=backend,
         ):
             with patch(
-                "navpy.core.perception.camera.frame_capture_runtime.threading.Thread.start",
+                "threading.Thread.start",
                 side_effect=RuntimeError("thread start failed"),
             ):
                 with self.assertRaisesRegex(RuntimeError, "thread start failed"):
@@ -173,7 +173,7 @@ class TestFrameCaptureRuntime(unittest.TestCase):
             "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
             return_value=backend,
         ), patch(
-            "navpy.core.perception.camera.frame_capture_runtime.threading.Thread.start",
+            "threading.Thread.start",
             launch_then_fail,
         ):
             with self.assertRaisesRegex(
@@ -210,7 +210,7 @@ class TestFrameCaptureRuntime(unittest.TestCase):
             return_value=backend,
         ):
             with patch(
-                "navpy.core.perception.camera.frame_capture_runtime.threading.Thread",
+                "navpy.core.perception.camera.frame_capture_runtime.rt.Thread",
                 side_effect=RuntimeError("thread construction failed"),
             ):
                 with self.assertRaisesRegex(
@@ -262,7 +262,7 @@ class TestFrameCaptureRuntime(unittest.TestCase):
             return_value=backend,
         ):
             with patch(
-                "navpy.core.perception.camera.frame_capture_runtime.threading.Thread.start",
+                "threading.Thread.start",
                 side_effect=RuntimeError("thread start failed"),
             ):
                 with self.assertRaises(BaseExceptionGroup) as raised:

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from typing import Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.core.ports.worker_failure import WorkerFailureLatch
 
@@ -39,9 +38,9 @@ class FixedCadenceRunner:
         self._step = step
         self._scheduler_period_s = float(scheduler_period_s)
         self._cadence = cadence
-        self._stop_event = threading.Event()
-        self._thread: threading.Thread | None = None
-        self._lifecycle_lock = threading.Lock()
+        self._stop_event = rt.Event()
+        self._thread: rt.Thread | None = None
+        self._lifecycle_lock = rt.Lock()
         self._launch: ThreadLaunchGate | None = None
         self._failures = WorkerFailureLatch()
 
@@ -67,10 +66,10 @@ class FixedCadenceRunner:
                     return False
                 self._thread = None
                 self._launch = None
-            stop_event = threading.Event()
+            stop_event = rt.Event()
             launch = ThreadLaunchGate()
             self._stop_event = stop_event
-            thread = threading.Thread(
+            thread = rt.Thread(
                 target=self._run_generation,
                 args=(stop_event, launch),
                 daemon=True,
@@ -104,7 +103,7 @@ class FixedCadenceRunner:
                     self._launch = None
                 return True
         if thread is not None:
-            if thread is threading.current_thread():
+            if thread is rt.current_thread():
                 return False
             if thread.is_alive():
                 thread.join(timeout=2.0)
@@ -124,7 +123,7 @@ class FixedCadenceRunner:
 
     def _run_generation(
         self,
-        stop_event: threading.Event,
+        stop_event: rt.Event,
         launch: ThreadLaunchGate,
     ) -> None:
         if not launch.enter():
@@ -134,12 +133,12 @@ class FixedCadenceRunner:
             stop_event.set,
         )
 
-    def _run(self, stop_event: threading.Event | None = None) -> None:
+    def _run(self, stop_event: rt.Event | None = None) -> None:
         stop_event = self._stop_event if stop_event is None else stop_event
         while not stop_event.is_set():
-            started_s = time.monotonic()
+            started_s = rt.monotonic()
             self._step.advance()
-            elapsed_s = time.monotonic() - started_s
+            elapsed_s = rt.monotonic() - started_s
             wall_period_s = self._scheduler_period_s
             if self._cadence is not None:
                 wall_period_s = self._cadence.wall_period_for_scheduler_period(

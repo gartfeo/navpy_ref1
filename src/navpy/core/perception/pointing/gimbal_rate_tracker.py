@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import math
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.pointing.gimbal_rate_command import (
     GimbalRateCommand,
     GimbalRateCommandLaw,
@@ -51,7 +51,7 @@ class GimbalRateTracker:
             _estimator_config(self._config)
         )
         self._law = GimbalRateCommandLaw(self._config)
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._memory = _TrackerMemory(None, 0, idle_result())
 
     @property

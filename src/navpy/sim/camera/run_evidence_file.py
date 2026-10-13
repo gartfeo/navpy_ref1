@@ -6,8 +6,9 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import threading
 from typing import Any, BinaryIO, Callable, Optional
+
+from navpy.core.kernel import runtime_time as rt
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,7 @@ class RunEvidenceFile:
                               detector_id=detector_id, detector_name=detector_name)
         self._budget = budget
         self._counts = EvidenceCounts()
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._hash = hashlib.sha256()
         self._opener = opener
         directory.mkdir(parents=True, exist_ok=True)

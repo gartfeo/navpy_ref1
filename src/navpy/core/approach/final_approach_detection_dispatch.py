@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from typing import Callable, Optional, Protocol
 
 from navpy.core.approach.final_approach_source_watchdog import (
     FinalApproachSourceReceiptWatchdog,
 )
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detection_event_lease import (
     DetectionEventLease,
     DetectionLeaseDispatch,
@@ -35,9 +34,9 @@ class FinalApproachDetectionDispatch:
         receipt_max_wall_age_s: Callable[[], float],
     ) -> None:
         self._handler = handler
-        self._fence = threading.RLock()
-        self._stop_event = threading.Event()
-        self._activation_event = threading.Event()
+        self._fence = rt.RLock()
+        self._stop_event = rt.Event()
+        self._activation_event = rt.Event()
         self._accepting_events = False
         self._watchdog = FinalApproachSourceReceiptWatchdog(
             wall_s,
@@ -62,7 +61,7 @@ class FinalApproachDetectionDispatch:
         self._activation_event.set()
 
     def fence(self, deadline_s: float) -> None:
-        remaining_s = max(0.0, deadline_s - time.monotonic())
+        remaining_s = max(0.0, deadline_s - rt.monotonic())
         if not self._fence.acquire(timeout=remaining_s):
             raise TimeoutError(
                 "final-approach event dispatch fence did not quiesce in time"

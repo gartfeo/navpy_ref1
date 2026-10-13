@@ -8,13 +8,13 @@ a ledger nobody drains.
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from typing import Any, Protocol
 
 from navpy.core.approach.navigation_command_worker import (
     CommandLoopObserver,
 )
+from navpy.core.kernel import runtime_time as rt
 
 
 SourceDispatch = Callable[[], bool]
@@ -35,7 +35,7 @@ class NavigationSourceDispatchSlot:
     """Bind one long-lived source callback for the navigation worker."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._callback: SourceDispatch | None = None
         self._observer: CommandLoopObserver | None = None
 

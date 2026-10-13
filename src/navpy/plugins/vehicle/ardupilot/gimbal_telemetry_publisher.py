@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from typing import TYPE_CHECKING, Iterable
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_messages import (
     GimbalMavlinkPublisher,
@@ -31,10 +31,10 @@ class GimbalTelemetryPublisher:
         self._emitter = GimbalTelemetryEmitter(vehicle, mount_specs, logger)
         self._logger = logger
         self._period_s = 1.0 / max(float(rate_hz), 0.1)
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._stop = rt.Event()
+        self._thread: rt.Thread | None = None
         self._launch: ThreadLaunchGate | None = None
-        self._lifecycle_lock = threading.Lock()
+        self._lifecycle_lock = rt.Lock()
         self._failures = WorkerFailureLatch()
 
     def start(self) -> None:
@@ -47,9 +47,9 @@ class GimbalTelemetryPublisher:
                     return
                 self._thread = None
                 self._launch = None
-            stop_event = threading.Event()
+            stop_event = rt.Event()
             launch = ThreadLaunchGate()
-            thread = threading.Thread(
+            thread = rt.Thread(
                 target=self._run_generation,
                 args=(stop_event, launch),
                 name="gimbal-telemetry-publisher",
@@ -81,7 +81,7 @@ class GimbalTelemetryPublisher:
                 self._launch = None
                 return True
         if thread is not None:
-            if thread is threading.current_thread():
+            if thread is rt.current_thread():
                 return False
             if thread.is_alive():
                 thread.join(timeout=2.0)
@@ -117,14 +117,14 @@ class GimbalTelemetryPublisher:
 
     def _run_generation(
         self,
-        stop_event: threading.Event,
+        stop_event: rt.Event,
         launch: ThreadLaunchGate,
     ) -> None:
         if not launch.enter():
             return
         self._failures.run(lambda: self._run(stop_event))
 
-    def _run(self, stop_event: threading.Event | None = None) -> None:
+    def _run(self, stop_event: rt.Event | None = None) -> None:
         stop_event = self._stop if stop_event is None else stop_event
         while not stop_event.is_set():
             self.publish_once()

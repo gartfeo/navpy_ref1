@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import math
-import threading
 from collections.abc import Callable
 from typing import ContextManager
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.core.approach.navigation_command_worker import (
@@ -38,7 +38,7 @@ class NavigationCommandSession:
 
     def __init__(
         self,
-        command_event: threading.Event,
+        command_event: rt.Event,
         runtime_session: Callable[[], ContextManager[CommandWorkRuntime]],
         wall_period_s: Callable[[float], float],
         logger: ILogger,
@@ -49,7 +49,7 @@ class NavigationCommandSession:
         ),
         command_loop: CommandLoopObserver = NO_COMMAND_LOOP_OBSERVER,
     ) -> None:
-        self._stop_event = threading.Event()
+        self._stop_event = rt.Event()
         self._command_event = command_event
         self._postprocess = NavigationPostprocessDispatcher(logger)
         self._worker = NavigationCommandWorker(NavigationCommandWorkerPorts(
@@ -66,7 +66,7 @@ class NavigationCommandSession:
             scheduler_period_s=_scheduler_period_s(scheduler_rate_hz),
             command_loop=command_loop,
         ))
-        self._thread: threading.Thread | None = None
+        self._thread: rt.Thread | None = None
         self._launch: ThreadLaunchGate | None = None
         self._started = False
 
@@ -76,7 +76,7 @@ class NavigationCommandSession:
         self._postprocess.start()
         self._stop_event.clear()
         launch = ThreadLaunchGate()
-        thread = threading.Thread(
+        thread = rt.Thread(
             target=self._run_generation,
             args=(launch,),
             daemon=True,
@@ -110,7 +110,7 @@ class NavigationCommandSession:
             self._started = False
             self._postprocess.close()
             return
-        if thread is threading.current_thread():
+        if thread is rt.current_thread():
             raise TimeoutError("navigation command worker cannot join itself")
         if thread.is_alive():
             thread.join(timeout=NAVIGATION_COMMAND_JOIN_TIMEOUT_S)

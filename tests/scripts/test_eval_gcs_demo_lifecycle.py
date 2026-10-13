@@ -10,6 +10,7 @@ import pytest
 from scripts import eval_gcs_demo_lifecycle as lifecycle
 from scripts import eval_gcs_demo_process as process
 from scripts.eval_gcs_demo_models import RegressionError
+from scripts.eval_gcs_demo_execution import SystemClock
 
 
 SYS_IDS = (7, 8, 9)
@@ -48,7 +49,9 @@ class FakeApi:
 
 
 def _context(api, monitor="udp:0.0.0.0:15553"):
-    return SimpleNamespace(api=api, sys_ids=SYS_IDS, monitor_device=monitor)
+    return SimpleNamespace(
+        api=api, sys_ids=SYS_IDS, monitor_device=monitor, clock=SystemClock(),
+    )
 
 
 def test_connect_follows_manifest_order_on_the_slot_monitor():
@@ -90,9 +93,9 @@ def test_teardown_stops_companions_before_the_stack(monkeypatch, action_fails):
     api = FakeApi(running=SYS_IDS)
     api.close = lambda: order.append("close")
     tail = SimpleNamespace(read_new=lambda: order.append("tail"))
-    context = SimpleNamespace(api=api, sys_ids=SYS_IDS, backend_tail=tail,
+    context = SimpleNamespace(api=api, sys_ids=SYS_IDS, backend_tail=tail, clock=SystemClock(),
                               monitor_device="udp:0.0.0.0:15553")
-    monkeypatch.setattr(process, "launch_stack", lambda *_args: context)
+    monkeypatch.setattr(process, "launch_stack", lambda *_args, **_kwargs: context)
     monkeypatch.setattr(process, "stop_companions",
                         lambda ctx: order.append("companions") or lifecycle.stop_companions(ctx))
     monkeypatch.setattr(process, "stop_stack", lambda _env: order.append("gcs_stop"))
@@ -104,9 +107,9 @@ def test_teardown_stops_companions_before_the_stack(monkeypatch, action_fails):
 
     if action_fails:
         with pytest.raises(RegressionError, match="mission failed"):
-            process.with_owned_stack({}, 1.0, action)
+            process.with_owned_stack({}, 1.0, action, clock=SystemClock())
     else:
-        assert process.with_owned_stack({}, 1.0, action) == "done"
+        assert process.with_owned_stack({}, 1.0, action, clock=SystemClock()) == "done"
     assert order == ["companions", "close", "gcs_stop", "tail"]
     assert api.running == set()
 

@@ -72,7 +72,7 @@ def _record_heartbeat(
     """Drive the heartbeat owner through the same observation path as MAVLink."""
     observed_at = time.time() - age_s
     with patch(
-        "navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats.time.time",
+        "navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats.rt.time",
         return_value=observed_at,
     ):
         bus._heartbeats.observe(_heartbeat(sys_id, mav_type))

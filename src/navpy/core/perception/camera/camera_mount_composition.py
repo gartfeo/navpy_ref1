@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.camera_mount_control import (
     MountLifecycle,
     MountZoomControl,
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class CameraMountParts:
-    lock: threading.RLock
+    lock: rt.RLock
     camera: MountCameraHardware
     gimbal: MountGimbalHardware
     gimbal_readback: MountGimbalZoomReadbackHardware
@@ -49,7 +49,7 @@ def build_camera_mount_parts(
     camera_source: Callable[[], object],
     gimbal_source: Callable[[], object],
     calibration_source: Callable[[], "ZoomCalibrationTable | None"],
-    lock: threading.RLock,
+    lock: rt.RLock,
 ) -> CameraMountParts:
     camera = MountCameraHardware(camera_source)
     gimbal = MountGimbalHardware(gimbal_source)

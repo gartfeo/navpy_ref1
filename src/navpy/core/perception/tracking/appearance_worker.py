@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable, Sequence
 from typing import Protocol
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.logger_api import ILogger
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
@@ -37,12 +37,12 @@ class AppearanceWorker:
         self._processor = processor
         self._logger = logger
         self._on_exit = on_exit
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._pending: AppearanceJob | None = None
         self._accepting = True
-        self._event = threading.Event()
+        self._event = rt.Event()
         self._launch = ThreadLaunchGate()
-        self._thread = threading.Thread(
+        self._thread = rt.Thread(
             target=self._run_generation,
             daemon=True,
         )
@@ -76,7 +76,7 @@ class AppearanceWorker:
         return True
 
     def is_current_thread(self) -> bool:
-        return self._thread is threading.current_thread()
+        return self._thread is rt.current_thread()
 
     def close(self) -> bool:
         with self._lock:

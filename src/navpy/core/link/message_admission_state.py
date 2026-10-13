@@ -5,10 +5,10 @@ thread-safe time-based stores used by that pipeline: logical-message
 deduplication and per-peer clock-offset estimation.
 """
 
-import threading
-import time
 from collections import OrderedDict
 from typing import Dict, Optional, Tuple
+
+from navpy.core.kernel import runtime_time as rt
 
 
 # Type alias for message UID: (sender_id, boot_id, msg_seq)
@@ -40,7 +40,7 @@ class DedupCache:
         self._max_size = max_size
         self._expiry_ms = expiry_ms
         self._cache: OrderedDict[MsgUID, int] = OrderedDict()  # UID -> timestamp_ms
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._check_count = 0  # Counter for periodic cleanup
 
     def is_duplicate(self, uid: MsgUID) -> bool:
@@ -59,7 +59,7 @@ class DedupCache:
         Returns:
             True if this is a duplicate message, False otherwise
         """
-        now_ms = int(time.time() * 1000)
+        now_ms = int(rt.time() * 1000)
 
         with self._lock:
             # Clean expired entries periodically (every ~100 checks)
@@ -132,7 +132,7 @@ class ClockOffsetEstimator:
         """
         self._alpha = alpha
         self._offsets: Dict[int, float] = {}  # sender_id -> offset_ms
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
 
     def update_offset(self, sender_id: int, remote_time_ms: int) -> float:
         """
@@ -141,7 +141,7 @@ class ClockOffsetEstimator:
         The first sample is always accepted.  Later samples that deviate more
         than ``MAX_SAMPLE_DEVIATION_MS`` leave the estimate unchanged.
         """
-        now_ms = int(time.time() * 1000)
+        now_ms = int(rt.time() * 1000)
         sample = now_ms - remote_time_ms
 
         with self._lock:

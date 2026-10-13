@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 import math
-import threading
-import time
 from collections.abc import Callable
 from types import SimpleNamespace
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.plugins.vehicle.ardupilot.message_store import MessageSample, MessageStore
@@ -129,7 +128,7 @@ def simulator_truth_pose_from_sample(
 
 class CommandDiagnostics:
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._attitude_target = None
 
     def update_attitude_target(self, target: SimpleNamespace) -> None:
@@ -211,7 +210,7 @@ class PoseTelemetry:
             requested_yaw=target.requested_yaw,
             thrust=target.thrust,
             type_mask=target.type_mask,
-            age_ms=(time.time() - target.timestamp_s) * 1000.0,
+            age_ms=(rt.time() - target.timestamp_s) * 1000.0,
         )
 
     @property
@@ -226,5 +225,5 @@ class PoseTelemetry:
             nav_bearing=getattr(message, "nav_bearing", None),
             target_bearing=getattr(message, "target_bearing", None),
             wp_dist=getattr(message, "wp_dist", None),
-            age_ms=(time.time() - sample.receipt_time_s) * 1000.0,
+            age_ms=(rt.time() - sample.receipt_time_s) * 1000.0,
         )

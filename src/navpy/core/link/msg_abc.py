@@ -1,8 +1,8 @@
 import json
-import threading
 from abc import ABC, abstractmethod
 from typing import Dict, Type, Any, Optional, TYPE_CHECKING
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.types import MsgType
 
 if TYPE_CHECKING:
@@ -156,7 +156,7 @@ class MsgRegistry:
     Registry for message types and their corresponding classes.
     """
 
-    _registry_lock = threading.Lock()
+    _registry_lock = rt.Lock()
     _registry: Dict[MsgType, Type[MsgABC]] = {}
     _mav_registry: Dict[int, Type[MsgABC]] = {}
 

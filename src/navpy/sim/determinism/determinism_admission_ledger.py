@@ -32,10 +32,10 @@ cutoff, releases this lock, and hands the pair to the command log as VALUES.
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.sim.determinism.determinism_seal import (
     SealState,
     record_under,
@@ -172,7 +172,7 @@ class AdmissionLedger:
 
     def __init__(self, capacity: int) -> None:
         self._capacity = max(0, int(capacity))
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._entries: list[tuple[int, int | None, bool, str | None]] = []
         self._dropped = 0
         self._observed: int | None = None

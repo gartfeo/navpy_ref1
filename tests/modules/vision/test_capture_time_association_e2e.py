@@ -124,7 +124,7 @@ def _associate(
     )
     associated_at = read_s + 0.005
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.time",
         return_value=associated_at,
     ):
         return builder.capture(snapshot, frame)
@@ -257,7 +257,7 @@ def test_exposure_kind_end_to_end_matches_truth_with_link_delay() -> None:
         source_id="rtsp-cam",
     )
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.time",
         return_value=exposure + 0.02,
     ):
         association = builder.capture(snapshot, frame)
@@ -301,7 +301,7 @@ def test_zoom_capable_camera_refused_for_latent_frames() -> None:
         source_id="rtsp-cam",
     )
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.time",
         return_value=read_s + 0.005,
     ):
         association = builder.capture(snapshot, frame)
@@ -324,7 +324,7 @@ def test_zoom_capable_camera_refused_for_latent_frames() -> None:
         source_id="rtsp-cam",
     )
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.time",
         return_value=exposure + 0.028,
     ):
         association = builder_young.capture(store.snapshot(), frame)
@@ -378,7 +378,7 @@ def test_runtime_rate_tightens_the_bracket_ceiling() -> None:
     )
     builder.set_maximum_skew(pose_frame_association_max_skew_s(100.0))
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.time.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.time",
         return_value=exposure + DC0_S + 0.005,
     ):
         association = builder.capture(store.snapshot(), frame)

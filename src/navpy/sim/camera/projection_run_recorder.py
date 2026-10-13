@@ -6,10 +6,9 @@ from contextvars import ContextVar
 from dataclasses import asdict, dataclass
 import os
 from pathlib import Path
-import threading
-import uuid
 from typing import Any, Callable, Iterator, Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.sim.camera.finite_projection_evidence import FiniteProjectionEvidence
 from navpy.sim.camera.run_evidence_file import EvidenceBudget, RunEvidenceFile
@@ -37,7 +36,7 @@ class ProjectionRunRecorder:
     def __init__(self, output: RunEvidenceFile) -> None:
         self._output = output
         self._frame: ContextVar[Optional[FrameEvidence]] = ContextVar('projection_frame', default=None)
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._frame_count = 0
         self._active = 0
 
@@ -109,7 +108,7 @@ def create_projection_recorder(sysid: int, *, ideal_360: bool,
                             int(os.environ['NAVPY_SIM_EVIDENCE_MAX_BYTES']))
     name = name_reader() if name_reader is not None else 'finite'
     return ProjectionRunRecorder(RunEvidenceFile(directory, run_id, sysid, budget,
-                                                detector_id=uuid.uuid4().hex, detector_name=name))
+                                                detector_id=rt.uuid4().hex, detector_name=name))
 
 
 def rollback_projection_recorder(recorder: Optional[ProjectionRunRecorder], cause: BaseException) -> None:

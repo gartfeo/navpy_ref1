@@ -143,7 +143,7 @@ class TestDetectorDeepSearch(unittest.TestCase):
         overlays.publish([], _track(7, missed=0))
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_state.time.time",
+                "navpy.core.perception.pipeline.real_detector_state.rt.time",
                 return_value=100.1,
         ):
             self.assertFalse(channel.should_run())
@@ -153,7 +153,7 @@ class TestDetectorDeepSearch(unittest.TestCase):
         overlays.publish([], _track(7, missed=3))
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_state.time.time",
+                "navpy.core.perception.pipeline.real_detector_state.rt.time",
                 return_value=100.1,
         ):
             self.assertTrue(channel.should_run())
@@ -163,7 +163,7 @@ class TestDetectorDeepSearch(unittest.TestCase):
         overlays.publish([], _track(7, missed=0, timestamp=99.0))
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_state.time.time",
+                "navpy.core.perception.pipeline.real_detector_state.rt.time",
                 return_value=100.0,
         ):
             self.assertTrue(channel.should_run())
@@ -1313,7 +1313,7 @@ class TestDetectorCompositionTransaction(unittest.TestCase):
                 "navpy.app.perception.real_detector_model_builder.deep_search_config_from_settings",
                 return_value=None,
         ), patch(
-                "navpy.core.perception.tracking.appearance_worker.threading.Thread.start",
+                "threading.Thread.start",
                 side_effect=failure,
         ):
             with self.assertRaisesRegex(

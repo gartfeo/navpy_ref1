@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Sequence
-from time import time
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.rotation_utils import normalize
 from navpy.plugins.laws.geo.roll_l1_state import (
@@ -53,7 +53,7 @@ class RollL1WaypointSolver:
         current: Location | None,
         bearing_cd: float,
     ) -> None:
-        now = time()
+        now = rt.time()
         dt = now - self._state.last_update_s
         self._state.last_update_s = now
         if dt > 1.0:

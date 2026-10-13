@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from collections import deque
 from collections.abc import Callable
 from typing import Sequence
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detection_event_lease import (
     DetectionLeaseDispatch,
 )
@@ -108,7 +108,7 @@ class PublicationEventLease:
 class DetectionEventStream:
     """Own publication ordering, leasing, and reset dispatch fences."""
 
-    def __init__(self, condition: threading.Condition) -> None:
+    def __init__(self, condition: rt.Condition) -> None:
         self.condition = condition
         self._events: deque[DetectionPublication] = deque()
         self._lease: PublicationEventLease | None = None

@@ -9,14 +9,13 @@ from __future__ import annotations
 import json
 import os
 import re
-import threading
-import uuid
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from gcs.backend.runtime_paths import gcs_log_dir
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
 
 
@@ -48,7 +47,7 @@ ALLOWED_FRONTEND_EVENTS = {
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return rt.now(timezone.utc)
 
 
 def _safe_scalar(value: Any) -> str | int | float | bool | None:
@@ -81,7 +80,7 @@ class DiagnosticSession:
         self.started_at: datetime | None = None
         self.session_dir: Path | None = None
         self.recording_enabled = False
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
 
     @property
     def active(self) -> bool:
@@ -96,7 +95,7 @@ class DiagnosticSession:
                 self._prune()
                 self.started_at = _utc_now()
                 fixed = _fixed_session_id()
-                self.session_id = fixed or uuid.uuid4().hex
+                self.session_id = fixed or rt.uuid4().hex
                 stamp = self.started_at.strftime("%Y%m%dT%H%M%SZ")
                 self.session_dir = self.root / (
                     fixed or f"{stamp}_{self.session_id[:8]}"

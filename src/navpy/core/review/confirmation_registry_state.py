@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from enum import Enum, unique
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
@@ -25,7 +25,7 @@ class ConfirmationStatus(Enum):
 class ConfirmationRegistryState:
     """Own active-POI selection and status transitions."""
 
-    def __init__(self, lock: threading.RLock) -> None:
+    def __init__(self, lock: rt.RLock) -> None:
         self._lock = lock
         self._statuses: dict[int, ConfirmationStatus] = {}
         self._active_poi: Optional[DetectedObject] = None

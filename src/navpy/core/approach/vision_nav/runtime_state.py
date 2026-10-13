@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import math
-import threading
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.frame import FinalApproachVisionFrame
 
 
 class FinalApproachRuntimeStatus:
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._last_body_bearing_deg: float | None = None
 
     def record(self, frame: FinalApproachVisionFrame) -> None:

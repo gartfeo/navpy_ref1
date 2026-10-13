@@ -1,10 +1,9 @@
 """Lazy MAVFTP parameter snapshot fetcher."""
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import parse_param_pck
 from navpy.plugins.vehicle.ardupilot._mavftp.vehicle_ftp import VehicleFtp
 from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
@@ -23,7 +22,7 @@ class ParameterSnapshotClient:
         self._transport = transport
         self._identity = identity
         self._callbacks = callbacks
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._ftp = None
 
     def fetch(
@@ -48,7 +47,7 @@ class ParameterSnapshotClient:
             )
         return FullParamSnapshot(
             target_system=self._identity.target_system,
-            fetched_at_unix_s=time.time(),
+            fetched_at_unix_s=rt.time(),
             with_defaults=with_defaults,
             pck=parse_param_pck(data, defaults_requested=with_defaults),
         )

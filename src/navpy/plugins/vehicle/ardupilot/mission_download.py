@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 
 from pymavlink.dialects.v20.ardupilotmega import (
@@ -10,6 +9,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_message,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
@@ -59,7 +59,7 @@ class MissionDownloader:
                     message,
                     mission_type,
                 ),
-                deadline=time.monotonic() + timeout / 2,
+                deadline=rt.monotonic() + timeout / 2,
             )
             if sample is not None:
                 count_message = sample.message
@@ -94,7 +94,7 @@ class MissionDownloader:
                         self._from_target_table(message, mission_type)
                         and getattr(message, "seq", None) == seq
                     ),
-                    deadline=time.monotonic() + timeout,
+                    deadline=rt.monotonic() + timeout,
                 )
                 if sample is not None:
                     received = sample.message

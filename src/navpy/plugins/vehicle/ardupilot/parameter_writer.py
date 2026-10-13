@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import math
-import threading
-import time
 
 from pymavlink import mavutil
 from pymavlink.dialects.v20.ardupilotmega import (
@@ -12,6 +10,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_message,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
@@ -40,7 +39,7 @@ class ParameterWriter:
         self._messages = messages
         self._logger_ref = logger_ref
         self._sim_state = sim_state
-        self._write_lock = threading.Lock()
+        self._write_lock = rt.Lock()
 
     def set(
         self,
@@ -74,7 +73,7 @@ class ParameterWriter:
                 "PARAM_VALUE",
                 cursor,
                 lambda message: self._matches(message, spec),
-                deadline=time.monotonic() + timeout,
+                deadline=rt.monotonic() + timeout,
             )
         if sample is None:
             return False

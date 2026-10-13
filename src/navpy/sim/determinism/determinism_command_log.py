@@ -33,10 +33,10 @@ properties read one lock acquisition at a time.
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from typing import Any
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.sim.determinism.determinism_seal import (
     SealState,
     record_under,
@@ -138,7 +138,7 @@ class CommandLoopLog:
 
     def __init__(self, capacity: int) -> None:
         self._capacity = max(0, int(capacity))
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._entries: list[tuple[int, bytes | None]] = []
         self._passes: list[tuple[int, int | None, int | None]] = []
         self._iteration: int | None = None

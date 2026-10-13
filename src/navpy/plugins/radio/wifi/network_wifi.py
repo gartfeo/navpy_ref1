@@ -1,11 +1,10 @@
 import base64
 import json
-import time
-import threading
 from typing import Optional
 
 import zmq
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.radio.wifi.wifi_network_args import WifiNetworkArgs
 from navpy.core.link.message_filter import MessageFilter
 from navpy.core.ports.network_abc import NetworkAbc, DEFAULT_CHUNK_SIZE
@@ -34,8 +33,8 @@ class NetworkWifi(NetworkAbc):
         self.receive_socket.setsockopt_string(zmq.SUBSCRIBE, "")
 
         # Start listening in a separate thread
-        self.stop_event = threading.Event()
-        self.thread = threading.Thread(target=self._listen, daemon=True)
+        self.stop_event = rt.Event()
+        self.thread = rt.Thread(target=self._listen, daemon=True)
         self.thread.start()
 
         self._wait_sockets_initialize()
@@ -50,7 +49,7 @@ class NetworkWifi(NetworkAbc):
             while not self.stop_event.is_set():
                 message = self.receive_socket.recv_string()
                 self.receive_packet(message.encode('utf-8'))
-                time.sleep(0.01)
+                rt.sleep(0.01)
         except zmq.error.ContextTerminated:
             # Context was terminated, exit gracefully.
             pass
@@ -62,7 +61,7 @@ class NetworkWifi(NetworkAbc):
             return
         self.is_closed = True
         self.stop_event.set()
-        time.sleep(0.5)  # Allow thread some time to exit before we close everything
+        rt.sleep(0.5)  # Allow thread some time to exit before we close everything
         self.broadcast_socket.close()
         self.receive_socket.close()
         self.context.term()
@@ -91,4 +90,4 @@ class NetworkWifi(NetworkAbc):
 
     @staticmethod
     def _wait_sockets_initialize():
-        time.sleep(0.5)
+        rt.sleep(0.5)

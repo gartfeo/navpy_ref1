@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import replace
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.rotation_utils import calculate_euler_angles
 from navpy.sim.gimbal.gimbal_attitude_reader import AircraftAttitudeReader
@@ -23,7 +23,7 @@ class GimbalStabilizer:
         self._initial_attitude = data.att
         self._attitude_reader = attitude_reader
         self._uas_sequence = uas_sequence
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
 
     def advance(self) -> None:
         aircraft = self._attitude_reader.read()

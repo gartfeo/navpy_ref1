@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -70,7 +70,7 @@ class RuntimeResourceStack:
     """
 
     def __init__(self) -> None:
-        self._condition = threading.Condition(threading.RLock())
+        self._condition = rt.Condition(rt.RLock())
         self._steps: list[RuntimeCleanupStep] = []
         self._phase = "open"
         self._close_owner: int | None = None
@@ -95,7 +95,7 @@ class RuntimeResourceStack:
             self._steps.append(step)
 
     def close(self) -> None:
-        owner = threading.get_ident()
+        owner = rt.get_ident()
         with self._condition:
             while self._phase == "closing":
                 if self._close_owner == owner:

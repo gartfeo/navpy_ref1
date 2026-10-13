@@ -1,8 +1,6 @@
 """Thread-safe heartbeat and MAVLink packet-quality state."""
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 
 from pymavlink.dialects.v20.ardupilotmega import (
@@ -11,18 +9,20 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_TYPE_ONBOARD_CONTROLLER,
 )
 
+from navpy.core.kernel import runtime_time as rt
+
 
 class HeartbeatState:
     def __init__(
         self,
         target_system: int,
         timeout_s: float,
-        clock: Callable[[], float] = time.monotonic,
+        clock: Callable[[], float] = rt.monotonic,
     ) -> None:
         self._target_system = target_system
         self._timeout_s = timeout_s
         self._clock = clock
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._last_receipt_s = clock()
         self._message = None
 
@@ -64,10 +64,10 @@ class HeartbeatState:
 class PacketLossTracker:
     def __init__(
         self,
-        clock: Callable[[], float] = time.monotonic,
+        clock: Callable[[], float] = rt.monotonic,
     ) -> None:
         self._clock = clock
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._last_sequence: dict[int, int] = {}
         self._lost = 0.0
         self._received = 1.0

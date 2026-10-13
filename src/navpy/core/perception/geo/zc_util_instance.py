@@ -1,4 +1,4 @@
-import threading
+from navpy.core.kernel import runtime_time as rt
 
 
 class ZcUtilInstance:
@@ -9,7 +9,7 @@ class ZcUtilInstance:
         zc = ZcUtilInstance.get(max_distance=500) # first call sets args
     """
     _instance = None
-    _lock = threading.Lock()
+    _lock = rt.Lock()
 
     @classmethod
     def get(cls, *args, **kwargs):

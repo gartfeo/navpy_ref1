@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
-import threading
 from dataclasses import dataclass
 
 from navpy.app.perception.frame_capture_factory import open_capture_backend
@@ -80,7 +80,7 @@ class FrameCaptureRuntime:
             raise RuntimeError(message)
         self._state.install_starting(session)
         try:
-            thread = threading.Thread(
+            thread = rt.Thread(
                 target=self._worker.run_generation,
                 args=(session,),
                 daemon=True,

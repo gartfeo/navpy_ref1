@@ -1,10 +1,11 @@
 """Target membership and construction reservations for a shared MAVLink bus."""
 from __future__ import annotations
 
-import threading
 from typing import Protocol
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
+
+from navpy.core.kernel import runtime_time as rt
 
 
 class MavMessageReceiver(Protocol):
@@ -19,7 +20,7 @@ class MavBusMembership:
     """Owns target routing and the reservations that protect bus construction."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._targets: dict[int, MavMessageReceiver] = {}
         self._reservations: set[int] = set()
 

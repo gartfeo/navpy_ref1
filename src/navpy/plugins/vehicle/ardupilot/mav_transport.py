@@ -1,13 +1,14 @@
 """The sole serialized access path to a pymavlink encoder/connection."""
 from __future__ import annotations
 
-from _thread import RLock as RLockType
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import TypeVar
 
 from pymavlink import mavutil
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
+
+from navpy.core.kernel import runtime_time as rt
 
 ResultT = TypeVar("ResultT")
 
@@ -16,7 +17,7 @@ class MavTransport:
     def __init__(
         self,
         connection: mavutil.mavfile,
-        send_lock: RLockType,
+        send_lock: rt.LockPort,
     ) -> None:
         self._connection = connection
         self._send_lock = send_lock

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable, Protocol
 
@@ -15,6 +14,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_gimbal_device_attitude_status_message,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.mavlink_camera_components import (
     CAMERA_COMPONENT_BY_GIMBAL_DEVICE_ID,
 )
@@ -61,7 +61,7 @@ class GimbalTelemetryEmitter:
             GimbalTelemetrySource(spec.mount, spec.gimbal_device_id)
             for spec in mount_specs
         ]
-        self._boot_monotonic_s = time.monotonic()
+        self._boot_monotonic_s = rt.monotonic()
         self._warned_errors: set[tuple[int, str, str]] = set()
         self._last_optics_sample_ids: dict[int, str] = {}
 
@@ -143,7 +143,7 @@ class GimbalTelemetryEmitter:
 
     def _time_boot_ms(self) -> int:
         return int(
-            (time.monotonic() - self._boot_monotonic_s) * 1000
+            (rt.monotonic() - self._boot_monotonic_s) * 1000
         ) & 0xFFFFFFFF
 
     def _warn_once(

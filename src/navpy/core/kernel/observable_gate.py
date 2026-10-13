@@ -7,7 +7,6 @@ handoff, freeze) parameterised over a real observables context.
 """
 from __future__ import annotations
 
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -22,6 +21,8 @@ from typing import (
     Tuple,
     TypeVar,
 )
+
+from navpy.core.kernel import runtime_time as rt
 
 
 class GateStatus(Enum):
@@ -107,7 +108,7 @@ class DwellGate(ObservableGate[TContext]):
         self,
         inner: ObservableGate[TContext],
         dwell_s: float,
-        clock: Callable[[], float] = time.monotonic,
+        clock: Callable[[], float] = rt.monotonic,
     ):
         if dwell_s < 0:
             raise ValueError(f"dwell_s must be >= 0, got {dwell_s}")

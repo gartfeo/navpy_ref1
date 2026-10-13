@@ -1,7 +1,7 @@
 import logging
 from collections import namedtuple
-from time import time
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.pid_args import PIDArgs
 
 
@@ -21,12 +21,12 @@ class Pid(object):
         self._integral = 0.0
         self._last_error = 0.0
         self._last_measurement = 0.0
-        self.last_time = time()
+        self.last_time = rt.time()
 
         self.reset(out_min, out_max)
 
     def calc(self, measurement):
-        current_time = time()
+        current_time = rt.time()
         dt = current_time - self.last_time
         if dt <= 0.0:
             dt = 1.0  # Prevent division by zero or negative time intervals
@@ -59,7 +59,7 @@ class Pid(object):
         self._integral = 0.0
         self._last_error = 0.0
         self._last_measurement = 0.0
-        self.last_time = time()
+        self.last_time = rt.time()
 
         self._Kp = self.args.kp
         self._Ki = self.args.ki

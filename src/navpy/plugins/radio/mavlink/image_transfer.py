@@ -9,7 +9,6 @@ GCS must reassemble chunks using sequence numbers.
 """
 import base64
 import math
-import time
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Callable, Dict, List, Optional
@@ -18,6 +17,8 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_data_transmission_handshake_message,
     MAVLink_encapsulated_data_message,
 )
+
+from navpy.core.kernel import runtime_time as rt
 
 # Chunk size for ENCAPSULATED_DATA payload
 CHUNK_SIZE = 253
@@ -150,7 +151,7 @@ class ImageReassembler:
             num_packets=msg.packets,
             payload_size=msg.payload,
             quality=msg.jpg_quality,
-            start_time=time.time(),
+            start_time=rt.time(),
         )
         return poi_id
 
@@ -192,7 +193,7 @@ class ImageReassembler:
 
     def cleanup_stale(self):
         """Remove stale transfers that have timed out."""
-        now = time.time()
+        now = rt.time()
         stale = [
             tid for tid, t in self._transfers.items()
             if now - t.start_time > self._timeout_sec
@@ -271,7 +272,7 @@ class ImageTransferSender:
 
         # Small delay after handshake
         if self._delay_sec > 0:
-            time.sleep(self._delay_sec * 2)
+            rt.sleep(self._delay_sec * 2)
 
         # Send chunks
         for seq, chunk_data in enumerate(chunks):
@@ -279,6 +280,6 @@ class ImageTransferSender:
             self._send(chunk_msg)
 
             if self._delay_sec > 0 and seq < len(chunks) - 1:
-                time.sleep(self._delay_sec)
+                rt.sleep(self._delay_sec)
 
         return len(chunks)

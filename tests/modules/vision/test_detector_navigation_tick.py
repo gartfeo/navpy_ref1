@@ -32,7 +32,7 @@ class TestTickNavigation(unittest.TestCase):
     def test_stale_poi_is_passed_as_none(self):
         g = _Navigation(tracking_obj_id=7)
         sink = self._sink(g)
-        with patch("navpy.core.perception.pipeline.real_detector_state.time.time", return_value=100.0):
+        with patch("navpy.core.perception.pipeline.real_detector_state.rt.time", return_value=100.0):
             sink.update([_poi(7, timestamp=98.0)])  # 2s old -> stale
         self.assertEqual(g.updated, [None])
 
@@ -40,7 +40,7 @@ class TestTickNavigation(unittest.TestCase):
         g = _Navigation(tracking_obj_id=7)
         sink = self._sink(g)
         fresh = _poi(7, timestamp=99.99)
-        with patch("navpy.core.perception.pipeline.real_detector_state.time.time", return_value=100.0):
+        with patch("navpy.core.perception.pipeline.real_detector_state.rt.time", return_value=100.0):
             sink.update([fresh])
         self.assertEqual(g.updated, [fresh])
 
@@ -51,7 +51,7 @@ class TestTickNavigation(unittest.TestCase):
     def test_untracked_id_passes_none(self):
         g = _Navigation(tracking_obj_id=99)
         sink = self._sink(g)
-        with patch("navpy.core.perception.pipeline.real_detector_state.time.time", return_value=100.0):
+        with patch("navpy.core.perception.pipeline.real_detector_state.rt.time", return_value=100.0):
             sink.update([_poi(7, timestamp=100.0)])
         self.assertEqual(g.updated, [None])
 
@@ -62,7 +62,7 @@ class TestTickNavigation(unittest.TestCase):
         g = _Navigation(tracking_obj_id=7)
         sink = self._sink(g)
         fresh = _poi(7, timestamp=99.99)
-        with patch("navpy.core.perception.pipeline.real_detector_state.time.time", return_value=100.0):
+        with patch("navpy.core.perception.pipeline.real_detector_state.rt.time", return_value=100.0):
             sink.update([fresh])   # delivered
             sink.update([fresh])   # same ts -> no navigation call
         self.assertEqual(g.updated, [fresh])
@@ -74,7 +74,7 @@ class TestTickNavigation(unittest.TestCase):
         fresh = _poi(7, timestamp=99.99)
 
         with patch(
-            "navpy.core.perception.pipeline.real_detector_state.time.time",
+            "navpy.core.perception.pipeline.real_detector_state.rt.time",
             return_value=100.0,
         ):
             with self.assertRaisesRegex(RuntimeError, "actuation failed"):
@@ -88,7 +88,7 @@ class TestTickNavigation(unittest.TestCase):
         # delivered (the dedupe guard is `timestamp is not None`).
         g = _Navigation(tracking_obj_id=7)
         sink = self._sink(g)
-        with patch("navpy.core.perception.pipeline.real_detector_state.time.time", return_value=100.0):
+        with patch("navpy.core.perception.pipeline.real_detector_state.rt.time", return_value=100.0):
             sink.update([_poi(7, timestamp=None)])
             sink.update([_poi(7, timestamp=None)])
         self.assertEqual(len(g.updated), 2)
@@ -100,7 +100,7 @@ class TestTickNavigation(unittest.TestCase):
         fresh = make_detected_poi(obj_id=7, timestamp=99.99)
 
         with patch(
-            "navpy.core.perception.pipeline.real_detector_state.time.time",
+            "navpy.core.perception.pipeline.real_detector_state.rt.time",
             return_value=100.0,
         ):
             sink.update([fresh])

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.sim.gimbal.siyi.gimbal_angles import (
     GimbalAngularPlant,
@@ -19,7 +19,7 @@ class SiyiSimState:
     data: GimbalData
     angular: GimbalAngularPlant
     zoom: GimbalZoomPlant
-    lock: threading.Lock
+    lock: rt.Lock
     zoom_sample_seq: int = 0
     zoom_updated_monotonic_s: float | None = None
     started: bool = False

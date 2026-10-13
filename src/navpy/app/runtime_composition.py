@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
 import sys
-import time
 from argparse import Namespace
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -225,7 +225,7 @@ def _build_session(
         start_controller=lambda: controller.start(scheduler_rate_hz),
         health_check=check_runtime_health,
         ui_step=vision.ui_step,
-        sleep=time.sleep,
+        sleep=rt.sleep,
         ready_signal=signal_runtime_ready,
         **_stop_hooks(args),
     )

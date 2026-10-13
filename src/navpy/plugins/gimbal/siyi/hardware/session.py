@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.gimbal.siyi.hardware.ports import SiyiSdkPort
 
 
@@ -13,7 +13,7 @@ class SiyiSdkSession:
     """Serializes SDK calls with install/detach during lifecycle changes."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._sdk: SiyiSdkPort | None = None
 
     @contextmanager

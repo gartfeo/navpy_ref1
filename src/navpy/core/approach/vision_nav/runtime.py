@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Iterable, Union
@@ -35,6 +34,7 @@ from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
 from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
 from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 
 
@@ -116,7 +116,7 @@ class FinalApproachSessionRuntime:
 
     def __init__(
         self,
-        lock: threading.RLock,
+        lock: rt.RLock,
         epochs: SourceEpochLedger,
         command_reset: FinalApproachCommandReset,
         visual_pass: VisualPassDetector,

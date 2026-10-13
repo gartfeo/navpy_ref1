@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import threading
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -26,6 +25,7 @@ from navpy.core.approach.vision_nav.source_time_ports import (
     ObservationOutcome,
     FinalApproachObservationSourceTimeObserver,
 )
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 
 
@@ -35,7 +35,7 @@ class FinalApproachIngressCommandReset(Protocol):
 
 @dataclass(frozen=True)
 class FinalApproachIngressPorts:
-    lock: threading.RLock
+    lock: rt.RLock
     slot: NavigationCommandSlot
     projector: FinalApproachFrameProjector
     epochs: SourceEpochLedger

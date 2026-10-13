@@ -17,10 +17,10 @@ count what the source's callback raises.
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
@@ -68,7 +68,7 @@ def build_direct_pixel_pipeline(
     aircraft_degrees: bool,
     frame_size: FrameSize,
     source_now_s: Callable[[], float],
-    wall_now_s: Callable[[], float] = time.time,
+    wall_now_s: Callable[[], float] = rt.time,
 ) -> DirectPixelPipeline:
     """Build every collaborator the source drives, as one set."""
     # ``trace`` is bound below; start() runs only after this returns.

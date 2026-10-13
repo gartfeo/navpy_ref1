@@ -1,8 +1,8 @@
 import struct
 import socket
-import threading
-import time
 from multiprocessing import Process
+
+from navpy.core.kernel import runtime_time as rt
 
 
 class SerialSimServer:
@@ -14,13 +14,13 @@ class SerialSimServer:
         self.server_socket.bind((host, port))
         self.server_socket.listen()
         self.running = True
-        threading.Thread(target=self.accept_clients, daemon=True).start()
+        rt.Thread(target=self.accept_clients, daemon=True).start()
 
     def accept_clients(self):
         while self.running:
             client_socket, _ = self.server_socket.accept()
             self.clients.append(client_socket)
-            threading.Thread(target=self.handle_client, args=(client_socket,), daemon=True).start()
+            rt.Thread(target=self.handle_client, args=(client_socket,), daemon=True).start()
 
     def handle_client(self, client_socket):
         try:
@@ -53,7 +53,7 @@ class SerialSimServer:
         print("Server started.")
         try:
             while True:
-                time.sleep(1)
+                rt.sleep(1)
         except KeyboardInterrupt:
             print("Stopping server.")
             server.stop()
@@ -62,4 +62,4 @@ class SerialSimServer:
 if __name__ == "__main__":
     server_process = Process(target=SerialSimServer.start_server)
     server_process.start()
-    time.sleep(1)  # Give the server time to start
+    rt.sleep(1)  # Give the server time to start

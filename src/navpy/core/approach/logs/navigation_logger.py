@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import math
-import time
 from typing import Any, Callable, Mapping, Optional
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.approach.logs.navigation_clocks import current_wall_timestamp
 from navpy.core.approach.logs.navigation_event_recorder import NavigationEventRecorder
@@ -67,7 +67,7 @@ class NavigationLogger:
             owned_streams,
             self._snap_session,
             NavigationStatusEmitter(logger),
-            wall_time or time.time,
+            wall_time or rt.time,
             row_timestamp,
             time_source,
             cadence_interval,

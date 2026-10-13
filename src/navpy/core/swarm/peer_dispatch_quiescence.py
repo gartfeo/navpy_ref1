@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
+
+from navpy.core.kernel import runtime_time as rt
 
 
 def await_peer_dispatch_quiescence(
-    fence: threading.Lock,
+    fence: rt.Lock,
     timeout_s: float,
     operation: str,
     record_failure: Callable[[BaseException], BaseException],

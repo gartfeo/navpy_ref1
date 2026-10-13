@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
@@ -14,6 +13,7 @@ log = logging.getLogger("gcs.backend.vehicle_manager")
 import math
 from typing import Any
 from navpy.app.perception.vision_gimbal_profile import MAX_GIMBAL_DEVICE_ID, MIN_GIMBAL_DEVICE_ID
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.mavlink_camera_components import GIMBAL_DEVICE_ID_BY_CAMERA_COMPONENT
 from gcs.backend.vehicle_status import (
     GIMBAL_TELEMETRY_STALE_S, CAMERA_OPTICS_STALE_S, _LOG_GIMBAL_TELEM,
@@ -32,8 +32,8 @@ def _on_gimbal_device_attitude_status(entry: VehicleEntry, msg: MAVLink_message)
     if q is None:
         return
 
-    now_wall = time.time()
-    now_monotonic = time.monotonic()
+    now_wall = rt.time()
+    now_monotonic = rt.monotonic()
     with entry._gimbal_lock:
         record = dict(entry._gimbals.get(raw_device_id, {}))
         record.update({
@@ -77,8 +77,8 @@ def _on_camera_fov_status(entry: VehicleEntry, msg: MAVLink_message) -> None:
     if fov_h_rad is None or fov_v_rad is None:
         return
 
-    now_wall = time.time()
-    now_monotonic = time.monotonic()
+    now_wall = rt.time()
+    now_monotonic = rt.monotonic()
     with entry._gimbal_lock:
         record = dict(entry._gimbals.get(device_id, {}))
         record.update({
@@ -123,7 +123,7 @@ def _gimbal_snapshot(entry: VehicleEntry) -> dict:
         with lock:
             records = list(gimbals.items())
 
-    now_monotonic = time.monotonic()
+    now_monotonic = rt.monotonic()
     snapshot = {}
     for device_id, record in records:
         updated_monotonic = record.get("_updated_monotonic")

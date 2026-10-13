@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import threading
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.sim.detection.ideal_pose_source import IdealPoseSample
 from navpy.sim.detection.scheduler_cadence_lease import SchedulerCadenceLease
@@ -44,8 +44,8 @@ class SimDetectorWorker:
             record_outcome=record_outcome,
         )
         self._coordinator = coordinator
-        self._lifecycle_lock = threading.RLock()
-        self._thread: threading.Thread | None = None
+        self._lifecycle_lock = rt.RLock()
+        self._thread: rt.Thread | None = None
         self._launch: ThreadLaunchGate | None = None
         self._started = False
         self._failures = WorkerFailureLatch()
@@ -55,7 +55,7 @@ class SimDetectorWorker:
             if self._coordinator.stop_event.is_set() or self._started:
                 return
             launch = ThreadLaunchGate()
-            self._thread = threading.Thread(
+            self._thread = rt.Thread(
                 target=self._run_generation,
                 args=(launch,),
                 name="DetectorSimWorker",
@@ -85,7 +85,7 @@ class SimDetectorWorker:
                 return True
         if thread is None:
             return True
-        if thread is threading.current_thread():
+        if thread is rt.current_thread():
             return False
         if thread.is_alive():
             thread.join(timeout=max(0.0, float(timeout_s)))
@@ -113,7 +113,7 @@ class SimDetectorWorker:
             return
         self._failures.run(self.run, self._coordinator.stop_event.set)
 
-    def _retire(self, thread: threading.Thread) -> None:
+    def _retire(self, thread: rt.Thread) -> None:
         with self._lifecycle_lock:
             if self._thread is thread:
                 self._thread = None

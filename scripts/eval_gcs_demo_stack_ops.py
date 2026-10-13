@@ -58,6 +58,7 @@ def wait_for_vehicles(
         probe,
         interval_s=1.0,
         transient_exceptions=(RegressionError,),
+        clock=context.clock,
     )
 
 
@@ -195,6 +196,7 @@ def wait_for_missions(context: StackContext, timeout_s: float) -> None:
         probe,
         interval_s=1.0,
         transient_exceptions=(RegressionError,),
+        clock=context.clock,
     )
 
 

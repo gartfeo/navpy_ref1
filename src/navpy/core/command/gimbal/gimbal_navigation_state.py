@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 import math
 from dataclasses import dataclass, field
 from typing import Any, Optional, TYPE_CHECKING
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.ports.gimbal_hardware_ports import (
@@ -68,7 +68,7 @@ class GimbalTrackingSetup:
 
 @dataclass
 class GimbalSessionFence:
-    lock: Any = field(default_factory=threading.Lock)
+    lock: Any = field(default_factory=rt.Lock)
     generation: int = 0
 
 
@@ -76,7 +76,7 @@ class GimbalSessionFence:
 class GimbalSessionCommandGate:
     """Serialize command transactions without holding the state fence."""
 
-    lock: Any = field(default_factory=threading.RLock)
+    lock: Any = field(default_factory=rt.RLock)
 
 
 @dataclass

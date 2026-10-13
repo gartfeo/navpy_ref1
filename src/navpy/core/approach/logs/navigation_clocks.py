@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime
 from typing import Callable, Optional
+
+from navpy.core.kernel import runtime_time as rt
 
 
 def current_wall_timestamp() -> str:
     """Format an unscaled wall-clock timestamp for CSV rows."""
-    return datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    return rt.now().strftime("%H:%M:%S.%f")[:-3]
 
 
 def minimum_wall_interval_s(

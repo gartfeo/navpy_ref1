@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
-import threading
-import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
@@ -59,7 +58,7 @@ class AppearanceResultStore:
         self._clock = clock
         self._max_age = float(max_age)
         self._min_box_iou = float(min_box_iou)
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._snapshot = AppearanceSnapshot({}, {}, -1e9)
 
     def publish(
@@ -157,13 +156,13 @@ class AsyncAppearanceEmbedder:
         logger: ILogger | None = None,
         on_batch: Callable[[int], None] | None = None,
         sync: bool = False,
-        clock: Callable[[], float] = time.monotonic,
+        clock: Callable[[], float] = rt.monotonic,
         max_age: float = 0.3,
         min_box_iou: float = 0.45,
     ) -> None:
         try:
             self._sync = bool(sync)
-            self._lifecycle = threading.Condition()
+            self._lifecycle = rt.Condition()
             self._state = "open"
             self._close_error: BaseException | None = None
             self._results = AppearanceResultStore(clock, max_age, min_box_iou)

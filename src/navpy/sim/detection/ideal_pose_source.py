@@ -6,9 +6,9 @@ The paired navigation attitude is yaw-redacted before it leaves this source.
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import ExceptionGroup
 
-import threading
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
@@ -83,7 +83,7 @@ class IdealPoseSource:
         self._coordinator = coordinator
         self._clock = clock
         self._associator = associator
-        self._lifecycle_lock = threading.Lock()
+        self._lifecycle_lock = rt.Lock()
         self._subscriptions: tuple[Subscription, ...] = ()
         self._source_armed = True
 

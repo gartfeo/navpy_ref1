@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import time
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 
 
@@ -15,13 +15,13 @@ class NavClock:
         self._scheduler_cadence = scheduler_cadence
 
     def decision_s(self) -> float:
-        return time.monotonic()
+        return rt.monotonic()
 
     def wall_s(self) -> float:
-        return time.monotonic()
+        return rt.monotonic()
 
     def source_fallback_s(self) -> float:
-        return time.time()
+        return rt.time()
 
     def scheduler_wall_period(self, scheduler_period_s: float) -> float:
         if self._scheduler_cadence is None:

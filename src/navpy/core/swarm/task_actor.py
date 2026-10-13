@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.listener_abc import ListenerAbc
 from navpy.core.link.msg_abc import MsgABC
@@ -50,13 +49,13 @@ class TaskActor(ListenerAbc):
         network: NetworkAbc,
         logger: ILogger,
         clock_reset: ClockOffsetResetPort | None = None,
-        monotonic_s: Callable[[], float] = time.monotonic,
+        monotonic_s: Callable[[], float] = rt.monotonic,
     ) -> None:
         self.id: int = vehicle.source_system
         self.vehicle = vehicle
         self.network = network
         self.logger = logger
-        lock = threading.RLock()
+        lock = rt.RLock()
         selection, auction_state, rebroadcast_state, confirmation = (
             create_task_state(lock, monotonic_s)
         )

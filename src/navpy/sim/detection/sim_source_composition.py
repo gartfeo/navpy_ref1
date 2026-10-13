@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
-import time
 from dataclasses import dataclass
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.pose_stream_rate import pose_frame_association_max_skew_s
 from navpy.plugins.vehicle.ardupilot.pose_streams import (
     request_pose_streams,
@@ -47,7 +47,7 @@ class SourceTimestampClock:
 
     def now(self) -> float:
         value = self._pose_source.source_now_s
-        return float(value) if value is not None else time.time()
+        return float(value) if value is not None else rt.time()
 
 
 def build_source_graph(

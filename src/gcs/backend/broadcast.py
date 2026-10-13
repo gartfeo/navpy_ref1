@@ -15,18 +15,19 @@ class ConnectionManager:
     """Manages active WebSocket connections and broadcasts messages."""
 
     def __init__(self):
-        self._clients: set[WebSocket] = set()
+        # Insertion order, not object identity, orders the sends.
+        self._clients: dict[WebSocket, None] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self, ws: WebSocket):
         await ws.accept()
         async with self._lock:
-            self._clients.add(ws)
+            self._clients[ws] = None
         log.info("WS client connected (%d total)", len(self._clients))
 
     async def disconnect(self, ws: WebSocket):
         async with self._lock:
-            self._clients.discard(ws)
+            self._clients.pop(ws, None)
         log.info("WS client disconnected (%d total)", len(self._clients))
 
     async def broadcast(self, data: Any):
@@ -42,7 +43,7 @@ class ConnectionManager:
                 except Exception:
                     stale.append(ws)
             for ws in stale:
-                self._clients.discard(ws)
+                self._clients.pop(ws, None)
 
     @property
     def client_count(self) -> int:

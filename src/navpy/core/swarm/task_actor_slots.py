@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import itertools
-import threading
 from collections.abc import Collection
 from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     ACK_STATUS_RECEIVED,
@@ -70,7 +70,7 @@ class SelectedTaskSlot:
     slot table in docs/design/swarm-task-assignment-ack.md.
     """
 
-    def __init__(self, lock: threading.RLock) -> None:
+    def __init__(self, lock: rt.RLock) -> None:
         self._lock = lock
         self._state = SlotState.EMPTY
         self._held: Optional[HeldTask] = None

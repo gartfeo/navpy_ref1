@@ -1,7 +1,6 @@
 """Ordered MAVLink message admission, publication, and callback dispatch."""
 from __future__ import annotations
 
-import time
 
 from pymavlink.dialects.v20.ardupilotmega import (
     MAV_COMP_ID_AUTOPILOT1,
@@ -9,6 +8,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_TYPE_GCS,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.msg_abc import MsgRegistry
 import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 from navpy.core.ports.admission_tap import (
@@ -104,7 +104,7 @@ class InboundMessageRouter:
         ):
             return
         message_type = message.get_type()
-        receipt_time_s = time.time()
+        receipt_time_s = rt.time()
         component_id = message_component_id(message)
         if (
             message_type == "HEARTBEAT"
@@ -191,5 +191,5 @@ class InboundMessageRouter:
     def _record_rejection(self, message_type: str, reason: str) -> None:
         if pose_cadence_debug.ENABLED:
             pose_cadence_debug.record_telemetry_reject(
-                self._identity.target_system, time.time(), message_type, reason,
+                self._identity.target_system, rt.time(), message_type, reason,
             )

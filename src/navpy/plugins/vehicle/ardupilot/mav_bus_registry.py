@@ -1,10 +1,11 @@
 """Identity-preserving device-to-bus registry."""
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Generic, TypeVar
+
+from navpy.core.kernel import runtime_time as rt
 
 
 EntryT = TypeVar("EntryT")
@@ -20,7 +21,7 @@ class MavBusRegistryPorts(Generic[EntryT]):
 class MavBusRegistry(Generic[EntryT]):
     def __init__(self, ports: MavBusRegistryPorts[EntryT]) -> None:
         self._ports = ports
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._entries: dict[str, EntryT] = {}
 
     @property

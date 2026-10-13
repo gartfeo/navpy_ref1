@@ -31,11 +31,12 @@ The design is D1 of the LANDING2 step-1 plan.
 from __future__ import annotations
 
 import contextlib
-import threading
 from collections.abc import Callable, Collection
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any
+
+from navpy.core.kernel import runtime_time as rt
 
 
 @dataclass(frozen=True)
@@ -126,7 +127,7 @@ class AdmissionTap:
         self._ruled_types = frozenset(ruled_types)
         # Numbering, the subscriptions, subscribe and cancel: a leaf, never
         # held while a ruling is built or dispatched.
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._numbers: dict[str, int] = {}
         self._owed: dict[str, tuple[AdmissionSubscription, ...]] = {}
 

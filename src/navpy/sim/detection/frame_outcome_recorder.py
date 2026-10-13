@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import time
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 
 
@@ -24,7 +24,7 @@ class FrameOutcomeRecorder:
             return
         pose_cadence_debug.record_detector_pose(
             self._target_system,
-            time.time(),
+            rt.time(),
             boot_s,
             outcome,
             frame_ts_s,

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from navpy.core.approach.calc_data import CalcData
 from navpy.core.command.navigation_command_slot import (
@@ -121,7 +121,7 @@ class FinalApproachCommandExecutor:
         result: FinalApproachCommandResult | None = None
         entry: list[FinalApproachDiagnosticEntry | None] = [None]
         timing = self._ports.mailbox.timing(work.diagnostic_token)
-        entry_s = time.perf_counter()
+        entry_s = rt.perf_counter()
         work.begin_postprocess(self._ports.postprocess_fence)
         with CleanupStack() as cleanup:
             cleanup.push(
@@ -258,7 +258,7 @@ class FinalApproachCommandExecutor:
             ),
             execution_ms=max(
                 0.0,
-                (time.perf_counter() - entry_s) * 1000.0,
+                (rt.perf_counter() - entry_s) * 1000.0,
             ),
             outcome="fresh",
         )

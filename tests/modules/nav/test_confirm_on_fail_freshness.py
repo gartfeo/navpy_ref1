@@ -346,7 +346,7 @@ class IsPoiFreshForConfirmTests(unittest.TestCase):
         controller.detections.detected_pois = [poi]
 
         with patch(
-            "navpy.core.flow.nav_clock.time.time", return_value=fixed_now,
+            "navpy.core.flow.nav_clock.rt.time", return_value=fixed_now,
         ):
             self.assertTrue(controller.freshness.is_poi_fresh_for_confirm(55))
 

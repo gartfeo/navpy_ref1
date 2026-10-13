@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.core.ports.pose_stream_rate import pose_frame_association_max_skew_s
 from navpy.core.perception.camera.frame_provider import FrameProvider
@@ -138,7 +138,7 @@ class DetectorStartup:
         return tuple(
             WorkerThread(
                 name,
-                threading.Thread(
+                rt.Thread(
                     target=self._run_worker,
                     args=(worker, launch),
                     daemon=True,

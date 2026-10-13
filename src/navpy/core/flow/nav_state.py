@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
 
 
@@ -42,7 +42,7 @@ class NavPhaseState:
         self._previous = previous
         self._oneshot_completed = bool(oneshot_completed)
         self._last_parameter_refresh_s = float(last_parameter_refresh_s)
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
 
     @property
     def current(self) -> NavState:
@@ -136,7 +136,7 @@ class NavigationFailureLatch:
     """Thread-safe one-shot failure signal, separate from nav-thread state."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._failed = False
 
     @property
@@ -199,7 +199,7 @@ class ConfirmOverrideInbox:
 
     def __init__(self) -> None:
         self._task_ids: set[int] = set()
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
 
     def request(self, task_id: int) -> None:
         with self._lock:

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
-import threading
 from dataclasses import dataclass, field
 
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
@@ -34,14 +34,14 @@ def _cleanup_backend(
 @dataclass
 class CaptureSession:
     backend: FrameCaptureBackend
-    stop_event: threading.Event = field(default_factory=threading.Event)
-    ready_event: threading.Event = field(default_factory=threading.Event)
-    thread: threading.Thread | None = None
+    stop_event: rt.Event = field(default_factory=rt.Event)
+    ready_event: rt.Event = field(default_factory=rt.Event)
+    thread: rt.Thread | None = None
     launch: ThreadLaunchGate = field(default_factory=ThreadLaunchGate)
     worker_error: BaseException | None = None
     close_error: BaseException | None = None
     closed: bool = False
-    close_lock: threading.Lock = field(default_factory=threading.Lock)
+    close_lock: rt.Lock = field(default_factory=rt.Lock)
 
     def rollback(self, logger: SafeCaptureLogger) -> list[BaseException]:
         self.stop_event.set()
@@ -67,7 +67,7 @@ class CaptureSession:
             return True
         if self.launch.cancel_before_commit():
             return True
-        if thread is threading.current_thread():
+        if thread is rt.current_thread():
             return False
         if not thread.is_alive():
             return True

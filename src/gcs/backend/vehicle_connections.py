@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING, Optional
+
+from navpy.core.kernel import runtime_time as rt
 
 if TYPE_CHECKING:
     from gcs.backend.vehicle_entry import VehicleEntry
@@ -25,14 +26,14 @@ def scan(manager: VehicleManager, device: str, timeout: float = 5.0) -> list[dic
     bus = manager._get_or_create_bus(device)
 
     # Poll bus heartbeats for the timeout duration
-    deadline = time.time() + timeout
+    deadline = rt.time() + timeout
     found: set[int] = set()
-    scan_start = time.time()
-    while time.time() < deadline:
+    scan_start = rt.time()
+    while rt.time() < deadline:
         for sid, ts in list(bus.heartbeats.items()):
             if sid not in ignore_sids and ts >= scan_start:
                 found.add(sid)
-        time.sleep(0.2)
+        rt.sleep(0.2)
 
     if (
         getattr(bus, "is_closed", False)
@@ -110,12 +111,12 @@ def reconnect_vehicle(manager: VehicleManager, sys_id: int, timeout: float = 10.
         return None
 
     # Poll link_ok up to timeout
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+    deadline = rt.time() + timeout
+    while rt.time() < deadline:
         if new_entry.vehicle.link_ok:
             log.info("Vehicle %d reconnected", sys_id)
             return new_entry
-        time.sleep(0.2)
+        rt.sleep(0.2)
 
     log.warning("Vehicle %d reconnect: link_ok timeout after %.1fs", sys_id, timeout)
     return new_entry
@@ -161,7 +162,7 @@ def get_seen_ids(manager: VehicleManager, timeout: float = 5.0) -> list[int]:
     Includes both connected and unconnected vehicles that are alive
     on the MAVLink bus.
     """
-    now = time.time()
+    now = rt.time()
     seen: set[int] = set()
     for bus in manager._buses.values():
         for sid, ts in list(bus.heartbeats.items()):

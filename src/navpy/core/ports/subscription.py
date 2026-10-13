@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
+
+from navpy.core.kernel import runtime_time as rt
 
 
 class Subscription:
     def __init__(self, cancel: Callable[[], None]) -> None:
         self._cancel_action = cancel
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._cancelled = False
 
     def cancel(self) -> None:

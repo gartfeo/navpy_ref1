@@ -12,11 +12,10 @@ Components:
 - MessageFilter: Main filter integrating all checks
 """
 
-import time
-import threading
 from dataclasses import dataclass, field
 from typing import Dict, Optional, TYPE_CHECKING
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.message_admission_state import (
     ClockOffsetEstimator,
     DedupCache,
@@ -40,7 +39,7 @@ class FilterMetrics:
     rx_dropped_expired: int = 0
     rx_dropped_decode_error: int = 0
     rx_passed: int = 0
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _lock: rt.Lock = field(default_factory=rt.Lock, repr=False)
 
     def increment_total(self) -> None:
         with self._lock:
@@ -210,7 +209,7 @@ class MessageFilter:
         if not self._enable_ttl or meta.ttl_ms <= 0 or is_heartbeat:
             return False
 
-        now_ms = int(time.time() * 1000)
+        now_ms = int(rt.time() * 1000)
         adjusted_time = self._offset.adjust_time(msg.sender_id, meta.time_ms)
         age_ms = now_ms - adjusted_time
         if age_ms < -self.MAX_FUTURE_MS:

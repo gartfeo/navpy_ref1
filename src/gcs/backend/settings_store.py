@@ -5,13 +5,13 @@ import json
 import logging
 import os
 import re
-import threading
-from datetime import datetime, timezone
+from datetime import timezone
 from pathlib import Path
 
 from gcs.backend import instance_ports
 from gcs.backend.atomic_json import atomic_write_text
 from gcs.backend.settings_model import GcsSettings
+from navpy.core.kernel import runtime_time as rt
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class SettingsStore:
 
     def __init__(self, path: Path | str | None = None):
         self._path = Path(path) if path is not None else _configured_path()
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         # Set when the file on disk could not be loaded and defaults are in
         # use. ``_writes_blocked`` is set when the operator's file is still in
         # place (unreadable, or its backup failed), so saving must not
@@ -89,7 +89,7 @@ class SettingsStore:
         to a timestamped ``.corrupt-*`` sibling; if that fails, saves are
         refused for this session instead.
         """
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        stamp = rt.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         backup = self._path.with_name(f"{self._path.name}.corrupt-{stamp}")
         try:
             self._path.replace(backup)

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Optional, Protocol
 
 import numpy as np
 import pymap3d
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
@@ -110,7 +110,7 @@ class LegacyNavigationState:
     """Own the POI lock and one-shot mission adjustment for legacy laws."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._locked_poi: Optional[Location] = None
         self._adjusted = False
         self._adjustment_available = True

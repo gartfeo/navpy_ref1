@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
 from gcs.backend.settings_model import GcsSettings
 
 
 NAVPY_RESTART_READY_TIMEOUT_S = 45.0
-_configuration_restart_lock = threading.RLock()
+_configuration_restart_lock = rt.RLock()
 
 
 class ConfiguredRestartManager(Protocol):
@@ -99,7 +98,7 @@ def restart_configured_instances(
                     "NavPy configured restart failed: "
                     + "; ".join(lifecycle_errors)
                 )
-            deadline = time.monotonic() + max(float(timeout_s), 0.0)
+            deadline = rt.monotonic() + max(float(timeout_s), 0.0)
             results: list[dict[str, object]] = []
             for sys_id in requested:
                 pid = int(started[sys_id].process.pid)
@@ -110,7 +109,7 @@ def restart_configured_instances(
                 runtime_payload = manager.wait_ready(
                     sys_id,
                     pid,
-                    max(deadline - time.monotonic(), 0.0),
+                    max(deadline - rt.monotonic(), 0.0),
                 )
                 _validate_runtime_expectation(
                     sys_id,

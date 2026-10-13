@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import threading
+from navpy.core.kernel import runtime_time as rt
 
 
 class CacheLogDeduplicator:
@@ -12,7 +12,7 @@ class CacheLogDeduplicator:
         self._last_info_by_key: dict[str, object] = {}
         self._last_warning: object = None
         self._single_warning_keys: set[str] = set()
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
 
     def accept_info(self, key: str, msg: object) -> bool:
         with self._lock:

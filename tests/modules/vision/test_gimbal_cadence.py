@@ -7,6 +7,7 @@ import pytest
 
 from navpy.sim.gimbal import gimbal_cadence
 from navpy.sim.gimbal.gimbal_cadence import FixedCadenceRunner
+from tests.runtime_overlay import RuntimeOverlay
 
 
 @dataclass
@@ -59,7 +60,7 @@ def test_speedup_changes_only_wall_period(monkeypatch, speedup: float):
     runner = FixedCadenceRunner(step, 0.02, cadence)
     event = _OneCycleEvent()
     runner._stop_event = event  # type: ignore[assignment]
-    monkeypatch.setattr(gimbal_cadence, "time", _Clock(10.0, 10.0))
+    monkeypatch.setattr(gimbal_cadence, "rt", RuntimeOverlay(monotonic=_Clock(10.0, 10.0).monotonic))
 
     runner._run()
 
@@ -73,7 +74,7 @@ def test_slow_step_does_not_create_catch_up_steps(monkeypatch):
     runner = FixedCadenceRunner(step, 0.02, None)
     event = _OneCycleEvent()
     runner._stop_event = event  # type: ignore[assignment]
-    monkeypatch.setattr(gimbal_cadence, "time", _Clock(10.0, 10.08))
+    monkeypatch.setattr(gimbal_cadence, "rt", RuntimeOverlay(monotonic=_Clock(10.0, 10.08).monotonic))
 
     runner._run()
 

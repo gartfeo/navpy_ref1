@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
 
 from pymavlink import mavutil
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.mav_bus_membership import MavBusMembership
 
 if TYPE_CHECKING:
@@ -34,18 +34,18 @@ class MavBusLifecycle:
         self._device = device
         self._membership = membership
         self._unregister = unregister
-        self._stop = threading.Event()
-        self._closed = threading.Event()
-        self._lock = threading.Lock()
+        self._stop = rt.Event()
+        self._closed = rt.Event()
+        self._lock = rt.Lock()
         self._reader = None
         # A close that timed out on a busy reader is finished by whichever
         # side sees both flags: the closer (reader already gone) or the
         # reader as it exits (close already gave up).
-        self._reader_exited = threading.Event()
-        self._close_timed_out = threading.Event()
+        self._reader_exited = rt.Event()
+        self._close_timed_out = rt.Event()
 
     @property
-    def stop_event(self) -> threading.Event:
+    def stop_event(self) -> rt.Event:
         return self._stop
 
     @property

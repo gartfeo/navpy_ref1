@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from dataclasses import dataclass
 from types import TracebackType
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.pipeline.real_detector_ports import MonotonicClock, SleepAction
 
 
@@ -14,7 +13,7 @@ class PipelineMutationGate:
     """Serialize one tracker update with a whole-pipeline reset."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
 
     def __enter__(self) -> PipelineMutationGate:
         self._lock.acquire()
@@ -34,7 +33,7 @@ class RuntimeMetrics:
     """Thread-safe counters plus the tracking-loop FPS estimate."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._counters = {
             "detect_batches": 0,
             "track_ticks": 0,
@@ -46,7 +45,7 @@ class RuntimeMetrics:
         }
         self._fps_estimate = 0.0
         self._fps_count = 0
-        self._fps_started_at = time.monotonic()
+        self._fps_started_at = rt.monotonic()
 
     @property
     def tracking_fps(self) -> float:
@@ -60,7 +59,7 @@ class RuntimeMetrics:
     def update_fps(self) -> None:
         with self._lock:
             self._fps_count += 1
-            now_s = time.monotonic()
+            now_s = rt.monotonic()
             elapsed_s = now_s - self._fps_started_at
             if elapsed_s >= 1.0:
                 self._fps_estimate = self._fps_count / max(1e-6, elapsed_s)
@@ -78,8 +77,8 @@ class DetectorRunState:
     """Thread-safe running signal plus irreversible resource-stop state."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
-        self._running = threading.Event()
+        self._lock = rt.RLock()
+        self._running = rt.Event()
         self._stopped = False
 
     @property
@@ -114,8 +113,8 @@ class DetectorRunState:
 
 @dataclass(frozen=True)
 class LoopTiming:
-    monotonic: MonotonicClock = time.monotonic
-    sleep: SleepAction = time.sleep
+    monotonic: MonotonicClock = rt.monotonic
+    sleep: SleepAction = rt.sleep
 
 
 def next_loop_deadline(previous_deadline: float, period: float, now: float) -> float:

@@ -57,9 +57,9 @@ class FakeVehicle:
 
 def _make_entry(monkeypatch, *, wall=1000.0, monotonic=10.0):
     clock = {"wall": wall, "monotonic": monotonic}
-    monkeypatch.setattr(vehicle_manager_mod.time, "time", lambda: clock["wall"])
+    monkeypatch.setattr(vehicle_manager_mod.rt, "time", lambda: clock["wall"])
     monkeypatch.setattr(
-        vehicle_manager_mod.time,
+        vehicle_manager_mod.rt,
         "monotonic",
         lambda: clock["monotonic"],
     )

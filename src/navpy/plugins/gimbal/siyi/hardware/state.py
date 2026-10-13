@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
-import threading
 from dataclasses import dataclass, replace
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.gimbal_abc import GimbalData
 
@@ -119,12 +119,12 @@ class SiyiReadbackStore:
 
     def __init__(self, initial_data: GimbalData) -> None:
         self._initial_data = replace(initial_data, timestamp_s=None)
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._snapshot = SiyiReadbackSnapshot(self._initial_data)
-        self._attitude_ready = threading.Event()
+        self._attitude_ready = rt.Event()
 
     @property
-    def attitude_ready(self) -> threading.Event:
+    def attitude_ready(self) -> rt.Event:
         return self._attitude_ready
 
     def reset_session(self) -> None:

@@ -43,7 +43,7 @@ class TestFfmpegFrameCapture(unittest.TestCase):
                 return_value=process,
             ) as popen:
                 with patch(
-                    "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.threading.Thread"
+                    "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.rt.Thread"
                 ) as thread_class:
                     capture = FfmpegFrameCapture.open(
                         "rtsp://camera/stream",
@@ -69,7 +69,7 @@ class TestFfmpegFrameCapture(unittest.TestCase):
                 return_value=process,
             ):
                 with patch(
-                    "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.threading.Thread"
+                    "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.rt.Thread"
                 ) as thread_class:
                     thread_class.return_value.start.side_effect = RuntimeError(
                         "thread start failed"
@@ -100,7 +100,7 @@ class TestFfmpegFrameCapture(unittest.TestCase):
                 return_value=process,
             ):
                 with patch(
-                    "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.threading.Thread",
+                    "navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg.rt.Thread",
                     side_effect=RuntimeError("thread construction failed"),
                 ):
                     with self.assertRaisesRegex(

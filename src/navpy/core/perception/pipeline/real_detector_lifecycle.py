@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
-import threading
 
 import numpy as np
 
@@ -70,7 +70,7 @@ class DetectorLifecycle:
             self._stop_transaction,
         )
         self._threads: tuple[WorkerThread, ...] = ()
-        self._condition = threading.Condition(threading.RLock())
+        self._condition = rt.Condition(rt.RLock())
         self._phase = "new"
         self._start_error: BaseException | None = None
         self._stop_errors: tuple[BaseException, ...] = ()

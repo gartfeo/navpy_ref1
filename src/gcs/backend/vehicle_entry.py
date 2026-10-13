@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import collections
-import threading
-import time
 from typing import Optional
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from navpy.plugins.vehicle.ardupilot.preflight_health import (
     PREARM_STATE_OK,
@@ -42,7 +41,7 @@ class VehicleEntry:
         # route) — None the rest of the time. Lets the UI show real progress
         # ("12/45") instead of a static "Downloading…" with no numbers.
         self.mission_download_progress: Optional[list[int]] = None
-        self.connected_at = time.time()
+        self.connected_at = rt.time()
         self._status_texts: collections.deque = collections.deque(maxlen=20)
         self._accel_cal_events: collections.deque = collections.deque(maxlen=20)
         self._accel_cal_active_until: float = 0.0
@@ -56,9 +55,9 @@ class VehicleEntry:
         self._confirm_blocked: Optional[dict] = None
         self._confirm_blocked_updated_at: float = 0.0
         self._gimbals: dict[int, dict] = {}
-        self._gimbal_lock = threading.Lock()
+        self._gimbal_lock = rt.Lock()
         self._rc_channels: list[Optional[int]] = []
-        self._rc_lock = threading.Lock()
+        self._rc_lock = rt.Lock()
         # FREE/BUSY from the own companion's SWARM_HEARTBEAT.
         self._swarm_state = CompanionSwarmState(sys_id)
         vehicle.on_message("STATUSTEXT", self._on_statustext)
@@ -79,7 +78,7 @@ class VehicleEntry:
         them (e.g. the quick level cal). Called from the control route when an
         accel-cal command is sent.
         """
-        self._accel_cal_active_until = time.monotonic() + ACCEL_CAL_ACTIVE_WINDOW_S
+        self._accel_cal_active_until = rt.monotonic() + ACCEL_CAL_ACTIVE_WINDOW_S
 
     def _on_statustext(self, msg: MAVLink_message) -> None:
         return vehicle_status._on_statustext(self, msg)
@@ -197,7 +196,7 @@ class VehicleEntry:
         """
         if self._confirm_blocked is None:
             return
-        if time.monotonic() - self._confirm_blocked_updated_at > CONFIRM_BLOCKED_STALE_S:
+        if rt.monotonic() - self._confirm_blocked_updated_at > CONFIRM_BLOCKED_STALE_S:
             self._confirm_blocked = None
 
     @property

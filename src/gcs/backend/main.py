@@ -4,8 +4,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import time
-import uuid
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -19,6 +17,7 @@ from gcs.backend.diagnostics import diagnostic_session
 from gcs.backend.route_registration import register_optional_routes
 from gcs.backend.frontend_static import mount_frontend
 from gcs.backend.runtime_paths import frontend_dist_dir, gcs_log_dir
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging import pose_cadence_debug
 from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
 
@@ -217,13 +216,13 @@ def _diagnostic_route(path: str) -> str:
 async def diagnostic_http_summary(request, call_next):
     """Persist bounded HTTP outcomes without query strings or bodies."""
     path = request.url.path
-    request_id = request.headers.get("x-gcs-request-id") or uuid.uuid4().hex
+    request_id = request.headers.get("x-gcs-request-id") or rt.uuid4().hex
     client_id = request.headers.get("x-gcs-client-id")
     relevant = path.startswith(_DIAGNOSTIC_HTTP_PREFIXES) and path != "/api/diagnostics/events"
     match = _SYS_ID_PATH.match(path)
     sys_id = int(match.group(1)) if match else None
     route = _diagnostic_route(path)
-    started = time.perf_counter()
+    started = rt.perf_counter()
     if relevant:
         diagnostic_session.emit(
             "http_request_started", source="http", method=request.method,
@@ -236,7 +235,7 @@ async def diagnostic_http_summary(request, call_next):
             diagnostic_session.emit(
                 "http_request_finished", source="http", method=request.method,
                 route=route, request_id=request_id, client_id=client_id, sys_id=sys_id,
-                duration_ms=round((time.perf_counter() - started) * 1000),
+                duration_ms=round((rt.perf_counter() - started) * 1000),
                 outcome="cancelled" if exc.__class__.__name__ == "CancelledError" else "error",
                 error_code=exc.__class__.__name__,
             )
@@ -246,7 +245,7 @@ async def diagnostic_http_summary(request, call_next):
             "http_request_finished", source="http", method=request.method,
             route=route, request_id=request_id, client_id=client_id, sys_id=sys_id,
             status_code=response.status_code,
-            duration_ms=round((time.perf_counter() - started) * 1000),
+            duration_ms=round((rt.perf_counter() - started) * 1000),
             outcome="success" if response.status_code < 400 else "failure",
         )
     response.headers["X-GCS-Session-ID"] = diagnostic_session.session_id

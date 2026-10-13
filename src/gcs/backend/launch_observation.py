@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING
 
 from gcs.backend.launch_state import VehicleState
+from navpy.core.kernel import runtime_time as rt
 
 if TYPE_CHECKING:
     from gcs.backend.launch_controller import LaunchController
@@ -25,7 +25,7 @@ def update_telemetry(controller: LaunchController, sys_id: int, alt_rel: float, 
     if controller._min_climb_rate_ms > 0:
         if climb >= controller._min_climb_rate_ms:
             if controller._climb_ok_since.get(sys_id) is None:
-                controller._climb_ok_since[sys_id] = time.monotonic()
+                controller._climb_ok_since[sys_id] = rt.monotonic()
         else:
             controller._climb_ok_since[sys_id] = None
     # Log significant telemetry changes during active launch
@@ -57,7 +57,7 @@ def _is_airborne(controller: LaunchController, sys_id: int) -> bool:
         since = controller._climb_ok_since.get(sys_id)
         if since is None:
             return False
-        if (time.monotonic() - since) < controller._climb_confirm_s:
+        if (rt.monotonic() - since) < controller._climb_confirm_s:
             return False
     return True
 

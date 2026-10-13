@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
 
 @dataclass(frozen=True)
 class WorkerThread:
     name: str
-    thread: threading.Thread
+    thread: rt.Thread
     launch: ThreadLaunchGate
 
 
@@ -35,7 +34,7 @@ def wait_for_worker_quiescence(
 ) -> WorkerQuiescence:
     """Spend one total deadline waiting, retaining every live worker."""
     timeout_s = max(0.0, float(timeout_s))
-    deadline_s = time.monotonic() + timeout_s
+    deadline_s = rt.monotonic() + timeout_s
     alive: list[WorkerThread] = []
     errors: list[BaseException] = []
     for owned in threads:
@@ -59,7 +58,7 @@ def wait_for_worker_quiescence(
         if not was_alive:
             continue
         try:
-            thread.join(timeout=max(0.0, deadline_s - time.monotonic()))
+            thread.join(timeout=max(0.0, deadline_s - rt.monotonic()))
         except BaseException as error:
             errors.append(error)
         try:

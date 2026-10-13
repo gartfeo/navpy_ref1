@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import os
-import threading
 from dataclasses import dataclass
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.sim.detection.sim_detector_state import ForcedGapState
 from navpy.sim.detection.sim_runtime_ports import (
     GapSpecificationReader,
@@ -35,7 +35,7 @@ class ForcedDetectionGapPolicy:
         self._tracking = tracking
         self._state = state
         self._specification = specification
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
 
     def plan(self, frame_timestamp_s: float) -> ForcedGapPlan:
         """Describe the frame decision without changing shared state."""

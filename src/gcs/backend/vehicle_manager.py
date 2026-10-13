@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 import logging
-import threading
-import time
 from typing import Optional
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_GCS, MAV_COMP_ID_MISSIONPLANNER
 # NAVLINK message classes register on import (@register_msg), and every
 # VehicleMav here asks that registry which inbound MAVLink ids are NAVLINK:
 # import the swarm messages the GCS receives (not LogStatusMsg).
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link import (  # noqa: F401  (registration imports)
     check_msg,
     swarm_ack_msg,
@@ -44,7 +43,7 @@ class VehicleManager:
 
     def __init__(self):
         self._vehicles: dict[int, VehicleEntry] = {}
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._buses: dict[str, MavBus] = {}  # device -> MavBus
         self._telemetry_loop = None  # lazy: set by start_telemetry_loop
         self._task_confirm_listener = None
@@ -190,7 +189,7 @@ class VehicleManager:
         for the pre-tri-state 5 s behavior — the tests use it to witness the old
         flap (a ~10 s gap it reports inactive is now "checking", not faulty).
         """
-        now = time.time()
+        now = rt.time()
         for bus in self._buses.values():
             ts = bus.companion_heartbeats.get(sys_id)
             if ts is not None and now - ts <= timeout:
@@ -223,7 +222,7 @@ class VehicleManager:
         newest = self._newest_companion_hb(sys_id)
         if newest is None:
             return "down"
-        age = time.time() - newest
+        age = rt.time() - newest
         if age <= COMPANION_OK_WINDOW_S:
             return "ok"
         if age <= COMPANION_DOWN_WINDOW_S:

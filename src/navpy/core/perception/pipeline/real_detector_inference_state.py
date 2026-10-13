@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from navpy.core.kernel import runtime_time as rt
 
 if TYPE_CHECKING:
     from navpy.core.perception.pipeline.real_frame_association import RealFrameAssociation
@@ -24,7 +25,7 @@ class DetectionBatchInbox:
     """Single-slot detection/association exchange with sequence semantics."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._detections: list[Detection] = []
         self._association: RealFrameAssociation | None = None
         self._generation: int | None = None
@@ -64,7 +65,7 @@ class DeepSearchInbox:
     """Frame-keyed one-shot exchange for deep-search detections."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._detections: list[Detection] = []
         self._published_at_s = 0.0
         self._frame_sequence: int | None = None
@@ -123,7 +124,7 @@ class InferenceGeneration:
         detections: DetectionBatchInbox,
         deep_detections: DeepSearchInbox,
     ) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._generation = 0
         self._detections = detections
         self._deep_detections = deep_detections

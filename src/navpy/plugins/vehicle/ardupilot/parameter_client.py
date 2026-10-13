@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import time  # Compatibility patch point shared with sim_autopilot.
 from collections.abc import Callable
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
 from navpy.plugins.vehicle.ardupilot.parameter_reader import (
     MISSING_PARAMETER_RETRY_S,

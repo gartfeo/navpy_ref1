@@ -63,6 +63,7 @@ def wait_for_companions(context: StackContext, timeout_s: float) -> None:
         lambda: companion_ids(context) == expected,
         interval_s=1.0,
         transient_exceptions=(RegressionError,),
+        clock=context.clock,
     )
 
 

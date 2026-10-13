@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional
@@ -12,6 +11,7 @@ from gcs.backend.task_confirm_uid import (
     canonical_round_uid,
     parse_round_uid,
 )
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
 
 
@@ -49,7 +49,7 @@ class ConfirmationRoundRegistry:
     def __init__(
         self,
     ) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._handled: dict[tuple[int, int], OpenRound] = {}
         self._image_received: set[tuple[int, int]] = set()
         self._thumbnail_requested: set[tuple[int, int]] = set()

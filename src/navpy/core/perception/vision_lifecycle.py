@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 from navpy.core.perception.vision_component_lifecycle import (
     VisionComponentLifecycle,
@@ -19,7 +20,6 @@ from navpy.core.perception.vision_stop_transaction import (
     VisionStopTransaction,
 )
 
-import threading
 from typing import NoReturn, Optional, Protocol, Sequence
 
 
@@ -68,7 +68,7 @@ class VisionLifecycle:
         )
         self._error = error
         self._debug_owner = VisionDebugOwner(debug, self._safe_error)
-        self._condition = threading.Condition(threading.RLock())
+        self._condition = rt.Condition(rt.RLock())
         self._phase = "new"
         self._start_error: BaseException | None = None
         self._stop_result = True

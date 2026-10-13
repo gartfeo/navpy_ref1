@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -18,6 +17,7 @@ from navpy.core.approach.vision_nav.diagnostic_mailbox import (
 )
 from navpy.core.approach.vision_nav.pass_evidence import FinalApproachPassEvidence
 from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
+from navpy.core.kernel import runtime_time as rt
 
 
 class FinalApproachResettableState(Protocol):
@@ -26,7 +26,7 @@ class FinalApproachResettableState(Protocol):
 
 @dataclass(frozen=True)
 class FinalApproachCommandResetPorts:
-    lock: threading.RLock
+    lock: rt.RLock
     slot: NavigationCommandSlot
     mailbox: FinalApproachDiagnosticMailbox
     hold: FinalApproachCommandHoldStore

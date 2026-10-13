@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Iterable
 from typing import Callable, Protocol
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.tracks import TrackedObject
 from navpy.core.perception.tracking.track_identity_assignment import (
     UnmatchedIdentityBinder,
@@ -70,7 +70,7 @@ class TrackIdentityService:
         unmatched_bindings: UnmatchedIdentityBinder,
         observations: IdentityObservationCommitter,
         counters: IdentityCounters,
-        monotonic: Callable[[], float] = time.monotonic,
+        monotonic: Callable[[], float] = rt.monotonic,
     ) -> None:
         self._registry = registry
         self._live_bindings = live_bindings

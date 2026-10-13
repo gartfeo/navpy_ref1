@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING, Optional
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
@@ -12,6 +11,8 @@ if TYPE_CHECKING:
 log = logging.getLogger("gcs.backend.vehicle_manager")
 
 import os
+
+from navpy.core.kernel import runtime_time as rt
 
 GIMBAL_TELEMETRY_STALE_S = 2.0
 
@@ -116,7 +117,7 @@ def _on_statustext(entry: VehicleEntry, msg: MAVLink_message) -> None:
     sev = getattr(msg, "severity", 6)
     text = getattr(msg, "text", "").rstrip("\x00")
     label = entry._SEVERITY_LABELS.get(sev, "INFO")
-    entry._status_texts.append({"severity": sev, "label": label, "text": text, "ts": time.time()})
+    entry._status_texts.append({"severity": sev, "label": label, "text": text, "ts": rt.time()})
     # Track PreArm message categories
     if text.startswith("PreArm:"):
         reason = text[7:].strip().lower()
@@ -134,7 +135,7 @@ def _on_statustext(entry: VehicleEntry, msg: MAVLink_message) -> None:
     # Surface accelerometer-calibration prompts/results to the GCS wizard.
     event = _classify_accel_cal_statustext(text)
     if event is not None:
-        now_monotonic = time.monotonic()
+        now_monotonic = rt.monotonic()
         if event["status"] == "prompt":
             # A prompt both carries a step and (re)confirms the cal is live.
             entry._accel_cal_active_until = now_monotonic + ACCEL_CAL_ACTIVE_WINDOW_S
@@ -157,7 +158,7 @@ def _handle_confirm_blocked_statustext(entry: VehicleEntry, body: str) -> None:
     body = body.strip()
     if body == "clear":
         entry._confirm_blocked = None
-        entry._confirm_blocked_updated_at = time.monotonic()
+        entry._confirm_blocked_updated_at = rt.monotonic()
         return
     parts = body.split("|")
     reason = parts[0].strip() if parts else ""
@@ -171,4 +172,4 @@ def _handle_confirm_blocked_statustext(entry: VehicleEntry, body: str) -> None:
         except ValueError:
             task_id = None
     entry._confirm_blocked = {"reason": reason, "detail": detail, "task_id": task_id}
-    entry._confirm_blocked_updated_at = time.monotonic()
+    entry._confirm_blocked_updated_at = rt.monotonic()

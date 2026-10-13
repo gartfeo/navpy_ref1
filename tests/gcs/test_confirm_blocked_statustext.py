@@ -53,9 +53,9 @@ class FakeVehicle:
 
 def _make_entry(monkeypatch, sys_id=1, *, wall=1000.0, monotonic=10.0):
     clock = {"wall": wall, "monotonic": monotonic}
-    monkeypatch.setattr(vehicle_manager_mod.time, "time", lambda: clock["wall"])
+    monkeypatch.setattr(vehicle_manager_mod.rt, "time", lambda: clock["wall"])
     monkeypatch.setattr(
-        vehicle_manager_mod.time,
+        vehicle_manager_mod.rt,
         "monotonic",
         lambda: clock["monotonic"],
     )
@@ -114,8 +114,8 @@ def test_confirm_blocked_cross_delivery_source_filter_two_entries(monkeypatch):
     entry_a, vehicle_a, clock = _make_entry(monkeypatch, sys_id=1)
     entry_b, vehicle_b, _ = _make_entry(monkeypatch, sys_id=2)
     # Reuse the same clock for both so monkeypatch state stays consistent.
-    monkeypatch.setattr(vehicle_manager_mod.time, "time", lambda: clock["wall"])
-    monkeypatch.setattr(vehicle_manager_mod.time, "monotonic", lambda: clock["monotonic"])
+    monkeypatch.setattr(vehicle_manager_mod.rt, "time", lambda: clock["wall"])
+    monkeypatch.setattr(vehicle_manager_mod.rt, "monotonic", lambda: clock["monotonic"])
 
     msg = _statustext_msg("CONFIRM_BLOCKED:pixels|12/20|7", src_system=1)  # UAV 1's companion
     vehicle_a.emit("STATUSTEXT", msg)

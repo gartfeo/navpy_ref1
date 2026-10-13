@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from enum import Enum, auto
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.frame_capture_ports import CaptureStamp
 from navpy.core.perception.camera.frame_capture_session import CaptureSession
 from navpy.core.perception.camera.frame_publication import FramePublicationStore
@@ -24,7 +24,7 @@ class FrameCaptureState:
 
     def __init__(self, publications: FramePublicationStore) -> None:
         self._publications = publications
-        self._condition = threading.Condition(threading.RLock())
+        self._condition = rt.Condition(rt.RLock())
         self._phase = _CapturePhase.STOPPED
         self._session: CaptureSession | None = None
         self._teardown_owner = False

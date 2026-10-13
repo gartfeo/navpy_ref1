@@ -3,11 +3,10 @@ from __future__ import annotations
 
 import logging
 import socket
-import threading
-from _thread import RLock as RLockType
 
 from pymavlink import mavutil
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
 from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusLifecycle
 from navpy.plugins.vehicle.ardupilot.mav_bus_membership import (
@@ -117,7 +116,7 @@ class MavBus:
         # endpoint this connection was opened on, read by the live-link
         # identity used to bind capture calibration.
         self.device = device
-        self._send_lock = threading.RLock()
+        self._send_lock = rt.RLock()
         self._heartbeats = MavBusHeartbeats()
         membership = MavBusMembership()
         self._membership = membership
@@ -143,7 +142,7 @@ class MavBus:
         return self._conn
 
     @property
-    def send_lock(self) -> RLockType:
+    def send_lock(self) -> rt.LockPort:
         return self._send_lock
 
     @property

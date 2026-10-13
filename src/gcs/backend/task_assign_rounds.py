@@ -9,9 +9,10 @@ recorded copy waits, one per helper, for the copy it names.
 """
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass, field
 from typing import Optional
+
+from navpy.core.kernel import runtime_time as rt
 
 # A message's UID within its known sender: (boot_id, msg_seq).
 Uid = tuple[int, int]
@@ -46,7 +47,7 @@ class AssignRounds:
     """Per helper, its accepted step-4 copies to one owner for one task."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._rounds: dict[int, _Round] = {}
         self._unmatched: dict[int, _Applied] = {}
 

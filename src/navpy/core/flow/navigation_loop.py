@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import threading
-import time
 import traceback
 from collections.abc import Callable, Mapping
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.high_resolution_deadline import wait_until_deadline
@@ -138,8 +137,8 @@ class NavigationLoop:
         cycle: NavigationCycle,
         clock: NavClock,
         logger: ILogger,
-        monotonic_s: Callable[[], float] = time.perf_counter,
-        sleep_s: Callable[[float], None] = time.sleep,
+        monotonic_s: Callable[[], float] = rt.perf_counter,
+        sleep_s: Callable[[float], None] = rt.sleep,
     ) -> None:
         self._cycle = cycle
         self._clock = clock
@@ -147,10 +146,10 @@ class NavigationLoop:
         self._monotonic_s = monotonic_s
         self._sleep_s = sleep_s
         self.period_s = NAV_LOOP_PERIOD_S
-        self.stop_event = threading.Event()
-        self._failure_lock = threading.Lock()
+        self.stop_event = rt.Event()
+        self._failure_lock = rt.Lock()
         self._failure: BaseException | None = None
-        self.thread = threading.Thread(target=self._run_thread, daemon=True)
+        self.thread = rt.Thread(target=self._run_thread, daemon=True)
 
     def start(self, loop_rate_hz: float) -> None:
         if loop_rate_hz > 0:

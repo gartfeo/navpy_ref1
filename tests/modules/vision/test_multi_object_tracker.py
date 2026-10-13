@@ -10,7 +10,7 @@ def _det(cx: float, cy: float = 500.0) -> Detection:
 
 
 def _update_at(tracker: MultiObjectTracker, ts: float, detections):
-    with patch("navpy.plugins.tracking.kalman.multi_object_tracker.time.time", return_value=ts):
+    with patch("navpy.plugins.tracking.kalman.multi_object_tracker.rt.time", return_value=ts):
         return tracker.update(detections, frame_w=1920, frame_h=1080)
 
 

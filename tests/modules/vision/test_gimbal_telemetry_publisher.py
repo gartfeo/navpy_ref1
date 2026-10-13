@@ -353,7 +353,7 @@ def test_thread_start_failure_does_not_poison_stop_retry():
     publisher = GimbalTelemetryPublisher(FakeVehicle(), [], Mock())
 
     with patch(
-        "navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher.threading.Thread",
+        "navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher.rt.Thread",
         return_value=thread,
     ):
         with pytest.raises(RuntimeError) as raised:

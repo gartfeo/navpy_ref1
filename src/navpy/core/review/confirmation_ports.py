@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from typing import Optional, Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.msg_abc import MsgABC
 from navpy.core.review.confirmation_round_transaction import (
     ConfirmationRequestRef,
@@ -37,7 +37,7 @@ class ConfirmationWorkerStatePort(Protocol):
     def start_review(
         self,
         poi: DetectedObject,
-        event_factory: Callable[[], threading.Event],
+        event_factory: Callable[[], rt.Event],
     ) -> ConfirmationWorkerLease: ...
 
     def worker_is_current(self, lease: ConfirmationWorkerLease) -> bool: ...
@@ -62,7 +62,7 @@ class ConfirmationRoundStatePort(Protocol):
         self,
         poi: DetectedObject,
         lease: ConfirmationWorkerLease,
-        event_factory: Callable[[], threading.Event],
+        event_factory: Callable[[], rt.Event],
         request_ref: Optional[ConfirmationRequestRef] = None,
     ) -> Optional[ConfirmationRound]: ...
 

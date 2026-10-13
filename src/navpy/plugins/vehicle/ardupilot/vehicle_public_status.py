@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from _thread import RLock as RLockType
-
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.plugins.vehicle.ardupilot.preflight_health import PrearmCheckState
@@ -100,7 +99,7 @@ class VehiclePositionMissionViewFacet:
         return self._parts.mission.next_seq
 
     @property
-    def mission_lock(self) -> RLockType:
+    def mission_lock(self) -> rt.LockPort:
         return self._parts.mission.lock
 
     def location(self, is_relative: bool) -> Location | None:

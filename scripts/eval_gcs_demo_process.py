@@ -29,7 +29,7 @@ from scripts.eval_gcs_demo_models import (
     StackContext,
     ThreeUavIds,
 )
-from scripts.eval_gcs_demo_ports import JsonValue
+from scripts.eval_gcs_demo_ports import ClockPort, JsonValue
 from scripts.eval_gcs_demo_scenario import load_scenario_manifest
 
 from gcs.backend import instance_ports
@@ -72,6 +72,8 @@ def launch_stack(
     env: dict[str, str],
     timeout_s: float,
     sitl_arguments: Sequence[str] = (),
+    *,
+    clock: ClockPort,
 ) -> StackContext:
     if owned_entry(env) is not None:
         raise PreexistingOwnedStackError(
@@ -96,6 +98,7 @@ def launch_stack(
         min(timeout_s, 600.0),
         lambda: _verified_launch_entry(env, launch_token),
         transient_exceptions=(OSError,),
+        clock=clock,
     )
     sys_ids = ThreeUavIds.from_values(entry.get("sysids", ())).values
     chat_index = entry.get("chat_index")
@@ -117,6 +120,7 @@ def launch_stack(
             30.0,
             healthy,
             transient_exceptions=(RegressionError,),
+            clock=clock,
         )
         entry = _verified_launch_entry(env, launch_token)
         if entry is None:
@@ -146,6 +150,7 @@ def launch_stack(
         api,
         sys_ids,
         FileTail(backend_log, 0),
+        clock,
         evidence,
         instance_ports.monitor_device(chat_index),
     )
@@ -217,13 +222,15 @@ def with_owned_stack(
     timeout_s: float,
     action: Callable[[StackContext], T],
     sitl_arguments: Sequence[str] = (),
+    *,
+    clock: ClockPort,
 ) -> T:
     """Attempt companion stop, close, scoped stop, and tail; report every failure."""
     context: StackContext | None = None
     result: T | None = None
     errors: list[BaseException] = []
     try:
-        context = launch_stack(env, timeout_s, sitl_arguments)
+        context = launch_stack(env, timeout_s, sitl_arguments, clock=clock)
         result = action(context)
     except PreexistingOwnedStackError:
         raise

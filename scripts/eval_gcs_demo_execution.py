@@ -82,7 +82,7 @@ def wait_until(
     *,
     interval_s: float = 0.25,
     transient_exceptions: tuple[type[Exception], ...] = (),
-    clock: ClockPort | None = None,
+    clock: ClockPort,
 ) -> T:
     if not description:
         raise ValueError("wait description must not be empty")
@@ -95,7 +95,7 @@ def wait_until(
         for error_type in transient_exceptions
     ):
         raise TypeError("transient_exceptions must contain Exception types")
-    timer = clock or SystemClock()
+    timer = clock
     deadline = timer.monotonic() + timeout
     last_error: Exception | None = None
     while timer.monotonic() < deadline:

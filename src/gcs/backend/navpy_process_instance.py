@@ -5,14 +5,13 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
-import threading
-import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from navpy.app.runtime_ready import parse_runtime_ready
 from navpy.app.runtime_stop import NAVPY_STOPPED_MARKER
+from navpy.core.kernel import runtime_time as rt
 
 
 _OUTPUT_BUFFER_SIZE = 100
@@ -107,18 +106,18 @@ class NavpyInstance:
     sys_id: int
     connection: str
     process: subprocess.Popen[bytes]
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=rt.time)
     output: deque[str] = field(
         default_factory=lambda: deque(maxlen=_OUTPUT_BUFFER_SIZE)
     )
     ready_payload: dict[str, object] | None = None
     stop_acked: bool = False
     _ready_error: str | None = field(default=None, repr=False)
-    _ready_or_exit: threading.Event = field(
-        default_factory=threading.Event,
+    _ready_or_exit: rt.Event = field(
+        default_factory=rt.Event,
         repr=False,
     )
-    _reader_thread: threading.Thread | None = field(default=None, repr=False)
+    _reader_thread: rt.Thread | None = field(default=None, repr=False)
     _job_handle: int | None = field(default=None, repr=False)
 
 
@@ -181,7 +180,7 @@ def snapshot_navpy_instance(inst: NavpyInstance) -> dict[str, object]:
         "pid": inst.process.pid,
         "running": running,
         "exit_code": None if running else inst.process.poll(),
-        "uptime_s": round(time.time() - inst.started_at, 1) if running else 0,
+        "uptime_s": round(rt.time() - inst.started_at, 1) if running else 0,
         "ready": running and inst.ready_payload is not None,
         "runtime": (
             dict(inst.ready_payload) if inst.ready_payload is not None else None

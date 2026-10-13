@@ -1,6 +1,6 @@
-import time
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LoggerArgs, LogStatusDest
 from navpy.core.link.log_status_msg import LogStatusMsg
 from navpy.core.ports.network_abc import NetworkAbc
@@ -59,7 +59,7 @@ class GroundStationLoggerNetwork(IStatusLogger):
 
         for l in logs:
             self.vehicle.send_status_text(l)
-            time.sleep(0.01)
+            rt.sleep(0.01)
 
     def close(self):
         if self._pending_status_texts and not self._defer_status_texts:

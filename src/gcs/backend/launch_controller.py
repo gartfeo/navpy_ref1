@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from typing import Callable
 
 from gcs.backend.broadcast import manager as ws_manager
@@ -11,6 +10,7 @@ from gcs.backend import launch_execution, launch_observation, launch_session
 from gcs.backend.launch_state import (
     VehicleState, UAVS_PER_CONTAINER, _container_map, _ALREADY_AIRBORNE_MIN_ALT_M,
 )
+from navpy.core.kernel import runtime_time as rt
 
 log = logging.getLogger(__name__)
 

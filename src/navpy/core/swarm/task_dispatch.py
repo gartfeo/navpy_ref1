@@ -1,7 +1,7 @@
-import threading
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Dict
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.task_message_data import (
     TaskHandleMsgData,
     TaskMsgData,
@@ -62,10 +62,10 @@ class TaskDispatch:
         self.max_retry_attempts: int = 3
         self.attempt = AssignAttempt()
         self.answers = PeerAnswers()
-        self._timer_event: Optional[threading.Timer] = None
-        self._rebroadcast_timer: Optional[threading.Timer] = None
-        self._confirm_timer: Optional[threading.Timer] = None
-        self._lock = threading.RLock()  # Changed to RLock
+        self._timer_event: Optional[rt.Timer] = None
+        self._rebroadcast_timer: Optional[rt.Timer] = None
+        self._confirm_timer: Optional[rt.Timer] = None
+        self._lock = rt.RLock()  # Changed to RLock
 
     def on_peer_available(
         self,
@@ -105,7 +105,7 @@ class TaskDispatch:
             if self._timer_event is not None and self._timer_event.is_alive():
                 return
 
-            timer: Optional[threading.Timer] = None
+            timer: Optional[rt.Timer] = None
 
             def select_and_clear() -> None:
                 with self._lock:
@@ -114,7 +114,7 @@ class TaskDispatch:
                     self._timer_event = None
                 select_peer_func(self.task.task_id)
 
-            timer = threading.Timer(time, select_and_clear)
+            timer = rt.Timer(time, select_and_clear)
             self._timer_event = timer
             self._timer_event.start()
 
@@ -168,7 +168,7 @@ class TaskDispatch:
         """
         with self._lock:
             self.cancel_rebroadcast()
-            timer: Optional[threading.Timer] = None
+            timer: Optional[rt.Timer] = None
 
             def rebroadcast_and_clear() -> None:
                 with self._lock:
@@ -177,7 +177,7 @@ class TaskDispatch:
                     self._rebroadcast_timer = None
                 func(self.task.task_id)
 
-            timer = threading.Timer(interval, rebroadcast_and_clear)
+            timer = rt.Timer(interval, rebroadcast_and_clear)
             self._rebroadcast_timer = timer
             self._rebroadcast_timer.start()
 
@@ -201,7 +201,7 @@ class TaskDispatch:
         """
         with self._lock:
             self.cancel_confirm_timer()
-            timer: Optional[threading.Timer] = None
+            timer: Optional[rt.Timer] = None
 
             def confirm_and_clear() -> None:
                 with self._lock:
@@ -210,7 +210,7 @@ class TaskDispatch:
                     self._confirm_timer = None
                 func(self.task.task_id)
 
-            timer = threading.Timer(interval, confirm_and_clear)
+            timer = rt.Timer(interval, confirm_and_clear)
             self._confirm_timer = timer
             self._confirm_timer.start()
 

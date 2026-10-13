@@ -1,7 +1,6 @@
 """Companion heartbeat sender lifecycle."""
 from __future__ import annotations
 
-import threading
 
 from pymavlink.dialects.v20.ardupilotmega import (
     MAV_AUTOPILOT_INVALID,
@@ -9,6 +8,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_TYPE_GCS,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
@@ -33,18 +33,18 @@ class HeartbeatRuntime:
         self._state = heartbeat_state
         self._logger_ref = logger_ref
         self._period_s = 1.0 / max(heartbeat_hz, 0.1)
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._stop = rt.Event()
+        self._thread: rt.Thread | None = None
         self._launch: ThreadLaunchGate | None = None
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
 
     def start(self) -> None:
         with self._lock:
             if self._thread is not None:
                 return
-            stop = threading.Event()
+            stop = rt.Event()
             launch = ThreadLaunchGate()
-            thread = threading.Thread(
+            thread = rt.Thread(
                 target=self._run_generation,
                 args=(stop, launch),
                 daemon=True,
@@ -76,7 +76,7 @@ class HeartbeatRuntime:
                 return
         if thread is None:
             return
-        if thread is threading.current_thread():
+        if thread is rt.current_thread():
             raise TimeoutError("heartbeat worker cannot join itself")
         if thread.is_alive():
             thread.join(timeout=HEARTBEAT_JOIN_TIMEOUT_S)
@@ -91,14 +91,14 @@ class HeartbeatRuntime:
 
     def _run_generation(
         self,
-        stop: threading.Event,
+        stop: rt.Event,
         launch: ThreadLaunchGate,
     ) -> None:
         if not launch.enter():
             return
         self._run(stop)
 
-    def _run(self, stop: threading.Event | None = None) -> None:
+    def _run(self, stop: rt.Event | None = None) -> None:
         stop = self._stop if stop is None else stop
         while not stop.is_set():
             self._transport.call(

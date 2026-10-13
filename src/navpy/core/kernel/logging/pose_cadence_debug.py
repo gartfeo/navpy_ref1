@@ -56,9 +56,9 @@ interval bounds how much tail a hard kill can lose.
 from __future__ import annotations
 
 import os
-import threading
 from typing import Dict, List, Tuple
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.pose_cadence_flusher import PoseCadenceFlusher
 from navpy.core.kernel.logging.pose_cadence_naming import (
     file_owner,
@@ -103,12 +103,12 @@ _FLUSH_INTERVAL_S = 0.25
 # (reader thread per sys_id for arrivals; detector thread per sys_id for poses),
 # so per-key appends never contend. The lock guards only buffer creation.
 _buffers: Dict[Tuple[int, str], List[tuple]] = {}
-_buffers_lock = threading.Lock()
+_buffers_lock = rt.Lock()
 # Rows already written to disk per key, so each flush appends only new rows.
 _written: Dict[Tuple[int, str], int] = {}
 # Serializes dump_all so the periodic flusher and the atexit hook can't interleave
 # their appends / _written updates for the same file.
-_dump_lock = threading.Lock()
+_dump_lock = rt.Lock()
 
 
 def _buffer_for(sys_id: int, stream: str) -> List[tuple]:

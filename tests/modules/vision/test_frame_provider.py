@@ -96,7 +96,7 @@ class TestFrameProviderPushMode(unittest.TestCase):
         provider.start()
         image = np.full((20, 30, 3), 17, dtype=np.uint8)
         with patch(
-            "navpy.core.perception.camera.frame_publication.time.time",
+            "navpy.core.perception.camera.frame_publication.rt.time",
             return_value=123.5,
         ):
             provider.push_frame(image)

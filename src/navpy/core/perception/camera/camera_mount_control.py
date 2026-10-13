@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import threading
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.camera_mount_ports import (
     CameraLifecyclePort,
     CameraZoomPort,
@@ -21,7 +21,7 @@ class MountZoomControl:
         camera: CameraZoomPort,
         gimbal: GimbalZoomCommandPort,
         readback: ControlZoomReadbackPort,
-        lock: threading.RLock,
+        lock: rt.RLock,
     ) -> None:
         self._camera = camera
         self._gimbal = gimbal
@@ -64,7 +64,7 @@ class MountLifecycle:
         self,
         camera: CameraLifecyclePort,
         gimbal: GimbalLifecyclePort,
-        lock: threading.RLock,
+        lock: rt.RLock,
     ) -> None:
         self._camera = camera
         self._gimbal = gimbal

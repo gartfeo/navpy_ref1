@@ -1,9 +1,9 @@
 """Transactional bus attachment and idempotent resource cleanup."""
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
-import threading
 from collections.abc import Callable, Iterable
 from typing import NoReturn, Protocol
 
@@ -44,7 +44,7 @@ class VehicleLifecycle:
         self._heartbeat_state = heartbeat_state
         self._logger_ref = logger_ref
         self._closers = tuple(closers)
-        self._condition = threading.Condition()
+        self._condition = rt.Condition()
         self._status = "open"
         self._cleanup_done: set[str] = set()
 

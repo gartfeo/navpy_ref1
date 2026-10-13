@@ -8,8 +8,8 @@ covered by test_pose_cadence_debug.py.
 
 Every real daemon is created through the ``make_flusher`` factory so it is
 stopped even if an assertion fails mid-test, and the two failure-path tests
-patch this module's OWN ``threading`` / ``atexit`` bindings (module-local
-SimpleNamespaces) rather than mutating the shared stdlib modules.
+patch this module's OWN ``rt`` / ``atexit`` bindings (module-local stand-ins)
+rather than mutating the shared runtime port or stdlib modules.
 """
 import threading
 import time
@@ -19,6 +19,7 @@ import pytest
 
 import navpy.core.kernel.logging.pose_cadence_flusher as flusher_mod
 from navpy.core.kernel.logging.pose_cadence_flusher import PoseCadenceFlusher
+from tests.runtime_overlay import RuntimeOverlay
 
 
 @pytest.fixture
@@ -112,8 +113,7 @@ def test_start_failure_propagates_and_leaves_clean_state(make_flusher, monkeypat
             return False  # a real Thread whose start() raised pre-launch is not alive
 
     monkeypatch.setattr(
-        flusher_mod, "threading",
-        SimpleNamespace(Thread=_RaisingThread, Event=threading.Event),
+        flusher_mod, "rt", RuntimeOverlay(Thread=_RaisingThread),
     )
     monkeypatch.setattr(
         flusher_mod, "atexit",
@@ -164,8 +164,7 @@ def test_start_interrupted_after_launch_adopts_and_stops(make_flusher, monkeypat
                 self._real.join(timeout)
 
     monkeypatch.setattr(
-        flusher_mod, "threading",
-        SimpleNamespace(Thread=_LaunchedThenRaise, Event=threading.Event),
+        flusher_mod, "rt", RuntimeOverlay(Thread=_LaunchedThenRaise),
     )
     monkeypatch.setattr(
         flusher_mod, "atexit",

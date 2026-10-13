@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.frame import FinalApproachVisionFrame
 from navpy.core.approach.vision_nav.frame_projection import (
     FinalApproachFrameProjector,
@@ -26,7 +26,7 @@ class FinalApproachConfirmationLaw(Protocol):
 
 @dataclass(frozen=True)
 class FinalApproachConfirmationPorts:
-    lock: threading.RLock
+    lock: rt.RLock
     projector: FinalApproachFrameProjector
     epochs: SourceEpochLedger
     law: FinalApproachConfirmationLaw

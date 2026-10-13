@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Sequence
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.tracks import TrackedObject
 from navpy.core.perception.pipeline.real_detector_ports import TimestampedVisionItem
@@ -24,7 +23,7 @@ class DetectionResultStore:
     """Atomic owner of the published POI list and primary POI."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._pois: list[DetectedObject] = []
         self._primary: DetectedObject | None = None
 
@@ -49,7 +48,7 @@ class OverlayStore:
     """Atomic owner of tracks and the corresponding selected track."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._tracks: list[TrackedObject] = []
         self._locked: TrackedObject | None = None
 
@@ -71,7 +70,7 @@ class ConfirmationFrameStore:
     """Own paired confirmation images/bboxes and bounded eviction."""
 
     def __init__(self, maximum_frames: int = 32) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._frames: dict[int, ConfirmationFrame] = {}
         self._maximum_frames = int(maximum_frames)
 
@@ -124,7 +123,7 @@ class FreshnessPolicy:
         )
         if timestamp is None:
             return True
-        current = time.time() if now_s is None else float(now_s)
+        current = rt.time() if now_s is None else float(now_s)
         return current - float(timestamp) <= self._maximum_age_s
 
 

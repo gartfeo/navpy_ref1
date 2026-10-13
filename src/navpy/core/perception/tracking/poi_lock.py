@@ -19,9 +19,9 @@ Design rules (post-redesign):
 from __future__ import annotations
 
 import math
-import threading
 from typing import TYPE_CHECKING, List, Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.geometry import iou_cxcywh
 
 if TYPE_CHECKING:
@@ -36,7 +36,7 @@ class PoiLock:
     _FORCE_GRACE = 60
 
     def __init__(self, max_lost_frames: int = 120, auto_lock: bool = True):
-        self._mutex = threading.RLock()
+        self._mutex = rt.RLock()
         self.locked_id: Optional[int] = None
         self.lost = 0
         self.max_lost = max_lost_frames

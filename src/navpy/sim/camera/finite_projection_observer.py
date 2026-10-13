@@ -1,8 +1,8 @@
 """Opt-in observation of one unchanged finite projection and validation call."""
 from __future__ import annotations
-import threading
 from typing import Optional, Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.ports.detect_data import DetectedObject, DetectResult, DetectStatus
@@ -21,7 +21,7 @@ class FiniteProjectionObserver:
     def __init__(self, sink: EvidenceSink, error_sink: Optional[EvidenceErrorSink]) -> None:
         self._sink = sink
         self._error_sink = error_sink
-        self._failure_lock = threading.Lock()
+        self._failure_lock = rt.Lock()
         self._failures = 0
 
     @property

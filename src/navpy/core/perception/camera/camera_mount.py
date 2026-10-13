@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.camera_mount_composition import build_camera_mount_parts
 from navpy.core.perception.camera.camera_mount_facets import (
     CameraMountFrameFacet,
@@ -41,8 +41,8 @@ class CameraMount(
     camera: "CameraAbc"
     gimbal: "GimbalAbc"
     zoom_calibration: Optional["ZoomCalibrationTable"] = None
-    _optics_lock: threading.RLock = field(
-        default_factory=threading.RLock,
+    _optics_lock: rt.RLock = field(
+        default_factory=rt.RLock,
         init=False,
         repr=False,
         compare=False,

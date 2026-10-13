@@ -8,11 +8,11 @@ transitions and the node's state reports.
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
@@ -28,7 +28,7 @@ from navpy.core.swarm.task_msg_refs import MsgRef
 class _Repeat:
     sent: int = 0
     refs: set[MsgRef] = field(default_factory=set)
-    timer: Optional[threading.Timer] = None
+    timer: Optional[rt.Timer] = None
 
     def cancel(self) -> None:
         if self.timer is not None:
@@ -41,7 +41,7 @@ class AssignReplies:
 
     def __init__(
         self,
-        lock: threading.RLock,
+        lock: rt.RLock,
         slot: SelectedTaskSlot,
         sender: TaskMessageSender,
         schedule: RepeatSchedule,
@@ -177,7 +177,7 @@ class AssignReplies:
 
     @staticmethod
     def _arm(repeat: _Repeat, tick: Callable[[], None], delay_s: float) -> None:
-        timer = threading.Timer(delay_s, tick)
+        timer = rt.Timer(delay_s, tick)
         timer.daemon = True
         repeat.timer = timer
         timer.start()

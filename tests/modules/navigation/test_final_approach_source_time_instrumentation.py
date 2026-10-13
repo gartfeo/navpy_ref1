@@ -56,6 +56,7 @@ from navpy.core.approach.vision_nav.source_time_adapter import (
     PoseCadenceFinalApproachSourceTimeObserver,
 )
 from navpy.core.kernel.logging import pose_cadence_debug
+from tests.runtime_overlay import RuntimeOverlay
 
 
 @dataclass
@@ -576,8 +577,8 @@ def _source_time_run(monkeypatch, output_dir, wall_times):
     )
     monkeypatch.setattr(
         command_executor_module,
-        "time",
-        SimpleNamespace(perf_counter=lambda: next(command_times)),
+        "rt",
+        RuntimeOverlay(perf_counter=lambda: next(command_times)),
     )
     runtime, _lock = _runtime(source_time=observer)
     for timestamp in (5.0, 5.2):

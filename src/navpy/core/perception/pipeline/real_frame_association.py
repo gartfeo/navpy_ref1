@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import copy
 import math
-import time
 from dataclasses import dataclass
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.ports.pose_stream_rate import POSE_FRAME_ASSOCIATION_MAX_SKEW_S
@@ -214,7 +214,7 @@ class FrameAssociationBuilder:
             c_g_loc = copy.deepcopy(self._location_reader())
         except Exception:
             c_g_loc = None
-        associated_at_s = time.time()
+        associated_at_s = rt.time()
         body_rates = finite_body_rates(body_rates)
         air_speed_mps = finite_time(self._air_speed_reader())
         if air_speed_mps is not None and air_speed_mps <= 0.0:

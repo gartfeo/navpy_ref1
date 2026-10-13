@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
 from navpy.core.approach.final_approach_source_contracts import DetectionInboxLease
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
 
@@ -25,7 +25,7 @@ class DetectionSnapshot:
 
     _detected_pois: list[DetectedObject] = field(default_factory=list)
     _primary_poi: Optional[DetectedObject] = None
-    _lock: threading.RLock = field(default_factory=threading.RLock)
+    _lock: rt.RLock = field(default_factory=rt.RLock)
     _pending_events: list[DetectionPublication] = field(default_factory=list)
     _event_generation: int = 0
 

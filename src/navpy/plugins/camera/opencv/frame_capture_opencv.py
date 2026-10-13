@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import os
-import threading
-import time
 from typing import Optional
 
 import cv2
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.camera.opencv.frame_capture_cv_lease import OpenCvCaptureLease
 from navpy.core.ports.frame_capture_ports import (
     CaptureLogger,
@@ -88,7 +87,7 @@ def open_webcam_capture(
                         and float(frame.mean()) > 5.0
                     ):
                         break
-                    time.sleep(0.02)
+                    rt.sleep(0.02)
                 if (
                     ok
                     and frame is not None
@@ -160,8 +159,8 @@ class OpenCvFrameCapture:
         capture: cv2.VideoCapture,
     ) -> None:
         self._capture = capture
-        self._capture_lock = threading.Lock()
-        self._release_requested = threading.Event()
+        self._capture_lock = rt.Lock()
+        self._release_requested = rt.Event()
         self._released = False
 
     @property
@@ -190,7 +189,7 @@ class OpenCvFrameCapture:
                 # the earliest point this process can observe the frame. The
                 # camera-path delay upstream of this stamp is invisible here,
                 # which is exactly what CaptureStampKind.READ declares.
-                grabbed_at_s = time.time()
+                grabbed_at_s = rt.time()
                 if grabbed:
                     ok, frame = self._capture.retrieve()
                 else:
@@ -199,7 +198,7 @@ class OpenCvFrameCapture:
                     self._release_locked()
                     return
             if not grabbed:
-                time.sleep(0.005)
+                rt.sleep(0.005)
                 continue
             if ok and frame is not None:
                 publish(

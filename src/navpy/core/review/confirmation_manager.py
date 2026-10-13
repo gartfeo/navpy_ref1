@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import threading
-import time
 from typing import Callable, List, Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.listener_abc import ListenerAbc
@@ -87,8 +86,8 @@ class ConfirmationManager(ListenerAbc):
             failure_policy=self._failure_policy,
             media=self._media,
             logger=logger,
-            monotonic=lambda: time.monotonic(),
-            event_factory=lambda: threading.Event(),
+            monotonic=lambda: rt.monotonic(),
+            event_factory=lambda: rt.Event(),
         )
         self._coordinator = ConfirmationCoordinator(
             sys_id=sys_id,
@@ -98,8 +97,8 @@ class ConfirmationManager(ListenerAbc):
             assignment=self._assignment,
             round_runner=self._round_runner,
             logger=logger,
-            event_factory=lambda: threading.Event(),
-            thread_factory=lambda **kwargs: threading.Thread(**kwargs),
+            event_factory=lambda: rt.Event(),
+            thread_factory=lambda **kwargs: rt.Thread(**kwargs),
         )
         self._inbound = ConfirmationInboundHandler(
             sys_id=sys_id,

@@ -46,6 +46,7 @@ from navpy.core.perception.pipeline.real_detection_mapper import (
     DetectionMappingConfig,
 )
 from tests.detection_factory import make_detected_poi
+from navpy.core.kernel import runtime_time as rt
 
 
 _UNSET_ATTITUDE_SAMPLE = object()
@@ -278,7 +279,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         if associated_at_s is None:
             associated_at_s = frame_ts + 0.01
         with patch(
-                "navpy.core.perception.pipeline.real_frame_association.time.time",
+                "navpy.core.perception.pipeline.real_frame_association.rt.time",
                 return_value=associated_at_s,
         ):
             return detector.association.capture(snapshot, frame)
@@ -386,7 +387,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         self.assertEqual(dt.optics.frame_width_px, 640.0)
         self.assertEqual(dt.optics.frame_height_px, 480.0)
         # timestamp_now provider is the same wall clock as t.timestamp.
-        self.assertIs(dt.timing.detection_now_s, time.time)
+        self.assertIs(dt.timing.detection_now_s, rt.time)
 
     def test_missing_attitude_sample_fails_closed_without_live_pose_fallback(self):
         # Missing frame-associated pose must never trigger a conversion-time
@@ -738,7 +739,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         )
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_controls.time.time",
+                "navpy.core.perception.pipeline.real_detector_controls.rt.time",
                 return_value=100.0,
         ):
             resp = query.get_detect_data(DetectRequest())
@@ -765,7 +766,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         )
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_controls.time.time",
+                "navpy.core.perception.pipeline.real_detector_controls.rt.time",
                 return_value=100.0,
         ):
             tracks = diagnostics.get_overlay_tracks()

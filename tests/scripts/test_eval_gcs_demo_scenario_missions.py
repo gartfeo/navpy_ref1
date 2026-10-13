@@ -18,6 +18,7 @@ from navpy.plugins.vehicle.ardupilot.mission_store import MissionStore
 from navpy.plugins.vehicle.ardupilot.nav_waypoints import nav_wp_indices
 
 from scripts import eval_gcs_navigation_demo  # noqa: F401  (repository bootstrap)
+from scripts.eval_gcs_demo_execution import SystemClock
 
 scenario = importlib.import_module("scripts.eval_gcs_demo_scenario")
 scenario_missions = importlib.import_module("scripts.eval_gcs_demo_scenario_missions")
@@ -207,7 +208,7 @@ def _upload_context(monkeypatch, tamper=lambda sys_id, parsed: None):
         lambda _context, assignments: uploaded.append(assignments),
     )
     api = SimpleNamespace(get_json=lambda path, timeout: copy.deepcopy(onboard[path]))
-    return SimpleNamespace(sys_ids=SYS_IDS, api=api), expected, uploaded
+    return SimpleNamespace(sys_ids=SYS_IDS, api=api, clock=SystemClock()), expected, uploaded
 
 
 def test_upload_accepts_the_scenario_missions_read_back_onboard(monkeypatch):
@@ -329,7 +330,7 @@ def test_eval_launch_pins_the_scenario_home(monkeypatch, tmp_path):
     monkeypatch.setattr(process, "run_process", run_process)
 
     with pytest.raises(models.RegressionError, match="stopped by test"):
-        process.launch_stack({"GCS_LOG_DIR": str(tmp_path / "gcs")}, 1.0)
+        process.launch_stack({"GCS_LOG_DIR": str(tmp_path / "gcs")}, 1.0, clock=SystemClock())
 
     home = scenario.load_scenario_manifest().home
     assert commands[0][-2:] == ["--home", home]

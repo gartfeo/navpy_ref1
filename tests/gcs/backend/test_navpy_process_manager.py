@@ -549,7 +549,7 @@ class TestNavpyProcessManager(unittest.TestCase):
             "gcs.backend.navpy_process_manager._foreign_udp_holders",
             return_value=[],
         ), patch(
-            "gcs.backend.navpy_process_launch.threading.Thread",
+            "gcs.backend.navpy_process_launch.rt.Thread",
             return_value=thread,
         ):
             with self.assertRaises(RuntimeError) as raised:
@@ -574,7 +574,7 @@ class TestNavpyProcessManager(unittest.TestCase):
             "gcs.backend.navpy_process_manager._foreign_udp_holders",
             return_value=[],
         ), patch(
-            "gcs.backend.navpy_process_launch.threading.Thread",
+            "gcs.backend.navpy_process_launch.rt.Thread",
             side_effect=failure,
         ):
             with self.assertRaises(RuntimeError) as raised:

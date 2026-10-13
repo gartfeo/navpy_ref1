@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.review.confirmation_response_state import matches_round
 from navpy.core.review.confirmation_round_transaction import (
     ConfirmationRequestRef,
@@ -18,7 +18,7 @@ from navpy.core.ports.detect_data import DetectedObject
 class ConfirmationSendGate:
     def __init__(
         self,
-        lock: threading.RLock,
+        lock: rt.RLock,
         workers: ConfirmationWorkerState,
         rounds: dict[int, ConfirmationRound],
     ) -> None:

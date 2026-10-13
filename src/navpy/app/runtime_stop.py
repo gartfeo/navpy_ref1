@@ -9,9 +9,10 @@ no ack, so the GCS treats the stop as missed.
 
 from __future__ import annotations
 
-import threading
 from argparse import ArgumentParser
 from typing import TextIO
+
+from navpy.core.kernel import runtime_time as rt
 
 
 NAVPY_STOP_REQUEST = "NAVPY_STOP_V1"
@@ -23,8 +24,8 @@ class StdinStopRequest:
 
     def __init__(self, stream: TextIO) -> None:
         self._stream = stream
-        self._requested = threading.Event()
-        self._thread = threading.Thread(
+        self._requested = rt.Event()
+        self._thread = rt.Thread(
             target=self._watch,
             name="navpy-stop-request",
             daemon=True,

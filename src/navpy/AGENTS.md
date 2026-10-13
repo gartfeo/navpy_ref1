@@ -30,6 +30,13 @@ Common patterns: ABC interfaces with `@abstractmethod`, args dataclasses in
 `src/navpy/core/kernel/config/` and `src/navpy/app/`, factory functions such as
 `create_vehicle()` and `create_network()` (`src/navpy/app/`).
 
+Clocks, sleeps, locks, events, threads, timers, queues, random numbers, ids and
+`datetime.now` go through `core/kernel/runtime_time.py` (`as rt`), never
+`time`, `threading`, `queue`, `random`, `uuid` or `secrets`, in `src/navpy`
+and `src/gcs/backend`; never declare a set of objects that hash by identity
+(keep a dict). `tests/guards/test_runtime_time_lint.py` enforces both, so the
+lockstep eval can bind its own runtime.
+
 ## Navigation parameters
 
 Priority: `CLI arg > MAVLink param > default`.

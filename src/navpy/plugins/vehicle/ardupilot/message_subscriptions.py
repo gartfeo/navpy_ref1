@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import collections
-import threading
 from collections.abc import Callable
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.core.ports.subscription import Subscription
 
@@ -17,7 +17,7 @@ class CallbackRegistry:
     """Snapshots under lock and always invokes callbacks after releasing it."""
 
     def __init__(self, logger_ref: LoggerRef | None = None) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._callbacks: dict[str, list[MessageCallback]] = (
             collections.defaultdict(list)
         )

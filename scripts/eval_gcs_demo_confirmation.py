@@ -15,7 +15,6 @@ from scripts.eval_gcs_demo_ports import (
     JsonApiPort,
     JsonValue,
 )
-from scripts.eval_gcs_demo_process import SystemClock
 
 
 @dataclass(frozen=True)
@@ -119,7 +118,7 @@ def run_confirmation_workflow(
     stop_when: Callable[[], bool],
     requested_delay_s: float,
     timeout_s: float,
-    clock: ClockPort | None = None,
+    clock: ClockPort,
     on_request_observed: Callable[[ConfirmationRequest], None] | None = None,
     before_approve: Callable[[ConfirmationRequest], None] | None = None,
     on_approval_attempted: Callable[[ConfirmationRequest], None] | None = None,
@@ -129,7 +128,7 @@ def run_confirmation_workflow(
     _validate_expected(expected_sys_ids)
     delay = finite_number("requested confirmation delay", requested_delay_s)
     timeout = finite_number("confirmation timeout", timeout_s)
-    timer = clock or SystemClock()
+    timer = clock
     deadline = timer.monotonic() + timeout
     pending: dict[tuple[int, int, str], PendingConfirmation] = {}
     seen: set[tuple[int, int, str]] = set()

@@ -24,6 +24,7 @@ from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from tests.detection_factory import make_detected_poi
+from tests.runtime_overlay import RuntimeOverlay
 
 
 class _RaceEvent(threading.Event):
@@ -68,16 +69,11 @@ class _RaceEvent(threading.Event):
         return False
 
 
-class _ThreadingWithRaceEvent:
-    """Stand-in for confirmation_manager's ``threading`` module that hands out
-    _RaceEvent in place of threading.Event and proxies everything else.
+def _runtime_with_race_event() -> RuntimeOverlay:
+    """confirmation_manager's ``rt`` handing out _RaceEvent in place of Event.
     Patched onto that module alone, so no other thread in the test process
     sees a different Event class."""
-
-    Event = _RaceEvent
-
-    def __getattr__(self, name):
-        return getattr(threading, name)
+    return RuntimeOverlay(Event=_RaceEvent)
 
 
 class ConfirmationManagerResendTests(unittest.TestCase):
@@ -162,7 +158,7 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         _RaceEvent.on_first_timeout = _deliver_response
         self.addCleanup(setattr, _RaceEvent, "on_first_timeout", None)
 
-        with patch.object(tm_module, "threading", _ThreadingWithRaceEvent()):
+        with patch.object(tm_module, "rt", _runtime_with_race_event()):
             self.confirmation_manager.review([self.poi])
             self.assertTrue(
                 delivered.wait(timeout=3.0), "response was never delivered by the race hook",
@@ -221,7 +217,7 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         self.addCleanup(setattr, _RaceEvent, "on_first_false_is_set", None)
 
         with patch.object(tm_module, "RESEND_INTERVAL_S", 0.05), \
-                patch.object(tm_module, "threading", _ThreadingWithRaceEvent()):
+                patch.object(tm_module, "rt", _runtime_with_race_event()):
             self.confirmation_manager.review([self.poi])
             self.assertEqual(
                 self._await_status(ConfirmationStatus.CONFIRMED), ConfirmationStatus.CONFIRMED,

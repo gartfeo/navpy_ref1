@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -12,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from gcs.backend import navpy_sim_runtime as runtime
 from gcs.backend.atomic_json import atomic_write_json
 from gcs.backend.settings_store import settings_store
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.profile.vision_class_profile import (
     DETECTOR_CLASS_DIMENSIONS,
     compute_confirm_slant_range,
@@ -26,7 +26,7 @@ router = APIRouter()
 
 # Serializes each PUT's read-modify-write of vision_profiles.json so two
 # concurrent edits cannot rewrite stale data and drop each other's change.
-_profiles_write_lock = threading.Lock()
+_profiles_write_lock = rt.Lock()
 
 
 class DeviceUpdate(BaseModel):

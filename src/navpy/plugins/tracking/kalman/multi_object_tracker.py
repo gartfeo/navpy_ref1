@@ -6,11 +6,11 @@ different rate than inference and interpolates between sparse detections.
 """
 from __future__ import annotations
 
-import time
 from typing import List, Optional, Tuple
 
 import numpy as np
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.linear_assignment import hungarian
 from navpy.core.kernel.geometry import clip_bbox_xyxy, iou_xyxy
 from navpy.core.ports.tracks import TrackedObject
@@ -115,7 +115,7 @@ class MultiObjectTracker:
 
     def update(self, dets: List[Detection], frame_w: int,
                frame_h: int) -> List[TrackedObject]:
-        ts_now = time.time()
+        ts_now = rt.time()
         self._cleanup_lost(ts_now)
 
         for track in self._tracks:

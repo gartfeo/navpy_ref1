@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import replace
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
@@ -51,7 +51,7 @@ def build_siyi_sim(
         data=replace(data, roll_stabilize=True, pitch_stabilize=True),
         angular=GimbalAngularPlant(data.att.pitch, data.att.yaw),
         zoom=GimbalZoomPlant(),
-        lock=threading.Lock(),
+        lock=rt.Lock(),
     )
     stepper = SiyiSimStepper(state, attitude_reader)
     runner = FixedCadenceRunner(

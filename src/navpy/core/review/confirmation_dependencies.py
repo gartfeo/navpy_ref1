@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Callable, Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.review.confirmation_ports import ConfirmationNetworkPort
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
@@ -14,7 +14,7 @@ class ConfirmationNetworkSlot:
     """Thread-safe late-bound network dependency."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = rt.Lock()
         self._network: Optional[ConfirmationNetworkPort] = None
 
     def set(self, network: Optional[ConfirmationNetworkPort]) -> None:

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Optional, Protocol
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.core.swarm.task_msg_refs import MsgRef
 
@@ -22,9 +22,9 @@ class SwarmHeartbeatRuntime:
 
     def __init__(self, emitter: HeartbeatEmitter) -> None:
         self._emitter = emitter
-        self._lock = threading.Lock()
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._lock = rt.Lock()
+        self._stop = rt.Event()
+        self._thread: rt.Thread | None = None
         self._launch: ThreadLaunchGate | None = None
         self._started = False
         self._failure: BaseException | None = None
@@ -45,11 +45,11 @@ class SwarmHeartbeatRuntime:
                     )
                 self._thread = None
                 self._launch = None
-            stop = threading.Event()
+            stop = rt.Event()
             launch = ThreadLaunchGate()
             self._stop = stop
             self._started = True
-            thread = threading.Thread(
+            thread = rt.Thread(
                 target=self._run_generation,
                 args=(stop, launch),
                 daemon=True,
@@ -95,7 +95,7 @@ class SwarmHeartbeatRuntime:
                 self._thread = None
                 self._launch = None
 
-    def heartbeat_thread(self) -> threading.Thread | None:
+    def heartbeat_thread(self) -> rt.Thread | None:
         """Inspection seam for lifecycle tests; no mutable state is exposed."""
         with self._lock:
             return self._thread
@@ -109,7 +109,7 @@ class SwarmHeartbeatRuntime:
 
     def _run_generation(
         self,
-        stop: threading.Event,
+        stop: rt.Event,
         launch: ThreadLaunchGate,
     ) -> None:
         if not launch.enter():
@@ -124,7 +124,7 @@ class SwarmHeartbeatRuntime:
                     self._started = False
             stop.set()
 
-    def _heartbeat_loop(self, stop: threading.Event) -> None:
+    def _heartbeat_loop(self, stop: rt.Event) -> None:
         while not stop.wait(HEARTBEAT_INTERVAL_S):
             self._emitter.heartbeat()
 

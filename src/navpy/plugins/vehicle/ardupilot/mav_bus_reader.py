@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 import logging
-import threading
-import time
 from collections.abc import Callable
 
 from pymavlink import mavutil
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
 from navpy.plugins.vehicle.ardupilot.mav_bus_membership import MavBusMembership
 
@@ -19,7 +18,7 @@ _PEER_RESET_LOG_INTERVAL_S = 30.0
 
 def _yield_reader_thread() -> None:
     """Let ready control/source threads run after one decoded packet."""
-    time.sleep(0)
+    rt.sleep(0)
 
 
 class MavBusReader:
@@ -29,7 +28,7 @@ class MavBusReader:
         device: str,
         membership: MavBusMembership,
         heartbeats: MavBusHeartbeats,
-        stop_event: threading.Event,
+        stop_event: rt.Event,
         *,
         cooperative_yield: Callable[[], None] = _yield_reader_thread,
         on_exit: Callable[[], None] = lambda: None,
@@ -43,14 +42,14 @@ class MavBusReader:
         self._on_exit = on_exit
         self._is_udp = device.startswith(("udp:", "udpin:"))
         self._last_reset_log_s = 0.0
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread = rt.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
         self._thread.start()
 
     def join(self, timeout_s: float | None = None) -> bool:
         """Whether the reader has stopped (its own thread counts: it exits next)."""
-        if threading.current_thread() is self._thread:
+        if rt.current_thread() is self._thread:
             return True
         self._thread.join(timeout=timeout_s)
         return not self._thread.is_alive()
@@ -93,7 +92,7 @@ class MavBusReader:
         if not self._is_udp:
             log.exception("MavBus %s reader error", self._device)
             return
-        now_s = time.monotonic()
+        now_s = rt.monotonic()
         if now_s - self._last_reset_log_s > _PEER_RESET_LOG_INTERVAL_S:
             self._last_reset_log_s = now_s
             log.debug(

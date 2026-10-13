@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Callable, Iterator, Mapping, Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.navigation_args import (
     DEFAULT_NAVIGATION_ALGORITHM,
     NavigationAlgorithm,
@@ -50,7 +50,7 @@ class NavigationModeState:
     """Synchronize access to the currently selected algorithm bundle."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._active: Optional[ActiveNavigationMode] = None
 
     def snapshot(self) -> ActiveNavigationMode:

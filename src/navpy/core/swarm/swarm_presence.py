@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
 from navpy.core.link.location_msg import LocationMsgData
@@ -42,7 +42,7 @@ class SwarmPresence:
         actor_id: int,
         vehicle: TaskLocationReader,
         sender: TaskMessageSender,
-        lock: threading.RLock,
+        lock: rt.RLock,
         node_state: Callable[[], SwarmNodeState],
         peers: PeerStatusPorts,
         logger: ILogger,
@@ -130,7 +130,7 @@ class SwarmPresence:
             location.alt,
         ))
 
-    def heartbeat_thread(self) -> threading.Thread | None:
+    def heartbeat_thread(self) -> rt.Thread | None:
         return self._heartbeat.heartbeat_thread()
 
     def raise_if_failed(self) -> None:

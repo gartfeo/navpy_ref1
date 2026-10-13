@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
 import os
-import threading
 from dataclasses import dataclass
-from datetime import datetime
 from typing import NoReturn, Optional, Protocol, TextIO
 
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -50,7 +49,7 @@ class NavigationLogStreams:
         self._debug = debug
         self._debug_output = debug
         self._worker = NavigationStreamWorker(self._apply_write)
-        self._condition = threading.Condition(threading.RLock())
+        self._condition = rt.Condition(rt.RLock())
         self._debug_event_count = 0
         self._phase = "active"
         self._close_owner: int | None = None
@@ -97,7 +96,7 @@ class NavigationLogStreams:
             raise error
 
     def close(self) -> None:
-        owner = threading.get_ident()
+        owner = rt.get_ident()
         with self._condition:
             while self._phase == "closing":
                 if self._close_owner == owner:
@@ -191,7 +190,7 @@ def _create_log_directory(logger: ILogger) -> Optional[str]:
     try:
         log_path = getattr(logger, "log_path", None)
         if not log_path:
-            today = datetime.today()
+            today = rt.now()
             log_path = f".logs/{today.date()}/{today.strftime('%H%M%S')}/"
         os.makedirs(log_path, exist_ok=True)
         return log_path

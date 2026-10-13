@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import math
-import threading
-import time
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
@@ -22,6 +20,7 @@ from navpy.core.approach.vision_nav.command_liveness import (
 from navpy.core.approach.vision_nav.source_time_ports import (
     FinalApproachCommandSourceTimeObserver,
 )
+from navpy.core.kernel import runtime_time as rt
 
 
 # Aircraft-time period between re-sends of an unchanged (held) command.
@@ -92,14 +91,14 @@ class FinalApproachCommandHold:
         source_time: FinalApproachCommandSourceTimeObserver,
         failures: FinalApproachCommandFailureSink,
         freshness: FinalApproachCommandFreshness,
-        monotonic_s: Callable[[], float] = time.perf_counter,
+        monotonic_s: Callable[[], float] = rt.perf_counter,
     ) -> None:
         self._actuator = actuator
         self._source_time = source_time
         self._failures = failures
         self._freshness = freshness
         self._monotonic_s = monotonic_s
-        self._lock = threading.RLock()
+        self._lock = rt.RLock()
         self._command: FinalApproachHeldCommand | None = None
         self._last_sent_source_s: float | None = None
 

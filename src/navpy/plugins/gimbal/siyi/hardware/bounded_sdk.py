@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from typing import Any
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
 from navpy.plugins.gimbal.siyi.hardware.ports import SiyiSdkPort
 
@@ -23,11 +22,11 @@ class BoundedSiyiSdk:
     ) -> None:
         self._sdk = sdk
         self._timeout_s = float(timeout_s)
-        self._operation_lock = threading.Lock()
-        self._lock = threading.Lock()
-        self._disconnect_thread: threading.Thread | None = None
+        self._operation_lock = rt.Lock()
+        self._lock = rt.Lock()
+        self._disconnect_thread: rt.Thread | None = None
         self._disconnect_launch: ThreadLaunchGate | None = None
-        self._disconnect_finished: threading.Event | None = None
+        self._disconnect_finished: rt.Event | None = None
         self._disconnect_error: BaseException | None = None
         self._disconnected = False
         self._zero_rate_acknowledged = False
@@ -51,15 +50,15 @@ class BoundedSiyiSdk:
             return self._disconnect_serial()
 
     def _disconnect_serial(self) -> bool:
-        deadline_s = time.monotonic() + max(0.0, self._timeout_s)
+        deadline_s = rt.monotonic() + max(0.0, self._timeout_s)
         with self._lock:
             if self._disconnected:
                 return True
             thread = self._disconnect_thread
             if thread is None:
                 launch = ThreadLaunchGate()
-                finished = threading.Event()
-                thread = threading.Thread(
+                finished = rt.Event()
+                thread = rt.Thread(
                     target=self._run_disconnect,
                     args=(launch, finished),
                     name="siyi-sdk-disconnect",
@@ -81,7 +80,7 @@ class BoundedSiyiSdk:
                     raise RuntimeError(
                         "SIYI disconnect ownership is incomplete"
                     )
-        if thread is threading.current_thread():
+        if thread is rt.current_thread():
             return False
 
         if not launch.committed:
@@ -114,7 +113,7 @@ class BoundedSiyiSdk:
     def _run_disconnect(
         self,
         launch: ThreadLaunchGate,
-        finished: threading.Event,
+        finished: rt.Event,
     ) -> None:
         try:
             if not launch.enter():
@@ -130,13 +129,13 @@ class BoundedSiyiSdk:
 
     @staticmethod
     def _remaining_s(deadline_s: float) -> float:
-        return max(0.0, deadline_s - time.monotonic())
+        return max(0.0, deadline_s - rt.monotonic())
 
     def _clear_generation(
         self,
-        thread: threading.Thread,
+        thread: rt.Thread,
         launch: ThreadLaunchGate,
-        finished: threading.Event,
+        finished: rt.Event,
     ) -> None:
         if (
             self._disconnect_thread is thread

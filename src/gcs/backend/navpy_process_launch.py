@@ -7,10 +7,10 @@ import os
 import re
 import subprocess
 import sys
-import threading
 from collections.abc import Callable
 from pathlib import Path
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 from gcs.backend.navpy_process_instance import (
     NavpyInstance,
@@ -201,7 +201,7 @@ def launch_navpy_instance(
         _job_handle=job_handle,
     )
     try:
-        reader = threading.Thread(
+        reader = rt.Thread(
             target=output_reader,
             args=(inst,),
             daemon=True,

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from collections.abc import Callable
 
 from navpy.core.approach.vision_nav.source_time_ports import (
@@ -11,6 +10,7 @@ from navpy.core.approach.vision_nav.source_time_ports import (
     ObservationOutcome,
     SourceNow,
 )
+from navpy.core.kernel import runtime_time as rt
 import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 
 
@@ -23,7 +23,7 @@ class PoseCadenceFinalApproachSourceTimeObserver:
     def __init__(
         self,
         sys_id: int,
-        wall_time_s: Callable[[], float] = time.time,
+        wall_time_s: Callable[[], float] = rt.time,
     ) -> None:
         if type(sys_id) is not int:
             raise TypeError("source-time observer sys_id must be an integer")

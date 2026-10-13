@@ -27,6 +27,7 @@ from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
 from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger
 from navpy.core.kernel.location import Location
+from tests.runtime_overlay import RuntimeOverlay
 
 
 class VehicleMavTest(unittest.TestCase):
@@ -476,8 +477,10 @@ class VehicleMavTest(unittest.TestCase):
 
     def test_terrain_height_at_preserves_no_reply_deadline(self):
         messages = self.dm._parts.position._messages
-        with patch("navpy.plugins.vehicle.ardupilot.position_service.time") as clock:
-            clock.monotonic.return_value = 100.0
+        with patch(
+            "navpy.plugins.vehicle.ardupilot.position_service.rt",
+            RuntimeOverlay(monotonic=lambda: 100.0),
+        ):
             with patch.object(messages, "wait_after", return_value=None) as wait:
                 self.assertIsNone(self.dm.terrain_height_at(40.31, 44.46))
                 self.assertEqual(wait.call_args.kwargs["deadline"], 101.0)
@@ -1055,7 +1058,7 @@ class VehicleMavTest(unittest.TestCase):
             yawspeed=0.03,
         )
 
-        with patch("navpy.plugins.vehicle.ardupilot.inbound_router.time.time", return_value=456.25):
+        with patch("navpy.plugins.vehicle.ardupilot.inbound_router.rt.time", return_value=456.25):
             dm.feed_message(attitude)
         sample = dm.attitude_sample
 
@@ -1083,7 +1086,7 @@ class VehicleMavTest(unittest.TestCase):
             vd=97.0,
         )
 
-        with patch("navpy.plugins.vehicle.ardupilot.inbound_router.time.time", return_value=456.25):
+        with patch("navpy.plugins.vehicle.ardupilot.inbound_router.rt.time", return_value=456.25):
             dm.feed_message(sim_state)
         pose = dm.simulator_truth_pose
 

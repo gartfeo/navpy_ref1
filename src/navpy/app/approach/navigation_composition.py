@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from typing import Callable, Optional, cast
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm, NavigationArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.approach.logs.navigation_logger import NavigationLogger
@@ -109,7 +109,7 @@ def _legacy_runtime_factory(
 
 def _vision_runtime_factory(
     *,
-    lock: threading.RLock,
+    lock: rt.RLock,
     command_slot: NavigationCommandSlot,
     vehicle: IVehicle,
     geo_ref: GeoRefCalc,
@@ -155,8 +155,8 @@ def compose_navigation(
     scheduler_cadence: Optional[SchedulerCadence] = None,
 ) -> NavigationComposition:
     """Build Navigation without passing the root object into collaborators."""
-    command_lock = threading.RLock()
-    command_event = threading.Event()
+    command_lock = rt.RLock()
+    command_event = rt.Event()
     source_dispatch = NavigationSourceDispatchSlot()
     command_slot = NavigationCommandSlot(command_lock, command_event)
     wall_period = (

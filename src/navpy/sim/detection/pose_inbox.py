@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import threading
 from collections import deque
 from collections.abc import Callable
 from typing import Deque, Generic, Optional, TypeVar
+
+from navpy.core.kernel import runtime_time as rt
 
 
 PoseT = TypeVar("PoseT")
@@ -16,7 +17,7 @@ class PoseInbox(Generic[PoseT]):
 
     def __init__(self, capacity: int) -> None:
         self._capacity = max(1, int(capacity))
-        self._condition = threading.Condition()
+        self._condition = rt.Condition()
         self._queue: Deque[PoseT] = deque()
 
     @property
@@ -34,7 +35,7 @@ class PoseInbox(Generic[PoseT]):
 
     def wait_and_pop_latest(
         self,
-        stop_event: threading.Event,
+        stop_event: rt.Event,
         preserve: Callable[[PoseT], bool],
     ) -> tuple[Optional[PoseT], list[PoseT]]:
         """Preserve reset boundaries; otherwise select the newest pose."""

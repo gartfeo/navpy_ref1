@@ -13,9 +13,9 @@ has no access to the vehicle at all.
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.ports.detect_data import DetectedObject
@@ -50,7 +50,7 @@ class DirectPixelRenderer:
         aircraft_degrees: bool,
         frame_size: FrameSize,
         source_now_s: Callable[[], float],
-        wall_now_s: Callable[[], float] = time.time,
+        wall_now_s: Callable[[], float] = rt.time,
     ) -> None:
         self._poi = SimulationObject(1, poi, 2)
         self._wall_now_s = wall_now_s

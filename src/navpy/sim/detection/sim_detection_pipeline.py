@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import time
 from typing import Optional, Tuple
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.ports.detect_data import DetectedObject
@@ -142,7 +142,7 @@ class SimDetectionPipeline:
     ) -> None:
         detection.record_receipt(
             frame.receipt_timestamp_s,
-            time.time if frame.receipt_timestamp_s is not None else None,
+            rt.time if frame.receipt_timestamp_s is not None else None,
             frame.air_speed_mps,
         )
 
