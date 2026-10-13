@@ -1,7 +1,11 @@
 # Delivery 3-UAV eval: the owner's scenario (v2, approved 2026-10-13)
 
 **Status.** Approved by the owner on 2026-10-13 ("go and fix"). Q1: the other chat ("Deterministic Run") is still
-active, so its eval work lands first and e1 builds on it; e2, e2b and e3 start meanwhile. Q2 and Q3 as recommended. Line numbers are on main `779694e`. UNVERIFIED marks claims not
+active, so its eval work lands first and e1 builds on it; e2, e2b and e3 start meanwhile. Q2 and Q3 as recommended.
+**Side by side (owner, 2026-10-13).** This scenario is a second eval beside the other chat's rectangle eval, which
+keeps its docks on waypoints for the determinism work. That rectangle (1.7 x 0.8 km, lines 187 m apart) is too small
+for real search. e1 landed as the other chat's step 1 (`fa9ea47`, mission upload with exact readback); e3 is
+`37cb1e5`. Line numbers are on main `779694e`. UNVERIFIED marks claims not
 checked by a test or a run. Codex reviewed v1 ("rework", 8 findings); v2 applies all 8 (see the end).
 
 ## Goal
@@ -18,7 +22,9 @@ The current eval does not test this. It puts the docks on the owner's waypoints 
 (`eval_gcs_demo_scenario.json:9`), and it never tests search, the home dock or the no-dock case.
 
 ## The scenario
-Two delivery docks, d1 and d2, both on one straight leg of UAV A's route, with d2 400-500 m after d1.
+Two delivery docks, d1 and d2, both on the middle line of UAV A's route, with d2 150 m after d1. At about 260 m
+the view band is some 340 m deep, so both should be in view together and A should offer d2 as soon as it picks d1.
+This is an assumption until the e2b SITL slice shows it.
 
 | UAV | Sees | Does |
 |---|---|---|
@@ -45,6 +51,11 @@ would go home.
 - The eval uploads the three missions through `POST /api/missions/upload` (`routes/missions.py:144`) and checks the
   readback exactly. Today it relies on template eeprom missions instead.
 - Home-dock coordinates are chosen to encode exactly at 1e-7°. The planner truncates them to int (todo 26).
+- **As built (e2):** `scripts/eval_delivery_scenario_gen.py` and `scripts/eval_delivery_scenario.json`. The area is
+  5.3 x 3 km, centred due south of the launch point, because the GCS passes the launch point as the approach point
+  and the planner aims the lines at it. Result: 3 equal routes of 3 north-south lines, 500 m apart, at 260, 240 and
+  220 m above home, each with its own home dock 1.6 km north of the area. Points move at most 1.5 encoding quanta.
+  The fixture records the runtime settings the oracle assumes: detection from track row 1, one-shot, search zoom 1.
 
 ## Sim docks: one shared world
 - Today each NavPy builds its own dock list from its own mission waypoints (`navigation_poi_args.py:42-56`,
@@ -76,8 +87,9 @@ would go home.
   The fixture therefore flies at 240 m (owner question 2).
 - Every other UAV's route stays at least 980 m from d1 and d2 (829 m plus a 150 m margin). Home docks lie outside
   the area, at least 980 m from every route.
-- An offline oracle samples every route every 10 m, with the calibrated projection, the terrain and a bank-angle
-  band. It shows who **cannot** see which dock: it treats any point within 829 m of a turn as "maybe seen".
+- An offline oracle samples every route every 10 m. It is distance only: a dock farther than the 829 m zoom-1
+  limit (plus a 150 m margin) from every point a route flies after its detection waypoint cannot be seen from that
+  route. Slant range is never shorter than ground distance, so terrain and bank do not weaken this negative proof.
 - It cannot prove that A sees and offers d2. A changes course once it picks d1 (confirmation orbit, approach). So a
   1-UAV SITL slice proves it first (e2b).
 
@@ -145,6 +157,10 @@ change on purpose, and each commit message says why. No test is weakened.
 | e10 | Two wall runs, then a live check by the live-tester agent; the report is committed unedited | S |
 
 ## Risks
+- The winner flies past d1 on its way to d2 (150 m apart). Peer acquisition stays in DETECT, and `DetectAction` and
+  `ConfirmationAction` still select and offer other docks there, so two things can go wrong: it may lock d1 instead
+  of d2, and it may offer d1 as a new task (the swarm does not de-duplicate by position). e5 adds a mechanism test
+  for each (and a product fix if one fails); the 3-UAV run checks both.
 - Wall-time timing can change who wins the auction. The geometry keeps B nearest by a wide margin, and the check is by
   role.
 - A planner change forces the fixture to be regenerated. That is intended.

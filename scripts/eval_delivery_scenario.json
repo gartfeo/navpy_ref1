@@ -1,0 +1,326 @@
+{
+  "docks": {
+    "docks": [
+      {
+        "height_m": 0.0,
+        "lat": 40.2871501,
+        "location_type": null,
+        "lon": 44.4737067,
+        "name": "d1"
+      },
+      {
+        "height_m": 0.0,
+        "lat": 40.288499,
+        "location_type": null,
+        "lon": 44.4737067,
+        "name": "d2"
+      },
+      {
+        "height_m": 0.0,
+        "lat": 40.3165,
+        "location_type": "building",
+        "lon": 44.4737,
+        "name": "home-east"
+      },
+      {
+        "height_m": 0.0,
+        "lat": 40.3165,
+        "location_type": "building",
+        "lon": 44.456,
+        "name": "home-middle"
+      },
+      {
+        "height_m": 0.0,
+        "lat": 40.3165,
+        "location_type": "building",
+        "lon": 44.4384,
+        "name": "home-west"
+      }
+    ],
+    "schema_version": 1
+  },
+  "expected": {
+    "home_dock_by_zone": [
+      "home-east",
+      "home-middle",
+      "home-west"
+    ],
+    "kept_dock": "d1",
+    "offered_dock": "d2",
+    "offerer_zone_index": 0
+  },
+  "generator": "scripts/eval_delivery_scenario_gen.py",
+  "inputs": {
+    "altitude_separation_m": 20.0,
+    "delivery_hubs": [
+      {
+        "lat": 40.3165,
+        "lon": 44.4384,
+        "name": "home-west",
+        "type": "building"
+      },
+      {
+        "lat": 40.3165,
+        "lon": 44.456,
+        "name": "home-middle",
+        "type": "building"
+      },
+      {
+        "lat": 40.3165,
+        "lon": 44.4737,
+        "name": "home-east",
+        "type": "building"
+      }
+    ],
+    "dock_placement": {
+      "d1_fraction": 0.45,
+      "d2_after_m": 150.0,
+      "line_index": 1,
+      "offerer_zone_index": 0
+    },
+    "dock_preset_altitude_m": 220.0,
+    "home": {
+      "alt_m": 1294.86,
+      "lat": 40.3117414,
+      "lon": 44.4552111
+    },
+    "launch_point": {
+      "lat": 40.3118106,
+      "lon": 44.45604
+    },
+    "partition_angle_deg": 90.0,
+    "polygon": [
+      {
+        "lat": 40.302,
+        "lon": 44.42954
+      },
+      {
+        "lat": 40.302,
+        "lon": 44.48254
+      },
+      {
+        "lat": 40.275,
+        "lon": 44.48254
+      },
+      {
+        "lat": 40.275,
+        "lon": 44.42954
+      }
+    ],
+    "search_pattern": "distributed",
+    "track_spacing_override_m": 500.0,
+    "uav_count": 3
+  },
+  "missions": [
+    {
+      "altitude_m": 260,
+      "corridor_altitude_m": null,
+      "corridor_backbone": [],
+      "corridor_count": 0,
+      "default_delivery_hub": {
+        "lat": 40.3165,
+        "lon": 44.4737,
+        "type": "building"
+      },
+      "launch_point": {
+        "lat": 40.3118106,
+        "lon": 44.45604
+      },
+      "polygon": [
+        {
+          "lat": 40.302,
+          "lon": 44.42954
+        },
+        {
+          "lat": 40.302,
+          "lon": 44.48254
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.48254
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.42954
+        }
+      ],
+      "search_pattern": "distributed",
+      "waypoints": [
+        {
+          "lat": 40.302,
+          "lon": 44.4795956
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.4795956
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.4737067
+        },
+        {
+          "lat": 40.302,
+          "lon": 44.4737067
+        },
+        {
+          "lat": 40.302,
+          "lon": 44.4678178
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.4678178
+        }
+      ]
+    },
+    {
+      "altitude_m": 240,
+      "corridor_altitude_m": null,
+      "corridor_backbone": [],
+      "corridor_count": 0,
+      "default_delivery_hub": {
+        "lat": 40.3165,
+        "lon": 44.456,
+        "type": "building"
+      },
+      "launch_point": {
+        "lat": 40.3118106,
+        "lon": 44.45604
+      },
+      "polygon": [
+        {
+          "lat": 40.302,
+          "lon": 44.42954
+        },
+        {
+          "lat": 40.302,
+          "lon": 44.48254
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.48254
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.42954
+        }
+      ],
+      "search_pattern": "distributed",
+      "waypoints": [
+        {
+          "lat": 40.302,
+          "lon": 44.461929
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.461929
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.45604
+        },
+        {
+          "lat": 40.302,
+          "lon": 44.45604
+        },
+        {
+          "lat": 40.302,
+          "lon": 44.4501511
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.4501511
+        }
+      ]
+    },
+    {
+      "altitude_m": 220,
+      "corridor_altitude_m": null,
+      "corridor_backbone": [],
+      "corridor_count": 0,
+      "default_delivery_hub": {
+        "lat": 40.3165,
+        "lon": 44.4384,
+        "type": "building"
+      },
+      "launch_point": {
+        "lat": 40.3118106,
+        "lon": 44.45604
+      },
+      "polygon": [
+        {
+          "lat": 40.302,
+          "lon": 44.42954
+        },
+        {
+          "lat": 40.302,
+          "lon": 44.48254
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.48254
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.42954
+        }
+      ],
+      "search_pattern": "distributed",
+      "waypoints": [
+        {
+          "lat": 40.302,
+          "lon": 44.4442622
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.4442622
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.4383733
+        },
+        {
+          "lat": 40.302,
+          "lon": 44.4383733
+        },
+        {
+          "lat": 40.302,
+          "lon": 44.4324844
+        },
+        {
+          "lat": 40.275,
+          "lon": 44.4324844
+        }
+      ]
+    }
+  ],
+  "plan": {
+    "base_altitude_m": 220,
+    "grid_angle_deg": 90,
+    "zones": [
+      {
+        "altitude_m": 260,
+        "strip_count": 3,
+        "total_distance_km": 10,
+        "zone_index": 0
+      },
+      {
+        "altitude_m": 240,
+        "strip_count": 3,
+        "total_distance_km": 10,
+        "zone_index": 1
+      },
+      {
+        "altitude_m": 220,
+        "strip_count": 3,
+        "total_distance_km": 10,
+        "zone_index": 2
+      }
+    ]
+  },
+  "runtime": {
+    "nav_last_wp": 1,
+    "nav_oneshot": true,
+    "search_zoom": 1
+  },
+  "schema_version": 1
+}
