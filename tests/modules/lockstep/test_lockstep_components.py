@@ -122,9 +122,9 @@ def _inject_host_delays(mp: pytest.MonkeyPatch, rng: random.Random) -> None:
     """Real host sleeps before every park and at every managed thread's start."""
     park, spawn = BatonRuntime.park, BatonRuntime.spawn
 
-    def delayed_park(self, reason, timeout_s=None):
+    def delayed_park(self, reason, timeout_s=None, **kwargs):
         host_time.sleep(rng.random() / 2000)
-        park(self, reason, timeout_s)
+        park(self, reason, timeout_s, **kwargs)
 
     def delayed_spawn(self, target, *, name):
         def delayed_target():

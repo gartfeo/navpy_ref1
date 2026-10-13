@@ -6,7 +6,7 @@ Step 6 of `deterministic_demo_eval.md`. These are the contracts the lockstep bui
 - Benchmark: `scripts/lockstep_baton_benchmark.py`.
 
 ## Execution model (chosen; re-measured at step 9)
-**The baton.** Existing product threads run unchanged as managed OS threads, one at a time, on the sim clock (`baton.py`, `baton_sync.py`, `baton_asyncio.py`).
+**The baton.** Existing product threads run unchanged as managed OS threads, one at a time, on the sim clock (`baton.py`, `baton_sync.py`, `baton_queue.py`, `baton_asyncio.py`).
 
 **Benchmark** (Windows, Python 3.11.9, 7 samples, wall µs per tick, median with range):
 
@@ -97,12 +97,13 @@ Emulates mavlink-router `d59ef94` (`/usr/bin/mavlink-routerd`), `Endpoint::accep
 
 ## Bus adapter (wire pinned: `mavlink_wire.py`; the adapter in step 9)
 One narrow bus replaces `mavutil.mavfile` for NavPy and the backend in lockstep.
-- **Inbound.** Per tick bytes, decoded with persistent parser state and dispatched through the existing `_dispatch` fan-out (`mav_bus_reader.py:85-88`) in byte order, on the managed reader thread.
+- **Inbound.** Per tick bytes, decoded with persistent parser state and dispatched through the existing `_dispatch` fan-out (`mav_bus_reader.py:85-88`) in byte order, on the managed reader thread. After each packet the reader yields, as the wall reader does: it goes to the back of the runnable queue at the same t_k (`baton_sync.yield_now`, no timer round), so a woken consumer runs before the next packet.
 - **Outbound.** A `MAVLink(file=ByteSink)` encoder per source keeps `seq` and MAVLink 2 framing as a real link would. Each participant's `(sysid, compid)` is its product value.
-- **`mode_mapping()`** comes from pymavlink's static table for the vehicle type of the target's first `HEARTBEAT`, the same source `mavfile` uses.
-- **Heartbeat admission.** Only the target system's autopilot component (compid 1) counts as the vehicle heartbeat, as today.
-- **Subscriptions** are the existing `MavBusMembership` receivers. There are no leases.
-- **Close** follows step 4: the reader stops first, and only then does the bus count as closed.
+- **`mode_mapping()`** is `mavfile`'s: the fixed-wing table before any heartbeat, then the table for the latest probable vehicle heartbeat's type (`mavfile.probably_vehicle_heartbeat`), or PX4's map for a PX4 autopilot.
+- **Heartbeat admission.** The bus admits as `MavBusHeartbeats` does today: any non-GCS, non-companion heartbeat from an eligible sysid counts. The router's compid-1 filter governs the vehicle's heartbeat state, not bus admission.
+- **Subscriptions** are the existing `MavBusMembership` receivers.
+- **Reservations.** `reserve(sysid)` returns the existing `MavBusLease`: `attach` adds the receiver, `release` drops the reservation. Opens share one bus per logical device (`lockstep:serial0` NavPy, `lockstep:serial1` backend), as `MavBus.get_or_create` does.
+- **Close.** Releasing the last reservation closes the bus, following step 4: the reader stops first, then the bus counts as closed, and the link reports `closed`. A reopen is a new bus; bytes delivered while none is open are lost and counted (`lockstep_link.py`).
 
 ## Firmware helpers (specified; acceptance in step 7)
 - **Barrier.** The frame's `helpers_quiet` flag is the init barrier. Only SITLs tick until every SITL reports it, and participants join only after. The firmware sets it once all three hold:

@@ -48,8 +48,18 @@ class LockstepAborted(BaseException):
     """Raised in parked threads when the run is aborted, so they unwind."""
 
 
+def is_abort(error: BaseException) -> bool:
+    """An abort, or a group of aborts: a rollback that parks again while it
+    unwinds raises the abort once more, and the product groups both."""
+    if isinstance(error, LockstepAborted):
+        return True
+    nested = getattr(error, "exceptions", None)
+    return bool(nested) and all(is_abort(inner) for inner in nested)
+
+
 class BatonRuntime:
-    """The scheduler; primitives come from :mod:`navpy.sim.lockstep.baton_sync`."""
+    """The scheduler; primitives come from :mod:`navpy.sim.lockstep.baton_sync`
+    and :mod:`navpy.sim.lockstep.baton_queue`."""
 
     def __init__(self, start_us: int = 0) -> None:
         self._coordinator = threading.get_ident()
@@ -127,10 +137,9 @@ class BatonRuntime:
             try:
                 if not self._aborted:
                     target()
-            except LockstepAborted:
-                pass
             except BaseException as error:  # reported by run_until_quiescent
-                self.threads.errors.append(error)
+                if not is_abort(error):
+                    self.threads.errors.append(error)
             finally:
                 thread.done = True
                 for joiner in thread.joiners:
@@ -195,14 +204,21 @@ class BatonRuntime:
             self.fail("a lockstep primitive was used off the baton")
         return thread
 
-    def park(self, reason: str, timeout_s: float | None = None) -> None:
-        """Give the baton back until woken or until the timer is due."""
+    def park(self, reason: str, timeout_s: float | None = None, *, requeue: bool = False) -> None:
+        """Give the baton back until woken or until the timer is due.
+
+        ``requeue`` is a yield instead: the thread goes to the back of the
+        runnable queue at the same ``t_k``, with no timer and no timer round.
+        """
         thread = self.current()
         thread.park_token += 1
-        thread.parked_on = reason
-        thread.has_timer = timeout_s is not None
-        if timeout_s is not None:
-            self.timers.push(self.monotonic() + max(0.0, timeout_s), thread)
+        if requeue:
+            self._runnable.append(thread)
+        else:
+            thread.parked_on = reason
+            thread.has_timer = timeout_s is not None
+            if timeout_s is not None:
+                self.timers.push(self.monotonic() + max(0.0, timeout_s), thread)
         self._current = None
         self._yielded.release()
         thread.go.acquire()

@@ -225,6 +225,11 @@ def sleep(runtime: BatonRuntime, seconds: float) -> None:
     runtime.park("sleep", max(0.0, seconds))
 
 
+def yield_now(runtime: BatonRuntime) -> None:
+    """Let every thread already runnable go first, at the same ``t_k``."""
+    runtime.park("yield", requeue=True)
+
+
 def join(runtime: BatonRuntime, thread: ManagedThread, timeout: float | None = None) -> bool:
     me = runtime.current()
     if thread is me:
@@ -244,4 +249,5 @@ __all__ = [
     "BatonSemaphore",
     "join",
     "sleep",
+    "yield_now",
 ]

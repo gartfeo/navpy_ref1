@@ -25,8 +25,11 @@ class ByteSink:
         return data
 
 
-def encoder(src_system: int, src_component: int) -> tuple[mavlink.MAVLink, ByteSink]:
-    sink = ByteSink()
+def encoder(
+    src_system: int, src_component: int, sink: ByteSink | None = None,
+) -> tuple[mavlink.MAVLink, ByteSink]:
+    """One source's encoder; sources that share a port share its ``sink``."""
+    sink = ByteSink() if sink is None else sink
     link = mavlink.MAVLink(sink, srcSystem=src_system, srcComponent=src_component)
     link.robust_parsing = False
     return link, sink

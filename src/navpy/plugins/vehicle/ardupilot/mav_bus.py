@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import socket
+from collections.abc import Callable
 
 from pymavlink import mavutil
 
@@ -192,6 +193,11 @@ class MavBus:
     def wait_heartbeat(self, target_sysid: int, timeout: float = 30.0) -> bool:
         return self._heartbeats.wait_for(target_sysid, timeout)
 
+
+#: How composition opens the bus for a device string: ``MavBus.get_or_create``
+#: in wall mode; a lockstep participant passes its link's ``open`` instead.
+#: Called as ``(device, baud, source_system, source_component)``.
+MavBusOpener = Callable[..., MavBus]
 
 _registry: MavBusRegistry[MavBus] = MavBusRegistry(
     MavBusRegistryPorts(

@@ -18,7 +18,7 @@ from navpy.core.link import (  # noqa: F401  (registration imports)
     task_confirmation_msg,
 )
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
-from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
+from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusClosedError
 from gcs.backend.vehicle_entry import VehicleEntry
 from gcs.backend import vehicle_connections, vehicle_mission_probe
@@ -44,7 +44,9 @@ log = logging.getLogger(__name__)
 class VehicleManager:
     """Own the vehicle pool, its buses, listeners and telemetry loop."""
 
-    def __init__(self):
+    def __init__(self, open_bus: MavBusOpener = MavBus.get_or_create):
+        """``open_bus`` opens a device's bus: a lockstep link's ``open`` under lockstep."""
+        self._open_bus = open_bus
         self._vehicles: dict[int, VehicleEntry] = {}
         self._lock = rt.RLock()
         self._buses: dict[str, MavBus] = {}  # device -> MavBus
@@ -88,7 +90,7 @@ class VehicleManager:
                 self._buses.pop(device, None)
                 bus = None
             if bus is None:
-                bus = MavBus.get_or_create(device, source_system=255, source_component=0)
+                bus = self._open_bus(device, source_system=255, source_component=0)
                 self._buses[device] = bus
             return bus
 
