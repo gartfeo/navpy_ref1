@@ -34,7 +34,7 @@ Clocks, sleeps, locks, events, threads, timers, queues, random numbers, ids and
 `datetime.now` go through `core/kernel/runtime_time.py` (`as rt`), never
 `time`, `threading`, `queue`, `random`, `uuid` or `secrets`, in `src/navpy`
 and `src/gcs/backend`; never declare a set of objects that hash by identity
-(keep a dict). `tests/guards/test_runtime_time_lint.py` enforces both, so the
+(keep a dict), and keep every annotation resolvable from its module. `tests/guards/test_runtime_time_lint.py` enforces both, so the
 lockstep eval can bind its own runtime.
 
 ## Navigation parameters

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_GCS, MAV_COMP_ID_MISSIONPLANNER
 # NAVLINK message classes register on import (@register_msg), and every
 # VehicleMav here asks that registry which inbound MAVLink ids are NAVLINK:
@@ -34,6 +34,9 @@ from gcs.backend.vehicle_camera import (
     _coerce_gimbal_quaternion, _gimbal_device_id_from_camera_component,
     _coerce_fov_degrees_to_rad, _coerce_positive_float,
 )
+
+if TYPE_CHECKING:
+    from gcs.backend.mission_validator import MissionProbe
 
 log = logging.getLogger(__name__)
 

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from types import MappingProxyType
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from navpy.core.link.types import TaskDispatchStatus
+
+if TYPE_CHECKING:
+    from navpy.core.swarm.task_dispatch import TaskDispatch
 from navpy.core.swarm.task_auction_models import (
     TaskAssignmentPlanner,
     TaskOffer,

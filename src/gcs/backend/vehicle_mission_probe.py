@@ -9,6 +9,7 @@ from navpy.core.kernel import runtime_time as rt
 if TYPE_CHECKING:
     from gcs.backend.vehicle_manager import VehicleManager
     from gcs.backend.mission_validator import MissionProbe
+    from gcs.backend.vehicle_entry import VehicleEntry
 
 log = logging.getLogger("gcs.backend.vehicle_manager")
 

@@ -25,7 +25,7 @@ class CacheLogWorker:
     ) -> None:
         self._handler = handler
         self._on_error = on_error or self._log_error
-        self._queue: rt.Queue[object] = rt.Queue()
+        self._queue: rt.QueuePort = rt.Queue()
         self._accept_lock = rt.Lock()
         self._accepting = True
         self._launch = ThreadLaunchGate()

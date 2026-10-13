@@ -44,7 +44,7 @@ class NavigationStreamWorker(Generic[_T]):
         if type(max_pending) is not int or max_pending <= 0:
             raise ValueError("navigation stream max_pending must be positive")
         self._handler = handler
-        self._queue: rt.Queue[object] = rt.Queue()
+        self._queue: rt.QueuePort = rt.Queue()
         self._slots = rt.BoundedSemaphore(max_pending)
         self._max_pending = max_pending
         self._accept_lock = rt.Lock()

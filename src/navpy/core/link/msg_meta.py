@@ -7,9 +7,12 @@ Provides:
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Any, Optional, Tuple
 
 from navpy.core.kernel import runtime_time as rt
+
+if TYPE_CHECKING:
+    from navpy.core.link.types import MsgType
 
 
 @dataclass

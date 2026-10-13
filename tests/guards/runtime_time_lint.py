@@ -17,6 +17,7 @@ import dataclasses
 import enum
 import importlib
 import sys
+import sysconfig
 import types
 import typing
 import weakref
@@ -40,6 +41,10 @@ EXEMPT = {
         "vendored SIYI SDK, pinned by hash: it drives the real gimbal over UDP "
         "and never runs in the simulated stack"
     ),
+    "src/navpy/sim/radio/serial_sim_server.py": (
+        "the integration-test serial radio simulator: its own host process "
+        "(scripts/tests_integration), never part of the demo eval stack"
+    ),
     "src/gcs/backend/instance_registry": (
         "the machine-wide slot registry: host process liveness and claim "
         "times, never a product outcome"
@@ -59,11 +64,46 @@ SYSTEM_CLOCK_ROOTS = frozenset({"scripts/eval_gcs_demo_runtime.py"})
 BANNED_MODULES = frozenset({
     "time", "timeit", "threading", "_thread", "queue", "random", "uuid", "secrets",
     "concurrent.futures", "numpy.random", "os.urandom",
+    "multiprocessing", "email.utils",  # host processes and pools; formatdate, localtime, make_msgid
+})
+# Host clocks, entropy and workers in the public API of reviewed modules.
+BANNED_MEMBERS = frozenset({
+    "cv2.getTickCount", "cv2.getTickFrequency", "cv2.getCPUTickCount",
+    "torch.rand", "torch.rand_like", "torch.randn", "torch.randn_like",
+    "torch.randint", "torch.randint_like", "torch.randperm", "torch.bernoulli",
+    "torch.multinomial", "torch.normal", "torch.poisson", "torch.manual_seed",
+    "torch.seed", "torch.random", "torch.cuda.manual_seed", "torch.Generator",
+    "logging.handlers.QueueListener", "os.getrandom", "os.times",
+    "socket.getdefaulttimeout",
+})
+# Every module outside navpy/gcs that covered code imports, reviewed: a new
+# one fails until it is added here. Several are host-capable boundaries
+# (sockets, serial, MAVLink transport, asyncio, logging, ML runtimes): the
+# lint cannot see their internal clocks and threads; step 9 replaces the
+# transports and its thread audit and journal catch the rest.
+EXTERNAL_IMPORTS = frozenset({
+    "__future__", "abc", "argparse", "asyncio", "atexit", "base64", "bisect",
+    "boxmot.motion.cmc", "boxmot.reid.core", "boxmot.trackers.bbox.botsort.botsort",
+    "boxmot.trackers.bbox.strongsort.strongsort", "builtins", "collections",
+    "collections.abc", "contextlib", "contextvars", "copy", "csv", "ctypes", "cv2",
+    "dataclasses", "datetime", "enum", "fastapi", "fastapi.middleware.cors",
+    "fastapi.responses", "fastapi.staticfiles", "geopy.distance", "geopy.point",
+    "glob", "hashlib", "http.server", "importlib", "io", "itertools", "json",
+    "logging", "logging.handlers", "math", "numbers", "numpy", "orjson", "os",
+    "pathlib", "pydantic", "pymap3d", "pymavlink", "pymavlink.dialects.v20.ardupilotmega",
+    "pymavlink.generator.mavcrc", "pymavlink.mavextra", "pymavlink.mavutil",
+    "pymavlink.mavwp", "re", "requests", "serial", "shutil", "socket",
+    "starlette.background", "starlette.types", "struct", "subprocess", "sys",
+    "tempfile", "tkinter", "torch", "traceback", "types", "typing", "ultralytics",
+    "urllib.parse", "weakref", "zipfile", "zmq",
 })
 WALL_DATETIME = frozenset({
     "datetime.datetime.now", "datetime.datetime.today", "datetime.datetime.utcnow",
     "datetime.date.today",
 })
+PRODUCT = ("navpy", "gcs")
+FIRST_PARTY = (*PRODUCT, "scripts")  # runtime identity: the operator's modules too
+CLOCK_CLASSES = frozenset(symbol.rsplit(".", 1)[0] for symbol in WALL_DATETIME)
 PORT = "navpy.core.kernel.runtime_time"
 # Building the wall runtime directly would bypass the bound one.
 PORT_INTERNALS = frozenset(
@@ -74,6 +114,12 @@ IMPORTERS = frozenset({"__import__", "importlib.import_module"})
 # A dynamic import of these may stay: they are the covered packages themselves.
 FIRST_PARTY_PREFIXES = ("navpy.", "gcs.")
 VALUE_HASHED = (int, str, float, bytes, bool, complex, type(None))
+# Third-party types reviewed to hash by value (none needed yet).
+REVIEWED_VALUE_HASHES: frozenset[type] = frozenset()
+# Bound methods hash their receiver, whose hash is unknown.
+RECEIVER_HASHED = (types.MethodType, types.BuiltinMethodType, types.MethodWrapperType)
+SET_WORDS = frozenset({"set", "frozenset", "Set", "FrozenSet", "AbstractSet", "MutableSet"})
+UNIONS = (typing.Union, getattr(types, "UnionType", typing.Union))  # 3.9: no UnionType
 
 
 @dataclass(frozen=True)
@@ -94,6 +140,17 @@ def covered_files() -> list[tuple[str, Path]]:
             if not any(relative.startswith(prefix) for prefix in EXEMPT):
                 files.append((relative, path))
     return files
+
+
+def external_imports(tree: ast.AST) -> set[str]:
+    """Modules outside navpy/gcs a file imports (absolute imports)."""
+    found = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found |= {alias.name for alias in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            found.add(node.module)
+    return {name for name in found if name.split(".", 1)[0] not in PRODUCT}
 
 
 def operator_files() -> list[tuple[str, Path]]:
@@ -136,7 +193,30 @@ def _type_checking_nodes(tree: ast.AST) -> set[int]:
 
 
 def _banned(symbol: str) -> bool:
-    return any(symbol == name or symbol.startswith(name + ".") for name in BANNED_MODULES)
+    return any(
+        symbol == name or symbol.startswith(name + ".") for name in BANNED_MODULES | BANNED_MEMBERS
+    )
+
+
+LOCAL = "<local>"  # the symbols of a module's own classes
+
+
+def _class_statements(node: ast.ClassDef) -> list[ast.stmt]:
+    """The statements a class body runs, in any nested block (if, for, try,
+    with, ...), but not those of its methods or nested classes."""
+    found: list[ast.stmt] = []
+    pending = list(node.body)
+    while pending:
+        statement = pending.pop(0)
+        found.append(statement)
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        pending += [child for child in ast.iter_child_nodes(statement) if isinstance(child, ast.stmt)]
+        for handler in getattr(statement, "handlers", []):
+            pending += handler.body
+        for case in getattr(statement, "cases", []):
+            pending += case.body
+    return found
 
 
 def _stands_for(symbols: set[str], module: str) -> bool:
@@ -149,7 +229,10 @@ class _Symbols:
     Imports bind names (``import datetime as dt``: ``dt`` is ``datetime``;
     ``from importlib import import_module``: ``importlib.import_module``;
     a relative import keeps its dots). Assignments alias them: names,
-    attribute chains (``self.kind = datetime``) and tuple unpacking.
+    attribute chains (``self.kind = datetime``) and tuple unpacking. A class
+    of the module is the symbol ``<local>.Name``, standing also for its
+    bases; its attributes are ``<local>.Name.attr``, read through the class,
+    a subclass, ``self`` or ``cls``.
     """
 
     _ROUNDS = 8  # alias chains are short; this bounds self-referencing ones
@@ -167,15 +250,24 @@ class _Symbols:
                 for alias in node.names:
                     if alias.name != "*":
                         self._bind(alias.asname or alias.name, {f"{base}.{alias.name}"})
+            elif isinstance(node, ast.ClassDef):
+                self._bind(node.name, {f"{LOCAL}.{node.name}"})
         pairs = []
         for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef):  # ``clock = rt`` read as ``self.clock``
-                for statement in node.body:
+            if isinstance(node, ast.ClassDef):
+                # ``class Stamp(datetime)``: ``Stamp.now`` is ``datetime.now``
+                pairs += [(node.name, base) for base in node.bases]
+                pairs += [("super()", base) for base in node.bases]  # ``super().now()``
+                pairs += [(owner, ast.Name(node.name, ast.Load())) for owner in ("self", "cls")]
+                for statement in _class_statements(node):  # ``clock = rt``: ``Hub.clock``
                     if isinstance(statement, (ast.Assign, ast.AnnAssign)) and statement.value is not None:
                         targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
                         for target in targets:
-                            if isinstance(target, ast.Name):
-                                pairs += [(f"{owner}.{target.id}", statement.value) for owner in ("self", "cls")]
+                            pairs += [
+                                (f"{LOCAL}.{node.name}.{key}", value)
+                                for key, value in self._pairs(target, statement.value)
+                                if key.isidentifier()
+                            ]
             if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None:
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 for target in targets:
@@ -230,10 +322,16 @@ class _Symbols:
             return set(bound) if bound else (set() if bound_only else {expression.id})
         if isinstance(expression, ast.Attribute):
             symbols = set(self._bound.get(ast.unparse(expression), ()))
-            return symbols | {
-                f"{owner}.{expression.attr}"
-                for owner in self.resolve(expression.value, bound_only=bound_only)
-            }
+            for owner in self.resolve(expression.value, bound_only=bound_only):
+                member = f"{owner}.{expression.attr}"
+                symbols |= {member} | self._bound.get(member, set())
+            return symbols
+        if isinstance(expression, ast.BoolOp):  # ``provider or datetime``: either
+            return set().union(*(self.resolve(value, bound_only=bound_only) for value in expression.values))
+        if isinstance(expression, ast.IfExp):  # ``a if test else b``: either
+            return self.resolve(expression.body, bound_only=bound_only) | self.resolve(
+                expression.orelse, bound_only=bound_only,
+            )
         if isinstance(expression, ast.Call):  # import_module("datetime") is datetime
             importer = self.resolve(expression.func) & IMPORTERS
             target = expression.args[0] if expression.args else next(
@@ -242,7 +340,68 @@ class _Symbols:
             if importer and isinstance(target, ast.Constant) and isinstance(target.value, str):
                 name = target.value
                 return {name.split(".")[0] if importer == {"__import__"} else name}
+            if isinstance(expression.func, ast.Name) and expression.func.id == "super":
+                return set(self._bound.get("super()", ()))
+            # an instance carries its class's members: ``API().port``, ``datetime(...).now``
+            called = self.resolve(expression.func, bound_only=bound_only)
+            return {
+                symbol for symbol in called | reexported(called)
+                if symbol.startswith(f"{LOCAL}.") or symbol in CLOCK_CLASSES
+            }
         return set()
+
+
+_MISSING = object()
+
+
+def runtime_object(symbol: str) -> object:
+    """The object a first-party qualified symbol names at runtime (importing
+    its module), or a sentinel when it is not first-party or not found."""
+    parts = symbol.split(".")
+    if parts[0] not in FIRST_PARTY:
+        return _MISSING
+    found: object = importlib.import_module(parts[0])
+    for index, attribute in enumerate(parts[1:], start=2):
+        member = getattr(found, attribute, _MISSING)
+        if member is _MISSING and isinstance(found, types.ModuleType):
+            try:  # a submodule not imported yet
+                member = importlib.import_module(".".join(parts[:index]))
+            except Exception:
+                return _MISSING
+        if member is _MISSING:
+            return _MISSING
+        found = member
+    return found
+
+
+def reexported(symbols: set[str]) -> set[str]:
+    """What first-party symbols are at runtime, as host symbols: a module, a
+    function or class by its home module (``helper.clock`` re-exporting
+    ``runtime_time`` is the port), a bound wall ``datetime`` read."""
+    found = set()
+    for held in map(runtime_object, symbols):
+        if held is _MISSING:
+            continue
+        if isinstance(held, types.ModuleType):
+            found.add(held.__name__)
+            continue
+        if isinstance(held, type):  # a class stands for its bases: Timestamp(datetime)
+            found |= {f"{base.__module__}.{base.__qualname__}" for base in held.__mro__}
+        owner = getattr(held, "__self__", None)  # a bound method: datetime.now
+        if isinstance(owner, type):  # named by the class defining it (Timestamp.now: datetime.now)
+            method = getattr(held, "__name__", "")
+            definer = next((base for base in owner.__mro__ if method in base.__dict__), owner)
+            found.add(f"{definer.__module__}.{definer.__qualname__}.{method}")
+        home, name = getattr(held, "__module__", None), getattr(held, "__qualname__", None)
+        if isinstance(home, str) and isinstance(name, str):
+            found.add(f"{home}.{name}")
+        elif not callable(held):  # an instance matters as a clock: a datetime, a SystemClock
+            found |= {
+                symbol for base in type(held).__mro__
+                for symbol in [f"{base.__module__}.{base.__qualname__}"]
+                if symbol in CLOCK_CLASSES or base.__name__ == "SystemClock"
+            }
+    return found
 
 
 def outermost_references(tree: ast.AST) -> list[ast.expr]:
@@ -256,14 +415,17 @@ def outermost_references(tree: ast.AST) -> list[ast.expr]:
 
 
 def _dynamic_import(node: ast.Call, symbols: _Symbols) -> str | None:
-    """The module a dynamic import may load, unless it is first-party."""
+    """The module a dynamic import may load, unless it is first-party or a
+    reviewed external module."""
     if not symbols.resolve(node.func) & IMPORTERS:
         return None
     target = node.args[0] if node.args else next(
         (keyword.value for keyword in node.keywords if keyword.arg == "name"), None,
     )
     if isinstance(target, ast.Constant) and isinstance(target.value, str):
-        return target.value if _banned(target.value) else None
+        name = target.value
+        reviewed = name.split(".", 1)[0] in PRODUCT or name in EXTERNAL_IMPORTS
+        return name if _banned(name) or not reviewed else None
     if (
         isinstance(target, ast.JoinedStr)
         and target.values
@@ -327,10 +489,18 @@ def host_use_findings(
             dynamic = _dynamic_import(node, symbols)
             if dynamic is not None:
                 findings.append(Finding(path, node.lineno, f"dynamic import of {dynamic}: use runtime_time"))
+    typed = _annotation_node_ids(tree)
+    parents = {id(child): node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
     for node in outermost_references(tree):
         if id(node) in annotation_only:
             continue
         resolved = symbols.resolve(node, bound_only=True)
+        resolved |= reexported(resolved)
+        held_module = _held_module(node, resolved, parents)
+        if held_module is not None:
+            findings.append(Finding(path, node.lineno, f"module {held_module} held as a value: name its members"))
+        if resolved & CLOCK_CLASSES and id(node) not in typed and not _uses_a_class(node, parents):
+            findings.append(Finding(path, node.lineno, f"{min(resolved & CLOCK_CLASSES)} held as a value: read time through rt.now"))
         wall = resolved & WALL_DATETIME
         internals = (resolved & PORT_INTERNALS) | {
             symbol for symbol in resolved if symbol.startswith(f"{PORT}._")
@@ -345,6 +515,58 @@ def host_use_findings(
         elif banned:
             findings.append(Finding(path, node.lineno, f"{min(banned)}: use runtime_time"))
     return findings
+
+
+def _held_module(node: ast.expr, resolved: set[str], parents: dict[int, ast.AST]) -> str | None:
+    """An external module held as a value: it would carry its clocks and
+    entropy wherever it flows (``providers = {"wall": datetime}``). Reading
+    a constant member (``getattr(subprocess, "CREATE_NO_WINDOW", 0)``) is
+    not holding it; that member is checked against the bans instead."""
+    modules = {
+        symbol for symbol in resolved
+        if symbol.split(".", 1)[0] not in FIRST_PARTY and isinstance(sys.modules.get(symbol), types.ModuleType)
+    }
+    if not modules:
+        return None
+    parent = parents.get(id(node))
+    if (
+        isinstance(parent, ast.Call) and isinstance(parent.func, ast.Name)
+        and parent.func.id in ("getattr", "hasattr") and parent.args and parent.args[0] is node
+    ):  # a computed name is reflection, outside this net
+        name = parent.args[1] if len(parent.args) > 1 else None
+        if not (isinstance(name, ast.Constant) and isinstance(name.value, str)):
+            return None
+        member = {f"{module}.{name.value}" for module in modules}
+        return min(member) if any(map(_banned, member)) else None
+    return min(modules)
+
+
+def _annotation_node_ids(tree: ast.AST) -> set[int]:
+    found = set()
+    for node in ast.walk(tree):
+        for annotation in (getattr(node, "annotation", None), getattr(node, "returns", None)):
+            if annotation is not None:
+                found |= {id(part) for part in ast.walk(annotation)}
+    return found
+
+
+_TYPE_TESTS = frozenset({"isinstance", "issubclass"})
+
+
+def _uses_a_class(node: ast.expr, parents: dict[int, ast.AST]) -> bool:
+    """A class read in place: called (``datetime(2020, 1, 1)``), subclassed,
+    or tested (``isinstance(x, (date, datetime))``), never held as a value."""
+    parent = parents.get(id(node))
+    if isinstance(parent, ast.Call) and parent.func is node:
+        return True
+    if isinstance(parent, ast.ClassDef) and node in parent.bases:
+        return True
+    if isinstance(parent, ast.Tuple):  # isinstance(x, (date, datetime))
+        node, parent = parent, parents.get(id(parent))
+    return (
+        isinstance(parent, ast.Call) and isinstance(parent.func, ast.Name)
+        and parent.func.id in _TYPE_TESTS and node in parent.args[1:]
+    )
 
 
 def operator_findings(path: str, source: str) -> list[Finding]:
@@ -377,13 +599,15 @@ def operator_findings(path: str, source: str) -> list[Finding]:
         if _stands_for(imported, PORT):
             findings.append(Finding(path, node.lineno, "runtime_time in the operator: take StackContext.clock"))
     for node in outermost_references(tree):
-        if _stands_for(symbols.resolve(node, bound_only=True), PORT):
+        resolved = symbols.resolve(node, bound_only=True)
+        if _stands_for(resolved | reexported(resolved), PORT):
             findings.append(Finding(path, node.lineno, "runtime_time in the operator: take StackContext.clock"))
     return findings
 
 
 def system_clock_findings(path: str, source: str) -> list[Finding]:
-    """Any reference to SystemClock, under any name, outside the composition root."""
+    """Any reference to SystemClock (the class, an instance, a method), under
+    any name, outside the composition root."""
     if path in SYSTEM_CLOCK_ROOTS:
         return []
     tree = ast.parse(source)
@@ -392,7 +616,10 @@ def system_clock_findings(path: str, source: str) -> list[Finding]:
         Finding(path, node.lineno, "SystemClock: take StackContext.clock")
         for node in ast.walk(tree)
         if isinstance(node, (ast.Name, ast.Attribute)) and isinstance(node.ctx, ast.Load)
-        and any(symbol.rsplit(".", 1)[-1] == "SystemClock" for symbol in symbols.resolve(node))
+        and any(  # the class, an instance or a method of it, under any name
+            "SystemClock" in symbol.split(".")
+            for symbol in symbols.resolve(node) | reexported(symbols.resolve(node))
+        )
     ]
 
 
@@ -403,6 +630,9 @@ def system_clock_findings(path: str, source: str) -> list[Finding]:
 # locals, aliases, nested in containers or typing wrappers) whose element
 # type hashes by object identity. Without such a set there is nothing whose
 # iteration order could follow memory addresses, whatever path it would take.
+# The check fails closed: every annotation (and ``# type:`` comment) must
+# resolve from its module and enclosing classes, so an alias the lint does
+# not collect cannot hide a set behind a name it cannot read.
 # A set built with no annotation at all is outside this first net; the
 # lockstep journal catches the order it produces at the first tick it
 # reaches a byte.
@@ -422,6 +652,39 @@ def _hand_written_first_party(hash_fn: object) -> bool:
     return path.is_relative_to(ROOT) and not {".venv", "site-packages"} & set(path.parts)
 
 
+class _Unions(ast.NodeTransformer):
+    def visit_BinOp(self, node: ast.BinOp) -> ast.expr:
+        self.generic_visit(node)
+        if not isinstance(node.op, ast.BitOr):
+            return node
+        union = ast.Name(UNION_NAME, ast.Load())
+        return ast.Subscript(union, ast.Tuple([node.left, node.right], ast.Load()), ast.Load())
+
+
+UNION_NAME = "__lint_union__"
+
+
+def evaluate(text: str, namespace: dict) -> object:
+    """Evaluate a type expression, reading ``X | Y`` as ``Union[X, Y]``
+    (Python 3.9 cannot evaluate ``|`` between types)."""
+    tree = ast.fix_missing_locations(_Unions().visit(ast.parse(text.strip(), mode="eval")))
+    return eval(compile(tree, "<annotation>", "eval"), {**namespace, UNION_NAME: typing.Union})  # noqa: S307
+
+
+def _standard_library(top: str) -> bool:
+    """Whether a top-level module is the standard library (Python 3.9 has no
+    ``sys.stdlib_module_names``: read where the module lives instead)."""
+    names = getattr(sys, "stdlib_module_names", None)
+    if names is not None:
+        return top in names or top == "builtins"
+    module = sys.modules.get(top)
+    source = getattr(module, "__file__", None)
+    if module is None or source is None:
+        return module is not None  # a built-in module
+    path = Path(source).resolve()
+    return path.is_relative_to(Path(sysconfig.get_paths()["stdlib"]).resolve()) and "site-packages" not in path.parts
+
+
 def _forward_chain(kind: object, namespace: dict) -> tuple[object, list[str]]:
     """Resolve a forward reference (a string or ForwardRef) through its whole
     alias chain: (the type or None if a step fails or the chain cycles, every
@@ -432,11 +695,38 @@ def _forward_chain(kind: object, namespace: dict) -> tuple[object, list[str]]:
         if text in texts:
             return None, texts  # a cycle
         texts.append(text)
+        names = _definers(text, namespace)
+        if names is None:
+            return None, texts
         try:
-            kind = eval(text, dict(namespace))  # noqa: S307 - our own annotations
+            kind = evaluate(text, names)
         except Exception:
             return None, texts
     return kind, texts
+
+
+def _definers(text: str, namespace: dict) -> dict | None:
+    """What each name in a forward reference stands for, wherever the
+    reference came from: the one object the first-party modules and
+    ``namespace`` bind it to (``JsonValue = Union[..., list["JsonValue"]]``
+    resolves where it is defined, wherever it is imported). A name bound to
+    different objects in different modules is ambiguous: None, unresolved.
+    A name nobody binds is left to the builtins."""
+    try:
+        names = {node.id for node in ast.walk(ast.parse(text.strip(), mode="eval")) if isinstance(node, ast.Name)}
+    except SyntaxError:
+        return None
+    homes = [namespace] + [
+        vars(module) for name, module in list(sys.modules.items())
+        if name.split(".", 1)[0] in PRODUCT and hasattr(module, "__dict__")
+    ]
+    found = {}
+    for name in names:
+        objects = {id(home[name]): home[name] for home in homes if name in home}
+        if len(objects) > 1:
+            return None
+        found.update({name: value for value in objects.values()})
+    return found
 
 
 def _forward(kind: object, namespace: dict) -> object:
@@ -469,8 +759,8 @@ def id_hashed(kind: object, namespace: dict | None = None,
             return any(id_hashed(type(value), namespace, seen) for value in typing.get_args(kind))
         if origin is typing.Annotated:
             return id_hashed(args[0], namespace, seen)
-        if origin in (typing.Union, types.UnionType, tuple, frozenset):  # contents decide
-            return any(id_hashed(arg, namespace, seen) for arg in args)
+        if origin in (*UNIONS, tuple, frozenset):  # contents decide; none given: unknown
+            return not args or any(id_hashed(arg, namespace, seen) for arg in args)
         if isinstance(origin, type):  # a generic class: its own hash, then its arguments
             return id_hashed(origin, namespace, seen) or any(
                 id_hashed(arg, namespace, seen) for arg in args
@@ -488,8 +778,8 @@ def id_hashed(kind: object, namespace: dict | None = None,
         return True
     if (
         (issubclass(kind, (tuple, frozenset)) and not hasattr(kind, "_fields"))
-        or issubclass(kind, weakref.ref)
-    ):  # a bare container, or a weak reference: the contents decide, and are unknown
+        or issubclass(kind, (weakref.ref, *RECEIVER_HASHED))
+    ):  # a bare container, a weak reference, a bound method: what it holds decides
         return True
     hash_fn = kind.__hash__
     if hash_fn is None:  # unhashable: never a set element
@@ -502,7 +792,11 @@ def id_hashed(kind: object, namespace: dict | None = None,
         return True
     if dataclasses.is_dataclass(kind) or (issubclass(kind, tuple) and hasattr(kind, "_fields")):
         return _fields_id_hashed(kind, namespace, seen)
-    return False  # a value hash from the standard library or a third party
+    owner = next((base for base in kind.__mro__ if "__hash__" in base.__dict__), kind)
+    home = owner.__module__.split(".", 1)[0]
+    # the standard library's value types are trusted; a third party's hash is
+    # unknown (torch.Tensor hashes by id) unless reviewed
+    return not (_standard_library(home) or owner in REVIEWED_VALUE_HASHES)
 
 
 def _fields_id_hashed(kind: type, namespace: dict, seen: frozenset[int]) -> bool:
@@ -513,14 +807,18 @@ def _fields_id_hashed(kind: type, namespace: dict, seen: frozenset[int]) -> bool
         hints = typing.get_type_hints(kind)
     except Exception:  # resolve the hashed fields one by one
         hints = {}
-        module = vars(importlib.import_module(kind.__module__)) if kind.__module__ in sys.modules else {}
-        for name, annotation in getattr(kind, "__annotations__", {}).items():
-            resolved = _forward(annotation, {**module, **namespace})
-            if resolved is not None:
-                hints[name] = resolved
-    if dataclasses.is_dataclass(kind):
+        for owner in reversed(kind.__mro__):  # inherited fields first, each in its module
+            module = vars(sys.modules[owner.__module__]) if owner.__module__ in sys.modules else {}
+            for name, annotation in owner.__dict__.get("__annotations__", {}).items():
+                resolved = _forward(annotation, module or namespace)
+                if resolved is None:
+                    hints.pop(name, None)
+                else:
+                    hints[name] = resolved
+    owner = next((base for base in kind.__mro__ if "__hash__" in base.__dict__), kind)
+    if dataclasses.is_dataclass(owner):  # the class whose generated hash this is
         names = [
-            field.name for field in dataclasses.fields(kind)
+            field.name for field in dataclasses.fields(owner)
             if (field.hash if field.hash is not None else field.compare)
         ]
     else:
@@ -533,13 +831,15 @@ def _fields_id_hashed(kind: type, namespace: dict, seen: frozenset[int]) -> bool
 def identity_sets(kind: object, namespace: dict | None = None,
                   seen: frozenset[int] = frozenset()) -> list[str]:
     """Every set type inside ``kind`` whose elements hash by identity, and
-    every forward reference naming a set that does not resolve."""
+    every forward reference that does not resolve."""
     namespace = namespace or {}
     if isinstance(kind, (str, typing.ForwardRef)):
         resolved, texts = _forward_chain(kind, namespace)
-        if resolved is None:  # fail closed when any step of the chain named a set
-            return [f"unresolved {texts[-1]!r}"] if any(map(_mentions_a_set, texts)) else []
+        if resolved is None:  # fail closed: what it names is unknown
+            return [f"unresolved {texts[-1]!r}"]
         kind = resolved
+    if isinstance(kind, tuple):  # ``Clients, Names = set[Client], set[str]``
+        return [found for item in kind for found in identity_sets(item, namespace, seen)]
     if hasattr(kind, "__supertype__"):  # NewType("Clients", set[Client])
         return identity_sets(kind.__supertype__, namespace, seen)
     if hasattr(kind, "__value__") and not isinstance(kind, type):  # a TypeAliasType
@@ -561,21 +861,6 @@ def identity_sets(kind: object, namespace: dict | None = None,
     return found
 
 
-def _module_statements(tree: ast.Module) -> list[ast.stmt]:
-    """Module-level statements, including those inside if/try/with blocks."""
-    found: list[ast.stmt] = []
-    pending = list(tree.body)
-    while pending:
-        node = pending.pop(0)
-        found.append(node)
-        if isinstance(node, (ast.If, ast.Try, ast.With)):
-            for block in ("body", "orelse", "finalbody"):
-                pending += getattr(node, block, [])
-            for handler in getattr(node, "handlers", []):
-                pending += handler.body
-    return found
-
-
 def _set_words(tree: ast.Module) -> set[str]:
     """Set type names, plus the names a module imports them under."""
     return set(SET_WORDS) | {
@@ -585,23 +870,87 @@ def _set_words(tree: ast.Module) -> set[str]:
     }
 
 
-def set_alias_names(sources: dict[str, str]) -> set[str]:
-    """Module-level names assigned a type that mentions a set, anywhere."""
-    names = set()
-    for source in sources.values():
-        tree = ast.parse(source)
-        words = _set_words(tree)
-        for node in _module_statements(tree):
-            if (
-                isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None
-                and _words(ast.unparse(node.value)) & words
-            ):
-                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-                names |= {target.id for target in targets if isinstance(target, ast.Name)}
-    return names
+def _scoped_nodes(tree: ast.Module) -> list[tuple[tuple[str, ...], ast.AST]]:
+    """Every node, with the classes enclosing it."""
+    found = []
+    pending = [((), tree)]
+    while pending:
+        scope, node = pending.pop()
+        for child in ast.iter_child_nodes(node):
+            found.append((scope, child))
+            pending.append((scope + (child.name,) if isinstance(child, ast.ClassDef) else scope, child))
+    return found
 
 
-SET_WORDS = frozenset({"set", "frozenset", "Set", "FrozenSet", "AbstractSet", "MutableSet"})
+def _type_expression(node: ast.expr) -> bool:
+    """Whether a value is spelled like a type: names, subscripts, unions,
+    tuples of them, a quoted subscript."""
+    if isinstance(node, (ast.Name, ast.Attribute)):
+        return True
+    if isinstance(node, ast.Subscript):
+        return _type_expression(node.value)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return _type_expression(node.left) and _type_expression(node.right)
+    if isinstance(node, ast.Tuple):
+        return all(map(_type_expression, node.elts))
+    if isinstance(node, ast.Constant):
+        return node.value is None or (isinstance(node.value, str) and "[" in node.value)
+    return False
+
+
+TYPE_WRAPPERS = frozenset(
+    f"{module}.{name}" for module in ("typing", "typing_extensions") for name in ("NewType", "TypeAliasType")
+)
+
+
+def _alias_parts(value: ast.expr, symbols: _Symbols) -> list[ast.expr]:
+    """The parts of an assigned value that may each be a type: the elements
+    of a tuple or list, every argument of a type wrapper under any name
+    (``NewType("X", set)``), and the arguments of another call other than
+    bare names (``field(default_factory=set)`` builds a set, it declares no
+    type)."""
+    if isinstance(value, (ast.Tuple, ast.List)):
+        return [part for element in value.elts for part in _alias_parts(element, symbols)]
+    if isinstance(value, ast.Call):
+        arguments = [*value.args, *(keyword.value for keyword in value.keywords)]
+        wrapper = symbols.resolve(value.func)
+        if not (wrapper | reexported(wrapper)) & TYPE_WRAPPERS:
+            arguments = [argument for argument in arguments if not isinstance(argument, (ast.Name, ast.Attribute))]
+        return [part for argument in arguments for part in _alias_parts(argument, symbols)]
+    return [value]
+
+
+_TYPE_STATEMENT = getattr(ast, "TypeAlias", ())  # ``type X = ...`` (Python 3.12+)
+
+
+def _set_aliases(tree: ast.Module, path: str | None = None) -> list[tuple[tuple[str, ...], int, ast.expr]]:
+    """Values assigned anywhere (module, class, function) that are types
+    mentioning a set: each is checked where it is declared."""
+    words = _set_words(tree)
+    symbols = _Symbols(tree, path)
+    return [
+        (scope, node.lineno, part) for scope, node in _scoped_nodes(tree)
+        if isinstance(node, (ast.Assign, ast.AnnAssign, _TYPE_STATEMENT)) and node.value is not None
+        for part in _alias_parts(node.value, symbols)
+        if _type_expression(part) and _spelled_words(part) & words
+    ]
+
+
+def _spelled_words(node: ast.expr) -> set[str]:
+    """The names a value spells, and the words of quoted types in it
+    (``row['set']`` spells ``row``; ``Optional['Bag[X]']`` spells ``Bag``)."""
+    words = set()
+    for part in ast.walk(node):
+        if isinstance(part, ast.Name):
+            words.add(part.id)
+        elif isinstance(part, ast.Attribute):
+            words.add(part.attr)
+        elif isinstance(part, ast.Constant) and isinstance(part.value, str) and (
+            part is node or "[" in part.value
+        ):
+            words |= _words(part.value)
+    return words
+
 
 
 def _words(text: str) -> set[str]:
@@ -610,30 +959,38 @@ def _words(text: str) -> set[str]:
     return set(text.split())
 
 
-def _mentions_a_set(text: str) -> bool:
-    return bool(_words(text) & SET_WORDS)
-
-
-def _annotations(tree: ast.Module) -> list[tuple[int, ast.expr]]:
+def _annotations(tree: ast.Module, path: str | None = None) -> list[tuple[int, ast.expr, tuple[str, ...]]]:
     """Every annotation in the module (assignments, parameters, returns), and
-    every module-level alias value that names a set (``Clients = set[X]``,
-    ``Clients: TypeAlias = ...``)."""
-    found = []
-    words = _set_words(tree)
-    for node in _module_statements(tree):
-        if (
-            isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None
-            and _words(ast.unparse(node.value)) & words
-        ):
-            found.append((node.lineno, node.value))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.AnnAssign):
-            found.append((node.lineno, node.annotation))
-        elif isinstance(node, ast.arg) and node.annotation is not None:
-            found.append((node.lineno, node.annotation))
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.returns is not None:
-            found.append((node.lineno, node.returns))
-    return found
+    ``# type:`` comments, and every alias value that names a set (``Clients
+    = set[X]``, ``Clients: TypeAlias = ...``), with the classes enclosing it.
+    Annotations are evaluated without a function's locals: one inside a
+    function must resolve from the module and its classes."""
+    found = [(line, part, scope) for scope, line, part in _set_aliases(tree, path)]
+    for scope, child in _scoped_nodes(tree):
+        if isinstance(child, ast.AnnAssign):
+            found.append((child.lineno, child.annotation, scope))
+        elif isinstance(child, ast.arg) and child.annotation is not None:
+            found.append((child.lineno, child.annotation, scope))
+        elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.returns is not None:
+            found.append((child.lineno, child.returns, scope))
+        comment = getattr(child, "type_comment", None)
+        if comment and isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            signature = ast.parse(comment, mode="func_type")  # ``(int, str) -> set[X]``
+            found += [(child.lineno, part, scope) for part in [*signature.argtypes, signature.returns]]
+        elif comment:
+            found.append((child.lineno, ast.Constant(comment), scope))
+    return sorted(found, key=lambda item: item[0])
+
+
+def _scope_namespace(namespace: dict, scope: tuple[str, ...]) -> dict:
+    """The module namespace with the names of each enclosing class added."""
+    merged, owner = dict(namespace), None
+    for name in scope:
+        owner = namespace.get(name) if owner is None else getattr(owner, name, None)
+        if not isinstance(owner, type):
+            break  # a class built inside a function: only the module is known
+        merged.update(vars(owner))
+    return merged
 
 
 def _annotation_text(annotation: ast.expr) -> str:
@@ -643,13 +1000,12 @@ def _annotation_text(annotation: ast.expr) -> str:
 
 
 def identity_set_findings(path: str, source: str, module: str,
-                          aliases: set[str] = frozenset(),
                           namespace: dict | None = None) -> list[Finding]:
     """Declared sets whose elements hash by identity. Every annotation is
     evaluated in the module's namespace (``namespace`` overrides importing
     ``module``); one that names a set and does not resolve is a finding."""
-    tree = ast.parse(source)
-    annotations = _annotations(tree)
+    tree = ast.parse(source, type_comments=True)
+    annotations = _annotations(tree, path)
     if not annotations:
         return []
     namespace = dict(namespace if namespace is not None else vars(importlib.import_module(module)))
@@ -661,16 +1017,15 @@ def identity_set_findings(path: str, source: str, module: str,
                         exec(compile(ast.Module([statement], []), path, "exec"), namespace)  # noqa: S102
                     except Exception:
                         pass
-    words = _set_words(tree) | set(aliases)
     findings = []
-    for line, annotation in annotations:
+    for line, annotation, scope in annotations:
         text = _annotation_text(annotation)
+        scoped = _scope_namespace(namespace, scope)
         try:
-            kind = eval(text, namespace)  # noqa: S307 - our own annotations
-        except Exception:
-            if _words(text) & words:
-                findings.append(Finding(path, line, f"cannot resolve {text!r}: declare the set with resolvable types"))
+            kind = evaluate(text, scoped)
+        except Exception:  # fail closed: what it names is unknown
+            findings.append(Finding(path, line, f"cannot resolve {text!r}: annotations must resolve from the module"))
             continue
-        for found in identity_sets(kind, namespace):
+        for found in identity_sets(kind, scoped):
             findings.append(Finding(path, line, f"{found} orders by object identity: keep a dict"))
     return findings

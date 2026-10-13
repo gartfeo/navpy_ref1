@@ -36,6 +36,18 @@ class LockPort(Protocol):
     def __exit__(self, *exc: object) -> object: ...
 
 
+class QueuePort(Protocol):
+    """What callers of a runtime queue may use (annotations only)."""
+
+    def put(self, item: Any, block: bool = True, timeout: Optional[float] = None) -> None: ...
+
+    def get(self, block: bool = True, timeout: Optional[float] = None) -> Any: ...
+
+    def task_done(self) -> None: ...
+
+    def join(self) -> None: ...
+
+
 class ClockPort(Protocol):
     def monotonic(self) -> float: ...
 
@@ -272,7 +284,7 @@ def token_urlsafe(nbytes: Optional[int] = None) -> str:
 
 __all__ = [
     "BoundedSemaphore", "ClockPort", "Condition", "Empty", "EntropyPort", "Event",
-    "Lock", "LockPort", "Queue", "RLock", "RuntimeBinding", "RuntimeTime",
+    "Lock", "LockPort", "Queue", "QueuePort", "RLock", "RuntimeBinding", "RuntimeTime",
     "Semaphore", "Thread", "ThreadsPort", "Timer", "WallClock", "WallEntropy",
     "WallThreads", "bind", "current_thread", "get_ident", "monotonic", "now",
     "perf_counter", "rng", "sleep", "time", "token_urlsafe", "uuid4", "wall_runtime",
