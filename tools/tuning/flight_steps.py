@@ -26,6 +26,9 @@ THROTTLE_LOW_PWM = 1000        # the transmitters' starting throttle (sitl_sim.T
 # (THROTTLE_NUDGE, radio.cpp:198-205, navigation.cpp:284): 1650 us is 63 % past the 30 us dead zone, so
 # +0.26 x (AIRSPEED_MAX - AIRSPEED_CRUISE).
 PILOT_THROTTLE_PWM = 1650
+THROTTLE_NUDGE = "THROTTLE_NUDGE"
+NUDGE_FROM_PCT = 50            # radio.cpp: the nudge starts above mid-stick ...
+NUDGE_PER_PCT = 0.02           # ... and reaches the whole AIRSPEED_MAX - AIRSPEED_CRUISE gap at full stick
 GAIN_NAMES = [f"{a}_RATE_{k}" for a in ("RLL", "PTCH") for k in ("FF", "P", "I", "D")] + \
              ["RLL2SRV_TCONST", "RLL2SRV_RMAX", "PTCH2SRV_TCONST", "PTCH2SRV_RMAX_UP", "PTCH2SRV_RMAX_DN"]
 
@@ -255,23 +258,49 @@ def median_flight(sitl: Vehicle, seconds: float) -> dict:
             (("throttle_pct", throttle), ("airspeed_m_s", airspeed), ("climb_m_s", climb), ("pitch_deg", pitch))}
 
 
-def cruise_airspeed_stick_pwm(sitl: Vehicle) -> int:
-    """The throttle stick (us) at which CRUISE flies AIRSPEED_CRUISE (navigation.cpp:160-189): any stick with
-    FLIGHT_OPTIONS bit 3 (the low stick is kept), mid-stick with bit 1, else the stick is the airspeed from
-    AIRSPEED_MIN to AIRSPEED_MAX through RC_Channel::get_control_in (pwm_to_range_dz with RC3_DZ,
-    RC_Channel.cpp:376-390; mirrored when RC3_REVERSED)."""
+def cruise_airspeed_stick_pwm(sitl: Vehicle, airspeed: float | None = None) -> int:
+    """The throttle stick (us) at which CRUISE flies `airspeed`, AIRSPEED_CRUISE by default (navigation.cpp:160-189):
+    any stick with FLIGHT_OPTIONS bit 3 (the low stick is kept), mid-stick with bit 1, else the stick is the airspeed
+    from AIRSPEED_MIN to AIRSPEED_MAX through RC_Channel::get_control_in (pwm_to_range_dz with RC3_DZ,
+    RC_Channel.cpp:376-390; mirrored when RC3_REVERSED). With either bit CRUISE flies AIRSPEED_CRUISE only."""
     options = int(sitl.get_param(FLIGHT_OPTIONS))
     rc_min, rc_max = sitl.get_param(f"RC{THROTTLE_CH}_MIN"), sitl.get_param(f"RC{THROTTLE_CH}_MAX")
+    cruise = sitl.get_param("AIRSPEED_CRUISE")
+    want = cruise if airspeed is None else airspeed
+    fixed = options >> CRUISE_TRIM_AIRSPEED_BIT & 1 or options >> CRUISE_TRIM_THROTTLE_BIT & 1
+    if fixed and want != cruise:
+        raise FlightCheckFailed(f"CRUISE cannot fly {want:g} m/s with FLIGHT_OPTIONS {options}: its stick is not "
+                                f"its airspeed")
     if options >> CRUISE_TRIM_AIRSPEED_BIT & 1:
         return THROTTLE_LOW_PWM
     if options >> CRUISE_TRIM_THROTTLE_BIT & 1:
         return int(round((rc_min + rc_max) / 2))
     low, high = sitl.get_param("AIRSPEED_MIN"), sitl.get_param("AIRSPEED_MAX")
-    fraction = (sitl.get_param("AIRSPEED_CRUISE") - low) / (high - low)
+    fraction = (want - low) / (high - low)
     low_pwm = rc_min + sitl.get_param(f"RC{THROTTLE_CH}_DZ")
     percent = math.ceil(round(100.0 * fraction, 6))         # the whole control_in at or just above the cruise
     pwm = int(low_pwm + math.ceil(percent * (rc_max - low_pwm) / 100.0))
     return int(rc_min + rc_max - pwm) if sitl.get_param(f"RC{THROTTLE_CH}_REVERSED") else pwm
+
+
+def throttle_control_in(sitl: Vehicle, pwm: int) -> int:
+    """RC_Channel::get_control_in of the throttle stick at pwm, 0-100: pwm_to_range_dz with RC3_DZ above RC3_MIN
+    (RC_Channel.cpp:376-390), mirrored when RC3_REVERSED."""
+    rc_min, rc_max = sitl.get_param(f"RC{THROTTLE_CH}_MIN"), sitl.get_param(f"RC{THROTTLE_CH}_MAX")
+    if sitl.get_param(f"RC{THROTTLE_CH}_REVERSED"):
+        pwm = rc_min + rc_max - pwm
+    low = rc_min + sitl.get_param(f"RC{THROTTLE_CH}_DZ")
+    return max(0, min(100, int(100 * (min(pwm, rc_max) - low) / (rc_max - low)))) if pwm > low else 0
+
+
+def nudged_airspeed(sitl: Vehicle, pwm: int) -> float:
+    """The airspeed LOITER (and AUTO) fly with the throttle stick at pwm: AIRSPEED_CRUISE, raised above mid-stick by
+    THROTTLE_NUDGE towards AIRSPEED_MAX, (control_in - 50) x 2 % of the gap (radio.cpp:198-205)."""
+    cruise = sitl.get_param("AIRSPEED_CRUISE")
+    control_in = throttle_control_in(sitl, pwm)
+    if not sitl.get_param(THROTTLE_NUDGE) or control_in <= NUDGE_FROM_PCT:
+        return cruise
+    return cruise + (sitl.get_param("AIRSPEED_MAX") - cruise) * (control_in - NUDGE_FROM_PCT) * NUDGE_PER_PCT
 
 
 def cruise_state(sitl: Vehicle) -> dict:

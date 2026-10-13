@@ -997,6 +997,47 @@ Commits a7ab78e4be, 911e93e57d, 78bda16562 on top of 82eb2f040f. Not yet on a bo
 - **vs-autotune** now flies AUTOTUNE, the tuner and both card sets at port-check's cruise trim
   (`CruisePitchTrim`, PTCH_TRIM_DEG for the run only).
 
+### Straight legs instead of LOITER (2026-10-13, runner only, firmware unchanged at 78bda16562)
+
+- **Why.** In LOITER every hand-back met LOITER's 45 deg bank demand (see above). The owner chose to try
+  the tests on a straight line.
+- **How (no firmware change).** AP_FlightTune already runs in CRUISE, and CRUISE holds the course line it
+  locked, so after a manoeuvre it asks only for a small bank back onto that line. `inflight-tune` now
+  defaults to `--pattern straight` (`tools/tuning/tuner_legs.py`); `--pattern loiter` is the earlier
+  procedure.
+  - Each axis is its own tuner session on its own CRUISE leg (`FTUN_AXES` one bit at a time). The roll
+    session's kept gains stay in RAM for the pitch session, as within one session.
+  - Between the legs, while the tuner is not testing, LOITER turns the aircraft until its course points back
+    at the first leg's start, so the second leg flies back. A session that does not end with "FTUN: done"
+    ends the legs.
+  - The legs fly the airspeed LOITER flew at the pilot's 1650 us stick (THROTTLE_NUDGE, 26.3 m/s here). A
+    first run at AIRSPEED_CRUISE never started a roll test ("no safe conditions for 60 s"): a roll test
+    needs AIRSPEED_MIN x sqrt(1/cos 35 deg) + FTUN_SPD_MARGIN, above the cruise for this aircraft.
+- **SITL + HIL bridge (Peron15_hitl3, package plant, 78bda16562), 3 s after each manoeuvre; median and
+  largest:**
+
+  | Run | Pitch off demand, deg | Height loss, m | Throttle rise, % | Peak roll rate, deg/s |
+  |---|---|---|---|---|
+  | tune2, board, LOITER (15 hand-backs) | 4.4, 4.8 | 1.2, 3.1 | 10, 12.6 | 71, 106 |
+  | SITL + HIL, LOITER (15) | 4.2, 4.8 | 1.0, 3.4 | 9.6, 13.3 | 45, 51 |
+  | SITL + HIL, straight legs (16) | 1.2, 2.5 | 0.11, 1.7 | 0.9, 7.2 | 14, 45 |
+
+  - Roll manoeuvres: 0.0-0.26 m height loss, at most 1.5 % throttle, pitch at most 1.4 deg off its demand
+    (LOITER: 0.9-1.5 m, about 9-10 %, 4-4.5 deg).
+  - Pitch manoeuvres: 0.06-1.74 m, 0-7.2 %, 0.7-2.5 deg (LOITER: 0.1-3.4 m, 3-13 %, 3-4.8 deg). Every
+    other pitch manoeuvre still loses about 1-1.7 m with almost no throttle rise: that is the pitch test
+    itself (its last half-doublet), not a turn; not analysed further.
+  - Both axes finished: roll new gains kept, check error -33 %; pitch kept, -58 %. Link gate passed.
+  - Space: the two legs took the aircraft up to 3.05 km from where the first leg started; it ended 165 m
+    from there.
+- **Open (parked 2026-10-13, owner moved to the HITL camera stream):**
+  - No board session with the straight legs yet: run `inflight-tune --firmware --axes 3 --board COM15 ...`
+    as for `tune2` (no new argument needed), new workdir.
+  - Range: about 3 km per leg pair. A racetrack (AUTO legs with the tuner waiting through the turns) would
+    need the tuner to allow AUTO and to start a manoeuvre only with enough straight leg left: a firmware
+    change, not started.
+  - The 1-1.7 m loss after alternate pitch tests is not analysed.
+
 ## Limits
 
 - The SITL plane-elevon model is not the Peron15. A better result in SITL shows that the

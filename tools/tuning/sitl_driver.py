@@ -20,10 +20,11 @@ import time
 from pathlib import Path
 
 from tools.tuning.flight_steps import (CLIMB_MARGIN_M, FTUNE_SWITCH_CH, PILOT_THROTTLE_PWM, TEST_HEIGHT_M,
-                                       THROTTLE_CH, TUNER_END_TEXTS, CruisePitchTrim, FlightCheckFailed, HeightFloor,
-                                       add_floor_arg, climb_to, pilot_throttle, read_gains, stick_sequence, wait_text)
+                                       THROTTLE_CH, CruisePitchTrim, FlightCheckFailed, HeightFloor, add_floor_arg,
+                                       climb_to, pilot_throttle, read_gains, stick_sequence)
 from tools.tuning.hitl import add_vehicle_args, fly_and_record, open_vehicle, run_file, write_run_params
 from tools.tuning.sitl_sim import DEFAULT_BINARY, DEFAULT_INSTANCE, FIRMWARE_BINARY, Sitl
+from tools.tuning.tuner_legs import PATTERN_STRAIGHT, PATTERNS, fly_tuner
 from tools.tuning.vehicle import Vehicle
 from tools.tuning.vs_autotune import fly_comparison
 
@@ -138,7 +139,9 @@ def tuner_setup(args: argparse.Namespace, extra_params: dict) -> tuple[dict, lis
 
 
 def inflight_tune(args: argparse.Namespace) -> int:
-    """Run tools/tuning/lua/flight_tune.lua in LOITER; print the gains before and after."""
+    """Run the flight tuner (the C++ one with --firmware, else tools/tuning/lua/flight_tune.lua) on straight
+    CRUISE legs, one axis per leg with a turn back between them (--pattern straight, tuner_legs.py), or in
+    LOITER (--pattern loiter); print the gains before and after."""
     params, scripts, binary = tuner_setup(args, dict(args.param or []))
     sitl = open_vehicle(args, [write_run_params(args.workdir, params)], scripts, binary)
     result: dict = {}
@@ -150,14 +153,10 @@ def inflight_tune(args: argparse.Namespace) -> int:
         sitl.set_param("FTUN_AXES", args.axes)
         takeoff_to_fbwa(sitl)
         with HeightFloor(sitl, args.min_height, result):
-            sitl.set_mode("LOITER")
-            sitl.fly_for(15)
             result["before"] = read_gains(sitl)
-            print("[driver] tuning switch high", flush=True)
-            sitl.tx.set(FTUNE_SWITCH_CH, 2000)
-            result["end"] = wait_text(sitl, TUNER_END_TEXTS, args.timeout)
-            sitl.tx.set(FTUNE_SWITCH_CH, 1000)
-            sitl.fly_for(5)
+            result["pattern"] = args.pattern
+            result["sessions"] = fly_tuner(sitl, args.axes, args.pattern, args.timeout)
+            result["end"] = result["sessions"][-1]["end"]
             result["after"] = read_gains(sitl)
     code = fly_and_record(sitl, flight, result, run_file(args.workdir, ".json"), kept_texts=("FTUN",))
     print(json.dumps(result, indent=1))
@@ -212,6 +211,8 @@ def main() -> None:
     f.add_argument("--timeout", type=float, default=900, help="simulated seconds to wait for the tune")
     f.add_argument("--param", type=_param_pair, action="append", help="extra NAME=VALUE at boot")
     f.add_argument("--firmware", action="store_true", help="the C++ tuner build instead of the Lua script")
+    f.add_argument("--pattern", choices=PATTERNS, default=PATTERN_STRAIGHT,
+                   help="straight: a CRUISE leg per axis, turning back between them; loiter: one session in LOITER")
     f.set_defaults(func=inflight_tune)
     v = sub.add_parser("vs-autotune", help=vs_autotune.__doc__)
     v.add_argument("--workdir", required=True)

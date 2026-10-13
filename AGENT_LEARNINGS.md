@@ -381,3 +381,13 @@
 - A simulator airframe can hide a rate-dependent effect: SITL's plane-elevon model rolled far slower than the
   aircraft model, so a fix that limits the roll rate showed little in SITL. Verify such a fix
   on the plant that showed the problem.
+
+## Moving a tuner's tests to another mode (2026-10-13)
+
+- Before switching the mode a supervised test runs in, list every start condition the test checks against
+  the new mode's own setpoints. A tuner moved from LOITER (stick nudge, above the cruise) to CRUISE at
+  AIRSPEED_CRUISE never started: its roll test needs the stall speed at its planned bank plus a margin,
+  which lay above the cruise. Fly the speed the earlier runs were tuned at, and say why.
+- Keep aircraft data out of a public repository from the first commit: read it from a private folder by a
+  named argument or environment variable, test on synthetic numbers, and check the real files in tests that
+  skip where they are absent. Sweep comments and test values too, not only data files.

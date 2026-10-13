@@ -127,7 +127,7 @@ def test_inflight_tune_fails_when_loiter_loses_its_height(monkeypatch, tmp_path)
     plane = FakePlane(loiter_follows_target=False, loiter_sink=5)
     monkeypatch.setattr(sitl_driver, "open_vehicle", lambda *args: plane)
     args = argparse.Namespace(workdir=str(tmp_path / "tune"), axes=2, timeout=60, param=None, firmware=True,
-                              min_height=MIN_HEIGHT_M)
+                              min_height=MIN_HEIGHT_M, pattern="loiter")
     with pytest.raises(FlightCheckFailed, match="below the run's floor"):
         sitl_driver.inflight_tune(args)
     assert json.loads((tmp_path / "tune.json").read_text())["height"]["breach"]

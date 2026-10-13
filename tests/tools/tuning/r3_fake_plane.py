@@ -14,7 +14,11 @@ It keeps the parts of ArduPlane the procedures depend on, in 0.1 s steps of simu
 - AUTOTUNE sinks; a moving roll or pitch stick tunes that axis until "<Axis>: Finished".
 - FBWA sinks while a roll or pitch stick is off centre (the cards' and port-check's doublets).
 - RTL climbs (or descends) to RTL_ALTITUDE at the LOITER rate.
-- The tuning switch high in LOITER runs the tuner: it starts only at FTUN_ALT_MIN + 10 m or higher.
+- The tuning switch moved high in LOITER, CRUISE or FBWB starts a tuner session (one per switch movement): it
+  starts only at FTUN_ALT_MIN + 10 m or higher, lasts tuner_s and ends with tuner_end; a mode change while it runs
+  stops it ("mode changed").
+- It flies at its airspeed along its course: LOITER turns at LOITER_TURN_DPS, CRUISE holds the course it was entered
+  with, the other modes fly straight. GLOBAL_POSITION_INT carries the position (from LAT0/LON0) and the velocity.
 Every step sends GLOBAL_POSITION_INT to the connection's message hooks, as pymavlink does.
 Its airspeeds, cruise throttle and attitudes are neutral numbers, not any real aircraft's.
 """
@@ -31,6 +35,10 @@ M = mavutil.mavlink
 STEP_S = 0.1
 TAKEOFF_CLIMB_MPS = 10.0
 LEVEL_CRUISE_M_S = 23.0        # the fake's level cruise, whatever AIRSPEED_CRUISE says
+LOITER_TURN_DPS = 9.0          # a 150 m circle at the cruise
+TUNER_MODES = ("LOITER", "CRUISE", "FBWB")
+LAT0, LON0 = -35.0, 149.0
+M_PER_DEG = 111_320.0
 GAINS = {f"{a}_RATE_{k}": v for a in ("RLL", "PTCH") for k, v in (("FF", 0.3), ("P", 0.1), ("I", 0.1), ("D", 0.003))}
 GAINS.update({"RLL2SRV_TCONST": 0.2, "RLL2SRV_RMAX": 120, "PTCH2SRV_TCONST": 0.3, "PTCH2SRV_RMAX_UP": 120,
               "PTCH2SRV_RMAX_DN": 120})
@@ -64,12 +72,12 @@ class FakePlane:
                  tuner_end: str = "FTUN: done", fbwa_offset_pct: float = 0.0,
                  ack_result: int = M.MAV_RESULT_ACCEPTED, height: float = 0.0, mode: str = "MANUAL",
                  cruise_pitch_deg: float = 3.0, fbwa_level_deg: float = 0.5, speed_per_deg: float = 1.5,
-                 trim_effect: float = 1.0) -> None:
+                 trim_effect: float = 1.0, tuner_s: float = 0.0, course_deg: float = 0.0) -> None:
         self.speedup = 1
         self.messages: list[str] = []
         self.params = {"TKOFF_ALT": tkoff_alt, "RC3_MIN": 1000, "RC3_MAX": 2000, "RC3_REVERSED": 0,
                        "FTUN_REPS": 4, "FTUN_ALT_MIN": 80, "FTUN_AXES": 3, "RTL_ALTITUDE": 100.0,
-                       "PTCH_TRIM_DEG": 0.0, "FLIGHT_OPTIONS": 0, "RC3_DZ": 30, "AIRSPEED_MIN": 18.0,
+                       "PTCH_TRIM_DEG": 0.0, "FLIGHT_OPTIONS": 0, "RC3_DZ": 30, "THROTTLE_NUDGE": 1, "AIRSPEED_MIN": 18.0,
                        "AIRSPEED_MAX": 31.0, "AIRSPEED_CRUISE": LEVEL_CRUISE_M_S, **GAINS}
         self.cruise_pitch_deg, self.fbwa_level_deg = cruise_pitch_deg, fbwa_level_deg
         self.speed_per_deg, self.trim_effect = speed_per_deg, trim_effect
@@ -89,6 +97,11 @@ class FakePlane:
         self.sticks: dict[str, set[tuple[int, int]]] = {}       # mode -> (channel, pwm) seen off centre
         self.tuned_s = {"Roll": 0.0, "Pitch": 0.0}
         self.tuner_started_at: float | None = None
+        self.tuner_s = tuner_s
+        self.sessions: list[dict] = []      # one per tuner start: mode, axes, times, positions and courses
+        self.switch_high = False
+        self.north = self.east = 0.0
+        self.course = course_deg
         self.card_starts: list[tuple[float, float]] = []        # (marker, height) when a card marker is set
         self.events: list[str] = []
 
@@ -126,6 +139,10 @@ class FakePlane:
             self.loiter_target = self.h
         if mode != self.mode:
             self.modes.append((mode, self.h))
+            running = self._running_session()
+            if running is not None:
+                running["end_t"] = self.t
+                self.messages.append("FTUN: stopped: mode changed")
         self.mode = mode
 
     def state(self) -> dict:
@@ -149,6 +166,8 @@ class FakePlane:
         if mtype == "ATTITUDE":
             sent_less = 0.0 if int(self.params["FLIGHT_OPTIONS"]) >> 8 & 1 else self.params["PTCH_TRIM_DEG"]
             return Msg("ATTITUDE", pitch=math.radians(self.pitch_deg() - sent_less))
+        if mtype == "GLOBAL_POSITION_INT":
+            return self._position_msg()
         return None
 
     # ---- the aircraft ---------------------------------------------------------------------------
@@ -194,27 +213,68 @@ class FakePlane:
             self.h -= self.fbwa_sink * STEP_S
         elif self.mode == "AUTOTUNE":
             self._autotune(off_centre)
-        msg = Msg("GLOBAL_POSITION_INT", relative_alt=int(self.h * 1000))
+        self._move()
+        self._tuner()
+        msg = self._position_msg()
         for hook in list(self.mav.message_hooks):
             hook(self.mav, msg)
+
+    def _position_msg(self) -> Msg:
+        lat = LAT0 + self.north / M_PER_DEG
+        lon = LON0 + self.east / (M_PER_DEG * math.cos(math.radians(LAT0)))
+        speed = self.airspeed() * 100.0
+        return Msg("GLOBAL_POSITION_INT", relative_alt=int(self.h * 1000), lat=int(round(lat * 1e7)),
+                   lon=int(round(lon * 1e7)), vx=int(round(speed * math.cos(math.radians(self.course)))),
+                   vy=int(round(speed * math.sin(math.radians(self.course)))))
+
+    def distance_from(self, north: float, east: float) -> float:
+        return math.hypot(self.north - north, self.east - east)
+
+    def _move(self) -> None:
+        if not self.armed or self.mode == "MANUAL":
+            return
+        if self.mode == "LOITER":
+            self.course = (self.course + LOITER_TURN_DPS * STEP_S) % 360.0
+        step = self.airspeed() * STEP_S
+        self.north += step * math.cos(math.radians(self.course))
+        self.east += step * math.sin(math.radians(self.course))
+
+    def _running_session(self) -> dict | None:
+        last = self.sessions[-1] if self.sessions else None
+        return last if last is not None and last.get("end_t") is None else None
+
+    def _tuner(self) -> None:
+        """A session per movement of the tuning switch to high in a tuner mode, ending tuner_s later."""
+        high = self.tx.pwm[9] >= 1800
+        rising, self.switch_high = high and not self.switch_high, high
+        running = self._running_session()
+        if running is not None and not high:
+            running["end_t"] = self.t
+            self.messages.append("FTUN: stopped: switch off")
+        elif running is not None and self.t >= running["start_t"] + self.tuner_s:
+            running.update(end_t=self.t, end_course=self.course, end_mode=self.mode)
+            if self.tuner_end.startswith("FTUN: done"):
+                self.params["PTCH_RATE_P"] *= 1.5
+            self.messages.append(self.tuner_end)
+        if rising and self.mode in TUNER_MODES:
+            self._run_tuner()
 
     def _loiter(self) -> None:
         self.h -= self.loiter_sink * STEP_S
         if self.loiter_follows_target and self.loiter_target is not None:
             gap = self.loiter_target - self.h
             self.h += max(-self.loiter_rate * STEP_S, min(self.loiter_rate * STEP_S, gap))
-        if self.tx.pwm[9] >= 1800 and self.tuner_started_at is None:
-            self._run_tuner()
 
     def _run_tuner(self) -> None:
-        self.tuner_started_at = self.h
+        if self.tuner_started_at is None:
+            self.tuner_started_at = self.h
         if self.h < self.params["FTUN_ALT_MIN"] + 10:
             self.messages.append("FTUN: stopped: no safe conditions for 60 s")
             return
         self.messages.append("FTUN: start")
-        if self.tuner_end.startswith("FTUN: done"):
-            self.params["PTCH_RATE_P"] *= 1.5
-        self.messages.append(self.tuner_end)
+        self.sessions.append({"mode": self.mode, "axes": int(self.params["FTUN_AXES"]), "start_t": self.t,
+                              "start_course": self.course, "start_pos": (self.north, self.east),
+                              "throttle_pwm": self.tx.pwm[3], "end_t": None})
 
     def _autotune(self, off_centre: list[tuple[int, int]]) -> None:
         self.h -= self.autotune_sink * STEP_S
