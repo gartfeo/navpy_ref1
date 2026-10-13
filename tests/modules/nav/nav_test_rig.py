@@ -185,6 +185,7 @@ class NavTestRig:
         self.selector = self.detect_action._selector
         self.navigation_task_action = self.detect_action._navigation_task
         self.peer_notifier = self.detect_action._peer_notifier
+        self.peer_geo_tick = self.detect_action._peer_geo
         self.peer_geo_acquisition = self.detect_action._peer_geo._acquisition
         self.peer_navigation = self.navigation_task_action._peer_navigation
         self.peer_geo_tracker = self.peer_navigation._approach._geo_tracker

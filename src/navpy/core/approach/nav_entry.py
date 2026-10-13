@@ -17,6 +17,8 @@ class NavEntryPorts:
     navigation_init: Callable[[], None]
     final_approach_active: Callable[[], bool]
     arm_dock_contact: Callable[[], None]
+    stop_geo_tracking: Callable[[], None]
+    is_geo_armed: Callable[[], bool]
 
 
 class NavEntry:
@@ -38,6 +40,10 @@ class NavEntry:
         self._navigation_task.nav_mode_observed = False
         self._navigation_task.final_approach_navigation_active = False
         self._navigation_task.final_approach_nav_completed = False
+        # Geo pointing is allowed only before NAV: fence every camera here.
+        self._ports.stop_geo_tracking()
+        if self._ports.is_geo_armed():
+            raise RuntimeError("NAV entry: geo pointing still armed after stop")
         if (
             self._ports.final_approach_active()
             and not self._zoom.freeze_final_approach_wide()

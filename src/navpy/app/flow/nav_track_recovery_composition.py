@@ -18,7 +18,9 @@ from navpy.core.skills.confirm.track_recovery import (
     IdentityReacquisitionPorts,
     TrackRecovery,
 )
+from navpy.core.flow.nav_state import NavState
 from navpy.core.perception.detection_coordination import DetectionCoordination
+from navpy.core.perception.tracking_geo_hand_off import GeoReleasingTracking
 
 
 def _compose_track_recovery(
@@ -35,7 +37,10 @@ def _compose_track_recovery(
         state.phase,
         state.geo_hold,
         state.confirm,
-        detection.tracking_commands,
+        GeoReleasingTracking(
+            detection.tracking_commands,
+            detection.geo_pointing.stop_geo_tracking,
+        ),
         poi.confirmation_manager,
         observation.retry,
         reset.resume_auto,
@@ -59,9 +64,9 @@ def _compose_track_recovery(
         detection.tracking_commands,
         detection.tracking_status,
         detection.geo_pointing,
-        lambda: navigation.final_approach.is_active,
+        lambda: state.phase.is_current(NavState.NAV),
         lambda: state.clock.decision_s(),
-        lambda: state.navigation_task.navigation_poi_location,
+        lambda: state.navigation_task.peer_poi_location,
         recovery,
         identity,
         navigation.legacy_pois.geo_ref,

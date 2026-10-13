@@ -50,7 +50,9 @@ from navpy.core.swarm.peer_task_priority import (
     PeerTaskPriorityPorts,
 )
 from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.core.flow.nav_state import NavState
 from navpy.core.perception.detection_coordination import DetectionCoordination
+from navpy.core.perception.tracking_geo_hand_off import GeoReleasingTracking
 
 
 def compose_mission_navigation_ownership(
@@ -160,7 +162,7 @@ def compose_navigation_task_workflows(
             ),
             state.navigation_task,
             peer_geo_tracker,
-            lambda: navigation.final_approach.is_active,
+            lambda: state.phase.is_current(NavState.NAV),
             logger,
         ),
         PeerApproachReadyGate(
@@ -223,7 +225,10 @@ def compose_navigation_task_workflows(
         state.final_approach,
         poi.confirmation_manager,
         observation.retry,
-        detection.tracking_commands,
+        GeoReleasingTracking(
+            detection.tracking_commands,
+            detection.geo_pointing.stop_geo_tracking,
+        ),
         approach.speedup,
         peer_navigation,
         peer_task_priority,
