@@ -18,7 +18,12 @@ A companion's ``pid`` is a surrogate naming its ordinal and generation
 (:func:`generation_pid`), so a replacement never reuses its predecessor's
 and a stale identifier never stops a replacement. Records arrive on the coordinator
 thread in the tick's input phase (:meth:`deliver`), so they only set events.
-Role config: ``companions``, ``{sys_id: {"role", "ordinal", "device"}}``.
+Role config: ``companions``, ``{sys_id: {"role", "ordinal", "device", "argv"}}``.
+``argv`` is the companion's command line in its spawn record (the manifest's
+role config). A start builds the command line it would launch with
+(``lockstep_navpy_argv``: the logical device and ``--stop-on-lifecycle``, not
+``--stop-on-stdin``) and refuses one that differs from the recorded ``argv``,
+so the companion runs exactly what the launcher asked for.
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
 
+from gcs.backend.navpy_process_launch import lockstep_navpy_argv
 from gcs.backend.navpy_process_stop import STOP_ACKED, STOP_ALREADY_EXITED, STOP_FAILED
 from navpy.core.kernel import runtime_time as rt
 from navpy.sim.lockstep.part_wire import Lifecycle, RequestId, SpawnRequest, StopRequest
@@ -113,10 +119,12 @@ class LockstepLauncher:
             companion.ready_or_exit.deliver_set()
 
     # -- the manager surface (executor jobs, on the baton) ---------------------------
-    def start(self, sys_id: int, connection: str, **_options: Any) -> _Companion:
+    def start(self, sys_id: int, connection: str, *, detector_debug_show: bool = False,
+              vision_profile: str | None = None, log_level: str | None = None) -> _Companion:
         spec = self._roles.get(sys_id)
         if spec is None:
             raise ValueError(f"no lockstep companion role for sys_id {sys_id}")
+        self._check_argv(sys_id, spec, detector_debug_show, vision_profile, log_level)
         existing = self._instances.get(sys_id)
         if existing is not None and (existing.running or existing.generation is None):
             raise ValueError(f"NavPy instance for sys_id {sys_id} already running")
@@ -131,6 +139,17 @@ class LockstepLauncher:
             del self._instances[sys_id]
             raise ValueError(f"NavPy spawn for sys_id {sys_id} refused: {companion.spawn_error}")
         return companion
+
+    @staticmethod
+    def _check_argv(sys_id: int, spec: dict[str, Any], detector_debug_show: bool,
+                    vision_profile: str | None, log_level: str | None) -> None:
+        if detector_debug_show:
+            raise ValueError("a lockstep companion opens no debug window")
+        expected = lockstep_navpy_argv(sys_id, spec["device"], vision_profile=vision_profile,
+                                       log_level=log_level)
+        if list(spec.get("argv") or ()) != expected:
+            raise ValueError(f"the lockstep companion for sys_id {sys_id} was recorded with "
+                             f"{spec.get('argv')}, not {expected}")
 
     def stop(self, sys_id: int) -> bool:
         companion = self._instances.get(sys_id)

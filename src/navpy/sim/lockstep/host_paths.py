@@ -1,6 +1,6 @@
 """Host paths out of ``DONE`` text: the run's directories become stable tokens.
 
-The backend participant runs in its host log directory (its cwd); the run
+A participant runs in its host log directory (its cwd); the run
 root is that directory's parent. In a log line every spelling of either
 (native, POSIX, or with backslashes doubled as a ``repr`` shows them), with
 the rest of its path, becomes :data:`RUN_TOKEN` or :data:`ROOT_TOKEN` plus a

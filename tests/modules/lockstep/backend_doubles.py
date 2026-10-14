@@ -6,14 +6,14 @@ what the autopilot wrote in loop k (after the ingress of reply k-1), so it
 answers one tick later, as the firmware does at best. Frames and replies
 strictly alternate, as ``lockstep_relay.py`` copies them.
 
-:func:`setup_script` is the scripted API actor: the operator's setup calls
-for the slice fixture, through the lockstep ports on the operator's baton.
+:func:`build` runs it under the 9d coordinator with the operator's script
+(default: the scripted API actor's setup calls,
+``scripts.lockstep_slice_actor.setup_script``).
 """
 
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -21,37 +21,19 @@ from navpy.sim.lockstep.coordinator_members import Roster
 from navpy.sim.lockstep.coordinator_run import LockstepCoordinator, RunResult
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar, LocalSpawner
 from navpy.sim.lockstep.coordinator_types import Manifest, RoleSpec, WallBudgets
-from navpy.sim.lockstep.operator_baton import (
-    BatonClock,
-    LockstepApi,
-    LockstepEventStream,
-    OperatorBaton,
-)
+from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder
-from navpy.sim.lockstep.operator_tail import LockstepLogTail
 from navpy.sim.lockstep.part_wire import Done, RequestId
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.step_wire import Frame, PortState, pack_frame, unpack_reply
-from scripts.eval_gcs_demo_command_bounds import command_bounds_from_snapshot
-from scripts.eval_gcs_demo_config import aas_params_for, build_settings
-from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
-from scripts.eval_gcs_demo_lifecycle import connect_vehicles
-from scripts.eval_gcs_demo_mission_upload import upload_scenario_missions
-from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_scenario import DemoScenario, load_scenario
-from scripts.eval_gcs_demo_stack_ops import require_write_results, wait_for_vehicles
+from scripts.lockstep_slice_actor import BACKEND, SERIAL0, SERIAL1, setup_script, slice_roles
 from tests.modules.lockstep.coordinator_doubles import PYTHON_PATH, REPO, AllowAll, HostDelays
-from tests.modules.lockstep.lockstep_autopilot import SYS_ID, ReferenceAutopilot
+from tests.modules.lockstep.lockstep_autopilot import ReferenceAutopilot
 
 SLICE_SCENARIO = REPO / "scripts" / "eval_lockstep_slice_scenario.json"
-NAVPY, BACKEND = 1, 2
 #: The toy companion's readiness payload (what a configured restart validates).
 READY_PAYLOAD = {"mission_items": 6, "targ_wps": 4, "nav_last_wp": 5}
-SERIAL0 = "lockstep:serial0"
-BACKEND_HOOKS = "gcs.backend.lockstep.participant:backend"
-SERIAL1 = "lockstep:serial1"
-#: The command-bound parameters the operator reads by name under lockstep.
-COMMAND_BOUND_NAMES = ("PTCH_LIM_MIN_DEG", "PTCH_LIM_MAX_DEG", "AAS_DEL_THR", "TRIM_THROTTLE")
 BOUND_VALUES = {"PTCH_LIM_MIN_DEG": -25.0, "PTCH_LIM_MAX_DEG": 20.0, "AAS_DEL_THR": -1.0,
                 "TRIM_THROTTLE": 45.0}
 
@@ -101,70 +83,22 @@ class AutopilotSitl:
         self.stopped = True
 
 
-def stack_context(operator: OperatorBaton, scenario: DemoScenario) -> StackContext:
-    return StackContext(
-        api=LockstepApi(operator, BACKEND, error=RegressionError), sys_ids=(SYS_ID,),
-        backend_tail=LockstepLogTail(operator, BACKEND), clock=BatonClock(operator), scenario=scenario,
-        event_stream_factory=lambda _url: LockstepEventStream(operator, BACKEND),
-        navigation_tail=lambda _sys_id: LockstepLogTail(operator, NAVPY), monitor_device=SERIAL1,
-    )
-
-
-def _received(events: LockstepEventStream) -> list[str]:
-    """Every delivery queued so far (a zero wait never parks)."""
-    received = []
-    while True:
-        try:
-            received.append(events.receive(0.0))
-        except TimeoutError:
-            return received
-
-
-def setup_script(scenario: DemoScenario) -> Callable[[OperatorBaton], dict]:
-    """Connect, read the command bounds by name, write the AAS profile, upload."""
-
-    def script(operator: OperatorBaton) -> dict:
-        operator.wait_ready(BACKEND)
-        context = stack_context(operator, scenario)
-        api = context.api
-        with context.event_stream_factory(api.websocket_url) as events:
-            connect_vehicles(context)
-            wait_for_vehicles(context, 30.0)
-            names = ",".join(COMMAND_BOUND_NAMES)
-            snapshot = api.get_json(f"/api/vehicles/{SYS_ID}/params/named?names={names}")
-            bounds = command_bounds_from_snapshot(
-                SYS_ID, snapshot, roll_limit_deg=FINAL_APPROACH_ROLL_LIMIT_DEG)
-            aas = aas_params_for(scenario, SYS_ID, SYS_ID)
-            require_write_results(api.put_json(f"/api/vehicles/{SYS_ID}/params", {"params": aas}),
-                                  aas, "AAS")
-            upload_scenario_missions(context)
-            received = _received(events)
-        return {"events": received, "bounds": repr(bounds), "aas": aas}
-
-    return script
-
-
 def manifest(scenario: DemoScenario, *, mission_budget_us: int = 0,
-             companions: bool = False) -> Manifest:
-    """No NavPy, so no terminal tick: the mission phase ends on its budget at
+             companions: bool = False, navpy: bool = False) -> Manifest:
+    """No SNAP, so no terminal tick: the mission phase ends on its budget at
     the first mission tick, and finalization lasts until the operator returns.
 
     With ``companions``, the toy rover (NavPy-like, on ``lockstep:serial0``)
     is the backend's companion for the scenario's sysid, through its
-    launcher port.
+    launcher port; with ``navpy``, the companion is the real NavPy.
     """
-    config: dict = {"settings": build_settings(scenario)}
-    roles = {}
-    if companions:
-        config["companions"] = {str(SYS_ID): {"role": "navpy", "ordinal": NAVPY,
-                                              "device": SERIAL0}}
-        roles["navpy"] = RoleSpec("tests.modules.lockstep.toy_participants:rover", (SERIAL0,),
-                                  {"ready_after_s": 0.06, "ready_payload": READY_PAYLOAD})
-    roles["backend"] = RoleSpec(BACKEND_HOOKS, (SERIAL1,), config)
+    toy = RoleSpec("tests.modules.lockstep.toy_participants:rover", (SERIAL0,),
+                   {"ready_after_s": 0.06, "ready_payload": READY_PAYLOAD})
+    roles = slice_roles(scenario, companion=toy if companions and not navpy else None, navpy=navpy)
     return Manifest(
         seed=1, epoch_us=1_760_000_000_000_000, max_frame_gap_us=25_000, drain_period_us=20_000,
         mission_budget_us=mission_budget_us, roles=roles, initial=(("backend", BACKEND),),
-        companion_roles=("navpy",) if companions else (),
+        companion_roles=("navpy",) if "navpy" in roles else (),
     )
 
 
@@ -196,10 +130,10 @@ class BackendRun:
 
 
 def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
-          companions: bool = False) -> BackendRun:
+          companions: bool = False, navpy: bool = False) -> BackendRun:
     """``script(scenario)`` makes the operator's script (default: the setup calls)."""
     scenario = load_scenario(SLICE_SCENARIO)
-    plan = manifest(scenario, companions=companions)
+    plan = manifest(scenario, companions=companions or navpy, navpy=navpy)
     delays = HostDelays(delay_seed)
     sitl = AutopilotSitl(autopilot or ReferenceAutopilot(parameters=BOUND_VALUES), delays=delays)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -222,4 +156,5 @@ def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
     return run
 
 
-__all__ = ["AutopilotSitl", "BACKEND", "BackendRun", "SERIAL1", "build", "manifest", "setup_script"]
+__all__ = ["AutopilotSitl", "BOUND_VALUES", "BackendRun", "READY_PAYLOAD", "SLICE_SCENARIO", "build",
+           "manifest"]

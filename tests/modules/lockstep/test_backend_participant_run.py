@@ -21,7 +21,8 @@ import pytest
 
 from gcs.backend import instance_registry_lockstep as lockstep
 from gcs.backend.aas_params import AAS_PARAM_MAP
-from tests.modules.lockstep.backend_doubles import BACKEND, BOUND_VALUES, build
+from scripts.lockstep_slice_actor import BACKEND
+from tests.modules.lockstep.backend_doubles import BOUND_VALUES, build
 
 
 def _claim() -> tuple[int, dict]:

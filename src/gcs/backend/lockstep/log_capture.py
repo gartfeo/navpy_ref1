@@ -1,11 +1,9 @@
 """The backend's log records, as ``DONE.log_lines`` (``lockstep_slice.md``, "Logs").
 
 Installed on the root logger when the backend is built, at the backend file
-log's level and format. Each record is stamped by the lockstep clock
-(``navpy.sim.lockstep.log_stamp``, bootstrap step 2), so a line's bytes are
-the same on every host: an exception is logged by type and message only (no
-traceback), and every host path becomes a run-relative token
-(:mod:`.host_paths`, e.g. ``<run>/gcs/backend.log``). The coordinator hands
+log's level and format (:class:`navpy.sim.lockstep.log_capture.OutboxLogHandler`:
+lockstep-stamped, tracebacks reduced to type and message, host paths as
+run-relative tokens such as ``<run>/gcs/backend.log``). The coordinator hands
 them to the operator, whose backend tail (``operator_tail.LockstepLogTail``)
 reads them.
 """
@@ -13,11 +11,9 @@ reads them.
 from __future__ import annotations
 
 import logging
-import traceback
 from pathlib import Path
-from typing import Any
 
-from gcs.backend.lockstep.host_paths import HostPathScrubber
+from navpy.sim.lockstep.log_capture import OutboxLogHandler
 from navpy.sim.lockstep.participant_hooks import OutboxBuffer
 
 #: The backend file log's line format (``gcs.backend.main._add_file_logging``).
@@ -25,48 +21,12 @@ LINE_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
-class _HostFreeFormatter(logging.Formatter):
-    """The line, and for an exception only its type and message: a traceback
-    names host paths (its ``File`` lines), which no ``DONE`` may carry."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        cached = record.exc_text  # another handler's full traceback, if it ran first
-        record.exc_text = None
-        try:
-            return super().format(record)
-        finally:
-            record.exc_text = cached  # the file log formats its own
-
-    def formatException(self, ei: Any) -> str:
-        return "".join(traceback.format_exception_only(ei[0], ei[1])).rstrip()
-
-    def formatStack(self, stack_info: str) -> str:
-        return ""
-
-
-class OutboxLogHandler(logging.Handler):
-    def __init__(self, out: OutboxBuffer, run_dir: Path) -> None:
-        super().__init__(logging.INFO)
-        self._out = out
-        self._scrub = HostPathScrubber(run_dir)
-        self.setFormatter(_HostFreeFormatter(LINE_FORMAT, datefmt=DATE_FORMAT))
-
-    def emit(self, record: logging.LogRecord) -> None:
-        try:
-            self._out.log_lines.append(self._scrub(self.format(record)))
-        except Exception:
-            self.handleError(record)
-
-    def handleError(self, record: logging.LogRecord) -> None:
-        """A line that cannot be formatted is lost output: a fault, not stderr."""
-        self._out.faults.append(f"LogCaptureFailed:{record.name}")
-
-
 def capture_backend_logs(out: OutboxBuffer, run_dir: Path | None = None) -> OutboxLogHandler:
     """``run_dir``: the participant's host directory (default: its cwd)."""
-    handler = OutboxLogHandler(out, Path.cwd() if run_dir is None else run_dir)
+    handler = OutboxLogHandler(out, Path.cwd() if run_dir is None else run_dir, level=logging.INFO,
+                               line_format=LINE_FORMAT, date_format=DATE_FORMAT)
     logging.getLogger().addHandler(handler)
     return handler
 
 
-__all__ = ["DATE_FORMAT", "LINE_FORMAT", "OutboxLogHandler", "capture_backend_logs"]
+__all__ = ["DATE_FORMAT", "LINE_FORMAT", "capture_backend_logs"]

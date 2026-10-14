@@ -21,15 +21,8 @@ from scripts.eval_gcs_demo_lifecycle import (
     start_companions,
     stop_companions,
 )
-from tests.modules.lockstep.backend_doubles import (
-    BACKEND,
-    BOUND_VALUES,
-    NAVPY,
-    READY_PAYLOAD,
-    BackendRun,
-    build,
-    stack_context,
-)
+from scripts.lockstep_slice_actor import BACKEND, NAVPY, stack_context
+from tests.modules.lockstep.backend_doubles import BOUND_VALUES, READY_PAYLOAD, BackendRun, build
 from tests.modules.lockstep.lockstep_autopilot import SYS_ID, ReferenceAutopilot
 
 TICK_S = 0.02

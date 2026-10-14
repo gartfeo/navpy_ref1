@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Optional
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LoggerArgs
@@ -10,9 +11,21 @@ from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
 
 LOG_DIR_ENV = "NAVPY_LOG_DIR"
 
+#: A lockstep participant's run-relative log directory (``bind_run_log_dir``).
+_run_log_dir: Optional[str] = None
+
+
+def bind_run_log_dir(path: str) -> None:
+    """Log under ``path`` as given: a lockstep participant's run-relative
+    directory, so every path its logs and artifacts name is run-relative."""
+    global _run_log_dir
+    _run_log_dir = path
+
 
 def _resolve_log_path() -> str:
     """Return the process log directory, honoring an explicit run binding."""
+    if _run_log_dir is not None:
+        return _run_log_dir
     override = os.environ.get(LOG_DIR_ENV, "").strip()
     if override:
         return os.path.abspath(os.path.expanduser(override))

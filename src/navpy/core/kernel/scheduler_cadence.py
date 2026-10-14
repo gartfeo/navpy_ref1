@@ -180,6 +180,18 @@ class SchedulerCadence:
                 _release_high_resolution_timer()
 
 
+class IdentitySchedulerCadence(SchedulerCadence):
+    """Lockstep's cadence: sim time is the scheduler's time, so the speedup is 1.
+
+    It never reads ``SIM_SPEEDUP`` (nothing under lockstep writes it), and
+    with a speedup of 1 it requests no timer resolution and no interpreter
+    switch interval: every wall period equals its scheduler period.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(lambda: 1.0, high_resolution_timer=False)
+
+
 def _positive_float(value: object) -> Optional[float]:
     if isinstance(value, bool) or not isinstance(value, Real):
         return None
@@ -263,4 +275,4 @@ def _apply_interpreter_cadence_locked() -> None:
         _interpreter_cadence_baseline_s = None
 
 
-__all__ = ["SchedulerCadence"]
+__all__ = ["IdentitySchedulerCadence", "SchedulerCadence"]

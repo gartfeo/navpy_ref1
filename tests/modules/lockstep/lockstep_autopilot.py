@@ -10,9 +10,16 @@ answer in the same tick. The mission is stored: ``MISSION_CLEAR_ALL``
 empties it, an upload (count, then one request per item, then the ack)
 replaces it, and a download serves it as uploaded. ``answer_limits``
 withholds replies: a message kind is answered at most that many times.
+``TERRAIN_CHECK`` is never answered, as with the lockstep defaults'
+``TERRAIN_ENABLE 0``. :func:`navpy_parameters` adds what a NavPy companion
+reads at boot: the firmware's ``SYSID_THISMAV`` and the AAS table that the
+SITL's ``aas_params.lua`` adds.
 """
 
 from __future__ import annotations
+
+import re
+from pathlib import Path
 
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
@@ -23,6 +30,22 @@ GIMBAL_COMPONENT = mavlink.MAV_COMP_ID_GIMBAL
 PLANE_MANUAL = 0
 HEARTBEAT_PERIOD_US = 1_000_000
 PARAMETERS = {"AAS_NAV_CGT": 10.0, "SCHED_LOOP_RATE": 50.0}
+#: The SITL's ``aas_params.lua`` (``scripts/lockstep_wsl.py`` deploys it).
+AAS_LUA = Path(__file__).resolve().parents[3] / "scripts" / "lua" / "aas_params.lua"
+_LUA_TABLE = re.compile(r'param:add_table\(PARAM_TABLE_KEY,\s*"([A-Z_]+)"')
+_LUA_PARAM = re.compile(r'param:add_param\(PARAM_TABLE_KEY,\s*\d+,\s*"([A-Z_0-9]+)",\s*(-?[0-9.]+)\)')
+
+
+def aas_lua_parameters() -> dict[str, float]:
+    """The AAS table the SITL's Lua script adds, at its defaults."""
+    source = AAS_LUA.read_text(encoding="utf-8")
+    prefix = _LUA_TABLE.search(source).group(1)
+    return {prefix + name: float(value) for name, value in _LUA_PARAM.findall(source)}
+
+
+def navpy_parameters() -> dict[str, float]:
+    """What a NavPy companion reads at boot: the firmware's identity and the AAS table."""
+    return {"SYSID_THISMAV": float(SYS_ID), **aas_lua_parameters()}
 #: Home, takeoff, one waypoint: (command, latitude e7, longitude e7, altitude m).
 MISSION = (
     (mavlink.MAV_CMD_NAV_WAYPOINT, 401_000_000, 444_000_000, 0.0),
@@ -148,4 +171,4 @@ class ReferenceAutopilot:
         )
 
 
-__all__ = ["MISSION", "PARAMETERS", "ReferenceAutopilot", "SYS_ID"]
+__all__ = ["MISSION", "PARAMETERS", "ReferenceAutopilot", "SYS_ID", "aas_lua_parameters", "navpy_parameters"]
