@@ -45,7 +45,7 @@ from navpy.sim.lockstep.operator_baton import OperatorBaton  # noqa: E402
 from navpy.sim.lockstep.participant_hooks import RequestIds  # noqa: E402
 from scripts import lockstep_wsl  # noqa: E402
 from scripts.eval_gcs_demo_scenario import load_scenario  # noqa: E402
-from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC  # noqa: E402
+from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles  # noqa: E402
 from scripts.lockstep_wsl_sitl import (  # noqa: E402
     DRAIN_PERIOD_US,
     MAX_FRAME_GAP_US,
@@ -91,7 +91,7 @@ def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: in
     plan = manifest(seed)
     delays = HostDelays(delay_seed)
     sitl = WslSitl(run_dir, slot, owner, seed=seed, delay_seed=delay_seed,
-                   defaults=lockstep_wsl.merged_defaults())
+                   defaults=lockstep_wsl.merged_defaults(), tiles=terrain_tiles())
     roster = Roster(plan, LocalSpawner(run_dir / "host", (str(ROOT / "src"), str(ROOT))),
                     lockstep.RegistryChildRecorder(slot, owner),
                     HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS)

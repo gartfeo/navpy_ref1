@@ -61,7 +61,7 @@ The retained checks and the slice checks are the named sim-time scoring gates th
 - **Slot:** it claims the slot in-process through `gcs_launch`'s lockstep claim (owner ruling 4: the eval band, no frontend), so the owner is the coordinator from the start and there is no handoff.
   - The registry entry records the full owner identity `{pid, process start time, run token, claim nonce}`. The nonce is host entropy, fresh per claim: the run token repeats per seed, so it cannot tell two claims apart. The registry is host-side and never in the journal.
   - Release is compare-and-release on the full identity, atomically under the registry lock (a new `release_if_owner`).
-  - **Children are recorded under the registry lock.** A spawn creates the child (it waits for `go`), then records it under the lock only if the entry is `active`, then sends `go` (`lockstep_wsl.py:118,129-135`). If the entry is `stopping`, the coordinator kills that child before `go`. A child that never got `go` exits on stdin EOF when its coordinator dies.
+  - **Children are recorded under the registry lock.** A spawn creates the child (it waits for `go`), then records it under the lock only if the entry is `active`, then sends `go` (`lockstep_wsl_spawn.py:176-197`). If the entry is `stopping`, the coordinator kills that child before `go`. A child that never got `go` exits on stdin EOF when its coordinator dies.
   - **Pruning keeps any lockstep entry with a live recorded child**, whatever its phase or the owner's liveness (today liveness reads only supervisor fields and ports, `instance_registry_entries.py:67,85`). A claim cannot take such a slot.
   - **Stop:** `gcs_stop` marks the entry `stopping` under the lock, which freezes the child inventory. It stops the recorded children, then the coordinator, then compare-releases once every frozen child is confirmed gone.
   - **Owner death:** the entry stays with its children; `gcs_stop` on it is the recovery, as above.
@@ -296,7 +296,7 @@ Tests: a full lifespan shutdown succeeds, also with no companions; two simultane
   1. On `end`, stop the run loop. Workers sleeping to deadlines wake on drain ticks (`runtime_resources.py:215`, `high_resolution_deadline.py:35`, `navigation_loop.py:161`).
   2. Flush the pose-cadence buffers and the log worker.
   3. End with a `DONE` carrying `ended{flushed}`.
-- **Terrain:** the lockstep defaults set `TERRAIN_ENABLE 0`, so terrain comes from the DEM after the 1 s report wait, which is in sim time.
+- **Terrain:** since step 9h the lockstep defaults keep `TERRAIN_ENABLE 1` and each instance gets the wall eval's pinned tiles (todo 46), so the SITL ground is the terrain and `TERRAIN_CHECK` gets a `TERRAIN_REPORT` from the autopilot. Without a report, terrain comes from the DEM after the 1 s report wait, which is in sim time (the reference autopilot in the contract tests never reports).
 
 ## Operator
 The operator's modules run on the coordinator's baton. Their I/O becomes explicit ports on `StackContext`, and `run_mission` passes them instead of building defaults:

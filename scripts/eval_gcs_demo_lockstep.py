@@ -54,7 +54,7 @@ from scripts.eval_gcs_demo_mission import run_mission
 from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoScenario
-from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC
+from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, NAVPY_LINES_FILE
 from scripts.lockstep_slice_actor import BACKEND, NAVPY, SYS_ID, slice_roles, stack_context
 from scripts.lockstep_wsl_sitl import DRAIN_PERIOD_US, MAX_FRAME_GAP_US, HostDelays, WslSitl
@@ -155,12 +155,13 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     dem_tiles(scenario_points(scenario))  # an input fault stops the run before launch
     plan = manifest(scenario, options)
     defaults = lockstep_wsl.merged_defaults()  # the SITL's defaults.parm, hashed and then written
-    write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults)
+    tiles = terrain_tiles()  # its terrain/, hashed and then written
+    write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults, tiles)
     slot, owner = lockstep.claim(run_token=f"seed-{options.seed}", clone=str(ROOT),
                                  owner=f"dir:{ROOT}")
     started = time.perf_counter()
     sitl = WslSitl(run_dir, slot, owner, seed=options.seed, delay_seed=options.host_delay_seed,
-                   defaults=defaults)
+                   defaults=defaults, tiles=tiles)
     roster = Roster(plan, LocalSpawner(run_dir, (str(SRC), str(ROOT)),
                                        host_delay_seed=options.host_delay_seed),
                     lockstep.RegistryChildRecorder(slot, owner),

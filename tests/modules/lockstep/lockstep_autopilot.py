@@ -10,8 +10,8 @@ answer in the same tick. The mission is stored: ``MISSION_CLEAR_ALL``
 empties it, an upload (count, then one request per item, then the ack)
 replaces it, and a download serves it as uploaded. ``answer_limits``
 withholds replies: a message kind is answered at most that many times.
-``TERRAIN_CHECK`` is never answered, as with the lockstep defaults'
-``TERRAIN_ENABLE 0``. :func:`navpy_parameters` adds what a NavPy companion
+``TERRAIN_CHECK`` is never answered, as by an autopilot with
+``TERRAIN_ENABLE 0`` (the lockstep defaults keep terrain on since step 9h). :func:`navpy_parameters` adds what a NavPy companion
 reads at boot: the firmware's ``SYSID_THISMAV`` and the AAS table that the
 SITL's ``aas_params.lua`` adds.
 """

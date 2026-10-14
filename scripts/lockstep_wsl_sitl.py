@@ -3,7 +3,7 @@
 :class:`WslSitl` is the coordinator's ``SitlLink`` (frames in, replies out)
 and ``SitlHost`` (snapshot, stop). Every WSL process is recorded in the
 run's process file and, under the registry lock, as a child of the run's
-eval-band slot before it runs (``lockstep_wsl.spawn``). :class:`HostDelays`
+eval-band slot before it runs (``lockstep_wsl_spawn.spawn``). :class:`HostDelays`
 injects seeded coordinator host delays (acceptance (c)); the same seed drives
 the relay's delays and the firmware's helper-thread jitter.
 
@@ -19,13 +19,14 @@ import math
 import random
 import secrets
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 from gcs.backend import instance_ports as ip
 from gcs.backend import instance_registry_lockstep as lockstep
 from navpy.sim.lockstep.coordinator import StepLink
 from navpy.sim.lockstep.coordinator_deadline import ExchangeDeadline
-from scripts import lockstep_relay, lockstep_wsl
+from scripts import lockstep_relay, lockstep_wsl, lockstep_wsl_spawn
 
 ROOT = Path(__file__).resolve().parents[1]
 #: Δ_max: the largest ``source_us`` step between two serial-step frames. The
@@ -67,8 +68,10 @@ class WslSitl:
     """One serial-step SITL behind its relay: the coordinator's ``SitlLink`` and ``SitlHost``."""
 
     def __init__(self, run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: int,
-                 defaults: str) -> None:
-        self._defaults = defaults  # lockstep_wsl.merged_defaults(), hashed in the input manifest
+                 defaults: str, tiles: Mapping[str, bytes]) -> None:
+        # lockstep_wsl.merged_defaults() and terrain_tiles(), hashed in the input manifest
+        self._defaults = defaults
+        self._tiles = tiles
         self._record = run_dir / lockstep_wsl.PROCESSES_FILE
         self._slot = slot
         self._owner = owner
@@ -78,11 +81,14 @@ class WslSitl:
         self._run_name = f"{run_dir.name}-{secrets.token_hex(4)}"
         self.root: str | None = None
         self._link: StepLink | None = None
+        # Every wsl.exe from its start (spawn's held list); stop() closes them.
+        self._children: list[lockstep_wsl_spawn.WslChild] = []
         self.parked_tick: int | None = None
-        self._stopped = False
+        self._linux_stopped = False  # the WSL processes, by ownership (stop_owned)
 
     def start(self, home: str, sys_id: int) -> None:
-        self.root = root = lockstep_wsl.prepare_root(self._run_name, self._instance, self._defaults)
+        self.root = root = lockstep_wsl.prepare_root(self._run_name, self._instance, self._defaults,
+                                                         self._tiles)
         inst_dir = f"{root}/{self._instance}"
         port = ip.lockstep_relay_port(self._slot, 0)
         relay_args = (
@@ -90,17 +96,16 @@ class WslSitl:
             f"--dir {inst_dir} --port {port}"
             + (f" --delay-seed {self._delay_seed}" if self._delay_seed else "")
         )
-        relay, _ = lockstep_wsl.spawn("relay", relay_args, inst_dir, self._record, admit=self._admit)
-        ready = relay.stdout.readline().decode().strip()
-        if not ready.startswith("LOCKSTEP_RELAY_READY"):
-            raise RuntimeError(f"relay did not start: {ready}")
+        lockstep_wsl_spawn.spawn("relay", relay_args, inst_dir, self._record, held=self._children,
+                                 admit=self._admit, ready="LOCKSTEP_RELAY_READY")
         self._link = StepLink(port, timeout_s=CONNECT_TIMEOUT_S)
         # The boot id comes from the run seed, never the slot, so journals
         # compare across slots. The host delay seed also seeds the firmware's
         # helper-thread jitter (acceptance (c)).
         sitl = (lockstep_wsl.sitl_environment(self._seed, STEP_DEADLINE_US, self._delay_seed) + " "
                 + lockstep_wsl.sitl_command(root, home, self._instance, sys_id))
-        lockstep_wsl.spawn("sitl", sitl, inst_dir, self._record, admit=self._admit)
+        lockstep_wsl_spawn.spawn("sitl", sitl, inst_dir, self._record, held=self._children,
+                                 admit=self._admit)
 
     def _admit(self, owned: lockstep_wsl.OwnedProcess) -> bool:
         return lockstep.record_child(self._slot, self._owner, {
@@ -122,13 +127,31 @@ class WslSitl:
         self.parked_tick = parked_tick
 
     def stop(self) -> None:
+        """Stop the Linux processes by ownership, then close each child's host
+        resources (``wsl.exe`` reaped, output sidecar finished). Retryable: a
+        failed ownership stop is tried again, and a child whose close failed
+        stays held for the next call. The first failure is raised."""
         if self._link is not None:
             self._link.close()
             self._link = None
-        if self.root is not None and not self._stopped:
-            lockstep_wsl.stop_owned(self._record, self.root)
-            self._stopped = True
-
+        if self.root is None:
+            return
+        failures: list[BaseException] = []
+        if not self._linux_stopped:
+            try:
+                lockstep_wsl.stop_owned(self._record, self.root)
+                self._linux_stopped = True
+            except BaseException as error:  # noqa: BLE001 - raised below; the next stop retries
+                failures.append(error)
+        if self._linux_stopped:  # a launcher only exits once its child is stopped
+            for child in self._children:
+                try:
+                    child.close()
+                except Exception as error:  # noqa: BLE001 - raised after the rest are tried
+                    failures.append(error)
+            self._children = [child for child in self._children if not child.closed]
+        if failures:
+            raise failures[0]
 
 def exchange_deadline() -> ExchangeDeadline:
     """The serial-step firmware's exchange deadline rule, for a fleet launch (step 10d)."""

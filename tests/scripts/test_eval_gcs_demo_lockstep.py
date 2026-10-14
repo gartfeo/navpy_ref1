@@ -134,9 +134,26 @@ def test_the_manifest_hashes_the_merged_defaults_the_sitl_consumes(monkeypatch):
     assert "ARSPD_FBW_MIN 9" in first and "LOG_BACKEND_TYPE 0" in first
     stock["value"] = "ARSPD_FBW_MIN 10\nLOG_BACKEND_TYPE 1\n"
     second = lockstep_wsl.merged_defaults()
-    assert lockstep_sitl_inputs(first)["defaults_parm_sha256"] != \
-        lockstep_sitl_inputs(second)["defaults_parm_sha256"]
-    assert lockstep_sitl_inputs(first) == lockstep_sitl_inputs(first)
+    tiles = {"N40E044.DAT": b"tile"}
+    assert lockstep_sitl_inputs(first, tiles)["defaults_parm_sha256"] != \
+        lockstep_sitl_inputs(second, tiles)["defaults_parm_sha256"]
+    assert lockstep_sitl_inputs(first, tiles) == lockstep_sitl_inputs(first, tiles)
+
+
+def test_the_manifest_hashes_the_terrain_tiles_the_sitl_root_gets():
+    """Todo 46: the lockstep SITL's ground is the pinned terrain; a changed tile
+    changes the manifest's SITL section, as the wall eval's root files do."""
+    import hashlib
+
+    from scripts.eval_gcs_demo_lockstep_inputs import lockstep_sitl_inputs
+    from scripts.eval_gcs_demo_sitl_root import terrain_tiles
+
+    tiles = terrain_tiles()
+    assert set(tiles) == {"N40E044.DAT"}
+    hashed = lockstep_sitl_inputs("X 1\n", tiles)["terrain_tiles_sha256"]
+    assert hashed == {name: hashlib.sha256(data).hexdigest() for name, data in tiles.items()}
+    changed = {name: data[:-1] + bytes([data[-1] ^ 1]) for name, data in tiles.items()}
+    assert lockstep_sitl_inputs("X 1\n", changed)["terrain_tiles_sha256"] != hashed
 
 
 def test_a_failed_lockstep_report_names_no_host_path(tmp_path, monkeypatch):

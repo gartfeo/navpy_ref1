@@ -36,8 +36,9 @@ from gcs.backend import instance_ports as ip  # noqa: E402
 from gcs.backend import instance_registry as registry  # noqa: E402
 from navpy.sim.lockstep.coordinator import StepLink, run  # noqa: E402
 from navpy.sim.lockstep.scripted_operator import ScriptedOperator  # noqa: E402
-from scripts import lockstep_wsl  # noqa: E402
+from scripts import lockstep_wsl, lockstep_wsl_spawn  # noqa: E402
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario  # noqa: E402
+from scripts.eval_gcs_demo_sitl_root import terrain_tiles  # noqa: E402
 
 SYSID = 1
 #: Seconds of sim time flown after the operator's script finished.
@@ -75,19 +76,19 @@ def run_once(run_dir: Path, ticks: int, host_delay_seed: int, jitter_seed: int, 
     home = load_scenario(CERTIFIED_SCENARIO_PATH).home
     operator = ScriptedOperator(SYSID, home)
     state: dict = {"root": None, "link": None}
+    children: list[lockstep_wsl_spawn.WslChild] = []  # held: their output drains to *_host
     failure: BaseException | None = None
     try:
-        state["root"] = root = lockstep_wsl.prepare_root(run_name, instance, lockstep_wsl.merged_defaults())
+        state["root"] = root = lockstep_wsl.prepare_root(run_name, instance, lockstep_wsl.merged_defaults(),
+                                                            terrain_tiles())
         inst_dir = f"{root}/{instance}"
         relay_args = (
             f"python3 {lockstep_wsl.wsl_path(ROOT / 'scripts' / 'lockstep_relay.py')} "
             f"--dir {inst_dir} --port {ip.lockstep_relay_port(slot, 0)}"
             + (f" --delay-seed {host_delay_seed}" if host_delay_seed else "")
         )
-        relay, _ = lockstep_wsl.spawn("relay", relay_args, inst_dir, record)
-        ready = relay.stdout.readline().decode().strip()
-        if not ready.startswith("LOCKSTEP_RELAY_READY"):
-            raise RuntimeError(f"relay did not start: {ready}")
+        lockstep_wsl_spawn.spawn("relay", relay_args, inst_dir, record, held=children,
+                                 ready="LOCKSTEP_RELAY_READY")
         state["link"] = link = StepLink(ip.lockstep_relay_port(slot, 0), timeout_s=CONNECT_TIMEOUT_S)
         sitl_script = (
             # The boot id comes from the run seed, never the slot, so journals
@@ -95,7 +96,7 @@ def run_once(run_dir: Path, ticks: int, host_delay_seed: int, jitter_seed: int, 
             lockstep_wsl.sitl_environment(seed, STEP_DEADLINE_US, jitter_seed) + " "
             + lockstep_wsl.sitl_command(root, home, instance, SYSID)
         )
-        lockstep_wsl.spawn("sitl", sitl_script, inst_dir, record)
+        lockstep_wsl_spawn.spawn("sitl", sitl_script, inst_dir, record, held=children)
         finished_at: list[int] = []
 
         def stop_when() -> bool:
@@ -117,6 +118,7 @@ def run_once(run_dir: Path, ticks: int, host_delay_seed: int, jitter_seed: int, 
         lambda: state["link"] and state["link"].close(),
         operator.close,
         lambda: stopped.extend(lockstep_wsl.stop_owned(record, state["root"]) if state["root"] else []),
+        *(child.close for child in children),
         lambda: release_slot(slot, owner),
     ):
         try:
