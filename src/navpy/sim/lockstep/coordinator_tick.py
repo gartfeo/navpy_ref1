@@ -1,4 +1,4 @@
-"""Tick steps 2-4: route egress, ``TICK`` every admitted participant, collect ``DONE``.
+"""Tick steps 2-4: port bytes in, ``TICK`` every admitted participant, collect ``DONE``.
 
 Shared by mission, finalization and drain. Participants are admitted at the
 first exchange after their registration (the boot barrier tick for the
@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from navpy.sim.lockstep.coordinator_journal import TickRecord
 from navpy.sim.lockstep.coordinator_lifecycle import LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Member, Roster
+from navpy.sim.lockstep.coordinator_ports import TickPorts
 from navpy.sim.lockstep.coordinator_types import TERMINAL_MARKER, CoordinatorFault, ParticipantFault
 from navpy.sim.lockstep.part_wire import Done, Event, Response
 
@@ -27,11 +28,8 @@ READY_EVENT = "runtime_ready"
 
 @dataclass
 class TickOutput:
-    """What tick k produced for the SITL (step 6) and the operator (step 5)."""
+    """What tick k produced for the operator (step 5); port bytes go to the ports."""
 
-    #: The participants' bytes for each SITL serial link: reply k's ingress,
-    #: or, in drain, egress that is tallied and never delivered.
-    ingress: dict[str, bytes] = field(default_factory=dict)
     responses: list[tuple[int, Response]] = field(default_factory=list)
     events: list[tuple[int, Event]] = field(default_factory=list)
     log_lines: list[tuple[int, str]] = field(default_factory=list)
@@ -43,35 +41,34 @@ class TickOutput:
 
 class TickExchange:
     def __init__(self, roster: Roster, book: LifecycleBook, terminal_roles: tuple[str, ...],
-                 sitl_devices: tuple[str, ...]) -> None:
+                 ports: TickPorts) -> None:
         self._roster = roster
         self._book = book
         #: Only these roles' log lines can carry the mission terminal marker (NavPy's SNAP).
         self._terminal_roles = terminal_roles
-        #: Every SITL port's device: a participant's bytes for one become reply ingress.
-        self._sitl_devices = frozenset(sitl_devices)
+        #: Where the members' port bytes come from and go to (``coordinator_ports``);
+        #: the coordinator drives its SITL side (frames, replies, parking).
+        self.ports = ports
 
-    def run(self, k: int, t_us: int, record: TickRecord, egress: dict[str, bytes] | None,
-            *, draining: bool) -> TickOutput:
-        """``egress`` is the SITL frame's per device; ``None`` in drain (no port bytes)."""
+    def run(self, k: int, t_us: int, record: TickRecord, *, draining: bool) -> TickOutput:
+        """In drain no ``TICK`` carries port bytes (there is no SITL frame)."""
         self._book.begin_tick(record)
         for member in self._roster.members:
             if member.admitted_at is None and member.live:
                 member.admitted_at = k
         members = self._roster.active()
         owned = {device: m for m in members for device in m.devices}
-        for device, data in (egress or {}).items():
-            if device not in owned:
-                record.discard(device, len(data))
+        inbound = {} if draining else self.ports.inbound(k, record, owned)
         sent = []
         for member in members:
-            ports = () if egress is None else tuple(
-                (device, egress.get(device, b"")) for device in sorted(member.devices))
+            ports = () if draining else tuple(
+                (device, inbound.get(device, b"")) for device in sorted(member.devices))
             sent.append(self._roster.send(member, member.take_tick(k, t_us, ports, draining)))
         output = TickOutput()
         for member, raw_tick in zip(members, sent):
             done, raw_done = self._roster.receive(member, k)
-            record.member(member.ordinal, raw_tick, raw_done)
+            generation = member.spawn.generation if self.ports.member_generation else None
+            record.member(member.ordinal, raw_tick, raw_done, generation)
             self._apply(member, done, k, t_us, record, output, draining)
         self._book.check_budgets(t_us)
         return output
@@ -82,10 +79,7 @@ class TickExchange:
             if device not in member.devices:
                 raise CoordinatorFault("foreign_device", f"wrote to {device!r}, not its link",
                                        tick=k, ordinal=member.ordinal)
-            if draining:
-                record.drain_egress(member.ordinal, device, data)
-            if device in self._sitl_devices:  # in drain: tallied, never delivered
-                output.ingress[device] = output.ingress.get(device, b"") + data
+            self.ports.outbound(k, member, device, data, record, draining=draining)
         output.responses.extend((member.ordinal, response) for response in done.responses)
         for event in done.events:
             output.events.append((member.ordinal, event))

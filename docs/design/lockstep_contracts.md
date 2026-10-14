@@ -81,6 +81,7 @@ With pose-cadence recording on in both participants (after Codex round 1, `r3-a`
 ## UART (pinned on the model: `test_reference_models.py`; firmware matches `uart_model.py` in step 7)
 - **Ingress.** Bytes the coordinator sends for tick k enter a per-port FIFO that never drops. Each io tick admits `min(fifo, read-buffer space, 10000)` bytes, as the socket path does (`UARTDriver.cpp` `max_bytes = 10000`; `SIM_BAUDLIMIT_EN` stays 0, which is asserted in the defaults). The usable buffer is 16383 bytes, because a `ByteBuffer` keeps one free. A burst larger than the buffer arrives whole and in order over several io ticks.
 - **Egress.** A write takes at most `txspace()` bytes; the writer drops the rest and the drop is counted. At the hook, everything written since the last frame is drained into the frame.
+- **Coordinator queue** (a routed fleet; pinned: `test_coordinator_queues.py`). The coordinator keeps one FIFO per SITL port and never drops. Reply k takes `min(queued, 0xFFFF, FIFO_CAP - fifo_bytes(frame k))` from its head, so the firmware's `ingress_fifo_full` cannot happen. `FIFO_CAP` is 2^20: the firmware FIFO is a `ByteBuffer{BUFFER_BYTES + 1}` with `BUFFER_BYTES = 1U << 20`, and a `ByteBuffer` keeps one byte free. Bytes still queued at parking are journaled `undelivered`. Each byte keeps the phase it was written in (admitted by reply j, undelivered at parking, or written in drain tick k) until framing resolves it; the closing `stream_bytes` counts every byte once per port, phase and class (`packet`, `skipped`, `held`), so each phase adds up to the bytes it carried (pinned: `test_coordinator_streams.py`).
 - **Phases within firmware loop k.**
   1. The FAST_TASK hook sends frame k: the header plus the egress written since frame k-1.
   2. The hook blocks for reply k, the ingress per port, which enters the FIFOs. The clock is frozen across the exchange, as today.
@@ -97,15 +98,17 @@ With pose-cadence recording on in both participants (after Codex round 1, `r3-a`
   - **Reply, per port:** ingress length as `u16`, at most 65535; then the bytes.
   - A wrong magic, version, port count or echo, an oversize or truncated block, trailing bytes, or a missing or duplicate tick is a protocol error.
 
-## Router (pinned: `test_reference_models.py`)
-Emulates mavlink-router `d59ef94` (`/usr/bin/mavlink-routerd`), `Endpoint::accept_msg`, in the configuration `run_swarm.sh` gives it: `-s 255` (sniffer sysid 255, the GCS), no filters or endpoint groups, and no dedup period, so no dedup. Model: `router_model.py`.
+## Router (pinned: `test_router_parity.py` against the binary, `test_reference_models.py`)
+Emulates mavlink-router `d59ef94` (`/usr/bin/mavlink-routerd`), `Endpoint::read_msg`, `accept_msg` and `route_msg`, in the configuration `run_swarm.sh` gives it: `-s 255` (sniffer sysid 255, the GCS), no filters or endpoint groups, and no dedup period, so no dedup. Model: `router_framer.py` and `router_model.py`; in the tick path for a routed fleet (`coordinator_router.py`, `lockstep_fleet.md`).
+- **Targets** come from the router entry table (`router_entries.json`), extracted from the deployed binary, whose sha256 is pinned beside it; never from NavPy's dialect. An id outside the table has no target (a broadcast) and no CRC check; a known id must pass its CRC. A target field beyond a zero-trimmed payload is 0.
+- **Parity** is pinned, not claimed: `test_router_parity` replays recorded datagrams (targeted, broadcast, sniffer, unknown target, targeted NAVLINK, boot text, split packet, AP echo) and requires the binary's bytes at the binary's endpoints; `NAVPY_ROUTER_PARITY=1` re-runs the binary in WSL (`scripts/router_parity.py`).
 - **Learning.** Each endpoint learns every `(sysid, compid)` it receives from.
 - **Loops.** No endpoint gets a message whose source it has seen. This excludes the sender and stops loops, including ArduPilot's serial-to-serial forwarding echoes.
 - **Sniffer.** An endpoint that has seen sysid 255 gets every other message, targeted or not. So the backend sees vehicle-to-vehicle traffic, as today.
 - **Broadcast.** Target system 0, or no target field: every other endpoint.
-- **Targeted.** Only endpoints that have seen the target system, and the component when it is nonzero. An unknown target is dropped and counted.
+- **Targeted.** Only endpoints that have seen the target system, and the component when it is nonzero. An unknown target is dropped and counted (`router_dropped`), apart from bytes that are no packet or fail their CRC (`router_skipped_bytes`).
 - **Forwarding.** Original packet bytes are forwarded unchanged, in fixed endpoint order: SITL 1-3, then the backend.
-- **Decoder state** is kept per inbound stream across tick fragments (`mavlink_wire.StreamDecoder`).
+- **Decoder state** is kept per inbound stream across tick fragments (`router_framer.RouterFramer`).
 
 ## Bus adapter (wire pinned: `mavlink_wire.py`; the adapter in step 9)
 One narrow bus replaces `mavutil.mavfile` for NavPy and the backend in lockstep.

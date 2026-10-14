@@ -1,0 +1,13 @@
+{
+  "about": "Source lines of the serial-step firmware (scripts/lockstep_firmware.lock.json) that size the ingress FIFO and the per-port block; read from the WSL worktree at the locked commit, clean tree.",
+  "commit": "2dbd7e38dd79d920fd89da5d1bd4c9921a84080a",
+  "lines": {
+    "libraries/SITL/SIM_NavPyStepPort.h:30": "    static constexpr uint32_t BUFFER_BYTES = 1U << 20;",
+    "libraries/SITL/SIM_NavPyStepPort.cpp:25": "    to_autopilot = NEW_NOTHROW ByteBuffer{BUFFER_BYTES + 1};",
+    "libraries/SITL/SIM_NavPyStepPort.cpp:43": "    if (to_autopilot->space() < len || to_autopilot->write(data, len) != len) {",
+    "libraries/SITL/SIM_NavPyStepPort.cpp:44": "        HALSITL::NavPyStep::fail(\"ingress_fifo_full\");  // never drop",
+    "libraries/AP_HAL/utility/RingBuffer.cpp:87": "        ret = size;",
+    "libraries/AP_HAL/utility/RingBuffer.cpp:90": "    ret += _head - tail - 1;",
+    "ArduPlane/NavPySerialStep.cpp:39": "constexpr uint32_t MAX_BLOCK = 0xFFFF;  // per port and tick, both directions"
+  }
+}

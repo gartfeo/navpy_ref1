@@ -27,7 +27,6 @@ from navpy.sim.lockstep.coordinator_deadline import ExchangeDeadline
 from navpy.sim.lockstep.coordinator_frames import FleetFrames, SitlLink
 from navpy.sim.lockstep.coordinator_journal import sha256
 from navpy.sim.lockstep.coordinator_latches import BootLatch
-from navpy.sim.lockstep.coordinator_mavlink import FROM_SITL
 from navpy.sim.lockstep.coordinator_types import HostFault, Manifest
 from navpy.sim.lockstep.step_wire import Frame
 
@@ -61,7 +60,6 @@ class SitlFleet:
         self._frames = FleetFrames(self._sitls, manifest.sitl_ports, manifest.max_frame_gap_us,
                                    deadline)
         self.boot = BootLatch(len(self._sitls), manifest.boot_budget_us)
-        self.tally = self._frames.tally
 
     @property
     def size(self) -> int:
@@ -84,11 +82,11 @@ class SitlFleet:
     def reply(self, k: int, ingress: dict[str, bytes]) -> list[bytes]:
         return self._frames.reply(k, ingress)
 
-    def park(self, k: int) -> dict[str, Any]:
+    def park(self, k: int) -> tuple[dict[str, Any], dict[str, bytes]]:
         """Read every SITL's parked frame k (k_F+1), checked; never replied to.
 
-        Returns its journal record; its egress is tallied (it completes
-        messages too), never routed.
+        Returns its journal record and its egress per device, for the ports
+        to tally and record (it completes messages too); never routed.
         """
         frames, raws = self.read(k)
         self._deadline.close()
@@ -98,8 +96,7 @@ class SitlFleet:
             parked.update(shapes[0])
         else:
             parked["frames"] = shapes
-        self.tally.feed(parked, FROM_SITL, self.egress(frames))
-        return parked
+        return parked, self.egress(frames)
 
     def snapshot(self, parked_tick: int) -> None:
         for sitl in self._sitls:

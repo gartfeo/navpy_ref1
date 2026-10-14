@@ -48,11 +48,20 @@ class HostDelays:
 
 class ScriptedSitl:
     def __init__(self, *, period_us: int = 20_000, quiet_from: int = 3, delays: HostDelays | None = None,
-                 source_us=None, advances=None, extra_egress=None, tag: bytes = b"") -> None:
+                 source_us=None, advances=None, extra_egress=None, extra_egress1=None,
+                 tag: bytes = b"", echo: bool = True, forward: bool = False) -> None:
         self._source = source_us or (lambda k: 1_000_000 + k * period_us)
         self._advances = advances or (lambda k: 0)
         #: Bytes appended to frame k's serial0 egress (a MAVLink packet, say).
         self._extra = extra_egress or (lambda k: b"")
+        #: Bytes appended to frame k's serial1 egress (the autopilot's GCS stream).
+        self._extra1 = extra_egress1 or (lambda k: b"")
+        #: Echo each reply's ingress in the next frame's egress (false: as an
+        #: autopilot does, which never sends a packet back out of its port).
+        self._echo = echo
+        #: Forward each port's ingress out of the other port, as an autopilot
+        #: routes a packet between its serial ports (serial0 <-> serial1).
+        self._forward = forward
         self._quiet_from = quiet_from
         #: Prefixed to every port's egress: tells a fleet's SITLs apart.
         self._tag = tag
@@ -71,8 +80,11 @@ class ScriptedSitl:
             raise ConnectionError("the relay alternates: frame read before its reply")
         self._delays("frame")
         self.k += 1
-        egress = tuple(self._tag + f"s{i}k{self.k}|".encode() + self._ingress[i]
-                       + (self._extra(self.k) if i == 0 else b"") for i in range(2))
+        extras = (self._extra(self.k), self._extra1(self.k))
+        echoed = self._ingress if self._echo else (b"", b"")
+        forwarded = self._ingress[::-1] if self._forward else (b"", b"")
+        egress = tuple(self._tag + f"s{i}k{self.k}|".encode() + echoed[i] + forwarded[i] + extras[i]
+                       for i in range(2))
         frame = Frame((1, 0), self.k, self._source(self.k), self._advances(self.k),
                       self.k >= self._quiet_from,
                       tuple(PortState(0, 0, 0, data) for data in egress))

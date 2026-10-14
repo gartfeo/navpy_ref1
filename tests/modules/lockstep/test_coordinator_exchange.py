@@ -25,6 +25,7 @@ from navpy.sim.lockstep.coordinator_journal import TickRecord
 from navpy.sim.lockstep.coordinator_latches import BootLatch, SnapLatch
 from navpy.sim.lockstep.coordinator_lifecycle import LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Roster
+from navpy.sim.lockstep.coordinator_ports import DirectPorts
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar
 from navpy.sim.lockstep.coordinator_tick import TickExchange
 from navpy.sim.lockstep.coordinator_types import (
@@ -150,9 +151,9 @@ def test_cumulative_legal_waits_fire_exchange_budget_before_the_firmware_deadlin
     deadline.anchor()
     a_k = clock.now
     deadline.open(5)
-    exchange = TickExchange(roster, book, ("rover",), plan.sitl_devices)
+    exchange = TickExchange(roster, book, ("rover",), DirectPorts(plan.sitl_devices))
     with pytest.raises(HostFault) as raised:
-        exchange.run(5, 1_000_000, TickRecord(5, "mission", 1_000_000), {}, draining=False)
+        exchange.run(5, 1_000_000, TickRecord(5, "mission", 1_000_000), draining=False)
     fault = raised.value
     assert (fault.kind, fault.tick, fault.context) == ("exchange_budget", 5, {"wait": "register"})
     assert fault.journal_record(None)["context"] == {"wait": "register"}

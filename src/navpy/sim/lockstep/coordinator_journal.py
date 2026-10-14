@@ -65,8 +65,11 @@ class TickRecord:
         if count:
             self.data["discarded"][device] = self.data["discarded"].get(device, 0) + count
 
-    def member(self, ordinal: int, tick: bytes, done: bytes) -> None:
-        self.data["members"].append({"ordinal": ordinal, "tick": sha256(tick), "done": sha256(done)})
+    def member(self, ordinal: int, tick: bytes, done: bytes, generation: int | None = None) -> None:
+        entry: dict[str, Any] = {"ordinal": ordinal, "tick": sha256(tick), "done": sha256(done)}
+        if generation is not None:  # a routed fleet's records (a delivery names its receiver)
+            entry["generation"] = generation
+        self.data["members"].append(entry)
 
     def lifecycle(self, entry: Lifecycle, recipient: int) -> None:
         self.data["lifecycle"].append(lifecycle_record(entry, recipient))

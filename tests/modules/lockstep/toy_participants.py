@@ -19,7 +19,8 @@ Both echo their port bytes reversed behind a tag, on each of their devices
 ``ignore_end``, ``fail_flush``, ``exit_code``, ``exit_delay_s``,
 ``die_after_s``, ``stop_on_end``, ``report_env`` (log these variables),
 ``crash_message`` (the startup failure's text), ``end_egress_hex`` (bytes
-written to the port on the drain ``end``). Either toy logs the terminal
+written to the port on the drain ``end``), ``beat_egress_hex`` (bytes written
+to the port at every beat), ``echo`` (false: no echo of the port bytes). Either toy logs the terminal
 marker at ``snap_at_s``.
 """
 
@@ -39,8 +40,9 @@ from navpy.sim.lockstep.participant_hooks import (
 
 
 class ToyLink:
-    def __init__(self, tag: bytes) -> None:
+    def __init__(self, tag: bytes, echo: bool = True) -> None:
         self._tag = tag
+        self._echo = echo
         self._inbox = rt.Queue()
         self._egress = bytearray()
 
@@ -62,7 +64,8 @@ class ToyLink:
                 data = self._inbox.get(timeout=0.05)
             except rt.Empty:
                 continue
-            self._egress += self._tag + data[::-1]
+            if self._echo:
+                self._egress += self._tag + data[::-1]
 
 
 class ToyHooks(ParticipantHooks):
@@ -73,7 +76,8 @@ class ToyHooks(ParticipantHooks):
     def __init__(self, context: ParticipantContext) -> None:
         self.context = context
         self.config = dict(context.config)
-        self.links = {device: ToyLink(self.TAG) for device in self.config.get("devices", [self.DEVICE])}
+        self.links = {device: ToyLink(self.TAG, self.config.get("echo", True))
+                      for device in self.config.get("devices", [self.DEVICE])}
         #: The first device's link: drain-end egress goes there.
         self.link = next(iter(self.links.values()))
         self.out = OutboxBuffer()
@@ -102,6 +106,7 @@ class ToyHooks(ParticipantHooks):
 
     def beat(self) -> None:
         self.out.log_lines.append(f"{type(self).__name__.lower()} t={rt.monotonic():.2f}")
+        self.link.write(bytes.fromhex(self.config.get("beat_egress_hex", "")))
         if not self.snapped and rt.monotonic() >= self.config.get("snap_at_s", 1e9):
             self.snapped = True
             self.out.log_lines.append(f"SNAP(VISION-NAV) at {rt.monotonic():.2f}")

@@ -5,8 +5,10 @@ on the same recorded firmware clock (``serial_step_frames.csv``): three
 synchronized frame streams, told apart by an egress tag. Its devices are
 data (``lockstep_fleet.md``, Links and names): SITL i's serial0 is
 ``lockstep:serial0.<i>``, owned by rover i (NavPy-like, ordinal i), and its
-serial1 is ``sitl<i>.serial1``; with no router yet (10b), the hub
-(backend-like, ordinal N+1 = 4) owns the three serial1 devices directly.
+serial1 is ``sitl<i>.serial1``. On the slice's direct path the hub
+(backend-like, ordinal N+1 = 4) owns the three serial1 devices; on the
+router path (:func:`routed_fleet_manifest`, step 10b) the coordinator owns
+them and the hub owns ``lockstep:router``.
 
 :class:`FleetOperator` starts the rovers one at a time through the hub, as
 the backend's launcher port does (each spawn after the previous rover's
@@ -16,6 +18,7 @@ one at a time and returns.
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 from navpy.sim.lockstep.coordinator_deadline import ExchangeDeadline
@@ -29,6 +32,7 @@ from navpy.sim.lockstep.coordinator_types import (
     WallBudgets,
     backend_ordinal,
 )
+from navpy.sim.lockstep.mavlink_wire import encoder
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from tests.modules.lockstep.coordinator_doubles import PYTHON_PATH, AllowAll, HostDelays, ScriptedSitl
 from tests.modules.lockstep.test_grid_check_recording import recorded_frames
@@ -77,6 +81,46 @@ def fleet_manifest(*, hub=None, rovers=None, mission_budget_us=60_000_000, boot_
         companion_roles=tuple(f"rover{i}" for i in ROVERS), expected_fleet=tuple(expected),
         sitl_ports=tuple((serial0(i), serial1(i)) for i in ROVERS), boot_budget_us=boot_budget_us,
     )
+
+
+#: The backend's router endpoint device on a routed fleet (10b).
+ROUTER = "lockstep:router"
+
+
+def routed_fleet_manifest(**options) -> Manifest:
+    """The 3-link toy on the router path: the hub owns ``lockstep:router``, the
+    coordinator owns every serial1. Each beat the hub sends a PARAM_REQUEST_READ
+    to 2/1 and rover i a TASK_ASSIGN_REQUEST from i/191 to the next rover;
+    neither echoes, so the streams stay MAVLink."""
+    plan = fleet_manifest(**options)
+    gcs, gcs_sink = encoder(255, 190)
+    gcs.param_request_read_send(2, 1, b"X", -1)
+    roles = {"hub": dataclasses.replace(plan.roles["hub"], devices=(ROUTER,), config={
+        **plan.roles["hub"].config, "devices": [ROUTER], "echo": False,
+        "beat_egress_hex": gcs_sink.drain().hex()})}
+    for i in ROVERS:
+        link, sink = encoder(i, 191)
+        link.task_assign_request_send(7, 1, 1000, 5000, i % SITLS + 1, i, 1, 2, 1, 2, 3)
+        role = plan.roles[f"rover{i}"]
+        roles[f"rover{i}"] = dataclasses.replace(role, config={
+            **role.config, "echo": False, "beat_egress_hex": sink.drain().hex()})
+    return dataclasses.replace(plan, roles=roles, router=ROUTER)
+
+
+def routed_fleet_sitls(*, delays: HostDelays | None = None):
+    """Three SITLs whose autopilots send a HEARTBEAT (i/1) out of serial1 every frame
+    and, as an autopilot does, forward each port's ingress out of the other port,
+    never back out of its own."""
+    links = {i: encoder(i, 1) for i in ROVERS}
+
+    def heartbeat(i):
+        link, sink = links[i]
+        link.heartbeat_send(1, 3, 0, 0, 0)
+        return sink.drain()
+
+    return [ScriptedSitl(delays=delays, tag=f"S{i}:".encode(), source_us=recorded_source_us(),
+                         extra_egress1=lambda k, i=i: heartbeat(i), echo=False, forward=True)
+            for i in ROVERS]
 
 
 class FleetOperator:

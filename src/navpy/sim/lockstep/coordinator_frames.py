@@ -13,8 +13,6 @@ then the fleet clock check: every ``source_us`` must be equal, and t_k is
 that value. A mismatch is ``CoordinatorFault("fleet_clock")``, journaled
 with the values. So a SITL whose own grid is broken faults on the grid
 first. Every read and reply draws on the tick's exchange deadline.
-``tally`` counts the MAVLink messages on every SITL port
-(``coordinator_mavlink``).
 """
 
 from __future__ import annotations
@@ -23,7 +21,6 @@ import math
 from typing import Protocol
 
 from navpy.sim.lockstep.coordinator_deadline import FRAME, REPLY, ExchangeDeadline
-from navpy.sim.lockstep.coordinator_mavlink import MavlinkTally
 from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault
 from navpy.sim.lockstep.step_wire import Frame, StepWireError, pack_reply, unpack_frame
 
@@ -91,8 +88,6 @@ class FleetFrames:
         self._readers = tuple(FrameReader(link, max_frame_gap_us) for link in links)
         self._ports = ports
         self._deadline = deadline
-        #: Every SITL port's bytes decoded per direction, for the journal.
-        self.tally = MavlinkTally(tuple(device for devices in ports for device in devices))
 
     def read(self, k: int) -> list[tuple[Frame, bytes]]:
         """Frame k of every SITL, each checked, then the fleet clock."""

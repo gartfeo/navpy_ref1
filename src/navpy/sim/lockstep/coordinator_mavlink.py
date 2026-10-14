@@ -23,11 +23,20 @@ The directions are the frame's egress (``from_sitl``, including the parked
 frame k_F+1), the reply's ingress (``to_sitl``) and the participants' drain
 egress (``drain_to_sitl``: written during drain, never delivered, still
 counted so nothing crosses a link unseen).
+
+A routed fleet (``lockstep_fleet.md``, Tally) counts from its packet records
+instead (:meth:`MavlinkTally.count`), on the SITL ports and the router's
+backend endpoint (:data:`ROUTER_LINK`), with three more directions:
+``routed_out`` (router copies into a link), ``router_dropped`` (packets
+from a link no endpoint accepted) and ``router_skipped_bytes`` (bytes from
+a link that are no packet, or fail their CRC). ``to_sitl`` counts a packet
+at the reply that admits its last byte.
 """
 
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
@@ -36,6 +45,13 @@ FROM_SITL = "from_sitl"
 TO_SITL = "to_sitl"
 DRAIN_TO_SITL = "drain_to_sitl"
 DIRECTIONS = (FROM_SITL, TO_SITL, DRAIN_TO_SITL)
+ROUTED_OUT = "routed_out"
+ROUTER_DROPPED = "router_dropped"
+ROUTER_SKIPPED_BYTES = "router_skipped_bytes"
+#: A routed fleet's directions.
+ROUTED_DIRECTIONS = (*DIRECTIONS, ROUTED_OUT, ROUTER_DROPPED, ROUTER_SKIPPED_BYTES)
+#: The tally link of the router's backend endpoint.
+ROUTER_LINK = "router.backend"
 #: The NavPy dialect's NAVLINK message ids (``navlink`` in the MAVLink XML).
 NAVLINK_IDS = range(25_000, 26_000)
 #: ``target`` of a message without a ``target_system`` field.
@@ -104,19 +120,27 @@ class _Counter:
 
 
 class MavlinkTally:
-    def __init__(self, devices: tuple[str, ...]) -> None:
+    def __init__(self, devices: tuple[str, ...], directions: tuple[str, ...] = DIRECTIONS) -> None:
         self._devices = devices
+        self._directions = directions
         self._counters = {(device, direction): _Counter()
-                          for device in devices for direction in DIRECTIONS}
+                          for device in devices for direction in directions}
 
     def feed(self, record: dict, direction: str, blocks: dict[str, bytes]) -> None:
         """Decode one tick's bytes per device; note its NAVLINK counts in ``record``
         (a tick record's data, or the parked frame's record)."""
         for device in self._devices:
             counts = self._counters[(device, direction)].feed(blocks.get(device, b""))
-            navlink = {key: n for key, n in sorted(counts.items()) if message_id(key) in NAVLINK_IDS}
-            if navlink:
-                record.setdefault("navlink", {}).setdefault(device, {})[direction] = navlink
+            _note_navlink(record, device, direction, counts)
+
+    def count(self, record: dict, device: str, direction: str, keys: Iterable[str] = (),
+              skipped_bytes: int = 0) -> None:
+        """Count already-decoded packets (their :func:`count_key`) and skipped bytes."""
+        counter = self._counters[(device, direction)]
+        counts = Counter(keys)
+        counter.totals.update(counts)
+        counter.skipped_bytes += skipped_bytes
+        _note_navlink(record, device, direction, counts)
 
     def totals(self) -> dict[str, object]:
         """Every message id's count and the skipped bytes, per link and direction."""
@@ -126,13 +150,25 @@ class MavlinkTally:
                     "messages": dict(sorted(self._counters[(device, direction)].totals.items())),
                     "skipped_bytes": self._counters[(device, direction)].skipped_bytes,
                 }
-                for direction in DIRECTIONS
+                for direction in self._directions
             }
             for device in self._devices
         }
 
 
+def _note_navlink(record: dict, device: str, direction: str, counts: Counter[str]) -> None:
+    """Add a tick's NAVLINK counts to ``record`` (sparse: nonzero only)."""
+    navlink = {key: n for key, n in sorted(counts.items()) if message_id(key) in NAVLINK_IDS}
+    if not navlink:
+        return
+    noted = record.setdefault("navlink", {}).setdefault(device, {}).setdefault(direction, {})
+    for key, n in navlink.items():
+        noted[key] = noted.get(key, 0) + n
+    record["navlink"][device][direction] = dict(sorted(noted.items()))
+
+
 __all__ = [
     "DIRECTIONS", "DRAIN_TO_SITL", "FROM_SITL", "MavlinkTally", "MessageKey", "NAVLINK_IDS",
-    "NO_TARGET", "TO_SITL", "count_key", "message_id", "parse_key",
+    "NO_TARGET", "ROUTED_DIRECTIONS", "ROUTED_OUT", "ROUTER_DROPPED", "ROUTER_LINK",
+    "ROUTER_SKIPPED_BYTES", "TO_SITL", "count_key", "message_id", "parse_key",
 ]

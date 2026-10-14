@@ -110,11 +110,30 @@ class Manifest:
     #: None is no budget (the slice). Step 10d sets it from the recorded
     #: latest latch tick of a 3-SITL boot plus a documented margin.
     boot_budget_us: int | None = None
+    #: The backend's router endpoint device (``lockstep:router``). With it the
+    #: coordinator routes: every SITL's serial1 is a router endpoint
+    #: ``sitl<i>`` it owns, and SITL ingress goes through its queues
+    #: (``lockstep_fleet.md``, Router and delivery). None: the slice's direct
+    #: links, until step 10c moves the slice onto the router path (owner Q1).
+    router: str | None = None
 
     def __post_init__(self) -> None:
         devices = self.sitl_devices
         if not self.sitl_ports or len(set(devices)) != len(devices):
             raise ValueError(f"the SITL ports must name distinct devices: {self.sitl_ports}")
+        if self.router is not None:
+            self._check_routed()
+
+    def _check_routed(self) -> None:
+        """A participant owns a SITL serial0 or the router endpoint, never a serial1."""
+        if self.router in self.sitl_devices:
+            raise ValueError(f"the router device {self.router!r} is a SITL port")
+        ownable = {ports[0] for ports in self.sitl_ports} | {self.router}
+        for role, spec in self.roles.items():
+            foreign = sorted(set(spec.devices) - ownable)
+            if foreign:
+                raise ValueError(f"role {role!r} owns {foreign}: on a routed fleet a participant "
+                                 "owns a SITL serial0 or the router device")
 
     @property
     def sitl_devices(self) -> tuple[str, ...]:

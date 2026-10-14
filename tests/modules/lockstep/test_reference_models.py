@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder, encoder
+from navpy.sim.lockstep.router_entries import load_entry_table
+from navpy.sim.lockstep.router_framer import RouterFramer
 from navpy.sim.lockstep.router_model import ReferenceRouter
 from navpy.sim.lockstep.uart_model import StepUart
 
@@ -51,8 +53,8 @@ def _message(kind: str, src: tuple[int, int], **target):
         link.heartbeat_send(1, 3, 0, 0, 0)
     else:
         link.param_request_read_send(target["system"], target["component"], b"X", -1)
-    (message,) = StreamDecoder().feed(sink.drain())
-    return message
+    (segment,) = RouterFramer(load_entry_table()).feed(sink.drain())
+    return segment.packet
 
 
 def test_the_router_learns_endpoints_and_forwards_targeted_and_broadcast():
