@@ -3,7 +3,9 @@
 ``put`` and ``get`` block, time out and raise :class:`queue.Full` and
 :class:`queue.Empty` as the standard library does; ``task_done`` and ``join``
 count unfinished items. A wait keeps one absolute deadline across contention
-and decides from the queue's state after each park (``baton_sync``).
+and decides from the queue's state after each park (``baton_sync``); a
+cancelled waiter leaves and passes on a wake it took; a blocking call is a
+cancellation checkpoint on entry too.
 :meth:`BatonQueue.deliver` is the coordinator's input path: an input never
 blocks and is never dropped, so ``maxsize`` bounds only ``put``.
 """
@@ -14,6 +16,7 @@ import queue
 from collections import deque
 from typing import Any
 
+from navpy.sim.lockstep import cancel_scope
 from navpy.sim.lockstep.baton import BatonRuntime, ManagedThread
 
 
@@ -38,13 +41,15 @@ class BatonQueue:
 
     def put(self, item: Any, block: bool = True, timeout: float | None = None) -> None:
         me = self._runtime.current()
+        if block:
+            cancel_scope.checkpoint()
         deadline = self._deadline(timeout) if block else None
         while self.full():
             remaining = None if deadline is None else deadline - self._runtime.monotonic()
             if not block or (remaining is not None and remaining <= 0):
                 raise queue.Full
             self._putters.append(me)
-            self._runtime.park("queue", remaining)
+            self._park(self._putters, me, remaining)
             if me in self._putters:  # not woken by a get: the timer fired
                 self._putters.remove(me)
         self._append(item)
@@ -58,13 +63,15 @@ class BatonQueue:
 
     def get(self, block: bool = True, timeout: float | None = None) -> Any:
         me = self._runtime.current()
+        if block:
+            cancel_scope.checkpoint()
         deadline = self._deadline(timeout) if block else None
         while not self._items:
             remaining = None if deadline is None else deadline - self._runtime.monotonic()
             if not block or (remaining is not None and remaining <= 0):
                 raise queue.Empty
             self._getters.append(me)
-            self._runtime.park("queue", remaining)
+            self._park(self._getters, me, remaining)
             if me in self._getters:  # not handed an item: the timer fired
                 self._getters.remove(me)
         item = self._items.popleft()
@@ -86,11 +93,24 @@ class BatonQueue:
 
     def join(self) -> None:
         me = self._runtime.current()
+        cancel_scope.checkpoint()
         while self._unfinished:
             self._joiners.append(me)
-            self._runtime.park("queue")
+            self._park(self._joiners, me, None)
             if me in self._joiners:
                 self._joiners.remove(me)
+
+    def _park(self, waiters: deque[ManagedThread], me: ManagedThread,
+              timeout: float | None) -> None:
+        """Park in ``waiters``; a cancelled waiter leaves, passing on a wake it took."""
+        try:
+            self._runtime.park("queue", timeout)
+        except BaseException:
+            if me in waiters:
+                waiters.remove(me)
+            elif waiters:  # woken for an item or a slot, then cancelled
+                self._runtime.wake(waiters.popleft())
+            raise
 
     def _append(self, item: Any) -> None:
         self._items.append(item)

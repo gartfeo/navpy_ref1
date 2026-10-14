@@ -12,6 +12,7 @@ from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.launch_controller import launch_controller
 from gcs.backend.settings_store import settings_store
 from gcs.backend.diagnostics import emit
+from gcs.backend.producer_inventory import producers
 from navpy.core.kernel import runtime_time as rt
 
 if TYPE_CHECKING:
@@ -124,7 +125,7 @@ class TelemetryLoop:
     async def start(self):
         """Start the async telemetry broadcast loop."""
         self._stop.clear()
-        self._task = asyncio.create_task(self._loop())
+        self._task = producers.create_task("telemetry_loop", self._loop())
         log.info("Telemetry broadcast loop started")
 
     async def stop(self):

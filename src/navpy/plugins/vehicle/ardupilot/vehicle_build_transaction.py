@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusLease
@@ -100,7 +101,8 @@ class VehicleBuildTransaction:
         if self._phase in {"committed", "rolled_back"}:
             return
         try:
-            self._release_owned_resources()
+            with rt.shielded():  # a cancelled build still releases what it owns
+                self._release_owned_resources()
         except BaseException as cleanup:
             _raise_build_rollback(primary, cleanup)
 

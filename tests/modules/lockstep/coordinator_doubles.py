@@ -108,6 +108,12 @@ class ScriptedOperator:
         self.log_lines: list[str] = []
         self.done = False
 
+    def observations(self):
+        return {}
+
+    def deliver_drain(self, inbox):
+        pass  # the 9d traces end at the operator's return
+
     def run_tick(self, inbox):
         self._observe(inbox)
         out = []

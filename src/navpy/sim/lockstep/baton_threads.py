@@ -16,6 +16,7 @@ import threading
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
+from navpy.sim.lockstep import cancel_scope
 from navpy.sim.lockstep.baton import BatonRuntime, ManagedThread
 from navpy.sim.lockstep.baton_queue import BatonQueue
 from navpy.sim.lockstep.baton_sync import (
@@ -176,6 +177,10 @@ class LockstepThreads:
 
     def Queue(self, maxsize: int = 0) -> BatonQueue:
         return BatonQueue(self.baton, maxsize)
+
+    #: Cancellation-scope blocks (``rt.shielded``, ``rt.detached``): the scopes' own.
+    shielded = staticmethod(cancel_scope.shielded)
+    detached = staticmethod(cancel_scope.detached)
 
     def new_name(self, target: Callable[..., object] | None) -> str:
         """``Thread-N (target)`` as the standard library names it, numbered per runtime."""

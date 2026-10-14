@@ -55,6 +55,17 @@ class VehicleManager:
         self._task_assign_listener = None
         self._compass_cal_listener = None
 
+    def set_bus_opener(self, open_bus: MavBusOpener) -> None:
+        """Use ``open_bus`` for every later open (a lockstep link's ``open``).
+
+        The seam for the module-level manager, which is built at import: it is
+        set before the first open, never swapped under a live bus.
+        """
+        with self._lock:
+            if self._buses:
+                raise RuntimeError("the bus opener is set before any bus is open")
+            self._open_bus = open_bus
+
     def set_task_confirm_listener(self, listener) -> None:
         """Set the TaskConfirmListener for new vehicle registrations."""
         self._task_confirm_listener = listener

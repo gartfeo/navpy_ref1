@@ -45,7 +45,8 @@ class MavBusReader:
         self._thread = rt.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
-        self._thread.start()
+        with rt.detached():  # owned by its bus (closed by it), not the opening request
+            self._thread.start()
 
     def join(self, timeout_s: float | None = None) -> bool:
         """Whether the reader has stopped (its own thread counts: it exits next)."""

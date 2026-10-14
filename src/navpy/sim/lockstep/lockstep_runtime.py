@@ -112,7 +112,7 @@ _PORT_FUNCTIONS = {
     "clock": ("monotonic", "time", "perf_counter", "now", "sleep"),
     "threads": (
         "Lock", "RLock", "Condition", "Event", "Semaphore", "BoundedSemaphore",
-        "Thread", "Timer", "current_thread", "get_ident", "Queue",
+        "Thread", "Timer", "current_thread", "get_ident", "Queue", "shielded", "detached",
     ),
     "entropy": ("rng", "uuid4", "token_urlsafe"),
 }

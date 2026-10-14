@@ -23,6 +23,8 @@ class ManagedThread:
     daemon: bool = False
     #: The product-facing thread object (``rt.current_thread()``), if any.
     handle: object | None = None
+    #: The cancellation scope it inherited at spawn (``cancel_scope``), if any.
+    scope: object | None = None
 
 
 class ThreadTable:

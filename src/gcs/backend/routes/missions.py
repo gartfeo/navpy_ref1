@@ -15,6 +15,7 @@ from gcs.backend.models import UploadRequest, UploadProgress, FencePlan, FenceOu
 from gcs.backend.settings_store import settings_store
 from gcs.backend.vehicle_manager import vehicle_mgr
 from gcs.backend.broadcast import manager as ws_manager
+from gcs.backend.producer_inventory import producers
 from gcs.backend.full_params import full_param_cache
 from gcs.backend.diagnostics import emit
 from gcs.backend.routes.mission_fence_download import download_fence_snapshot
@@ -193,10 +194,10 @@ async def upload_missions(req: UploadRequest):
                 })
 
             def on_progress(stage: str, attempt: int):
-                asyncio.run_coroutine_threadsafe(_broadcast_stage(stage, attempt), loop)
+                producers.broadcast("route_broadcasts", _broadcast_stage(stage, attempt), loop)
 
             def on_wp_progress(wp_sent: int, wp_total: int):
-                asyncio.run_coroutine_threadsafe(_broadcast_wp(wp_sent, wp_total), loop)
+                producers.broadcast("route_broadcasts", _broadcast_wp(wp_sent, wp_total), loop)
 
             result = await loop.run_in_executor(None, lambda: upload_mission_with_retry(
                 entry.vehicle, track, assignment.altitude_m,
@@ -244,7 +245,10 @@ async def upload_missions(req: UploadRequest):
                 entry.mission_uploaded = True
                 entry.probed_search_pattern = assignment.search_pattern
                 entry.cached_mission = None  # invalidate probe cache
-                entry.vehicle.set_parameter("RTL_ALTITUDE", float(assignment.altitude_m))
+                # A blocking MAVLink round trip: never on the loop thread.
+                await loop.run_in_executor(
+                    None, entry.vehicle.set_parameter, "RTL_ALTITUDE", float(assignment.altitude_m),
+                )
                 full_param_cache.invalidate_keys(assignment.sys_id, ["RTL_ALTITUDE"])
                 # Apply the shared geofence (if any) after the mission upload.
                 fence_status = await _apply_fence(loop, entry, assignment.sys_id, req.fence)

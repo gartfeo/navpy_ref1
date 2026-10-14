@@ -61,7 +61,7 @@ Step 6 of `deterministic_demo_eval.md`. These are the contracts the lockstep bui
 - **Workers.** The default executor runs each job in a managed thread (`BatonExecutor`); its completion is a `call_soon_threadsafe`, so it lands in the same tick's quiescence.
   - Shutdown refuses new jobs and joins outstanding ones. `loop.shutdown_default_executor` waits for them on the loop, instead of starting asyncio's helper thread (pinned).
   - AnyIO worker threads (sync routes, `run_in_threadpool`) must be managed too: step 9 binds `anyio.to_thread` to the managed executor. A stray AnyIO thread is caught by the audit.
-- **Lifespan** runs explicitly: startup before the backend registers, shutdown in the drain phase, ending in a `DONE` with `ended` (step 9d).
+- **Lifespan** runs explicitly: startup at the admission tick, then readiness (`runtime_ready`) in a `DONE` (step 9e); shutdown in the drain phase, ending in a `DONE` with `ended` (step 9d).
 - **Requests** run through an in-process ASGI call (`asgi_request`): no server, no sockets. A request delivered at tick k runs from tick k. Its response returns in the `DONE` of the tick its handler finishes in.
 - **Cancellation** is an input. A cancel delivered at tick k cancels a handler still running then, because inputs come first. A response already in `DONE` k-1 stands.
 - **No blocking MAVLink call on the loop thread:** such work goes to the managed executor (pinned with a request that sleeps in the executor).

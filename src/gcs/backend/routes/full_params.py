@@ -16,6 +16,7 @@ from gcs.backend.full_param_values import (
 )
 from gcs.backend.full_params import full_param_cache
 from gcs.backend.param_readonly import is_readonly
+from gcs.backend.producer_inventory import producers
 from gcs.backend.vehicle_manager import vehicle_mgr
 from gcs.backend.diagnostics import emit
 
@@ -104,10 +105,7 @@ async def get_full_parameters(
             emit("parameter_request_progress", source="backend", sys_id=sys_id,
                  request_id=request_id, bytes_read=read, size_estimate=estimate,
                  phase="done" if event.get("done") else "downloading")
-        fut = asyncio.run_coroutine_threadsafe(
-            ws_manager.broadcast(payload),
-            loop,
-        )
+        fut = producers.broadcast("route_broadcasts", ws_manager.broadcast(payload), loop)
 
         def _log_error(done_fut) -> None:
             try:

@@ -214,13 +214,13 @@ async def start_esp32_sim(port: int | None = None):
     if _esp32_sim is not None:
         raise HTTPException(409, "Simulator already running")
 
-    from gcs.backend.esp32_simulator import Esp32Simulator
-    sim_port = port or _default_sim_port(settings)
-    simulator = Esp32Simulator(port=sim_port)
+    from gcs.backend.esp32_access import esp32
+    simulator = esp32.simulator(port or _default_sim_port(settings))
     simulator.start()  # a bind failure leaves no half-started simulator behind
     _esp32_sim = simulator
-    log.info("ESP32 simulator started on port %d", sim_port)
-    return {"status": "started", "port": sim_port}
+    # The in-process (lockstep) simulator has no port: it reports none.
+    log.info("ESP32 simulator started on port %s", simulator.port)
+    return {"status": "started", "port": simulator.port}
 
 
 @router.post("/launch/esp32-sim/stop")
@@ -267,12 +267,11 @@ def auto_start_esp32_sim() -> bool:
     if _esp32_sim is not None:
         return False
 
-    from gcs.backend.esp32_simulator import Esp32Simulator
-    sim_port = _default_sim_port(settings)
-    simulator = Esp32Simulator(port=sim_port)
+    from gcs.backend.esp32_access import esp32
+    simulator = esp32.simulator(_default_sim_port(settings))
     simulator.start()  # a bind failure leaves no half-started simulator behind
     _esp32_sim = simulator
-    log.info("Auto-started ESP32 simulator on port %d", sim_port)
+    log.info("Auto-started ESP32 simulator on port %s", simulator.port)
     return True
 
 

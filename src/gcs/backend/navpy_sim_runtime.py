@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from gcs.backend.navpy_sim_configured_restart import (
@@ -35,13 +35,26 @@ _auto_managed_sysids: set[int] = set()
 _hb_exit_streaks: dict[int, int] = {}
 
 
+#: Builds the manager (lockstep: the launcher port); None: the subprocess one.
+_mgr_factory: Callable[[], Any] | None = None
+
+
+def set_manager_factory(factory: Callable[[], Any]) -> None:
+    """Build later managers with ``factory`` (set before any manager exists)."""
+    global _mgr_factory
+    with _configuration_restart_lock:
+        if _navpy_mgr is not None:
+            raise RuntimeError("the manager factory is set before any manager exists")
+        _mgr_factory = factory
+
+
 def get_or_create_mgr() -> Any:
     global _navpy_mgr
     with _configuration_restart_lock:
         if _navpy_mgr is None:
             from gcs.backend.navpy_process_manager import NavpyProcessManager
 
-            _navpy_mgr = NavpyProcessManager()
+            _navpy_mgr = (_mgr_factory or NavpyProcessManager)()
         return _navpy_mgr
 
 

@@ -39,7 +39,8 @@ class CacheLogWorker:
             daemon=True,
         )
         try:
-            self._thread.start()
+            with rt.detached():  # owned by this component, not its creating request
+                self._thread.start()
         except BaseException:
             with self._accept_lock:
                 self._accepting = False

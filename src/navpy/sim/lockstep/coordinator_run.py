@@ -145,7 +145,7 @@ class LockstepCoordinator:
                 self._reply(k, record, TickOutput())
                 continue
             output = self._exchange.run(k, t_us, record, egress, draining=False)
-            self._run_operator(k, t_us, output)
+            self._run_operator(k, t_us, output, record)
             self._reply(k, record, output)
             self._raise_faults(output)
             if phase == "mission":
@@ -173,12 +173,20 @@ class LockstepCoordinator:
                                 "a companion was not stopped through the participant stop "
                                 "before drain", tick=k_f, ordinal=spawn.ordinal)
 
-    def _run_operator(self, k: int, t_us: int, output: TickOutput) -> None:
+    def _inbox(self, k: int, t_us: int, output: TickOutput) -> OperatorInbox:
+        return OperatorInbox(k, t_us, tuple(output.responses), tuple(output.events),
+                             tuple(output.log_lines), tuple(self._book.operator))
+
+    def _run_operator(self, k: int, t_us: int, output: TickOutput, record: TickRecord) -> None:
         if self._operator.done:
             return
-        inbox = OperatorInbox(k, t_us, tuple(output.responses), tuple(output.events),
-                              tuple(output.log_lines), tuple(self._book.operator))
-        deliver_operator_requests(self._roster, self._operator.run_tick(inbox), k)
+        deliver_operator_requests(self._roster, self._operator.run_tick(self._inbox(k, t_us, output)), k)
+        self._note_operator(record)
+
+    def _note_operator(self, record: TickRecord) -> None:
+        observed = self._operator.observations()
+        if observed:  # what the operator's ports saw this tick: receipts, drops
+            record.note("operator", observed)
 
     def _reply(self, k: int, record: TickRecord, output: TickOutput) -> None:
         raw = self._frames.reply(k, tuple(output.ingress.get(device, b"") for device in SERIAL_DEVICES))
@@ -209,6 +217,8 @@ class LockstepCoordinator:
                 raise CoordinatorFault("drain_budget", "drain passed its budget", tick=k)
             record = TickRecord(k, "drain", t_us)
             output = self._exchange.run(k, t_us, record, None, draining=True)
+            self._operator.deliver_drain(self._inbox(k, t_us, output))
+            self._note_operator(record)
             self.journal.add(record.data)
             self._raise_faults(output)
         for member in self._roster.members:

@@ -18,8 +18,10 @@ import logging
 
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from gcs.backend.broadcast import manager as ws_manager
+from gcs.backend.producer_inventory import producers
 
 log = logging.getLogger(__name__)
+_PRODUCER = "compass_cal_listener"
 
 
 def _progress_payload(sys_id: int, msg) -> dict:
@@ -61,14 +63,14 @@ class CompassCalListener:
 
     def register_vehicle(self, sys_id: int, vehicle: VehicleMav) -> None:
         """Register MAG_CAL callbacks on a VehicleMav instance."""
-        vehicle.on_message(
+        producers.keep_subscription(_PRODUCER, vehicle.on_message(
             "MAG_CAL_PROGRESS",
             lambda msg, sid=sys_id: self._on_progress(sid, msg),
-        )
-        vehicle.on_message(
+        ))
+        producers.keep_subscription(_PRODUCER, vehicle.on_message(
             "MAG_CAL_REPORT",
             lambda msg, sid=sys_id: self._on_report(sid, msg),
-        )
+        ))
         log.info("CompassCalListener registered for vehicle %d", sys_id)
 
     def _on_progress(self, sys_id: int, msg) -> None:
@@ -85,4 +87,4 @@ class CompassCalListener:
 
     def _broadcast(self, payload: dict) -> None:
         """Thread-safe broadcast via the asyncio event loop."""
-        asyncio.run_coroutine_threadsafe(ws_manager.broadcast(payload), self._loop)
+        producers.broadcast(_PRODUCER, ws_manager.broadcast(payload), self._loop)

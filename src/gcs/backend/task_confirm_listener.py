@@ -8,6 +8,7 @@ from typing import Optional
 
 from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.companion_identity import is_from_companion
+from gcs.backend.producer_inventory import producers
 from gcs.backend.task_confirm_images import ConfirmationImageSession
 from gcs.backend.task_confirm_ports import TaskConfirmVehiclePort
 from gcs.backend.task_confirm_rounds import (
@@ -27,6 +28,9 @@ log = logging.getLogger(__name__)
 # Historical private names remain importable for compatibility tests and old
 # backend extensions. Concrete ownership lives in the focused modules above.
 _LEGACY_ROUND_UID = LEGACY_ROUND_UID
+
+
+_PRODUCER = "task_confirm_listener"
 
 
 class TaskConfirmListener:
@@ -50,18 +54,14 @@ class TaskConfirmListener:
     def register_vehicle(self, sys_id: int, vehicle: TaskConfirmVehiclePort) -> None:
         self._vehicles[sys_id] = vehicle
         self._images.register_vehicle(sys_id)
-        vehicle.on_message(
-            "NAVLINK",
-            lambda message, sid=sys_id: self._on_navlink(sid, message),
-        )
-        vehicle.on_message(
-            "DATA_TRANSMISSION_HANDSHAKE",
-            lambda message, sid=sys_id: self._on_handshake(sid, message),
-        )
-        vehicle.on_message(
-            "ENCAPSULATED_DATA",
-            lambda message, sid=sys_id: self._on_chunk(sid, message),
-        )
+        for name, handler in (
+            ("NAVLINK", self._on_navlink),
+            ("DATA_TRANSMISSION_HANDSHAKE", self._on_handshake),
+            ("ENCAPSULATED_DATA", self._on_chunk),
+        ):
+            producers.keep_subscription(_PRODUCER, vehicle.on_message(
+                name, lambda message, sid=sys_id, handle=handler: handle(sid, message),
+            ))
 
     def _on_navlink(self, sys_id: int, message) -> None:
         message_class = MsgRegistry.get_class_by_mav_id(message.get_msgId())
@@ -146,7 +146,7 @@ class TaskConfirmListener:
         return is_from_companion(message, sys_id)
 
     def _broadcast(self, payload: dict) -> None:
-        asyncio.run_coroutine_threadsafe(ws_manager.broadcast(payload), self._loop)
+        producers.broadcast(_PRODUCER, ws_manager.broadcast(payload), self._loop)
 
 
 __all__ = ["TaskConfirmListener", "_LEGACY_ROUND_UID"]

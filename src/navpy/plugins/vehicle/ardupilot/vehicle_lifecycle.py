@@ -79,6 +79,10 @@ class VehicleLifecycle:
             self._heartbeat_runtime.start()
 
     def close(self) -> None:
+        with rt.shielded():  # cleanup completes even in a cancelled scope
+            self._close()
+
+    def _close(self) -> None:
         with self._condition:
             while self._status == "closing":
                 self._condition.wait()

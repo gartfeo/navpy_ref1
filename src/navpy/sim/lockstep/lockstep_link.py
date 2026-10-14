@@ -17,12 +17,21 @@ registry, owned by the link instead of the process). A reopen after a close
 is a new bus: a fresh decoder and fresh encoder sequence numbers, as a
 reopened ``mavfile`` has. Bytes delivered while no bus is open have no reader
 and are lost, as on a UART; they are counted.
+
+The bus (and its reader thread) belongs to the link, never to the request
+that first opened it: it is built in a fresh context under the link's own
+cancellation scope (:attr:`owner`), so cancelling that request leaves the
+shared reader running. The bus stops by its close.
 """
 
 from __future__ import annotations
 
+import contextvars
+
 from navpy.plugins.vehicle.ardupilot.mav_bus_registry import MavBusRegistry, MavBusRegistryPorts
+from navpy.sim.lockstep import cancel_scope
 from navpy.sim.lockstep.baton import BatonRuntime
+from navpy.sim.lockstep.cancel_scope import CancelScope
 from navpy.sim.lockstep.lockstep_bus import LockstepBus, LockstepConnection
 from navpy.sim.lockstep.mavlink_wire import ByteSink
 
@@ -43,6 +52,8 @@ class LockstepLink:
             return_if_open=lambda bus, action: bus.lifecycle.return_if_open(action),
             wait_closed=lambda bus, timeout: bus.wait_closed(timeout),
         ))
+        #: The transport's scope: the reader runs in it, not in a request's.
+        self.owner = CancelScope(f"transport {device}")
         #: Ingress bytes that arrived while no bus was open.
         self.lost_ingress_bytes = 0
 
@@ -58,7 +69,7 @@ class LockstepLink:
         if device != self.device:
             raise ValueError(f"lockstep link {self.device} cannot open {device!r}")
 
-        def create() -> LockstepBus:
+        def build() -> LockstepBus:
             connection = LockstepConnection(self._egress, source_system, source_component)
             bus = LockstepBus(
                 self._baton, device, connection, lambda: self._registry.remove(device, bus),
@@ -66,7 +77,16 @@ class LockstepLink:
             self._bus = bus
             return bus
 
+        def create() -> LockstepBus:
+            return cancel_scope.bind(contextvars.Context(), self.owner).run(build)
+
         return self._registry.get_or_create(device, create)
+
+    def close(self) -> None:
+        """Close the open bus, if any, and wait until its reader has stopped."""
+        bus = self._bus
+        if bus is not None and not bus.is_closed:
+            bus.close()
 
     def deliver(self, data: bytes) -> None:
         """Coordinator, in the tick's input phase: the ``TICK``'s port bytes."""

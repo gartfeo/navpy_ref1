@@ -14,7 +14,7 @@ rule (standard library, ``runtime_time``, ``navpy.sim.lockstep``).
   lifecycle ``stop`` or the drain ``end``.
 
 Both echo their port bytes reversed behind a tag. Test knobs (``config``):
-``ready_after_s``, ``snap_at_s``, ``crash_before_ready``, ``ignore_stop``,
+``ready_after_s``, ``ready_payload``, ``snap_at_s``, ``crash_before_ready``, ``ignore_stop``,
 ``ignore_end``, ``fail_flush``, ``exit_code``, ``exit_delay_s``,
 ``die_after_s``, ``stop_on_end``, ``report_env`` (log these variables),
 ``crash_message`` (the startup failure's text). Either toy logs the terminal
@@ -87,7 +87,8 @@ class ToyHooks(ParticipantHooks):
         rt.sleep(self.config.get("ready_after_s", 0.0))
         if self.config.get("crash_before_ready"):
             raise RuntimeError(self.config.get("crash_message", "startup failed"))
-        self.out.events.append(Event("runtime_ready", {"role": type(self).__name__.lower()}))
+        self.out.events.append(Event("runtime_ready", {"role": type(self).__name__.lower(),
+                                                       **self.config.get("ready_payload", {})}))
         while not self.stop.wait(self.PERIOD_S):
             self.beat()
         self.stopped()

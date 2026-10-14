@@ -6,6 +6,7 @@ import logging
 from typing import Callable
 
 from gcs.backend.broadcast import manager as ws_manager
+from gcs.backend.producer_inventory import producers
 from gcs.backend import launch_execution, launch_observation, launch_session
 from gcs.backend.launch_state import (
     VehicleState, UAVS_PER_CONTAINER, _container_map, _ALREADY_AIRBORNE_MIN_ALT_M,
@@ -131,7 +132,7 @@ class LaunchController:
             raise RuntimeError(f"Vehicle {sys_id} already launching")
 
         log.info("[launch] V%d queued for launch (state=%s)", sys_id, self._states[sys_id].value)
-        self._tasks[sys_id] = asyncio.create_task(self._run_vehicle(sys_id))
+        self._tasks[sys_id] = producers.create_task("launch_tasks", self._run_vehicle(sys_id))
 
     async def abort(self):
         """Signal abort and cancel the launch session."""

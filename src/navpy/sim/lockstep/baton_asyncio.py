@@ -1,4 +1,4 @@
-"""An asyncio event loop under the baton, and an in-process ASGI call.
+"""An asyncio event loop under the baton (the ASGI call: :mod:`lockstep_asgi`).
 
 The ASGI contract (``docs/design/lockstep_contracts.md``): the backend's loop
 runs in one managed thread. ``loop.time()`` is the runtime clock; the idle
@@ -21,7 +21,9 @@ import selectors
 from collections.abc import Callable
 from typing import Any
 
+from navpy.sim.lockstep import cancel_scope
 from navpy.sim.lockstep.baton import MAX_TIMER_ROUNDS_PER_TICK, BatonRuntime, ManagedThread
+from navpy.sim.lockstep.baton_jobs import JobFailures
 from navpy.sim.lockstep.baton_sync import BatonEvent, join
 
 
@@ -82,8 +84,20 @@ class _BatonSelector(selectors.BaseSelector):
         self._map.clear()
 
 
+def _cancel_running(future: concurrent.futures.Future) -> None:
+    """End a running future as cancelled (``Future.cancel`` refuses a running one)."""
+    with future._condition:
+        future._state = concurrent.futures._base.CANCELLED_AND_NOTIFIED
+        future._condition.notify_all()
+    future._invoke_callbacks()
+
+
 class BatonExecutor(concurrent.futures.ThreadPoolExecutor):
     """Each job runs in its own managed thread; the pool's own workers never start.
+
+    A job runs in a copy of its submitter's context (the runtime's spawn), so
+    it shares the submitting task's cancellation scope; a ``Cancelled`` of
+    that scope ends its future cancelled.
 
     A ``ThreadPoolExecutor`` subclass only because asyncio's
     ``set_default_executor`` requires one.
@@ -95,10 +109,15 @@ class BatonExecutor(concurrent.futures.ThreadPoolExecutor):
         self._count = 0
         self._jobs: list[tuple[concurrent.futures.Future, ManagedThread]] = []
         self._closed = False
+        #: Called before each submission; raises to refuse it (a shutdown
+        #: admits only its own owner's jobs).
+        self.gate: Callable[[], None] | None = None
 
     def submit(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> concurrent.futures.Future:
         if self._closed:
             raise RuntimeError("cannot schedule new futures after shutdown")
+        if self.gate is not None:
+            self.gate()
         self._jobs = [(f, t) for f, t in self._jobs if not t.done]  # retire finished jobs
         future: concurrent.futures.Future = concurrent.futures.Future()
         self._count += 1
@@ -109,11 +128,18 @@ class BatonExecutor(concurrent.futures.ThreadPoolExecutor):
             try:
                 future.set_result(fn(*args, **kwargs))
             except BaseException as error:
-                future.set_exception(error)
+                if cancel_scope.consumed(error):
+                    _cancel_running(future)  # its scope was cancelled: cancelled, not failed
+                else:
+                    future.set_exception(error)
 
         thread = self._runtime.spawn(run, name=f"executor-{self._count}")
         self._jobs.append((future, thread))
         return future
+
+    def job_threads(self) -> list[ManagedThread]:
+        """The managed threads of the jobs not yet retired."""
+        return [thread for _future, thread in self._jobs]
 
     def pending(self) -> list[concurrent.futures.Future]:
         return [future for future, _thread in self._jobs if not future.done()]
@@ -130,6 +156,14 @@ class BatonExecutor(concurrent.futures.ThreadPoolExecutor):
 
 
 class BatonEventLoop(asyncio.SelectorEventLoop):
+    @property
+    def baton_executor(self) -> BatonExecutor:
+        return self._baton_executor
+
+    @property
+    def baton(self) -> BatonRuntime:
+        return self._baton_runtime
+
     def __init__(self, runtime: BatonRuntime) -> None:
         self._baton_runtime = runtime
         self._baton_wake = BatonEvent(runtime)
@@ -138,6 +172,16 @@ class BatonEventLoop(asyncio.SelectorEventLoop):
         selector.loop = self
         self._baton_executor = BatonExecutor(runtime)
         self.set_default_executor(self._baton_executor)
+        #: Each failed job's error and whether its awaiter took it
+        #: (:mod:`baton_jobs`); the owner sets ``job_failures.report``.
+        self.job_failures = JobFailures(self)
+
+    def run_in_executor(self, executor: Any, func: Callable[..., Any], *args: Any) -> asyncio.Future:
+        """asyncio's, on the managed executor, with each job's failure observed."""
+        if executor is not None and executor is not self._baton_executor:
+            return super().run_in_executor(executor, func, *args)
+        self._check_closed()
+        return self.job_failures.wrap(self._baton_executor.submit(func, *args))
 
     def time(self) -> float:
         return self._baton_runtime.monotonic()
@@ -167,34 +211,4 @@ class BatonEventLoop(asyncio.SelectorEventLoop):
         self._baton_wake.deliver_set()
 
 
-async def asgi_request(
-    app: Callable[..., Any], method: str, path: str, body: bytes = b"",
-) -> tuple[int, bytes]:
-    """One HTTP request through the app in-process (no server, no sockets)."""
-    scope = {
-        "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
-        "method": method, "scheme": "http", "path": path, "raw_path": path.encode(),
-        "query_string": b"", "root_path": "", "headers": [(b"host", b"lockstep")],
-        "client": ("lockstep", 0), "server": ("lockstep", 80),
-    }
-    sent = {"body": False}
-    status, chunks = 0, []
-
-    async def receive() -> dict:
-        if not sent["body"]:
-            sent["body"] = True
-            return {"type": "http.request", "body": body, "more_body": False}
-        await asyncio.Event().wait()  # no disconnect in lockstep
-
-    async def send(message: dict) -> None:
-        nonlocal status
-        if message["type"] == "http.response.start":
-            status = message["status"]
-        elif message["type"] == "http.response.body":
-            chunks.append(message.get("body", b""))
-
-    await app(scope, receive, send)
-    return status, b"".join(chunks)
-
-
-__all__ = ["BatonEventLoop", "BatonExecutor", "asgi_request"]
+__all__ = ["BatonEventLoop", "BatonExecutor"]

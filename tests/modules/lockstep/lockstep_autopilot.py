@@ -6,7 +6,10 @@ vehicle state (mode, parameters, mission) is shared. It answers one tick
 later, as the firmware does at best. Every second it sends the heartbeats
 of ``heartbeats``: the gimbal's (compid 154) and the autopilot's (compid 1).
 ``param_burst`` unrelated ``PARAM_VALUE`` replies follow each named read's
-answer in the same tick.
+answer in the same tick. The mission is stored: ``MISSION_CLEAR_ALL``
+empties it, an upload (count, then one request per item, then the ack)
+replaces it, and a download serves it as uploaded. ``answer_limits``
+withholds replies: a message kind is answered at most that many times.
 """
 
 from __future__ import annotations
@@ -43,15 +46,27 @@ class ReferenceAutopilot:
         *,
         heartbeats: frozenset[str] = frozenset({"gimbal", "autopilot"}),
         param_burst: int = 0,
+        parameters: dict[str, float] | None = None,
+        answer_limits: dict[str, int] | None = None,
     ) -> None:
         self._ports = [_Port() for _ in range(ports)]
         self._next_heartbeat_us = 0
         self._heartbeats = heartbeats
         self._param_burst = param_burst
         self.custom_mode = PLANE_MANUAL
-        self.parameters = dict(PARAMETERS)
+        self.parameters = {**PARAMETERS, **(parameters or {})}
+        #: Each item's MISSION_ITEM_INT fields from ``frame`` to ``z``.
+        self.mission: list[tuple] = [
+            (mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT, command, 0, 1, 0.0, 0.0, 0.0, 0.0, lat, lon, alt)
+            for command, lat, lon, alt in MISSION
+        ]
+        self._upload: list[tuple] | None = None
+        self._answers_left = dict(answer_limits or {})
+        self._upload_count = 0
         #: (port, message type, source system, source component), in arrival order.
         self.received: list[tuple[int, str, int, int]] = []
+        #: A lost link: while set, nothing is answered and no heartbeat is sent.
+        self.silent = False
 
     def step(self, now_us: int, inbound: list[bytes]) -> list[bytes]:
         """One firmware loop: parse each port's bytes, answer, maybe heartbeat."""
@@ -61,8 +76,11 @@ class ReferenceAutopilot:
                 self.received.append((
                     index, message.get_type(), message.get_srcSystem(), message.get_srcComponent(),
                 ))
-                self._answer(port, message)
-        if now_us >= self._next_heartbeat_us:
+                if not self.silent:
+                    self._answer(port, message)
+        if self.silent:
+            self._next_heartbeat_us = max(self._next_heartbeat_us, now_us)
+        elif now_us >= self._next_heartbeat_us:
             self._next_heartbeat_us += HEARTBEAT_PERIOD_US
             for port in self._ports:
                 if "gimbal" in self._heartbeats:
@@ -78,6 +96,10 @@ class ReferenceAutopilot:
         kind = message.get_type()
         if getattr(message, "target_system", SYS_ID) != SYS_ID:
             return
+        if kind in self._answers_left:
+            if self._answers_left[kind] <= 0:
+                return  # withheld
+            self._answers_left[kind] -= 1
         reply = port.autopilot
         source = (message.get_srcSystem(), message.get_srcComponent())
         if kind == "SET_MODE":
@@ -94,13 +116,29 @@ class ReferenceAutopilot:
                     self._param_burst, index,
                 )
         elif kind == "MISSION_REQUEST_LIST":
-            reply.mission_count_send(*source, len(MISSION), 0)
-        elif kind == "MISSION_REQUEST_INT" and message.seq < len(MISSION):
-            command, lat, lon, alt = MISSION[message.seq]
-            reply.mission_item_int_send(
-                *source, message.seq, mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT, command,
-                0, 1, 0.0, 0.0, 0.0, 0.0, lat, lon, alt, 0,
-            )
+            reply.mission_count_send(*source, len(self.mission), 0)
+        elif kind == "MISSION_REQUEST_INT" and message.seq < len(self.mission):
+            reply.mission_item_int_send(*source, message.seq, *self.mission[message.seq], 0)
+        elif kind == "MISSION_CLEAR_ALL":
+            self.mission = []
+            reply.mission_ack_send(*source, mavlink.MAV_MISSION_ACCEPTED, 0)
+        elif kind == "MISSION_COUNT":
+            self._upload, self._upload_count = [], message.count
+            reply.mission_request_int_send(*source, 0, 0)
+        elif kind == "MISSION_ITEM_INT" and self._upload is not None and message.seq == len(self._upload):
+            # ArduPilot stores no frame for a command without a location (a jump)
+            # and downloads it as MAV_FRAME_GLOBAL.
+            frame = mavlink.MAV_FRAME_GLOBAL if message.command == mavlink.MAV_CMD_DO_JUMP else message.frame
+            self._upload.append((
+                frame, message.command, message.current, message.autocontinue,
+                message.param1, message.param2, message.param3, message.param4,
+                message.x, message.y, message.z,
+            ))
+            if len(self._upload) < self._upload_count:
+                reply.mission_request_int_send(*source, len(self._upload), 0)
+            else:
+                self.mission, self._upload = self._upload, None
+                reply.mission_ack_send(*source, mavlink.MAV_MISSION_ACCEPTED, 0)
 
     def _param_value(self, reply: mavlink.MAVLink, name: str) -> None:
         names = sorted(self.parameters)

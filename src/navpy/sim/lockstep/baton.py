@@ -22,11 +22,13 @@ never wakes early, and a product deadline that float drift puts just after
 
 from __future__ import annotations
 
+import contextvars
 import threading
 from collections import deque
 from collections.abc import Callable
 from typing import NoReturn
 
+from navpy.sim.lockstep import cancel_scope
 from navpy.sim.lockstep.baton_parts import ManagedThread, ThreadTable, TimerHeap
 
 
@@ -127,18 +129,25 @@ class BatonRuntime:
 
     # -- threads ------------------------------------------------------------
     def spawn(self, target: Callable[[], object], *, name: str) -> ManagedThread:
-        """Start a managed thread; it first runs at the next scheduling step."""
+        """Start a managed thread; it first runs at the next scheduling step.
+
+        It runs in a copy of its creator's context, so it inherits the
+        creator's cancellation scope (:mod:`navpy.sim.lockstep.cancel_scope`).
+        A ``Cancelled`` of a cancelled scope retires it normally.
+        """
         if threading.get_ident() != self._coordinator:
             self.current()  # a managed thread may spawn only while it holds the baton
         thread = self.threads.new(name)
+        context = contextvars.copy_context()
+        thread.scope = cancel_scope.current()
 
         def run() -> None:
             thread.go.acquire()
             try:
                 if not self._aborted:
-                    target()
+                    context.run(target)
             except BaseException as error:  # reported by run_until_quiescent
-                if not is_abort(error):
+                if not is_abort(error) and not cancel_scope.consumed(error):
                     self.threads.errors.append(error)
             finally:
                 thread.done = True
@@ -209,8 +218,16 @@ class BatonRuntime:
 
         ``requeue`` is a yield instead: the thread goes to the back of the
         runnable queue at the same ``t_k``, with no timer and no timer round.
+
+        Any other park is a cancellation checkpoint: in a cancelled scope it
+        raises ``Cancelled`` before parking; a cancel wakes it, and it raises
+        once it runs again (the caller undoes its waiter state).
         """
         thread = self.current()
+        scope = None if requeue else cancel_scope.active()
+        if scope is not None:
+            scope.check()
+            scope.watch(thread, self)
         thread.park_token += 1
         if requeue:
             self._runnable.append(thread)
@@ -222,8 +239,12 @@ class BatonRuntime:
         self._current = None
         self._yielded.release()
         thread.go.acquire()
+        if scope is not None:
+            scope.unwatch(thread)
         if self._aborted:
             raise LockstepAborted()
+        if scope is not None:
+            scope.check()
 
     def wake(self, thread: ManagedThread) -> None:
         """Make a parked thread runnable; any pending timer is cancelled."""

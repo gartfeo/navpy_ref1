@@ -457,6 +457,36 @@ class TestUploadMissions:
         # Verify mission_uploaded flag was set
         assert mock_entry.mission_uploaded is True
 
+    def test_rtl_altitude_write_runs_off_the_event_loop(self, client, mock_vehicle):
+        """The blocking parameter write after an upload goes to the executor
+        (lockstep_slice.md): on the loop thread it would stall every coroutine."""
+        import asyncio
+
+        from gcs.backend.planner.waypoint_builder import UploadResult
+
+        on_loop = []
+
+        def set_parameter(name, value):
+            try:
+                asyncio.get_running_loop()
+                on_loop.append(True)
+            except RuntimeError:
+                on_loop.append(False)
+            return True
+
+        mock_vehicle.set_parameter = MagicMock(side_effect=set_parameter)
+        fake_result = UploadResult(success=True, uploaded_count=4, expected_count=4, attempts=1)
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry", return_value=fake_result):
+            resp = client.post("/api/vehicles/upload", json={
+                "assignments": [{
+                    "sys_id": 1, "zone_index": 0, "altitude_m": 150.0,
+                    "waypoints": [{"lat": 32.0, "lon": 34.0}, {"lat": 32.001, "lon": 34.001}],
+                }],
+            })
+        assert resp.status_code == 200 and resp.json()["status"] == "complete"
+        mock_vehicle.set_parameter.assert_called_once_with("RTL_ALTITUDE", 150.0)
+        assert on_loop == [False]
+
     def test_upload_failure_sets_error(self, client, mock_entry):
         """Upload failure returns error and does not set mission_uploaded."""
         from gcs.backend.planner.waypoint_builder import UploadResult

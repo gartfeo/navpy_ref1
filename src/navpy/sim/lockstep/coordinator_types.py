@@ -134,6 +134,14 @@ class OperatorHost(Protocol):
 
     def run_tick(self, inbox: OperatorInbox) -> tuple[OperatorRequest | OperatorCancel, ...]: ...
 
+    def deliver_drain(self, inbox: OperatorInbox) -> None:
+        """A drain tick's responses and events, after the run returned: the
+        ports still account for them (late drops); nothing more runs."""
+
+    def observations(self) -> dict[str, object]:
+        """What the operator's ports saw in the tick just run (event receipts,
+        dropped deliveries); empty if nothing. The run journal records it."""
+
 
 __all__ = [
     "CoordinatorFault", "DRAIN_BUDGET_US", "RunFault", "FINALIZATION_BUDGET_US", "HostFault", "Manifest",

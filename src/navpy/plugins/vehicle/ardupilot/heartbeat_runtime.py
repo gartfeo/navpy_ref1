@@ -53,7 +53,8 @@ class HeartbeatRuntime:
             self._thread = thread
             self._launch = launch
             try:
-                thread.start()
+                with rt.detached():  # owned by this component, not its creating request
+                    thread.start()
             except BaseException:
                 stop.set()
                 if launch.cancel_before_commit():

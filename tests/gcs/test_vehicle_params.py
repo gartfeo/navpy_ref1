@@ -154,3 +154,37 @@ class TestSetVehicleParams:
                 json={"params": {"del_pitch": 5.0}},
             )
             assert resp.status_code == 404
+
+
+class TestNamedParamReads:
+    """``GET /params/named``: fresh reads by name for the lockstep command bounds."""
+
+    def test_reads_each_name_fresh_in_order(self, client, mock_vehicle):
+        values = {"PTCH_LIM_MIN_DEG": -25.0, "TRIM_THROTTLE": 45.0}
+        mock_vehicle.get_parameter_fresh = MagicMock(side_effect=lambda name: values.get(name))
+        resp = client.get("/api/vehicles/1/params/named?names=TRIM_THROTTLE,ptch_lim_min_deg")
+        assert resp.status_code == 200
+        assert resp.json() == {"sys_id": 1, "params": [
+            {"name": "TRIM_THROTTLE", "value": 45.0},
+            {"name": "PTCH_LIM_MIN_DEG", "value": -25.0},
+        ]}
+        mock_vehicle.get_parameter.assert_not_called()  # never the cache
+
+    def test_an_unanswered_name_is_an_error_that_lists_it(self, client, mock_vehicle):
+        mock_vehicle.get_parameter_fresh = MagicMock(
+            side_effect=lambda name: 1.0 if name == "TRIM_THROTTLE" else None)
+        resp = client.get("/api/vehicles/1/params/named?names=TRIM_THROTTLE,NOPE_A,NOPE_B")
+        assert resp.status_code == 502
+        assert resp.json()["detail"] == {"unanswered": ["NOPE_A", "NOPE_B"]}
+
+    def test_empty_or_duplicate_names_are_refused(self, client):
+        assert client.get("/api/vehicles/1/params/named?names=,").status_code == 400
+        assert client.get("/api/vehicles/1/params/named?names=A,a").status_code == 400
+
+    def test_vehicle_not_connected(self):
+        mock_mgr = MagicMock()
+        mock_mgr.get_vehicle = MagicMock(return_value=None)
+        with patch("gcs.backend.routes.params.vehicle_mgr", mock_mgr):
+            from gcs.backend.main import app
+            resp = TestClient(app).get("/api/vehicles/9/params/named?names=A")
+        assert resp.status_code == 404
