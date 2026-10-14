@@ -71,9 +71,9 @@ ATTITUDE delay above that minimum, not the full link delay.
 
 ## Running it (PowerShell 5.1)
 
-1. Unreal (game, UAV1 camera on 18110), without sound and pixel streaming, capped at 60 fps and below
-   the bridge in priority (see "Sharing the PC with the board link"):
-   `$ue = Start-Process -PassThru 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList 'C:\repos\unreal-projects\AasSimProject\AasSimProject.uproject','/Game/AAS/Levels/Yeghvard_Default','-game','-windowed','-ResX=1280','-ResY=720','-NavPyEnableNativeCameraStream=1','-NavPyExactVehiclePose=1','-NavPyNativeCameraHeaderVersion=2','-NavPyFixedBodyCamera=1','-NavPyNativeCameraIntrinsics=1','-NoRayTracing','-NoVSync','-nosound','-ini:Game:[/Script/NavPyUnrealBridge.NavPyGimbalCameraActor]:bEnablePixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableTailPixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableGimbalInset=False','-ExecCmds="t.MaxFPS 60"'; Start-Sleep -Seconds 5; $ue.PriorityClass = 'BelowNormal'`
+1. Unreal (game, UAV1 camera on 18110), without sound and pixel streaming, capped at 60 fps, at normal
+   priority (the bridge raises itself to HIGH; see "Sharing the PC with the board link" and "Unreal freezes"):
+   `$ue = Start-Process -PassThru 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList 'C:\repos\unreal-projects\AasSimProject\AasSimProject.uproject','/Game/AAS/Levels/Yeghvard_Default','-game','-windowed','-ResX=1280','-ResY=720','-NavPyEnableNativeCameraStream=1','-NavPyExactVehiclePose=1','-NavPyNativeCameraHeaderVersion=2','-NavPyFixedBodyCamera=1','-NavPyNativeCameraIntrinsics=1','-NoRayTracing','-NoVSync','-nosound','-ini:Game:[/Script/NavPyUnrealBridge.NavPyGimbalCameraActor]:bEnablePixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableTailPixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableGimbalInset=False','-ExecCmds="t.MaxFPS 60"'`
 2. The bridge as usual plus `--unreal-pose 127.0.0.1:17110 23.5`, with the Yeghvard origin
    (`--origin-lat 40.3117412 --origin-lon 44.4552112 --origin-alt 1292.8`) on both the bridge and the board
    (runner `--origin 40.3117412,44.4552112,1292.8,0`; a board's `SIM_OPOS_ALT` 1292.8).
@@ -206,10 +206,7 @@ These ran with OpenCV's default marker detection; navpy's detector now uses the 
   only from about 15.5 m slant (dock3), so the bin below 15 m is empty.
 - Unreal froze for 22-34 s a few times per run: no capture and no game tick, nothing in its log (dock_sitl8 four
   times, in the pass 3, 7 and 8 windows and once between passes; dock3 twice, in pass 3 and between passes 5
-  and 6). Missing frames are not counted as misses. Replaying dock3's poses from its link.csv into Unreal, with no
-  flight controller or bridge running, froze it too: with the intrinsics 22 and 24 s in 11 min, without them 22 s
-  (Unreal freshly started, the freeze at board time 537 s, mid-replay).
-  So the camera model does not cause it; the cause is not found yet.
+  and 6). Missing frames are not counted as misses. Cause and fix: "Unreal freezes" below.
 - dock_sitl8's own record was lost (its JSON path was held open by the output redirect), so its report ran on a
   record rebuilt from the runner's `[driver]` pass lines (same windows).
 
@@ -308,9 +305,45 @@ The board counts a 5 ms loop stale when the bridge's reply arrives after its nex
   it the pose stayed frozen while ATTITUDE went on, so those frames were READ. `exposure_span` in the check's summary counts the frames from the first to the
   last EXPOSURE frame.
 - The bridge raises itself to the HIGH priority class on Windows (`process_priority.py`, at the process
-  entry only); Unreal goes to BelowNormal (command above). A bench screen with the board idle did not
-  show the difference; the board runs did.
+  entry only). A bench screen with the board idle did not show the difference; the board runs did. Unreal
+  ran BelowNormal in cam3, cam4 and the dock runs; it now runs at normal priority ("Unreal freezes"). The
+  bridge's HIGH class is above both, but the gate has not been re-measured on the board with Unreal at
+  normal priority.
 - The capture runs on every other game tick (game about 37 fps, capture gate 1/30 s), hence about 19 fps.
+
+## Unreal freezes (2026-10-14)
+
+Unreal froze for 22-55 s, a few times per run, on board runs and on replays of a link.csv's poses into it
+(no flight controller, no bridge). Measured with Unreal Insights (`-trace=default,task,loadtime,file
+-statnamedevents`) on a replay of dock3's poses with the launch above at BelowNormal (as it was then) and
+`-ResX=800 -ResY=450` (a window that fits the remote desktop; the native capture stays 1280 x 720):
+
+- A freeze is one game frame (33 s and 35 s in that trace). The game thread sits in TG_PrePhysics,
+  `ProcessUntilTasksComplete`, running queued game-thread tasks: 1675 vehicle moves in the 33 s, the 50 Hz
+  pose rate. The render thread, the RHI thread and the GPU wait for the game thread.
+- Each received pose was its own game-thread task (`AsyncTask` per UDP packet), and each move updates the
+  vehicle's 440 attached mesh components (navigation and physics). A move costs about 5 ms; when the game
+  thread gets less CPU than a move every 20 ms needs, the queue grows faster than it drains and the frame
+  does not end until the load goes away and the backlog is gone.
+- What took the CPU in the board runs was not recorded. Any process at normal priority that keeps all cores
+  busy leaves Unreal at BelowNormal almost no CPU. Reproduced with 20 busy-loop processes for 40 s during a
+  replay: one 55 s freeze; without load, two full replays had no gap over 1 s.
+
+Fix: the vehicle receiver (`NavPyVehicleStateReceiver`, aas-sim-unreal) queues the parsed poses on its socket
+thread and its tick moves the vehicle once, to the newest; the camera ticks after its receiver, so a frame
+shows the pose its stamp names (exact pose mode unchanged). Unreal runs at normal priority. Frame gaps of
+Unreal's capture times, full dock3 pose replays (12 min, same window) with three 40 s all-core load bursts
+(about 16 fps):
+
+| Run | max gap | gaps > 1 s | p99 / p99.9 |
+|---|---|---|---|
+| old plugin, BelowNormal | 54.6 s | 1 | 77 / 126 ms |
+| old plugin, normal | 0.14 s | 0 | 77 / 98 ms |
+| new plugin, BelowNormal | 6.7 s | 36 (during the bursts) | 76 / 5128 ms |
+| new plugin, normal (2 runs) | 0.19 / 0.20 s | 0 / 0 | 87 / 143, 111 / 153 ms |
+
+With the new plugin alone (BelowNormal) gaps of up to 6.7 s remained, most of them during the bursts
+(7 came before the first burst, from a load not recorded); at normal priority no gap exceeded 0.2 s. Replay numbers only, not a board run.
 
 ## Known limits
 
