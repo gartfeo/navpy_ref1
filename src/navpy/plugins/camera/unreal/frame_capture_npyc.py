@@ -4,12 +4,13 @@ Source ``npyc://HOST:PORT``: navpy listens, the Unreal gimbal camera actor
 connects (NativeCameraHost/NativeCameraPort, 127.0.0.1:18110 for UAV1) and
 reconnects by itself after a drop, so this backend simply accepts again.
 
-Stamps: a v2 frame whose pose is stamped and exact carries the board time
-of the pose it was rendered from; with a ``BoardClock`` that board time is
-mapped onto the ATTITUDE receipt wall clock and published as an EXPOSURE
-stamp. Every other frame (v1, interpolated pose, no mapping yet) gets a
-READ stamp taken when its last byte arrived: the stamp kind always says
-which it is, and an exposure time is never synthesized.
+Stamps: a v2 frame whose pose is stamped and exact or board-time
+interpolated carries the board time of the pose it was rendered from; with a
+``BoardClock`` that board time is mapped onto the ATTITUDE receipt wall clock
+and published as an EXPOSURE stamp. Every other frame (v1, receive-time
+smoothed pose, no mapping yet) gets a READ stamp taken when its last byte
+arrived: the stamp kind always says which it is, and an exposure time is
+never synthesized.
 """
 
 from __future__ import annotations

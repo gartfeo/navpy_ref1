@@ -8,7 +8,7 @@ it shows. First step: live stream during HITL (replay mode comes later).
 board / SITL hil --HIL_ACTUATOR_CONTROLS--> bridge (JSBSim) --HIL_STATE_QUATERNION--> board
                                               |  after the reply, one pose per 20 ms of board time
                                               v  UDP 17110, vehicle_state.v1 + board_time_us + sequence
-                                  Unreal NavPyVehicleStateReceiver (exact pose, no smoothing)
+                                  Unreal NavPyVehicleStateReceiver (board-time interpolated, or exact)
                                               |  gimbal actor captures with the applied pose's stamp
                                               v  TCP 18110, NPYC v2 (pixels + board_time_us)
                          navpy npyc:// backend --(board time -> ATTITUDE receipt clock)--> FrameProvider
@@ -33,7 +33,8 @@ board / SITL hil --HIL_ACTUATOR_CONTROLS--> bridge (JSBSim) --HIL_STATE_QUATERNI
   receivers ignore them. One datagram per 20 ms slot of board time (`POSE_PERIOD_US`), the first frame
   in each slot, so a 19.992 ms SITL loop is not halved.
 - NPYC v2 header (56 bytes) = v1 (36 bytes) + `board_time_us` u64 + `pose_sequence` u64 + `pose_flags`
-  u32 (bit 0 stamp valid, bit 1 exact: the rendered pose IS that sample). The plugin writes v1 unless
+  u32 (bit 0 stamp valid, bit 1 exact: the rendered pose IS that sample, bit 2 interpolated: the rendered
+  pose is the received samples interpolated at that board time). The plugin writes v1 unless
   `NativeCameraHeaderVersion=2` / `-NavPyNativeCameraHeaderVersion=2`, so v1-only readers keep working.
 
 ## Stamp mapping (navpy)
@@ -44,14 +45,26 @@ the same autopilot clock. Over the newest boot's recent ATTITUDE samples (64, at
     wall(board_t) = board_t + min(receipt_time_s - time_boot_s)
 
 the lower envelope of the link. A frame is EXPOSURE-stamped with that only when its pose is stamped and
-exact and the board time is within 2 s of the newest ATTITUDE; every other frame gets a READ stamp at
+exact or interpolated and the board time is within 2 s of the newest ATTITUDE; every other frame gets a READ stamp at
 receipt. Calibration consequence: for an `npyc://` source, `attitude_link_delay_s` is the typical
 ATTITUDE delay above that minimum, not the full link delay.
 
 ## Unreal (C:\repos\unreal-projects\AasSimProject)
 
-- Receiver `bPresentLatestPoseExactly` / `-NavPyExactVehiclePose=1`: smoothing, buffering and the
-  interpolation delay off; the applied pose's board time is kept for the camera.
+- Receiver `bInterpolateByBoardTime` / `-NavPyInterpolatedVehiclePose=1` (the launch below): each tick
+  draws the poses at a steady board time, the newest board time minus `BoardTimeInterpolationDelayS`
+  (40 ms, two pose periods), advancing with game time, position lerp and attitude slerp
+  (`FNavPyBoardTimeInterpolator`); the stamp is that board time (flags valid + interpolated, or exact
+  when it lands on a sample). No extrapolation (a late stream holds the newest pose); a new sender
+  session, a board-time step back or a jump over 250 ms restarts the stream; a bracket over 100 ms
+  (lost poses) is drawn but not stamped valid.
+- Receiver `bPresentLatestPoseExactly` / `-NavPyExactVehiclePose=1` (wins over interpolation): each tick
+  snaps to the newest received pose; the applied pose's board time is kept for the camera.
+- Receiver `bLogPoseStamps` / `-NavPyPoseStampLog=1`: logs every received sample, every tick's applied
+  pose with its stamp, and the vehicle move cost every 10 s (`tools/unreal/pose_replay.py --unreal-log`).
+- The vehicles (`AAS_Peron15F_VisualProxy_UAV1..3`, the TargetPoints the receivers move) carry one merged
+  static mesh, `SM_Peron15F_Merged` (the 432 GLB parts, 4 material slots kept), instead of 432 attached
+  mesh actors.
 - Gimbal actor `bFixedBodyCamera` / `-NavPyFixedBodyCamera=1`: rigid mount at the Initial angles
   (pitch -35 deg), roll included; gimbal commands ignored.
 - Gimbal actor `bNativeCameraUseIntrinsics` / `-NavPyNativeCameraIntrinsics=1`: the native camera renders
@@ -73,7 +86,7 @@ ATTITUDE delay above that minimum, not the full link delay.
 
 1. Unreal (game, UAV1 camera on 18110), without sound and pixel streaming, capped at 60 fps, at normal
    priority (the bridge raises itself to HIGH; see "Sharing the PC with the board link" and "Unreal freezes"):
-   `$ue = Start-Process -PassThru 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList 'C:\repos\unreal-projects\AasSimProject\AasSimProject.uproject','/Game/AAS/Levels/Yeghvard_Default','-game','-windowed','-ResX=1280','-ResY=720','-NavPyEnableNativeCameraStream=1','-NavPyExactVehiclePose=1','-NavPyNativeCameraHeaderVersion=2','-NavPyFixedBodyCamera=1','-NavPyNativeCameraIntrinsics=1','-NoRayTracing','-NoVSync','-nosound','-ini:Game:[/Script/NavPyUnrealBridge.NavPyGimbalCameraActor]:bEnablePixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableTailPixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableGimbalInset=False','-ExecCmds="t.MaxFPS 60"'`
+   `$ue = Start-Process -PassThru 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList 'C:\repos\unreal-projects\AasSimProject\AasSimProject.uproject','/Game/AAS/Levels/Yeghvard_Default','-game','-windowed','-ResX=1280','-ResY=720','-NavPyEnableNativeCameraStream=1','-NavPyInterpolatedVehiclePose=1','-NavPyNativeCameraHeaderVersion=2','-NavPyFixedBodyCamera=1','-NavPyNativeCameraIntrinsics=1','-NoRayTracing','-NoVSync','-nosound','-ini:Game:[/Script/NavPyUnrealBridge.NavPyGimbalCameraActor]:bEnablePixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableTailPixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableGimbalInset=False','-ExecCmds="t.MaxFPS 60"'`
 2. The bridge as usual plus `--unreal-pose 127.0.0.1:17110 23.5`, with the Yeghvard origin
    (`--origin-lat 40.3117412 --origin-lon 44.4552112 --origin-alt 1292.8`) on both the bridge and the board
    (runner `--origin 40.3117412,44.4552112,1292.8,0`; a board's `SIM_OPOS_ALT` 1292.8).
@@ -358,6 +371,32 @@ Unreal's capture times, full dock3 pose replays (12 min, same window) with three
 
 With the new plugin alone (BelowNormal) gaps of up to 6.7 s remained, most of them during the bursts
 (7 came before the first burst, from a load not recorded); at normal priority no gap exceeded 0.2 s. Replay numbers only, not a board run.
+
+## Smooth motion, one mesh, readback crash (2026-10-14)
+
+The vehicle moved in steps: exact mode draws the newest 50 Hz pose each game tick, so ticks (about
+30 fps) repeat a pose or skip one. Each move also cost about 4 ms, because the aircraft was 432 attached
+mesh actors (the Fusion parts of the GLB). Now the receiver interpolates by board time (above) and the
+aircraft is one static mesh. Full replays of dock4's poses (12 min, `tools/unreal/pose_replay.py`, window
+800 x 450, normal priority, no load), "pace" = board time advanced / capture time advanced between
+consecutive frames, |pace - 1| (0 = the vehicle moves at its real pace in every picture):
+
+| Run | camera frames | |pace - 1| median / p95 | tick |pace - 1| median / p95 | move cost mean / max | gaps > 1 s |
+|---|---|---|---|---|---|
+| 432 parts, exact | 13706 | 0.186 / 0.448 | 0.26 / 0.81 | 4.18 / 7.86 ms | 0 (longest 0.33 s) |
+| one mesh, interpolated | 13604 | 0.0019 / 0.0098 | 0.015 / 0.046 | 0.12 / 0.79 ms | 0 (longest 0.20 s) |
+
+Tick pace uses the log's millisecond timestamps, so its floor is a few percent. Stamp check
+(interpolated run): each of the 21691 applied poses against the logged samples interpolated at its stamp,
+max 0.0015 cm and 0.00006 deg; interpolating the 50 Hz poses misses the 250 Hz path in link.csv by at most
+2.3 cm (p95 1.3 cm). Replay numbers only, not a board run.
+
+Crash (zoom-2 SITL dock pass, pass 6): `Array index out of bounds: 0 into an array of size 0` in
+`ProcessCompletedNativeCameraReadbacks`. The game thread polled the readback's `IsReady()` while the render
+thread was in `EnqueueCopy`, whose `Fence->Clear()` empties the D3D12 fence's sync-point array and refills
+it (`FD3D12GPUFence::Poll` reads `SyncPoints[0]`). Each readback now carries an atomic copy state that the
+render command sets after `EnqueueCopy` (or "skipped" if the texture was gone); the game thread polls the
+fence only after that, and drops skipped copies (before, such a request stayed pending forever).
 
 ## Known limits
 

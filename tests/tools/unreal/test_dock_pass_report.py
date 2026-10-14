@@ -149,6 +149,21 @@ def test_truth_is_matched_by_board_time_only_within_the_tolerance():
     assert rep.truth_at(times, states, 1_010_000) is None
 
 
+def test_an_interpolated_frame_takes_the_truth_between_the_rows_around_its_board_time():
+    states = {1_000_000: geo.Truth(40.0, 44.0, 1000.0, 10.0, 0.0, 350.0),
+              1_004_000: geo.Truth(40.0004, 44.0, 1002.0, 20.0, 2.0, 10.0)}
+    times = sorted(states)
+    mid = rep.truth_between(times, states, 1_001_000)
+    assert mid.lat == pytest.approx(40.0001) and mid.alt_msl == pytest.approx(1000.5)
+    assert (mid.roll, mid.pitch) == pytest.approx((12.5, 0.5))
+    assert mid.yaw == pytest.approx(355.0)                 # across north, not the long way round
+    assert rep.truth_between(times, states, 1_000_000) is states[1_000_000]
+    assert rep.truth_between(times, states, 999_999) is None
+    assert rep.truth_between(times, states, 1_004_001) is None
+    far = {1_000_000: states[1_000_000], 1_000_000 + rep.TRUTH_BRACKET_MAX_US + 1: states[1_004_000]}
+    assert rep.truth_between(sorted(far), far, 1_000_001) is None       # rows lost: no straight path assumed
+
+
 def _row(index: int, board_us: int, flags: int = 3, detected: str = "") -> dict:
     return {"frame_index": str(index), "board_time_us": str(board_us), "pose_flags": str(flags),
             "detected": detected, "latency_ms": "120.0"}
@@ -162,6 +177,9 @@ def test_frames_are_scored_per_pass_window_with_exact_poses_only():
             _row(4, 3_000_000, detected="1")]
     recs = rep.score_frames(rows, times, states, BOARD, [(900, 2100)], None)
     assert [r["frame_index"] for r in recs] == [1, 2]        # 3: pose not exact; 4: outside every window
+    interpolated = rep.score_frames([_row(5, 1_000_000, flags=5), _row(6, 1_000_000, flags=4)], times, states, BOARD,
+                                    [(900, 2100)], None)
+    assert [r["frame_index"] for r in interpolated] == [5]   # 6: interpolated but not valid
     summary = rep.summarize_group(recs)
     assert (summary["in_view"], summary["in_view_ran"], summary["detected"], summary["rate"]) == (2, 2, 1, 0.5)
 

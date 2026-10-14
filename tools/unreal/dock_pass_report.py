@@ -2,8 +2,8 @@ r"""Offline detection report of a dock-pass run (tools/tuning/dock_pass.py): per
 that had the board in view, the detector's hits and the detected board pose against the truth.
 
 The truth (the bridge's plant state, link.csv) is used here only, after the flight, for scoring; nothing of it reaches
-navpy. A frame shows the pose of its board time (NPYC v2 stamp, pose_flags exact), so its truth is the link.csv row of
-that board time. The camera is the fixed body camera of hitl_unreal_camera.md (dock_pass_geometry.py): its measured
+navpy. A frame shows the pose of its board time (NPYC v2 stamp, pose_flags exact or interpolated), so its truth is the
+link.csv row of that board time (exact) or the two rows around it interpolated (interpolated). The camera is the fixed body camera of hitl_unreal_camera.md (dock_pass_geometry.py): its measured
 offset from the vehicle's position, pitched MOUNT_PITCH_DEG in the body, and its pinhole (--camera: zr10, the ZR10's
 zoom-1 calibration the native camera renders with -NavPyNativeCameraIntrinsics=1; fov90 for runs before it), no distortion.
 "In view" means all four corners of the board project inside the picture. The detected pose is OpenCV's ChArUco
@@ -34,8 +34,12 @@ from tools.unreal.npyc_live_check import DETECTED_DIR
 
 POSE_EXACT_FLAG = 2                   # NPYC v2 pose_flags bit 1: the rendered pose is that board-time sample
 POSE_STAMP_VALID_FLAG = 1
+POSE_INTERPOLATED_FLAG = 4            # bit 2: the rendered pose is the received poses interpolated at that board time
 # A frame's board time must match a link.csv row this closely (both are the same board frame's time_usec)
 TRUTH_MATCH_US = 1000
+# An interpolated frame's truth: the link.csv rows around its board time, at most this far apart (the bridge's
+# rows are one board frame apart; a wider gap is lost rows, not a straight path)
+TRUTH_BRACKET_MAX_US = 25000
 SLANT_BINS_M = (0.0, 15.0, 20.0, 25.0, 30.0, 40.0, 60.0, math.inf)
 SAMPLES_PER_PASS = 2                  # nearest and farthest detection of each pass, with corners drawn
 # Link gate of the run (hitl_gate.py): reported from the run's JSON
@@ -51,6 +55,27 @@ def load_truth(link_csv: Path) -> tuple[list[int], dict[int, Truth]]:
                                                           float(row["alt_msl_m"]), float(row["roll_deg"]),
                                                           float(row["pitch_deg"]), float(row["yaw_deg"]))
     return sorted(states), states
+
+
+def _lerp_angle_deg(a: float, b: float, alpha: float) -> float:
+    return a + alpha * ((b - a + 180.0) % 360.0 - 180.0)
+
+
+def truth_between(times: list[int], states: dict[int, Truth], board_time_us: int) -> Optional[Truth]:
+    """The truth at a board time between two link.csv rows: position and attitude interpolated linearly."""
+    i = bisect.bisect_right(times, board_time_us)
+    if i == 0:
+        return None
+    t0 = times[i - 1]
+    if t0 == board_time_us:
+        return states[t0]
+    if i == len(times) or times[i] - t0 > TRUTH_BRACKET_MAX_US:
+        return None
+    t1 = times[i]
+    a, b, alpha = states[t0], states[t1], (board_time_us - t0) / (t1 - t0)
+    return Truth(a.lat + alpha * (b.lat - a.lat), a.lon + alpha * (b.lon - a.lon),
+                 a.alt_msl + alpha * (b.alt_msl - a.alt_msl), _lerp_angle_deg(a.roll, b.roll, alpha),
+                 _lerp_angle_deg(a.pitch, b.pitch, alpha), _lerp_angle_deg(a.yaw, b.yaw, alpha))
 
 
 def truth_at(times: list[int], states: dict[int, Truth], board_time_us: int) -> Optional[Truth]:
@@ -74,15 +99,17 @@ def _stats(values: list[float]) -> Optional[dict]:
 def score_frames(rows: list[dict], times: list[int], states: dict[int, Truth], board: tuple[float, float, float],
                  windows: list[tuple[int, int]], detected_dir: Optional[Path],
                  camera: Optional[CameraModel] = None) -> list[dict]:
-    """One record per frame inside a pass window with an exact pose: geometry, detection and pose error."""
+    """One record per frame inside a pass window with an exact or interpolated pose: geometry, detection and pose
+    error."""
     scored = []
     for row in rows:
         flags = int(row["pose_flags"] or 0)
-        if flags & (POSE_STAMP_VALID_FLAG | POSE_EXACT_FLAG) != POSE_STAMP_VALID_FLAG | POSE_EXACT_FLAG:
+        if not flags & POSE_STAMP_VALID_FLAG or not flags & (POSE_EXACT_FLAG | POSE_INTERPOLATED_FLAG):
             continue
         board_us = int(row["board_time_us"])
         k = pass_of(board_us / 1000.0, windows)
-        truth = truth_at(times, states, board_us) if k is not None else None
+        lookup = truth_at if flags & POSE_EXACT_FLAG else truth_between
+        truth = lookup(times, states, board_us) if k is not None else None
         if truth is None:
             continue
         view = board_view(truth, board, camera)

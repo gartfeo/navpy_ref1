@@ -24,6 +24,7 @@ from navpy.plugins.camera.unreal.npyc_codec import (
     NPYC_V1_HEADER_SIZE,
     NPYC_V2_HEADER_SIZE,
     POSE_EXACT,
+    POSE_INTERPOLATED,
     POSE_STAMP_VALID,
     NpycHeader,
     decode_header,
@@ -68,9 +69,10 @@ def test_v1_layout_is_the_plugins_original_36_bytes():
     assert not decoded.exposure_on_board_clock
 
 
-@pytest.mark.parametrize("flags, exposure", [(POSE_STAMP_VALID | POSE_EXACT, True), (POSE_STAMP_VALID, False),
-                                             (POSE_EXACT, False), (0, False)])
-def test_only_a_valid_and_exact_pose_stamp_is_an_exposure_on_the_board_clock(flags, exposure):
+@pytest.mark.parametrize("flags, exposure", [(POSE_STAMP_VALID | POSE_EXACT, True),
+                                             (POSE_STAMP_VALID | POSE_INTERPOLATED, True), (POSE_STAMP_VALID, False),
+                                             (POSE_EXACT, False), (POSE_INTERPOLATED, False), (0, False)])
+def test_only_a_valid_exact_or_interpolated_pose_stamp_is_an_exposure_on_the_board_clock(flags, exposure):
     assert header(flags=flags).exposure_on_board_clock is exposure
 
 

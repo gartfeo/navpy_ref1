@@ -12,9 +12,12 @@ v2 (56 bytes): v1, then
   the frame was rendered from, copied from the vehicle_state datagram;
 - ``pose_sequence`` (uint64): that datagram's sequence number;
 - ``pose_flags`` (uint32): POSE_STAMP_VALID when a stamped pose was applied,
-  POSE_EXACT when the rendered pose IS that sample (no interpolation or
-  smoothing in the receiver). Only both together make the board time the
-  frame's exposure time.
+  POSE_EXACT when the rendered pose IS the sample of that board time,
+  POSE_INTERPOLATED when the rendered pose is the received samples
+  interpolated at that board time (the receiver's board-time interpolation;
+  the sequence is then the older sample's). VALID with EXACT or INTERPOLATED
+  makes the board time the time of the pose the frame shows, its exposure
+  time; receive-time smoothing sets neither.
 
 The version field selects the layout; a v1 sender stays readable.
 """
@@ -31,6 +34,7 @@ NPYC_PIXEL_FORMAT_BGRA8 = 1
 NPYC_PIXEL_FORMAT_BGR8 = 2
 POSE_STAMP_VALID = 1 << 0
 POSE_EXACT = 1 << 1
+POSE_INTERPOLATED = 1 << 2
 # Unreal clamps the native render target to 16..8192 px per side
 # (NavPyGimbalCameraActor::ConfigureNativeCameraCapture).
 NPYC_MAX_DIMENSION = 8192
@@ -63,9 +67,9 @@ class NpycHeader:
 
     @property
     def exposure_on_board_clock(self) -> bool:
-        """The board time is the time of the pose this frame shows (v2, valid and exact)."""
-        wanted = POSE_STAMP_VALID | POSE_EXACT
-        return self.version >= NPYC_VERSION_2 and self.pose_flags & wanted == wanted
+        """The board time is the time of the pose this frame shows (v2, valid, exact or interpolated)."""
+        return (self.version >= NPYC_VERSION_2 and bool(self.pose_flags & POSE_STAMP_VALID)
+                and bool(self.pose_flags & (POSE_EXACT | POSE_INTERPOLATED)))
 
 
 def bytes_per_pixel(pixel_format: int) -> int:
@@ -133,6 +137,7 @@ __all__ = [
     "NPYC_VERSION_2",
     "NpycHeader",
     "POSE_EXACT",
+    "POSE_INTERPOLATED",
     "POSE_STAMP_VALID",
     "bytes_per_pixel",
     "decode_header",
