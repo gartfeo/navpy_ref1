@@ -1,6 +1,6 @@
-# HITL final approach to the Unreal dock (design v5.6, 2026-10-15)
+# HITL final approach to the Unreal dock (design v6, 2026-10-15)
 
-**Status.** Design only, Codex-approved (r7); nothing of this design is built (the router of section 2 has an uncommitted first cut in the
+**Status.** v6 applies the owner's answers of 2026-10-15 (below) to the Codex-approved v5.6; building (the router of section 2 has an uncommitted first cut in the
 worktree, not reviewed). Owner's "What next?" item 3 ("Full final approach in HITL"). Builds on `hitl_unreal_camera.md`
 (camera stream, dock passes, detector range) and `flight_tuning.md` (HITL runner, bridge, gate). Line numbers are on
 `feat/hitl-flight-tuning` 7d36929; Unreal lines on `aas-sim-unreal` 48ad8dd (`C:\repos\unreal-projects\AasSimProject`);
@@ -117,8 +117,12 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
     the yaw report is 0.92-0.94 x true (4). Fix (navpy, N3): gimbal and zoom samples on the frame clock, each re-stamped
     at receipt minus its own report lag (`gimbal_attitude_report_lag_s` for 0x0D, `zoom_report_lag_s` for 0x18,
     measured separately; aas-hitl lags attitude only, `dynamics.py:19`, `device.py:318`; HITL = the emulator's
-    configured lags; real = to be measured), then interpolated at the frame's exposure time; frames during lens
-    travel (reading not settled) are not used for navigation; a frame whose
+    configured lags; real = to be measured), then interpolated at the frame's exposure time; **lens-travel rule (the
+    only one):** a frame in lens travel is used only when the two zoom readings bracketing its exposure are equal; then
+    K is that reading's K. The wire carries 0.1 x steps (`siyi_sdk.py:687`), so the HITL emulator moves the rendered
+    magnification in exact 0.1 x steps, rendering the value it reports; equal brackets then give the rendered K
+    exactly. Unequal brackets: the frame is refused. On the real ZR10 the reading is a rounded label, so its travel
+    frames stay unused until a calibrated reading model exists; a frame whose
     bracket has no later sample yet waits for it up to a bound, else it is refused (as ATTITUDE,
     `real_frame_association.py:133-174`). **Report scale:** navpy uses the reports directly as camera orientation
     (`hardware/state.py:84-93`, `visual_ray_projection.py:20`), so a yaw report of 0.94 x physical is 5-7 deg off at
@@ -236,12 +240,17 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   as a command (`poi_zoom_setpoint.py:133`). N6, a fixed-step policy: `PoiZoomTrackerConfig.policy = "steps"`; steps
   are optical readings that the command table can reach exactly (1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 10.0: each the reading of a
   0x0F command in `zoom_calibration`); the command for a step comes from that table; a step is reached when the
-  0x18 reading equals it within 0.05 on two consecutive polls; until then the zoom is in transition and its frames are
-  not used for navigation (N3). Up or down on the measured square size (the smallest side of the detected board quad
+  0x18 reading equals it within 0.05 on two consecutive polls; until then the zoom is in transition, and its frames follow N3's
+  single lens-travel rule. Up or down on the measured square size (the smallest side of the detected board quad
   over its square count, so foreshortening counts; the geo selector's whole-object sizing,
   `gimbal_geo_zoom_selector.py:59`, is not used), with hysteresis. Zoom per range without a range: pure vision, no dock
-  position. Search starts at the profile's search step. NAV entry today freezes the zoom at the minimum
-  (`nav_entry.py:47`, `gimbal_zoom_control.py:73-84`); Q3.
+  position. Search starts at the profile's search step. **Owner (2026-10-15): zoom out as it gets close.**
+  NAV entry today freezes the zoom at the minimum (`nav_entry.py:47`, `gimbal_zoom_control.py:73-84`). N9: with the
+  profile's `final_approach_zoom: "steps"`, NAV entry keeps the current step and the same step policy runs in NAV,
+  stepping down only, so the whole board stays in view: step down when the detected board quad spans more than 60 %
+  of the picture on either axis (each axis normalised by its own side) or any corner comes within 10 % of a picture
+  edge (as `poi_zoom_geometry.py:54` checks all four edges), to the next step down, by 0x0F to that step's command (lens travel per N3). Profiles
+  without the setting keep today's freeze at the minimum.
 - **Range per zoom, flat board.** Detection needs about 11.5 px per 40 cm square along the line of sight (dock4,
   `hitl_unreal_camera.md`). A flat board seen at depression d from slant range R gives 1401.9 z x 0.4 sin(d) / R px,
   so R <= 48.8 z sin(d), and the height above the board h <= 48.8 z sin^2(d):
@@ -279,11 +288,17 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
      commanded rate, so steady error + frame-delay error stays under the lock tolerance, well inside the half field of
      view. Regression: pixels constant while the camera turns gives a feedforward equal to the camera rate; plus a
      simulated circle.
-  4. *No lens move at NAV entry:* the circle's zoom is held through NAV (a 0x05 move runs at about 0.5 x/s and frames in
-     lens travel are not used), so a board readable at entry stays readable on the dive until it fills the picture.
-  5. *Tail:* inside 6.2 z m the approach runs on partial views; the offline check (planned approaches rendered through
-     the real detector, BoT-SORT and the homography centre) must show measured centres at least every 0.3 s to contact,
-     inside the 1.0 s command freshness (`command_freshness.py:12`).
+  4. *Zoom out in time (N9):* the trigger's height test, the board's 3.2 m side at most 60 % of the picture height
+     (432 px; the 2.4 m side at 60 % of 1280 px is looser), needs
+     z <= R / 10.4 (fy 1401.9 z); closing at 24 m/s this lowers the zoom at 2.3 x/s on average. The check uses the
+     profile's lens speed for 0x0F moves and the zoom report lag, and requires the step-down to keep the board whole
+     to the minimum step; the emulator runs ideal first, then its measured lens speed. The real ZR10's speed over the
+     range is unmeasured (0x05 0.5 x/s near 1x; 0x0F jumps 2-6 s): a real-camera approach may fail this condition, and
+     the check says so instead of flying.
+  5. *Tail:* at the minimum step (reading 1.1) the board fills the picture from 6.9 m, the last 0.29 s; the offline
+     check (planned approaches rendered through the real detector, BoT-SORT and the homography centre) must show
+     measured centres at least every 0.3 s to contact, inside BoT-SORT's 0.30 s coast and the 1.0 s command freshness
+     (`command_freshness.py:12`).
 - **Orbit centre without the ground-plane error (N8).** The circle centre is the camera ray on the ground (reference
   height 0, `self_detected_approach.py:14, 58`); for a board 20 m up seen from 80 m above it at 170 m, that is about
   40 m beyond the board, which breaks condition 1 at every zoom. N8: centre on the board's own position from its ChArUco
@@ -297,14 +312,14 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   (`real_frame_association.py:210`, `real_detected_object_builder.py:76`), about 2.8 m at 115 ms and 24 m/s; N8
   interpolates GLOBAL_POSITION_INT at exposure. H1 bounds the total world-position error of the centre (offline, against
   Unreal's board position), and condition 1 uses that bound.
-- **Worked plan (first values, Q2, Q3):** circle 170 m, 80 m above the board, zoom 10 held from lock to contact.
+- **Worked plan (owner-approved values):** circle 170 m, 80 m above the board on its 20 m mast, zoom 10 on the
+  circle and at NAV entry, stepping down on the dive (N9).
   1: farthest slant with 8 m centre error 195 m against a limit of 198 m; 2: 170 >= 167.7 m and >= 164 m (descent,
-  assuming -40 deg); 3: needs N7; 4: held; 5: the board fills the picture from 62 m (2.6 s before contact), the tail
-  the offline check must prove first. Every condition is tight: 10x is the ZR10's optical maximum, so there is no
+  assuming -40 deg); 3: needs N7; 4: steps begin near 104 m and reach 1.1 near 11 m, about 3.9 s at 2.3 x/s average; 5: 6.9 m,
+  0.29 s. Every condition is tight: 10x is the ZR10's optical maximum, so there is no
   zoom margin left. Search: the same height and step, gimbal at -25 deg (the circle's depression), across-track view
   about 17 m at 188 m slant, so the sweep (N5) carries the coverage. If no plan passes the check, H1 reports that as a
-  finding with the numbers for the owner (the board size is fixed; the alternative is a zoom change during NAV, which
-  is the auto-zoom design, Q4), not tuned around.
+  finding with the numbers for the owner (the board size is fixed), not tuned around.
 - **Navigation pixel = board centre:** ChArUco reports the centre of its clipped bbox (`charuco_detector.py:124-130`),
   which becomes the navigation pixel (`real_track_observation.py:32`). Carry the homography-projected board centre; bbox
   for display only; test partial views. Measured centres are marked apart from tracker predictions and carry their own
@@ -380,11 +395,11 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
 ## 9. Steps
 | Step | What | Done when |
 |---|---|---|
-| H0 | Q1-Q4; router (2); B3 real SIYI path; ZR10 emulator with aircraft attitude from the bridge, the dynamics table and zoom table (4); gimbal/zoom readback lag-corrected, scale-calibrated and interpolated at exposure (N3); optical K by reading (N4); gimbal search sweep (N5); fixed-step zoom policy (N6); SIYI sign contract; one PC clock and the certified gimbal frame offset; confirm only while locked and on the circle; plan feasibility check (4; Q2, Q3); tracker rate feedforward (N7); orbit centre from the board pose (N8); offline partial-view tail check with BoT-SORT; router single-owner serial handle and the barrier before the terminal record; HITL profile `siyi_zr10_hitl` (zero distortion); B1 calibration tool and EXPOSURE-only rule; board-centre navigation pixel; B4 contact sensor + identity binding; terminal fence (incl. gimbal commands), hold and record; observation-mode inhibit; effective settings in the start record; `sitl_driver approach`; report tool; Unreal U1-U4 and the board mast (Q1); profiles `novoxy_sk_ahd2200`, `placeholder_18x` | Unit + guard tests (Pure Vision, contact isolation, no dock data or rendered state in navpy, EXPOSURE-only, real path never sim gimbal, emulator protocol against navpy's client and against recorded aas-hitl replies, router routing and stream claims, terminal handoff interleavings), full suite |
+| H0 | Q1-Q4; router (2); B3 real SIYI path; ZR10 emulator with aircraft attitude from the bridge, the dynamics table and zoom table (4); gimbal/zoom readback lag-corrected, scale-calibrated and interpolated at exposure (N3); optical K by reading (N4); gimbal search sweep (N5); fixed-step zoom policy (N6); SIYI sign contract; one PC clock and the certified gimbal frame offset; confirm only while locked and on the circle; plan feasibility check (4); zoom steps in NAV (N9); tracker rate feedforward (N7); orbit centre from the board pose (N8); offline partial-view tail check with BoT-SORT; router single-owner serial handle and the barrier before the terminal record; HITL profile `siyi_zr10_hitl` (zero distortion); B1 calibration tool and EXPOSURE-only rule; board-centre navigation pixel; B4 contact sensor + identity binding; terminal fence (incl. gimbal commands), hold and record; observation-mode inhibit; effective settings in the start record; `sitl_driver approach`; report tool; Unreal U1-U4 and the board mast (Q1); profiles `novoxy_sk_ahd2200`, `placeholder_18x` | Unit + guard tests (Pure Vision, contact isolation, no dock data or rendered state in navpy, EXPOSURE-only, real path never sim gimbal, emulator protocol against navpy's client and against recorded aas-hitl replies, router routing and stream claims, terminal handoff interleavings), full suite |
 | H1 | SITL stand-in + router + bridge + Unreal + emulator + navpy, observation only: an explicit inhibit at NAV entry (search, lock, zoom steps and the acquisition orbit's GUIDED loiter run; no NAV, no attitude command; tested), or the harness flies the orbit with navpy's mode writes inhibited. Bounded GUIDED attitude test. aas-hitl emulator cross-check, read only | Calibration certified under load; gimbal association error within budget; acquisition range and zoom on the mast board; lock holds through the orbit; router clean; gates pass; lane bounds set |
-| H2 | SITL approaches: ideal gimbal, then each effect added (yaw report scale with its calibration, report lag, 0x07 dead time, zoom speed); NAV zoom per Q3; then 10 under the measured configuration (4) | Per setting: acquisition, time in NAV, outcome; 10 of 10 (7); pull-out height loss; every run logged |
+| H2 | SITL approaches: ideal gimbal, then each effect added (yaw report scale with its calibration, report lag, 0x07 dead time, zoom speed); NAV zoom stepping down (N9); then 10 under the measured configuration (4) | Per setting: acquisition, time in NAV, outcome; 10 of 10 (7); pull-out height loss; every run logged |
 | H3 | Real board (COM15 via the router, COM11 bridge; Mission Planner must not hold COM15), 1 then 10 | As H2, results beside H2 |
-| H4 | Later: auto-zoom (Q4), real ZR10 K by reading after a per-reading calibration, GCS approval, moving dock, Novoxy/18x fixed-camera runs | Separate designs |
+| H4 | Later: auto-zoom (owner: after HITL), real ZR10 K by reading after a per-reading calibration, GCS approval, moving dock, Novoxy/18x fixed-camera runs | Separate designs |
 
 ## Owner answers (2026-10-15)
 1. Board: keep 2.4 x 3.2 m. → 4, 6.
@@ -394,18 +409,13 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
    "Let's do gimbal instead": the approach uses the simulated ZR10 gimbal. Novoxy and 18x stay as profiles for later. → 4.
    v4's Q5 (stand the board up for the fixed camera) is withdrawn: the gimbal looks down at a flat board.
 
-## Open questions for the owner
-1. **Raise the board.** Same flat 2.4 x 3.2 m board on a sim-only mast, centre about 20 m above the ground (Unreal only;
-   navpy never sees it)? Today it is 4 m up and the 7 m safety floor makes contact impossible (6). Default: yes.
-2. **Smaller circle before the final approach.** navpy circles the dock at 500 m or more before the final approach
-   (tuned with the simulated detector). The real board reader sees this board only to about 200 m even at 10x, and the
-   final approach needs at least about 168 m to turn. Circle at about 170 m, 80 m above the board, for this camera and board (a profile setting; 500 m stays for other
-   profiles)? Default: yes.
-3. **Keep the zoom in the final approach.** navpy goes back to 1x when the final approach starts; at 1x the board is
-   read only from 24-35 m away (1-1.5 s), and the lens needs seconds to move. Keep the circle's zoom (10x) to contact
-   instead? Default: yes; the last 62 m then run on partial views of the board, proved offline first.
-4. **Auto-zoom.** The track + auto-zoom design is still waiting for your OK. Until then HITL zooms in fixed steps.
-   Default: steps now, auto-zoom after HITL.
+## Owner answers to v5 (2026-10-15)
+5. Board mast: "Yes, 20 m mast" (same flat board, sim-only mast about 20 m up). → 6.
+6. Circle: "Yes, 170 m" (about 170 m, 80 m above the board). → 4.
+7. Final-approach zoom: "Zoom out as it gets close" (step down with range so the whole board stays in view). → N9, 4.
+8. Auto-zoom: "Fixed steps now, auto-zoom later". → 4, H4.
+
+No open owner questions.
 
 ## Codex review v5 r1 (2026-10-15): "rework", all applied in v5.1
 P1: router needs `udpin` (1); report-lag sign (3); the emulator needs the aircraft attitude (4); the 500 m orbit is
@@ -443,3 +453,7 @@ r5 closed. P1: after a forced stop the runner must close navpy's router endpoint
 
 ## Codex review v5 r7 (2026-10-15): "approve"
 r6 closed; no new findings. Approval covers the design contract, not HITL performance.
+
+## Codex check of v6 (2026-10-15): "rework", applied
+P2: one lens-travel rule (N3) and 0.1 x quantisation, exact in HITL; N9's trigger tests both axes and edge margins.
+Round 2: "approve".
