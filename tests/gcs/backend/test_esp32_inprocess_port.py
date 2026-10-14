@@ -2,7 +2,9 @@
 
 A trigger answers at once; the recorded producer thread then holds the
 channel for the trigger duration on the lockstep clock, and a cancel (the
-shutdown's) mid-hold releases it.
+shutdown's) mid-hold releases it. The fleet's vehicles 1-3 resolve to
+channels 1-3 and share the one simulator (10e): their holds may overlap,
+each on its own thread for its own duration.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from gcs.backend.lockstep.esp32_port import InProcessEsp32
 from gcs.backend.lockstep.faults import FaultLatch
 from gcs.backend.lockstep.scopes import LockstepProducerScopes
 from gcs.backend.producer_inventory import ProducerInventory
+from gcs.backend.routes.control_readiness import _resolve_channel_map
 from navpy.core.kernel import runtime_time as rt
 from navpy.sim.lockstep.baton import BatonRuntime
 from navpy.sim.lockstep.lockstep_runtime import LockstepRuntime
@@ -83,5 +86,53 @@ def test_a_cancel_mid_hold_releases_the_channel_and_retires_the_thread(monkeypat
         _trigger(baton, 3)
         assert esp32_port._state.active_channel == 3
         baton.tick(100_000, lambda: scopes.cancel_all())  # the shutdown's cancel step, mid-hold
+        assert esp32_port._state.active_channel is None
+        assert baton.threads.alive() == [] and not baton.threads.errors and out.faults == []
+
+
+def test_the_fleet_sysids_resolve_to_channels_one_to_three():
+    # The lockstep settings leave the default map empty (``build_settings``).
+    assert _resolve_channel_map({}, [1, 2, 3]) == {1: 1, 2: 2, 3: 3}
+
+
+def _trigger_at(baton: BatonRuntime, port: InProcessEsp32, now_us: int, channel: int, box: dict) -> None:
+    def operator_call() -> None:
+        box[channel] = port.client("127.0.0.1", None).trigger_channel(channel)
+
+    baton.tick(now_us, lambda: baton.spawn(operator_call, name=f"route-job-{channel}"))
+
+
+def _overlapping(baton: BatonRuntime) -> dict:
+    """Channels 1, 2 and 3 triggered 0.1 s apart: every hold overlaps the next."""
+    port, box = InProcessEsp32(), {}
+    baton.spawn(lambda: port.simulator(8032).start(), name="route-job")
+    baton.run_until_quiescent()
+    for index, channel in enumerate((1, 2, 3)):
+        _trigger_at(baton, port, index * 100_000, channel, box)
+    return box
+
+
+def test_overlapping_holds_on_channels_one_to_three_each_last_their_own_duration(monkeypatch):
+    with _lockstep(monkeypatch) as (baton, _scopes, out):
+        box = _overlapping(baton)
+        assert [(box[c].success, box[c].channel) for c in (1, 2, 3)] == [(True, 1), (True, 2), (True, 3)]
+        threads = dict(zip((1, 2, 3), esp32_port.producers.threads("esp32_simulator")))
+        assert all(thread.is_alive() for thread in threads.values())
+        hold_us = TRIGGER_DURATION_MS * 1000
+        for index, channel in enumerate((1, 2, 3)):
+            baton.tick(index * 100_000 + hold_us)  # channel's own hold ends; later ones still hold
+            assert [c for c, thread in threads.items() if thread.is_alive()] == [1, 2, 3][index + 1:]
+        log = esp32_port._state.trigger_log
+        assert [entry["channel"] for entry in log] == [1, 2, 3]
+        # The wall simulator's one ``active`` slot: the latest trigger, cleared by the first end.
+        assert esp32_port._state.active_channel is None
+        assert baton.threads.alive() == [] and not baton.threads.errors and out.faults == []
+
+
+def test_a_cancel_during_overlapping_holds_releases_every_channel(monkeypatch):
+    with _lockstep(monkeypatch) as (baton, scopes, out):
+        _overlapping(baton)
+        assert len(esp32_port.producers.threads("esp32_simulator")) == 3
+        baton.tick(300_000, lambda: scopes.cancel_all())  # the shutdown's cancel, all three holding
         assert esp32_port._state.active_channel is None
         assert baton.threads.alive() == [] and not baton.threads.errors and out.faults == []

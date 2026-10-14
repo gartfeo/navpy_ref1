@@ -13,7 +13,7 @@ from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 from scripts.eval_gcs_demo_stack_ops import configure_vehicle_params
-from scripts.lockstep_slice_actor import NAMED_PARAMETER_NAMES, named_parameter_snapshot
+from scripts.lockstep_fleet_actor import NAMED_PARAMETER_NAMES, named_parameter_snapshot
 from scripts.lockstep_wsl_sitl import BOOT_BUDGET_US, DRAIN_PERIOD_US, MAX_FRAME_GAP_US
 
 ROOT = Path(__file__).resolve().parents[2]

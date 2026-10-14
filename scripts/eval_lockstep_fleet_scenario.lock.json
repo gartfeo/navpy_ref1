@@ -1,0 +1,7 @@
+{
+  "fixture": "scripts/eval_lockstep_fleet_scenario.json",
+  "source": "scripts/eval_gcs_demo_scenario.json",
+  "source_revision": "2495cf60593101f66fa8490124ffe867478f4109",
+  "canonical_sha256": "bfe17a2e803aa15215eed9c2f0aacb807d407f297c3fef3f26cbfc1e1e11948d",
+  "canonical_form": "sha256 of json.dumps(json.loads(fixture), sort_keys=True, separators=(',', ':'), ensure_ascii=True)"
+}

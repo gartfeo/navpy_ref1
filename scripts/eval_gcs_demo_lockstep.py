@@ -56,14 +56,15 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoScenario
 from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, NAVPY_LINES_FILE
+from scripts.lockstep_fleet_actor import stack_context
 from scripts.lockstep_slice_actor import (
     BACKEND,
     NAVPY,
     ROUTER,
     SITL_PORTS,
+    SLICE,
     SYS_ID,
     slice_roles,
-    stack_context,
 )
 from scripts.lockstep_wsl_sitl import (
     BOOT_BUDGET_US,
@@ -135,7 +136,7 @@ def operator_script(scenario: DemoScenario, run_dir: Path,
 
     def script(operator: OperatorBaton) -> dict:
         operator.wait_ready(BACKEND)
-        context = stack_context(operator, scenario, epoch_us=EPOCH_US)
+        context = stack_context(operator, scenario, SLICE, epoch_us=EPOCH_US)
         outcome: dict = {"approvals": [], "error": None}
         try:
             mission = run_mission(context, run_dir, options.timeout_s, options.confirmation_delay_s)

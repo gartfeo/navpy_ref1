@@ -22,7 +22,8 @@ from scripts.eval_gcs_demo_lifecycle import (
     start_companions,
     stop_companions,
 )
-from scripts.lockstep_slice_actor import BACKEND, NAVPY, stack_context
+from scripts.lockstep_fleet_actor import stack_context as fleet_context
+from scripts.lockstep_slice_actor import BACKEND, NAVPY, SLICE
 from tests.modules.lockstep.backend_doubles import BOUND_VALUES, READY_PAYLOAD, BackendRun, build
 from tests.modules.lockstep.lockstep_autopilot import SYS_ID, ReferenceAutopilot
 
@@ -40,7 +41,7 @@ def _http(method: str, target: str, body: dict | None = None) -> dict:
 
 def _connected(operator: OperatorBaton, scenario) -> None:
     operator.wait_ready(BACKEND)
-    connect_vehicles(stack_context(operator, scenario))
+    connect_vehicles(fleet_context(operator, scenario, SLICE))
 
 
 def _run(tmp_path, script, **options) -> BackendRun:
@@ -184,7 +185,7 @@ def test_a_full_lifespan_with_a_companion_started_and_stopped_through_the_launch
 
     def script(operator: OperatorBaton, scenario) -> None:
         _connected(operator, scenario)
-        context = stack_context(operator, scenario)
+        context = fleet_context(operator, scenario, SLICE)
         start_companions(context, 10.0)  # waits for status ``running``
         seen["running"] = companion_ids(context)
         seen["status"] = context.api.get_json("/api/control/navpy-sim/status")
@@ -211,7 +212,7 @@ def test_the_esp32_simulator_runs_in_process_through_its_port(tmp_path):
 
     def script(operator: OperatorBaton, scenario) -> None:
         _connected(operator, scenario)
-        api = stack_context(operator, scenario).api
+        api = fleet_context(operator, scenario, SLICE).api
         seen["before"] = api.get_json("/api/control/launch/esp32-sim/status")
         seen["start"] = api.post_json("/api/control/launch/esp32-sim/start", {})
         seen["probe"] = api.get_json("/api/control/launch/esp32-status")
@@ -242,7 +243,7 @@ def test_cancelling_the_scan_that_opened_the_bus_leaves_its_reader_and_the_vehic
         operator.send(BACKEND, _http("POST", "/api/vehicles/scan?device=lockstep%3Arouter&timeout=5"),
                       ids["scan"])
         BatonClock(operator).sleep(0.1)  # the scan opened the bus and polls it
-        context = stack_context(operator, scenario)
+        context = fleet_context(operator, scenario, SLICE)
         connect_vehicles(context)  # through the scan's bus
         operator.cancel(BACKEND, ids["scan"])
         seen["scan"] = operator.await_answer(scan)
@@ -261,7 +262,7 @@ def test_the_shutdown_closes_a_bus_a_scan_opened_with_no_vehicle(tmp_path):
 
     def script(operator: OperatorBaton, scenario) -> None:
         operator.wait_ready(BACKEND)
-        api = stack_context(operator, scenario).api
+        api = fleet_context(operator, scenario, SLICE).api
         seen["scan"] = api.post_json("/api/vehicles/scan?device=lockstep%3Arouter&timeout=2.5")
 
     run = _run(tmp_path, script)
@@ -351,7 +352,7 @@ def test_a_configured_restart_starts_a_new_generation_with_its_own_pid(tmp_path)
 
     def script(operator: OperatorBaton, scenario) -> None:
         _connected(operator, scenario)
-        context = stack_context(operator, scenario)
+        context = fleet_context(operator, scenario, SLICE)
         start_companions(context, 10.0)
         seen["restart"] = context.api.post_json("/api/control/navpy-sim/restart-ready", {
             "instances": [{"sys_id": SYS_ID, "expected_params": expected}]})
@@ -399,7 +400,7 @@ def test_with_no_companions_the_launcher_port_refuses_a_start_and_spawns_nothing
 
     def script(operator: OperatorBaton, scenario) -> None:
         _connected(operator, scenario)
-        api = stack_context(operator, scenario).api
+        api = fleet_context(operator, scenario, SLICE).api
         seen["start"] = api.post_json("/api/control/navpy-sim/start", {"sys_id": SYS_ID}, expected=(409,))
         seen["status"] = api.get_json("/api/control/navpy-sim/status")
 

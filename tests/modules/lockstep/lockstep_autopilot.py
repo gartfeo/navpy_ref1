@@ -55,11 +55,11 @@ MISSION = (
 
 
 class _Port:
-    def __init__(self) -> None:
+    def __init__(self, sys_id: int) -> None:
         self.sink = ByteSink()
         self.decoder = StreamDecoder()
-        self.autopilot, _ = encoder(SYS_ID, mavlink.MAV_COMP_ID_AUTOPILOT1, self.sink)
-        self.gimbal, _ = encoder(SYS_ID, GIMBAL_COMPONENT, self.sink)
+        self.autopilot, _ = encoder(sys_id, mavlink.MAV_COMP_ID_AUTOPILOT1, self.sink)
+        self.gimbal, _ = encoder(sys_id, GIMBAL_COMPONENT, self.sink)
 
 
 class ReferenceAutopilot:
@@ -71,8 +71,11 @@ class ReferenceAutopilot:
         param_burst: int = 0,
         parameters: dict[str, float] | None = None,
         answer_limits: dict[str, int] | None = None,
+        sys_id: int = SYS_ID,
     ) -> None:
-        self._ports = [_Port() for _ in range(ports)]
+        #: The vehicle's MAVLink system id (a fleet's vehicle i is sysid i).
+        self.sys_id = sys_id
+        self._ports = [_Port(sys_id) for _ in range(ports)]
         self._next_heartbeat_us = 0
         self._heartbeats = heartbeats
         self._param_burst = param_burst
@@ -117,7 +120,7 @@ class ReferenceAutopilot:
 
     def _answer(self, port: _Port, message: mavlink.MAVLink_message) -> None:
         kind = message.get_type()
-        if getattr(message, "target_system", SYS_ID) != SYS_ID:
+        if getattr(message, "target_system", self.sys_id) != self.sys_id:
             return
         if kind in self._answers_left:
             if self._answers_left[kind] <= 0:

@@ -40,13 +40,13 @@ from scripts.eval_gcs_demo_config import build_settings
 from scripts.eval_gcs_demo_scenario import load_scenario
 from scripts.lockstep_slice_actor import (
     NAVPY,
-    NAVPY_HOOKS,
     ROUTER,
     SERIAL0,
     SITL_PORTS,
     companion_argv,
     companion_script,
 )
+from scripts.lockstep_fleet_actor import NAVPY_HOOKS
 from tests.modules.lockstep.backend_doubles import BOUND_VALUES, SLICE_SCENARIO, AutopilotSitl, build
 from tests.modules.lockstep.coordinator_doubles import PYTHON_PATH, AllowAll
 from tests.modules.lockstep.lockstep_autopilot import ReferenceAutopilot, navpy_parameters
