@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Optional, Sequence
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from gcs.backend.full_param_values import ArmedToken
+from gcs.backend.producer_inventory import producers
 from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
 
@@ -153,7 +154,8 @@ class FullParamStore:
             if abs(cached_value - pvalue) > 1e-6 * max(abs(cached_value), 1.0):
                 self.invalidate_keys(sys_id, [pname])
 
-        vehicle.on_message("PARAM_VALUE", _observed_param_value)
+        producers.keep_subscription(
+            "full_param_observer", vehicle.on_message("PARAM_VALUE", _observed_param_value))
 
 
 __all__ = ["ARMED_TOKEN_TTL_S", "FullParamStore"]

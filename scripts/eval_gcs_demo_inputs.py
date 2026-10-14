@@ -13,10 +13,10 @@ import subprocess
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
-from scripts.eval_gcs_demo_constants import ROOT, SCENARIO_MANIFEST_PATH, SRC
+from scripts.eval_gcs_demo_constants import ROOT, SRC
 from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_ports import JsonValue
-from scripts.eval_gcs_demo_scenario import load_scenario_manifest
+from scripts.eval_gcs_demo_scenario import DemoScenario
 from scripts.eval_gcs_demo_sitl_root import sha256_bytes, sha256_file
 
 from navpy.core.perception.geo.dem_data import DemData
@@ -76,22 +76,21 @@ def dem_tiles(points: list[tuple[float, float]], directory: Path = DEM_DIR) -> d
     return tiles
 
 
-def scenario_points() -> list[tuple[float, float]]:
-    manifest = load_scenario_manifest()
-    lat, lon = (float(part) for part in manifest.home.split(",")[:2])
-    return [(lat, lon), *_coordinates(list(manifest.missions))]
+def scenario_points(scenario: DemoScenario) -> list[tuple[float, float]]:
+    lat, lon = (float(part) for part in scenario.home.split(",")[:2])
+    return [(lat, lon), *_coordinates(list(scenario.missions))]
 
 
 def _optional_hash(path: Path) -> str | None:
     return sha256_file(path) if path.is_file() else None
 
 
-def navpy_inputs() -> dict[str, JsonValue]:
+def navpy_inputs(scenario: DemoScenario) -> dict[str, JsonValue]:
     from pymavlink import __version__ as pymavlink_version
     from pymavlink.dialects.v20 import ardupilotmega
 
     return {
-        "dem": dict(dem_tiles(scenario_points())),
+        "dem": dict(dem_tiles(scenario_points(scenario))),
         "sim_assets": {name: _optional_hash(SIM_ASSETS_DIR / name) for name in SIM_ASSET_FILES},
         "vision_profiles_sha256": sha256_file(VISION_PROFILES),
         "mavlink_dialect": {
@@ -139,6 +138,7 @@ def write_input_manifest(
     sitl: Mapping[str, JsonValue],
     sitl_root_host: str,
     run_options: Mapping[str, JsonValue],
+    scenario: DemoScenario,
 ) -> dict[str, JsonValue]:
     diff = _git("diff", "HEAD", "--binary")
     manifest: dict[str, JsonValue] = {
@@ -149,9 +149,9 @@ def write_input_manifest(
             "untracked_sha256": _untracked_digest(),
         },
         "run_options": dict(run_options),
-        "scenario_sha256": sha256_file(SCENARIO_MANIFEST_PATH),
+        "scenario_sha256": sha256_file(scenario.path),
         "sitl": dict(sitl),
-        "navpy": navpy_inputs(),
+        "navpy": navpy_inputs(scenario),
         "environment": environment_inputs(env, run_dir),
     }
     (run_dir / INPUT_MANIFEST).write_text(
@@ -168,12 +168,56 @@ def write_input_manifest(
     return manifest
 
 
+def recorded_scenario_sha256(run_dir: Path) -> str | None:
+    """The scenario hash a run recorded, or None for a run without a manifest."""
+    path = run_dir / INPUT_MANIFEST
+    if not path.is_file():
+        return None
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RegressionError(f"invalid input manifest {path}: {error}") from error
+    recorded = manifest.get("scenario_sha256") if isinstance(manifest, dict) else None
+    if type(recorded) is not str or not recorded:
+        raise RegressionError(f"input manifest {path} records no scenario_sha256")
+    return recorded
+
+
+def recorded_lockstep(run_dir: Path) -> bool:
+    """Whether the run's input manifest records a lockstep run (``run_options.lockstep``)."""
+    path = run_dir / INPUT_MANIFEST
+    if not path.is_file():
+        return False
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RegressionError(f"invalid input manifest {path}: {error}") from error
+    options = manifest.get("run_options") if isinstance(manifest, dict) else None
+    return isinstance(options, dict) and options.get("lockstep") is True
+
+
+def require_recorded_scenario(run_dir: Path, scenario: DemoScenario) -> None:
+    """Refuse to analyze a run against a scenario other than the one it flew."""
+    recorded = recorded_scenario_sha256(run_dir)
+    if recorded is None:
+        return
+    actual = sha256_file(scenario.path)
+    if actual != recorded:
+        raise RegressionError(
+            f"scenario {scenario.path} (sha256 {actual}) is not the run's recorded "
+            f"scenario (sha256 {recorded})"
+        )
+
+
 __all__ = [
     "INPUT_MANIFEST",
     "INPUT_MANIFEST_HOST",
     "dem_tiles",
     "environment_inputs",
     "navpy_inputs",
+    "recorded_lockstep",
+    "recorded_scenario_sha256",
+    "require_recorded_scenario",
     "scenario_points",
     "write_input_manifest",
 ]

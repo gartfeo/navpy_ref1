@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from gcs.backend.ekf_status_gate import ekf_status_issue
 from gcs.backend.vehicle_manager import VehicleManager
 from gcs.backend.settings_model import LaunchSettings
 
@@ -58,6 +60,7 @@ class ReadinessGates:
     check_battery: bool = True
     min_battery_pct: float = 15.0
     block_on_unknown_battery: bool = False
+    check_ekf: bool = True
 
 
 def _readiness_gates_from_settings(ls: LaunchSettings) -> ReadinessGates:
@@ -72,7 +75,49 @@ def _readiness_gates_from_settings(ls: LaunchSettings) -> ReadinessGates:
         check_battery=ls.check_battery_enabled,
         min_battery_pct=ls.min_battery_pct,
         block_on_unknown_battery=ls.block_on_unknown_battery,
+        check_ekf=ls.check_ekf_enabled,
     )
+
+
+def _check_ekf_readiness(
+    sys_ids: list[int],
+    gates: ReadinessGates | None = None,
+    *,
+    vehicle_mgr: VehicleManager,
+) -> list[str]:
+    """Return the EKF issues blocking launch of *sys_ids* (empty when off)."""
+    if gates is None:
+        gates = ReadinessGates()
+    if not gates.check_ekf:
+        return []
+    issues = []
+    for sys_id in sys_ids:
+        entry = vehicle_mgr.get_vehicle(sys_id)
+        if not entry:
+            issues.append(f"Vehicle {sys_id}: not connected")
+            continue
+        issue = ekf_status_issue(entry.vehicle.ekf_status)
+        if issue is not None:
+            issues.append(f"Vehicle {sys_id}: {issue}")
+    return issues
+
+
+def ekf_recheck_for_session(
+    gates: ReadinessGates | None,
+    *,
+    force: bool,
+    vehicle_mgr: VehicleManager,
+) -> Callable[[int], list[str]]:
+    """The EKF re-check a launch session runs right before each arm/release.
+
+    It carries the session's own gates and ``force`` policy: ``force`` skips
+    it as it skips the preparation check.
+    """
+    def recheck(sys_id: int) -> list[str]:
+        if force:
+            return []
+        return _check_ekf_readiness([sys_id], gates, vehicle_mgr=vehicle_mgr)
+    return recheck
 
 
 def _check_launch_readiness(
@@ -146,6 +191,10 @@ def _check_launch_readiness(
                 # Closes the gap where an unconfigured/unreporting battery monitor
                 # silently passes both prearm and this gate.
                 issues.append(f"{prefix}: battery telemetry missing")
+        if gates.check_ekf:
+            issue = ekf_status_issue(v.ekf_status)
+            if issue is not None:
+                issues.append(f"{prefix}: {issue}")
         if not entry.mission_uploaded and not (v.mission_items_count or 0) > 0:
             issues.append(f"{prefix}: mission not uploaded")
     return issues

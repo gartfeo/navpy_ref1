@@ -16,6 +16,7 @@ from navpy.core.kernel.logging.cache_log_output import (
     TextLogSink,
 )
 from navpy.core.kernel.logging.cache_log_worker import CacheLogWorker
+from navpy.core.kernel.logging.log_output_latch import OutputLatch
 from navpy.core.kernel.logging.logger_api import ConsoleLogger, ILogger
 from navpy.core.kernel.logging.status_logger import IStatusLogger
 
@@ -61,6 +62,8 @@ class CacheLogger(ILogger):
         logger_args: LoggerArgs,
         logger: TextLogSink,
         status_logger: IStatusLogger | None = None,
+        *,
+        output_latch: OutputLatch | None = None,
     ) -> None:
         self._args = logger_args
         self._level = logger_args.log_level
@@ -68,7 +71,9 @@ class CacheLogger(ILogger):
         self._dedupe = CacheLogDeduplicator()
         self._status_output = CacheStatusOutput(logger_args, status_logger)
         self._output = CacheLogOutput(logger, self._status_output)
-        self._worker = CacheLogWorker(self._output.handle)
+        #: Set when a line failed to reach the output (worker or file sink).
+        self.output_latch = output_latch or OutputLatch()
+        self._worker = CacheLogWorker(self._output.handle, latch=self.output_latch)
         self.log_path: str | None = None
 
     @property
@@ -169,9 +174,9 @@ class CacheLogger(ILogger):
     def refresh(self) -> None:
         self._args.refresh()
 
-    def close(self) -> None:
+    def close(self, *, drain_unstarted: bool = False) -> None:
         self.info("Logger closed", dest=None)
-        self._worker.close()
+        self._worker.close(drain_unstarted=drain_unstarted)
         self._status_output.close()
 
     def _prefixed(self, msg: object) -> object:

@@ -11,9 +11,11 @@ from scripts import eval_gcs_demo_lifecycle as lifecycle
 from scripts import eval_gcs_demo_process as process
 from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_execution import SystemClock
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 
 
 SYS_IDS = (7, 8, 9)
+CERTIFIED = load_scenario(CERTIFIED_SCENARIO_PATH)
 
 
 class FakeApi:
@@ -107,9 +109,9 @@ def test_teardown_stops_companions_before_the_stack(monkeypatch, action_fails):
 
     if action_fails:
         with pytest.raises(RegressionError, match="mission failed"):
-            process.with_owned_stack({}, 1.0, action, clock=SystemClock())
+            process.with_owned_stack({}, 1.0, action, clock=SystemClock(), scenario=CERTIFIED)
     else:
-        assert process.with_owned_stack({}, 1.0, action, clock=SystemClock()) == "done"
+        assert process.with_owned_stack({}, 1.0, action, clock=SystemClock(), scenario=CERTIFIED) == "done"
     assert order == ["companions", "close", "gcs_stop", "tail"]
     assert api.running == set()
 

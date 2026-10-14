@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import WebSocket
@@ -18,6 +19,8 @@ class ConnectionManager:
         # Insertion order, not object identity, orders the sends.
         self._clients: dict[WebSocket, None] = {}
         self._lock = asyncio.Lock()
+        #: Sees every broadcast, subscribed or not (the lockstep event journal).
+        self.observer: Callable[[Any], None] | None = None
 
     async def connect(self, ws: WebSocket):
         await ws.accept()
@@ -32,6 +35,8 @@ class ConnectionManager:
 
     async def broadcast(self, data: Any):
         """Send JSON-serialized data to all connected clients."""
+        if self.observer is not None:
+            self.observer(data)
         if not self._clients:
             return
         payload = orjson.dumps(data)

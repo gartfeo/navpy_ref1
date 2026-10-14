@@ -64,6 +64,13 @@ def git_branch() -> str:
         return ""
 
 
+def lockstep_claim(run_token: str) -> tuple[int, dict]:
+    """In-process eval-band lockstep claim (no frontend): slot and full owner identity."""
+    from gcs.backend import instance_registry_lockstep as lockstep
+
+    return lockstep.claim(run_token=run_token, clone=str(ROOT), owner=reg.owner_for(str(ROOT)))
+
+
 def _spawn(cmd, cwd, env, shell=False, console_log: Path | None = None):
     """A child in its own console or, headless, windowless with its output in *console_log*."""
     if console_log is None:

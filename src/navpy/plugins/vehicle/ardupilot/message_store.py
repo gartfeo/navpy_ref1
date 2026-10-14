@@ -1,17 +1,14 @@
 """Thread-safe immutable MAVLink message samples and fresh-response waits."""
 from __future__ import annotations
 
-from collections import defaultdict, deque
-from collections.abc import Callable
+from collections import deque
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Iterable
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.core.kernel import runtime_time as rt
-
-
-MESSAGE_HISTORY_LIMIT = 1024
 
 
 class MessageHistoryOverrun(RuntimeError):
@@ -35,14 +32,33 @@ class MessageSample:
 
 
 class MessageStore:
-    """Publishes atomic samples and retains recent generations per type."""
+    """Publishes atomic samples; keeps history only for declared types.
 
-    def __init__(self) -> None:
+    ``history_policy`` maps a message type to how many samples it keeps for
+    `wait_after`/`recent`. Every other type keeps only its latest sample, so
+    high-rate telemetry does not grow a live heap the garbage collector must
+    walk (docs/design/message_history.md). The policy is copied here and
+    never changes afterwards.
+    """
+
+    def __init__(self, history_policy: Mapping[str, int]) -> None:
+        policy = dict(history_policy)
+        for message_type, depth in policy.items():
+            if not isinstance(message_type, str) or not message_type:
+                raise ValueError(
+                    f"message history type must be a name: {message_type!r}"
+                )
+            if isinstance(depth, bool) or not isinstance(depth, int) or depth <= 0:
+                raise ValueError(
+                    f"message history depth for {message_type} must be a "
+                    f"positive int: {depth!r}"
+                )
         self._condition = rt.Condition()
         self._samples: dict[str, MessageSample] = {}
-        self._history: dict[str, deque[MessageSample]] = defaultdict(
-            lambda: deque(maxlen=MESSAGE_HISTORY_LIMIT)
-        )
+        self._history: dict[str, deque[MessageSample]] = {
+            message_type: deque(maxlen=depth)
+            for message_type, depth in policy.items()
+        }
         self._evicted_through: dict[str, int] = {}
         self._generation = 0
 
@@ -63,10 +79,11 @@ class MessageStore:
                 generation=self._generation,
             )
             self._samples[message_type] = sample
-            history = self._history[message_type]
-            if len(history) == MESSAGE_HISTORY_LIMIT:
-                self._evicted_through[message_type] = history[0].generation
-            history.append(sample)
+            history = self._history.get(message_type)
+            if history is not None:
+                if len(history) == history.maxlen:
+                    self._evicted_through[message_type] = history[0].generation
+                history.append(sample)
             self._condition.notify_all()
             return sample
 
@@ -81,15 +98,14 @@ class MessageStore:
 
         Returning a tuple built while holding the condition is what makes the
         view safe against a concurrent `publish()`; handing out the deque or
-        an unlocked iterator would race with it.
+        an unlocked iterator would race with it. Raises ValueError when
+        ``message_type`` has no declared history.
         """
-        if count <= 0:
-            return ()
         with self._condition:
-            history = self._history.get(message_type)
-            if not history:
+            self._require_history((message_type,))
+            if count <= 0:
                 return ()
-            items = tuple(history)
+            items = tuple(self._history[message_type])
         return items[-count:] if count < len(items) else items
 
     def message(self, message_type: str) -> MAVLink_message | None:
@@ -117,12 +133,13 @@ class MessageStore:
             else tuple(message_types)
         )
         with self._condition:
+            self._require_history(types)
             while True:
                 candidates = sorted(
                     (
                         sample
                         for name in types
-                        for sample in self._history.get(name, ())
+                        for sample in self._history[name]
                         if sample.generation > cursor
                     ),
                     key=lambda sample: sample.generation,
@@ -136,6 +153,17 @@ class MessageStore:
                 if remaining <= 0.0:
                     return None
                 self._condition.wait(remaining)
+
+    def _require_history(self, message_types: tuple[str, ...]) -> None:
+        undeclared = [
+            name for name in message_types if name not in self._history
+        ]
+        if undeclared:
+            raise ValueError(
+                "no message history declared for "
+                f"{', '.join(map(str, undeclared))}; declare a depth in the "
+                "vehicle's history policy"
+            )
 
     def _cursor_was_overrun(
         self,

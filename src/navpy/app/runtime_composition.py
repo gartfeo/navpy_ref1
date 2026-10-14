@@ -8,7 +8,7 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGrou
 import sys
 from argparse import Namespace
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import NoReturn
 
 import cv2
@@ -32,12 +32,13 @@ from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner, MissionPlannerArgs
 from navpy.app.flow.nav_controller import NavController
 from navpy.app.vehicle_factory import create_vehicle
+from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.plugins.vehicle.ardupilot.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )
 from navpy.app.perception.vision_controller import VisionController
-from navpy.app.runtime_stop import StdinStopRequest, acknowledge_stop
+from navpy.app.runtime_stop import LifecycleStopRequest, StdinStopRequest, acknowledge_stop
 from navpy.app.runtime_resources import (
     RuntimeResourceStack,
     RuntimeSession,
@@ -50,6 +51,25 @@ from navpy.core.kernel.config.arg_helper import (
     format_kv,
 )
 from navpy.core.perception.geo.zc_util_instance import ZcUtilInstance
+
+
+def speedup_scheduler_cadence(vehicle: IVehicle) -> SchedulerCadence:
+    """Wall mode: NavPy's cadence follows the SITL's ``SIM_SPEEDUP``."""
+    return SchedulerCadence(vehicle.sim_speedup)
+
+
+@dataclass(frozen=True)
+class RuntimePorts:
+    """What a host binds in place of the wall defaults (a lockstep participant).
+
+    ``observe_logger`` sees the navigation logger once it exists;
+    ``lifecycle_stop`` is the stop that ``--stop-on-lifecycle`` requires.
+    """
+
+    open_bus: MavBusOpener = MavBus.get_or_create
+    scheduler_cadence: Callable[[IVehicle], SchedulerCadence] = speedup_scheduler_cadence
+    observe_logger: Callable[[ILogger], None] = field(default=lambda _logger: None)
+    lifecycle_stop: LifecycleStopRequest | None = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +115,7 @@ def _log_configuration(
 def _build_foundation(
     args: Namespace,
     resources: RuntimeResourceStack,
+    ports: RuntimePorts = RuntimePorts(),
 ) -> RuntimeFoundation:
     connection_args = ConnArgs(args)
     logger_args = LoggerArgs(args)
@@ -108,9 +129,10 @@ def _build_foundation(
         status_logger,
     )
     resources.own("logger", logger.close)
+    ports.observe_logger(logger)
     resources.own_independent("OpenCV windows", cv2.destroyAllWindows)
 
-    vehicle = create_vehicle(connection_args, logger)
+    vehicle = create_vehicle(connection_args, logger, open_bus=ports.open_bus)
     close_gate = VehicleCloseGate(vehicle.close)
     # Quiescence: the MAVLink reader dispatches into the logger, so the
     # logger stays open until the reader has really stopped.
@@ -136,7 +158,7 @@ def _build_foundation(
         zc_util = None
 
     vision_args = VisionArgs.from_args(args)
-    scheduler_cadence = SchedulerCadence(vehicle.sim_speedup)
+    scheduler_cadence = ports.scheduler_cadence(vehicle)
     resources.own("simulation cadence", scheduler_cadence.close)
     return RuntimeFoundation(
         logger=logger,
@@ -154,6 +176,7 @@ def _build_session(
     args: Namespace,
     foundation: RuntimeFoundation,
     resources: RuntimeResourceStack,
+    ports: RuntimePorts = RuntimePorts(),
 ) -> RuntimeSession:
     vision = VisionController(
         foundation.vehicle,
@@ -228,11 +251,22 @@ def _build_session(
         ui_step=vision.ui_step,
         sleep=rt.sleep,
         ready_signal=signal_runtime_ready,
-        **_stop_hooks(args),
+        **_stop_hooks(args, ports),
     )
 
 
-def _stop_hooks(args: Namespace) -> dict[str, Callable[..., object]]:
+def _stop_hooks(
+    args: Namespace,
+    ports: RuntimePorts,
+) -> dict[str, Callable[..., object]]:
+    if getattr(args, "stop_on_lifecycle", False):
+        # Lockstep: no thread reads stdin; the lifecycle record latches it.
+        stop = ports.lifecycle_stop
+        assert stop is not None  # checked before composition
+        return {
+            "stop_requested": stop.requested,
+            "acknowledge_stop": stop.acknowledge,
+        }
     if not getattr(args, "stop_on_stdin", False):
         return {}
     request = StdinStopRequest(sys.stdin)
@@ -243,11 +277,16 @@ def _stop_hooks(args: Namespace) -> dict[str, Callable[..., object]]:
     }
 
 
-def compose_runtime(args: Namespace) -> RuntimeSession:
+def compose_runtime(args: Namespace, ports: RuntimePorts = RuntimePorts()) -> RuntimeSession:
+    if getattr(args, "stop_on_lifecycle", False):
+        if getattr(args, "stop_on_stdin", False):
+            raise ValueError("--stop-on-lifecycle and --stop-on-stdin are exclusive")
+        if ports.lifecycle_stop is None:
+            raise ValueError("--stop-on-lifecycle needs a lockstep participant's lifecycle stop")
     resources = RuntimeResourceStack()
     try:
-        foundation = _build_foundation(args, resources)
-        return _build_session(args, foundation, resources)
+        foundation = _build_foundation(args, resources, ports)
+        return _build_session(args, foundation, resources, ports)
     except BaseException as primary:
         try:
             resources.close()
@@ -256,4 +295,4 @@ def compose_runtime(args: Namespace) -> RuntimeSession:
         raise
 
 
-__all__ = ["RuntimeFoundation", "compose_runtime"]
+__all__ = ["RuntimeFoundation", "RuntimePorts", "compose_runtime", "speedup_scheduler_cadence"]

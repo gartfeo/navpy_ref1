@@ -20,6 +20,7 @@ from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_mission import MavMission
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import MESSAGE_HISTORY_POLICY
 from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
 
 
@@ -39,7 +40,7 @@ def _seed_loader(*locations):
 
 class MissionHarness:
     def __init__(self) -> None:
-        self.messages = MessageStore()
+        self.messages = MessageStore(MESSAGE_HISTORY_POLICY)
         self.inbox = MissionInbox()
         self.mav = MagicMock()
         self.mission = MavMission(

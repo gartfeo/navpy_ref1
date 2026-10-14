@@ -36,8 +36,8 @@ async def esp32_status(*, _esp32_sim: Esp32Simulator | None, settings_store: Set
         port = ls.esp32_port
 
     loop = asyncio.get_running_loop()
-    from gcs.backend.esp32_trigger import Esp32TriggerClient
-    client = Esp32TriggerClient(host, port, timeout=3.0)
+    from gcs.backend.esp32_access import esp32
+    client = esp32.client(host, port, timeout=3.0)
     healthy = await loop.run_in_executor(None, client.health_check)
     status = await loop.run_in_executor(None, client.get_status) if healthy else None
     return {

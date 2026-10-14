@@ -9,12 +9,13 @@ from unittest.mock import MagicMock, patch
 
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import MESSAGE_HISTORY_POLICY
 from navpy.plugins.vehicle.ardupilot.parameter_client import ParameterReader, ParameterWriter
 from navpy.plugins.vehicle.ardupilot.sim_autopilot import SimAutopilotState
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
 
 def test_operator_refresh_bypasses_cached_value_and_waits_for_fresh_echo():
-    messages = MessageStore()
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
     repository = ParameterRepository()
     repository.update("TEST", 1.0)
     connection = SimpleNamespace(mav=MagicMock())
@@ -57,7 +58,7 @@ def test_nonblocking_parameter_write_does_not_wait_for_busy_transport():
         SimpleNamespace(target_system=7),
         MavTransport(SimpleNamespace(mav=MagicMock()), send_lock),
         ParameterRepository(),
-        MessageStore(),
+        MessageStore(MESSAGE_HISTORY_POLICY),
         SimpleNamespace(value=MagicMock()),
         SimAutopilotState(),
     )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from scripts.eval_certificate_source_time import (
     SOURCE_TIME_SUBDIR,
@@ -17,6 +17,9 @@ from scripts.eval_ideal_three_uav_source_gates import (
     source_time_errors,
 )
 
+if TYPE_CHECKING:
+    from scripts.eval_gcs_demo_scenario import DemoScenario
+
 
 @dataclass
 class SourceTimeRunEvidence:
@@ -27,14 +30,15 @@ class SourceTimeRunEvidence:
 
 def load_source_time_evidence(
     log_dir: Path,
-    sys_ids: tuple[int, int, int],
+    sys_ids: tuple[int, ...],
+    scenario: "DemoScenario",
 ) -> SourceTimeRunEvidence:
     """Select the exact ready Python generation and gate each source stage."""
     evidence = SourceTimeRunEvidence(
         errors_by_sys_id={sys_id: [] for sys_id in sys_ids}
     )
     try:
-        identities = runtime_identities(log_dir, sys_ids)
+        identities = runtime_identities(log_dir, sys_ids, scenario)
     except (OSError, UnicodeError, TypeError, ValueError) as error:
         evidence.errors.append(f"invalid active-runtime evidence: {error}")
         return evidence

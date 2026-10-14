@@ -11,7 +11,10 @@ import numpy as np
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.core.ports.pose_stream_rate import POSE_FRAME_ASSOCIATION_MAX_SKEW_S
+from navpy.core.ports.pose_stream_rate import (
+    ATTITUDE_HISTORY_COUNT,
+    POSE_FRAME_ASSOCIATION_MAX_SKEW_S,
+)
 from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
 from navpy.core.perception.camera.capture_lookup import (
     CaptureLookupCalibration,
@@ -37,12 +40,6 @@ from navpy.core.perception.pipeline.real_detector_ports import (
     LocationReader,
     MountFrameStateReader,
 )
-
-# Enough retained ATTITUDE samples to bracket a lookup that sits a full
-# admitted capture latency behind now: the 0.5 s absolute skew ceiling at the
-# 40 Hz pose rate is 20 samples; 64 leaves margin without copying the whole
-# 1024-deep store on every frame.
-ATTITUDE_HISTORY_COUNT = 64
 
 
 def frame_pose_from_sample(
@@ -249,7 +246,6 @@ class FrameAssociationBuilder:
 
 
 __all__ = [
-    "ATTITUDE_HISTORY_COUNT",
     "CaptureTiming",
     "FrameAssociationBuilder",
     "RealFrameAssociation",

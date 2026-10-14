@@ -11,7 +11,8 @@ import pytest
 from fastapi import FastAPI
 
 from navpy.sim.lockstep.baton import BatonRuntime
-from navpy.sim.lockstep.baton_asyncio import BatonEventLoop, asgi_request
+from navpy.sim.lockstep.baton_asyncio import BatonEventLoop
+from navpy.sim.lockstep.lockstep_asgi import AsgiRequest, asgi_request
 from navpy.sim.lockstep.baton_sync import sleep
 
 TICK_US = 20_000
@@ -48,7 +49,8 @@ def run(jitter: bool) -> tuple[list, tuple[int, bytes]]:
 
         async def main() -> None:
             async with app.router.lifespan_context(app):
-                result["response"] = await asgi_request(app, "GET", "/slow")
+                response = await asgi_request(app, AsgiRequest("GET", "/slow"))
+                result["response"] = response.status, response.body
                 result["tick"] = runtime.now_us // TICK_US
 
         try:

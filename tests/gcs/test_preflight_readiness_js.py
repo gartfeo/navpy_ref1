@@ -51,7 +51,7 @@ _GOOD = {
     "battery": 80, "voltage": 16.2,
     "companion_ok": True, "companion_status": "ok",
     "mission_uploaded": True,
-    "ekf": {"flags": 831, "velocity_variance": 0.1, "pos_horiz_variance": 0.1,
+    "ekf": {"flags": 831, "age_s": 0.1, "velocity_variance": 0.1, "pos_horiz_variance": 0.1,
             "pos_vert_variance": 0.1, "compass_variance": 0.1,
             "terrain_alt_variance": 0.0},
     "sensors": {"gyro": True, "accel": True, "mag": True,
@@ -68,42 +68,59 @@ _GATES_GPSACC = {
     "checkGpsAcc": True, "maxGpsHaccM": 1.0,
     "checkThrottle": True, "maxThrottleRc3": 1050,
     "checkBattery": True, "minBatteryPct": 15, "blockOnUnknownBattery": False,
+    "checkEkf": True,
 }
 
 
 class TestEkfCheck(unittest.TestCase):
-    def test_null_is_na(self):
-        self.assertEqual(_call("computeEkfCheck", None)["status"], "na")
+    def test_null_is_nogo_while_waiting_for_status(self):
+        # The launch gate blocks with no report ("waiting for EKF status"), so
+        # the row can no longer read 'na' then; with the gate off it still does.
+        out = _call("computeEkfCheck", None)
+        self.assertEqual(out["status"], "nogo")
+        self.assertEqual(out["detail"]["reason"], "noReport")
+        self.assertEqual(
+            _call("computeEkfCheck", None, {"checkEkf": False})["status"], "na")
 
     def test_low_variance_is_go(self):
-        ekf = {"flags": 831, "velocity_variance": 0.2, "pos_horiz_variance": 0.1,
+        ekf = {"flags": 831, "age_s": 0.1, "velocity_variance": 0.2, "pos_horiz_variance": 0.1,
                "pos_vert_variance": 0.1, "compass_variance": 0.1,
                "terrain_alt_variance": 0.0}
         self.assertEqual(_call("computeEkfCheck", ekf)["status"], "go")
 
     def test_mid_variance_is_warn(self):
-        ekf = {"flags": 831, "velocity_variance": 0.6, "pos_horiz_variance": 0.1,
+        ekf = {"flags": 831, "age_s": 0.1, "velocity_variance": 0.6, "pos_horiz_variance": 0.1,
                "pos_vert_variance": 0.1, "compass_variance": 0.1,
                "terrain_alt_variance": 0.0}
         self.assertEqual(_call("computeEkfCheck", ekf)["status"], "warn")
 
-    def test_high_variance_is_nogo(self):
-        ekf = {"flags": 831, "velocity_variance": 0.9, "pos_horiz_variance": 0.1,
+    def test_high_variance_is_a_labelled_advisory_not_nogo(self):
+        # The launch gate does not apply variances, so the row must not read
+        # NO-GO on them (EKF verdict parity with the backend): a high variance
+        # is a separate, labelled caution.
+        ekf = {"flags": 831, "age_s": 0.1, "velocity_variance": 0.9, "pos_horiz_variance": 0.1,
                "pos_vert_variance": 0.1, "compass_variance": 0.1,
                "terrain_alt_variance": 0.0}
-        self.assertEqual(_call("computeEkfCheck", ekf)["status"], "nogo")
+        out = _call("computeEkfCheck", ekf)
+        self.assertEqual(out["status"], "warn")
+        self.assertEqual(out["detail"]["advisory"], "varianceHigh")
+        vehicle = dict(_GOOD, ekf=ekf, link_ok=True)
+        self.assertTrue(_call("computeLaunchReadiness", vehicle)["ready"])
+        self.assertNotEqual(_call("computeVehicleReadiness", vehicle)["overall"], "nogo")
 
     def test_uninitialized_flag_is_nogo(self):
-        ekf = {"flags": 1024, "velocity_variance": 0.0, "pos_horiz_variance": 0.0,
+        ekf = {"flags": 1024, "age_s": 0.1, "velocity_variance": 0.0, "pos_horiz_variance": 0.0,
                "pos_vert_variance": 0.0, "compass_variance": 0.0,
                "terrain_alt_variance": 0.0}
         out = _call("computeEkfCheck", ekf)
         self.assertEqual(out["status"], "nogo")
-        self.assertEqual(out["detail"]["reason"], "uninitialized")
+        # The row now reports the gate's flag verdict, uninitialised included.
+        self.assertEqual(out["detail"]["reason"], "flags")
+        self.assertIn("uninitialized", out["detail"]["forbidden"])
 
     def test_terrain_variance_excluded(self):
         # High terrain variance must NOT force a NO-GO when nav variances are low.
-        ekf = {"flags": 831, "velocity_variance": 0.1, "pos_horiz_variance": 0.1,
+        ekf = {"flags": 831, "age_s": 0.1, "velocity_variance": 0.1, "pos_horiz_variance": 0.1,
                "pos_vert_variance": 0.1, "compass_variance": 0.1,
                "terrain_alt_variance": 0.95}
         self.assertEqual(_call("computeEkfCheck", ekf)["status"], "go")

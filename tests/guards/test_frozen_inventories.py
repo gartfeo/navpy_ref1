@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import ast
+import sys
+import types
 from pathlib import Path
 
+from navpy.core.kernel import runtime_time
 from tests.guards import runtime_time_lint
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,6 +44,11 @@ CORE = {
     "src/navpy/plugins/laws/vision_pn/command_anchor.py":
         "FinalApproachCommandAnchor",
     "src/navpy/plugins/laws/vision_pn/law_plan.py": "FinalApproachLawPlan",
+}
+# Callables (and clocks) the command core takes by injection: frozen, since
+# a zero-argument callable could carry a clock past every name-based rule.
+CORE_INJECTED_CALLABLES = {
+    ("src/navpy/core/approach/vision_nav/confirmation.py", "roll_anchor_deg"),
 }
 COMMAND_INPUT_FILES = tuple(CORE) + (
     COMMAND_FRESHNESS,
@@ -117,8 +125,9 @@ YAW_RATE_PRODUCERS = (
     "src/navpy/sim/camera/ideal_poi_projector.py",
 )
 CLOCK_MODULES = {"time", "timeit", "datetime"}
-# The RuntimeTime port (``rt``) also serves locks; its clock reads are caught
-# as calls (``rt.monotonic()``) or as imported clock names.
+# The RuntimeTime port (``rt``) also serves locks; only its non-clock members
+# may be read (``rt.RLock()``). Its clocks, and the port itself as a value,
+# are caught by resolved name or by runtime identity.
 RUNTIME_PORT = "navpy.core.kernel.runtime_time"
 CLOCK_CALLS = {
     "time", "time_ns", "monotonic", "monotonic_ns", "perf_counter",
@@ -195,13 +204,27 @@ def _calls(tree: ast.AST, *suffix: str) -> list[ast.Call]:
     return [node for node in ast.walk(tree) if isinstance(node, ast.Call)
             and (not suffix or _path(node.func)[-len(suffix):] == suffix)]
 
+def _holds_a_clock(symbols: set[str], port_clocks: set[str]) -> bool:
+    """A port clock, or the port itself held as a value (it would carry its
+    clocks wherever it flows), by name or by runtime identity (a first-party
+    re-export)."""
+    if symbols & (port_clocks | {RUNTIME_PORT}):
+        return True
+    clocks = [getattr(runtime_time, name) for name in CLOCK_CALLS if hasattr(runtime_time, name)]
+    return any(
+        held is runtime_time or any(held is clock for clock in clocks)
+        for held in map(runtime_time_lint.runtime_object, symbols)
+    )
+
+
 def _clock_hits(tree: ast.Module, relative: str | None = None) -> list[str]:
     hits = []
     symbols = runtime_time_lint._Symbols(tree, relative)
     port_clocks = {f"{RUNTIME_PORT}.{name}" for name in CLOCK_CALLS}
     for node in runtime_time_lint.outermost_references(tree):
-        # any reference to a port clock, called or captured, under any alias
-        if symbols.resolve(node, bound_only=True) & port_clocks:
+        # a port clock, called or captured, or the port held as a value
+        # (``self.port = rt``, ``clock or rt``), under any alias or re-export
+        if _holds_a_clock(symbols.resolve(node, bound_only=True), port_clocks):
             hits.append(f"{ast.unparse(node)}@{node.lineno}")
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -227,7 +250,11 @@ def _clock_hits(tree: ast.Module, relative: str | None = None) -> list[str]:
                 member = node.args[1]
                 if isinstance(member, ast.Constant) and member.value in CLOCK_CALLS:
                     hits.append(f"getattr({member.value})@{node.lineno}")
-    return hits
+        elif isinstance(node, ast.Attribute) and node.attr in CLOCK_CALLS:
+            # any clock-named member, whatever holds it: an injected clock
+            # (``self._read = clock.monotonic``) resolves to nothing
+            hits.append(f"{ast.unparse(node)}@{node.lineno}")
+    return list(dict.fromkeys(hits))
 
 def _fold_aliases(words: set[str]) -> set[str]:
     return {TRUTH_ALIASES.get(word, word) for word in words}
@@ -419,7 +446,8 @@ def test_final_approach_guard_rejects_captured_runtime_clocks() -> None:
         "read_clock = clock_api.monotonic\n"
         "wall = navpy.core.kernel.runtime_time.time\n"
     )
-    assert len(_clock_hits(aliased)) == 2
+    # the port bound as a value (line 3) is a hit too: it carries its clocks
+    assert [hit.split("@", 1)[1] for hit in _clock_hits(aliased)] == ["3", "4", "5"]
     locks_only = ast.parse(
         "from navpy.core.kernel import runtime_time as rt\n"
         "lock = rt.RLock()\n"
@@ -432,6 +460,113 @@ def test_final_approach_guard_rejects_captured_runtime_clocks() -> None:
     )
     hits = _clock_hits(relative, "src/navpy/core/approach/vision_nav/confirmation.py")
     assert [hit.split("@", 1)[0] for hit in hits] == ["read"]
+    class_held = ast.parse(
+        "from navpy.core.kernel import runtime_time as rt\n"
+        "class API:\n"
+        "    port = rt\n"
+        "read = API.port.monotonic\n"
+    )
+    assert [hit.split("@", 1)[0] for hit in _clock_hits(class_held)] == ["API.port.monotonic", "rt"]
+    inherited = ast.parse(
+        "from navpy.core.kernel import runtime_time as rt\n"
+        "class Base:\n"
+        "    port = rt\n"
+        "class Child(Base):\n"
+        "    pass\n"
+        "read = Child.port.monotonic\n"
+        "def decide():\n"
+        "    return read()\n"
+    )
+    assert [hit.split("@", 1)[0] for hit in _clock_hits(inherited)] == ["Child.port.monotonic", "rt", "read"]
+    instance = ast.parse(
+        "from navpy.core.kernel import runtime_time as rt\n"
+        "class API:\n"
+        "    port, other = rt, None\n"
+        "api = API()\n"
+        "read = api.port.monotonic\n"
+        "def decide():\n"
+        "    return read()\n"
+    )
+    assert [hit.split("@", 1)[0] for hit in _clock_hits(instance)] == ["api.port.monotonic", "rt", "read"]
+
+def test_final_approach_guard_rejects_the_port_as_a_value_and_reexports(monkeypatch) -> None:
+    helper = types.ModuleType("navpy._clock_reexport_probe")
+    helper.clock_api = runtime_time
+    monkeypatch.setitem(sys.modules, helper.__name__, helper)
+    held = ast.parse(
+        "from navpy.core.kernel import runtime_time as rt\n"
+        "from navpy._clock_reexport_probe import clock_api\n"
+        "class API:\n"
+        "    def __init__(self, supplied=None):\n"
+        "        self.port = rt\n"
+        "        self.clock = supplied or rt\n"
+        "read = clock_api.monotonic\n"
+        "def decide():\n"
+        "    return read()\n"
+    )
+    # 5, 6: the port held as a value; 7: a re-exported port's clock; 9: its call
+    assert sorted(int(hit.split("@", 1)[1]) for hit in _clock_hits(held)) == [5, 6, 7, 9]
+
+
+def test_final_approach_guard_rejects_an_injected_clock() -> None:
+    injected = ast.parse(
+        "class Law:\n"
+        "    def __init__(self, clock):\n"
+        "        self._read = clock.monotonic\n"
+        "    def step(self):\n"
+        "        return self._read()\n"
+    )
+    assert _clock_hits(injected) == ["clock.monotonic@3"]
+
+
+_INJECTABLE = frozenset({
+    "typing.Callable", "collections.abc.Callable",
+    f"{RUNTIME_PORT}.ClockPort", f"{RUNTIME_PORT}.RuntimeTime",
+})
+
+
+def _injected_callables(tree: ast.Module, relative: str | None = None) -> set[str]:
+    """Parameters and fields whose annotation is a callable or a clock."""
+    symbols = runtime_time_lint._Symbols(tree, relative)
+    found = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.arg) and node.annotation is not None:
+            name, annotation = node.arg, node.annotation
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            name, annotation = node.target.id, node.annotation
+        else:
+            continue
+        if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+            annotation = ast.parse(annotation.value, mode="eval").body
+        if any(
+            symbols.resolve(part) & _INJECTABLE
+            for part in ast.walk(annotation) if isinstance(part, (ast.Name, ast.Attribute))
+        ):
+            found.add(name)
+    return found
+
+
+def test_command_core_injected_callables_are_frozen() -> None:
+    found = {
+        (relative, name)
+        for relative in CORE
+        for name in _injected_callables(_tree(relative), relative)
+    }
+    assert found == CORE_INJECTED_CALLABLES
+
+
+def test_injected_callable_inventory_sees_every_spelling() -> None:
+    source = ast.parse(
+        "from collections.abc import Callable as Fn\n"
+        "import typing\n"
+        "from navpy.core.kernel import runtime_time as rt\n"
+        "class Law:\n"
+        "    read: 'Fn[[], float]'\n"
+        "    def __init__(self, a: typing.Callable[[], float], b: rt.ClockPort, c: int):\n"
+        "        pass\n"
+    )
+    assert _injected_callables(source) == {"read", "a", "b"}
+
 
 def test_yaw_rate_is_gyro_conversion_only() -> None:
     """Pin the provenance of `aircraft_yaw_rate_rad_s` to the body-rate gyro.

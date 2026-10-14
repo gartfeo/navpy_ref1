@@ -10,6 +10,7 @@ from typing import cast
 
 from scripts.eval_gcs_demo_models import positive_int
 from scripts.eval_gcs_demo_ports import JsonValue
+from navpy.plugins.vehicle.ardupilot.nav_waypoints import is_nav_poi_command
 
 
 # Upload-API mission fields: models.VehicleAssignment minus sys_id/zone_index.
@@ -141,7 +142,7 @@ def scenario_missions(
 ) -> tuple[Mapping[str, JsonValue], ...]:
     """One mission per slot; the POI ordinals select distinct owner track rows."""
     if not isinstance(raw, list) or len(raw) != len(slot_names):
-        raise ValueError("scenario manifest requires exactly three missions, one per slot")
+        raise ValueError("scenario manifest requires exactly one mission per slot")
     missions = tuple(
         _mission(item, f"scenario mission {name}") for name, item in zip(slot_names, raw)
     )
@@ -156,7 +157,7 @@ def scenario_missions(
         )
     coordinates = {(track[o - 1]["lat"], track[o - 1]["lon"]) for o in poi_ordinals}
     if len(coordinates) != len(poi_ordinals):
-        raise ValueError("the certified scenario requires three unique POI coordinates")
+        raise ValueError("the scenario requires one unique POI coordinate per ordinal")
     return missions
 
 
@@ -192,10 +193,66 @@ def bind_missions(
     ]
 
 
+def owner_nav_coordinate(waypoint: JsonValue, ordinal: int) -> tuple[float, float]:
+    if not isinstance(waypoint, dict):
+        raise ValueError(f"owner NAV waypoint {ordinal} must be an object")
+    try:
+        raw_lat, raw_lon = waypoint["lat"], waypoint["lon"]
+    except KeyError as error:
+        raise ValueError(f"invalid owner NAV waypoint {ordinal}: {waypoint!r}") from error
+    if any(
+        isinstance(value, bool) or not isinstance(value, (int, float))
+        for value in (raw_lat, raw_lon)
+    ):
+        raise ValueError(f"invalid owner NAV waypoint {ordinal}: {waypoint!r}")
+    lat, lon = float(raw_lat), float(raw_lon)
+    if not math.isfinite(lat) or not math.isfinite(lon) or not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        raise ValueError(f"invalid owner NAV waypoint {ordinal} coordinate")
+    return lat, lon
+
+
+def owner_nav_waypoint_rows(
+    owner_mission: Mapping[str, JsonValue],
+) -> dict[int, Mapping[str, JsonValue]]:
+    raw_waypoints = owner_mission.get("waypoints")
+    if not isinstance(raw_waypoints, list):
+        raise ValueError("owner mission waypoints must be a list")
+    rows: dict[int, Mapping[str, JsonValue]] = {}
+    previous_sequence = 0
+    for index, raw in enumerate(raw_waypoints, start=1):
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"owner mission waypoint row {index} must be an object")
+        required = {
+            "lat",
+            "lon",
+            "alt",
+            "mission_sequence",
+            "command",
+            "nav_waypoint_ordinal",
+        }
+        if set(raw) != required:
+            raise ValueError(
+                f"owner mission waypoint row {index} keys must be {sorted(required)}"
+            )
+        sequence = positive_int("mission sequence", raw["mission_sequence"])
+        ordinal = positive_int("NAV waypoint ordinal", raw["nav_waypoint_ordinal"])
+        if sequence <= previous_sequence:
+            raise ValueError("owner mission waypoint sequences must be increasing")
+        if ordinal != index:
+            raise ValueError("owner mission NAV waypoint ordinals must be contiguous")
+        if not is_nav_poi_command(raw["command"]):
+            raise ValueError("owner mission row is not MAV_CMD_NAV_WAYPOINT")
+        previous_sequence = sequence
+        rows[ordinal] = raw
+    return rows
+
+
 __all__ = [
     "MISSION_FIELDS",
     "bind_missions",
     "exact_keys",
+    "owner_nav_coordinate",
+    "owner_nav_waypoint_rows",
     "parse_home",
     "scenario_missions",
     "search_path_m",

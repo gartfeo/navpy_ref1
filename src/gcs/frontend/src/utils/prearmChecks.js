@@ -21,6 +21,58 @@ function prearmState(vehicle) {
 }
 
 /**
+ * EKF launch gate, mirrored from the backend (gcs/backend/ekf_status_gate.py;
+ * a test keeps names and values equal). The backend asks each autopilot for
+ * EKF_STATUS_REPORT at EKF_STATUS_RATE_HZ; a report older than four intervals
+ * is stale. Bits are MAVLink EKF_STATUS_FLAGS; each maps to the reason key the
+ * readiness row shows.
+ */
+export const EKF_STATUS_RATE_HZ = 2.0;
+export const EKF_STATUS_STALE_S = 4.0 / EKF_STATUS_RATE_HZ;
+// Required for launch: attitude, horizontal + vertical velocity, absolute
+// horizontal + vertical position (baro-only height sets the last; accepted).
+export const EKF_REQUIRED_BITS = Object.freeze({
+  1: 'attitude',
+  2: 'velHoriz',
+  4: 'velVert',
+  16: 'posHorizAbs',
+  32: 'posVertAbs',
+});
+// Block launch while reported: uninitialised, constant-position mode (no GPS
+// aiding yet), GPS glitch (a fresh report without it clears it).
+export const EKF_FORBIDDEN_BITS = Object.freeze({
+  1024: 'uninitialized',
+  128: 'constPosMode',
+  32768: 'gpsGlitch',
+});
+
+/**
+ * Why this EKF report blocks a launch, or null when it allows one. Same
+ * verdict as the backend's ekf_status_issue: no report, a stale (or
+ * age-less) report, or flags with a forbidden bit set / a required bit clear.
+ * @param {object|null|undefined} ekf - snapshot `vehicle.ekf` (flags, age_s)
+ * @returns {null|{reason:'noReport'}|{reason:'stale', ageS:number|null}|{reason:'flags', forbidden:string[], missing:string[]}}
+ */
+export function ekfStatusIssue(ekf) {
+  if (!ekf) return { reason: 'noReport' };
+  const age = typeof ekf.age_s === 'number' ? ekf.age_s : null;
+  if (age == null || !(age <= EKF_STATUS_STALE_S)) return { reason: 'stale', ageS: age };
+  const flags = Number(ekf.flags) || 0;
+  const forbidden = Object.entries(EKF_FORBIDDEN_BITS)
+    .filter(([bit]) => flags & Number(bit)).map(([, name]) => name);
+  const missing = Object.entries(EKF_REQUIRED_BITS)
+    .filter(([bit]) => !(flags & Number(bit))).map(([, name]) => name);
+  if (!forbidden.length && !missing.length) return null;
+  return { reason: 'flags', forbidden, missing };
+}
+
+const EKF_ISSUE_KEYS = Object.freeze({
+  noReport: 'prearm.ekfWaiting',
+  stale: 'prearm.ekfStale',
+  flags: 'prearm.ekfNotReady',
+});
+
+/**
  * Default launch-readiness gates. Mirrors the backend ReadinessGates defaults
  * (control.py) so the UI and the server agree when no settings are supplied.
  * The GPS 3D-fix threshold itself is fixed (protocol constant); only whether
@@ -36,6 +88,7 @@ export const DEFAULT_LAUNCH_GATES = Object.freeze({
   checkBattery: true,
   minBatteryPct: 15,
   blockOnUnknownBattery: false,
+  checkEkf: true,
 });
 
 /**
@@ -57,6 +110,7 @@ export function launchGatesFromSettings(settings) {
     checkBattery: l.check_battery_enabled !== false,
     minBatteryPct: l.min_battery_pct ?? DEFAULT_LAUNCH_GATES.minBatteryPct,
     blockOnUnknownBattery: l.block_on_unknown_battery === true,
+    checkEkf: l.check_ekf_enabled !== false,
   };
 }
 
@@ -164,7 +218,7 @@ export function computePrearmWarnings(vehicle, gates = DEFAULT_LAUNCH_GATES) {
 /**
  * Compute launch readiness for a vehicle.
  * Builds on computePrearmWarnings and adds launch-critical checks
- * (companion computer, mission uploaded). Advisories are passed through for
+ * (companion computer, mission uploaded, EKF status). Advisories are passed through for
  * display but never affect `ready`.
  * @param {object|null|undefined} vehicle - telemetry object
  * @param {typeof DEFAULT_LAUNCH_GATES} [gates] - per-check enable + thresholds
@@ -182,6 +236,11 @@ export function computeLaunchReadiness(vehicle, gates = DEFAULT_LAUNCH_GATES) {
 
   if (!vehicle.mission_uploaded && !(vehicle.mission_total > 0)) {
     issues.push('prearm.missionNotUploaded');
+  }
+
+  if (gates.checkEkf) {
+    const ekfIssue = ekfStatusIssue(vehicle.ekf);
+    if (ekfIssue) issues.push(EKF_ISSUE_KEYS[ekfIssue.reason]);
   }
 
   return { issues, advisories, ready: issues.length === 0 };

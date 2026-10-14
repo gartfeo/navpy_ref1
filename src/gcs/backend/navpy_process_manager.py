@@ -38,7 +38,13 @@ _GCS_SIM_NAVIGATION_SPEEDUP = _speedup
 class NavpyProcessManager:
     """Own the exact active subprocess generation for each vehicle."""
 
+    #: Why this process may not build one (lockstep: companions are
+    #: participants the coordinator owns), or None (the wall).
+    refused: str | None = None
+
     def __init__(self) -> None:
+        if NavpyProcessManager.refused is not None:
+            raise RuntimeError(f"NavpyProcessManager refused: {NavpyProcessManager.refused}")
         self._instances: dict[int, NavpyInstance] = {}
         self._lock = rt.Lock()
 

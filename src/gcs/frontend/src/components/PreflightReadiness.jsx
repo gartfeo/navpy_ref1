@@ -77,8 +77,19 @@ function checkValue(t, check) {
   }
   if (key === 'ekf') {
     if (status === 'na') return '—';
-    if (detail?.reason === 'uninitialized') return t('preflight.ekfUninit');
-    return t('preflight.ekfVar', { value: (detail?.maxVariance ?? 0).toFixed(2) });
+    if (detail?.reason === 'noReport') return t('preflight.ekfWaiting');
+    if (detail?.reason === 'stale') return t('preflight.ekfStale');
+    if (detail?.reason === 'flags') {
+      if (detail.forbidden.includes('uninitialized')) return t('preflight.ekfUninit');
+      return [
+        ...detail.forbidden.map((f) => t(`preflight.ekfFlags.${f}`)),
+        ...detail.missing.map((f) => t('preflight.ekfMissing', { what: t(`preflight.ekfFlags.${f}`) })),
+      ].join(', ');
+    }
+    const value = (detail?.maxVariance ?? 0).toFixed(2);
+    if (detail?.advisory === 'varianceHigh') return t('preflight.ekfVarHigh', { value });
+    if (detail?.advisory === 'variance') return t('preflight.ekfVarAdvisory', { value });
+    return t('preflight.ekfVar', { value });
   }
   if (key === 'battery') {
     const parts = [];

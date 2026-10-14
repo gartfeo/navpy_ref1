@@ -61,7 +61,6 @@ class PeerAssignmentSetup:
         if selected is None:
             return None
         self._navigation_task.peer_navigation = True
-        self._navigation_task.peer_poi_location = None
         self._geo_hold.poi_location = None
         self._geo_hold.acquisition_log_bucket = None
         location = selected.location
@@ -71,8 +70,13 @@ class PeerAssignmentSetup:
             location.alt,
             is_absolute=True,
         )
-        self._navigation_task.navigation_poi_location = (
+        # The task message is a peer's only dock source before it detects
+        # the dock itself; mission items and sim truth are never used.
+        self._navigation_task.peer_poi_location = (
             self._ports.absolute_location(navigation_location)
+        )
+        self._navigation_task.navigation_poi_location = (
+            self._navigation_task.peer_poi_location
         )
         self._simulation.apply(navigation_location)
         return selected, navigation_location
@@ -95,13 +99,13 @@ class PeerApproachStarter:
         ports: PeerApproachPorts,
         navigation_task: NavigationTaskState,
         geo_tracker: PeerGeoTracker,
-        final_approach_active: Callable[[], bool],
+        final_approach_running: Callable[[], bool],
         logger: ILogger,
     ) -> None:
         self._ports = ports
         self._navigation_task = navigation_task
         self._geo_tracker = geo_tracker
-        self._final_approach_active = final_approach_active
+        self._final_approach_running = final_approach_running
         self._logger = logger
 
     def start(
@@ -125,7 +129,7 @@ class PeerApproachStarter:
             )
         self._ports.request_guided()
         geo_armed = False
-        if plan.kind == ApproachKind.ORBIT and not self._final_approach_active():
+        if plan.kind == ApproachKind.ORBIT and not self._final_approach_running():
             geo_armed = self._geo_tracker.start(navigation_location)
             if geo_armed:
                 geo_armed = self._geo_tracker.prime()

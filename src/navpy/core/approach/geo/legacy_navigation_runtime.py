@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.approach.calc_data import CalcData

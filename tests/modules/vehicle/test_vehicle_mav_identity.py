@@ -15,6 +15,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState, PacketLossTracker
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import MESSAGE_HISTORY_POLICY
 from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
 from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
@@ -24,7 +25,7 @@ from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 
 
 def _router_and_health(target_system: int = 42):
-    messages = MessageStore()
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
     heartbeat = HeartbeatState(target_system, 3.0)
     packet_loss = PacketLossTracker()
     router = InboundMessageRouter(

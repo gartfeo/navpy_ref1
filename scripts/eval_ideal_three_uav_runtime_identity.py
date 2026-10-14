@@ -5,15 +5,19 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from scripts.eval_gcs_demo_config import aas_params_for
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 
+if TYPE_CHECKING:
+    from scripts.eval_gcs_demo_scenario import DemoScenario
+
 
 def runtime_identities(
     log_dir: Path,
-    sys_ids: tuple[int, int, int],
+    sys_ids: tuple[int, ...],
+    scenario: "DemoScenario",
 ) -> dict[int, tuple[int, float]]:
     launch = json.loads(
         (log_dir / "stack_launch_evidence.json").read_text(encoding="utf-8")
@@ -37,10 +41,11 @@ def runtime_identities(
     )
     identities: dict[int, tuple[int, float]] = {}
     wrapper_pids: list[int] = []
-    owner_sys_id = sys_ids[0]
+    owner_sys_id = scenario.owner_sys_id(scenario.uav_ids(sys_ids))
     for row in rows:
         sys_id, process_pid, scheduler_rate_hz, wrapper_pid = _runtime_identity(
             row,
+            scenario=scenario,
             owner_sys_id=owner_sys_id,
             binding_by_sys_id=bindings,
             status_by_sys_id=statuses,
@@ -101,6 +106,7 @@ def _index_rows(raw_rows: object, *, label: str) -> dict[int, dict[str, Any]]:
 def _runtime_identity(
     row: object,
     *,
+    scenario: "DemoScenario",
     owner_sys_id: int,
     binding_by_sys_id: dict[int, dict[str, Any]],
     status_by_sys_id: dict[int, dict[str, Any]],
@@ -115,7 +121,7 @@ def _runtime_identity(
     scheduler_rate_hz = runtime.get("scheduler_rate_hz")
     old_pid = row.get("old_pid")
     wrapper_pid = row.get("pid")
-    expected = aas_params_for(sys_id, owner_sys_id)
+    expected = aas_params_for(scenario, sys_id, owner_sys_id)
     binding = binding_by_sys_id.get(sys_id)
     post_status = status_by_sys_id.get(sys_id)
     if (

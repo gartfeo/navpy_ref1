@@ -96,3 +96,102 @@ def test_a_failed_final_pose_write_raises_instead_of_acking(monkeypatch, tmp_pat
     pose.dump_all()  # the periodic flush keeps going
     with pytest.raises(OSError):
         pose.dump_all(strict=True)
+
+
+# -- lockstep: the lifecycle stop (``lockstep_slice.md``, "Participant stop") --------
+
+
+@pytest.fixture
+def baton(monkeypatch):
+    """A baton bound through a test-only binding (the process binding is once only)."""
+    from navpy.core.kernel import runtime_time as rt
+    from navpy.sim.lockstep.baton import BatonRuntime
+    from navpy.sim.lockstep.lockstep_runtime import LockstepRuntime
+
+    runtime = BatonRuntime()
+    binding = rt.RuntimeBinding()
+    binding.bind(LockstepRuntime.create(runtime, epoch_us=0, seed=1, ordinal=1))
+    monkeypatch.setattr(rt, "_binding", binding)
+    return runtime
+
+
+def _no_pose_flush(monkeypatch, order):
+    from navpy.core.kernel.logging import pose_cadence_debug
+
+    monkeypatch.setattr(pose_cadence_debug, "stop_flusher", lambda: order.append("stop"))
+    monkeypatch.setattr(pose_cadence_debug, "dump_all",
+                        lambda *, strict: order.append(f"dump strict={strict}"))
+
+
+def test_a_lifecycle_stop_latches_and_acks_its_first_id_after_the_strict_flush(baton, monkeypatch):
+    order: list = []
+    _no_pose_flush(monkeypatch, order)
+    request = runtime_stop.LifecycleStopRequest(lambda stop_id: order.append(("stopped", stop_id)))
+    assert request.requested() is False
+    baton.tick(20_000, lambda: request.deliver_stop((2, 5)))
+    baton.tick(40_000, lambda: request.deliver_stop((2, 6)))  # a duplicate: the first id stands
+    assert request.requested() is True
+    baton.spawn(request.acknowledge, name="run-loop")
+    baton.run_until_quiescent()
+    assert order == ["stop", "dump strict=True", ("stopped", (2, 5))]
+
+
+def test_a_drain_end_stops_the_loop_and_acks_with_no_event(baton, monkeypatch):
+    order: list = []
+    _no_pose_flush(monkeypatch, order)
+    request = runtime_stop.LifecycleStopRequest(lambda stop_id: order.append(("stopped", stop_id)))
+    baton.tick(20_000, request.deliver_end)
+    assert request.requested() is True
+    baton.spawn(request.acknowledge, name="run-loop")
+    baton.run_until_quiescent()
+    assert order == ["stop", "dump strict=True"]
+
+
+def test_the_lifecycle_stop_drives_the_unchanged_run_loop(baton, monkeypatch):
+    """The stop path is the stdin one: cleanup, then the ack; a failed cleanup acks nothing."""
+    from navpy.core.kernel import runtime_time as rt
+
+    _no_pose_flush(monkeypatch, [])
+    for cleanup_fails in (False, True):
+        events: list = []
+        request = runtime_stop.LifecycleStopRequest(lambda stop_id: events.append(("stopped", stop_id)))
+        outcome: dict = {}
+
+        def run() -> None:
+            stack = RuntimeResourceStack()
+            if cleanup_fails:
+                stack.own("navigation", lambda: (_ for _ in ()).throw(TimeoutError("join")))
+            else:
+                stack.own("logger", lambda: events.append("logger closed"))
+            session = RuntimeSession(
+                resources=stack, start_vision=lambda: None, start_controller=lambda: None,
+                health_check=lambda: None, ui_step=lambda: True, sleep=rt.sleep,
+                stop_requested=request.requested, acknowledge_stop=request.acknowledge,
+            )
+            try:
+                outcome["code"] = session.run()
+            except Exception as error:
+                outcome["error"] = error
+
+        baton.spawn(run, name="run-loop")
+        baton.run_until_quiescent()
+        assert outcome == {}  # parked in the loop's sleep until the record arrives
+        baton.tick(baton.now_us + 20_000, lambda: request.deliver_stop((2, 1)))
+        if cleanup_fails:
+            assert "error" in outcome and ("stopped", (2, 1)) not in events
+        else:
+            assert outcome == {"code": 0}
+            assert events == ["logger closed", ("stopped", (2, 1))]
+
+
+def test_the_lifecycle_flag_is_opt_in_and_needs_the_participant(monkeypatch):
+    from navpy.app.runtime_composition import RuntimePorts, compose_runtime
+
+    parser = make_parser()
+    assert parser.parse_args(["-ss", "4"]).stop_on_lifecycle is False
+    lifecycle = parser.parse_args(["-ss", "4", "--stop-on-lifecycle"])
+    with pytest.raises(ValueError, match="lifecycle stop"):
+        compose_runtime(lifecycle)  # wall ports: no lifecycle stop to latch
+    both = parser.parse_args(["-ss", "4", "--stop-on-lifecycle", "--stop-on-stdin"])
+    with pytest.raises(ValueError, match="exclusive"):
+        compose_runtime(both, RuntimePorts(lifecycle_stop=object()))

@@ -1,17 +1,28 @@
-"""Validated data contracts for the exact three-UAV demo evaluator."""
+"""Validated data contracts for the scenario-driven GCS demo evaluator."""
 
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from scripts.eval_gcs_demo_ports import ClockPort, JsonApiPort, JsonValue, TailPort
+from scripts.eval_gcs_demo_ports import (
+    ClockPort,
+    EventStreamPort,
+    JsonApiPort,
+    JsonValue,
+    TailPort,
+)
 from scripts.eval_gcs_demo_limits import (
     CadenceLimits,
     GateLimits,
     RollQualityLimits,
 )
+
+if TYPE_CHECKING:
+    # The scenario module imports this one; the annotation stays a string.
+    from scripts.eval_gcs_demo_scenario import DemoScenario
 
 
 class RegressionError(RuntimeError):
@@ -36,18 +47,21 @@ def positive_int(name: str, value: object) -> int:
 
 
 @dataclass(frozen=True)
-class ThreeUavIds:
-    values: tuple[int, int, int]
+class UavIds:
+    """Unique positive sysids, exactly as many as the scenario has slots."""
+
+    values: tuple[int, ...]
 
     @classmethod
-    def from_values(cls, values: Iterable[object]) -> ThreeUavIds:
+    def from_values(cls, values: Iterable[object], count: int) -> UavIds:
+        expected = positive_int("UAV id count", count)
         items = tuple(values)
-        if len(items) != 3:
-            raise ValueError(f"exactly three UAV ids are required, got {items!r}")
+        if len(items) != expected:
+            raise ValueError(f"exactly {expected} UAV ids are required, got {items!r}")
         checked = tuple(positive_int("sys_id", value) for value in items)
-        if len(set(checked)) != 3:
+        if len(set(checked)) != expected:
             raise ValueError(f"UAV ids must be unique, got {checked!r}")
-        return cls(checked)  # type: ignore[arg-type]
+        return cls(checked)
 
 
 @dataclass(frozen=True)
@@ -177,27 +191,40 @@ class RunReport:
 
 @dataclass
 class StackContext:
+    """One owned stack as the operator sees it: its scenario and its I/O ports."""
+
     api: JsonApiPort
-    sys_ids: tuple[int, int, int]
+    sys_ids: tuple[int, ...]
     backend_tail: TailPort
     #: The operator's clock: every wait and deadline of the eval reads it.
     clock: ClockPort
+    scenario: "DemoScenario"
+    #: Opens the backend event stream for a WebSocket URL.
+    event_stream_factory: Callable[[str], EventStreamPort]
+    #: The NavPy log lines of one sysid; the operator reads no log file itself.
+    navigation_tail: Callable[[int], TailPort]
     launch_evidence: dict[str, JsonValue] | None = None
     #: The slot's GCS monitor endpoint, for the explicit connect.
     monitor_device: str | None = None
+    #: Reads one vehicle's parameter snapshot for the command bounds. None is
+    #: wall mode's MAVFTP refresh; lockstep reads the bound parameters by name
+    #: (owner ruling 7).
+    parameter_reader: Callable[[JsonApiPort, int], JsonValue] | None = None
 
     def __post_init__(self) -> None:
-        self.sys_ids = ThreeUavIds.from_values(self.sys_ids).values
+        self.sys_ids = UavIds.from_values(self.sys_ids, len(self.scenario.slots)).values
 
 
 @dataclass
 class MissionArtifacts:
-    sys_ids: tuple[int, int, int]
+    sys_ids: tuple[int, ...]
     approvals: list[dict[str, JsonValue]]
+    #: The scenario's slot count, which the sysids must match.
+    count: int
     plan_path: str | None = None
 
     def __post_init__(self) -> None:
-        self.sys_ids = ThreeUavIds.from_values(self.sys_ids).values
+        self.sys_ids = UavIds.from_values(self.sys_ids, self.count).values
 
 
 __all__ = [
@@ -212,7 +239,7 @@ __all__ = [
     "FinalApproachCommand",
     "FinalApproachScore",
     "FinalApproachTiming",
-    "ThreeUavIds",
+    "UavIds",
     "VehicleReport",
     "finite_number",
     "positive_int",

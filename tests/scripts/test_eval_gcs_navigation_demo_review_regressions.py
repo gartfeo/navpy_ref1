@@ -16,6 +16,9 @@ import pytest
 
 from scripts import eval_gcs_navigation_demo as evaluator
 from scripts.eval_gcs_demo_execution import SystemClock
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
+
+CERTIFIED = load_scenario(CERTIFIED_SCENARIO_PATH)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -361,12 +364,12 @@ def test_saturation_touching_the_unissued_tail_is_still_scored(tmp_path):
 def test_three_uav_ids_reject_malformed_duplicate_empty_or_extra(values):
     models = importlib.import_module("scripts.eval_gcs_demo_models")
     with pytest.raises((TypeError, ValueError)):
-        models.ThreeUavIds.from_values(values)
+        models.UavIds.from_values(values, 3)
 
 
 def test_three_uav_ids_preserve_manifest_slot_order():
     models = importlib.import_module("scripts.eval_gcs_demo_models")
-    assert models.ThreeUavIds.from_values((7, 4, 9)).values == (7, 4, 9)
+    assert models.UavIds.from_values((7, 4, 9), 3).values == (7, 4, 9)
 
 
 def test_malformed_approval_and_plan_artifacts_fail_explicitly(tmp_path):
@@ -379,7 +382,7 @@ def test_malformed_approval_and_plan_artifacts_fail_explicitly(tmp_path):
     with pytest.raises(ValueError):
         evidence.load_approval_records(approval_path)
     with pytest.raises(ValueError):
-        scenario.load_resolved_plan(plan_path)
+        scenario.load_resolved_plan(plan_path, CERTIFIED)
 
 
 def _mission_row(ordinal: int, *, command: int) -> dict[str, float | int]:
@@ -401,33 +404,34 @@ def test_resolved_plan_requires_owner_identity_and_command_bearing_nav_rows(tmp_
 
     models = importlib.import_module("scripts.eval_gcs_demo_models")
     scenario = importlib.import_module("scripts.eval_gcs_demo_scenario")
-    ids = models.ThreeUavIds.from_values((7, 4, 9))
+    ids = models.UavIds.from_values((7, 4, 9), 3)
     rows = [_mission_row(ordinal, command=MAV_CMD_NAV_WAYPOINT) for ordinal in range(1, 8)]
     mission = {"sys_id": 7, "waypoints": rows}
 
-    plan = scenario.resolve_demo_plan(ids, mission)
+    plan = scenario.resolve_demo_plan(ids, mission, CERTIFIED)
 
     assert [poi.nav_waypoint_ordinal for poi in plan.pois] == [2, 3, 6]
     assert [poi.lat for poi in plan.pois] == pytest.approx(
         [rows[index - 1]["lat"] for index in (2, 3, 6)]
     )
     path = tmp_path / "resolved-plan.json"
-    scenario.persist_resolved_plan(plan, path)
-    assert scenario.load_resolved_plan(path) == plan
+    scenario.persist_resolved_plan(plan, path, CERTIFIED)
+    assert scenario.load_resolved_plan(path, CERTIFIED) == plan
     serialized = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(serialized["vehicles"], list)
     assert isinstance(serialized["pois"], list)
     with pytest.raises(ValueError, match="response sys_id"):
-        scenario.resolve_demo_plan(ids, {**mission, "sys_id": 4})
+        scenario.resolve_demo_plan(ids, {**mission, "sys_id": 4}, CERTIFIED)
     bad_rows = list(rows)
     bad_rows[3] = _mission_row(4, command=MAV_CMD_NAV_LOITER_UNLIM)
     with pytest.raises(ValueError, match="MAV_CMD_NAV_WAYPOINT"):
-        scenario.resolve_demo_plan(ids, {"sys_id": 7, "waypoints": bad_rows})
+        scenario.resolve_demo_plan(ids, {"sys_id": 7, "waypoints": bad_rows}, CERTIFIED)
     for malformed_sys_id in (True, 7.0):
         with pytest.raises((TypeError, ValueError), match="sys_id"):
             scenario.resolve_demo_plan(
                 ids,
                 {"sys_id": malformed_sys_id, "waypoints": rows},
+                CERTIFIED,
             )
 
 
@@ -438,15 +442,16 @@ def test_confirmation_accepts_repeated_vehicle_local_task_ids(
     from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_NAV_WAYPOINT
 
     analysis = importlib.import_module("scripts.eval_gcs_demo_analysis")
+    api_module = importlib.import_module("scripts.eval_gcs_demo_api")
     mission = importlib.import_module("scripts.eval_gcs_demo_mission")
     models = importlib.import_module("scripts.eval_gcs_demo_models")
     scenario = importlib.import_module("scripts.eval_gcs_demo_scenario")
-    ids = models.ThreeUavIds.from_values((7, 4, 9))
+    ids = models.UavIds.from_values((7, 4, 9), 3)
     rows = [
         _mission_row(ordinal, command=MAV_CMD_NAV_WAYPOINT)
         for ordinal in range(1, 8)
     ]
-    plan = scenario.resolve_demo_plan(ids, {"sys_id": 7, "waypoints": rows})
+    plan = scenario.resolve_demo_plan(ids, {"sys_id": 7, "waypoints": rows}, CERTIFIED)
     requested_pairs = ((7, 1), (4, 1), (9, 1))
 
     def confirmation_workflow(**kwargs):
@@ -465,6 +470,9 @@ def test_confirmation_accepts_repeated_vehicle_local_task_ids(
         clock=SystemClock(),
         sys_ids=ids.values,
         api=SimpleNamespace(websocket_url="ws://example"),
+        scenario=CERTIFIED,
+        event_stream_factory=lambda _url: object(),
+        navigation_tail=api_module.NavigationLogTails(tmp_path),
     )
 
     approvals = mission.approve_requests_until_snap(
@@ -473,7 +481,6 @@ def test_confirmation_accepts_repeated_vehicle_local_task_ids(
         tmp_path,
         30.0,
         0.0,
-        event_stream_factory=lambda _url: object(),
     )
     counts, errors = analysis.approval_counts(approvals, plan)
 
@@ -487,12 +494,12 @@ def test_assignment_audit_derives_global_map_from_accepted_owner_requests():
     assignment = importlib.import_module("scripts.eval_gcs_demo_assignment_audit")
     models = importlib.import_module("scripts.eval_gcs_demo_models")
     scenario = importlib.import_module("scripts.eval_gcs_demo_scenario")
-    ids = models.ThreeUavIds.from_values((7, 4, 9))
+    ids = models.UavIds.from_values((7, 4, 9), 3)
     rows = [
         _mission_row(ordinal, command=MAV_CMD_NAV_WAYPOINT)
         for ordinal in range(1, 8)
     ]
-    plan = scenario.resolve_demo_plan(ids, {"sys_id": 7, "waypoints": rows})
+    plan = scenario.resolve_demo_plan(ids, {"sys_id": 7, "waypoints": rows}, CERTIFIED)
     text = "\n".join((
         "INFO Task assign request: sender=7 receiver=4 task_id=1 "
         "at (40.000200, 44.000200)",
@@ -515,7 +522,7 @@ def test_assignment_audit_joins_detector_task_ids_to_plan_by_coordinate():
     assignment = importlib.import_module("scripts.eval_gcs_demo_assignment_audit")
     models = importlib.import_module("scripts.eval_gcs_demo_models")
     scenario = importlib.import_module("scripts.eval_gcs_demo_scenario")
-    ids = models.ThreeUavIds.from_values((7, 4, 9))
+    ids = models.UavIds.from_values((7, 4, 9), 3)
     plan = scenario.resolve_demo_plan(
         ids,
         {
@@ -525,6 +532,7 @@ def test_assignment_audit_joins_detector_task_ids_to_plan_by_coordinate():
                 for ordinal in range(1, 8)
             ],
         },
+        CERTIFIED,
     )
     text = "\n".join((
         "INFO Task assign request: sender=7 receiver=4 task_id=3 "
@@ -566,7 +574,7 @@ def test_assignment_audit_rejects_incomplete_or_inconsistent_evidence(
     assignment = importlib.import_module("scripts.eval_gcs_demo_assignment_audit")
     models = importlib.import_module("scripts.eval_gcs_demo_models")
     scenario = importlib.import_module("scripts.eval_gcs_demo_scenario")
-    ids = models.ThreeUavIds.from_values((7, 4, 9))
+    ids = models.UavIds.from_values((7, 4, 9), 3)
     plan = scenario.resolve_demo_plan(
         ids,
         {
@@ -576,6 +584,7 @@ def test_assignment_audit_rejects_incomplete_or_inconsistent_evidence(
                 for ordinal in range(1, 8)
             ],
         },
+        CERTIFIED,
     )
     valid = "\n".join((
         "INFO Task assign request: sender=7 receiver=4 task_id=1 "
@@ -617,15 +626,14 @@ def test_live_run_validates_manifest_before_creating_files_or_launching(
         raise AssertionError("stack must not launch")
 
     monkeypatch.setattr(runtime, "with_owned_stack", launch)
-    monkeypatch.setattr(
-        runtime,
-        "load_scenario_manifest",
-        lambda: (_ for _ in ()).throw(ValueError("invalid manifest")),
-    )
     run_dir = tmp_path / "not-created"
 
-    with pytest.raises(ValueError, match="invalid manifest"):
-        runtime.execute_live_run(run_dir, timeout_s=1.0)
+    # The CLI loads and validates the scenario file; the runtime refuses
+    # anything that is not a loaded scenario before it touches the disk.
+    with pytest.raises(TypeError, match="loaded DemoScenario"):
+        runtime.execute_live_run(
+            run_dir, timeout_s=1.0, scenario=CERTIFIED_SCENARIO_PATH,
+        )
 
     assert launched is False
     assert not run_dir.exists()
@@ -825,7 +833,7 @@ def test_owned_stack_cleanup_attempts_every_step_and_aggregates(monkeypatch):
     with pytest.raises(process.RegressionError) as caught:
         process.with_owned_stack(
             {}, 1.0, lambda _context: (_ for _ in ()).throw(RuntimeError("action failed")),
-            clock=SystemClock(),
+            clock=SystemClock(), scenario=CERTIFIED,
         )
     assert calls == ["close", "stop", "tail"]
     assert all(text in str(caught.value) for text in ("action failed", "close failed", "stop failed", "tail failed"))

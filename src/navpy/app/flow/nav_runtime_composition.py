@@ -83,6 +83,8 @@ def compose_nav_application(
                 arm_dock_contact=lambda: dock_contact.arm(
                     poi.confirmation_manager.active_poi
                 ),
+                stop_geo_tracking=detection.geo_pointing.stop_geo_tracking,
+                is_geo_armed=lambda: detection.geo_pointing.is_geo_armed,
             ),
             state.navigation_task,
             observation.zoom,
@@ -144,7 +146,7 @@ def compose_nav_application(
                 update_geo=detection.geo_pointing.update_geo,
             ),
             navigation_workflows.peer_geo_acquisition,
-            lambda: navigation.final_approach.is_active,
+            lambda: state.phase.is_current(NavState.NAV),
             lambda: vehicle.location(False),
             lambda: vehicle.attitude,
         ),

@@ -17,6 +17,12 @@ from scripts.eval_gcs_demo_ports import (
 )
 
 
+#: The workflow loop's longest wait, seconds: each pass makes at most one
+#: receive and one sleep of this length (lockstep: each wakes at the first
+#: tick at or after its deadline, ``lockstep_slice.md``, Confirmation timing).
+CONFIRMATION_POLL_S = 0.05
+
+
 @dataclass(frozen=True)
 class ConfirmationRequest:
     sys_id: int
@@ -123,8 +129,14 @@ def run_confirmation_workflow(
     before_approve: Callable[[ConfirmationRequest], None] | None = None,
     on_approval_attempted: Callable[[ConfirmationRequest], None] | None = None,
     on_approval_accepted: Callable[[dict[str, JsonValue]], None] | None = None,
+    on_due_check: Callable[[float, list[ConfirmationRequest]], None] | None = None,
 ) -> list[dict[str, JsonValue]]:
-    """Subscribe, trigger, dedupe by round, delay, and echo exact identity."""
+    """Subscribe, trigger, dedupe by round, delay, and echo exact identity.
+
+    ``on_due_check`` observes each pass's due check (its ``now`` and the due
+    requests, in pending order): lockstep journals it for the approval
+    replay (``lockstep_fleet.md``, "Operator polling schedule").
+    """
     _validate_expected(expected_sys_ids)
     delay = finite_number("requested confirmation delay", requested_delay_s)
     timeout = finite_number("confirmation timeout", timeout_s)
@@ -137,7 +149,9 @@ def run_confirmation_workflow(
         trigger()
         while timer.monotonic() < deadline:
             try:
-                raw = event_stream.receive(min(0.05, max(0.0, deadline - timer.monotonic())))
+                raw = event_stream.receive(
+                    min(CONFIRMATION_POLL_S, max(0.0, deadline - timer.monotonic()))
+                )
             except (TimeoutError, StopIteration):
                 raw = None
             if raw is not None:
@@ -168,6 +182,8 @@ def run_confirmation_workflow(
                 for item in pending.values()
                 if now - item.observed_monotonic_s >= delay
             ]
+            if on_due_check is not None:
+                on_due_check(now, [item.request for item in due])
             for item in due:
                 request = item.request
                 if before_approve is not None:
@@ -205,11 +221,12 @@ def run_confirmation_workflow(
                 ]
             if stop_when():
                 return approvals
-            timer.sleep(min(0.05, max(0.0, deadline - timer.monotonic())))
+            timer.sleep(min(CONFIRMATION_POLL_S, max(0.0, deadline - timer.monotonic())))
     raise ConfirmationTimeout(expected_sys_ids, seen, approvals)
 
 
 __all__ = [
+    "CONFIRMATION_POLL_S",
     "ConfirmationRequest",
     "ConfirmationTimeout",
     "PendingConfirmation",

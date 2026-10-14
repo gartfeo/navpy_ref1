@@ -18,7 +18,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gcs.backend.esp32_simulator import Esp32Simulator
-from gcs.backend.routes.control_readiness import _resolve_channel_map
+from gcs.backend.routes.control_readiness import (
+    _readiness_gates_from_settings, _resolve_channel_map, ekf_recheck_for_session,
+)
 
 async def _bungee_launch(
     req: LaunchRequest,
@@ -32,6 +34,9 @@ async def _bungee_launch(
     settle_s = ls.bungee_settle_s
     arm_poll_iters = max(1, round(ls.bungee_arm_timeout_s / 0.1))
     stagger_s = ls.bungee_stagger_s
+    ekf_recheck = ekf_recheck_for_session(
+        _readiness_gates_from_settings(ls), force=req.force, vehicle_mgr=vehicle_mgr,
+    )
     results = {}
 
     launched_any = False
@@ -61,7 +66,22 @@ async def _bungee_launch(
             if settle_s > 0:
                 await asyncio.sleep(settle_s)
 
-            # Step 2: Arm (vehicle is ready for physical bungee launch)
+            # Step 2: re-check the EKF after the stagger/settle waits; a
+            # vehicle whose EKF went bad is neither armed nor reported ready.
+            ekf_issues = ekf_recheck(sys_id)
+            if ekf_issues:
+                error = "; ".join(ekf_issues)
+                log.error("[launch] V%d bungee arm BLOCKED by EKF re-check: %s", sys_id, error)
+                results[key] = f"blocked: {error}"
+                await ws_manager.broadcast({
+                    "type": "launch_progress",
+                    "sys_id": sys_id,
+                    "state": "error",
+                    "error": error,
+                })
+                continue
+
+            # Step 3: Arm (vehicle is ready for physical bungee launch)
             if not entry.vehicle.is_armed:
                 entry.vehicle.send_command_long(
                     MAV_CMD_COMPONENT_ARM_DISARM,
@@ -154,6 +174,9 @@ async def _container_launch(
         min_throttle_pct=ls.airborne_min_throttle_pct,
         min_climb_rate_ms=ls.min_climb_rate_ms,
         climb_confirm_s=ls.climb_confirm_s,
+        ekf_recheck=ekf_recheck_for_session(
+            _readiness_gates_from_settings(ls), force=req.force, vehicle_mgr=vehicle_mgr,
+        ),
     )
     if not launch_controller.is_prepared:
         raise HTTPException(503, "ESP32 not reachable")

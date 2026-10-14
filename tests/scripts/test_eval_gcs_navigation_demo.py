@@ -14,6 +14,9 @@ from scripts import eval_gcs_demo_runtime as demo_runtime
 from scripts import eval_gcs_demo_stack_ops as stack_ops
 from scripts.eval_gcs_demo_constants import backend_log_path
 from scripts.eval_gcs_demo_execution import SystemClock
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
+
+CERTIFIED = load_scenario(CERTIFIED_SCENARIO_PATH)
 
 
 def _clock(index: int, step_s: float) -> str:
@@ -731,7 +734,7 @@ def test_exact_three_uav_run_passes_owner_and_peer_workflow_gates(tmp_path):
     approvals = _approval_records()
 
     report = evaluator.analyze_run(
-        tmp_path, sys_ids=(4, 5, 6), approvals=approvals
+        tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6), approvals=approvals
     )
 
     assert report.passed is True
@@ -808,7 +811,7 @@ def test_acked_run_passes_when_peers_fly_after_their_owner_applied(tmp_path):
     _log_assignment(tmp_path, 6, "Task 3 assigned by owner 4")
 
     report = evaluator.analyze_run(
-        tmp_path, sys_ids=(4, 5, 6), approvals=_approval_records()
+        tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6), approvals=_approval_records()
     )
 
     assert report.passed is True, report.errors + [
@@ -826,7 +829,7 @@ def test_acked_run_passes_a_peer_whose_hub_return_loitered_before_its_task(tmp_p
     _log_hub_return_first(tmp_path, 6)
 
     report = evaluator.analyze_run(
-        tmp_path, sys_ids=(4, 5, 6), approvals=_approval_records()
+        tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6), approvals=_approval_records()
     )
 
     assert report.passed is True, report.errors + [
@@ -854,7 +857,7 @@ def test_acked_run_fails_a_peer_that_flew_before_its_owner_applied(
         _log_assignment(tmp_path, 6, "Task 3 assigned by owner 4", after=after)
 
     report = evaluator.analyze_run(
-        tmp_path, sys_ids=(4, 5, 6), approvals=_approval_records()
+        tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6), approvals=_approval_records()
     )
 
     assert report.passed is False
@@ -876,7 +879,7 @@ def test_acked_run_fails_a_peer_that_never_started_its_peer_approach(tmp_path):
     )
 
     report = evaluator.analyze_run(
-        tmp_path, sys_ids=(4, 5, 6), approvals=_approval_records()
+        tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6), approvals=_approval_records()
     )
 
     assert report.passed is False
@@ -921,6 +924,7 @@ def test_exact_run_binds_approval_confirmation_selection_and_commands(
 
     report = evaluator.analyze_run(
         tmp_path,
+        scenario=CERTIFIED,
         sys_ids=(4, 5, 6),
         approvals=approvals,
     )
@@ -949,7 +953,7 @@ def test_owner_first_auction_acceptance_proves_peer_dispatch(tmp_path):
     approvals = _approval_records()
 
     report = evaluator.analyze_run(
-        tmp_path, sys_ids=(4, 5, 6), approvals=approvals,
+        tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6), approvals=approvals,
     )
 
     assert report.passed is True, report.errors
@@ -968,7 +972,7 @@ def test_exact_run_rejects_both_peers_at_same_poi_coordinate(tmp_path):
     approvals = _approval_records()
 
     report = evaluator.analyze_run(
-        tmp_path, sys_ids=(4, 5, 6), approvals=approvals
+        tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6), approvals=approvals
     )
 
     assert report.passed is False
@@ -991,7 +995,7 @@ def test_exact_run_rejects_distinct_but_wrong_peer_coordinates(tmp_path):
     approvals = _approval_records()
 
     report = evaluator.analyze_run(
-        tmp_path, sys_ids=(4, 5, 6), approvals=approvals,
+        tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6), approvals=approvals,
     )
 
     assert report.passed is False
@@ -1019,6 +1023,7 @@ def test_exact_run_rejects_peer_centers_swapped_against_approved_tasks(tmp_path)
 
     report = evaluator.analyze_run(
         tmp_path,
+        scenario=CERTIFIED,
         sys_ids=(4, 5, 6),
         approvals=_approval_records(),
     )
@@ -1042,6 +1047,7 @@ def test_exact_run_validates_commands_against_captured_autopilot_bounds(tmp_path
 
     report = evaluator.analyze_run(
         tmp_path,
+        scenario=CERTIFIED,
         sys_ids=(4, 5, 6),
         approvals=_approval_records(),
     )
@@ -1065,6 +1071,7 @@ def test_explicit_empty_approvals_do_not_fall_back_to_disk(tmp_path):
 
     report = evaluator.analyze_run(
         tmp_path,
+        scenario=CERTIFIED,
         sys_ids=(4, 5, 6),
         approvals=[],
     )
@@ -1075,7 +1082,7 @@ def test_explicit_empty_approvals_do_not_fall_back_to_disk(tmp_path):
 
 
 def test_configuration_keeps_explicit_ten_x_navigation_and_no_multicontainer_scope():
-    settings = evaluator.build_settings()
+    settings = evaluator.build_settings(CERTIFIED)
 
     assert settings["simulation"]["simulated_vehicle_count"] == 3
     assert settings["flight"]["uavs_per_set"] == 3
@@ -1086,20 +1093,20 @@ def test_configuration_keeps_explicit_ten_x_navigation_and_no_multicontainer_sco
     assert settings["launch"]["esp32_host"] == "127.0.0.1"
     assert settings["launch"]["esp32_port"] == 9
     assert settings["camera"]["vision_profile"] == "siyi_zr10"
-    assert evaluator.aas_params_for(4, 4)["targ_wps"] == 38
-    assert evaluator.aas_params_for(5, 4)["targ_wps"] == 0
-    assert evaluator.aas_params_for(4, 4)["del_ctrl"] == 2
-    assert evaluator.aas_params_for(4, 4)["del_dir"] is True
-    assert evaluator.aas_params_for(4, 4)["use_trn"] is True
-    assert evaluator.aas_params_for(4, 4)["targ_alt"] == 0.0
-    assert evaluator.aas_params_for(4, 4)["nav_last_wp"] == 1
-    assert evaluator.aas_params_for(4, 4)["nav_auto_cm"] is False
-    assert evaluator.aas_params_for(4, 4)["nav_cm_fl"] is False
-    assert evaluator.aas_params_for(4, 4)["nav_cwt"] == 30.0
-    assert evaluator.aas_params_for(4, 4)["nav_oneshot"] is True
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["targ_wps"] == 38
+    assert evaluator.aas_params_for(CERTIFIED, 5, 4)["targ_wps"] == 0
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["del_ctrl"] == 2
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["del_dir"] is True
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["use_trn"] is True
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["targ_alt"] == 0.0
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["nav_last_wp"] == 1
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["nav_auto_cm"] is False
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["nav_cm_fl"] is False
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["nav_cwt"] == 30.0
+    assert evaluator.aas_params_for(CERTIFIED, 4, 4)["nav_oneshot"] is True
     # Fresh eeproms register the Lua defaults; the run states the flown values.
-    assert evaluator.aas_params_for(5, 4)["del_p_kp"] == 0.35
-    assert evaluator.aas_params_for(5, 4)["nav_min_alt"] == -100
+    assert evaluator.aas_params_for(CERTIFIED, 5, 4)["del_p_kp"] == 0.35
+    assert evaluator.aas_params_for(CERTIFIED, 5, 4)["nav_min_alt"] == -100
     # ROLL_LIMIT_DEG is a pre-boot default now, not a full-param write.
     assert demo_inputs.SITL_DEFAULT_OVERRIDES["ROLL_LIMIT_DEG"] == 45.0
     assert not hasattr(evaluator, "full_param_changes")
@@ -1108,6 +1115,8 @@ def test_configuration_keeps_explicit_ten_x_navigation_and_no_multicontainer_sco
     assert settings["simulation"]["companion_lifecycle"] == "explicit"
     command = evaluator.launch_command()
     assert command[-1] == "--headless"
+    # The scenario's slot count is the number of vehicles the launcher flies.
+    assert evaluator.launch_command(instances=3)[-3:] == ["--headless", "-n", "3"]
     assert "--chat" not in command
     assert "-gsu" not in command
     assert evaluator.NAVIGATION_SPEEDUP_OVERRIDE == 0.0
@@ -1137,7 +1146,7 @@ def test_second_evaluator_for_same_worktree_is_rejected(tmp_path):
 def test_owned_stack_always_uses_scoped_stop_when_launch_fails(monkeypatch):
     stopped = []
 
-    def fail_launch(env, timeout_s, sitl_arguments=(), *, clock):
+    def fail_launch(env, timeout_s, sitl_arguments=(), *, clock, scenario):
         raise evaluator.RegressionError("launch failed")
 
     monkeypatch.setattr(demo_process, "launch_stack", fail_launch)
@@ -1148,7 +1157,9 @@ def test_owned_stack_always_uses_scoped_stop_when_launch_fails(monkeypatch):
     )
 
     with pytest.raises(evaluator.RegressionError, match="launch failed"):
-        demo_process.with_owned_stack({}, 1.0, lambda context: None, clock=SystemClock())
+        demo_process.with_owned_stack({}, 1.0, lambda context: None, clock=SystemClock(),
+            scenario=CERTIFIED,
+        )
 
     assert stopped == [evaluator.stop_command()]
 
@@ -1171,7 +1182,9 @@ def test_owned_stack_rejects_preexisting_generation_without_stopping_it(
     )
 
     with pytest.raises(evaluator.RegressionError, match="already exists"):
-        demo_process.with_owned_stack({}, 1.0, lambda _context: None, clock=SystemClock())
+        demo_process.with_owned_stack({}, 1.0, lambda _context: None, clock=SystemClock(),
+            scenario=CERTIFIED,
+        )
 
     assert stopped == []
 
@@ -1206,8 +1219,9 @@ def test_live_run_launches_the_stack_once(monkeypatch, tmp_path):
     launched_with = []
     environments = []
 
-    def with_owned_stack(env, timeout_s, action, sitl_arguments, *, clock):
+    def with_owned_stack(env, timeout_s, action, sitl_arguments, *, clock, scenario):
         del timeout_s, clock
+        assert scenario is CERTIFIED
         environments.append(env)
         launched_with.append(list(sitl_arguments))
         return action(SimpleNamespace(sys_ids=(1, 2, 3)))
@@ -1218,6 +1232,7 @@ def test_live_run_launches_the_stack_once(monkeypatch, tmp_path):
         return evaluator.MissionArtifacts(
             context.sys_ids,
             _approval_records(context.sys_ids),
+            3,
         )
 
     monkeypatch.setattr(demo_runtime, "with_owned_stack", with_owned_stack)
@@ -1232,13 +1247,14 @@ def test_live_run_launches_the_stack_once(monkeypatch, tmp_path):
     monkeypatch.setattr(
         demo_runtime,
         "write_input_manifest",
-        lambda run_dir, env, sitl, host, options: manifests.append((sitl, host, options)),
+        lambda run_dir, env, sitl, host, options, scenario: manifests.append((sitl, host, options)),
     )
 
     result = demo_runtime.execute_live_run(
         tmp_path,
         timeout_s=1.0,
         confirmation_delay_s=0.0,
+        scenario=CERTIFIED,
     )
 
     assert result.sys_ids == (1, 2, 3)

@@ -60,8 +60,8 @@ class TrackRecovery:
         self._resume_auto = resume_auto
         self._logger = logger
 
-    def held_poi_geo(self, assigned: Optional[Location]) -> Optional[Location]:
-        return self._geo_hold.last_own_poi_geo or assigned
+    def held_poi_geo(self, peer_task: Optional[Location]) -> Optional[Location]:
+        return self._geo_hold.last_own_poi_geo or peer_task
 
     def abort_untracked_navigation_task(self, active: DetectedObject) -> None:
         self._geo_hold.active = False
@@ -201,9 +201,9 @@ class GeoHoldCoordinator:
         tracking: TrackingCommandPort,
         tracking_status: TrackingStatusPort,
         geo_pointing: GeoPointingPort,
-        final_approach_active: Callable[[], bool],
+        final_approach_running: Callable[[], bool],
         clock_s: Callable[[], float],
-        assigned_location: Callable[[], Optional[Location]],
+        peer_task_location: Callable[[], Optional[Location]],
         recovery: TrackRecovery,
         identity: IdentityReacquisition,
         geo_ref: GeoRefCalc,
@@ -214,9 +214,9 @@ class GeoHoldCoordinator:
         self._tracking = tracking
         self._tracking_status = tracking_status
         self._geo_pointing = geo_pointing
-        self._final_approach_active = final_approach_active
+        self._final_approach_running = final_approach_running
         self._clock_s = clock_s
-        self._assigned_location = assigned_location
+        self._peer_task_location = peer_task_location
         self._recovery = recovery
         self._identity = identity
         self._geo_ref = geo_ref
@@ -238,14 +238,14 @@ class GeoHoldCoordinator:
             ConfirmationStatus.TIMEOUT_REJECTED,
         }:
             return False
-        if self._final_approach_active():
+        if self._final_approach_running():
             return False
         loss_hold_s = self._tracking_status.loss_hold_sec
         if loss_hold_s is None or self._confirm.loss_started_at is None:
             return False
         if self._clock_s() - self._confirm.loss_started_at < loss_hold_s:
             return False
-        held = self._recovery.held_poi_geo(self._assigned_location())
+        held = self._recovery.held_poi_geo(self._peer_task_location())
         if held is None:
             return False
         try:

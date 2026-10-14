@@ -19,14 +19,15 @@ def persist_confirmation_failure(
     *,
     status: str,
     reason: str,
-    has_snap: Callable[[Path, int], bool],
+    #: Whether a sysid's NavPy log lines hold SNAP, through the operator's port.
+    has_snap: Callable[[int], bool],
 ) -> tuple[list[int], list[str]]:
     approved_sys_ids = {int(row["sys_id"]) for row in approvals}
     evidence_errors: list[str] = []
     vehicles = []
     for sys_id in context.sys_ids:
         try:
-            snap_observed: bool | None = has_snap(log_dir, sys_id)
+            snap_observed: bool | None = has_snap(sys_id)
         except OSError as read_error:
             snap_observed = None
             evidence_errors.append(f"vehicle {sys_id} SNAP log: {read_error}")

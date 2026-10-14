@@ -73,6 +73,10 @@ def _fixed_session_id() -> str | None:
     return value
 
 
+class DiagnosticsWriteFailed(RuntimeError):
+    """The timeline is missing records."""
+
+
 class DiagnosticSession:
     def __init__(self, root: Path | None = None) -> None:
         self.root = root or gcs_log_dir() / "sessions"
@@ -80,6 +84,8 @@ class DiagnosticSession:
         self.started_at: datetime | None = None
         self.session_dir: Path | None = None
         self.recording_enabled = False
+        #: Set by any record that failed to reach the timeline; never cleared.
+        self.write_failed = False
         self._lock = rt.RLock()
 
     @property
@@ -107,6 +113,7 @@ class DiagnosticSession:
             except Exception:
                 # Diagnostics are support tooling. Storage failure must never
                 # prevent the GCS or a vehicle operation from starting.
+                self.write_failed = True
                 self.session_dir = None
                 self.recording_enabled = False
                 return ""
@@ -118,6 +125,13 @@ class DiagnosticSession:
             self.emit("session_finished", source="backend")
             self.session_dir = None
             self.recording_enabled = False
+
+    def stop_strictly(self) -> None:
+        """:meth:`stop`, then raise if any record (``session_finished`` too)
+        failed to reach the timeline: a lockstep drain certifies recording."""
+        self.stop()
+        if self.write_failed:
+            raise DiagnosticsWriteFailed("a diagnostic record failed to reach its timeline")
 
     def _prune(self) -> None:
         cutoff = _utc_now() - timedelta(days=MAX_SESSION_AGE_DAYS)
@@ -171,6 +185,7 @@ class DiagnosticSession:
             except Exception:
                 # Disable repeated writes for this process. Existing partial
                 # files remain exportable, and request handling continues.
+                self.write_failed = True
                 self.recording_enabled = False
 
     def timeline_files(self) -> list[Path]:

@@ -14,7 +14,9 @@ from gcs.backend.models import LaunchRequest
 
 log = logging.getLogger("gcs.backend.routes.control")
 
-from gcs.backend.routes.control_readiness import _readiness_gates_from_settings
+from gcs.backend.routes.control_readiness import (
+    _readiness_gates_from_settings, ekf_recheck_for_session,
+)
 
 async def launch_sequence(
     req: LaunchRequest,
@@ -115,7 +117,20 @@ async def restart_mission(
         if issues:
             raise HTTPException(status_code=409, detail="; ".join(issues))
 
+    # /restart's fixed default gates, carried to the re-check before each arm
+    # and before AUTO (bungee START MISSION releases through AUTO).
+    ekf_recheck = ekf_recheck_for_session(None, force=req.force, vehicle_mgr=vehicle_mgr)
     results = {}
+
+    def ekf_blocks(sys_id: int, step: str) -> bool:
+        issues = ekf_recheck(sys_id)
+        if not issues:
+            return False
+        log.error("Restart %s BLOCKED for vehicle %d by EKF re-check: %s",
+                  step, sys_id, issues)
+        results[sys_id] = f"blocked: {'; '.join(issues)}"
+        return True
+
     for sys_id in req.sys_ids:
         entry = vehicle_mgr.get_vehicle(sys_id)
         if not entry:
@@ -128,8 +143,11 @@ async def restart_mission(
             entry.vehicle.restart_mission(0)
             await asyncio.sleep(0.3)
 
-            # Re-arm if disarmed (e.g. after one-shot termination)
+            # Re-arm if disarmed (e.g. after one-shot termination), unless
+            # the EKF went bad during the waits (earlier vehicles, the settle).
             if not entry.vehicle.is_armed:
+                if ekf_blocks(sys_id, "arm"):
+                    continue
                 entry.vehicle.send_command_long(
                     MAV_CMD_COMPONENT_ARM_DISARM, p1=1,
                     **({"p2": 2989} if req.force else {}),
@@ -139,6 +157,9 @@ async def restart_mission(
                         break
                     await asyncio.sleep(0.1)
 
+            # Checked again right before AUTO, after the settle or arm wait.
+            if ekf_blocks(sys_id, "AUTO"):
+                continue
             entry.vehicle.set_mode(FlightMode.AUTO)
             results[sys_id] = "restarted"
             log.info("Vehicle %d mission restarted", sys_id)

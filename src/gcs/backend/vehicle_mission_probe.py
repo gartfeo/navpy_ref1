@@ -4,11 +4,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gcs.backend.producer_inventory import producers
 from navpy.core.kernel import runtime_time as rt
 
 if TYPE_CHECKING:
     from gcs.backend.vehicle_manager import VehicleManager
     from gcs.backend.mission_validator import MissionProbe
+    from gcs.backend.vehicle_entry import VehicleEntry
 
 log = logging.getLogger("gcs.backend.vehicle_manager")
 
@@ -52,9 +54,8 @@ def _probe_mission_async(manager: VehicleManager, entry: "VehicleEntry") -> None
                  total=len((entry.cached_mission or {}).get("waypoints") or []))
 
     try:
-        rt.Thread(
-            target=_run, name=f"mission-probe-{entry.sys_id}", daemon=True,
-        ).start()
+        # Tracked and cancellable: the lockstep fence cancels its scope.
+        producers.start_thread("mission_probe", _run, name=f"mission-probe-{entry.sys_id}")
     except Exception as e:
         # The finally that clears is_probing lives inside _run, so if the OS
         # can't even start the thread (thread exhaustion under load), the flag

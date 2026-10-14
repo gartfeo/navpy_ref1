@@ -2,20 +2,29 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from queue import Empty
 import random
 import threading
 import time
 
 import pytest
 
-from navpy.sim.lockstep.baton import BatonRuntime, LockstepFault, audit, check_no_deadlock
+from navpy.sim.lockstep.baton import (
+    MAX_TIMER_ROUNDS_PER_TICK,
+    BatonRuntime,
+    LockstepFault,
+    audit,
+    check_no_deadlock,
+)
+from navpy.sim.lockstep.baton_queue import BatonQueue
 from navpy.sim.lockstep.baton_sync import (
     BatonCondition,
     BatonEvent,
     BatonLock,
-    BatonQueue,
     join,
     sleep,
+    yield_now,
 )
 
 TICK_US = 20_000
@@ -83,7 +92,7 @@ def test_an_input_at_the_deadline_tick_wins_over_the_timeout():
         def receiver() -> None:
             try:
                 outcome.append(inbox.get(timeout=0.04))  # deadline = tick 2
-            except TimeoutError:
+            except Empty:
                 outcome.append("timeout")
 
         runtime.spawn(receiver, name="receiver")
@@ -218,7 +227,7 @@ def test_queue_contention_does_not_restart_the_timeout():
     def slow_getter() -> None:
         try:
             queue.get(timeout=0.04)  # deadline tick 2, whatever happens before
-        except TimeoutError:
+        except Empty:
             outcome["slow"] = runtime.now_us
 
     def thief() -> None:
@@ -367,3 +376,60 @@ def test_abort_unwinds_a_condition_waiter_with_a_contended_recursive_lock():
     _run_ticks(runtime, 2)
     runtime.abort()
     assert runtime.threads.alive() == []
+
+
+def test_abort_unwinds_a_rollback_that_parks_again_and_groups_the_aborts():
+    """Construction rollback: cleanup joins the reader while unwinding, the
+    reader's exit wakes it into the abort again, and the product groups both.
+    That is an abort, not a failure; anything else in the group is a failure."""
+
+    def run(last_error: BaseException | None) -> BatonRuntime:
+        runtime = BatonRuntime()
+
+        def construction() -> None:
+            reader = runtime.spawn(lambda: sleep(runtime, 60.0), name="reader")
+            errors: list[BaseException] = []
+            try:
+                sleep(runtime, 30.0)  # waiting for a heartbeat
+            except BaseException as error:
+                errors.append(error)
+            try:
+                join(runtime, reader, 2.0)  # rollback joins the reader
+            except BaseException as error:
+                errors.append(error)
+            raise BaseExceptionGroup("rollback", errors + [last_error] * (last_error is not None))
+
+        runtime.spawn(construction, name="construction")
+        _run_ticks(runtime, 2)
+        return runtime
+
+    runtime = run(None)
+    runtime.abort()
+    assert runtime.threads.alive() == []
+    with pytest.raises(BaseExceptionGroup):
+        run(RuntimeError("not an abort")).abort()
+
+
+def test_yield_now_requeues_first_in_first_out_at_the_same_time_without_a_timer():
+    runtime = BatonRuntime()
+    order: list[tuple[str, int, int]] = []
+
+    def worker(name: str, yields: int) -> Callable[[], None]:
+        def run() -> None:
+            for index in range(yields):
+                order.append((name, index, runtime.now_us))
+                yield_now(runtime)
+        return run
+
+    runtime.spawn(worker("a", 3), name="a")
+    runtime.spawn(worker("b", 2), name="b")
+    # More yields than timer rounds a tick allows: none of them is a timer round.
+    runtime.spawn(worker("c", MAX_TIMER_ROUNDS_PER_TICK + 1), name="c")
+    runtime.tick(TICK_US)
+    assert runtime.threads.alive() == []
+    assert not runtime.timers.any_due(float("inf"))
+    assert order[:6] == [
+        ("a", 0, TICK_US), ("b", 0, TICK_US), ("c", 0, TICK_US),
+        ("a", 1, TICK_US), ("b", 1, TICK_US), ("c", 1, TICK_US),
+    ]
+    assert {now_us for _name, _index, now_us in order} == {TICK_US}

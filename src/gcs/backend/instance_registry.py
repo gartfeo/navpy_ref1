@@ -179,9 +179,12 @@ def _new_entry(
     )
 
 
-def find_for_owner(owner: str, label: str | None = None) -> dict[str, Any] | None:
+def find_for_owner(
+    owner: str, label: str | None = None, *, include_lockstep: bool = False,
+) -> dict[str, Any] | None:
     return entries.find_for_owner(
-        owner, label, alive_check=_is_alive, access=_STORE_ACCESS
+        owner, label, include_lockstep=include_lockstep,
+        alive_check=_is_alive, access=_STORE_ACCESS,
     )
 
 

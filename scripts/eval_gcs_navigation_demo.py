@@ -24,7 +24,6 @@ from scripts.eval_gcs_demo_config import (
 )
 from scripts.eval_gcs_demo_constants import (
     EVALUATOR_LOCK_PATH,
-    EXPECTED_UAV_COUNT,
     FORBIDDEN_VISION_PROFILE,
     GCS_LAUNCH,
     GCS_STOP,
@@ -66,7 +65,6 @@ _report_dict = report_dict
 
 __all__ = [
     "EVALUATOR_LOCK_PATH",
-    "EXPECTED_UAV_COUNT",
     "EpisodeMetrics",
     "FORBIDDEN_VISION_PROFILE",
     "FileTail",

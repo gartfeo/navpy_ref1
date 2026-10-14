@@ -78,7 +78,12 @@ def _make_entry(sys_id: int, mission_uploaded: bool = False,
     entry.vehicle.rc3_raw = 1000
     entry.vehicle.battery_level = 80
     entry.vehicle.mission_items_count = 10
+    entry.vehicle.ekf_status = dict(_EKF_READY)
     return entry
+
+
+# A fresh own-autopilot report with an absolute solution (required 0x37).
+_EKF_READY = {"flags": 0x37, "age_s": 0.0}
 
 
 @pytest.fixture
@@ -780,3 +785,149 @@ class TestProbedMissionLaunch:
             resp = client.post("/api/control/launch", json={"sys_ids": [1, 2]})
             assert resp.status_code == 409
             assert "mismatch" in resp.json()["detail"].lower()
+
+
+_EKF_STALE = {"flags": 0x37, "age_s": 30.0}
+
+
+def _arm_calls(entry):
+    from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_COMPONENT_ARM_DISARM
+    return [c for c in entry.vehicle.send_command_long.call_args_list
+            if c.args and c.args[0] == MAV_CMD_COMPONENT_ARM_DISARM]
+
+
+class TestEkfLaunchGate:
+    """The EKF gate at preparation, and its re-check before each arm/release."""
+
+    def _post(self, entries, store, endpoint="launch", **body):
+        with (
+            patch("gcs.backend.routes.control.vehicle_mgr", _mgr_for(entries)),
+            patch("gcs.backend.routes.control.settings_store", store),
+            patch("gcs.backend.routes.control.launch_controller", MagicMock(
+                is_running=False, is_prepared=False,
+            )),
+        ):
+            from gcs.backend.main import app
+            return TestClient(app).post(
+                f"/api/control/{endpoint}", json={"sys_ids": list(entries), **body},
+            )
+
+    @pytest.mark.parametrize("endpoint", ["launch", "restart"])
+    @pytest.mark.parametrize("ekf, message", [
+        (None, "waiting for EKF status"),
+        (_EKF_STALE, "EKF status stale"),
+        ({"flags": 0x400, "age_s": 0.0}, "not initialised"),
+    ])
+    def test_bad_ekf_blocks_preparation(self, endpoint, ekf, message):
+        entries = {1: _make_entry(1, mission_uploaded=True)}
+        entries[1].vehicle.ekf_status = ekf
+        resp = self._post(entries, _mock_settings_store(), endpoint)
+        assert resp.status_code == 409
+        assert "Vehicle 1: " in resp.json()["detail"]
+        assert message in resp.json()["detail"]
+
+    def test_gate_off_allows_launch_without_ekf(self):
+        entries = {1: _make_entry(1, mission_uploaded=True)}
+        entries[1].vehicle.ekf_status = None
+        resp = self._post(entries, _mock_settings_store(check_ekf_enabled=False))
+        assert resp.status_code == 200
+
+    def test_restart_ignores_disabled_ekf_setting(self):
+        """/restart keeps its fixed gates, which include the EKF check."""
+        entries = {1: _make_entry(1, mission_uploaded=True)}
+        entries[1].vehicle.ekf_status = None
+        resp = self._post(entries, _mock_settings_store(check_ekf_enabled=False), "restart")
+        assert resp.status_code == 409
+
+    def test_bungee_does_not_arm_a_vehicle_whose_ekf_went_bad(self):
+        """V2's EKF goes bad while V1 arms: V2 is neither armed nor launched."""
+        entries = {1: _make_entry(1, mission_uploaded=True),
+                   2: _make_entry(2, mission_uploaded=True)}
+        for entry in entries.values():
+            entry.vehicle.is_armed = False
+
+        def v1_arm(*args, **kwargs):
+            entries[1].vehicle.is_armed = True
+            entries[2].vehicle.ekf_status = dict(_EKF_STALE)
+
+        entries[1].vehicle.send_command_long.side_effect = v1_arm
+        resp = self._post(entries, _mock_settings_store(launch_type="bungee"))
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert results["1"] == "launched"
+        assert results["2"].startswith("blocked: Vehicle 2: EKF status stale")
+        assert _arm_calls(entries[2]) == []
+
+    def test_bungee_recheck_after_settle_wait(self):
+        entries = {1: _make_entry(1, mission_uploaded=True)}
+        entries[1].vehicle.is_armed = False
+        # The EKF turns bad as AUTO is set, i.e. during the settle wait.
+        entries[1].vehicle.set_mode.side_effect = (
+            lambda *_: setattr(entries[1].vehicle, "ekf_status", None))
+        resp = self._post(entries, _mock_settings_store(launch_type="bungee", bungee_settle_s=0.01))
+        assert resp.json()["results"]["1"].startswith("blocked: ")
+        assert _arm_calls(entries[1]) == []
+
+    def test_bungee_force_skips_recheck(self):
+        entries = {1: _make_entry(1, mission_uploaded=True)}
+        entries[1].vehicle.ekf_status = None
+        resp = self._post(entries, _mock_settings_store(launch_type="bungee"), force=True)
+        assert resp.json()["results"]["1"] == "launched"
+
+    def test_restart_does_not_rearm_a_vehicle_whose_ekf_went_bad(self):
+        entries = {1: _make_entry(1, mission_uploaded=True)}
+        entries[1].vehicle.is_armed = False
+        # The EKF turns bad during the restart's settle wait.
+        entries[1].vehicle.restart_mission.side_effect = (
+            lambda *_: setattr(entries[1].vehicle, "ekf_status", dict(_EKF_STALE)))
+        resp = self._post(entries, _mock_settings_store(), "restart")
+        assert resp.status_code == 200
+        assert resp.json()["results"]["1"].startswith("blocked: Vehicle 1: EKF status stale")
+        assert _arm_calls(entries[1]) == []
+        entries[1].vehicle.set_mode.assert_not_called()
+
+    def test_restart_armed_vehicle_is_rechecked_before_auto(self):
+        """Bungee START MISSION releases an armed vehicle through AUTO."""
+        entries = {1: _make_entry(1, mission_uploaded=True)}  # already armed
+        entries[1].vehicle.restart_mission.side_effect = (
+            lambda *_: setattr(entries[1].vehicle, "ekf_status", None))
+        resp = self._post(entries, _mock_settings_store(), "restart")
+        assert resp.json()["results"]["1"].startswith("blocked: Vehicle 1: waiting for EKF status")
+        entries[1].vehicle.set_mode.assert_not_called()
+
+    def test_restart_rechecks_after_the_arm_confirmation_wait(self):
+        entries = {1: _make_entry(1, mission_uploaded=True)}
+        entries[1].vehicle.is_armed = False
+
+        def arm(*args, **kwargs):  # armed, and the EKF goes bad meanwhile
+            entries[1].vehicle.is_armed = True
+            entries[1].vehicle.ekf_status = dict(_EKF_STALE)
+
+        entries[1].vehicle.send_command_long.side_effect = arm
+        resp = self._post(entries, _mock_settings_store(), "restart")
+        assert len(_arm_calls(entries[1])) == 1
+        assert resp.json()["results"]["1"].startswith("blocked: Vehicle 1: EKF status stale")
+        entries[1].vehicle.set_mode.assert_not_called()
+
+    @pytest.mark.parametrize("force, gate_on, blocks", [
+        (False, True, True), (True, True, False), (False, False, False),
+    ])
+    def test_container_session_carries_gates_and_force(self, force, gate_on, blocks):
+        """The prepared container session re-checks with its own gates/force."""
+        import asyncio
+        from gcs.backend.models import LaunchRequest
+        from gcs.backend.routes import control_launch_actions
+
+        entries = {1: _make_entry(1, mission_uploaded=True)}
+        entries[1].vehicle.ekf_status = None
+        controller = MagicMock(is_running=False, is_prepared=True)
+        controller.prepare = AsyncMock()
+        settings = GcsSettings(launch=LaunchSettings(
+            launch_type="container", check_ekf_enabled=gate_on,
+        ))
+        asyncio.run(control_launch_actions._container_launch(
+            LaunchRequest(sys_ids=[1], force=force), settings,
+            vehicle_mgr=_mgr_for(entries), launch_controller=controller, _esp32_sim=None,
+        ))
+        recheck = controller.prepare.await_args.kwargs["ekf_recheck"]
+        assert bool(recheck(1)) is blocks

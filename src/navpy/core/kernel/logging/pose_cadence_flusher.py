@@ -62,7 +62,8 @@ class PoseCadenceFlusher:
             daemon=True,
         )
         try:
-            thread.start()
+            with rt.detached():  # owned by this component, not its creating request
+                thread.start()
         except BaseException:
             if thread.is_alive():
                 # Visibly launched: adopt it so stop() can terminate and join it.

@@ -561,12 +561,16 @@ class TestDemoAuditReadsTheListenerLog:
         from scripts.eval_gcs_demo_assignment_audit import (
             derive_global_assignment_map,
         )
-        from scripts.eval_gcs_demo_models import ThreeUavIds
-        from scripts.eval_gcs_demo_scenario import resolve_demo_plan
+        from scripts.eval_gcs_demo_models import UavIds
+        from scripts.eval_gcs_demo_scenario import (
+            CERTIFIED_SCENARIO_PATH,
+            load_scenario,
+            resolve_demo_plan,
+        )
 
         owner, peer_a, peer_b = 7, 4, 9
         plan = resolve_demo_plan(
-            ThreeUavIds.from_values((owner, peer_a, peer_b)),
+            UavIds.from_values((owner, peer_a, peer_b), 3),
             {"sys_id": owner, "waypoints": [
                 {
                     "lat": 40.0 + ordinal / 10_000,
@@ -578,6 +582,7 @@ class TestDemoAuditReadsTheListenerLog:
                 }
                 for ordinal in range(1, 8)
             ]},
+            load_scenario(CERTIFIED_SCENARIO_PATH),
         )
         for sys_id in (owner, peer_a, peer_b):
             listener.register_vehicle(sys_id, MagicMock())

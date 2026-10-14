@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling scripts (swa
 from gcs.backend import instance_ports as ip  # noqa: E402
 from gcs.backend import instance_registry as reg  # noqa: E402
 import swarm_run  # noqa: E402
+from gcs_stop_lockstep import stop_lockstep  # noqa: E402
 
 
 def _kill_tree(pid) -> None:
@@ -59,6 +60,9 @@ def _verified_pid(entry: dict, pid_key: str, start_key: str):
 
 def stop_chat(n: int, kill_sitl: bool = True) -> None:
     entry = reg.get(n)
+    if entry is not None and entry.get("lockstep") is not None:
+        stop_lockstep(n, kill=_kill_tree)  # by ownership records, never by sysid or port
+        return
     if entry is None:
         print(f"chat {n}: no registry entry (already stopped?)")
     else:
@@ -128,7 +132,11 @@ def main() -> int:
         # teardown never stops a concurrent interactive session's slot in the same
         # directory, and vice versa.
         label = "sitl-eval" if args.eval else "gcs"
-        entry = reg.find_for_owner(reg.owner_for(str(ROOT)), label=label)
+        owner = reg.owner_for(str(ROOT))
+        entry = reg.find_for_owner(owner, label=label)
+        if entry is None and args.eval:
+            # Only with no wall eval slot: this directory's lockstep slot (by ownership).
+            entry = reg.find_for_owner(owner, label=label, include_lockstep=True)
         if entry is None:
             band = "eval" if args.eval else "interactive"
             options = ["--chat N"]

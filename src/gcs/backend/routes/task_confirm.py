@@ -9,6 +9,10 @@ from fastapi import APIRouter, HTTPException
 from gcs.backend.models import TaskConfirmResponseRequest
 from gcs.backend.vehicle_manager import vehicle_mgr
 from gcs.backend.broadcast import manager as ws_manager
+from gcs.backend.task_confirm_resend import (
+    TASK_CONFIRM_RESPONSE_RESEND_GAP_S,
+    TASK_CONFIRM_RESPONSE_SENDS,
+)
 from gcs.backend.task_confirm_transport import correlated_meta
 from navpy.core.link.task_confirmation_msg import TaskConfirmResponseMsg
 from navpy.core.link.msg_meta import MsgMeta
@@ -17,14 +21,6 @@ from navpy.core.link.types import MsgType
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-# The confirm response is a single unacknowledged MAVLink packet and the
-# companion resolves its 30 s window by timeout, so one lost packet leaves
-# the UI showing a decision the UAV never received. There is no response-ack
-# in the protocol; blind retransmission is the compensator. Duplicates are
-# safe: the companion pops the pending-confirmation token on the first copy
-# and logs later copies as duplicates.
-TASK_CONFIRM_RESPONSE_SENDS = 3
-TASK_CONFIRM_RESPONSE_RESEND_GAP_S = 0.25
 
 
 # Operator action -> the is_confirmed value it must carry. The vehicle only

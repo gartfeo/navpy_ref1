@@ -31,9 +31,11 @@ from navpy.core.link.types import MsgType
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from gcs.backend.companion_identity import is_from_companion
 from gcs.backend.broadcast import manager as ws_manager
+from gcs.backend.producer_inventory import producers
 from gcs.backend.task_assign_rounds import AssignedTask, AssignRounds, Uid
 
 log = logging.getLogger(__name__)
+_PRODUCER = "task_assign_listener"
 
 
 class TaskAssignListener:
@@ -57,7 +59,9 @@ class TaskAssignListener:
     def register_vehicle(self, sys_id: int, vehicle: VehicleMav) -> None:
         """Register NAVLINK callback on a VehicleMav instance."""
         self._registered_ids.add(sys_id)
-        vehicle.on_message("NAVLINK", lambda msg, sid=sys_id: self._on_navlink(sid, msg))
+        producers.keep_subscription(_PRODUCER, vehicle.on_message(
+            "NAVLINK", lambda msg, sid=sys_id: self._on_navlink(sid, msg),
+        ))
         log.info("TaskAssignListener registered for vehicle %d", sys_id)
 
     def _on_navlink(self, sys_id: int, msg: MAVLink_message) -> None:
@@ -192,7 +196,7 @@ class TaskAssignListener:
 
     def _broadcast(self, payload: dict) -> None:
         """Thread-safe broadcast via asyncio event loop."""
-        asyncio.run_coroutine_threadsafe(ws_manager.broadcast(payload), self._loop)
+        producers.broadcast(_PRODUCER, ws_manager.broadcast(payload), self._loop)
 
 
 def _uid(message: MsgABC) -> Uid:

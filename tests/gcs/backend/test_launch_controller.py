@@ -78,9 +78,162 @@ def _prepare_args(lc, **overrides):
         altitude_timeout=30.0,
         arm_func=lambda sid: None,
         auto_func=lambda sid: None,
+        ekf_recheck=lambda sid: [],
     )
     defaults.update(overrides)
     return defaults
+
+
+class TestEkfRecheck(unittest.IsolatedAsyncioTestCase):
+    """The EKF is re-checked right before every arm and release.
+
+    ``bad`` holds the vehicles whose EKF has gone bad; each test flips it at
+    the point a real EKF could turn bad (before launch, or during a wait).
+    """
+
+    def _recheck(self, bad):
+        return lambda sid: [f"Vehicle {sid}: EKF status stale"] if sid in bad else []
+
+    async def _run(self, lc, mock_client, **prepare_kw):
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+            await lc.prepare(**_prepare_args(lc, **prepare_kw))
+            for sid in prepare_kw.get("sys_ids", [1]):
+                await lc.trigger_vehicle(sid)
+            await asyncio.gather(*lc._tasks.values())
+
+    @patch("gcs.backend.launch_controller.ws_manager")
+    async def test_bad_ekf_blocks_the_arm(self, mock_ws):
+        mock_ws.broadcast = AsyncMock()
+        lc = LaunchController()
+        mock_client = _make_mock_client()
+        arm_calls = []
+        lc._altitudes[1] = 0.0
+        await self._run(lc, mock_client, sys_ids=[1], settle_s=0.0,
+                        arm_func=arm_calls.append, ekf_recheck=self._recheck({1}))
+        self.assertEqual(arm_calls, [])
+        mock_client.trigger_channel.assert_not_called()
+        self.assertEqual(lc._states[1], VehicleState.failed)
+        self.assertIn("EKF status stale", lc._errors[1])
+
+    @patch("gcs.backend.launch_controller.ws_manager")
+    async def test_ekf_bad_during_arm_wait_blocks_the_release(self, mock_ws):
+        mock_ws.broadcast = AsyncMock()
+        lc = LaunchController()
+        mock_client = _make_mock_client()
+        bad = set()
+
+        def arm_func(sid):
+            bad.add(sid)  # the EKF goes bad while the arm is confirmed
+            lc._armed[sid] = True
+
+        lc._altitudes[1] = 0.0
+        await self._run(lc, mock_client, sys_ids=[1], settle_s=0.0,
+                        arm_func=arm_func, ekf_recheck=self._recheck(bad))
+        mock_client.trigger_channel.assert_not_called()
+        self.assertEqual(lc._states[1], VehicleState.failed)
+
+    @patch("gcs.backend.launch_controller.ws_manager")
+    async def test_already_armed_release_is_rechecked(self, mock_ws):
+        mock_ws.broadcast = AsyncMock()
+        lc = LaunchController()
+        mock_client = _make_mock_client()
+        lc._armed[1] = True
+        lc._altitudes[1] = 0.0
+        await self._run(lc, mock_client, sys_ids=[1], settle_s=0.0,
+                        ekf_recheck=self._recheck({1}))
+        mock_client.trigger_channel.assert_not_called()
+        self.assertEqual(lc._states[1], VehicleState.failed)
+
+    @patch("gcs.backend.launch_controller.ws_manager")
+    async def test_airborne_branch_arm_is_rechecked(self, mock_ws):
+        mock_ws.broadcast = AsyncMock()
+        lc = LaunchController()
+        mock_client = _make_mock_client()
+        arm_calls = []
+        lc._altitudes[1] = 50.0
+        await self._run(lc, mock_client, sys_ids=[1],
+                        arm_func=arm_calls.append, ekf_recheck=self._recheck({1}))
+        self.assertEqual(arm_calls, [])
+        self.assertEqual(lc._states[1], VehicleState.failed)
+
+    @patch("gcs.backend.launch_controller.ws_manager")
+    async def test_delayed_vehicle_whose_ekf_went_bad_is_not_armed(self, mock_ws):
+        """V2 waits for V1's launch; its EKF goes bad meanwhile."""
+        mock_ws.broadcast = AsyncMock()
+        lc = LaunchController()
+        mock_client = _make_mock_client()
+        bad = set()
+        arm_calls = []
+
+        def arm_func(sid):
+            arm_calls.append(sid)
+            lc._armed[sid] = True
+            lc._altitudes[sid] = 15.0  # airborne once armed and released
+            if sid == 1:
+                bad.add(2)
+
+        lc._altitudes.update({1: 0.0, 2: 0.0})
+        await self._run(lc, mock_client, sys_ids=[1, 2], channel_map={1: 1, 2: 2},
+                        settle_s=0.0, altitude_timeout=2.0,
+                        arm_func=arm_func, ekf_recheck=self._recheck(bad))
+        self.assertEqual(arm_calls, [1])
+        mock_client.trigger_channel.assert_called_once_with(1)
+        self.assertEqual(lc._states[1], VehicleState.airborne)
+        self.assertEqual(lc._states[2], VehicleState.failed)
+
+
+class TestEkfRecheckAfterBroadcast(unittest.IsolatedAsyncioTestCase):
+    """The state broadcast before an arm or release is itself a wait: the EKF
+    turning bad while it is awaited must still stop the command."""
+
+    def _broadcast_turning_bad(self, bad, sys_id, state):
+        async def broadcast(message):
+            if message.get("sys_id") == sys_id and message.get("state") == state:
+                await asyncio.sleep(0)
+                bad.add(sys_id)
+        return broadcast
+
+    async def _run(self, mock_ws, bad, state, **prepare_kw):
+        mock_ws.broadcast = AsyncMock(side_effect=self._broadcast_turning_bad(bad, 1, state))
+        lc = LaunchController()
+        mock_client = _make_mock_client()
+        arm_calls = []
+
+        def arm_func(sid):
+            arm_calls.append(sid)
+            lc._armed[sid] = True
+
+        lc._altitudes[1] = prepare_kw.pop("altitude", 0.0)
+        if prepare_kw.pop("armed", False):
+            lc._armed[1] = True
+        with patch("gcs.backend.esp32_trigger.Esp32TriggerClient", return_value=mock_client):
+            await lc.prepare(**_prepare_args(
+                lc, sys_ids=[1], settle_s=0.0, arm_func=arm_func,
+                ekf_recheck=lambda sid: ["Vehicle 1: EKF status stale"] if sid in bad else [],
+                **prepare_kw,
+            ))
+            await lc.trigger_vehicle(1)
+            await lc._tasks[1]
+        return lc, mock_client, arm_calls
+
+    @patch("gcs.backend.launch_controller.ws_manager")
+    async def test_arm_is_rechecked_after_the_arming_broadcast(self, mock_ws):
+        lc, client, arm_calls = await self._run(mock_ws, set(), "arming")
+        self.assertEqual(arm_calls, [])
+        client.trigger_channel.assert_not_called()
+        self.assertEqual(lc._states[1], VehicleState.failed)
+
+    @patch("gcs.backend.launch_controller.ws_manager")
+    async def test_airborne_arm_is_rechecked_after_the_arming_broadcast(self, mock_ws):
+        lc, _, arm_calls = await self._run(mock_ws, set(), "arming", altitude=50.0)
+        self.assertEqual(arm_calls, [])
+        self.assertEqual(lc._states[1], VehicleState.failed)
+
+    @patch("gcs.backend.launch_controller.ws_manager")
+    async def test_release_is_rechecked_after_the_launching_broadcast(self, mock_ws):
+        lc, client, _ = await self._run(mock_ws, set(), "launching", armed=True)
+        client.trigger_channel.assert_not_called()
+        self.assertEqual(lc._states[1], VehicleState.failed)
 
 
 class TestPrepare(unittest.IsolatedAsyncioTestCase):

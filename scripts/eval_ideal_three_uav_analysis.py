@@ -12,9 +12,9 @@ from scripts.eval_gcs_demo_analysis import (
 )
 from scripts.eval_gcs_demo_audit import validate_approval_records
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
-from scripts.eval_gcs_demo_models import RunReport, ThreeUavIds
+from scripts.eval_gcs_demo_models import RunReport
 from scripts.eval_gcs_demo_ports import JsonValue
-from scripts.eval_gcs_demo_scenario import load_resolved_plan
+from scripts.eval_gcs_demo_scenario import DemoScenario, load_resolved_plan
 from scripts.eval_ideal_three_uav_source_time import load_source_time_evidence
 from scripts.eval_ideal_three_uav_vehicle import analyze_ideal_vehicle
 
@@ -22,13 +22,14 @@ from scripts.eval_ideal_three_uav_vehicle import analyze_ideal_vehicle
 def analyze_ideal_run(
     log_dir: Path,
     *,
+    scenario: DemoScenario,
     sys_ids: Sequence[int] | None = None,
     approvals: list[dict[str, JsonValue]] | None = None,
 ) -> RunReport:
-    plan = load_resolved_plan(log_dir / "demo_mission_plan.json")
-    plan_ids = ThreeUavIds.from_values(plan.sys_ids)
+    plan = load_resolved_plan(log_dir / "demo_mission_plan.json", scenario)
+    plan_ids = scenario.uav_ids(plan.sys_ids)
     if sys_ids is not None:
-        supplied = ThreeUavIds.from_values(sys_ids)
+        supplied = scenario.uav_ids(sys_ids)
         if supplied.values != plan_ids.values:
             raise ValueError("supplied sysids do not match the resolved plan")
     approval_rows = validate_approval_records(
@@ -39,7 +40,7 @@ def analyze_ideal_run(
     counts, approval_errors = approval_counts(approval_rows, plan)
     evidence = global_assignment_evidence(log_dir, plan)
     assignments = evidence.assignments
-    source_time = load_source_time_evidence(log_dir, plan_ids.values)
+    source_time = load_source_time_evidence(log_dir, plan_ids.values, scenario)
     errors = approval_errors + evidence.errors + mission_assignment_errors(
         log_dir,
         plan,

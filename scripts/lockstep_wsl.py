@@ -2,11 +2,13 @@
 
 Each run gets its own WSL root (``~/navpy-eval-roots/lockstep-<run>``) with a
 copy of the serial-step firmware (checked against ``lockstep_firmware.lock``),
-pre-boot defaults and ``aas_params.lua`` only. Every WSL process (relay,
-SITL) is recorded the moment it is spawned, by WSL pid, process start time
+pre-boot defaults, ``aas_params.lua`` and the wall eval's pinned SITL terrain
+tiles only. Every WSL process (relay, SITL) is recorded the moment it is
+spawned, by WSL pid, process start time
 and cwd under the root, in ``<run>/lockstep_processes_host.json``, and is
 stopped only through those records (``docs/design/lockstep_contracts.md``,
-Ownership).
+Ownership). Spawning, and holding each child's ``wsl.exe`` handle and output,
+is ``lockstep_wsl_spawn``.
 """
 
 from __future__ import annotations
@@ -14,7 +16,8 @@ from __future__ import annotations
 import json
 import shlex
 import subprocess
-from dataclasses import asdict, dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.eval_gcs_demo_sitl_root import (
@@ -24,19 +27,22 @@ from scripts.eval_gcs_demo_sitl_root import (
     SITL_START_TIME_UTC,
     STOCK_DEFAULTS,
     merge_defaults,
+    sha256_bytes,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 PROC_HELPER = ROOT / "scripts" / "lockstep_wsl_proc.py"
 FIRMWARE_LOCK = ROOT / "scripts" / "lockstep_firmware.lock.json"
 PROCESSES_FILE = "lockstep_processes_host.json"
-#: Lockstep-only defaults on top of the wall eval's (step 3): no BIN log, no
-#: terrain IO thread, scripting for aas_params.lua only (contract: Firmware
-#: helpers).
+#: Lockstep-only defaults on top of the wall eval's (step 3): no BIN log,
+#: scripting for aas_params.lua only (contract: Firmware helpers). Terrain is
+#: on, as in the wall eval (the firmware default, stated): the SITL's ground
+#: and ``TERRAIN_REPORT`` come from the pinned tiles :func:`prepare_root`
+#: seeds; SITL reads them on its main thread (contract: Firmware helpers).
 LOCKSTEP_DEFAULT_OVERRIDES = {
     **SITL_DEFAULT_OVERRIDES,
     "LOG_BACKEND_TYPE": 0.0,
-    "TERRAIN_ENABLE": 0.0,
+    "TERRAIN_ENABLE": 1.0,
     "SCR_ENABLE": 1.0,
     "SIM_BAUDLIMIT_EN": 0.0,
 }
@@ -68,13 +74,25 @@ def load_firmware_lock() -> dict:
     return json.loads(FIRMWARE_LOCK.read_text(encoding="utf-8"))
 
 
-def prepare_root(run_name: str, instance: int) -> str:
-    """Create the run's WSL root and its instance directory; return the root."""
+def merged_defaults() -> str:
+    """The ``defaults.parm`` a lockstep SITL consumes: WSL's stock ``plane.parm``
+    with :data:`LOCKSTEP_DEFAULT_OVERRIDES` merged in. Read once per run, so the
+    input manifest hashes exactly what :func:`prepare_root` writes."""
+    home = wsl("printf %s \"$HOME\"")
+    stock = wsl(f"cat {shlex.quote(home + '/' + STOCK_DEFAULTS)}")
+    return merge_defaults(stock, LOCKSTEP_DEFAULT_OVERRIDES)
+
+
+def prepare_root(run_name: str, instance: int, defaults: str, tiles: Mapping[str, bytes]) -> str:
+    """Create the run's WSL root and its instance directory with ``defaults``
+    (:func:`merged_defaults`) as its ``defaults.parm`` and ``tiles``
+    (``eval_gcs_demo_sitl_root.terrain_tiles``, the wall eval's pinned SITL
+    terrain) in its ``terrain/``, where SITL looks (relative to its cwd);
+    return the root. Both are read once per run and hashed in the input
+    manifest, so it hashes exactly what is written here."""
     lock = load_firmware_lock()
     home = wsl("printf %s \"$HOME\"")
     root = f"{home}/{SITL_ROOTS}/lockstep-{run_name}"
-    stock = wsl(f"cat {shlex.quote(home + '/' + STOCK_DEFAULTS)}")
-    defaults = merge_defaults(stock, LOCKSTEP_DEFAULT_OVERRIDES)
     lua = (SITL_LUA_DIR / "aas_params.lua").read_bytes().replace(b"\r\n", b"\n")
     q = shlex.quote
     inst = f"{root}/{instance}"
@@ -88,56 +106,20 @@ def prepare_root(run_name: str, instance: int) -> str:
                    check=True, capture_output=True, timeout=60)
     subprocess.run(["wsl.exe", "-e", "bash", "-c", f"cat > {q(inst)}/scripts/aas_params.lua"],
                    input=lua, check=True, capture_output=True, timeout=60)
+    for name, data in sorted(tiles.items()):
+        tile = f"{inst}/terrain/{name}"
+        subprocess.run(
+            ["wsl.exe", "-e", "bash", "-c",
+             f"set -e; mkdir -p {q(inst)}/terrain; cat > {q(tile)}; "
+             f"test \"$(sha256sum {q(tile)} | cut -d' ' -f1)\" = {q(sha256_bytes(data))}"],
+            input=data, check=True, capture_output=True, timeout=60)
     return root
 
 
-def _proc(*args: object) -> str:
+def proc(*args: object) -> str:
+    """Run ``lockstep_wsl_proc.py`` in WSL (identity, stop, alive by record)."""
     helper = shlex.quote(wsl_path(PROC_HELPER))
     return wsl("python3 " + helper + " " + " ".join(shlex.quote(str(a)) for a in args)).strip()
-
-
-def spawn(role: str, script: str, cwd: str, record: Path) -> tuple[subprocess.Popen, OwnedProcess]:
-    """Start ``script`` in WSL under ``cwd``; it runs only once it is recorded.
-
-    The child stops itself before it runs anything. The WSL-side bash
-    publishes its pid only once it is stopped, then continues it on a ``go``
-    line from us, written after the pid, start time and cwd are recorded
-    atomically. Anything else (we fail, are interrupted or die: stdin closes)
-    makes that bash kill the child, so no unrecorded process survives. The
-    child runs as bash's child, not by an ``exec`` of the session's bash: a
-    SITL that replaced the top-level bash of a ``wsl.exe`` session exited
-    early.
-    """
-    launcher = (
-        f"cd {shlex.quote(cwd)} && {{ {{ kill -STOP $BASHPID; exec {script}; }} & c=$!; "
-        f"while [ \"$(cut -d' ' -f3 /proc/$c/stat)\" != T ]; do sleep 0.001; done; "
-        f"echo LOCKSTEP_PID $c; "
-        f"if read -r go && [ \"$go\" = go ]; then kill -CONT $c; wait $c; "
-        f"else kill -KILL $c; fi; }}"
-    )
-    process = subprocess.Popen(
-        ["wsl.exe", "-e", "bash", "-c", launcher],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.PIPE,
-    )
-    try:
-        first = process.stdout.readline().decode().split()
-        if len(first) != 2 or first[0] != "LOCKSTEP_PID":
-            raise RuntimeError(f"{role} did not report its pid: {first}")
-        pid = int(first[1])
-        ticks, proc_cwd = _proc("identity", pid).split(" ", 1)
-        owned = OwnedProcess(role, pid, int(ticks), proc_cwd)
-        records = json.loads(record.read_text()) if record.exists() else []
-        records.append(asdict(owned))
-        tmp = record.with_suffix(".tmp")
-        tmp.write_text(json.dumps(records, indent=2), encoding="utf-8")
-        tmp.replace(record)  # atomic: a crash never leaves a half-written record
-        process.stdin.write(b"go\n")
-        process.stdin.flush()
-    except BaseException:
-        process.stdin.close()  # EOF: the WSL bash kills the stopped child
-        process.wait(timeout=30)
-        raise
-    return process, owned
 
 
 def stop_owned(record: Path, root: str) -> list[str]:
@@ -148,11 +130,31 @@ def stop_owned(record: Path, root: str) -> list[str]:
     for owned in owned_list:
         if not owned.cwd.startswith(root + "/") and owned.cwd != root:
             raise RuntimeError(f"recorded process outside the run root: {owned}")
-    return [
-        f"{owned.role} {owned.wsl_pid}: "
-        + _proc("stop", owned.wsl_pid, owned.start_ticks, owned.cwd)
-        for owned in owned_list
-    ]
+    # Every record is tried whatever the others do; the failures are raised together.
+    reports, failures = [], []
+    for owned in owned_list:
+        try:
+            result = proc("stop", owned.wsl_pid, owned.start_ticks, owned.cwd)
+        except Exception as error:  # noqa: BLE001 - reported after the rest are tried
+            failures.append(f"{owned.role} {owned.wsl_pid}: {type(error).__name__}: {error}")
+            continue
+        reports.append(f"{owned.role} {owned.wsl_pid}: {result}")
+    if failures:
+        raise RuntimeError(f"could not stop {'; '.join(failures)} (stopped: {reports})")
+    return reports
+
+
+def stop_recorded(wsl_pid: int, start_ticks: int, cwd: str, root: str) -> str:
+    """Stop one recorded WSL process if it is still the recorded one (``gcs_stop``)."""
+    if not cwd.startswith(root + "/") and cwd != root:
+        raise RuntimeError(f"recorded process outside the run root: {wsl_pid} {cwd}")
+    return proc("stop", wsl_pid, start_ticks, cwd)
+
+
+def recorded_alive(wsl_pid: int, start_ticks: int, cwd: str, root: str) -> bool:
+    """A fresh probe: does the pid still name the recorded process?"""
+    del root
+    return proc("alive", wsl_pid, start_ticks, cwd) == "alive"
 
 
 def sitl_command(root: str, home: str, instance: int, sysid: int) -> str:
@@ -183,11 +185,14 @@ __all__ = [
     "OwnedProcess",
     "PROCESSES_FILE",
     "load_firmware_lock",
+    "merged_defaults",
     "prepare_root",
+    "proc",
+    "recorded_alive",
     "sitl_command",
     "sitl_environment",
-    "spawn",
     "stop_owned",
+    "stop_recorded",
     "wsl",
     "wsl_path",
 ]

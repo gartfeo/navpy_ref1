@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Protocol
 
 import orjson
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from gcs.backend.broadcast import manager as ws_manager
+from gcs.backend.producer_inventory import producers
 from gcs.backend.vehicle_manager import vehicle_mgr
 from navpy.core.kernel import runtime_time as rt
 
@@ -54,7 +56,7 @@ async def _mc_send_loop() -> None:
 def _ensure_mc_loop() -> None:
     global _mc_task
     if _mc_task is None or _mc_task.done():
-        _mc_task = asyncio.get_running_loop().create_task(_mc_send_loop())
+        _mc_task = producers.create_task("manual_control", _mc_send_loop())
 
 
 def _handle_manual_control(msg: dict) -> None:
@@ -85,18 +87,29 @@ def _handle_manual_control_stop(msg: dict) -> None:
 # ---------------------------------------------------------------------------
 # WebSocket endpoint
 # ---------------------------------------------------------------------------
+class BytesSubscriber(Protocol):
+    """A WebSocket, or the lockstep event sink's subscriber."""
+
+    async def send_bytes(self, data: bytes) -> None: ...
+
+
+async def send_initial_state(ws: BytesSubscriber) -> None:
+    """A new subscriber's first message: every vehicle's snapshot, if any."""
+    snapshots = vehicle_mgr.get_all_snapshots()
+    if snapshots:
+        await ws.send_bytes(orjson.dumps({
+            "type": "telemetry",
+            "vehicles": snapshots,
+            "ts": rt.time(),
+        }))
+
+
 @router.websocket("/ws/telemetry")
 async def telemetry_ws(ws: WebSocket):
     await ws_manager.connect(ws)
     try:
         # Send initial state on connect
-        snapshots = vehicle_mgr.get_all_snapshots()
-        if snapshots:
-            await ws.send_bytes(orjson.dumps({
-                "type": "telemetry",
-                "vehicles": snapshots,
-                "ts": rt.time(),
-            }))
+        await send_initial_state(ws)
 
         # Keep connection alive, process incoming messages
         while True:

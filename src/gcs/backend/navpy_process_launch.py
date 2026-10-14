@@ -103,19 +103,25 @@ def _normalize_log_level(value: str | None) -> str | None:
         return None
 
 
-def _build_navpy_command(
+#: How the managing side stops NavPy: a request line on its stdin (wall), or
+#: the coordinator's lifecycle record (a lockstep participant; no thread
+#: reads stdin there, ``lockstep_slice.md``, "Participant stop").
+STOP_ON_STDIN = "--stop-on-stdin"
+STOP_ON_LIFECYCLE = "--stop-on-lifecycle"
+
+
+def navpy_arguments(
     sys_id: int,
     connection: str,
     *,
+    stop_flag: str,
     detector_debug_show: bool,
     vision_profile: str | None,
     log_level: str | None,
     navigation_speedup: float,
 ) -> list[str]:
+    """NavPy's command-line arguments (after ``-m navpy.main``)."""
     command = [
-        sys.executable,
-        "-m",
-        "navpy.main",
         "-c",
         connection,
         "-ss",
@@ -124,8 +130,8 @@ def _build_navpy_command(
         "mav",
         "--detector-type",
         "sim",
-        # The manager stops it with an acknowledged request on stdin.
-        "--stop-on-stdin",
+        # The manager stops it with an acknowledged request.
+        stop_flag,
     ]
     if navigation_speedup > 0.0:
         command.extend(["-gsu", str(navigation_speedup)])
@@ -139,6 +145,47 @@ def _build_navpy_command(
     if detector_debug_show:
         command.append("--detector-debug-show")
     return command
+
+
+def lockstep_navpy_argv(
+    sys_id: int,
+    device: str,
+    *,
+    vision_profile: str | None = None,
+    log_level: str | None = None,
+) -> list[str]:
+    """A lockstep companion's arguments (its spawn record's ``argv``): the
+    logical device, the lifecycle stop, no navigation speedup (nothing under
+    lockstep writes ``SIM_SPEEDUP``) and no debug window."""
+    return navpy_arguments(
+        sys_id,
+        device,
+        stop_flag=STOP_ON_LIFECYCLE,
+        detector_debug_show=False,
+        vision_profile=vision_profile,
+        log_level=log_level,
+        navigation_speedup=0.0,
+    )
+
+
+def _build_navpy_command(
+    sys_id: int,
+    connection: str,
+    *,
+    detector_debug_show: bool,
+    vision_profile: str | None,
+    log_level: str | None,
+    navigation_speedup: float,
+) -> list[str]:
+    return [sys.executable, "-m", "navpy.main", *navpy_arguments(
+        sys_id,
+        connection,
+        stop_flag=STOP_ON_STDIN,
+        detector_debug_show=detector_debug_show,
+        vision_profile=vision_profile,
+        log_level=log_level,
+        navigation_speedup=navigation_speedup,
+    )]
 
 
 def launch_navpy_instance(
@@ -228,4 +275,10 @@ def launch_navpy_instance(
     return inst
 
 
-__all__ = ["launch_navpy_instance"]
+__all__ = [
+    "STOP_ON_LIFECYCLE",
+    "STOP_ON_STDIN",
+    "launch_navpy_instance",
+    "lockstep_navpy_argv",
+    "navpy_arguments",
+]

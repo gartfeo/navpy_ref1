@@ -27,6 +27,7 @@ from navpy.core.flow.poi_status_decision import (
 )
 from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
+from navpy.core.flow.nav_state import NavState
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
@@ -52,7 +53,7 @@ def _compose_poi_status(
         observation.status,
         PoiPresenceReview(
             PoiPresencePorts(
-                final_approach_active=lambda: navigation.final_approach.is_active,
+                final_approach_running=lambda: state.phase.is_current(NavState.NAV),
                 absolute_location=approach.commands.absolute_location,
             ),
             state.geo_hold,

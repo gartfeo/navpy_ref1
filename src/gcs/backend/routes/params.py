@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -69,3 +70,32 @@ async def set_vehicle_params(sys_id: int, body: dict):
     if written_mav_names:
         full_param_cache.invalidate_keys(sys_id, written_mav_names)
     return {"sys_id": sys_id, "results": results}
+
+
+@router.get("/{sys_id}/params/named")
+async def read_named_params(sys_id: int, names: str) -> dict[str, Any]:
+    """Read parameters by name, each fresh from the vehicle (never the cache).
+
+    ``names`` is comma separated. The lockstep eval reads its command bounds
+    here, since serial-step refuses MAVFTP; wall mode keeps the full MAVFTP
+    snapshot. The answer has the full snapshot's ``params`` record shape. A
+    name the vehicle does not answer (missing, or no reply in time) is an
+    error that lists it.
+    """
+    entry = vehicle_mgr.get_vehicle(sys_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Vehicle {sys_id} not connected")
+    requested = [name.strip().upper() for name in names.split(",") if name.strip()]
+    if not requested or len(set(requested)) != len(requested):
+        raise HTTPException(status_code=400, detail="names must be distinct and non-empty")
+    loop = asyncio.get_running_loop()
+    records, unanswered = [], []
+    for name in requested:
+        value = await loop.run_in_executor(None, entry.vehicle.get_parameter_fresh, name)
+        if value is None:
+            unanswered.append(name)
+        else:
+            records.append({"name": name, "value": value})
+    if unanswered:
+        raise HTTPException(status_code=502, detail={"unanswered": unanswered})
+    return {"sys_id": sys_id, "params": records}

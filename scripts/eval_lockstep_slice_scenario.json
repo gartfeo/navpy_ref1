@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "gate_profile": "owner_only_slice",
+  "slots": [
+    {
+      "name": "owner",
+      "role": "owner"
+    }
+  ],
+  "owner_slot": "owner",
+  "poi_nav_waypoint_ordinals": [
+    2
+  ],
+  "home": "40.3117414,44.455211099999985,1294.86,0.0",
+  "missions": [
+    {
+      "waypoints": [
+        {
+          "lat": 40.31,
+          "lon": 44.4519
+        },
+        {
+          "lat": 40.3028,
+          "lon": 44.4519
+        },
+        {
+          "lat": 40.3028,
+          "lon": 44.4497
+        },
+        {
+          "lat": 40.31,
+          "lon": 44.4497
+        },
+        {
+          "lat": 40.31,
+          "lon": 44.4475
+        },
+        {
+          "lat": 40.3028,
+          "lon": 44.4475
+        }
+      ],
+      "altitude_m": 240.0,
+      "corridor_count": 0,
+      "corridor_altitude_m": null,
+      "search_pattern": "distributed",
+      "polygon": [
+        {
+          "lat": 40.31,
+          "lon": 44.4332
+        },
+        {
+          "lat": 40.31,
+          "lon": 44.453
+        },
+        {
+          "lat": 40.3028,
+          "lon": 44.453
+        },
+        {
+          "lat": 40.3028,
+          "lon": 44.4332
+        }
+      ],
+      "corridor_backbone": [],
+      "launch_point": {
+        "lat": 40.3118106,
+        "lon": 44.45604
+      },
+      "default_delivery_hub": {
+        "lat": 40.3099864,
+        "lon": 44.4561868,
+        "type": "building"
+      }
+    }
+  ]
+}

@@ -64,8 +64,16 @@ Frontend:
   evals (`scripts/eval_lockstep_single.py`) claim an eval-band slot themselves,
   start their WSL relay and serial-step SITL from a per-run root, record each
   process (pid, start time, cwd) at spawn and stop only those records; they
-  never stop by sysid or name. The lockstep backend (step 9) will be the one
-  exception to "no `gcs_launch` for eval-only runs". Manual
+  never stop by sysid or name. The lockstep coordinator (step 9; run it with
+  `python scripts\eval_gcs_navigation_demo.py --lockstep --scenario scripts\eval_lockstep_slice_scenario.json --seed 1 --run-dir <dir>`,
+  1-UAV slice only) is the one
+  exception to "no `gcs_launch` for eval-only runs": `gcs_launch.lockstep_claim`
+  claims an eval-band `lockstep` slot in-process with the full owner identity
+  (pid, start time, run token, claim nonce); children are recorded under the
+  registry lock and released only by `release_if_owner`. `gcs_stop` on such a
+  slot marks it `stopping`, stops its recorded children and the coordinator,
+  then compare-releases; an entry whose owner died stays (and its slot stays
+  unclaimable) while a recorded child lives, until `gcs_stop` cleans it. Manual
   `run_swarm.sh` invocations (WSL, `~/ardupilot/Tools/autotest/run_swarm.sh`)
   must pass `COMPANION_UDP=1` to match launcher-started companions.
 - `--chat N` exists as an advanced manual override of the slot/band — never

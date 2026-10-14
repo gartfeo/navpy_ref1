@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_GCS, MAV_COMP_ID_MISSIONPLANNER
 # NAVLINK message classes register on import (@register_msg), and every
 # VehicleMav here asks that registry which inbound MAVLink ids are NAVLINK:
@@ -18,10 +18,11 @@ from navpy.core.link import (  # noqa: F401  (registration imports)
     task_confirmation_msg,
 )
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
-from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
+from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusClosedError
 from gcs.backend.vehicle_entry import VehicleEntry
 from gcs.backend import vehicle_connections, vehicle_mission_probe
+from gcs.backend.ekf_status_gate import request_ekf_status_stream
 from gcs.backend.vehicle_status import (
     GIMBAL_TELEMETRY_STALE_S, CAMERA_OPTICS_STALE_S,
     COMPANION_OK_WINDOW_S, COMPANION_DOWN_WINDOW_S, RC_CHANNELS_MAX,
@@ -35,13 +36,18 @@ from gcs.backend.vehicle_camera import (
     _coerce_fov_degrees_to_rad, _coerce_positive_float,
 )
 
+if TYPE_CHECKING:
+    from gcs.backend.mission_validator import MissionProbe
+
 log = logging.getLogger(__name__)
 
 
 class VehicleManager:
     """Own the vehicle pool, its buses, listeners and telemetry loop."""
 
-    def __init__(self):
+    def __init__(self, open_bus: MavBusOpener = MavBus.get_or_create):
+        """``open_bus`` opens a device's bus: a lockstep link's ``open`` under lockstep."""
+        self._open_bus = open_bus
         self._vehicles: dict[int, VehicleEntry] = {}
         self._lock = rt.RLock()
         self._buses: dict[str, MavBus] = {}  # device -> MavBus
@@ -49,6 +55,17 @@ class VehicleManager:
         self._task_confirm_listener = None
         self._task_assign_listener = None
         self._compass_cal_listener = None
+
+    def set_bus_opener(self, open_bus: MavBusOpener) -> None:
+        """Use ``open_bus`` for every later open (a lockstep link's ``open``).
+
+        The seam for the module-level manager, which is built at import: it is
+        set before the first open, never swapped under a live bus.
+        """
+        with self._lock:
+            if self._buses:
+                raise RuntimeError("the bus opener is set before any bus is open")
+            self._open_bus = open_bus
 
     def set_task_confirm_listener(self, listener) -> None:
         """Set the TaskConfirmListener for new vehicle registrations."""
@@ -85,7 +102,7 @@ class VehicleManager:
                 self._buses.pop(device, None)
                 bus = None
             if bus is None:
-                bus = MavBus.get_or_create(device, source_system=255, source_component=0)
+                bus = self._open_bus(device, source_system=255, source_component=0)
                 self._buses[device] = bus
             return bus
 
@@ -148,6 +165,9 @@ class VehicleManager:
         if self._compass_cal_listener:
             self._compass_cal_listener.register_vehicle(sys_id, vehicle)
         log.info("Vehicle %d (%s) connected", sys_id, vname)
+        # Every connection (reconnect goes through here too) asks for the
+        # estimator report the launch gate reads.
+        request_ekf_status_stream(vehicle, sys_id)
         # Probe the existing mission OFF the connect path. The probe is a
         # blocking MAVLink mission download (seconds); running it inline made a
         # vehicle — and every later vehicle in a serial discover — invisible in

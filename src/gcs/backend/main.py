@@ -14,11 +14,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from gcs.backend.vehicle_manager import vehicle_mgr
 from gcs.backend.routes import health, telemetry
 from gcs.backend.diagnostics import diagnostic_session
+from gcs.backend.producer_inventory import producers
 from gcs.backend.route_registration import register_optional_routes
 from gcs.backend.frontend_static import mount_frontend
 from gcs.backend.runtime_paths import frontend_dist_dir, gcs_log_dir
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging import pose_cadence_debug
+from navpy.core.kernel.logging.log_output_latch import LatchingRotatingFileHandler, OutputLatch
 from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
 
 logging.basicConfig(
@@ -27,6 +29,8 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger(__name__)
+#: Set by any backend file-log write (or setup) failure; a lockstep drain checks it.
+file_log_latch = OutputLatch()
 # The backend's own MAVLink readers record arrivals too; keep them apart from
 # the companions' files.
 pose_cadence_debug.set_producer("gcs")
@@ -49,8 +53,9 @@ def _add_file_logging(log_dir: Path | None = None) -> Path | None:
         for h in root.handlers:
             if isinstance(h, RotatingFileHandler) and getattr(h, "baseFilename", None) == str(target):
                 return target  # already attached
-        handler = RotatingFileHandler(
+        handler = LatchingRotatingFileHandler(
             target, maxBytes=rotation_max_bytes(5_000_000), backupCount=3, encoding="utf-8",
+            latch=file_log_latch,
         )
         handler.setLevel(logging.INFO)
         handler.setFormatter(logging.Formatter(
@@ -58,11 +63,19 @@ def _add_file_logging(log_dir: Path | None = None) -> Path | None:
             datefmt="%Y-%m-%d %H:%M:%S",
         ))
         root.addHandler(handler)
-        log.info("Backend file logging -> %s", target)
+        log.info("Backend file logging -> %s", target.as_posix())
         return target
     except Exception as exc:  # never let logging setup break startup
+        file_log_latch.latch()
         log.warning("Could not set up backend file logging: %s", exc)
         return None
+
+
+def check_file_logging() -> None:
+    """Raise ``LogOutputFailed`` if a backend log line failed to reach its file."""
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+    file_log_latch.check()
 
 
 async def _startup_autoconnect() -> None:
@@ -139,9 +152,12 @@ async def _startup_autoconnect() -> None:
         log.info("Startup auto-connect: no vehicles found on %s", device)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Startup/shutdown lifecycle."""
+async def startup() -> asyncio.Task:
+    """Lifespan startup; returns the auto-connect task shutdown cancels.
+
+    The lockstep backend participant runs it at its admission tick and has
+    its own strict shutdown (``gcs.backend.lockstep.shutdown``).
+    """
     _add_file_logging()
     diagnostic_session.start()
     log.info("AAS GCS backend starting...")
@@ -174,8 +190,11 @@ async def lifespan(app: FastAPI):
 
     await vehicle_mgr.start_telemetry_loop()
     # Server-side auto-connect to this chat's running SITL (no browser needed).
-    autoconnect_task = asyncio.create_task(_startup_autoconnect())
-    yield
+    return producers.create_task("autoconnect", _startup_autoconnect())
+
+
+async def shutdown(autoconnect_task: asyncio.Task) -> None:
+    """Lifespan shutdown: best effort, as a desktop backend exits."""
     autoconnect_task.cancel()
     log.info("AAS GCS backend shutting down...")
     # Stop ESP32 simulator if it was started via the API
@@ -193,6 +212,14 @@ async def lifespan(app: FastAPI):
     await vehicle_mgr.stop_telemetry_loop()
     vehicle_mgr.shutdown()
     diagnostic_session.stop()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup/shutdown lifecycle."""
+    autoconnect_task = await startup()
+    yield
+    await shutdown(autoconnect_task)
 
 
 app = FastAPI(

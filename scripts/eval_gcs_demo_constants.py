@@ -20,7 +20,6 @@ GCS_STOP = ROOT / "scripts" / "gcs_stop.py"
 GCS_LOG_SUBDIR = "gcs"
 SCENARIO_MANIFEST_PATH = ROOT / "scripts" / "eval_gcs_demo_scenario.json"
 
-EXPECTED_UAV_COUNT = 3
 EXPECTED_NAV_LAST_WP_ORDINAL = 1
 SIM_SPEEDUP = 10.0
 NAVIGATION_SPEEDUP_OVERRIDE = 0.0
@@ -47,7 +46,6 @@ __all__ = [
     "GCS_LOG_SUBDIR",
     "backend_log_path",
     "EVALUATOR_LOCK_PATH",
-    "EXPECTED_UAV_COUNT",
     "EXPECTED_NAV_LAST_WP_ORDINAL",
     "FORBIDDEN_VISION_PROFILE",
     "GCS_LAUNCH",

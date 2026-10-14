@@ -25,6 +25,7 @@ from scripts.eval_gcs_demo_models import (
     finite_number,
     positive_int,
 )
+from scripts.eval_gcs_demo_gate_profiles import CERTIFIED_PROFILE
 from scripts.eval_gcs_demo_snap import (
     navigation_snap_distance,
     parse_compact_snap_distances,
@@ -157,6 +158,7 @@ def analyze_vehicle(
     launch_speedup: float = SIM_SPEEDUP,
     command_bounds: VehicleCommandBounds | None = None,
     assignment_acked: bool = False,
+    gate_profile: str = CERTIFIED_PROFILE,
 ) -> VehicleReport:
     checked_sys_id = positive_int("sys_id", sys_id)
     if role not in {"owner", "peer"}:
@@ -199,6 +201,7 @@ def analyze_vehicle(
             navigation_speedup=requested_speedup,
             launch_speedup=launch_speed,
             assignment_acked=assignment_acked,
+            gate_profile=gate_profile,
         )
     )
     errors.extend(

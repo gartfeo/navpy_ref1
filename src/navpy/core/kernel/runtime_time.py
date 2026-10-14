@@ -1,12 +1,10 @@
 """RuntimeTime: the one port for clocks, waits, threads, queues, RNG and ids.
 
-Product code in the covered packages uses this module (imported as ``rt``)
-instead of ``time``, ``threading``, ``queue``, ``random``, ``uuid``,
-``secrets`` and ``datetime.now``; ``tests/guards/test_runtime_time_lint.py``
-enforces it. A process binds one runtime before its first use, so the
-lockstep eval (``deterministic_demo_eval.md`` step 9) can run the same code on
-the sim clock. ``wall_runtime()``, the default, is today's behavior: it calls
-the standard library at call time, so patches of the standard library apply.
+Covered product code uses this module (``rt``) instead of ``time``, ``threading``,
+``queue``, ``random``, ``uuid``, ``secrets`` and ``datetime.now`` (enforced by
+``tests/guards/test_runtime_time_lint.py``). A process binds one runtime before
+first use, so lockstep (``deterministic_demo_eval.md`` step 9) runs the same code
+on the sim clock; ``wall_runtime()``, the default, calls the standard library.
 """
 
 from __future__ import annotations
@@ -17,16 +15,16 @@ import secrets as _secrets
 import threading as _threading
 import time as _time
 import uuid as _uuid
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, tzinfo
-from typing import Any, Callable, Iterable, Mapping, Optional, Protocol
+from typing import Any, Callable, ContextManager, Iterable, Mapping, Optional, Protocol
 
 Empty = _queue.Empty
 
 
 class LockPort(Protocol):
     """What callers of a runtime lock may use (annotations only)."""
-
     def acquire(self, blocking: bool = True, timeout: float = -1) -> bool: ...
 
     def release(self) -> None: ...
@@ -34,6 +32,17 @@ class LockPort(Protocol):
     def __enter__(self) -> bool: ...
 
     def __exit__(self, *exc: object) -> object: ...
+
+
+class QueuePort(Protocol):
+    """What callers of a runtime queue may use (annotations only)."""
+    def put(self, item: Any, block: bool = True, timeout: Optional[float] = None) -> None: ...
+
+    def get(self, block: bool = True, timeout: Optional[float] = None) -> Any: ...
+
+    def task_done(self) -> None: ...
+
+    def join(self) -> None: ...
 
 
 class ClockPort(Protocol):
@@ -52,28 +61,20 @@ class ThreadsPort(Protocol):
     """Threads and every primitive that can park one."""
 
     def Lock(self) -> Any: ...
-
     def RLock(self) -> Any: ...
-
     def Condition(self, lock: Any = None) -> Any: ...
-
     def Event(self) -> Any: ...
-
     def Semaphore(self, value: int = 1) -> Any: ...
-
     def BoundedSemaphore(self, value: int = 1) -> Any: ...
-
     def Thread(self, **kwargs: Any) -> Any: ...
-
     def Timer(self, interval: float, function: Callable[..., object],
               args: Optional[Iterable[Any]] = None,
               kwargs: Optional[Mapping[str, Any]] = None) -> Any: ...
-
     def current_thread(self) -> Any: ...
-
     def get_ident(self) -> int: ...
-
     def Queue(self, maxsize: int = 0) -> Any: ...
+    def shielded(self) -> ContextManager[None]: ...
+    def detached(self) -> ContextManager[None]: ...
 
 
 class EntropyPort(Protocol):
@@ -145,6 +146,12 @@ class WallThreads:
 
     def Queue(self, maxsize: int = 0) -> Any:
         return _queue.Queue(maxsize)
+
+    def shielded(self) -> ContextManager[None]:
+        return nullcontext()  # wall waits are never cancelled
+
+    def detached(self) -> ContextManager[None]:
+        return nullcontext()
 
 
 class WallEntropy:
@@ -257,6 +264,18 @@ def Queue(maxsize: int = 0) -> Any:
     return _binding.current().threads.Queue(maxsize)
 
 
+def shielded() -> ContextManager[None]:
+    """Rollback or cleanup: its waits ignore a lockstep cancel (wall: no-op)."""
+    return _binding.current().threads.shielded()
+
+
+def detached() -> ContextManager[None]:
+    """Long-lived workers started here are owned by their component (a vehicle,
+    a transport, a logger) and stopped by its close, never by the calling
+    request's lockstep cancel: they do not inherit its scope (wall: no-op)."""
+    return _binding.current().threads.detached()
+
+
 def rng() -> Any:
     """The runtime's random generator (``uniform``, ``randint``, ...)."""
     return _binding.current().entropy.rng()
@@ -271,9 +290,9 @@ def token_urlsafe(nbytes: Optional[int] = None) -> str:
 
 
 __all__ = [
-    "BoundedSemaphore", "ClockPort", "Condition", "Empty", "EntropyPort", "Event",
-    "Lock", "LockPort", "Queue", "RLock", "RuntimeBinding", "RuntimeTime",
-    "Semaphore", "Thread", "ThreadsPort", "Timer", "WallClock", "WallEntropy",
-    "WallThreads", "bind", "current_thread", "get_ident", "monotonic", "now",
-    "perf_counter", "rng", "sleep", "time", "token_urlsafe", "uuid4", "wall_runtime",
+    "BoundedSemaphore", "ClockPort", "Condition", "Empty", "EntropyPort", "Event", "Lock",
+    "LockPort", "Queue", "QueuePort", "RLock", "RuntimeBinding", "RuntimeTime", "Semaphore",
+    "Thread", "ThreadsPort", "Timer", "WallClock", "WallEntropy", "WallThreads", "bind",
+    "current_thread", "detached", "get_ident", "monotonic", "now", "perf_counter", "rng", "shielded",
+    "sleep", "time", "token_urlsafe", "uuid4", "wall_runtime",
 ]

@@ -649,7 +649,9 @@ def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
     ))
     monkeypatch.setattr(composition, "LoggerArgs", lambda _args: object())
     monkeypatch.setattr(composition, "initialize_logger", lambda *_args: logger)
-    monkeypatch.setattr(composition, "create_vehicle", lambda *_args: vehicle)
+    openers = []
+    monkeypatch.setattr(composition, "create_vehicle",
+                        lambda *_args, open_bus: openers.append(open_bus) or vehicle)
     monkeypatch.setattr(composition, "NetworkArgs", lambda _args: object())
     monkeypatch.setattr(composition, "create_network", lambda *_args: network)
     monkeypatch.setattr(composition, "NavigationArgs", lambda *_args: navigation_args)
@@ -666,6 +668,8 @@ def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
 
     assert foundation.scheduler_cadence is cadence
     cadence_type.assert_called_once_with(vehicle.sim_speedup)
+    # Wall ports: the process bus registry (a lockstep participant binds its link).
+    assert openers == [composition.MavBus.get_or_create]
     vehicle.is_simulated_autopilot.assert_not_called()
     assert ("dependent", "simulation cadence") in registrations
     # The reader dispatches into the logger: the logger waits for it.

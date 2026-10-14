@@ -143,4 +143,33 @@ class FileTail:
         return "".join(self.parts)
 
 
-__all__ = ["FileTail", "GcsApi", "TelemetryEventStream"]
+def navigation_log_path(log_dir: Path, sys_id: int) -> Path:
+    return log_dir / f"uav_{sys_id}_navigation.log"
+
+
+class NavigationLogTails:
+    """Wall NavPy log tails: one FileTail per sysid over the run's navigation log.
+
+    A sysid's tail is created on first use and kept, so its text grows with
+    the log; a log not yet written reads as empty.
+    """
+
+    def __init__(self, log_dir: Path) -> None:
+        self._log_dir = log_dir
+        self._tails: dict[int, FileTail] = {}
+
+    def __call__(self, sys_id: int) -> FileTail:
+        tail = self._tails.get(sys_id)
+        if tail is None:
+            tail = FileTail(navigation_log_path(self._log_dir, sys_id), 0)
+            self._tails[sys_id] = tail
+        return tail
+
+
+__all__ = [
+    "FileTail",
+    "GcsApi",
+    "NavigationLogTails",
+    "TelemetryEventStream",
+    "navigation_log_path",
+]

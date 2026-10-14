@@ -20,9 +20,12 @@ from navpy.core.skills.geo_approach.peer_poi_mission_writer import PeerPoiMissio
 from navpy.plugins.vehicle.ardupilot.mav_mission import MavMission
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 from navpy.plugins.vehicle.ardupilot.message_store import (
-    MESSAGE_HISTORY_LIMIT,
     MessageHistoryOverrun,
     MessageStore,
+)
+from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import (
+    MESSAGE_HISTORY_POLICY,
+    RESPONSE_HISTORY_DEPTH,
 )
 from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
@@ -40,7 +43,7 @@ from navpy.plugins.vehicle.ardupilot.vehicle_lifecycle import VehicleLifecycle
 
 
 def test_message_store_wait_after_rejects_pre_request_sample():
-    store = MessageStore()
+    store = MessageStore(MESSAGE_HISTORY_POLICY)
     stale = object()
     store.publish("MISSION_COUNT", stale, receipt_time_s=10.0)
     cursor = store.cursor("MISSION_COUNT")
@@ -65,7 +68,7 @@ def test_message_store_wait_after_rejects_pre_request_sample():
 
 
 def test_message_store_retains_matching_same_type_burst_for_concurrent_waiters():
-    store = MessageStore()
+    store = MessageStore(MESSAGE_HISTORY_POLICY)
     cursor = store.cursor("PARAM_VALUE")
     requested_a = SimpleNamespace(param_id="A")
     requested_b = SimpleNamespace(param_id="B")
@@ -98,11 +101,11 @@ def test_message_store_retains_matching_same_type_burst_for_concurrent_waiters()
 
 
 def test_message_store_reports_cursor_overrun_instead_of_false_timeout():
-    store = MessageStore()
+    store = MessageStore(MESSAGE_HISTORY_POLICY)
     cursor = store.cursor("PARAM_VALUE")
     wanted = SimpleNamespace(param_id="WANTED")
     store.publish("PARAM_VALUE", wanted, receipt_time_s=1.0)
-    for index in range(MESSAGE_HISTORY_LIMIT):
+    for index in range(RESPONSE_HISTORY_DEPTH):
         store.publish(
             "PARAM_VALUE",
             SimpleNamespace(param_id=f"NOISE_{index}"),
@@ -122,11 +125,11 @@ def test_message_store_reports_cursor_overrun_instead_of_false_timeout():
 
 
 def test_message_store_retains_match_at_exact_history_capacity():
-    store = MessageStore()
+    store = MessageStore(MESSAGE_HISTORY_POLICY)
     cursor = store.cursor("PARAM_VALUE")
     wanted = SimpleNamespace(param_id="WANTED")
     store.publish("PARAM_VALUE", wanted, receipt_time_s=1.0)
-    for index in range(MESSAGE_HISTORY_LIMIT - 1):
+    for index in range(RESPONSE_HISTORY_DEPTH - 1):
         store.publish(
             "PARAM_VALUE",
             SimpleNamespace(param_id=f"NOISE_{index}"),
@@ -145,9 +148,9 @@ def test_message_store_retains_match_at_exact_history_capacity():
 
 
 def test_message_store_does_not_report_overrun_before_first_eviction():
-    store = MessageStore()
+    store = MessageStore(MESSAGE_HISTORY_POLICY)
     cursor = store.cursor("PARAM_VALUE")
-    for index in range(MESSAGE_HISTORY_LIMIT):
+    for index in range(RESPONSE_HISTORY_DEPTH):
         store.publish(
             "PARAM_VALUE",
             SimpleNamespace(param_id=f"NOISE_{index}"),
@@ -185,7 +188,7 @@ def test_mission_store_replacement_swaps_only_after_full_build():
     original = Loader(["old"])
     store = MissionStore(
         7,
-        MessageStore(),
+        MessageStore(MESSAGE_HISTORY_POLICY),
         loader=original,
         loader_factory=lambda: Loader(fail_on="bad"),
     )
@@ -487,7 +490,7 @@ def test_lifecycle_serializes_bus_attachment_before_close():
 
 
 def test_message_store_publishes_one_atomic_sample():
-    store = MessageStore()
+    store = MessageStore(MESSAGE_HISTORY_POLICY)
     message = object()
     published = store.publish(
         "SIM_STATE",
@@ -507,7 +510,7 @@ def test_message_store_publishes_one_atomic_sample():
 
 
 def test_mission_download_rejects_count_older_than_request():
-    messages = MessageStore()
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
     stale = MagicMock(count=9)
     stale.get_srcSystem.return_value = 7
     stale.mission_type = 0
@@ -543,7 +546,7 @@ def test_mission_download_partial_timeout_preserves_prior_store():
         def replace_items(self, items):
             self.items = list(items)
 
-    messages = MessageStore()
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
     old_item = object()
     store = RecordingStore([old_item])
     count = MagicMock(count=2, mission_type=0)
@@ -580,7 +583,7 @@ def test_mission_download_valid_empty_count_clears_prior_store():
         def replace_items(self, items):
             self.items = list(items)
 
-    messages = MessageStore()
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
     store = RecordingStore([object()])
     count = MagicMock(count=0, mission_type=0)
     count.get_srcSystem.return_value = 7
@@ -601,7 +604,7 @@ def test_mission_download_valid_empty_count_clears_prior_store():
 
 
 def test_parameter_read_rejects_value_older_than_request():
-    messages = MessageStore()
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
     stale = MagicMock(param_id="TEST", param_value=1.0)
     stale.get_srcSystem.return_value = 7
     messages.publish("PARAM_VALUE", stale, receipt_time_s=1.0)
@@ -771,7 +774,7 @@ def test_vehicle_and_mission_update_contract_is_sequence_first():
         7,
         MagicMock(),
         SimpleNamespace(value=MagicMock()),
-        MessageStore(),
+        MessageStore(MESSAGE_HISTORY_POLICY),
         MissionInbox(),
         store=mission_store,
         downloader=MagicMock(),
@@ -782,7 +785,7 @@ def test_vehicle_and_mission_update_contract_is_sequence_first():
     mission_store.update.assert_called_once_with(7, command)
 
     loader = MagicMock()
-    store = MissionStore(7, MessageStore(), loader=loader)
+    store = MissionStore(7, MessageStore(MESSAGE_HISTORY_POLICY), loader=loader)
     store.update(7, command)
     loader.set.assert_called_once_with(command, 7)
 

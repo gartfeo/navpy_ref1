@@ -12,6 +12,10 @@ from scripts.eval_gcs_demo_confirmation import ConfirmationTimeout, run_confirma
 from scripts.eval_gcs_demo_mission import approve_requests_until_snap
 from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_execution import SystemClock
+from scripts.eval_gcs_demo_api import NavigationLogTails
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
+
+CERTIFIED = load_scenario(CERTIFIED_SCENARIO_PATH)
 
 
 class _Clock:
@@ -50,6 +54,15 @@ class _Stream:
 
     def receive(self, _timeout_s: float):
         return next(self.events, None)
+
+
+def _ports(log_dir: Path) -> dict:
+    """The context's scenario and operator I/O ports over *log_dir*."""
+    return {
+        "scenario": CERTIFIED,
+        "event_stream_factory": lambda _url: _Stream(),
+        "navigation_tail": NavigationLogTails(log_dir),
+    }
 
 
 class _Api:
@@ -97,6 +110,7 @@ def test_mission_timeout_preserves_vehicle_states_and_backend_tail(
         "SNAP(VISION-NAV example\n", encoding="utf-8"
     )
     context = SimpleNamespace(
+        **_ports(tmp_path),
         clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
@@ -110,7 +124,6 @@ def test_mission_timeout_preserves_vehicle_states_and_backend_tail(
             tmp_path,
             timeout_s=0.2,
             confirmation_delay_s=0.0,
-            event_stream_factory=lambda _url: _Stream(),
         )
 
     artifact = json.loads(
@@ -160,6 +173,7 @@ def test_missing_approval_after_snap_also_retains_vehicle_states(
 
     monkeypatch.setattr(mission, "run_confirmation_workflow", workflow)
     context = SimpleNamespace(
+        **_ports(tmp_path),
         clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
@@ -172,7 +186,6 @@ def test_missing_approval_after_snap_also_retains_vehicle_states(
             tmp_path,
             timeout_s=1.0,
             confirmation_delay_s=0.0,
-            event_stream_factory=lambda _url: _Stream(),
         )
 
     artifact = json.loads(
@@ -201,12 +214,12 @@ def test_nav_before_approval_keeps_partial_evidence(tmp_path: Path) -> None:
         "Heartbeat from system 7\nINIT: NAV MODE\n", encoding="utf-8"
     )
     context = SimpleNamespace(
+        **_ports(tmp_path),
         sys_ids=(7, 4, 9), api=_Api(), backend_tail=Tail(), clock=SystemClock(),
     )
     with pytest.raises(RegressionError, match="entered NAV before delayed operator"):
         approve_requests_until_snap(
             context, object(), tmp_path, 0.2, 0.0,
-            event_stream_factory=lambda _url: _Stream(),
         )
 
     artifact = json.loads(
@@ -234,6 +247,7 @@ def test_nav_error_keeps_vehicle_attribution_when_evidence_writes_fail(
 
     monkeypatch.setattr(Path, "write_text", write_text)
     context = SimpleNamespace(
+        **_ports(tmp_path),
         clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
@@ -242,7 +256,6 @@ def test_nav_error_keeps_vehicle_attribution_when_evidence_writes_fail(
     with pytest.raises(RegressionError) as caught:
         approve_requests_until_snap(
             context, object(), tmp_path, 0.2, 0.0,
-            event_stream_factory=lambda _url: _Stream(),
         )
     message = str(caught.value)
     assert "entered NAV before delayed operator" in message
@@ -261,6 +274,7 @@ def test_rejected_approval_is_distinct_from_no_attempt(tmp_path: Path) -> None:
             return super().post_json(path, payload, **kwargs)
 
     context = SimpleNamespace(
+        **_ports(tmp_path),
         clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=RejectApi(),
@@ -269,7 +283,6 @@ def test_rejected_approval_is_distinct_from_no_attempt(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="not approved"):
         approve_requests_until_snap(
             context, object(), tmp_path, 0.2, 0.0,
-            event_stream_factory=lambda _url: _Stream(),
         )
     artifact = json.loads(
         (tmp_path / "demo_confirmation_failure.json").read_text(encoding="utf-8")
@@ -289,6 +302,7 @@ def test_backend_log_write_failure_does_not_hide_timeout(monkeypatch, tmp_path: 
 
     monkeypatch.setattr(Path, "write_text", write_text)
     context = SimpleNamespace(
+        **_ports(tmp_path),
         clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
@@ -297,7 +311,6 @@ def test_backend_log_write_failure_does_not_hide_timeout(monkeypatch, tmp_path: 
     with pytest.raises(RegressionError, match="evidence incomplete.*injected log write failure"):
         approve_requests_until_snap(
             context, object(), tmp_path, 0.2, 0.0,
-            event_stream_factory=lambda _url: _Stream(),
         )
     artifact = json.loads(
         (tmp_path / "demo_confirmation_failure.json").read_text(encoding="utf-8")
@@ -311,6 +324,7 @@ def test_both_evidence_writes_failing_preserve_missing_snap(monkeypatch, tmp_pat
 
     monkeypatch.setattr(Path, "write_text", write_text)
     context = SimpleNamespace(
+        **_ports(tmp_path),
         clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
@@ -319,7 +333,6 @@ def test_both_evidence_writes_failing_preserve_missing_snap(monkeypatch, tmp_pat
     with pytest.raises(RegressionError) as caught:
         approve_requests_until_snap(
             context, object(), tmp_path, 0.2, 0.0,
-            event_stream_factory=lambda _url: _Stream(),
         )
     message = str(caught.value)
     assert "missing SNAP sysids [7, 4, 9]" in message
@@ -331,7 +344,7 @@ def test_both_evidence_writes_failing_preserve_missing_snap(monkeypatch, tmp_pat
 def test_snap_log_read_failure_keeps_original_timeout(monkeypatch, tmp_path: Path) -> None:
     import scripts.eval_gcs_demo_mission as mission
 
-    def has_snap(_log_dir: Path, sys_id: int) -> bool:
+    def has_snap(_context: object, sys_id: int) -> bool:
         if sys_id == 7:
             raise OSError("injected navigation read failure")
         return False
@@ -342,6 +355,7 @@ def test_snap_log_read_failure_keeps_original_timeout(monkeypatch, tmp_path: Pat
 
     monkeypatch.setattr(mission, "run_confirmation_workflow", timed_out)
     context = SimpleNamespace(
+        **_ports(tmp_path),
         clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
@@ -350,7 +364,6 @@ def test_snap_log_read_failure_keeps_original_timeout(monkeypatch, tmp_path: Pat
     with pytest.raises(RegressionError) as caught:
         mission.approve_requests_until_snap(
             context, object(), tmp_path, 0.2, 0.0,
-            event_stream_factory=lambda _url: _Stream(),
         )
     assert "injected navigation read failure" in str(caught.value)
     assert isinstance(caught.value.__cause__, ConfirmationTimeout)
@@ -376,6 +389,7 @@ def test_success_keeps_failure_artifacts_absent(monkeypatch, tmp_path: Path) -> 
 
     monkeypatch.setattr(mission, "run_confirmation_workflow", workflow)
     context = SimpleNamespace(
+        **_ports(tmp_path),
         clock=SystemClock(),
         sys_ids=(7, 4, 9),
         api=_Api(),
@@ -383,7 +397,6 @@ def test_success_keeps_failure_artifacts_absent(monkeypatch, tmp_path: Path) -> 
     )
     approvals = mission.approve_requests_until_snap(
         context, object(), tmp_path, 1.0, 0.0,
-        event_stream_factory=lambda _url: _Stream(),
     )
     assert {row["sys_id"] for row in approvals} == {7, 4, 9}
     assert not (tmp_path / "demo_confirmation_failure.json").exists()

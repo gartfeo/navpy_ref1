@@ -1144,7 +1144,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
         controller.detections.detected_pois = []
         held_geo = Location(40.5, -74.5, 900.0, is_absolute=True)
-        controller.navigation_task.navigation_poi_location = held_geo
+        controller.navigation_task.peer_poi_location = held_geo
         controller.confirm.loss_started_at = (
             controller.clock.decision_s() - (detector.loss_hold_sec + 0.1)
         )
@@ -1253,6 +1253,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller.detections.detected_pois = []
         self.assertIsNone(controller.geo_hold.last_own_poi_geo)
         self.assertIsNone(controller.navigation_task.navigation_poi_location)
+        self.assertIsNone(controller.navigation_task.peer_poi_location)
         controller.confirm.loss_started_at = (
             controller.clock.decision_s() - (CONFIRM_REACQUIRE_ABORT_SEC + 0.5)
         )
@@ -1265,10 +1266,10 @@ class TestNavControllerGeoHold(unittest.TestCase):
         self.assertIsNone(controller.confirmation_manager.active_poi)
         detector.stop_tracking.assert_called_once_with()
 
-    def test_geo_hold_never_activates_under_vision_nav(self):
-        """A geo is present but uses_vision_nav=True: the
-        hold never enters (D-03 data gate + explicit defense-in-depth
-        mode gate)."""
+    def test_geo_hold_under_vision_law_enters_before_nav(self):
+        """Under the vision law the loss fallback re-points the camera at
+        the peer task location before NAV: the gate is the phase, not the
+        configured law."""
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         navigation = _create_mock_navigation()
@@ -1276,6 +1277,56 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, detector=detector, navigation=navigation,
         )
+
+        poi = _create_detected_poi(obj_id=1)
+        controller.confirmation_manager.set_active_poi(poi)
+        controller.detections.detected_pois = []
+        held_geo = Location(40.5, -74.5, 900.0, is_absolute=True)
+        controller.navigation_task.peer_poi_location = held_geo
+        controller.confirm.loss_started_at = (
+            controller.clock.decision_s() - (detector.loss_hold_sec + 0.1)
+        )
+
+        controller.decision.decide()
+
+        self.assertNotEqual(controller.phase.current, NavState.NAV)
+        self.assertTrue(controller.geo_hold.active)
+        detector.stop_tracking.assert_called_once_with(to_neutral=False)
+        detector.start_geo_tracking.assert_called_once_with(
+            held_geo, navigation.legacy_pois.geo_ref,
+        )
+
+    def test_geo_hold_never_activates_in_nav(self):
+        """A geo is present and the loss hold has elapsed, but NAV (the
+        final approach) is running: the camera is never geo-pointed."""
+        detector = _create_mock_detector()
+        navigation = _create_mock_navigation()
+        navigation.final_approach.is_active = True
+        controller = _create_controller(detector=detector, navigation=navigation)
+
+        poi = _create_detected_poi(obj_id=1)
+        controller.confirmation_manager.set_active_poi(poi)
+        controller.navigation_task.peer_poi_location = Location(
+            40.5, -74.5, 900.0, is_absolute=True,
+        )
+        controller.confirm.loss_started_at = (
+            controller.clock.decision_s() - (detector.loss_hold_sec + 0.1)
+        )
+        controller.phase.current = NavState.NAV
+
+        self.assertFalse(controller.geo_coordinator.update(poi, None, False))
+
+        self.assertFalse(controller.geo_hold.active)
+        detector.start_geo_tracking.assert_not_called()
+        detector.stop_tracking.assert_not_called()
+
+    def test_geo_hold_never_points_at_a_mission_item_location(self):
+        """Owner rule: before the UAV detects the dock or receives a peer
+        task, no mission-item dock info (the DDH return location here) may
+        reach geo pointing."""
+        vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
+        detector = _create_mock_detector()
+        controller = _create_controller(vehicle=vehicle, detector=detector)
 
         poi = _create_detected_poi(obj_id=1)
         controller.confirmation_manager.set_active_poi(poi)
@@ -1290,8 +1341,88 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller.decision.decide()
 
         self.assertFalse(controller.geo_hold.active)
+        self.assertIsNone(controller.geo_hold.poi_location)
         detector.start_geo_tracking.assert_not_called()
         detector.stop_tracking.assert_not_called()
+
+    def _vision_law_own_geo_controller(self):
+        detector = _create_mock_detector()
+        navigation = _create_mock_navigation()
+        navigation.final_approach.is_active = True
+        controller = _create_controller(
+            vehicle=_create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5),
+            detector=detector,
+            navigation=navigation,
+        )
+        own_geo = Location(40.6, -74.6, 950.0, is_absolute=True)
+        poi = _create_detected_poi(obj_id=1, p_t_g_l=own_geo)
+        controller.confirmation_manager.set_active_poi(poi)
+        controller.confirmation_manager.update_status(
+            poi, ConfirmationStatus.CONFIRMING,
+        )
+        return controller, detector, navigation, poi, own_geo
+
+    def _lose_track_past_hold(self, controller, detector):
+        controller.detections.detected_pois = []
+        controller.confirm.loss_started_at = (
+            controller.clock.decision_s() - (detector.loss_hold_sec + 0.1)
+        )
+        controller.decision.decide()
+
+    def test_vision_law_own_geo_wins_over_peer_task_and_recovery_uses_it(self):
+        """Before NAV under the vision law the own detection geo is
+        recorded, preferred over the peer task location, and the loss
+        fallback re-points the camera at it."""
+        controller, detector, navigation, poi, own_geo = (
+            self._vision_law_own_geo_controller()
+        )
+        task_location = Location(40.5, -74.5, 900.0, is_absolute=True)
+        controller.navigation_task.peer_poi_location = task_location
+        controller.detections.detected_pois = [poi]
+
+        controller.decision.decide()
+
+        self.assertNotEqual(controller.phase.current, NavState.NAV)
+        self.assertEqual(controller.geo_hold.last_own_poi_geo, own_geo)
+        self.assertEqual(
+            controller.track_recovery.held_poi_geo(task_location), own_geo,
+        )
+
+        self._lose_track_past_hold(controller, detector)
+
+        self.assertTrue(controller.geo_hold.active)
+        self.assertEqual(controller.geo_hold.poi_location, own_geo)
+        detector.start_geo_tracking.assert_called_once_with(
+            own_geo, navigation.legacy_pois.geo_ref,
+        )
+
+    def test_vision_law_own_poi_without_peer_task_recovers(self):
+        controller, detector, navigation, poi, own_geo = (
+            self._vision_law_own_geo_controller()
+        )
+        self.assertIsNone(controller.navigation_task.peer_poi_location)
+        controller.detections.detected_pois = [poi]
+        controller.decision.decide()
+
+        self._lose_track_past_hold(controller, detector)
+
+        self.assertTrue(controller.geo_hold.active)
+        detector.start_geo_tracking.assert_called_once_with(
+            own_geo, navigation.legacy_pois.geo_ref,
+        )
+
+    def test_own_geo_is_not_recorded_in_nav(self):
+        controller, _detector, _navigation, poi, _own_geo = (
+            self._vision_law_own_geo_controller()
+        )
+        controller.detections.detected_pois = [poi]
+        controller.phase.current = NavState.NAV
+
+        controller.poi_status._presence.update(
+            poi, ConfirmationStatus.CONFIRMING,
+        )
+
+        self.assertIsNone(controller.geo_hold.last_own_poi_geo)
 
     def test_held_geo_prefers_last_own_detection_over_assigned_coord(self):
         """D-04: a refreshed own-detection geo wins over the assigned
@@ -1300,13 +1431,13 @@ class TestNavControllerGeoHold(unittest.TestCase):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
         assigned = Location(40.5, -74.5, 900.0, is_absolute=True)
-        controller.navigation_task.navigation_poi_location = assigned
+        controller.navigation_task.peer_poi_location = assigned
 
         # No own-detection geo captured yet -> falls back to the assigned
         # coordinate.
         self.assertIs(
             controller.track_recovery.held_poi_geo(
-                controller.navigation_task.navigation_poi_location
+                controller.navigation_task.peer_poi_location
             ),
             assigned,
         )
@@ -1323,15 +1454,15 @@ class TestNavControllerGeoHold(unittest.TestCase):
         self.assertEqual(controller.geo_hold.last_own_poi_geo, own_geo)
         self.assertIs(
             controller.track_recovery.held_poi_geo(
-                controller.navigation_task.navigation_poi_location
+                controller.navigation_task.peer_poi_location
             ),
             controller.geo_hold.last_own_poi_geo,
         )
 
     def test_geo_hold_reacquire_rearms_detection_without_recenter(self):
         """D-11 gap-path reacquire: a present detection during the hold
-        re-arms detection via start_tracking (no recentre); stop_geo_tracking
-        must NOT be called on this path (that would recentre)."""
+        re-arms detection via start_tracking (no recentre); the geo stop that
+        follows finds the session already cleared, so it cannot recentre."""
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         controller = _create_controller(vehicle=vehicle, detector=detector)
@@ -1344,10 +1475,19 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
         controller.detections.detected_pois = [poi]
 
+        detector.is_geo_armed = True
+        geo_armed_at_stop = []
+        detector.stop_geo_tracking.side_effect = (
+            lambda: geo_armed_at_stop.append(detector.is_geo_armed)
+        )
+
         controller.decision.decide()
 
         detector.start_tracking.assert_called_once_with(7)
-        detector.stop_geo_tracking.assert_not_called()
+        # The hand-off stops geo on every camera only after start_tracking
+        # cleared the tracking camera's session, so that camera's stop
+        # returns early and never recentres it.
+        self.assertEqual(geo_armed_at_stop, [False])
         self.assertFalse(controller.geo_hold.active)
         self.assertIsNone(controller.geo_hold.poi_location)
         self.assertEqual(controller.phase.current, NavState.CONFIRM)
@@ -1640,7 +1780,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(active)
         controller.confirmation_manager.update_status(active, ConfirmationStatus.CONFIRMING)
         held_geo = Location(40.5, -74.5, 900.0, is_absolute=True)
-        controller.navigation_task.navigation_poi_location = held_geo
+        controller.navigation_task.peer_poi_location = held_geo
         controller.detections.detected_pois = []
 
         # Tick 1: loss past loss_hold_sec with a known geo enters the hold.
@@ -1738,7 +1878,7 @@ class TestNavControllerGeoHoldFailClosed(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
         controller.detections.detected_pois = []
         # A held geo IS available — capability absence alone must gate.
-        controller.navigation_task.navigation_poi_location = Location(
+        controller.navigation_task.peer_poi_location = Location(
             40.5, -74.5, 900.0, is_absolute=True,
         )
         controller.confirm.loss_started_at = (
@@ -1773,7 +1913,7 @@ class TestNavControllerGeoHoldFailClosed(unittest.TestCase):
         poi = _create_detected_poi(obj_id=1)
         controller.confirmation_manager.set_active_poi(poi)
         controller.detections.detected_pois = []
-        controller.navigation_task.navigation_poi_location = Location(
+        controller.navigation_task.peer_poi_location = Location(
             40.5, -74.5, 900.0, is_absolute=True,
         )
         controller.confirm.loss_started_at = (
@@ -1820,7 +1960,7 @@ class TestNavControllerGeoHoldFailClosed(unittest.TestCase):
         poi = _create_detected_poi(obj_id=1)
         controller.confirmation_manager.set_active_poi(poi)
         controller.detections.detected_pois = []
-        controller.navigation_task.navigation_poi_location = Location(
+        controller.navigation_task.peer_poi_location = Location(
             40.5, -74.5, 900.0, is_absolute=True,
         )
         controller.confirm.loss_started_at = (
@@ -1860,7 +2000,7 @@ class TestNavControllerGeoHoldFailClosed(unittest.TestCase):
         held_geo = Location(40.5, -74.5, 900.0, is_absolute=True)
         controller.geo_hold.active = True
         controller.geo_hold.poi_location = held_geo
-        controller.navigation_task.navigation_poi_location = held_geo
+        controller.navigation_task.peer_poi_location = held_geo
 
         poi = _create_detected_poi(obj_id=1, task_id=7)
         controller.confirmation_manager.set_active_poi(poi)
@@ -8990,23 +9130,119 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
             cached, self.navigation.legacy_pois.geo_ref,
         )
 
-    def test_final_approach_peer_navigation_never_arms_geo_pointing(self):
+    def test_final_approach_peer_geo_points_until_detection_never_in_nav(self):
+        """Under the vision law the peer aims its camera at the task
+        location from setup until detection; in NAV nothing arms or
+        updates geo pointing."""
         self.navigation.final_approach.is_active = True
+        task_location = Location(40.5, -74.5, 900.0, is_absolute=True)
 
         self._arm_peer_orbit(lat=40.5, lng=-74.5, alt=900.0)
 
-        self.assertIsNone(self.controller.geo_hold.poi_location)
+        self.assertEqual(self.controller.geo_hold.poi_location, task_location)
         self.assertEqual(
             self.controller.navigation_task.navigation_poi_location,
-            Location(40.5, -74.5, 900.0, is_absolute=True),
+            task_location,
         )
         self.navigation.vehicle_commands.peer_poi_loiter.assert_called_once_with(
-            Location(40.5, -74.5, 900.0, is_absolute=True),
+            task_location,
             686.0,
             None,
         )
+        self.detector.start_geo_tracking.assert_called_once_with(
+            task_location, self.navigation.legacy_pois.geo_ref,
+        )
+        self.assertTrue(self.detector.is_geo_armed)
+
+        # Detection hands the camera from geo pointing to visual tracking.
+        self.assertTrue(
+            self.controller.navigation_task_action.start(
+                _create_detected_poi(obj_id=1),
+            )
+        )
+        self.detector.start_tracking.assert_called_once_with(1)
+        self.detector.stop_geo_tracking.assert_called_once()
+        self.assertFalse(self.detector.is_geo_armed)
+
+        self.detector.start_geo_tracking.reset_mock()
+        self.detector.update_geo.reset_mock()
+        self.detector.prepare_geo_acquisition.reset_mock()
+        self.controller.phase.current = NavState.NAV
+        self.controller.nav_transition.enter()
+        # A track lost in NAV must not hand the camera back to geo.
+        self.detector.is_detection_armed = False
+        self.controller.peer_geo_tick.update()
+        self._arm_peer_orbit(lat=40.5, lng=-74.5, alt=900.0)
+
+        self.assertFalse(self.detector.is_geo_armed)
         self.detector.start_geo_tracking.assert_not_called()
         self.detector.update_geo.assert_not_called()
+        self.detector.prepare_geo_acquisition.assert_not_called()
+
+    def test_peer_without_task_never_arms_geo_pointing(self):
+        """Owner rule: without a task message the peer has no dock source;
+        a dock in the mission items never reaches geo pointing."""
+        self.vehicle.get_mission_item_location = Mock(
+            return_value=Location(41.0, -75.0, 0.0),
+        )
+        self.controller.network.task_actor = Mock()
+        self.controller.network.task_actor.selected_poi.return_value = None
+
+        self.controller.peer_navigation.setup()
+        self.controller.detect_action.act()
+
+        self.assertIsNone(self.controller.geo_hold.poi_location)
+        self.assertIsNone(self.controller.navigation_task.peer_poi_location)
+        self.detector.start_geo_tracking.assert_not_called()
+        self.detector.update_geo.assert_not_called()
+
+    def test_peer_geo_points_at_task_location_not_mission_item(self):
+        """The armed and loss-fallback locations are the task message's,
+        even when the mission items hold a different dock."""
+        self.vehicle.get_mission_item_location = Mock(
+            return_value=Location(41.0, -75.0, 0.0),
+        )
+        task_location = Location(40.5, -74.5, 900.0, is_absolute=True)
+
+        self._arm_peer_orbit(lat=40.5, lng=-74.5, alt=900.0)
+
+        self.detector.start_geo_tracking.assert_called_once_with(
+            task_location, self.navigation.legacy_pois.geo_ref,
+        )
+        self.assertEqual(
+            self.controller.navigation_task.peer_poi_location, task_location,
+        )
+        self.assertEqual(
+            self.controller.track_recovery.held_poi_geo(
+                self.controller.navigation_task.peer_poi_location,
+            ),
+            task_location,
+        )
+
+    def test_reset_detect_nav_reentry_has_no_geo_session(self):
+        """RESET -> DETECT -> NAV: the re-armed peer geo session is handed
+        off at detection and fenced at NAV entry."""
+        self.navigation.final_approach.is_active = True
+        self._arm_peer_orbit()
+        self.controller.reset.clear()
+        self.assertFalse(self.detector.is_geo_armed)
+
+        self.controller.phase.current = NavState.DETECT
+        self._arm_peer_orbit()
+        self.assertTrue(self.detector.is_geo_armed)
+        self.assertTrue(
+            self.controller.navigation_task_action.start(
+                _create_detected_poi(obj_id=1),
+            )
+        )
+        self.detector.start_geo_tracking.reset_mock()
+        self.detector.stop_geo_tracking.reset_mock()
+        self.controller.phase.current = NavState.NAV
+        self.controller.nav_transition.enter()
+
+        self.detector.stop_geo_tracking.assert_called_once()
+        self.assertFalse(self.detector.is_geo_armed)
+        self.detector.start_geo_tracking.assert_not_called()
 
     def test_setup_peer_navigation_plans_with_absolute_pose(self):
         from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan

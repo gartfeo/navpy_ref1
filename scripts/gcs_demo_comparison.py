@@ -19,7 +19,7 @@ from scripts.eval_gcs_demo_analysis import analyze_run
 from scripts.eval_gcs_demo_audit import load_approval_records
 from scripts.eval_gcs_demo_evidence import parse_final_approach_command_episodes
 from scripts.eval_gcs_demo_models import GateLimits
-from scripts.eval_gcs_demo_scenario import load_resolved_plan
+from scripts.eval_gcs_demo_scenario import DemoScenario, load_resolved_plan
 
 
 LIMITATIONS = [
@@ -99,7 +99,7 @@ def _inventory(run_dir: Path) -> dict[str, str]:
     }
 
 
-def read_run(run_dir: Path) -> dict:
+def read_run(run_dir: Path, scenario: DemoScenario) -> dict:
     run_dir = run_dir.resolve()
     if not run_dir.is_dir():
         return {"directory": str(run_dir), "errors": ["run directory is missing"],
@@ -116,12 +116,12 @@ def read_run(run_dir: Path) -> dict:
                     "artifacts": without_host_only(before), "artifacts_stable": False,
                     "sysid_ordinals": {}}
     try:
-        plan = load_resolved_plan(run_dir / "demo_mission_plan.json")
+        plan = load_resolved_plan(run_dir / "demo_mission_plan.json", scenario)
         result["sysid_ordinals"] = {
             sys_id: index for index, sys_id in enumerate(plan.sys_ids, start=1)
         }
         approvals = load_approval_records(run_dir / "operator_approvals.json")
-        report = analyze_run(run_dir, limits=GateLimits())
+        report = analyze_run(run_dir, scenario=scenario, limits=GateLimits())
         result["report"] = _finite_json(asdict(report))
         result["analysis_assumptions"] = {
             "sim_speedup": report.sim_speedup,
@@ -248,14 +248,14 @@ def analysis_identity() -> dict:
     }
 
 
-def compare_runs(directories: list[Path]) -> dict:
+def compare_runs(directories: list[Path], scenario: DemoScenario) -> dict:
     if len(directories) < 2:
         raise ValueError("at least two run directories are required")
     resolved = [path.resolve() for path in directories]
     if len(set(resolved)) != len(resolved):
         raise ValueError("the same run directory cannot count as a repeat")
     analysis_before = analysis_identity()
-    runs = [read_run(path) for path in resolved]
+    runs = [read_run(path, scenario) for path in resolved]
     analysis_after = analysis_identity()
     comparisons = []
     for index, repeat in enumerate(runs[1:], start=1):

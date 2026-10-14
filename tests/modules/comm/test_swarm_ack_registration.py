@@ -23,6 +23,7 @@ from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState, PacketLossTracker
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import MESSAGE_HISTORY_POLICY
 from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
 from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
@@ -54,7 +55,7 @@ def _make_router(navlink_callback) -> InboundMessageRouter:
             COMPANION_COMPONENT_ID,
             MAV_TYPE_ONBOARD_CONTROLLER,
         ),
-        MessageStore(),
+        MessageStore(MESSAGE_HISTORY_POLICY),
         callbacks,
         ParameterRepository(),
         HeartbeatState(_VEHICLE_SYS_ID, 3.0),

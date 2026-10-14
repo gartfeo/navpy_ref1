@@ -24,6 +24,7 @@ from scripts.eval_gcs_demo_models import RegressionError, finite_number
 from scripts.eval_gcs_demo_process import exclusive_evaluator_lock
 from scripts.eval_ideal_three_uav_analysis import analyze_ideal_run
 from scripts.eval_ideal_three_uav_runtime import execute_ideal_live_run
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -130,8 +131,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     timeout = finite_number("--timeout-s", args.timeout_s)
     if timeout <= 0.0:
         raise RegressionError("timeout must be positive")
+    # The ideal workflow flies the certified three-UAV scenario.
+    scenario = load_scenario(CERTIFIED_SCENARIO_PATH)
     if args.analyze_only is not None:
-        report = analyze_ideal_run(args.analyze_only)
+        report = analyze_ideal_run(args.analyze_only, scenario=scenario)
         payload = {
             "status": "passed" if report.passed else "failed",
             "report": asdict(report),
@@ -152,9 +155,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     try:
         with exclusive_evaluator_lock():
-            mission = execute_ideal_live_run(run_dir, timeout)
+            mission = execute_ideal_live_run(run_dir, timeout, scenario)
         report = analyze_ideal_run(
             run_dir,
+            scenario=scenario,
             sys_ids=mission.sys_ids,
             approvals=mission.approvals,
         )
