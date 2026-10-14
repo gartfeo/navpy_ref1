@@ -32,11 +32,12 @@ M = mavutil.mavlink
 # 35 m north, 4.07 m up.
 DOCK_BOARD_YEGHVARD = "40.31205630,44.45815163,1296.865"
 # The card: (height above the board in m, pass heading in deg from north), flown in this order. The fixed body camera
-# looks 35 deg down with a 59 deg vertical field, so at height h the board is in the picture only from about
-# h / tan(61 deg) to h / tan(3 deg) ahead, and ChArUco needs it within about 20 m (bench: 20 of 20 frames at 12-16 m,
-# hitl_unreal_camera.md). The first SITL card (40, 25 and 15 m, 2026-10-14) saw the board in 2534 frames and detected
-# it once: from 15 m up the board is in the picture only beyond about 17 m. So one pass each at 40, 25 and 15 m for the
-# trend, and the low height, 10 m, from all four directions.
+# looks 35 deg down. With the 90 deg camera of the first runs (59 deg vertical field) ChArUco found the board only
+# within about 15 m: one pass each at 40, 25 and 15 m for the trend, and the low height, 10 m, from all four
+# directions (hitl_unreal_camera.md "Dock passes"). With the ZR10 intrinsics (-NavPyNativeCameraIntrinsics=1, 28.8 deg
+# vertical field) the board is in the picture from h / tan(49.4 deg) to h / tan(20.6 deg) ahead at height h, and the
+# static range check detects it to 30 m, so the same card spans the new limit: inside it at 10 and 15 m, at its edge
+# at 25 m, beyond it at 40 m.
 PASS_CARD: tuple[tuple[float, float], ...] = ((40.0, 0.0), (25.0, 90.0), (15.0, 180.0), (15.0, 270.0),
                                               (10.0, 0.0), (10.0, 90.0), (10.0, 180.0), (10.0, 270.0))
 # Distances along the pass line, from the board. APPROACH_M - ENTRY_M = 450 m (about 19 s at the cruise) lets L1 and

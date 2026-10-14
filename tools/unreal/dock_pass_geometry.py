@@ -3,8 +3,11 @@ in a frame of the fixed body camera from the truth pose, and the board pose Open
 scoring only; nothing here reaches navpy's navigation."""
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 import cv2
@@ -13,8 +16,6 @@ import numpy as np
 from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec
 from navpy.plugins.detection.charuco.charuco_detector import build_charuco_board
 
-IMAGE_W, IMAGE_H = 1280, 720          # NativeCameraWidth/Height (the project's DefaultGame.ini)
-FOV_H_DEG = 90.0                      # the gimbal camera's FOV (Unreal log "fov 90.0 deg")
 MOUNT_PITCH_DEG = -35.0               # InitialPitchDeg of the fixed body camera
 # Where the camera sits from the commanded vehicle position, body FRD (m): the level places the gimbal camera actor
 # ahead of the vehicle's pivot. Measured 2026-10-14 from four static bench poses 6-15 m from the board
@@ -38,9 +39,70 @@ def metres_per_degree(lat_deg: float) -> tuple[float, float]:
     return north, east
 
 
-def camera_matrix() -> np.ndarray:
-    f = (IMAGE_W / 2) / math.tan(math.radians(FOV_H_DEG / 2))
-    return np.array([[f, 0, IMAGE_W / 2], [0, f, IMAGE_H / 2], [0, 0, 1]], dtype=float)
+@dataclass(frozen=True)
+class CameraModel:
+    """A pinhole camera: the picture size and K (pixels). Unreal renders no lens distortion, so none is modelled."""
+    name: str
+    width: int
+    height: int
+    fx: float
+    fy: float
+    cx: float
+    cy: float
+
+    @property
+    def k(self) -> np.ndarray:
+        return np.array([[self.fx, 0, self.cx], [0, self.fy, self.cy], [0, 0, 1]], dtype=float)
+
+    @property
+    def fov_h_deg(self) -> float:
+        """The full horizontal field of view (both sides of the principal point)."""
+        return math.degrees(math.atan(self.cx / self.fx) + math.atan((self.width - self.cx) / self.fx))
+
+
+VISION_PROFILES = Path(__file__).resolve().parents[2] / "src/navpy/core/perception/profile/vision_profiles.json"
+ZR10_PROFILE, ZR10_DEVICE = "siyi_zr10", "siyi_zr10"
+MIN_ZOOM = 1.0                        # Unreal ignores -NavPyNativeCameraZoom below 1 (NativeCameraZoom ClampMin)
+
+
+@lru_cache(maxsize=None)
+def zr10_camera(zoom: float = 1.0) -> CameraModel:
+    """The ZR10's zoom-1 calibration on its 1280 x 720 stream (navpy's siyi_zr10 profile, the only measured row),
+    focal lengths scaled by ``zoom`` about the same principal point: what the Unreal native camera renders with
+    -NavPyNativeCameraIntrinsics=1 and -NavPyNativeCameraZoom (its default config holds the same numbers). The rows
+    above zoom 1 are not measured (test_zr10_profile_intrinsics.py), so a zoom here is a focal multiplier only."""
+    if not (math.isfinite(zoom) and zoom >= MIN_ZOOM):
+        raise ValueError(f"zoom must be finite and at least {MIN_ZOOM:g} (Unreal's NativeCameraZoom ClampMin)")
+    profile = json.loads(VISION_PROFILES.read_text(encoding="utf-8"))["profiles"][ZR10_PROFILE]
+    camera = next(d for d in profile["devices"] if d["name"] == ZR10_DEVICE)["camera"]
+    row = camera["intrinsics"]["zooms"]["1"]
+    return CameraModel(f"zr10_zoom{zoom:g}", int(camera["image_width"]), int(camera["image_height"]),
+                       zoom * float(row["fx"]), zoom * float(row["fy"]), float(row["cx"]), float(row["cy"]))
+
+
+def fov_camera(fov_h_deg: float, width: int = 1280, height: int = 720) -> CameraModel:
+    """A centred pinhole of this horizontal FOV: Unreal's FOVAngle projection (square pixels)."""
+    f = (width / 2) / math.tan(math.radians(fov_h_deg / 2))
+    return CameraModel(f"fov{fov_h_deg:g}", width, height, f, f, width / 2, height / 2)
+
+
+# The native camera before 2026-10-14 (FOVAngle 90, Unreal log "fov 90.0 deg"): dock1, dock2 and dock_sitl* ran on it.
+UNREAL_FOV90 = fov_camera(90.0)
+CAMERAS = ("zr10", "fov90")
+
+
+def camera_named(name: str, zoom: float = 1.0) -> CameraModel:
+    """The camera a run rendered with: ``zr10`` at the zoom Unreal was given (-NavPyNativeCameraZoom), or ``fov90``
+    (no zoom: its FOV came from the gimbal's commands, fixed at 90 deg in these runs)."""
+    if name == "zr10":
+        return zr10_camera(zoom)
+    if name == "fov90" and zoom == 1.0:
+        return UNREAL_FOV90
+    raise ValueError(f"no camera {name!r} at zoom {zoom:g}")
+
+
+def camera_matrix(camera: Optional[CameraModel] = None) -> np.ndarray:
+    return (camera or zr10_camera()).k
 
 
 def body_to_ned(roll_deg: float, pitch_deg: float, yaw_deg: float) -> np.ndarray:
@@ -79,15 +141,16 @@ class View:
     corners_px: np.ndarray             # the four outline corners projected (4 x 2)
 
 
-def board_view(truth: Truth, board: tuple[float, float, float]) -> View:
+def board_view(truth: Truth, board: tuple[float, float, float], camera: Optional[CameraModel] = None) -> View:
     """Where the board is in this frame's camera, from the truth pose only."""
+    camera = camera or zr10_camera()
     blat, blon, bmsl = board
     mn, me = metres_per_degree(truth.lat)
     body = body_to_ned(truth.roll, truth.pitch, truth.yaw)
     rel_ned = np.array([(blat - truth.lat) * mn, (blon - truth.lon) * me, -(bmsl - truth.alt_msl)])
     rel_ned -= body @ np.array(CAMERA_OFFSET_BODY_M)
     ned_to_cam = (body @ camera_to_body()).T
-    k = camera_matrix()
+    k = camera.k
     corners = []
     in_front = True
     for dn, de in ((BOARD_HALF_NORTH_M, -BOARD_HALF_EAST_M), (BOARD_HALF_NORTH_M, BOARD_HALF_EAST_M),
@@ -97,8 +160,8 @@ def board_view(truth: Truth, board: tuple[float, float, float]) -> View:
         pix = k @ cam
         corners.append(pix[:2] / pix[2] if cam[2] > 0 else np.array([np.nan, np.nan]))
     corners = np.array(corners)
-    inside = in_front and bool(np.all((corners[:, 0] >= 0) & (corners[:, 0] < IMAGE_W)
-                                      & (corners[:, 1] >= 0) & (corners[:, 1] < IMAGE_H)))
+    inside = in_front and bool(np.all((corners[:, 0] >= 0) & (corners[:, 0] < camera.width)
+                                      & (corners[:, 1] >= 0) & (corners[:, 1] < camera.height)))
     centre = ned_to_cam @ rel_ned
     return View(inside, float(np.linalg.norm(rel_ned)), truth.alt_msl - bmsl, centre,
                 ned_to_cam @ np.array([0.0, 0.0, -1.0]), corners)
@@ -111,7 +174,7 @@ def spans_grid(ids: np.ndarray) -> bool:
     return len(set(ids // per_row)) >= MIN_PNP_SPAN and len(set(ids % per_row)) >= MIN_PNP_SPAN
 
 
-def detected_pose(image: np.ndarray) -> Optional[dict]:
+def detected_pose(image: np.ndarray, camera: Optional[CameraModel] = None) -> Optional[dict]:
     """The board's centre and up normal in the camera frame from its ChArUco corners (solvePnP), or None."""
     board = build_charuco_board(BOARD_SPEC)
     gray = image if image.ndim == 2 else cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY if image.shape[2] == 4
@@ -124,7 +187,7 @@ def detected_pose(image: np.ndarray) -> Optional[dict]:
         return None
     objects = np.asarray(board.getChessboardCorners(), dtype=float)[flat] / 1000.0
     try:
-        ok, rvec, tvec = cv2.solvePnP(objects, np.asarray(corners, dtype=float).reshape(-1, 2), camera_matrix(), None)
+        ok, rvec, tvec = cv2.solvePnP(objects, np.asarray(corners, dtype=float).reshape(-1, 2), camera_matrix(camera), None)
     except cv2.error:
         return None
     if not ok:

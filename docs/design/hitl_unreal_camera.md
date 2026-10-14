@@ -53,7 +53,15 @@ ATTITUDE delay above that minimum, not the full link delay.
 - Receiver `bPresentLatestPoseExactly` / `-NavPyExactVehiclePose=1`: smoothing, buffering and the
   interpolation delay off; the applied pose's board time is kept for the camera.
 - Gimbal actor `bFixedBodyCamera` / `-NavPyFixedBodyCamera=1`: rigid mount at the Initial angles
-  (pitch -35 deg), roll included; gimbal commands ignored. Native camera connects without blocking the
+  (pitch -35 deg), roll included; gimbal commands ignored.
+- Gimbal actor `bNativeCameraUseIntrinsics` / `-NavPyNativeCameraIntrinsics=1`: the native camera renders
+  through a pinhole with `NativeCameraFxPx`, `FyPx`, `CxPx`, `CyPx` (pixels at 1280 x 720, a custom projection
+  matrix, so the off-centre principal point and fx != fy are exact). The defaults are the SIYI ZR10's zoom-1
+  calibration on its 1280 x 720 stream (navpy `vision_profiles.json` `siyi_zr10`): 48.9 x 28.8 deg.
+  `-NavPyNativeCameraZoom=<factor>` multiplies fx and fy. Off, the camera keeps its FOV angle (90 deg) and
+  the demo's zoom commands. No lens distortion is rendered. The capture's show flags turn motion blur, TAA,
+  DOF, bloom, lens flares, grain, vignette and eye adaptation off; the HDR scene-colour capture already has
+  none of them and no temporal jitter. Native camera connects without blocking the
   game thread (a blocking connect to a closed port cost about 2 s per frame on Windows).
 - `UNavPyDockBoardSubsystem` places the ChArUco board on the dock at play time (the level is not edited):
   2.4 x 3.2 m, 40 cm squares, navpy's default board (`DICT_4X4_50`, 5 x 7, marker 0.74 of a square).
@@ -65,7 +73,7 @@ ATTITUDE delay above that minimum, not the full link delay.
 
 1. Unreal (game, UAV1 camera on 18110), without sound and pixel streaming, capped at 60 fps and below
    the bridge in priority (see "Sharing the PC with the board link"):
-   `$ue = Start-Process -PassThru 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList 'C:\repos\unreal-projects\AasSimProject\AasSimProject.uproject','/Game/AAS/Levels/Yeghvard_Default','-game','-windowed','-ResX=1280','-ResY=720','-NavPyEnableNativeCameraStream=1','-NavPyExactVehiclePose=1','-NavPyNativeCameraHeaderVersion=2','-NavPyFixedBodyCamera=1','-NoRayTracing','-NoVSync','-nosound','-ini:Game:[/Script/NavPyUnrealBridge.NavPyGimbalCameraActor]:bEnablePixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableTailPixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableGimbalInset=False','-ExecCmds="t.MaxFPS 60"'; Start-Sleep -Seconds 5; $ue.PriorityClass = 'BelowNormal'`
+   `$ue = Start-Process -PassThru 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe' -ArgumentList 'C:\repos\unreal-projects\AasSimProject\AasSimProject.uproject','/Game/AAS/Levels/Yeghvard_Default','-game','-windowed','-ResX=1280','-ResY=720','-NavPyEnableNativeCameraStream=1','-NavPyExactVehiclePose=1','-NavPyNativeCameraHeaderVersion=2','-NavPyFixedBodyCamera=1','-NavPyNativeCameraIntrinsics=1','-NoRayTracing','-NoVSync','-nosound','-ini:Game:[/Script/NavPyUnrealBridge.NavPyGimbalCameraActor]:bEnablePixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableTailPixelStreaming=False','-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableGimbalInset=False','-ExecCmds="t.MaxFPS 60"'; Start-Sleep -Seconds 5; $ue.PriorityClass = 'BelowNormal'`
 2. The bridge as usual plus `--unreal-pose 127.0.0.1:17110 23.5`, with the Yeghvard origin
    (`--origin-lat 40.3117412 --origin-lon 44.4552112 --origin-alt 1292.8`) on both the bridge and the board
    (runner `--origin 40.3117412,44.4552112,1292.8,0`; a board's `SIM_OPOS_ALT` 1292.8).
@@ -104,7 +112,8 @@ navigation and mission modules get no dock information.
   `.venv\Scripts\python.exe -m tools.unreal.dock_pass_report --run-json C:\tune_hitl\dock3.json --link-csv C:\tune_hitl\dock3\link.csv --frames C:\tune_hitl\dock3_frames --out C:\tune_hitl\dock3_report`
 - **Report.** `tools/unreal/dock_pass_report.py` joins each frame with the bridge's `link.csv` row of its pose's
   board time. It projects the board into the fixed body camera (`tools/unreal/dock_pass_geometry.py`):
-  - pitch -35 deg in the body, 90 deg horizontal FOV, 1280 x 720;
+  - pitch -35 deg in the body; the ZR10 pinhole (`--camera zr10`, default) or the 90 deg camera of the runs
+    before the intrinsics (`--camera fov90`: dock1, dock2, dock_sitl1-7);
   - 2.5 m ahead of and 0.3 m below the vehicle position, measured on static bench poses with the same ChArUco
     PnP (2.33-2.61 m, 0.10-0.38 m); without it the truth outline sat tens of pixels above the board;
   - a frame is "in view" when all four board corners fall inside the picture.
@@ -142,6 +151,77 @@ the camera offset calibrated with the same ChArUco PnP, so they bound consistenc
 - The board's DataFlash log of this run was 175 MB; its MAVLink download took about 60 minutes after landing.
 - The first board attempt (dock1) stopped after the takeoff: the home on the rail, 1.1 m above the origin, put
   the lowest pass 0.05 m inside the 5 m margin above the then 8 m floor. The floor is now 7 m and that check fails the run cleanly.
+
+## Camera model and range (2026-10-14)
+
+**Cause of the 15 m limit: pixels per square.** The native camera rendered Unreal's 90 deg FOV (fx 640 px at
+1280 x 720). At 15 m and the mount's 35 deg depression a 40 cm square is 17 px across and 10 px along the line of
+sight, a marker bit cell 1.2 px along it. ArUco cannot read 4 x 4 bits at that size, and OpenCV's default
+`minMarkerPerimeterRate` 0.03 (38 px at 1280) drops the markers there too. Not the cause:
+- motion blur: scene captures turn it off, and a static pose gives the same limit as the flight;
+- post effects (TAA/TSR, DOF, bloom, auto exposure): the HDR scene-colour capture is taken before them, with a
+  fixed exposure and no temporal jitter;
+- compression: NPYC carries raw BGR.
+An offline render of the board texture through the same pinhole reproduces the limits: 10 corners at 12 m, none
+at 15 m for fx 640; 17 at 25 m, 5 at 30 m for fx 1407.
+
+**Fix: the ZR10 camera.** The HITL launch adds `-NavPyNativeCameraIntrinsics=1`, so Unreal renders with the
+ZR10's zoom-1 calibration (fx 1407.42, fy 1401.91, cx 670.95, cy 369.78; 48.9 x 28.8 deg). The report and the
+static check project and solve PnP with the same K (`dock_pass_geometry.zr10_camera`, read from the profile).
+
+**Static range check** (`tools/unreal/static_range_check.py`): vehicle level and still, heading 0, board centre
+on the optical axis (35 deg depression), 10 frames per range. "Detected" = ChArUco pose (at least 6 corners over
+2 rows and 2 columns).
+
+| Slant | 90 deg camera: px/square across x along, detected | ZR10: px/square, detected, PnP range error |
+|---|---|---|
+| 10 m | 26 x 15, 9/10 | 57 x 33, 9/10, -0.10 m |
+| 12 m | 22 x 13, 0/10 (5 corners) | 47 x 27, 10/10, -0.15 m |
+| 15 m | 17 x 10, 0/10 | 38 x 22, 10/10, -0.10 m |
+| 20 m | 13 x 7, 0/10 | 28 x 16, 10/10, -0.07 m |
+| 25 m | 10 x 6, 0/10 | 23 x 13, 10/10, -0.09 m |
+| 30 m | 9 x 5, 0/10 | 19 x 11, 10/10, -0.33 m |
+| 35 m | - | 16 x 9, 0/10 |
+| 40, 50, 80 m | 6 x 4 and less, 0/10 | 14 x 8 and less, 0/10 |
+
+The first frame after start shows the board's material still compiling (no pattern); the 9/10 at 10 m is that.
+Offline, `minMarkerPerimeterRate` 0.01 finds 6 corners at 40 m on the ZR10 frames and nothing at 50 m; the
+default stays (a detector change is its own task).
+
+**Dock passes with the ZR10 camera.** Same card, report `--camera zr10`. In view and detected by slant range:
+
+| Run | below 15 m | 15-20 m | 20-25 m | 25-30 m | 30 m and beyond | position error median / p90 |
+|---|---|---|---|---|---|---|
+| dock_sitl6, SITL, 90 deg | 8 / 10 | 2 / 18 | 0 | 0 | 0 | - |
+| dock2, board, 90 deg | 13 / 13 | 1 / 24 | 0 / 29 | 0 / 28 | 0 / 2597 | 0.11 / 0.21 m |
+| dock_sitl8, SITL, ZR10 | - (never in view) | 15 / 16 | 12 / 21 | 15 / 22 | 0 / 154 | 0.09-0.12 / 0.15-0.23 m by bin |
+| dock3, board, ZR10 | - (never in view) | 15 / 19 | 16 / 23 | 11 / 25 | 0 / 171 | 0.10-0.13 / 0.15-0.23 m by bin |
+
+- dock3 (real board, Peron15_hitl4, 2026-10-14): all 8 passes, lowest 11.3 m above home, no floor breach; link
+  gate passed (stale 3.1%, age max 11.9 ms); frame latency in the windows median 111 ms, p90 122 ms, max 185 ms.
+  Detections in passes 3-8 (both 15 m and all 10 m passes), farthest 28.8 m, tilt error at most 1.6 deg; none at
+  40 and 25 m (the whole board in view only from 58 m and 36 m).
+- dock_sitl8 (SITL stand-in): detections in passes 4-8, farthest 29.2 m; pass 3 had only 17 frames in its window,
+  none with the board in view.
+- The ZR10's 28.8 deg vertical field keeps the whole board out of the picture close in: at 10 m height it is in view
+  only from about 15.5 m slant (dock3), so the bin below 15 m is empty.
+- Unreal froze for 22-34 s a few times per run: no capture and no game tick, nothing in its log (dock_sitl8 four
+  times, in the pass 3, 7 and 8 windows and once between passes; dock3 twice, in pass 3 and between passes 5
+  and 6). Missing frames are not counted as misses. Replaying dock3's poses from its link.csv into Unreal, with no
+  flight controller or bridge running, froze it too: with the intrinsics 22 and 24 s in 11 min, without them 22 s
+  (Unreal freshly started, the freeze at board time 537 s, mid-replay).
+  So the camera model does not cause it; the cause is not found yet.
+- dock_sitl8's own record was lost (its JSON path was held open by the output redirect), so its report ran on a
+  record rebuilt from the runner's `[driver]` pass lines (same windows).
+
+**The real ZR10 (theory, not measured).** At zoom 1 the real camera has the same K, so the same pixels per
+square at the same geometry: about 30 m at 35 deg depression, set by about 11 px per square along the line of
+sight. Range scales with the focal length (zoom 2 about 60 m), and with the sine of the depression along the
+line of sight. The simulation is the best case. It has none of these:
+- lens distortion: k1 -0.27, about 7 % at the corners; the board near the centre is barely affected;
+- H.264/H.265 compression of the 1280 x 720 RTSP stream;
+- exposure-time blur: v t f / R px, e.g. 24 m/s x 1 ms x 1407 px / 20 m = 1.7 px;
+- rolling shutter, lens MTF, sun glare and auto exposure.
 
 
 ## Measured (2026-10-13, laptop RTX PRO 1000, Unreal -game windowed)
@@ -197,7 +277,7 @@ The board counts a 5 ms loop stale when the bridge's reply arrives after its nex
   the board link, above).
 - Exposure is fixed, never auto: `NativeCameraExposureBias=-13.0` in the project's `DefaultGame.ini`
   (one stop per step, `-NavPyNativeCameraExposureBias=<bias>`); the level's cameras keep no own value.
-- With the fixed body camera at -35 deg the board's ChArUco is detected up to about 15 m above it and
-  not from 16.6 m; that limit is the board's pixel size, not the exposure.
-- The current fork SITL puts the HIL link on SERIAL8 (base port + 8), which `sitl-backing --model hil`
-  also gives SERIAL5; the live check ran SITL directly with `--serial8=tcp:8168` and serial0 held inside WSL.
+- The board's detection range is set by its pixel size ("Camera model and range" below).
+- The current fork SITL puts the HIL link on SERIAL8 (base port + 8) on a board. The dock_sitl1-7 runs ran
+  SITL directly with `--serial8=tcp:8168` and serial0 held inside WSL; `sitl-backing --model hil` works too
+  (HIL on SERIAL5, TCP 8168), with `SIM_RC_FAIL 1` in a `--defaults` file.

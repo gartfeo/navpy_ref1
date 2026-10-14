@@ -4,12 +4,14 @@ that had the board in view, the detector's hits and the detected board pose agai
 The truth (the bridge's plant state, link.csv) is used here only, after the flight, for scoring; nothing of it reaches
 navpy. A frame shows the pose of its board time (NPYC v2 stamp, pose_flags exact), so its truth is the link.csv row of
 that board time. The camera is the fixed body camera of hitl_unreal_camera.md (dock_pass_geometry.py): its measured
-offset from the vehicle's position, pitched MOUNT_PITCH_DEG in the body, FOV_H_DEG wide on a 1280 x 720 picture, no distortion.
+offset from the vehicle's position, pitched MOUNT_PITCH_DEG in the body, and its pinhole (--camera: zr10, the ZR10's
+zoom-1 calibration the native camera renders with -NavPyNativeCameraIntrinsics=1; fov90 for runs before it), no distortion.
 "In view" means all four corners of the board project inside the picture. The detected pose is OpenCV's ChArUco
 corners and solvePnP on the frames the live check saved (--save-detected), with the board's Unreal size.
 
   .venv\Scripts\python.exe -m tools.unreal.dock_pass_report --run-json C:\tune_hitl\dock1.json
-    --link-csv C:\tune_hitl\dock1\link.csv --frames C:\tune_hitl\dock1_frames --out C:\tune_hitl\dock1_report
+    --link-csv C:\tune_hitl\dock1\link.csv --frames C:\tune_hitl\dock1_frames --out C:\tune_hitl\dock1_report --camera fov90
+(dock1 rendered with the 90 deg camera; runs launched with -NavPyNativeCameraIntrinsics=1 take the default zr10)
 """
 from __future__ import annotations
 
@@ -26,7 +28,8 @@ from typing import Optional
 import cv2
 import numpy as np
 
-from tools.unreal.dock_pass_geometry import Truth, board_view, detected_pose, pose_error
+from tools.unreal.dock_pass_geometry import (CAMERAS, CameraModel, Truth, board_view, camera_named, detected_pose,
+                                             pose_error, zr10_camera)
 from tools.unreal.npyc_live_check import DETECTED_DIR
 
 POSE_EXACT_FLAG = 2                   # NPYC v2 pose_flags bit 1: the rendered pose is that board-time sample
@@ -69,7 +72,8 @@ def _stats(values: list[float]) -> Optional[dict]:
 
 
 def score_frames(rows: list[dict], times: list[int], states: dict[int, Truth], board: tuple[float, float, float],
-                 windows: list[tuple[int, int]], detected_dir: Optional[Path]) -> list[dict]:
+                 windows: list[tuple[int, int]], detected_dir: Optional[Path],
+                 camera: Optional[CameraModel] = None) -> list[dict]:
     """One record per frame inside a pass window with an exact pose: geometry, detection and pose error."""
     scored = []
     for row in rows:
@@ -81,13 +85,13 @@ def score_frames(rows: list[dict], times: list[int], states: dict[int, Truth], b
         truth = truth_at(times, states, board_us) if k is not None else None
         if truth is None:
             continue
-        view = board_view(truth, board)
+        view = board_view(truth, board, camera)
         rec = {"frame_index": int(row["frame_index"]), "pass": k, "board_time_us": board_us, "view": view,
                "ran": row["detected"] != "", "detected": row["detected"] == "1",
                "latency_ms": float(row["latency_ms"]) if row.get("latency_ms") else None, "pose": None, "error": None}
         image_path = detected_dir / f"{rec['frame_index']:06d}.png" if detected_dir is not None else None
         if rec["detected"] and image_path is not None and image_path.is_file():
-            pose = detected_pose(cv2.imread(str(image_path), cv2.IMREAD_UNCHANGED))
+            pose = detected_pose(cv2.imread(str(image_path), cv2.IMREAD_UNCHANGED), camera)
             if pose is not None:
                 rec["pose"], rec["error"] = pose, pose_error(view, pose)
             rec["image"] = image_path
@@ -156,7 +160,7 @@ def read_run(path: Path) -> dict:
     return json.JSONDecoder().raw_decode(text.lstrip())[0]
 
 
-def report(run_json: Path, link_csv: Path, frames_dir: Path, out: Path) -> dict:
+def report(run_json: Path, link_csv: Path, frames_dir: Path, out: Path, camera: Optional[CameraModel] = None) -> dict:
     run = read_run(run_json)
     card = run["card"]
     board = (card["board"]["lat"], card["board"]["lon"], card["board"]["msl_m"])
@@ -166,7 +170,7 @@ def report(run_json: Path, link_csv: Path, frames_dir: Path, out: Path) -> dict:
     with (frames_dir / "frames.csv").open(newline="") as stream:
         rows = list(csv.DictReader(stream))
     detected_dir = frames_dir / DETECTED_DIR
-    recs = score_frames(rows, times, states, board, windows, detected_dir if detected_dir.is_dir() else None)
+    recs = score_frames(rows, times, states, board, windows, detected_dir if detected_dir.is_dir() else None, camera)
     per_pass = [{"pass": k + 1, "height_m": p["height_m"], "heading_deg": p["heading_deg"],
                  **summarize_group([r for r in recs if r["pass"] == k])} for k, p in enumerate(passes)]
     per_slant = []
@@ -176,7 +180,7 @@ def report(run_json: Path, link_csv: Path, frames_dir: Path, out: Path) -> dict:
     latencies = [r["latency_ms"] for r in recs if r["latency_ms"] is not None]
     if out.exists():
         shutil.rmtree(out / "samples", ignore_errors=True)
-    result = {"board": card["board"], "passes": per_pass, "by_slant_range": per_slant,
+    result = {"board": card["board"], "camera": (camera or zr10_camera()).name, "passes": per_pass, "by_slant_range": per_slant,
               "latency_ms_in_windows": _stats(latencies), "link_gate": link_gate(run),
               "frames_in_windows": len(recs), "samples": save_samples(recs, out / "samples")}
     (out / "report.json").write_text(json.dumps(result, indent=1))
@@ -189,9 +193,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--link-csv", type=Path, required=True, help="the bridge's link.csv of the run (the truth)")
     parser.add_argument("--frames", type=Path, required=True, help="the live check's --out folder")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--camera", choices=CAMERAS, default="zr10",
+                        help="the native camera the run rendered with (fov90: runs before 2026-10-14's ZR10 intrinsics)")
+    parser.add_argument("--zoom", type=float, default=1.0, help="zr10 only: the run's -NavPyNativeCameraZoom")
     args = parser.parse_args(argv)
+    try:
+        camera = camera_named(args.camera, args.zoom)
+    except ValueError as error:
+        parser.error(str(error))
     args.out.mkdir(parents=True, exist_ok=True)
-    print(json.dumps(report(args.run_json, args.link_csv, args.frames, args.out), indent=1))
+    print(json.dumps(report(args.run_json, args.link_csv, args.frames, args.out, camera), indent=1))
     return 0
 
 

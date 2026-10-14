@@ -31,8 +31,8 @@ def test_a_level_aircraft_sees_the_board_where_the_mount_pitch_puts_it(monkeypat
     assert view.in_view and view.slant_m == pytest.approx(20.0 * math.sqrt(2), rel=1e-3)
     assert view.agl_m == pytest.approx(20.0)
     centre = k @ view.centre_cam
-    assert centre[0] / centre[2] == pytest.approx(geo.IMAGE_W / 2, abs=0.5)
-    assert centre[1] / centre[2] == pytest.approx(geo.IMAGE_H / 2 + k[0, 0] * math.tan(math.radians(10.0)), abs=0.5)
+    assert centre[0] / centre[2] == pytest.approx(k[0, 2], abs=0.5)
+    assert centre[1] / centre[2] == pytest.approx(k[1, 2] + k[1, 1] * math.tan(math.radians(10.0)), abs=0.5)
     # the board's up normal points back at the camera's top (y up is -y in the image)
     assert view.normal_cam[1] < 0
     # flying away from it, or past it, the board is out of the picture
@@ -64,6 +64,37 @@ def test_corners_in_one_row_or_column_give_no_pose():
     assert geo.spans_grid(np.array([0, 1, per_row, per_row + 1]))
 
 
+def test_the_default_camera_is_the_zr10_zoom_one_calibration():
+    # the profile's measured row (tests/modules/vision/test_zr10_profile_intrinsics.py), rendered by Unreal as a
+    # pinhole with -NavPyNativeCameraIntrinsics=1: about 49 deg wide, against the 90 deg the dock2 run had
+    camera = geo.zr10_camera()
+    assert (camera.width, camera.height) == (1280, 720)
+    assert (camera.fx, camera.fy, camera.cx, camera.cy) == pytest.approx((1407.42, 1401.91, 670.95, 369.78))
+    assert np.array_equal(geo.camera_matrix(), camera.k)
+    assert camera.fov_h_deg == pytest.approx(48.9, abs=0.1)
+    assert geo.UNREAL_FOV90.fx == pytest.approx(640.0) and geo.UNREAL_FOV90.fov_h_deg == pytest.approx(90.0)
+
+
+def test_zoom_scales_the_focal_lengths_about_the_same_principal_point():
+    one, two = geo.zr10_camera(), geo.zr10_camera(2.0)
+    assert (two.fx, two.fy) == pytest.approx((2 * one.fx, 2 * one.fy))
+    assert (two.cx, two.cy) == (one.cx, one.cy)
+    for zoom in (0.0, 0.5, math.inf, math.nan):        # Unreal renders zoom 1 for any factor below 1
+        with pytest.raises(ValueError):
+            geo.zr10_camera(zoom)
+
+
+def test_the_report_projects_with_the_camera_it_is_given():
+    # the same pose seen through the 90 deg camera of the earlier runs and through the ZR10: the narrow camera
+    # magnifies the board by the focal ratio about its principal point
+    truth = _truth_south_of_board(20.0, 20.0)
+    wide = geo.board_view(truth, BOARD, geo.UNREAL_FOV90)
+    narrow = geo.board_view(truth, BOARD, geo.zr10_camera())
+    assert np.allclose(wide.centre_cam, narrow.centre_cam)
+    wide_span = np.ptp(wide.corners_px[:, 0])
+    assert np.ptp(narrow.corners_px[:, 0]) == pytest.approx(wide_span * 1407.42 / 640.0, rel=1e-6)
+
+
 def _render_board(rvec: np.ndarray, tvec: np.ndarray) -> np.ndarray:
     """The Unreal board texture (5 x 7, half a square margin) seen by the report's camera at this board pose."""
     board = geo.build_charuco_board(geo.BOARD_SPEC)
@@ -78,12 +109,13 @@ def _render_board(rvec: np.ndarray, tvec: np.ndarray) -> np.ndarray:
     image_pts, _ = cv2.projectPoints(np.column_stack([metres, np.zeros(4)]).astype(float), rvec, tvec,
                                      geo.camera_matrix(), None)
     h = cv2.getPerspectiveTransform(tex, image_pts.reshape(-1, 2).astype(np.float32))
-    return cv2.warpPerspective(texture, h, (geo.IMAGE_W, geo.IMAGE_H), borderValue=128)
+    camera = geo.zr10_camera()
+    return cv2.warpPerspective(texture, h, (camera.width, camera.height), borderValue=128)
 
 
 def test_the_board_pose_from_its_corners_matches_the_rendered_pose():
     rvec = np.array([0.3, 0.1, -0.2])
-    tvec = np.array([-1.0, -1.4, 6.0])
+    tvec = np.array([-1.0, -1.4, 9.0])
     pose = geo.detected_pose(_render_board(rvec, tvec))
     assert pose is not None and pose["count"] >= geo.MIN_PNP_CORNERS
     rot, _ = cv2.Rodrigues(rvec)
@@ -95,7 +127,7 @@ def test_the_board_pose_from_its_corners_matches_the_rendered_pose():
 
 
 def test_a_pose_needs_corners_spanning_the_grid_and_a_solvable_pnp(monkeypatch):
-    image = _render_board(np.array([0.3, 0.1, -0.2]), np.array([-1.0, -1.4, 6.0]))
+    image = _render_board(np.array([0.3, 0.1, -0.2]), np.array([-1.0, -1.4, 9.0]))
     monkeypatch.setattr(geo, "spans_grid", lambda ids: False)
     assert geo.detected_pose(image) is None
     monkeypatch.undo()
@@ -107,7 +139,7 @@ def test_a_pose_needs_corners_spanning_the_grid_and_a_solvable_pnp(monkeypatch):
 
 
 def test_no_board_no_pose():
-    assert geo.detected_pose(np.full((geo.IMAGE_H, geo.IMAGE_W, 3), 128, np.uint8)) is None
+    assert geo.detected_pose(np.full((720, 1280, 3), 128, np.uint8)) is None
 
 
 def test_truth_is_matched_by_board_time_only_within_the_tolerance():
@@ -123,7 +155,7 @@ def _row(index: int, board_us: int, flags: int = 3, detected: str = "") -> dict:
 
 
 def test_frames_are_scored_per_pass_window_with_exact_poses_only():
-    truth = _truth_south_of_board(20.0, 20.0)
+    truth = _truth_south_of_board(25.0, 20.0)        # with the mount offset: the board 6 deg below the axis
     times = [1_000_000, 2_000_000, 3_000_000]
     states = {t: truth for t in times}
     rows = [_row(1, 1_000_000, detected="1"), _row(2, 2_000_000, detected="0"), _row(3, 2_000_000, flags=1),
@@ -153,7 +185,7 @@ def test_link_gate_reads_the_runs_health():
 
 
 def test_the_live_check_saves_detected_frames_unmarked(tmp_path):
-    image = _render_board(np.array([0.3, 0.1, -0.2]), np.array([-1.0, -1.4, 6.0]))
+    image = _render_board(np.array([0.3, 0.1, -0.2]), np.array([-1.0, -1.4, 9.0]))
     frame = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     recorder = Recorder(tmp_path, save_every=1000, detect_every=1, save_detected=True)
     recorder.rows[7] = {"detected": "", "confidence": ""}
