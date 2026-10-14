@@ -82,10 +82,10 @@ def _run(requests: dict[str, AsgiRequest], *, cancel_at: int | None = None, tick
 
 def test_query_strings_split_into_route_parameters():
     results = _run({
-        "ok": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep%3Aserial1&sys_id=1"),
-        "named": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep:serial1&sys_id=2&name=a%20b"),
+        "ok": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep%3Arouter&sys_id=1"),
+        "named": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep:router&sys_id=2&name=a%20b"),
     })
-    assert results["ok"][:2] == (200, b'{"status":"connected","sys_id":1,"device":"lockstep:serial1","name":null}')
+    assert results["ok"][:2] == (200, b'{"status":"connected","sys_id":1,"device":"lockstep:router","name":null}')
     assert results["named"][1].endswith(b'"name":"a b"}')
 
 
@@ -102,12 +102,12 @@ def test_json_bodies_headers_and_the_request_id_reach_the_handler():
 
 def test_error_statuses_and_bodies_pass_through():
     results = _run({
-        "http_error": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep:serial1&sys_id=99"),
-        "missing_query": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep:serial1"),
+        "http_error": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep:router&sys_id=99"),
+        "missing_query": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep:router"),
         "crash": AsgiRequest("GET", "/crash"),
         "unknown": AsgiRequest("GET", "/nope"),
     })
-    assert results["http_error"][:2] == (500, b'{"detail":"no vehicle 99 on lockstep:serial1"}')
+    assert results["http_error"][:2] == (500, b'{"detail":"no vehicle 99 on lockstep:router"}')
     assert results["missing_query"][0] == 422 and b"sys_id" in results["missing_query"][1]
     assert results["crash"][:2] == (500, b"Internal Server Error")
     assert results["unknown"][:2] == (404, b'{"detail":"Not Found"}')
@@ -121,7 +121,7 @@ def test_a_sim_time_deadline_ends_a_request_on_the_tick_grid():
 def test_a_cancel_ends_a_running_request_at_its_tick_and_another_stands():
     results = _run({
         "slow": AsgiRequest("GET", "/slow"),
-        "ok": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep:serial1&sys_id=1"),
+        "ok": AsgiRequest("POST", "/api/vehicles/connect?device=lockstep:router&sys_id=1"),
     }, cancel_at=3)
     assert results["slow"] == ("cancelled", 60_000)
     assert results["ok"][0] == 200

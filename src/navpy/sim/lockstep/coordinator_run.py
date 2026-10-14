@@ -34,16 +34,15 @@ and never replies, then runs synthetic ticks with ``end`` until every
 participant ended. The snapshot is taken only after every participant ended
 flushed and exited; then every SITL is stopped by ownership.
 
-Port bytes take the manifest's path (``coordinator_ports``): the slice's
-direct links, or a routed fleet's router, queues and packet records
-(``coordinator_router``). The journal opens with the run's tick-grid
-parameters and closes with the MAVLink message counts per link and
-direction (``MavlinkTally``; tick records carry their NAVLINK counts),
-including the parked frames' egress and the participants' drain egress. A fault journals its class, kind
-and logical context only; its message goes to the ``*_host`` sidecar. Every
-fault stops by ownership. A one-SITL run keeps the slice's journal schema
-until step 10c re-baselines it (owner Q1): fleet-only fields (the fleet
-header, latch ticks, first SNAPs) are journaled only for a fleet.
+Port bytes take the router path for any N, the slice included
+(``coordinator_router``: the router, the queues and the packet records).
+The journal opens with the run's tick grid and topology (the SITL ports,
+the boot budget, the expected fleet) and closes with the MAVLink message
+counts per link and direction (``MavlinkTally``; tick records carry their
+NAVLINK counts), including the parked frames' egress and the participants'
+drain egress, then the outcome with each expected companion's first SNAP. A
+fault journals its class, kind and logical context only; its message goes
+to the ``*_host`` sidecar. Every fault stops by ownership.
 """
 
 from __future__ import annotations
@@ -66,7 +65,7 @@ from navpy.sim.lockstep.coordinator_latches import SnapLatch
 from navpy.sim.lockstep.coordinator_lifecycle import OPERATOR, LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Roster
 from navpy.sim.lockstep.coordinator_operator import deliver_operator_requests
-from navpy.sim.lockstep.coordinator_ports import make_ports
+from navpy.sim.lockstep.coordinator_router import RoutedPorts
 from navpy.sim.lockstep.coordinator_types import (
     DRAIN_BUDGET_US,
     FINALIZATION_BUDGET_US,
@@ -109,7 +108,7 @@ class LockstepCoordinator:
         self._roster = roster
         self._book = LifecycleBook(roster, ids)
         self._exchange = TickExchange(roster, self._book, manifest.companion_roles,
-                                      make_ports(manifest, roster))
+                                      RoutedPorts(manifest, roster))
         self._snaps = SnapLatch(manifest.expected_fleet)
         self._ids = ids
         self._host_dir = host_dir
@@ -136,23 +135,20 @@ class LockstepCoordinator:
             raise
         self._roster.close()
         self.journal.add(counts)
-        end = {"outcome": outcome, "terminal_tick": k_t, "final_tick": k_f, "parked_tick": parked}
-        if self._manifest.is_fleet:
-            end["first_snaps"] = self._snaps.records()
-        self.journal.add(end)
+        self.journal.add({"outcome": outcome, "terminal_tick": k_t, "final_tick": k_f,
+                          "parked_tick": parked, "first_snaps": self._snaps.records()})
         return RunResult(outcome, k_t, k_f, parked)
 
     def _grid(self) -> dict[str, object]:
         plan = self._manifest
-        grid: dict[str, object] = {
+        return {
             "max_frame_gap_us": plan.max_frame_gap_us,
             "drain_period_us": plan.drain_period_us,
             "mission_budget_us": plan.mission_budget_us,
+            "sitl_ports": [list(ports) for ports in plan.sitl_ports],
+            "boot_budget_us": plan.boot_budget_us,
+            "expected_fleet": list(plan.expected_fleet),
         }
-        if plan.is_fleet:
-            grid.update(sitl_ports=[list(ports) for ports in plan.sitl_ports],
-                        boot_budget_us=plan.boot_budget_us, expected_fleet=list(plan.expected_fleet))
-        return grid
 
     def _fail(self, fault: BaseException) -> None:
         if isinstance(fault, RunFault):
@@ -184,11 +180,11 @@ class LockstepCoordinator:
             if phase == "boot" and fleet.boot.complete:
                 phase, started_us = "mission", t_us
             record = TickRecord(k, phase, t_us)
-            record.note("frame", fleet.per_sitl([sha256(raw) for raw in raws]))
+            record.note("frame", [sha256(raw) for raw in raws])
             ports.frames(k, record, fleet.egress(frames))
             if phase == "boot":
                 latched = fleet.boot.observe(k, t_us, [frame.helpers_quiet for frame in frames])
-                if latched and self._manifest.is_fleet:
+                if latched:
                     record.note("latched", [index + 1 for index in latched])
                 ports.inbound(k, record, {})  # no participant runs: bytes for one are discarded
                 self._reply(k, record, frames)
@@ -251,7 +247,7 @@ class LockstepCoordinator:
 
     def _reply(self, k: int, record: TickRecord, frames: list[Frame]) -> None:
         raws = self._fleet.reply(k, self._exchange.ports.reply(k, record, frames))
-        record.note("reply", self._fleet.per_sitl([sha256(raw) for raw in raws]))
+        record.note("reply", [sha256(raw) for raw in raws])
         self.journal.add(record.data)
         self._delay("after_reply")
 

@@ -7,8 +7,8 @@ Construction (the managed bootstrap thread, under the baton):
   (so the startup log line names a run-relative path);
 - AnyIO's worker threads (sync routes, ``run_in_threadpool``) are bound to
   the loop's ``BatonExecutor``;
-- the module-level vehicle manager opens ``lockstep:serial1`` through the
-  link (``VehicleManager.set_bus_opener``); the ESP32 launch controller is
+- the module-level vehicle manager opens its device (``lockstep:router``)
+  through the link (``VehicleManager.set_bus_opener``); the ESP32 launch controller is
   the in-process port (``esp32_port``);
 - every broadcast is journaled by the event sink; the producer inventory
   runs each background task and thread in its own cancellation scope.

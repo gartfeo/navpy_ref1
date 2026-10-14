@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from navpy.sim.lockstep.coordinator_journal import TickRecord
 from navpy.sim.lockstep.coordinator_lifecycle import LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Member, Roster
-from navpy.sim.lockstep.coordinator_ports import TickPorts
+from navpy.sim.lockstep.coordinator_router import RoutedPorts
 from navpy.sim.lockstep.coordinator_types import TERMINAL_MARKER, CoordinatorFault, ParticipantFault
 from navpy.sim.lockstep.part_wire import Done, Event, Response
 
@@ -41,12 +41,12 @@ class TickOutput:
 
 class TickExchange:
     def __init__(self, roster: Roster, book: LifecycleBook, terminal_roles: tuple[str, ...],
-                 ports: TickPorts) -> None:
+                 ports: RoutedPorts) -> None:
         self._roster = roster
         self._book = book
         #: Only these roles' log lines can carry the mission terminal marker (NavPy's SNAP).
         self._terminal_roles = terminal_roles
-        #: Where the members' port bytes come from and go to (``coordinator_ports``);
+        #: Where the members' port bytes come from and go to (the router path);
         #: the coordinator drives its SITL side (frames, replies, parking).
         self.ports = ports
 
@@ -67,8 +67,7 @@ class TickExchange:
         output = TickOutput()
         for member, raw_tick in zip(members, sent):
             done, raw_done = self._roster.receive(member, k)
-            generation = member.spawn.generation if self.ports.member_generation else None
-            record.member(member.ordinal, raw_tick, raw_done, generation)
+            record.member(member.ordinal, member.spawn.generation, raw_tick, raw_done)
             self._apply(member, done, k, t_us, record, output, draining)
         self._book.check_budgets(t_us)
         return output

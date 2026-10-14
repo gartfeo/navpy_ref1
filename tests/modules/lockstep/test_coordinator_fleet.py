@@ -15,19 +15,26 @@ import math
 import pytest
 
 from gcs.backend.instance_registry_runtime import pid_alive
-from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault, Manifest, backend_ordinal
+from navpy.sim.lockstep.coordinator_types import (
+    ROUTER_DEVICE,
+    CoordinatorFault,
+    HostFault,
+    Manifest,
+    backend_ordinal,
+    fleet_sitl_ports,
+)
 from navpy.sim.lockstep.step_wire import unpack_reply
 from scripts.lockstep_slice_actor import BACKEND as SLICE_BACKEND
 from tests.modules.lockstep.coordinator_doubles import ScriptedSitl
 from tests.modules.lockstep.fleet_doubles import (
     HUB,
+    ROUTER,
     ROVERS,
     build_fleet,
     fleet_manifest,
     fleet_sitls,
     recorded_source_us,
     serial0,
-    serial1,
 )
 from tests.modules.lockstep.test_grid_check_recording import recorded_frames
 
@@ -118,14 +125,10 @@ def test_each_rover_gets_its_own_sitls_serial0_bytes_and_answers_into_its_reply(
     coordinator.run()
     checked = 0
     for (ordinal, k), ports in sorted(ticks.items()):
-        if ordinal == HUB:  # the hub owns every SITL's serial1, each with its own SITL's bytes
-            if ports:
-                assert [(device, data[:3]) for device, data in ports] == [
-                    (serial1(i), f"S{i}:".encode()) for i in ROVERS]
-                for i, (_device, data) in zip(ROVERS, ports):
-                    assert data.startswith(f"S{i}:s1k{k}|".encode())
-                    assert replies[(i, k)][1] == b"H" + data[::-1]  # its echo, on SITL i's serial1
-                checked += 1
+        if ordinal == HUB:  # the router forwards whole packets only: the tagged
+            # serial1 text reaches neither the hub nor another SITL's serial1
+            assert ports in ((), ((ROUTER, b""),))
+            assert all(replies[(i, k)][1] == b"" for i in ROVERS if (i, k) in replies)
             continue
         if not ports:  # a drain TICK carries no port bytes
             continue
@@ -295,6 +298,8 @@ def test_the_sitl_ports_are_data_and_must_name_distinct_devices():
     with pytest.raises(ValueError, match="distinct devices"):
         dataclasses.replace(fleet_manifest(), sitl_ports=(("a", "b"), ("b", "c")))
     slice_plan = Manifest(seed=1, epoch_us=0, max_frame_gap_us=1, drain_period_us=1,
-                          mission_budget_us=1, roles={})
-    assert slice_plan.sitl_devices == ("lockstep:serial0", "lockstep:serial1")
-    assert not slice_plan.is_fleet and fleet_manifest().is_fleet
+                          mission_budget_us=1, roles={}, sitl_ports=fleet_sitl_ports(1),
+                          router=ROUTER_DEVICE)
+    assert slice_plan.sitl_devices == ("lockstep:serial0.1", "sitl1.serial1")
+    with pytest.raises(ValueError, match="is a SITL port"):
+        dataclasses.replace(slice_plan, router="sitl1.serial1")

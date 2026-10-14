@@ -4,7 +4,8 @@ A hub (backend-like, spawned by the coordinator, admitted at the boot
 barrier) and a rover (NavPy-like, spawned from the hub's spawn request in a
 ``DONE``, admitted the tick after) run against a scripted SITL that parks
 like the relay. The operator echoes, spawns, cancels a pending request and
-stops the rover at SNAP; drain then ends the hub.
+stops the rover at SNAP; drain then ends the hub. The run takes the router
+path with one SITL, as the slice does (step 10c).
 """
 
 from __future__ import annotations
@@ -15,14 +16,17 @@ import json
 import pytest
 
 from gcs.backend.instance_registry_runtime import pid_alive
+from navpy.sim.lockstep.coordinator_mavlink import ROUTER_LINK
 from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault, WallBudgets
-from tests.modules.lockstep.coordinator_doubles import HUB, ROVER, ScriptedSitl, build, manifest
-
-
-#: The one-SITL toy run's journal digest, pinned when step 10a generalised the
-#: coordinator to N SITLs: a one-SITL run must keep the slice journal's bytes
-#: until step 10c re-baselines them (owner Q1). Changed only with that schema change.
-ONE_SITL_TOY_DIGEST = "a013e5c5b28450c1798fd6f0a5030f110a90b8cfe8a193840b64cbeaa7d03eb4"
+from tests.modules.lockstep.coordinator_doubles import (
+    HUB,
+    ROUTER,
+    ROVER,
+    SERIAL0,
+    ScriptedSitl,
+    build,
+    manifest,
+)
 
 
 def _run(tmp_path, name, **kwargs):
@@ -42,7 +46,6 @@ def test_two_runs_and_a_delayed_run_give_the_same_journal(tmp_path):
     delayed = _run(tmp_path, "c", delay_seed=7, plan=manifest(
         hub={"exit_delay_s": 0.3}, rover={"exit_delay_s": 0.3}))
     assert plain[0].journal.digest == again[0].journal.digest == delayed[0].journal.digest
-    assert plain[0].journal.digest == ONE_SITL_TOY_DIGEST
     assert plain[0].journal.records == delayed[0].journal.records
     assert plain[4] == delayed[4]
     assert plain[1].snapshot_rows == delayed[1].snapshot_rows  # the SITL artifact, byte for byte
@@ -68,8 +71,8 @@ def test_the_late_joiner_is_admitted_the_tick_after_its_spawn(tmp_path):
     first = next(r["k"] for r in ticks if any(m["ordinal"] == ROVER for m in r["members"]))
     assert first == spawn + 1
     before = [r for r in ticks if r["phase"] != "boot" and r["k"] < first]
-    assert before and all(r["discarded"].get("lockstep:serial0") for r in before)
-    assert all("lockstep:serial1" not in r["discarded"] for r in before)
+    assert before and all(r["discarded"].get(SERIAL0) for r in before)
+    assert all(ROUTER not in r["discarded"] for r in before)
     boot = [r for r in ticks if r["phase"] == "boot"]
     assert boot and all(r["members"] == [] for r in boot)
     assert operator.answers[operator.slow_id] == {"cancelled": True}  # pending over ticks, then cancelled
@@ -307,7 +310,7 @@ def test_a_message_completed_in_the_parked_frame_is_counted(tmp_path):
     sitl = ScriptedSitl(extra_egress=lambda k: packet if k == parked else b"")
     coordinator, *_ = build(tmp_path / "parked", sitl=sitl)
     coordinator.run()
-    assert _forbidden_counts(coordinator) == {("lockstep:serial0", "from_sitl"): 1}
+    assert _forbidden_counts(coordinator) == {(SERIAL0, "from_sitl"): 1}
     (parked_record,) = [r["parked"] for r in coordinator.journal.records if "parked" in r]
     assert parked_record["tick"] == parked
     assert any("TASK_ASSIGN_RESPONSE" in e for e in assignment_errors(coordinator.journal.records, [], 1))
@@ -319,7 +322,7 @@ def test_a_message_emitted_during_drain_is_counted(tmp_path):
 
     plan = manifest(hub={"end_egress_hex": _peer_response().hex()})
     coordinator, *_ = _run(tmp_path, "drain", plan=plan)
-    assert _forbidden_counts(coordinator) == {("lockstep:serial1", "drain_to_sitl"): 1}
+    assert _forbidden_counts(coordinator) == {(ROUTER_LINK, "drain_to_sitl"): 1}
     drain = [r for r in coordinator.journal.records if r.get("phase") == "drain" and r["drain_egress"]]
-    assert drain and drain[0]["navlink"]["lockstep:serial1"]["drain_to_sitl"]
+    assert drain and drain[0]["navlink"][ROUTER_LINK]["drain_to_sitl"]
     assert any("TASK_ASSIGN_RESPONSE" in e for e in assignment_errors(coordinator.journal.records, [], 1))

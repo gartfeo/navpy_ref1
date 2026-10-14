@@ -1,4 +1,4 @@
-"""Test doubles for a routed fleet's ports: a scripted tick harness, MAVLink sources.
+"""Test doubles for the router path's ports: a scripted tick harness, MAVLink sources.
 
 :class:`PortsHarness` drives :class:`~navpy.sim.lockstep.coordinator_router.RoutedPorts`
 through tick steps 1-4 as the coordinator does, without processes: each
@@ -113,7 +113,7 @@ class PortsHarness:
         self.ports.frames(k, record, egress or {})
         owners = {device: member for member in admitted for device in member.devices}
         for member in sorted(admitted, key=lambda m: m.ordinal):
-            record.member(member.ordinal, b"", b"", member.spawn.generation)
+            record.member(member.ordinal, member.spawn.generation, b"", b"")
         delivered = self.ports.inbound(k, record, owners)
         for member, device, data in done:
             self.ports.outbound(k, member, device, data, record, draining=False)

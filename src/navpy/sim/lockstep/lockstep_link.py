@@ -3,8 +3,9 @@
 The product opens it through the bus seam (``MavBusOpener``): NavPy's
 ``create_vehicle(open_bus=link.open)`` and the backend's
 ``VehicleManager(open_bus=link.open)``. The device string is the logical
-device (``lockstep:serial0`` for NavPy, ``lockstep:serial1`` for the backend
-monitor), so it reaches every place a device string does.
+device from the role config (``lockstep:serial0.<sysid>`` for NavPy,
+``lockstep:router`` for the backend), so it reaches every place a device
+string does.
 
 The participant loop is the other side. Per tick it calls :meth:`deliver` with
 the ``TICK``'s port bytes, in the tick's input phase, and :meth:`drain_egress`

@@ -1,9 +1,9 @@
 """9e acceptance: the backend participant, driven by the operator's setup calls.
 
 The real backend runs as a participant process under the 9d coordinator,
-against the reference autopilot's byte stream on ``lockstep:serial1``. A
+against the reference autopilot's byte stream through the router (``lockstep:router``). A
 scripted API actor makes the operator's setup calls for the slice fixture
-(connect ``lockstep:serial1``, the command bounds read by name, the AAS
+(connect ``lockstep:router``, the command bounds read by name, the AAS
 parameter writes, the scenario mission's upload and readback) through the
 lockstep ports. The serial1 bytes, the responses and the event journal
 repeat byte for byte across runs under two slots, each claimed through

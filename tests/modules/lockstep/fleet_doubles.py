@@ -5,10 +5,11 @@ on the same recorded firmware clock (``serial_step_frames.csv``): three
 synchronized frame streams, told apart by an egress tag. Its devices are
 data (``lockstep_fleet.md``, Links and names): SITL i's serial0 is
 ``lockstep:serial0.<i>``, owned by rover i (NavPy-like, ordinal i), and its
-serial1 is ``sitl<i>.serial1``. On the slice's direct path the hub
-(backend-like, ordinal N+1 = 4) owns the three serial1 devices; on the
-router path (:func:`routed_fleet_manifest`, step 10b) the coordinator owns
-them and the hub owns ``lockstep:router``.
+serial1 is ``sitl<i>.serial1``, the coordinator's router endpoint; the hub
+(backend-like, ordinal N+1 = 4) owns ``lockstep:router``. The SITLs' tagged
+egress is no MAVLink, so the router forwards none of it;
+:func:`routed_fleet_manifest` and :func:`routed_fleet_sitls` (step 10b) add
+MAVLink traffic.
 
 :class:`FleetOperator` starts the rovers one at a time through the hub, as
 the backend's launcher port does (each spawn after the previous rover's
@@ -41,6 +42,8 @@ SITLS = 3
 HUB = backend_ordinal(SITLS)
 ROVERS = tuple(range(1, SITLS + 1))
 TOYS = "tests.modules.lockstep.toy_participants"
+#: The backend's router endpoint device.
+ROUTER = "lockstep:router"
 #: Each rover's SNAP time, sim seconds (the recording starts at 1.74 s): rover 3 is last.
 SNAP_AT_S = {1: 2.6, 2: 2.8, 3: 3.0}
 
@@ -68,9 +71,8 @@ def fleet_sitls(*, quiet_from=(3, 3, 3), delays: HostDelays | None = None, sourc
 def fleet_manifest(*, hub=None, rovers=None, mission_budget_us=60_000_000, boot_budget_us=None,
                    initial=(("hub", HUB),), expected=ROVERS) -> Manifest:
     rovers = rovers or {}
-    roles = {"hub": RoleSpec(f"{TOYS}:hub", tuple(serial1(i) for i in ROVERS),
-                             {"ready_after_s": 0.1, "devices": [serial1(i) for i in ROVERS],
-                              **(hub or {})})}
+    roles = {"hub": RoleSpec(f"{TOYS}:hub", (ROUTER,),
+                             {"ready_after_s": 0.1, "devices": [ROUTER], **(hub or {})})}
     for i in ROVERS:
         roles[f"rover{i}"] = RoleSpec(f"{TOYS}:rover", (serial0(i),), {
             "ready_after_s": 0.06, "snap_at_s": SNAP_AT_S[i], "devices": [serial0(i)],
@@ -79,32 +81,27 @@ def fleet_manifest(*, hub=None, rovers=None, mission_budget_us=60_000_000, boot_
         seed=1, epoch_us=1_760_000_000_000_000, max_frame_gap_us=20_825, drain_period_us=20_000,
         mission_budget_us=mission_budget_us, roles=roles, initial=initial,
         companion_roles=tuple(f"rover{i}" for i in ROVERS), expected_fleet=tuple(expected),
-        sitl_ports=tuple((serial0(i), serial1(i)) for i in ROVERS), boot_budget_us=boot_budget_us,
+        sitl_ports=tuple((serial0(i), serial1(i)) for i in ROVERS), router=ROUTER,
+        boot_budget_us=boot_budget_us,
     )
 
 
-#: The backend's router endpoint device on a routed fleet (10b).
-ROUTER = "lockstep:router"
-
-
 def routed_fleet_manifest(**options) -> Manifest:
-    """The 3-link toy on the router path: the hub owns ``lockstep:router``, the
-    coordinator owns every serial1. Each beat the hub sends a PARAM_REQUEST_READ
-    to 2/1 and rover i a TASK_ASSIGN_REQUEST from i/191 to the next rover;
-    neither echoes, so the streams stay MAVLink."""
+    """The 3-link toy with MAVLink traffic: each beat the hub sends a
+    PARAM_REQUEST_READ to 2/1 and rover i a TASK_ASSIGN_REQUEST from i/191 to
+    the next rover; neither echoes, so the streams stay MAVLink."""
     plan = fleet_manifest(**options)
     gcs, gcs_sink = encoder(255, 190)
     gcs.param_request_read_send(2, 1, b"X", -1)
-    roles = {"hub": dataclasses.replace(plan.roles["hub"], devices=(ROUTER,), config={
-        **plan.roles["hub"].config, "devices": [ROUTER], "echo": False,
-        "beat_egress_hex": gcs_sink.drain().hex()})}
+    roles = {"hub": dataclasses.replace(plan.roles["hub"], config={
+        **plan.roles["hub"].config, "echo": False, "beat_egress_hex": gcs_sink.drain().hex()})}
     for i in ROVERS:
         link, sink = encoder(i, 191)
         link.task_assign_request_send(7, 1, 1000, 5000, i % SITLS + 1, i, 1, 2, 1, 2, 3)
         role = plan.roles[f"rover{i}"]
         roles[f"rover{i}"] = dataclasses.replace(role, config={
             **role.config, "echo": False, "beat_egress_hex": sink.drain().hex()})
-    return dataclasses.replace(plan, roles=roles, router=ROUTER)
+    return dataclasses.replace(plan, roles=roles)
 
 
 def routed_fleet_sitls(*, delays: HostDelays | None = None):

@@ -6,7 +6,7 @@ NavPy, serial1 for the backend; the autopilot carries the SITL's AAS Lua
 table). A scripted API actor makes 9e's setup calls (connect, the command
 bounds by name, the AAS writes, the slice mission upload), then POST
 start-all: the backend's launcher port puts a spawn request in its ``DONE``,
-the coordinator spawns NavPy (``-c lockstep:serial0 --stop-on-lifecycle``)
+the coordinator spawns NavPy (``-c lockstep:serial0.1 --stop-on-lifecycle``)
 and admits it at the next tick. NavPy boots on ticks (heartbeat, mission
 download, parameter reads, terrain from the DEM after the 1 s report wait);
 its ``runtime_ready`` event becomes the ``ready`` lifecycle record that the
@@ -35,13 +35,15 @@ from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSideca
 from navpy.sim.lockstep.coordinator_tick import READY_EVENT
 from navpy.sim.lockstep.coordinator_types import Manifest, RoleSpec, WallBudgets
 from navpy.sim.lockstep.operator_baton import OperatorBaton
-from navpy.sim.lockstep.participant_hooks import RequestIds
+from navpy.sim.lockstep.participant_hooks import DEVICE_KEY, RequestIds
 from scripts.eval_gcs_demo_config import build_settings
 from scripts.eval_gcs_demo_scenario import load_scenario
 from scripts.lockstep_slice_actor import (
     NAVPY,
     NAVPY_HOOKS,
+    ROUTER,
     SERIAL0,
+    SITL_PORTS,
     companion_argv,
     companion_script,
 )
@@ -113,7 +115,7 @@ def test_navpy_boots_and_stops_through_the_api_and_the_run_repeats(runs):
 def test_navpy_log_lines_are_its_file_log_and_name_no_host_path(runs):
     tmp_path, (plain, _result), _delayed = runs
     log = plain.operator.journal.log_lines[NAVPY]
-    assert any("Args (non-default): connection='lockstep:serial0'" in line
+    assert any("Args (non-default): connection='lockstep:serial0.1'" in line
                and "stop_on_lifecycle=True" in line for line in log)
     assert any(line.endswith("Mission download successful.") for line in log)
     assert not [line for line in log if str(tmp_path) in line or tmp_path.as_posix() in line]
@@ -162,8 +164,8 @@ def test_navpy_not_stopped_by_the_api_ends_on_the_drain_end(tmp_path):
     argv = companion_argv(build_settings(load_scenario(SLICE_SCENARIO)))
     plan = Manifest(seed=1, epoch_us=1_760_000_000_000_000, max_frame_gap_us=25_000,
                     drain_period_us=20_000, mission_budget_us=0,
-                    roles={"navpy": RoleSpec(NAVPY_HOOKS, (SERIAL0,), {"argv": argv})},
-                    initial=(("navpy", NAVPY),))
+                    roles={"navpy": RoleSpec(NAVPY_HOOKS, (SERIAL0,), {DEVICE_KEY: SERIAL0, "argv": argv})},
+                    sitl_ports=SITL_PORTS, router=ROUTER, initial=(("navpy", NAVPY),))
     sitl = AutopilotSitl(ReferenceAutopilot(parameters={**BOUND_VALUES, **navpy_parameters()}))
     roster = Roster(plan, LocalSpawner(tmp_path / "host", PYTHON_PATH), AllowAll(),
                     HostSidecar(tmp_path / PROCESSES_HOST_FILE),

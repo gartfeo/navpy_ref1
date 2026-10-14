@@ -26,7 +26,6 @@ from scripts.eval_gcs_demo_confirmation import run_confirmation_workflow
 from scripts.eval_gcs_demo_confirmation_timing import (
     RESPONSE_DIRECTION,
     RESPONSE_ID,
-    RESPONSE_LINK,
     confirmation_ticks,
     confirmation_timing_errors,
 )
@@ -40,6 +39,10 @@ REQUEST = json.dumps({"type": "task_confirm_request", "sys_id": 1, "task_id": 1,
 TELEMETRY = json.dumps({"type": "telemetry", "sys_id": 1})
 #: The backend's response to vehicle 1, keyed as the journal keys it.
 RESPONSE_KEY = f"{RESPONSE_ID}:255.0>1"
+#: Vehicle 1's SITL ports as the journal's grid names them; the response
+#: sends are the router's copies admitted to its serial1.
+SITL_PORTS = [["lockstep:serial0.1", "sitl1.serial1"]]
+RESPONSE_LINK = SITL_PORTS[0][1]
 
 
 class ScriptedBackend:
@@ -99,7 +102,7 @@ def run(frames: list[tuple[int, int]], deliveries: dict[int, list[str]], max_gap
             on_approval_accepted=approvals.append))
 
     operator = OperatorBaton(RequestIds(0), script)
-    records: list[dict] = [{"grid": {"max_frame_gap_us": max_gap_us}}]
+    records: list[dict] = [{"grid": {"max_frame_gap_us": max_gap_us, "sitl_ports": SITL_PORTS}}]
     for k, t_us in frames:
         backend.handle(k, operator.run_tick(backend.inbox(k)))
         record: dict = {"k": k, "t_us": t_us}
@@ -121,7 +124,7 @@ def uniform_grid(count: int, period_us: int = 10_000) -> list[tuple[int, int]]:
 
 def _timing(records, approval, k_request):
     lines = [(k_request, "CONFIRMING: P1")]
-    return confirmation_ticks(records, lines, 1), confirmation_timing_errors(records, lines, approval, 1)
+    return confirmation_ticks(records, lines, 1, 1), confirmation_timing_errors(records, lines, approval, 1, 1)
 
 
 def test_the_relations_hold_on_recorded_firmware_frames():
@@ -188,14 +191,14 @@ def test_failing_evidence():
     k = ticks.k
     lines = [(100, "CONFIRMING: P1")]
     early = _shift(records, "sent", k["k4"], k["k4"] - 2)  # approved before 15 s
-    assert any("t(k4) - t(k3)" in e for e in confirmation_timing_errors(early, lines, approval, 1))
+    assert any("t(k4) - t(k3)" in e for e in confirmation_timing_errors(early, lines, approval, 1, 1))
     late = _shift(records, "navlink", k["k5"], k["k5"] + 1)  # first send not at k4 + 1
-    assert any("not k4 + 1" in e for e in confirmation_timing_errors(late, lines, approval, 1))
+    assert any("not k4 + 1" in e for e in confirmation_timing_errors(late, lines, approval, 1, 1))
     audited = {**approval, "actual_delay_s": approval["actual_delay_s"] + 0.02}
-    assert any("actual_delay_s" in e for e in confirmation_timing_errors(records, lines, audited, 1))
+    assert any("actual_delay_s" in e for e in confirmation_timing_errors(records, lines, audited, 1, 1))
     after = [(k["k3"] + 1, "CONFIRMING: P1")]  # the companion state after the operator saw it
-    assert any("k1 <= k2 <= k3" in e for e in confirmation_timing_errors(records, after, approval, 1))
-    assert confirmation_timing_errors(records, [], approval, 1) == [
+    assert any("k1 <= k2 <= k3" in e for e in confirmation_timing_errors(records, after, approval, 1, 1))
+    assert confirmation_timing_errors(records, [], approval, 1, 1) == [
         "confirmation timing: the journal holds no k1"]
 
 
@@ -209,7 +212,7 @@ def test_the_bound_is_inclusive_at_exactly_the_delay_and_exclusive_past_the_uppe
     upper = 1500 + 10 + 2  # 15.10 s + 2 * 10 ms
     for offset, ok in ((exact, True), (exact - 1, False), (upper, True), (upper + 1, False)):
         moved = _shift(records, "sent", ticks.k["k4"], k3 + offset)
-        errors = [e for e in confirmation_timing_errors(moved, lines, approval, 1) if "t(k4)" in e]
+        errors = [e for e in confirmation_timing_errors(moved, lines, approval, 1, 1) if "t(k4)" in e]
         assert (errors == []) is ok, (offset, errors)
 
 
@@ -235,7 +238,7 @@ def test_each_resend_interval_is_checked_not_only_the_span():
     t = dict(frames)
     assert 500_000 <= t[k6] - t[k5] <= 2 * (250_000 + MAX_FRAME_GAP_US)  # the span alone passes
     lines = [(100, "CONFIRMING: P1")]
-    doubled = confirmation_timing_errors(_with_sends(records, [k5, k5, k6]), lines, approval, 1)
+    doubled = confirmation_timing_errors(_with_sends(records, [k5, k5, k6]), lines, approval, 1, 1)
     assert doubled == [f"confirmation timing: resend interval t({k5}) - t({k5}) = 0 us outside "
                        f"[250000, {250_000 + MAX_FRAME_GAP_US}]",
                        f"confirmation timing: resend interval t({k6}) - t({k5}) = {t[k6] - t[k5]} us "
@@ -243,7 +246,7 @@ def test_each_resend_interval_is_checked_not_only_the_span():
     # The second send two ticks late: its interval is too long and the next too short,
     # though the span is unchanged.
     middle = ticks.sends[1] + 2
-    errors = confirmation_timing_errors(_with_sends(records, [k5, middle, k6]), lines, approval, 1)
+    errors = confirmation_timing_errors(_with_sends(records, [k5, middle, k6]), lines, approval, 1, 1)
     assert [e.split(" = ")[0] for e in errors] == [
         f"confirmation timing: resend interval t({middle}) - t({k5})",
         f"confirmation timing: resend interval t({k6}) - t({middle})"]

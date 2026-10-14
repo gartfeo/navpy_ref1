@@ -56,7 +56,15 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoScenario
 from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, NAVPY_LINES_FILE
-from scripts.lockstep_slice_actor import BACKEND, NAVPY, SYS_ID, slice_roles, stack_context
+from scripts.lockstep_slice_actor import (
+    BACKEND,
+    NAVPY,
+    ROUTER,
+    SITL_PORTS,
+    SYS_ID,
+    slice_roles,
+    stack_context,
+)
 from scripts.lockstep_wsl_sitl import DRAIN_PERIOD_US, MAX_FRAME_GAP_US, HostDelays, WslSitl
 
 RUN_HOST_FILE = "lockstep_run_host.json"
@@ -105,7 +113,8 @@ def manifest(scenario: DemoScenario, options: LockstepOptions) -> Manifest:
     return Manifest(
         seed=options.seed, epoch_us=EPOCH_US, max_frame_gap_us=MAX_FRAME_GAP_US,
         drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(MISSION_BUDGET_S * 1_000_000),
-        roles=slice_roles(scenario, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR), initial=(("backend", BACKEND),),
+        roles=slice_roles(scenario, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR),
+        sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),),
         companion_roles=("navpy",), expected_fleet=(NAVPY,),
     )
 

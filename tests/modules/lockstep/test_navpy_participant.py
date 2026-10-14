@@ -21,7 +21,7 @@ import pytest
 from gcs.backend.navpy_process_launch import lockstep_navpy_argv
 from navpy.app import runtime_ready
 from navpy.app.lockstep import navpy_host
-from navpy.app.lockstep.participant import SERIAL0, NavpyHooks
+from navpy.app.lockstep.participant import NavpyHooks
 from navpy.app.runtime_resources import RuntimeResourceStack, RuntimeSession
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging import logger_factory, pose_cadence_debug
@@ -30,10 +30,11 @@ from navpy.sim.lockstep.coordinator_tick import READY_EVENT
 from navpy.sim.lockstep.lockstep_runtime import LockstepRuntime
 from navpy.sim.lockstep.part_wire import Lifecycle, Tick
 from navpy.sim.lockstep.participant import LockstepIdentity, Participant
-from navpy.sim.lockstep.participant_hooks import ParticipantContext, RequestIds
+from navpy.sim.lockstep.participant_hooks import DEVICE_KEY, ParticipantContext, RequestIds
 from navpy.sim.lockstep.participant_loop import ParticipantLoop
 
 TICK_US = 20_000
+SERIAL0 = "lockstep:serial0.1"
 STOP_ID = (2, 7)
 
 
@@ -83,7 +84,8 @@ def make_loop(monkeypatch):
         monkeypatch.setattr(navpy_host, "compose_runtime", composition)
         participant = Participant(runtime, LockstepIdentity(1, 1), uninstalls=())
         argv = lockstep_navpy_argv(1, SERIAL0)
-        hooks = NavpyHooks(ParticipantContext(participant, {"argv": argv}, RequestIds(1)))
+        hooks = NavpyHooks(ParticipantContext(participant, {DEVICE_KEY: SERIAL0, "argv": argv},
+                                              RequestIds(1)))
         return ParticipantLoop(participant, hooks, link=None), hooks
 
     return make
@@ -180,3 +182,12 @@ def test_the_identity_cadence_is_sim_time_and_touches_no_process_state(monkeypat
     assert cadence.wall_period_for_scheduler_period(0.02) == 0.02
     assert sys.getswitchinterval() == switch and requested == []
     cadence.close()
+
+
+def test_the_hooks_take_their_device_from_the_role_config(make_loop):
+    """Devices are role data (``lockstep_fleet.md``, Links and names): the link
+    is the configured device, and a role config without one is refused."""
+    _loop, hooks = make_loop(_Composition())
+    assert list(hooks.links) == [SERIAL0] and hooks.link.device == SERIAL0
+    with pytest.raises(ValueError, match="names no 'device'"):
+        _ = ParticipantContext(None, {"argv": []}, RequestIds(1)).device

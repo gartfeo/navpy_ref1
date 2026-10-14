@@ -2,8 +2,8 @@
 
 The 9d coordinator runs one serial-step ArduPlane SITL (step 7's firmware and
 relay, in this run's own WSL root) with the backend participant on
-``lockstep:serial1`` and, spawned through the backend's launcher port, the
-NavPy participant on ``lockstep:serial0``. The scripted API actor
+``lockstep:router`` and, spawned through the backend's launcher port, the
+NavPy participant on ``lockstep:serial0.1`` (the router path, 10c). The scripted API actor
 (``scripts.lockstep_slice_actor.companion_script``) makes 9e's setup calls,
 POST start-all, waits for readiness through the status route, then stop-all
 (``STOP_ACKED``). The run then drains the backend and parks the SITL.
@@ -55,6 +55,8 @@ from scripts.lockstep_wsl_sitl import (  # noqa: E402
 from scripts.lockstep_slice_actor import (  # noqa: E402
     BACKEND,
     NAVPY,
+    ROUTER,
+    SITL_PORTS,
     SYS_ID,
     companion_script,
     slice_roles,
@@ -81,7 +83,7 @@ def manifest(seed: int) -> Manifest:
         # No SNAP in 9f: the mission phase ends at its first tick, and
         # finalization lasts until the actor returns.
         mission_budget_us=0, roles=slice_roles(scenario, navpy=True),
-        initial=(("backend", BACKEND),), companion_roles=("navpy",),
+        sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),), companion_roles=("navpy",),
     )
 
 

@@ -99,7 +99,7 @@ With pose-cadence recording on in both participants (after Codex round 1, `r3-a`
   - A wrong magic, version, port count or echo, an oversize or truncated block, trailing bytes, or a missing or duplicate tick is a protocol error.
 
 ## Router (pinned: `test_router_parity.py` against the binary, `test_reference_models.py`)
-Emulates mavlink-router `d59ef94` (`/usr/bin/mavlink-routerd`), `Endpoint::read_msg`, `accept_msg` and `route_msg`, in the configuration `run_swarm.sh` gives it: `-s 255` (sniffer sysid 255, the GCS), no filters or endpoint groups, and no dedup period, so no dedup. Model: `router_framer.py` and `router_model.py`; in the tick path for a routed fleet (`coordinator_router.py`, `lockstep_fleet.md`).
+Emulates mavlink-router `d59ef94` (`/usr/bin/mavlink-routerd`), `Endpoint::read_msg`, `accept_msg` and `route_msg`, in the configuration `run_swarm.sh` gives it: `-s 255` (sniffer sysid 255, the GCS), no filters or endpoint groups, and no dedup period, so no dedup. Model: `router_framer.py` and `router_model.py`; in the tick path of every run, the one-SITL slice included since 10c (`coordinator_router.py`, `lockstep_fleet.md`).
 - **Targets** come from the router entry table (`router_entries.json`), extracted from the deployed binary, whose sha256 is pinned beside it; never from NavPy's dialect. An id outside the table has no target (a broadcast) and no CRC check; a known id must pass its CRC. A target field beyond a zero-trimmed payload is 0.
 - **Parity** is pinned, not claimed: `test_router_parity` replays recorded datagrams (targeted, broadcast, sniffer, unknown target, targeted NAVLINK, boot text, split packet, AP echo) and requires the binary's bytes at the binary's endpoints; `NAVPY_ROUTER_PARITY=1` re-runs the binary in WSL (`scripts/router_parity.py`).
 - **Learning.** Each endpoint learns every `(sysid, compid)` it receives from.
@@ -117,7 +117,7 @@ One narrow bus replaces `mavutil.mavfile` for NavPy and the backend in lockstep.
 - **`mode_mapping()`** is `mavfile`'s: the fixed-wing table before any heartbeat, then the table for the latest probable vehicle heartbeat's type (`mavfile.probably_vehicle_heartbeat`), or PX4's map for a PX4 autopilot.
 - **Heartbeat admission.** The bus admits as `MavBusHeartbeats` does today: any non-GCS, non-companion heartbeat from an eligible sysid counts. The router's compid-1 filter governs the vehicle's heartbeat state, not bus admission.
 - **Subscriptions** are the existing `MavBusMembership` receivers.
-- **Reservations.** `reserve(sysid)` returns the existing `MavBusLease`: `attach` adds the receiver, `release` drops the reservation. Opens share one bus per logical device (`lockstep:serial0` NavPy, `lockstep:serial1` backend), as `MavBus.get_or_create` does.
+- **Reservations.** `reserve(sysid)` returns the existing `MavBusLease`: `attach` adds the receiver, `release` drops the reservation. Opens share one bus per logical device (`lockstep:serial0.<sysid>` NavPy, `lockstep:router` backend; the role config names it, 10c), as `MavBus.get_or_create` does.
 - **Close.** Releasing the last reservation closes the bus, following step 4: the reader stops first, then the bus counts as closed, and the link reports `closed`. A reopen is a new bus; bytes delivered while none is open are lost and counted (`lockstep_link.py`).
 
 ## Firmware helpers (specified; acceptance in step 7)

@@ -1,4 +1,4 @@
-"""Participant-bound bytes of a routed fleet: bytes move by the byte rules, records follow.
+"""Participant-bound bytes of the router path: bytes move by the byte rules, records follow.
 
 ``lockstep_fleet.md``, Router and delivery and Evidence. A tick's bytes for
 a device (SITL i's serial0 egress for NavPy i, the router's copies for the

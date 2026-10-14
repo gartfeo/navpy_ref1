@@ -20,17 +20,23 @@ from navpy.sim.lockstep.coordinator_members import Roster
 from navpy.sim.lockstep.coordinator_run import LockstepCoordinator
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar, LocalSpawner
 from navpy.sim.lockstep.coordinator_types import (
+    ROUTER_DEVICE,
     Manifest,
     OperatorCancel,
     OperatorRequest,
     RoleSpec,
     WallBudgets,
+    fleet_sitl_ports,
+    serial0_device,
 )
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.step_wire import Frame, PortState, pack_frame, unpack_reply
 
 REPO = Path(__file__).resolve().parents[3]
 HUB, ROVER = 2, 1
+#: The one-SITL toy's devices, on the router path as the slice: the rover owns
+#: SITL 1's serial0, the hub the router's backend endpoint.
+SERIAL0, ROUTER = serial0_device(ROVER), ROUTER_DEVICE
 #: Upper bound of one injected host delay (seconds).
 MAX_DELAY_S = 0.004
 
@@ -213,10 +219,13 @@ def manifest(*, hub=None, rover=None, initial=(("hub", HUB),), mission_budget_us
         seed=1, epoch_us=1_760_000_000_000_000, max_frame_gap_us=max_frame_gap_us,
         drain_period_us=drain_period_us, mission_budget_us=mission_budget_us,
         roles={
-            "hub": RoleSpec(f"{toys}:hub", ("lockstep:serial1",), {"ready_after_s": 0.1, **(hub or {})}),
-            "rover": RoleSpec(f"{toys}:rover", ("lockstep:serial0",),
-                              {"ready_after_s": 0.06, "snap_at_s": 1.5, **(rover or {})}),
+            "hub": RoleSpec(f"{toys}:hub", (ROUTER,),
+                            {"ready_after_s": 0.1, "devices": [ROUTER], **(hub or {})}),
+            "rover": RoleSpec(f"{toys}:rover", (SERIAL0,),
+                              {"ready_after_s": 0.06, "snap_at_s": 1.5, "devices": [SERIAL0],
+                               **(rover or {})}),
         },
+        sitl_ports=fleet_sitl_ports(1), router=ROUTER,
         initial=initial,
         companion_roles=("rover",),
         expected_fleet=(ROVER,),

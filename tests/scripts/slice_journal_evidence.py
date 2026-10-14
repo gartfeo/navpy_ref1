@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from navpy.sim.lockstep.coordinator_mavlink import DIRECTIONS, ROUTER_LINK
+from navpy.sim.lockstep.coordinator_types import serial0_device, serial1_device
 from scripts.eval_gcs_demo_confirmation_timing import RESPONSE_ID
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, NAVPY_LINES_FILE, POSE_CADENCE_STREAMS
@@ -64,8 +66,11 @@ def slice_records(lines: list[str], sys_id: int) -> list[dict]:
     ticks, k = _ticks(lines)
     keys = owner_keys(sys_id)
     terminal = next(t for t, line in zip(ticks, lines) if "SNAP(VISION-NAV" in line)
+    serial0, serial1 = serial0_device(sys_id), serial1_device(sys_id)
     records: list[dict] = [{"grid": {"max_frame_gap_us": MAX_GAP_US, "drain_period_us": GRID_US,
-                                     "mission_budget_us": 3_600_000_000}}]
+                                     "mission_budget_us": 3_600_000_000,
+                                     "sitl_ports": [[serial0, serial1]], "boot_budget_us": None,
+                                     "expected_fleet": [sys_id]}}]
     for tick in range(1, terminal + 3):
         record: dict = {"k": tick, "phase": "mission", "t_us": tick * GRID_US}
         if tick == k["k3"]:
@@ -75,20 +80,24 @@ def slice_records(lines: list[str], sys_id: int) -> list[dict]:
         elif tick == k["k6"]:
             record["operator"] = {"answered": [[*APPROVAL_ID, 200]]}
         if tick in k["sends"]:
-            record["navlink"] = {"lockstep:serial1": {"to_sitl": {keys["response"]: 1}}}
+            record["navlink"] = {serial1: {"to_sitl": {keys["response"]: 1}}}
         records.append(record)
     def tally(messages: dict) -> dict:
         return {"messages": messages, "skipped_bytes": 0}
 
-    quiet = tally({keys["autopilot"]: 10, GCS_HEARTBEAT: 10})
-    records.append({"mavlink_counts": {
-        "lockstep:serial0": {"from_sitl": quiet, "drain_to_sitl": tally({}),
-                             "to_sitl": tally({keys["companion"]: 10, keys["self_assignment"]: 1})},
-        "lockstep:serial1": {"from_sitl": quiet, "drain_to_sitl": tally({}),
-                             "to_sitl": tally({GCS_HEARTBEAT: 10, keys["response"]: 3})},
-    }})
+    quiet = {keys["autopilot"]: 10, GCS_HEARTBEAT: 10}
+    to_backend = {keys["autopilot"]: 10, GCS_HEARTBEAT: 10}
+    gcs = {GCS_HEARTBEAT: 10, keys["response"]: 3}
+    counts = {link: {direction: tally({}) for direction in DIRECTIONS}
+              for link in (serial0, serial1, ROUTER_LINK)}
+    counts[serial0].update(from_sitl=tally(quiet),
+                           to_sitl=tally({keys["companion"]: 10, keys["self_assignment"]: 1}))
+    counts[serial1].update(from_sitl=tally(quiet), to_sitl=tally(gcs), routed_out=tally(gcs))
+    counts[ROUTER_LINK].update(routed_out=tally(to_backend))
+    records.append({"mavlink_counts": counts})
     records.append({"outcome": "ok", "terminal_tick": terminal, "final_tick": terminal + 2,
-                    "parked_tick": terminal + 3})
+                    "parked_tick": terminal + 3,
+                    "first_snaps": [[sys_id, 1, terminal]]})
     return records
 
 

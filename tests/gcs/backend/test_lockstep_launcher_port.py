@@ -20,7 +20,7 @@ from navpy.sim.lockstep.participant_hooks import OutboxBuffer, RequestIds
 
 ORDINAL, SYS_ID = 1, 1
 TICK_US = 20_000
-SERIAL0 = "lockstep:serial0"
+SERIAL0 = "lockstep:serial0.1"
 SPEC = {"role": "navpy", "ordinal": ORDINAL, "device": SERIAL0,
         "argv": lockstep_navpy_argv(SYS_ID, SERIAL0, vision_profile="siyi_zr10")}
 

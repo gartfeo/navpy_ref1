@@ -10,7 +10,7 @@ baton; ``lockstep_slice.md``, "NavPy participant" and "Participant runtime"):
   participant's working directory, the run directory, as wall mode's
   ``uav_<sys>_*`` files do), names no host path (run tokens instead), and
   every line also reaches ``DONE.log_lines``;
-- ``lockstep:serial0`` is opened through the link (``create_vehicle``'s
+- its device (``lockstep:serial0.<sysid>``) is opened through the link (``create_vehicle``'s
   ``open_bus``); the scheduler cadence is :class:`IdentitySchedulerCadence`
   (nothing writes ``SIM_SPEEDUP``: a navigation speedup is refused);
 - the stop is a :class:`LifecycleStopRequest` (``--stop-on-lifecycle`` is

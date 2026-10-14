@@ -14,10 +14,25 @@ from typing import Protocol
 from navpy.sim.lockstep.baton import LockstepFault
 from navpy.sim.lockstep.part_wire import Event, Lifecycle, RequestId, Response
 
-SERIAL_DEVICES = ("lockstep:serial0", "lockstep:serial1")
-"""The slice SITL's serial ports by index: NavPy's companion link and the backend
-monitor. It is only the default of :attr:`Manifest.sitl_ports` (one SITL); a
-fleet names every SITL's devices in its manifest (devices as data)."""
+#: The backend's router endpoint device (``lockstep_fleet.md``, Links and names).
+ROUTER_DEVICE = "lockstep:router"
+
+
+def serial0_device(sys_id: int) -> str:
+    """SITL ``sys_id``'s serial0, NavPy ``sys_id``'s companion link."""
+    return f"lockstep:serial0.{sys_id}"
+
+
+def serial1_device(sys_id: int) -> str:
+    """SITL ``sys_id``'s serial1, the coordinator's router endpoint ``sitl<i>``."""
+    return f"sitl{sys_id}.serial1"
+
+
+def fleet_sitl_ports(fleet_size: int) -> tuple[tuple[str, str], ...]:
+    """:attr:`Manifest.sitl_ports` of SITLs 1..N under the naming scheme."""
+    return tuple((serial0_device(i), serial1_device(i)) for i in range(1, fleet_size + 1))
+
+
 #: The mission terminal marker: the first tick whose log lines contain it is k_T.
 TERMINAL_MARKER = "SNAP(VISION-NAV"
 #: Finalization budget after k_T, sim microseconds (until the operator returns).
@@ -73,7 +88,8 @@ class RoleSpec:
 
     #: The hooks factory (``module:attribute``) its environment record names.
     hooks: str
-    #: The logical devices it owns (SITL port devices of ``Manifest.sitl_ports``).
+    #: The logical devices it owns: a SITL serial0 or the router device. Its
+    #: hooks take the same devices from ``config`` (devices as data).
     devices: tuple[str, ...]
     config: Mapping[str, object] = field(default_factory=dict)
 
@@ -89,6 +105,14 @@ class Manifest:
     #: The scenario's mission sim-time budget, from the boot barrier.
     mission_budget_us: int
     roles: Mapping[str, RoleSpec]
+    #: Each SITL's serial-port devices by port index (serial0, serial1), in
+    #: SITL order (devices as data). Its length is the fleet size N; the slice is one.
+    sitl_ports: tuple[tuple[str, ...], ...]
+    #: The backend's router endpoint device (:data:`ROUTER_DEVICE`). Every
+    #: SITL's serial1 is a router endpoint ``sitl<i>`` the coordinator owns,
+    #: and SITL ingress goes through its queues (``lockstep_fleet.md``,
+    #: Router and delivery).
+    router: str
     #: Participants the coordinator spawns itself, admitted at the barrier:
     #: ``(role, ordinal)`` in spawn order.
     initial: tuple[tuple[str, int], ...] = ()
@@ -102,29 +126,19 @@ class Manifest:
     #: maximum of their first-SNAP ticks. Empty: the mission never completes
     #: (it ends as a timeout or ``operator_returned``).
     expected_fleet: tuple[int, ...] = ()
-    #: Each SITL's serial-port devices by port index, in SITL order (devices
-    #: as data). One entry is the slice; its length is the fleet size N.
-    sitl_ports: tuple[tuple[str, ...], ...] = (SERIAL_DEVICES,)
     #: The boot barrier's sim budget from frame 1: every SITL must have
     #: latched ``helpers_quiet`` within it, else ``CoordinatorFault("boot_barrier")``.
     #: None is no budget (the slice). Step 10d sets it from the recorded
     #: latest latch tick of a 3-SITL boot plus a documented margin.
     boot_budget_us: int | None = None
-    #: The backend's router endpoint device (``lockstep:router``). With it the
-    #: coordinator routes: every SITL's serial1 is a router endpoint
-    #: ``sitl<i>`` it owns, and SITL ingress goes through its queues
-    #: (``lockstep_fleet.md``, Router and delivery). None: the slice's direct
-    #: links, until step 10c moves the slice onto the router path (owner Q1).
-    router: str | None = None
 
     def __post_init__(self) -> None:
         devices = self.sitl_devices
         if not self.sitl_ports or len(set(devices)) != len(devices):
             raise ValueError(f"the SITL ports must name distinct devices: {self.sitl_ports}")
-        if self.router is not None:
-            self._check_routed()
+        self._check_owners()
 
-    def _check_routed(self) -> None:
+    def _check_owners(self) -> None:
         """A participant owns a SITL serial0 or the router endpoint, never a serial1."""
         if self.router in self.sitl_devices:
             raise ValueError(f"the router device {self.router!r} is a SITL port")
@@ -132,20 +146,13 @@ class Manifest:
         for role, spec in self.roles.items():
             foreign = sorted(set(spec.devices) - ownable)
             if foreign:
-                raise ValueError(f"role {role!r} owns {foreign}: on a routed fleet a participant "
-                                 "owns a SITL serial0 or the router device")
+                raise ValueError(f"role {role!r} owns {foreign}: a participant owns a SITL "
+                                 "serial0 or the router device")
 
     @property
     def sitl_devices(self) -> tuple[str, ...]:
         """Every SITL port's device, SITL by SITL, port by port."""
         return tuple(device for ports in self.sitl_ports for device in ports)
-
-    @property
-    def is_fleet(self) -> bool:
-        """More than one SITL. Until step 10c re-baselines the slice's journal
-        (owner Q1), fields only a fleet needs are journaled only for a fleet,
-        so the one-SITL journal keeps its bytes."""
-        return len(self.sitl_ports) > 1
 
 
 def backend_ordinal(fleet_size: int) -> int:
@@ -215,6 +222,6 @@ class OperatorHost(Protocol):
 __all__ = [
     "CoordinatorFault", "DRAIN_BUDGET_US", "RunFault", "FINALIZATION_BUDGET_US", "HostFault", "Manifest",
     "OperatorCancel", "OperatorHost", "OperatorInbox", "OperatorRequest", "ParticipantFault",
-    "RoleSpec", "SERIAL_DEVICES", "STOP_BUDGET_US", "TERMINAL_MARKER", "WallBudgets",
-    "backend_ordinal",
+    "ROUTER_DEVICE", "RoleSpec", "STOP_BUDGET_US", "TERMINAL_MARKER", "WallBudgets",
+    "backend_ordinal", "fleet_sitl_ports", "serial0_device", "serial1_device",
 ]

@@ -9,12 +9,13 @@ composition and run loop to their end (``lockstep_slice.md``, "NavPy
 participant").
 
 Inputs (the coordinator thread, the tick's input phase): a lifecycle
-``stop`` and the drain ``end`` latch the run loop's stop request; the
-``lockstep:serial0`` bytes go to the link. Either may arrive before the
+``stop`` and the drain ``end`` latch the run loop's stop request; the bytes
+of its device (``lockstep:serial0.<sysid>``) go to the link. Either may arrive before the
 bootstrap thread built the host: they are held and applied when it is.
 
-Role config (the spawn record's ``config``): ``argv``, NavPy's command line
-(``gcs.backend.navpy_process_launch.lockstep_navpy_argv``: the logical device
+Role config (the spawn record's ``config``): ``device``, its logical device,
+and ``argv``, NavPy's command line
+(``gcs.backend.navpy_process_launch.lockstep_navpy_argv``: the same device
 and ``--stop-on-lifecycle``).
 """
 
@@ -36,15 +37,11 @@ from navpy.sim.lockstep.pose_recording import enable_pose_cadence
 if TYPE_CHECKING:
     from navpy.app.lockstep.navpy_host import NavpyHost
 
-#: NavPy's companion link.
-SERIAL0 = "lockstep:serial0"
-
-
 class NavpyHooks(ParticipantHooks):
     def __init__(self, context: ParticipantContext) -> None:
         self._context = context
-        self.link = LockstepLink(context.participant.runtime.baton, SERIAL0)
-        self.links = {SERIAL0: self.link}
+        self.link = LockstepLink(context.participant.runtime.baton, context.device)
+        self.links = {context.device: self.link}
         self.out = OutboxBuffer()
         self.host: NavpyHost | None = None
         self._stop_id: RequestId | None = None
@@ -96,4 +93,4 @@ def navpy(context: ParticipantContext) -> NavpyHooks:
     return NavpyHooks(context)
 
 
-__all__ = ["NavpyHooks", "SERIAL0", "navpy"]
+__all__ = ["NavpyHooks", "navpy"]

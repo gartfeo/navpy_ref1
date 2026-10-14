@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
-from navpy.sim.lockstep.coordinator_mavlink import parse_key
+from navpy.sim.lockstep.coordinator_mavlink import DIRECTIONS, ROUTER_LINK, parse_key
+from navpy.sim.lockstep.coordinator_types import serial0_device, serial1_device
 
 from scripts.eval_gcs_demo_scenario import load_resolved_plan, load_scenario
 from scripts.eval_gcs_demo_slice_gates import (
@@ -95,8 +96,9 @@ def test_workflow_tick_gate_holds_the_retained_order_in_tick_and_stream_position
     assert workflow_tick_errors(missing) == ["workflow ticks: no reset marker"]
 
 
-LINKS = [(device, direction) for device in ("lockstep:serial0", "lockstep:serial1")
-         for direction in ("from_sitl", "to_sitl", "drain_to_sitl")]
+SERIAL0 = serial0_device(OWNER)
+LINKS = [(device, direction) for device in (SERIAL0, serial1_device(OWNER), ROUTER_LINK)
+         for direction in DIRECTIONS]
 
 
 def _with(records, device, direction, key):
@@ -125,10 +127,10 @@ def test_a_self_addressed_forbidden_message_other_than_the_self_assignment_fails
     """Codex 9g P2-2: only the owner's own TASK_ASSIGN_REQUEST to itself is exempt."""
     _log_dir, records, lines, _approvals = evidence
     message = getattr(mavlink, f"MAVLINK_MSG_ID_{name}")
-    changed = _with(records, "lockstep:serial0", "to_sitl", f"{message}:{OWNER}.191>{OWNER}")
+    changed = _with(records, SERIAL0, "to_sitl", f"{message}:{OWNER}.191>{OWNER}")
     assert assignment_errors(changed, lines, OWNER) == [
         f"owner-only slice carried 1 {forbidden_message_ids()[message]} from {OWNER}.191 to {OWNER} "
-        "on lockstep:serial0 to_sitl"]
+        f"on {SERIAL0} to_sitl"]
 
 
 def test_the_self_assignment_exemption_is_the_owners_companion_only(evidence):
@@ -136,16 +138,16 @@ def test_the_self_assignment_exemption_is_the_owners_companion_only(evidence):
     request = mavlink.MAVLINK_MSG_ID_TASK_ASSIGN_REQUEST
     assert is_self_assignment(parse_key(f"{request}:{OWNER}.191>{OWNER}"), OWNER)
     # Another vehicle's self-assignment is relayed peer traffic.
-    other = _with(records, "lockstep:serial0", "from_sitl", f"{request}:2.191>2")
+    other = _with(records, SERIAL0, "from_sitl", f"{request}:2.191>2")
     assert assignment_errors(other, lines, OWNER) == [
         "owner-only slice carried 1 peer relay task dispatch TASK_ASSIGN_REQUEST from system 2 "
-        "on lockstep:serial0 from_sitl"]
+        f"on {SERIAL0} from_sitl"]
     # The owner's autopilot (not its companion) or the ground station: no publication.
     for source in (f"{OWNER}.1", "255.0"):
-        changed = _with(records, "lockstep:serial0", "to_sitl", f"{request}:{source}>{OWNER}")
+        changed = _with(records, SERIAL0, "to_sitl", f"{request}:{source}>{OWNER}")
         assert assignment_errors(changed, lines, OWNER) == [
             f"owner-only slice carried 1 task dispatch TASK_ASSIGN_REQUEST from {source} to {OWNER} "
-            "on lockstep:serial0 to_sitl"]
+            f"on {SERIAL0} to_sitl"]
 
 
 @pytest.mark.parametrize("device,direction", LINKS)
@@ -160,7 +162,7 @@ def test_any_message_from_a_peer_system_is_peer_relay(evidence, device, directio
 
 def test_assignment_gate_allows_the_owners_self_assignment_but_not_a_marker(evidence):
     _log_dir, records, lines, _approvals = evidence
-    assert _counts(records)["lockstep:serial0"]["to_sitl"]["messages"][f"25106:{OWNER}.191>{OWNER}"] == 1
+    assert _counts(records)[SERIAL0]["to_sitl"]["messages"][f"25106:{OWNER}.191>{OWNER}"] == 1
     marked = lines + [(lines[-1][0], "INFO Rebroadcast task 1")]
     assert any("task rebroadcast" in e for e in assignment_errors(records, marked, OWNER))
     assert assignment_errors([r for r in records if "mavlink_counts" not in r], lines, OWNER) == [

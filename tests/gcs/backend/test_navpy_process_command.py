@@ -21,9 +21,9 @@ def test_the_wall_command_line_is_unchanged():
 
 
 def test_a_lockstep_companion_stops_on_its_lifecycle_record_and_never_speeds_up():
-    wall = _build_navpy_command(1, "lockstep:serial0", detector_debug_show=False,
+    wall = _build_navpy_command(1, "lockstep:serial0.1", detector_debug_show=False,
                                 vision_profile="siyi_zr10", log_level=None, navigation_speedup=0.0)
-    lockstep = lockstep_navpy_argv(1, "lockstep:serial0", vision_profile="siyi_zr10")
+    lockstep = lockstep_navpy_argv(1, "lockstep:serial0.1", vision_profile="siyi_zr10")
     assert lockstep == [
         "--stop-on-lifecycle" if arg == "--stop-on-stdin" else arg for arg in wall[3:]
     ]

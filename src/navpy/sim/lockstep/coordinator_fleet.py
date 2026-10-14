@@ -11,10 +11,8 @@ the remaining launches on frame 1's deadline. Parking reads each SITL's
 parked frame k_F+1 in order, with every check, and replies to none; then
 the deadline closes (drain has no SITL exchange).
 
-Journal shape: a one-SITL run keeps the slice's records (a frame or reply
-hash is one string, the parked record one frame) until step 10c
-re-baselines it (owner Q1); a fleet journals a list in SITL order
-(:meth:`SitlFleet.per_sitl`).
+Journal shape: frame and reply hashes and the parked frames are lists in
+SITL order, for any N.
 """
 
 from __future__ import annotations
@@ -61,14 +59,6 @@ class SitlFleet:
                                    deadline)
         self.boot = BootLatch(len(self._sitls), manifest.boot_budget_us)
 
-    @property
-    def size(self) -> int:
-        return len(self._sitls)
-
-    def per_sitl(self, values: list[Any]) -> Any:
-        """A per-SITL journal value: the slice's single value for one SITL."""
-        return values[0] if self.size == 1 else values
-
     def launch(self) -> None:
         self._launch(self._deadline)
 
@@ -90,12 +80,8 @@ class SitlFleet:
         """
         frames, raws = self.read(k)
         self._deadline.close()
-        parked: dict[str, Any] = {"tick": frames[0].tick}
-        shapes = [{"length": len(raw), "sha256": sha256(raw)} for raw in raws]
-        if self.size == 1:
-            parked.update(shapes[0])
-        else:
-            parked["frames"] = shapes
+        parked: dict[str, Any] = {"tick": frames[0].tick,
+                                  "frames": [{"length": len(raw), "sha256": sha256(raw)} for raw in raws]}
         return parked, self.egress(frames)
 
     def snapshot(self, parked_tick: int) -> None:

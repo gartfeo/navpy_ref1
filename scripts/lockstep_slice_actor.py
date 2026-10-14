@@ -3,7 +3,7 @@
 The actor runs on the operator's baton and makes the operator's calls
 through the lockstep ports (``lockstep_slice.md``, "Operator"):
 
-- :func:`setup_script` (9e): connect ``lockstep:serial1``, read the command
+- :func:`setup_script` (9e): connect ``lockstep:router``, read the command
   bounds by name, write the scenario's AAS profile, upload its mission;
 - :func:`companion_script` (9f): the setup, then POST start-all (the
   backend's launcher port spawns NavPy), readiness through the status route,
@@ -11,7 +11,12 @@ through the lockstep ports (``lockstep_slice.md``, "Operator"):
 
 :func:`slice_roles` builds the backend role and, with ``navpy``, the NavPy
 companion role: one command line, :func:`companion_argv`, in both the
-backend's launcher config and NavPy's spawn record.
+backend's launcher config and NavPy's spawn record. Each role names its
+device in its config too (``ParticipantContext.device``). The slice runs on
+the router path with N = 1 (``lockstep_fleet.md``, 10c): SITL 1's serial0 is
+NavPy's ``lockstep:serial0.1``, its serial1 the coordinator's router
+endpoint, and the backend owns ``lockstep:router`` (:data:`SITL_PORTS`,
+:data:`ROUTER`).
 """
 
 from __future__ import annotations
@@ -19,10 +24,17 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from gcs.backend.navpy_process_launch import lockstep_navpy_argv
-from navpy.sim.lockstep.coordinator_types import RoleSpec, backend_ordinal
+from navpy.sim.lockstep.coordinator_types import (
+    ROUTER_DEVICE,
+    RoleSpec,
+    backend_ordinal,
+    fleet_sitl_ports,
+    serial0_device,
+)
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.operator_ports import BatonClock, LockstepApi, LockstepEventStream
 from navpy.sim.lockstep.operator_tail import LockstepLogTail
+from navpy.sim.lockstep.participant_hooks import DEVICE_KEY
 from navpy.sim.lockstep.pose_recording import POSE_CADENCE_DIR
 from scripts.eval_gcs_demo_command_bounds import command_bounds_from_snapshot
 from scripts.eval_gcs_demo_config import aas_params_for, build_settings
@@ -39,7 +51,10 @@ from scripts.eval_gcs_demo_stack_ops import require_write_results, wait_for_vehi
 #: NavPy i is sysid i, the backend N+1).
 SYS_ID = 1
 NAVPY, BACKEND = SYS_ID, backend_ordinal(1)
-SERIAL0, SERIAL1 = "lockstep:serial0", "lockstep:serial1"
+#: The slice's devices (``Manifest.sitl_ports`` and ``Manifest.router``):
+#: NavPy's companion link and the backend's router endpoint.
+SERIAL0, ROUTER = serial0_device(SYS_ID), ROUTER_DEVICE
+SITL_PORTS = fleet_sitl_ports(1)
 BACKEND_HOOKS = "gcs.backend.lockstep.participant:backend"
 NAVPY_HOOKS = "navpy.app.lockstep.participant:navpy"
 #: The command-bound parameters the operator reads by name under lockstep.
@@ -68,7 +83,7 @@ def stack_context(operator: OperatorBaton, scenario: DemoScenario, *,
         backend_tail=LockstepLogTail(operator, BACKEND), clock=BatonClock(operator, epoch_us),
         scenario=scenario,
         event_stream_factory=lambda _url: LockstepEventStream(operator, BACKEND),
-        navigation_tail=lambda _sys_id: LockstepLogTail(operator, NAVPY), monitor_device=SERIAL1,
+        navigation_tail=lambda _sys_id: LockstepLogTail(operator, NAVPY), monitor_device=ROUTER,
         parameter_reader=named_parameter_snapshot,
     )
 
@@ -148,13 +163,18 @@ def slice_roles(scenario: DemoScenario, *, companion: RoleSpec | None = None,
         argv = companion_argv(settings)
         config["companions"] = {str(SYS_ID): {"role": "navpy", "ordinal": NAVPY,
                                               "device": SERIAL0, "argv": argv}}
-        roles["navpy"] = companion or RoleSpec(NAVPY_HOOKS, (SERIAL0,), {"argv": argv, **recording})
-    roles["backend"] = RoleSpec(BACKEND_HOOKS, (SERIAL1,), config)
+        roles["navpy"] = companion or _role(NAVPY_HOOKS, SERIAL0, {"argv": argv, **recording})
+    roles["backend"] = _role(BACKEND_HOOKS, ROUTER, config)
     return roles
+
+
+def _role(hooks: str, device: str, config: dict) -> RoleSpec:
+    """A product role: the device it owns, also named in its config for its hooks."""
+    return RoleSpec(hooks, (device,), {DEVICE_KEY: device, **config})
 
 
 __all__ = [
     "BACKEND", "BACKEND_HOOKS", "COMMAND_BOUND_NAMES", "NAMED_PARAMETER_NAMES", "NAVPY", "NAVPY_HOOKS",
-    "SERIAL0", "SERIAL1", "STATUS_ROUTE", "SYS_ID", "companion_argv", "companion_script",
+    "ROUTER", "SERIAL0", "SITL_PORTS", "STATUS_ROUTE", "SYS_ID", "companion_argv", "companion_script",
     "named_parameter_snapshot", "setup_script", "slice_roles", "stack_context",
 ]

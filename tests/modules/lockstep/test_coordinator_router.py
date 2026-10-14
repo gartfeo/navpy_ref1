@@ -1,4 +1,4 @@
-"""A routed fleet's ports: router in the tick path, queues and packet records (step 10b).
+"""The router path's ports: router in the tick path, queues and packet records (step 10b).
 
 ``lockstep_fleet.md``, Router and delivery and Evidence (Tests (10b)):
 the tick order, overload, a packet split across replies, no overtaking,

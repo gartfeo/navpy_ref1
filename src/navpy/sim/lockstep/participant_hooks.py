@@ -33,6 +33,11 @@ from navpy.sim.lockstep.part_wire import (
 from navpy.sim.lockstep.participant import Participant
 
 
+#: The role config key of a product participant's logical device
+#: (``lockstep:serial0.<sysid>`` for NavPy, ``lockstep:router`` for the backend).
+DEVICE_KEY = "device"
+
+
 class PortLink(Protocol):
     """One logical device's participant side (``LockstepLink`` is one)."""
 
@@ -96,11 +101,21 @@ class ParticipantContext:
     config: Mapping[str, Any]
     ids: RequestIds
 
+    @property
+    def device(self) -> str:
+        """The product's one logical device, from its role config (:data:`DEVICE_KEY`):
+        devices are role data, never a hook's constant (``lockstep_fleet.md``,
+        Links and names)."""
+        device = self.config.get(DEVICE_KEY)
+        if not isinstance(device, str) or not device:
+            raise ValueError(f"the role config names no {DEVICE_KEY!r}")
+        return device
+
 
 class ParticipantHooks:
     """Defaults for every hook; a product overrides what it uses."""
 
-    #: Logical device name -> its link (``lockstep:serial0``, ...).
+    #: Logical device name -> its link (``lockstep:serial0.1``, ...).
     links: Mapping[str, PortLink] = {}
 
     def construct(self) -> None:
@@ -134,5 +149,5 @@ class ParticipantHooks:
 
 
 __all__ = [
-    "Outbox", "OutboxBuffer", "ParticipantContext", "ParticipantHooks", "PortLink", "RequestIds",
+    "DEVICE_KEY", "Outbox", "OutboxBuffer", "ParticipantContext", "ParticipantHooks", "PortLink", "RequestIds",
 ]

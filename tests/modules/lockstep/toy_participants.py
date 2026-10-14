@@ -5,16 +5,16 @@ and the backend will: product threads are ``rt.Thread``, waits are ``rt``
 waits, inputs arrive through ``deliver``. Imports stay within the bootstrap
 rule (standard library, ``runtime_time``, ``navpy.sim.lockstep``).
 
-- ``hub`` (backend-like, ``lockstep:serial1``): answers operator requests
+- ``hub`` (backend-like, ``lockstep:router``): answers operator requests
   (``echo``; ``spawn`` and ``stop`` become requests in its ``DONE``, a stop is
   answered when its result arrives; ``slow`` waits for a cancel) and forwards
   every lifecycle record it gets as a ``lifecycle`` event.
-- ``rover`` (NavPy-like, ``lockstep:serial0``): ready after a bootstrap delay,
+- ``rover`` (NavPy-like, ``lockstep:serial0.<i>``): ready after a bootstrap delay,
   logs every 0.1 s, logs the terminal marker at ``snap_at_s``, stops on a
   lifecycle ``stop`` or the drain ``end``.
 
 Both echo their port bytes reversed behind a tag, on each of their devices
-(``devices``, default the class's one: devices are role data). Test knobs (``config``):
+(``devices``: devices are role data). Test knobs (``config``):
 ``ready_after_s``, ``ready_payload``, ``snap_at_s``, ``crash_before_ready``, ``ignore_stop``,
 ``ignore_end``, ``fail_flush``, ``exit_code``, ``exit_delay_s``,
 ``die_after_s``, ``stop_on_end``, ``report_env`` (log these variables),
@@ -69,7 +69,6 @@ class ToyLink:
 
 
 class ToyHooks(ParticipantHooks):
-    DEVICE = ""
     TAG = b""
     PERIOD_S = 0.1
 
@@ -77,7 +76,7 @@ class ToyHooks(ParticipantHooks):
         self.context = context
         self.config = dict(context.config)
         self.links = {device: ToyLink(self.TAG, self.config.get("echo", True))
-                      for device in self.config.get("devices", [self.DEVICE])}
+                      for device in self.config["devices"]}
         #: The first device's link: drain-end egress goes there.
         self.link = next(iter(self.links.values()))
         self.out = OutboxBuffer()
@@ -142,7 +141,6 @@ class ToyHooks(ParticipantHooks):
 
 
 class Rover(ToyHooks):
-    DEVICE = "lockstep:serial0"
     TAG = b"R"
 
     def __init__(self, context: ParticipantContext) -> None:
@@ -161,7 +159,6 @@ class Rover(ToyHooks):
 
 
 class Hub(ToyHooks):
-    DEVICE = "lockstep:serial1"
     TAG = b"H"
     PERIOD_S = 0.25
 

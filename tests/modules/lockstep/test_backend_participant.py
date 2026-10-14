@@ -195,7 +195,7 @@ def test_a_full_lifespan_with_a_companion_started_and_stopped_through_the_launch
     assert seen["running"] == {SYS_ID}
     [status] = seen["status"]["instances"]
     assert (status["pid"], status["ordinal"], status["generation"]) == (generation_pid(NAVPY, 1), NAVPY, 1)
-    assert status["connection"] == "lockstep:serial0" and status["running"] is True
+    assert status["connection"] == "lockstep:serial0.1" and status["running"] is True
     assert seen["after"] == {"instances": []}
     spawns = [s for done in run.dones for s in done.spawn_requests]
     stops = [s for done in run.dones for s in done.stop_requests]
@@ -239,7 +239,7 @@ def test_cancelling_the_scan_that_opened_the_bus_leaves_its_reader_and_the_vehic
     def script(operator: OperatorBaton, scenario) -> None:
         operator.wait_ready(BACKEND)
         scan = operator.expect(ids.setdefault("scan", operator.next_id()))
-        operator.send(BACKEND, _http("POST", "/api/vehicles/scan?device=lockstep%3Aserial1&timeout=5"),
+        operator.send(BACKEND, _http("POST", "/api/vehicles/scan?device=lockstep%3Arouter&timeout=5"),
                       ids["scan"])
         BatonClock(operator).sleep(0.1)  # the scan opened the bus and polls it
         context = stack_context(operator, scenario)
@@ -262,7 +262,7 @@ def test_the_shutdown_closes_a_bus_a_scan_opened_with_no_vehicle(tmp_path):
     def script(operator: OperatorBaton, scenario) -> None:
         operator.wait_ready(BACKEND)
         api = stack_context(operator, scenario).api
-        seen["scan"] = api.post_json("/api/vehicles/scan?device=lockstep%3Aserial1&timeout=2.5")
+        seen["scan"] = api.post_json("/api/vehicles/scan?device=lockstep%3Arouter&timeout=2.5")
 
     run = _run(tmp_path, script)
     status, body = seen["scan"]

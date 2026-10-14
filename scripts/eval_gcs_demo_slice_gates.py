@@ -177,7 +177,7 @@ def approval_errors(records: Sequence[Mapping], lines: Sequence[tuple[int, str]]
     (approval,) = approvals
     if (approval["sys_id"], approval["task_id"]) != (sys_id, poi):
         return [f"approval for ({approval['sys_id']}, P{approval['task_id']}), not ({sys_id}, P{poi})"]
-    return confirmation_timing_errors(records, lines, approval, poi)
+    return confirmation_timing_errors(records, lines, approval, poi, sys_id)
 
 
 def snap_errors(records: Sequence[Mapping], lines: Sequence[tuple[int, str]]) -> list[str]:

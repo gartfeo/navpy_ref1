@@ -12,7 +12,7 @@ from navpy.sim.lockstep.participant import LockstepIdentity, Participant
 from navpy.sim.lockstep.participant_hooks import Outbox, OutboxBuffer, ParticipantHooks
 from navpy.sim.lockstep.participant_loop import ParticipantLoop
 
-DEVICE = "lockstep:serial0"
+DEVICE = "lockstep:serial0.1"
 
 
 class Link:

@@ -1,36 +1,31 @@
-"""Decoded MAVLink message counts per link and direction, for the run journal.
+"""MAVLink message counts per link and direction, for the run journal.
 
 The slice's assignment gate reads them (``lockstep_slice.md``, Slice checks):
-no task-dispatch, advert or peer-relay message may cross either link. The
-coordinator sees every byte of both links in tick steps 1 (``from_sitl``,
-the frame's egress) and 6 (``to_sitl``, the reply's ingress), so it decodes
-them here with one persistent decoder per link and direction (a message may
-be split across ticks).
+no task-dispatch, advert or peer-relay message may cross a link. The counts
+derive from the router path's packet records (``lockstep_fleet.md``, Tally;
+:meth:`MavlinkTally.count`): every packet is framed once by the router's
+decoder, so a message split across ticks counts once, in the tick it
+completes.
 
 Counts are keyed by message id and identity, ``<id>:<src_sys>.<src_comp>><target>``
-(:func:`count_key`; ``target`` is the message's ``target_system``, ``-`` if
-it has none; a message outside the dialect is keyed by its raw frame's
-id and source), so a gate can tell the owner's self-assignment publication
-(``self_assignment_publisher.py``: a ``TASK_ASSIGN_REQUEST`` from its
-companion to its own system) from a dispatch, and the owner's and the
-ground station's traffic from a relayed peer's. Each tick record gets the
-NAVLINK messages decoded in that tick (sparse: only a nonzero count is
-written), which places the confirmation response sends on the tick grid;
-the run's end adds the totals of every key. Bytes that are no MAVLink frame
-(the autopilot's boot text) are counted as skipped.
+(``coordinator_packets.packet_key``; ``target`` is the router entry table's
+``target_system``, ``-`` if it has none), so a gate can tell the owner's
+self-assignment publication (``self_assignment_publisher.py``: a
+``TASK_ASSIGN_REQUEST`` from its companion to its own system) from a
+dispatch, and the owner's and the ground station's traffic from a relayed
+peer's. Each tick record gets the NAVLINK messages counted in that tick
+(sparse: only a nonzero count is written), which places the confirmation
+response sends on the tick grid; the run's end adds the totals of every key.
 
-The directions are the frame's egress (``from_sitl``, including the parked
-frame k_F+1), the reply's ingress (``to_sitl``) and the participants' drain
-egress (``drain_to_sitl``: written during drain, never delivered, still
-counted so nothing crosses a link unseen).
-
-A routed fleet (``lockstep_fleet.md``, Tally) counts from its packet records
-instead (:meth:`MavlinkTally.count`), on the SITL ports and the router's
-backend endpoint (:data:`ROUTER_LINK`), with three more directions:
-``routed_out`` (router copies into a link), ``router_dropped`` (packets
-from a link no endpoint accepted) and ``router_skipped_bytes`` (bytes from
-a link that are no packet, or fail their CRC). ``to_sitl`` counts a packet
-at the reply that admits its last byte.
+The links are each SITL's ports and the router's backend endpoint
+(:data:`ROUTER_LINK`). The directions are a frame's egress (``from_sitl``,
+including the parked frame k_F+1), a reply's ingress (``to_sitl``, a packet
+counted at the reply that admits its last byte), the participants' drain
+egress (``drain_to_sitl``: never delivered, still counted so nothing crosses
+a link unseen), ``routed_out`` (router copies into a link),
+``router_dropped`` (packets from a link no endpoint accepted) and
+``router_skipped_bytes`` (bytes from a link that are no packet, or fail
+their CRC; the autopilot's boot text).
 """
 
 from __future__ import annotations
@@ -39,17 +34,13 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from pymavlink.dialects.v20 import ardupilotmega as mavlink
-
 FROM_SITL = "from_sitl"
 TO_SITL = "to_sitl"
 DRAIN_TO_SITL = "drain_to_sitl"
-DIRECTIONS = (FROM_SITL, TO_SITL, DRAIN_TO_SITL)
 ROUTED_OUT = "routed_out"
 ROUTER_DROPPED = "router_dropped"
 ROUTER_SKIPPED_BYTES = "router_skipped_bytes"
-#: A routed fleet's directions.
-ROUTED_DIRECTIONS = (*DIRECTIONS, ROUTED_OUT, ROUTER_DROPPED, ROUTER_SKIPPED_BYTES)
+DIRECTIONS = (FROM_SITL, TO_SITL, DRAIN_TO_SITL, ROUTED_OUT, ROUTER_DROPPED, ROUTER_SKIPPED_BYTES)
 #: The tally link of the router's backend endpoint.
 ROUTER_LINK = "router.backend"
 #: The NavPy dialect's NAVLINK message ids (``navlink`` in the MAVLink XML).
@@ -66,25 +57,6 @@ class MessageKey:
     target_system: int | None
 
 
-def _unknown_identity(message: mavlink.MAVLink_unknown) -> tuple[int, int, int]:
-    """A message outside the dialect has no decoded header: its id and source
-    come from its raw frame (v1: ``FE len seq sys comp id``; v2: ``FD len
-    incompat compat seq sys comp id[3]``)."""
-    frame = message.data
-    if frame[0] == mavlink.PROTOCOL_MARKER_V2:
-        return int.from_bytes(frame[7:10], "little"), frame[5], frame[6]
-    return frame[5], frame[3], frame[4]
-
-
-def count_key(message: mavlink.MAVLink_message) -> str:
-    if isinstance(message, mavlink.MAVLink_unknown):
-        message_id, system, component = _unknown_identity(message)
-        return f"{message_id}:{system}.{component}>{NO_TARGET}"
-    target = getattr(message, "target_system", None)
-    return (f"{message.get_msgId()}:{message.get_srcSystem()}.{message.get_srcComponent()}"
-            f">{NO_TARGET if target is None else target}")
-
-
 def parse_key(key: str) -> MessageKey:
     message_id, identity = key.split(":", 1)
     source, target = identity.split(">", 1)
@@ -98,44 +70,23 @@ def message_id(key: str) -> int:
 
 
 class _Counter:
-    """One link direction: a persistent parser and its counts."""
+    """One link direction's counts."""
 
     def __init__(self) -> None:
-        self._parser = mavlink.MAVLink(None)
-        self._parser.robust_parsing = True
         self.totals: Counter[str] = Counter()
         self.skipped_bytes = 0
 
-    def feed(self, data: bytes) -> Counter[str]:
-        tick: Counter[str] = Counter()
-        if not data:
-            return tick
-        for message in self._parser.parse_buffer(data) or ():
-            if message.get_type() == "BAD_DATA":
-                self.skipped_bytes += len(message.get_msgbuf())
-                continue
-            tick[count_key(message)] += 1
-        self.totals.update(tick)
-        return tick
-
 
 class MavlinkTally:
-    def __init__(self, devices: tuple[str, ...], directions: tuple[str, ...] = DIRECTIONS) -> None:
+    def __init__(self, devices: tuple[str, ...]) -> None:
         self._devices = devices
-        self._directions = directions
         self._counters = {(device, direction): _Counter()
-                          for device in devices for direction in directions}
-
-    def feed(self, record: dict, direction: str, blocks: dict[str, bytes]) -> None:
-        """Decode one tick's bytes per device; note its NAVLINK counts in ``record``
-        (a tick record's data, or the parked frame's record)."""
-        for device in self._devices:
-            counts = self._counters[(device, direction)].feed(blocks.get(device, b""))
-            _note_navlink(record, device, direction, counts)
+                          for device in devices for direction in DIRECTIONS}
 
     def count(self, record: dict, device: str, direction: str, keys: Iterable[str] = (),
               skipped_bytes: int = 0) -> None:
-        """Count already-decoded packets (their :func:`count_key`) and skipped bytes."""
+        """Count framed packets (their ``packet_key``) and skipped bytes; note the
+        NAVLINK counts in ``record`` (a tick record's data, or the parked frame's record)."""
         counter = self._counters[(device, direction)]
         counts = Counter(keys)
         counter.totals.update(counts)
@@ -150,7 +101,7 @@ class MavlinkTally:
                     "messages": dict(sorted(self._counters[(device, direction)].totals.items())),
                     "skipped_bytes": self._counters[(device, direction)].skipped_bytes,
                 }
-                for direction in self._directions
+                for direction in DIRECTIONS
             }
             for device in self._devices
         }
@@ -169,6 +120,6 @@ def _note_navlink(record: dict, device: str, direction: str, counts: Counter[str
 
 __all__ = [
     "DIRECTIONS", "DRAIN_TO_SITL", "FROM_SITL", "MavlinkTally", "MessageKey", "NAVLINK_IDS",
-    "NO_TARGET", "ROUTED_DIRECTIONS", "ROUTED_OUT", "ROUTER_DROPPED", "ROUTER_LINK",
-    "ROUTER_SKIPPED_BYTES", "TO_SITL", "count_key", "message_id", "parse_key",
+    "NO_TARGET", "ROUTED_OUT", "ROUTER_DROPPED", "ROUTER_LINK",
+    "ROUTER_SKIPPED_BYTES", "TO_SITL", "message_id", "parse_key",
 ]

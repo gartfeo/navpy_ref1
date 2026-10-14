@@ -44,7 +44,7 @@ Slice checks:
 |---|---|---|
 | Sensor | NavPy log lines | `POI: P` from the owner |
 | Workflow ticks | NavPy log lines, as `(tick, stream position)` | the retained order holds in stream position. Equal ticks are allowed: input runs before timers, so a response and the NAV release can share a tick (`confirmation_inbound.py:73`, `poi_status_decision.py:60`) |
-| Assignment | the journal's decoded MAVLink message counts per link and direction, and NavPy log lines | zero task-dispatch, advert and peer-relay messages on both links, and no auction or peer log marker; the profile names the message ids and markers. An empty backend event journal is not evidence: the listener suppresses adverts with one vehicle (`task_assign_listener.py:82`). Replaces the task 2/3 dispatch gates (`eval_gcs_demo_gates.py:195`). Named in `SLICE_FORBIDDEN_MESSAGES` (`eval_gcs_demo_slice_gates.py`, 9g): task dispatch `TASK_ASSIGN_REQUEST`, `TASK_ASSIGN_RESPONSE`, `SWARM_ACK` (only the auction and an assigned peer send it); advert `AVAILABLE_TASK_REQUEST`, `AVAILABLE_TASK_RESPONSE`; counts are keyed by id and identity, `<id>:<src_sys>.<src_comp>><target>` (`coordinator_mavlink.py`; a message outside the dialect by its raw frame's id and source), per link and direction (`from_sitl` including the parked frame, `to_sitl`, and `drain_to_sitl`, drain egress that is never delivered). The one exemption is the owner companion's `TASK_ASSIGN_REQUEST` to its own system (`self_assignment_publisher.py`, its task's publication); any other forbidden id fails, self-addressed or not. **Peer relay** is defined by source, not by id: swarm traffic reaches a vehicle only by MAVLink routing, which keeps the original source (mavlink-router between SITLs, the autopilot between its serial ports, `router_model.py`), so any message whose source system is neither the owner (autopilot and companion share its id) nor the ground station (255) fails |
+| Assignment | the journal's decoded MAVLink message counts per link and direction, and NavPy log lines | zero task-dispatch, advert and peer-relay messages on both links, and no auction or peer log marker; the profile names the message ids and markers. An empty backend event journal is not evidence: the listener suppresses adverts with one vehicle (`task_assign_listener.py:82`). Replaces the task 2/3 dispatch gates (`eval_gcs_demo_gates.py:195`). Named in `SLICE_FORBIDDEN_MESSAGES` (`eval_gcs_demo_slice_gates.py`, 9g): task dispatch `TASK_ASSIGN_REQUEST`, `TASK_ASSIGN_RESPONSE`, `SWARM_ACK` (only the auction and an assigned peer send it); advert `AVAILABLE_TASK_REQUEST`, `AVAILABLE_TASK_RESPONSE`; counts are keyed by id and identity, `<id>:<src_sys>.<src_comp>><target>` (`coordinator_mavlink.py`; a message outside the dialect by its raw frame's id and source), per link and direction (`from_sitl` including the parked frame, `to_sitl`, and `drain_to_sitl`, drain egress that is never delivered; since 10c also `routed_out`, `router_dropped` and `router_skipped_bytes`, on `lockstep:serial0.1`, `sitl1.serial1` and `router.backend`). The one exemption is the owner companion's `TASK_ASSIGN_REQUEST` to its own system (`self_assignment_publisher.py`, its task's publication); any other forbidden id fails, self-addressed or not. **Peer relay** is defined by source, not by id: swarm traffic reaches a vehicle only by MAVLink routing, which keeps the original source (mavlink-router between SITLs, the autopilot between its serial ports, `router_model.py`), so any message whose source system is neither the owner (autopilot and companion share its id) nor the ground station (255) fails |
 | Pose cadence | `source-time/*.csv` (both participants record, 9g) | producer-named files (`navpy`, `gcs`), the owner's NavPy arrival streams, every file flushed whole |
 | Approval | `operator_approvals.json` and the journal | exactly one approval, for P, with the timing below |
 | Command | NavPy debug `EVENT:FINAL_APPROACH_CMD` rows (`eval_gcs_demo_evidence.py:106`) and the named-read bounds | every command within bounds until SNAP |
@@ -70,7 +70,7 @@ The retained checks and the slice checks are the named sim-time scoring gates th
 - **Participants:** it spawns and records them. Each spawn record carries the hermetic environment, the input manifest and a per-spawn capability (below). Real PIDs and ports go only to `*_host` sidecars.
 - **Operator:** hosts it on its own baton, and journals every stream.
 
-**Logical devices.** The two links are named `lockstep:serial0` (NavPy) and `lockstep:serial1` (backend monitor). These names appear everywhere a device string does:
+**Logical devices.** Since step 10c the slice runs on the fleet's router path with N = 1 (`lockstep_fleet.md`, Links and names; owner Q1): NavPy owns `lockstep:serial0.1` (SITL 1's serial0), the backend owns `lockstep:router` (the router's backend endpoint), and SITL 1's serial1 is the coordinator's router endpoint `sitl1.serial1`. Before 10c they were `lockstep:serial0` and `lockstep:serial1`, linked directly. The participant hooks take their device from the role config (`device`), never from a constant. These names appear everywhere a device string does:
 - NavPy's `-c` (`navpy_process_launch.py:119`), and so its configuration log (`runtime_composition.py:85`);
 - the operator's connect query (`eval_gcs_demo_lifecycle.py:25`, `eval_gcs_demo_process.py:155`);
 - bus identity, and companion status `connection` (`navpy_process_instance.py:179`).
@@ -158,10 +158,10 @@ TCP loopback; length-prefixed, versioned, with golden vectors.
 1. Read SITL frame k. Relay EOF, an empty or malformed frame, a frame whose tick is not k, or a reply the coordinator cannot build: a coordinator fault. Never skip or repeat a tick.
    - **Grid check:** `source_us` must rise strictly, by at most the manifest's `max_frame_gap_us` (Δ_max) per frame; else a coordinator fault. Today the decoder accepts any header (`step_wire.py:79`). Δ_max is set from recorded serial-step firmware frames, and a test runs the check on such a recording.
      - **9g:** a frame advances 24 or 25 whole SITL physics steps of 833 us, 19992 or 20825 us, and the recording (`tests/fixtures/lockstep/serial_step_frames.csv`, 1200 frames of a seed-1 slice run) shows only those two. Δ_max = 20825 us (`lockstep_wsl_sitl.MAX_FRAME_GAP_US`); `test_grid_check_recording.py` passes the recording and fails a tighter bound, a stall and a skipped physics frame.
-2. Route serial0 egress to NavPy and serial1 egress to the backend (or discard them, see Joining).
+2. Route serial0 egress to NavPy and serial1 egress through the router to the backend (or discard them, see Joining). Since 10c the router forwards whole packets only; bytes that are no packet (the autopilot's boot text) are counted as `router_skipped_bytes` (`lockstep_fleet.md`, Router and delivery).
 3. Send `TICK k` to the admitted participants, NavPy first, then the backend. It carries the operator requests made at tick k-1 and the lifecycle results. The participants run concurrently.
 4. Collect `DONE k` in the same order:
-   - NavPy egress goes to serial0 ingress, and backend egress to serial1;
+   - NavPy egress goes to serial0 ingress, and backend egress through the router to serial1, both through the coordinator's queues;
    - responses, events and log lines go to the operator's ports;
    - an ending `DONE` retires its participant now.
 5. Run the operator's baton to quiescence at t_k. Timers due at t_k fire after the deliveries. New requests are queued for `TICK k+1`.
@@ -231,7 +231,7 @@ Each participant's work at tick k depends only on `TICK k`, so concurrency canno
 - status and error bodies pass through;
 - a sim-time deadline, cancellation and the request id.
 
-Its test uses `/connect?device=lockstep:serial1&sys_id=...` (`routes/vehicles.py:26`).
+Its test uses `/connect?device=lockstep:router&sys_id=...` (`routes/vehicles.py:26`).
 
 **Event loop:** `BatonEventLoop.time()` is the runtime clock, so the backend's `asyncio.sleep` waits are sim waits.
 
@@ -245,7 +245,7 @@ Its test uses `/connect?device=lockstep:serial1&sys_id=...` (`routes/vehicles.py
 - `__exit__` queues an unsubscribe; events queued but not received are dropped, and the journal counts them.
 
 **Ports:**
-- **Vehicle bus:** a `LockstepBus` for `lockstep:serial1`.
+- **Vehicle bus:** a `LockstepBus` for `lockstep:router` (`lockstep:serial1` before 10c).
 - **Companion launcher:** spawn and stop requests in `DONE`. Start-all and status answer from the coordinator's lifecycle records, with ordinal and generation (`routes/navpy_sim.py:132`, `navpy_process_instance.py:175`, the telemetry broadcast at `telemetry_loop.py:226`).
 - **ESP32:** an in-process simulator port covers start, status, health (including `launch_session.py:84`), trigger results and stop. It creates no `HTTPServer` (`esp32_simulator.py:234`) and reports no port.
 - **Named parameter reads:** `GET /vehicles/{sys_id}/params/named?names=A,B`.

@@ -25,7 +25,7 @@ from navpy.sim.lockstep.coordinator_journal import TickRecord
 from navpy.sim.lockstep.coordinator_latches import BootLatch, SnapLatch
 from navpy.sim.lockstep.coordinator_lifecycle import LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Roster
-from navpy.sim.lockstep.coordinator_ports import DirectPorts
+from navpy.sim.lockstep.coordinator_router import RoutedPorts
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar
 from navpy.sim.lockstep.coordinator_tick import TickExchange
 from navpy.sim.lockstep.coordinator_types import (
@@ -46,7 +46,7 @@ from scripts.lockstep_wsl_sitl import (
     exchange_deadline,
 )
 from tests.modules.lockstep.coordinator_doubles import AllowAll
-from tests.modules.lockstep.fleet_doubles import HUB, build_fleet, fleet_manifest, fleet_sitls
+from tests.modules.lockstep.fleet_doubles import HUB, ROUTER, build_fleet, fleet_manifest, fleet_sitls
 
 STEP_S = 30.0
 MARGIN_S = 0.5
@@ -132,7 +132,7 @@ def test_cumulative_legal_waits_fire_exchange_budget_before_the_firmware_deadlin
     deadline = ExchangeDeadline(STEP_S, MARGIN_S, clock=clock)
     missed: list[float] = []
     monkeypatch.setattr(coordinator_members, "await_register", _fake_register(clock, missed))
-    roles = {"hub": RoleSpec("toy:hub", ("sitl1.serial1",)),
+    roles = {"hub": RoleSpec("toy:hub", (ROUTER,)),
              "rover": RoleSpec("toy:rover", ("lockstep:serial0.1",))}
     plan = dataclasses.replace(fleet_manifest(initial=()), roles=roles)
     roster = Roster(plan, FakeSpawner(clock), AllowAll(), HostSidecar(tmp_path / PROCESSES_HOST_FILE),
@@ -151,7 +151,7 @@ def test_cumulative_legal_waits_fire_exchange_budget_before_the_firmware_deadlin
     deadline.anchor()
     a_k = clock.now
     deadline.open(5)
-    exchange = TickExchange(roster, book, ("rover",), DirectPorts(plan.sitl_devices))
+    exchange = TickExchange(roster, book, ("rover",), RoutedPorts(plan, roster))
     with pytest.raises(HostFault) as raised:
         exchange.run(5, 1_000_000, TickRecord(5, "mission", 1_000_000), draining=False)
     fault = raised.value

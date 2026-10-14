@@ -1,8 +1,8 @@
 """The LockstepBus contract: VehicleMav composes and runs on bytes alone.
 
 A NavPy-style vehicle (``create_vehicle``, NavPy's factory) on
-``lockstep:serial0`` and a backend-style one (``VehicleManager.add_vehicle``)
-on ``lockstep:serial1`` run on one baton against a reference autopilot byte
+``lockstep:serial0.1`` and a backend-style one (``VehicleManager.add_vehicle``)
+on ``lockstep:router`` run on one baton against a reference autopilot byte
 stream: heartbeat admission, a mode change, a parameter set, a named
 parameter read, a mission download and close. Construction also fails before
 attach, fails after attach, and is cancelled by an aborted run.
@@ -49,7 +49,7 @@ from tests.modules.lockstep.test_lockstep_components import _inject_host_delays
 
 TICK_US = 20_000
 EPOCH_US = 1_760_000_000_000_000
-SERIAL0, SERIAL1 = "lockstep:serial0", "lockstep:serial1"
+SERIAL0, SERIAL1 = "lockstep:serial0.1", "lockstep:router"
 DEVICES = (SERIAL0, SERIAL1)
 PLANE_GUIDED, PLANE_AUTO, COPTER_GUIDED = 15, 10, 4
 

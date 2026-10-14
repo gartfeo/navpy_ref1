@@ -28,7 +28,14 @@ from navpy.sim.lockstep.part_wire import Done, RequestId
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.step_wire import Frame, PortState, pack_frame, unpack_reply
 from scripts.eval_gcs_demo_scenario import DemoScenario, load_scenario
-from scripts.lockstep_slice_actor import BACKEND, SERIAL0, SERIAL1, setup_script, slice_roles
+from scripts.lockstep_slice_actor import (
+    BACKEND,
+    ROUTER,
+    SERIAL0,
+    SITL_PORTS,
+    setup_script,
+    slice_roles,
+)
 from tests.modules.lockstep.coordinator_doubles import PYTHON_PATH, REPO, AllowAll, HostDelays
 from tests.modules.lockstep.lockstep_autopilot import ReferenceAutopilot
 
@@ -89,16 +96,17 @@ def manifest(scenario: DemoScenario, *, mission_budget_us: int = 0,
     """No SNAP, so no terminal tick: the mission phase ends on its budget at
     the first mission tick, and finalization lasts until the operator returns.
 
-    With ``companions``, the toy rover (NavPy-like, on ``lockstep:serial0``)
+    With ``companions``, the toy rover (NavPy-like, on ``lockstep:serial0.1``)
     is the backend's companion for the scenario's sysid, through its
     launcher port; with ``navpy``, the companion is the real NavPy.
     """
     toy = RoleSpec("tests.modules.lockstep.toy_participants:rover", (SERIAL0,),
-                   {"ready_after_s": 0.06, "ready_payload": READY_PAYLOAD})
+                   {"ready_after_s": 0.06, "ready_payload": READY_PAYLOAD, "devices": [SERIAL0]})
     roles = slice_roles(scenario, companion=toy if companions and not navpy else None, navpy=navpy)
     return Manifest(
         seed=1, epoch_us=1_760_000_000_000_000, max_frame_gap_us=25_000, drain_period_us=20_000,
-        mission_budget_us=mission_budget_us, roles=roles, initial=(("backend", BACKEND),),
+        mission_budget_us=mission_budget_us, roles=roles, sitl_ports=SITL_PORTS, router=ROUTER,
+        initial=(("backend", BACKEND),),
         companion_roles=("navpy",) if "navpy" in roles else (),
     )
 
@@ -115,10 +123,10 @@ class BackendRun:
         return self.coordinator.run()
 
     def sent(self) -> list[tuple[int, str, object]]:
-        """``(tick, type, message)`` of every message the backend wrote on serial1."""
+        """``(tick, type, message)`` of every message the backend wrote on its router device."""
         decoder = StreamDecoder()
         return [(done.k, message.get_type(), message) for done in self.dones
-                for device, data in done.ports if device == SERIAL1
+                for device, data in done.ports if device == ROUTER
                 for message in decoder.feed(data)]
 
     def response(self, request_id: RequestId) -> tuple[int, object]:

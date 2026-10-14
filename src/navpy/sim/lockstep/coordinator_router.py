@@ -1,6 +1,7 @@
-"""A routed fleet's ports: the router in the tick path, the queues, the packet records.
+"""The coordinator's ports: the router in the tick path, the queues, the packet records.
 
-``lockstep_fleet.md``, Router and delivery. The router's endpoints are
+``lockstep_fleet.md``, Router and delivery; every run takes this path, the
+one-SITL slice included (step 10c). The router's endpoints are
 ``sitl1 .. sitlN`` (SITL i's serial1, owned by the coordinator) and
 ``backend`` (the backend's ``Manifest.router`` device), in that order.
 
@@ -45,7 +46,6 @@ from navpy.sim.lockstep.coordinator_journal import TickRecord, sha256
 from navpy.sim.lockstep.coordinator_mavlink import (
     DRAIN_TO_SITL,
     FROM_SITL,
-    ROUTED_DIRECTIONS,
     ROUTED_OUT,
     ROUTER_DROPPED,
     ROUTER_LINK,
@@ -76,12 +76,7 @@ def router_endpoints(fleet_size: int) -> list[str]:
 
 
 class RoutedPorts:
-    #: Tick records name each member's generation (a delivery's receiver).
-    member_generation = True
-
     def __init__(self, manifest: Manifest, roster: Roster, table: EntryTable | None = None) -> None:
-        if manifest.router is None:
-            raise ValueError("a routed fleet names the backend's router device")
         self._sitls = manifest.sitl_ports
         self._router_device = manifest.router
         endpoints = router_endpoints(len(self._sitls))
@@ -96,7 +91,7 @@ class RoutedPorts:
         self._queues = ReplyQueues(manifest.sitl_devices)
         #: This tick's participant-bound bytes and their fates (step 1 to step 2).
         self._ledger = InboundLedger()
-        self.tally = MavlinkTally((*manifest.sitl_devices, ROUTER_LINK), ROUTED_DIRECTIONS)
+        self.tally = MavlinkTally((*manifest.sitl_devices, ROUTER_LINK))
         #: SITL-bound bytes, each counted once under the phase it was written in.
         self._account = StreamAccount(self._queues, self._book, self.tally)
 

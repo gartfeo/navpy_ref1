@@ -7,13 +7,14 @@ bootstrap thread at the admission tick, which builds the
 :class:`~gcs.backend.lockstep.backend_host.BackendHost`.
 
 Tick input order (backend): lifecycle, cancels, requests in id order (each
-starts its task on the loop), then the ``lockstep:serial1`` bytes; then
+starts its task on the loop), then the router device's bytes; then
 quiescence, with timers due at ``t_k`` after the deliveries. Every input is
 delivered from the coordinator thread in the input phase.
 
-Role config (the spawn record's ``config``): ``settings``, the backend's
-settings document (written run-locally, the settings store's file), and
-optionally ``companions`` for the launcher port (``launcher_port``).
+Role config (the spawn record's ``config``): ``device``, its logical device
+(``lockstep:router``); ``settings``, the backend's settings document
+(written run-locally, the settings store's file); and optionally
+``companions`` for the launcher port (``launcher_port``).
 """
 
 from __future__ import annotations
@@ -33,15 +34,11 @@ from navpy.sim.lockstep.pose_recording import enable_pose_cadence
 if TYPE_CHECKING:
     from gcs.backend.lockstep.backend_host import BackendHost
 
-#: The backend monitor's logical device.
-SERIAL1 = "lockstep:serial1"
-
-
 class BackendHooks(ParticipantHooks):
     def __init__(self, context: ParticipantContext) -> None:
         self._context = context
-        self.link = LockstepLink(context.participant.runtime.baton, SERIAL1)
-        self.links = {SERIAL1: self.link}
+        self.link = LockstepLink(context.participant.runtime.baton, context.device)
+        self.links = {context.device: self.link}
         self.out = OutboxBuffer()
         self.host = None
 
@@ -80,4 +77,4 @@ def backend(context: ParticipantContext) -> BackendHooks:
     return BackendHooks(context)
 
 
-__all__ = ["BackendHooks", "SERIAL1", "backend"]
+__all__ = ["BackendHooks", "backend"]

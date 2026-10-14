@@ -57,7 +57,8 @@ def sitl_origin(index: int) -> str:
 
 
 def packet_key(packet: RouterPacket) -> str:
-    """The tally key (``coordinator_mavlink.count_key``'s shape), target from the entry table."""
+    """The tally key ``<id>:<src_sys>.<src_comp>><target>`` (``coordinator_mavlink``),
+    target from the entry table."""
     system, component = packet.source
     target = packet.target[0]
     return f"{packet.msgid}:{system}.{component}>{NO_TARGET if target == NO_FIELD else target}"

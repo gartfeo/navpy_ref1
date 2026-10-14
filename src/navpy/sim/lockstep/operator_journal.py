@@ -12,8 +12,8 @@ into the digest:
 
 With ``evidence`` (the fleet's approval replay, ``lockstep_fleet.md``,
 "Operator approvals" and "Operator polling schedule"), more is journaled;
-off, the slice's journal keeps its bytes until step 10c re-baselines it
-(owner Q1):
+the slice leaves it off, since its approval gate (one approval, its
+confirmation timing) reads none of it, and step 10g's replay gate turns it on:
 
 - ``sent`` and ``received`` carry the confirmation identity
   ``(sys_id, local_task_id, round_uid)`` and the request id: the POST's own

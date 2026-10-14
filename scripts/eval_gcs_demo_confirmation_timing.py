@@ -7,7 +7,8 @@ Named events and where the journal holds them:
   operator's event port (the delivery tick of the operator's ``received``);
 - e3, k3: the operator's receive returns it (the tick of that ``received``);
 - e4, k4: the operator submits the approval (its ``sent`` POST);
-- e5, k5: the backend's first ``TASK_CONFIRM_RESPONSE`` on serial1 (``navlink``);
+- e5, k5: the backend's first ``TASK_CONFIRM_RESPONSE`` into the owner SITL's
+  serial1 (``navlink``, the router's copy admitted to a reply);
 - e6, k6: the response completes after the resend schedule (the operator's
   ``answered``), at the last send's tick.
 
@@ -19,8 +20,9 @@ the last at k6, and each resend waits its own tick-rounded gap after the
 previous send (the route sleeps ``gap`` after every send but the last), so
 every consecutive interval is ``gap ≤ t(s_{i+1}) - t(s_i) ≤ gap + Δ_max``; the
 audited ``actual_delay_s`` is ``t(k6) - t(k3)``. A send is any
-``TASK_CONFIRM_RESPONSE`` on serial1 to the SITL, whatever its source (the
-assignment gate checks identities). Times are compared in
+``TASK_CONFIRM_RESPONSE`` admitted to the owner SITL's serial1 (``to_sitl``
+on the serial1 the journal's grid pairs with vehicle ``sys_id``'s serial0), whatever its
+source (the assignment gate checks identities). Times are compared in
 integer microseconds, so no float rounding moves a bound.
 """
 
@@ -36,11 +38,11 @@ from gcs.backend.task_confirm_resend import (
     TASK_CONFIRM_RESPONSE_SENDS,
 )
 from navpy.sim.lockstep.coordinator_mavlink import message_id
+from navpy.sim.lockstep.coordinator_types import serial0_device
 from scripts.eval_gcs_demo_confirmation import CONFIRMATION_POLL_S
 
 CONFIRM_REQUEST_EVENT = "task_confirm_request"
 APPROVAL_TARGET = "/api/control/task_confirm"
-RESPONSE_LINK = "lockstep:serial1"
 RESPONSE_DIRECTION = "to_sitl"
 RESPONSE_ID = mavlink.MAVLINK_MSG_ID_TASK_CONFIRM_RESPONSE
 #: The audited delay is float seconds from the baton clock; the journal's
@@ -70,12 +72,25 @@ def max_frame_gap_us(records: Sequence[Mapping]) -> int:
     raise ValueError("the journal records no tick grid")
 
 
+def response_link(records: Sequence[Mapping], sys_id: int) -> str:
+    """The serial1 device of vehicle ``sys_id``'s SITL: the journal grid's SITL
+    whose serial0 is that vehicle's companion link (``serial0_device``)."""
+    for record in records:
+        if "grid" in record:
+            companion = serial0_device(sys_id)
+            ports = [p for p in record["grid"]["sitl_ports"] if p[0] == companion]
+            if not ports:
+                raise ValueError(f"the journal's grid names no SITL with {companion}")
+            return str(ports[0][1])
+    raise ValueError("the journal records no tick grid")
+
+
 def _first_line_tick(lines: Iterable[tuple[int, str]], marker: str) -> int | None:
     return next((k for k, line in lines if marker in line), None)
 
 
 def confirmation_ticks(records: Sequence[Mapping], lines: Sequence[tuple[int, str]],
-                       poi: int) -> ConfirmationTicks:
+                       poi: int, sys_id: int) -> ConfirmationTicks:
     ticks = ConfirmationTicks()
     ticks.k["k1"] = _first_line_tick(lines, f"CONFIRMING: P{poi}")
     approval_id = None
@@ -92,9 +107,10 @@ def confirmation_ticks(records: Sequence[Mapping], lines: Sequence[tuple[int, st
                 ticks.k["k6"] = record["k"]
     if ticks.k["k4"] is None or ticks.k["k6"] is None:
         return ticks
+    link = response_link(records, sys_id)
     for record in records:
         if ticks.k["k4"] < record.get("k", -1) <= ticks.k["k6"]:
-            sends = record.get("navlink", {}).get(RESPONSE_LINK, {}).get(RESPONSE_DIRECTION, {})
+            sends = record.get("navlink", {}).get(link, {}).get(RESPONSE_DIRECTION, {})
             count = sum(n for key, n in sends.items() if message_id(key) == RESPONSE_ID)
             ticks.sends.extend([record["k"]] * count)
     ticks.k["k5"] = ticks.sends[0] if ticks.sends else None
@@ -102,8 +118,8 @@ def confirmation_ticks(records: Sequence[Mapping], lines: Sequence[tuple[int, st
 
 
 def confirmation_timing_errors(records: Sequence[Mapping], lines: Sequence[tuple[int, str]],
-                               approval: Mapping, poi: int) -> list[str]:
-    ticks = confirmation_ticks(records, lines, poi)
+                               approval: Mapping, poi: int, sys_id: int) -> list[str]:
+    ticks = confirmation_ticks(records, lines, poi, sys_id)
     missing = [name for name, value in ticks.k.items() if value is None]
     if missing:
         return [f"confirmation timing: the journal holds no {', '.join(missing)}"]
@@ -138,6 +154,6 @@ def confirmation_timing_errors(records: Sequence[Mapping], lines: Sequence[tuple
 
 
 __all__ = [
-    "APPROVAL_TARGET", "CONFIRM_REQUEST_EVENT", "RESPONSE_DIRECTION", "RESPONSE_ID", "RESPONSE_LINK", "ConfirmationTicks", "confirmation_ticks",
-    "confirmation_timing_errors", "max_frame_gap_us", "tick_times",
+    "APPROVAL_TARGET", "CONFIRM_REQUEST_EVENT", "RESPONSE_DIRECTION", "RESPONSE_ID", "ConfirmationTicks", "confirmation_ticks",
+    "confirmation_timing_errors", "max_frame_gap_us", "response_link", "tick_times",
 ]
