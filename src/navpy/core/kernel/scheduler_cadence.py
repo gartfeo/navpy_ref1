@@ -11,6 +11,7 @@ from numbers import Real
 from typing import Callable, Optional
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.kernel.reader_budget_feed import ReaderBudgetFeed
 
 _TIMER_PERIOD_MS = 1
 _timer_resolution_lock = rt.RLock()
@@ -45,8 +46,10 @@ class SchedulerCadence:
         wall_clock: Callable[[], float] = rt.time,
         speed_poll_wall_s: float = SPEED_POLL_WALL_S,
         high_resolution_timer: bool = True,
+        reader_budget: Optional[ReaderBudgetFeed] = None,
     ) -> None:
         self._speedup_reader = speedup_reader
+        self._reader_budget = reader_budget
         self._wall_clock = wall_clock
         self._speed_poll_wall_s = (
             _positive_float(speed_poll_wall_s) or self.SPEED_POLL_WALL_S
@@ -55,7 +58,6 @@ class SchedulerCadence:
         self._next_speed_sync_wall_s = float(wall_clock())
         self._lock = rt.RLock()
         self._high_resolution_timer_enabled = bool(high_resolution_timer)
-        self._high_resolution_timer_active = False
         self._high_resolution_timer_finalizer: Optional[weakref.finalize] = None
         self._interpreter_cadence_token = object()
         self._command_cadence_active = False
@@ -122,6 +124,9 @@ class SchedulerCadence:
         with self._lock:
             self._set_high_resolution_timer_locked(False)
             self._command_cadence_active = False
+            feed, self._reader_budget = self._reader_budget, None
+            if feed is not None:
+                feed.sink.release()
             finalizer = self._interpreter_cadence_finalizer
             if finalizer.alive:
                 finalizer()
@@ -149,6 +154,12 @@ class SchedulerCadence:
     def _sync_process_cadence_locked(self) -> None:
         self._set_high_resolution_timer_locked(self._speedup > 1.01)
         self._sync_interpreter_cadence_locked()
+        self._sync_reader_budget_locked()
+
+    def _sync_reader_budget_locked(self) -> None:
+        feed = self._reader_budget
+        if feed is not None:
+            feed.sink.set(feed.scheduler_period_s / self._speedup)
 
     def _sync_interpreter_cadence_locked(self) -> None:
         if self._command_cadence_active:
@@ -162,19 +173,18 @@ class SchedulerCadence:
     def _set_high_resolution_timer_locked(self, enabled: bool) -> None:
         if not self._high_resolution_timer_enabled:
             enabled = False
-        if enabled and not self._high_resolution_timer_active:
+        # The finalizer is the held request: one exists while it is active.
+        finalizer = self._high_resolution_timer_finalizer
+        if enabled and finalizer is None:
             if _request_high_resolution_timer():
-                self._high_resolution_timer_active = True
                 self._high_resolution_timer_finalizer = weakref.finalize(
                     self,
                     _release_high_resolution_timer,
                 )
             return
-        if not enabled and self._high_resolution_timer_active:
-            finalizer = self._high_resolution_timer_finalizer
+        if not enabled and finalizer is not None:
             self._high_resolution_timer_finalizer = None
-            self._high_resolution_timer_active = False
-            if finalizer is not None and finalizer.alive:
+            if finalizer.alive:
                 finalizer()
             else:
                 _release_high_resolution_timer()

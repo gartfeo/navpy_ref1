@@ -31,7 +31,8 @@ from navpy.app.approach.navigation import Navigation
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner, MissionPlannerArgs
 from navpy.app.flow.nav_controller import NavController
-from navpy.app.vehicle_factory import create_vehicle
+from navpy.app.vehicle_factory import create_vehicle, open_vehicle_bus
+from navpy.app.wall_scheduler_cadence import speedup_scheduler_cadence
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.plugins.vehicle.ardupilot.pose_streams import (
@@ -53,11 +54,6 @@ from navpy.core.kernel.config.arg_helper import (
 from navpy.core.perception.geo.zc_util_instance import ZcUtilInstance
 
 
-def speedup_scheduler_cadence(vehicle: IVehicle) -> SchedulerCadence:
-    """Wall mode: NavPy's cadence follows the SITL's ``SIM_SPEEDUP``."""
-    return SchedulerCadence(vehicle.sim_speedup)
-
-
 @dataclass(frozen=True)
 class RuntimePorts:
     """What a host binds in place of the wall defaults (a lockstep participant).
@@ -67,7 +63,7 @@ class RuntimePorts:
     """
 
     open_bus: MavBusOpener = MavBus.get_or_create
-    scheduler_cadence: Callable[[IVehicle], SchedulerCadence] = speedup_scheduler_cadence
+    scheduler_cadence: Callable[[IVehicle, MavBus], SchedulerCadence] = speedup_scheduler_cadence
     observe_logger: Callable[[ILogger], None] = field(default=lambda _logger: None)
     lifecycle_stop: LifecycleStopRequest | None = None
 
@@ -132,7 +128,8 @@ def _build_foundation(
     ports.observe_logger(logger)
     resources.own_independent("OpenCV windows", cv2.destroyAllWindows)
 
-    vehicle = create_vehicle(connection_args, logger, open_bus=ports.open_bus)
+    bus = open_vehicle_bus(connection_args, ports.open_bus)
+    vehicle = create_vehicle(connection_args, logger, bus=bus)
     close_gate = VehicleCloseGate(vehicle.close)
     # Quiescence: the MAVLink reader dispatches into the logger, so the
     # logger stays open until the reader has really stopped.
@@ -158,7 +155,7 @@ def _build_foundation(
         zc_util = None
 
     vision_args = VisionArgs.from_args(args)
-    scheduler_cadence = ports.scheduler_cadence(vehicle)
+    scheduler_cadence = ports.scheduler_cadence(vehicle, bus)
     resources.own("simulation cadence", scheduler_cadence.close)
     return RuntimeFoundation(
         logger=logger,

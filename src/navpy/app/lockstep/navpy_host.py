@@ -100,7 +100,7 @@ class NavpyHost:
         """Compose, then run until the stop; a failure is kept for the flushes."""
         ports = RuntimePorts(
             open_bus=self._link.open,
-            scheduler_cadence=lambda _vehicle: IdentitySchedulerCadence(),
+            scheduler_cadence=lambda _vehicle, _bus: IdentitySchedulerCadence(),
             observe_logger=self._observe_logger,
             lifecycle_stop=self.stop,
         )

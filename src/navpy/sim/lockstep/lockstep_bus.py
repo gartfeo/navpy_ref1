@@ -9,7 +9,8 @@ the reader's ``_dispatch`` fans out. Only the edges change:
 - **Inbound:** the coordinator delivers each tick's port bytes
   (:meth:`LockstepBus.deliver`); a managed reader decodes them with one
   persistent :class:`StreamDecoder` and dispatches in byte order, yielding
-  after each packet as the wall reader does.
+  after each packet (the wall reader yields once per bounded batch,
+  ``docs/design/reader_batch.md``; lockstep keeps the per-packet baton point).
 - **Outbound:** :class:`LockstepConnection` is the encoder (a ``MAVLink`` on
   the link's byte sink, with the product's source ids) plus ``mode_mapping``;
   the link drains the sink into ``DONE``.
@@ -105,8 +106,9 @@ class LockstepBusReader(MavBusReader):
                 except Exception:
                     log.exception("MavBus %s reader error", self._device)
                 finally:
-                    # As the wall reader: a woken consumer runs before the next
-                    # packet, so a burst cannot evict the answer it waits for.
+                    # Per packet, unlike the wall reader's per-batch yield: a
+                    # woken consumer runs before the next packet at the same
+                    # tick, so a burst cannot evict the answer it waits for.
                     self._cooperative_yield()
 
 

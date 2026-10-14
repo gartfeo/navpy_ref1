@@ -650,8 +650,12 @@ def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
     monkeypatch.setattr(composition, "LoggerArgs", lambda _args: object())
     monkeypatch.setattr(composition, "initialize_logger", lambda *_args: logger)
     openers = []
+    bus = MagicMock()
+    monkeypatch.setattr(composition, "open_vehicle_bus",
+                        lambda _args, open_bus: openers.append(open_bus) or bus)
+    buses = []
     monkeypatch.setattr(composition, "create_vehicle",
-                        lambda *_args, open_bus: openers.append(open_bus) or vehicle)
+                        lambda *_args, bus: buses.append(bus) or vehicle)
     monkeypatch.setattr(composition, "NetworkArgs", lambda _args: object())
     monkeypatch.setattr(composition, "create_network", lambda *_args: network)
     monkeypatch.setattr(composition, "NavigationArgs", lambda *_args: navigation_args)
@@ -661,15 +665,21 @@ def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
         MagicMock(return_value=SimpleNamespace(detector_type="real")),
     )
     cadence_type = MagicMock(return_value=cadence)
-    monkeypatch.setattr(composition, "SchedulerCadence", cadence_type)
+    wall_cadence = importlib.import_module("navpy.app.wall_scheduler_cadence")
+    monkeypatch.setattr(wall_cadence, "SchedulerCadence", cadence_type)
     monkeypatch.setattr(composition, "_log_configuration", MagicMock())
 
     foundation = composition._build_foundation(object(), ResourceSpy())
 
     assert foundation.scheduler_cadence is cadence
-    cadence_type.assert_called_once_with(vehicle.sim_speedup)
+    cadence_type.assert_called_once_with(vehicle.sim_speedup, reader_budget=ANY)
+    # The cadence bounds the vehicle bus's reader batch (reader_batch.md).
+    feed = cadence_type.call_args.kwargs["reader_budget"]
+    assert feed.sink is bus.reader_budgets.request.return_value
+    bus.reader_budgets.request.assert_called_once_with("scheduler cadence")
     # Wall ports: the process bus registry (a lockstep participant binds its link).
     assert openers == [composition.MavBus.get_or_create]
+    assert buses == [bus]
     vehicle.is_simulated_autopilot.assert_not_called()
     assert ("dependent", "simulation cadence") in registrations
     # The reader dispatches into the logger: the logger waits for it.

@@ -2,6 +2,7 @@
 
 import pytest
 
+from navpy.core.kernel.reader_budget_feed import ReaderBudgetFeed
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 
 
@@ -225,3 +226,51 @@ def test_multiple_cadence_owners_keep_the_smallest_quantum(monkeypatch) -> None:
     assert current["value"] == pytest.approx(0.001)
     fast.close()
     assert current["value"] == pytest.approx(0.005)
+
+
+class _BudgetSink:
+    def __init__(self) -> None:
+        self.slots: list[float] = []
+        self.released = 0
+
+    def set(self, wall_slot_s: float) -> None:
+        self.slots.append(wall_slot_s)
+
+    def release(self) -> None:
+        self.released += 1
+
+
+def test_reader_budget_follows_both_speedup_sync_paths_and_is_released() -> None:
+    clock = _FakeClock(100.0)
+    speed = {"value": 10.0}
+    sink = _BudgetSink()
+    cadence = SchedulerCadence(
+        lambda: speed["value"],
+        wall_clock=clock,
+        high_resolution_timer=False,
+        reader_budget=ReaderBudgetFeed(sink=sink, scheduler_period_s=0.02),
+    )
+    # The period is known before the constructor's first sync.
+    assert sink.slots == [pytest.approx(0.002)]
+
+    speed["value"] = 4.0
+    cadence.wall_period_for_scheduler_period(0.02)  # non-blocking sync path
+    assert sink.slots[-1] == pytest.approx(0.005)
+
+    speed["value"] = 2.0
+    clock.advance(SchedulerCadence.SPEED_POLL_WALL_S)
+    cadence.sync_speed_if_due()  # polled sync path
+    assert sink.slots[-1] == pytest.approx(0.01)
+
+    cadence.close()
+    cadence.close()
+    assert sink.released == 1
+    count = len(sink.slots)
+    cadence.sync_speed()
+    assert len(sink.slots) == count
+
+
+@pytest.mark.parametrize("period", [0.0, -0.02, float("nan"), float("inf"), True, None])
+def test_reader_budget_feed_requires_a_positive_scheduler_period(period) -> None:
+    with pytest.raises(ValueError, match="scheduler period"):
+        ReaderBudgetFeed(sink=_BudgetSink(), scheduler_period_s=period)
