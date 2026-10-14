@@ -19,6 +19,12 @@ from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault, Wa
 from tests.modules.lockstep.coordinator_doubles import HUB, ROVER, ScriptedSitl, build, manifest
 
 
+#: The one-SITL toy run's journal digest, pinned when step 10a generalised the
+#: coordinator to N SITLs: a one-SITL run must keep the slice journal's bytes
+#: until step 10c re-baselines them (owner Q1). Changed only with that schema change.
+ONE_SITL_TOY_DIGEST = "a013e5c5b28450c1798fd6f0a5030f110a90b8cfe8a193840b64cbeaa7d03eb4"
+
+
 def _run(tmp_path, name, **kwargs):
     coordinator, sitl, operator, roster = build(tmp_path / name, **kwargs)
     result = coordinator.run()
@@ -36,6 +42,7 @@ def test_two_runs_and_a_delayed_run_give_the_same_journal(tmp_path):
     delayed = _run(tmp_path, "c", delay_seed=7, plan=manifest(
         hub={"exit_delay_s": 0.3}, rover={"exit_delay_s": 0.3}))
     assert plain[0].journal.digest == again[0].journal.digest == delayed[0].journal.digest
+    assert plain[0].journal.digest == ONE_SITL_TOY_DIGEST
     assert plain[0].journal.records == delayed[0].journal.records
     assert plain[4] == delayed[4]
     assert plain[1].snapshot_rows == delayed[1].snapshot_rows  # the SITL artifact, byte for byte

@@ -15,6 +15,7 @@ is set from a recorded serial-step frame sequence
 
 from __future__ import annotations
 
+import math
 import random
 import secrets
 import time
@@ -23,7 +24,8 @@ from pathlib import Path
 from gcs.backend import instance_ports as ip
 from gcs.backend import instance_registry_lockstep as lockstep
 from navpy.sim.lockstep.coordinator import StepLink
-from scripts import lockstep_wsl
+from navpy.sim.lockstep.coordinator_deadline import ExchangeDeadline
+from scripts import lockstep_relay, lockstep_wsl
 
 ROOT = Path(__file__).resolve().parents[1]
 #: Δ_max: the largest ``source_us`` step between two serial-step frames. The
@@ -36,6 +38,15 @@ MAX_FRAME_GAP_US = 20_825
 DRAIN_PERIOD_US = 20_000
 #: Wall budget for one SITL frame (its exchange deadline) and the relay link.
 STEP_DEADLINE_US = 30_000_000
+#: Wall time a reply may take from the coordinator's send to the firmware,
+#: beyond the relay's injected delay: one loopback TCP hop to the relay and
+#: its copy onto the SITL's socket, with room for a loaded host's scheduling.
+REPLY_TRANSIT_ALLOWANCE_S = 0.5
+#: The coordinator's exchange margin (``coordinator_deadline``): it ends each
+#: tick's exchange this long before the earliest firmware reply deadline, so
+#: the reply still arrives in time: the relay's largest injected delay plus
+#: the transit allowance.
+EXCHANGE_MARGIN_S = lockstep_relay.MAX_DELAY_S + REPLY_TRANSIT_ALLOWANCE_S
 CONNECT_TIMEOUT_S = 30.0
 #: Upper bound of one injected coordinator host delay (seconds).
 MAX_DELAY_S = 0.004
@@ -98,11 +109,11 @@ class WslSitl:
         })
 
     # -- SitlLink ------------------------------------------------------------------
-    def recv_frame(self) -> bytes:
-        return self._link.recv_frame()
+    def recv_frame(self, timeout_s: float = math.inf) -> bytes:
+        return self._link.recv_frame(timeout_s)
 
-    def send_reply(self, reply: bytes) -> None:
-        self._link.send_reply(reply)
+    def send_reply(self, reply: bytes, timeout_s: float = math.inf) -> None:
+        self._link.send_reply(reply, timeout_s)
 
     # -- SitlHost ------------------------------------------------------------------
     def snapshot(self, parked_tick: int) -> None:
@@ -119,7 +130,13 @@ class WslSitl:
             self._stopped = True
 
 
+def exchange_deadline() -> ExchangeDeadline:
+    """The serial-step firmware's exchange deadline rule, for a fleet launch (step 10d)."""
+    return ExchangeDeadline(STEP_DEADLINE_US / 1_000_000, EXCHANGE_MARGIN_S)
+
+
 __all__ = [
-    "CONNECT_TIMEOUT_S", "DRAIN_PERIOD_US", "HostDelays", "MAX_DELAY_S", "MAX_FRAME_GAP_US",
-    "STEP_DEADLINE_US", "WslSitl",
+    "CONNECT_TIMEOUT_S", "DRAIN_PERIOD_US", "EXCHANGE_MARGIN_S", "HostDelays", "MAX_DELAY_S",
+    "MAX_FRAME_GAP_US", "REPLY_TRANSIT_ALLOWANCE_S", "STEP_DEADLINE_US", "WslSitl",
+    "exchange_deadline",
 ]

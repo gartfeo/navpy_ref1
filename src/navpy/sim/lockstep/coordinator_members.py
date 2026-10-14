@@ -4,6 +4,10 @@ A :class:`Member` is one spawned participant generation. It is admitted at
 its first ``TICK`` and retired at the tick of its ending ``DONE``; between
 the two it gets exactly one ``TICK`` per tick. Retirement is logical: the
 OS exit is awaited behind the clock hold and only checked, never journaled.
+
+Every wait (registration, ``TICK`` send, ``DONE``, exit) has its own wall
+budget and draws on the open tick's exchange deadline (``deadline``,
+``coordinator_deadline``): within a tick the waits add up.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from navpy.sim.lockstep.coordinator_deadline import DONE, EXIT, REGISTER, TICK, ExchangeDeadline
 from navpy.sim.lockstep.coordinator_register import await_register
 from navpy.sim.lockstep.coordinator_spawn import (
     ChildRecorder,
@@ -93,12 +98,16 @@ class Roster:
         recorder: ChildRecorder,
         sidecar: HostSidecar,
         budgets: WallBudgets,
+        *,
+        deadline: ExchangeDeadline | None = None,
     ) -> None:
         self._manifest = manifest
         self._spawner = spawner
         self._recorder = recorder
         self._sidecar = sidecar
         self._budgets = budgets
+        #: The tick's shared exchange deadline; the coordinator opens and anchors it.
+        self.deadline = deadline or ExchangeDeadline()
         self._listener = PartListener()
         self._generations: dict[int, int] = {}
         self.members: list[Member] = []
@@ -148,7 +157,7 @@ class Roster:
                                 ordinal=ordinal)
             child.go()
             self._sidecar.note(record, pid=child.pid, coordinator_port=self._listener.address[1])
-            link = await_register(self._listener, record, child, self._budgets.register_s)
+            link = self._await_register(record, child)
         except BaseException:
             # The record is released only once the child is confirmed gone;
             # otherwise it stays recorded (gcs_stop recovers it) and stop_all
@@ -167,24 +176,43 @@ class Roster:
         self.members.append(member)
         return member
 
+    def _await_register(self, record: SpawnRecord, child: HostChild) -> PartSocket:
+        try:
+            link = await_register(self._listener, record, child,
+                                  self.deadline.budget(REGISTER, self._budgets.register_s))
+        except HostFault as error:
+            self.deadline.raise_if_spent(REGISTER, error)
+            raise
+        self.deadline.check(REGISTER)
+        return link
+
     def send(self, member: Member, tick: Tick) -> bytes:
         try:
-            return member.link.send(tick, time.monotonic() + self._budgets.done_s)
+            budget = self.deadline.budget(TICK, self._budgets.done_s)
+            raw = member.link.send(tick, time.monotonic() + budget)
         except OSError as error:
+            self.deadline.raise_if_spent(TICK, error)
             raise CoordinatorFault("tick_unsent", f"TICK not sent: {error}", tick=tick.k,
                                    ordinal=member.ordinal) from error
+        self.deadline.check(TICK)
+        return raw
 
     def receive(self, member: Member, k: int) -> tuple[Done, bytes]:
         context = {"tick": k, "ordinal": member.ordinal}
         try:
-            message, raw = member.link.recv(time.monotonic() + self._budgets.done_s)
+            budget = self.deadline.budget(DONE, self._budgets.done_s)
+            message, raw = member.link.recv(time.monotonic() + budget)
         except (PeerClosed, ConnectionResetError, ConnectionAbortedError) as error:
+            self.deadline.raise_if_spent(DONE, error)  # every failure past D_k is the deadline's
             raise CoordinatorFault(  # EOF or a reset: the process went away
                 "eof_without_end", f"EOF at tick {k} without an ending DONE", **context) from error
         except socket.timeout as error:
+            self.deadline.raise_if_spent(DONE, error)
             raise HostFault("done_missed", f"no DONE {k} within the wall budget", **context) from error
         except (OSError, PartWireError) as error:
+            self.deadline.raise_if_spent(DONE, error)
             raise CoordinatorFault("done_invalid", f"DONE {k}: {error}", **context) from error
+        self.deadline.check(DONE)
         if not isinstance(message, Done):
             raise CoordinatorFault("done_invalid", f"expected DONE, got {type(message).__name__}",
                                    **context)
@@ -200,12 +228,14 @@ class Roster:
     def await_exit(self, member: Member) -> None:
         """The clock hold after an ending ``DONE``: the process must exit cleanly."""
         member.link.close()
-        code = member.child.wait(self._budgets.exit_s)
+        code = member.child.wait(self.deadline.budget(EXIT, self._budgets.exit_s))
         member.exited = code is not None
         self._sidecar.note(member.spawn, exit_code=code)
         if code is None:
+            self.deadline.raise_if_spent(EXIT)
             raise HostFault("exit_missed", "did not exit within the wall budget",
                             tick=member.retired_at, ordinal=member.ordinal)
+        self.deadline.check(EXIT)
         if member.flushed and code != 0:
             raise HostFault("exit_nonzero", f"exited nonzero ({code}) after a flushed end",
                             tick=member.retired_at, ordinal=member.ordinal)

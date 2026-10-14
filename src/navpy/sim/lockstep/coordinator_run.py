@@ -1,47 +1,66 @@
 """The lockstep coordinator's run: boot, mission, finalization, drain, snapshot.
 
-``lockstep_slice.md``, "Run phases" and "Tick k". Per SITL tick k:
+``lockstep_slice.md``, "Run phases" and "Tick k", for N SITLs
+(``lockstep_fleet.md``; the slice is N = 1). Per tick k:
 
-1. Read and check frame k (:class:`~navpy.sim.lockstep.coordinator_frames.FrameReader`).
+1. Read and check frame k from every SITL, then the fleet clock
+   (:class:`~navpy.sim.lockstep.coordinator_fleet.SitlFleet`).
 2-4. :class:`~navpy.sim.lockstep.coordinator_tick.TickExchange`.
 5. The operator's baton runs to quiescence at ``t_k``; its requests travel in
    ``TICK k+1``.
-6. Reply k, then journal the tick.
+6. Reply k to every SITL, then journal the tick.
 
-Boot ticks run no participant, up to and including the first frame that
-reports ``helpers_quiet`` (the boot barrier); the initial participants are
-admitted at the tick after it. The mission ends at k_T, the first tick whose
-log lines carry the terminal marker, or as a journaled timeout at the
-scenario's sim budget. An operator whose run returns before k_T (its own
-sim-time workflow ended without the terminal marker, e.g. a confirmation
-timeout) ends the mission at that tick with the journaled outcome
-``operator_returned``, never ``ok``; its companion stop still has to have
-been acked, so drain and snapshot run as usual.
+Every wall wait of steps 1-6 draws on the tick's one exchange deadline
+(``coordinator_deadline``). The initial participants spawn and register
+before the SITLs are launched (``launch``), so frame 1's deadline covers
+only the launches.
+
+Boot ticks run no participant, up to and including the tick at which the
+last SITL latches ``helpers_quiet`` (the boot barrier, within the
+manifest's boot budget); the initial participants are admitted at the tick
+after it. The mission ends ``ok`` at k_T, the tick at which every expected
+companion has latched its first terminal marker (k_T is the latest of
+those ticks), or as a journaled timeout at the scenario's sim budget. An
+operator whose run returns before k_T (its own sim-time workflow ended
+without the terminal marker, e.g. a confirmation timeout) ends the mission
+at that tick with the journaled outcome ``operator_returned``, never
+``ok``; its companion stop still has to have been acked, so drain and
+snapshot run as usual. If the last first SNAP lands in the tick the budget
+or the operator's return also hits, completion wins.
 Finalization ends at k_F, the tick the operator's run returns; by then every
 companion-role participant must have retired through an acked participant
-stop. Drain reads the parked frame k_F+1 (checked like any frame) and never
-replies, then runs synthetic ticks with ``end`` until every participant
-ended. The snapshot is taken only after every participant ended flushed and
-exited; then the SITL is stopped by ownership.
+stop. Drain reads every SITL's parked frame k_F+1 (checked like any frame)
+and never replies, then runs synthetic ticks with ``end`` until every
+participant ended. The snapshot is taken only after every participant ended
+flushed and exited; then every SITL is stopped by ownership.
 
 The journal opens with the run's tick-grid parameters and closes with the
 decoded MAVLink message counts per link and direction (``MavlinkTally``;
-tick records carry their NAVLINK counts), including the parked frame's
+tick records carry their NAVLINK counts), including the parked frames'
 egress and the participants' drain egress. A fault journals its class, kind
 and logical context only; its message goes to the ``*_host`` sidecar. Every
-fault stops by ownership.
+fault stops by ownership. A one-SITL run keeps the slice's journal schema
+until step 10c re-baselines it (owner Q1): fleet-only fields (the fleet
+header, latch ticks, first SNAPs) are journaled only for a fleet.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import math
+import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Protocol
 
-from navpy.sim.lockstep.coordinator_frames import FrameReader, SitlLink
+from navpy.sim.lockstep.baton import LockstepFault
+from navpy.sim.lockstep.coordinator_deadline import OPERATOR as OPERATOR_WAIT
+from navpy.sim.lockstep.coordinator_deadline import ExchangeDeadline
+from navpy.sim.lockstep.coordinator_fleet import Sitl, SitlFleet, SitlHost, anchor_now
+from navpy.sim.lockstep.coordinator_frames import SitlLink
 from navpy.sim.lockstep.coordinator_journal import RunJournal, TickRecord, sha256
+from navpy.sim.lockstep.coordinator_latches import SnapLatch
 from navpy.sim.lockstep.coordinator_lifecycle import OPERATOR, LifecycleBook
 from navpy.sim.lockstep.coordinator_mavlink import DRAIN_TO_SITL, FROM_SITL, TO_SITL
 from navpy.sim.lockstep.coordinator_members import Roster
@@ -49,7 +68,6 @@ from navpy.sim.lockstep.coordinator_operator import deliver_operator_requests
 from navpy.sim.lockstep.coordinator_types import (
     DRAIN_BUDGET_US,
     FINALIZATION_BUDGET_US,
-    SERIAL_DEVICES,
     CoordinatorFault,
     HostFault,
     Manifest,
@@ -64,14 +82,6 @@ FAULT_HOST_FILE = "lockstep_fault_host.json"
 _log = logging.getLogger(__name__)
 
 
-class SitlHost(Protocol):
-    def snapshot(self, parked_tick: int) -> None:
-        """Take the SITL artifacts up to and including the parked frame's row."""
-
-    def stop(self) -> None:
-        """Stop the SITL (and relay) by ownership."""
-
-
 @dataclass(frozen=True)
 class RunResult:
     outcome: str
@@ -81,16 +91,23 @@ class RunResult:
 
 
 class LockstepCoordinator:
-    def __init__(self, manifest: Manifest, link: SitlLink, sitl: SitlHost, operator: OperatorHost,
+    """``sitls`` are in SITL order, matching ``manifest.sitl_ports``. The
+    exchange deadline is the roster's (``Roster.deadline``), so every wait
+    of a tick draws on the same one; ``launch`` launches the SITLs after the
+    initial participants registered and anchors frame 1's deadline."""
+
+    def __init__(self, manifest: Manifest, sitls: Sequence[Sitl], operator: OperatorHost,
                  roster: Roster, ids: RequestIds, host_dir: Path, *,
-                 delay: Callable[[str], None] = lambda point: None) -> None:
+                 delay: Callable[[str], None] = lambda point: None,
+                 launch: Callable[[ExchangeDeadline], None] = anchor_now) -> None:
         self._manifest = manifest
-        self._frames = FrameReader(link, manifest.max_frame_gap_us)
-        self._sitl = sitl
+        self._fleet = SitlFleet(manifest, sitls, roster.deadline, launch=launch)
         self._operator = operator
         self._roster = roster
         self._book = LifecycleBook(roster, ids)
-        self._exchange = TickExchange(roster, self._book, manifest.companion_roles)
+        self._exchange = TickExchange(roster, self._book, manifest.companion_roles,
+                                      manifest.sitl_devices)
+        self._snaps = SnapLatch(manifest.expected_fleet)
         self._ids = ids
         self._host_dir = host_dir
         self._delay = delay
@@ -98,29 +115,40 @@ class LockstepCoordinator:
         self.journal = RunJournal()
 
     def run(self) -> RunResult:
-        self.journal.add({"grid": {
-            "max_frame_gap_us": self._manifest.max_frame_gap_us,
-            "drain_period_us": self._manifest.drain_period_us,
-            "mission_budget_us": self._manifest.mission_budget_us,
-        }})
+        self.journal.add({"grid": self._grid()})
         try:
             for role, ordinal in self._manifest.initial:
                 self._roster.spawn(role, ordinal, self._ids.next(), OPERATOR)
+            self._fleet.launch()
             k_t, k_f, t_f, outcome = self._mission()
             self._check_companions_stopped(k_f)
             parked = self._park(k_f)
             self._drain(k_f, t_f)
-            self._sitl.snapshot(parked)
+            self._fleet.snapshot(parked)
             self._delay("before_stop")
-            self._sitl.stop()
+            self._fleet.stop()
         except BaseException as fault:  # any end before a clean one stops by ownership
             self._fail(fault)
             raise
         self._roster.close()
-        self.journal.add({"mavlink_counts": self._frames.tally.totals()})
-        self.journal.add({"outcome": outcome, "terminal_tick": k_t, "final_tick": k_f,
-                          "parked_tick": parked})
+        self.journal.add({"mavlink_counts": self._fleet.tally.totals()})
+        end = {"outcome": outcome, "terminal_tick": k_t, "final_tick": k_f, "parked_tick": parked}
+        if self._manifest.is_fleet:
+            end["first_snaps"] = self._snaps.records()
+        self.journal.add(end)
         return RunResult(outcome, k_t, k_f, parked)
+
+    def _grid(self) -> dict[str, object]:
+        plan = self._manifest
+        grid: dict[str, object] = {
+            "max_frame_gap_us": plan.max_frame_gap_us,
+            "drain_period_us": plan.drain_period_us,
+            "mission_budget_us": plan.mission_budget_us,
+        }
+        if plan.is_fleet:
+            grid.update(sitl_ports=[list(ports) for ports in plan.sitl_ports],
+                        boot_budget_us=plan.boot_budget_us, expected_fleet=list(plan.expected_fleet))
+        return grid
 
     def _fail(self, fault: BaseException) -> None:
         if isinstance(fault, RunFault):
@@ -130,7 +158,7 @@ class LockstepCoordinator:
                               "tick": self._k, "ordinal": None})
         # Each stage runs whatever the others do; the host diagnostics go last.
         # A cleanup error is logged, never raised: the original fault stands.
-        for stage in (self._roster.stop_all, self._sitl.stop, lambda: self._write_fault(fault)):
+        for stage in (self._roster.stop_all, self._fleet.stop, lambda: self._write_fault(fault)):
             try:
                 stage()
             except Exception:
@@ -143,19 +171,22 @@ class LockstepCoordinator:
             encoding="utf-8")
 
     def _mission(self) -> tuple[int, int, int, str]:
-        k, phase, barrier, started_us, k_t, t_kt, outcome = 0, "boot", False, 0, 0, 0, "ok"
+        k, phase, started_us, k_t, t_kt, outcome = 0, "boot", 0, 0, 0, "ok"
+        fleet = self._fleet
         while True:
             k = self._k = k + 1
-            frame, raw = self._frames.read(k)
-            if phase == "boot" and barrier:
-                phase, started_us = "mission", frame.source_us
-            t_us = frame.source_us
+            frames, raws = fleet.read(k)
+            t_us = frames[0].source_us
+            if phase == "boot" and fleet.boot.complete:
+                phase, started_us = "mission", t_us
             record = TickRecord(k, phase, t_us)
-            record.note("frame", sha256(raw))
-            egress = {SERIAL_DEVICES[i]: port.egress for i, port in enumerate(frame.ports)}
-            self._frames.tally.feed(record.data, FROM_SITL, egress)
+            record.note("frame", fleet.per_sitl([sha256(raw) for raw in raws]))
+            egress = fleet.egress(frames)
+            fleet.tally.feed(record.data, FROM_SITL, egress)
             if phase == "boot":
-                barrier = barrier or frame.helpers_quiet
+                latched = fleet.boot.observe(k, t_us, [frame.helpers_quiet for frame in frames])
+                if latched and self._manifest.is_fleet:
+                    record.note("latched", [index + 1 for index in latched])
                 for device, data in egress.items():
                     record.discard(device, len(data))
                 self._reply(k, record, TickOutput())
@@ -165,8 +196,9 @@ class LockstepCoordinator:
             self._reply(k, record, output)
             self._raise_faults(output)
             if phase == "mission":
-                if output.terminal:
-                    phase, k_t, t_kt = "finalization", k, t_us
+                self._snaps.observe(k, output.snaps)
+                if self._snaps.complete:  # checked first: completion wins a shared tick
+                    phase, k_t, t_kt = "finalization", self._snaps.terminal_tick, t_us
                 elif t_us - started_us >= self._manifest.mission_budget_us:
                     phase, k_t, t_kt, outcome = "finalization", k, t_us, "timeout"
                     self.journal.add({"timeout": "mission sim-time budget", "k": k})
@@ -189,14 +221,25 @@ class LockstepCoordinator:
                                 "a companion was not stopped through the participant stop "
                                 "before drain", tick=k_f, ordinal=spawn.ordinal)
 
-    def _inbox(self, k: int, t_us: int, output: TickOutput) -> OperatorInbox:
+    def _inbox(self, k: int, t_us: int, output: TickOutput,
+               wall_deadline: float | None = None) -> OperatorInbox:
         return OperatorInbox(k, t_us, tuple(output.responses), tuple(output.events),
-                             tuple(output.log_lines), tuple(self._book.operator))
+                             tuple(output.log_lines), tuple(self._book.operator), wall_deadline)
 
     def _run_operator(self, k: int, t_us: int, output: TickOutput, record: TickRecord) -> None:
         if self._operator.done:
             return
-        deliver_operator_requests(self._roster, self._operator.run_tick(self._inbox(k, t_us, output)), k)
+        deadline = self._roster.deadline
+        # The baton's handoffs and timer rounds all draw on what is left of D_k.
+        left_s = deadline.budget(OPERATOR_WAIT, math.inf)
+        inbox = self._inbox(k, t_us, output, None if math.isinf(left_s) else time.monotonic() + left_s)
+        try:
+            requests = self._operator.run_tick(inbox)
+        except LockstepFault as error:  # a handoff past its budget: the deadline's, once spent
+            deadline.raise_if_spent(OPERATOR_WAIT, error)
+            raise
+        deadline.check(OPERATOR_WAIT)
+        deliver_operator_requests(self._roster, requests, k)
         self._note_operator(record)
 
     def _note_operator(self, record: TickRecord) -> None:
@@ -205,9 +248,9 @@ class LockstepCoordinator:
             record.note("operator", observed)
 
     def _reply(self, k: int, record: TickRecord, output: TickOutput) -> None:
-        raw = self._frames.reply(k, tuple(output.ingress.get(device, b"") for device in SERIAL_DEVICES))
-        self._frames.tally.feed(record.data, TO_SITL, output.ingress)
-        record.note("reply", sha256(raw))
+        raws = self._fleet.reply(k, output.ingress)
+        self._fleet.tally.feed(record.data, TO_SITL, output.ingress)
+        record.note("reply", self._fleet.per_sitl([sha256(raw) for raw in raws]))
         self.journal.add(record.data)
         self._delay("after_reply")
 
@@ -218,16 +261,12 @@ class LockstepCoordinator:
             raise self._book.faults[0]
 
     def _park(self, k_f: int) -> int:
-        """Read the parked frame k_F+1 with every frame check; journal it; never reply."""
+        """Read every SITL's parked frame k_F+1 with every check; journal it; never reply."""
         self._k = k_f + 1
-        frame, raw = self._frames.read(k_f + 1)
-        parked = {"tick": frame.tick, "length": len(raw), "sha256": sha256(raw)}
-        # Its egress completes messages too: tallied, never routed (no reply).
-        self._frames.tally.feed(parked, FROM_SITL,
-                                {SERIAL_DEVICES[i]: port.egress for i, port in enumerate(frame.ports)})
+        parked = self._fleet.park(k_f + 1)
         self.journal.add({"parked": parked})
         self._delay("after_parked")
-        return frame.tick
+        return parked["tick"]
 
     def _drain(self, k_f: int, t_f: int) -> None:
         k = k_f
@@ -238,7 +277,7 @@ class LockstepCoordinator:
                 raise CoordinatorFault("drain_budget", "drain passed its budget", tick=k)
             record = TickRecord(k, "drain", t_us)
             output = self._exchange.run(k, t_us, record, None, draining=True)
-            self._frames.tally.feed(record.data, DRAIN_TO_SITL, output.ingress)
+            self._fleet.tally.feed(record.data, DRAIN_TO_SITL, output.ingress)
             self._operator.deliver_drain(self._inbox(k, t_us, output))
             self._note_operator(record)
             self.journal.add(record.data)
@@ -249,4 +288,4 @@ class LockstepCoordinator:
                                 ordinal=member.ordinal)
 
 
-__all__ = ["FAULT_HOST_FILE", "LockstepCoordinator", "RunResult", "SitlHost", "SitlLink"]
+__all__ = ["FAULT_HOST_FILE", "LockstepCoordinator", "RunResult", "Sitl", "SitlHost", "SitlLink"]

@@ -13,7 +13,8 @@ rule (standard library, ``runtime_time``, ``navpy.sim.lockstep``).
   logs every 0.1 s, logs the terminal marker at ``snap_at_s``, stops on a
   lifecycle ``stop`` or the drain ``end``.
 
-Both echo their port bytes reversed behind a tag. Test knobs (``config``):
+Both echo their port bytes reversed behind a tag, on each of their devices
+(``devices``, default the class's one: devices are role data). Test knobs (``config``):
 ``ready_after_s``, ``ready_payload``, ``snap_at_s``, ``crash_before_ready``, ``ignore_stop``,
 ``ignore_end``, ``fail_flush``, ``exit_code``, ``exit_delay_s``,
 ``die_after_s``, ``stop_on_end``, ``report_env`` (log these variables),
@@ -72,8 +73,9 @@ class ToyHooks(ParticipantHooks):
     def __init__(self, context: ParticipantContext) -> None:
         self.context = context
         self.config = dict(context.config)
-        self.link = ToyLink(self.TAG)
-        self.links = {self.DEVICE: self.link}
+        self.links = {device: ToyLink(self.TAG) for device in self.config.get("devices", [self.DEVICE])}
+        #: The first device's link: drain-end egress goes there.
+        self.link = next(iter(self.links.values()))
         self.out = OutboxBuffer()
         self.stop = rt.Event()
         self.threads: list = []
@@ -82,7 +84,8 @@ class ToyHooks(ParticipantHooks):
     def construct(self) -> None:
         for name in self.config.get("report_env", ()):
             self.out.log_lines.append(f"env {name}={os.environ.get(name)}")
-        for target, name in ((self.main, "toy-main"), (lambda: self.link.pump(self.stop), "toy-pump")):
+        pumps = [(lambda link=link: link.pump(self.stop), "toy-pump") for link in self.links.values()]
+        for target, name in ((self.main, "toy-main"), *pumps):
             thread = rt.Thread(target=target, name=name)
             thread.start()
             self.threads.append(thread)

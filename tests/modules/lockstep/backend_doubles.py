@@ -14,6 +14,7 @@ strictly alternate, as ``lockstep_relay.py`` copies them.
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -53,7 +54,7 @@ class AutopilotSitl:
         self.snapshot_rows: list[tuple[int, int, str]] | None = None
         self.stopped = False
 
-    def recv_frame(self) -> bytes:
+    def recv_frame(self, timeout_s: float = math.inf) -> bytes:
         if self.stopped:
             raise ConnectionError("relay closed")
         if self._awaiting:
@@ -70,7 +71,7 @@ class AutopilotSitl:
         self._awaiting = True
         return raw
 
-    def send_reply(self, reply: bytes) -> None:
+    def send_reply(self, reply: bytes, timeout_s: float = math.inf) -> None:
         self._ingress = unpack_reply(reply, expected_tick=self.k)
         self._awaiting = False
         self._delays("reply")
@@ -142,7 +143,7 @@ def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
                     WallBudgets(register_s=120, done_s=120, exit_s=60))
     ids = RequestIds(0)
     operator = OperatorBaton(ids, (script or setup_script)(scenario))
-    coordinator = LockstepCoordinator(plan, sitl, sitl, operator, roster, ids, run_dir / "host",
+    coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir / "host",
                                       delay=delays)
     run = BackendRun(coordinator, sitl, operator)
     receive = roster.receive

@@ -16,13 +16,18 @@ and reaches the stack only through these:
 - :class:`BatonClock` (``ClockPort``): the baton's clock; ``unix`` is the
   run's epoch plus ``t_k``.
 
+With the operator's ``evidence`` on, each receive's start and return ticks
+and each sleep's start and wake ticks are journaled too, and
+:func:`due_check_hook` journals the confirmation loop's due checks
+(``operator_journal``).
+
 The ``TailPort`` is :class:`~navpy.sim.lockstep.operator_tail.LockstepLogTail`.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from navpy.core.kernel import runtime_time as rt
@@ -116,11 +121,14 @@ class LockstepEventStream:
         self._operator.journal.closing[request_id] = self.subscription
 
     def receive(self, timeout_s: float) -> str:
+        journal, start = self._operator.journal, self._operator.tick
         try:
             delivered_k, data = self.queue.get(timeout=timeout_s)
         except rt.Empty as error:
+            journal.receive(start, self._operator.tick, event=False)
             raise TimeoutError(f"no event within {timeout_s} s") from error
-        self._operator.journal.receipt(self._operator.tick, self.subscription, delivered_k, data)
+        journal.receive(start, self._operator.tick, event=True)
+        journal.receipt(self._operator.tick, self.subscription, delivered_k, data)
         return data
 
 
@@ -138,7 +146,20 @@ class BatonClock:
         return (self._epoch_us + self._operator.baton.now_us) / 1_000_000
 
     def sleep(self, seconds: float) -> None:
+        start = self._operator.tick
         sleep(self._operator.baton, seconds)
+        self._operator.journal.sleep(start, self._operator.tick)
 
 
-__all__ = ["ApiError", "BatonClock", "LockstepApi", "LockstepEventStream"]
+def due_check_hook(operator: OperatorBaton) -> Callable[[float, Iterable[Any]], None]:
+    """The confirmation loop's ``on_due_check``: journals each pass's due check
+    (its tick, ``now`` and the due requests' identities) on the operator's journal."""
+
+    def record(now_s: float, due: Iterable[Any]) -> None:
+        operator.journal.due_check(operator.tick, now_s, [
+            (request.sys_id, request.local_task_id, request.round_uid) for request in due])
+
+    return record
+
+
+__all__ = ["ApiError", "BatonClock", "LockstepApi", "LockstepEventStream", "due_check_hook"]

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import contextvars
 import threading
+import time
 from collections import deque
 from collections.abc import Callable
 from typing import NoReturn
@@ -39,7 +40,15 @@ MAX_TIMER_ROUNDS_PER_TICK = 1000
 #: Wall budget for one baton holder to give the baton back. It supervises the
 #: host only: a breach means a managed thread blocked on a host primitive
 #: (a real lock, socket or sleep), a host fault, never a different outcome.
+#: A tick's absolute deadline (``tick(deadline=...)``, ``time.monotonic()``;
+#: the coordinator's exchange deadline) bounds every handoff and timer round.
 BATON_WALL_BUDGET_S = 30.0
+
+
+def handoff_budget(deadline: float | None) -> float:
+    """One handoff's wall budget: the baton's own, bounded by the tick's deadline."""
+    left = BATON_WALL_BUDGET_S if deadline is None else deadline - time.monotonic()
+    return max(0.0, min(BATON_WALL_BUDGET_S, left))
 
 
 class LockstepFault(RuntimeError):
@@ -96,7 +105,8 @@ class BatonRuntime:
     def aborted(self) -> bool:
         return self._aborted
 
-    def tick(self, now_us: int, deliver: Callable[[], None] | None = None) -> None:
+    def tick(self, now_us: int, deliver: Callable[[], None] | None = None, *,
+             deadline: float | None = None) -> None:
         """One tick in contract order: time, inputs to quiescence, then timers."""
         self.require_coordinator()
         if now_us < self._now_us:
@@ -106,19 +116,19 @@ class BatonRuntime:
         try:
             if deliver is not None:
                 deliver()
-            self.run_until_quiescent()
+            self.run_until_quiescent(deadline)
         finally:
             self._in_timer_phase = True
-        self.settle_timers()
+        self.settle_timers(deadline)
 
-    def settle_timers(self) -> None:
+    def settle_timers(self, deadline: float | None = None) -> None:
         """Fire due timers and run to quiescence until nothing is due now."""
         for _round in range(MAX_TIMER_ROUNDS_PER_TICK):
             if not self.timers.any_due(self.monotonic()):
                 return
             for thread in self.timers.pop_due(self.monotonic()):
                 self.wake(thread)
-            self.run_until_quiescent()
+            self.run_until_quiescent(deadline)
         self.fail(f"timers still due after {MAX_TIMER_ROUNDS_PER_TICK} rounds")
 
     def fail(self, message: str) -> NoReturn:
@@ -166,7 +176,7 @@ class BatonRuntime:
         self._runnable.append(thread)
         return thread
 
-    def run_until_quiescent(self) -> int:
+    def run_until_quiescent(self, deadline: float | None = None) -> int:
         """Hand the baton around until every thread is parked or done."""
         self.require_coordinator()
         if self._scheduling:
@@ -179,11 +189,11 @@ class BatonRuntime:
             self.threads.switches += 1
             steps += 1
             thread.go.release()
-            if not self._yielded.acquire(timeout=BATON_WALL_BUDGET_S):
+            if not self._yielded.acquire(timeout=(budget_s := handoff_budget(deadline))):
                 # The holder still runs: the runtime stays poisoned (no more
                 # ticks, handoffs or abort); only ownership teardown is left.
                 self.fail(
-                    f"{thread.name} kept the baton for {BATON_WALL_BUDGET_S} s "
+                    f"{thread.name} kept the baton for {budget_s:.3f} s "
                     "(blocked on a host primitive?)"
                 )
             if thread.done:
@@ -276,6 +286,7 @@ def check_no_deadlock(runtime: BatonRuntime) -> None:
 
 __all__ = [
     "BATON_WALL_BUDGET_S",
+    "handoff_budget",
     "BatonRuntime",
     "LockstepAborted",
     "LockstepFault",

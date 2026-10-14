@@ -10,6 +10,7 @@ produced; the snapshot must end at the parked frame's row.
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import random
 import time
@@ -47,12 +48,14 @@ class HostDelays:
 
 class ScriptedSitl:
     def __init__(self, *, period_us: int = 20_000, quiet_from: int = 3, delays: HostDelays | None = None,
-                 source_us=None, advances=None, extra_egress=None) -> None:
+                 source_us=None, advances=None, extra_egress=None, tag: bytes = b"") -> None:
         self._source = source_us or (lambda k: 1_000_000 + k * period_us)
         self._advances = advances or (lambda k: 0)
         #: Bytes appended to frame k's serial0 egress (a MAVLink packet, say).
         self._extra = extra_egress or (lambda k: b"")
         self._quiet_from = quiet_from
+        #: Prefixed to every port's egress: tells a fleet's SITLs apart.
+        self._tag = tag
         self._delays = delays or HostDelays(0)
         self._awaiting = False
         self._ingress = (b"", b"")
@@ -61,15 +64,15 @@ class ScriptedSitl:
         self.snapshot_rows: list[tuple[int, int, str]] | None = None
         self.stopped = False
 
-    def recv_frame(self) -> bytes:
+    def recv_frame(self, timeout_s: float = math.inf) -> bytes:
         if self.stopped:
             raise ConnectionError("relay closed")
         if self._awaiting:
             raise ConnectionError("the relay alternates: frame read before its reply")
         self._delays("frame")
         self.k += 1
-        egress = tuple(f"s{i}k{self.k}|".encode() + self._ingress[i] + (self._extra(self.k) if i == 0 else b"")
-                       for i in range(2))
+        egress = tuple(self._tag + f"s{i}k{self.k}|".encode() + self._ingress[i]
+                       + (self._extra(self.k) if i == 0 else b"") for i in range(2))
         frame = Frame((1, 0), self.k, self._source(self.k), self._advances(self.k),
                       self.k >= self._quiet_from,
                       tuple(PortState(0, 0, 0, data) for data in egress))
@@ -78,7 +81,7 @@ class ScriptedSitl:
         self._awaiting = True
         return raw
 
-    def send_reply(self, reply: bytes) -> None:
+    def send_reply(self, reply: bytes, timeout_s: float = math.inf) -> None:
         self._ingress = unpack_reply(reply, expected_tick=self.k)
         self._awaiting = False
         self._delays("reply")
@@ -204,6 +207,7 @@ def manifest(*, hub=None, rover=None, initial=(("hub", HUB),), mission_budget_us
         },
         initial=initial,
         companion_roles=("rover",),
+        expected_fleet=(ROVER,),
     )
 
 
@@ -219,6 +223,6 @@ def build(tmp_path: Path, *, plan: Manifest | None = None, recorder=None, delay_
                     recorder or AllowAll(), HostSidecar(tmp_path / PROCESSES_HOST_FILE), budgets)
     ids = RequestIds(0)
     operator = ScriptedOperator(ids, **operator_options)
-    coordinator = LockstepCoordinator(plan, sitl, sitl, operator, roster, ids, tmp_path / "host",
+    coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, tmp_path / "host",
                                       delay=delays)
     return coordinator, sitl, operator, roster

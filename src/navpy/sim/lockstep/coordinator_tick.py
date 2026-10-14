@@ -17,12 +17,7 @@ from dataclasses import dataclass, field
 from navpy.sim.lockstep.coordinator_journal import TickRecord
 from navpy.sim.lockstep.coordinator_lifecycle import LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Member, Roster
-from navpy.sim.lockstep.coordinator_types import (
-    SERIAL_DEVICES,
-    TERMINAL_MARKER,
-    CoordinatorFault,
-    ParticipantFault,
-)
+from navpy.sim.lockstep.coordinator_types import TERMINAL_MARKER, CoordinatorFault, ParticipantFault
 from navpy.sim.lockstep.part_wire import Done, Event, Response
 
 #: The ``DONE`` event that commits readiness (NavPy's ``runtime_ready``;
@@ -40,16 +35,21 @@ class TickOutput:
     responses: list[tuple[int, Response]] = field(default_factory=list)
     events: list[tuple[int, Event]] = field(default_factory=list)
     log_lines: list[tuple[int, str]] = field(default_factory=list)
-    terminal: bool = False
+    #: ``(ordinal, generation)`` of each companion whose log lines carried the
+    #: terminal marker this tick, in ``DONE`` order (the first-SNAP latch reads it).
+    snaps: list[tuple[int, int]] = field(default_factory=list)
     faults: list[ParticipantFault] = field(default_factory=list)
 
 
 class TickExchange:
-    def __init__(self, roster: Roster, book: LifecycleBook, terminal_roles: tuple[str, ...]) -> None:
+    def __init__(self, roster: Roster, book: LifecycleBook, terminal_roles: tuple[str, ...],
+                 sitl_devices: tuple[str, ...]) -> None:
         self._roster = roster
         self._book = book
         #: Only these roles' log lines can carry the mission terminal marker (NavPy's SNAP).
         self._terminal_roles = terminal_roles
+        #: Every SITL port's device: a participant's bytes for one become reply ingress.
+        self._sitl_devices = frozenset(sitl_devices)
 
     def run(self, k: int, t_us: int, record: TickRecord, egress: dict[str, bytes] | None,
             *, draining: bool) -> TickOutput:
@@ -84,7 +84,7 @@ class TickExchange:
                                        tick=k, ordinal=member.ordinal)
             if draining:
                 record.drain_egress(member.ordinal, device, data)
-            if device in SERIAL_DEVICES:  # in drain: tallied, never delivered
+            if device in self._sitl_devices:  # in drain: tallied, never delivered
                 output.ingress[device] = output.ingress.get(device, b"") + data
         output.responses.extend((member.ordinal, response) for response in done.responses)
         for event in done.events:
@@ -92,9 +92,12 @@ class TickExchange:
             if event.kind == READY_EVENT:
                 self._book.ready(member, event.payload)
         navpy = member.spawn.role in self._terminal_roles
+        snapped = False
         for line in done.log_lines:
             output.log_lines.append((member.ordinal, line))
-            output.terminal = output.terminal or (navpy and TERMINAL_MARKER in line)
+            snapped = snapped or (navpy and TERMINAL_MARKER in line)
+        if snapped:
+            output.snaps.append((member.ordinal, member.spawn.generation))
         for spawn in done.spawn_requests:
             self._book.spawn(spawn, member.ordinal, draining=draining)
         for stop in done.stop_requests:

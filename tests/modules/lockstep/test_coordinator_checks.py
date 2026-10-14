@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import socket
 import threading
 import time
@@ -112,10 +113,10 @@ class _RelayDiesAt(ScriptedSitl):
         super().__init__()
         self._host_path = host_path
 
-    def recv_frame(self) -> bytes:
+    def recv_frame(self, timeout_s: float = math.inf) -> bytes:
         if self.k == 5:
             raise ConnectionError(f"relay socket {self._host_path} closed")
-        return super().recv_frame()
+        return super().recv_frame(timeout_s)
 
 
 def test_a_fault_journals_class_and_context_only_and_host_detail_goes_to_a_sidecar(tmp_path):

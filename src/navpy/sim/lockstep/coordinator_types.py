@@ -15,7 +15,9 @@ from navpy.sim.lockstep.baton import LockstepFault
 from navpy.sim.lockstep.part_wire import Event, Lifecycle, RequestId, Response
 
 SERIAL_DEVICES = ("lockstep:serial0", "lockstep:serial1")
-"""The SITL's serial ports by index: NavPy's companion link and the backend monitor."""
+"""The slice SITL's serial ports by index: NavPy's companion link and the backend
+monitor. It is only the default of :attr:`Manifest.sitl_ports` (one SITL); a
+fleet names every SITL's devices in its manifest (devices as data)."""
 #: The mission terminal marker: the first tick whose log lines contain it is k_T.
 TERMINAL_MARKER = "SNAP(VISION-NAV"
 #: Finalization budget after k_T, sim microseconds (until the operator returns).
@@ -35,15 +37,22 @@ class RunFault(LockstepFault):
     """
 
     def __init__(self, kind: str, detail: str, *, tick: int | None = None,
-                 ordinal: int | None = None) -> None:
+                 ordinal: int | None = None, context: Mapping[str, object] | None = None) -> None:
         super().__init__(detail)
         self.kind = kind
         self.tick = tick
         self.ordinal = ordinal
+        #: Logical facts the fault's gate needs (the fleet clock's ``source_us``
+        #: values, the exchange budget's sub-wait); journaled only when given.
+        self.context = dict(context or {})
 
     def journal_record(self, tick: int | None) -> dict[str, object]:
-        return {"fault": type(self).__name__, "kind": self.kind,
-                "tick": self.tick if self.tick is not None else tick, "ordinal": self.ordinal}
+        record: dict[str, object] = {
+            "fault": type(self).__name__, "kind": self.kind,
+            "tick": self.tick if self.tick is not None else tick, "ordinal": self.ordinal}
+        if self.context:
+            record["context"] = self.context
+        return record
 
 
 class CoordinatorFault(RunFault):
@@ -64,7 +73,7 @@ class RoleSpec:
 
     #: The hooks factory (``module:attribute``) its environment record names.
     hooks: str
-    #: The logical devices it owns (``SERIAL_DEVICES`` entries).
+    #: The logical devices it owns (SITL port devices of ``Manifest.sitl_ports``).
     devices: tuple[str, ...]
     config: Mapping[str, object] = field(default_factory=dict)
 
@@ -87,11 +96,48 @@ class Manifest:
     #: each must retire through an acked participant stop before drain (the
     #: operator stops companions in finalization).
     companion_roles: tuple[str, ...] = ()
+    #: The expected fleet: the companion ordinals (NavPy i is sysid i) whose
+    #: first terminal marker each must be latched before the mission ends
+    #: ``ok``; taken from the scenario, never from the live set. k_T is the
+    #: maximum of their first-SNAP ticks. Empty: the mission never completes
+    #: (it ends as a timeout or ``operator_returned``).
+    expected_fleet: tuple[int, ...] = ()
+    #: Each SITL's serial-port devices by port index, in SITL order (devices
+    #: as data). One entry is the slice; its length is the fleet size N.
+    sitl_ports: tuple[tuple[str, ...], ...] = (SERIAL_DEVICES,)
+    #: The boot barrier's sim budget from frame 1: every SITL must have
+    #: latched ``helpers_quiet`` within it, else ``CoordinatorFault("boot_barrier")``.
+    #: None is no budget (the slice). Step 10d sets it from the recorded
+    #: latest latch tick of a 3-SITL boot plus a documented margin.
+    boot_budget_us: int | None = None
+
+    def __post_init__(self) -> None:
+        devices = self.sitl_devices
+        if not self.sitl_ports or len(set(devices)) != len(devices):
+            raise ValueError(f"the SITL ports must name distinct devices: {self.sitl_ports}")
+
+    @property
+    def sitl_devices(self) -> tuple[str, ...]:
+        """Every SITL port's device, SITL by SITL, port by port."""
+        return tuple(device for ports in self.sitl_ports for device in ports)
+
+    @property
+    def is_fleet(self) -> bool:
+        """More than one SITL. Until step 10c re-baselines the slice's journal
+        (owner Q1), fields only a fleet needs are journaled only for a fleet,
+        so the one-SITL journal keeps its bytes."""
+        return len(self.sitl_ports) > 1
+
+
+def backend_ordinal(fleet_size: int) -> int:
+    """The backend's participant ordinal: after NavPy 1..N (the operator is 0)."""
+    return fleet_size + 1
 
 
 @dataclass(frozen=True)
 class WallBudgets:
-    """Host supervision only (seconds)."""
+    """Host supervision only (seconds). Inside a tick each draws on the tick's
+    exchange deadline as well (``coordinator_deadline``)."""
 
     register_s: float = 60.0
     done_s: float = 90.0
@@ -121,6 +167,10 @@ class OperatorInbox:
     events: tuple[tuple[int, Event], ...] = ()
     log_lines: tuple[tuple[int, str], ...] = ()
     lifecycle: tuple[Lifecycle, ...] = ()
+    #: The tick's absolute wall deadline (``time.monotonic()``) that every
+    #: baton handoff and timer round draws on: the exchange deadline; None,
+    #: each handoff keeps the baton's own budget.
+    wall_deadline: float | None = None
 
 
 class OperatorHost(Protocol):
@@ -147,4 +197,5 @@ __all__ = [
     "CoordinatorFault", "DRAIN_BUDGET_US", "RunFault", "FINALIZATION_BUDGET_US", "HostFault", "Manifest",
     "OperatorCancel", "OperatorHost", "OperatorInbox", "OperatorRequest", "ParticipantFault",
     "RoleSpec", "SERIAL_DEVICES", "STOP_BUDGET_US", "TERMINAL_MARKER", "WallBudgets",
+    "backend_ordinal",
 ]

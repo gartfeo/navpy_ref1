@@ -106,7 +106,7 @@ def manifest(scenario: DemoScenario, options: LockstepOptions) -> Manifest:
         seed=options.seed, epoch_us=EPOCH_US, max_frame_gap_us=MAX_FRAME_GAP_US,
         drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(MISSION_BUDGET_S * 1_000_000),
         roles=slice_roles(scenario, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR), initial=(("backend", BACKEND),),
-        companion_roles=("navpy",),
+        companion_roles=("navpy",), expected_fleet=(NAVPY,),
     )
 
 
@@ -167,7 +167,7 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
                     HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS)
     ids = RequestIds(0)
     operator = OperatorBaton(ids, operator_script(scenario, run_dir, options))
-    coordinator = LockstepCoordinator(plan, sitl, sitl, operator, roster, ids, run_dir,
+    coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir,
                                       delay=HostDelays(options.host_delay_seed))
     result = fault = None
     try:

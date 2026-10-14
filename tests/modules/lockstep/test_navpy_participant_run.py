@@ -170,7 +170,7 @@ def test_navpy_not_stopped_by_the_api_ends_on_the_drain_end(tmp_path):
                     WallBudgets(register_s=120, done_s=120, exit_s=60))
     ids = RequestIds(0)
     operator = OperatorBaton(ids, _drain_script)
-    coordinator = LockstepCoordinator(plan, sitl, sitl, operator, roster, ids, tmp_path / "host")
+    coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, tmp_path / "host")
     dones = []
     receive = roster.receive
     roster.receive = lambda member, k: dones.append(receive(member, k)) or dones[-1]

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import math
 import random
 import socket
 import struct
@@ -29,30 +30,49 @@ MAX_HOST_DELAY_S = 0.005
 
 
 class StepLink:
-    """The relay's TCP side: length-prefixed frames in, replies out."""
+    """The relay's TCP side: length-prefixed frames in, replies out.
+
+    Each socket read or send has the link's own ``timeout_s``. A caller may
+    also pass a ``timeout_s`` limit for a whole frame or reply (the
+    coordinator's exchange deadline): then every read of that frame draws on
+    one absolute deadline as well. Without one, nothing else bounds it.
+    """
 
     def __init__(self, port: int, *, timeout_s: float) -> None:
+        self._timeout_s = timeout_s
         self._sock = socket.create_connection(("127.0.0.1", port), timeout=timeout_s)
         self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-    def recv_frame(self) -> bytes:
-        (size,) = LENGTH.unpack(self._recv_exact(LENGTH.size))
-        return self._recv_exact(size)
+    def recv_frame(self, timeout_s: float = math.inf) -> bytes:
+        deadline = None if math.isinf(timeout_s) else time.monotonic() + timeout_s
+        (size,) = LENGTH.unpack(self._recv_exact(LENGTH.size, deadline))
+        return self._recv_exact(size, deadline)
 
-    def send_reply(self, reply: bytes) -> None:
+    def send_reply(self, reply: bytes, timeout_s: float = math.inf) -> None:
+        self._sock.settimeout(min(self._timeout_s, timeout_s))
         self._sock.sendall(LENGTH.pack(len(reply)) + reply)
 
     def close(self) -> None:
         self._sock.close()
 
-    def _recv_exact(self, size: int) -> bytes:
+    def _recv_exact(self, size: int, deadline: float | None) -> bytes:
         data = bytearray()
         while len(data) < size:
+            self._sock.settimeout(self._read_timeout(deadline))
             chunk = self._sock.recv(size - len(data))
             if not chunk:
                 raise ConnectionError("relay closed")
             data += chunk
         return bytes(data)
+
+    def _read_timeout(self, deadline: float | None) -> float:
+        """One read's timeout: the link's own, bounded by the frame's deadline if any."""
+        if deadline is None:
+            return self._timeout_s
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise socket.timeout("frame deadline passed")
+        return min(self._timeout_s, remaining)
 
 
 @dataclass(frozen=True)

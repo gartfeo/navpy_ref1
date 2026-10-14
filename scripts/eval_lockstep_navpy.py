@@ -97,7 +97,7 @@ def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: in
                     HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS)
     ids = RequestIds(0)
     operator = OperatorBaton(ids, companion_script(scenario))
-    coordinator = LockstepCoordinator(plan, sitl, sitl, operator, roster, ids, run_dir / "host",
+    coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir / "host",
                                       delay=delays)
     started = time.perf_counter()
     try:

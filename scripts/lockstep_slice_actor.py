@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from gcs.backend.navpy_process_launch import lockstep_navpy_argv
-from navpy.sim.lockstep.coordinator_types import RoleSpec
+from navpy.sim.lockstep.coordinator_types import RoleSpec, backend_ordinal
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.operator_ports import BatonClock, LockstepApi, LockstepEventStream
 from navpy.sim.lockstep.operator_tail import LockstepLogTail
@@ -35,9 +35,10 @@ from scripts.eval_gcs_demo_ports import JsonApiPort, JsonValue
 from scripts.eval_gcs_demo_scenario import DemoScenario
 from scripts.eval_gcs_demo_stack_ops import require_write_results, wait_for_vehicles
 
-#: The slice's vehicle and its participants' ordinals (0 is the operator).
+#: The slice's vehicle and its participants' ordinals (0 is the operator;
+#: NavPy i is sysid i, the backend N+1).
 SYS_ID = 1
-NAVPY, BACKEND = 1, 2
+NAVPY, BACKEND = SYS_ID, backend_ordinal(1)
 SERIAL0, SERIAL1 = "lockstep:serial0", "lockstep:serial1"
 BACKEND_HOOKS = "gcs.backend.lockstep.participant:backend"
 NAVPY_HOOKS = "navpy.app.lockstep.participant:navpy"
