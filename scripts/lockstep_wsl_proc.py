@@ -2,6 +2,7 @@
 
 identity PID          -> "<start_ticks> <cwd>" (start ticks: /proc stat field 22)
 stop PID TICKS CWD    -> stopped | killed | gone | not-ours
+alive PID TICKS CWD   -> alive | gone (gone: no process, or another one has the pid)
 
 The stop holds a pidfd from before the identity check to the end, so neither
 the check, the TERM, the wait nor a KILL can reach a process that reused the
@@ -53,9 +54,20 @@ def stop(pid: int, ticks: str, cwd: str) -> str:
         os.close(handle)
 
 
+def alive(pid: int, ticks: str, cwd: str) -> str:
+    try:
+        ours = start_ticks(pid) == ticks and os.readlink(f"/proc/{pid}/cwd") == cwd
+    except (FileNotFoundError, ProcessLookupError):
+        return "gone"
+    return "alive" if ours else "gone"
+
+
 def main(argv: list[str]) -> int:
     if argv[:1] == ["identity"] and len(argv) == 2:
         print(identity(int(argv[1])))
+        return 0
+    if argv[:1] == ["alive"] and len(argv) == 4:
+        print(alive(int(argv[1]), argv[2], argv[3]))
         return 0
     if argv[:1] == ["stop"] and len(argv) == 4:
         print(stop(int(argv[1]), argv[2], argv[3]))

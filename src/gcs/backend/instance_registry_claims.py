@@ -25,12 +25,20 @@ class SlotBusyError(RuntimeError):
 class SitlSupervisorActive(RuntimeError):
     """Raised when a chat already has a live swarm supervisor."""
 
-    def __init__(self, entry: dict[str, Any]) -> None:
+    def __init__(self, entry: dict[str, Any], message: str | None = None) -> None:
         self.entry = entry
-        super().__init__(
+        super().__init__(message or (
             f"chat {entry.get('chat_index')} already has a live SITL supervisor "
             f"(pid={entry.get('sitl_pid')}); refusing to disrupt it"
-        )
+        ))
+
+
+class LockstepSlotOwned(SitlSupervisorActive):
+    """Raised when a wall SITL launch targets a lockstep coordinator's slot."""
+
+    def __init__(self, entry: dict[str, Any]) -> None:
+        super().__init__(entry, f"chat {entry.get('chat_index')} is a lockstep slot owned by "
+                                "its coordinator; a wall SITL launch must not take it")
 
 
 def new_entry(
@@ -148,6 +156,8 @@ def _reuse_owned_entry(
     for key, entry in data["instances"].items():
         if entry.get("owner") != owner or not lo <= int(key) <= hi:
             continue
+        if entry.get("lockstep") is not None:
+            continue  # owned by its coordinator's identity, never taken over
         if launcher_pid is None:
             return entry
         if launch_check(entry):
@@ -238,6 +248,8 @@ def begin_sitl_launch(
         entry = data["instances"].get(str(chat))
         if entry is None:
             return False
+        if entry.get("lockstep") is not None:
+            raise LockstepSlotOwned(entry)
         if entry.get("sitl") and pid_check(
             entry.get("sitl_pid"), entry.get("sitl_pid_start")
         ):

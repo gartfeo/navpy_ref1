@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import shlex
 import subprocess
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -96,7 +97,10 @@ def _proc(*args: object) -> str:
     return wsl("python3 " + helper + " " + " ".join(shlex.quote(str(a)) for a in args)).strip()
 
 
-def spawn(role: str, script: str, cwd: str, record: Path) -> tuple[subprocess.Popen, OwnedProcess]:
+def spawn(
+    role: str, script: str, cwd: str, record: Path,
+    admit: Callable[[OwnedProcess], bool] | None = None,
+) -> tuple[subprocess.Popen, OwnedProcess]:
     """Start ``script`` in WSL under ``cwd``; it runs only once it is recorded.
 
     The child stops itself before it runs anything. The WSL-side bash
@@ -107,6 +111,10 @@ def spawn(role: str, script: str, cwd: str, record: Path) -> tuple[subprocess.Po
     child runs as bash's child, not by an ``exec`` of the session's bash: a
     SITL that replaced the top-level bash of a ``wsl.exe`` session exited
     early.
+
+    ``admit`` (the lockstep slot's ``record_child`` under the registry lock)
+    runs after the run record and before ``go``; a refusal (the slot is
+    ``stopping``) closes stdin instead, so the child is killed unstarted.
     """
     launcher = (
         f"cd {shlex.quote(cwd)} && {{ {{ kill -STOP $BASHPID; exec {script}; }} & c=$!; "
@@ -131,6 +139,8 @@ def spawn(role: str, script: str, cwd: str, record: Path) -> tuple[subprocess.Po
         tmp = record.with_suffix(".tmp")
         tmp.write_text(json.dumps(records, indent=2), encoding="utf-8")
         tmp.replace(record)  # atomic: a crash never leaves a half-written record
+        if admit is not None and not admit(owned):
+            raise RuntimeError(f"{role}: the lockstep slot is stopping; not started")
         process.stdin.write(b"go\n")
         process.stdin.flush()
     except BaseException:
@@ -148,11 +158,31 @@ def stop_owned(record: Path, root: str) -> list[str]:
     for owned in owned_list:
         if not owned.cwd.startswith(root + "/") and owned.cwd != root:
             raise RuntimeError(f"recorded process outside the run root: {owned}")
-    return [
-        f"{owned.role} {owned.wsl_pid}: "
-        + _proc("stop", owned.wsl_pid, owned.start_ticks, owned.cwd)
-        for owned in owned_list
-    ]
+    # Every record is tried whatever the others do; the failures are raised together.
+    reports, failures = [], []
+    for owned in owned_list:
+        try:
+            result = _proc("stop", owned.wsl_pid, owned.start_ticks, owned.cwd)
+        except Exception as error:  # noqa: BLE001 - reported after the rest are tried
+            failures.append(f"{owned.role} {owned.wsl_pid}: {type(error).__name__}: {error}")
+            continue
+        reports.append(f"{owned.role} {owned.wsl_pid}: {result}")
+    if failures:
+        raise RuntimeError(f"could not stop {'; '.join(failures)} (stopped: {reports})")
+    return reports
+
+
+def stop_recorded(wsl_pid: int, start_ticks: int, cwd: str, root: str) -> str:
+    """Stop one recorded WSL process if it is still the recorded one (``gcs_stop``)."""
+    if not cwd.startswith(root + "/") and cwd != root:
+        raise RuntimeError(f"recorded process outside the run root: {wsl_pid} {cwd}")
+    return _proc("stop", wsl_pid, start_ticks, cwd)
+
+
+def recorded_alive(wsl_pid: int, start_ticks: int, cwd: str, root: str) -> bool:
+    """A fresh probe: does the pid still name the recorded process?"""
+    del root
+    return _proc("alive", wsl_pid, start_ticks, cwd) == "alive"
 
 
 def sitl_command(root: str, home: str, instance: int, sysid: int) -> str:
@@ -184,10 +214,12 @@ __all__ = [
     "PROCESSES_FILE",
     "load_firmware_lock",
     "prepare_root",
+    "recorded_alive",
     "sitl_command",
     "sitl_environment",
     "spawn",
     "stop_owned",
+    "stop_recorded",
     "wsl",
     "wsl_path",
 ]

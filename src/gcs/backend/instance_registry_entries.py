@@ -54,6 +54,8 @@ def is_alive(
     sitl_check: Callable[[dict[str, Any]], bool] | None = None,
 ) -> bool:
     """Return whether an entry must remain discoverable and stoppable."""
+    if entry.get("lockstep") is not None:
+        return lockstep_alive(entry, pid_check=pid_check)
     started = entry.get("started_at")
     if started:
         try:
@@ -72,6 +74,28 @@ def is_alive(
     ):
         return True
     return (sitl_check or sitl_alive)(entry)
+
+
+def lockstep_alive(
+    entry: dict[str, Any],
+    *,
+    pid_check: Callable[[object, object], bool] = runtime.pid_matches,
+) -> bool:
+    """A lockstep entry lives while its owner or any recorded child does.
+
+    Whatever its phase: an entry whose owner died keeps its children
+    discoverable until ``gcs_stop`` stops them by ownership. A WSL child
+    (relay, SITL) cannot be probed from here cheaply, so it counts as live
+    until the owner's or ``gcs_stop``'s compare-release removes the entry.
+    """
+    lockstep = entry["lockstep"]
+    owner = lockstep.get("owner") or {}
+    if pid_check(owner.get("pid"), owner.get("start")):
+        return True
+    return any(
+        child.get("kind") == "wsl" or pid_check(child.get("pid"), child.get("start"))
+        for child in lockstep.get("children", ())
+    )
 
 
 def sitl_alive(
@@ -113,10 +137,17 @@ def find_for_owner(
     owner: str,
     label: str | None = None,
     *,
+    include_lockstep: bool = False,
     alive_check: Callable[[dict[str, Any]], bool] = is_alive,
     access: store.StoreAccess = store.DEFAULT_ACCESS,
 ) -> dict[str, Any] | None:
-    """Return the live entry owned by a directory, optionally in one band."""
+    """Return the live entry owned by a directory, optionally in one band.
+
+    A lockstep entry belongs to its coordinator's identity, not to whoever
+    launches from the directory: it is skipped unless ``include_lockstep``
+    (``gcs_stop``, which stops it by ownership), so a wall launcher never
+    resolves to it.
+    """
     if not owner:
         return None
     band = ip.band_for_label(label) if label is not None else None
@@ -128,6 +159,8 @@ def find_for_owner(
             if entry.get("owner") != owner:
                 continue
             if band is not None and not ip.in_band(int(key), band):
+                continue
+            if entry.get("lockstep") is not None and not include_lockstep:
                 continue
             return entry
     return None

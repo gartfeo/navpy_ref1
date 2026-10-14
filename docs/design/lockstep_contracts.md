@@ -61,7 +61,7 @@ Step 6 of `deterministic_demo_eval.md`. These are the contracts the lockstep bui
 - **Workers.** The default executor runs each job in a managed thread (`BatonExecutor`); its completion is a `call_soon_threadsafe`, so it lands in the same tick's quiescence.
   - Shutdown refuses new jobs and joins outstanding ones. `loop.shutdown_default_executor` waits for them on the loop, instead of starting asyncio's helper thread (pinned).
   - AnyIO worker threads (sync routes, `run_in_threadpool`) must be managed too: step 9 binds `anyio.to_thread` to the managed executor. A stray AnyIO thread is caught by the audit.
-- **Lifespan** runs explicitly: startup before the backend registers, shutdown in `END`.
+- **Lifespan** runs explicitly: startup before the backend registers, shutdown in the drain phase, ending in a `DONE` with `ended` (step 9d).
 - **Requests** run through an in-process ASGI call (`asgi_request`): no server, no sockets. A request delivered at tick k runs from tick k. Its response returns in the `DONE` of the tick its handler finishes in.
 - **Cancellation** is an input. A cancel delivered at tick k cancels a handler still running then, because inputs come first. A response already in `DONE` k-1 stands.
 - **No blocking MAVLink call on the loop thread:** such work goes to the managed executor (pinned with a request that sleeps in the executor).
@@ -115,8 +115,8 @@ One narrow bus replaces `mavutil.mavfile` for NavPy and the backend in lockstep.
 
 ## Ownership (specified; implemented in step 7)
 - **Spawn record.** Each child is recorded by pid and process start time the moment it is spawned, before it registers, in `<run>/lockstep_processes_host.json` (write, then rename). A WSL child is also recorded by its `/proc` cwd, which must lie under the run's root.
-- **Registration.** Every participant connects to the coordinator and sends `REGISTER{run token, role, ordinal, pid, process start time}`. The coordinator validates it against the spawn record.
+- **Registration.** Every participant connects to the coordinator and sends `REGISTER{capability, role, ordinal, spawn id, generation}` (`NVPART01`, `part_wire.py`). The capability is derived from the run seed and the spawn id and reaches only that child, in its environment record. `REGISTER` must match the recorded spawn, else a host fault. The PID and start-time check stays host-side, in the `*_host` sidecar (step 9d).
 - **Partial launch.** If any participant fails to register within its wall budget, the coordinator stops every spawned process, registered or not, by ownership. The run is a host fault.
-- **`END(k_end)`.** Each participant flushes (log worker, pose-cadence buffers, backend log) and acks. Processes are stopped only after all acks. A missing ack is a host fault, followed by a stop by ownership.
+- **End.** There is no `END` message. A participant ends through the participant stop (a lifecycle `stop` in mission or finalization) or the drain phase (`TICK` with `end: true`); either way it flushes (log worker, pose-cadence buffers, backend log) and sends a `DONE` with `ended{flushed}` as its last message, which retires it at that tick. The coordinator then holds the clock until the process exits (a wall budget). An unflushed end, a nonzero exit after a flushed end or a missed exit budget is a host fault, followed by a stop by ownership; an exit or EOF without an ending `DONE` is a coordinator fault (step 9d, `lockstep_slice.md`).
 - **Stopping.** By those records only, never by sysid pattern, slot or name.
 - **Launcher rule.** The rule in `src/gcs/AGENTS.md:60-63` (no `gcs_launch` for eval-only runs) gets its lockstep exception in the same change (owner Q4).

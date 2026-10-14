@@ -105,6 +105,7 @@ TCP loopback; length-prefixed, versioned, with golden vectors.
   - A response carries its request id and may come in a later `DONE`.
   - A request can stay pending over many ticks.
 - **Lifecycle:** spawn and stop results, readiness and membership arrive in `lifecycle[]`, carrying the request id, ordinal and generation. Never a PID.
+  - **Ids:** each record's `id` is its commit id, drawn when the coordinator commits it from the operator side's sequence (origin 0, shared with the coordinator's own spawns and the operator's requests). So commit order is id order, and `lifecycle[]` is in id order like every other list. The request a record answers or carries (a spawn or stop request; for `ready` and `exited`, the spawn id) is its `request`.
   - **Readiness:** a participant's `runtime_ready` event in `DONE k` commits a `ready{ordinal, generation, payload}` record at k. The next backend `TICK` carries it; the launcher port stores it as today's `ready_payload` and wakes `wait_ready` (`navpy_process_instance.py:158`, `navpy_process_manager.py:159`). `REGISTER` alone never satisfies it.
   - **Startup failure:** an ending `DONE` or a fault before readiness commits `exited{generation, failed}`, which `wait_ready` reports as today's exit before ready.
   - Test: registration, then several bootstrap ticks, then readiness; status is not ready until the record arrives.
