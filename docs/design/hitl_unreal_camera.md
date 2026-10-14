@@ -261,6 +261,20 @@ detection rate or range.
   zoom 1 in Unreal frames). Range scales with zoom: zoom 2 doubles it in the renders. Suggestion, not measured
   in flight: zoom 2 for the approach phase; its view of about 25 x 15 deg halves the time the board is in the picture.
 
+Measured with these settings (2026-10-14, plugin 795e84e, Unreal at normal priority):
+- Static, zoom 2 (`static_range_check --zoom 2`): 8/8 frames to 60 m and at 75-80 m, 0/8 at 65-70 m (render
+  aliasing, as at 35 m on zoom 1) and from 85 m; range error -0.1 to -0.7 m. OpenCV's defaults on the same frames:
+  8/8 to 60 m, nothing beyond.
+- dock_sitl9 (SITL stand-in, zoom 2): passes 1-5 in view / detected 27/7, 18/14, 7/7, 10/10, 6/6, farthest 80.8 m;
+  position error p90 0.13-0.22 m to 60 m, 1.26 m beyond. Unreal crashed in pass 6 (array index assertion in
+  `ANavPyGimbalCameraActor::ProcessCompletedNativeCameraReadbacks`), so passes 6-8 have no frames.
+- dock4 (real board, zoom 1): in view / detected by slant 15-20 m 15/17, 20-25 m 19/23, 25-30 m 14/25,
+  30-40 m 8/35, 40-60 m 3/39, farthest 42.6 m (dock3, OpenCV defaults: 15/19, 16/23, 11/25, none beyond 30 m).
+  Every detected corner lies within 0.31 of a square of the truth; the report's solvePnP flipped 3 far, few-corner
+  poses (tilt 125-136 deg, one 46 deg at 42.6 m), hence p90 0.84 m at 25-30 m and 7.7 m at 40-60 m. Link gate
+  passed with Unreal at normal priority: stale 3.96 %, age max 11.7 ms; frame latency in windows median 118 ms,
+  p90 129 ms; lowest 11.4 m above home, no floor breach.
+
 
 ## Measured (2026-10-13, laptop RTX PRO 1000, Unreal -game windowed)
 
