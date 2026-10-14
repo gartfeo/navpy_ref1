@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import sys
 import traceback
+from collections.abc import Callable
 
 from navpy.sim.lockstep.baton import ManagedThread
 from navpy.sim.lockstep.part_socket import PartSocket, PeerClosed
@@ -37,8 +38,11 @@ EXIT_COORDINATOR_GONE = 3
 
 
 class ParticipantLoop:
-    def __init__(self, participant: Participant, hooks: ParticipantHooks, link: PartSocket) -> None:
+    def __init__(self, participant: Participant, hooks: ParticipantHooks, link: PartSocket, *,
+                 host_delay: Callable[[], None] = lambda: None) -> None:
         self._participant = participant
+        #: Acceptance (c): a seeded host delay before each ``DONE`` leaves (host only).
+        self._host_delay = host_delay
         self._baton = participant.runtime.baton
         self._hooks = hooks
         self._link = link
@@ -57,6 +61,7 @@ class ParticipantLoop:
             if not isinstance(message, Tick):
                 raise PartWireError(f"expected TICK, got {type(message).__name__}")
             done = self.step(message)
+            self._host_delay()
             self._link.send(done)
             if done.ended is not None:
                 return self._hooks.exit_code(done.ended)

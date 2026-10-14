@@ -17,7 +17,8 @@ Both echo their port bytes reversed behind a tag. Test knobs (``config``):
 ``ready_after_s``, ``ready_payload``, ``snap_at_s``, ``crash_before_ready``, ``ignore_stop``,
 ``ignore_end``, ``fail_flush``, ``exit_code``, ``exit_delay_s``,
 ``die_after_s``, ``stop_on_end``, ``report_env`` (log these variables),
-``crash_message`` (the startup failure's text). Either toy logs the terminal
+``crash_message`` (the startup failure's text), ``end_egress_hex`` (bytes
+written to the port on the drain ``end``). Either toy logs the terminal
 marker at ``snap_at_s``.
 """
 
@@ -45,6 +46,9 @@ class ToyLink:
     def deliver(self, data: bytes) -> None:
         if data:
             self._inbox.deliver(data)
+
+    def write(self, data: bytes) -> None:
+        self._egress += data
 
     def drain_egress(self) -> bytes:
         data = bytes(self._egress)
@@ -105,6 +109,7 @@ class ToyHooks(ParticipantHooks):
     def on_end(self) -> None:
         if not self.config.get("ignore_end"):
             self.stop.deliver_set()
+        self.link.write(bytes.fromhex(self.config.get("end_egress_hex", "")))
 
     def finished(self) -> bool:
         return bool(self.threads) and not any(thread.is_alive() for thread in self.threads)

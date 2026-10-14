@@ -1,74 +1,95 @@
-"""The operator on its own baton, and its lockstep I/O ports (tick step 5).
+"""The operator on its own baton (tick step 5).
 
 :class:`OperatorBaton` is an ``OperatorHost``: it runs an operator script on
 a baton in the coordinator's process. Each tick it delivers what the tick
-brought (lifecycle records, responses, subscribed events), runs the baton to
-quiescence at ``t_k``, and returns the requests the script made; they travel
-in ``TICK k+1``.
+brought (lifecycle records, responses, subscribed events, log lines), runs
+the baton to quiescence at ``t_k``, and returns the requests the script
+made; they travel in ``TICK k+1``. The script reaches it through the ports
+in :mod:`navpy.sim.lockstep.operator_ports`.
 
-Ports (``lockstep_slice.md``, "Operator"):
+:class:`OperatorJournal` keeps what the operator saw. Each tick's part of it
+(:meth:`OperatorBaton.observations`) goes into the run journal, and so into
+its digest:
 
-- :class:`LockstepApi` (``JsonApiPort``): a request is queued and the script
-  parks until its response arrives in a ``DONE``. Its timeout is the
-  request's sim-time deadline, enforced by the backend.
-- :class:`LockstepEventStream` (``EventStreamPort``): ``__enter__`` sends a
-  subscribe and parks until its acknowledgement, as a WebSocket connect
-  returns before the caller's next step; ``receive`` returns subscribed
-  deliveries in order (each receive's tick is journaled); ``__exit__``
-  queues an unsubscribe and drops the deliveries not yet received, and
-  those that arrive before the backend applies it; each drop is counted.
-  Receipts and drops are the operator's tick observations, which the
-  coordinator records in the run journal (and so in its digest).
-- :class:`BatonClock` (``ClockPort``): the baton's clock.
+- ``receipts``: the subscription of each delivery a receive returned;
+- ``received``: per receive, the tick the delivery arrived and its event
+  ``type`` (the confirmation timing reads e2 and e3 from it);
+- ``sent``: each request the script queued (id, kind or method, target);
+- ``answered``: each HTTP response the script got (id, status);
+- ``dropped``: deliveries an unsubscribed stream never received.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from navpy.core.kernel import runtime_time as rt
 from navpy.sim.lockstep.baton import BatonRuntime, ManagedThread
-from navpy.sim.lockstep.baton_queue import BatonQueue
-from navpy.sim.lockstep.baton_sync import BatonEvent, sleep
+from navpy.sim.lockstep.baton_sync import BatonEvent
 from navpy.sim.lockstep.coordinator_types import OperatorCancel, OperatorInbox, OperatorRequest
 from navpy.sim.lockstep.part_wire import RequestId
 from navpy.sim.lockstep.participant_hooks import RequestIds
+
+if TYPE_CHECKING:
+    from navpy.sim.lockstep.operator_ports import LockstepEventStream
 
 #: The backend's ``DONE`` event kind of one subscriber delivery.
 DELIVERY_EVENT = "ws"
 
 
-class ApiError(RuntimeError):
-    """A lockstep API call failed: an unexpected status, a deadline or a cancel."""
-
-
 @dataclass
-class _Pending:
+class PendingAnswer:
     done: BatonEvent
     answer: Any = None
 
 
+def event_type(data: object) -> str | None:
+    """The ``type`` of a delivered event (a JSON object as text), if any."""
+    try:
+        value = json.loads(data) if isinstance(data, (str, bytes)) else None
+    except ValueError:
+        return None
+    kind = value.get("type") if isinstance(value, dict) else None
+    return kind if isinstance(kind, str) else None
+
+
 @dataclass
 class OperatorJournal:
-    """What the operator saw: deliveries' receive ticks and the drops."""
+    """What the operator saw: requests, answers, receipts with their ticks, drops."""
 
     receipts: list[tuple[int, list[int]]] = field(default_factory=list)
     dropped: int = 0
     unclaimed: list[tuple[int, list[int]]] = field(default_factory=list)
-    #: This tick's receipts and drops, until the coordinator takes them.
+    #: This tick's observations, until the coordinator takes them.
     tick: dict[str, Any] = field(default_factory=dict)
     #: Unsubscribe request id -> its subscription, until the backend answers:
     #: a delivery for it meanwhile is a late drop.
     closing: dict[RequestId, RequestId] = field(default_factory=dict)
-    #: Each participant's ``DONE.log_lines`` so far, by ordinal.
+    #: Each participant's ``DONE.log_lines`` so far, by ordinal, and the tick of each.
     log_lines: dict[int, list[str]] = field(default_factory=dict)
+    log_ticks: dict[int, list[int]] = field(default_factory=dict)
 
-    def receipt(self, k: int, subscription: RequestId) -> None:
+    def _add(self, key: str, value: object) -> None:
+        self.tick.setdefault(key, []).append(value)
+
+    def receipt(self, k: int, subscription: RequestId, delivered_k: int, data: object) -> None:
         self.receipts.append((k, list(subscription)))
-        self.tick.setdefault("receipts", []).append(list(subscription))
+        self._add("receipts", list(subscription))
+        self._add("received", [delivered_k, event_type(data)])
+
+    def sent(self, request_id: RequestId, payload: object) -> None:
+        body = payload if isinstance(payload, dict) else {}
+        self._add("sent", [*request_id, body.get("method") or body.get("kind"), body.get("target")])
+
+    def answered(self, request_id: RequestId, answer: object) -> None:
+        if isinstance(answer, dict) and "status" in answer:
+            self._add("answered", [*request_id, answer["status"]])
+
+    def log_line(self, k: int, ordinal: int, line: str) -> None:
+        self.log_lines.setdefault(ordinal, []).append(line)
+        self.log_ticks.setdefault(ordinal, []).append(k)
 
     def drop(self, subscription: RequestId, count: int) -> None:
         if count:
@@ -85,7 +106,7 @@ class OperatorBaton:
         self._baton: BatonRuntime | None = None
         self._thread: ManagedThread | None = None
         self._outbox: list[OperatorRequest | OperatorCancel] = []
-        self._pending: dict[RequestId, _Pending] = {}
+        self._pending: dict[RequestId, PendingAnswer] = {}
         self._ready: dict[int, BatonEvent] = {}
         self.streams: dict[RequestId, "LockstepEventStream"] = {}
         self.journal = OperatorJournal()
@@ -123,7 +144,7 @@ class OperatorBaton:
 
     def _deliver(self, inbox: OperatorInbox) -> None:
         for ordinal, line in inbox.log_lines:
-            self.journal.log_lines.setdefault(ordinal, []).append(line)
+            self.journal.log_line(inbox.k, ordinal, line)
         for entry in inbox.lifecycle:
             if entry.kind == "ready":
                 self._ready_event(entry.ordinal).deliver_set()
@@ -132,6 +153,7 @@ class OperatorBaton:
             if pending is None:  # an answer nobody waits for (an unsubscribe)
                 self.journal.unclaimed.append((inbox.k, list(response.id)))
                 continue
+            self.journal.answered(response.id, response.payload)
             pending.answer = response.payload
             pending.done.deliver_set()
         for _ordinal, event in inbox.events:
@@ -139,7 +161,7 @@ class OperatorBaton:
                 subscription = tuple(event.payload["subscription"])
                 stream = self.streams.get(subscription)
                 if stream is not None:
-                    stream.queue.deliver(event.payload["data"])
+                    stream.queue.deliver((inbox.k, event.payload["data"]))
                 elif subscription in self.journal.closing.values():  # sent before the unsubscribe applied
                     self.journal.drop(subscription, 1)
         for _ordinal, response in inbox.responses:  # applied: no delivery follows its answer
@@ -157,6 +179,7 @@ class OperatorBaton:
     def send(self, target: int, payload: object, request_id: RequestId | None = None) -> RequestId:
         """Queue a request for ``TICK k+1`` without waiting for its answer."""
         request_id = request_id or self._ids.next()
+        self.journal.sent(request_id, payload)
         self._outbox.append(OperatorRequest(target, request_id, payload))
         return request_id
 
@@ -167,13 +190,13 @@ class OperatorBaton:
         self.send(target, payload, request_id)
         return self.await_answer(pending)
 
-    def expect(self, request_id: RequestId) -> _Pending:
+    def expect(self, request_id: RequestId) -> PendingAnswer:
         """Register for ``request_id``'s answer (before the request leaves)."""
-        pending = _Pending(BatonEvent(self.baton))
+        pending = PendingAnswer(BatonEvent(self.baton))
         self._pending[request_id] = pending
         return pending
 
-    def await_answer(self, pending: _Pending) -> Any:
+    def await_answer(self, pending: PendingAnswer) -> Any:
         pending.done.wait()
         return pending.answer
 
@@ -184,111 +207,4 @@ class OperatorBaton:
         return self._ids.next()
 
 
-class LockstepApi:
-    """``JsonApiPort`` over operator requests to one backend participant."""
-
-    websocket_url = "lockstep:events"
-
-    def __init__(self, operator: OperatorBaton, target: int, *,
-                 error: type[Exception] = ApiError) -> None:
-        self._operator = operator
-        self._target = target
-        self._error = error
-
-    def close(self) -> None:
-        """Nothing to close: requests ride the participant wire."""
-
-    def request(self, method: str, path: str, payload: dict | None = None, *,
-                expected: Iterable[int] = (200,), timeout: float = 30.0) -> tuple[int, Any]:
-        body: dict[str, Any] = {"kind": "http", "method": method, "target": path,
-                                "deadline_s": float(timeout)}
-        if payload is not None:
-            body["json"] = payload
-        answer = self._operator.call(self._target, body)
-        if "status" not in answer:
-            raise self._error(f"{method} {path} failed: {answer}")
-        if answer["status"] not in set(expected):
-            raise self._error(f"{method} {path} returned {answer['status']}: {answer['body'][:1000]}")
-        return answer["status"], json.loads(answer["body"])
-
-    def get_json(self, path: str, *, timeout: float = 30.0) -> Any:
-        return self.request("GET", path, timeout=timeout)[1]
-
-    def post_json(self, path: str, payload: dict | None = None, *,
-                  expected: Iterable[int] = (200,), timeout: float = 30.0) -> tuple[int, Any]:
-        return self.request("POST", path, payload, expected=expected, timeout=timeout)
-
-    def put_json(self, path: str, payload: dict, *, timeout: float = 30.0) -> Any:
-        return self.request("PUT", path, payload, timeout=timeout)[1]
-
-
-class LockstepEventStream:
-    """``EventStreamPort`` over the backend's event sink (subscribed deliveries)."""
-
-    def __init__(self, operator: OperatorBaton, target: int) -> None:
-        self._operator = operator
-        self._target = target
-        self.queue = BatonQueue(operator.baton)
-        self.subscription: RequestId | None = None
-        self._pending: _Pending | None = None
-
-    def __enter__(self) -> "LockstepEventStream":
-        self.start()
-        self.wait_subscribed()
-        return self
-
-    def start(self) -> None:
-        """Queue the subscribe request (``__enter__`` without the wait)."""
-        # Registered under its id before the request leaves: deliveries in the
-        # acknowledgement's own tick (the initial snapshot) are not lost.
-        self.subscription = self._operator.next_id()
-        self._operator.streams[self.subscription] = self
-        self._pending = self._operator.expect(self.subscription)
-        self._operator.send(self._target, {"kind": "subscribe"}, self.subscription)
-
-    def wait_subscribed(self) -> None:
-        answer = self._operator.await_answer(self._pending)
-        if answer.get("subscribed") != list(self.subscription):
-            raise ApiError(f"subscribe failed: {answer}")
-
-    def __exit__(self, *_exc: object) -> None:
-        self._operator.streams.pop(self.subscription, None)
-        dropped = 0
-        while not self.queue.empty():
-            self.queue.get_nowait()
-            dropped += 1
-        self._operator.journal.drop(self.subscription, dropped)
-        request_id = self._operator.send(self._target, {"kind": "unsubscribe",
-                                                        "subscription": list(self.subscription)})
-        self._operator.journal.closing[request_id] = self.subscription
-
-    def receive(self, timeout_s: float) -> str:
-        try:
-            data = self.queue.get(timeout=timeout_s)
-        except rt.Empty as error:
-            raise TimeoutError(f"no event within {timeout_s} s") from error
-        self._operator.journal.receipt(self._operator.tick, self.subscription)
-        return data
-
-
-class BatonClock:
-    """``ClockPort`` on the operator's baton."""
-
-    def __init__(self, operator: OperatorBaton, epoch_us: int = 0) -> None:
-        self._operator = operator
-        self._epoch_us = epoch_us
-
-    def monotonic(self) -> float:
-        return self._operator.baton.monotonic()
-
-    def unix(self) -> float:
-        return (self._epoch_us + self._operator.baton.now_us) / 1_000_000
-
-    def sleep(self, seconds: float) -> None:
-        sleep(self._operator.baton, seconds)
-
-
-__all__ = [
-    "ApiError", "BatonClock", "DELIVERY_EVENT", "LockstepApi", "LockstepEventStream",
-    "OperatorBaton", "OperatorJournal",
-]
+__all__ = ["DELIVERY_EVENT", "OperatorBaton", "OperatorJournal", "PendingAnswer", "event_type"]

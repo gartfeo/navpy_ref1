@@ -31,6 +31,7 @@ from navpy.sim.lockstep.participant_hooks import (
     ParticipantContext,
     ParticipantHooks,
 )
+from navpy.sim.lockstep.pose_recording import enable_pose_cadence
 
 if TYPE_CHECKING:
     from navpy.app.lockstep.navpy_host import NavpyHost
@@ -51,6 +52,7 @@ class NavpyHooks(ParticipantHooks):
         self._finished = False
 
     def construct(self) -> None:
+        enable_pose_cadence(self._context.config)  # read once, at the product's import
         from navpy.app.lockstep.navpy_host import NavpyHost  # the product, at admission
 
         try:

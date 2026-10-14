@@ -56,6 +56,8 @@ OPERATOR_GLOB = "scripts/eval_gcs_demo_*.py"
 OPERATOR_SCOPED = {
     "scripts/eval_gcs_demo_execution.py": ("time", "SystemClock"),  # the wall ClockPort
     "scripts/eval_gcs_demo_process.py": ("secrets", "launch_stack"),  # the registry-slot token
+    # The lockstep run's host wall time, for its *_host sidecar only.
+    "scripts/eval_gcs_demo_lockstep.py": ("time", "execute_lockstep_run"),
 }
 # The composition roots that create the operator's wall clock.
 SYSTEM_CLOCK_ROOTS = frozenset({"scripts/eval_gcs_demo_runtime.py"})

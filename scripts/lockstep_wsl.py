@@ -69,13 +69,21 @@ def load_firmware_lock() -> dict:
     return json.loads(FIRMWARE_LOCK.read_text(encoding="utf-8"))
 
 
-def prepare_root(run_name: str, instance: int) -> str:
-    """Create the run's WSL root and its instance directory; return the root."""
+def merged_defaults() -> str:
+    """The ``defaults.parm`` a lockstep SITL consumes: WSL's stock ``plane.parm``
+    with :data:`LOCKSTEP_DEFAULT_OVERRIDES` merged in. Read once per run, so the
+    input manifest hashes exactly what :func:`prepare_root` writes."""
+    home = wsl("printf %s \"$HOME\"")
+    stock = wsl(f"cat {shlex.quote(home + '/' + STOCK_DEFAULTS)}")
+    return merge_defaults(stock, LOCKSTEP_DEFAULT_OVERRIDES)
+
+
+def prepare_root(run_name: str, instance: int, defaults: str) -> str:
+    """Create the run's WSL root and its instance directory with ``defaults``
+    (:func:`merged_defaults`) as its ``defaults.parm``; return the root."""
     lock = load_firmware_lock()
     home = wsl("printf %s \"$HOME\"")
     root = f"{home}/{SITL_ROOTS}/lockstep-{run_name}"
-    stock = wsl(f"cat {shlex.quote(home + '/' + STOCK_DEFAULTS)}")
-    defaults = merge_defaults(stock, LOCKSTEP_DEFAULT_OVERRIDES)
     lua = (SITL_LUA_DIR / "aas_params.lua").read_bytes().replace(b"\r\n", b"\n")
     q = shlex.quote
     inst = f"{root}/{instance}"
@@ -213,6 +221,7 @@ __all__ = [
     "OwnedProcess",
     "PROCESSES_FILE",
     "load_firmware_lock",
+    "merged_defaults",
     "prepare_root",
     "recorded_alive",
     "sitl_command",

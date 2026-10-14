@@ -206,6 +206,10 @@ class StackContext:
     launch_evidence: dict[str, JsonValue] | None = None
     #: The slot's GCS monitor endpoint, for the explicit connect.
     monitor_device: str | None = None
+    #: Reads one vehicle's parameter snapshot for the command bounds. None is
+    #: wall mode's MAVFTP refresh; lockstep reads the bound parameters by name
+    #: (owner ruling 7).
+    parameter_reader: Callable[[JsonApiPort, int], JsonValue] | None = None
 
     def __post_init__(self) -> None:
         self.sys_ids = UavIds.from_values(self.sys_ids, len(self.scenario.slots)).values

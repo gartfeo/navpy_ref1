@@ -12,7 +12,11 @@ Boot ticks run no participant, up to and including the first frame that
 reports ``helpers_quiet`` (the boot barrier); the initial participants are
 admitted at the tick after it. The mission ends at k_T, the first tick whose
 log lines carry the terminal marker, or as a journaled timeout at the
-scenario's sim budget; the operator returning before k_T is a fault.
+scenario's sim budget. An operator whose run returns before k_T (its own
+sim-time workflow ended without the terminal marker, e.g. a confirmation
+timeout) ends the mission at that tick with the journaled outcome
+``operator_returned``, never ``ok``; its companion stop still has to have
+been acked, so drain and snapshot run as usual.
 Finalization ends at k_F, the tick the operator's run returns; by then every
 companion-role participant must have retired through an acked participant
 stop. Drain reads the parked frame k_F+1 (checked like any frame) and never
@@ -20,8 +24,12 @@ replies, then runs synthetic ticks with ``end`` until every participant
 ended. The snapshot is taken only after every participant ended flushed and
 exited; then the SITL is stopped by ownership.
 
-A fault journals its class, kind and logical context only; its message goes
-to the ``*_host`` sidecar. Every fault stops by ownership.
+The journal opens with the run's tick-grid parameters and closes with the
+decoded MAVLink message counts per link and direction (``MavlinkTally``;
+tick records carry their NAVLINK counts), including the parked frame's
+egress and the participants' drain egress. A fault journals its class, kind
+and logical context only; its message goes to the ``*_host`` sidecar. Every
+fault stops by ownership.
 """
 
 from __future__ import annotations
@@ -35,6 +43,7 @@ from typing import Callable, Protocol
 from navpy.sim.lockstep.coordinator_frames import FrameReader, SitlLink
 from navpy.sim.lockstep.coordinator_journal import RunJournal, TickRecord, sha256
 from navpy.sim.lockstep.coordinator_lifecycle import OPERATOR, LifecycleBook
+from navpy.sim.lockstep.coordinator_mavlink import DRAIN_TO_SITL, FROM_SITL, TO_SITL
 from navpy.sim.lockstep.coordinator_members import Roster
 from navpy.sim.lockstep.coordinator_operator import deliver_operator_requests
 from navpy.sim.lockstep.coordinator_types import (
@@ -89,6 +98,11 @@ class LockstepCoordinator:
         self.journal = RunJournal()
 
     def run(self) -> RunResult:
+        self.journal.add({"grid": {
+            "max_frame_gap_us": self._manifest.max_frame_gap_us,
+            "drain_period_us": self._manifest.drain_period_us,
+            "mission_budget_us": self._manifest.mission_budget_us,
+        }})
         try:
             for role, ordinal in self._manifest.initial:
                 self._roster.spawn(role, ordinal, self._ids.next(), OPERATOR)
@@ -103,6 +117,7 @@ class LockstepCoordinator:
             self._fail(fault)
             raise
         self._roster.close()
+        self.journal.add({"mavlink_counts": self._frames.tally.totals()})
         self.journal.add({"outcome": outcome, "terminal_tick": k_t, "final_tick": k_f,
                           "parked_tick": parked})
         return RunResult(outcome, k_t, k_f, parked)
@@ -138,6 +153,7 @@ class LockstepCoordinator:
             record = TickRecord(k, phase, t_us)
             record.note("frame", sha256(raw))
             egress = {SERIAL_DEVICES[i]: port.egress for i, port in enumerate(frame.ports)}
+            self._frames.tally.feed(record.data, FROM_SITL, egress)
             if phase == "boot":
                 barrier = barrier or frame.helpers_quiet
                 for device, data in egress.items():
@@ -155,8 +171,8 @@ class LockstepCoordinator:
                     phase, k_t, t_kt, outcome = "finalization", k, t_us, "timeout"
                     self.journal.add({"timeout": "mission sim-time budget", "k": k})
                 elif self._operator.done:
-                    raise CoordinatorFault("operator_early",
-                                           "the operator returned before the mission terminal tick", tick=k)
+                    phase, k_t, t_kt, outcome = "finalization", k, t_us, "operator_returned"
+                    self.journal.add({"operator_returned": k})
             if phase == "finalization" and self._operator.done:
                 return k_t, k, t_us, outcome
             if phase == "finalization" and t_us - t_kt > FINALIZATION_BUDGET_US:
@@ -190,6 +206,7 @@ class LockstepCoordinator:
 
     def _reply(self, k: int, record: TickRecord, output: TickOutput) -> None:
         raw = self._frames.reply(k, tuple(output.ingress.get(device, b"") for device in SERIAL_DEVICES))
+        self._frames.tally.feed(record.data, TO_SITL, output.ingress)
         record.note("reply", sha256(raw))
         self.journal.add(record.data)
         self._delay("after_reply")
@@ -204,7 +221,11 @@ class LockstepCoordinator:
         """Read the parked frame k_F+1 with every frame check; journal it; never reply."""
         self._k = k_f + 1
         frame, raw = self._frames.read(k_f + 1)
-        self.journal.add({"parked": {"tick": frame.tick, "length": len(raw), "sha256": sha256(raw)}})
+        parked = {"tick": frame.tick, "length": len(raw), "sha256": sha256(raw)}
+        # Its egress completes messages too: tallied, never routed (no reply).
+        self._frames.tally.feed(parked, FROM_SITL,
+                                {SERIAL_DEVICES[i]: port.egress for i, port in enumerate(frame.ports)})
+        self.journal.add({"parked": parked})
         self._delay("after_parked")
         return frame.tick
 
@@ -217,6 +238,7 @@ class LockstepCoordinator:
                 raise CoordinatorFault("drain_budget", "drain passed its budget", tick=k)
             record = TickRecord(k, "drain", t_us)
             output = self._exchange.run(k, t_us, record, None, draining=True)
+            self._frames.tally.feed(record.data, DRAIN_TO_SITL, output.ingress)
             self._operator.deliver_drain(self._inbox(k, t_us, output))
             self._note_operator(record)
             self.journal.add(record.data)

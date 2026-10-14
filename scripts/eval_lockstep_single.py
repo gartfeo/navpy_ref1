@@ -77,7 +77,7 @@ def run_once(run_dir: Path, ticks: int, host_delay_seed: int, jitter_seed: int, 
     state: dict = {"root": None, "link": None}
     failure: BaseException | None = None
     try:
-        state["root"] = root = lockstep_wsl.prepare_root(run_name, instance)
+        state["root"] = root = lockstep_wsl.prepare_root(run_name, instance, lockstep_wsl.merged_defaults())
         inst_dir = f"{root}/{instance}"
         relay_args = (
             f"python3 {lockstep_wsl.wsl_path(ROOT / 'scripts' / 'lockstep_relay.py')} "

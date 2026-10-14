@@ -47,9 +47,11 @@ class HostDelays:
 
 class ScriptedSitl:
     def __init__(self, *, period_us: int = 20_000, quiet_from: int = 3, delays: HostDelays | None = None,
-                 source_us=None, advances=None) -> None:
+                 source_us=None, advances=None, extra_egress=None) -> None:
         self._source = source_us or (lambda k: 1_000_000 + k * period_us)
         self._advances = advances or (lambda k: 0)
+        #: Bytes appended to frame k's serial0 egress (a MAVLink packet, say).
+        self._extra = extra_egress or (lambda k: b"")
         self._quiet_from = quiet_from
         self._delays = delays or HostDelays(0)
         self._awaiting = False
@@ -66,7 +68,8 @@ class ScriptedSitl:
             raise ConnectionError("the relay alternates: frame read before its reply")
         self._delays("frame")
         self.k += 1
-        egress = tuple(f"s{i}k{self.k}|".encode() + self._ingress[i] for i in range(2))
+        egress = tuple(f"s{i}k{self.k}|".encode() + self._ingress[i] + (self._extra(self.k) if i == 0 else b"")
+                       for i in range(2))
         frame = Frame((1, 0), self.k, self._source(self.k), self._advances(self.k),
                       self.k >= self._quiet_from,
                       tuple(PortState(0, 0, 0, data) for data in egress))
@@ -211,7 +214,8 @@ def build(tmp_path: Path, *, plan: Manifest | None = None, recorder=None, delay_
     delays = HostDelays(delay_seed)
     sitl = sitl or ScriptedSitl(delays=delays)
     tmp_path.mkdir(parents=True, exist_ok=True)
-    roster = Roster(plan, LocalSpawner(tmp_path / "host", PYTHON_PATH),
+    # The delay seed perturbs the participants too (acceptance (c)).
+    roster = Roster(plan, LocalSpawner(tmp_path / "host", PYTHON_PATH, host_delay_seed=delay_seed),
                     recorder or AllowAll(), HostSidecar(tmp_path / PROCESSES_HOST_FILE), budgets)
     ids = RequestIds(0)
     operator = ScriptedOperator(ids, **operator_options)

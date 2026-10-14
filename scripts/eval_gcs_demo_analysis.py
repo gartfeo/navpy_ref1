@@ -28,9 +28,10 @@ from scripts.eval_gcs_demo_gate_profiles import (
     OWNER_ONLY_SLICE_PROFILE,
     PROFILE_SIM_SPEEDUP,
 )
-from scripts.eval_gcs_demo_inputs import require_recorded_scenario
+from scripts.eval_gcs_demo_inputs import recorded_lockstep, require_recorded_scenario
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario, load_resolved_plan
 from scripts.eval_gcs_demo_poi_binding import final_approach_poi_binding_errors
+from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, slice_gate_errors
 from scripts.eval_gcs_demo_vehicle import analyze_vehicle
 
 
@@ -110,7 +111,7 @@ def owner_only_assignment_evidence(
     The backend log must hold no task-assignment line: with no peer, no
     request, response or APPLIED exists. Its absence alone proves nothing
     (the listener suppresses adverts with one vehicle); the NavPy log gate
-    and, later, the journal's message counts carry that proof.
+    and the journal's message counts (``slice_gate_errors``) carry that proof.
     """
     if plan.peers or len(plan.pois) != 1:
         raise ValueError("an owner-only assignment needs one vehicle and one POI")
@@ -132,6 +133,41 @@ def owner_only_assignment_evidence(
         else []
     )
     return AssignmentEvidence(assignments, errors, False)
+
+
+def _no_run_gates(
+    _log_dir: Path, _plan: DemoMissionPlan, _approvals: list[dict[str, JsonValue]],
+) -> list[str]:
+    return []
+
+
+WALL, LOCKSTEP = "wall", "lockstep"
+#: (gate profile, execution mode) -> its run-level gates beyond the shared
+#: ones: a lockstep slice run adds the journal gates; a wall run (either
+#: profile) has none. The certified profile has no lockstep run before step 10.
+RunGates = Callable[[Path, DemoMissionPlan, list[dict[str, JsonValue]]], list[str]]
+_RUN_GATES: dict[tuple[str, str], RunGates] = {
+    (CERTIFIED_PROFILE, WALL): _no_run_gates,
+    (OWNER_ONLY_SLICE_PROFILE, WALL): _no_run_gates,
+    (OWNER_ONLY_SLICE_PROFILE, LOCKSTEP): slice_gate_errors,
+}
+
+
+def execution_mode(log_dir: Path) -> str:
+    """The run's recorded execution mode: lockstep if its input manifest says
+    so or it holds a lockstep journal, else wall. A run recorded as lockstep
+    without its journal then fails the journal gates."""
+    if recorded_lockstep(log_dir) or (log_dir / JOURNAL_FILE).exists():
+        return LOCKSTEP
+    return WALL
+
+
+def _run_gates(log_dir: Path, profile: str) -> RunGates:
+    mode = execution_mode(log_dir)
+    gates = _RUN_GATES.get((profile, mode))
+    if gates is None:
+        raise ValueError(f"gate profile {profile!r} has no {mode} run gates")
+    return gates
 
 
 #: Gate profile -> how the run's global assignment is established.
@@ -190,7 +226,7 @@ def analyze_run(
         plan,
         assignments,
         approval_rows,
-    )
+    ) + _run_gates(log_dir, scenario.gate_profile)(log_dir, plan, approval_rows)
     reports = [
         analyze_vehicle(
             log_dir,
@@ -228,6 +264,7 @@ __all__ = [
     "AssignmentEvidence",
     "analyze_run",
     "analyze_vehicle",
+    "execution_mode",
     "approval_counts",
     "global_assignment_evidence",
     "mission_assignment_errors",

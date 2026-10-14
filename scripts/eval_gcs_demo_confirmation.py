@@ -17,6 +17,12 @@ from scripts.eval_gcs_demo_ports import (
 )
 
 
+#: The workflow loop's longest wait, seconds: each pass makes at most one
+#: receive and one sleep of this length (lockstep: each wakes at the first
+#: tick at or after its deadline, ``lockstep_slice.md``, Confirmation timing).
+CONFIRMATION_POLL_S = 0.05
+
+
 @dataclass(frozen=True)
 class ConfirmationRequest:
     sys_id: int
@@ -137,7 +143,9 @@ def run_confirmation_workflow(
         trigger()
         while timer.monotonic() < deadline:
             try:
-                raw = event_stream.receive(min(0.05, max(0.0, deadline - timer.monotonic())))
+                raw = event_stream.receive(
+                    min(CONFIRMATION_POLL_S, max(0.0, deadline - timer.monotonic()))
+                )
             except (TimeoutError, StopIteration):
                 raw = None
             if raw is not None:
@@ -205,11 +213,12 @@ def run_confirmation_workflow(
                 ]
             if stop_when():
                 return approvals
-            timer.sleep(min(0.05, max(0.0, deadline - timer.monotonic())))
+            timer.sleep(min(CONFIRMATION_POLL_S, max(0.0, deadline - timer.monotonic())))
     raise ConfirmationTimeout(expected_sys_ids, seen, approvals)
 
 
 __all__ = [
+    "CONFIRMATION_POLL_S",
     "ConfirmationRequest",
     "ConfirmationTimeout",
     "PendingConfirmation",

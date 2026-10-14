@@ -62,9 +62,8 @@ def _run(tmp_path, monkeypatch, name: str, slot: int, delay_seed: int = 0):
 
 
 def _navpy_files(run_dir) -> dict[str, bytes]:
-    logs = run_dir / "host" / "navpy"
-    return {path.relative_to(logs).as_posix(): path.read_bytes()
-            for path in sorted(logs.rglob("*")) if path.is_file()}
+    logs = run_dir / "host"  # NavPy logs into its working directory, as in wall mode
+    return {path.name: path.read_bytes() for path in sorted(logs.glob("uav_*")) if path.is_file()}
 
 
 @pytest.fixture(scope="module")
@@ -120,7 +119,7 @@ def test_navpy_log_lines_are_its_file_log_and_name_no_host_path(runs):
     assert not [line for line in log if str(tmp_path) in line or tmp_path.as_posix() in line]
     # The file log is the same lines, and names no host path either (the
     # repository's files read ``<abs>``; the host log keeps the real ones).
-    navigation_log = (tmp_path / "first" / "host" / "navpy" / "uav_1_navigation.log")
+    navigation_log = (tmp_path / "first" / "host" / "uav_1_navigation.log")
     assert navigation_log.read_text(encoding="utf-8").splitlines() == log
     assert any("Using vision profile 'siyi_zr10' from <abs>" in line for line in log)
 

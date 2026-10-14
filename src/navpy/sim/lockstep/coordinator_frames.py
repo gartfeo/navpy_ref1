@@ -4,14 +4,16 @@ EOF, a malformed frame or the wrong tick is a coordinator fault. A nonzero
 out-of-loop advance count is a host fault. The grid check: ``source_us``
 must rise strictly, by at most the manifest's ``max_frame_gap_us`` (Δ_max),
 from the previous frame; today's decoder accepts any header
-(``step_wire.py``), so this is the only place time is checked.
+(``step_wire.py``), so this is the only place time is checked. ``tally``
+counts the MAVLink messages on the link's ports (``coordinator_mavlink``).
 """
 
 from __future__ import annotations
 
 from typing import Protocol
 
-from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault
+from navpy.sim.lockstep.coordinator_mavlink import MavlinkTally
+from navpy.sim.lockstep.coordinator_types import SERIAL_DEVICES, CoordinatorFault, HostFault
 from navpy.sim.lockstep.step_wire import Frame, StepWireError, pack_reply, unpack_frame
 
 
@@ -26,6 +28,8 @@ class FrameReader:
         self._link = link
         self._max_gap_us = max_frame_gap_us
         self._last_us: int | None = None
+        #: The link's bytes decoded per port and direction, for the journal.
+        self.tally = MavlinkTally(SERIAL_DEVICES)
 
     def read(self, k: int) -> tuple[Frame, bytes]:
         try:

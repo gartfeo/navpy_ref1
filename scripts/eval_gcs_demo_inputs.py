@@ -183,6 +183,19 @@ def recorded_scenario_sha256(run_dir: Path) -> str | None:
     return recorded
 
 
+def recorded_lockstep(run_dir: Path) -> bool:
+    """Whether the run's input manifest records a lockstep run (``run_options.lockstep``)."""
+    path = run_dir / INPUT_MANIFEST
+    if not path.is_file():
+        return False
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RegressionError(f"invalid input manifest {path}: {error}") from error
+    options = manifest.get("run_options") if isinstance(manifest, dict) else None
+    return isinstance(options, dict) and options.get("lockstep") is True
+
+
 def require_recorded_scenario(run_dir: Path, scenario: DemoScenario) -> None:
     """Refuse to analyze a run against a scenario other than the one it flew."""
     recorded = recorded_scenario_sha256(run_dir)
@@ -202,6 +215,7 @@ __all__ = [
     "dem_tiles",
     "environment_inputs",
     "navpy_inputs",
+    "recorded_lockstep",
     "recorded_scenario_sha256",
     "require_recorded_scenario",
     "scenario_points",

@@ -12,7 +12,7 @@ from scripts.eval_gcs_demo_command_bounds import (
 from scripts.eval_gcs_demo_config import aas_params_for
 from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
-from scripts.eval_gcs_demo_ports import JsonValue
+from scripts.eval_gcs_demo_ports import JsonApiPort, JsonValue
 from scripts.eval_gcs_demo_process import wait_until
 
 
@@ -106,6 +106,11 @@ def _ensure_roll_limit(context: StackContext, sys_id: int, snapshot: JsonValue) 
     require_write_results(written, ("ROLL_LIMIT_DEG",), f"vehicle {sys_id} full-param")
 
 
+def refresh_parameter_snapshot(api: JsonApiPort, sys_id: int) -> JsonValue:
+    """Wall mode's command-bound read: the MAVFTP full-parameter refresh."""
+    return api.get_json(f"/api/vehicles/{sys_id}/parameters?refresh=true", timeout=90.0)
+
+
 def configure_vehicle_params(
     context: StackContext,
     timeout_s: float,
@@ -114,12 +119,10 @@ def configure_vehicle_params(
     scenario = context.scenario
     ids = scenario.uav_ids(context.sys_ids)
     owner = scenario.owner_sys_id(ids)
+    read_parameters = context.parameter_reader or refresh_parameter_snapshot
     bounds = []
     for sys_id in ids.values:
-        snapshot = context.api.get_json(
-            f"/api/vehicles/{sys_id}/parameters?refresh=true",
-            timeout=90.0,
-        )
+        snapshot = read_parameters(context.api, sys_id)
         bounds.append(command_bounds_from_snapshot(
             sys_id,
             snapshot,
@@ -203,6 +206,7 @@ def wait_for_missions(context: StackContext, timeout_s: float) -> None:
 
 __all__ = [
     "configure_vehicle_params",
+    "refresh_parameter_snapshot",
     "require_write_results",
     "start_esp32_simulator",
     "verify_aas_profile",

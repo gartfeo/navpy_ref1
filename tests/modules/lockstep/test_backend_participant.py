@@ -14,7 +14,8 @@ from __future__ import annotations
 import json
 
 from gcs.backend.lockstep.launcher_port import generation_pid
-from navpy.sim.lockstep.operator_baton import BatonClock, LockstepEventStream, OperatorBaton
+from navpy.sim.lockstep.operator_baton import OperatorBaton
+from navpy.sim.lockstep.operator_ports import BatonClock, LockstepEventStream
 from scripts.eval_gcs_demo_lifecycle import (
     companion_ids,
     connect_vehicles,

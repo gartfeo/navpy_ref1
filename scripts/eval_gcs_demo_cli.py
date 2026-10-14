@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence, cast
 
+from navpy.sim.lockstep.host_paths import HostPathScrubber
 from scripts.eval_gcs_demo_analysis import analyze_run
 from scripts.eval_gcs_demo_models import (
     GateLimits,
@@ -18,8 +20,9 @@ from scripts.eval_gcs_demo_models import (
 )
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_process import exclusive_evaluator_lock
+from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run
 from scripts.eval_gcs_demo_runtime import execute_live_run
-from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, DemoScenario, load_scenario
 
 
 def report_dict(report: RunReport) -> dict[str, JsonValue]:
@@ -66,7 +69,56 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=0.0,
         help="optional NAV call-cadence speedup; zero leaves launch speed unchanged",
     )
+    parser.add_argument(
+        "--lockstep",
+        action="store_true",
+        help="run in lockstep on a serial-step SITL (the 1-UAV owner_only_slice scenario only); "
+        "--timeout-s and --confirmation-delay-s are then sim seconds",
+    )
+    parser.add_argument("--seed", type=int, default=1, help="lockstep run seed (default: 1)")
+    parser.add_argument(
+        "--host-delay-seed",
+        type=int,
+        default=0,
+        help="lockstep only: seeded host delays in the relay, coordinator and participants "
+        "(acceptance (c)); 0 is none",
+    )
     return parser.parse_args(argv)
+
+
+def run_lockstep(
+    args: argparse.Namespace, scenario: DemoScenario, limits: GateLimits,
+) -> RunReport:
+    """One lockstep run, then the analysis with the scenario's gate profile.
+
+    The report names the run directory as ``.`` (run-relative) and its errors
+    name no host path (``HostPathScrubber``): it is one of the run's
+    byte-equal artifacts, failed or not.
+    """
+    if args.navigation_speedup:
+        raise RegressionError("--lockstep has no --navigation-speedup: its cadence factor is 1")
+    run_dir = args.run_dir or Path(tempfile.mkdtemp(prefix="navpy-gcs-demo-lockstep-"))
+    print(f"GCS demo lockstep artifacts: {run_dir.resolve()}", flush=True)
+    options = LockstepOptions(args.seed, args.timeout_s, args.confirmation_delay_s,
+                              args.host_delay_seed)
+    run = execute_lockstep_run(run_dir, scenario, options)
+    errors = [f"lockstep outcome {run.outcome!r}, not 'ok'"] if run.outcome != "ok" else []
+    if run.operator_error is not None:
+        errors.append(f"operator: {run.operator_error}")
+    try:
+        report = analyze_run(run_dir, scenario=scenario, approvals=run.approvals, limits=limits)
+    except (OSError, ValueError, TypeError, RegressionError) as error:
+        report = RunReport(False, ".", [], 1.0, 0.0, run.approvals, {}, [],
+                           [f"analysis: {type(error).__name__}: {error}"])
+    # Errors may quote host paths (an analysis exception, a missing file):
+    # they become run tokens, so report.json stays a byte-equal artifact.
+    scrub = HostPathScrubber(run_dir)
+    report = dataclasses.replace(report, log_dir=".", passed=report.passed and not errors,
+                                 errors=[scrub(error) for error in errors + report.errors])
+    (run_dir / "report.json").write_text(json.dumps(report_dict(report), indent=2),
+                                         encoding="utf-8")
+    print(f"lockstep journal digest: {run.digest}", flush=True)
+    return report
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -77,11 +129,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     delay = finite_number("--confirmation-delay-s", args.confirmation_delay_s)
     speedup = finite_number("--navigation-speedup", args.navigation_speedup)
     limits = GateLimits()
+    if args.lockstep and args.analyze_only is not None:
+        # Analysis reads the run's recorded execution mode; --lockstep would launch.
+        raise RegressionError("--lockstep and --analyze-only are exclusive")
     try:
         scenario = load_scenario(args.scenario)
     except (TypeError, ValueError) as error:
         raise RegressionError(f"invalid --scenario: {error}") from error
-    if args.analyze_only is not None:
+    if args.lockstep:
+        report = run_lockstep(args, scenario, limits)
+    elif args.analyze_only is not None:
         report = analyze_run(
             args.analyze_only,
             scenario=scenario,
@@ -117,4 +174,4 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0 if report.passed else 1
 
 
-__all__ = ["main", "parse_args", "report_dict"]
+__all__ = ["main", "parse_args", "report_dict", "run_lockstep"]

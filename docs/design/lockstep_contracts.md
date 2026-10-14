@@ -5,21 +5,33 @@ Step 6 of `deterministic_demo_eval.md`. These are the contracts the lockstep bui
 - Tests: `tests/modules/lockstep/`.
 - Benchmark: `scripts/lockstep_baton_benchmark.py`.
 
-## Execution model (chosen; re-measured at step 9)
+## Execution model (chosen; re-measured at step 9g)
 **The baton.** Existing product threads run unchanged as managed OS threads, one at a time, on the sim clock (`baton.py`, `baton_sync.py`, `baton_queue.py`, `baton_asyncio.py`).
 
-**Benchmark** (Windows, Python 3.11.9, 7 samples, wall µs per tick, median with range):
+**Benchmark** (Windows, Python 3.11.9, 7 samples, wall µs per tick, median with range; `scripts/lockstep_baton_benchmark.py`):
 
-| Case | Baton | Focused synchronous |
-|---|---|---|
-| Mission upload, 200 items | 183 (169-276) | 102 (91-119) |
-| 10 threads woken every tick (wake count asserted) | 183 (155-193) | n/a |
-| 40 threads woken every tick | 788 (691-810) | n/a |
+| Case | Baton, step 6 | Baton, 2026-10-14 (step 9g) | Focused synchronous, step 6 / 9g |
+|---|---|---|---|
+| Mission upload, 200 items | 183 (169-276) | 291 (287-307) | 102 (91-119) / 162 (160-171) |
+| 10 threads woken every tick (wake count asserted) | 183 (155-193) | 162 (95-273) | n/a |
+| 40 threads woken every tick | 788 (691-810) | 609 (574-651) | n/a |
+
+The 9g re-run was on a host busy with other sessions; both columns of the upload case slowed by the same factor (1.6x), so the baton's relative cost is unchanged.
+
+**The real 1-UAV slice (step 9g, 2026-10-14)**, measured end to end: wall seconds of `execute_lockstep_run` (the WSL serial-step SITL and relay, the coordinator with its journal and MAVLink decode, the backend and NavPy participants with NavPy's simulated camera, and the operator) over the run's 5194 SITL frames (about 104 s of sim time, boot to the parked frame):
+
+| Run | Wall s | Wall ms per tick | Real-time factor |
+|---|---|---|---|
+| seed 1 (`.logs/s9g/acc-a`) | 27.2 | 5.2 | 3.8x |
+| seed 1 (`acc-b`, concurrent with `acc-c`) | 24.3 | 4.7 | 4.3x |
+| seed 1, host delays (relay, coordinator, participants up to 4 ms each, helper jitter) under CPU load (`acc-c`) | 75.5 | 14.5 | 1.4x |
+
+With pose-cadence recording on in both participants (after Codex round 1, `r3-a`, `-b`, `-c`): 25.1, 25.7 and 75.8 wall s, the same costs. So the slice runs faster than 1x real time; the fallback below is not needed.
 
 **Why the baton:**
 - **Budget.** A lockstep tick is one ArduPlane main loop, 50 Hz by default (`SCHEDULER_DEFAULT_LOOP_RATE`), so about 20 ms of sim time. 10x real time leaves 2 ms of wall time per tick; 1x leaves 20 ms. The baton's overhead fits even with 40 threads waking every tick.
 - **Integration cost.** The synchronous model is faster per tick, but each blocking workflow becomes a hand-written state machine. The prototype shows such a rewrite must also copy the product's float deadline arithmetic: with integer deadlines a retry fired one tick early, because `0.2 + 0.1` is `0.30000000000000004`. There are about 200 NavPy and 85 backend wait sites. The baton runs the real `MissionUploader`, `MissionInbox` and a FastAPI app unchanged; only their clock and primitives are bound (step 8).
-- **Re-check at step 9.** The 1-UAV slice is re-measured. If it cannot reach 1x real time, the fallback is synchronous seams at the measured hot paths only, not a general rewrite.
+- **Re-check at step 9.** The 1-UAV slice is re-measured. If it cannot reach 1x real time, the fallback is synchronous seams at the measured hot paths only, not a general rewrite. Done at 9g (above): about 4x real time.
 
 ## Scheduling (pinned: `test_baton.py`, `test_mission_upload_lockstep.py`)
 - **Coordinator.** The thread that creates the runtime. Only it advances time, schedules (`run_until_quiescent`, never nested) and delivers inputs (`BatonQueue.deliver`, `BatonEvent.deliver_set`, `BatonEventLoop.deliver`). Product threads use primitives only while they hold the baton. Anything else is a `LockstepFault`.

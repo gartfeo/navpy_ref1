@@ -34,6 +34,8 @@ READY_EVENT = "runtime_ready"
 class TickOutput:
     """What tick k produced for the SITL (step 6) and the operator (step 5)."""
 
+    #: The participants' bytes for each SITL serial link: reply k's ingress,
+    #: or, in drain, egress that is tallied and never delivered.
     ingress: dict[str, bytes] = field(default_factory=dict)
     responses: list[tuple[int, Response]] = field(default_factory=list)
     events: list[tuple[int, Event]] = field(default_factory=list)
@@ -82,7 +84,7 @@ class TickExchange:
                                        tick=k, ordinal=member.ordinal)
             if draining:
                 record.drain_egress(member.ordinal, device, data)
-            elif device in SERIAL_DEVICES:
+            if device in SERIAL_DEVICES:  # in drain: tallied, never delivered
                 output.ingress[device] = output.ingress.get(device, b"") + data
         output.responses.extend((member.ordinal, response) for response in done.responses)
         for event in done.events:

@@ -6,9 +6,10 @@ baton; ``lockstep_slice.md``, "NavPy participant" and "Participant runtime"):
 - process identity: readiness names ``{ordinal, generation}`` and is a
   ``runtime_ready`` event in the tick's ``DONE``, which the coordinator turns
   into the lifecycle ``ready`` record (never stdout);
-- the navigation log lands in the run-relative :data:`LOG_DIR`, names no
-  host path (run tokens instead), and every line also reaches
-  ``DONE.log_lines``;
+- the navigation log lands in the run-relative :data:`LOG_DIR` (the
+  participant's working directory, the run directory, as wall mode's
+  ``uav_<sys>_*`` files do), names no host path (run tokens instead), and
+  every line also reaches ``DONE.log_lines``;
 - ``lockstep:serial0`` is opened through the link (``create_vehicle``'s
   ``open_bus``); the scheduler cadence is :class:`IdentitySchedulerCadence`
   (nothing writes ``SIM_SPEEDUP``: a navigation speedup is refused);
@@ -45,8 +46,8 @@ from navpy.sim.lockstep.log_capture import HostPathScrubbingFormatter, OutboxLog
 from navpy.sim.lockstep.part_wire import Event, RequestId
 from navpy.sim.lockstep.participant_hooks import OutboxBuffer, ParticipantContext
 
-#: The participant's run-relative log directory (under its host directory).
-LOG_DIR = "navpy"
+#: The participant's run-relative log directory: its working directory.
+LOG_DIR = "."
 #: The acknowledgement of a participant stop, in the ending ``DONE``.
 STOPPED_EVENT = "stopped"
 #: The navigation file log's line format (``logger_factory.initialize_logger``).

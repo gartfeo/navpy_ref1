@@ -113,9 +113,9 @@ def _owner_only_slice_role_errors(
     del assignment_acked  # no peer ever applies an assignment in the slice
     if role != "owner":
         return [f"the owner-only slice has no {role} role"]
-    # The lockstep journal's wire-level checks (zero task-dispatch, advert and
-    # peer-relay MAVLink messages per link, and the workflow tick order) join
-    # this profile in the later step 9 sub-steps.
+    # The wire-level checks (zero task-dispatch, advert and peer-relay MAVLink
+    # messages per link, the workflow tick order, the confirmation timing) are
+    # the profile's journal gates: eval_gcs_demo_slice_gates.
     return _owner_orbit_errors(navigation_text) + peer_assignment_marker_errors(navigation_text)
 
 

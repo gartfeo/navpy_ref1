@@ -156,13 +156,26 @@ def test_the_boot_barrier_frame_is_still_boot_and_admission_follows_it(tmp_path)
     assert mission["k"] == 4 and [m["ordinal"] for m in mission["members"]] == [HUB]
 
 
-def test_an_operator_returning_before_snap_is_a_fault_not_ok(tmp_path):
+def test_an_operator_returning_before_snap_is_operator_returned_not_ok(tmp_path):
     coordinator, *_ = build(tmp_path, return_after_spawn=True)
-    with pytest.raises(CoordinatorFault, match="before the mission terminal tick"):
-        coordinator.run()
-    last = coordinator.journal.records[-1]
-    assert last["fault"] == "CoordinatorFault" and last["kind"] == "operator_early"
-    assert not any("outcome" in r for r in coordinator.journal.records)
+    result = coordinator.run()
+    assert result.outcome == "operator_returned"
+    assert {"operator_returned": result.terminal_tick} in coordinator.journal.records
+    assert coordinator.journal.records[-1]["outcome"] == "operator_returned"
+
+
+def test_an_operator_returning_before_snap_ends_the_mission_as_operator_returned(tmp_path):
+    # Step 9g: an operator whose own sim-time workflow ended without SNAP (it
+    # stops its companion, then returns) ends the mission at that tick; the
+    # run drains and snapshots cleanly, and the outcome is never ok.
+    plan = manifest(rover={"snap_at_s": 1e9}, mission_budget_us=60_000_000)
+    coordinator, sitl, operator, roster = build(tmp_path, plan=plan, give_up_at_us=1_680_000)
+    result = coordinator.run()
+    assert result.outcome == "operator_returned" and operator.snap_tick is None
+    assert {"operator_returned": result.terminal_tick} in coordinator.journal.records
+    assert result.final_tick == result.terminal_tick
+    assert sitl.snapshot_rows[-1][0] == result.parked_tick
+    assert all(m.flushed and m.exited for m in roster.members)
 
 
 def test_a_companion_still_running_at_drain_is_a_fault(tmp_path):
@@ -255,3 +268,51 @@ def test_a_backend_snap_line_does_not_end_the_mission(tmp_path):
     coordinator, _sitl, _operator, _roster = build(tmp_path, plan=plan, give_up_at_us=1_680_000)
     result = coordinator.run()
     assert result.outcome == "timeout"  # the hub's marker was not the mission's end
+
+
+def _peer_response() -> bytes:
+    """A forbidden message from a peer (system 2): a TASK_ASSIGN_RESPONSE to the owner."""
+    from navpy.sim.lockstep.mavlink_wire import encoder
+
+    link, sink = encoder(2, 191)
+    link.task_assign_response_send(0, 0, 0, 0, 1, 1, 1)
+    return sink.drain()
+
+
+def _forbidden_counts(coordinator) -> dict:
+    from pymavlink.dialects.v20 import ardupilotmega as mavlink
+
+    from navpy.sim.lockstep.coordinator_mavlink import message_id
+
+    (counts,) = [r["mavlink_counts"] for r in coordinator.journal.records if "mavlink_counts" in r]
+    return {(device, direction): n
+            for device, directions in counts.items() for direction, tally in directions.items()
+            for key, n in tally["messages"].items()
+            if message_id(key) == mavlink.MAVLINK_MSG_ID_TASK_ASSIGN_RESPONSE}
+
+
+def test_a_message_completed_in_the_parked_frame_is_counted(tmp_path):
+    """Codex 9g P2-3: the parked frame k_F+1 is never replied to, but its egress is tallied."""
+    from scripts.eval_gcs_demo_slice_gates import assignment_errors
+
+    parked = _parked_tick(tmp_path)
+    packet = _peer_response()
+    sitl = ScriptedSitl(extra_egress=lambda k: packet if k == parked else b"")
+    coordinator, *_ = build(tmp_path / "parked", sitl=sitl)
+    coordinator.run()
+    assert _forbidden_counts(coordinator) == {("lockstep:serial0", "from_sitl"): 1}
+    (parked_record,) = [r["parked"] for r in coordinator.journal.records if "parked" in r]
+    assert parked_record["tick"] == parked
+    assert any("TASK_ASSIGN_RESPONSE" in e for e in assignment_errors(coordinator.journal.records, [], 1))
+
+
+def test_a_message_emitted_during_drain_is_counted(tmp_path):
+    """Codex 9g P2-3: drain egress is never delivered, but it is tallied (``drain_to_sitl``)."""
+    from scripts.eval_gcs_demo_slice_gates import assignment_errors
+
+    plan = manifest(hub={"end_egress_hex": _peer_response().hex()})
+    coordinator, *_ = _run(tmp_path, "drain", plan=plan)
+    assert _forbidden_counts(coordinator) == {("lockstep:serial1", "drain_to_sitl"): 1}
+    drain = [r for r in coordinator.journal.records if r.get("phase") == "drain" and r["drain_egress"]]
+    assert drain and drain[0]["navlink"]["lockstep:serial1"]["drain_to_sitl"]
+    assert any("TASK_ASSIGN_RESPONSE" in e for e in assignment_errors(coordinator.journal.records, [], 1))

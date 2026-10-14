@@ -27,6 +27,7 @@ from typing import IO, Protocol
 
 from navpy.sim.lockstep.coordinator_types import HostFault
 from navpy.sim.lockstep.part_wire import Register, RequestId
+from navpy.sim.lockstep.participant_main import HOST_DELAY_VARIABLE
 
 #: Domain tag of the capability derivation; a new derivation gets a new tag.
 CAPABILITY_DOMAIN = "navpy.lockstep.capability.v1"
@@ -146,17 +147,26 @@ def hermetic_environment(python_path: tuple[str, ...], variable: str, record: st
 
 
 class LocalSpawner:
-    """Spawns ``participant_main`` children; their output goes to host logs."""
+    """Spawns ``participant_main`` children; their output goes to host logs.
 
-    def __init__(self, log_dir: Path, python_path: tuple[str, ...]) -> None:
+    ``host_delay_seed`` (acceptance (c)) makes each child sleep a seeded host
+    delay before every ``DONE``; it is a host perturbation, passed only in
+    ``HOST_DELAY_VARIABLE``, never in the environment record.
+    """
+
+    def __init__(self, log_dir: Path, python_path: tuple[str, ...], *,
+                 host_delay_seed: int = 0) -> None:
         self._log_dir = log_dir
         self._python_path = tuple(python_path)
+        self._host_delay_seed = host_delay_seed
 
     def spawn(self, record: SpawnRecord, environment_record: str, variable: str) -> LocalChild:
         self._log_dir.mkdir(parents=True, exist_ok=True)
         name = f"participant_{record.ordinal}_g{record.generation}_host.log"
         log = (self._log_dir / name).open("ab")
         environment = hermetic_environment(self._python_path, variable, environment_record)
+        if self._host_delay_seed:
+            environment[HOST_DELAY_VARIABLE] = str(self._host_delay_seed * 1000 + record.ordinal)
         process = subprocess.Popen(
             [sys.executable, "-m", PARTICIPANT_MODULE], env=environment, cwd=self._log_dir,
             stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT,

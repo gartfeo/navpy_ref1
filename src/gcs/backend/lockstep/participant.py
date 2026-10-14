@@ -28,6 +28,7 @@ from navpy.sim.lockstep.participant_hooks import (
     ParticipantContext,
     ParticipantHooks,
 )
+from navpy.sim.lockstep.pose_recording import enable_pose_cadence
 
 if TYPE_CHECKING:
     from gcs.backend.lockstep.backend_host import BackendHost
@@ -45,6 +46,7 @@ class BackendHooks(ParticipantHooks):
         self.host = None
 
     def construct(self) -> None:
+        enable_pose_cadence(self._context.config)  # read once, at the product's import
         from gcs.backend.lockstep.backend_host import BackendHost  # the product, at admission
 
         self.host = BackendHost(self._context, self.link, self.out)

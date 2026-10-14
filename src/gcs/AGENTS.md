@@ -64,7 +64,9 @@ Frontend:
   evals (`scripts/eval_lockstep_single.py`) claim an eval-band slot themselves,
   start their WSL relay and serial-step SITL from a per-run root, record each
   process (pid, start time, cwd) at spawn and stop only those records; they
-  never stop by sysid or name. The lockstep coordinator (step 9) is the one
+  never stop by sysid or name. The lockstep coordinator (step 9; run it with
+  `python scripts\eval_gcs_navigation_demo.py --lockstep --scenario scripts\eval_lockstep_slice_scenario.json --seed 1 --run-dir <dir>`,
+  1-UAV slice only) is the one
   exception to "no `gcs_launch` for eval-only runs": `gcs_launch.lockstep_claim`
   claims an eval-band `lockstep` slot in-process with the full owner identity
   (pid, start time, run token, claim nonce); children are recorded under the
