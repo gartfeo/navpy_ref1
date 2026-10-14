@@ -67,6 +67,8 @@ async def _run_vehicle_locked(controller: LaunchController, sys_id: int) -> None
         controller._auto_func(sys_id)
         if not controller._armed.get(sys_id, False):
             await controller._set_state(sys_id, VehicleState.arming)
+            if await _ekf_blocks(controller, sys_id, "arm"):
+                return
             controller._arm_func(sys_id)
             arm_ok = await controller._poll(
                 lambda: controller._armed.get(sys_id, False),
@@ -102,6 +104,8 @@ async def _run_vehicle_locked(controller: LaunchController, sys_id: int) -> None
         log.info("[launch] V%d step 2: sending arm command (timeout=%.1fs)",
                  sys_id, controller._arm_timeout)
         await controller._set_state(sys_id, VehicleState.arming)
+        if await _ekf_blocks(controller, sys_id, "arm"):
+            return
         controller._arm_func(sys_id)
         arm_ok = await controller._poll(
             lambda: controller._armed.get(sys_id, False),
@@ -117,9 +121,12 @@ async def _run_vehicle_locked(controller: LaunchController, sys_id: int) -> None
         log.info("[launch] V%d armed successfully", sys_id)
         await controller._set_state(sys_id, VehicleState.armed)
 
-    # Step 3: ESP32 trigger
+    # Step 3: ESP32 trigger — the EKF may have gone bad during the settle,
+    # arm or state-broadcast waits, so it is re-checked right before release.
     log.info("[launch] V%d step 3: triggering ESP32 channel %d", sys_id, channel)
     await controller._set_state(sys_id, VehicleState.launching)
+    if await _ekf_blocks(controller, sys_id, "release"):
+        return
     result = await loop.run_in_executor(
         None, controller._esp32_client.trigger_channel, channel,
     )
@@ -167,6 +174,20 @@ async def _run_vehicle_locked(controller: LaunchController, sys_id: int) -> None
         await controller._sleep_or_abort(delay)
 
     await controller._check_all_done()
+
+async def _ekf_blocks(controller: LaunchController, sys_id: int, step: str) -> bool:
+    """Fail the session when the EKF re-check blocks *sys_id*'s next *step*.
+
+    Callers run it after their last await and immediately before dispatching
+    the arm or release, so no wait (a settle, an arm poll, a state broadcast)
+    sits between the check and the command.
+    """
+    issues = controller._ekf_recheck(sys_id)
+    if not issues:
+        return False
+    log.error("[launch] V%d %s BLOCKED by EKF re-check: %s", sys_id, step, issues)
+    await controller._fail_session(sys_id, "; ".join(issues))
+    return True
 
 async def _sleep_or_abort(controller: LaunchController, seconds: float) -> None:
     """Sleep up to *seconds*, returning early if abort is signalled."""

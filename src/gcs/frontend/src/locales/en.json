@@ -902,7 +902,9 @@
     "maxThrottleRc3Info": "Throttle PWM (RC3) at or below which throttle is considered low. Above this blocks launch.",
     "checkBatteryInfo": "Block launch when the battery level is below the minimum.",
     "minBatteryPctInfo": "Minimum battery percentage required to allow launch.",
-    "blockUnknownBatteryInfo": "Block launch when battery telemetry is missing (no battery monitor reporting)."
+    "blockUnknownBatteryInfo": "Block launch when battery telemetry is missing (no battery monitor reporting).",
+    "checkEkf": "Check EKF ready",
+    "checkEkfInfo": "Block launch unless a fresh EKF status from the autopilot shows attitude, velocity and absolute position, with no initialisation, constant-position or GPS-glitch flag. Re-checked before each arm and release."
   },
   "prearm": {
     "waitingForStatus": "Waiting for status...",
@@ -918,7 +920,10 @@
     "batteryLow": "Battery low ({{pct}}%)",
     "batteryUnknown": "Battery telemetry missing",
     "companionNotConnected": "Companion computer not connected",
-    "missionNotUploaded": "Mission not uploaded"
+    "missionNotUploaded": "Mission not uploaded",
+    "ekfWaiting": "Waiting for EKF status",
+    "ekfStale": "EKF status stale",
+    "ekfNotReady": "EKF not ready"
   },
   "preflight": {
     "overlayTitle": "Preflight readiness",
@@ -995,7 +1000,22 @@
     "sats_one": "{{count}} sat",
     "sats_other": "{{count}} sats",
     "ekfVar": "var {{value}}",
+    "ekfVarAdvisory": "var {{value}} (advisory)",
+    "ekfVarHigh": "var {{value}}: near EKF failsafe (advisory)",
     "ekfUninit": "Initializing...",
+    "ekfWaiting": "Waiting for status",
+    "ekfStale": "Status stale",
+    "ekfMissing": "no {{what}}",
+    "ekfFlags": {
+      "attitude": "attitude",
+      "velHoriz": "horizontal velocity",
+      "velVert": "vertical velocity",
+      "posHorizAbs": "absolute horizontal position",
+      "posVertAbs": "absolute vertical position",
+      "uninitialized": "not initialised",
+      "constPosMode": "no GPS aiding yet",
+      "gpsGlitch": "GPS glitch"
+    },
     "linkOk": "OK",
     "linkFail": "No signal",
     "linkDown": "Link down",

@@ -22,6 +22,7 @@ from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusClosedError
 from gcs.backend.vehicle_entry import VehicleEntry
 from gcs.backend import vehicle_connections, vehicle_mission_probe
+from gcs.backend.ekf_status_gate import request_ekf_status_stream
 from gcs.backend.vehicle_status import (
     GIMBAL_TELEMETRY_STALE_S, CAMERA_OPTICS_STALE_S,
     COMPANION_OK_WINDOW_S, COMPANION_DOWN_WINDOW_S, RC_CHANNELS_MAX,
@@ -164,6 +165,9 @@ class VehicleManager:
         if self._compass_cal_listener:
             self._compass_cal_listener.register_vehicle(sys_id, vehicle)
         log.info("Vehicle %d (%s) connected", sys_id, vname)
+        # Every connection (reconnect goes through here too) asks for the
+        # estimator report the launch gate reads.
+        request_ekf_status_stream(vehicle, sys_id)
         # Probe the existing mission OFF the connect path. The probe is a
         # blocking MAVLink mission download (seconds); running it inline made a
         # vehicle — and every later vehicle in a serial discover — invisible in

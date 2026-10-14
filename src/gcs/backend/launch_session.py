@@ -35,7 +35,9 @@ async def prepare(
     min_throttle_pct: float = 20.0,
     min_climb_rate_ms: float = 0.0,
     climb_confirm_s: float = 0.0,
-    *, broadcast: Callable[[dict], Awaitable[None]],
+    *,
+    ekf_recheck: Callable[[int], list[str]],
+    broadcast: Callable[[dict], Awaitable[None]],
 ) -> None:
     """Initialize launch session: health check ESP32, set all to idle.
 
@@ -80,6 +82,7 @@ async def prepare(
     controller._climb_ok_since.clear()  # fresh climb-confirmation state per session
     controller._arm_func = arm_func
     controller._auto_func = auto_func
+    controller._ekf_recheck = ekf_recheck
 
     # Create and health-check ESP32 client
     loop = asyncio.get_running_loop()

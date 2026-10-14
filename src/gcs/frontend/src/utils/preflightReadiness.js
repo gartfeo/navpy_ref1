@@ -23,20 +23,16 @@
  *   'na'   — grey, not applicable / not yet reported (treated as non-blocking)
  */
 
-import { computePrearmWarnings, computeLaunchReadiness, DEFAULT_LAUNCH_GATES } from './prearmChecks';
+import { computePrearmWarnings, computeLaunchReadiness, DEFAULT_LAUNCH_GATES, ekfStatusIssue } from './prearmChecks';
 import { computeFleetHarmonize } from './paramHarmonize';
 
-// EKF innovation test-ratio thresholds (0..1, from EKF_STATUS_REPORT variances).
-// FAIL mirrors ArduPilot's FS_EKF_THRESH default (0.8) — the innovation level at
-// which the firmware's own EKF failsafe trips. WARN (0.5) is the conventional
-// Mission Planner amber level. Centralized + documented so the panel (and any
-// future gate) agree on what an unhealthy EKF means.
-export const EKF_VARIANCE_FAIL = 0.8;
+// EKF innovation test-ratio advisory thresholds (0..1, from EKF_STATUS_REPORT
+// variances). Advisory only: the launch gate does not apply them, so they never
+// make the EKF row NO-GO (it must match the gate). HIGH mirrors ArduPilot's
+// FS_EKF_THRESH default (0.8), the level at which the firmware's own EKF
+// failsafe trips; WARN (0.5) is the conventional Mission Planner amber level.
+export const EKF_VARIANCE_HIGH = 0.8;
 export const EKF_VARIANCE_WARN = 0.5;
-
-// EKF_STATUS_FLAGS bit 10: estimator has not finished initializing, so the nav
-// solution is unusable regardless of variances.
-const EKF_FLAG_UNINITIALIZED = 1 << 10; // 1024
 
 // Ground airspeed sanity threshold (m/s). While disarmed and stationary the
 // pitot should read ~0; a reading at/above this suggests a stale zero (or wind)
@@ -101,15 +97,21 @@ export function computeGpsCheck(vehicle, gates = DEFAULT_LAUNCH_GATES) {
   };
 }
 
-/** EKF row from EKF_STATUS_REPORT flags + variances. */
-export function computeEkfCheck(ekf) {
+/**
+ * EKF row from EKF_STATUS_REPORT freshness, flags and variances. The status
+ * verdict (no report, stale, forbidden/missing flags) is the launch gate's own
+ * (ekfStatusIssue, same `checkEkf` gate), so the row reads NO-GO whenever the
+ * gate blocks on the EKF, and only then. With the gate off the same issue
+ * reads caution (no report: not applicable), never a blocker. High innovation
+ * variances are a separate advisory (caution, detail.advisory), not a NO-GO.
+ */
+export function computeEkfCheck(ekf, gates = DEFAULT_LAUNCH_GATES) {
+  const issue = ekfStatusIssue(ekf);
+  if (issue && gates.checkEkf) return { key: 'ekf', status: 'nogo', detail: issue };
   if (!ekf) return { key: 'ekf', status: 'na', detail: null };
-  const flags = Number(ekf.flags) || 0;
-  if (flags & EKF_FLAG_UNINITIALIZED) {
-    return { key: 'ekf', status: 'nogo', detail: { reason: 'uninitialized' } };
-  }
+  if (issue) return { key: 'ekf', status: 'warn', detail: issue };
   // Exclude terrain_alt_variance: it reads high whenever no terrain/rangefinder
-  // is in use (a normal condition) and must not force a NO-GO.
+  // is in use (a normal condition) and must not raise a caution.
   const variances = [
     ekf.velocity_variance,
     ekf.pos_horiz_variance,
@@ -117,10 +119,10 @@ export function computeEkfCheck(ekf) {
     ekf.compass_variance,
   ].map(Number).filter((x) => Number.isFinite(x));
   const maxVariance = variances.length ? Math.max(...variances) : 0;
-  let status = 'go';
-  if (maxVariance >= EKF_VARIANCE_FAIL) status = 'nogo';
-  else if (maxVariance >= EKF_VARIANCE_WARN) status = 'warn';
-  return { key: 'ekf', status, detail: { maxVariance } };
+  let advisory = null;
+  if (maxVariance >= EKF_VARIANCE_HIGH) advisory = 'varianceHigh';
+  else if (maxVariance >= EKF_VARIANCE_WARN) advisory = 'variance';
+  return { key: 'ekf', status: advisory ? 'warn' : 'go', detail: { maxVariance, advisory } };
 }
 
 /** Battery row: same %/unknown gating as the launch gate. */
@@ -202,7 +204,7 @@ export function computePreflightReadiness(vehicle, gates = DEFAULT_LAUNCH_GATES)
   const checks = [
     computePrearmCheck(vehicle, gates),
     computeGpsCheck(vehicle, gates),
-    computeEkfCheck(vehicle.ekf),
+    computeEkfCheck(vehicle.ekf, gates),
     computeBatteryCheck(vehicle, gates),
     computeRcCheck(vehicle.sensors),
     computeSensorCheck(vehicle.sensors),

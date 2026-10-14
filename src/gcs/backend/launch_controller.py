@@ -50,6 +50,9 @@ class LaunchController:
         self._climb_confirm_s: float = 0.0    # sustained-climb duration required
         self._arm_func: Callable[[int], None] | None = None
         self._auto_func: Callable[[int], None] | None = None
+        # EKF issues for one vehicle, run right before each arm and release
+        # with the prepared session's gates and force policy.
+        self._ekf_recheck: Callable[[int], list[str]] | None = None
 
     @property
     def is_running(self) -> bool:
@@ -90,6 +93,8 @@ class LaunchController:
         min_throttle_pct: float = 20.0,
         min_climb_rate_ms: float = 0.0,
         climb_confirm_s: float = 0.0,
+        *,
+        ekf_recheck: Callable[[int], list[str]],
     ):
         await launch_session.prepare(
             self,
@@ -111,6 +116,7 @@ class LaunchController:
             min_throttle_pct=min_throttle_pct,
             min_climb_rate_ms=min_climb_rate_ms,
             climb_confirm_s=climb_confirm_s,
+            ekf_recheck=ekf_recheck,
             broadcast=ws_manager.broadcast,
         )
 
@@ -160,6 +166,7 @@ class LaunchController:
         self._esp32_client = None
         self._arm_func = None
         self._auto_func = None
+        self._ekf_recheck = None
         self._abort_event.clear()
         self._abort_notified = False
         # Replace the lock so a stale held lock doesn't block the next session

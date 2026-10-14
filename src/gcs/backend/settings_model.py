@@ -97,6 +97,7 @@ class LaunchSettings(BaseModel):
     min_battery_pct: float = 15.0
     check_prearm_enabled: bool = True  # vehicle prearm_ok gate
     block_on_unknown_battery: bool = False  # block launch when battery telemetry is missing
+    check_ekf_enabled: bool = True  # fresh EKF_STATUS_REPORT with an absolute solution (ekf_status_gate)
 
     # --- Launch sequence (operator-facing; NOT DEV-gated) ---
     launch_order: list[int] = Field(default_factory=list)  # ordered sys_ids; empty = discovery order

@@ -27,6 +27,7 @@ from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
 
 AUTOPILOT_TELEMETRY_TYPES = frozenset({
     "ATTITUDE",
+    "EKF_STATUS_REPORT",
     "GLOBAL_POSITION_INT",
     "GPS_RAW_INT",
     "LOCAL_POSITION_NED",
@@ -36,12 +37,20 @@ AUTOPILOT_TELEMETRY_TYPES = frozenset({
     "WIND",
 })
 
+# Types admitted only with exact ownership: the target system's own autopilot
+# component. A GCS-mode router otherwise publishes other systems' messages
+# (an unregistered sysid reaches every receiver on the bus), so a peer's
+# healthy EKF report could pass another vehicle's launch gate
+# (docs/design/ekf_launch_gate.md).
+OWN_AUTOPILOT_ONLY_TYPES = frozenset({"EKF_STATUS_REPORT"})
+
 BOOT_TIME_REBOOT_JUMP_MS = 60_000
 FRESH_BOOT_WINDOW_MS = 3_000
 
 # Why the router rejected a message it rules on, as the tap reports it.
 REJECT_FOREIGN_COMPONENT = "foreign_component"
 REJECT_STALE_BOOT = "stale_boot"
+REJECT_FOREIGN_SYSTEM = "foreign_system"
 
 
 def message_component_id(message: MAVLink_message) -> int | None:
@@ -154,6 +163,13 @@ class InboundMessageRouter:
     ) -> tuple[bool, str | None] | None:
         """The verdict on a message this router rules on, with the reason for
         a rejection; None for a message it does not rule on, which passes."""
+        if message_type in OWN_AUTOPILOT_ONLY_TYPES:
+            if message.get_srcSystem() != self._identity.target_system:
+                self._record_rejection(message_type, REJECT_FOREIGN_SYSTEM)
+                return False, REJECT_FOREIGN_SYSTEM
+            if component_id != MAV_COMP_ID_AUTOPILOT1:
+                self._record_rejection(message_type, REJECT_FOREIGN_COMPONENT)
+                return False, REJECT_FOREIGN_COMPONENT
         if (
             message.get_srcSystem() != self._identity.target_system
             or message_type not in AUTOPILOT_TELEMETRY_TYPES

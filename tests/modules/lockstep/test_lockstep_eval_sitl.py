@@ -6,9 +6,9 @@ same-seed runs, the second with seeded host delays in the relay, the
 coordinator and the participants, give the same journal digest and
 byte-equal artifacts (the pose-cadence CSVs among them); a different seed
 changes the digest. Each run ends ``ok`` and passes the slice's journal gates
-that do not depend on the approach docking; those that do (the workflow
-order through ``RESET: PASSED POI``, the retained vehicle scoring) are a
-strict xfail until the approach miss is fixed (todo 46).
+that do not depend on the approach docking, and each docks: the workflow
+order through ``RESET: PASSED POI`` and the retained vehicle scoring pass
+(todo 46: EKF launch gate plus lockstep terrain).
 """
 
 from __future__ import annotations
@@ -74,7 +74,6 @@ def test_each_run_ends_ok_and_passes_the_journal_gates(runs, name):
             + pose_cadence_errors(run_dir, owner)) == []
 
 
-@pytest.mark.xfail(strict=True, reason="todo 46")
 @pytest.mark.parametrize("name", list(RUNS))
 def test_the_approach_docks(runs, name):
     """Docking-dependent: the workflow order through RESET: PASSED POI and the

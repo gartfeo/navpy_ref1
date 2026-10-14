@@ -30,6 +30,7 @@ export const LAUNCH_TUNING_DEFAULTS = Object.freeze({
   min_battery_pct: 15.0,
   check_prearm_enabled: true,
   block_on_unknown_battery: false,
+  check_ekf_enabled: true,
 });
 
 /** True if any DEV-tunable launch value differs from its default. */
@@ -88,6 +89,7 @@ export default function LaunchTuningSection({ l, set, isContainer }) {
           {t('launchTab.tuningReadinessHelp')}
         </div>
         <SettingsField type="checkbox" label={t('launchTab.checkPrearm')} info={t('launchTab.checkPrearmInfo')} value={bool('check_prearm_enabled')} onChange={(v) => set('check_prearm_enabled', v)} />
+        <SettingsField type="checkbox" label={t('launchTab.checkEkf')} info={t('launchTab.checkEkfInfo')} value={bool('check_ekf_enabled')} onChange={(v) => set('check_ekf_enabled', v)} />
         <SettingsField type="checkbox" label={t('launchTab.checkGps')} info={t('launchTab.checkGpsInfo')} value={bool('check_gps_enabled')} onChange={(v) => set('check_gps_enabled', v)} />
         <SettingsField type="checkbox" label={t('launchTab.checkGpsAcc')} info={t('launchTab.checkGpsAccInfo')} value={bool('check_gps_acc_enabled')} onChange={(v) => set('check_gps_acc_enabled', v)} />
         <SettingsField label={t('launchTab.maxGpsHacc')} info={t('launchTab.maxGpsHaccInfo')} value={num('max_gps_hacc_m')} onChange={(v) => set('max_gps_hacc_m', v)} step={0.1} min={0} />

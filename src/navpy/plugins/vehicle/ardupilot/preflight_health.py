@@ -14,6 +14,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_SYS_STATUS_SENSOR_RC_RECEIVER,
 )
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState, PacketLossTracker
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
 
@@ -124,10 +125,13 @@ class PreflightHealth:
 
     @property
     def ekf_status(self) -> dict[str, int | float] | None:
-        report = self._messages.message("EKF_STATUS_REPORT")
-        if report is None:
+        """Latest EKF_STATUS_REPORT with ``age_s``, seconds since its receipt."""
+        sample = self._messages.latest("EKF_STATUS_REPORT")
+        if sample is None:
             return None
+        report = sample.message
         return {
+            "age_s": max(0.0, rt.time() - sample.receipt_time_s),
             "flags": int(getattr(report, "flags", 0)),
             "velocity_variance": float(getattr(report, "velocity_variance", 0.0)),
             "pos_horiz_variance": float(getattr(report, "pos_horiz_variance", 0.0)),

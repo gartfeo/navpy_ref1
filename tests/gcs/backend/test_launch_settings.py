@@ -42,6 +42,8 @@ class TestLaunchSettingsDefaults(unittest.TestCase):
         self.assertEqual(ls.min_battery_pct, 15.0)
         self.assertTrue(ls.check_prearm_enabled)
         self.assertFalse(ls.block_on_unknown_battery)
+        # EKF launch gate is on by default (docs/design/ekf_launch_gate.md)
+        self.assertTrue(ls.check_ekf_enabled)
         # Launch sequence (empty = discovery order)
         self.assertEqual(ls.launch_order, [])
 
