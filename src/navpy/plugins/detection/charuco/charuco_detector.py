@@ -24,6 +24,7 @@ import numpy as np
 from navpy.plugins.detection.charuco.charuco_board import (
     CHARUCO_DOCK_CLASS_ID,
     CharucoBoardSpec,
+    CharucoDetectionSettings,
 )
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.device import DeviceT
@@ -50,6 +51,20 @@ def build_charuco_board(spec: CharucoBoardSpec) -> "cv2.aruco.CharucoBoard":
     )
 
 
+def build_charuco_detector(
+        board: "cv2.aruco.CharucoBoard",
+        settings: CharucoDetectionSettings = CharucoDetectionSettings(),
+) -> "cv2.aruco.CharucoDetector":
+    """OpenCV's ChArUco detector with these marker-detection settings; every
+    other parameter keeps OpenCV's default."""
+    marker = cv2.aruco.DetectorParameters()
+    marker.minMarkerPerimeterRate = float(settings.min_marker_perimeter_rate)
+    marker.perspectiveRemovePixelPerCell = int(settings.pixels_per_cell)
+    charuco = cv2.aruco.CharucoParameters()
+    charuco.tryRefineMarkers = bool(settings.refine_markers)
+    return cv2.aruco.CharucoDetector(board, charuco, marker)
+
+
 class CharucoBoardDetector:
     """Detect one ChArUco reference board per frame."""
 
@@ -58,9 +73,11 @@ class CharucoBoardDetector:
             spec: CharucoBoardSpec,
             *,
             min_confidence: float = 0.0,
+            detection: CharucoDetectionSettings = CharucoDetectionSettings(),
             logger: ILogger | None = None,
     ) -> None:
         self.spec = spec
+        self.detection = detection
         self.min_confidence = float(min_confidence)
         self.device: DeviceT = "cpu"
         board = build_charuco_board(spec)
@@ -73,7 +90,7 @@ class CharucoBoardDetector:
             dtype=np.float32,
         ).reshape(-1, 1, 2)
         self._detector: Optional[cv2.aruco.CharucoDetector] = (
-            cv2.aruco.CharucoDetector(board)
+            build_charuco_detector(board, detection)
         )
         if logger is not None:
             logger.info(
@@ -81,6 +98,9 @@ class CharucoBoardDetector:
                 f"squares={spec.squares_x}x{spec.squares_y} "
                 f"square={spec.square_mm:g}mm marker={spec.marker_mm:g}mm "
                 f"min_conf={self.min_confidence:.2f} "
+                f"min_perimeter={detection.min_marker_perimeter_rate:g} "
+                f"px_per_cell={detection.pixels_per_cell} "
+                f"refine_markers={detection.refine_markers} "
                 f"class_id={CHARUCO_DOCK_CLASS_ID}"
             )
 
@@ -177,4 +197,5 @@ __all__ = [
     "CharucoBoardDetector",
     "MIN_CHARUCO_CORNERS",
     "build_charuco_board",
+    "build_charuco_detector",
 ]

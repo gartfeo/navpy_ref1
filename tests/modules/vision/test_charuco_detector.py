@@ -13,13 +13,19 @@ import pytest
 
 from navpy.plugins.detection.charuco.charuco_board import (
     CHARUCO_DOCK_CLASS_ID,
+    CHARUCO_MIN_MARKER_PERIMETER_RATE,
+    CHARUCO_PIXELS_PER_CELL,
+    CHARUCO_REFINE_MARKERS,
     CharucoBoardSpec,
+    CharucoDetectionSettings,
     charuco_board_spec_from_settings,
+    charuco_detection_settings_from_settings,
 )
 from navpy.plugins.detection.charuco.charuco_detector import (
     MIN_CHARUCO_CORNERS,
     CharucoBoardDetector,
     build_charuco_board,
+    build_charuco_detector,
 )
 
 FRAME_W, FRAME_H = 1280, 960
@@ -42,6 +48,55 @@ def _pasted_frame(x0: int, y0: int, board: np.ndarray) -> np.ndarray:
 
 def _box(detection) -> np.ndarray:
     return detection.xyxy.astype(np.float64)
+
+
+# A far, foreshortened board as the ZR10 at zoom 1 sees the Unreal dock's board at about 40 m slant and 35 deg
+# depression (outline with its white margin, NW NE SE SW, px): its markers' outlines are about 30 px, under
+# OpenCV's default minimum of 3 % of 1280 px.
+FAR_OUTLINE = np.array([[630.1, 338.6], [711.8, 338.6], [714.6, 403.0], [627.3, 403.0]])
+_FAR_SQUARE_PX = 64        # texture pixels per square
+_FAR_SUPERSAMPLE = 4       # rendered at 4x, then area-averaged: the pixel footprint of a camera
+
+
+def _far_texture() -> np.ndarray:
+    margin = _FAR_SQUARE_PX // 2
+    size = (5 * _FAR_SQUARE_PX + 2 * margin, 7 * _FAR_SQUARE_PX + 2 * margin)
+    return build_charuco_board(CharucoBoardSpec()).generateImage(size, marginSize=margin)
+
+
+def _far_frame(scale: float, blur_px: float) -> tuple[np.ndarray, np.ndarray]:
+    """A grey 1280 x 720 frame with the board at FAR_OUTLINE scaled about its centre, and the homography from
+    texture pixels to frame pixels (the truth)."""
+    texture = _far_texture()
+    th, tw = texture.shape
+    centre = FAR_OUTLINE.mean(axis=0)
+    quad = np.float32(centre + (FAR_OUTLINE - centre) * scale)
+    corners = np.float32([[0, 0], [tw, 0], [tw, th], [0, th]])
+    ss = _FAR_SUPERSAMPLE
+    canvas = cv2.warpPerspective(
+        texture.astype(np.float32), cv2.getPerspectiveTransform(corners, (quad + 0.5) * ss - 0.5),
+        (FRAME_W * ss, FRAME_H * ss), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=-1,
+    )
+    image = np.where(canvas >= 0, 40 + canvas * 175 / 255, 110.0)
+    image = cv2.resize(image, (FRAME_W, FRAME_H), interpolation=cv2.INTER_AREA)
+    if blur_px:
+        image = cv2.GaussianBlur(image, (0, 0), blur_px)
+    return np.clip(image, 0, 255).astype(np.uint8), cv2.getPerspectiveTransform(corners, quad)
+
+
+def _corners(detector, gray) -> tuple[np.ndarray, np.ndarray]:
+    corners, ids, _, _ = detector.detectBoard(gray)
+    if ids is None:
+        return np.zeros((0, 2)), np.zeros(0, int)
+    return np.asarray(corners).reshape(-1, 2), np.asarray(ids).reshape(-1)
+
+
+def _truth_corner_error_px(ids: np.ndarray, corners: np.ndarray, truth: np.ndarray) -> float:
+    board_mm = np.asarray(build_charuco_board(CharucoBoardSpec()).getChessboardCorners())[:, :2]
+    margin = _FAR_SQUARE_PX // 2
+    texture_px = margin + board_mm[ids] / CharucoBoardSpec().square_mm * _FAR_SQUARE_PX
+    expected = cv2.perspectiveTransform(texture_px.reshape(-1, 1, 2).astype(np.float32), truth).reshape(-1, 2)
+    return float(np.linalg.norm(expected - corners, axis=1).max())
 
 
 def test_board_spec_defaults_are_the_a3_bench_board():
@@ -211,3 +266,108 @@ def test_invalid_profile_charuco_block_is_rejected(block, message):
 def test_unknown_aruco_dictionary_is_rejected():
     with pytest.raises(ValueError, match="Unknown ArUco dictionary"):
         CharucoBoardDetector(CharucoBoardSpec(dictionary="DICT_FACES"))
+
+
+def test_detection_settings_defaults_are_the_long_range_settings():
+    settings = CharucoDetectionSettings()
+
+    assert settings.min_marker_perimeter_rate == CHARUCO_MIN_MARKER_PERIMETER_RATE == 0.015
+    assert settings.pixels_per_cell == CHARUCO_PIXELS_PER_CELL == 8
+    assert settings.refine_markers is CHARUCO_REFINE_MARKERS is True
+
+
+def test_detection_settings_reach_the_opencv_detector():
+    settings = CharucoDetectionSettings(
+        min_marker_perimeter_rate=0.02, pixels_per_cell=6, refine_markers=False,
+    )
+
+    detector = build_charuco_detector(build_charuco_board(CharucoBoardSpec()), settings)
+
+    marker = detector.getDetectorParameters()
+    assert marker.minMarkerPerimeterRate == pytest.approx(0.02)
+    assert marker.perspectiveRemovePixelPerCell == 6
+    assert detector.getCharucoParameters().tryRefineMarkers is False
+    # everything else stays OpenCV's default
+    default = cv2.aruco.DetectorParameters()
+    assert marker.cornerRefinementMethod == default.cornerRefinementMethod
+    assert marker.errorCorrectionRate == pytest.approx(default.errorCorrectionRate)
+    assert detector.getCharucoParameters().minMarkers == cv2.aruco.CharucoParameters().minMarkers
+
+
+def test_far_board_is_found_only_with_the_long_range_settings():
+    """At about 40 m on the ZR10 at zoom 1, OpenCV's default marker size floor drops every marker."""
+    frame, truth = _far_frame(1.0, 0.0)
+    board = build_charuco_board(CharucoBoardSpec())
+
+    _, opencv_ids = _corners(cv2.aruco.CharucoDetector(board), frame)
+    corners, ids = _corners(build_charuco_detector(board), frame)
+
+    assert len(opencv_ids) == 0
+    assert len(ids) >= 6
+    square_px = (FAR_OUTLINE[1, 0] - FAR_OUTLINE[0, 0]) / 6
+    assert _truth_corner_error_px(ids, corners, truth) < 0.25 * square_px
+    detections = CharucoBoardDetector(CharucoBoardSpec()).detect(frame)
+    assert len(detections) == 1
+    assert detections[0].cx == pytest.approx(FAR_OUTLINE[:, 0].mean(), abs=2.0)
+    assert detections[0].cy == pytest.approx(FAR_OUTLINE[:, 1].mean(), abs=2.0)
+
+
+def test_blurred_board_needs_marker_refinement():
+    """A soft frame (lens and compression blur) keeps a few markers readable; the board's layout recovers the
+    rest."""
+    frame, truth = _far_frame(1.6, 0.8)
+    board = build_charuco_board(CharucoBoardSpec())
+    without = build_charuco_detector(board, CharucoDetectionSettings(refine_markers=False))
+
+    _, unrefined = _corners(without, frame)
+    corners, ids = _corners(build_charuco_detector(board), frame)
+
+    assert len(unrefined) < MIN_CHARUCO_CORNERS
+    assert len(ids) >= 12
+    square_px = 1.6 * (FAR_OUTLINE[1, 0] - FAR_OUTLINE[0, 0]) / 6
+    assert _truth_corner_error_px(ids, corners, truth) < 0.25 * square_px
+
+
+@pytest.mark.parametrize(
+    "frame",
+    [
+        cv2.GaussianBlur(np.random.default_rng(3).integers(0, 256, (FRAME_H, FRAME_W), dtype=np.uint8), (0, 0), 1.0),
+        np.kron((np.indices((FRAME_H // 40, FRAME_W // 40)).sum(axis=0) % 2 * 255).astype(np.uint8),
+                np.ones((40, 40), np.uint8)),
+        np.kron((np.indices((FRAME_H // 9, FRAME_W // 9)).sum(axis=0) % 2 * 255).astype(np.uint8),
+                np.ones((9, 9), np.uint8)),
+    ],
+    ids=["soft-noise", "checkerboard-40px", "checkerboard-9px"],
+)
+def test_long_range_settings_find_no_board_without_one(frame):
+    assert CharucoBoardDetector(CharucoBoardSpec()).detect(frame) == []
+
+
+def test_profile_charuco_detection_block_overrides_settings():
+    settings = charuco_detection_settings_from_settings({
+        "charuco_detection": {"min_marker_perimeter_rate": 0.03, "pixels_per_cell": 4,
+                              "refine_markers": False},
+    })
+
+    assert settings == CharucoDetectionSettings(
+        min_marker_perimeter_rate=0.03, pixels_per_cell=4, refine_markers=False,
+    )
+    assert charuco_detection_settings_from_settings({}) == CharucoDetectionSettings()
+
+
+@pytest.mark.parametrize(
+    "block, message",
+    [
+        ({"min_perimeter": 0.01}, "Unknown detector.charuco_detection"),
+        ({"min_marker_perimeter_rate": 0.0}, "in \\(0, 1\\)"),
+        ({"pixels_per_cell": 0}, "at least 1"),
+        ({"pixels_per_cell": 8.9}, "must be an integer"),
+        ({"pixels_per_cell": True}, "must be an integer"),
+        ({"min_marker_perimeter_rate": "0.01"}, "must be a number"),
+        ({"refine_markers": "yes"}, "true or false"),
+        ([0.01], "must be a mapping"),
+    ],
+)
+def test_invalid_profile_charuco_detection_block_is_rejected(block, message):
+    with pytest.raises(ValueError, match=message):
+        charuco_detection_settings_from_settings({"charuco_detection": block})

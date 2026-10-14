@@ -185,8 +185,7 @@ on the optical axis (35 deg depression), 10 frames per range. "Detected" = ChArU
 | 40, 50, 80 m | 6 x 4 and less, 0/10 | 14 x 8 and less, 0/10 |
 
 The first frame after start shows the board's material still compiling (no pattern); the 9/10 at 10 m is that.
-Offline, `minMarkerPerimeterRate` 0.01 finds 6 corners at 40 m on the ZR10 frames and nothing at 50 m; the
-default stays (a detector change is its own task).
+These ran with OpenCV's default marker detection; navpy's detector now uses the settings below.
 
 **Dock passes with the ZR10 camera.** Same card, report `--camera zr10`. In view and detected by slant range:
 
@@ -222,6 +221,48 @@ line of sight. The simulation is the best case. It has none of these:
 - H.264/H.265 compression of the 1280 x 720 RTSP stream;
 - exposure-time blur: v t f / R px, e.g. 24 m/s x 1 ms x 1407 px / 20 m = 1.7 px;
 - rolling shutter, lens MTF, sun glare and auto exposure.
+
+## Detector settings for range (2026-10-14, offline)
+
+`detector.charuco_detection` (`CharucoDetectionSettings`, defaults below) sets how the ChArUco detector finds
+markers; the live check, the dock-pass report and the static check use the same settings. Defaults:
+`min_marker_perimeter_rate` 0.015 (OpenCV 0.03), `pixels_per_cell` 8 (OpenCV 4), `refine_markers` true
+(OpenCV false); everything else stays OpenCV's. Unchanged: a detection needs 4 ChArUco corners and the profile's
+`conf`; the report's pose needs 6 over 2 rows and 2 columns.
+
+Sweep (scratch tooling, results in `C:\tune_hitl\det_sweep*`): 23 settings over 108 static and 159 in-view pass
+frames (ZR10 and 90 deg runs), 1021 frames without the board (841 Unreal, 173 real camera frames from
+`tools/cam/calibration` incl. the ZR10, checkerboards and faces, 7 `.sim` images), each raw, blurred (sigma 1 px +
+noise) and blurred then H.264 4 Mbit/s, H.265 4 Mbit/s and H.264 2 Mbit/s CBR (the ZR10's stream bitrate is not
+measured; frames encoded shuffled, so each gets about one frame's share of the rate: pessimistic). Plus 150
+offline renders of the board (supersampled pinhole, 35 deg depression, yaw 0/30/90 deg) at zoom 1 and 2, raw,
+soft (sigma 0.6 px), and soft + H.264 4/8 Mbit/s or H.265 4 Mbit/s. The renders reproduce the Unreal limits
+(default 30 m, 35 m gap, 40 m with the smaller floor, nothing at 45-50 m).
+
+The pass frames are the ones the live check saved: frames OpenCV's defaults detected, plus every 150th frame.
+They are biased toward frames the old settings found, so they compare the settings but do not give a pass's
+detection rate or range.
+
+| Frames (pose rule: 6 corners over 2 rows and columns) | OpenCV default | navpy settings |
+|---|---|---|
+| Unreal static, raw: farthest 9/9 range | 30 m | 40 m (35 m: 0, render aliasing) |
+| Unreal passes in view, detected: raw / blur / H.264 4M / H.265 4M / H.264 2M | 99 / 26 / 7 / 6 / 0 | 110 / 50 / 24 / 26 / 10 |
+| Unreal static 9/9 range, H.264 4M | 12 m | 18 m |
+| Render zoom 1, farthest: raw / soft / soft+H.265 4M / soft+H.264 8M | 30 / 25 / 22.5 / 25 m | 40 / 37.5 / 30 / 30 m |
+| Render zoom 2, farthest: raw / soft / soft+H.265 4M / soft+H.264 8M | 55 / 52.5 / 47.5 / 47.5 m | 82.5 / 77.5 / 62.5 / 62.5 m |
+| Boards in frames without one (5105 frames incl. variants) | 0 | 0 |
+| Corners more than half a square off the truth | 0 | 0 (max 0.24 square) |
+| Single markers in frames without a board (all ids outside the board's 0-16, no corner) | 9 | 10 |
+| Position error p90 vs truth, Unreal passes | 0.14-0.22 m | 0.15-0.18 m |
+
+- Rejected: `minMarkers` 1 (more corners, position error p90 up to 1.2 m on compressed frames), contour corner
+  refinement (OpenCV 5.0 throws `_interpolate2Dline` on some frames), subpixel marker refinement (no range,
+  error 0.32 m), other threshold windows and `errorCorrectionRate` 0.3 (no change). No pose-plausibility gate:
+  no wrong board was found to tune one against.
+- Cost: 12 ms per 1280 x 720 frame single-threaded on the laptop, 9 ms with OpenCV's default.
+- Real camera: compression and blur cut the range far more than the settings add (H.264 4 Mbit/s: 12-18 m at
+  zoom 1 in Unreal frames). Range scales with zoom: zoom 2 doubles it in the renders. Suggestion, not measured
+  in flight: zoom 2 for the approach phase; its view of about 25 x 15 deg halves the time the board is in the picture.
 
 
 ## Measured (2026-10-13, laptop RTX PRO 1000, Unreal -game windowed)

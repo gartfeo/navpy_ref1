@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 
 from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec
-from navpy.plugins.detection.charuco.charuco_detector import build_charuco_board
+from navpy.plugins.detection.charuco.charuco_detector import build_charuco_board, build_charuco_detector
 
 MOUNT_PITCH_DEG = -35.0               # InitialPitchDeg of the fixed body camera
 # Where the camera sits from the commanded vehicle position, body FRD (m): the level places the gimbal camera actor
@@ -179,7 +179,7 @@ def detected_pose(image: np.ndarray, camera: Optional[CameraModel] = None) -> Op
     board = build_charuco_board(BOARD_SPEC)
     gray = image if image.ndim == 2 else cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY if image.shape[2] == 4
                                                       else cv2.COLOR_BGR2GRAY)
-    corners, ids, _, _ = cv2.aruco.CharucoDetector(board).detectBoard(gray)
+    corners, ids, _, _ = build_charuco_detector(board).detectBoard(gray)     # navpy's detector settings
     if ids is None or len(ids) < MIN_PNP_CORNERS:
         return None
     flat = np.asarray(ids).reshape(-1)

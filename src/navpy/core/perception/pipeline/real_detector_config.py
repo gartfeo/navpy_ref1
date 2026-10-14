@@ -10,7 +10,10 @@ from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
 from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
-from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec
+from navpy.plugins.detection.charuco.charuco_board import (
+    CharucoBoardSpec,
+    CharucoDetectionSettings,
+)
 from navpy.core.kernel.config.detector_backend import (
     YOLO_BACKEND,
     DetectorBackend,
@@ -54,7 +57,8 @@ class DetectorModelConfig:
     this). The product default backend is chosen once at the CLI seam
     (``VisionArgs``), which passes ``backend`` explicitly.
     ``model_path``, ``imgsz``, ``device``, ``classes`` and ``deep_search``
-    apply to ``yolo`` only; ``charuco_board`` applies to ``charuco`` only;
+    apply to ``yolo`` only; ``charuco_board`` and ``charuco_detection`` apply
+    to ``charuco`` only;
     ``conf`` is the minimum detection confidence for either backend.
     """
 
@@ -68,6 +72,9 @@ class DetectorModelConfig:
     appearance: VisionProfile | None = None
     backend: DetectorBackend = YOLO_BACKEND
     charuco_board: CharucoBoardSpec = field(default_factory=CharucoBoardSpec)
+    charuco_detection: CharucoDetectionSettings = field(
+        default_factory=CharucoDetectionSettings,
+    )
 
     def __post_init__(self) -> None:
         validate_detector_backend(self.backend)

@@ -54,6 +54,7 @@ def _build_charuco(
     return CharucoBoardDetector(
         model.charuco_board,
         min_confidence=model.conf,
+        detection=model.charuco_detection,
         logger=logger,
     )
 
