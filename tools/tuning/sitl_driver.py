@@ -3,7 +3,7 @@
 Runs inside WSL with the Linux python3 that has pymavlink. The SITL process, its
 MAVLink connection and the simulated RC receiver are in sitl_sim.py; this module
 holds the flight subcommands; the pilot's steps are in flight_steps.py and the vs-autotune
-procedure in vs_autotune.py. port-check, inflight-tune --firmware and vs-autotune --firmware also
+procedure in vs_autotune.py, the dock passes in dock_pass.py. port-check, inflight-tune --firmware and vs-autotune --firmware also
 fly a flight controller with simulation firmware (--board, hitl.py). Once the takeoff has reached
 TKOFF_ALT these runs fail (exit 1, the reason in the run's JSON under "error") when the aircraft goes
 below --min-height; vs-autotune also fails when a climb, the throttle match or the tuner fails.
@@ -19,6 +19,8 @@ import sys
 import time
 from pathlib import Path
 
+from tools.tuning.dock_pass import (DOCK_BOARD_YEGHVARD, DOCK_PASS_MIN_HEIGHT_M, build_card, fly_passes,
+                                    home_position)
 from tools.tuning.flight_steps import (CLIMB_MARGIN_M, FTUNE_SWITCH_CH, PILOT_THROTTLE_PWM, TEST_HEIGHT_M,
                                        THROTTLE_CH, CruisePitchTrim, FlightCheckFailed, HeightFloor, add_floor_arg,
                                        climb_to, pilot_throttle, read_gains, stick_sequence)
@@ -184,6 +186,34 @@ def vs_autotune(args: argparse.Namespace) -> int:
     return code
 
 
+def dock_pass(args: argparse.Namespace) -> int:
+    """Straight AUTO passes over the Unreal dock's ChArUco board at several heights and headings, for the HITL camera
+    stream and the detector (dock_pass.py; the board's position shapes only this card's path), then RTL. Below
+    --min-height (above home, default dock_pass.DOCK_PASS_MIN_HEIGHT_M) after the takeoff the run fails and RTL
+    recovers."""
+    try:
+        build_card(args.dock, args.origin, args.min_height)     # refused before the flight; flown from the real home
+    except ValueError as exc:
+        raise SystemExit(f"error: {exc}") from exc
+    sitl = open_vehicle(args, [], [], DEFAULT_BINARY)
+    record: dict = {}
+
+    def flight() -> None:
+        takeoff(sitl)
+        with HeightFloor(sitl, args.min_height, record):      # from the takeoff on, the home lookup included
+            home = ",".join(f"{v:.8f}" for v in home_position(sitl))
+            try:
+                card = build_card(args.dock, home, args.min_height)
+            except ValueError as exc:        # airborne by now: a failed check, not a crash of the runner
+                raise FlightCheckFailed(f"card from the autopilot's home {home}: {exc}") from exc
+            record["card"] = card.describe()
+            record["passes"] = []
+            fly_passes(sitl, card, record["passes"])
+    code = fly_and_record(sitl, flight, record, run_file(args.workdir, ".json"))
+    print("logs:", record["logs"])
+    return code
+
+
 def _param_pair(text: str) -> tuple[str, float]:
     name, value = text.split("=")
     return name, float(value)
@@ -227,6 +257,13 @@ def main() -> None:
     v.add_argument("--timeout", type=float, default=1800)
     v.add_argument("--firmware", action="store_true", help="the C++ tuner build instead of the Lua script")
     v.set_defaults(func=vs_autotune)
+    d = sub.add_parser("dock-pass", help=dock_pass.__doc__)
+    d.add_argument("--workdir", required=True)
+    add_vehicle_args(d)
+    add_floor_arg(d, DOCK_PASS_MIN_HEIGHT_M)
+    d.add_argument("--dock", default=DOCK_BOARD_YEGHVARD, metavar="LAT,LON,ALT_MSL",
+                   help="the board's centre (default: the Yeghvard dock, with --origin at the Yeghvard origin)")
+    d.set_defaults(func=dock_pass)
     args = ap.parse_args()
     try:
         code = args.func(args)           # 1: a board run whose HITL link failed its health gate

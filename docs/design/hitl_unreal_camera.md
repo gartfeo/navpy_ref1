@@ -74,6 +74,76 @@ ATTITUDE delay above that minimum, not the full link delay.
    (`--mavlink`: any pymavlink link carrying the board's ATTITUDE, e.g. the runner's `--mp-mirror` port
    9640; frames.csv, summary.json and sample PNGs land in `--out`).
 
+## Dock passes (`sitl_driver dock-pass`, 2026-10-14)
+
+A test card that flies the camera past the board (`tools/tuning/dock_pass.py`). It is a test harness: the
+board's known position shapes only this card's path, and the truth is used only offline for scoring. navpy's
+navigation and mission modules get no dock information.
+
+- **Board.** Centre lat 40.31205630, lon 44.45815163, 1320.365 m ellipsoid = 1296.865 m MSL (Unreal log
+  `NavPy ChArUco board centre`). That is 250 m east, 35 m north and 4.07 m above the Yeghvard origin. It lies
+  flat, 2.4 m east-west by 3.2 m north-south (deck and board yaw 0, Unreal +X east).
+- **Card.** After the catapult takeoff, AUTO flies 8 straight passes at 24 m/s (`DO_CHANGE_SPEED`):
+  - above the board: 40 m heading 0, 25 m heading 90, 15 m heading 180 and 270, 10 m heading 0, 90, 180 and 270;
+  - each pass is approach (900 m before the board), entry (450 m) and exit (150 m past it);
+  - heights above home are taken from the autopilot's `HOME_POSITION` after the takeoff (set on the rail,
+    0.9 m above the origin in SITL);
+  - the pass window opens at the entry and closes at the exit; the run's JSON records it in board time as each
+    pass ends;
+  - a loiter at the last exit keeps AUTO until the runner switches to RTL. A last waypoint or a
+    `NAV_RETURN_TO_LAUNCH` item switched to RTL before the last `MISSION_ITEM_REACHED` was read.
+- **Floor.** The run fails below `--min-height` (default 7 m above home) and recovers in RTL, as port-check
+  does. A floor within 5 m of the lowest pass (about 13 m above home) is refused before the flight, and again
+  against the autopilot's home after the takeoff.
+- **Commands (PowerShell 5.1).** Unreal as in "Running it" step 1. Then the live check, with a duration
+  longer than the run, every frame checked and each detected frame saved:
+  `Set-Location C:\Users\GARTF\Downloads\navpy-temp2; $env:PYTHONPATH = "$PWD\src;$PWD"; .venv\Scripts\python.exe -m tools.unreal.npyc_live_check --mavlink udpin:0.0.0.0:9640 --seconds 2400 --detect-every 1 --save-detected --out C:\tune_hitl\dock3_frames`
+  In a second window, the card (the `port-check` command of flight_tuning.md B, Yeghvard origin):
+  `Set-Location C:\Users\GARTF\Downloads\navpy-temp2; $env:ARDUPILOT_ROOT = "\\wsl.localhost\Ubuntu-24.04\home\gart\ardupilot"; .venv\Scripts\python.exe -m tools.tuning.sitl_driver dock-pass --board COM15 --erase-params --mp-mirror --origin 40.3117412,44.4552112,1292.8,0 --workdir C:\tune_hitl\dock3 --params-file "$env:LOCALAPPDATA\navpy-hitl-tools\params\peron15_161.parm" --bridge "{python} -m tools.tuning.hitl_bridge --device COM11 --plant package --reconnect-interval-s 0.5 --model-dir $env:LOCALAPPDATA\navpy-hitl-tools\models\Peron15_hitl4 --servo-speed-s 0.03 --origin-lat {lat} --origin-lon {lon} --origin-alt {alt} --heading {hdg} --exit-on-stdin-eof --log-csv {link_csv} --unreal-pose 127.0.0.1:17110 23.5"`
+  Once the check has written its summary, the report:
+  `.venv\Scripts\python.exe -m tools.unreal.dock_pass_report --run-json C:\tune_hitl\dock3.json --link-csv C:\tune_hitl\dock3\link.csv --frames C:\tune_hitl\dock3_frames --out C:\tune_hitl\dock3_report`
+- **Report.** `tools/unreal/dock_pass_report.py` joins each frame with the bridge's `link.csv` row of its pose's
+  board time. It projects the board into the fixed body camera (`tools/unreal/dock_pass_geometry.py`):
+  - pitch -35 deg in the body, 90 deg horizontal FOV, 1280 x 720;
+  - 2.5 m ahead of and 0.3 m below the vehicle position, measured on static bench poses with the same ChArUco
+    PnP (2.33-2.61 m, 0.10-0.38 m); without it the truth outline sat tens of pixels above the board;
+  - a frame is "in view" when all four board corners fall inside the picture.
+  
+  The report counts detections per pass and per slant range. On the saved frames it scores the ChArUco
+  solvePnP board pose against the truth. Sample frames show the truth outline in green and the detected corners
+  in red.
+- **SITL stand-in.** Run the fork's SITL `hil` model directly with `--serial8=tcp:8168`, and add `SIM_RC_FAIL 1`
+  to its defaults. Without it, SITL's default sticks put `FLTMODE_CH` 5 high and select AUTOTUNE before the
+  runner's overrides start, and the loaded gains then differ. Connect the runner with
+  `--board tcp:127.0.0.1:8160` and the bridge with `--device tcp:127.0.0.1:8168`.
+
+Measured on the real board (dock2, 2026-10-14, Peron15_hitl4, Unreal BelowNormal, pixel streaming off). These are
+simulation numbers on rendered frames, not a hardware camera. All 8 passes flown, lowest height 11.3 m above home,
+no floor breach. Link gate passed: stale 3.4%, age max 14.8 ms. Frame latency in the windows: median 110 ms,
+p90 122 ms, max 182 ms. "In view" counts frames from far out (most are beyond 60 m), hence the low per-pass rates.
+
+| Pass | Height, heading | Frames | In view | Detected | Max detected slant | Position error median / p90 |
+|---|---|---|---|---|---|---|
+| 1 | 40 m, 0 | 422 | 329 | 0 | - | - |
+| 2 | 25 m, 90 | 416 | 332 | 0 | - | - |
+| 3 | 15 m, 180 | 409 | 333 | 0 (1 partly out of view) | - | - |
+| 4 | 15 m, 270 | 424 | 344 | 1 | 18.0 m | - |
+| 5 | 10 m, 0 | 433 | 350 | 2 | 14.3 m | 0.09 / 0.14 m |
+| 6 | 10 m, 90 | 421 | 335 | 4 | 14.7 m | 0.10 / 0.13 m |
+| 7 | 10 m, 180 | 420 | 330 | 4 | 14.7 m | 0.14 / 0.21 m |
+| 8 | 10 m, 270 | 444 | 338 | 3 | 13.9 m | 0.13 / 0.23 m |
+
+By slant range (camera to board centre): below 15 m, 13 of 13 in-view frames detected (position error median
+0.11 m, p90 0.21 m; tilt error at most 1.7 deg); 15-20 m, 1 of 24; 20 m and beyond, 0 of 2654. The SITL stand-in
+(dock_sitl6, same card) agreed: 8 of 10 below 15 m, 2 of 18 at 15-20 m, none beyond. The pose errors are against
+the camera offset calibrated with the same ChArUco PnP, so they bound consistency, not absolute accuracy. At
+19 fps and 24 m/s the board is within 15 m for under a second per pass, so a pass gives at most a few detections.
+
+- The board's DataFlash log of this run was 175 MB; its MAVLink download took about 60 minutes after landing.
+- The first board attempt (dock1) stopped after the takeoff: the home on the rail, 1.1 m above the origin, put
+  the lowest pass 0.05 m inside the 5 m margin above the then 8 m floor. The floor is now 7 m and that check fails the run cleanly.
+
+
 ## Measured (2026-10-13, laptop RTX PRO 1000, Unreal -game windowed)
 
 Unit and loopback tests only prove the mechanism; these are simulation numbers, not hardware.

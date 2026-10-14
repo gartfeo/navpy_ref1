@@ -99,8 +99,8 @@ class FlightCheckFailed(RuntimeError):
     """A check of the run's procedure failed: the run is not valid, and the message says why."""
 
 
-def add_floor_arg(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--min-height", type=float, default=MIN_HEIGHT_M, metavar="M",
+def add_floor_arg(p: argparse.ArgumentParser, default_m: float = MIN_HEIGHT_M) -> None:
+    p.add_argument("--min-height", type=float, default=default_m, metavar="M",
                    help="m above home: once the takeoff has reached TKOFF_ALT the run fails below this "
                         "(default %(default)g)")
 

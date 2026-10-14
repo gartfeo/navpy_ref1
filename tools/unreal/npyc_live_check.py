@@ -107,9 +107,13 @@ def send_fixed_pose(pose: list[float], endpoint: tuple[str, int], samples: Clock
     sock.close()
 
 
+DETECTED_DIR = "detected"         # --save-detected: every frame with a detection, as received (no drawing)
+
+
 class Recorder:
-    def __init__(self, out: Path, save_every: int, detect_every: int) -> None:
+    def __init__(self, out: Path, save_every: int, detect_every: int, save_detected: bool = False) -> None:
         self.out = out
+        self.detected_dir = out / DETECTED_DIR if save_detected else None
         self.save_every = save_every
         self.detect_every = detect_every
         self.rows: dict[int, dict] = {}
@@ -145,6 +149,9 @@ class Recorder:
             while self.work:
                 index, frame, save = self.work.popleft()
                 found = self.detector.detect(frame)
+                if found and self.detected_dir is not None:
+                    self.detected_dir.mkdir(exist_ok=True)
+                    cv2.imwrite(str(self.detected_dir / f"{index:06d}.png"), frame)
                 with self.lock:
                     row = self.rows[index]
                     row["detected"] = int(bool(found))
@@ -192,6 +199,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--save-every", type=int, default=150, help="save every Nth frame as PNG")
     parser.add_argument("--detect-every", type=int, default=3, help="run the ChArUco detector on every Nth frame")
+    parser.add_argument("--save-detected", action="store_true",
+                        help=f"also save every frame with a detection unmarked in {DETECTED_DIR}/ (offline pose scoring, "
+                             "tools/unreal/dock_pass_report.py)")
     args = parser.parse_args(argv)
     args.out.mkdir(parents=True, exist_ok=True)
 
@@ -206,7 +216,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             parser.error("--pose-at needs 6 numbers")
         threads.append(threading.Thread(target=send_fixed_pose,
                                         args=(pose, parse_endpoint(args.pose_endpoint), samples, stop), daemon=True))
-    recorder = Recorder(args.out, args.save_every, args.detect_every)
+    recorder = Recorder(args.out, args.save_every, args.detect_every, args.save_detected)
     board_clock = AttitudeBoardClock(samples.history) if threads else None
     backend = NpycFrameCapture.open(args.source, _Logger(), board_clock, recorder.observe)
     if backend is None:

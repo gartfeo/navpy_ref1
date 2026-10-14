@@ -79,12 +79,14 @@ class Vehicle:
             last = m
             timeout = 0
 
-    def wait_message(self, mtype: str, timeout: float = 10.0,
+    def wait_message(self, mtype: str | tuple[str, ...], timeout: float = 10.0,
                      cond: Callable[[mavutil.mavlink.MAVLink_message], object] | None = None
                      ) -> mavutil.mavlink.MAVLink_message | None:
+        """The next message of mtype (one type or a tuple of types) for which cond holds, or None after timeout."""
+        types = [mtype] if isinstance(mtype, str) else list(mtype)
         deadline = time.time() + timeout
         while time.time() < deadline:
-            m = self.mav.recv_match(type=[mtype, "STATUSTEXT"], blocking=True, timeout=0.5)
+            m = self.mav.recv_match(type=types + ["STATUSTEXT"], blocking=True, timeout=0.5)
             if m is None:
                 continue
             if m.get_type() == "STATUSTEXT":

@@ -168,7 +168,7 @@ class Board(Vehicle):
         self._check_hitl()
         return super().pump(timeout)
 
-    def wait_message(self, mtype: str, timeout: float = 10.0, cond: Callable[..., object] | None = None) -> object:
+    def wait_message(self, mtype: str | tuple[str, ...], timeout: float = 10.0, cond: Callable[..., object] | None = None) -> object:
         self._check_hitl()
         return super().wait_message(mtype, timeout, cond)
 
