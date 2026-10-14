@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { analyzeArea, generatePlan, computeSets, setTrackSpacingOverride } from '../utils/planner';
 import { autoAssignDeliveryHubs } from '../utils/deliveryHubAssignment';
 import { PHASES } from './useMissionState';
+import { autoUavCount } from '../utils/planLimits';
 
 /**
  * Manages local (instant) plan analysis and generation, plus auto-regen effects.
@@ -32,12 +33,19 @@ export default function usePlanGeneration({
   setDeliveryHubAssignments,
   manualDeliveryHubEdit,
 }) {
-  const effectiveUavCount = uavCount ?? analysis?.required_uavs ?? 3;
+  const effectiveUavCount = uavCount ?? autoUavCount(analysis) ?? 3;
   const effectiveSets = computeSets(effectiveUavCount);
 
   // Keep phase accessible to effects without making it a dependency
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+
+  // Push the route offset into the planner config before any other effect of
+  // the same commit generates tracks: effects run in declaration order, so this
+  // stays the first one.
+  useEffect(() => {
+    setTrackSpacingOverride(routeOffsetM);
+  }, [routeOffsetM]);
 
   // Resize per-set arrays when effective sets count changes
   useEffect(() => {
@@ -61,6 +69,13 @@ export default function usePlanGeneration({
     return lp;
   });
 
+  // Latest committed analysis. An unlocked UAV count follows the area's
+  // requirement only when that requirement GROWS: a count set below an
+  // unchanged requirement — by the operator, or by a loaded plan file — stays,
+  // so re-analysis (route offset, settings round trip) cannot re-zone it.
+  const analysisRef = useRef(analysis);
+  analysisRef.current = analysis;
+
   const localAnalyze = useCallback((poly) => {
     if (!plannerReady) { setAnalysis(null); return; }
     if (!poly || poly.length < 3) { setAnalysis(null); return; }
@@ -68,10 +83,12 @@ export default function usePlanGeneration({
     const a = analyzeArea(polyObj);
     setAnalysis(a);
     if (searchPattern !== 'corridor' && poly.length >= 3) {
-      let count = uavCount ?? a.required_uavs ?? 3;
-      if (!uavCountLocked && a.required_uavs > (uavCount ?? a.required_uavs)) {
-        setUavCount(a.required_uavs);
-        count = a.required_uavs;
+      const auto = autoUavCount(a);
+      let count = uavCount ?? auto ?? 3;
+      const requirementGrew = a.required_uavs > (analysisRef.current?.required_uavs ?? 0);
+      if (!uavCountLocked && requirementGrew && auto > (uavCount ?? auto)) {
+        setUavCount(auto);
+        count = auto;
       }
       const ap = corridorPoints.length > 0
         ? corridorPoints[corridorPoints.length - 1] : launchPoint;
@@ -131,7 +148,7 @@ export default function usePlanGeneration({
   useEffect(() => {
     if (!analysis?.required_uavs) return;
     if (uavCount == null) {
-      setUavCount(analysis.required_uavs);
+      setUavCount(autoUavCount(analysis));
     }
   }, [analysis]);
 
@@ -150,13 +167,11 @@ export default function usePlanGeneration({
     }
   }, [plannerReady, searchPattern, effectiveUavCount, partitionAngleDeg]);
 
-  // Demo-mode route offset: push the override into the planner config, then
-  // re-analyze + regenerate so tracks reflect the new spacing. The override is
-  // applied even outside PLANNING so any later generation uses it; only the
-  // regen itself is gated. Skipped on mount (null override is already active).
+  // Demo-mode route offset: re-analyze + regenerate so tracks reflect the new
+  // spacing (the override itself is applied by the first effect above, even
+  // outside PLANNING). Only the regen is gated. Skipped on mount.
   const routeOffsetMountRef = useRef(true);
   useEffect(() => {
-    setTrackSpacingOverride(routeOffsetM);
     if (routeOffsetMountRef.current) { routeOffsetMountRef.current = false; return; }
     if (!plannerReady) return;
     if (phaseRef.current !== PHASES.PLANNING) return;
@@ -170,6 +185,18 @@ export default function usePlanGeneration({
       localAnalyze(polygon);
     }
   }, [routeOffsetM]);
+
+  // A loaded plan file regenerates only after its inputs (polygon, UAV count,
+  // partition angle, launch points, route offset) are committed and the
+  // spacing override above is applied — a regen from the load handler's own
+  // closure would use the previous plan's inputs, so the file's sim-dock
+  // waypoint indices would land on different tracks.
+  const [loadedPlanRevision, setLoadedPlanRevision] = useState(0);
+  const regenerateLoadedPlan = useCallback(() => setLoadedPlanRevision((n) => n + 1), []);
+  useEffect(() => {
+    if (!loadedPlanRevision) return;
+    localAnalyze(polygon);
+  }, [loadedPlanRevision]);
 
   // Clear plan/analysis when polygon is removed (PLANNING only)
   useEffect(() => {
@@ -254,6 +281,7 @@ export default function usePlanGeneration({
     effectiveSets,
     localAnalyze,
     localGenerate,
+    regenerateLoadedPlan,
     approachPoint,
     corridorPath,
   };

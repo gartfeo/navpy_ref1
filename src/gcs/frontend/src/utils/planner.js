@@ -59,9 +59,13 @@ export function autoPartitionAngle(polygonObj) {
 
 /**
  * Analyze polygon for mission planning stats.
+ * `trackSpacingOverrideM` (m, null = auto) analyzes at that route offset
+ * instead of the one currently configured — e.g. a plan file's saved spacing.
  */
-export function analyzeArea(polygonObj, uavCount) {
-  const cfg = getConfig();
+export function analyzeArea(polygonObj, uavCount, { trackSpacingOverrideM } = {}) {
+  const cfg = trackSpacingOverrideM === undefined
+    ? getConfig()
+    : { ...getConfig(), TRACK_SPACING_OVERRIDE_M: trackSpacingOverrideM };
   const polygonLL = polygonObj.map((p) => [p.lat, p.lon]);
   const [ptsM, refLat] = polygonToMeters(polygonLL);
   const areaKm2 = polygonAreaM2(ptsM) / 1e6;

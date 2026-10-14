@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import usePlanPersistence from './usePlanPersistence';
 
@@ -14,11 +15,12 @@ function fixture(overrides = {}) {
     settings: { default_delivery_hubs: [{ name: 'Fixture', type: 'other', lat: 0, lon: 0 }] },
     deliveryHubAssignments: [0], simDockWps: { 0: [2] }, detectAfterWps: { 0: 1 },
     drawing: { loadVertices: vi.fn() }, undoRef: { current: [] },
-    suppressRegenRef: { current: false }, ...overrides,
+    suppressRegenRef: { current: false }, plannerReady: true, ...overrides,
   };
   for (const key of ['setPolygon','setSearchPattern',
     'setLaunchPoint','setCorridorPoints','setSetLaunchPoints','setSetCorridorPoints',
-    'setActiveSetIndex','setAnalysis','setPlan','localAnalyze','setDeliveryHubAssignments',
+    'setActiveSetIndex','setAnalysis','setPlan','regenerateLoadedPlan','resetZoneSelectionBaseline',
+    'setUavCount','setPartitionAngleDeg','setRouteOffsetM','setDeliveryHubAssignments',
     'setSimDockWps','setDetectAfterWps','handleSaveSettings',
     'setFenceCustomVertices','setExclusionPolygons','setFenceEnabled','setFenceTouched','setFenceOffsetM',
     'authorFenceIntent','clearFenceIntent','resetFenceObservations']) props[key] = vi.fn();
@@ -37,9 +39,13 @@ function fixture(overrides = {}) {
   vi.stubGlobal('FileReader', class {
     readAsText() { this.onload({ target: { result: contents } }); }
   });
-  const { result } = renderHook(() => usePlanPersistence(props));
+  const { result, rerender } = renderHook(() => {
+    const [pendingPlanFile, setPendingPlanFile] = useState(null);
+    return usePlanPersistence({ ...props, pendingPlanFile, setPendingPlanFile });
+  });
   return {
     props,
+    setPlannerReady(ready) { props.plannerReady = ready; act(() => rerender()); },
     save() { act(() => result.current.handleSavePolygon()); return JSON.parse(written); },
     load(data) {
       this.loadText(JSON.stringify(data));
@@ -61,7 +67,7 @@ describe('current development plan files', () => {
     io.load({ polygon: io.props.polygon, dock_classes: ['small'], per_uav_dock_classes: { 0: ['large'] } });
     expect(alert).not.toHaveBeenCalled();
     expect(io.props.setPolygon).toHaveBeenCalledWith(io.props.polygon);
-    expect(io.props.localAnalyze).toHaveBeenCalledWith(io.props.polygon);
+    expect(io.props.regenerateLoadedPlan).toHaveBeenCalled();
   });
 
   it('rejects malformed JSON before changing state', () => {
@@ -80,7 +86,7 @@ describe('current development plan files', () => {
     io.load({ polygon: [], search_pattern: 'corridor',
       set_launch_points: [{ lat: 1, lon: 2 }], set_corridors: [[]] });
     expect(io.props.setSetLaunchPoints).toHaveBeenCalledWith([{ lat: 1, lon: 2 }]);
-    expect(io.props.localAnalyze).not.toHaveBeenCalled();
+    expect(io.props.regenerateLoadedPlan).not.toHaveBeenCalled();
   });
 
   it.each(['distributed', 'corridor'])('round-trips the current %s search pattern through the actual hook', (searchPattern) => {
@@ -109,6 +115,10 @@ describe('current development plan files', () => {
   it.each([null, 7, [], { polygon: [], poi_classes: ['old'] }, {}, { polygon: [], delivery_docks: [] }, { polygon: [], delivery_dock_assignments: [] },
     { polygon: [], tactic: 'corridor' },
     { polygon: [], tactic: 'corridor', search_pattern: 'distributed' },
+    { polygon: [], route_offset_m: '90' }, { polygon: [], route_offset_m: 0 },
+    { polygon: [], route_offset_m: 1e-9 }, { polygon: [], route_offset_m: 19 }, { polygon: [], route_offset_m: 501 },
+    { polygon: [], partition_angle_deg: 'north' }, { polygon: [], uav_count: 2.5 },
+    { polygon: [], uav_count: 0 }, { polygon: [], uav_count: 100 }, { polygon: [], uav_count: 1e100 },
   ].map(data => [data]))(
     'rejects unsupported structure %j before any state changes', (data) => {
       const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
@@ -124,13 +134,23 @@ describe('current development plan files', () => {
     },
   );
 
-  it('preserves existing empty optional-array behavior', () => {
+  it('preserves existing empty optional-array behavior and clears omitted selections', () => {
     const io = fixture();
     io.load({ polygon: io.props.polygon, default_delivery_hubs: [], delivery_hub_assignments: [] });
     expect(io.props.handleSaveSettings).not.toHaveBeenCalled();
     expect(io.props.setDeliveryHubAssignments).not.toHaveBeenCalled();
-    expect(io.props.setSimDockWps).not.toHaveBeenCalled();
-    expect(io.props.setDetectAfterWps).not.toHaveBeenCalled();
+    // Save omits empty selection maps, so omitted means none, not "keep".
+    expect(io.props.setSimDockWps).toHaveBeenCalledWith({});
+    expect(io.props.setDetectAfterWps).toHaveBeenCalledWith({});
+  });
+
+  it.each([
+    { route_offset_m: 20 }, { route_offset_m: 500 }, { uav_count: 1 }, { uav_count: 99 },
+  ])('accepts the boundary value %j', (fields) => {
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const io = fixture();
+    io.load({ polygon: io.props.polygon, ...fields });
+    expect(alert).not.toHaveBeenCalled();
   });
 
   it.each([{}, null])('omits empty optional simulation fields %j when saving', (value) => {
@@ -187,10 +207,58 @@ describe('current development plan files', () => {
     expect(io.props.clearFenceIntent).not.toHaveBeenCalled();
   });
 
-  it('loads a simulation waypoint selection without changing omitted detection selection', () => {
+  it('loads a simulation waypoint selection and clears the omitted detection selection', () => {
     const io = fixture();
     io.load({ polygon: io.props.polygon, sim_dock_wps: { 0: 7 } });
     expect(io.props.setSimDockWps).toHaveBeenCalledWith({ 0: 7 });
-    expect(io.props.setDetectAfterWps).not.toHaveBeenCalled();
+    expect(io.props.setDetectAfterWps).toHaveBeenCalledWith({});
+  });
+
+  it.each([
+    [{ routeOffsetM: 90, uavCount: 3, partitionAngleDeg: 12.5 }, { route_offset_m: 90, uav_count: 3, partition_angle_deg: 12.5 }],
+    [{ routeOffsetM: null, uavCount: null, partitionAngleDeg: null }, { route_offset_m: null, uav_count: null, partition_angle_deg: null }],
+  ])('saves the track-shaping inputs %j (null = auto)', (state, expected) => {
+    expect(fixture(state).save()).toMatchObject(expected);
+  });
+
+  it('restores the saved route offset, UAV count and partition angle', () => {
+    const io = fixture();
+    io.load({ polygon: io.props.polygon, route_offset_m: 90, uav_count: 3, partition_angle_deg: 12.5 });
+    expect(io.props.setRouteOffsetM).toHaveBeenCalledWith(90);
+    expect(io.props.setUavCount).toHaveBeenCalledWith(3);
+    expect(io.props.setPartitionAngleDeg).toHaveBeenCalledWith(12.5);
+    expect(io.props.regenerateLoadedPlan).toHaveBeenCalled();
+  });
+
+  it('loads an older file without the fields as auto spacing and auto partition', () => {
+    const io = fixture({ routeOffsetM: 90, partitionAngleDeg: 30, uavCount: 6 });
+    io.load({ polygon: io.props.polygon });
+    expect(io.props.setRouteOffsetM).toHaveBeenCalledWith(null);
+    expect(io.props.setPartitionAngleDeg).toHaveBeenCalledWith(null);
+    // No saved count: the session's current UAV count stays.
+    expect(io.props.setUavCount).not.toHaveBeenCalled();
+  });
+
+  it('keeps the loaded waypoint selections off the zone count of the replaced plan', () => {
+    const io = fixture();
+    io.load({ polygon: io.props.polygon, sim_dock_wps: { 0: [1] } });
+    expect(io.props.resetZoneSelectionBaseline).toHaveBeenCalled();
+  });
+
+  it('holds a file loaded before the planner is ready and applies it once ready', () => {
+    const io = fixture({ plannerReady: false });
+    io.load({ polygon: io.props.polygon, route_offset_m: 90, uav_count: 3, sim_dock_wps: { 0: [1] } });
+    for (const value of Object.values(io.props)) {
+      if (vi.isMockFunction(value)) expect(value).not.toHaveBeenCalled();
+    }
+    io.setPlannerReady(true);
+    expect(io.props.setUavCount).toHaveBeenCalledWith(3);
+    expect(io.props.setRouteOffsetM).toHaveBeenCalledWith(90);
+    expect(io.props.setSimDockWps).toHaveBeenCalledWith({ 0: [1] });
+    expect(io.props.setAnalysis).toHaveBeenCalledWith(expect.objectContaining({ track_spacing_m: 90 }));
+    expect(io.props.regenerateLoadedPlan).toHaveBeenCalledTimes(1);
+    io.setPlannerReady(false);
+    io.setPlannerReady(true);
+    expect(io.props.regenerateLoadedPlan).toHaveBeenCalledTimes(1); // applied once
   });
 });
