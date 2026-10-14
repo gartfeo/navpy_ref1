@@ -34,8 +34,12 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable
+from typing import TypeVar
 
+from navpy.sim.lockstep.baton import LockstepFault
 from navpy.sim.lockstep.coordinator_types import HostFault
+
+T = TypeVar("T")
 
 #: The coordinator's sub-waits within one tick, by the name the fault journals.
 FRAME, TICK, DONE, REGISTER, EXIT, OPERATOR, REPLY, LAUNCH = (
@@ -98,6 +102,23 @@ class ExchangeDeadline:
         """A sub-wait failed: once ``D_k`` has passed, the shared deadline bound it."""
         if self.spent():
             raise self.fault(wait) from error
+
+    def bounded(self, wait: str, call: Callable[[float | None], T]) -> T:
+        """Run a baton sub-wait (``call(wall_deadline)``) on what is left of ``D_k``.
+
+        ``wall_deadline`` is ``D_k`` on ``time.monotonic()`` (the baton's
+        clock), or None when no finite deadline is open. A baton fault (a
+        handoff past its budget) once ``D_k`` has passed is the deadline's,
+        and so is a return after it; any other fault stays as raised."""
+        left_s = self.budget(wait, math.inf)
+        wall_deadline = None if math.isinf(left_s) else time.monotonic() + left_s
+        try:
+            result = call(wall_deadline)
+        except LockstepFault as error:
+            self.raise_if_spent(wait, error)
+            raise
+        self.check(wait)
+        return result
 
     def fault(self, wait: str) -> HostFault:
         return HostFault("exchange_budget", f"tick {self._k}: the exchange deadline ran out "

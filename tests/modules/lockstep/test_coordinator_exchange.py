@@ -391,3 +391,34 @@ def test_the_snap_latch_is_the_latest_first_snap_of_the_expected_fleet():
     partial = SnapLatch((1, 2))
     partial.observe(5, [(1, 1)])
     assert not partial.complete  # 2 never spawned, or retired without a SNAP
+
+
+def test_a_bounded_baton_wait_gets_the_wall_deadline_and_is_classified_by_it():
+    """``ExchangeDeadline.bounded``: the one path the coordinator's operator and
+    10d's scripted operator share. The call gets ``D_k`` on the baton's clock;
+    a baton fault or a return past ``D_k`` is ``exchange_budget``; a fault
+    before it stays the call's own."""
+    assert ExchangeDeadline().bounded("operator", lambda wall: wall) is None
+    clock = FakeClock()
+    deadline = ExchangeDeadline(STEP_S, MARGIN_S, clock=clock)
+    deadline.anchor()
+    deadline.open(1)
+    wall = deadline.bounded("operator", lambda wall: wall)
+    assert wall == pytest.approx(time.monotonic() + STEP_S - MARGIN_S, abs=1.0)
+
+    def fails(spend_s: float):
+        def call(_wall):
+            clock.spend(spend_s)
+            raise LockstepFault("handoff past its budget")
+        return call
+
+    with pytest.raises(LockstepFault) as early:
+        deadline.bounded("operator", fails(1.0))
+    assert not isinstance(early.value, HostFault)
+    with pytest.raises(HostFault, match="operator wait") as late:
+        deadline.bounded("operator", fails(STEP_S))
+    assert isinstance(late.value.__cause__, LockstepFault)
+    deadline.anchor()
+    deadline.open(2)
+    with pytest.raises(HostFault, match="operator wait"):
+        deadline.bounded("operator", lambda _wall: clock.spend(STEP_S))  # returned too late

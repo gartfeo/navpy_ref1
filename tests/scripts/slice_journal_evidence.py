@@ -17,6 +17,7 @@ from navpy.sim.lockstep.coordinator_types import serial0_device, serial1_device
 from scripts.eval_gcs_demo_confirmation_timing import RESPONSE_ID
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, NAVPY_LINES_FILE, POSE_CADENCE_STREAMS
+from scripts.lockstep_wsl_sitl import BOOT_BUDGET_US
 
 GRID_US = 20_000
 MAX_GAP_US = 20_825
@@ -69,7 +70,7 @@ def slice_records(lines: list[str], sys_id: int) -> list[dict]:
     serial0, serial1 = serial0_device(sys_id), serial1_device(sys_id)
     records: list[dict] = [{"grid": {"max_frame_gap_us": MAX_GAP_US, "drain_period_us": GRID_US,
                                      "mission_budget_us": 3_600_000_000,
-                                     "sitl_ports": [[serial0, serial1]], "boot_budget_us": None,
+                                     "sitl_ports": [[serial0, serial1]], "boot_budget_us": BOOT_BUDGET_US,
                                      "expected_fleet": [sys_id]}}]
     for tick in range(1, terminal + 3):
         record: dict = {"k": tick, "phase": "mission", "t_us": tick * GRID_US}

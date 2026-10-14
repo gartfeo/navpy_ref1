@@ -44,7 +44,7 @@ def test_lockstep_defaults_turn_off_the_logger_and_keep_terrain_on():
     assert overrides["SIM_BAUDLIMIT_EN"] == 0.0
 
 
-def test_prepare_root_seeds_the_pinned_terrain_tiles_into_the_instance(monkeypatch):
+def test_prepare_instance_seeds_the_pinned_terrain_tiles_into_the_instance(monkeypatch):
     """Each tile goes to ``<root>/<instance>/terrain/`` (SITL's terrain directory,
     relative to its cwd) and is checked by its sha256 in WSL."""
     import hashlib
@@ -56,14 +56,32 @@ def test_prepare_root_seeds_the_pinned_terrain_tiles_into_the_instance(monkeypat
     monkeypatch.setattr(lockstep_wsl.subprocess, "run",
                         lambda argv, **kwargs: calls.append((argv[-1], kwargs.get("input"))))
     tiles = terrain_tiles()
-    root = lockstep_wsl.prepare_root("r", 120, "X 1\n", tiles)
+    root = lockstep_wsl.create_root("r", "X 1\n")
     assert root == "/home/u/navpy-eval-roots/lockstep-r"
+    assert lockstep_wsl.prepare_instance(root, 120, tiles) == f"{root}/120"
     seeded = [(script, data) for script, data in calls if "/terrain/" in script]
     assert len(seeded) == len(tiles) == 1
     script, data = seeded[0]
     assert data == tiles["N40E044.DAT"]
     assert f"cat > {root}/120/terrain/N40E044.DAT;" in script
     assert hashlib.sha256(data).hexdigest() in script  # verified after the write
+
+
+def test_the_root_is_created_once_and_each_instance_refuses_an_existing_directory(monkeypatch):
+    """``lockstep_fleet.md``, Launch step 1: ``create_root`` once (it refuses an
+    existing root), then ``prepare_instance`` per SITL (each refuses its own)."""
+    monkeypatch.setattr(lockstep_wsl, "wsl", lambda script, **_k: "/home/u")
+    calls = []
+    monkeypatch.setattr(lockstep_wsl.subprocess, "run",
+                        lambda argv, **kwargs: calls.append((argv[-1], kwargs.get("input"))))
+    root = lockstep_wsl.create_root("r", "X 1\n")
+    (create, defaults), = calls
+    assert f"test ! -e {root};" in create and "bin/arduplane" in create and defaults == b"X 1\n"
+    for instance in (120, 121, 122):
+        lockstep_wsl.prepare_instance(root, instance, {})
+    lua = [script for script, _data in calls[1:]]
+    assert [f"test ! -e {root}/{i};" in script for i, script in zip((120, 121, 122), lua)] == [True] * 3
+    assert all("aas_params.lua" in script and "arduplane" not in script for script in lua)
 
 
 def test_the_firmware_lock_pins_a_binary():
@@ -142,7 +160,7 @@ class _HeldWslChild:
 def _fake_wsl(monkeypatch):
     _HeldWslChild.instances = []
     monkeypatch.setattr(lockstep_wsl.subprocess, "Popen", _HeldWslChild)
-    monkeypatch.setattr(lockstep_wsl, "proc", lambda *args: "777 /root/lockstep-a/0")
+    monkeypatch.setattr(lockstep_wsl, "proc", lambda *args, **_kw: "777 /root/lockstep-a/0")
 
 
 def test_spawn_admits_before_go_and_a_refusal_never_sends_go(tmp_path, monkeypatch):
@@ -160,6 +178,20 @@ def test_spawn_admits_before_go_and_a_refusal_never_sends_go(tmp_path, monkeypat
     (child,) = _HeldWslChild.instances
     assert not child.child_runs and child.closed  # killed unstarted
     assert seen[0].wsl_pid == 321 and seen[0].start_ticks == 777
+
+
+def test_on_go_runs_after_admission_and_right_before_go(tmp_path, monkeypatch):
+    """A fleet anchors frame 1's deadline in ``on_go``: never after the child may run."""
+    _fake_wsl(monkeypatch)
+    order = []
+
+    def on_go():
+        order.append(("on_go", bytes(_HeldWslChild.instances[0].written)))
+
+    child = lockstep_wsl_spawn.spawn("sitl1", "x", "/root/lockstep-a/0", tmp_path / "p.json", held=[],
+                                     admit=lambda _owned: order.append("admitted") or True, on_go=on_go)
+    assert order == ["admitted", ("on_go", b"")] and child.process.child_runs
+    child.close(timeout_s=5)
 
 
 def test_a_stop_racing_record_and_go_leaves_no_running_child(tmp_path, monkeypatch):
@@ -237,14 +269,12 @@ class _PipedWslChild:
 
 
 def _piped_wsl(monkeypatch, first: bytes = b"", *, close_after_first: bool = False,
-               wait_timeouts: int = 0, stop_fails: bool = False) -> list:
+               wait_timeouts: int = 0) -> list:
     """Install the double; return the ``proc`` calls."""
     calls: list = []
 
-    def proc(*args):
+    def proc(*args, **_kw):
         calls.append(args)
-        if args[0] == "stop" and stop_fails:
-            raise RuntimeError("WSL command failed")
         return "777 /root/lockstep-a/0"
 
     monkeypatch.setattr(lockstep_wsl.subprocess, "Popen", _PipedWslChild)
@@ -298,11 +328,12 @@ def test_spawn_waits_for_the_ready_line_and_keeps_it_in_the_sidecar(tmp_path, mo
         b"boot\nLOCKSTEP_RELAY_READY pid=5\nLOCKSTEP_RELAY_DONE frames=3\n")
 
 
-def test_a_failed_spawn_after_go_stops_the_child_and_releases_every_host_resource(
+def test_a_failed_spawn_after_go_only_releases_and_the_owner_stops_and_closes_it(
         tmp_path, monkeypatch):
-    """Codex 9h round 1 P2-2: the relay exits before its ready line. Spawn stops
-    the recorded child, reaps ``wsl.exe``, closes its streams and the sidecar,
-    then raises; the output so far is in the sidecar."""
+    """Codex 9h round 1 P2-2, under 10d round 2's structure: the relay exits
+    before its ready line. Spawn raises at once without stopping or reaping;
+    the child is held and released. The owner then stops it by its record and
+    closes it: ``wsl.exe`` reaped, streams and sidecar closed, output kept."""
     calls = _piped_wsl(monkeypatch, b"Traceback: bind failed\n", close_after_first=True)
     record = tmp_path / lockstep_wsl.PROCESSES_FILE
     held: list = []
@@ -311,18 +342,33 @@ def test_a_failed_spawn_after_go_stops_the_child_and_releases_every_host_resourc
                                  ready="LOCKSTEP_RELAY_READY")
     (child,) = held
     stdin, stdout = _PipedWslChild.latest
-    assert ("stop", 321, 777, "/root/lockstep-a/0") in calls  # by its record
-    assert child.closed and stdin.closed and stdout.closed and child.sink.closed
+    assert calls == [("identity", 321)] and stdin.closed and not child.closed  # released only
+    assert lockstep_wsl.stop_owned(record, "/root/lockstep-a") == ["relay 321: 777 /root/lockstep-a/0"]
+    assert ("stop", 321, 777, "/root/lockstep-a/0") in calls  # by its record, the owner's
+    child.close(timeout_s=5)
+    assert child.closed and stdout.closed and child.sink.closed
     assert b"bind failed" in lockstep_wsl_spawn.output_sidecar(record, "relay").read_bytes()
 
 
-def test_an_interrupt_after_go_is_delivered_stops_the_child_by_its_record(tmp_path, monkeypatch):
+def test_an_interrupt_after_go_is_raised_at_once_and_the_owner_stops_the_child_by_record(
+        tmp_path, monkeypatch):
     """Codex 9h round 2 P2-1: ``go`` reaches the launcher, then an interrupt.
-    Its bash is in ``wait`` now and EOF no longer kills the child, so spawn
-    stops it by its record, closes everything, and the interrupt is raised."""
+    EOF no longer kills the child, but it is recorded: spawn raises at once
+    (no stop, no reap in its path, 10d round 2) and the owner's stop by
+    ownership stops it; then the owner's close releases everything."""
     import io
+    import os
 
     calls = _piped_wsl(monkeypatch)
+    recorded_stop = lockstep_wsl.proc
+
+    def proc(*args, **kwargs):
+        result = recorded_stop(*args, **kwargs)
+        if args[0] == "stop":
+            os.close(_PipedWslChild.write_fd)  # the stopped child's output ends: EOF
+        return result
+
+    monkeypatch.setattr(lockstep_wsl, "proc", proc)
 
     class InterruptAfterGo(io.BytesIO):
         def flush(self) -> None:
@@ -337,46 +383,53 @@ def test_an_interrupt_after_go_is_delivered_stops_the_child_by_its_record(tmp_pa
         self.stdin = InterruptAfterGo()
 
     monkeypatch.setattr(_PipedWslChild, "__init__", init)
+    record = tmp_path / lockstep_wsl.PROCESSES_FILE
     held: list = []
     with pytest.raises(KeyboardInterrupt):
-        lockstep_wsl_spawn.spawn("sitl", "x", "/root/lockstep-a/0",
-                                 tmp_path / lockstep_wsl.PROCESSES_FILE, held=held)
+        lockstep_wsl_spawn.spawn("sitl", "x", "/root/lockstep-a/0", record, held=held)
     (child,) = held
+    assert not any(call[0] == "stop" for call in calls) and not child.closed
+    lockstep_wsl.stop_owned(record, "/root/lockstep-a")
     assert ("stop", 321, 777, "/root/lockstep-a/0") in calls
+    child.close(timeout_s=5)
     assert child.closed and child.process.stdout.closed and child.sink.closed
 
 
-@pytest.mark.parametrize("failure", ["stop_fails", "wait_times_out"])
-def test_abandoning_with_a_running_drain_never_blocks_and_leaves_the_rest_for_a_retry(
-        tmp_path, monkeypatch, failure):
-    """Codex 9h round 2 P2-2: the drain already runs when spawn fails (an
-    interrupt out of ``Thread.start``). The stop by record fails, or the
-    launcher outlives its bounded wait: spawn still raises its own error at
-    once, stdout stays open under the live drain, and the child stays in
-    ``held``. Once the child exits, the owner's retry closes it."""
+@pytest.mark.parametrize("interrupted", ["start_reader", "start_drain"])
+def test_an_interrupt_once_a_thread_runs_leaves_a_held_child_the_owner_closes_on_retry(
+        tmp_path, monkeypatch, interrupted):
+    """Codex 10d round 2 P2-2 (and 9h round 2 P2-2): a thread of the child
+    already runs when spawn is interrupted (right after the reader started,
+    or after the drain did). The child was in ``held`` before any thread
+    started, spawn raises at once, stdout stays open under the live thread,
+    and a close whose wait runs out leaves the child held for a retry, which
+    closes it once the child exits."""
     import os
 
-    _piped_wsl(monkeypatch, stop_fails=failure == "stop_fails",
-               wait_timeouts=1 if failure == "wait_times_out" else 0)
-    real_start = lockstep_wsl_spawn.WslChild.start_drain
+    _piped_wsl(monkeypatch, wait_timeouts=1)
+    real_start = getattr(lockstep_wsl_spawn.WslChild, interrupted)
+    in_held: list = []
+    held: list = []
 
     def start_then_interrupt(self):
+        in_held.append(self in held)
         real_start(self)
         raise KeyboardInterrupt  # after the thread launched
 
-    monkeypatch.setattr(lockstep_wsl_spawn.WslChild, "start_drain", start_then_interrupt)
-    held: list = []
+    monkeypatch.setattr(lockstep_wsl_spawn.WslChild, interrupted, start_then_interrupt)
     with pytest.raises(KeyboardInterrupt):
         lockstep_wsl_spawn.spawn("sitl", "x", "/root/lockstep-a/0",
                                  tmp_path / lockstep_wsl.PROCESSES_FILE, held=held)
     (child,) = held
-    assert not child.closed and not child.process.stdout.closed  # never under the live drain
+    assert in_held == [True]  # owned before its thread started
+    assert child.process.stdin.closed and not child.closed and not child.process.stdout.closed
+    with pytest.raises(subprocess.TimeoutExpired):
+        child.close(timeout_s=5)  # the launcher outlives the bounded wait: kept for a retry
+    assert not child.closed and not child.process.stdout.closed
     os.write(_PipedWslChild.write_fd, b"late line\n")
     os.close(_PipedWslChild.write_fd)  # the child exits (stopped by the owner's stop)
     child.close(timeout_s=5)
     assert child.closed and child.process.stdout.closed
-    sidecar = lockstep_wsl_spawn.output_sidecar(tmp_path / lockstep_wsl.PROCESSES_FILE, "sitl")
-    assert sidecar.read_bytes() == b"late line\n"
 
 
 def test_a_failing_sidecar_never_stops_the_drain_and_close_raises_its_error():
@@ -403,6 +456,7 @@ def test_a_failing_sidecar_never_stops_the_drain_and_close_raises_its_error():
     sink = FailingSink()
     child = lockstep_wsl_spawn.WslChild(process, "sitl")
     child.sink = sink
+    child.start_reader()
     child.start_drain()
     big = b"x" * (4 << 20)  # far beyond any pipe buffer
 
@@ -421,7 +475,7 @@ def test_a_failing_sidecar_never_stops_the_drain_and_close_raises_its_error():
 
 
 class _HostChild:
-    """A ``WslChild`` double for ``WslSitl.stop``: ``fails`` closes raise first."""
+    """A ``WslChild`` double for ``WslFleet.stop``: ``fails`` closes raise first."""
 
     def __init__(self, role: str, fails: int = 0) -> None:
         self.role = role
@@ -438,14 +492,14 @@ class _HostChild:
 
 
 def _wsl_sitl(tmp_path):
-    from scripts.lockstep_wsl_sitl import WslSitl
+    from scripts.lockstep_wsl_sitl import FleetLaunch, WslFleet
 
-    sitl = WslSitl(tmp_path, 40, {}, seed=1, delay_seed=0, defaults="", tiles={})
+    sitl = WslFleet(tmp_path, 40, {}, FleetLaunch(((1, "h"),), 1, 0, "", {}))
     sitl.root = "/home/x/navpy-eval-roots/lockstep-a"
     return sitl
 
 
-def test_wsl_sitl_stop_retries_a_failed_ownership_stop_and_only_then_closes(tmp_path, monkeypatch):
+def test_wsl_fleet_stop_retries_a_failed_ownership_stop_and_only_then_closes(tmp_path, monkeypatch):
     sitl = _wsl_sitl(tmp_path)
     relay, sitl_child = _HostChild("relay"), _HostChild("sitl")
     sitl._children = [relay, sitl_child]
@@ -465,7 +519,7 @@ def test_wsl_sitl_stop_retries_a_failed_ownership_stop_and_only_then_closes(tmp_
     assert relay.closed and sitl_child.closed and sitl._children == []
 
 
-def test_wsl_sitl_stop_keeps_a_child_whose_close_failed_and_a_retry_closes_it(tmp_path, monkeypatch):
+def test_wsl_fleet_stop_keeps_a_child_whose_close_failed_and_a_retry_closes_it(tmp_path, monkeypatch):
     """Codex 9h round 1 P2-3: the ownership stop succeeds once; a close that
     times out keeps its child, and the next stop closes it without stopping again."""
     sitl = _wsl_sitl(tmp_path)

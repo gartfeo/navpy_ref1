@@ -79,9 +79,8 @@ def run_once(run_dir: Path, ticks: int, host_delay_seed: int, jitter_seed: int, 
     children: list[lockstep_wsl_spawn.WslChild] = []  # held: their output drains to *_host
     failure: BaseException | None = None
     try:
-        state["root"] = root = lockstep_wsl.prepare_root(run_name, instance, lockstep_wsl.merged_defaults(),
-                                                            terrain_tiles())
-        inst_dir = f"{root}/{instance}"
+        state["root"] = root = lockstep_wsl.create_root(run_name, lockstep_wsl.merged_defaults())
+        inst_dir = lockstep_wsl.prepare_instance(root, instance, terrain_tiles())
         relay_args = (
             f"python3 {lockstep_wsl.wsl_path(ROOT / 'scripts' / 'lockstep_relay.py')} "
             f"--dir {inst_dir} --port {ip.lockstep_relay_port(slot, 0)}"

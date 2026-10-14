@@ -49,13 +49,10 @@ from __future__ import annotations
 
 import json
 import logging
-import math
-import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from navpy.sim.lockstep.baton import LockstepFault
 from navpy.sim.lockstep.coordinator_deadline import OPERATOR as OPERATOR_WAIT
 from navpy.sim.lockstep.coordinator_deadline import ExchangeDeadline
 from navpy.sim.lockstep.coordinator_fleet import Sitl, SitlFleet, SitlHost, anchor_now
@@ -227,16 +224,9 @@ class LockstepCoordinator:
     def _run_operator(self, k: int, t_us: int, output: TickOutput, record: TickRecord) -> None:
         if self._operator.done:
             return
-        deadline = self._roster.deadline
         # The baton's handoffs and timer rounds all draw on what is left of D_k.
-        left_s = deadline.budget(OPERATOR_WAIT, math.inf)
-        inbox = self._inbox(k, t_us, output, None if math.isinf(left_s) else time.monotonic() + left_s)
-        try:
-            requests = self._operator.run_tick(inbox)
-        except LockstepFault as error:  # a handoff past its budget: the deadline's, once spent
-            deadline.raise_if_spent(OPERATOR_WAIT, error)
-            raise
-        deadline.check(OPERATOR_WAIT)
+        requests = self._roster.deadline.bounded(
+            OPERATOR_WAIT, lambda wall: self._operator.run_tick(self._inbox(k, t_us, output, wall)))
         deliver_operator_requests(self._roster, requests, k)
         self._note_operator(record)
 

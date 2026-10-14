@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import shlex
 import subprocess
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,7 +38,7 @@ PROCESSES_FILE = "lockstep_processes_host.json"
 #: Lockstep-only defaults on top of the wall eval's (step 3): no BIN log,
 #: scripting for aas_params.lua only (contract: Firmware helpers). Terrain is
 #: on, as in the wall eval (the firmware default, stated): the SITL's ground
-#: and ``TERRAIN_REPORT`` come from the pinned tiles :func:`prepare_root`
+#: and ``TERRAIN_REPORT`` come from the pinned tiles :func:`prepare_instance`
 #: seeds; SITL reads them on its main thread (contract: Firmware helpers).
 LOCKSTEP_DEFAULT_OVERRIDES = {
     **SITL_DEFAULT_OVERRIDES,
@@ -66,8 +67,8 @@ def wsl(script: str, *, timeout: float = 60.0) -> str:
     return result.stdout
 
 
-def wsl_path(path: Path) -> str:
-    return wsl(f"wslpath -a {shlex.quote(str(path))}").strip()
+def wsl_path(path: Path, *, timeout_s: float = 60.0) -> str:
+    return wsl(f"wslpath -a {shlex.quote(str(path))}", timeout=timeout_s).strip()
 
 
 def load_firmware_lock() -> dict:
@@ -77,34 +78,46 @@ def load_firmware_lock() -> dict:
 def merged_defaults() -> str:
     """The ``defaults.parm`` a lockstep SITL consumes: WSL's stock ``plane.parm``
     with :data:`LOCKSTEP_DEFAULT_OVERRIDES` merged in. Read once per run, so the
-    input manifest hashes exactly what :func:`prepare_root` writes."""
+    input manifest hashes exactly what :func:`create_root` writes."""
     home = wsl("printf %s \"$HOME\"")
     stock = wsl(f"cat {shlex.quote(home + '/' + STOCK_DEFAULTS)}")
     return merge_defaults(stock, LOCKSTEP_DEFAULT_OVERRIDES)
 
 
-def prepare_root(run_name: str, instance: int, defaults: str, tiles: Mapping[str, bytes]) -> str:
-    """Create the run's WSL root and its instance directory with ``defaults``
-    (:func:`merged_defaults`) as its ``defaults.parm`` and ``tiles``
-    (``eval_gcs_demo_sitl_root.terrain_tiles``, the wall eval's pinned SITL
-    terrain) in its ``terrain/``, where SITL looks (relative to its cwd);
-    return the root. Both are read once per run and hashed in the input
-    manifest, so it hashes exactly what is written here."""
+def create_root(run_name: str, defaults: str) -> str:
+    """Create the run's WSL root, once per run: the firmware copy (checked
+    against the lock) and ``defaults`` (:func:`merged_defaults`) as its
+    ``defaults.parm``; return the root. An existing root is refused, so a run
+    never reuses another's (``lockstep_fleet.md``, Fleet barrier, launch step 1)."""
     lock = load_firmware_lock()
     home = wsl("printf %s \"$HOME\"")
     root = f"{home}/{SITL_ROOTS}/lockstep-{run_name}"
-    lua = (SITL_LUA_DIR / "aas_params.lua").read_bytes().replace(b"\r\n", b"\n")
     q = shlex.quote
-    inst = f"{root}/{instance}"
     script = (
-        f"set -e; test ! -e {q(root)}; mkdir -p {q(inst)}/scripts {q(root)}/bin; "
+        f"set -e; test ! -e {q(root)}; mkdir -p {q(root)}/bin; "
         f"cp {q(lock['binary_path'])} {q(root)}/bin/arduplane; "
         f"test \"$(sha256sum {q(root)}/bin/arduplane | cut -d' ' -f1)\" = {q(lock['binary_sha256'])}; "
         f"cat > {q(root)}/defaults.parm; "
     )
     subprocess.run(["wsl.exe", "-e", "bash", "-c", script], input=defaults.encode(),
                    check=True, capture_output=True, timeout=60)
-    subprocess.run(["wsl.exe", "-e", "bash", "-c", f"cat > {q(inst)}/scripts/aas_params.lua"],
+    return root
+
+
+def prepare_instance(root: str, instance: int, tiles: Mapping[str, bytes]) -> str:
+    """One SITL's instance directory in ``root``: ``aas_params.lua`` and
+    ``tiles`` (``eval_gcs_demo_sitl_root.terrain_tiles``, the wall eval's
+    pinned SITL terrain) in its ``terrain/``, where SITL looks (relative to
+    its cwd); return the directory. An existing one is refused. Every
+    instance is prepared before any SITL runs. The defaults and tiles are
+    read once per run and hashed in the input manifest, so it hashes exactly
+    what is written here."""
+    lua = (SITL_LUA_DIR / "aas_params.lua").read_bytes().replace(b"\r\n", b"\n")
+    q = shlex.quote
+    inst = f"{root}/{instance}"
+    subprocess.run(["wsl.exe", "-e", "bash", "-c",
+                    f"set -e; test ! -e {q(inst)}; mkdir -p {q(inst)}/scripts; "
+                    f"cat > {q(inst)}/scripts/aas_params.lua"],
                    input=lua, check=True, capture_output=True, timeout=60)
     for name, data in sorted(tiles.items()):
         tile = f"{inst}/terrain/{name}"
@@ -113,13 +126,16 @@ def prepare_root(run_name: str, instance: int, defaults: str, tiles: Mapping[str
              f"set -e; mkdir -p {q(inst)}/terrain; cat > {q(tile)}; "
              f"test \"$(sha256sum {q(tile)} | cut -d' ' -f1)\" = {q(sha256_bytes(data))}"],
             input=data, check=True, capture_output=True, timeout=60)
-    return root
+    return inst
 
 
-def proc(*args: object) -> str:
-    """Run ``lockstep_wsl_proc.py`` in WSL (identity, stop, alive by record)."""
-    helper = shlex.quote(wsl_path(PROC_HELPER))
-    return wsl("python3 " + helper + " " + " ".join(shlex.quote(str(a)) for a in args)).strip()
+def proc(*args: object, timeout_s: float = 60.0) -> str:
+    """Run ``lockstep_wsl_proc.py`` in WSL (identity, stop, alive by record),
+    within ``timeout_s`` of wall time in all (``subprocess.TimeoutExpired``)."""
+    end = time.monotonic() + timeout_s
+    helper = shlex.quote(wsl_path(PROC_HELPER, timeout_s=timeout_s))
+    return wsl("python3 " + helper + " " + " ".join(shlex.quote(str(a)) for a in args),
+               timeout=max(0.0, end - time.monotonic())).strip()
 
 
 def stop_owned(record: Path, root: str) -> list[str]:
@@ -186,7 +202,8 @@ __all__ = [
     "PROCESSES_FILE",
     "load_firmware_lock",
     "merged_defaults",
-    "prepare_root",
+    "create_root",
+    "prepare_instance",
     "proc",
     "recorded_alive",
     "sitl_command",

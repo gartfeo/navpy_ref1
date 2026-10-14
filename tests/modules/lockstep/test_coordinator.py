@@ -9,7 +9,7 @@ import pytest
 from gcs.backend import instance_ports as ip
 from navpy.sim.lockstep.baton import LockstepFault
 from navpy.sim.lockstep.coordinator import Journal, run
-from navpy.sim.lockstep.scripted_operator import mission_items
+from navpy.sim.lockstep.scripted_vehicle import mission_items
 from navpy.sim.lockstep.step_wire import Frame, PortState, pack_frame, unpack_reply
 
 

@@ -41,7 +41,7 @@ from navpy.sim.lockstep.coordinator_types import Manifest, WallBudgets
 from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.participant_hooks import RequestIds
-from scripts import lockstep_wsl
+from scripts import lockstep_topology, lockstep_wsl
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 from scripts.eval_gcs_demo_audit import validate_approval_records
 from scripts.eval_gcs_demo_confirmation import ConfirmationTimeout
@@ -65,7 +65,15 @@ from scripts.lockstep_slice_actor import (
     slice_roles,
     stack_context,
 )
-from scripts.lockstep_wsl_sitl import DRAIN_PERIOD_US, MAX_FRAME_GAP_US, HostDelays, WslSitl
+from scripts.lockstep_wsl_sitl import (
+    BOOT_BUDGET_US,
+    DRAIN_PERIOD_US,
+    MAX_FRAME_GAP_US,
+    FleetLaunch,
+    HostDelays,
+    WslFleet,
+    exchange_deadline,
+)
 
 RUN_HOST_FILE = "lockstep_run_host.json"
 APPROVALS_FILE = "operator_approvals.json"
@@ -115,7 +123,7 @@ def manifest(scenario: DemoScenario, options: LockstepOptions) -> Manifest:
         drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(MISSION_BUDGET_S * 1_000_000),
         roles=slice_roles(scenario, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR),
         sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),),
-        companion_roles=("navpy",), expected_fleet=(NAVPY,),
+        companion_roles=("navpy",), expected_fleet=(NAVPY,), boot_budget_us=BOOT_BUDGET_US,
     )
 
 
@@ -165,29 +173,32 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     plan = manifest(scenario, options)
     defaults = lockstep_wsl.merged_defaults()  # the SITL's defaults.parm, hashed and then written
     tiles = terrain_tiles()  # its terrain/, hashed and then written
-    write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults, tiles)
+    # The slice's one SITL boots at the scenario's home as given (N = 1).
+    topology = lockstep_topology.topology_inputs((scenario.home,), lockstep_topology.run_swarm_sha256())
+    write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults, tiles, topology)
     slot, owner = lockstep.claim(run_token=f"seed-{options.seed}", clone=str(ROOT),
                                  owner=f"dir:{ROOT}")
     started = time.perf_counter()
-    sitl = WslSitl(run_dir, slot, owner, seed=options.seed, delay_seed=options.host_delay_seed,
-                   defaults=defaults, tiles=tiles)
+    fleet = WslFleet(run_dir, slot, owner, FleetLaunch(
+        ((SYS_ID, scenario.home),), options.seed, options.host_delay_seed, defaults, tiles))
     roster = Roster(plan, LocalSpawner(run_dir, (str(SRC), str(ROOT)),
                                        host_delay_seed=options.host_delay_seed),
                     lockstep.RegistryChildRecorder(slot, owner),
-                    HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS)
+                    HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS,
+                    deadline=exchange_deadline())
     ids = RequestIds(0)
     operator = OperatorBaton(ids, operator_script(scenario, run_dir, options))
-    coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir,
-                                      delay=HostDelays(options.host_delay_seed))
+    # The backend spawns and registers before the coordinator launches the SITL.
+    coordinator = LockstepCoordinator(plan, fleet.sitls, operator, roster, ids, run_dir,
+                                      delay=HostDelays(options.host_delay_seed), launch=fleet.launch)
     result = fault = None
     try:
-        sitl.start(scenario.home, SYS_ID)
         result = coordinator.run()
     except Exception as error:  # noqa: BLE001 - journaled by the coordinator; re-raised below
         fault = error
     finally:
         try:
-            sitl.stop()  # idempotent after the coordinator's own stop
+            fleet.stop()  # idempotent after the coordinator's own stop
         finally:
             lockstep.release_if_owner(slot, owner)
     journal: RunJournal = coordinator.journal
@@ -198,7 +209,7 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     (run_dir / APPROVALS_FILE).write_text(json.dumps({"approvals": approvals}, indent=2),
                                           encoding="utf-8")
     (run_dir / RUN_HOST_FILE).write_text(json.dumps({
-        "slot": slot, "wsl_root": sitl.root, "wall_s": time.perf_counter() - started,
+        "slot": slot, "wsl_root": fleet.root, "wall_s": time.perf_counter() - started,
         "host_delay_seed": options.host_delay_seed,
         "result": None if result is None else asdict(result),
         "fault": None if fault is None else f"{type(fault).__name__}: {fault}",

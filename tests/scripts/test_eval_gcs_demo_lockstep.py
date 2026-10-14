@@ -14,7 +14,7 @@ from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 from scripts.eval_gcs_demo_stack_ops import configure_vehicle_params
 from scripts.lockstep_slice_actor import NAMED_PARAMETER_NAMES, named_parameter_snapshot
-from scripts.lockstep_wsl_sitl import DRAIN_PERIOD_US, MAX_FRAME_GAP_US
+from scripts.lockstep_wsl_sitl import BOOT_BUDGET_US, DRAIN_PERIOD_US, MAX_FRAME_GAP_US
 
 ROOT = Path(__file__).resolve().parents[2]
 SLICE_PATH = ROOT / "scripts" / "eval_lockstep_slice_scenario.json"
@@ -76,6 +76,7 @@ def test_the_manifest_takes_the_grid_and_the_slice_roles():
     assert (plan.max_frame_gap_us, plan.drain_period_us) == (MAX_FRAME_GAP_US, DRAIN_PERIOD_US)
     assert plan.mission_budget_us == lockstep_eval.MISSION_BUDGET_S * 1_000_000
     assert set(plan.roles) == {"backend", "navpy"} and plan.companion_roles == ("navpy",)
+    assert plan.boot_budget_us == BOOT_BUDGET_US  # a SITL that never quiets ends the run
 
 
 class _Api:
