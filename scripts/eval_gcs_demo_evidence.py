@@ -141,16 +141,21 @@ def parse_final_approach_commands(path: Path) -> list[FinalApproachCommand]:
     return commands
 
 
+#: The docking gate's error for an episode that reached SNAP without DOCKED.
+SNAP_WITHOUT_DOCKED = "final-approach episode reached SNAP without DOCKED"
+
+
 def parse_final_approach_command_episodes(
     path: Path,
     *,
     vehicle_id: int | None = None,
 ) -> list[list[FinalApproachCommand]]:
-    """The command rows of each episode of `parse_final_approach_episodes`."""
-    return [
-        list(episode.commands)
-        for episode in parse_final_approach_episodes(path, vehicle_id=vehicle_id)
-    ]
+    """The command rows of each episode of `parse_final_approach_episodes`;
+    an undocked episode is rejected."""
+    episodes = parse_final_approach_episodes(path, vehicle_id=vehicle_id)
+    if not all(episode.docked for episode in episodes):
+        raise ValueError(SNAP_WITHOUT_DOCKED)
+    return [list(episode.commands) for episode in episodes]
 
 
 def parse_final_approach_episodes(
@@ -158,14 +163,16 @@ def parse_final_approach_episodes(
     *,
     vehicle_id: int | None = None,
 ) -> list[FinalApproachEpisode]:
-    """Require one source identity and one DOCKED row before each debug SNAP.
+    """Require one source identity per debug SNAP; flag each episode's DOCKED.
 
     Docking counts only from DOCKED (the sim contact sensor), matched to the
     episode's own DOCK_ARMED row. A duplicate, stale or wrong-episode event,
     an event for another vehicle or another dock, an event outside the
     episode's command time span, and any command row after the event are
     rejected. Every FINAL_APPROACH_RESPONSE_STATE row up to the episode's
-    SNAP is kept with it, unpaired; the achieved-roll gate pairs them.
+    SNAP is kept with it, unpaired; the achieved-roll gate pairs them. An
+    episode with no DOCKED is returned with ``docked`` false, so a miss does
+    not hide the episode's other checks.
     """
     episodes: list[FinalApproachEpisode] = []
     current: list[FinalApproachCommand] = []
@@ -205,13 +212,9 @@ def parse_final_approach_episodes(
                 last_episode = latched.episode
             elif event == "EVENT:SNAP_COMPONENTS":
                 if current:
-                    if docked is None:
-                        raise ValueError(
-                            "final-approach episode reached SNAP without DOCKED"
-                        )
-                    episodes.append(
-                        FinalApproachEpisode(tuple(current), tuple(responses))
-                    )
+                    episodes.append(FinalApproachEpisode(
+                        tuple(current), tuple(responses), docked is not None,
+                    ))
                 current = []
                 responses = []
                 source_key = None
@@ -233,6 +236,7 @@ def mission_navigation_segment(navigation_text: str) -> str:
 __all__ = [
     "DOCKED_AFTER_LAST_FRAME_MAX_S",
     "DOCK_NET_RADIUS_M",
+    "SNAP_WITHOUT_DOCKED",
     "navigation_speedup_errors",
     "load_approval_records",
     "mission_navigation_segment",

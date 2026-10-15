@@ -105,10 +105,13 @@ class FinalApproachResponse:
 
 @dataclass(frozen=True)
 class FinalApproachEpisode:
-    """One DOCKED episode's command rows and the response rows in its span."""
+    """One episode's command rows and the response rows in its span."""
 
     commands: tuple[FinalApproachCommand, ...]
     responses: tuple[FinalApproachResponse, ...]
+    #: A valid DOCKED row before the episode's SNAP; its absence is the
+    #: docking gate's failure, not an evidence error.
+    docked: bool
 
 
 @dataclass(frozen=True)

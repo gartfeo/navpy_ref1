@@ -24,9 +24,13 @@ from scripts.eval_gcs_demo_models import (
 )
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_gate_profiles import (
+    CERTIFIED_LOCKSTEP_PROFILE,
     CERTIFIED_PROFILE,
+    LOCKSTEP,
     OWNER_ONLY_SLICE_PROFILE,
     PROFILE_SIM_SPEEDUP,
+    WALL,
+    execution_profile,
 )
 from scripts.eval_gcs_demo_inputs import recorded_lockstep, require_recorded_scenario
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario, load_resolved_plan
@@ -141,10 +145,10 @@ def _no_run_gates(
     return []
 
 
-WALL, LOCKSTEP = "wall", "lockstep"
-#: (gate profile, execution mode) -> its run-level gates beyond the shared
-#: ones: a lockstep slice run adds the journal gates; a wall run (either
-#: profile) has none. The certified profile has no lockstep run before step 10.
+#: (execution profile, execution mode) -> its run-level gates beyond the
+#: shared ones: a lockstep slice run adds the journal gates; a wall run (either
+#: profile) has none. ``certified_lockstep`` has no entry until its journal
+#: gates exist (step 10g), so such a run is refused, not passed.
 RunGates = Callable[[Path, DemoMissionPlan, list[dict[str, JsonValue]]], list[str]]
 _RUN_GATES: dict[tuple[str, str], RunGates] = {
     (CERTIFIED_PROFILE, WALL): _no_run_gates,
@@ -162,17 +166,17 @@ def execution_mode(log_dir: Path) -> str:
     return WALL
 
 
-def _run_gates(log_dir: Path, profile: str) -> RunGates:
-    mode = execution_mode(log_dir)
+def _run_gates(profile: str, mode: str) -> RunGates:
     gates = _RUN_GATES.get((profile, mode))
     if gates is None:
         raise ValueError(f"gate profile {profile!r} has no {mode} run gates")
     return gates
 
 
-#: Gate profile -> how the run's global assignment is established.
+#: Execution profile -> how the run's global assignment is established.
 _ASSIGNMENT_EVIDENCE: dict[str, Callable[[Path, DemoMissionPlan], AssignmentEvidence]] = {
     CERTIFIED_PROFILE: global_assignment_evidence,
+    CERTIFIED_LOCKSTEP_PROFILE: global_assignment_evidence,
     OWNER_ONLY_SLICE_PROFILE: owner_only_assignment_evidence,
 }
 
@@ -193,11 +197,13 @@ def analyze_run(
     # Every caller (the CLI, the run comparison) gets the same refusal.
     require_recorded_scenario(log_dir, scenario)
     requested_speedup = finite_number("navigation_speedup", navigation_speedup)
-    sim_speedup = PROFILE_SIM_SPEEDUP[scenario.gate_profile]
-    if requested_speedup > 0.0 and scenario.gate_profile != CERTIFIED_PROFILE:
-        # The slice's cadence is lockstep's factor; no override may relax it.
+    mode = execution_mode(log_dir)
+    profile = execution_profile(scenario.gate_profile, mode)
+    sim_speedup = PROFILE_SIM_SPEEDUP[profile]
+    if requested_speedup > 0.0 and profile != CERTIFIED_PROFILE:
+        # A lockstep cadence is factor 1; no override may relax it.
         raise ValueError(
-            f"gate profile {scenario.gate_profile!r} has no navigation_speedup override"
+            f"execution profile {profile!r} has no navigation_speedup override"
         )
     supplied_ids = scenario.uav_ids(sys_ids) if sys_ids is not None else None
     supplied_approvals = (
@@ -219,14 +225,14 @@ def analyze_run(
         else load_approval_records(log_dir / "operator_approvals.json")
     )
     counts, approval_errors = approval_counts(approval_rows, plan)
-    evidence = _ASSIGNMENT_EVIDENCE[scenario.gate_profile](log_dir, plan)
+    evidence = _ASSIGNMENT_EVIDENCE[profile](log_dir, plan)
     assignments = evidence.assignments
     errors = approval_errors + evidence.errors + mission_assignment_errors(
         log_dir,
         plan,
         assignments,
         approval_rows,
-    ) + _run_gates(log_dir, scenario.gate_profile)(log_dir, plan, approval_rows)
+    ) + _run_gates(profile, mode)(log_dir, plan, approval_rows)
     reports = [
         analyze_vehicle(
             log_dir,
@@ -238,7 +244,7 @@ def analyze_run(
             launch_speedup=sim_speedup,
             command_bounds=command_bounds.for_vehicle(vehicle.sys_id),
             assignment_acked=evidence.acked,
-            gate_profile=scenario.gate_profile,
+            gate_profile=profile,
         )
         for vehicle in plan.vehicles
     ]
@@ -261,6 +267,8 @@ def analyze_run(
 
 
 __all__ = [
+    "LOCKSTEP",
+    "WALL",
     "AssignmentEvidence",
     "analyze_run",
     "analyze_vehicle",

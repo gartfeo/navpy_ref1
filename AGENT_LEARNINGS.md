@@ -20,3 +20,13 @@
   "Reading additional input from stdin..." until the timeout. Add < /dev/null.
 - **Keep scratch scripts out of shared temp folders.** A stray dis.py in the
   temp folder shadowed the stdlib; use a task-specific directory.
+
+## Gate split (step 10g-1, 2026-10-15)
+
+- **Check a design's premises against later commits.** The fleet design
+  asked for a strict xfail on todo 46. The EKF launch gate (61bdb67) had
+  already made the slice dock, so the xfail was dropped. Before building a
+  workaround the design names, grep the log for its todo.
+- **Relaxing a check: do not drop evidence rows.** First fix for "a miss
+  hides other gates" filtered the miss row out; Codex found it also hid a
+  cadence gap before that row. Relax the refusal (a flag), keep the data.

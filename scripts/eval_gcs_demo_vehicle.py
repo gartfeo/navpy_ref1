@@ -12,6 +12,7 @@ from scripts.eval_gcs_demo_command_bounds import (
 from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 from scripts.eval_gcs_demo_evidence import (
+    SNAP_WITHOUT_DOCKED,
     mission_navigation_segment,
     parse_final_approach_episodes,
 )
@@ -99,6 +100,7 @@ def _command_errors(
     command_bounds: VehicleCommandBounds | None,
     *,
     expected_speedup: float,
+    miss_allowed: bool = False,
 ) -> list[str]:
     errors: list[str] = []
     commands = list(episode.commands)
@@ -108,9 +110,10 @@ def _command_errors(
         else command_bounds.roll_limit_deg
     )
     try:
-        timing = final_approach_timing(commands)
+        timing = final_approach_timing(commands, miss_allowed=miss_allowed)
         score = score_final_approach_commands(
             commands,
+            miss_allowed=miss_allowed,
             roll_limit_deg=roll_limit,
             saturation_margin_deg=limits.roll_quality.saturation_margin_deg,
             significant_roll_deg=limits.roll_quality.significant_roll_deg,
@@ -118,6 +121,7 @@ def _command_errors(
         achieved = score_achieved_roll(
             commands,
             episode.responses,
+            miss_allowed=miss_allowed,
             significant_roll_deg=limits.roll_quality.significant_roll_deg,
         )
     except ValueError as error:
@@ -236,6 +240,8 @@ def analyze_vehicle(
         return VehicleReport(checked_sys_id, role, False, metrics, errors)
     if len(episodes) != 1:
         errors.append(f"expected exactly one atomic final-approach command episode, found {len(episodes)}")
+    # The docking gate, apart from the episode's command and SNAP checks.
+    errors.extend(SNAP_WITHOUT_DOCKED for episode in episodes if not episode.docked)
     if episodes:
         errors.extend(
             _command_errors(
@@ -244,6 +250,8 @@ def analyze_vehicle(
                 limits,
                 command_bounds,
                 expected_speedup=expected_speedup,
+                # An undocked episode's miss is the docking gate's failure.
+                miss_allowed=not episodes[-1].docked,
             )
         )
     else:

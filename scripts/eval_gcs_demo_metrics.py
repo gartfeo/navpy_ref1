@@ -33,20 +33,27 @@ def _significant_reversals(rolls: Sequence[float], threshold: float) -> int:
     return sum(left != right for left, right in zip(signs, signs[1:]))
 
 
-def _validated_episode(commands: Sequence[FinalApproachCommand]) -> list[FinalApproachCommand]:
-    """One source identity and no miss: the parser ends it at DOCKED."""
+def _validated_episode(
+    commands: Sequence[FinalApproachCommand], *, miss_allowed: bool = False,
+) -> list[FinalApproachCommand]:
+    """One source identity and no miss: the parser ends it at DOCKED.
+
+    ``miss_allowed``: an undocked episode, whose miss the docking gate
+    reports; its miss rows keep their timestamps in the cadence."""
     episode = list(commands)
     if not episode:
         return episode
     if len({command.source_key for command in episode}) != 1:
         raise ValueError("final-approach episode changed atomic source identity")
-    if any(command.missed for command in episode):
+    if not miss_allowed and any(command.missed for command in episode):
         raise ValueError("final-approach episode missed its dock")
     return episode
 
 
-def final_approach_timing(commands: Sequence[FinalApproachCommand]) -> FinalApproachTiming:
-    episode = _validated_episode(commands)
+def final_approach_timing(
+    commands: Sequence[FinalApproachCommand], *, miss_allowed: bool = False,
+) -> FinalApproachTiming:
+    episode = _validated_episode(commands, miss_allowed=miss_allowed)
     wall_gaps = positive_deltas(command.wall_s for command in episode)
     source_gaps = positive_deltas(command.obs_ts for command in episode)
     if any(gap <= 0.0 for gap in wall_gaps):
@@ -72,13 +79,15 @@ def score_final_approach_commands(
     roll_limit_deg: float,
     saturation_margin_deg: float,
     significant_roll_deg: float,
+    miss_allowed: bool = False,
 ) -> FinalApproachScore:
     limit = finite_number("roll_limit_deg", roll_limit_deg)
     margin = finite_number("saturation_margin_deg", saturation_margin_deg)
     threshold = finite_number("significant_roll_deg", significant_roll_deg)
     if limit <= 0.0 or margin > limit:
         raise ValueError("roll limit must be positive and margin <= limit")
-    issued = [command for command in _validated_episode(commands) if command.issued]
+    issued = [command for command in _validated_episode(commands, miss_allowed=miss_allowed)
+              if command.issued]
     rolls = [command.cmd_roll for command in issued if command.cmd_roll is not None]
     if len(rolls) != len(issued):
         raise ValueError("issued final-approach command is missing roll evidence")
@@ -150,6 +159,7 @@ def score_achieved_roll(
     responses: Sequence[FinalApproachResponse],
     *,
     significant_roll_deg: float,
+    miss_allowed: bool = False,
 ) -> AchievedRollScore:
     """Sign reversals of the achieved roll over the whole episode.
 
@@ -158,7 +168,8 @@ def score_achieved_roll(
     sample's evidence is invalid.
     """
     threshold = finite_number("significant_roll_deg", significant_roll_deg)
-    issued = [command for command in _validated_episode(commands) if command.issued]
+    issued = [command for command in _validated_episode(commands, miss_allowed=miss_allowed)
+              if command.issued]
     rolls, errors = _paired_achieved_rolls(issued, responses)
     if errors:
         return AchievedRollScore(evidence_errors=tuple(errors))
