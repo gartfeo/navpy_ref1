@@ -319,13 +319,16 @@ def test_polling_wait_is_interrupted_by_stop_even_at_slow_wall_cadence() -> None
         receipt_time_s=2.0,
         air_speed_mps=30.0,
     )
+    read = SimpleNamespace(attitude_time_boot_s=1.0, sample=sample)
 
     def detect(*_args, **_kwargs):
         coordinator.stop_event.set()
 
     worker = SimDetectorWorker(
         coordinator=coordinator,
-        polling_pose_reader=Mock(read=Mock(return_value=sample)),
+        polling_pose_reader=Mock(read=Mock(return_value=read)),
+        advance_source_time=Mock(),
+        unpaired_pose_monitor=Mock(),
         error=Mock(),
         cadence_lease=SchedulerCadenceLease(cadence, owned=False),
         scheduler_period_s=0.02,
@@ -402,6 +405,8 @@ def test_concurrent_worker_start_creates_exactly_one_worker_thread():
     worker = SimDetectorWorker(
         coordinator=coordinator,
         polling_pose_reader=Mock(),
+        advance_source_time=Mock(),
+        unpaired_pose_monitor=Mock(),
         error=Mock(),
         cadence_lease=SchedulerCadenceLease(shared_timebase, owned=False),
         scheduler_period_s=0.02,
@@ -442,6 +447,8 @@ def test_sim_worker_failure_is_persistent_health_failure() -> None:
     worker = SimDetectorWorker(
         coordinator=coordinator,
         polling_pose_reader=Mock(),
+        advance_source_time=Mock(),
+        unpaired_pose_monitor=Mock(),
         error=Mock(),
         cadence_lease=SchedulerCadenceLease(Mock(), owned=False),
         scheduler_period_s=0.02,
@@ -473,6 +480,8 @@ def test_delayed_worker_cannot_run_after_failed_coordinator_stop() -> None:
     worker = SimDetectorWorker(
         coordinator=coordinator,
         polling_pose_reader=Mock(),
+        advance_source_time=Mock(),
+        unpaired_pose_monitor=Mock(),
         error=Mock(),
         cadence_lease=SchedulerCadenceLease(cadence, owned=True),
         scheduler_period_s=0.02,

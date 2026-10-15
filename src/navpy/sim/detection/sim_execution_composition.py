@@ -13,10 +13,8 @@ from navpy.sim.detection.sim_detector_lifecycle import SimDetectorLifecycle
 from navpy.sim.detection.sim_detector_loop import SimDetectorWorker
 from navpy.sim.detection.sim_detector_reset import SimDetectorReset
 from navpy.sim.detection.sim_render_composition import SimRenderFoundation
-from navpy.sim.detection.sim_source_composition import (
-    SimSourceGraph,
-    build_polling_reader,
-)
+from navpy.sim.detection.sim_source_composition import SimSourceGraph
+from navpy.sim.detection.unpaired_pose_monitor import UnpairedPoseMonitor
 from navpy.sim.detection.scheduler_cadence_lease import (
     SchedulerCadenceLease,
 )
@@ -43,7 +41,9 @@ def build_execution_graph(
     )
     worker = SimDetectorWorker(
         coordinator=source.coordinator,
-        polling_pose_reader=build_polling_reader(dependencies.vehicle),
+        polling_pose_reader=source.polling_reader,
+        advance_source_time=source.pose_source.advance_source_now,
+        unpaired_pose_monitor=UnpairedPoseMonitor(dependencies.logger.warning),
         error=dependencies.logger.error,
         cadence_lease=cadence_lease,
         scheduler_period_s=1.0 / SIM_DETECTOR_POLL_RATE_HZ,

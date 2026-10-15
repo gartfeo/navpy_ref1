@@ -32,14 +32,6 @@ class OptionalTextReader(Protocol):
     def __call__(self) -> Optional[str]: ...
 
 
-class LocationReader(Protocol):
-    def __call__(self) -> Location: ...
-
-
-class AttitudeReader(Protocol):
-    def __call__(self) -> Attitude: ...
-
-
 class AttitudeSampleView(Protocol):
     attitude: Attitude
     time_boot_s: Optional[float]
@@ -49,6 +41,18 @@ class AttitudeSampleView(Protocol):
 
 class AttitudeSampleReader(Protocol):
     def __call__(self) -> Optional[AttitudeSampleView]: ...
+
+
+class PositionSampleView(Protocol):
+    lat: float
+    lon: float
+    alt: float
+    time_boot_s: float
+    receipt_time_s: float
+
+
+class PositionSampleReader(Protocol):
+    def __call__(self) -> Optional[PositionSampleView]: ...
 
 
 class AttitudeTimestampAcceptor(Protocol):
@@ -102,8 +106,16 @@ class InfoSink(Protocol):
     def __call__(self, message: str) -> None: ...
 
 
+class WarningSink(Protocol):
+    def __call__(self, message: str) -> None: ...
+
+
 class ResetAction(Protocol):
     def __call__(self) -> None: ...
+
+
+class SourceTimeAdvance(Protocol):
+    def __call__(self, value: Optional[float]) -> Optional[float]: ...
 
 
 class FrameOutcomeSink(Protocol):
@@ -196,7 +208,6 @@ class ConfirmationFrameFactory(Protocol):
 
 __all__ = [
     "AttitudeTimestampAcceptor",
-    "AttitudeReader",
     "AttitudeSampleReader",
     "AttitudeSampleView",
     "BestFrame",
@@ -211,17 +222,20 @@ __all__ = [
     "FrameOutcomeSink",
     "InfoSink",
     "OverlayPosition",
-    "LocationReader",
     "OptionalFloatReader",
     "OptionalTextReader",
     "PixelCalculator",
+    "PositionSampleReader",
+    "PositionSampleView",
     "RenderedFrame",
     "ResetAction",
     "SourceNameResolver",
+    "SourceTimeAdvance",
     "PoiProjectorPort",
     "PoiSnapshotReader",
     "TimestampReader",
     "TrackLossDiagnoser",
     "TrackingRuntimePort",
     "TrackingStatusPort",
+    "WarningSink",
 ]

@@ -119,6 +119,10 @@ class VehiclePoseFacet:
     def attitude_sample(self) -> SimpleNamespace | None:
         return self._parts.pose.attitude_sample
 
+    @property
+    def position_sample(self) -> SimpleNamespace | None:
+        return self._parts.pose.position_sample
+
     def attitude_history(self, count: int) -> tuple[SimpleNamespace, ...]:
         return self._parts.pose.attitude_history(count)
 

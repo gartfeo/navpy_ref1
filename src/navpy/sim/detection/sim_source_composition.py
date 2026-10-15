@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Callable
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.pose_stream_rate import pose_frame_association_max_skew_s
@@ -39,6 +40,7 @@ class SimSourceGraph:
     pose_source: IdealPoseSource
     activation: SimSourceActivation
     record_outcome: FrameOutcomeRecorder
+    polling_reader: SimPollingPoseReader
 
 
 class SourceTimestampClock:
@@ -75,11 +77,15 @@ def build_source_graph(
         reorder_tolerance_s=association_period_budget_s,
         record_outcome=record_outcome,
     )
+    receipt_skew_s = _receipt_skew_reader(
+        dependencies,
+        association_period_budget_s,
+    )
     pose_source = _build_pose_source(
         dependencies,
         coordinator,
         clock,
-        association_period_budget_s,
+        receipt_skew_s,
     )
     activation = _build_activation(
         dependencies,
@@ -93,6 +99,7 @@ def build_source_graph(
         pose_source,
         activation,
         record_outcome,
+        build_polling_reader(vehicle, receipt_skew_s),
     )
 
 
@@ -108,12 +115,28 @@ def source_stream_rate_hz(
     return resolve_pose_stream_rate_hz(vehicle)
 
 
-def build_polling_reader(vehicle: IVehicle) -> SimPollingPoseReader:
+def build_polling_reader(
+    vehicle: IVehicle,
+    maximum_receipt_skew_s: Callable[[], float],
+) -> SimPollingPoseReader:
     return SimPollingPoseReader(
-        location=lambda: vehicle.location(False),
-        attitude=lambda: vehicle.attitude,
         attitude_sample=lambda: vehicle.attitude_sample,
+        position_sample=lambda: vehicle.position_sample,
         air_speed=lambda: vehicle.air_speed,
+        maximum_receipt_skew_s=maximum_receipt_skew_s,
+    )
+
+
+def _receipt_skew_reader(
+    dependencies: SimDetectorDependencies,
+    association_period_budget_s: float,
+) -> Callable[[], float]:
+    """Wall-scaled receipt association budget shared by both pose paths."""
+    cadence = dependencies.scheduler_cadence
+    if cadence is None:
+        return lambda: association_period_budget_s
+    return lambda: cadence.wall_period_for_scheduler_period(
+        association_period_budget_s
     )
 
 
@@ -139,16 +162,9 @@ def _build_pose_source(
     dependencies: SimDetectorDependencies,
     coordinator: SourceFrameCoordinator,
     clock: PoseFrameClock,
-    association_period_budget_s: float,
+    receipt_skew_s: Callable[[], float],
 ) -> IdealPoseSource:
     vehicle = dependencies.vehicle
-    cadence = dependencies.scheduler_cadence
-    if cadence is None:
-        receipt_skew_s = lambda: association_period_budget_s
-    else:
-        receipt_skew_s = lambda: cadence.wall_period_for_scheduler_period(
-            association_period_budget_s
-        )
     associator = PoseAssociator(
         attitude_sample=lambda: vehicle.attitude_sample,
         truth_pose=lambda: vehicle.simulator_truth_pose,

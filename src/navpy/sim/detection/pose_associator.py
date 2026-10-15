@@ -55,6 +55,27 @@ def copy_location(location: Location) -> Location:
     )
 
 
+def receipts_associated(
+        first_receipt_s: float,
+        second_receipt_s: float,
+        maximum_receipt_skew_s: Callable[[], float],
+) -> bool:
+    """Whether two receipts fall within one wall-scaled association budget."""
+    try:
+        maximum_skew_s = float(maximum_receipt_skew_s())
+    except (TypeError, ValueError):
+        return False
+    if not math.isfinite(maximum_skew_s) or maximum_skew_s < 0.0:
+        return False
+    skew_s = abs(first_receipt_s - second_receipt_s)
+    return skew_s <= maximum_skew_s or math.isclose(
+        skew_s,
+        maximum_skew_s,
+        rel_tol=1e-12,
+        abs_tol=1e-12,
+    )
+
+
 class PoseAssociator:
     """Own event-pair and receipt freshness state for pose construction."""
 
@@ -177,18 +198,10 @@ class PoseAssociator:
             attitude_receipt_s: float,
             truth_receipt_s: float,
     ) -> bool:
-        try:
-            maximum_skew_s = float(self._maximum_receipt_skew_s())
-        except (TypeError, ValueError):
-            return False
-        if not math.isfinite(maximum_skew_s) or maximum_skew_s < 0.0:
-            return False
-        skew_s = abs(attitude_receipt_s - truth_receipt_s)
-        return skew_s <= maximum_skew_s or math.isclose(
-            skew_s,
-            maximum_skew_s,
-            rel_tol=1e-12,
-            abs_tol=1e-12,
+        return receipts_associated(
+            attitude_receipt_s,
+            truth_receipt_s,
+            self._maximum_receipt_skew_s,
         )
 
     def _event_pair_complete(self) -> bool:

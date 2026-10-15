@@ -12,7 +12,9 @@ from navpy.sim.detection.sim_runtime_ports import (
     DetectFramePort,
     ErrorSink,
     FrameOutcomeSink,
+    SourceTimeAdvance,
 )
+from navpy.sim.detection.unpaired_pose_monitor import UnpairedPoseMonitor
 
 
 class SimDetectorExecution:
@@ -23,6 +25,8 @@ class SimDetectorExecution:
         *,
         coordinator: WorkerCoordinatorPort[IdealPoseSample],
         polling_pose_reader: PollingPoseReaderPort,
+        advance_source_time: SourceTimeAdvance,
+        unpaired_pose_monitor: UnpairedPoseMonitor,
         error: ErrorSink,
         cadence_lease: SchedulerCadenceLease,
         scheduler_period_s: float,
@@ -32,6 +36,8 @@ class SimDetectorExecution:
     ) -> None:
         self._coordinator = coordinator
         self._polling_pose_reader = polling_pose_reader
+        self._advance_source_time = advance_source_time
+        self._unpaired_pose_monitor = unpaired_pose_monitor
         self._error = error
         self._cadence_lease = cadence_lease
         self._scheduler_period_s = float(scheduler_period_s)
@@ -95,15 +101,7 @@ class SimDetectorExecution:
         stop_event = self._coordinator.stop_event
         while not stop_event.is_set():
             started_s = rt.monotonic()
-            sample = self._polling_pose_reader.read()
-            self._detect_pois(
-                sample.location,
-                sample.attitude,
-                attitude_time_boot_s=sample.time_boot_s,
-                uas_body_rates_rad_s=sample.body_rates_rad_s,
-                frame_receipt_timestamp_s=sample.receipt_time_s,
-                frame_air_speed_mps=sample.air_speed_mps,
-            )
+            self._poll_once()
             elapsed_s = rt.monotonic() - started_s
             stop_event.wait(max(
                 0.0,
@@ -111,6 +109,33 @@ class SimDetectorExecution:
                     self._scheduler_period_s
                 ) - elapsed_s,
             ))
+
+    def _poll_once(self) -> None:
+        read = self._polling_pose_reader.read()
+        # Every polled ATTITUDE advances the source clock, paired or not, so a
+        # restart is detected on the raw stream before any post-reboot pair.
+        if read.attitude_time_boot_s is not None:
+            self._advance_source_time(read.attitude_time_boot_s)
+        sample = read.sample
+        self._unpaired_pose_monitor.observe(
+            read.attitude_time_boot_s,
+            paired=sample is not None,
+        )
+        if sample is None:
+            self._record_outcome(
+                read.attitude_time_boot_s,
+                "unpaired_pose_dropped",
+                None,
+            )
+            return
+        self._detect_pois(
+            sample.location,
+            sample.attitude,
+            attitude_time_boot_s=sample.time_boot_s,
+            uas_body_rates_rad_s=sample.body_rates_rad_s,
+            frame_receipt_timestamp_s=sample.receipt_time_s,
+            frame_air_speed_mps=sample.air_speed_mps,
+        )
 
 
 __all__ = ["SimDetectorExecution"]

@@ -188,10 +188,13 @@ FACADE_METHOD_ALLOWANCES = {
     # 83 = 82 + on_admission, the admission tap's one method (D1 of the
     # LANDING2 step-1 plan), approved by the
     # owner on 2026-09-10 -- the same kind of ratchet, not headroom.
+    # 84 = 83 + position_sample, the stamped GLOBAL_POSITION_INT view the
+    # finite-FOV sim camera pairs with ATTITUDE by boot time (sim pose
+    # pairing design v3, approved 2026-10-15) -- a ratchet, not headroom.
     (
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
-    ): FacadeMethodAllowance(1, 83, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 84, frozenset({"_parts"})),
     (
         "src/navpy/core/perception/camera/camera_mount.py",
         "CameraMount",

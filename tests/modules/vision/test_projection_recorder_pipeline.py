@@ -76,7 +76,8 @@ def test_execution_composition_wires_owned_recorder_close_without_starting_worke
     file = RunEvidenceFile(tmp_path,'execution',3,EvidenceBudget(2,10_000))
     recorder = ProjectionRunRecorder(file)
     deps = SimpleNamespace(vehicle=Mock(), mount=Mock(), logger=Mock(), scheduler_cadence=Mock())
-    source = SimpleNamespace(coordinator=Mock(),pose_source=Mock(),activation=Mock(),record_outcome=Mock())
+    source = SimpleNamespace(coordinator=Mock(),pose_source=Mock(),activation=Mock(),record_outcome=Mock(),
+                             polling_reader=Mock())
     render = SimpleNamespace(poi_provider=Mock(),capture=Mock(),gap=Mock(),tracking=Mock(),
                              ideal_camera=Mock(),evidence_recorder=recorder)
     graph = build_execution_graph(deps, SimpleNamespace(ideal_360=False),source,render,Mock())
