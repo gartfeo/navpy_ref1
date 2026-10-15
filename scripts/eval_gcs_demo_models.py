@@ -89,6 +89,29 @@ class FinalApproachCommand:
 
 
 @dataclass(frozen=True)
+class FinalApproachResponse:
+    """Pairing key and achieved roll of one FINAL_APPROACH_RESPONSE_STATE row.
+
+    Parsed leniently: the achieved-roll gate, not the parser, rejects bad
+    evidence, so ``None`` means absent or non-numeric and a non-finite roll
+    is kept as read. ``repeated_field`` marks a row naming a field twice.
+    """
+
+    source: str
+    obs_ts: float | None
+    aircraft_roll_deg: float | None
+    repeated_field: bool = False
+
+
+@dataclass(frozen=True)
+class FinalApproachEpisode:
+    """One DOCKED episode's command rows and the response rows in its span."""
+
+    commands: tuple[FinalApproachCommand, ...]
+    responses: tuple[FinalApproachResponse, ...]
+
+
+@dataclass(frozen=True)
 class DockArmed:
     """One DOCK_ARMED row: the episode the contact sensor was armed for."""
 
@@ -132,10 +155,19 @@ class FinalApproachTiming:
 @dataclass(frozen=True)
 class FinalApproachScore:
     sample_count: int = 0
+    # Commanded-roll reversals: a diagnostic only, not gated.
     significant_reversals: int = 0
     saturation_fraction: float = 0.0
     max_saturation_run: int = 0
     max_roll_step_deg: float = 0.0
+
+
+@dataclass(frozen=True)
+class AchievedRollScore:
+    """Achieved-roll reversals, or the named reasons the evidence is invalid."""
+
+    reversals: int | None = None
+    evidence_errors: tuple[str, ...] = ()
 
 
 @dataclass
@@ -146,7 +178,9 @@ class EpisodeMetrics:
     max_wall_gap_s: float | None = None
     max_source_gap_s: float | None = None
     observed_speedup: float | None = None
+    # Commanded-roll reversals: a diagnostic only, not gated.
     significant_reversals: int = 0
+    achieved_roll_reversals: int | None = None
     saturation_fraction: float = 0.0
     max_saturation_run: int = 0
     max_roll_step_deg: float = 0.0
@@ -228,6 +262,7 @@ class MissionArtifacts:
 
 
 __all__ = [
+    "AchievedRollScore",
     "CadenceLimits",
     "EpisodeMetrics",
     "GateLimits",
@@ -237,6 +272,8 @@ __all__ = [
     "RollQualityLimits",
     "StackContext",
     "FinalApproachCommand",
+    "FinalApproachEpisode",
+    "FinalApproachResponse",
     "FinalApproachScore",
     "FinalApproachTiming",
     "UavIds",

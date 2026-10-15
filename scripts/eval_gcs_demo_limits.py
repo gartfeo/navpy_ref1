@@ -7,6 +7,12 @@ from dataclasses import dataclass, field
 
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 
+# g*tan(10 deg) = 1.7 m/s^2: held for a 1 s half-cycle it moves the aircraft
+# about 0.9 m sideways, more than the dock net radius. Below it is trim and noise.
+SIGNIFICANT_ROLL_DEG = 10.0
+# One overshoot and correction; a second reversal makes a full cycle.
+MAX_ACHIEVED_ROLL_REVERSALS = 1
+
 
 def _finite(name: str, value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -63,17 +69,31 @@ class CadenceLimits:
 
 @dataclass(frozen=True)
 class RollQualityLimits:
-    """Roll reversal, saturation, and command-step quality gates."""
+    """Achieved-roll reversal, saturation, and command-step quality gates.
 
-    significant_roll_deg: float = 10.0
-    max_significant_reversals: int = 1
+    The reversal gate counts sign changes of the achieved roll (the measured
+    `aircraft_roll_deg` of each issued command's FINAL_APPROACH_RESPONSE_STATE)
+    among samples of at least `significant_roll_deg`, over the whole episode,
+    and fails above `max_achieved_roll_reversals`. Commanded-roll reversals
+    are reported as a diagnostic only: single-frame LOS-rate spikes and the
+    terminal 1/R^2 LOS-rate growth flip the command while the airframe's roll
+    loop does not follow. Its evidence fails closed: a missing, non-finite,
+    duplicate or unmatched achieved roll fails the gate by name.
+    Limits: it counts reversals, not duration, so two separated corrections
+    or a decaying response (+30, -15, +10) also fail; and it sees only the
+    emitted samples, so a cycle shorter than the sample gaps can be missed
+    (the cadence gates bound wall gaps, not source gaps).
+    """
+
+    significant_roll_deg: float = SIGNIFICANT_ROLL_DEG
+    max_achieved_roll_reversals: int = MAX_ACHIEVED_ROLL_REVERSALS
     saturation_margin_deg: float = 0.5
     max_saturation_fraction: float = 0.20
     max_saturation_run: int = 3
     max_roll_step_deg: float = 50.0
 
     def __post_init__(self) -> None:
-        for name in ("max_significant_reversals", "max_saturation_run"):
+        for name in ("max_achieved_roll_reversals", "max_saturation_run"):
             object.__setattr__(
                 self,
                 name,
@@ -122,8 +142,8 @@ class GateLimits:
         return self.roll_quality.significant_roll_deg
 
     @property
-    def max_significant_reversals(self) -> int:
-        return self.roll_quality.max_significant_reversals
+    def max_achieved_roll_reversals(self) -> int:
+        return self.roll_quality.max_achieved_roll_reversals
 
     @property
     def saturation_margin_deg(self) -> float:
@@ -146,6 +166,8 @@ class GateLimits:
 
 
 __all__ = [
+    "MAX_ACHIEVED_ROLL_REVERSALS",
+    "SIGNIFICANT_ROLL_DEG",
     "CadenceLimits",
     "GateLimits",
     "RollQualityLimits",

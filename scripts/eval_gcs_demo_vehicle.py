@@ -13,14 +13,18 @@ from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 from scripts.eval_gcs_demo_evidence import (
     mission_navigation_segment,
-    parse_final_approach_command_episodes,
+    parse_final_approach_episodes,
 )
 from scripts.eval_gcs_demo_gates import confirmation_image_errors, workflow_errors
-from scripts.eval_gcs_demo_metrics import score_final_approach_commands, final_approach_timing
+from scripts.eval_gcs_demo_metrics import (
+    final_approach_timing,
+    score_achieved_roll,
+    score_final_approach_commands,
+)
 from scripts.eval_gcs_demo_models import (
     EpisodeMetrics,
     GateLimits,
-    FinalApproachCommand,
+    FinalApproachEpisode,
     VehicleReport,
     finite_number,
     positive_int,
@@ -32,6 +36,7 @@ from scripts.eval_gcs_demo_snap import (
     parse_debug_snap_distances,
 )
 from scripts.eval_gcs_demo_final_approach_gates import (
+    achieved_roll_errors,
     cadence_errors,
     roll_quality_errors,
 )
@@ -89,13 +94,14 @@ def _truth_errors(
 
 def _command_errors(
     metrics: EpisodeMetrics,
-    commands: list[FinalApproachCommand],
+    episode: FinalApproachEpisode,
     limits: GateLimits,
     command_bounds: VehicleCommandBounds | None,
     *,
     expected_speedup: float,
 ) -> list[str]:
     errors: list[str] = []
+    commands = list(episode.commands)
     roll_limit = (
         FINAL_APPROACH_ROLL_LIMIT_DEG
         if command_bounds is None
@@ -109,6 +115,11 @@ def _command_errors(
             saturation_margin_deg=limits.roll_quality.saturation_margin_deg,
             significant_roll_deg=limits.roll_quality.significant_roll_deg,
         )
+        achieved = score_achieved_roll(
+            commands,
+            episode.responses,
+            significant_roll_deg=limits.roll_quality.significant_roll_deg,
+        )
     except ValueError as error:
         return [f"invalid final-approach command episode: {error}"]
     metrics.sample_count = score.sample_count
@@ -117,6 +128,7 @@ def _command_errors(
     metrics.max_source_gap_s = timing.max_source_gap_s
     metrics.observed_speedup = timing.observed_speedup
     metrics.significant_reversals = score.significant_reversals
+    metrics.achieved_roll_reversals = achieved.reversals
     metrics.saturation_fraction = score.saturation_fraction
     metrics.max_saturation_run = score.max_saturation_run
     metrics.max_roll_step_deg = score.max_roll_step_deg
@@ -144,6 +156,7 @@ def _command_errors(
         )
     )
     errors.extend(roll_quality_errors(score, limits.roll_quality))
+    errors.extend(achieved_roll_errors(achieved, limits.roll_quality))
     return errors
 
 
@@ -213,7 +226,7 @@ def analyze_vehicle(
         )
     )
     try:
-        episodes = parse_final_approach_command_episodes(
+        episodes = parse_final_approach_episodes(
             paths["debug"], vehicle_id=checked_sys_id
         )
         compact_snaps = parse_compact_snap_distances(paths["compact"])

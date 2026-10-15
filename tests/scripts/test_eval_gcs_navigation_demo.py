@@ -36,7 +36,12 @@ def _write_episode(
     role: str = "owner",
     wall_step_s: float = 0.01,
     source_step_s: float = 0.1,
+    achieved_rolls: list[float | None] | None = None,
 ) -> None:
+    """Synthetic logs. Each issued command gets its RESPONSE_STATE row with
+    *achieved_rolls* (default: a level aircraft, 0 deg); None omits the field."""
+    achieved = [0.0] * len(rolls) if achieved_rolls is None else achieved_rolls
+    assert len(achieved) == len(rolls)
     poi_coordinate = {
         4: (40.1000, 44.1000),
         5: (40.0005, 44.0000),
@@ -108,14 +113,23 @@ def _write_episode(
         f"{_clock(0, wall_step_s)},EVENT:DOCK_ARMED,"
         f"vehicle={sys_id};task=1;dock=11;episode=1,,,,,,,,,",
     ]
-    for index, roll in enumerate(rolls):
+    for index, (roll, achieved_roll) in enumerate(zip(rolls, achieved)):
         dt = "" if index == 0 else f"{wall_step_s * 1000:.0f}"
         timestamp = _clock(index, wall_step_s)
+        obs_ts = f"{1000 + index * source_step_s:.3f}"
         debug_rows.append(
             f"{timestamp},EVENT:FINAL_APPROACH_CMD,source=camera;generation=4;"
-            f"task=1;obj=11;obs_ts={1000 + index * source_step_s:.3f};"
+            f"task=1;obj=11;obs_ts={obs_ts};"
             f"dt_wall_ms={dt};body_bearing_deg=2.5;cmd_roll={roll:.2f};"
             "cmd_pitch=-10;cmd_thr=0.55;issued=True;missed=False,,,,,,,,,"
+        )
+        achieved_field = (
+            "" if achieved_roll is None else f"aircraft_roll_deg={achieved_roll:.2f};"
+        )
+        debug_rows.append(
+            f"{timestamp},EVENT:FINAL_APPROACH_RESPONSE_STATE,source=camera;"
+            f"obs_ts={obs_ts};cmd_roll_deg={roll:.2f};cmd_pitch_deg=-10;"
+            f"{achieved_field}aircraft_pitch_deg=-9,,,,,,,,,"
         )
     # One unissued (aft-gated) row, then the contact sensor's DOCKED row.
     tail_index = len(rolls)
@@ -232,6 +246,9 @@ def test_203401_like_oscillation_fails_even_with_good_truth_snap(tmp_path):
     # UAV3's second 203401 final-approach episode, rounded from the real debug CSV.
     # Give it a deliberately passing 0.25 m truth SNAP: certification must still fail
     # on the oscillation/saturation evidence rather than pass on miss alone.
+    # The fixture has commands only (no achieved roll was logged); the helper's
+    # level achieved roll is synthetic, so the saturation and step gates must
+    # catch it on the commands alone.
     rolls = [
         24.76, 25.46, 20.96, 11.23, -0.50, -10.88, -25.65, -42.95,
         -45.0, -45.0, -32.99, 22.79, 45.0, 45.0, 45.0, 45.0, 30.10,
@@ -247,9 +264,10 @@ def test_203401_like_oscillation_fails_even_with_good_truth_snap(tmp_path):
     assert report.passed is False
     assert report.metrics.snap_distance_m == pytest.approx(0.25)
     assert report.metrics.significant_reversals == 4
+    assert report.metrics.achieved_roll_reversals == 0
     assert report.metrics.saturation_fraction > 0.20
     assert report.metrics.max_roll_step_deg > 50.0
-    assert any("roll reversals" in error for error in report.errors)
+    assert not any("roll reversals" in error for error in report.errors)
     assert any("roll saturation fraction" in error for error in report.errors)
     assert any("roll-command step" in error for error in report.errors)
     assert not any("truth SNAP distance" in error for error in report.errors)
@@ -1120,7 +1138,7 @@ def test_configuration_keeps_explicit_ten_x_navigation_and_no_multicontainer_sco
     assert "--chat" not in command
     assert "-gsu" not in command
     assert evaluator.NAVIGATION_SPEEDUP_OVERRIDE == 0.0
-    assert evaluator.GateLimits().max_significant_reversals == 1
+    assert evaluator.GateLimits().max_achieved_roll_reversals == 1
 
 
 def test_cli_defaults_to_manual_operator_delay_without_a_snap_gate():

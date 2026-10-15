@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from scripts.eval_gcs_demo_limits import CadenceLimits, RollQualityLimits
-from scripts.eval_gcs_demo_models import FinalApproachScore, FinalApproachTiming
+from scripts.eval_gcs_demo_models import (
+    AchievedRollScore,
+    FinalApproachScore,
+    FinalApproachTiming,
+)
 
 
 def cadence_errors(
@@ -48,11 +52,6 @@ def roll_quality_errors(
     limits: RollQualityLimits,
 ) -> list[str]:
     errors: list[str] = []
-    if score.significant_reversals > limits.max_significant_reversals:
-        errors.append(
-            f"significant roll reversals {score.significant_reversals} > "
-            f"{limits.max_significant_reversals}"
-        )
     if score.saturation_fraction > limits.max_saturation_fraction:
         errors.append(
             f"roll saturation fraction {score.saturation_fraction:.3f} > "
@@ -71,4 +70,19 @@ def roll_quality_errors(
     return errors
 
 
-__all__ = ["cadence_errors", "roll_quality_errors"]
+def achieved_roll_errors(
+    score: AchievedRollScore,
+    limits: RollQualityLimits,
+) -> list[str]:
+    """Fail closed on invalid evidence, else on too many achieved reversals."""
+    if score.evidence_errors or score.reversals is None:
+        return list(score.evidence_errors) or ["achieved-roll evidence missing"]
+    if score.reversals > limits.max_achieved_roll_reversals:
+        return [
+            f"significant achieved-roll reversals {score.reversals} > "
+            f"{limits.max_achieved_roll_reversals}"
+        ]
+    return []
+
+
+__all__ = ["achieved_roll_errors", "cadence_errors", "roll_quality_errors"]

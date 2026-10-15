@@ -1,13 +1,18 @@
-"""Raw source-time cadence and issued-command scoring."""
+"""Raw source-time cadence, issued-command and achieved-roll scoring."""
 
 from __future__ import annotations
 
+import math
 import statistics
+from collections import Counter
 from collections.abc import Sequence
+from typing import Optional, Tuple
 
 from scripts.eval_gcs_demo_evidence import positive_deltas
 from scripts.eval_gcs_demo_models import (
+    AchievedRollScore,
     FinalApproachCommand,
+    FinalApproachResponse,
     FinalApproachScore,
     FinalApproachTiming,
     finite_number,
@@ -88,4 +93,80 @@ def score_final_approach_commands(
     )
 
 
-__all__ = ["score_final_approach_commands", "final_approach_timing"]
+_PairKey = Tuple[str, Optional[float]]
+
+
+def _evidence_error(reason: str, keys: Sequence[_PairKey]) -> str:
+    source, obs_ts = keys[0]
+    return (
+        f"achieved-roll evidence {reason} for {len(keys)} issued command(s) "
+        f"(first source={source} obs_ts={obs_ts})"
+    )
+
+
+def _paired_achieved_rolls(
+    issued: Sequence[FinalApproachCommand],
+    responses: Sequence[FinalApproachResponse],
+) -> tuple[list[float], list[str]]:
+    """Each issued command's own achieved roll, paired by (source, obs_ts).
+
+    Fail closed: a missing, non-finite, duplicate, repeated-field or
+    unmatched achieved roll is a named evidence error, never a skipped sample.
+    """
+    command_keys: list[_PairKey] = [(item.source, item.obs_ts) for item in issued]
+    by_key: dict[_PairKey, list[FinalApproachResponse]] = {}
+    for response in responses:
+        by_key.setdefault((response.source, response.obs_ts), []).append(response)
+    command_counts = Counter(command_keys)
+    rolls: list[float] = []
+    failed: dict[str, list[_PairKey]] = {}
+    for key in command_keys:
+        matches = by_key.get(key, [])
+        roll = matches[0].aircraft_roll_deg if len(matches) == 1 else None
+        if len(matches) > 1 or command_counts[key] > 1:
+            failed.setdefault("duplicated", []).append(key)
+        elif matches and matches[0].repeated_field:
+            failed.setdefault("repeated-field", []).append(key)
+        elif roll is None:
+            failed.setdefault("missing", []).append(key)
+        elif not math.isfinite(roll):
+            failed.setdefault("non-finite", []).append(key)
+        else:
+            rolls.append(roll)
+    errors = [_evidence_error(reason, keys) for reason, keys in failed.items()]
+    unmatched = [key for key in by_key if key not in command_counts]
+    if unmatched:
+        rows = sum(len(by_key[key]) for key in unmatched)
+        source, obs_ts = unmatched[0]
+        errors.append(
+            f"achieved-roll evidence unmatched: {rows} response row(s) with no "
+            f"issued command (first source={source} obs_ts={obs_ts})"
+        )
+    return rolls, errors
+
+
+def score_achieved_roll(
+    commands: Sequence[FinalApproachCommand],
+    responses: Sequence[FinalApproachResponse],
+    *,
+    significant_roll_deg: float,
+) -> AchievedRollScore:
+    """Sign reversals of the achieved roll over the whole episode.
+
+    Counts sign changes among the issued commands' achieved rolls of at
+    least *significant_roll_deg*. No reversal count is given when any
+    sample's evidence is invalid.
+    """
+    threshold = finite_number("significant_roll_deg", significant_roll_deg)
+    issued = [command for command in _validated_episode(commands) if command.issued]
+    rolls, errors = _paired_achieved_rolls(issued, responses)
+    if errors:
+        return AchievedRollScore(evidence_errors=tuple(errors))
+    return AchievedRollScore(reversals=_significant_reversals(rolls, threshold))
+
+
+__all__ = [
+    "final_approach_timing",
+    "score_achieved_roll",
+    "score_final_approach_commands",
+]
