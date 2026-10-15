@@ -96,3 +96,15 @@
 - **Read the measurement the design names.** The fleet reused the slice's
   response-send reader (SITL admissions), but the design names the backend's
   emissions; under a backlog the two differ.
+
+## Wall poll cadence and the Windows timer (2026-10-15)
+
+- **A held timeBeginPeriod is not an honoured one.** Windows 11 dropped
+  the 1 ms request of windowless eval processes once the screen locked;
+  the API still returned 0. Measure the actual wait (perf_counter around
+  Event.wait) instead of trusting the call; the fix is the
+  ProcessPowerThrottling opt-out in windows_timer_resolution.py.
+- **time.monotonic ticks at 15.6 ms on Windows.** Work times measured
+  with it read 0 or 16 ms; use perf_counter for sub-tick diagnostics.
+- **Run tests/guards before the full suite.** The SOLID 300-line module
+  cap failed only after a 10-minute full run.
