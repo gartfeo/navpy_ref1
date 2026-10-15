@@ -32,6 +32,11 @@
 - **Split the rate before guessing.** Logging ATTITUDE yaw, body rates and
   the dock NED vector per rendered frame splits the inertial LOS rate into
   azimuth, yaw-vs-gyro and pixel terms; that named the cause in one run.
+- **Check the frame cadence before an A/B.** The sim poll loop waits with
+  Event.wait, which on Windows follows the system timer tick (~15.6 ms)
+  unless the process has 1 ms resolution; at 10x speedup that tripled the
+  frame gaps between two sessions on the same code. Compare per-UAV poll
+  counts (source-time detector_pose CSV) with the baseline run first.
 
 ## Gate split (step 10g-1, 2026-10-15)
 
