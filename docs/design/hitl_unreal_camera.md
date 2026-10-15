@@ -91,7 +91,7 @@ ATTITUDE delay above that minimum, not the full link delay.
    (`--origin-lat 40.3117412 --origin-lon 44.4552112 --origin-alt 1292.8`) on both the bridge and the board
    (runner `--origin 40.3117412,44.4552112,1292.8,0`; a board's `SIM_OPOS_ALT` 1292.8).
 3. navpy with frame source `npyc://127.0.0.1:18110`, or the check tool:
-   `Set-Location C:\Users\GARTF\Downloads\navpy-temp2; $env:PYTHONPATH = "$PWD\src;$PWD"; .venv\Scripts\python.exe -m tools.unreal.npyc_live_check --mavlink udpin:0.0.0.0:9640 --seconds 60 --out C:\tune_hitl\cam_check`
+   `Set-Location C:\Users\GARTF\Downloads\navpy-hitl; $env:PYTHONPATH = "$PWD\src;$PWD"; C:\Users\GARTF\Downloads\navpy-temp2\.venv\Scripts\python.exe -m tools.unreal.npyc_live_check --mavlink udpin:0.0.0.0:9640 --seconds 60 --out C:\tune_hitl\cam_check`
    (`--mavlink`: any pymavlink link carrying the board's ATTITUDE, e.g. the runner's `--mp-mirror` port
    9640; frames.csv, summary.json and sample PNGs land in `--out`).
 
@@ -118,9 +118,9 @@ navigation and mission modules get no dock information.
   against the autopilot's home after the takeoff.
 - **Commands (PowerShell 5.1).** Unreal as in "Running it" step 1. Then the live check, with a duration
   longer than the run, every frame checked and each detected frame saved:
-  `Set-Location C:\Users\GARTF\Downloads\navpy-temp2; $env:PYTHONPATH = "$PWD\src;$PWD"; .venv\Scripts\python.exe -m tools.unreal.npyc_live_check --mavlink udpin:0.0.0.0:9640 --seconds 2400 --detect-every 1 --save-detected --out C:\tune_hitl\dock3_frames`
+  `Set-Location C:\Users\GARTF\Downloads\navpy-hitl; $env:PYTHONPATH = "$PWD\src;$PWD"; C:\Users\GARTF\Downloads\navpy-temp2\.venv\Scripts\python.exe -m tools.unreal.npyc_live_check --mavlink udpin:0.0.0.0:9640 --seconds 2400 --detect-every 1 --save-detected --out C:\tune_hitl\dock3_frames`
   In a second window, the card (the `port-check` command of flight_tuning.md B, Yeghvard origin):
-  `Set-Location C:\Users\GARTF\Downloads\navpy-temp2; $env:ARDUPILOT_ROOT = "\\wsl.localhost\Ubuntu-24.04\home\gart\ardupilot"; .venv\Scripts\python.exe -m tools.tuning.sitl_driver dock-pass --board COM15 --erase-params --mp-mirror --origin 40.3117412,44.4552112,1292.8,0 --workdir C:\tune_hitl\dock3 --params-file "$env:LOCALAPPDATA\navpy-hitl-tools\params\peron15_161.parm" --bridge "{python} -m tools.tuning.hitl_bridge --device COM11 --plant package --reconnect-interval-s 0.5 --model-dir $env:LOCALAPPDATA\navpy-hitl-tools\models\Peron15_hitl4 --servo-speed-s 0.03 --origin-lat {lat} --origin-lon {lon} --origin-alt {alt} --heading {hdg} --exit-on-stdin-eof --log-csv {link_csv} --unreal-pose 127.0.0.1:17110 23.5"`
+  `Set-Location C:\Users\GARTF\Downloads\navpy-hitl; $env:ARDUPILOT_ROOT = "\\wsl.localhost\Ubuntu-24.04\home\gart\ardupilot"; C:\Users\GARTF\Downloads\navpy-temp2\.venv\Scripts\python.exe -m tools.tuning.sitl_driver dock-pass --board COM15 --erase-params --mp-mirror --origin 40.3117412,44.4552112,1292.8,0 --workdir C:\tune_hitl\dock3 --params-file "$env:LOCALAPPDATA\navpy-hitl-tools\params\peron15_161.parm" --bridge "{python} -m tools.tuning.hitl_bridge --device COM11 --plant package --reconnect-interval-s 0.5 --model-dir $env:LOCALAPPDATA\navpy-hitl-tools\models\Peron15_hitl4 --servo-speed-s 0.03 --origin-lat {lat} --origin-lon {lon} --origin-alt {alt} --heading {hdg} --exit-on-stdin-eof --log-csv {link_csv} --unreal-pose 127.0.0.1:17110 23.5"`
   Once the check has written its summary, the report:
   `.venv\Scripts\python.exe -m tools.unreal.dock_pass_report --run-json C:\tune_hitl\dock3.json --link-csv C:\tune_hitl\dock3\link.csv --frames C:\tune_hitl\dock3_frames --out C:\tune_hitl\dock3_report`
 - **Report.** `tools/unreal/dock_pass_report.py` joins each frame with the bridge's `link.csv` row of its pose's

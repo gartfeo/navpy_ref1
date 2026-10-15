@@ -1,7 +1,8 @@
 # HITL final approach to the Unreal dock (design v6, 2026-10-15)
 
-**Status.** v6 applies the owner's answers of 2026-10-15 (below) to the Codex-approved v5.6; building (the router of section 2 has an uncommitted first cut in the
-worktree, not reviewed). Owner's "What next?" item 3 ("Full final approach in HITL"). Builds on `hitl_unreal_camera.md`
+**Status.** v6 applies the owner's answers of 2026-10-15 (below) to the Codex-approved v5.6; building. Done: the
+router of section 2 (`tools/tuning/mav_router*.py`, Codex-reviewed) and the profile `placeholder_18x`.
+Owner's "What next?" item 3 ("Full final approach in HITL"). Builds on `hitl_unreal_camera.md`
 (camera stream, dock passes, detector range) and `flight_tuning.md` (HITL runner, bridge, gate). Line numbers are on
 `feat/hitl-flight-tuning` 7d36929; Unreal lines on `aas-sim-unreal` 48ad8dd (`C:\repos\unreal-projects\AasSimProject`);
 aas-hitl lines on its checkout `C:\repos\aas_repos\hitl_repos\aas-hitl` (read only). v5 applies the owner's camera
@@ -25,7 +26,7 @@ board (Pixhawk 6X, HIL fw) <-COM11-> bridge (JSBSim Peron15_hitl4, HIGH) --pose 
 - **navpy:** `python -m navpy.main` (`src/navpy/main.py:7`), headless, single UAV:
   `--detector-type real --detector-backend charuco --vision-profile siyi_zr10_hitl --pitch-controller vision-nav-pn`,
   `-c udpin:127.0.0.1:<navpy's client port>` (the router sends to each client's listening port and accepts replies only
-  from it, `mav_router.py:60, 160, 202`), `-ss` the board's system id (navpy is component 191, `conn_args.py:7-11`). The GCS
+  from it, `mav_router_core.py:127, 179`), `-ss` the board's system id (navpy is component 191, `conn_args.py:7-11`). The GCS
   launch hardcodes `--detector-type sim` (`src/gcs/backend/navpy_process_launch.py:125`); GCS and operator approval come
   later, so the first runs auto-confirm (`-tac`, default true, `nav_args.py:12`). No GCS stack, no `swarm_run.py --eval`.
 - **ZR10 emulator (new, navpy `tools/hitl/zr10_emulator.py`, section 4):** SIYI protocol on UDP 127.0.0.1:37260, gimbal
@@ -53,12 +54,15 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   client's claim only. After every forwarded `REQUEST_DATA_STREAM` and every new boot the router re-sends the effective
   intervals in its own name (system 250, own component) and drops the acks addressed to it.
 - **Reboots:** COM15 vanishes on reboot (`board.py:144`); the router reopens it with `OPEN_RETRY_S` (`board.py:41`) and
-  drops client packets while closed, counted. The first cut has a write/close race (the writer checks `_link_up`,
-  `mav_router.py:181`, while the reader closes the transport, `:133`, and `transport.py:78` asserts an open handle,
-  outside the writer's `OSError` handler): H0 gives the serial handle one owner (writes and reopen under one lock) and
-  tests a reboot under write load.
-- **Quiescence at the board boundary:** the router queues raw bytes apart from navpy's lifecycle (`mav_router.py:86,
-  176, 227`), so a command fenced in navpy can still reach the board after its terminal record. A router barrier on a
+  drops client packets while closed, counted. Built: one owner of the serial handle (open, write and close under one
+  lock; a failed open releases the handle). Fail closed across transitions (link up or down, barrier, reopen): each
+  receiver keeps the state it accepted before its wait, a datagram read across a change is dropped, and every
+  transition wakes the receivers so they take the new state at once; a stale packet changes no stream claim. A
+  datagram carries whole packets, so a partial packet is dropped, never joined to the next datagram. Tested through
+  the real receiver: reboot under write load, a datagram read across a transition, partial UDP, failed open,
+  repeated barriers, reopen of an open endpoint.
+- **Quiescence at the board boundary:** the router queues raw bytes apart from navpy's lifecycle (`mav_router_core.py:39,
+  168, 179`), so a command fenced in navpy can still reach the board after its terminal record. A router barrier on a
   loopback control port (HITL only; navpy gets its address as a run option): after its local fence and **before** it
   publishes the terminal record, navpy asks the router to close its endpoint; the router stops accepting navpy's
   packets, discards those still queued, waits for any write in progress to return, and acks with the discarded count
@@ -328,14 +332,10 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   state only; Unreal's rendered gimbal state and the vehicle pose never reach navpy (guard tests).
 - **Other cameras, for later (profiles only, no run in this plan).** A fixed camera is data: resolution, K per zoom (or
   nominal pixel pitch and focal range), mount pitch, maximum optical zoom, and a `calibration` label (`measured` or
-  `nominal`); results from a nominal profile are labelled so. Two new profiles: `novoxy_sk_ahd2200` (owner's camera:
-  1/3" IMX323, 1920 x 1080, 2.8 um, 5-50 mm: fx = f / pitch = 1786 px at 5 mm, about 56.5 x 33.6 deg; 17857 px at
-  50 mm, about 6.2 x 3.5 deg; nominal, uncalibrated; AHD analog output through a capture device, so READ stamps only
-  until a capture timing method exists) and `placeholder_18x` (ZR10 zoom-1 K, max 18x, labelled placeholder). Note:
-  the existing profiles `novoxy10` (1920 x 1080, measured-looking zoom 1-3 rows, fx 1978.6 at zoom 1, i.e. 51.8 deg wide,
-  11 % off the 5 mm nominal) and `novoxy18` (zoom 1-2) have no recorded source (initial commit 16ced48); whether
-  `novoxy10` is this camera is unknown, so it is left unchanged. The fixed-camera path (v4's B2: a factory for one fixed K
-  without a zoom command) is not needed for the gimbal runs and is deferred with these profiles.
+  `nominal`); results from a nominal profile are labelled so. New profile: `placeholder_18x` (ZR10 zoom-1 K, max
+  18x, labelled placeholder). Novoxy SK-AHD2200: dropped (owner, 2026-10-15: concentrate on the ZR10). The
+  fixed-camera path (v4's B2: a factory for one fixed K without a zoom command) is not needed for the gimbal runs and
+  is deferred.
 
 ## 5. How the approach starts
 - **Dock location rule:** the search mission is fixed and never derived from the board position: a straight AUTO leg at
@@ -395,11 +395,11 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
 ## 9. Steps
 | Step | What | Done when |
 |---|---|---|
-| H0 | Q1-Q4; router (2); B3 real SIYI path; ZR10 emulator with aircraft attitude from the bridge, the dynamics table and zoom table (4); gimbal/zoom readback lag-corrected, scale-calibrated and interpolated at exposure (N3); optical K by reading (N4); gimbal search sweep (N5); fixed-step zoom policy (N6); SIYI sign contract; one PC clock and the certified gimbal frame offset; confirm only while locked and on the circle; plan feasibility check (4); zoom steps in NAV (N9); tracker rate feedforward (N7); orbit centre from the board pose (N8); offline partial-view tail check with BoT-SORT; router single-owner serial handle and the barrier before the terminal record; HITL profile `siyi_zr10_hitl` (zero distortion); B1 calibration tool and EXPOSURE-only rule; board-centre navigation pixel; B4 contact sensor + identity binding; terminal fence (incl. gimbal commands), hold and record; observation-mode inhibit; effective settings in the start record; `sitl_driver approach`; report tool; Unreal U1-U4 and the board mast (Q1); profiles `novoxy_sk_ahd2200`, `placeholder_18x` | Unit + guard tests (Pure Vision, contact isolation, no dock data or rendered state in navpy, EXPOSURE-only, real path never sim gimbal, emulator protocol against navpy's client and against recorded aas-hitl replies, router routing and stream claims, terminal handoff interleavings), full suite |
+| H0 | Q1-Q4; router (2); B3 real SIYI path; ZR10 emulator with aircraft attitude from the bridge, the dynamics table and zoom table (4); gimbal/zoom readback lag-corrected, scale-calibrated and interpolated at exposure (N3); optical K by reading (N4); gimbal search sweep (N5); fixed-step zoom policy (N6); SIYI sign contract; one PC clock and the certified gimbal frame offset; confirm only while locked and on the circle; plan feasibility check (4); zoom steps in NAV (N9); tracker rate feedforward (N7); orbit centre from the board pose (N8); offline partial-view tail check with BoT-SORT; router single-owner serial handle and the barrier before the terminal record; HITL profile `siyi_zr10_hitl` (zero distortion); B1 calibration tool and EXPOSURE-only rule; board-centre navigation pixel; B4 contact sensor + identity binding; terminal fence (incl. gimbal commands), hold and record; observation-mode inhibit; effective settings in the start record; `sitl_driver approach`; report tool; Unreal U1-U4 and the board mast (Q1); profile `placeholder_18x` | Unit + guard tests (Pure Vision, contact isolation, no dock data or rendered state in navpy, EXPOSURE-only, real path never sim gimbal, emulator protocol against navpy's client and against recorded aas-hitl replies, router routing and stream claims, terminal handoff interleavings), full suite |
 | H1 | SITL stand-in + router + bridge + Unreal + emulator + navpy, observation only: an explicit inhibit at NAV entry (search, lock, zoom steps and the acquisition orbit's GUIDED loiter run; no NAV, no attitude command; tested), or the harness flies the orbit with navpy's mode writes inhibited. Bounded GUIDED attitude test. aas-hitl emulator cross-check, read only | Calibration certified under load; gimbal association error within budget; acquisition range and zoom on the mast board; lock holds through the orbit; router clean; gates pass; lane bounds set |
 | H2 | SITL approaches: ideal gimbal, then each effect added (yaw report scale with its calibration, report lag, 0x07 dead time, zoom speed); NAV zoom stepping down (N9); then 10 under the measured configuration (4) | Per setting: acquisition, time in NAV, outcome; 10 of 10 (7); pull-out height loss; every run logged |
 | H3 | Real board (COM15 via the router, COM11 bridge; Mission Planner must not hold COM15), 1 then 10 | As H2, results beside H2 |
-| H4 | Later: auto-zoom (owner: after HITL), real ZR10 K by reading after a per-reading calibration, GCS approval, moving dock, Novoxy/18x fixed-camera runs | Separate designs |
+| H4 | Later: auto-zoom (owner: after HITL), real ZR10 K by reading after a per-reading calibration, GCS approval, moving dock, 18x fixed-camera runs | Separate designs |
 
 ## Owner answers (2026-10-15)
 1. Board: keep 2.4 x 3.2 m. → 4, 6.
@@ -407,6 +407,7 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
 3. Pass mark: 10 of 10. → 7.
 4. Camera: first a fixed nose camera (v4), then the Novoxy SK-AHD2200 (10x, 5-50 mm) and a bigger 18x mentioned, then
    "Let's do gimbal instead": the approach uses the simulated ZR10 gimbal. Novoxy and 18x stay as profiles for later. → 4.
+   Later the same day: "Skip novoxy, we should concentrate on zr10": the Novoxy profile is dropped. → 4.
    v4's Q5 (stand the board up for the fixed camera) is withdrawn: the gimbal looks down at a flat board.
 
 ## Owner answers to v5 (2026-10-15)
@@ -457,3 +458,9 @@ r6 closed; no new findings. Approval covers the design contract, not HITL perfor
 ## Codex check of v6 (2026-10-15): "rework", applied
 P2: one lens-travel rule (N3) and 0.1 x quantisation, exact in HITL; N9's trigger tests both axes and edge margins.
 Round 2: "approve".
+
+## Codex review of the router code (2026-10-15): rounds 1-4 "rework", round 5 "approve"
+Fixed: packets read before a reboot, barrier or reopen reaching the board after it (receipt stamp, then the whole
+waiting backlog dropped); partial packets (a datagram carries whole packets); a failed open keeping the handle; double
+counted barrier drops; stale or link-down packets changing stream claims; NaN intervals stopping a receiver; a client
+named `router`; reopen of an open endpoint. A regression test for each, each failing without its fix.
