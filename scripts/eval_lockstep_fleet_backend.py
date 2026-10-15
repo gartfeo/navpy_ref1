@@ -1,4 +1,4 @@
-"""Step 10e: the backend with 3 vehicles on ``lockstep:router``, the router on 3 SITLs from tick 1.
+"""Steps 10e, 10f: the backend with 3 vehicles on ``lockstep:router``, the router on 3 SITLs from tick 1.
 
 Infrastructure check, not a mission eval (``lockstep_fleet.md``, sub-step
 10e). The coordinator launches a :class:`~scripts.lockstep_wsl_sitl.WslFleet`
@@ -9,8 +9,21 @@ actor (``scripts.lockstep_fleet_actor.fleet_script``) connects sysids 1-3 on
 ``lockstep:router``, reads each one's command bounds by name, writes each
 one's AAS profile, uploads the fixture's three missions with their
 readback, then starts the in-process ESP32 simulator; the run then drains
-the backend and parks every SITL. No NavPy runs (10f), so the mission ends
+the backend and parks every SITL. No NavPy runs, so the mission ends
 ``operator_returned``.
+
+With ``--navpy`` (10f) the backend's launcher port spawns NavPy 1-3 (roles
+``navpy<i>``, the expected fleet 1-3) and the actor is
+``lockstep_fleet_companions.navlink_script``: the companions up, the launch on
+ESP32 channels 1-3, every NavPy's check-in, two swarm heartbeat periods,
+then stop-all (``operator_returned``, before any SNAP). Every NAVLINK packet
+a NavPy sent is traced hop by hop to each peer
+(``navpy.sim.lockstep.navlink_trace``) into ``navlink_traces.json``; the run
+passes only if every ordered pair of NavPys has a complete trace and every
+packet sent before the first stop request reached each peer it is for (a
+packet still in flight when stop-all retires its receiver may stop short),
+with no ambiguous trace (a byte-identical resend of one UID). Each
+NavPy's log lines go to ``navpy<i>_log_lines.txt``; both are compared.
 
 The fixture (``scripts/eval_lockstep_fleet_scenario.json``) is the certified
 scenario frozen at step 10e: its home and slots are the certified ones, and
@@ -34,7 +47,7 @@ and ``host/gcs/``; host facts (slot, WSL root, wall time) only in ``*_host``
 files.
 
 Usage: python scripts/eval_lockstep_fleet_backend.py --run-dir DIR
-       [--delay-seeds 0 7] [--seed 1]
+       [--delay-seeds 0 7] [--seed 1] [--navpy]
 Exit 0: every run ended as intended and, with two or more runs, the artifacts are equal.
 """
 
@@ -68,7 +81,9 @@ from scripts.eval_gcs_demo_config import build_settings  # noqa: E402
 from scripts.eval_gcs_demo_lockstep_inputs import lockstep_sitl_inputs  # noqa: E402
 from scripts.eval_gcs_demo_scenario import DemoScenario, load_scenario  # noqa: E402
 from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles  # noqa: E402
-from scripts.lockstep_fleet_actor import FleetLayout, backend_role, fleet_script  # noqa: E402
+from scripts.lockstep_fleet_actor import FleetLayout, fleet_roles, fleet_script  # noqa: E402
+from scripts.lockstep_fleet_companions import navlink_script  # noqa: E402
+from scripts.lockstep_navlink_gate import TRACES_FILE, navlink_ok, write_navlink  # noqa: E402
 from scripts.lockstep_wsl_sitl import (  # noqa: E402
     BOOT_BUDGET_US,
     DRAIN_PERIOD_US,
@@ -82,17 +97,20 @@ from scripts.lockstep_wsl_sitl import (  # noqa: E402
 FLEET_SCENARIO = ROOT / "scripts" / "eval_lockstep_fleet_scenario.json"
 #: The fixture's pin: its canonical sha256 and the certified file's revision it was copied from.
 FLEET_SCENARIO_LOCK = ROOT / "scripts" / "eval_lockstep_fleet_scenario.lock.json"
-#: The one outcome a fleet backend run may end with: the actor returned (no
-#: NavPy, so no SNAP); ``timeout`` or a fault is a failed run.
+#: The one outcome a fleet run may end with: the actor returned (with no
+#: NavPy, or with NavPys stopped before any SNAP); ``timeout`` or a fault is
+#: a failed run.
 EXPECTED_OUTCOME = "operator_returned"
 FLEET = FleetLayout(3)
 #: The mission's sim-time budget: a backstop only; the mission ends when the
-#: actor returns (``operator_returned``: no NavPy, so no SNAP).
+#: actor returns (``operator_returned``: no SNAP).
 MISSION_BUDGET_S = 600.0
 #: Host supervision of the participants (registration, a DONE, an exit).
 WALL_BUDGETS = WallBudgets(register_s=120, done_s=120, exit_s=60)
 JOURNAL_FILE = "lockstep_journal.jsonl"
 COMPARED_FILES = (JOURNAL_FILE, "fleet_actor.json", "backend_log_lines.txt")
+#: ``--navpy``'s further compared files: the traces and each NavPy's log lines.
+NAVPY_FILES = (TRACES_FILE, *(f"{role}_log_lines.txt" for role in FLEET.companion_roles))
 
 
 def canonical_sha256(path: Path) -> str:
@@ -113,14 +131,17 @@ def load_fleet_scenario() -> tuple[DemoScenario, dict]:
     return load_scenario(FLEET_SCENARIO), pin
 
 
-def fleet_manifest(scenario: DemoScenario, seed: int) -> Manifest:
-    """The backend alone on the router device, for sysids 1-3 (no NavPy yet: 10f)."""
+def fleet_manifest(scenario: DemoScenario, seed: int, *, navpy: bool = False) -> Manifest:
+    """The backend on the router device for sysids 1-3; with ``navpy`` each
+    NavPy role its launcher port spawns, and the expected fleet."""
     return Manifest(
         seed=seed, epoch_us=SITL_START_TIME_UTC * 1_000_000, max_frame_gap_us=MAX_FRAME_GAP_US,
         drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(MISSION_BUDGET_S * 1_000_000),
-        roles={"backend": backend_role(build_settings(scenario), FLEET)},
+        roles=fleet_roles(build_settings(scenario), FLEET, navpy=navpy),
         sitl_ports=FLEET.sitl_ports, router=FLEET.router, initial=(("backend", FLEET.backend),),
         boot_budget_us=BOOT_BUDGET_US,
+        companion_roles=FLEET.companion_roles if navpy else (),
+        expected_fleet=FLEET.expected_fleet if navpy else (),
     )
 
 
@@ -144,7 +165,7 @@ def confirm_teardown(slot: int, *stops: Callable[[], None]) -> None:
                               "kept for python scripts/gcs_stop.py") from failures[0]
 
 
-def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: int) -> dict:
+def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: int, navpy: bool = False) -> dict:
     run_dir.mkdir(parents=True, exist_ok=False)
     scenario, pin = load_fleet_scenario()
     script_sha256 = topology.run_swarm_sha256()
@@ -152,7 +173,7 @@ def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: in
     homes = topology.fleet_homes(scenario.home, FLEET.size)
     vehicles = tuple(zip(FLEET.sys_ids, homes))
     defaults, tiles = lockstep_wsl.merged_defaults(), terrain_tiles()
-    plan = fleet_manifest(scenario, seed)
+    plan = fleet_manifest(scenario, seed, navpy=navpy)
     (run_dir / "lockstep_inputs.json").write_text(json.dumps({
         "seed": seed, "boot_budget_us": plan.boot_budget_us,
         "scenario": {"file": FLEET_SCENARIO.name, "canonical_sha256": pin["canonical_sha256"],
@@ -166,7 +187,7 @@ def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: in
                     HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS,
                     deadline=exchange_deadline())
     ids = RequestIds(0)
-    operator = OperatorBaton(ids, fleet_script(scenario, FLEET))
+    operator = OperatorBaton(ids, (navlink_script if navpy else fleet_script)(scenario, FLEET))
     coordinator = LockstepCoordinator(plan, wsl.sitls, operator, roster, ids, host_dir,
                                       delay=HostDelays(delay_seed), launch=wsl.launch)
     started = time.perf_counter()
@@ -185,6 +206,7 @@ def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: in
         json.dumps(operator.result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     lines = operator.journal.log_lines.get(FLEET.backend, [])
     (run_dir / "backend_log_lines.txt").write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
+    navlink = write_navlink(run_dir, journal.records, operator.journal.log_lines, FLEET) if navpy else None
     rows = [r for r in journal.records if "k" in r and "t_us" in r and r.get("phase") != "drain"]
     sim_s = (rows[-1]["t_us"] - rows[0]["t_us"]) / 1e6 if rows else 0.0
     host = {"slot": slot, "wsl_root": wsl.root, "wall_s": wall_s, "delay_seed": delay_seed,
@@ -196,14 +218,17 @@ def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: in
         raise RuntimeError(f"fleet backend run fault: {type(fault).__name__}: {fault}") from fault
     faults = [r for r in journal.records if "fault" in r]
     return {"digest": journal.digest, "ticks": len(rows), "sim_s": sim_s,
-            "backend_log_lines": len(lines), "fault_records": len(faults), **host}
+            "backend_log_lines": len(lines), "fault_records": len(faults), "navlink": navlink, **host}
 
 
 def run_ok(outcome: dict) -> bool:
-    """The run ended as intended: ``operator_returned`` and no fault record."""
+    """The run ended as intended: ``operator_returned``, no fault record and,
+    with NavPys, a complete NAVLINK trace for every ordered pair, none lost
+    before stop-all and none ambiguous."""
     result = outcome.get("result") or {}
+    navlink = outcome.get("navlink")
     return (result.get("outcome") == EXPECTED_OUTCOME and outcome["fault"] is None
-            and outcome["fault_records"] == 0)
+            and outcome["fault_records"] == 0 and (navlink is None or navlink_ok(navlink)))
 
 
 def verdict(outcomes: list[dict], same: dict[str, bool]) -> dict:
@@ -236,6 +261,8 @@ def main() -> int:
     parser.add_argument("--delay-seeds", type=int, nargs="+", default=[0, 7],
                         help="one run per value, each in its own slot; acceptance needs two or more")
     parser.add_argument("--seed", type=int, default=1, help="the run seed (boot ids)")
+    parser.add_argument("--navpy", action="store_true",
+                        help="10f: NavPy 1-3, the launch, and the NAVLINK traces")
     args = parser.parse_args()
     claims, outcomes, kept = [], [], set()
     try:
@@ -245,7 +272,7 @@ def main() -> int:
         for index, ((slot, owner), delay) in enumerate(zip(claims, args.delay_seeds)):
             try:
                 outcomes.append(run_once(args.run_dir / f"run{index + 1}", slot, owner, seed=args.seed,
-                                         delay_seed=delay))
+                                         delay_seed=delay, navpy=args.navpy))
             except UncleanTeardown:
                 kept.add(slot)
                 raise
@@ -254,7 +281,8 @@ def main() -> int:
     run_dirs = [args.run_dir / f"run{i + 1}" for i in range(len(outcomes))]
     same = {}
     if len(run_dirs) > 1:
-        same = {name: len({(run / name).read_bytes() for run in run_dirs}) == 1 for name in COMPARED_FILES}
+        compared = COMPARED_FILES + (NAVPY_FILES if args.navpy else ())
+        same = {name: len({(run / name).read_bytes() for run in run_dirs}) == 1 for name in compared}
         same["gcs"] = all(_gcs_files(run) == _gcs_files(run_dirs[0]) for run in run_dirs)
     result = verdict(outcomes, same)
     print(json.dumps({**result, "same": same, "runs": outcomes}, indent=2))

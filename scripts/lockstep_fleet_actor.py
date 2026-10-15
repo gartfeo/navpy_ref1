@@ -6,14 +6,19 @@ the fleet's naming scheme ("Links and names", "Participants"):
 
 - NavPy i owns ``lockstep:serial0.<i>`` and is ordinal i;
 - the backend owns ``lockstep:router`` and is ordinal N+1 (the operator is 0);
-- SITL i's serial1 is the coordinator's router endpoint ``sitl<i>``.
+- SITL i's serial1 is the coordinator's router endpoint ``sitl<i>``;
+- NavPy i's role is ``navpy<i>`` (its own device and command line), and
+  the expected fleet is every sysid (NavPy ordinal i is sysid i).
 
 The operator's :func:`stack_context` gives every sysid its own NavPy log
 tail, and the backend role (:func:`backend_role`) owns the router device
-with its settings. :func:`setup_script` is 9e's setup for every sysid of the
-layout (connect ``lockstep:router``, the command bounds read by name, the AAS
-profile, the scenario's missions with their readback); :func:`fleet_script`
-adds the ESP32 launch controller's simulator, in process (10e). The slice is
+with its settings. :func:`fleet_roles` builds the backend role (with its launcher port's
+``companions`` map, keyed by sysid) and each NavPy role (10f).
+:func:`setup_script` is 9e's setup for every sysid of the layout (connect
+``lockstep:router``, the command bounds read by name, the AAS profile, the
+scenario's missions with their readback); :func:`fleet_script` adds the
+ESP32 launch controller's simulator, in process (10e). The companion
+scripts are ``scripts.lockstep_fleet_companions`` (9f, 10f). The slice is
 the layout with N = 1 (``scripts.lockstep_slice_actor``).
 """
 
@@ -21,6 +26,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+
+from gcs.backend.navpy_process_launch import lockstep_navpy_argv
 
 from navpy.sim.lockstep.coordinator_types import (
     ROUTER_DEVICE,
@@ -93,6 +100,20 @@ class FleetLayout:
         """SITL ``sys_id``'s serial0: NavPy ``sys_id``'s companion device."""
         return serial0_device(self._check(sys_id))
 
+    def companion_role(self, sys_id: int) -> str:
+        """NavPy ``sys_id``'s role name in the manifest."""
+        return f"navpy{self._check(sys_id)}"
+
+    @property
+    def companion_roles(self) -> tuple[str, ...]:
+        """``Manifest.companion_roles``: every NavPy role, in sysid order."""
+        return tuple(self.companion_role(sys_id) for sys_id in self.sys_ids)
+
+    @property
+    def expected_fleet(self) -> tuple[int, ...]:
+        """``Manifest.expected_fleet``: every NavPy's ordinal (sysid i is ordinal i)."""
+        return tuple(self.navpy(sys_id) for sys_id in self.sys_ids)
+
     def _check(self, sys_id: int) -> int:
         # An exact int: ``True`` or ``1.0`` would pass the membership test and
         # name a device ``lockstep:serial0.True``.
@@ -138,6 +159,38 @@ def backend_role(settings: dict, layout: FleetLayout, *, companions: dict | None
     if companions is not None:
         config["companions"] = companions
     return role(BACKEND_HOOKS, layout.router, config)
+
+
+def companion_argv(settings: dict, layout: FleetLayout, sys_id: int) -> list[str]:
+    """The command line the launcher port starts NavPy ``sys_id`` with (the
+    settings' vision profile, its logical device, the lifecycle stop)."""
+    return lockstep_navpy_argv(sys_id, layout.serial0(sys_id),
+                               vision_profile=settings["camera"]["vision_profile"])
+
+
+def fleet_roles(settings: dict, layout: FleetLayout, *, navpy: bool = False,
+                companion: Callable[[int], RoleSpec] | None = None,
+                pose_cadence_dir: str | None = None) -> dict[str, RoleSpec]:
+    """The backend role; with ``navpy`` (or a stand-in ``companion`` per sysid)
+    each companion role ``navpy<i>`` that its launcher port spawns, with one
+    command line (:func:`companion_argv`) in both the backend's ``companions``
+    map and the role's spawn record. A run-relative ``pose_cadence_dir`` makes
+    every role record the pose-cadence CSVs there."""
+    recording = {} if pose_cadence_dir is None else {POSE_CADENCE_DIR: pose_cadence_dir}
+    roles: dict[str, RoleSpec] = {}
+    companions = None
+    if navpy or companion is not None:
+        companions = {}
+        for sys_id in layout.sys_ids:
+            name, device = layout.companion_role(sys_id), layout.serial0(sys_id)
+            argv = companion_argv(settings, layout, sys_id)
+            companions[str(sys_id)] = {"role": name, "ordinal": layout.navpy(sys_id),
+                                       "device": device, "argv": argv}
+            roles[name] = (companion(sys_id) if companion is not None
+                           else role(NAVPY_HOOKS, device, {"argv": argv, **recording}))
+    roles["backend"] = backend_role(settings, layout, companions=companions,
+                                    pose_cadence_dir=pose_cadence_dir)
+    return roles
 
 
 def _received(events: LockstepEventStream) -> list[str]:
@@ -198,6 +251,7 @@ def fleet_script(scenario: DemoScenario, layout: FleetLayout) -> Callable[[Opera
 
 __all__ = [
     "BACKEND_HOOKS", "COMMAND_BOUND_NAMES", "ESP32_STATUS_ROUTE", "FleetLayout", "NAMED_PARAMETER_NAMES",
-    "NAVPY_HOOKS", "VEHICLES_TIMEOUT_S", "backend_role", "fleet_script", "named_parameter_snapshot",
-    "role", "setup_script", "stack_context",
+    "NAVPY_HOOKS", "VEHICLES_TIMEOUT_S",
+    "backend_role", "companion_argv", "fleet_roles", "fleet_script",
+    "named_parameter_snapshot", "role", "setup_script", "stack_context",
 ]

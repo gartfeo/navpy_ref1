@@ -13,7 +13,14 @@ withholds replies: a message kind is answered at most that many times.
 ``TERRAIN_CHECK`` is never answered, as by an autopilot with
 ``TERRAIN_ENABLE 0`` (the lockstep defaults keep terrain on since step 9h). :func:`navpy_parameters` adds what a NavPy companion
 reads at boot: the firmware's ``SYSID_THISMAV`` and the AAS table that the
-SITL's ``aas_params.lua`` adds.
+SITL's ``aas_params.lua`` adds. With ``forward``, it routes as ArduPilot
+does between its MAVLink channels: a packet with no target, a broadcast
+target, a foreign system's target or this system's without one of its own
+components (a NAVLINK packet for the NavPy that shares the sysid) is also
+written, as its original bytes, to every other port (before it is handled);
+one for its autopilot or gimbal is not.
+ArduPilot sends a targeted packet only where it learned that system; the
+double sends it to every other port (a fleet's serial1 is the only other).
 """
 
 from __future__ import annotations
@@ -43,9 +50,9 @@ def aas_lua_parameters() -> dict[str, float]:
     return {prefix + name: float(value) for name, value in _LUA_PARAM.findall(source)}
 
 
-def navpy_parameters() -> dict[str, float]:
+def navpy_parameters(sys_id: int = SYS_ID) -> dict[str, float]:
     """What a NavPy companion reads at boot: the firmware's identity and the AAS table."""
-    return {"SYSID_THISMAV": float(SYS_ID), **aas_lua_parameters()}
+    return {"SYSID_THISMAV": float(sys_id), **aas_lua_parameters()}
 #: Home, takeoff, one waypoint: (command, latitude e7, longitude e7, altitude m).
 MISSION = (
     (mavlink.MAV_CMD_NAV_WAYPOINT, 401_000_000, 444_000_000, 0.0),
@@ -72,9 +79,11 @@ class ReferenceAutopilot:
         parameters: dict[str, float] | None = None,
         answer_limits: dict[str, int] | None = None,
         sys_id: int = SYS_ID,
+        forward: bool = False,
     ) -> None:
         #: The vehicle's MAVLink system id (a fleet's vehicle i is sysid i).
         self.sys_id = sys_id
+        self._forward = forward
         self._ports = [_Port(sys_id) for _ in range(ports)]
         self._next_heartbeat_us = 0
         self._heartbeats = heartbeats
@@ -102,6 +111,10 @@ class ReferenceAutopilot:
                 self.received.append((
                     index, message.get_type(), message.get_srcSystem(), message.get_srcComponent(),
                 ))
+                if self._forward and self._routes(message):
+                    for other in self._ports:
+                        if other is not port:
+                            other.sink.write(message.get_msgbuf())
                 if not self.silent:
                     self._answer(port, message)
         if self.silent:
@@ -117,6 +130,12 @@ class ReferenceAutopilot:
                         mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, self.custom_mode, 3,
                     )
         return [port.sink.drain() for port in self._ports]
+
+    def _routes(self, message: mavlink.MAVLink_message) -> bool:
+        """Forwarded: unless it targets this system's autopilot or gimbal."""
+        if getattr(message, "target_system", 0) != self.sys_id:
+            return True
+        return getattr(message, "target_component", None) not in (mavlink.MAV_COMP_ID_AUTOPILOT1, GIMBAL_COMPONENT)
 
     def _answer(self, port: _Port, message: mavlink.MAVLink_message) -> None:
         kind = message.get_type()

@@ -149,3 +149,45 @@ def test_the_fleet_actor_for_three_sysids_repeats_byte_for_byte_under_two_slots(
         assert peers == set(FLEET.sys_ids) - {sys_id}
     host = json.loads((tmp_path / "first" / "lockstep_participants_host.json").read_text())
     assert [row["exit_code"] for row in host] == [0]
+
+
+def test_three_navpys_spawn_boot_and_stop_through_the_launcher_port_and_repeat(tmp_path, monkeypatch):
+    """10f on reference autopilots: start-all spawns NavPy 1-3 (roles
+    ``navpy<i>``, each on its own serial0) one after another, each boots,
+    and stop-all acks every one; two slots, the second with host delays,
+    give the same journal. Idle NavPys send no peer NAVLINK (the swarm actor
+    starts in flight), so the NAVLINK hops are the real-SITL run's
+    (``eval_lockstep_fleet_backend.py --navpy``)."""
+    monkeypatch.setenv("GCS_INSTANCE_REGISTRY", str(tmp_path / "instances.json"))
+    (first, first_owner), (second, second_owner) = _claim(), _claim()
+    try:
+        runs = []
+        for name, slot, delay_seed in (("first", first, 0), ("second", second, 5)):
+            monkeypatch.setenv("GCS_CHAT_INDEX", str(slot))
+            run = build_fleet(tmp_path / name, FLEET, delay_seed=delay_seed, navpy=True)
+            runs.append((run, run.run()))
+    finally:
+        assert lockstep.release_if_owner(first, first_owner)
+        assert lockstep.release_if_owner(second, second_owner)
+    (plain, plain_result), (other, other_result) = runs
+    assert plain_result.outcome == "operator_returned" and plain_result == other_result
+    assert plain.coordinator.journal.records == other.coordinator.journal.records
+    assert plain.operator.result == other.operator.result
+
+    ready = plain.operator.result["ready"]
+    assert [(s["sys_id"], s["connection"], s["ordinal"], s["runtime"]["ordinal"]) for s in ready] == [
+        (i, FLEET.serial0(i), i, i) for i in FLEET.sys_ids]
+    assert plain.operator.result["stopped"]["instances"] == []
+    lifecycle = [entry for record in plain.coordinator.journal.records for entry in record.get("lifecycle", ())]
+    assert [entry["result"] for entry in lifecycle if entry["kind"] == "stop_result"] == ["acked"] * 3
+    spawns = [(record["k"], entry["ordinal"]) for record in plain.coordinator.journal.records
+              for entry in record.get("lifecycle", ()) if entry["kind"] == "spawn"]
+    assert [ordinal for _k, ordinal in spawns] == list(FLEET.sys_ids)
+    assert [k for k, _ordinal in spawns] == sorted({k for k, _ordinal in spawns})  # one per tick, in order
+    for sys_id in FLEET.sys_ids:
+        log = plain.operator.journal.log_lines[FLEET.navpy(sys_id)]
+        assert any(f"connection='{FLEET.serial0(sys_id)}', network_type='mav', source_system={sys_id}" in line
+                   for line in log)
+    host = json.loads((tmp_path / "first" / "lockstep_participants_host.json").read_text())
+    assert sorted((row["role"], row["exit_code"]) for row in host) == [
+        ("backend", 0), ("navpy1", 0), ("navpy2", 0), ("navpy3", 0)]

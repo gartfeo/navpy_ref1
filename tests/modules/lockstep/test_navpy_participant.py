@@ -75,7 +75,7 @@ def make_loop(monkeypatch):
     monkeypatch.setattr(logger_factory, "_run_log_dir", None)
     monkeypatch.setattr(pose_cadence_debug, "ENABLED", False)
 
-    def make(composition: _Composition) -> tuple[ParticipantLoop, NavpyHooks]:
+    def make(composition: _Composition, argv: list[str] | None = None) -> tuple[ParticipantLoop, NavpyHooks]:
         baton = BatonRuntime()
         runtime = LockstepRuntime.create(baton, epoch_us=0, seed=1, ordinal=1)
         binding = rt.RuntimeBinding()
@@ -83,7 +83,7 @@ def make_loop(monkeypatch):
         monkeypatch.setattr(rt, "_binding", binding)
         monkeypatch.setattr(navpy_host, "compose_runtime", composition)
         participant = Participant(runtime, LockstepIdentity(1, 1), uninstalls=())
-        argv = lockstep_navpy_argv(1, SERIAL0)
+        argv = lockstep_navpy_argv(1, SERIAL0) if argv is None else argv
         hooks = NavpyHooks(ParticipantContext(participant, {DEVICE_KEY: SERIAL0, "argv": argv},
                                               RequestIds(1)))
         return ParticipantLoop(participant, hooks, link=None), hooks
@@ -158,10 +158,33 @@ def test_a_composition_failure_before_readiness_ends_unflushed(make_loop):
     (["-c", "tcp:127.0.0.1:5762", "-ss", "1", "--stop-on-lifecycle"], "connects to"),
     (["-c", SERIAL0, "-ss", "1", "--stop-on-stdin"], "lifecycle record only"),
     (["-c", SERIAL0, "-ss", "1", "--stop-on-lifecycle", "-gsu", "4"], "SIM_SPEEDUP"),
+    *[(["-c", SERIAL0, "-ss", "1", "--stop-on-lifecycle", "-nt", wall], "wall-only")
+      for wall in ("wifi", "serial", "serial_multi", "mav_multi")],
 ])
 def test_a_command_line_off_the_lockstep_contract_is_refused(argv, message):
     with pytest.raises(ValueError, match=message):
         navpy_host.parse_lockstep_args(argv, SERIAL0)
+
+
+@pytest.mark.parametrize("wall", ["wifi", "serial"])
+def test_a_wall_peer_transport_fails_the_bootstrap_before_composition(make_loop, wall):
+    """The refusal is the participant's bootstrap: nothing is composed (no socket,
+    no port), no readiness, and the participant ends unflushed."""
+    composition = _Composition()
+    argv = [*lockstep_navpy_argv(1, SERIAL0), "-nt", wall]  # the last -nt wins
+    loop, hooks = make_loop(composition, argv)
+    dones = _run(loop, {})
+    assert composition.args is None and hooks.host is None
+    assert _events(dones) == [] and dones[-1].ended is False
+
+
+@pytest.mark.parametrize("network", [None, "none", "mav"])
+def test_the_vehicle_bus_or_no_peer_transport_is_accepted(network):
+    extra = [] if network is None else ["-nt", network]
+    args = navpy_host.parse_lockstep_args(["-c", SERIAL0, "-ss", "1", "--stop-on-lifecycle", *extra], SERIAL0)
+    assert args.network_type in navpy_host.LOCKSTEP_NETWORK_TYPES
+    # The launcher's lockstep command line is the vehicle bus.
+    assert navpy_host.parse_lockstep_args(lockstep_navpy_argv(1, SERIAL0), SERIAL0).network_type.value == "mav"
 
 
 def test_the_identity_cadence_is_sim_time_and_touches_no_process_state(monkeypatch):

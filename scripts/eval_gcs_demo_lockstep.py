@@ -124,7 +124,7 @@ def manifest(scenario: DemoScenario, options: LockstepOptions) -> Manifest:
         drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(MISSION_BUDGET_S * 1_000_000),
         roles=slice_roles(scenario, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR),
         sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),),
-        companion_roles=("navpy",), expected_fleet=(NAVPY,), boot_budget_us=BOOT_BUDGET_US,
+        companion_roles=SLICE.companion_roles, expected_fleet=SLICE.expected_fleet, boot_budget_us=BOOT_BUDGET_US,
     )
 
 

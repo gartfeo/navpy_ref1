@@ -23,7 +23,7 @@ from scripts.eval_gcs_demo_lifecycle import (
     stop_companions,
 )
 from scripts.lockstep_fleet_actor import stack_context as fleet_context
-from scripts.lockstep_slice_actor import BACKEND, NAVPY, SLICE
+from scripts.lockstep_slice_actor import BACKEND, NAVPY, NAVPY_ROLE, SLICE
 from tests.modules.lockstep.backend_doubles import BOUND_VALUES, READY_PAYLOAD, BackendRun, build
 from tests.modules.lockstep.lockstep_autopilot import SYS_ID, ReferenceAutopilot
 
@@ -200,7 +200,7 @@ def test_a_full_lifespan_with_a_companion_started_and_stopped_through_the_launch
     assert seen["after"] == {"instances": []}
     spawns = [s for done in run.dones for s in done.spawn_requests]
     stops = [s for done in run.dones for s in done.stop_requests]
-    assert [(s.role, s.ordinal) for s in spawns] == [("navpy", NAVPY)]
+    assert [(s.role, s.ordinal) for s in spawns] == [(NAVPY_ROLE, NAVPY)]
     assert [(s.ordinal, s.generation) for s in stops] == [(NAVPY, 1)]
     _ended_flushed(run)
 

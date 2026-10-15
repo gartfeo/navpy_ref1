@@ -59,6 +59,7 @@ from scripts.lockstep_slice_actor import (  # noqa: E402
     BACKEND,
     NAVPY,
     ROUTER,
+    SLICE,
     SITL_PORTS,
     SYS_ID,
     companion_script,
@@ -86,7 +87,7 @@ def manifest(seed: int) -> Manifest:
         # No SNAP in 9f: the mission phase ends at its first tick, and
         # finalization lasts until the actor returns.
         mission_budget_us=0, roles=slice_roles(scenario, navpy=True),
-        sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),), companion_roles=("navpy",),
+        sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),), companion_roles=SLICE.companion_roles,
         boot_budget_us=BOOT_BUDGET_US,
     )
 
