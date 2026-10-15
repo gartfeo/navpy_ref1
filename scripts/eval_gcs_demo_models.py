@@ -247,6 +247,12 @@ class StackContext:
     #: wall mode's MAVFTP refresh; lockstep reads the bound parameters by name
     #: (owner ruling 7).
     parameter_reader: Callable[[JsonApiPort, int], JsonValue] | None = None
+    #: The confirmation loop's ``on_polling_start`` and ``on_due_check``:
+    #: None in wall mode; lockstep with the operator's evidence journals the
+    #: loop's start and each pass's due check for the approval replay
+    #: (``lockstep_fleet.md``, "Approval timing").
+    on_polling_start: Callable[[float], None] | None = None
+    on_due_check: Callable[[float, list], None] | None = None
 
     def __post_init__(self) -> None:
         self.sys_ids = UavIds.from_values(self.sys_ids, len(self.scenario.slots)).values

@@ -19,6 +19,7 @@ from navpy.sim.lockstep.operator_ports import (
     LockstepApi,
     LockstepEventStream,
     due_check_hook,
+    polling_start_hook,
 )
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from scripts.eval_gcs_demo_confirmation import CONFIRMATION_POLL_S, run_confirmation_workflow
@@ -33,7 +34,7 @@ from tests.modules.lockstep.test_confirmation_timing import (
 from tests.modules.lockstep.test_grid_check_recording import recorded_frames
 
 CONFIRM_ROUTE = "/api/control/task_confirm"
-EVIDENCE_KEYS = {"delivered", "receive", "due_check", "sleep"}
+EVIDENCE_KEYS = {"delivered", "receive", "polling", "due_check", "sleep"}
 
 
 def _run(evidence: bool, deliveries: dict[int, list[str]]):
@@ -46,7 +47,8 @@ def _run(evidence: bool, deliveries: dict[int, list[str]]):
             event_stream=LockstepEventStream(operator, BACKEND), api=LockstepApi(operator, BACKEND),
             expected_sys_ids={1}, trigger=lambda: None, stop_when=lambda: bool(approvals),
             requested_delay_s=DELAY_S, timeout_s=60.0, clock=BatonClock(operator),
-            on_approval_accepted=approvals.append, on_due_check=due_check_hook(operator)))
+            on_approval_accepted=approvals.append, on_polling_start=polling_start_hook(operator),
+            on_due_check=due_check_hook(operator)))
 
     operator = OperatorBaton(RequestIds(0), script, evidence=evidence)
     observed: dict[int, dict] = {}
@@ -70,8 +72,8 @@ def test_each_pass_journals_its_receive_due_check_and_sleep():
     subscription = _all(observed, "receipts")[0][1]
     # Delivery and consumption are journaled apart: both queued at 100, each
     # consumed by its own pass's receive.
-    assert _all(observed, "delivered") == [(100, [*subscription, "telemetry"]),
-                                           (100, [*subscription, "task_confirm_request"])]
+    assert _all(observed, "delivered") == [(100, [*subscription, "telemetry", 1, None, None]),
+                                           (100, [*subscription, "task_confirm_request", 1, 1, UID])]
     received = _all(observed, "received")
     assert [entry for _k, entry in received] == [
         [100, "telemetry", 1, None, None, *subscription],
@@ -80,7 +82,13 @@ def test_each_pass_journals_its_receive_due_check_and_sleep():
     assert k3 > received[0][0] >= 100
     # Every receive returns at its record's tick: with an event, or at its timeout.
     receives = _all(observed, "receive")
-    assert all(entry[1] == k for k, entry in receives)
+    assert all(entry[1] == k and entry[3:] == subscription for k, entry in receives)
+    receives = [(k, entry[:3]) for k, entry in receives]
+    # Polling starts once, at the first receive's start, with the deadline the
+    # loop set on entry (its subscribe's tick) plus its 60 s timeout.
+    (polling,) = _all(observed, "polling")
+    entered = next(k for k, entry in _all(observed, "sent") if entry[2] == "subscribe")
+    assert polling == (receives[0][1][0], [receives[0][1][0], t[entered] / 1e6 + 60.0])
     first, second = [entry for _k, entry in receives if entry[2] == "event"]
     assert first[0] < first[1] == 100  # a waiting receive returns at the delivery tick
     assert second == [k3, k3, "event"]  # one that starts with an event queued returns at once

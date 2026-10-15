@@ -182,6 +182,21 @@ def test_approval_gate_needs_exactly_one_for_p_with_its_timing(evidence):
     assert any("actual_delay_s" in e for e in approval_errors(records, lines, hasty, OWNER, 1))
 
 
+def test_approval_gate_replays_the_operators_polling_schedule(evidence):
+    """Step 10g-2: a late wake, or a journal without the operator's evidence, fails."""
+    _log_dir, records, lines, approvals = evidence
+    late = copy.deepcopy(records)
+    record = next(r for r in late if r.get("operator", {}).get("sleep"))
+    record["operator"]["sleep"][0][1] += 1
+    (error,) = approval_errors(late, lines, approvals, OWNER, 1)
+    assert error.startswith("approval replay: pass ") and "sleep" in error
+    plain = copy.deepcopy(records)
+    for r in plain:
+        r.get("operator", {}).pop("due_check", None)
+    assert approval_errors(plain, lines, approvals, OWNER, 1) == [
+        "approval replay: the journal holds no due checks (operator evidence off)"]
+
+
 def test_snap_gate_needs_the_first_snap_at_the_terminal_tick(evidence):
     _log_dir, records, lines, _approvals = evidence
     assert snap_errors(records, lines) == []

@@ -168,6 +168,8 @@ def approve_requests_until_snap(
             before_approve=before_approve,
             on_approval_attempted=on_approval_attempted,
             on_approval_accepted=on_approval_accepted,
+            on_polling_start=context.on_polling_start,
+            on_due_check=context.on_due_check,
         )
     except ConfirmationTimeout as error:
         missing_snap, evidence_errors = _persist_confirmation_failure(

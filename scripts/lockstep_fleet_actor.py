@@ -37,7 +37,13 @@ from navpy.sim.lockstep.coordinator_types import (
     serial0_device,
 )
 from navpy.sim.lockstep.operator_baton import OperatorBaton
-from navpy.sim.lockstep.operator_ports import BatonClock, LockstepApi, LockstepEventStream
+from navpy.sim.lockstep.operator_ports import (
+    BatonClock,
+    LockstepApi,
+    LockstepEventStream,
+    due_check_hook,
+    polling_start_hook,
+)
 from navpy.sim.lockstep.operator_tail import LockstepLogTail
 from navpy.sim.lockstep.participant_hooks import DEVICE_KEY
 from navpy.sim.lockstep.pose_recording import POSE_CADENCE_DIR
@@ -131,7 +137,10 @@ def named_parameter_snapshot(api: JsonApiPort, sys_id: int) -> JsonValue:
 def stack_context(operator: OperatorBaton, scenario: DemoScenario, layout: FleetLayout, *,
                   epoch_us: int = 0) -> StackContext:
     """The operator's ports on the baton, one NavPy tail per sysid; ``epoch_us``
-    makes the clock's ``unix`` the run's (the manifest epoch plus ``t_k``)."""
+    makes the clock's ``unix`` the run's (the manifest epoch plus ``t_k``).
+    With the operator's ``evidence`` the confirmation loop journals its start
+    and due checks (``polling_start_hook``, ``due_check_hook``)."""
+    evidence = operator.journal.evidence
     backend = layout.backend
     return StackContext(
         api=LockstepApi(operator, backend, error=RegressionError), sys_ids=layout.sys_ids,
@@ -140,6 +149,8 @@ def stack_context(operator: OperatorBaton, scenario: DemoScenario, layout: Fleet
         event_stream_factory=lambda _url: LockstepEventStream(operator, backend),
         navigation_tail=lambda sys_id: LockstepLogTail(operator, layout.navpy(sys_id)),
         monitor_device=layout.router, parameter_reader=named_parameter_snapshot,
+        on_polling_start=polling_start_hook(operator) if evidence else None,
+        on_due_check=due_check_hook(operator) if evidence else None,
     )
 
 

@@ -10,19 +10,21 @@ into the digest:
 - ``answered``: each HTTP response the script got (id, status);
 - ``dropped``: deliveries an unsubscribed stream never received.
 
-With ``evidence`` (the fleet's approval replay, ``lockstep_fleet.md``,
+With ``evidence`` (the approval replay, ``lockstep_fleet.md``,
 "Operator approvals" and "Operator polling schedule"), more is journaled;
-the slice leaves it off, since its approval gate (one approval, its
-confirmation timing) reads none of it, and step 10g's replay gate turns it on:
+the lockstep eval turns it on (step 10g-2), and the approval gate replays
+the polling schedule from it (``eval_gcs_demo_approval_replay``):
 
 - ``sent`` and ``received`` carry the confirmation identity
   ``(sys_id, local_task_id, round_uid)`` and the request id: the POST's own
   id for ``sent``, the delivering subscription's for ``received``; global
   assignment ids are never confused with a peer's local task id;
 - ``delivered``: each subscribed delivery as it is queued, separately from
-  its consumption (``received``): ``[*subscription, type]``;
-- ``receive``: each receive's ``[start tick, return tick, ended by]``, where
-  ``ended by`` is ``event`` or ``timeout``;
+  its consumption (``received``): ``[*subscription, type, *identity]``;
+- ``receive``: each receive's ``[start tick, return tick, ended by,
+  *subscription]``, where ``ended by`` is ``event`` or ``timeout``;
+- ``polling``: the confirmation loop's start, ``[tick, deadline_s]``, its
+  deadline the loop's own float seconds;
 - ``due_check``: each pass's due check, ``[tick, now_us, due]``, the due
   list as confirmation identities in pending order;
 - ``sleep``: each sleep's ``[start tick, wake tick]``.
@@ -108,11 +110,15 @@ class OperatorJournal:
 
     def delivered(self, subscription: RequestId, data: object) -> None:
         if self.evidence:
-            self._add("delivered", [*subscription, event_type(data)])
+            self._add("delivered", [*subscription, event_type(data), *confirmation_identity(data)])
 
-    def receive(self, start_k: int, return_k: int, event: bool) -> None:
+    def receive(self, start_k: int, return_k: int, event: bool, subscription: RequestId) -> None:
         if self.evidence:
-            self._add("receive", [start_k, return_k, "event" if event else "timeout"])
+            self._add("receive", [start_k, return_k, "event" if event else "timeout", *subscription])
+
+    def polling(self, k: int, deadline_s: float) -> None:
+        if self.evidence:
+            self._add("polling", [k, deadline_s])
 
     def due_check(self, k: int, now_s: float, due: Iterable[Iterable[object]]) -> None:
         """``due``: each due request's ``(sys_id, local_task_id, round_uid)``."""

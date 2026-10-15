@@ -42,3 +42,24 @@
 - **Relaxing a check: do not drop evidence rows.** First fix for "a miss
   hides other gates" filtered the miss row out; Codex found it also hid a
   cadence gap before that row. Relax the refusal (a flag), keep the data.
+
+## Polling-schedule replay (step 10g-2, 2026-10-15)
+
+- **Grep every reader before widening a record.** Turning on operator
+  evidence appends fields to `received`; the slice's confirmation timing
+  unpacked it as a pair and would have crashed on the first evidence run.
+- **A replay needs both ends anchored.** Rounds 1-2 of Codex found that
+  dropping the first or the last passes still passed: anchor the start
+  (a journaled loop start) and the end (the stream's unsubscribe), and
+  account for every record in between.
+- **Pick mutations that change behaviour on the tested inputs.** `<=` to
+  `<` on "queued at start" was equivalent (the next branch gave the same
+  answer) and survived; a stronger mutation showed the test was fine.
+- **Wiring needs its own test.** Mutating the slice gate's call to the
+  replay survived all replay tests; each integration point got a test.
+- **Worktree files are CRLF here (core.autocrlf).** Byte-level mutation
+  scripts must normalise line endings before matching.
+- **Build gate fixtures from the real producer.** The replay tests and the
+  slice fixtures run the real confirmation workflow on the baton and then
+  change one record, instead of hand-writing a schedule the gate would only
+  echo.
