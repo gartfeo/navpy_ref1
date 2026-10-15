@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import ctypes
 import math
-import os
 import sys
 import weakref
 from numbers import Real
@@ -12,10 +10,11 @@ from typing import Callable, Optional
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.reader_budget_feed import ReaderBudgetFeed
+from navpy.core.kernel.windows_timer_resolution import (
+    release_high_resolution_timer as _release_high_resolution_timer,
+    request_high_resolution_timer as _request_high_resolution_timer,
+)
 
-_TIMER_PERIOD_MS = 1
-_timer_resolution_lock = rt.RLock()
-_timer_resolution_refcount = 0
 _interpreter_cadence_lock = rt.RLock()
 _interpreter_cadence_baseline_s: float | None = None
 _interpreter_cadence_requests: dict[object, float] = {}
@@ -209,42 +208,6 @@ def _positive_float(value: object) -> Optional[float]:
     if not math.isfinite(number) or number <= 0.0:
         return None
     return number
-
-
-def _request_high_resolution_timer() -> bool:
-    """Request 1 ms Windows sleeps while accelerated SITL is active."""
-    if os.name != "nt":
-        return False
-    global _timer_resolution_refcount
-    with _timer_resolution_lock:
-        if _timer_resolution_refcount == 0:
-            try:
-                result = ctypes.windll.winmm.timeBeginPeriod(  # type: ignore[name-defined, attr-defined]
-                    _TIMER_PERIOD_MS
-                )
-            except Exception:
-                return False
-            if result != 0:
-                return False
-        _timer_resolution_refcount += 1
-        return True
-
-
-def _release_high_resolution_timer() -> None:
-    if os.name != "nt":
-        return
-    global _timer_resolution_refcount
-    with _timer_resolution_lock:
-        if _timer_resolution_refcount <= 0:
-            return
-        _timer_resolution_refcount -= 1
-        if _timer_resolution_refcount == 0:
-            try:
-                ctypes.windll.winmm.timeEndPeriod(  # type: ignore[name-defined, attr-defined]
-                    _TIMER_PERIOD_MS
-                )
-            except Exception:
-                pass
 
 
 def _set_interpreter_cadence(token: object, speedup: float) -> None:
