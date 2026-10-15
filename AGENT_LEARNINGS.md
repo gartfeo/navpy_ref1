@@ -21,6 +21,18 @@
 - **Keep scratch scripts out of shared temp folders.** A stray dis.py in the
   temp folder shadowed the stdlib; use a task-specific directory.
 
+## Sim A/B probes (20 ms spike residual, 2026-10-15)
+
+- **Env vars do not reach the NavPy child of the demo eval.** An
+  env-var-gated A/B arm silently ran the baseline code and gave a false
+  negative. Hard-code the arm in a temp edit, and prove the arm is live (a
+  dump file appears, or a metric moves) before reading its result.
+- **Run-dir names cannot be reused.** A second eval with an old --run-dir
+  fails with "WSL input step failed" (its WSL root exists). Use a new name.
+- **Split the rate before guessing.** Logging ATTITUDE yaw, body rates and
+  the dock NED vector per rendered frame splits the inertial LOS rate into
+  azimuth, yaw-vs-gyro and pixel terms; that named the cause in one run.
+
 ## Gate split (step 10g-1, 2026-10-15)
 
 - **Check a design's premises against later commits.** The fleet design
