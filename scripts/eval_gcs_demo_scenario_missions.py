@@ -107,28 +107,52 @@ def _mission(raw: JsonValue, label: str) -> Mapping[str, JsonValue]:
     return raw
 
 
-def _distance_m(a: Mapping[str, float], b: Mapping[str, float]) -> float:
-    lat_a, lat_b = math.radians(a["lat"]), math.radians(b["lat"])
-    d_lat = lat_b - lat_a
-    d_lon = math.radians(b["lon"] - a["lon"])
-    h = math.sin(d_lat / 2) ** 2 + math.cos(lat_a) * math.cos(lat_b) * math.sin(d_lon / 2) ** 2
-    return 2 * _EARTH_RADIUS_M * math.asin(math.sqrt(h))
+def planner_ref_lat(polygon: Sequence[Mapping[str, float]]) -> float:
+    """The GCS planner's projection centre: the polygon's mean vertex latitude."""
+    if not polygon:
+        raise ValueError("a mission needs its polygon to measure the planner's search path")
+    return sum(point["lat"] for point in polygon) / len(polygon)
 
 
-def search_path_m(waypoints: Sequence[Mapping[str, float]]) -> float:
-    """Length of one search track, first row to last (transit excluded)."""
-    return sum(_distance_m(a, b) for a, b in zip(waypoints, waypoints[1:]))
+def _planar_m(point: Mapping[str, float], ref_lat: float) -> tuple[float, float]:
+    """The planner's flat projection (projection.js toMeters), as (east, north) metres."""
+    return (
+        math.radians(point["lon"]) * _EARTH_RADIUS_M * math.cos(math.radians(ref_lat)),
+        math.radians(point["lat"]) * _EARTH_RADIUS_M,
+    )
+
+
+def search_path_m(waypoints: Sequence[Mapping[str, float]], ref_lat: float) -> float:
+    """Length of one search track in the planner's frame, first row to last (transit excluded).
+
+    The planner lays equal lanes in a flat frame centred on ``ref_lat``, so the
+    equal-path requirement holds there. On the sphere, east-west lanes at
+    different latitudes differ (about 0.36 m over the owner plan) although the
+    planner made them equal.
+    """
+    points = [_planar_m(point, ref_lat) for point in waypoints]
+    return sum(math.dist(a, b) for a, b in zip(points, points[1:]))
+
+
+# Exact up to encoding: each row may sit one quantum off the planner's point,
+# so two tracks may differ by two quanta per row.
+_SEARCH_PATH_TOLERANCE_M_PER_ROW = 2 * _COORDINATE_QUANTUM_M
 
 
 def _require_equal_search_paths(missions: Sequence[Mapping[str, JsonValue]]) -> None:
-    """The planner requirement: every UAV gets an equal search path.
+    """The planner requirement: every UAV gets an equal search path, in one shared frame.
 
-    Exact up to encoding: each row may sit one quantum off the planner's
-    point, so two tracks may differ by two quanta per row.
+    The planner partitions one area polygon, so every mission carries it and
+    every track is measured from its centre. A per-mission centre would let a
+    changed polygon rescale one track and hide a short path.
     """
+    polygon = cast(list[dict[str, float]], missions[0]["polygon"])
+    if any(m["polygon"] != polygon for m in missions[1:]):
+        raise ValueError("scenario missions must share the planner's area polygon")
+    ref_lat = planner_ref_lat(polygon)
     tracks = [cast(list[dict[str, float]], m["waypoints"]) for m in missions]
-    lengths = [search_path_m(track) for track in tracks]
-    tolerance = 2 * _COORDINATE_QUANTUM_M * max(len(track) for track in tracks)
+    lengths = [search_path_m(track, ref_lat) for track in tracks]
+    tolerance = _SEARCH_PATH_TOLERANCE_M_PER_ROW * max(len(track) for track in tracks)
     if max(lengths) - min(lengths) > tolerance:
         rounded = [round(length, 2) for length in lengths]
         raise ValueError(f"scenario search paths must be equal, got {rounded} m")
@@ -254,6 +278,7 @@ __all__ = [
     "owner_nav_coordinate",
     "owner_nav_waypoint_rows",
     "parse_home",
+    "planner_ref_lat",
     "scenario_missions",
     "search_path_m",
 ]

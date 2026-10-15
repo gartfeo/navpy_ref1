@@ -18,8 +18,8 @@ The 3-UAV GCS eval (`scripts/eval_gcs_navigation_demo.py`) tests the delivery pr
 - a never-seen home dock means the UAV keeps orbiting. A mechanism test covers it: the orbit holds, with no
   confirmation and no final-approach command.
 
-The current eval does not test this. It puts the docks on the owner's waypoints 3, 4 and 7
-(`eval_gcs_demo_scenario.json:9`), and it never tests search, the home dock or the no-dock case.
+The current eval does not test this. It puts the docks on the owner's NAV waypoint ordinals 2, 3 and 6
+(`eval_gcs_demo_scenario.json:19`), and it never tests search, the home dock or the no-dock case.
 
 ## The scenario
 Two delivery docks, d1 and d2, both on the middle line of UAV A's route, with d2 150 m after d1. At about 260 m
