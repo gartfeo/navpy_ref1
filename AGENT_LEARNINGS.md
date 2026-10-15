@@ -68,3 +68,15 @@
   slice fixtures run the real confirmation workflow on the baton and then
   change one record, instead of hand-writing a schedule the gate would only
   echo.
+
+## Lockstep runs beside wall stacks (owner-plan scenario, 2026-10-15)
+
+- **A "relay closed" with no firmware line can be another chat's kill.**
+  The SITL test failed at frame 3722 with the journal byte-equal to a
+  passing run up to the fault. Cause: a slot-0 wall eval stopped and
+  relaunched, and gcs_stop's cleanup pkills `--sysid 1..3` across WSL,
+  which matches lockstep SITLs on any slot (todo 51). SIGTERM ends the
+  child silently; KILL, SEGV and HUP make the launcher print a line.
+  Before a lockstep run, check `gcs_launch.py --list` and ask any slot-0..N
+  wall user for a quiet window; after a fault, compare the WSL eval-root
+  creation times with the run window.
