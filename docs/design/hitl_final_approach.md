@@ -1,8 +1,9 @@
 # HITL final approach to the Unreal dock (design v6, 2026-10-15)
 
 **Status.** v6 applies the owner's answers of 2026-10-15 (below) to the Codex-approved v5.6; building. Done: the
-router of section 2 (`tools/tuning/mav_router*.py`, Codex-reviewed), the profile `placeholder_18x`, and the
-terminal fence, router barrier and record in navpy with the runner's stop-before-RTL (section 2, "Built").
+router of section 2 (`tools/tuning/mav_router*.py`, Codex-reviewed), the profile `placeholder_18x`, the
+terminal fence, router barrier and record in navpy with the runner's stop-before-RTL (section 2, "Built"), and B3
+with the gimbal command fence (sections 2 and 4).
 Owner's "What next?" item 3 ("Full final approach in HITL"). Builds on `hitl_unreal_camera.md`
 (camera stream, dock passes, detector range) and `flight_tuning.md` (HITL runner, bridge, gate). Line numbers are on
 `feat/hitl-flight-tuning` 7d36929; Unreal lines on `aas-sim-unreal` 48ad8dd (`C:\repos\unreal-projects\AasSimProject`);
@@ -76,7 +77,15 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   `write`, where every pymavlink send ends: attitude, mode, mission, params, heartbeats), waits for the write in
   progress, closes the router endpoint (`router_barrier.py`, 2 s bound, resent every 0.25 s) and prints
   `NAVPY_TERMINAL_V1 {json}` (`terminal_handoff.py`). The fence stays closed: that is the hold, so RESET's AUTO restart
-  never reaches the board. Not yet: the gimbal command fence (with B3, the real SIYI path).
+  never reaches the board. Built with B3: the gimbal command fence (`SiyiCommandFence`,
+  `plugins/gimbal/siyi/hardware/command_fence.py`) wraps the SIYI SDK's single send point (`sendMsg`) of every SDK the
+  real path creates, reconnects included. The same first outcome closes it; once closed only queries (0x01, 0x02,
+  0x0A, 0x0B, 0x0D, 0x18, 0x25) and the two stops (0x07 0,0 and 0x05 0) pass, every other frame is dropped and counted.
+  A SIYI rate or manual-zoom command keeps acting until the next one, so per gimbal endpoint (own send lock) the
+  handoff waits for a send in progress and sends one zero rate and zoom hold, all under one 1 s bound
+  (`GIMBAL_STOP_TIMEOUT_S`: a stuck send never holds the record or another gimbal's stop), then the barrier; the
+  record adds `gimbal_stop` (sent, failed, timeout, no_gimbal; anything but sent or no_gimbal fails the run) and
+  `fenced_gimbal_commands`.
 - **Authority:** navpy flies GUIDED + `SET_ATTITUDE_TARGET` (`attitude_command.py:94`); the runner keeps its RC overrides
   (SYSID_MYGCS 250) at centred sticks, throttle low. H1 checks the GUIDED attitude response under them first.
 - **Handoff at the end:** RESET→DETECT restarts AUTO (`navigation_transition_handler.py:61`, `recovery.py:89`), which can
@@ -194,7 +203,9 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   (today -90..30, `.h:82-85`).
 - **B3, real gimbal path:** `vision_profile_composition.py:48` hardcodes `use_sim_gimbal=True`, so a `siyi` profile
   builds `GimbalSiyiSim` (`vision_camera_factory.py:128-137`; todo 18). Fix: the real path builds `GimbalSiyi` from the
-  profile's `siyi_ip`/`siyi_port`; tested so a real run never gets the sim gimbal.
+  profile's `siyi_ip`/`siyi_port`; tested so a real run never gets the sim gimbal. Built: `--detector-type real`
+  selects the real path (a real run gets no simulated gimbal of any kind, guard over every profile); with
+  `--router-control` its SDK is built through the gimbal command fence (2).
 - **Dynamics, from what is measured (stated per value).** navpy's measurement folders hold video timing only
   (`docs/measurements/zr10-latency-20260830/REPORT.md`: LED to published frame median 99.8 ms, p99 121.5 ms;
   `zr10-strobe-phase/REPORT.md`: yaw readback drift about 2 deg per 90 s). Gimbal numbers come from the gimbal-controller
@@ -491,4 +502,10 @@ named `router`; reopen of an open endpoint. A regression test for each, each fai
 Fixed: a raising runner handoff let HeightFloor send RTL through the router while navpy's endpoint was not known
 closed (now no router RTL; a step error before the confirmed close takes the no-ack path); a failure while ending the
 router left a cached record without the direct-RTL mark. A regression test for each, each failing without its fix.
-Open: the gimbal command fence (with B3).
+Open then: the gimbal command fence, built with B3 (2).
+
+## Codex review of B3 and the gimbal command fence (2026-10-15): rounds 1-2 "rework", round 3 "approve"
+Fixed: the gimbal stop could hold the terminal record (now bounded); two sim scripts lacked the new
+`use_sim_gimbal` argument (an AST test checks every caller); only the last SIYI SDK got the stop, and one stuck
+endpoint blocked another's stop (now one send lock and one stop thread per endpoint, one deadline). A regression
+test for each, each failing without its fix.

@@ -45,7 +45,7 @@ from navpy.app.runtime_resources import (
 )
 from navpy.app.runtime_ready import emit_runtime_ready
 from navpy.app.terminal_handoff import (
-    TerminalHandoff, build_terminal_handoff, fenced_opener, terminal_observer,
+    TerminalHandoff, build_terminal_handoff, fenced_opener, siyi_fence, terminal_observer,
 )
 from navpy.core.kernel.config.arg_helper import (
     collect_non_default_args,
@@ -191,6 +191,7 @@ def _build_session(
         foundation.logger,
         foundation.zc_util,
         scheduler_cadence=foundation.scheduler_cadence,
+        siyi_fence=siyi_fence(foundation.terminal_handoff),
     )
     resources.own_quiescence(
         "vision",

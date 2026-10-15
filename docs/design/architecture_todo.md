@@ -35,7 +35,7 @@ return to them later. Paths are under `src/navpy/` (step-1 layout) unless noted.
     - So a latch left over from an ended approach can send a later state to RESET.
 12. **AUTO writes can override an operator mode change.** The restart and resume paths read the mode, then write AUTO directly, with no fence (`core/flow/recovery.py:89-91`, `core/flow/navigation_task_reset.py:249-250`).
 13. **Coasted tracks may reach the law as measurements** (UNVERIFIED). Trackers stamp `time.time()` (`plugins/tracking/kalman/multi_object_tracker.py:124`), coast ticks republish (`core/perception/pipeline/real_tracking.py:176-178`), and the law differentiates bearings by capture time (`plugins/laws/vision_pn/lateral_rate.py:113-131`).
-18. **Real runs may get a sim gimbal.** `use_sim_gimbal=True` is hardcoded (`app/perception/vision_profile_composition.py:48`), even with `--detector-type real`. Only `scripts/python/run_detector.py:81` builds the real SIYI gimbal. Check the intent first.
+18. **Done 2026-10-15 (B3 of `hitl_final_approach.md`, branch feat/hitl-flight-tuning): `--detector-type real` builds the real gimbal path.** **Real runs may get a sim gimbal.** `use_sim_gimbal=True` is hardcoded (`app/perception/vision_profile_composition.py:48`), even with `--detector-type real`. Only `scripts/python/run_detector.py:81` builds the real SIYI gimbal. Check the intent first.
 19. **Dead radio code.** The sim radio client can't be reached (`app/network_factory.py:23-28` never passes `simulation`), and the eByte radio code has no callers.
 
 ## Checks

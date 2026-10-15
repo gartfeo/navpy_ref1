@@ -2,12 +2,16 @@
 
 On the approach's first terminal outcome (DOCKED, MISSED or FAILED: episode_latch.py) navpy
 1. fences its MAVLink link: every later write is dropped and counted (LinkFence wraps the connection's ``write``,
-   where every pymavlink send ends), then waits until no write is in progress (they run under the bus send lock);
+   where every pymavlink send ends), and its SIYI gimbal link: every later command except queries and stops is
+   dropped and counted (SiyiCommandFence wraps the SDK's ``sendMsg``); then waits until no write is in progress and,
+   bounded, until no gimbal send is, and sends every gimbal one zero rate and zoom hold;
 2. closes its router endpoint and waits, bounded, for the ack (router_barrier.py), so nothing it sent before the
    fence reaches the board after the record;
 3. prints one flushed record, ``NAVPY_TERMINAL_V1 {json}``: outcome, task, dock, episode, aircraft time, fenced
-   writes and the barrier's ack, or its error (then the run counts as failed).
-Then it holds: the fence stays closed until the process stops (RESET's AUTO restart never reaches the board).
+   writes, the gimbal stop and fenced gimbal commands, and the barrier's ack, or its error (then the run counts as
+   failed; a failed gimbal stop too).
+Then it holds: the fences stay closed until the process stops (RESET's AUTO restart never reaches the board, and
+no gimbal or zoom command reaches the gimbal).
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from navpy.app.router_barrier import RouterBarrier, parse_address
 from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal, TerminalObserver
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.dock_contact import DockContactIdentity
+from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 
 NAVPY_TERMINAL_MARKER = "NAVPY_TERMINAL_V1"
@@ -84,6 +89,10 @@ def fenced_opener(open_bus: MavBusOpener, handoff: TerminalHandoff | None) -> Ma
     return open_fenced
 
 
+def siyi_fence(handoff: TerminalHandoff | None) -> SiyiCommandFence | None:
+    return None if handoff is None else handoff.gimbal_fence
+
+
 def terminal_observer(handoff: TerminalHandoff | None) -> TerminalObserver | None:
     return None if handoff is None else handoff.on_terminal
 
@@ -108,8 +117,10 @@ class TerminalHandoff:
     """Fence, barrier, record: once per process, on the first terminal outcome."""
 
     def __init__(self, fence: LinkFence, barrier: RouterBarrier,
-                 publish: TerminalPublisher = print_terminal_record) -> None:
+                 publish: TerminalPublisher = print_terminal_record,
+                 gimbal_fence: SiyiCommandFence | None = None) -> None:
         self.fence = fence
+        self.gimbal_fence = SiyiCommandFence() if gimbal_fence is None else gimbal_fence
         self._barrier = barrier
         self._publish = publish
         self._lock = rt.Lock()
@@ -121,6 +132,7 @@ class TerminalHandoff:
             if self._thread is not None:
                 return
             self.fence.close()
+            self.gimbal_fence.close()
             self._thread = rt.Thread(target=self._handoff, args=(outcome, identity), name="navpy-terminal-handoff")
             self._thread.start()
 
@@ -135,6 +147,7 @@ class TerminalHandoff:
 
     def _handoff(self, outcome: FinalApproachTerminal, identity: DockContactIdentity | None) -> None:
         self.fence.wait_idle()
+        gimbal_stop = self.gimbal_fence.quiesce_and_stop()
         barrier = self._barrier.close_endpoint()
         self._publish({
             "outcome": outcome.value,
@@ -143,6 +156,8 @@ class TerminalHandoff:
             "episode": None if identity is None else identity.episode,
             "aircraft_time_s": self.fence.autopilot_uptime_s(),
             "fenced_writes": self.fence.dropped,
+            "gimbal_stop": gimbal_stop,
+            "fenced_gimbal_commands": self.gimbal_fence.dropped,
             "barrier": "acked" if barrier.ok else "failed",
             "router_ack": barrier.ack,
             "barrier_error": barrier.error,
@@ -172,5 +187,6 @@ def add_args(parser: ArgumentParser) -> None:
 
 __all__ = [
     "DEFAULT_ROUTER_CLIENT", "LinkFence", "NAVPY_TERMINAL_MARKER", "TerminalHandoff", "add_args",
-    "build_terminal_handoff", "fenced_opener", "parse_terminal_record", "print_terminal_record", "terminal_observer",
+    "build_terminal_handoff", "fenced_opener", "parse_terminal_record", "print_terminal_record", "siyi_fence",
+    "terminal_observer",
 ]

@@ -17,10 +17,12 @@ from navpy.app.navpy_argparse import make_parser
 from navpy.app.router_barrier import BarrierResult, RouterBarrier, parse_address
 from navpy.app.terminal_handoff import (NAVPY_TERMINAL_MARKER, LinkFence, TerminalHandoff, build_terminal_handoff,
                                         fenced_opener, parse_terminal_record, print_terminal_record,
-                                        terminal_observer)
+                                        siyi_fence, terminal_observer)
 from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
 from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal as Terminal
 from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
+from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
+from navpy.plugins.gimbal.siyi.siyi_message import SIYIMESSAGE
 
 WAIT_S = 2.0                     # loopback answers in microseconds; this only bounds a failing test
 IDENTITY = DockContactIdentity(vehicle=1, task_id=7, dock_uid=42, episode=3)
@@ -364,3 +366,89 @@ def test_the_handoff_exists_only_with_a_router_control_address():
     assert build_terminal_handoff(parser.parse_args(base)) is None
     handoff = build_terminal_handoff(parser.parse_args(base + ["--router-control", "127.0.0.1:9643"]))
     assert handoff is not None
+
+
+# ---- the gimbal command fence in the handoff ----------------------------------------------------
+class RecordingGimbal:
+    """A SIYI SDK stand-in: records the command id of every frame that passes the fence."""
+
+    def __init__(self, events: list) -> None:
+        self.events = events
+
+    def sendMsg(self, msg: str) -> bool:
+        self.events.append(("gimbal", bytes.fromhex(msg)[7]))
+        return True
+
+    def requestGimbalSpeed(self, yaw: int, pitch: int) -> bool:
+        return self.sendMsg(SIYIMESSAGE().gimbalSpeedMsg(yaw, pitch))
+
+    def requestZoomHold(self) -> bool:
+        return self.sendMsg(SIYIMESSAGE().stopZoomMsg())
+
+
+def test_the_gimbal_is_fenced_at_once_and_stopped_before_the_barrier():
+    handoff, barrier, events = scripted(BarrierResult({"op": "closed", "client": "navpy"}))
+    gimbal = handoff.gimbal_fence.wrap(lambda **_: RecordingGimbal(events))(server_ip=LOOPBACK, port=1)
+    handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+    assert handoff.gimbal_fence.closed           # closed on the latch's thread, before the handoff thread runs
+    gimbal.requestGimbalSpeed(40, 0)             # a tracker command after the outcome
+    barrier.release.set()
+    assert handoff.join(WAIT_S)
+    assert [e for e in events if e[0] != "record"] == [("gimbal", 0x07), ("gimbal", 0x05), ("barrier", True)]
+    record = events[-1][1]
+    assert record["gimbal_stop"] == "sent" and record["fenced_gimbal_commands"] == 1
+
+
+def test_a_tracker_command_after_the_outcome_never_reaches_the_gimbal():
+    handoff, barrier, events = scripted(BarrierResult({"op": "closed", "client": "navpy"}))
+    gimbal = handoff.gimbal_fence.wrap(lambda **_: RecordingGimbal(events))(server_ip=LOOPBACK, port=1)
+    handoff.on_terminal(Terminal.MISSED, IDENTITY)
+    barrier.release.set()
+    assert handoff.join(WAIT_S)
+    gimbal.requestGimbalSpeed(40, 0)
+    gimbal.sendMsg(SIYIMESSAGE().centerMsg())
+    assert [e for e in events if e[0] == "gimbal"] == [("gimbal", 0x07), ("gimbal", 0x05)]
+    assert handoff.gimbal_fence.dropped == 2
+
+
+def test_without_a_siyi_gimbal_the_record_says_so():
+    handoff, barrier, events = scripted(BarrierResult({"op": "closed", "client": "navpy"}))
+    barrier.release.set()
+    handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+    assert handoff.join(WAIT_S)
+    assert events[-1][1]["gimbal_stop"] == "no_gimbal" and events[-1][1]["fenced_gimbal_commands"] == 0
+
+
+def test_the_vision_path_gets_the_handoff_gimbal_fence():
+    assert siyi_fence(None) is None
+    handoff = TerminalHandoff(LinkFence(), RouterBarrier((LOOPBACK, 9), "navpy"))
+    assert siyi_fence(handoff) is handoff.gimbal_fence
+
+
+class StuckGimbal(RecordingGimbal):
+    """A gimbal whose send never returns: the record must still go out."""
+
+    def __init__(self, events: list) -> None:
+        super().__init__(events)
+        self.release = threading.Event()
+
+    def sendMsg(self, msg: str) -> bool:
+        self.release.wait(WAIT_S)
+        return super().sendMsg(msg)
+
+
+def test_a_stuck_gimbal_send_still_gives_the_record_with_a_timeout():
+    events: list = []
+    fence = LinkFence()
+    barrier = ScriptedBarrier(events, fence, BarrierResult({"op": "closed", "client": "navpy"}))
+    handoff = TerminalHandoff(fence, barrier, publish=lambda record: events.append(("record", record)),
+                              gimbal_fence=SiyiCommandFence(stop_timeout_s=0.3))
+    gimbal = handoff.gimbal_fence.wrap(lambda **_: StuckGimbal(events))(server_ip=LOOPBACK, port=1)
+    threading.Thread(target=gimbal.sendMsg, args=(SIYIMESSAGE().gimbalAttMsg(),), daemon=True).start()
+    time.sleep(0.05)                             # the poll's send is in progress, holding the fence
+    barrier.release.set()
+    handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+    assert handoff.join(WAIT_S)
+    record = [e for e in events if e[0] == "record"][0][1]
+    assert record["gimbal_stop"] == "timeout" and record["barrier"] == "acked"
+    gimbal.release.set()

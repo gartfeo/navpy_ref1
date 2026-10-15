@@ -391,3 +391,15 @@
 - Keep aircraft data out of a public repository from the first commit: read it from a private folder by a
   named argument or environment variable, test on synthetic numbers, and check the real files in tests that
   skip where they are absent. Sweep comments and test values too, not only data files.
+
+## Fencing a second command channel (B3, 2026-10-15)
+
+- When a signature gains a required argument, grep every caller in src and scripts, not only src. Two sim scripts
+  missed the new `use_sim_gimbal` and would have failed at setup; Codex found them. A small AST test over src and
+  scripts now pins the callers.
+- A fence that only drops commands can leave an actuator moving: SIYI rate and manual-zoom commands keep acting
+  until the next one. Drop everything, but let the stop commands through and send them once.
+- Bound every wait that sits before a record or handoff another process reads, and keep separate devices on separate
+  locks and threads, so one stuck send cannot block another device's stop.
+- Timing tests on Windows: time.monotonic ticks about every 16 ms, so a 0.3 s join measured 0.297 s once in four
+  runs. Allow one tick on a lower bound; repeat a new timing test several times before trusting it.
