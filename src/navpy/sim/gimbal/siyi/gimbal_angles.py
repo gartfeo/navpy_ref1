@@ -24,6 +24,20 @@ def wrap180(degrees: float) -> float:
 
 
 @dataclass(frozen=True)
+class GimbalAngularLimits:
+    """Slew rate (deg/s) and body-relative mechanical limits (deg)."""
+
+    max_slew_rate: float = MAX_SLEW_RATE
+    min_yaw: float = ZR10.MIN_YAW_DEG
+    max_yaw: float = ZR10.MAX_YAW_DEG
+    min_pitch: float = ZR10.MIN_PITCH_DEG
+    max_pitch: float = ZR10.MAX_PITCH_DEG
+
+
+DEFAULT_ANGULAR_LIMITS = GimbalAngularLimits()
+
+
+@dataclass(frozen=True)
 class GimbalAngularSnapshot:
     yaw: float
     pitch: float
@@ -60,7 +74,13 @@ class _AngularState:
 class GimbalAngularPlant:
     """Own motor commands, stabilized angles, and mechanical limits."""
 
-    def __init__(self, initial_pitch: float, initial_yaw: float) -> None:
+    def __init__(
+        self,
+        initial_pitch: float,
+        initial_yaw: float,
+        limits: GimbalAngularLimits = DEFAULT_ANGULAR_LIMITS,
+    ) -> None:
+        self._limits = limits
         self._state = _AngularState(
             yaw=float(initial_yaw),
             pitch=float(initial_pitch),
@@ -92,15 +112,16 @@ class GimbalAngularPlant:
 
     def set_target_angles(self, yaw_deg: float, pitch_deg: float) -> None:
         state = self._state
+        limits = self._limits
         state.target_yaw = (
             wrap180(float(yaw_deg))
             if state.motion_mode == MODE_LOCK
-            else clamp(float(yaw_deg), ZR10.MIN_YAW_DEG, ZR10.MAX_YAW_DEG)
+            else clamp(float(yaw_deg), limits.min_yaw, limits.max_yaw)
         )
         state.target_pitch = clamp(
             float(pitch_deg),
-            ZR10.MIN_PITCH_DEG,
-            ZR10.MAX_PITCH_DEG,
+            limits.min_pitch,
+            limits.max_pitch,
         )
         state.yaw_command = 0.0
         state.pitch_command = 0.0
@@ -135,8 +156,9 @@ class GimbalAngularPlant:
         if state.target_yaw is not None and state.target_pitch is not None:
             self._advance_poi(dt_s)
         else:
-            state.yaw += state.yaw_command / 100.0 * MAX_SLEW_RATE * dt_s
-            state.pitch += state.pitch_command / 100.0 * MAX_SLEW_RATE * dt_s
+            rate = self._limits.max_slew_rate
+            state.yaw += state.yaw_command / 100.0 * rate * dt_s
+            state.pitch += state.pitch_command / 100.0 * rate * dt_s
         if state.motion_mode == MODE_LOCK:
             state.yaw = wrap180(state.yaw)
         self._enforce_limits()
@@ -155,7 +177,7 @@ class GimbalAngularPlant:
         if state.motion_mode == MODE_LOCK:
             yaw_error = wrap180(yaw_error)
         pitch_error = state.target_pitch - state.pitch
-        maximum_change = MAX_SLEW_RATE * dt_s
+        maximum_change = self._limits.max_slew_rate * dt_s
         yaw_change = clamp(yaw_error, -maximum_change, maximum_change)
         pitch_change = clamp(pitch_error, -maximum_change, maximum_change)
         state.yaw += yaw_change
@@ -170,29 +192,32 @@ class GimbalAngularPlant:
 
     def _enforce_limits(self) -> None:
         state = self._state
+        limits = self._limits
         attitude = state.vehicle_attitude
         if state.motion_mode == MODE_LOCK:
             body_yaw = wrap180(state.yaw - attitude.yaw)
             state.yaw = wrap180(
-                clamp(body_yaw, ZR10.MIN_YAW_DEG, ZR10.MAX_YAW_DEG)
+                clamp(body_yaw, limits.min_yaw, limits.max_yaw)
                 + attitude.yaw
             )
         else:
             state.yaw = clamp(
                 state.yaw,
-                ZR10.MIN_YAW_DEG,
-                ZR10.MAX_YAW_DEG,
+                limits.min_yaw,
+                limits.max_yaw,
             )
         body_pitch = state.pitch - attitude.pitch
         state.pitch = clamp(
             body_pitch,
-            ZR10.MIN_PITCH_DEG,
-            ZR10.MAX_PITCH_DEG,
+            limits.min_pitch,
+            limits.max_pitch,
         ) + attitude.pitch
 
 
 __all__ = [
     "ANGLE_SEEK_DEADBAND",
+    "DEFAULT_ANGULAR_LIMITS",
+    "GimbalAngularLimits",
     "GimbalAngularPlant",
     "GimbalAngularSnapshot",
     "MAX_SLEW_RATE",

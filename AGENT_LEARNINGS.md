@@ -403,3 +403,18 @@
   locks and threads, so one stuck send cannot block another device's stop.
 - Timing tests on Windows: time.monotonic ticks about every 16 ms, so a 0.3 s join measured 0.297 s once in four
   runs. Allow one tick on a lower bound; repeat a new timing test several times before trusting it.
+
+## ZR10 SIYI emulator (tools/hitl, 2026-10-15)
+
+- From Git Bash, PYTHONPATH for the Windows venv Python must use Windows paths joined by ";"
+  ("C:/.../navpy-hitl/src;C:/.../navpy-hitl"). POSIX paths are ignored silently, and the imports came from the
+  shared navpy-temp2 checkout instead of the worktree. Check `module.__file__` once.
+- navpy's SIYI readback decomposes roll-pitch-yaw (matrix_to_xyz, g_seq "XYZ"); the real gimbal and Unreal are
+  yaw-outer (Rz Ry Rx). They differ once yaw and pitch are both non-zero (yaw 90 / pitch -45: horizontal vs 45 deg
+  down). Name the Euler order of every angle set that crosses a module boundary.
+- navpy's sim plant clamps world-angle differences, which equal body angles only when the aircraft is level. Test
+  limits and conventions banked and turning, not only level; Codex found a banked camera past the pitch stop.
+- Run the module-size guard (tests/guards/test_solid_architecture.py) before review, not after: new modules over
+  300 lines failed it in the full suite and forced a split after the first review.
+- "Fail closed" covers every output: a stale input stopped the Unreal stream but navpy still got fresh-looking
+  SIYI replies until the review pointed it out.

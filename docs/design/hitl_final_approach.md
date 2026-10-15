@@ -3,7 +3,8 @@
 **Status.** v6 applies the owner's answers of 2026-10-15 (below) to the Codex-approved v5.6; building. Done: the
 router of section 2 (`tools/tuning/mav_router*.py`, Codex-reviewed), the profile `placeholder_18x`, the
 terminal fence, router barrier and record in navpy with the runner's stop-before-RTL (section 2, "Built"), and B3
-with the gimbal command fence (sections 2 and 4).
+with the gimbal command fence (sections 2 and 4), and the ZR10 emulator (`tools/hitl/`, section 4,
+Codex-reviewed; FPV refused, banked stops invalidate the run).
 Owner's "What next?" item 3 ("Full final approach in HITL"). Builds on `hitl_unreal_camera.md`
 (camera stream, dock passes, detector range) and `flight_tuning.md` (HITL runner, bridge, gate). Line numbers are on
 `feat/hitl-flight-tuning` 7d36929; Unreal lines on `aas-sim-unreal` 48ad8dd (`C:\repos\unreal-projects\AasSimProject`);
