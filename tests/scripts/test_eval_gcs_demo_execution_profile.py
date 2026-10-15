@@ -14,6 +14,7 @@ from scripts.eval_gcs_demo_evidence import (
     parse_final_approach_command_episodes,
     parse_final_approach_episodes,
 )
+from scripts.eval_gcs_demo_fleet_gates import certified_lockstep_gate_errors
 from scripts.eval_gcs_demo_gate_profiles import (
     CERTIFIED_LOCKSTEP_PROFILE,
     CERTIFIED_PROFILE,
@@ -102,14 +103,17 @@ def test_a_wall_certified_run_keeps_its_profile_and_speedup(tmp_path):
     assert report.sim_speedup == SIM_SPEEDUP
 
 
-def test_a_certified_lockstep_run_is_refused_until_its_journal_gates_exist(tmp_path):
-    """Fail closed: no (certified_lockstep, lockstep) run-gate entry yet."""
+def test_a_certified_lockstep_run_runs_its_journal_gates(tmp_path):
+    """10g-3: the (certified_lockstep, lockstep) entry exists; a run without
+    the fleet's sysids and evidence fails its gates, it is not refused."""
+    assert analysis._RUN_GATES[(CERTIFIED_LOCKSTEP_PROFILE, LOCKSTEP)] is certified_lockstep_gate_errors
     _three_uav_run(tmp_path)
     (tmp_path / JOURNAL_FILE).write_text("", encoding="utf-8")
     assert analysis.execution_mode(tmp_path) == LOCKSTEP
-    with pytest.raises(ValueError, match="'certified_lockstep' has no lockstep run gates"):
-        analysis.analyze_run(tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6),
-                             approvals=_approval_records())
+    report = analysis.analyze_run(tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6),
+                                  approvals=_approval_records())
+    assert report.passed is False
+    assert "certified lockstep: sysids [4, 5, 6] are not the fleet's 1..3" in report.errors
     with pytest.raises(ValueError, match="'certified_lockstep' has no navigation_speedup override"):
         analysis.analyze_run(tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6),
                              approvals=_approval_records(), navigation_speedup=10.0)

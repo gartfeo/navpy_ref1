@@ -32,6 +32,7 @@ from scripts.eval_gcs_demo_gate_profiles import (
     WALL,
     execution_profile,
 )
+from scripts.eval_gcs_demo_fleet_gates import certified_lockstep_gate_errors
 from scripts.eval_gcs_demo_inputs import recorded_lockstep, require_recorded_scenario
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario, load_resolved_plan
 from scripts.eval_gcs_demo_poi_binding import final_approach_poi_binding_errors
@@ -146,12 +147,12 @@ def _no_run_gates(
 
 
 #: (execution profile, execution mode) -> its run-level gates beyond the
-#: shared ones: a lockstep slice run adds the journal gates; a wall run (either
-#: profile) has none. ``certified_lockstep`` has no entry until its journal
-#: gates exist (step 10g), so such a run is refused, not passed.
+#: shared ones: a lockstep run adds its profile's journal gates; a wall run
+#: (either profile) has none. A pair without an entry is refused, not passed.
 RunGates = Callable[[Path, DemoMissionPlan, list[dict[str, JsonValue]]], list[str]]
 _RUN_GATES: dict[tuple[str, str], RunGates] = {
     (CERTIFIED_PROFILE, WALL): _no_run_gates,
+    (CERTIFIED_LOCKSTEP_PROFILE, LOCKSTEP): certified_lockstep_gate_errors,
     (OWNER_ONLY_SLICE_PROFILE, WALL): _no_run_gates,
     (OWNER_ONLY_SLICE_PROFILE, LOCKSTEP): slice_gate_errors,
 }

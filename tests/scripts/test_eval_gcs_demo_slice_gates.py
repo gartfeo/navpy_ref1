@@ -213,23 +213,23 @@ def test_snap_gate_needs_the_first_snap_at_the_terminal_tick(evidence):
 def test_pose_cadence_gate_needs_producer_named_flushed_csvs(evidence):
     """Codex 9g P2-5: the pose-cadence CSVs are slice artifacts, flushed whole."""
     log_dir, _records, _lines, _approvals = evidence
-    assert pose_cadence_errors(log_dir, OWNER) == []
+    assert pose_cadence_errors(log_dir, (OWNER,)) == []
     directory = log_dir / "source-time"
     attitude = directory / f"pose_cadence_attitude_arrival_uav_{OWNER}_navpy.csv"
     text = attitude.read_text(encoding="utf-8")
     attitude.write_text(text[:-4], encoding="utf-8")  # a tail cut mid-row
-    assert pose_cadence_errors(log_dir, OWNER) == [
+    assert pose_cadence_errors(log_dir, (OWNER,)) == [
         f"pose cadence: {attitude.name} has no flushed rows"]
     attitude.write_text(text + "1000.04" + chr(10), encoding="utf-8")  # a torn last row
-    assert pose_cadence_errors(log_dir, OWNER) == [f"pose cadence: {attitude.name} row 4 is torn"]
+    assert pose_cadence_errors(log_dir, (OWNER,)) == [f"pose cadence: {attitude.name} row 4 is torn"]
     attitude.write_text(text, encoding="utf-8")
     (directory / "pose_cadence_worker_uav_4_pid_77.csv").write_text(text, encoding="utf-8")
-    assert pose_cadence_errors(log_dir, OWNER) == [
+    assert pose_cadence_errors(log_dir, (OWNER,)) == [
         "pose cadence: pose_cadence_worker_uav_4_pid_77.csv is not named by producer"]
     (directory / "pose_cadence_worker_uav_4_pid_77.csv").unlink()
     position = directory / f"pose_cadence_position_arrival_uav_{OWNER}_navpy.csv"
     position.unlink()
-    assert pose_cadence_errors(log_dir, OWNER) == [f"pose cadence: no {position.name}"]
+    assert pose_cadence_errors(log_dir, (OWNER,)) == [f"pose cadence: no {position.name}"]
 
 
 def _analyze(log_dir: Path, approvals):

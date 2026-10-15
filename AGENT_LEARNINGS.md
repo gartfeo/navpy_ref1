@@ -80,3 +80,19 @@
   Before a lockstep run, check `gcs_launch.py --list` and ask any slot-0..N
   wall user for a quiet window; after a fault, compare the WSL eval-root
   creation times with the run window.
+
+## Fleet journal gates (step 10g-3, 2026-10-15)
+
+- **Read these notes before the first edit.** The CRLF note above was
+  already here and was missed. Check each file: tracked files are CRLF in
+  the worktree, files new from the Write tool are LF.
+- **Delete a runner's result file before each run and check its exit
+  code.** A broken edit gave the mutation runner a syntax error, and the
+  last run's "39/39 killed" file stayed in place and looked current.
+- **Take fixture values from the producer, not from memory.** The fixture's
+  ACK ref types were 6/7; NavPy writes `MsgType` values 130/140 and routes
+  ACKs by them. The gate passed a chain NavPy would ignore. Import the
+  producer's constants and match every field the consumer routes on.
+- **Read the measurement the design names.** The fleet reused the slice's
+  response-send reader (SITL admissions), but the design names the backend's
+  emissions; under a backlog the two differ.
