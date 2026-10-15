@@ -49,9 +49,10 @@ import sys
 from pathlib import Path
 from typing import Callable, Optional
 
-from tools.tuning.board import DEFAULT_BAUD, Board, is_serial, restore
+from tools.tuning.board import DEFAULT_BAUD, Board, is_serial
+from tools.tuning.board_backup import backup, restore_cmd
 from tools.tuning.hitl_gate import link_health
-from tools.tuning.hitl_params import ParamFile, fetch_params, origin_params, write_backup
+from tools.tuning.hitl_params import ParamFile, origin_params
 from tools.tuning.hitl_procs import FIELDS, HitlProcesses, template_errors
 from tools.tuning.mp_mirror import DEFAULT_PORT as DEFAULT_MP_MIRROR_PORT
 from tools.tuning.mp_mirror import MavlinkMirror, reserved_band
@@ -259,28 +260,6 @@ def sitl_backing(args: argparse.Namespace) -> None:
         pass
     finally:
         sitl.stop()
-
-
-def backup(args: argparse.Namespace) -> None:
-    """Save every parameter of the board to a new file (read only)."""
-    board = Board(args.board, Path(args.out).parent, [], baud=args.baud)
-    try:
-        board.connect()
-        params = fetch_params(board)
-        print(f"{len(params)} parameters saved to {write_backup(Path(args.out), params, args.board)}")
-    finally:
-        board.close_link()
-
-
-def restore_cmd(args: argparse.Namespace) -> None:
-    """Write a backup file back to the board, e.g. after the flight firmware is reflashed."""
-    board = Board(args.board, Path(args.file).parent, [], baud=args.baud)
-    try:
-        result = restore(board, Path(args.file))
-    finally:
-        board.close_link()
-    print(json.dumps(result, indent=1))
-    sys.exit(1 if result["differing"] or result["absent"] else 0)
 
 
 def link_check(args: argparse.Namespace) -> None:

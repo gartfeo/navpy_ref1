@@ -9,8 +9,10 @@ import pytest
 
 from tests.tools.tuning.fake_board import FakeBoard, FakeLog, f32
 from tools.tuning import board as board_module
+from tools.tuning import hitl_boot
 from tools.tuning import hitl_params
-from tools.tuning.board import BACKUP_NAME, FORCE_DISARM_MAGIC, Board, restore
+from tools.tuning.board import BACKUP_NAME, FORCE_DISARM_MAGIC, Board
+from tools.tuning.board_backup import restore
 from tests.tools.tuning.hitl_data import SYNTHETIC_AIRCRAFT_PARAMS, SYNTHETIC_LAUNCH_PARAMS
 from tools.tuning.hitl import BOARD_PARAMS, BRIDGE_PARAMS, hitl_data_files
 from tools.tuning.hitl_params import ParamFile, Refused, read_param_file
@@ -292,7 +294,7 @@ def test_a_boot_whose_ekf_started_before_the_first_state_is_rebooted_and_three_s
     assert runner.record["hil_boot_attempts"] == 2
     board = _sim_board()
     hitl = FakeHitl(board)
-    hitl.on_start = lambda: board.boot_texts.extend([EKF_FIRST] * board_module.HIL_BOOT_ATTEMPTS)
+    hitl.on_start = lambda: board.boot_texts.extend([EKF_FIRST] * hitl_boot.HIL_BOOT_ATTEMPTS)
     with pytest.raises(RuntimeError, match="EKF initialised before the first HIL state"):
         _runner(board, tmp_path / "again", _bridge_files(files), hitl=hitl).start()
     assert hitl.stopped_at is not None and not board.armed
