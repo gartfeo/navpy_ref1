@@ -1,16 +1,14 @@
 """Pilot steps shared by the tuning flights (sitl_driver.py, vs_autotune.py, sitl_faults.py).
 
-Stick inputs and STATUSTEXT waits, the run's height floor (HeightFloor: below it the run fails),
+Stick inputs and STATUSTEXT waits (the run's height floor: flight_floor.py),
 LOITER climbs that ArduPlane honours (climb_to), the pilot's throttle matched to the aircraft's level
-cruise (pilot_throttle) and FBWA trimmed to its pitch for one run (CruisePitchTrim). Line numbers refer to the ArduPlane 4.6 fork (fw-worktrees/ardupilot-flight-tune).
+cruise (pilot_throttle) and FBWA trimmed to its pitch for one run (cruise_trim.CruisePitchTrim). Line numbers refer to the ArduPlane 4.6 fork (fw-worktrees/ardupilot-flight-tune).
 """
 from __future__ import annotations
 
-import argparse
 import math
 import statistics
 import time
-from types import TracebackType
 
 from pymavlink import mavutil
 
@@ -32,11 +30,6 @@ NUDGE_PER_PCT = 0.02           # ... and reaches the whole AIRSPEED_MAX - AIRSPE
 GAIN_NAMES = [f"{a}_RATE_{k}" for a in ("RLL", "PTCH") for k in ("FF", "P", "I", "D")] + \
              ["RLL2SRV_TCONST", "RLL2SRV_RMAX", "PTCH2SRV_TCONST", "PTCH2SRV_RMAX_UP", "PTCH2SRV_RMAX_DN"]
 
-# After the takeoff has reached TKOFF_ALT the run fails below this height above home. Every step of these
-# runs starts at TKOFF_ALT (120 m in the tuning runs) or above the tuner's FTUN_ALT_MIN (40-80 m); none is
-# meant to come near the ground. In round 2 a vs-autotune card started at 36 m, struck the ground and the
-# run still exited 0. 30 m leaves room for the pull-out of a manoeuvre that has gone wrong.
-MIN_HEIGHT_M = 30.0
 # The height the pilot's steps start at: peron_like.parm's TKOFF_ALT, which the tuning runs were sized on. An
 # aircraft file may launch lower (a real catapult climb ends lower), and FBWA at the pilot's fixed throttle does
 # not hold height: from such a takeoff the first HITL port-check sank through the 30 m floor during its
@@ -51,11 +44,6 @@ CLIMB_RATE_MIN_MPS = 1.0
 CLIMB_SETTLE_S = 30.0          # on top of the climb time: LOITER's entry turn and TECS's settling
 CLIMB_CHECK_S = 1.0            # simulated seconds between height readings while climbing
 MESSAGE_TIMEOUT_S = 5.0          # the longest wait for one MAVLink message or a command's answer
-# After a floor breach the run has failed, but the aircraft is not left diving in the mode that failed until the
-# vehicle's stop ends the flight (on a board: a disarm, which on a real aircraft would be a crash): RTL is ArduPlane's
-# own recovery, it climbs to RTL_ALTITUDE and circles home. The stop comes once it is back above the floor, or after
-# the time a LOITER climb of the same height is given (climb_to's limit).
-RECOVERY_MODE = "RTL"
 # The cruise: a straight CRUISE leg (wings level, TECS holding the entry height and the airspeed the throttle stick
 # asks for) at AIRSPEED_CRUISE (cruise_airspeed_stick_pwm), then the medians over CRUISE_SAMPLE_S (TECS's throttle in
 # LOITER spreads widely around its mean). Straight, not a LOITER turn: a turn needs more throttle and lift. Entered
@@ -73,7 +61,7 @@ THROTTLE_MATCH_TOL_PCT = 2.0
 # TRIM_THROTTLE: Attitude.cpp:212, 617-627); a real aircraft is trimmed so that this is its cruise attitude
 # (PTCH_TRIM_DEG, or AHRS_TRIM_Y when levelled). The HITL board frame is the model's body axis and the aircraft
 # files have neither, so FBWA held a pitch degrees below the level cruise's, and the port-check doublets flew
-# several m/s above the cruise (demo2, 2026-10-13). The run sets PTCH_TRIM_DEG for itself only (CruisePitchTrim).
+# several m/s above the cruise (demo2, 2026-10-13). The run sets PTCH_TRIM_DEG for itself only (cruise_trim.CruisePitchTrim).
 PITCH_TRIM = "PTCH_TRIM_DEG"
 FLIGHT_OPTIONS = "FLIGHT_OPTIONS"
 # FLIGHT_OPTIONS bits (ArduPlane/defines.h): CRUISE's airspeed from the throttle stick through a curve around
@@ -83,13 +71,6 @@ CRUISE_TRIM_THROTTLE_BIT, CRUISE_TRIM_AIRSPEED_BIT, GCS_REMOVE_TRIM_PITCH_BIT = 
 # still climbing back to its height at AIRSPEED_MIN, and FBWA matched to that pitch flew too slow. 0.25 m/s is
 # 0.6 deg of flight path at 24 m/s.
 LEVEL_CLIMB_TOL_M_S = 0.25
-# The FBWA speed after a trim change converges with a time constant of 6-7 s (trim1); five.
-TRIM_SETTLE_S = 36.0
-# FBWA flies the cruise pitch this closely once trimmed; FBWA's offset from its demand changes with the speed, so the
-# trim is corrected after each settle, at most PITCH_TRIM_ROUNDS times. 0.2 deg of pitch moves a cruising
-# aircraft's speed by a fraction of a m/s.
-PITCH_MATCH_TOL_DEG = 0.2
-PITCH_TRIM_ROUNDS = 3
 # The cruise leg must fly AIRSPEED_CRUISE, and the trimmed FBWA the cruise leg's airspeed, this closely: 4 % of a
 # 24 m/s cruise; the untrimmed demo2 was several m/s off.
 CRUISE_SPEED_TOL_M_S = 1.0
@@ -97,12 +78,6 @@ CRUISE_SPEED_TOL_M_S = 1.0
 
 class FlightCheckFailed(RuntimeError):
     """A check of the run's procedure failed: the run is not valid, and the message says why."""
-
-
-def add_floor_arg(p: argparse.ArgumentParser, default_m: float = MIN_HEIGHT_M) -> None:
-    p.add_argument("--min-height", type=float, default=default_m, metavar="M",
-                   help="m above home: once the takeoff has reached TKOFF_ALT the run fails below this "
-                        "(default %(default)g)")
 
 
 def stick_sequence(sitl: Vehicle, channel: int, steps: list[tuple[int, float]]) -> None:
@@ -128,69 +103,6 @@ def wait_text(sitl: Vehicle, texts: tuple[str, ...], seconds: float) -> str | No
                 return m
         seen = len(sitl.messages)
     return None
-
-
-class HeightFloor:
-    """Inside the with-block the run fails (FlightCheckFailed) once the aircraft is below floor_m above home,
-    and on leaving the block after such a breach the aircraft recovers in RECOVERY_MODE (recover_above).
-
-    The check is a hook on the MAVLink connection (pymavlink mavfile.message_hooks, called for every
-    received message in post_message), so every GLOBAL_POSITION_INT is seen whichever helper reads the
-    link. It trips once and then lets messages pass, and leaving the block removes it: the vehicle's
-    stop (a board's disarm and log download) must not trip it again. On leaving, record["height"] holds
-    the floor, the lowest height seen and the breach (None when the floor held), and after a breach
-    record["recovery"] what the recovery did (an error there is recorded; the breach is what is raised)."""
-
-    def __init__(self, vehicle: Vehicle, floor_m: float, record: dict) -> None:
-        self._vehicle = vehicle
-        self._record = record
-        self._conn = None
-        self.floor_m = floor_m
-        self.lowest_m: float | None = None
-        self.breach: str | None = None
-
-    def __enter__(self) -> HeightFloor:
-        self._conn = self._vehicle.mav
-        self._conn.message_hooks.append(self._check)
-        return self
-
-    def __exit__(self, kind: type[BaseException] | None, exc: BaseException | None,
-                 trace: TracebackType | None) -> None:
-        if self._check in self._conn.message_hooks:
-            self._conn.message_hooks.remove(self._check)
-        self._record["height"] = {"floor_m": self.floor_m, "lowest_m": self.lowest_m, "breach": self.breach}
-        if self.breach is not None:
-            try:
-                self._record["recovery"] = recover_above(self._vehicle, self.floor_m)
-            except Exception as exc:     # noqa: BLE001 - the breach stays the run's failure; the record keeps this
-                self._record["recovery"] = {"mode": RECOVERY_MODE, "error": f"{type(exc).__name__}: {exc}"}
-
-    def _check(self, conn: object, msg: object) -> None:
-        if self.breach is not None or msg.get_type() != "GLOBAL_POSITION_INT":
-            return
-        height = msg.relative_alt / 1000.0
-        self.lowest_m = height if self.lowest_m is None else min(self.lowest_m, height)
-        if height < self.floor_m:
-            self.breach = f"height {height:.1f} m above home, below the run's floor of {self.floor_m:g} m"
-            raise FlightCheckFailed(self.breach)
-
-
-def recover_above(vehicle: Vehicle, floor_m: float) -> dict:
-    """RECOVERY_MODE until the aircraft is back at or above floor_m above home, or until the time a climb of that
-    height is given (as climb_to). Returns the mode, whether it got there, the height and the simulated seconds."""
-    vehicle.set_mode(RECOVERY_MODE)
-    start = vehicle.state()["alt"]
-    limit_s = max(0.0, floor_m - (start or 0.0)) / CLIMB_RATE_MIN_MPS + CLIMB_SETTLE_S
-    flown = 0.0
-    while True:
-        height = vehicle.state()["alt"]
-        recovered = height is not None and height >= floor_m
-        if recovered or flown >= limit_s:
-            print(f"[driver] {RECOVERY_MODE} after the floor breach: {height} m above home after {flown:g} s "
-                  f"({'back above' if recovered else 'still below'} the floor of {floor_m:g} m)", flush=True)
-            return {"mode": RECOVERY_MODE, "recovered": recovered, "height_m": height, "seconds": flown}
-        vehicle.fly_for(CLIMB_CHECK_S)
-        flown += CLIMB_CHECK_S
 
 
 def change_altitude(sitl: Vehicle, height_m: float) -> None:
@@ -332,7 +244,7 @@ def pilot_throttle(sitl: Vehicle) -> dict:
     stick with this vehicle's RC3_MIN/MAX/REVERSED, then flown in FBWA, where the median throttle must
     match the cruise (FLIGHT_OPTIONS bit 10 maps the stick through a curve, reverse_thrust.cpp:148-165;
     THR_MIN/THR_MAX clip it). Leaves the stick there, in FBWA. Returns the cruise's and FBWA's throttle, and the
-    pitch and airspeed of both (CruisePitchTrim uses them)."""
+    pitch and airspeed of both (cruise_trim.CruisePitchTrim uses them)."""
     cruise = cruise_state(sitl)
     pwm = throttle_stick_pwm(cruise["throttle_pct"], sitl.get_param(f"RC{THROTTLE_CH}_MIN"),
                              sitl.get_param(f"RC{THROTTLE_CH}_MAX"), bool(sitl.get_param(f"RC{THROTTLE_CH}_REVERSED")))
@@ -349,67 +261,3 @@ def pilot_throttle(sitl: Vehicle) -> dict:
                                 f"{want:g} % (check RC{THROTTLE_CH}_MIN/MAX, FLIGHT_OPTIONS bit 10, THR_MIN/THR_MAX)")
     return {"cruise_pct": want, "stick_pwm": pwm, "fbwa_pct": flown, "cruise_pitch_deg": cruise["pitch_deg"],
             "cruise_airspeed_m_s": cruise["airspeed_m_s"], "fbwa_pitch_deg": fbwa["pitch_deg"]}
-
-
-class CruisePitchTrim:
-    """Inside the with-block FBWA's stick centre flies the cruise attitude: PTCH_TRIM_DEG for this run only.
-
-    The trim is moved by the cruise's AHRS pitch less FBWA's (pilot_throttle's readings), then, at most
-    PITCH_TRIM_ROUNDS times, FBWA flies TRIM_SETTLE_S and the trim is corrected by what its pitch still misses; once
-    within PITCH_MATCH_TOL_DEG, FBWA's median airspeed must be the cruise's within CRUISE_SPEED_TOL_M_S
-    (FlightCheckFailed otherwise). On leaving, the old value is set back, also after a failure; a failed restore is
-    recorded, not raised. record["pitch_trim"] holds the old and the run's trim, each round, and the restore."""
-
-    def __init__(self, vehicle: Vehicle, pilot: dict, record: dict) -> None:
-        self._vehicle = vehicle
-        self._pilot = pilot
-        self._record = record
-        self.before: float | None = None
-
-    def __enter__(self) -> CruisePitchTrim:
-        v, pilot = self._vehicle, self._pilot
-        self.before = v.get_param(PITCH_TRIM)
-        want = pilot["cruise_pitch_deg"]
-        trim = round(self.before + want - pilot["fbwa_pitch_deg"], 2)
-        entry = self._record["pitch_trim"] = {"name": PITCH_TRIM, "before_deg": self.before, "rounds": []}
-        try:
-            for _ in range(PITCH_TRIM_ROUNDS):
-                v.set_param(PITCH_TRIM, trim)
-                v.fly_for(TRIM_SETTLE_S)
-                fbwa = median_flight(v, FBWA_SAMPLE_S)
-                entry["rounds"].append({"trim_deg": trim, "pitch_deg": fbwa["pitch_deg"],
-                                        "airspeed_m_s": fbwa["airspeed_m_s"]})
-                miss = want - fbwa["pitch_deg"]
-                print(f"[driver] {PITCH_TRIM} {trim:g} deg: FBWA flies {fbwa['pitch_deg']:.2f} deg at "
-                      f"{fbwa['airspeed_m_s']:.1f} m/s, the cruise {want:.2f} deg at "
-                      f"{pilot['cruise_airspeed_m_s']:.1f} m/s", flush=True)
-                if abs(miss) <= PITCH_MATCH_TOL_DEG:
-                    break
-                trim = round(trim + miss, 2)
-            else:
-                last = entry["rounds"][-1]
-                raise FlightCheckFailed(f"FBWA did not fly the cruise pitch {want:.2f} deg in {PITCH_TRIM_ROUNDS} "
-                                        f"trims (last {last['trim_deg']:g} deg: {last['pitch_deg']:.2f} deg)")
-            entry["run_deg"] = trim
-            if abs(fbwa["airspeed_m_s"] - pilot["cruise_airspeed_m_s"]) > CRUISE_SPEED_TOL_M_S:
-                raise FlightCheckFailed(f"FBWA trimmed to {trim:g} deg flies {fbwa['airspeed_m_s']:.1f} m/s, not the "
-                                        f"cruise {pilot['cruise_airspeed_m_s']:.1f} m/s")
-        except BaseException:
-            self._restore()
-            raise
-        return self
-
-    def __exit__(self, kind: type[BaseException] | None, exc: BaseException | None,
-                 trace: TracebackType | None) -> None:
-        self._restore()
-
-    def _restore(self) -> None:
-        entry = self._record["pitch_trim"]
-        if "restored" in entry:
-            return
-        try:
-            self._vehicle.set_param(PITCH_TRIM, self.before)
-            entry["restored"] = True
-        except Exception as exc:     # noqa: BLE001 - the run's own failure, if any, stays the one raised
-            entry["restored"] = False
-            entry["restore_error"] = f"{type(exc).__name__}: {exc}"

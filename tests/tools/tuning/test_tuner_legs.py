@@ -9,8 +9,9 @@ import pytest
 from tests.tools.tuning import r3_fake_plane
 from tests.tools.tuning.r3_fake_plane import FakePlane
 from tools.tuning import sitl_driver, tuner_legs
-from tools.tuning.flight_steps import (MIN_HEIGHT_M, PILOT_THROTTLE_PWM, FlightCheckFailed, cruise_airspeed_stick_pwm,
-                                       nudged_airspeed, throttle_control_in)
+from tools.tuning.flight_floor import MIN_HEIGHT_M
+from tools.tuning.flight_steps import (PILOT_THROTTLE_PWM, FlightCheckFailed, cruise_airspeed_stick_pwm, nudged_airspeed,
+                                       throttle_control_in)
 from tools.tuning.tuner_legs import (COURSE_TOL_DEG, LEG_MODE, PATTERN_LOITER, PATTERN_STRAIGHT, TURN_MODE,
                                      axis_blocks, bearing_deg, course_error_deg, fly_tuner)
 

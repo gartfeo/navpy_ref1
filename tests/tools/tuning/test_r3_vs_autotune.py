@@ -13,7 +13,8 @@ import pytest
 
 from tests.tools.tuning.r3_fake_plane import FakePlane
 from tools.tuning import sitl_driver
-from tools.tuning.flight_steps import MIN_HEIGHT_M, PILOT_THROTTLE_PWM, PITCH_TRIM, FlightCheckFailed
+from tools.tuning.flight_floor import MIN_HEIGHT_M
+from tools.tuning.flight_steps import PILOT_THROTTLE_PWM, PITCH_TRIM, FlightCheckFailed
 from tools.tuning.hitl_params import read_param_file
 from tools.tuning.vs_autotune import AUTOTUNE_RECOVERY_M, CARD_MARKER
 

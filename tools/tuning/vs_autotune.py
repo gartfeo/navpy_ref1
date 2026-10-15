@@ -10,20 +10,21 @@ Round 2 (HITL chain, Peron15_hitl2) showed what made the comparison meaningless,
 - LOITER holds the height it is entered at (commands_logic.cpp:979), so LOITER between steps never climbed:
   the tuner needs FTUN_ALT_MIN + 10 m and never started, and card 13 hit the ground. The climbs are now
   commanded (flight_steps.climb_to): after AUTOTUNE and before every card.
-- The run exited 0. It now fails below the floor (flight_steps.HeightFloor, set up by sitl_driver) and when the
+- The run exited 0. It now fails below the floor (flight_floor.HeightFloor, set up by sitl_driver) and when the
   tuner does not finish, since the cards would then fly AUTOTUNE's gains twice.
 - FBWA's stick centre flew its own level attitude, not the cruise's, so FBWA and AUTOTUNE flew faster than the
   cruise at the cruise throttle (port-check: several m/s too fast). Everything after the cruise reading now flies
-  with port-check's cruise trim (flight_steps.CruisePitchTrim: PTCH_TRIM_DEG for this run only, set back at the
+  with port-check's cruise trim (cruise_trim.CruisePitchTrim: PTCH_TRIM_DEG for this run only, set back at the
   end), so AUTOTUNE, the tuner and the cards of both gain sets fly the same trim.
 AUTOTUNE_AXES and FTUN_AXES both come from --axes (the same bits: Plane.h:1307-1311, AP_FlightTune.cpp:113-117),
 so both tune the same axes, and the cards fly those axes.
 """
 from __future__ import annotations
 
+from tools.tuning.cruise_trim import CruisePitchTrim
 from tools.tuning.flight_steps import (FTUNE_SWITCH_CH, PILOT_THROTTLE_PWM, THROTTLE_CH, TUNER_END_TEXTS,
-                                       CruisePitchTrim, FlightCheckFailed, climb_to, pilot_throttle, read_gains,
-                                       stick_sequence, wait_text)
+                                       FlightCheckFailed, climb_to, pilot_throttle, read_gains, stick_sequence,
+                                       wait_text)
 from tools.tuning.vehicle import Vehicle
 
 CARD_MARKER = "FTUN_REPS"     # 11..14 while each card flies so the log marks it; its own value between cards

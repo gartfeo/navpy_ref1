@@ -1,7 +1,8 @@
 # HITL final approach to the Unreal dock (design v6, 2026-10-15)
 
 **Status.** v6 applies the owner's answers of 2026-10-15 (below) to the Codex-approved v5.6; building. Done: the
-router of section 2 (`tools/tuning/mav_router*.py`, Codex-reviewed) and the profile `placeholder_18x`.
+router of section 2 (`tools/tuning/mav_router*.py`, Codex-reviewed), the profile `placeholder_18x`, and the
+terminal fence, router barrier and record in navpy with the runner's stop-before-RTL (section 2, "Built").
 Owner's "What next?" item 3 ("Full final approach in HITL"). Builds on `hitl_unreal_camera.md`
 (camera stream, dock passes, detector range) and `flight_tuning.md` (HITL runner, bridge, gate). Line numbers are on
 `feat/hitl-flight-tuning` 7d36929; Unreal lines on `aas-sim-unreal` 48ad8dd (`C:\repos\unreal-projects\AasSimProject`);
@@ -34,7 +35,7 @@ board (Pixhawk 6X, HIL fw) <-COM11-> bridge (JSBSim Peron15_hitl4, HIGH) --pose 
 - **Runner:** a new `sitl_driver approach` subcommand: board setup as `dock-pass` (params, erase, bridge,
   `--unreal-pose`, Yeghvard origin), then starts the emulator and navpy, takeoff, search mission, AUTO, waits for navpy's
   terminal record or a timeout, stops navpy, RTL, gate, logs. It keeps draining MAVLink the whole time, so `HeightFloor`
-  (a hook on received GLOBAL_POSITION_INT, `flight_steps.py:137`) always fires.
+  (a hook on received GLOBAL_POSITION_INT, `flight_floor.py:56`) always fires.
 
 ## 2. MAVLink link: one USB port, a router on the PC (owner)
 Unchanged from v4. The board's USB (COM15, SERIAL0) is the only link; no adapter. `tools/tuning/mav_router.py` owns
@@ -69,7 +70,13 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   and the time of its last navpy write. Only then does navpy write the record. No ack within a bound: navpy writes a
   barrier-failed terminal record and the run counts as failed. The router logs the write time and source of every
   packet sent to COM15, so "no navpy packet written after the terminal record" is checked at the board boundary. Tests:
-  delayed queue, write in progress at the barrier, barrier timeout, ordering of ack and record.
+  delayed queue, write in progress at the barrier, barrier timeout, ordering of ack and record. Built: with
+  `--router-control HOST:PORT` (and `--router-client`, default `navpy`) the episode latch's first outcome
+  (`episode_latch.py`, DOCKED, MISSED or FAILED) closes a fence on navpy's MAVLink connection (`LinkFence` wraps its
+  `write`, where every pymavlink send ends: attitude, mode, mission, params, heartbeats), waits for the write in
+  progress, closes the router endpoint (`router_barrier.py`, 2 s bound, resent every 0.25 s) and prints
+  `NAVPY_TERMINAL_V1 {json}` (`terminal_handoff.py`). The fence stays closed: that is the hold, so RESET's AUTO restart
+  never reaches the board. Not yet: the gimbal command fence (with B3, the real SIYI path).
 - **Authority:** navpy flies GUIDED + `SET_ATTITUDE_TARGET` (`attitude_command.py:94`); the runner keeps its RC overrides
   (SYSID_MYGCS 250) at centred sticks, throttle low. H1 checks the GUIDED attitude response under them first.
 - **Handoff at the end:** RESET→DETECT restarts AUTO (`navigation_transition_handler.py:61`, `recovery.py:89`), which can
@@ -80,7 +87,10 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   failed navpy barrier no buffered navpy packet can follow the RTL; no ack means the router process is terminated
   before RTL is sent with the runner opening COM15 itself, and the run is failed. Then RTL. Regression: buffered UDP from navpy across a
   forced stop and the RTL. A floor breach or timeout takes the same path (today `HeightFloor` recovers directly,
-  `flight_steps.py:162`); the stop time counts in the floor clearance.
+  `flight_floor.py:74`); the stop time counts in the floor clearance. Built: `tools/tuning/navpy_handoff.py`
+  (`NavpyHandoff.before_rtl`: stop with a 10 s bound then terminate, the barrier, and on no ack the router ended and RTL
+  sent on the board's own port, confirmed by its heartbeat) and `HeightFloor(before_recovery=...)`; wired into
+  `sitl_driver approach` when that is built.
 - **One-shot stays false, checked:** one-shot force-disarms a simulated autopilot (`nav_oneshot_completion.py:36-75`)
   and the HIL firmware has SIM_* parameters (ArduPilot `libraries/SITL/SITL.cpp:231`). The runner sets a board
   `AAS_NAV_ONESHOT` to 0 if present; H0 adds the effective one-shot and confirmation settings to navpy's start record
@@ -97,6 +107,18 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
 - **NPYC is EXPOSURE-only:** a calibration also admits READ frames (`capture_lookup.py:149`) and NPYC falls back to READ
   when mapping fails (`frame_capture_npyc.py:170`). Rule: an npyc source admits only EXPOSURE frames; tested with
   invalid pose flags, mapping loss, board reboot.
+- **Real camera path: capture time, not arrival (owner, 2026-10-15, fix B; with N3/N7).** The lateral LOS rate is a
+  raw two-point difference, (bearing - prev_bearing) / dt (`lateral_rate.py:119-127`), with no low-pass
+  (`LATERAL_RATE_FILTER_TAU_S = None`, `law.py:49`) and no runtime minimum dt. Real frames are stamped READ, `rt.time()`
+  on arrival (`frame_capture_ffmpeg.py:116,126`, `frame_capture_opencv.py:196,206`, `capture_lookup.py:149-161`). The
+  ZR10 rig (gimbal-controller `out/step0-ev5`, 231k frames) measured camera PTS steps of exact 33.3 ms multiples but
+  bunched arrivals after decoder or network stalls: 1.41 % of gaps under 20 ms, minimum 6 ms. A 6-20 ms dt amplifies
+  per-frame angle error 2-5x into one-frame roll-command spikes (SITL shows the same at dt 0.02 s). Rule: before its
+  pixels feed the LOS rate, a real frame is timed by its capture time, the stream PTS mapped to the PC clock (the rig's
+  `gimbal/freshness.py`: 7.5 ppm drift, 7.6 ms scatter), i.e. an EXPOSURE stamp as for npyc; READ frames do not feed
+  the rate. `capture_lookup.py`'s `min_frame_interval_s` (>= 10x variation) is checked on the calibration file only,
+  not at runtime. Separate: the sim pose reader pairing attitude with another boot's GLOBAL_POSITION_INT (fix A,
+  owner-plan chat); a dt-weighted rate filter (C) is deferred.
 - **Gimbal state with frames (new in v5).** Two halves, kept apart (Pure Vision: gimbal readback is camera state only):
   - *What Unreal renders.* Today an external gimbal_state is applied on arrival through an exponential smoother
     (`FInterpTo`, speed 24, `NavPyGimbalCameraActor.cpp:558-598`; first state snaps, `:525`), no timestamp is read
@@ -464,3 +486,9 @@ Fixed: packets read before a reboot, barrier or reopen reaching the board after 
 waiting backlog dropped); partial packets (a datagram carries whole packets); a failed open keeping the handle; double
 counted barrier drops; stale or link-down packets changing stream claims; NaN intervals stopping a receiver; a client
 named `router`; reopen of an open endpoint. A regression test for each, each failing without its fix.
+
+## Codex review of the terminal handoff (2026-10-15): rounds 1-2 "rework", round 3 "approve"
+Fixed: a raising runner handoff let HeightFloor send RTL through the router while navpy's endpoint was not known
+closed (now no router RTL; a step error before the confirmed close takes the no-ack path); a failure while ending the
+router left a cached record without the direct-RTL mark. A regression test for each, each failing without its fix.
+Open: the gimbal command fence (with B3).

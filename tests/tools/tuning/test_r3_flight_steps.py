@@ -3,9 +3,11 @@ import pytest
 from pymavlink import mavutil
 
 from tests.tools.tuning.r3_fake_plane import FakePlane, Msg
-from tools.tuning import flight_steps
-from tools.tuning.flight_steps import (MIN_HEIGHT_M, PITCH_TRIM, CruisePitchTrim, FlightCheckFailed, HeightFloor,
-                                       climb_to, cruise_state, pilot_throttle, throttle_stick_pwm)
+from tools.tuning import cruise_trim, flight_floor, flight_steps
+from tools.tuning.cruise_trim import CruisePitchTrim
+from tools.tuning.flight_floor import MIN_HEIGHT_M, HeightFloor
+from tools.tuning.flight_steps import (PITCH_TRIM, FlightCheckFailed, climb_to, cruise_state, pilot_throttle,
+                                       throttle_stick_pwm)
 
 M = mavutil.mavlink
 
@@ -100,7 +102,7 @@ def test_the_trim_is_corrected_until_fbwa_flies_the_cruise_pitch():
     pilot = pilot_throttle(plane)
     record: dict = {}
     with CruisePitchTrim(plane, pilot, record):
-        assert abs(plane.pitch_deg() - 3.0) <= flight_steps.PITCH_MATCH_TOL_DEG
+        assert abs(plane.pitch_deg() - 3.0) <= cruise_trim.PITCH_MATCH_TOL_DEG
         assert abs(plane.airspeed() - 23.0) <= flight_steps.CRUISE_SPEED_TOL_M_S
     assert [r["trim_deg"] for r in record["pitch_trim"]["rounds"]] == [2.5, 2.75]
     assert record["pitch_trim"]["run_deg"] == 2.75 and plane.params[PITCH_TRIM] == 0.0
@@ -228,7 +230,7 @@ def test_after_a_floor_breach_the_aircraft_recovers_in_rtl_above_the_floor_befor
         with HeightFloor(plane, 30, record):
             plane.fly_for(20)
     assert plane.t == pytest.approx(1.1 + record["recovery"]["seconds"], abs=1.0)
-    assert plane.mode == flight_steps.RECOVERY_MODE == "RTL" and plane.h >= 30
+    assert plane.mode == flight_floor.RECOVERY_MODE == "RTL" and plane.h >= 30
     assert record["recovery"]["recovered"] is True and record["recovery"]["height_m"] >= 30
     assert record["recovery"]["seconds"] < 30
 

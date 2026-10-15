@@ -921,7 +921,7 @@ Runs `diag1`, `trim1`, `trim2`, `tune1` under `C:\tune_hitl`, Windows bridge, Mi
 - **FBWA at the cruise (`port-check`).** The cruise is now read on a straight CRUISE leg at
   AIRSPEED_CRUISE (CRUISE's stick sets its airspeed; the low stick flew AIRSPEED_MIN in `trim1`), checked level,
   and FBWA's stick centre is trimmed to its pitch with `PTCH_TRIM_DEG` for the run only
-  (`flight_steps.CruisePitchTrim`, set back at the end). PTCH_TRIM_DEG rather than AHRS_TRIM_Y keeps the
+  (`cruise_trim.CruisePitchTrim`, set back at the end). PTCH_TRIM_DEG rather than AHRS_TRIM_Y keeps the
   board's axes the model's body axes, so PIDR/PIDP see the same rates; FBWB/CRUISE would turn the pitch
   doublets into TECS climb-rate demands. `trim2`: the cruise leg flew level at AIRSPEED_CRUISE, and FBWA,
   trimmed to its pitch, flew the cruise speed (median within 0.1 m/s over the doublets) where `demo2` flew

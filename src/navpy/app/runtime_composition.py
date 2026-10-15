@@ -5,7 +5,6 @@ from __future__ import annotations
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
-import sys
 from argparse import Namespace
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -38,13 +37,16 @@ from navpy.plugins.vehicle.ardupilot.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )
 from navpy.app.perception.vision_controller import VisionController
-from navpy.app.runtime_stop import LifecycleStopRequest, StdinStopRequest, acknowledge_stop
+from navpy.app.runtime_stop import LifecycleStopRequest, stop_hooks
 from navpy.app.runtime_resources import (
     RuntimeResourceStack,
     RuntimeSession,
     VehicleCloseGate,
 )
 from navpy.app.runtime_ready import emit_runtime_ready
+from navpy.app.terminal_handoff import (
+    TerminalHandoff, build_terminal_handoff, fenced_opener, terminal_observer,
+)
 from navpy.core.kernel.config.arg_helper import (
     collect_non_default_args,
     collect_param_overrides,
@@ -82,6 +84,7 @@ class RuntimeFoundation:
     vision_args: VisionArgs
     scheduler_cadence: SchedulerCadence | None
     vehicle_close_gate: VehicleCloseGate
+    terminal_handoff: TerminalHandoff | None = None
 
 
 def _raise_composition_failure(
@@ -132,7 +135,9 @@ def _build_foundation(
     ports.observe_logger(logger)
     resources.own_independent("OpenCV windows", cv2.destroyAllWindows)
 
-    vehicle = create_vehicle(connection_args, logger, open_bus=ports.open_bus)
+    terminal_handoff = build_terminal_handoff(args)
+    open_bus = fenced_opener(ports.open_bus, terminal_handoff)
+    vehicle = create_vehicle(connection_args, logger, open_bus=open_bus)
     close_gate = VehicleCloseGate(vehicle.close)
     # Quiescence: the MAVLink reader dispatches into the logger, so the
     # logger stays open until the reader has really stopped.
@@ -169,6 +174,7 @@ def _build_foundation(
         vision_args=vision_args,
         scheduler_cadence=scheduler_cadence,
         vehicle_close_gate=close_gate,
+        terminal_handoff=terminal_handoff,
     )
 
 
@@ -202,6 +208,7 @@ def _build_session(
         foundation.logger,
         foundation.navigation_args,
         scheduler_cadence=foundation.scheduler_cadence,
+        on_terminal=terminal_observer(foundation.terminal_handoff),
     )
     resources.own_quiescence("navigation", navigation.stop)
     navigation.start()
@@ -251,30 +258,8 @@ def _build_session(
         ui_step=vision.ui_step,
         sleep=rt.sleep,
         ready_signal=signal_runtime_ready,
-        **_stop_hooks(args, ports),
+        **stop_hooks(args, ports.lifecycle_stop),
     )
-
-
-def _stop_hooks(
-    args: Namespace,
-    ports: RuntimePorts,
-) -> dict[str, Callable[..., object]]:
-    if getattr(args, "stop_on_lifecycle", False):
-        # Lockstep: no thread reads stdin; the lifecycle record latches it.
-        stop = ports.lifecycle_stop
-        assert stop is not None  # checked before composition
-        return {
-            "stop_requested": stop.requested,
-            "acknowledge_stop": stop.acknowledge,
-        }
-    if not getattr(args, "stop_on_stdin", False):
-        return {}
-    request = StdinStopRequest(sys.stdin)
-    request.start()
-    return {
-        "stop_requested": request.requested,
-        "acknowledge_stop": acknowledge_stop,
-    }
 
 
 def compose_runtime(args: Namespace, ports: RuntimePorts = RuntimePorts()) -> RuntimeSession:

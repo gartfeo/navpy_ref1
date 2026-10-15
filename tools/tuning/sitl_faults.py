@@ -28,7 +28,8 @@ from typing import Callable
 
 from pymavlink import mavutil
 
-from tools.tuning.flight_steps import FTUNE_SWITCH_CH, FlightCheckFailed, HeightFloor, add_floor_arg, wait_text
+from tools.tuning.flight_floor import HeightFloor, add_floor_arg
+from tools.tuning.flight_steps import FTUNE_SWITCH_CH, FlightCheckFailed, wait_text
 from tools.tuning.hitl import add_vehicle_args, fly_and_record, open_vehicle, run_file, write_run_params
 from tools.tuning.sitl_driver import FIRMWARE_PARAMS, takeoff_to_fbwa
 from tools.tuning.sitl_sim import FIRMWARE_BINARY, Sitl

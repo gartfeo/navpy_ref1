@@ -21,9 +21,11 @@ from pathlib import Path
 
 from tools.tuning.dock_pass import (DOCK_BOARD_YEGHVARD, DOCK_PASS_MIN_HEIGHT_M, build_card, fly_passes,
                                     home_position)
+from tools.tuning.cruise_trim import CruisePitchTrim
+from tools.tuning.flight_floor import HeightFloor, add_floor_arg
 from tools.tuning.flight_steps import (CLIMB_MARGIN_M, FTUNE_SWITCH_CH, PILOT_THROTTLE_PWM, TEST_HEIGHT_M,
-                                       THROTTLE_CH, CruisePitchTrim, FlightCheckFailed, HeightFloor, add_floor_arg,
-                                       climb_to, pilot_throttle, read_gains, stick_sequence)
+                                       THROTTLE_CH, FlightCheckFailed, climb_to, pilot_throttle, read_gains,
+                                       stick_sequence)
 from tools.tuning.hitl import add_vehicle_args, fly_and_record, open_vehicle, run_file, write_run_params
 from tools.tuning.sitl_sim import DEFAULT_BINARY, DEFAULT_INSTANCE, FIRMWARE_BINARY, Sitl
 from tools.tuning.tuner_legs import PATTERN_STRAIGHT, PATTERNS, fly_tuner
@@ -72,7 +74,7 @@ def takeoff_to_fbwa(sitl: Vehicle, throttle_pwm: int = PILOT_THROTTLE_PWM) -> No
 def port_check(args: argparse.Namespace) -> int:
     """Fly pilot doublets in FBWA so PIDR/PIDP are logged at loop rate, at the aircraft's level cruise: the
     throttle and the pitch a straight CRUISE leg holds at AIRSPEED_CRUISE, the pitch as PTCH_TRIM_DEG for this
-    run only (flight_steps.CruisePitchTrim). At the fixed pilot stick FBWA flew the HITL aircraft several m/s
+    run only (cruise_trim.CruisePitchTrim). At the fixed pilot stick FBWA flew the HITL aircraft several m/s
     faster than its cruise, and at the cruise throttle without the trim still too fast."""
     sitl = open_vehicle(args, [], [], DEFAULT_BINARY)
     record: dict = {}

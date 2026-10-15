@@ -15,6 +15,7 @@ from navpy.core.approach.navigation_command_worker import (
     CommandLoopObserver,
 )
 from navpy.core.approach.navigation_source_dispatch import SourceDispatch
+from navpy.core.approach.vision_nav.episode_latch import TerminalObserver
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.ports.detect_data import DetectedObject
@@ -32,6 +33,7 @@ class Navigation:
         logger: ILogger,
         args: NavigationArgs,
         scheduler_cadence: Optional[SchedulerCadence] = None,
+        on_terminal: Optional[TerminalObserver] = None,
     ) -> None:
         if zc_util is None and getattr(args, "use_terrain", True):
             raise ValueError(
@@ -45,6 +47,7 @@ class Navigation:
             logger,
             args,
             scheduler_cadence,
+            on_terminal,
         )
         self._lifecycle = composition.lifecycle
         self._mode_state = composition.mode_state
