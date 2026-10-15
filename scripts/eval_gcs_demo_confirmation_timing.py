@@ -96,9 +96,9 @@ def confirmation_ticks(records: Sequence[Mapping], lines: Sequence[tuple[int, st
     approval_id = None
     for record in records:
         operator = record.get("operator", {})
-        for delivered, kind in operator.get("received", ()):
-            if ticks.k["k3"] is None and kind == CONFIRM_REQUEST_EVENT:
-                ticks.k["k2"], ticks.k["k3"] = delivered, record["k"]
+        for received in operator.get("received", ()):  # evidence appends the identity
+            if ticks.k["k3"] is None and received[1] == CONFIRM_REQUEST_EVENT:
+                ticks.k["k2"], ticks.k["k3"] = received[0], record["k"]
         for sent in operator.get("sent", ()):
             if approval_id is None and sent[2] == "POST" and sent[3] == APPROVAL_TARGET:
                 approval_id, ticks.k["k4"] = sent[:2], record["k"]

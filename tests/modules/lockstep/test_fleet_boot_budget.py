@@ -61,13 +61,12 @@ def test_a_slice_whose_sitl_never_quiets_ends_as_a_boot_barrier_fault(tmp_path):
     from navpy.sim.lockstep.coordinator_members import Roster
     from navpy.sim.lockstep.coordinator_run import LockstepCoordinator
     from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar, LocalSpawner
-    from navpy.sim.lockstep.operator_baton import OperatorBaton
     from navpy.sim.lockstep.participant_hooks import RequestIds
     from scripts.eval_gcs_demo_lockstep import (
         WALL_BUDGETS,
         LockstepOptions,
+        lockstep_operator,
         manifest,
-        operator_script,
     )
     from scripts.eval_gcs_demo_scenario import load_scenario
     from scripts.lockstep_wsl_sitl import exchange_deadline
@@ -83,7 +82,7 @@ def test_a_slice_whose_sitl_never_quiets_ends_as_a_boot_barrier_fault(tmp_path):
                     HostSidecar(tmp_path / PROCESSES_HOST_FILE), WALL_BUDGETS,
                     deadline=exchange_deadline())
     ids = RequestIds(0)
-    operator = OperatorBaton(ids, operator_script(scenario, tmp_path, options))
+    operator = lockstep_operator(ids, scenario, tmp_path, options)
     coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, tmp_path / "host")
     with pytest.raises(CoordinatorFault, match="not quiet"):
         coordinator.run()

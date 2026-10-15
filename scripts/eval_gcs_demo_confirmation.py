@@ -129,13 +129,16 @@ def run_confirmation_workflow(
     before_approve: Callable[[ConfirmationRequest], None] | None = None,
     on_approval_attempted: Callable[[ConfirmationRequest], None] | None = None,
     on_approval_accepted: Callable[[dict[str, JsonValue]], None] | None = None,
+    on_polling_start: Callable[[float], None] | None = None,
     on_due_check: Callable[[float, list[ConfirmationRequest]], None] | None = None,
 ) -> list[dict[str, JsonValue]]:
     """Subscribe, trigger, dedupe by round, delay, and echo exact identity.
 
-    ``on_due_check`` observes each pass's due check (its ``now`` and the due
-    requests, in pending order): lockstep journals it for the approval
-    replay (``lockstep_fleet.md``, "Operator polling schedule").
+    ``on_polling_start`` observes the polling loop's start (its deadline,
+    which shortens the last waits) and ``on_due_check`` each pass's due
+    check (its ``now`` and the due requests, in pending order): lockstep
+    journals both for the approval replay (``lockstep_fleet.md``, "Operator
+    polling schedule").
     """
     _validate_expected(expected_sys_ids)
     delay = finite_number("requested confirmation delay", requested_delay_s)
@@ -147,6 +150,8 @@ def run_confirmation_workflow(
     approvals: list[dict[str, JsonValue]] = []
     with event_stream:
         trigger()
+        if on_polling_start is not None:
+            on_polling_start(deadline)
         while timer.monotonic() < deadline:
             try:
                 raw = event_stream.receive(

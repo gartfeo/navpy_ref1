@@ -11,7 +11,7 @@ snapshot like every gate: the hash-chained journal
 | Sensor | NavPy lines | ``POI: P<task> (tracking`` from the owner |
 | Workflow ticks | NavPy lines as (tick, stream position) | the retained order |
 | Assignment | the journal's decoded message counts (with their source and target), NavPy lines | no peer relay, none of :data:`SLICE_FORBIDDEN_MESSAGES` but the owner's self-assignment, no peer marker |
-| Approval | the approvals and the journal | exactly one, for P, with the confirmation timing |
+| Approval | the approvals and the journal | exactly one, for P, with the confirmation timing and the polling-schedule replay |
 | SNAP | NavPy lines and the outcome | the first SNAP line is at the mission terminal tick |
 | Pose cadence | ``source-time/*.csv`` | producer-named files, the owner's NavPy arrival streams, every file's tail flushed whole |
 
@@ -33,6 +33,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.sim.lockstep.coordinator_mavlink import MessageKey, parse_key
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
+from scripts.eval_gcs_demo_approval_replay import approval_replay_errors
 from scripts.eval_gcs_demo_confirmation_timing import confirmation_timing_errors
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_role_gates import peer_assignment_marker_errors
@@ -177,7 +178,8 @@ def approval_errors(records: Sequence[Mapping], lines: Sequence[tuple[int, str]]
     (approval,) = approvals
     if (approval["sys_id"], approval["task_id"]) != (sys_id, poi):
         return [f"approval for ({approval['sys_id']}, P{approval['task_id']}), not ({sys_id}, P{poi})"]
-    return confirmation_timing_errors(records, lines, approval, poi, sys_id)
+    return (confirmation_timing_errors(records, lines, approval, poi, sys_id)
+            + approval_replay_errors(records, approvals))
 
 
 def snap_errors(records: Sequence[Mapping], lines: Sequence[tuple[int, str]]) -> list[str]:

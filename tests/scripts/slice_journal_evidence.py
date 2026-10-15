@@ -2,7 +2,8 @@
 
 Built as the coordinator writes them (``scripts/eval_gcs_demo_lockstep.py``):
 NavPy's lines with their ticks on a uniform 20 ms grid, the operator's
-observations of the confirmation (e2-e6), the response sends' NAVLINK
+observations of the confirmation (e2-e6) with its polling-schedule evidence
+(the real workflow's, ``approval_runs``), the response sends' NAVLINK
 counts, the decoded message totals (the owner's self-assignment only) and
 an ``ok`` outcome whose terminal tick is the first SNAP line's.
 """
@@ -10,6 +11,7 @@ an ``ok`` outcome whose terminal tick is the first SNAP line's.
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 
 from navpy.sim.lockstep.coordinator_mavlink import DIRECTIONS, ROUTER_LINK
@@ -18,13 +20,12 @@ from scripts.eval_gcs_demo_confirmation_timing import RESPONSE_ID
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, NAVPY_LINES_FILE, POSE_CADENCE_STREAMS
 from scripts.lockstep_wsl_sitl import BOOT_BUDGET_US
+from tests.modules.lockstep.approval_runs import request, run_workflow, uniform
 
 GRID_US = 20_000
 MAX_GAP_US = 20_825
-APPROVAL_ID = [0, 9]
-#: The confirmation's ticks after k3 (e3): the approval 15.02 s later, then
-#: the three response sends 13 ticks (0.26 s) apart.
-K4_AFTER_K3, SEND_GAP_TICKS = 751, 13
+#: Ticks the confirmation workflow may take after the request's delivery.
+WORKFLOW_TICKS = 1_000
 GCS_HEARTBEAT = "0:255.0>-"
 
 
@@ -36,26 +37,31 @@ def owner_keys(sys_id: int) -> dict[str, str]:
             "autopilot": f"0:{sys_id}.1>-", "companion": f"0:{sys_id}.191>-"}
 
 
-def _ticks(lines: list[str]) -> tuple[list[int], dict[str, int]]:
+@lru_cache
+def _confirmation(sys_id: int, delivered: int) -> tuple[dict[int, dict], dict[int, int], dict]:
+    """The real workflow's operator observations by tick, its response sends
+    by tick and its approval, for the request delivered at ``delivered``."""
+    records, (approval,) = run_workflow(uniform(GRID_US, delivered + WORKFLOW_TICKS),
+                                        {delivered: [request(sys_id)]}, {sys_id}, max_gap_us=MAX_GAP_US)
+    operator = {r["k"]: r["operator"] for r in records if "operator" in r}
+    sends = {r["k"]: n for r in records for n in r.get("navlink", {}).get(
+        serial1_device(sys_id), {}).get("to_sitl", {}).values()}
+    return operator, sends, approval
+
+
+def _ticks(lines: list[str], sys_id: int) -> tuple[list[int], dict]:
+    """Line ticks: up to ``CONFIRMING`` (e1) one per tick, the request
+    delivered at e1's tick, the rest after the approval's answer (k6)."""
     confirming = next(i for i, line in enumerate(lines) if "CONFIRMING: P1" in line)
-    k3 = confirming + 1
-    k4 = k3 + K4_AFTER_K3
-    sends = [k4 + 1 + n * SEND_GAP_TICKS for n in range(3)]
-    k6 = sends[-1]
+    operator, sends, _approval = _confirmation(sys_id, confirming + 1)
+    k6 = max(sends)
     ticks = [i + 1 if i <= confirming else k6 + i for i in range(len(lines))]
-    return ticks, {"k3": k3, "k4": k4, "k6": k6, "sends": sends}
+    return ticks, {"operator": operator, "sends": sends}
 
 
 def slice_approval(sys_id: int, lines: list[str]) -> dict:
-    _ticks_, k = _ticks(lines)
-    return {
-        "sys_id": sys_id, "task_id": 1, "is_confirmed": True, "action": "approve",
-        "round_uid": "10:1", "request_observed": True, "response": "approved",
-        "request_observed_at_unix_s": 1000.0 + k["k3"] * GRID_US / 1e6,
-        "approved_at_unix_s": 1000.0 + k["k6"] * GRID_US / 1e6,
-        "requested_delay_s": 15.0, "actual_delay_s": (k["k6"] - k["k3"]) * GRID_US / 1e6,
-        "nav_before_approval": False,
-    }
+    confirming = next(i for i, line in enumerate(lines) if "CONFIRMING: P1" in line)
+    return dict(_confirmation(sys_id, confirming + 1)[2])
 
 
 def navigation_lines(log_dir: Path, sys_id: int) -> list[str]:
@@ -64,7 +70,7 @@ def navigation_lines(log_dir: Path, sys_id: int) -> list[str]:
 
 
 def slice_records(lines: list[str], sys_id: int) -> list[dict]:
-    ticks, k = _ticks(lines)
+    ticks, k = _ticks(lines, sys_id)
     keys = owner_keys(sys_id)
     terminal = next(t for t, line in zip(ticks, lines) if "SNAP(VISION-NAV" in line)
     serial0, serial1 = serial0_device(sys_id), serial1_device(sys_id)
@@ -74,14 +80,10 @@ def slice_records(lines: list[str], sys_id: int) -> list[dict]:
                                      "expected_fleet": [sys_id]}}]
     for tick in range(1, terminal + 3):
         record: dict = {"k": tick, "phase": "mission", "t_us": tick * GRID_US}
-        if tick == k["k3"]:
-            record["operator"] = {"receipts": [[0, 1]], "received": [[tick, "task_confirm_request"]]}
-        elif tick == k["k4"]:
-            record["operator"] = {"sent": [[*APPROVAL_ID, "POST", "/api/control/task_confirm"]]}
-        elif tick == k["k6"]:
-            record["operator"] = {"answered": [[*APPROVAL_ID, 200]]}
+        if tick in k["operator"]:
+            record["operator"] = k["operator"][tick]
         if tick in k["sends"]:
-            record["navlink"] = {serial1: {"to_sitl": {keys["response"]: 1}}}
+            record["navlink"] = {serial1: {"to_sitl": {keys["response"]: k["sends"][tick]}}}
         records.append(record)
     def tally(messages: dict) -> dict:
         return {"messages": messages, "skipped_bytes": 0}
@@ -117,7 +119,7 @@ def write_slice_journal(log_dir: Path, sys_id: int, records: list[dict] | None =
     lines); return the matching approvals."""
     lines = navigation_lines(log_dir, sys_id) if lines is None else lines
     records = slice_records(lines, sys_id) if records is None else records
-    ticks, _k = _ticks(lines)
+    ticks, _k = _ticks(lines, sys_id)
     write_pose_cadence(log_dir, sys_id)
     (log_dir / JOURNAL_FILE).write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
     (log_dir / NAVPY_LINES_FILE).write_text(

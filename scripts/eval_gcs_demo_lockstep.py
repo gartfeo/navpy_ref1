@@ -154,6 +154,13 @@ def operator_script(scenario: DemoScenario, run_dir: Path,
     return script
 
 
+def lockstep_operator(ids: RequestIds, scenario: DemoScenario, run_dir: Path,
+                      options: LockstepOptions) -> OperatorBaton:
+    """The run's operator, its evidence on: the approval gate replays its
+    polling schedule (``eval_gcs_demo_approval_replay``)."""
+    return OperatorBaton(ids, operator_script(scenario, run_dir, options), evidence=True)
+
+
 def _write_lines(path: Path, operator: OperatorBaton) -> None:
     lines = operator.journal.log_lines.get(NAVPY, [])
     ticks = operator.journal.log_ticks.get(NAVPY, [])
@@ -188,7 +195,7 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
                     HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS,
                     deadline=exchange_deadline())
     ids = RequestIds(0)
-    operator = OperatorBaton(ids, operator_script(scenario, run_dir, options))
+    operator = lockstep_operator(ids, scenario, run_dir, options)
     # The backend spawns and registers before the coordinator launches the SITL.
     coordinator = LockstepCoordinator(plan, fleet.sitls, operator, roster, ids, run_dir,
                                       delay=HostDelays(options.host_delay_seed), launch=fleet.launch)
@@ -222,5 +229,5 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
 
 __all__ = [
     "APPROVALS_FILE", "JOURNAL_FILE", "LockstepOptions", "MISSION_BUDGET_S", "LockstepRun", "NAVPY_LINES_FILE",
-    "RUN_HOST_FILE", "execute_lockstep_run", "manifest", "operator_script", "require_slice",
+    "RUN_HOST_FILE", "execute_lockstep_run", "lockstep_operator", "manifest", "operator_script", "require_slice",
 ]
