@@ -91,7 +91,7 @@ class CameraNedProjector:
         k: np.ndarray,
         g_data: GimbalData,
         uas_att: Attitude,
-    ) -> tuple[int | None, int | None]:
+    ) -> tuple[float | None, float | None]:
         ned_point = np.array(p_ned).reshape(3, 1)
         self._show("p_ned_prime", ned_point)
 
@@ -149,7 +149,10 @@ class CameraNedProjector:
         image = k @ (camera_point / camera_point[2][0])
         self._show("i", image)
         image = image[:, 0]
-        return round(image[0]), round(image[1])
+        # Sub-pixel, like a real detector's corners: rounding here put a
+        # +-0.5 px error on every sim frame, which the vision law's bearing
+        # difference turned into rate spikes at short frame gaps.
+        return float(image[0]), float(image[1])
 
     def _show(self, name: str, value: object) -> None:
         if self._enable_log:
