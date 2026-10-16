@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from navpy.core.ports.frame_capture_ports import CaptureLogger
+from navpy.core.ports.frame_capture_ports import BoardClock, CaptureLogger
 from navpy.core.perception.camera.frame_capture_runtime import (
     FrameProviderParts,
     build_frame_provider_parts,
@@ -21,10 +21,12 @@ class FrameProvider:
         self,
         source: int | str | None,
         logger: CaptureLogger,
+        board_clock: BoardClock | None = None,
     ) -> None:
         self._parts: FrameProviderParts = build_frame_provider_parts(
             source,
             logger,
+            board_clock,
         )
 
     def start(self) -> None:

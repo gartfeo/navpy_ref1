@@ -11,6 +11,7 @@ from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.sim.gimbal.gimbal_attitude_reader import AircraftAttitudeReader
 from navpy.sim.gimbal.gimbal_cadence import FixedCadenceRunner
 from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
+from navpy.plugins.gimbal.siyi.siyi_convention import SIYI_GIMBAL_SEQ
 from navpy.sim.gimbal.siyi.gimbal_angles import (
     GimbalAngularPlant,
 )
@@ -48,7 +49,7 @@ def build_siyi_sim(
     scheduler_cadence: SchedulerCadence | None,
 ) -> SiyiSimPorts:
     state = SiyiSimState(
-        data=replace(data, roll_stabilize=True, pitch_stabilize=True),
+        data=replace(data, roll_stabilize=True, pitch_stabilize=True, g_seq=SIYI_GIMBAL_SEQ),
         angular=GimbalAngularPlant(data.att.pitch, data.att.yaw),
         zoom=GimbalZoomPlant(),
         lock=rt.Lock(),

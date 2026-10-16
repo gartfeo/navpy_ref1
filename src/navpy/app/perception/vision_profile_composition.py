@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from collections.abc import Mapping
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from navpy.core.kernel.config.uas_args import UasArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -17,6 +17,9 @@ from navpy.core.perception.profile.vision_detector_profile import get_detector_s
 from navpy.core.perception.profile.vision_profile_loader import resolve_profile
 from navpy.core.perception.profile.vision_profile_types import CameraMountSpec, VisionProfile
 from navpy.app.perception.vision_tracking_composition import build_tracking_config
+
+if TYPE_CHECKING:
+    from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
 
 
 @dataclass(frozen=True)
@@ -34,7 +37,11 @@ def build_vision_profile(
     vehicle: IVehicle,
     logger: ILogger,
     scheduler_cadence: SchedulerCadence | None,
+    *,
+    use_sim_gimbal: bool,
+    siyi_fence: SiyiCommandFence | None = None,
 ) -> VisionProfileAssembly:
+    """use_sim_gimbal: False for a real run, which then never gets a simulated gimbal (design section 4, B3)."""
     resolved_name, raw_profile, _ = resolve_profile(
         profile_name,
         logger,
@@ -45,8 +52,9 @@ def build_vision_profile(
             raw_profile,
             vehicle,
             logger,
-            use_sim_gimbal=True,
+            use_sim_gimbal=use_sim_gimbal,
             scheduler_cadence=scheduler_cadence,
+            siyi_fence=siyi_fence,
         )
     )
     if not mount_specs:

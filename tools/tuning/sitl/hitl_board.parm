@@ -1,0 +1,43 @@
+# Board-only settings for HITL runs (HIL link contract v2 of the fork's SIM_HIL backend),
+# loaded with --bridge on a serial board after hitl_bridge.parm; every name must exist on the
+# board. Not loaded when SITL stands in for the board (--board tcp:): its sensors are simulated
+# anyway, its HIL port is a SERIALn it manages (SERIAL0-7; tools/tuning/sitl/hitl_sitl.parm), and
+# it has no BRD_HEAT_TARG (no IMU heater).
+# The same values as the Pixhawk6X-HIL firmware's defaults (fork hwdef/include/HIL.parm and
+# HAL_OTG2_PROTOCOL), but defaults apply only to values the board has not saved, so the runner
+# sets them (and --erase-params is required). The aircraft's own servo setup is an option:
+# hitl_board_servos.parm (read its gap note first).
+# Simulated GPS (AP_GPS_SITL); a saved 1 (auto) would wait for, or use, a real GPS.
+GPS1_TYPE         100
+# Simulated airspeed (AP_Airspeed_SITL); a saved real sensor type would read the desk.
+ARSPD_TYPE        100
+# An analog monitor would read the board's real ADC, not the simulated battery.
+BATT_MONITOR      0
+# The IMU heater would follow the simulated IMU temperature.
+BRD_HEAT_TARG     -1
+# No real actuator output on any channel (SITL::OutputGate). The runner refuses a board where it
+# is not 0 before any write (hitl_params.check_sim_firmware); never set it non-zero on a board
+# wired to an airframe.
+SIM_OH_MASK       0
+# The HIL link port: SERIAL8 is USB OTG2 on the Pixhawk 6X, the second USB COM port. 100 is the
+# fork's SerialProtocol_SIM_HIL ("SIM HIL link"); the HIL backend opens the first port with it.
+# Keep SERIAL8_BAUD at its default: USB ignores it, but ChibiOS sizes the receive buffer by it.
+SERIAL8_PROTOCOL  100
+# The simulated IMUs need no calibration, but the arming checks ask for one: non-default values
+# mark both accelerometers calibrated (as HIL.parm and Tools/autotest/models/plane.parm do).
+INS_ACCOFFS_X     0.001
+INS_ACCOFFS_Y     0.001
+INS_ACCOFFS_Z     0.001
+INS_ACCSCAL_X     1.001
+INS_ACCSCAL_Y     1.001
+INS_ACCSCAL_Z     1.001
+INS_ACC2OFFS_X    0.001
+INS_ACC2OFFS_Y    0.001
+INS_ACC2OFFS_Z    0.001
+INS_ACC2SCAL_X    1.001
+INS_ACC2SCAL_Y    1.001
+INS_ACC2SCAL_Z    1.001
+# No safety button press needed to arm. Safe only because the runner's SIM_OH_MASK == 0 gate
+# (hitl_params.check_sim_firmware, before any write and again after the load) has passed:
+# the HIL firmware then drives no real servo output. Bench only: no actuators, no propellers.
+BRD_SAFETY_DEFLT  0

@@ -1,0 +1,28 @@
+# Settings for HITL runs with the PC bridge (HITL link contract v2, JSBSim aircraft model),
+# loaded with --bridge after peron_like.parm, on a board and on SITL standing in for one (every
+# name here exists in both). Board-only settings: hitl_board.parm. The aircraft's own airspeeds
+# and takeoff settings come next from the private hitl_aircraft.parm, and its launch detection
+# after the starting parameters from the private hitl_launch.parm (tools/tuning/private_data.py).
+# The bridge unmixes the elevons as ArduPilot's SIM_JSBSim elevon branch does
+# (aileron = (ch2 - ch1)/2, elevator = -(ch2 + ch1)/2): left and right elevon on
+# servos 1 and 2, unreversed, centred. plane-elevons.parm (78/77, both reversed) is for
+# SITL's built-in plane-elevon model and gives reversed pitch through this unmix.
+# Fly the FBWA sign check (sitl_driver port-check) before any tune. The trims here are the
+# model's surface neutral (1500/1500); an aircraft's own learned trims come with its
+# --params-file (the right one mirrored, 3000 - trim, when its servo is reversed), or the
+# pitch rate integrator has to hold the cruise elevon offset.
+SERVO1_FUNCTION   77
+SERVO2_FUNCTION   78
+SERVO1_REVERSED   0
+SERVO2_REVERSED   0
+SERVO1_TRIM       1500
+SERVO2_TRIM       1500
+# The bridge normalises PWM over a fixed 1000-2000 us (hitl_bridge/physics.py PWM_MIN_US,
+# PWM_MAX_US), as the aircraft is set up. SITL's and a stock board's 1100-1900 would
+# cut the surface throw by 20 % and make the tuned gains depend on the board's history.
+SERVO1_MIN        1000
+SERVO1_MAX        2000
+SERVO2_MIN        1000
+SERVO2_MAX        2000
+SERVO3_MIN        1000
+SERVO3_MAX        2000

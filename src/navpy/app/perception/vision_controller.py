@@ -21,6 +21,7 @@ from navpy.app.perception.vision_controller_composition import (
 )
 from navpy.app.perception.vision_controller_ports import VisionControllerPorts
 from navpy.core.perception.profile.vision_profile_types import VisionProfile
+from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
 
 
 class VisionController:
@@ -34,6 +35,7 @@ class VisionController:
         logger: ILogger,
         zc_util: ZcUtil | None = None,
         scheduler_cadence: SchedulerCadence | None = None,
+        siyi_fence: SiyiCommandFence | None = None,
     ) -> None:
         self._ports: VisionControllerPorts = build_vision_controller(
             vehicle,
@@ -42,6 +44,7 @@ class VisionController:
             logger,
             zc_util,
             scheduler_cadence,
+            siyi_fence,
         )
 
     @property

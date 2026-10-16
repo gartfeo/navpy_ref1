@@ -47,6 +47,7 @@ from navpy.core.approach.nav_law_factory import (
     get_nav_algorithm_spec,
 )
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
+from navpy.core.approach.vision_nav.episode_latch import TerminalObserver
 from navpy.core.approach.vision_nav.runtime_composition import (
     FinalApproachVehicleActuator,
     FinalApproachVehicleDiagnosticReader,
@@ -115,6 +116,7 @@ def _vision_runtime_factory(
     geo_ref: GeoRefCalc,
     navigation_logger: NavigationLogger,
     wall_period_s: Callable[[float], float],
+    on_terminal: Optional[TerminalObserver],
 ) -> Callable[[NavigationLawLifecycle], RuntimeBuildResult]:
     def build(selected_law: NavigationLawLifecycle) -> RuntimeBuildResult:
         law = cast(VisionNavLaw, selected_law)
@@ -135,6 +137,7 @@ def _vision_runtime_factory(
             aircraft_degrees=geo_ref.degrees,
             navigation_logger=navigation_logger,
             wall_period_s=wall_period_s,
+            on_terminal=on_terminal,
         )
         final_approach = NavigationFinalApproachCapabilities(
             status=built.runtime.session,
@@ -153,6 +156,7 @@ def compose_navigation(
     logger: ILogger,
     args: NavigationArgs,
     scheduler_cadence: Optional[SchedulerCadence] = None,
+    on_terminal: Optional[TerminalObserver] = None,
 ) -> NavigationComposition:
     """Build Navigation without passing the root object into collaborators."""
     command_lock = rt.RLock()
@@ -195,6 +199,7 @@ def compose_navigation(
         geo_ref=geo_ref,
         navigation_logger=navigation_logger,
         wall_period_s=wall_period,
+        on_terminal=on_terminal,
     )
 
     mode_state = NavigationModeState()

@@ -22,6 +22,7 @@ from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
 if TYPE_CHECKING:
     from navpy.core.kernel.scheduler_cadence import SchedulerCadence
     from navpy.core.ports.vehicle_contract import IVehicle
+    from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
 
 
 def _positive_integer(value: object, name: str) -> int:
@@ -114,6 +115,7 @@ def _build_gimbal(
     *,
     use_sim_gimbal: bool,
     scheduler_cadence: "SchedulerCadence | None",
+    siyi_fence: "SiyiCommandFence | None",
 ) -> GimbalAbc:
     from navpy.core.kernel.config.uas_args import UasArgs
     from navpy.plugins.gimbal.fixed.fixed_gimbal import FixedGimbal
@@ -127,12 +129,16 @@ def _build_gimbal(
 
     if gimbal_type == "siyi" and not use_sim_gimbal:
         from navpy.plugins.gimbal.siyi.gimbal_siyi import GimbalSiyi
+        from navpy.plugins.gimbal.siyi.hardware.composition import create_siyi_sdk
 
         return GimbalSiyi(
             gimbal_data,
             raw_gimbal.get("siyi_ip", "192.168.144.25"),
             raw_gimbal.get("siyi_port", 37260),
             logger,
+            sdk_factory=(
+                None if siyi_fence is None else siyi_fence.wrap(create_siyi_sdk)
+            ),
         )
     if gimbal_type == "siyi" and use_sim_gimbal:
         from navpy.sim.gimbal.gimbal_attitude_reader import VehicleAttitudeReader
@@ -163,6 +169,7 @@ def build_camera_mounts(
     *,
     use_sim_gimbal: bool = True,
     scheduler_cadence: "SchedulerCadence | None" = None,
+    siyi_fence: "SiyiCommandFence | None" = None,
 ) -> list[CameraMountSpec]:
     """Build mounts paired with immutable profile-device snapshots."""
     from navpy.core.perception.camera.camera_mount import CameraMount
@@ -195,6 +202,7 @@ def build_camera_mounts(
             logger,
             use_sim_gimbal=use_sim_gimbal,
             scheduler_cadence=scheduler_cadence,
+            siyi_fence=siyi_fence,
         )
         mount = CameraMount(
             name=name,

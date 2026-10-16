@@ -34,7 +34,7 @@ def test_zero_roll_sample_sets_readiness_and_keeps_exact_attitude_stamp() -> Non
 
     snapshot = store.snapshot()
     assert store.attitude_ready.is_set()
-    assert snapshot.data.att == Attitude(-20.0, 10.0, 0.0)
+    assert snapshot.data.att == Attitude(-20.0, -10.0, 0.0)     # wire yaw 10 left = navpy yaw -10
     assert snapshot.data.timestamp_s == 123.125
     assert snapshot.attitude_sample_id == 9
 
@@ -75,7 +75,7 @@ def test_poll_commit_publishes_attitude_and_zoom_in_one_snapshot() -> None:
 
     snapshot = store.snapshot()
     assert accepted == (True, True)
-    assert snapshot.data.att == Attitude(-20.0, 10.0, 5.0)
+    assert snapshot.data.att == Attitude(-20.0, -10.0, 5.0)     # wire yaw 10 left = navpy yaw -10
     assert snapshot.data.timestamp_s == 123.125
     assert snapshot.attitude_sample_id == 9
     assert snapshot.zoom_level == 4.0

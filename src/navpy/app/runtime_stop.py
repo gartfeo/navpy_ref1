@@ -15,7 +15,8 @@ participant's ``DONE`` (``lockstep_slice.md``, "Participant stop").
 
 from __future__ import annotations
 
-from argparse import ArgumentParser
+import sys
+from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
 from typing import TextIO
 
@@ -113,6 +114,28 @@ def acknowledge_stop() -> None:
     print(NAVPY_STOPPED_MARKER, flush=True)
 
 
+def stop_hooks(
+    args: Namespace,
+    lifecycle_stop: LifecycleStopRequest | None,
+) -> dict[str, Callable[..., object]]:
+    """The run loop's stop request and ack for the chosen stop option."""
+    if getattr(args, "stop_on_lifecycle", False):
+        # Lockstep: no thread reads stdin; the lifecycle record latches it.
+        assert lifecycle_stop is not None  # checked before composition
+        return {
+            "stop_requested": lifecycle_stop.requested,
+            "acknowledge_stop": lifecycle_stop.acknowledge,
+        }
+    if not getattr(args, "stop_on_stdin", False):
+        return {}
+    request = StdinStopRequest(sys.stdin)
+    request.start()
+    return {
+        "stop_requested": request.requested,
+        "acknowledge_stop": acknowledge_stop,
+    }
+
+
 def add_args(parser: ArgumentParser) -> None:
     parser.add_argument(
         "--stop-on-stdin",
@@ -140,4 +163,5 @@ __all__ = [
     "acknowledge_stop",
     "add_args",
     "flush_pose_cadence",
+    "stop_hooks",
 ]

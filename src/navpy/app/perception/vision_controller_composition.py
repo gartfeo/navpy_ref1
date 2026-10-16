@@ -12,6 +12,7 @@ from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordinator import DetectionCoordinator
+from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
 from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
@@ -41,12 +42,15 @@ def build_vision_controller(
     logger: ILogger,
     zc_util: ZcUtil | None,
     scheduler_cadence: SchedulerCadence | None,
+    siyi_fence: SiyiCommandFence | None = None,
 ) -> VisionControllerPorts:
     profile = build_vision_profile(
         vision_args.profile_name,
         vehicle,
         logger,
         scheduler_cadence,
+        use_sim_gimbal=vision_args.detector_type != "real",
+        siyi_fence=siyi_fence,
     )
     nodes = ()
     try:

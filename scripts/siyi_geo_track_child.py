@@ -216,6 +216,7 @@ def run(options: argparse.Namespace) -> GeoTrackMetrics:
             vehicle,
             logger,
             cadence,
+            use_sim_gimbal=True,
         )
         if len(assembly.mount_specs) != 1:
             raise RuntimeError("SIYI certificate requires exactly one mount")

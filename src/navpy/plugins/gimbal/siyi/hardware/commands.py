@@ -9,6 +9,7 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.plugins.gimbal.siyi.hardware.ports import SiyiSdkPort
 from navpy.plugins.gimbal.siyi.hardware.session import SiyiSdkSession
 from navpy.plugins.gimbal.siyi.hardware.state import SiyiReadbackStore
+from navpy.plugins.gimbal.siyi.siyi_convention import yaw_to_wire
 
 
 class SiyiHardwareCommands:
@@ -27,7 +28,7 @@ class SiyiHardwareCommands:
         return max(-100, min(100, int(round(value))))
 
     def set_att(self, att: Attitude) -> None:
-        self._send(lambda sdk: sdk.requestSetAngles(att.yaw, att.pitch))
+        self._send(lambda sdk: sdk.requestSetAngles(yaw_to_wire(att.yaw), att.pitch))
 
     def set_rate(self, yaw_rate: float, pitch_rate: float) -> None:
         pitch_sign = self._store.snapshot().pitch_sign

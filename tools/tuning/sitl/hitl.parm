@@ -1,0 +1,9 @@
+# Settings for flying the tuning runs over MAVLink instead of SITL's UDP receiver
+# (tools/tuning/vehicle.py OverrideTransmitter, tools/tuning/board.py). Loaded last on a
+# flight controller (--board), and by SITL with --rc mavlink.
+# ArduPilot takes RC_CHANNELS_OVERRIDE only from SYSID_MYGCS (GCS_Common.cpp:3990);
+# the tools connect as system 250.
+SYSID_MYGCS       250
+# close the log when the runner force-disarms at the end, before it downloads the log
+# (AP_Logger_Backend.cpp:659-667)
+LOG_FILE_DSRMROT  1

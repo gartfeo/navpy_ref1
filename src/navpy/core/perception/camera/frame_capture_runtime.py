@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from navpy.app.perception.frame_capture_factory import open_capture_backend
 from navpy.core.perception.camera.frame_capture_logging import SafeCaptureLogger
 from navpy.core.ports.frame_capture_ports import (
+    BoardClock,
     CaptureLogger,
 )
 from navpy.core.perception.camera.frame_capture_session import (
@@ -35,8 +36,10 @@ class FrameCaptureRuntime:
         source: int | str | None,
         logger: CaptureLogger,
         publications: FramePublicationStore,
+        board_clock: BoardClock | None = None,
     ) -> None:
         self._source = source
+        self._board_clock = board_clock
         self._logger = SafeCaptureLogger(logger)
         self._state = FrameCaptureState(publications)
         self._worker_failures = WorkerFailureLatch()
@@ -65,7 +68,7 @@ class FrameCaptureRuntime:
             self._logger.info("FrameProvider: push mode (no capture thread)")
             return
         try:
-            backend = open_capture_backend(self._source, self._logger)
+            backend = open_capture_backend(self._source, self._logger, self._board_clock)
             session = None if backend is None else create_capture_session(backend, self._logger)
         except BaseException:
             self._finish_failed_start()
@@ -153,10 +156,11 @@ class FrameProviderParts:
 def build_frame_provider_parts(
     source: int | str | None,
     logger: CaptureLogger,
+    board_clock: BoardClock | None = None,
 ) -> FrameProviderParts:
     publications = FramePublicationStore()
     return FrameProviderParts(
-        capture=FrameCaptureRuntime(source, logger, publications),
+        capture=FrameCaptureRuntime(source, logger, publications, board_clock),
         publications=publications,
     )
 
