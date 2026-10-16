@@ -595,3 +595,17 @@
 - A test that sends right after a fail-closed transition must allow the one counted stale drop, not retry until a
   packet lands: an open-ended retry hides an unwanted drop (`send_across_transition`, test_mav_router.py).
 - pytest imports test modules at collection, so a run started before an edit tests the old file. Restart it.
+
+## Bug-fix batch (hub load, gimbal stop, swarm clocks, todo 42; 2026-10-16)
+- I repeated the heredoc mistake above: escaped newlines in a Bash heredoc became real
+  newlines in Python source. Read this file before editing, and write edit scripts with
+  the Write tool.
+- A regression test I wrote passed on the old code too (Codex caught it). To prove a test
+  fails before the fix, export the old source and run the test against it:
+  `git archive HEAD src | tar -x -C <tmp>`, then run pytest with PYTHONPATH set to `<tmp>/src`.
+- The shared .venv now has OpenCV 5.0.0, so the 4 `test_board_detector.py` failures are an
+  environment issue (`board_detector.py:34`, IndexError), not a code regression.
+- A new worktree has no `src/gcs/frontend/node_modules`: run `npm ci` before vitest, and
+  delete `dist/` after a build.
+- One-way message timestamps cannot separate clock offset from queue delay. An offset
+  averaged from heartbeats absorbs reader backlog, so stale messages pass TTL.
