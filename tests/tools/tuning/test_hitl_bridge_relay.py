@@ -130,7 +130,17 @@ def test_with_a_timer_the_relay_stamps_each_frame_without_changing_what_it_forwa
     device_transport = ScriptedTransport(connections=[[frame_up]], idle=True)
     bridge_transport = ScriptedTransport(connections=[[b""] * 25 + [frame_down]], idle=True)   # answers after it
     timer = FrameTimer()
-    relay = Relay(endpoint(device_transport, print, name="COM11"), endpoint(bridge_transport, print),
+    bridge = endpoint(bridge_transport, print)
+    device_read = device_transport.read
+
+    def read_once_the_bridge_is_up() -> bytes:  # a frame read while the bridge is down is dropped, by design
+        deadline = time.monotonic() + 5.0
+        while not bridge.up and time.monotonic() < deadline:
+            time.sleep(READ_PAUSE_S)
+        return device_read()
+
+    device_transport.read = read_once_the_bridge_is_up
+    relay = Relay(endpoint(device_transport, print, name="COM11"), bridge,
                   bridge_gone_s=GONE_S, log=print, timer=timer)
     relay.start()
     deadline = time.monotonic() + 5.0

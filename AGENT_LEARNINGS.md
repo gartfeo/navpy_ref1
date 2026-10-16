@@ -538,3 +538,14 @@
   with it read 0 or 16 ms; use perf_counter for sub-tick diagnostics.
 - **Run tests/guards before the full suite.** The SOLID 300-line module
   cap failed only after a 10-minute full run.
+
+## Merging main into the HITL branch (2026-10-16)
+
+- Two thread tests passed alone and failed once in the full suite. Do not re-run until green: force the suspected
+  ordering (a delay in the bridge's open, the reopen without its wake-up) and check that the old test fails every time
+  and the fixed one passes. Both were test races against fail-closed behaviour, not product bugs.
+- A test that sends right after a fail-closed transition must allow the one counted stale drop, not retry until a
+  packet lands: an open-ended retry hides an unwanted drop (`send_across_transition`, test_mav_router.py).
+- Codex exec can fail to read the repo ("setup refresh had errors"). Put the diff and the code it needs inline in the
+  prompt; that review worked.
+- pytest imports test modules at collection, so a run started before an edit tests the old file. Restart it.

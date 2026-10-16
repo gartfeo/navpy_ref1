@@ -130,7 +130,7 @@ navigation and mission modules get no dock information.
   - 2.5 m ahead of and 0.3 m below the vehicle position, measured on static bench poses with the same ChArUco
     PnP (2.33-2.61 m, 0.10-0.38 m); without it the truth outline sat tens of pixels above the board;
   - a frame is "in view" when all four board corners fall inside the picture.
-  
+
   The report counts detections per pass and per slant range. On the saved frames it scores the ChArUco
   solvePnP board pose against the truth. Sample frames show the truth outline in green and the detected corners
   in red.

@@ -269,4 +269,3 @@ class Board(Vehicle):
         if self.hitl is not None:
             report["link_health"] = link_health(self.logs(), self.hitl.link_csv)
         return report
-

@@ -373,6 +373,22 @@ def gated():
     runner.sock.close()
 
 
+def send_across_transition(client: UdpClient, router: MavRouter, name: str, landed) -> None:
+    """One heartbeat just after a transition (barrier, reopen, reboot). If the receiver read it before it took the
+    transition's wake-up, it is dropped as stale (fail closed) and counted; the receiver has then taken the
+    transition, so exactly one more is sent. ``landed`` is the outcome the test expects for a packet after it."""
+    def stale() -> int:
+        return router.report()["stats"].get(f"dropped_stale_{name}", 0)
+
+    before = stale()
+    client.send(heartbeat())
+    wait_until(lambda: landed() or stale() > before)
+    if not landed():
+        assert stale() == before + 1
+        client.send(heartbeat())
+        wait_until(landed)
+
+
 def wait_until(predicate, seconds: float = WAIT_S) -> None:
     deadline = time.monotonic() + seconds
     while not predicate():
@@ -424,10 +440,10 @@ def test_barrier_drops_queued_packets_and_waits_for_the_write_in_progress(gated)
     closer.join(WAIT_S)
     assert reply["dropped_queued"] == 4 and not reply["already_closed"]
     assert reply["last_write_mono_s"] is not None and reply["last_write_mono_s"] <= reply["barrier_mono_s"]
-    navpy.send(heartbeat())                      # after the barrier: refused
+    send_across_transition(navpy, router, "navpy",    # after the barrier: refused
+                           lambda: router.report()["stats"].get("refused_closed_navpy") == 1)
     runner.send(heartbeat())                     # other clients unaffected
     wait_until(lambda: len(board.written) == 2)
-    wait_until(lambda: router.report()["stats"].get("refused_closed_navpy") == 1)
     stats = router.report()["stats"]
     assert stats["dropped_closed_navpy"] == 4
 
@@ -446,8 +462,7 @@ def test_barrier_over_the_control_port_and_reopen(gated):
     assert json.loads(control.recvfrom(4096)[0])["already_closed"] is True    # idempotent (runner after navpy)
     control.sendto(json.dumps({"op": "open", "client": "navpy", "id": 9}).encode(), address)
     assert json.loads(control.recvfrom(4096)[0])["op"] == "opened"
-    navpy.send(heartbeat())
-    wait_until(lambda: len(board.written) == 2)
+    send_across_transition(navpy, router, "navpy", lambda: len(board.written) == 2)
     control.sendto(b"not json", address)
     assert json.loads(control.recvfrom(4096)[0])["op"] == "error"
     control.sendto(json.dumps({"op": "close", "client": "nobody"}).encode(), address)
@@ -465,8 +480,7 @@ def test_a_packet_received_before_a_reboot_never_reaches_the_new_boot(gated):
     wait_until(lambda: router._link_gen == old_gen + 1 and router._link_up.is_set())
     client = router.clients["navpy"]
     router._from_client(client, heartbeat(), old_gen, client.epoch)    # read before the reboot, queued after it
-    navpy.send(heartbeat())                      # received under the new link: goes out
-    wait_until(lambda: len(board.written) == 2)
+    send_across_transition(navpy, router, "navpy", lambda: len(board.written) == 2)    # under the new link: goes out
     assert router.report()["stats"]["dropped_link_down"] == 1
 
 

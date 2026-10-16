@@ -386,4 +386,3 @@ def test_the_serial_port_is_flushed_when_it_is_opened(monkeypatch):
     port.close()
     port.open()                                 # a reopen after a board reboot flushes again
     assert [s.calls for s in opened] == [["open", "flush", "close"], ["open", "flush"]]
-
