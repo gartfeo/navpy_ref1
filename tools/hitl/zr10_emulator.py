@@ -4,7 +4,8 @@
         [--unreal 127.0.0.1:17212] [--profile siyi_zr10] [--log FILE.jsonl] [effect options]
 
 navpy's real SIYI client talks SIYI to it on UDP (``--siyi``), as to the aircraft's ZR10. The aircraft attitude
-comes from the bridge's vehicle_state.v1 datagram (a copy of the one Unreal gets), never from navpy. The emulated
+comes from the bridge's vehicle_state.v1 datagram (the bridge's ``--vehicle-state-copy``: the same datagram Unreal
+gets), never from navpy: it stands in for the real ZR10's own IMU. The emulated
 gimbal (zr10_device.py) steps every 20 ms on time.perf_counter and each step's true state goes to the Unreal
 gimbal actor as gimbal_state.v1 (``--unreal``). Effects (dead time, lags, scale, deadband, lens speed) are options,
 ideal by default; their sources are in zr10_config.SOURCES and in the log header.
@@ -13,11 +14,11 @@ One thread, one select loop: all overdue steps run before any datagram is handle
 time that passed before it arrived.
 
 Fail closed on the aircraft input: nothing is answered before the first vehicle_state. If none arrives for
-VEHICLE_STATE_TIMEOUT_S, until one does gimbal_state is not sent, SIYI datagrams are dropped unanswered and no
-0x25 push goes out, and the gap is counted. A gap, a second bridge session, a board-time step back (a reboot), a
-vehicle_state from another system, a camera outside the gimbal's body limits, or a bad, unknown or refused SIYI
-command (FPV is refused: not modelled) marks the run invalid in the summary line (ZR10_EMULATOR_SUMMARY_V1)
-the runner checks.
+VEHICLE_STATE_TIMEOUT_S, until one does gimbal_state is not sent, SIYI datagrams are dropped unanswered, no 0x0D
+push or 0x25 stream frame goes out, and the gap is counted. A gap, a second bridge session, a board-time step back
+(a reboot), a vehicle_state from another system, or a bad, unknown or refused SIYI command (FPV is refused: not
+modelled) marks the run invalid (a camera at a mechanical stop is held there, as the real gimbal, and only counted)
+in the summary line (ZR10_EMULATOR_SUMMARY_V1) the runner checks.
 """
 from __future__ import annotations
 
@@ -77,7 +78,7 @@ class LoopStats:
     gimbal_states_sent: int = 0
     gimbal_state_send_errors: int = 0
     siyi_send_errors: int = 0
-    siyi_dropped_stale: int = 0   # SIYI datagrams and 0x25 pushes dropped while the aircraft attitude was stale
+    siyi_dropped_stale: int = 0   # SIYI datagrams and pushed 0x0D frames dropped while the aircraft attitude was stale
 
 
 class Zr10Emulator:

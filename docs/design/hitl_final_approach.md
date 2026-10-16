@@ -4,7 +4,8 @@
 router of section 2 (`tools/tuning/mav_router*.py`, Codex-reviewed), the profile `placeholder_18x`, the
 terminal fence, router barrier and record in navpy with the runner's stop-before-RTL (section 2, "Built"), and B3
 with the gimbal command fence (sections 2 and 4), and the ZR10 emulator (`tools/hitl/`, section 4,
-Codex-reviewed; FPV refused, banked stops invalidate the run).
+Codex-reviewed; FPV refused). 2026-10-16: the owner's 7 points on the real ZR10 (section 4, "Real ZR10
+behaviour"): yaw-outer readback, wire yaw sign, stops clamp, own attitude feed, 0x0D push; Codex-reviewed.
 Owner's "What next?" item 3 ("Full final approach in HITL"). Builds on `hitl_unreal_camera.md`
 (camera stream, dock passes, detector range) and `flight_tuning.md` (HITL runner, bridge, gate). Line numbers are on
 `feat/hitl-flight-tuning` 7d36929; Unreal lines on `aas-sim-unreal` 48ad8dd (`C:\repos\unreal-projects\AasSimProject`);
@@ -167,7 +168,8 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
     run is a labelled stress case). **Signs:** SIYI yaw is left-positive in 0x0E commands and 0x0D reports, while a
     positive 0x07 rate lowers the report and turns the camera right; Unreal yaw is right-positive (aas-hitl
     `zr10.example.toml:75`, `tests/zr10/test_gimbal_state_publish.py:104`, `tests/zr10/test_commands.py:124`; rig step 0).
-    navpy passes absolute yaw and reads reports unchanged (`hardware/commands.py:30`, `hardware/state.py:84`). The
+    navpy's yaw is right-positive: `plugins/gimbal/siyi/siyi_convention.py` negates yaw in 0x0E commands and 0x0D
+    reports; 0x07 rates pass unchanged (positive turns right on both). The
     emulator is wire-faithful to the real unit; the SIYI plugin owns one tested conversion each way (absolute command,
     report, rate sign), tested end to end: wire command → emulator → Unreal camera motion → calibrated frame-local ray.
     Score per
@@ -190,6 +192,19 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   `:466-556`) to 17212 every step. Commands: 0x01, 0x02, 0x04, 0x05, 0x07, 0x08, 0x0A, 0x0C, 0x0D (reply, and the 0x25
   stream), 0x0E, 0x0F, 0x18, the set navpy sends (`hardware/commands.py:30-75`, `sdk_owner.py:117-121`) and the
   aas-hitl emulator answers (`aas_hitl/zr10/device.py:81-94`).
+  - *Real ZR10 behaviour (owner, 2026-10-16; facts from gimbal-controller main 45104e3).* (1) The gimbal is
+    yaw-outer: camera-to-body = Rz(yaw) Ry(pitch) Rx(roll), navpy seq `"ZYX"` (`siyi_convention.py`). The real
+    client, the sim plant readback (`gimbal_frame_transform.py` `matrix_to_zyx`) and the siyi profile use it; a siyi
+    profile with another seq is refused. Roll sign unmeasured. (2) 0x0E in LOCK with a tilted base is unmeasured, so
+    it stays world angles, as navpy's sim. (3) Stops: the camera is clamped at the body limits (yaw -135.0..+132.8,
+    pitch -88.9..+23.9); the plant target is kept, so the camera returns when the aircraft levels; `stop_steps`
+    counts steps at a stop; the run is not invalidated. Roll stops and the real behaviour at a stop are unmeasured.
+    (4) Attitude: the bridge's `--vehicle-state-copy HOST:PORT` sends a copy of `vehicle_state.v1` to the emulator
+    (the unit's own IMU), with or without `--unreal-pose`. Whether the real unit uses 0x22 is unmeasured. (5) 0x0D:
+    one request gets its reply and starts a push at `attitude_push_hz` (50, one per plant step; real about 50.5 Hz;
+    0 = request/reply only); push expiry and a second request's effect are unmeasured. (6) No runner stop/summary
+    protocol yet: the HITL runner does not launch or read the emulator. Follow-up: when it does, use the bridge's
+    stdin-EOF stop (`--exit-on-stdin-eof`). (7) `fov_h_rad` is not sent; `sender_time_s` is the scheduled step time.
   - *Not chosen:* running aas-hitl's emulator (`aas_hitl/zr10`, CLI `py -3.11 -m aas_hitl.zr10 --config`) as is: it
     already speaks SIYI and drives 17212, but it is another repo we may not change, its 0x0F is ignored by default
     (`device.py:308-316`), its optics (`hfov` 45.96 deg) and dynamics (145 deg/s, 0.6 s 0x07 dead time, 0.145 s report
@@ -510,3 +525,8 @@ Fixed: the gimbal stop could hold the terminal record (now bounded); two sim scr
 `use_sim_gimbal` argument (an AST test checks every caller); only the last SIYI SDK got the stop, and one stuck
 endpoint blocked another's stop (now one send lock and one stop thread per endpoint, one deadline). A regression
 test for each, each failing without its fix.
+
+## Codex review of the real ZR10 behaviour (2026-10-16): round 1 "rework", round 2 "approve"
+Fixed: the bridge sent the vehicle_state copy and Unreal's pose on one UDP socket, so on Windows a closed emulator
+port could surface as a reset on the next send and drop Unreal's pose (now one socket per destination). A regression
+test models the delayed reset and fails on a shared socket. Static review; Codex could not run the tests.

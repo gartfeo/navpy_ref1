@@ -28,6 +28,7 @@ class EmulatorConfig:
     pitch_report_scale: float = 1.0
     absolute_zoom_speed_per_s: float = math.inf
     manual_zoom_speed_per_s: float = 0.5
+    attitude_push_hz: float = 50.0
 
     def __post_init__(self) -> None:
         for item in fields(self):
@@ -42,6 +43,8 @@ class EmulatorConfig:
                      "manual_zoom_speed_per_s"):
             if not getattr(self, name) > 0.0:
                 raise ValueError(f"{name} must be positive")
+        if not 0.0 <= self.attitude_push_hz <= 1.0 / STEP_S:
+            raise ValueError(f"attitude_push_hz must be in 0..{1.0 / STEP_S:g} (one push per plant step at most)")
         for name in ("rate_dead_time_s", "attitude_report_lag_s", "zoom_report_lag_s"):
             value = getattr(self, name)
             if not (0.0 <= value < 10.0):
@@ -52,7 +55,8 @@ class EmulatorConfig:
         return {name: value for name, value in asdict(self).items() if value != IDEAL[name]}
 
 
-# The ideal run. Slew rate, limits and the manual zoom speed have no "off" value; they are the hardware's.
+# The ideal run. Slew rate, limits, the manual zoom speed and the 0x0D push have no "off" value; they are the
+# hardware's (a push rate of 0, request/reply only, is listed as non-ideal).
 IDEAL: Mapping[str, float] = asdict(EmulatorConfig())
 
 SOURCES: Mapping[str, str] = {
@@ -73,6 +77,8 @@ SOURCES: Mapping[str, str] = {
                                  "the range unmeasured",
     "manual_zoom_speed_per_s": "aas-hitl zr10.example.toml:34, measured near 1x only; navpy's sim 5 levels/s "
                                "is not used",
+    "attitude_push_hz": "the real unit: one 0x0D request starts a 0x0D push at about 50.5 Hz (gimbal-controller "
+                        "docs/PROTOCOL.md); 50 = one per plant step; 0 = request/reply only; expiry unmeasured",
 }
 
 

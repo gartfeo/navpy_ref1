@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import socket
 import threading
 import time
@@ -13,10 +14,12 @@ from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.plugins.gimbal.siyi.gimbal_siyi import GimbalSiyi
 from navpy.plugins.gimbal.siyi.siyi_sdk import SIYISDK
 from tests.tools.hitl.zr10_frames import frame, parse
+from tests.tools.tuning.test_hitl_bridge_physics import rest_state
 from tools.hitl.zr10_config import EmulatorConfig, load_zoom_table
 from tools.hitl.zr10_device import Zr10Device
 from tools.hitl.zr10_emulator import GIMBAL_STATE_SCHEMA, Zr10Emulator, build_parser
 from tools.hitl.zr10_vehicle_input import VEHICLE_STATE_TIMEOUT_S, VehicleInput, decode_vehicle_state
+from tools.tuning.hitl_bridge.unreal_pose import UnrealPoseSender
 
 LOOPBACK = ("127.0.0.1", 0)
 
@@ -123,18 +126,19 @@ def test_navpy_siyi_client_drives_the_emulator_end_to_end(running):
         gimbal.start()
         assert gimbal.is_connected()
         assert ("info", "SIYI gimbal connected, Lock Mode enabled") in logger.lines
-        # Absolute angles: navpy's value goes on the wire unchanged (left-positive), Unreal gets right-positive.
+        # Absolute angles: navpy's right-positive yaw goes on the wire negated (left-positive) and comes back
+        # right-positive; Unreal renders the same right turn.
         gimbal.set_att(Attitude(-20.0, 30.0, 0.0))
         assert wait_for(lambda: abs(gimbal.get_data().att.yaw - 30.0) < 0.05
                         and abs(gimbal.get_data().att.pitch + 20.0) < 0.05)
         state = running.gimbal_states(0.1)[-1]
         assert state["schema"] == GIMBAL_STATE_SCHEMA and state["sys_id"] == 1 and state["device_id"] == 1
-        assert state["attitude_deg"]["yaw"] == pytest.approx(-30.0, abs=0.05)
+        assert state["attitude_deg"]["yaw"] == pytest.approx(30.0, abs=0.05)
         assert state["attitude_deg"]["pitch"] == pytest.approx(-20.0, abs=0.05)
         assert state["motion_mode"] == "lock" and state["roll_stabilize"] is True
-        # Rate: a positive yaw rate turns the camera right, so navpy's yaw readback falls.
+        # Rate: a positive yaw rate turns the camera right, so navpy's right-positive yaw readback rises.
         gimbal.set_rate(50.0, 0.0)
-        assert wait_for(lambda: gimbal.get_data().att.yaw < 20.0)
+        assert wait_for(lambda: gimbal.get_data().att.yaw > 40.0)
         gimbal.set_rate(0.0, 0.0)
         # Zoom: command 2.0 reads 1.8 (profile table); manual zoom moves and holds.
         assert gimbal.get_zoom_level() == 1.1
@@ -265,3 +269,18 @@ def test_cli_defaults_are_the_ideal_config():
     args = build_parser().parse_args(["--vehicle-state", "127.0.0.1:0", "--rate-dead-time-s", "0.6",
                                       "--rate-deadband", "4"])
     assert (args.rate_dead_time_s, args.rate_deadband) == (0.6, 4)
+
+
+def test_the_bridges_vehicle_state_copy_is_the_emulators_attitude(running):
+    """The bridge sends Unreal's vehicle_state datagram to the emulator too (--vehicle-state-copy): its IMU."""
+    sender = UnrealPoseSender(running.unreal.getsockname(), alt_offset_m=0.0,
+                              copies=(running.emulator.vehicle_state_address,))
+    try:
+        for slot in range(1, 6):
+            sender(slot * 20_000, rest_state(roll_rad=math.radians(10.0), yaw_rad=math.radians(30.0)))
+        assert wait_for(lambda: running.emulator.vehicle.stats.accepted == 5)
+        latest = running.emulator.vehicle.latest
+        assert (latest.attitude.roll, latest.attitude.yaw) == pytest.approx((10.0, 30.0))
+        assert running.emulator.device.has_attitude and sender.stats.copies_sent == 5
+    finally:
+        sender.close()

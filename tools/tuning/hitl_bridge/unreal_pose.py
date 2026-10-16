@@ -15,8 +15,14 @@ non-blocking, and a full buffer, a closed receiver port (Windows reports it as a
 send) or any other socket error only counts a dropped pose. Unreal being down never touches the
 board link or the link-health gate.
 
-This is simulator truth for rendering only: it goes to Unreal and nowhere else, never into navpy's
-navigation (Pure Vision Approach Constraint). Altitude: the receiver in Cesium mode takes alt_m as a
+With --vehicle-state-copy HOST:PORT the same datagram also goes to the ZR10 emulator (tools/hitl), which uses
+its attitude as the real ZR10 uses its own IMU: to stabilise the camera and find its mechanical stops. Same
+session, sequence and board time as Unreal's copy; a failed copy send only counts a dropped copy. Each copy has
+its own socket: Windows reports a closed port on the socket's next send, which must not drop Unreal's pose. Without
+--unreal-pose the emulator gets the datagram alone (altitude offset 0: it reads the attitude only).
+
+This is simulator truth for rendering and for the simulated gimbal only: it goes to Unreal and the ZR10 emulator
+and nowhere else, never into navpy's navigation (Pure Vision Approach Constraint). Altitude: the receiver in Cesium mode takes alt_m as a
 WGS84 ellipsoid height, so the plant's MSL altitude gets one named offset (ellipsoid minus MSL at the
 origin, the second value of --unreal-pose), required and without a default, as the aas-hitl truth
 bridge does.
@@ -79,22 +85,31 @@ class PoseSendStats:
     sent: int = 0
     dropped: int = 0        # the socket refused or would block: the pose is lost, nothing waits
     refused: int = 0        # a value the receiver cannot take (non-finite, out of range): never sent
+    copies_sent: int = 0    # --vehicle-state-copy datagrams
+    copies_dropped: int = 0
 
     def __str__(self) -> str:
-        return f"{self.sent} sent, {self.dropped} dropped, {self.refused} refused"
+        text = f"{self.sent} sent, {self.dropped} dropped, {self.refused} refused"
+        if self.copies_sent or self.copies_dropped:
+            text += f", copies {self.copies_sent} sent, {self.copies_dropped} dropped"
+        return text
 
 
 class UnrealPoseSender:
     """Send the answered pose at most once per POSE_PERIOD_US of board time; never blocks."""
 
     def __init__(self, endpoint: tuple[str, int], alt_offset_m: float, sys_id: int = 1,
-                 period_us: int = POSE_PERIOD_US, sock: Optional[socket.socket] = None) -> None:
+                 period_us: int = POSE_PERIOD_US, sock: Optional[socket.socket] = None,
+                 copies: tuple[tuple[str, int], ...] = (), label: str = "Unreal poses",
+                 copy_socks: Optional[tuple[socket.socket, ...]] = None) -> None:
         if not math.isfinite(alt_offset_m):
             raise ValueError("--unreal-alt-offset-m must be a finite number of metres")
         if period_us <= 0:
             raise ValueError("pose period must be positive")
         # Resolved once here: a name lookup inside sendto could block the frame loop.
         self.endpoint = parse_endpoint(f"{endpoint[0]}:{endpoint[1]}")
+        self.copies = tuple(parse_endpoint(f"{host}:{port}") for host, port in copies)
+        self.label = label
         self.alt_offset_m = float(alt_offset_m)
         self.sys_id = int(sys_id)
         self.period_us = int(period_us)
@@ -103,8 +118,12 @@ class UnrealPoseSender:
         self.last_slot: Optional[int] = None
         self.last_time_us: Optional[int] = None
         self.stats = PoseSendStats()
+        if copy_socks is not None and len(copy_socks) != len(self.copies):
+            raise ValueError("one socket per copy")
         self._sock = sock or socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._sock.setblocking(False)
+        self._copy_socks = copy_socks or tuple(socket.socket(socket.AF_INET, socket.SOCK_DGRAM) for _ in self.copies)
+        for each in (self._sock, *self._copy_socks):
+            each.setblocking(False)
 
     def due(self, board_time_us: int) -> bool:
         went_back = self.last_time_us is not None and board_time_us < self.last_time_us
@@ -122,18 +141,30 @@ class UnrealPoseSender:
             return
         self.last_slot = board_time_us // self.period_us
         self.sequence += 1
-        try:
-            self._sock.sendto(datagram, self.endpoint)
-        except OSError:             # BlockingIOError, ConnectionResetError (ICMP unreachable), ...
+        for copy, copy_sock in zip(self.copies, self._copy_socks):
+            if self._send(copy_sock, datagram, copy):
+                self.stats.copies_sent += 1
+            else:
+                self.stats.copies_dropped += 1
+        if self._send(self._sock, datagram, self.endpoint):
+            self.stats.sent += 1
+        else:
             self.stats.dropped += 1
-            return
-        self.stats.sent += 1
+
+    @staticmethod
+    def _send(sock: socket.socket, datagram: bytes, endpoint: tuple[str, int]) -> bool:
+        try:
+            sock.sendto(datagram, endpoint)
+        except OSError:             # BlockingIOError, ConnectionResetError (ICMP unreachable), ...
+            return False
+        return True
 
     def summary(self) -> str:
-        return f", Unreal poses {self.stats}"
+        return f", {self.label} {self.stats}"
 
     def close(self) -> None:
-        self._sock.close()
+        for each in (self._sock, *self._copy_socks):
+            each.close()
 
 
 class PoseOut(Protocol):
@@ -183,12 +214,23 @@ def add_unreal_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
                              f"per {POSE_PERIOD_US // 1000} ms of board time; never blocks the board). ALT_OFFSET_M: "
                              "WGS84 ellipsoid height minus MSL altitude at the origin (Cesium takes ellipsoid "
                              "heights); required, no default")
+    parser.add_argument("--vehicle-state-copy", metavar="HOST:PORT", default=None, type=_endpoint_argument,
+                        help="also send each vehicle_state datagram to this endpoint: the ZR10 emulator's "
+                             "aircraft attitude (tools/hitl, its --vehicle-state), as the real ZR10's own IMU")
     return parser
 
 
+def _endpoint_argument(text: str) -> tuple[str, int]:
+    try:
+        return parse_endpoint(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
+
+
 def unreal_pose_option(args: argparse.Namespace) -> PoseOut:
-    """The Unreal pose sender for --unreal-pose, or NO_POSE_OUT without it."""
+    """The pose sender for --unreal-pose and --vehicle-state-copy, or NO_POSE_OUT without either."""
+    copy = getattr(args, "vehicle_state_copy", None)
     if args.unreal_pose is None:
-        return NO_POSE_OUT
+        return NO_POSE_OUT if copy is None else UnrealPoseSender(copy, 0.0, label="ZR10 vehicle_state")
     endpoint, alt_offset_m = args.unreal_pose
-    return UnrealPoseSender(endpoint, alt_offset_m)
+    return UnrealPoseSender(endpoint, alt_offset_m, copies=() if copy is None else (copy,))

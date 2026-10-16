@@ -233,7 +233,10 @@ def test_follow_readback_counter_rotates_vehicle_roll():
 
     data = rig.readback.get_data()
     assert data.roll_stabilize
-    assert data.att.roll == pytest.approx(-20.0, abs=0.5)
+    assert data.g_seq == "ZYX"
+    # The yaw-outer readback holds the camera level: the banked aircraft composed with it gives a level camera.
+    world = zyx_to_matrix(0.0, 0.0, 20.0) @ _body_matrix(data)
+    assert np.allclose(world, zyx_to_matrix(0.0, -15.0, 0.0), atol=1e-6)
 
 
 def test_lock_readback_preserves_world_pose_during_vehicle_motion():

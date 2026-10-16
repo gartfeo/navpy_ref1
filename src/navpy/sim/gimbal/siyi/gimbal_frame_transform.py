@@ -1,4 +1,7 @@
-"""Convert stabilized simulated-gimbal state to body-frame readback."""
+"""Convert stabilized simulated-gimbal state to body-frame readback.
+
+The readback is yaw-outer, as the real SIYI gimbal (siyi_convention.py): body = Rz(yaw) Ry(pitch) Rx(roll).
+"""
 
 from __future__ import annotations
 
@@ -37,11 +40,12 @@ def zyx_to_matrix(yaw: float, pitch: float, roll: float) -> np.ndarray:
     return _rot_z(yaw) @ _rot_y(pitch) @ _rot_x(roll)
 
 
-def matrix_to_xyz(matrix: np.ndarray) -> tuple[float, float, float]:
-    pitch = math.degrees(math.asin(clamp(float(matrix[0, 2]), -1.0, 1.0)))
-    roll = math.degrees(math.atan2(-matrix[1, 2], matrix[2, 2]))
-    yaw = math.degrees(math.atan2(-matrix[0, 1], matrix[0, 0]))
-    return roll, pitch, yaw
+def matrix_to_zyx(matrix: np.ndarray) -> tuple[float, float, float]:
+    """The inverse of zyx_to_matrix: (yaw, pitch, roll) in degrees, pitch in [-90, 90]."""
+    pitch = math.degrees(math.asin(clamp(-float(matrix[2, 0]), -1.0, 1.0)))
+    roll = math.degrees(math.atan2(matrix[2, 1], matrix[2, 2]))
+    yaw = math.degrees(math.atan2(matrix[1, 0], matrix[0, 0]))
+    return yaw, pitch, roll
 
 
 def body_readback(snapshot: GimbalAngularSnapshot) -> Attitude:
@@ -57,8 +61,8 @@ def body_readback(snapshot: GimbalAngularSnapshot) -> Attitude:
         vehicle.roll,
     )
     world_rotation = zyx_to_matrix(world_yaw, snapshot.pitch, 0.0)
-    roll, pitch, yaw = matrix_to_xyz(vehicle_rotation.T @ world_rotation)
+    yaw, pitch, roll = matrix_to_zyx(vehicle_rotation.T @ world_rotation)
     return Attitude(pitch, yaw, roll)
 
 
-__all__ = ["body_readback", "matrix_to_xyz", "zyx_to_matrix"]
+__all__ = ["body_readback", "matrix_to_zyx", "zyx_to_matrix"]

@@ -1,20 +1,22 @@
 """The emulated ZR10 on the wire: SIYI frames in, reply frames out. No sockets.
 
-Codec: navpy's siyi_message.py; motion: zr10_gimbal. Here: the handlers, the 0x25 stream, the zoom table (design 4).
+Codec: navpy's siyi_message.py; motion: zr10_gimbal; unrequested attitude frames: zr10_streams. Here: the handlers
+and the zoom table (design 4).
 
 Wire conventions, as the real unit (design section 3, "Signs"):
 - 0x0E command and 0x0D report yaw are left-positive: wire yaw = -plant yaw. Pitch is up-positive on both.
 - A positive 0x07 yaw speed turns the camera right: the plant yaw rises and the reported yaw falls (rig step 0,
   2026-10-14). A positive pitch speed raises the pitch (TBC).
-- The 0x0D angles are body-relative; the 0x0E angles go to the plant as navpy's sim takes them
-  (gimbal_siyi_control.set_att: world angles in lock mode). Both references are unmeasured on the real unit.
+- The 0x0D angles are body-relative, yaw-outer (siyi_convention.py); the 0x0E angles go to the plant as navpy's sim
+  takes them (gimbal_siyi_control.set_att: world angles in lock mode). Both references are unmeasured on the real
+  unit (gimbal-controller, 2026-10-16: all calibration was in follow mode), so they stay as navpy's sim.
 
 Ordering: a command acts from the device time it is handled at (after every overdue step). 0x0E and 0x08 cancel
 the rates still waiting out a 0x07 dead time.
 
-Fail closed: nothing is answered before the first aircraft attitude. A step that ends with the camera outside the
-gimbal's body limits is counted and makes the run invalid; so do bad frames and unknown, rejected or refused
-commands.
+Fail closed: nothing is answered before the first aircraft attitude. Bad frames and unknown, rejected or refused
+commands make the run invalid. A step at a mechanical stop is counted only: the camera stops there, as the real
+gimbal (zr10_gimbal).
 """
 from __future__ import annotations
 
@@ -25,8 +27,9 @@ from dataclasses import dataclass, field
 from navpy.core.kernel.attitude import Attitude
 from navpy.plugins.gimbal.siyi.siyi_message import COMMAND, SIYIMESSAGE
 from navpy.sim.gimbal.siyi.gimbal_angles import MODE_FOLLOW, MODE_FPV, MODE_LOCK
-from tools.hitl.zr10_config import STEP_S, EmulatorConfig
+from tools.hitl.zr10_config import EmulatorConfig
 from tools.hitl.zr10_gimbal import Report, TrueState, Zr10Gimbal, reading
+from tools.hitl.zr10_streams import AttitudeStreams
 from tools.hitl.zr10_wire import ReplyEncoder, int16s, split_frames
 
 Address = tuple[str, int]
@@ -41,10 +44,6 @@ FUNCTION_MODES = {3: MODE_LOCK, 4: MODE_FOLLOW}
 # never asks for FPV, so it is refused rather than rendered wrong.
 FUNCTION_FPV = 5
 MODE_NAMES = {MODE_LOCK: "lock", MODE_FOLLOW: "follow", MODE_FPV: "fpv"}
-STREAM_HZ = {0: 0.0, 1: 2.0, 2: 4.0, 3: 5.0, 4: 10.0, 5: 20.0, 6: 50.0, 7: 100.0}   # 0x25 frequency codes
-STREAM_ATTITUDE = 1
-MAX_STREAM_HZ = 1.0 / STEP_S      # one push per plant step at most: a faster code would repeat states
-_EPS_S = 1e-9
 
 
 @dataclass
@@ -57,7 +56,7 @@ class Counters:
     rejected_commands: int = 0
     refused_commands: int = 0     # answered with a failure (00): navpy asked for something the unit does not do
     before_attitude: int = 0
-    body_limit_steps: int = 0     # steps that ended outside the rig's body yaw/pitch limits
+    stop_steps: int = 0           # steps that ended with the camera held at a body yaw/pitch stop
     by_command: dict[str, int] = field(default_factory=dict)
 
 
@@ -76,7 +75,7 @@ class Zr10Device:
         self.config = config
         self._zoom_table = dict(zoom_table)
         self.gimbal = Zr10Gimbal(config, self._zoom_table)
-        self._streams: dict[Address, tuple[float, float]] = {}     # requester -> (period_s, next_due_s)
+        self.streams = AttitudeStreams(config.attitude_push_hz)
         self._encoder = ReplyEncoder()
         self._decoder = SIYIMESSAGE()
         self.counters = Counters()
@@ -114,8 +113,8 @@ class Zr10Device:
         self.gimbal.step()
         if not self.gimbal.has_attitude:
             return []
-        if not self.gimbal.within_body_limits():
-            self.counters.body_limit_steps += 1
+        if self.gimbal.at_stop():
+            self.counters.stop_steps += 1
         return self._due_pushes()
 
     def advance_to(self, t_s: float) -> None:
@@ -130,8 +129,6 @@ class Zr10Device:
     def invalid_reasons(self) -> list[str]:
         counters = self.counters
         reasons = []
-        if counters.body_limit_steps:
-            reasons.append(f"{counters.body_limit_steps} step(s) outside the gimbal body limits")
         for count, what in ((counters.bad_frames, "bad SIYI frame(s)"),
                             (counters.unknown_commands, "unknown SIYI command(s)"),
                             (counters.rejected_commands, "rejected SIYI command(s)"),
@@ -232,6 +229,7 @@ class Zr10Device:
         return None
 
     def _attitude(self, data: bytes, source: Address) -> str:
+        self.streams.requested(source, self.now_s)
         return self._attitude_hex()
 
     def _attitude_hex(self) -> str:
@@ -249,15 +247,7 @@ class Zr10Device:
 
     def _data_stream(self, data: bytes, source: Address) -> str:
         data_type, code = struct.unpack_from("<2B", data)
-        if data_type != STREAM_ATTITUDE or code not in STREAM_HZ:
-            raise ValueError(f"stream type {data_type} code {code} is not served")
-        hz = STREAM_HZ[code]
-        if hz > MAX_STREAM_HZ:
-            raise ValueError(f"{hz:g} Hz is faster than the {MAX_STREAM_HZ:g} Hz plant step")
-        if hz == 0.0:
-            self._streams.pop(source, None)
-        else:
-            self._streams[source] = (1.0 / hz, self.now_s + 1.0 / hz)
+        self.streams.set_stream(source, data_type, code, self.now_s)
         return f"{data_type:02x}"
 
     def _absolute_zoom(self, data: bytes, source: Address) -> str:
@@ -282,13 +272,8 @@ class Zr10Device:
         return "00"
 
     def _due_pushes(self) -> list[tuple[bytes, Address]]:
-        pushes = []
-        for source, (period_s, next_due_s) in list(self._streams.items()):
-            if next_due_s <= self.now_s + _EPS_S:
-                pushes.append((self._frame(self._attitude_hex(), COMMAND.ACQUIRE_GIMBAL_ATT), source))
-                while next_due_s <= self.now_s + _EPS_S:
-                    next_due_s += period_s
-                self._streams[source] = (period_s, next_due_s)
+        pushes = [(self._frame(self._attitude_hex(), COMMAND.ACQUIRE_GIMBAL_ATT), source)
+                  for source in self.streams.due(self.now_s)]
         self.counters.pushes += len(pushes)
         return pushes
 

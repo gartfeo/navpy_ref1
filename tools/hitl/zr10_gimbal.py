@@ -4,13 +4,9 @@ The plant is navpy's deterministic sim plant (gimbal_angles.py, gimbal_zoom_plan
 gimbal_frame_transform.body_readback), so the emulator and navpy's sim share their dynamics. Added here: 0x07 dead
 time and deadband, report lag (0x0D and 0x18 apart), report scale (hitl_final_approach.md section 4).
 
-Angles. The plant holds the camera's rotation; body_readback gives it relative to the aircraft. It is decomposed
-here as a yaw-outer gimbal: yaw about the body yaw axis, then pitch, then roll (body = Rz(yaw) Ry(pitch) Rx(roll),
-``body_zyx_angles``). The rig's camera model is the same chain (gimbal-controller geometry.py
-commands_from_pixels: a yaw turn after a pitch turn), and Unreal composes FRotator angles the same way with the
-vehicle attitude. navpy's own readback decomposes roll, then pitch, then yaw (matrix_to_xyz, g_seq "XYZ"), which
-differs once yaw and pitch are both non-zero: that is navpy's SIYI conversion to fix (design 3, "Signs"), not
-hidden here.
+Angles. The plant holds the camera's rotation; body_readback gives it relative to the aircraft as a yaw-outer
+gimbal (body = Rz(yaw) Ry(pitch) Rx(roll), navpy's SIYI convention, siyi_convention.py), the order Unreal composes
+FRotator angles in with the vehicle attitude.
 
 The wire reports yaw left-positive: report yaw = -scale * body yaw (design 3, "Signs"). Pitch is up-positive.
 Roll keeps the plant's sign (TBC: the real unit reported roll 0.00 throughout). What Unreal renders
@@ -20,12 +16,18 @@ the vehicle_state convention), and the zoom reading.
 Ordering: with a 0x07 dead time each rate command (a stop included) waits its own dead time in arrival order;
 ``cancel_rates`` drops the ones still waiting.
 
+Mechanical stops (owner, 2026-10-16: as the real gimbal). The camera cannot pass the body limits: what Unreal
+renders and what the wire reports are the plant's body angles with yaw and pitch clamped to the limits (roll is not
+clamped: its stops are unmeasured). navpy's plant clamps world-angle differences, equal to body angles only for a
+level aircraft, so banked the plant can ask for a pose past a stop; the camera then sits at the stop and returns
+when the aircraft does, the plant's target unchanged. Whether the real unit holds or slides its lock target at a
+stop is unmeasured. Steps at a stop are counted, not treated as a fault.
+
 Nothing moves before the first aircraft attitude, because the plant's lock stabilisation and body limits need it.
 The plant then starts at the body centre.
 """
 from __future__ import annotations
 
-import math
 from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -38,11 +40,11 @@ from navpy.sim.gimbal.siyi.gimbal_angles import (
     GimbalAngularSnapshot,
     wrap180,
 )
-from navpy.sim.gimbal.siyi.gimbal_frame_transform import body_readback, zyx_to_matrix
+from navpy.sim.gimbal.siyi.gimbal_frame_transform import body_readback
 from navpy.sim.gimbal.siyi.gimbal_zoom_plant import GimbalZoomLimits, GimbalZoomPlant
 from tools.hitl.zr10_config import STEP_S, EmulatorConfig
 
-# Float noise allowed when the body angles are checked against the rig limits.
+# Float noise allowed before a step counts as at a stop.
 BODY_LIMIT_TOLERANCE_DEG = 0.05
 _EPS_S = 1e-9
 
@@ -72,16 +74,6 @@ class TrueState:
     motion_mode: int
 
 
-def body_zyx_angles(body: Attitude) -> tuple[float, float, float]:
-    """navpy's roll-pitch-yaw body readback -> the same rotation as yaw, then pitch, then roll (yaw, pitch, roll)."""
-    matrix = (zyx_to_matrix(0.0, 0.0, body.roll) @ zyx_to_matrix(0.0, body.pitch, 0.0)
-              @ zyx_to_matrix(body.yaw, 0.0, 0.0))
-    yaw = math.degrees(math.atan2(matrix[1, 0], matrix[0, 0]))
-    pitch = math.degrees(math.asin(max(-1.0, min(1.0, -float(matrix[2, 0])))))
-    roll = math.degrees(math.atan2(matrix[2, 1], matrix[2, 2]))
-    return yaw, pitch, roll
-
-
 def plant_body_angles(snapshot: GimbalAngularSnapshot) -> tuple[float, float, float]:
     """The plant's camera rotation relative to the aircraft as yaw-outer angles (yaw, pitch, roll).
 
@@ -89,7 +81,8 @@ def plant_body_angles(snapshot: GimbalAngularSnapshot) -> tuple[float, float, fl
     """
     if snapshot.motion_mode == MODE_FPV:
         raise ValueError("FPV is not modelled")
-    return body_zyx_angles(body_readback(snapshot))
+    body = body_readback(snapshot)
+    return body.yaw, body.pitch, body.roll
 
 
 def reading(level: float) -> float:
@@ -198,22 +191,25 @@ class Zr10Gimbal:
         return 0 if abs(speed) <= self.config.rate_deadband else speed
 
     # -- what is reported and what is rendered --------------------------------------------------------------
-    def within_body_limits(self) -> bool:
-        """False when the camera is outside the rig's body limits.
+    def camera_angles(self, snapshot: GimbalAngularSnapshot) -> tuple[float, float, float]:
+        """The camera's body angles (yaw, pitch, roll): the plant's, yaw and pitch held at the stops."""
+        yaw, pitch, roll = plant_body_angles(snapshot)
+        limits = self.angular_limits
+        return (min(max(yaw, limits.min_yaw), limits.max_yaw), min(max(pitch, limits.min_pitch), limits.max_pitch),
+                roll)
 
-        navpy's plant clamps world-angle differences, which equal the body angles only for a level aircraft;
-        banked, it can point where the real gimbal hits its stop.
-        """
+    def at_stop(self) -> bool:
+        """True when the plant asks for a pose past a stop, so the camera is held there."""
         yaw, pitch, _roll = plant_body_angles(self.plant.snapshot())
         limits, tol = self.angular_limits, BODY_LIMIT_TOLERANCE_DEG
-        return (limits.min_yaw - tol <= yaw <= limits.max_yaw + tol
-                and limits.min_pitch - tol <= pitch <= limits.max_pitch + tol)
+        return not (limits.min_yaw - tol <= yaw <= limits.max_yaw + tol
+                    and limits.min_pitch - tol <= pitch <= limits.max_pitch + tol)
 
     def true_state(self) -> TrueState | None:
         if self._angular is None:
             return None
         snapshot = self._angular.snapshot()
-        yaw, pitch, roll = plant_body_angles(snapshot)
+        yaw, pitch, roll = self.camera_angles(snapshot)
         return TrueState(yaw, pitch, roll, reading(self.zoom.level), snapshot.motion_mode)
 
     def reported(self) -> Report | None:
@@ -235,7 +231,7 @@ class Zr10Gimbal:
         return chosen
 
     def _report_now(self, previous: Report | None) -> Report:
-        body_yaw, body_pitch, roll = plant_body_angles(self.plant.snapshot())
+        body_yaw, body_pitch, roll = self.camera_angles(self.plant.snapshot())
         yaw = -self.config.yaw_report_scale * body_yaw
         pitch = self.config.pitch_report_scale * body_pitch
         dt_s = 0.0 if previous is None else self.now_s - previous.t_s
@@ -248,4 +244,4 @@ class Zr10Gimbal:
         return Report(self.now_s, yaw, pitch, roll, *rates, reading(self.zoom.level))
 
 
-__all__ = ["Report", "TrueState", "Zr10Gimbal", "body_zyx_angles", "plant_body_angles", "reading"]
+__all__ = ["Report", "TrueState", "Zr10Gimbal", "plant_body_angles", "reading"]

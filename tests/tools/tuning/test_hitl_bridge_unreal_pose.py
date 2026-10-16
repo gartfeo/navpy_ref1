@@ -155,3 +155,70 @@ def test_cli_takes_the_endpoint_and_the_altitude_offset_together_with_no_default
 def test_endpoint_must_be_host_and_port(text):
     with pytest.raises(ValueError):
         parse_endpoint(text)
+
+
+def test_the_vehicle_state_copy_is_the_same_datagram_to_the_zr10_emulator():
+    sock, copy_sock = RecordingSocket(), RecordingSocket()
+    out = UnrealPoseSender(("127.0.0.1", 17110), alt_offset_m=23.5, sock=sock, copies=(("127.0.0.1", 17999),),
+                           copy_socks=(copy_sock,))
+    out(40_000, rest_state())
+    [(copy, copy_to)], [(pose, pose_to)] = copy_sock.sent, sock.sent
+    assert (copy_to, pose_to) == (("127.0.0.1", 17999), ("127.0.0.1", 17110))
+    assert copy == pose             # same session, sequence, board time and attitude
+    assert (out.stats.sent, out.stats.copies_sent) == (1, 1)
+    assert "copies 1 sent" in out.summary()
+
+
+def test_a_dead_copy_receiver_only_counts_dropped_copies_never_a_dropped_pose():
+    class ResetOnNextSend(RecordingSocket):
+        """Windows: an ICMP port unreachable from one send surfaces as a reset on the socket's next send."""
+
+        def __init__(self, dead_port):
+            super().__init__()
+            self.dead_port, self.pending = dead_port, False
+
+        def sendto(self, data, endpoint):
+            if self.pending:
+                self.pending = False
+                raise ConnectionResetError
+            self.pending = endpoint[1] == self.dead_port
+            return super().sendto(data, endpoint)
+
+    sock, copy_sock = ResetOnNextSend(17999), ResetOnNextSend(17999)
+    out = UnrealPoseSender(("127.0.0.1", 17110), alt_offset_m=23.5, sock=sock, copies=(("127.0.0.1", 17999),),
+                           copy_socks=(copy_sock,))
+    for k in range(4):
+        out(k * POSE_PERIOD_US, rest_state())
+    assert (out.stats.sent, out.stats.dropped) == (4, 0)
+    assert (out.stats.copies_sent, out.stats.copies_dropped) == (2, 2)
+
+
+def test_each_copy_has_its_own_non_blocking_socket():
+    out = UnrealPoseSender(("127.0.0.1", 17110), alt_offset_m=0.0, copies=(("127.0.0.1", 17999),))
+    try:
+        [copy_sock] = out._copy_socks
+        assert copy_sock is not out._sock and copy_sock.getblocking() is False
+    finally:
+        out.close()
+    assert copy_sock.fileno() == -1                 # closed with the sender
+    with pytest.raises(ValueError):
+        UnrealPoseSender(("127.0.0.1", 17110), alt_offset_m=0.0, sock=RecordingSocket(), copies=(("127.0.0.1", 1),),
+                         copy_socks=())
+
+
+def test_cli_vehicle_state_copy_with_and_without_the_unreal_pose():
+    parse = build_parser().parse_args
+    base = ["--device", "COM11", "--model-dir", "P"]
+    with_unreal = unreal_pose_option(parse([*base, "--unreal-pose", "127.0.0.1:17110", "23.5",
+                                            "--vehicle-state-copy", "localhost:17999"]))
+    alone = unreal_pose_option(parse([*base, "--vehicle-state-copy", "127.0.0.1:17999"]))
+    try:
+        assert (with_unreal.endpoint, with_unreal.copies) == (("127.0.0.1", 17110), (("127.0.0.1", 17999),))
+        assert (alone.endpoint, alone.copies, alone.alt_offset_m) == (("127.0.0.1", 17999), (), 0.0)
+        assert alone.summary().startswith(", ZR10 vehicle_state")
+    finally:
+        with_unreal.close()
+        alone.close()
+    with pytest.raises(SystemExit) as exit_info:
+        parse([*base, "--vehicle-state-copy", "nohost"])
+    assert exit_info.value.code == EXIT_BAD_SETUP

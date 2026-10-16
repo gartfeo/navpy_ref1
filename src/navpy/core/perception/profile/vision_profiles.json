@@ -618,7 +618,7 @@
             "camera_pitch": -14.0,
             "stabilize_roll": false,
             "stabilize_pitch": false,
-            "seq": "XYZ",
+            "seq": "ZYX",
             "setup_att": [
               90,
               0,

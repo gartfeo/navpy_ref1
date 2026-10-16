@@ -6,6 +6,7 @@ from dataclasses import replace
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
+from navpy.plugins.gimbal.siyi.siyi_convention import SIYI_GIMBAL_SEQ
 from navpy.sim.gimbal.aircraft_step_clock import AircraftStepClock
 from navpy.sim.gimbal.gimbal_attitude_reader import (
     AircraftAttitudeReader,
@@ -81,6 +82,7 @@ class SiyiSimStepper:
             self._state.data = replace(
                 self._state.data,
                 att=body_readback(angular),
+                g_seq=SIYI_GIMBAL_SEQ,
                 roll_stabilize=(angular.motion_mode != MODE_FPV),
                 pitch_stabilize=True,
                 timestamp_s=wall_timestamp_s,

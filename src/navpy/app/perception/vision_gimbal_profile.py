@@ -11,6 +11,7 @@ from navpy.core.ports.gimbal_abc import (
     GimbalMountSetup,
 )
 from navpy.core.perception.profile.vision_class_profile import compute_max_detect_dist
+from navpy.plugins.gimbal.siyi.siyi_convention import SIYI_GIMBAL_SEQ
 
 
 DEFAULT_GIMBAL_SETUP_ATT = [90, 0, 90]
@@ -109,7 +110,13 @@ def resolve_gimbal_setup_seq(gimbal: Mapping[str, object]) -> str:
 
 
 def resolve_gimbal_seq(gimbal: Mapping[str, object]) -> str:
-    return _resolve_rotation_sequence(gimbal, "seq")
+    if gimbal.get("type") != "siyi":
+        return _resolve_rotation_sequence(gimbal, "seq")
+    # The SIYI readback is yaw-outer (siyi_convention.py); another order would misplace every ray.
+    seq = gimbal.get("seq", SIYI_GIMBAL_SEQ)
+    if seq != SIYI_GIMBAL_SEQ:      # exact: a lower-case sequence is intrinsic, another rotation
+        raise ValueError(f"gimbal.seq of a siyi gimbal must be {SIYI_GIMBAL_SEQ!r}, got {seq!r}")
+    return SIYI_GIMBAL_SEQ
 
 
 def build_device_gimbal_metadata(

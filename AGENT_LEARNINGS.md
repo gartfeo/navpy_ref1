@@ -409,8 +409,8 @@
 - From Git Bash, PYTHONPATH for the Windows venv Python must use Windows paths joined by ";"
   ("C:/.../navpy-hitl/src;C:/.../navpy-hitl"). POSIX paths are ignored silently, and the imports came from the
   shared navpy-temp2 checkout instead of the worktree. Check `module.__file__` once.
-- navpy's SIYI readback decomposes roll-pitch-yaw (matrix_to_xyz, g_seq "XYZ"); the real gimbal and Unreal are
-  yaw-outer (Rz Ry Rx). They differ once yaw and pitch are both non-zero (yaw 90 / pitch -45: horizontal vs 45 deg
+- navpy's SIYI readback used to decompose roll-pitch-yaw (matrix_to_xyz, g_seq "XYZ"; fixed 2026-10-16, see
+  below); the real gimbal and Unreal are yaw-outer (Rz Ry Rx). They differ once yaw and pitch are both non-zero (yaw 90 / pitch -45: horizontal vs 45 deg
   down). Name the Euler order of every angle set that crosses a module boundary.
 - navpy's sim plant clamps world-angle differences, which equal body angles only when the aircraft is level. Test
   limits and conventions banked and turning, not only level; Codex found a banked camera past the pitch stop.
@@ -418,3 +418,14 @@
   300 lines failed it in the full suite and forced a split after the first review.
 - "Fail closed" covers every output: a stale input stopped the Unreal stream but navpy still got fresh-looking
   SIYI replies until the review pointed it out.
+
+## ZR10 real behaviour (2026-10-16)
+
+- Several tests pinned the raw wire yaw passing through unchanged (the sign bug itself). When a convention changes,
+  grep the tests for the old values and update them with the reason; a green suite there proved the bug, not the fix.
+- GimbalData.att and g_seq are one contract: publish them together in the same replace(). The sim test rig built
+  its state with the default g_seq "XYZ", so a ZYX readback was read as XYZ until the stepper published g_seq too.
+- Check a file's line count against the 300-line guard before adding to it: bridge.py was at the limit, so the new
+  option went into unreal_pose.py instead.
+- A SendMessage answer from another session may not arrive mid-turn. Ask it to write the facts to a notes file in
+  your notes folder, and read that.

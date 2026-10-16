@@ -186,19 +186,38 @@ def test_body_limits_are_the_rig_sweep(zoom_table):
     ask(device, 0x07, struct.pack("<2b", -100, -100))
     run(device, 4.0)
     assert (device.true_state().yaw, device.true_state().pitch) == pytest.approx((-135.0, -88.9))
-    assert device.counters.body_limit_steps == 0 and device.invalid_reasons() == []
+    assert device.counters.stop_steps == 0 and device.invalid_reasons() == []
 
 
-def test_a_banked_camera_outside_the_body_limits_invalidates_the_run(zoom_table):
-    # Banked 45 deg right, camera held level and to the right: in the body frame that is pitch +45 deg, past the
-    # +23.9 deg stop. navpy's plant clamps world-angle differences and lets it through; the emulator counts it.
+def test_a_banked_camera_stops_at_the_body_pitch_stop_and_returns_when_level(zoom_table):
+    # Banked 45 deg right, lock mode holding the camera level and to the right: in the body frame that is pitch
+    # +45 deg, past the +23.9 deg stop. navpy's plant clamps world-angle differences and asks for it anyway; the
+    # camera stops at the stop (rendered and reported), and the run stays valid.
     device = make(zoom_table, attitude=Attitude(0.0, 0.0, 45.0))
     set_angles(device, -90.0, 0.0)                  # wire yaw left-positive: -90 is 90 deg right
     run(device, 1.5)
     state = device.true_state()
-    assert (state.yaw, state.pitch) == pytest.approx((90.0, 45.0), abs=0.01)
-    assert device.counters.body_limit_steps > 0
-    assert device.invalid_reasons() == [f"{device.counters.body_limit_steps} step(s) outside the gimbal body limits"]
+    assert (state.yaw, state.pitch) == pytest.approx((90.0, 23.9), abs=0.01)
+    assert wire_attitude(device)[:2] == pytest.approx([-90.0, 23.9], abs=0.051)
+    assert device.counters.stop_steps > 0 and device.invalid_reasons() == []
+    stopped = device.counters.stop_steps
+    device.set_vehicle_attitude(LEVEL)              # the aircraft levels: the lock target was kept
+    run(device, 0.2)
+    state = device.true_state()
+    assert (state.yaw, state.pitch, state.roll) == pytest.approx((90.0, 0.0, 0.0), abs=0.01)
+    assert device.counters.stop_steps == stopped
+
+
+def test_a_banked_camera_at_the_yaw_stop_is_held_there(zoom_table):
+    # Heading 0, banked 30 deg left; lock target 130 deg right, 10 deg down. The world yaw difference (130) is
+    # inside the limits, so navpy's plant allows it, but the body yaw it needs is 138.2 deg, past the +132.8 stop.
+    device = make(zoom_table, attitude=Attitude(0.0, 0.0, -30.0))
+    set_angles(device, -130.0, -10.0)
+    run(device, 2.0)
+    assert device.gimbal.at_stop() and device.counters.stop_steps > 0
+    state = device.true_state()
+    assert state.yaw == pytest.approx(132.8)
+    assert wire_attitude(device)[0] == pytest.approx(-132.8, abs=0.051)
 
 
 def test_motion_mode_function_and_config_reply(zoom_table):
@@ -361,7 +380,50 @@ def test_attitude_stream_at_the_asked_rate_and_stop(zoom_table):
     assert device.counters.rejected_commands == 2
 
 
+# -- 0x0D push (the real unit: one request starts a ~50 Hz push) ------------------------------------------------
+def test_one_attitude_request_starts_a_50_hz_push_to_the_requester(zoom_table):
+    device = make(zoom_table)
+    assert sum(len(device.step()) for _ in range(10)) == 0          # silent until addressed
+    (reply,) = ask(device, 0x0D)                                     # the request still gets its reply
+    assert reply.cmd == 0x0D and len(reply.data) == 12
+    pushes = []
+    for _ in range(50):
+        pushes += device.step()
+    assert len(pushes) == 50 and all(address == SOURCE and parse(raw).cmd == 0x0D for raw, address in pushes)
+    ask(device, 0x0D)                                                # a further request keeps the same push
+    assert sum(len(device.step()) for _ in range(50)) == 50
+    other = ("127.0.0.1", 50001)
+    device.handle_datagram(frame(0x0D), other)
+    assert {address for _raw, address in device.step()} == {SOURCE, other}
+
+
+def test_a_pushed_frame_carries_the_attitude_reported_at_that_step(zoom_table):
+    device = make(zoom_table)
+    ask(device, 0x0D)
+    ask(device, 0x07, struct.pack("<2b", 100, 0))
+    ((raw, _address),) = device.step()
+    yaw = struct.unpack("<6h", parse(raw).data)[0] / 10.0
+    assert yaw == pytest.approx(-device.true_state().yaw, abs=0.051)    # wire yaw left-positive
+
+
+def test_request_reply_only_mode_pushes_nothing(zoom_table):
+    device = make(zoom_table, attitude_push_hz=0.0)
+    ask(device, 0x0D)
+    assert sum(len(device.step()) for _ in range(50)) == 0
+    assert EmulatorConfig(attitude_push_hz=0.0).non_ideal() == {"attitude_push_hz": 0.0}
+
+
+def test_push_and_0x25_stream_send_one_frame_per_step(zoom_table):
+    device = make(zoom_table)
+    ask(device, 0x0D)
+    ask(device, 0x25, bytes((1, 6)))                                 # 50 Hz as well
+    assert all(len(device.step()) == 1 for _ in range(20))
+
+
 def test_config_validation():
+    for push_hz in (-1.0, 51.0):
+        with pytest.raises(ValueError):
+            EmulatorConfig(attitude_push_hz=push_hz)
     with pytest.raises(ValueError):
         EmulatorConfig(rate_deadband=2.5)
     with pytest.raises(ValueError):
