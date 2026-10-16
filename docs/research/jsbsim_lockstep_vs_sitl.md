@@ -11,7 +11,7 @@ The two docs use "x real time" in opposite senses:
 - The fleet estimate, "1.3-1.5x real time", is in the same sense: three slices of about 5 ms is 15 ms per 20 ms tick.
 - The 10h figure, "0.52-0.62x real time", is wall time over sim time. `.logs/s10h/r1-a/lockstep_run_host.json` has 108.8 wall s for 8786 ticks of 20 ms (175.7 sim s): 12.4 ms per tick, 0.62 wall/sim. That is **1.6x faster than real time**. 10.3 ms per tick is 1.9x.
 
-So the fleet runs at 1.6-1.9x real time, which beats the 1.3-1.5x estimate. The "20.4 ms (1.02x)" with host delays is about 1x, in line with the estimate's "below 1x with delays". `lockstep_fleet.md` (Risks) and `deterministic_demo_eval.md` (step 10h) should state the unit; this doc does not edit them.
+So the fleet runs at 1.6-1.9x real time, which beats the 1.3-1.5x estimate. The "20.4 ms (1.02x)" with host delays is about 1x, in line with the estimate's "below 1x with delays". `lockstep_fleet.md` (Risks and the 10h row) and `deterministic_demo_eval.md` (step 10h) now state the unit.
 
 ## Where the tick time goes
 A tick is one ArduPlane loop at 50 Hz, 20 ms of sim time. The SITL physics steps 24 frames of 833 us per tick (`SIM_Aircraft.h:248`, `rate_hz = 1200`).
@@ -80,7 +80,7 @@ SITL runs the ArduPlane code we fly. The physics in our SITL is the least of it:
 
 ## Recommendation
 1. Keep serial-step SITL for every eval that certifies ArduPilot integration (section 4). Swarm logic without the autopilot stays in baton tests. Drop the JSBSim-only lockstep idea.
-2. Fix the unit in the 10h cost lines: the fleet is 1.6-1.9x real time.
+2. Done: the 10h cost lines now give the fleet as 1.6-1.9x real time (wall/sim 0.52-0.62).
 3. If speed matters, add host-only per-tick wait timing to the coordinator, then optimise the slowest participant.
 4. Optional, later: put a JSBSim model of our airframe into the vision-law bench. Consider `--model jsbsim` in serial-step only after (a) the resend is patched and (b) terrain is handled, and only for aero fidelity.
 
