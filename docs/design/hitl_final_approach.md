@@ -441,7 +441,13 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
   certification must hold with everything running.
 - `main` is merged (1bad278).
 
-## 9. Steps
+## 9. Layers and steps
+Four layers, in the owner's order (2026-10-16). Each has its own plan; do not mix their results.
+1. **Flight like the real Peron**: the simulated aircraft flies like the real flights in the logs. Section 10.
+2. **Real camera stream** instead of fake pixels: `hitl_unreal_camera.md`.
+3. **Vision as close to real as possible**: the ZR10 emulator, detector and gimbal effects (H0-H3 below).
+4. **Other things**: other contributors, H4.
+
 | Step | What | Done when |
 |---|---|---|
 | H0 | Q1-Q4; router (2); B3 real SIYI path; ZR10 emulator with aircraft attitude from the bridge, the dynamics table and zoom table (4); gimbal/zoom readback lag-corrected, scale-calibrated and interpolated at exposure (N3); optical K by reading (N4); gimbal search sweep (N5); fixed-step zoom policy (N6); SIYI sign contract; one PC clock and the certified gimbal frame offset; confirm only while locked and on the circle; plan feasibility check (4); zoom steps in NAV (N9); tracker rate feedforward (N7); orbit centre from the board pose (N8); offline partial-view tail check with BoT-SORT; router single-owner serial handle and the barrier before the terminal record; HITL profile `siyi_zr10_hitl` (zero distortion); B1 calibration tool and EXPOSURE-only rule; board-centre navigation pixel; B4 contact sensor + identity binding; terminal fence (incl. gimbal commands), hold and record; observation-mode inhibit; effective settings in the start record; `sitl_driver approach`; report tool; Unreal U1-U4 and the board mast (Q1); profile `placeholder_18x` | Unit + guard tests (Pure Vision, contact isolation, no dock data or rendered state in navpy, EXPOSURE-only, real path never sim gimbal, emulator protocol against navpy's client and against recorded aas-hitl replies, router routing and stream claims, terminal handoff interleavings), full suite |
@@ -449,6 +455,107 @@ Not MAVProxy (own streams and heartbeats) and not `mp_mirror.py` (one client, `:
 | H2 | SITL approaches: ideal gimbal, then each effect added (yaw report scale with its calibration, report lag, 0x07 dead time, zoom speed); NAV zoom stepping down (N9); then 10 under the measured configuration (4) | Per setting: acquisition, time in NAV, outcome; 10 of 10 (7); pull-out height loss; every run logged |
 | H3 | Real board (COM15 via the router, COM11 bridge; Mission Planner must not hold COM15), 1 then 10 | As H2, results beside H2 |
 | H4 | Later: auto-zoom (owner: after HITL), real ZR10 K by reading after a per-reading calibration, GCS approval, moving dock, 18x fixed-camera runs | Separate designs |
+
+## 10. Layer 1: the simulated Peron flies like the real flights (draft v2, 2026-10-16)
+**Goal.** Fewer real re-flights: a flight in the bridge model looks like a real flight of the same kind. The reference
+is the real logs. Launch and catapult are low priority. Flight tuning (`flight_tuning.md`) is a separate, parked feature.
+**Evidence level of everything below:** logs and an offline replay of the model (JSBSim `Peron15_hitl4`, open loop).
+No closed-loop board run against a real log exists yet, and nothing here is scored yet. The bands are proposals.
+
+**Step 1: inventory (read only).** Facts on disk (2026-10-16), not names from memory:
+- 31 flight-log files in `Downloads\Logs`. Airframe = SYSID in the log. Dates are GPS time from the log.
+- 106 logs of other aircraft in `Downloads\Logs_other_frames` (142, 145, 146, 41, ...). Not used. It holds two more
+  `peron_160_*` logs (00000002, 00000006) that were never analysed.
+- No log file is named for 153, 154, 156, 161, 162 or 163 (file names checked; the SYSID of about 20 date-named files in `Logs_other_frames` was not read). For 161-163 only preflight parameter files exist (`Peron\Tune\20260711_Preflight`).
+- Aircraft mass is not recorded in an ArduPilot log; 7.5 kg is the model value. No MODE record exists in the log extracts,
+  so flight modes are unknown. Segments are picked by what the aircraft did (rates, speed, sink, bank), not by mode. The
+  per-log table and the dive table are in the session notes (`layer1-log-inventory.md`).
+
+| Airframe (SYSID) | Files / flying logs | Dates | Flight min | Note |
+|---|---|---|---|---|
+| 151 | 5 / 4 | 2023-11 to 2024-01 | 62 | 1100-1900 us throttle range |
+| 152 | 3 / 2 | 2023-12, 2024-08 | 47 | |
+| 155 | 1 / 0 | 2024-09 | 0 | one failed launch only |
+| 157 | 3 / 3 | 2024-10 to 2024-11 | 58 | |
+| 158 | 11 / 11 | 2024-11 to 2026-01 | 174 | 2026-01-18 is the model's one fit flight; throttle +0.06 vs model (ESC) |
+| "160" (file SYSID 157) | 7 / 7 | 2025-01 to 2025-09 | 117 | own AHRS trim and servo trims; identity unconfirmed; throttle -0.16 from log 29 |
+| 149 | 1 / 1 | 2023-05 | 10 | other model, not used |
+
+| Item that matters | Covered by | How much |
+|---|---|---|
+| (a) roll and pitch response | all flying logs; 25 Hz ATT and rate-controller rates | 241 roll and 83 pitch windows (peak rate > 30 and > 12 deg/s). Stick and mode unknown, no clean doublets. |
+| (b) trim and speed | steady level and turn bins; throttle steps | 82 bins (all banks), 1-4 level bins per log; 5-8 s steady windows; elevator per g in 25 turn pairs |
+| (c) dive and pull-out | see below | **Yes, real dives exist** |
+| (d) wind and gusts | EKF wind estimate (XKF2), every log | 1.1-8.8 m/s median per log; gust is only an EKF-smoothed estimate |
+
+**Are there real dives? Yes.** 38 dives of 4-10 s with mean pitch -30 deg or steeper, in 11 logs on airframes 151, 152, 157, 158
+and "160"; about 22 of them steeper than -45 deg. One (`peron_160_00000018`, 15-20 m/s, throttle 0) looks like a crash and is not used.
+Speeds are air-relative (3D ground speed minus the EKF wind):
+- `gdrive_151_00000022`: 6 steep dives, 8-10 s, pitch -59 to -61 deg, throttle 0.08-0.17, 24-29 m/s to 55-59 m/s, 270-360 m lost.
+- `gdrive_20250927_00000030` (158): 10 dives, 4-7.4 s, pitch -31 to -61 deg, throttle 0.9-0.97, 28-33 m/s to 58-68 m/s, 130-230 m lost.
+- `gdrive_20250518_00000015` (158): 4 dives, 8.1-8.9 s, pitch -49 to -50 deg, throttle 0.45-0.48, 23 m/s to 51-52 m/s, 230-250 m lost.
+The dives of one log end close together (the 4 in `gdrive_20250518_00000015` within about 25 m, the 6 in
+`gdrive_151_00000022` within about 90 m; positions are in the session notes). That fits passes at a fixed ground point, but the target and
+the mode are not logged, so "toward a target" is not proven. The owner knows what these flights were.
+Limits: these speeds are 50-70 m/s, far above the 17-34 m/s the model was replayed at. The pitot true airspeed agrees with ground speed
+minus EKF wind within 6 % in the dives (for example 70.3 against 68.1 m/s), but the EKF wind is partly fitted to the pitot, so this is a consistency check, not an
+independent calibration. The airspeed scale of a flight is 0.92-1.06.
+
+**Step 2: scorecard (proposed; the owner approves it before any scoring).**
+How the bands are built:
+- Ratios are model / real from the open-loop replay (corrected mode, one value per airframe group: 151, 152, 157, 158 with all its dates, "160").
+  With one fixed model, the spread of these ratios between airframes is the best available picture of how much real aircraft differ
+  (plus window and noise effects). The shared offset of the fleet median is the model error. So the fleet-median band judges the model
+  and the per-airframe band allows for real airframe spread. They are engineering targets set from these spreads, not measured tolerances. The ratio spread still mixes airframe differences, the operating
+  condition of each window and noise, so step 3 also reports it by condition (speed, bank, throttle).
+- "Reference" shows the old `Peron15_hitl3 -> hitl4` numbers from the validation reports (`compare.txt`), for context only. It is not a score.
+- Rows with small samples are marked provisional; step 3 recomputes every spread with a bootstrap interval before the bands are fixed.
+
+| # | Item | Measure | Real spread (the basis) | Proposed band | Reference |
+|---|---|---|---|---|---|
+| 1 | Roll-rate gain | airframe medians | old-model ratios by airframe 0.69-0.83 (range 0.14); IQR inside 158: 0.70-0.91 | fleet median 0.95-1.05; each airframe 0.85-1.15 | 0.69-0.83 -> 0.85-1.03 |
+| 2 | Roll lag | model - real | airframe medians -50..0 ms; 25 Hz = 40 ms steps | each airframe within +-40 ms; fleet median within +-30 ms; step 3 first measures the lag uncertainty | -50..0 -> -15..+33 ms |
+| 3 | Pitch-rate gain | as 1 | old-model ratios 0.82-0.92 (range 0.10); only 1-5 windows on 158-fit, 152, 158 (2025) | as 1, provisional | 0.82-0.92 -> 0.86-1.00 |
+| 4 | Pitch lag | as 2 | airframe medians -30..+30 ms | as 2 | -30..+30 -> -25..+30 ms |
+| 5 | Rate-response shape | RMS error and correlation next to gain and lag | held-out roll gain 0.81 -> 1.00 while RMS went 35 -> 46 deg/s | report only until step 3 shows the floor; a row 1-4 pass with a worse RMS is flagged | RMS 20-30 deg/s |
+| 6 | Elevator per g in turns | median of per-pair ratios real/model, pairs in one log | 25 pairs, real -0.06..-0.51, median -0.181 | ratio 0.85-1.15, provisional | 0.96 -> 1.11 |
+| 7 | Level trim offset | real - model at each bin's own EAS: throttle; elevator (us) | throttle offsets by airframe -0.13..+0.07 (fleet median +0.01); elevator -42..+36 us (10 mm CG = 19 us) | fleet-median offset: throttle within +-0.03, elevator within +-20 us; each airframe's own offset inside the real range (throttle -0.16..+0.07, elevator -45..+40 us); an airframe with fewer than 3 bins is inconclusive (151) | thr -0.13..+0.07; elev -42..-6 us |
+| 8 | Trim attitude | pitch in the AHRS frame | real - model offsets -0.5..-3.0 deg; AoA is an EKF estimate with its own reference | report only (reference frame unknown) | model 2-3 deg nose-higher |
+| 9 | Trim slope with speed | per m/s: throttle; elevator | sessions with 4-8 level bins: throttle 0.010-0.026, elevator 0.004-0.010 (157, 158-2024, 158-fit, 160; 158 pooled over 7 flights is not used because each flight has its own trim, elevator offsets -67..+41 us) | model slope inside each range, provisional | thr 0.012-0.025; elev 0.009-0.010 |
+| 10 | Throttle needed in a 30-45 deg turn | (turn - level) at the same EAS, model - real, matched pairs; also check climb and acceleration in the pair | 9 pairs, real median +0.006, range -0.02..+0.05 | median difference within +-0.03 | model +0.051 (0.02-0.09) |
+| 11 | Speed after a throttle step, 8 s | EAS error, model - real, below 30 m/s | no real repeat spread known | engineering target +-2 m/s, provisional; above 30 m/s report only (known pitch-up) | -8..+6 m/s |
+| 12 | Steady cruise and turn, 5-8 s | EAS error; height error (steady windows exist for 151, 152, 158, "160"; none for 157) | no real repeat spread known | engineering target EAS +-1.5 m/s, height +-8 m (the old model reached -9..+1 m), provisional | EAS -0.6..+0.8; height -9..+1 |
+| 13 | Dive speed gain | air-relative speed gain 5 s after dive start and peak speed; replay from the logged state with the logged elevon and throttle (free response; also report pitch and flight-path angle) | families: 151 steep (6): gain 20.4-22.6 m/s, peak 54.8-58.7; 158 log 30 shallow (5): gain 23.7-29.5, peak 58.3-63.8; 158 log 15 (4): gain 23.1-25.4, peak 51.4-51.9 | gain within +-15 % and peak within +-8 % of the matched real dive (family repeat spread is +-5 to +-11 % and +-0.5 to +-4.5 %) | not measured |
+| 14 | Dive time history | RMS of speed, flight-path angle, pitch and height over the whole dive and pull-out | none yet | report only until step 3 sets the floor (separates drag, lift and control errors) | not measured |
+| 15 | Pull-out | from the first pitch rate above 25 deg/s: height lost to the lowest point; peak pitch rate (the pull-out start is not the dive start) | 158 log 30 shallow: 8-10 m, rate 121-131 deg/s; 151 steep: 23-30 m (one 57), rate 92-103; 158 log 15: 74-99 m, rate 89-103 (a slower recovery: it depends on the logged control history and the entry state, so replay the logged elevator) | height within +-25 % or 5 m, whichever is larger; peak rate +-20 %, provisional | not measured |
+| 16 | Wind input | what the bridge applies | EKF wind median 1.1-8.8 m/s per log, p95 up to 10.5; 5 s change p95 0.2-2.1 m/s | capability test: steady wind 0-12 m/s applied to air-relative velocity, direction and frames checked; gust realism stays unvalidated (EKF smooths gusts) | not tested |
+
+Notes on the bands:
+- Event definitions. Dive: flying, climb < -3 m/s and pitch < -20 deg for at least 4 s, mean pitch <= -30 deg. Pull-out start: the first pitch rate
+  above 25 deg/s after 2 s of dive; the height loss and the peak rate are taken over the next 10 s. Speed gain: over 5 s, or to the dive end if the dive is shorter (flagged).
+- Rows 1-6 and 11-12 reuse the validation replay. Rows 7-10 come from the trim bins. Rows 13-15 need a dive replay. Row 16 is an input check.
+- A band is no tighter than the measurement allows: rigging offsets (elevator -42..+36 us, aileron about +-40 us), 25 Hz sampling, the airspeed scale (0.92-1.06), the
+  EKF wind, and repeated windows of one log are not independent samples. Fleet bands (the model) and per-airframe bands (real spread) are kept separate.
+- The old "held-out" log (`peron_157_20241005_00000100`) has been looked at, so it is a regression log. Final acceptance uses logs not replayed
+  so far (the dive logs, `peron_160_00000002` and `_00000006` after a check), chosen by a rule written down in step 3 before any change.
+- Known open gaps the card should show, not hide: row 10 (model needs more throttle in a turn), the model's pitch-up above 30 m/s, and everything
+  above 40 m/s (never validated). Launch, catapult and the < 17 m/s region stay out of scope.
+
+**Steps after the owner approves the bands.**
+3. Prepare and score. First fix, before any replay, the acceptance logs and their exclusion rules (candidates: one dive family kept untouched, e.g. `gdrive_20250927_00000030`; `peron_160_00000002` and `_00000006` after a check),
+   and use a different dive family (151) for the machinery check. Check the bridge and replay: signs, scaling, timing, limits, units, elevon and throttle mapping, start state, wind. Then score `Peron15_hitl4` on the card with one script and write the result next to the card. No model change in this step.
+   Also list which unknowns move the failing rows (mass, CG, elevon angle against PWM, static thrust, servo speed under load, `validation/2026-10-13/REPORT.md` section 5).
+4. Ask the owner for the measurements that those rows depend on (at least mass and CG, static thrust) before fitting, so a wrong parameter cannot hide behind a passing row.
+5. Close the biggest failing rows one change at a time, each checked on the whole card (the roll change of hitl4 raised the elevator-per-g ratio from 0.96 to 1.11).
+6. Closed loop, in stages: cruise, then a shallow dive, then a steep dive, each with a stated stop rule (the bridge checks are already done in step 3). Fly the board and
+   bridge through the legs of a real log and compare. This is the first test of the autopilot loop with the model and is needed before the final approach is called ready.
+
+**Owner decisions needed.**
+1. Target: one fleet-median model with per-airframe spread (proposed), or airframe 158 alone (most data, 174 min)? Does "160" count?
+2. Approve or change the bands, especially roll/pitch gain +-0.15 (fleet +-0.05), dive gain +-15 %, pull-out +-25 %.
+3. What were the steep dives for (target, mode, who flew)? Is a 50-70 m/s dive in scope for the HITL final approach?
+4. Are logs for 161-163 or 153/154/156 held elsewhere? None are on this PC.
+5. Are you willing to supply the measurements of step 4 (weigh and balance, static thrust, elevon angle at five PWM values)?
 
 ## Owner answers (2026-10-15)
 1. Board: keep 2.4 x 3.2 m. → 4, 6.
