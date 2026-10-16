@@ -173,9 +173,7 @@ class GimbalAngularPlant:
         state = self._state
         assert state.target_yaw is not None
         assert state.target_pitch is not None
-        yaw_error = state.target_yaw - state.yaw
-        if state.motion_mode == MODE_LOCK:
-            yaw_error = wrap180(yaw_error)
+        yaw_error, yaw_reachable = self._yaw_path_error()
         pitch_error = state.target_pitch - state.pitch
         maximum_change = self._limits.max_slew_rate * dt_s
         yaw_change = clamp(yaw_error, -maximum_change, maximum_change)
@@ -184,11 +182,34 @@ class GimbalAngularPlant:
         state.pitch += pitch_change
         state.yaw_command = 100.0 * yaw_change / maximum_change
         state.pitch_command = 100.0 * pitch_change / maximum_change
-        if abs(yaw_error) <= maximum_change and abs(pitch_error) <= maximum_change:
+        if (
+            yaw_reachable
+            and abs(yaw_error) <= maximum_change
+            and abs(pitch_error) <= maximum_change
+        ):
             state.target_yaw = None
             state.target_pitch = None
             state.yaw_command = 0.0
             state.pitch_command = 0.0
+
+    def _yaw_path_error(self) -> tuple[float, bool]:
+        """Return the yaw error along the mechanical range, and if it ends at the target.
+
+        In LOCK the target is a world yaw. The camera reaches it only by
+        travelling through its body range, never across the stop, so the error
+        is taken between body angles with the goal clamped to the range. A
+        target behind the stop is held at the nearer stop, not dropped.
+        """
+        state = self._state
+        assert state.target_yaw is not None
+        if state.motion_mode != MODE_LOCK:
+            return state.target_yaw - state.yaw, True
+        limits = self._limits
+        heading = state.vehicle_attitude.yaw
+        body_target = wrap180(state.target_yaw - heading)
+        body_goal = clamp(body_target, limits.min_yaw, limits.max_yaw)
+        body_now = wrap180(state.yaw - heading)
+        return body_goal - body_now, body_goal == body_target
 
     def _enforce_limits(self) -> None:
         state = self._state
