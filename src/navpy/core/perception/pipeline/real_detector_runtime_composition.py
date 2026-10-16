@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
+from navpy.core.perception.camera.board_clock_map import AttitudeBoardClock
 from navpy.core.perception.camera.frame_provider import FrameProvider
 from navpy.core.perception.pipeline.real_detector_config import (
     DetectorDependencies,
@@ -115,6 +116,11 @@ def build_runtime(
     frame_provider = FrameProvider(
         source=pipeline.frame_source,
         logger=dependencies.logger,
+        # Timing only: maps a simulated frame's board time onto the ATTITUDE
+        # receipt clock (npyc:// sources); it never reads a pose.
+        board_clock=AttitudeBoardClock(
+            lambda count: dependencies.vehicle.attitude_history(count)
+        ),
     )
     navigation = None
     if config.gimbal.tracking is not None or config.gimbal.zoom is not None:

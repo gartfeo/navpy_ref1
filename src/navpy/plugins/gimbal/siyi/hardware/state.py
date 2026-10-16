@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.gimbal_abc import GimbalData
+from navpy.plugins.gimbal.siyi.siyi_convention import yaw_from_wire
 
 
 _ParsedAttitude = tuple[int, float, float, float, float]
@@ -87,7 +88,7 @@ def _with_attitude(
             snapshot,
             data=replace(
                 snapshot.data,
-                att=Attitude(pitch, yaw, roll),
+                att=Attitude(pitch, yaw_from_wire(yaw), roll),
                 timestamp_s=stamp,
             ),
             attitude_sample_id=seq,

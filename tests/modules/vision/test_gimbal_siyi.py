@@ -632,7 +632,9 @@ def test_attitude_and_zoom_preserve_sdk_receipt_instants() -> None:
     gimbal.start()
     try:
         data, zoom, zoom_age_s, sample_id = gimbal.get_frame_state_sample()
-        assert data.att == Attitude(-20.0, 10.0, 5.0)
+        # 0x0D yaw is left-positive on the wire; navpy's yaw is right-positive (siyi_convention.py).
+        assert data.att == Attitude(-20.0, -10.0, 5.0)
+        assert data.g_seq == "ZYX"
         assert data.timestamp_s == 123.456
         assert zoom == 3.0
         assert zoom_age_s == 100.0
@@ -672,7 +674,7 @@ def test_reconnect_resets_sequence_and_zoom_provenance() -> None:
     gimbal.start()
     try:
         assert gimbal.get_data().timestamp_s == 20.0
-        assert gimbal.get_data().att == Attitude(4.0, 3.0, 180.0)
+        assert gimbal.get_data().att == Attitude(4.0, -3.0, 180.0)     # wire yaw 3 left
         assert gimbal.get_zoom_level() is None
         assert gimbal.get_zoom_level_sample_id() is None
         second_sdk.reset_mock()
@@ -703,7 +705,8 @@ def test_commands_preserve_public_mapping_and_rounding() -> None:
         gimbal.set_motion_mode(2)
         gimbal.set_motion_mode(99)
 
-        sdk.requestSetAngles.assert_called_once_with(45.0, -30.0)
+        # navpy's yaw 45 right goes on the wire as 45 left (0x0E yaw is left-positive).
+        sdk.requestSetAngles.assert_called_once_with(-45.0, -30.0)
         assert sdk.requestGimbalSpeed.call_args_list == [
             call(26, -31),
             call(100, -100),

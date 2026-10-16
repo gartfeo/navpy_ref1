@@ -43,6 +43,17 @@ class CaptureStamp:
     kind: CaptureStampKind
 
 
+class BoardClock(Protocol):
+    """Map a time on the autopilot (board) clock onto the ATTITUDE receipt wall clock.
+
+    Returns None while no mapping is available (no ATTITUDE yet, a reboot,
+    or a stamp too far from the newest ATTITUDE); a frame is then never
+    given an EXPOSURE stamp.
+    """
+
+    def wall_time_s(self, board_time_us: int) -> float | None: ...
+
+
 class FramePublisher(Protocol):
     def __call__(
         self,
@@ -68,6 +79,7 @@ class FrameCaptureBackend(Protocol):
 
 
 __all__ = [
+    "BoardClock",
     "CaptureLogger",
     "CaptureRunState",
     "CaptureStamp",

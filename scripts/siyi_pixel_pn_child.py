@@ -242,7 +242,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
                     return False
             return navigation.nav(poi_detection)
 
-        assembly = build_vision_profile("siyi_zr10", vehicle, logger, cadence)
+        assembly = build_vision_profile("siyi_zr10", vehicle, logger, cadence, use_sim_gimbal=True)
         if len(assembly.mount_specs) != 1:
             raise RuntimeError("SIYI pixel navigation requires exactly one mount")
         spec = assembly.mount_specs[0]

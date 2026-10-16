@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.gimbal_abc import GimbalData
@@ -26,6 +26,7 @@ from navpy.plugins.gimbal.siyi.hardware.readback import (
 )
 from navpy.plugins.gimbal.siyi.hardware.session import SiyiSdkSession
 from navpy.plugins.gimbal.siyi.hardware.state import SiyiReadbackStore
+from navpy.plugins.gimbal.siyi.siyi_convention import SIYI_GIMBAL_SEQ
 
 
 @dataclass(frozen=True)
@@ -51,7 +52,8 @@ def build_siyi_hardware(
     monotonic: MonotonicClock,
 ) -> SiyiHardwareParts:
     session = SiyiSdkSession()
-    store = SiyiReadbackStore(data)
+    # The readback is the SIYI gimbal's yaw-outer angles, whatever the profile says (siyi_convention.py).
+    store = SiyiReadbackStore(replace(data, g_seq=SIYI_GIMBAL_SEQ))
     selected_factory = create_siyi_sdk if sdk_factory is None else sdk_factory
     poller = SiyiTelemetryPoller(session, store, monotonic, logger)
     return SiyiHardwareParts(

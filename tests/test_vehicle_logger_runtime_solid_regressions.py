@@ -586,6 +586,7 @@ def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
         scheduler_cadence=None,
         network=MagicMock(),
         vehicle_close_gate=SimpleNamespace(stop_vision=MagicMock()),
+        terminal_handoff=None,                   # no --router-control
     )
     monkeypatch.setattr(composition, "VisionController", lambda *_args, **_kw: vision)
     monkeypatch.setattr(composition, "MissionPlanner", lambda *_args: object())

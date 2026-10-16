@@ -68,7 +68,7 @@ from navpy.core.approach.vision_nav.source_time_adapter import (
     PoseCadenceFinalApproachSourceTimeObserver,
 )
 from navpy.core.approach.vision_nav.docked_evidence import FinalApproachDockedEvidence
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
+from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch, TerminalObserver
 from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 
 
@@ -137,12 +137,13 @@ def compose_final_approach_runtime(
     aircraft_degrees: bool,
     navigation_logger: NavigationLogger,
     wall_period_s: Callable[[float], float],
+    on_terminal: TerminalObserver | None = None,
 ) -> FinalApproachRuntimeComposition:
     if type(sys_id) is not int:
         raise TypeError("final-approach vehicle target_system must be an integer")
     source_time = PoseCadenceFinalApproachSourceTimeObserver(sys_id)
     liveness = FinalApproachCommandLiveness()
-    episode = FinalApproachEpisodeLatch()
+    episode = FinalApproachEpisodeLatch(on_terminal)
     worker_failures = FinalApproachEpisodeFailures(lock, episode, liveness)
     freshness = FinalApproachCommandFreshness(wall_period_s)
     hold = FinalApproachCommandHold(

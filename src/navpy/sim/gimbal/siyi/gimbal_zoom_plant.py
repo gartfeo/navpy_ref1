@@ -13,6 +13,19 @@ ZOOM_SEEK_SPEED = 5.0
 
 
 @dataclass(frozen=True)
+class GimbalZoomLimits:
+    """Zoom range (levels) and speeds (levels/s); an infinite seek speed jumps."""
+
+    min_level: float = 1.0
+    max_level: float = ZR10.MAX_ZOOM
+    seek_speed: float = ZOOM_SEEK_SPEED
+    incremental_speed: float = ZOOM_INCREMENTAL_SPEED
+
+
+DEFAULT_ZOOM_LIMITS = GimbalZoomLimits()
+
+
+@dataclass(frozen=True)
 class GimbalZoomSnapshot:
     level: float
     target: float | None
@@ -20,8 +33,13 @@ class GimbalZoomSnapshot:
 
 
 class GimbalZoomPlant:
-    def __init__(self, initial_level: float = 1.0) -> None:
-        self._level = clamp(float(initial_level), 1.0, ZR10.MAX_ZOOM)
+    def __init__(
+        self,
+        initial_level: float = 1.0,
+        limits: GimbalZoomLimits = DEFAULT_ZOOM_LIMITS,
+    ) -> None:
+        self._limits = limits
+        self._level = self._clamp(float(initial_level))
         self._target: float | None = None
         self._direction = 0
 
@@ -36,8 +54,11 @@ class GimbalZoomPlant:
             self._direction,
         )
 
+    def _clamp(self, level: float) -> float:
+        return clamp(level, self._limits.min_level, self._limits.max_level)
+
     def set_target(self, level: float) -> None:
-        self._target = clamp(float(level), 1.0, ZR10.MAX_ZOOM)
+        self._target = self._clamp(float(level))
         self._direction = 0
 
     def start(self, direction: int) -> None:
@@ -53,18 +74,22 @@ class GimbalZoomPlant:
             return
         if self._target is not None:
             error = self._target - self._level
-            step = ZOOM_SEEK_SPEED * dt_s
+            step = self._limits.seek_speed * dt_s
             if abs(error) <= max(0.05, step):
                 self._level = self._target
                 self._target = None
             else:
                 self._level += step if error > 0.0 else -step
         elif self._direction != 0:
-            self._level += self._direction * ZOOM_INCREMENTAL_SPEED * dt_s
-        self._level = clamp(self._level, 1.0, ZR10.MAX_ZOOM)
+            self._level += (
+                self._direction * self._limits.incremental_speed * dt_s
+            )
+        self._level = self._clamp(self._level)
 
 
 __all__ = [
+    "DEFAULT_ZOOM_LIMITS",
+    "GimbalZoomLimits",
     "GimbalZoomPlant",
     "GimbalZoomSnapshot",
     "ZOOM_INCREMENTAL_SPEED",

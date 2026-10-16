@@ -9,7 +9,7 @@ import pytest
 
 from scripts import eval_gcs_demo_cli as cli
 from scripts import eval_gcs_demo_lockstep as lockstep_eval
-from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run, manifest, require_slice
+from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run, manifest, require_wired
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 from scripts.eval_gcs_demo_stack_ops import configure_vehicle_params
@@ -31,9 +31,23 @@ def no_claim(monkeypatch):
     monkeypatch.setattr(lockstep_eval.lockstep, "claim", claim)
 
 
-def test_lockstep_refuses_the_certified_three_uav_scenario(tmp_path, no_claim):
-    with pytest.raises(RegressionError, match="runs only the 1-UAV 'owner_only_slice' scenario"):
+def test_lockstep_runs_the_certified_scenario_up_to_the_slot_claim(tmp_path, monkeypatch, no_claim):
+    """Step 10h: the certified fleet is no longer refused; its inputs name three SITLs."""
+    import json
+
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda: "X 1\n")
+    with pytest.raises(AssertionError, match="must not claim"):
         execute_lockstep_run(tmp_path / "run", CERTIFIED, OPTIONS)
+    inputs = json.loads((tmp_path / "run" / "input_manifest.json").read_text(encoding="utf-8"))
+    assert len(inputs["sitl"]["topology"]["homes"]) == 3
+
+
+def test_lockstep_refuses_a_profile_without_wiring(tmp_path, no_claim):
+    import dataclasses
+
+    unwired = dataclasses.replace(SLICE, gate_profile="unwired")
+    with pytest.raises(RegressionError, match="gate profile 'unwired'"):
+        execute_lockstep_run(tmp_path / "run", unwired, OPTIONS)
     assert not (tmp_path / "run").exists()
 
 
@@ -115,8 +129,9 @@ def test_command_bounds_come_from_named_reads_under_lockstep_never_mavftp():
     assert (vehicle.pitch_min_deg, vehicle.pitch_max_deg, vehicle.throttle) == (-25.0, 20.0, 0.5)
 
 
-def test_require_slice_accepts_the_slice():
-    require_slice(SLICE)
+def test_require_wired_accepts_the_slice_and_the_certified_fleet():
+    require_wired(SLICE)
+    require_wired(CERTIFIED)
 
 
 def test_the_manifest_hashes_the_merged_defaults_the_sitl_consumes(monkeypatch):

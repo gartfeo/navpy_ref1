@@ -13,7 +13,7 @@ from navpy.sim.gimbal.siyi.gimbal_angles import (
     clamp as _clamp,
 )
 from navpy.sim.gimbal.siyi.gimbal_frame_transform import (
-    matrix_to_xyz as _matrix_to_xyz,
+    matrix_to_zyx as _matrix_to_zyx,
     zyx_to_matrix as _zyx_to_matrix,
 )
 from navpy.sim.gimbal.siyi.gimbal_zoom_plant import (
@@ -50,6 +50,6 @@ __all__ = [
     "GimbalPhysicsSnapshot",
     "ZOOM_SEEK_SPEED",
     "_clamp",
-    "_matrix_to_xyz",
+    "_matrix_to_zyx",
     "_zyx_to_matrix",
 ]

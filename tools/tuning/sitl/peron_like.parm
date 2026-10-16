@@ -1,0 +1,21 @@
+# SITL settings shared by the tuning tests (tools/tuning/sitl_driver.py).
+# Loaded after Tools/autotest/default_params/plane.parm and plane-elevons.parm.
+# Copies the aircraft's settings that change controller timing, logging and the
+# mode switch; the airframe itself is SITL's plane-elevon model, not the aircraft.
+SCHED_LOOP_RATE   200
+# ATTITUDE_FULLRATE (bit 20) logs ATT, PIDR and PIDP at the loop rate
+LOG_BITMASK       1114111
+LOG_DISARMED      0
+FLTMODE_CH        5
+FLTMODE1          5
+FLTMODE2          5
+FLTMODE3          7
+FLTMODE4          7
+FLTMODE5          8
+FLTMODE6          8
+TKOFF_ALT         120
+RTL_ALTITUDE      120
+ROLL_LIMIT_DEG    45
+PTCH_LIM_MAX_DEG  30
+PTCH_LIM_MIN_DEG  -45
+RC_OVERRIDE_TIME  0.55

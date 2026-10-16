@@ -10,7 +10,7 @@ from navpy.core.kernel.config.logger_args import LoggerArgs
 from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.app.vision_args import VisionArgs
-from navpy.app import runtime_stop
+from navpy.app import runtime_stop, terminal_handoff
 
 # every (*class*, extra-positional-args)
 _ARG_MODULES: Sequence[tuple[Callable, tuple]] = (
@@ -33,6 +33,8 @@ _ARG_MODULES: Sequence[tuple[Callable, tuple]] = (
     (LoggerArgs.add_args, ()),
     # managed-process lifecycle
     (runtime_stop.add_args, ()),
+    # HITL terminal handoff (router barrier)
+    (terminal_handoff.add_args, ()),
 )
 
 

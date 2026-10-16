@@ -11,7 +11,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec
+from navpy.plugins.detection.charuco.charuco_board import (
+    CharucoBoardSpec,
+    CharucoDetectionSettings,
+)
 from navpy.plugins.detection.charuco.charuco_detector import CharucoBoardDetector
 from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
@@ -64,7 +67,25 @@ def test_charuco_factory_defaults_to_bench_board_without_profile_block():
         Mock(), Mock(), {}, "", False, backend="charuco",
     )
 
-    assert _created_config(factory, {}).model.charuco_board == CharucoBoardSpec()
+    config = _created_config(factory, {})
+
+    assert config.model.charuco_board == CharucoBoardSpec()
+    assert config.model.charuco_detection == CharucoDetectionSettings()
+
+
+def test_charuco_factory_reads_detection_settings_from_profile():
+    factory = RealDetectorFactory(
+        Mock(), Mock(), {}, "", False, backend="charuco",
+    )
+
+    config = _created_config(factory, {
+        "charuco_detection": {"min_marker_perimeter_rate": 0.03,
+                              "refine_markers": False},
+    })
+
+    assert config.model.charuco_detection == CharucoDetectionSettings(
+        min_marker_perimeter_rate=0.03, refine_markers=False,
+    )
 
 
 def test_yolo_factory_passes_resolved_model_path():
@@ -103,6 +124,7 @@ def test_charuco_models_never_build_yolo_and_disable_deep_search():
         conf=0.3,
         backend="charuco",
         deep_search={"enabled": True},
+        charuco_detection=CharucoDetectionSettings(pixels_per_cell=6),
     ))
 
     with patch(
@@ -120,6 +142,9 @@ def test_charuco_models_never_build_yolo_and_disable_deep_search():
 
     assert isinstance(models.frame_detector, CharucoBoardDetector)
     assert models.frame_detector.min_confidence == pytest.approx(0.3)
+    assert models.frame_detector.detection == CharucoDetectionSettings(
+        pixels_per_cell=6,
+    )
     assert models.deep_search is None and models.deep_config is None
     assert create_tracker.call_args.kwargs["detector_device"] == "cpu"
     assert create_tracker.call_args.kwargs["detector_conf"] == pytest.approx(0.3)

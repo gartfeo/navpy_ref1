@@ -72,7 +72,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--lockstep",
         action="store_true",
-        help="run in lockstep on a serial-step SITL (the 1-UAV owner_only_slice scenario only); "
+        help="run in lockstep on serial-step SITLs (the owner_only_slice or certified scenario); "
         "--timeout-s and --confirmation-delay-s are then sim seconds",
     )
     parser.add_argument("--seed", type=int, default=1, help="lockstep run seed (default: 1)")

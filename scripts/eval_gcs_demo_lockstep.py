@@ -1,4 +1,4 @@
-"""``eval_gcs_navigation_demo.py --lockstep``: the 1-UAV slice in lockstep (step 9g).
+"""``eval_gcs_navigation_demo.py --lockstep``: the slice (step 9g) or the certified fleet (step 10h) in lockstep.
 
 One run (``lockstep_slice.md``, "Run phases"):
 
@@ -23,8 +23,7 @@ reads them with the scenario's gate profile (``owner_only_slice``, which adds
 the journal's slice gates; ``certified``, which resolves to
 ``certified_lockstep`` and its fleet gates). The fleet is the scenario's
 (``FleetLayout``: sysid i flies SITL i and NavPy i); each profile names its
-SITL homes and its lines files (:data:`WIRING`). Only the slice runs here
-until the certified acceptance runs (step 10h).
+SITL homes and its lines files (:data:`WIRING`).
 """
 
 from __future__ import annotations
@@ -102,9 +101,6 @@ WIRING: dict[str, Wiring] = {
     CERTIFIED_PROFILE: Wiring(lambda scenario, layout: lockstep_topology.fleet_homes(
         scenario.home, layout.size), navpy_lines_file),
 }
-#: The profiles ``--lockstep`` runs; the certified scenario joins with its
-#: acceptance runs (step 10h).
-RUNNABLE_PROFILES = (OWNER_ONLY_SLICE_PROFILE,)
 
 
 @dataclass(frozen=True)
@@ -127,12 +123,12 @@ class LockstepRun:
     operator_error: str | None
 
 
-def require_slice(scenario: DemoScenario) -> None:
-    if scenario.gate_profile not in RUNNABLE_PROFILES or len(scenario.slots) != 1:
+def require_wired(scenario: DemoScenario) -> None:
+    """The scenario's profile has its lockstep wiring (its shape is the loader's check)."""
+    if scenario.gate_profile not in WIRING:
         raise RegressionError(
-            f"--lockstep runs only the 1-UAV {OWNER_ONLY_SLICE_PROFILE!r} scenario "
-            f"(scripts/eval_lockstep_slice_scenario.json); {scenario.path.name} has gate profile "
-            f"{scenario.gate_profile!r} with {len(scenario.slots)} slots: the 3-UAV lockstep run is step 10h"
+            f"--lockstep runs the profiles {sorted(WIRING)}; {scenario.path.name} has gate profile "
+            f"{scenario.gate_profile!r}"
         )
 
 
@@ -201,7 +197,7 @@ def write_lines(run_dir: Path, scenario: DemoScenario, operator: OperatorBaton) 
 
 def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
                          options: LockstepOptions) -> LockstepRun:
-    require_slice(scenario)
+    require_wired(scenario)
     if not 0.0 < options.timeout_s < MISSION_BUDGET_S:
         raise RegressionError(f"--timeout-s must be within (0, {MISSION_BUDGET_S}) sim seconds")
     if run_dir.exists() and any(run_dir.iterdir()):
@@ -260,6 +256,6 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
 
 __all__ = [
     "APPROVALS_FILE", "JOURNAL_FILE", "LockstepOptions", "MISSION_BUDGET_S", "LockstepRun", "NAVPY_LINES_FILE",
-    "RUNNABLE_PROFILES", "RUN_HOST_FILE", "WIRING", "Wiring", "execute_lockstep_run", "fleet_layout",
-    "lockstep_operator", "manifest", "operator_script", "require_slice", "write_lines",
+    "RUN_HOST_FILE", "WIRING", "Wiring", "execute_lockstep_run", "fleet_layout",
+    "lockstep_operator", "manifest", "operator_script", "require_wired", "write_lines",
 ]

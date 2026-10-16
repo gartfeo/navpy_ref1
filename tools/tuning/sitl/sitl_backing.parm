@@ -1,0 +1,10 @@
+# Loaded last by `python -m tools.tuning.hitl sitl-backing`, after any --defaults file
+# (SITL standing in for a board, tools/tuning/hitl.py).
+# SITL steps its physics, its simulated IMU and its serial ports once per SIM_RATE_HZ frame.
+# A board hwdef's defaults.parm (Pixhawk6X-HIL, Pixhawk6X-SimOnHW) sets SIM_RATE_HZ 200 to
+# match its main loop; on the board the simulated IMU runs on the board's own timers, but in
+# SITL 200 Hz gives a 200 Hz gyro, so arming is refused ("Gyro 0 rate 201Hz < loop ratex1.8
+# 360Hz", AP_InertialSensor.cpp), and the HIL link applies each reply a frame late (50 %
+# stale frames, 10 ms state age). SITL's own default (libraries/SITL/SITL.cpp
+# SIM_RATE_HZ_DEFAULT) is restored.
+SIM_RATE_HZ       1200

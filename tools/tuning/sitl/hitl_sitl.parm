@@ -1,0 +1,6 @@
+# The HIL link port of SITL's hil model (tools/tuning/sitl_sim.py HIL_SERIAL, --serial5=tcp:<port>),
+# loaded after the --defaults files whenever the model is hil. 100 is the fork's
+# SerialProtocol_SIM_HIL; the HIL backend opens the first SERIALn with it (HIL link contract v2,
+# as the fork's Tools/autotest/default_params/plane-hil.parm). On a Pixhawk 6X the port is
+# SERIAL8 = USB OTG2 instead (hitl_board.parm).
+SERIAL5_PROTOCOL  100
