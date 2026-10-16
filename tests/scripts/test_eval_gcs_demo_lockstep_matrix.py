@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from scripts import eval_gcs_demo_lockstep_matrix as matrix
 
 DIGEST = "d" * 64
@@ -82,6 +84,42 @@ def test_missing_evidence_fails_without_raising(tmp_path):
     assert "b: exit code 1" in errors
     assert any(error.startswith("b: FileNotFoundError") for error in errors)
     assert any("journal digests differ" in error for error in errors)
+
+
+def test_a_zero_tick_run_is_recorded_as_failed_evidence(tmp_path):
+    _write_run(tmp_path / "a", wall_s=0.0)
+    run = matrix.read_run(tmp_path / "a", 0)
+    assert run["evidence_error"].startswith("ZeroDivisionError")
+    assert matrix.verdict({"a": run}, {"a": matrix.inventory(tmp_path / "a")}) \
+        == ["a: ZeroDivisionError: float division by zero"]
+
+
+class _Burner:
+    def __init__(self, log):
+        self.log = log
+
+    def kill(self):
+        self.log.append("kill")
+
+    def wait(self):
+        self.log.append("wait")
+
+
+def test_a_failed_burner_start_stops_the_burners_already_running(tmp_path, monkeypatch):
+    log, started = [], []
+
+    def popen(_command):
+        if len(started) == 2:
+            raise OSError("no more processes")
+        started.append(_Burner(log))
+        return started[-1]
+
+    monkeypatch.setattr(matrix.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(matrix.subprocess, "Popen", popen)
+    monkeypatch.setattr(matrix.subprocess, "run", lambda *a, **k: pytest.fail("ran the eval"))
+    with pytest.raises(OSError):
+        matrix.run_cell(matrix.Cell("cpuload", 0, True), tmp_path)
+    assert log == ["kill", "kill", "wait", "wait"]
 
 
 def test_the_declared_matrix_is_five_seed_one_runs_with_delays_and_load():

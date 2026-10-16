@@ -77,7 +77,7 @@ def read_run(run_dir: Path, exit_code: int) -> dict[str, Any]:
         run_host = json.loads((run_dir / RUN_HOST_FILE).read_text(encoding="utf-8"))
         record["outcome"] = run_host["result"]
         record["cost"] = cost(run_host, grid["drain_period_us"])
-    except (OSError, ValueError, KeyError, TypeError) as error:
+    except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError) as error:
         record["evidence_error"] = f"{type(error).__name__}: {error}"
     return record
 
@@ -116,11 +116,11 @@ def run_cell(cell: Cell, base: Path) -> int:
     command = [sys.executable, str(ROOT / "scripts" / "eval_gcs_navigation_demo.py"), "--lockstep",
                "--seed", str(SEED), "--host-delay-seed", str(cell.host_delay_seed),
                "--run-dir", str(base / cell.name)]
-    burners = []
-    if cell.cpu_load:
-        burners = [subprocess.Popen([sys.executable, "-c", "while True: pass"])
-                   for _ in range(os.cpu_count() or 1)]
+    burners: list[subprocess.Popen] = []
     try:
+        # Started one by one inside the try, so a failed start stops those already running.
+        for _ in range((os.cpu_count() or 1) if cell.cpu_load else 0):
+            burners.append(subprocess.Popen([sys.executable, "-c", "while True: pass"]))
         with (base / f"{cell.name}.out").open("w", encoding="utf-8") as out:
             return subprocess.run(command, stdout=out, stderr=subprocess.STDOUT,
                                   check=False).returncode
