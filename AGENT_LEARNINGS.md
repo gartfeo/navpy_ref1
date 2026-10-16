@@ -1,5 +1,18 @@
 # Agent learnings
 
+## 3-UAV lockstep acceptance (step 10h, 2026-10-16)
+
+- **Add every new file before the first acceptance run.** A test file
+  written while run 1 flew changed input_manifest.json's
+  source.untracked_sha256, so run 1 was no longer byte-equal to runs 2 and
+  3. Write and stage every file first; otherwise compare only runs that
+  started after the last edit.
+- **A passing gate on a real run may be vacuous.** Break a copy of the run's
+  evidence for each gate (delete a pose CSV, drop SNAP lines, drop one
+  emission, drop the polling record), re-run analyze_run, and check that
+  each copy fails the gate meant to catch it. A text grep for a message name
+  misses: packet records carry message ids, not names.
+
 ## Lockstep baton tests (step 10f-2, 2026-10-15)
 
 - **Prove each test with a mutation.** Two first drafts passed with the rule
