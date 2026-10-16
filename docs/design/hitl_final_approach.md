@@ -483,6 +483,15 @@ No closed-loop board run against a real log exists yet. The bands were approved 
 
 | Item that matters | Covered by | How much |
 |---|---|---|
+**Which airframes are alike (log fingerprints, 2026-10-16).** The accelerometer and gyro device IDs in the logs name the flight controller board, and a board can move between airframes, so
+the SYSID alone does not name an airframe. Owner: the `peron_160_*` logs probably kept SYSID 157 because the SYSID was not changed, so they are probably another airframe.
+- Board A (IDs 2688010): SYSID 149, 151, 155, and the two 158 logs of 2024-11-02 (`peron_158_20241102_*`). Those two flew on the 151 board and share its accelerometer offset (0.41) and AHRS trim (0.042).
+- Board B (IDs 2819082): SYSID 152 (2023-12, 2024-08), SYSID 157 (2024), and all seven `peron_160_*` logs (2025, SYSID 157). Their AHRS pitch trims (0.03-0.11) are alike.
+- Board C (IDs 3866906, Pixhawk 6X): SYSID 158 from 2025-01 to 2026-01 only.
+- By how the aircraft behaved (level throttle against the model at 24 m/s, replay report): 151, 152, 157 and 158 (2024) agree within +-0.02; 158 (2025-26) needs 0.06 more throttle; the
+  `peron_160_*` logs need 0.04 more up to log 22 and 0.16 less from log 29 on. So "alike" means 151, 152, 157, 158 (2024) and the early `peron_160_*` logs; two groups differ in power: 158 (2025-26) and the late `peron_160_*` logs.
+- In this section "160" is only the name of the seven `peron_160_*` logs as their own group (same board and SYSID as 157, airframe unconfirmed).
+
 | (a) roll and pitch response | all flying logs; 25 Hz ATT and rate-controller rates | 241 roll and 83 pitch windows (peak rate > 30 and > 12 deg/s). Stick and mode unknown, no clean doublets. |
 | (b) trim and speed | steady level and turn bins; throttle steps | 82 bins (all banks), 1-4 level bins per log; 5-8 s steady windows; elevator per g in 25 turn pairs |
 | (c) dive and pull-out | see below | **Yes, real dives exist** |
@@ -616,7 +625,7 @@ Consequence: do not fit thrust or drag to log 30. Row 13 stands as "fail" on the
    bridge through the legs of a real log and compare. This is the first test of the autopilot loop with the model and is needed before the final approach is called ready.
 
 **Owner decisions needed.**
-1. Target: **fleet median** with per-airframe spread (owner, 2026-10-16). Per-airframe propulsion profiles (propeller, motor) stay a later option, not part of the fleet model. Does "160" count?
+1. Target: **fleet median** with per-airframe spread (owner, 2026-10-16). Per-airframe propulsion profiles (propeller, motor) stay a later option, not part of the fleet model. The `peron_160_*` logs stay a group of their own (probably another airframe with SYSID 157 unchanged); tell me which airframe they are if you know.
 2. Step 5 starts with the high-throttle dive gap (row 13). May it test thrust and drag changes on a temporary copy of the model first (the model files stay untouched until you agree)? Do you accept that the cruise throttle offset is not applied to full-throttle dives?
 3. What were the steep dives for (target, mode, who flew)? Is a 50-70 m/s dive in scope for the HITL final approach?
 4. Are logs for 161-163 or 153/154/156 held elsewhere? None are on this PC. What changed on 158 for the flight of 2025-09-27 (battery, propeller, ESC)? Owner, 2026-10-16: not known; log 30 stays an unexplained outlier, but some airframes may fly an APC 14x8.5 Thin Electric propeller, or a different motor. A larger propeller at the same pitch would explain more thrust and more current at high speed; this is an unverified hypothesis (no propeller type is in the logs). Check: compare static thrust or rpm per airframe, and the model's propeller table against an APC 14x8.5 table.
