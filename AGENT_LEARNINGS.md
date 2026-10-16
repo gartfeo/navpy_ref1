@@ -430,6 +430,24 @@
 - A SendMessage answer from another session may not arrive mid-turn. Ask it to write the facts to a notes file in
   your notes folder, and read that.
 
+## 3-UAV lockstep acceptance (step 10h, 2026-10-16)
+
+- **Add every new file before the first acceptance run.** A test file
+  written while run 1 flew changed input_manifest.json's
+  source.untracked_sha256, so run 1 was no longer byte-equal to runs 2 and
+  3. Write and stage every file first; otherwise compare only runs that
+  started after the last edit.
+- **A passing gate on a real run may be vacuous.** Break a copy of the run's
+  evidence for each gate (delete a pose CSV, drop SNAP lines, drop one
+  emission, drop the polling record), re-run analyze_run, and check that
+  each copy fails the gate meant to catch it. A text grep for a message name
+  misses: packet records carry message ids, not names.
+- **Codex's read-only shell can fail to start.** Three of four codex exec
+  runs ended with "helper_unknown_error: setup refresh had errors" before
+  reading anything. Inline the diff and evidence in the prompt, and pass a
+  long prompt on stdin (codex exec ... - < prompt.md): a 52 KB argument
+  exits 126 on Windows without running Codex.
+
 ## Lockstep baton tests (step 10f-2, 2026-10-15)
 
 - **Prove each test with a mutation.** Two first drafts passed with the rule
@@ -546,6 +564,4 @@
   and the fixed one passes. Both were test races against fail-closed behaviour, not product bugs.
 - A test that sends right after a fail-closed transition must allow the one counted stale drop, not retry until a
   packet lands: an open-ended retry hides an unwanted drop (`send_across_transition`, test_mav_router.py).
-- Codex exec can fail to read the repo ("setup refresh had errors"). Put the diff and the code it needs inline in the
-  prompt; that review worked.
 - pytest imports test modules at collection, so a run started before an edit tests the old file. Restart it.
