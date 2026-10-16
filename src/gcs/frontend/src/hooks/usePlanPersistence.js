@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { analyzeArea } from '../utils/planner';
 import { convexHull } from '../utils/geo';
-import { buildDeliveryHubsFromDownload } from '../utils/deliveryHubAssignment';
+import { buildDeliveryHubsFromDownload, normalizePlanFileHubs } from '../utils/deliveryHubAssignment';
 import { MAX_UAV_COUNT, ROUTE_OFFSET_MAX_M, ROUTE_OFFSET_MIN_M } from '../utils/planLimits';
 
 // Generator inputs, besides geometry, that shape the tracks: a plan file must
@@ -18,6 +18,20 @@ const PLAN_SHAPE_FIELDS = {
 function hasInvalidPlanShape(raw) {
   return Object.entries(PLAN_SHAPE_FIELDS).some(([key, isValid]) =>
     raw[key] != null && !isValid(raw[key]));
+}
+
+// Every hub needs a position, and every assignment must be a hub index (or
+// null). The indices refer to the file's hubs when it carries some, else to
+// the settings hubs the load keeps.
+function hasInvalidDeliveryHubs(raw, settingsHubCount) {
+  const hubs = raw.default_delivery_hubs;
+  if (hubs != null && normalizePlanFileHubs(hubs) == null) return true;
+  const assignments = raw.delivery_hub_assignments;
+  if (assignments == null) return false;
+  if (!Array.isArray(assignments)) return true;
+  const hubCount = hubs?.length > 0 ? hubs.length : settingsHubCount;
+  return assignments.some((idx) => idx != null
+    && !(Number.isInteger(idx) && idx >= 0 && idx < hubCount));
 }
 
 /**
@@ -52,6 +66,7 @@ export default function usePlanPersistence({
   suppressRegenRef,
   deliveryHubAssignments,
   setDeliveryHubAssignments,
+  setManualDeliveryHubEdit,
   simDockWps,
   setSimDockWps,
   detectAfterWps,
@@ -186,11 +201,15 @@ export default function usePlanPersistence({
       }
       setActiveSetIndex(0);
       if (raw.default_delivery_hubs?.length > 0 && handleSaveSettings) {
-        handleSaveSettings({ default_delivery_hubs: raw.default_delivery_hubs });
+        handleSaveSettings({ default_delivery_hubs: normalizePlanFileHubs(raw.default_delivery_hubs) });
       }
-      if (raw.delivery_hub_assignments?.length > 0 && setDeliveryHubAssignments) {
-        setDeliveryHubAssignments(raw.delivery_hub_assignments);
-      }
+      // The file's assignment is the saved operator decision: keep it through
+      // the regeneration below (manual), or start from none (auto) when the
+      // file has none — never the replaced plan's.
+      const fileAssignments = raw.delivery_hub_assignments?.length > 0
+        ? raw.delivery_hub_assignments : null;
+      setDeliveryHubAssignments?.(fileAssignments ?? []);
+      setManualDeliveryHubEdit?.(fileAssignments != null);
       // The waypoint selections describe the plan regenerated from this
       // file, not the zones of the plan being replaced. Save omits empty
       // maps, so an omitted map means "none" — never the previous plan's.
@@ -225,7 +244,7 @@ export default function usePlanPersistence({
     } catch {
       window.alert(t('planFile.invalidData'));
     }
-  }, [t, setAnalysis, setPolygon, drawing.loadVertices, regenerateLoadedPlan, resetZoneSelectionBaseline, setSearchPattern, setUavCount, setPartitionAngleDeg, setRouteOffsetM, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations, handleSaveSettings, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, setDeliveryHubAssignments, setSimDockWps, setDetectAfterWps, setFenceOffsetM, setFenceCustomVertices, setExclusionPolygons, undoRef]);
+  }, [t, setAnalysis, setPolygon, drawing.loadVertices, regenerateLoadedPlan, resetZoneSelectionBaseline, setSearchPattern, setUavCount, setPartitionAngleDeg, setRouteOffsetM, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations, handleSaveSettings, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, setDeliveryHubAssignments, setManualDeliveryHubEdit, setSimDockWps, setDetectAfterWps, setFenceOffsetM, setFenceCustomVertices, setExclusionPolygons, undoRef]);
 
   // A file loaded before the planner is ready is held, not applied: applied
   // early, its analysis would be empty and the readiness transition would
@@ -260,7 +279,8 @@ export default function usePlanPersistence({
         }
         if (!raw || !Array.isArray(raw.polygon)
           || ['poi_classes', 'delivery_docks', 'delivery_dock_assignments', 'tactic'].some((key) => Object.hasOwn(raw, key))
-          || hasInvalidPlanShape(raw)) {
+          || hasInvalidPlanShape(raw)
+          || hasInvalidDeliveryHubs(raw, settings?.default_delivery_hubs?.length ?? 0)) {
           window.alert(t('planFile.invalidData'));
           return;
         }
@@ -270,7 +290,7 @@ export default function usePlanPersistence({
       reader.readAsText(file);
     };
     input.click();
-  }, [t, applyPlanFile, setPendingPlanFile]);
+  }, [t, applyPlanFile, setPendingPlanFile, settings]);
 
   // Derive polygon + launch/corridor from plan tracks using corridor_end_index
   const derivePlanPolygon = useCallback((zones, downloadedSearchPattern, downloadedPolygon, downloadedCorridorBackbone, downloadedLaunchPoint, downloadedMissionDeliveryHubs) => {
