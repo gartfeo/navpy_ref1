@@ -624,3 +624,18 @@
 - **A swarm offer carries no obj_id on the wire.** To prove which world dock
   was offered, log the link at the first registration
   (`Task offered: ... obj_id=`), not a position match.
+
+## Lockstep matrix and digest attribution (step 11, 2026-10-16)
+
+- **Prove a digest move with a run at the commit before, not by reading diffs.** I named
+  2d44662 (a sim gimbal change) as the cause of a new digest; a run at the commit before it
+  already had the new digest. Single seed-1 runs in detached worktrees at 10h's commit, the
+  merge and its parent located it (the HITL merge 79ace48) in three runs.
+- **Check for slot-0 wall stacks before each lockstep batch, and again after any rebase.**
+  Main moved twice during step 11, and each move changed the digest. Each final certification
+  needed its own quiet window on the exact tree that would fast-forward onto main.
+- **`gcs_stop.py --eval` cannot find a lockstep slot** (todo 55: the claim's owner is not
+  normcased). Stop it with `gcs_stop.py --chat <its slot>` after checking that the registry
+  entry's clone is this directory.
+- **`sed -i` in Git Bash rewrites a CRLF file as LF.** Edit CRLF files with the Edit tool or
+  with read_bytes/write_bytes, and check with `file` afterwards.
