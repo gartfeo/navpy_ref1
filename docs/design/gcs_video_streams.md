@@ -1,6 +1,6 @@
 # GCS video streams per vehicle
 
-Status: design v4 (after Codex review rounds 1-3), awaiting owner approval. No code yet.
+Status: design v5 (video rounds 1-4, FPV UX rounds 1-2), awaiting owner approval. No code yet.
 
 Owner request (2026-10-16): "we should be able to see video streams in our GCS if
 those are available."
@@ -171,8 +171,65 @@ so these are our radio-link defaults, not protocol values:
   it has video, else the first UAV with video.
 - The RC button (top-left) is untouched. Manual control hides the panel, as
   today (joysticks, flight-mode column and HUD own the screen).
-- One feed at a time (owner, 2026-10-16: the demo has one video). Tiles become
-  an option only once several streams play at the same time.
+- One feed at a time (owner, 2026-10-16: in the demo every UAV may have a
+  stream, but one plays at a time). Tiles become an option only once several
+  streams play at the same time. One reader per browser; the demo has one GCS,
+  so no radio-wide arbitration in v1.
+
+### 5a. Synthetic FPV (Cesium), for every UAV
+
+Owner, 2026-10-16: with video for one UAV or none, the Cesium FPV must still be
+available. Agreed with Codex (independent proposals, merged):
+
+- An **FPV** toggle sits beside the follow selector (top-right). On, the main
+  map's camera flies the followed UAV's first-person view, using today's
+  `useFollowUav` FPV path (body attitude), for any UAV with a usable pose,
+  whether or not it has video. Off, or follow set to Free, returns to the map.
+- FPV pressed while following Free sets the follow selector to the UAV shown in
+  the video panel if eligible, else the first eligible UAV (no "choose a UAV"
+  dead end); the selector then names it. No eligible UAV: the toggle stays off
+  and a short notice says no UAV has a pose yet.
+- Eligible = the existing backend `link_ok` flag (what the bottom bar and
+  preflight already use) plus finite position and attitude in the snapshot. No
+  new freshness threshold. Eligibility is checked on every FPV entry: toggle on
+  for the followed UAV, View FPV, and changing the followed UAV while FPV is on.
+  An ineligible target leaves the map (or the current FPV) as it is, with a
+  short notice naming the UAV.
+- The real video stays in the bottom-left panel, so big synthetic world view +
+  small real camera of the same UAV work together. Video and FPV can show
+  different UAVs; the panel always names its UAV.
+- Always labelled: a fixed top-centre tag **SYNTHETIC · UAV n · body view** and
+  a distinct frame on the map in FPV; the panel says **CAMERA · UAV n**. A
+  failed video never silently becomes synthetic; its collapsed header offers
+  Retry and **View FPV**, which sets the follow selector to that feed's UAV and
+  turns FPV on (also when FPV was already on for another UAV).
+- While in FPV the camera holds the last valid pose and resumes on the next
+  valid one; the tag says "link lost" when `link_ok` is false, and "pose
+  unavailable" when the link is up but position or attitude is not finite.
+- View mode is separate from control mode. FPV never enables RC. RC keeps
+  today's behavior (body FPV of the RC target, panel hidden).
+- Map camera ownership: one saved map camera, taken when the view first leaves
+  the map (FPV on, or RC entry from the map); switching the FPV UAV does not
+  overwrite it. Camera persistence (`useCesiumViewer.js` stores camera moves) is
+  suspended while FPV or RC owns the camera, so a first-person pose is never
+  the startup view. The viewer runs in request-render mode, so FPV requests a
+  render per pose update.
+
+| Event | Result |
+|---|---|
+| FPV off | chase view of the same UAV, then the user's own camera moves; saved map camera restored when follow goes to Free |
+| Follow set to Free (FPV on) | FPV off, saved map camera restored |
+| Followed UAV removed | as Free |
+| RC entry (FPV on or off) | today's RC FPV of the RC target |
+| RC exit | Free map with the saved map camera (today: Free); FPV off |
+
+- Feed choice when streams change: the shown stream disappears -> that UAV's
+  other stream if any, else the followed UAV's stream, else the first stream;
+  the last stream gone -> panel gone.
+- Deferred: a second Cesium viewer in the panel (second WebGL context, unmeasured
+  on phones), swapping map and panel, and a camera-direction synthetic view from
+  gimbal attitude + FOV (needs verified mount axes and stream-to-device
+  association).
 - Connecting and stalled use the existing overlay, but only for a bounded time:
   no first frame within `VIDEO_FIRST_FRAME_DEADLINE_S` (default 10 s: ICE setup
   plus one keyframe interval, which the display stream keeps at 2 s or less), or
@@ -231,13 +288,24 @@ failure leaves video off and is logged; the rest of the stack still runs.
   (peer connected but no frames; frames then freeze) collapse to the header; badges only for vehicles with
   streams; switching; follow selector to a UAV with video switches the feed, to
   Free or a UAV without video keeps it, a badge click leaves the map camera;
-  hidden in manual control; codec-not-supported and error
-  collapse to the header; stream removal closes the feed. `npm test`,
+  hidden in manual control; FPV toggle for a UAV without video, from Free (picks
+  the panel's UAV), off and on Free returns to the saved map camera, never
+  stored as startup view, SYNTHETIC tag always shown, RC entry and
+  exit while in FPV; codec-not-supported and error
+  collapse to the header; stream removal picks the replacement feed (same UAV's other stream, followed
+  UAV, first; last one gone -> no panel); View FPV from a failed feed of another
+  UAV, also while in FPV; every row of the transition table; no eligible UAV;
+  `link_ok` lost and back in FPV; non-finite position, then attitude, while
+  linked (hold, "pose unavailable", resume); ineligible target on each entry
+  path. `npm test`,
   `npm run build`.
 - Live (`live-tester`): 3-UAV SITL with the test source, from two slots at once
   (each plays its own slot's patterns): each badge plays its
   labelled pattern, switching works, killing a path's FFmpeg collapses to the
   header and Retry recovers; with the source off: no panel, no console errors.
+  Then, with video off: FPV on, switch UAVs while they fly (view follows pose),
+  follow Free (map camera restored), FPV on then RC entry and exit, then reload
+  the page and check the startup map view is the map, not an FPV pose.
 - Hardware (later, with the owner): Jetson H.264 stream over the radio from the
   laptop and from a second device (WHEP OPTIONS/POST accepted from the real GCS
   origin): glass-to-glass latency (on-screen clock),
@@ -246,7 +314,8 @@ failure leaves video off and is logged; the rest of the stack still runs.
 ## Open points for the owner
 
 1. Approve the approach: camera protocol discovery, browser WHEP straight to each
-   aircraft's MediaMTX, one feed at a time that follows the follow selector.
+   aircraft's MediaMTX, one feed at a time that follows the follow selector,
+   and an FPV toggle for Cesium FPV of any UAV.
 2. Display codec: the Jetson publishes a software H.264 display stream
    (recommended; leaves the ZR10 and the vision input untouched, costs Jetson CPU
    that is measured first), or switch the ZR10 to H.264
