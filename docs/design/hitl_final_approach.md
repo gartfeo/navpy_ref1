@@ -464,8 +464,8 @@ No closed-loop board run against a real log exists yet. The bands were approved 
 
 **Step 1: inventory (read only).** Facts on disk (2026-10-16), not names from memory:
 - 31 flight-log files in `Downloads\Logs`. Airframe = SYSID in the log. Dates are GPS time from the log.
-- 106 logs of other aircraft in `Downloads\Logs_other_frames` (142, 145, 146, 41, ...). Not used. It holds two more
-  `peron_160_*` files (00000002, 00000006), which are byte-identical copies of `peron_157_20241019_00000002` and `peron_157_20241102_00000006` (already in the 157 row).
+- 104 logs of other aircraft in `Downloads\Logs_other_frames` (142, 145, 146, 41, ...). Not used. Its two `peron_160_*` files (00000002, 00000006) were byte copies of
+  `peron_157_20241019_00000002` and `peron_157_20241102_00000006` and went to the Recycle Bin on 2026-10-16 (owner).
 - No log file is named for 153, 154, 156, 161, 162 or 163 (file names checked; the SYSID of about 20 date-named files in `Logs_other_frames` was not read). For 161-163 only preflight parameter files exist (`Peron\Tune\20260711_Preflight`).
 - Aircraft mass is not recorded in an ArduPilot log; 7.5 kg is the model value. No MODE record exists in the log extracts,
   so flight modes are unknown. Segments are picked by what the aircraft did (rates, speed, sink, bank), not by mode. The
@@ -484,7 +484,10 @@ No closed-loop board run against a real log exists yet. The bands were approved 
 **Which airframes are alike (log fingerprints, 2026-10-16, corrected the same day).** The accelerometer and gyro device IDs (INS_ACC2_ID, INS_GYR_ID) name the IMU hardware type,
 not one physical board: a scan of all 137 logs on disk finds type A (2688010) in SYSID 24, 41, 143, 146, 148, 149, 151, 155 and 158 and type B (2819082) in SYSID 11, 24, 142-145, 149, 151, 152, 157
 and 201, from 2021 on. The SYSID alone does not name an airframe either (owner: it may not have been changed when a board moved; the scan also shows SYSID 151 on type B in 2022 and on type A in 2023-24).
-- Type A: 149, 151, 155, and the two 158 logs of 2024-11-02 (`peron_158_20241102_*`). Those two share 151's accelerometer offset (0.41) and AHRS trim (0.042), so they probably flew on the 151 board.
+- Owner practice (2026-10-16): there are few boards and parts are reused, so a board moves to a new frame together with its airspeed sensor and ESC. The level (AHRS trim) is
+  redone after a new frame with an old board, and sometimes again on the same board. So board IDs, accelerometer offsets, airspeed scale and ESC settings follow the board, not the frame; a new AHRS
+  trim hints at a new frame but does not prove one. No logged value names the frame.
+- Type A: 149, 151, 155, and the two 158 logs of 2024-11-02 (`peron_158_20241102_*`). Those two share 151's accelerometer offset (0.41) and AHRS trim (0.042), so they probably flew on the 151 board (the frame is not known).
 - Type B: 152 (2023-12, 2024-08), 157 (2024), and all seven `peron_160_*` logs (2025, SYSID 157). The `peron_160_*` log numbers (11-35) continue the 157 logs 2 and 6 of 2024, and the
   `peron_160_*` folder also held byte copies of those two 157 logs, so they come from the same SD card as 157. The "160" file name is an archive label, not an airframe.
 - Type C (3866906, Pixhawk 6X): only SYSID 158 from 2025-01 to 2026-01.
