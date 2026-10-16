@@ -465,7 +465,7 @@ No closed-loop board run against a real log exists yet. The bands were approved 
 **Step 1: inventory (read only).** Facts on disk (2026-10-16), not names from memory:
 - 31 flight-log files in `Downloads\Logs`. Airframe = SYSID in the log. Dates are GPS time from the log.
 - 106 logs of other aircraft in `Downloads\Logs_other_frames` (142, 145, 146, 41, ...). Not used. It holds two more
-  `peron_160_*` logs (00000002, 00000006) that were never analysed.
+  `peron_160_*` files (00000002, 00000006), which are byte-identical copies of `peron_157_20241019_00000002` and `peron_157_20241102_00000006` (already in the 157 row).
 - No log file is named for 153, 154, 156, 161, 162 or 163 (file names checked; the SYSID of about 20 date-named files in `Logs_other_frames` was not read). For 161-163 only preflight parameter files exist (`Peron\Tune\20260711_Preflight`).
 - Aircraft mass is not recorded in an ArduPilot log; 7.5 kg is the model value. No MODE record exists in the log extracts,
   so flight modes are unknown. Segments are picked by what the aircraft did (rates, speed, sink, bank), not by mode. The
@@ -481,17 +481,20 @@ No closed-loop board run against a real log exists yet. The bands were approved 
 | "160" (file SYSID 157) | 7 / 7 | 2025-01 to 2025-09 | 117 | own AHRS trim and servo trims; identity unconfirmed; throttle -0.16 from log 29 |
 | 149 | 1 / 1 | 2023-05 | 10 | other model, not used |
 
-| Item that matters | Covered by | How much |
-|---|---|---|
 **Which airframes are alike (log fingerprints, 2026-10-16).** The accelerometer and gyro device IDs in the logs name the flight controller board, and a board can move between airframes, so
-the SYSID alone does not name an airframe. Owner: the `peron_160_*` logs probably kept SYSID 157 because the SYSID was not changed, so they are probably another airframe.
+the SYSID alone does not name an airframe (owner: the SYSID may not have been changed when a board moved).
 - Board A (IDs 2688010): SYSID 149, 151, 155, and the two 158 logs of 2024-11-02 (`peron_158_20241102_*`). Those two flew on the 151 board and share its accelerometer offset (0.41) and AHRS trim (0.042).
-- Board B (IDs 2819082): SYSID 152 (2023-12, 2024-08), SYSID 157 (2024), and all seven `peron_160_*` logs (2025, SYSID 157). Their AHRS pitch trims (0.03-0.11) are alike.
+- Board B (IDs 2819082): SYSID 152 (2023-12, 2024-08), SYSID 157 (2024), and all seven `peron_160_*` logs (2025, SYSID 157). Their AHRS pitch trims (0.03-0.11) are alike. The `peron_160_*` log
+  numbers (11-35) continue the 157 logs 2 and 6 of 2024; the "160" file name is an archive label, not an airframe.
 - Board C (IDs 3866906, Pixhawk 6X): SYSID 158 from 2025-01 to 2026-01 only.
+- Boards B and C flew at the same time on 2025-08-16 and 2025-09-27 (both at 22-34 m/s, about 100 m apart in height, at different positions; GPS time), so the `peron_160_*` logs are not airframe 158.
 - By how the aircraft behaved (level throttle against the model at 24 m/s, per-log offsets from the replay): 151, 152, 157 and 158 (2024) agree within +-0.03; 158 (2025-26) needs 0.03-0.11 more
   throttle (median +0.06); the `peron_160_*` logs go from +0.04 (log 11) to -0.04 (logs 18-22) to -0.17 (logs 29-35). So 151, 152, 157 and 158 (2024) are alike; 158 (2025-26) and the `peron_160_*` logs are not, and not like each other.
-- In this section "160" is only the name of the seven `peron_160_*` logs as their own group (same board and SYSID as 157, airframe unconfirmed).
+- Which airframe carried board B in 2025 is not proven by the logs (Codex agrees): 157 all along, or board B moved to another airframe with SYSID 157 kept. The throttle drift fits a propeller,
+  motor or airframe change equally. A dated flight or maintenance record would settle it. In this section "160" is only the name of the seven `peron_160_*` logs as their own group.
 
+| Item that matters | Covered by | How much |
+|---|---|---|
 | (a) roll and pitch response | all flying logs; 25 Hz ATT and rate-controller rates | 241 roll and 83 pitch windows (peak rate > 30 and > 12 deg/s). Stick and mode unknown, no clean doublets. |
 | (b) trim and speed | steady level and turn bins; throttle steps | 82 bins (all banks), 1-4 level bins per log; 5-8 s steady windows; elevator per g in 25 turn pairs |
 | (c) dive and pull-out | see below | **Yes, real dives exist** |
@@ -546,7 +549,7 @@ Notes on the bands:
 - A band is no tighter than the measurement allows: rigging offsets (elevator -42..+36 us, aileron about +-40 us), 25 Hz sampling, the airspeed scale (0.92-1.06), the
   EKF wind, and repeated windows of one log are not independent samples. Fleet bands (the model) and per-airframe bands (real spread) are kept separate.
 - The old "held-out" log (`peron_157_20241005_00000100`) has been looked at, so it is a regression log. Final acceptance uses logs not replayed
-  so far (the dive logs, `peron_160_00000002` and `_00000006` after a check), chosen by a rule written down in step 3 before any change.
+  so far (the dive logs, and flights still to come), chosen by a rule written down in step 3 before any change.
 - Known open gaps the card should show, not hide: row 10 (model needs more throttle in a turn), the model's pitch-up above 30 m/s, and everything
   above 40 m/s (never validated). Launch, catapult and the < 17 m/s region stay out of scope.
 
@@ -557,7 +560,7 @@ Scripts and outputs: `%LOCALAPPDATA%\navpy-hitl-tools\validation\2026-10-16-laye
   steady-flight trim offsets (elevator, aileron, throttle, AoA; fitted at 20-28 m/s on that same log) are removed, as in the other rows.
 - No aggregation rule was set in the card for rows 5-16, so each verdict gives the median and how many windows or dives are inside the band. "Mixed" means the median is inside and many are not.
 - Acceptance logs: `gdrive_20250927_00000030` is not untouched: its roll and pitch windows were in the hitl4 fit, and its dives are now scored. It stays a known-failing family; final
-  acceptance needs logs that no fit and no scoring has used (`peron_160_00000002` and `_00000006`, never extracted, and flights still to come).
+  acceptance needs logs that no fit and no scoring has used (flights still to come; `peron_160_00000002` and `_00000006` are copies of 157 logs already used, so they do not count).
 - Bootstrap intervals are 95 % over windows inside each airframe group (151, 152, 157, 158 all dates, "160"). Windows of one log are not independent.
 
 | # | Result | Verdict |
@@ -616,7 +619,7 @@ Without log 30, row 13 is 19 of 27 dives inside (gain -2 %, peak +1 %; the 4 hig
 Consequence: do not fit thrust or drag to log 30. Row 13 stands as "fail" on the card's rule only because of that log. Ask the owner what changed on 158 for 2025-09-27 (battery, propeller, ESC settings).
 
 **Steps (the owner approved the bands on 2026-10-16).**
-3. Done above. Prepare and score. First fix, before any replay, the acceptance logs and their exclusion rules (candidates: one dive family kept untouched, e.g. `gdrive_20250927_00000030`; `peron_160_00000002` and `_00000006` after a check),
+3. Done above. Prepare and score. First fix, before any replay, the acceptance logs and their exclusion rules (candidates: one dive family kept untouched, e.g. `gdrive_20250927_00000030`),
    and use a different dive family (151) for the machinery check. Check the bridge and replay: signs, scaling, timing, limits, units, elevon and throttle mapping, start state, wind. Then score `Peron15_hitl4` on the card with one script and write the result next to the card. No model change in this step.
    Also list which unknowns move the failing rows (mass, CG, elevon angle against PWM, static thrust, servo speed under load, `validation/2026-10-13/REPORT.md` section 5).
 4. Ask the owner for the measurements that those rows depend on (at least mass and CG, static thrust) before fitting, so a wrong parameter cannot hide behind a passing row.
@@ -625,7 +628,7 @@ Consequence: do not fit thrust or drag to log 30. Row 13 stands as "fail" on the
    bridge through the legs of a real log and compare. This is the first test of the autopilot loop with the model and is needed before the final approach is called ready.
 
 **Owner decisions needed.**
-1. Target: **fleet median** with per-airframe spread (owner, 2026-10-16). Per-airframe propulsion profiles (propeller, motor) stay a later option, not part of the fleet model. The `peron_160_*` logs stay a group of their own (probably another airframe with SYSID 157 unchanged); tell me which airframe they are if you know.
+1. Target: **fleet median** with per-airframe spread (owner, 2026-10-16). Per-airframe propulsion profiles (propeller, motor) stay a later option, not part of the fleet model. The `peron_160_*` logs stay a group of their own: board B with SYSID 157, not 158, airframe not proven (see the fingerprint paragraph); a dated flight record would settle it.
 2. Step 5 starts with the high-throttle dive gap (row 13). May it test thrust and drag changes on a temporary copy of the model first (the model files stay untouched until you agree)? Do you accept that the cruise throttle offset is not applied to full-throttle dives?
 3. What were the steep dives for (target, mode, who flew)? Is a 50-70 m/s dive in scope for the HITL final approach?
 4. Are logs for 161-163 or 153/154/156 held elsewhere? None are on this PC. What changed on 158 for the flight of 2025-09-27 (battery, propeller, ESC)? Owner, 2026-10-16: not known; log 30 stays an unexplained outlier, but some airframes may fly an APC 14x8.5 Thin Electric propeller, or a different motor. A larger propeller at the same pitch would explain more thrust and more current at high speed; this is an unverified hypothesis (no propeller type is in the logs). Check: compare static thrust or rpm per airframe, and the model's propeller table against an APC 14x8.5 table.
