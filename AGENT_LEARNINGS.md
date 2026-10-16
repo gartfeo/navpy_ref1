@@ -12,6 +12,11 @@
   emission, drop the polling record), re-run analyze_run, and check that
   each copy fails the gate meant to catch it. A text grep for a message name
   misses: packet records carry message ids, not names.
+- **Codex's read-only shell can fail to start.** Three of four codex exec
+  runs ended with "helper_unknown_error: setup refresh had errors" before
+  reading anything. Inline the diff and evidence in the prompt, and pass a
+  long prompt on stdin (codex exec ... - < prompt.md): a 52 KB argument
+  exits 126 on Windows without running Codex.
 
 ## Lockstep baton tests (step 10f-2, 2026-10-15)
 
