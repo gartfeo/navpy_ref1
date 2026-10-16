@@ -597,7 +597,14 @@ Output: `validation\2026-10-16-layer1\score_variants.txt`.
 - No single thrust or drag change beats the unchanged model overall: every change that closes the high-throttle gap opens a gap at low and middle throttle. So these two terms are not the whole answer.
 - The high-throttle gap is concentrated in one log: gain error -25 % median on `gdrive_20250927_00000030` (10 dives, speeds up to 68 m/s, the fastest in the set), -10 % on `gdrive_20250816_00000025` (3), -4 % on `peron_160_00000011` (1).
   That looks like an airframe or flight condition (158 on 2025-09-27: battery, ESC, propeller, or the pitot above 60 m/s) more than a model-wide fault, but the data cannot tell which.
-- Next, without changing the model: read the battery voltage and current in log 30 during the dives (real power against the model's), and check whether the model's thrust at J above 0.7 is the only missing force by computing the force deficit along the path from the logged accelerations. Static thrust and a weighed mass (step 4 measurements) would separate propulsion from drag.
+- The next check (below) found the cause: log 30 draws about twice the power of its sibling logs.
+
+**Row 13 force check (read only, 2026-10-16).** At matched states (the real speed, attitude and controls at 1.5, 2.5 and 3.5 s into a dive; the model run 0.3 s) the model's along-path
+acceleration agrees with the log within 1 N (7.5 kg) in every log but one: 151 (-0.5 N), 158 log 15 (-0.8), 158 log 25 (+1.1), "160" log 11 (-0.8). Log 30 (158, 2025-09-27) has a real
+excess of 14 N (real 7.2 m/s2, model 5.6 at 47 m/s). Its battery power at logged throttle 1.0 was 1850 W (73 A) against 941 W (38 A) in log 25 (same airframe, same monitor) and 1476 W (60 A) in "160" log 11.
+So the extra thrust in log 30 matches an extra power draw: a different battery, ESC or propeller state, or a current-sensor effect, not an aerodynamic fault of the model.
+Without log 30, row 13 is 19 of 27 dives inside (gain -2 %, peak +1 %; the 4 high-throttle dives are all inside). Output: `force_out.txt`.
+Consequence: do not fit thrust or drag to log 30. Row 13 stands as "fail" on the card's rule only because of that log. Ask the owner what changed on 158 for 2025-09-27 (battery, propeller, ESC settings).
 
 **Steps (the owner approved the bands on 2026-10-16).**
 3. Done above. Prepare and score. First fix, before any replay, the acceptance logs and their exclusion rules (candidates: one dive family kept untouched, e.g. `gdrive_20250927_00000030`; `peron_160_00000002` and `_00000006` after a check),
@@ -612,7 +619,7 @@ Output: `validation\2026-10-16-layer1\score_variants.txt`.
 1. Target: one fleet-median model with per-airframe spread (proposed), or airframe 158 alone (most data, 174 min)? Does "160" count?
 2. Step 5 starts with the high-throttle dive gap (row 13). May it test thrust and drag changes on a temporary copy of the model first (the model files stay untouched until you agree)? Do you accept that the cruise throttle offset is not applied to full-throttle dives?
 3. What were the steep dives for (target, mode, who flew)? Is a 50-70 m/s dive in scope for the HITL final approach?
-4. Are logs for 161-163 or 153/154/156 held elsewhere? None are on this PC.
+4. Are logs for 161-163 or 153/154/156 held elsewhere? None are on this PC. What changed on 158 for the flight of 2025-09-27 (battery, propeller, ESC)?
 5. Are you willing to supply the measurements of step 4 (weigh and balance, static thrust, elevon angle at five PWM values)?
 
 ## Owner answers (2026-10-15)
