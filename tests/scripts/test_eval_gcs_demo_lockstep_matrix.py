@@ -15,7 +15,7 @@ def _write_run(run_dir, *, digest=DIGEST, passed=True, wall_s=100.0, extra=b"x")
         "passed": passed, "errors": [] if passed else ["gate"], "approvals": [{}, {}, {}],
         "global_assignments": {"1": 1}, "vehicles": [vehicle]}), encoding="utf-8")
     (run_dir / matrix.JOURNAL_FILE).write_text(
-        json.dumps({"grid": {"drain_period_us": 20000}}) + "\n{}\n", encoding="utf-8")
+        json.dumps({"grid": {"drain_period_us": 40000}}) + "\n{}\n", encoding="utf-8")
     (run_dir / matrix.RUN_HOST_FILE).write_text(json.dumps({
         "wall_s": wall_s, "result": {"outcome": "ok", "terminal_tick": 4900,
                                      "final_tick": 4990, "parked_tick": 5000}}), encoding="utf-8")
@@ -27,22 +27,22 @@ def _matrix(tmp_path, **changes):
     for name in ("a", "b", "c"):
         _write_run(tmp_path / name, **changes.get(name, {}))
         runs[name] = matrix.read_run(tmp_path / name, 0)
-        inventories[name] = matrix.without_host_only(matrix._inventory(tmp_path / name))
+        inventories[name] = matrix.inventory(tmp_path / name)
     return runs, inventories
 
 
 def test_equal_passing_runs_pass_and_cost_uses_the_journal_tick(tmp_path):
     runs, inventories = _matrix(tmp_path)
     assert matrix.verdict(runs, inventories) == []
-    # 5000 ticks of 20 ms = 100 sim s in 100 wall s.
+    # 5000 ticks of the journal's 40 ms = 200 sim s in 100 wall s.
     assert runs["a"]["cost"] == {"ticks": 5000, "wall_s": 100.0, "wall_ms_per_tick": 20.0,
-                                 "sim_over_wall": 1.0}
+                                 "sim_over_wall": 2.0}
 
 
 def test_host_only_files_are_not_compared(tmp_path):
     runs, inventories = _matrix(tmp_path)
     (tmp_path / "b" / "x_host.log").write_text("pid 1", encoding="utf-8")
-    inventories["b"] = matrix.without_host_only(matrix._inventory(tmp_path / "b"))
+    inventories["b"] = matrix.inventory(tmp_path / "b")
     assert matrix.verdict(runs, inventories) == []
 
 
@@ -50,6 +50,14 @@ def test_a_different_digest_fails(tmp_path):
     runs, inventories = _matrix(tmp_path, c={"digest": "e" * 64})
     assert any("journal digests differ" in error for error in matrix.verdict(runs, inventories))
 
+
+
+def test_runs_that_all_lack_a_digest_fail(tmp_path):
+    runs, inventories = _matrix(tmp_path)
+    for name in runs:
+        runs[name].pop("digest")
+    assert any("journal digests differ or are missing" in error
+               for error in matrix.verdict(runs, inventories))
 
 def test_a_failed_report_fails(tmp_path):
     runs, inventories = _matrix(tmp_path, b={"passed": False})

@@ -82,6 +82,11 @@ def read_run(run_dir: Path, exit_code: int) -> dict[str, Any]:
     return record
 
 
+def inventory(run_dir: Path) -> dict[str, str]:
+    """The run's compared files (``*_host*`` and BIN excluded) and their sha256."""
+    return without_host_only(_inventory(run_dir))
+
+
 def verdict(runs: dict[str, dict[str, Any]],
             inventories: dict[str, dict[str, str]]) -> list[str]:
     """Every reason the matrix fails; empty when it passes."""
@@ -95,7 +100,7 @@ def verdict(runs: dict[str, dict[str, Any]],
             errors.append(f"{name}: report not passed: {run['report']['errors']}")
     digests = {run.get("digest") for run in runs.values()}
     if len(digests) != 1 or None in digests:
-        errors.append(f"journal digests differ: { {n: r.get('digest') for n, r in runs.items()} }")
+        errors.append(f"journal digests differ or are missing: { {n: r.get('digest') for n, r in runs.items()} }")
     names = list(inventories)
     reference = names[0] if names else None
     for name in names[1:]:
@@ -142,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         runs[cell.name] = read_run(base / cell.name, run_cell(cell, base))
         runs[cell.name]["cell"] = {"host_delay_seed": cell.host_delay_seed, "cpu_load": cell.cpu_load}
         if (base / cell.name).is_dir():
-            inventories[cell.name] = without_host_only(_inventory(base / cell.name))
+            inventories[cell.name] = inventory(base / cell.name)
         print(f"  exit {runs[cell.name]['exit_code']}, digest {runs[cell.name].get('digest')}, "
               f"cost {runs[cell.name].get('cost')}", flush=True)
     errors = verdict(runs, inventories)
