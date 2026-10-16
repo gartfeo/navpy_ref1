@@ -581,6 +581,24 @@ What the scores say:
 - The pull-out height depends on the combined trim correction (corrected 16 of 37 inside, raw 3, one offset alone 3-5), so it measures rigging offsets as much as the model; treat it as soft.
 - Not verified here: rows 1-6 on logs the fit did not see (only `peron_157_20241005_00000100`, already used once), gusts, and the replay machinery beyond speed summaries (the 151 dive speeds agree to -4 % gain and -5 % peak; mapping, timing and full histories are not independently checked).
 
+**Step 5, first part: row 13 on temporary model copies (2026-10-16, owner approved the test).** The cruise throttle offset is no longer applied to dives (owner: "Cruise throttle offset is not applied
+to full-throttle dives"); the elevator offset still is. Same 37 dives. The `Peron15_hitl4` folder is unchanged (sha256 c7f6cea3...); each variant is a temporary copy.
+Output: `validation\2026-10-16-layer1\score_variants.txt`.
+
+| Variant (temporary copy) | Dives with gain and peak both inside | Gain, median, by logged throttle: < 0.5 / 0.5-0.85 / >= 0.85 |
+|---|---|---|
+| none (hitl4, elevator offset only) | 22 of 37 | -1 % / 0 % / -16 % |
+| propeller thrust coefficient x1.25 | 22 | -1 % / +4 % / -13 % |
+| thrust curve stretched in advance ratio x1.12 | 18 | +4 % / +7 % / -9 % |
+| x1.18 | 17 | +9 % / +10 % / -5 % |
+| x1.25 | 14 | +13 % / +13 % / -2 % |
+| drag coefficient x0.85 at -4 to 7 deg alpha | 19 | +3 % / +4 % / -13 % |
+
+- No single thrust or drag change beats the unchanged model overall: every change that closes the high-throttle gap opens a gap at low and middle throttle. So these two terms are not the whole answer.
+- The high-throttle gap is concentrated in one log: gain error -25 % median on `gdrive_20250927_00000030` (10 dives, speeds up to 68 m/s, the fastest in the set), -10 % on `gdrive_20250816_00000025` (3), -4 % on `peron_160_00000011` (1).
+  That looks like an airframe or flight condition (158 on 2025-09-27: battery, ESC, propeller, or the pitot above 60 m/s) more than a model-wide fault, but the data cannot tell which.
+- Next, without changing the model: read the battery voltage and current in log 30 during the dives (real power against the model's), and check whether the model's thrust at J above 0.7 is the only missing force by computing the force deficit along the path from the logged accelerations. Static thrust and a weighed mass (step 4 measurements) would separate propulsion from drag.
+
 **Steps (the owner approved the bands on 2026-10-16).**
 3. Done above. Prepare and score. First fix, before any replay, the acceptance logs and their exclusion rules (candidates: one dive family kept untouched, e.g. `gdrive_20250927_00000030`; `peron_160_00000002` and `_00000006` after a check),
    and use a different dive family (151) for the machinery check. Check the bridge and replay: signs, scaling, timing, limits, units, elevon and throttle mapping, start state, wind. Then score `Peron15_hitl4` on the card with one script and write the result next to the card. No model change in this step.
