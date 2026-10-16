@@ -488,8 +488,8 @@ the SYSID alone does not name an airframe. Owner: the `peron_160_*` logs probabl
 - Board A (IDs 2688010): SYSID 149, 151, 155, and the two 158 logs of 2024-11-02 (`peron_158_20241102_*`). Those two flew on the 151 board and share its accelerometer offset (0.41) and AHRS trim (0.042).
 - Board B (IDs 2819082): SYSID 152 (2023-12, 2024-08), SYSID 157 (2024), and all seven `peron_160_*` logs (2025, SYSID 157). Their AHRS pitch trims (0.03-0.11) are alike.
 - Board C (IDs 3866906, Pixhawk 6X): SYSID 158 from 2025-01 to 2026-01 only.
-- By how the aircraft behaved (level throttle against the model at 24 m/s, replay report): 151, 152, 157 and 158 (2024) agree within +-0.02; 158 (2025-26) needs 0.06 more throttle; the
-  `peron_160_*` logs need 0.04 more up to log 22 and 0.16 less from log 29 on. So "alike" means 151, 152, 157, 158 (2024) and the early `peron_160_*` logs; two groups differ in power: 158 (2025-26) and the late `peron_160_*` logs.
+- By how the aircraft behaved (level throttle against the model at 24 m/s, per-log offsets from the replay): 151, 152, 157 and 158 (2024) agree within +-0.03; 158 (2025-26) needs 0.03-0.11 more
+  throttle (median +0.06); the `peron_160_*` logs go from +0.04 (log 11) to -0.04 (logs 18-22) to -0.17 (logs 29-35). So 151, 152, 157 and 158 (2024) are alike; 158 (2025-26) and the `peron_160_*` logs are not, and not like each other.
 - In this section "160" is only the name of the seven `peron_160_*` logs as their own group (same board and SYSID as 157, airframe unconfirmed).
 
 | (a) roll and pitch response | all flying logs; 25 Hz ATT and rate-controller rates | 241 roll and 83 pitch windows (peak rate > 30 and > 12 deg/s). Stick and mode unknown, no clean doublets. |
