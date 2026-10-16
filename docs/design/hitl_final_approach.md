@@ -456,11 +456,11 @@ Four layers, in the owner's order (2026-10-16). Each has its own plan; do not mi
 | H3 | Real board (COM15 via the router, COM11 bridge; Mission Planner must not hold COM15), 1 then 10 | As H2, results beside H2 |
 | H4 | Later: auto-zoom (owner: after HITL), real ZR10 K by reading after a per-reading calibration, GCS approval, moving dock, 18x fixed-camera runs | Separate designs |
 
-## 10. Layer 1: the simulated Peron flies like the real flights (draft v2, 2026-10-16)
+## 10. Layer 1: the simulated Peron flies like the real flights (v3, 2026-10-16)
 **Goal.** Fewer real re-flights: a flight in the bridge model looks like a real flight of the same kind. The reference
 is the real logs. Launch and catapult are low priority. Flight tuning (`flight_tuning.md`) is a separate, parked feature.
 **Evidence level of everything below:** logs and an offline replay of the model (JSBSim `Peron15_hitl4`, open loop).
-No closed-loop board run against a real log exists yet, and nothing here is scored yet. The bands are proposals.
+No closed-loop board run against a real log exists yet. The bands were approved by the owner on 2026-10-16 and `Peron15_hitl4` is scored below.
 
 **Step 1: inventory (read only).** Facts on disk (2026-10-16), not names from memory:
 - 31 flight-log files in `Downloads\Logs`. Airframe = SYSID in the log. Dates are GPS time from the log.
@@ -501,7 +501,7 @@ Limits: these speeds are 50-70 m/s, far above the 17-34 m/s the model was replay
 minus EKF wind within 6 % in the dives (for example 70.3 against 68.1 m/s), but the EKF wind is partly fitted to the pitot, so this is a consistency check, not an
 independent calibration. The airspeed scale of a flight is 0.92-1.06.
 
-**Step 2: scorecard (proposed; the owner approves it before any scoring).**
+**Step 2: scorecard (approved 2026-10-16).**
 How the bands are built:
 - Ratios are model / real from the open-loop replay (corrected mode, one value per airframe group: 151, 152, 157, 158 with all its dates, "160").
   With one fixed model, the spread of these ratios between airframes is the best available picture of how much real aircraft differ
@@ -511,7 +511,7 @@ How the bands are built:
 - "Reference" shows the old `Peron15_hitl3 -> hitl4` numbers from the validation reports (`compare.txt`), for context only. It is not a score.
 - Rows with small samples are marked provisional; step 3 recomputes every spread with a bootstrap interval before the bands are fixed.
 
-| # | Item | Measure | Real spread (the basis) | Proposed band | Reference |
+| # | Item | Measure | Real spread (the basis) | Band | Reference |
 |---|---|---|---|---|---|
 | 1 | Roll-rate gain | airframe medians | old-model ratios by airframe 0.69-0.83 (range 0.14); IQR inside 158: 0.70-0.91 | fleet median 0.95-1.05; each airframe 0.85-1.15 | 0.69-0.83 -> 0.85-1.03 |
 | 2 | Roll lag | model - real | airframe medians -50..0 ms; 25 Hz = 40 ms steps | each airframe within +-40 ms; fleet median within +-30 ms; step 3 first measures the lag uncertainty | -50..0 -> -15..+33 ms |
@@ -541,18 +541,58 @@ Notes on the bands:
 - Known open gaps the card should show, not hide: row 10 (model needs more throttle in a turn), the model's pitch-up above 30 m/s, and everything
   above 40 m/s (never validated). Launch, catapult and the < 17 m/s region stay out of scope.
 
-**Steps after the owner approves the bands.**
-3. Prepare and score. First fix, before any replay, the acceptance logs and their exclusion rules (candidates: one dive family kept untouched, e.g. `gdrive_20250927_00000030`; `peron_160_00000002` and `_00000006` after a check),
+**Step 3 result: `Peron15_hitl4` scored on the card (2026-10-16).** The owner approved the bands as proposed ("Bands approved"). No model file was changed.
+Scripts and outputs: `%LOCALAPPDATA%\navpy-hitl-tools\validation\2026-10-16-layer1\` (outside the repo). Evidence level: logs and offline open-loop replay; descriptive, not independent validation.
+- Rows 1-12 reuse the existing hitl4 replay windows. Those windows were also used to fit hitl4 (roll +25 %, 35 ms delay, pitch +15 %), so rows 1-6 are in-sample.
+- Rows 13-15 are new: 37 real dives replayed from the logged state with the logged elevon and throttle (the crash-like dive is left out). "Corrected" means the log's own
+  steady-flight trim offsets (elevator, aileron, throttle, AoA; fitted at 20-28 m/s on that same log) are removed, as in the other rows.
+- No aggregation rule was set in the card for rows 5-16, so each verdict gives the median and how many windows or dives are inside the band. "Mixed" means the median is inside and many are not.
+- Acceptance logs: `gdrive_20250927_00000030` is not untouched: its roll and pitch windows were in the hitl4 fit, and its dives are now scored. It stays a known-failing family; final
+  acceptance needs logs that no fit and no scoring has used (`peron_160_00000002` and `_00000006`, never extracted, and flights still to come).
+- Bootstrap intervals are 95 % over windows inside each airframe group (151, 152, 157, 158 all dates, "160"). Windows of one log are not independent.
+
+| # | Result | Verdict |
+|---|---|---|
+| 1 Roll gain | fleet median 0.97 (CI 0.96-1.04); groups 0.88 (157) to 1.03 (160) | pass (in-sample) |
+| 2 Roll lag | fleet median 0 ms (CI -5..+3); groups -15 (152) to +30 ms (157) | pass (in-sample) |
+| 3 Pitch gain | fleet median 0.94 (CI 0.91-0.99); groups 0.86 (152, 3 windows) to 1.00 | fail, narrowly (band 0.95-1.05) |
+| 4 Pitch lag | fleet median -15 ms (CI -20..-5); groups -25 to +25 ms | pass (in-sample) |
+| 5 Shape | roll RMS 21-31 deg/s, correlation 0.89-0.96; pitch RMS 5.5-25 deg/s, correlation 0.85-0.97 | report only (no earlier model to compare in this run) |
+| 6 Elevator per g | median 1.11 (CI 0.95-1.20, n 25 pairs); 158 alone 1.31 (n 13), 160 0.95 (n 11) | pooled median inside the band; CI crosses the edge and 158 is outside: weak pass |
+| 7 Level trim offset | fleet median (157, 158, 160) throttle +0.012; elevator -22 us (band +-20); 151 and 152 have under 3 bins | throttle pass; elevator fail, narrowly |
+| 8 Trim attitude | real - model -2.0 to -2.9 deg on every group | report only (model flies 2-3 deg nose-higher) |
+| 9 Trim slope | model slopes inside both ranges on all 4 sessions; on "160" the model throttle slope is 0.024 against 0.010 real | pass (the band is wide) |
+| 10 Throttle in a turn | model - real median +0.040 (n 9; real median +0.006, model +0.051); acceleration in the pairs not checked | **fail** (band +-0.03) |
+| 11 Throttle-step speed | median error +0.1 m/s, but only 51 % of 81 windows within +-2 m/s; 151: +8.2 m/s (7 windows), 152: +11.5 (1 window) | mixed; 151 fails |
+| 12 Steady cruise and turn | EAS median -0.2 m/s, 89 % of 36 windows within +-1.5; height median -0.3 m, 78 % within +-8 m; 151 height -9 m (4 windows); none for 157 | mixed to pass |
+| 13 Dive speed | **Corrected (card convention): 12 of 37 dives have gain (+-15 %) and peak (+-8 %) both inside; median gain -16 %, peak -7 %.** By logged throttle: below 0.5, 10 of 13 inside (gain -4 %); 0.5-0.85, 2 of 10; 0.85 and up, 0 of 14 (gain -31 %, peak -16 %). With the elevator offset only: 22 of 37 inside (gain -6 %, peak -3 %); 7 of 14 at throttle 0.85 and up (gain -16 %) | **fail as scored**; the throttle offset explains about half of the gap, the rest is unresolved |
+| 14 Time history | only endpoints measured: pitch at the dive end model - real +6.7 deg median (absolute 11.6); dive height loss model/real 0.86 | not fully measured |
+| 15 Pull-out | peak rate: 27 of 37 within +-20 % (median +1 %); height: 16 of 37 within 25 % or 5 m (raw 3, elevator offset only 5, throttle offset only 3) | mixed; height fails |
+| 16 Wind input | the bridge applies one constant horizontal wind (`--wind-speed-m-s`, `--wind-from-deg`) 5 s after boot; the 3 existing wind tests pass (direction convention, plant velocity); not run at 12 m/s; no gust or turbulence exists | steady wind: partly checked; gust: not available |
+
+What the scores say:
+- The gap that matters for the final approach is row 13, high-throttle dives. The model is slow there: log 30 (throttle 0.92-0.97) gains 20 m/s in 5 s where the aircraft gains 30,
+  and peaks at 51-56 m/s where the aircraft reaches 58-68. At throttle 0.1 the model matches (151: gain -4 %, peak -5 %).
+- What drives it is only partly known. Evidence for throttle: within the same pitch band, dives below 0.5 applied throttle have gain -4 % (steep, n 10) and +17 % (shallow, n 3), dives at 0.85 and
+  up have -33 % (n 7) and -29 % (n 5). Against a clean conclusion: the high-throttle dives come from few logs (25, 30, "160" 11), and the correction itself matters:
+  the throttle offset of the log (+0.07 to +0.08 on logs 16 and 25, -0.17 on "160" log 30) was measured at 20-28 m/s and should not carry to full throttle. Dropping it improves 12 to 22 of 37.
+  So the cause is open: throttle offset convention, thrust or drag at 40-70 m/s, or both. Step 5 has to separate them (see steps).
+- Row 10 (the model needs more throttle in a turn) and row 11 for 151 are the next gaps. The roll and pitch response (rows 1-4) is at the bands, but in-sample.
+- The pull-out height depends on the combined trim correction (corrected 16 of 37 inside, raw 3, one offset alone 3-5), so it measures rigging offsets as much as the model; treat it as soft.
+- Not verified here: rows 1-6 on logs the fit did not see (only `peron_157_20241005_00000100`, already used once), gusts, and the replay machinery beyond speed summaries (the 151 dive speeds agree to -4 % gain and -5 % peak; mapping, timing and full histories are not independently checked).
+
+**Steps (the owner approved the bands on 2026-10-16).**
+3. Done above. Prepare and score. First fix, before any replay, the acceptance logs and their exclusion rules (candidates: one dive family kept untouched, e.g. `gdrive_20250927_00000030`; `peron_160_00000002` and `_00000006` after a check),
    and use a different dive family (151) for the machinery check. Check the bridge and replay: signs, scaling, timing, limits, units, elevon and throttle mapping, start state, wind. Then score `Peron15_hitl4` on the card with one script and write the result next to the card. No model change in this step.
    Also list which unknowns move the failing rows (mass, CG, elevon angle against PWM, static thrust, servo speed under load, `validation/2026-10-13/REPORT.md` section 5).
 4. Ask the owner for the measurements that those rows depend on (at least mass and CG, static thrust) before fitting, so a wrong parameter cannot hide behind a passing row.
-5. Close the biggest failing rows one change at a time, each checked on the whole card (the roll change of hitl4 raised the elevator-per-g ratio from 0.96 to 1.11).
+5. Close the biggest failing rows one change at a time, starting with row 13: first decide the throttle-offset convention at high throttle, then test a thrust-only and a drag-only change on a temporary copy of the model, each checked on the whole card (the roll change of hitl4 raised the elevator-per-g ratio from 0.96 to 1.11).
 6. Closed loop, in stages: cruise, then a shallow dive, then a steep dive, each with a stated stop rule (the bridge checks are already done in step 3). Fly the board and
    bridge through the legs of a real log and compare. This is the first test of the autopilot loop with the model and is needed before the final approach is called ready.
 
 **Owner decisions needed.**
 1. Target: one fleet-median model with per-airframe spread (proposed), or airframe 158 alone (most data, 174 min)? Does "160" count?
-2. Approve or change the bands, especially roll/pitch gain +-0.15 (fleet +-0.05), dive gain +-15 %, pull-out +-25 %.
+2. Step 5 starts with the high-throttle dive gap (row 13). May it test thrust and drag changes on a temporary copy of the model first (the model files stay untouched until you agree)? Do you accept that the cruise throttle offset is not applied to full-throttle dives?
 3. What were the steep dives for (target, mode, who flew)? Is a 50-70 m/s dive in scope for the HITL final approach?
 4. Are logs for 161-163 or 153/154/156 held elsewhere? None are on this PC.
 5. Are you willing to supply the measurements of step 4 (weigh and balance, static thrust, elevon angle at five PWM values)?
