@@ -23,7 +23,6 @@ from navpy.core.swarm.peer_poi_dispatch import (
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.swarm.task_actor import TaskActor
-from navpy.core.swarm.task_ports import MessageClockReset
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detector_ports import SimulationControlPort
 from navpy.core.ports.detect_data import DetectedObject
@@ -58,12 +57,7 @@ class NavNetworkRuntime:
         self._disconnect()
         if network is None:
             return
-        actor = TaskActor(
-            self._vehicle,
-            network,
-            self._logger,
-            clock_reset=MessageClockReset.from_network(network),
-        )
+        actor = TaskActor(self._vehicle, network, self._logger)
         override_listener = ConfirmOverrideListener(
             self._vehicle.source_system,
             self._overrides.request,
