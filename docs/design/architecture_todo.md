@@ -63,7 +63,7 @@ return to them later. Paths are under `src/navpy/` (step-1 layout) unless noted.
     - The harness exports `NAVPY_NAVIGATION_MODE`, `_START_US` and `_COUNT`, and its peer listens on `navpy-navigation.sock` (`scripts/simtime_step_artifacts.py:52-58`).
     - The firmware reads `NAVPY_GUIDANCE_*` and connects to `navpy-guidance.sock` (`ArduPlane/NavPyGuidanceStep.cpp:88-104,126` in `/home/gart/navpy-simtime-step-handshake`).
     - Rebuild the firmware with the new names, or switch the harness back.
-21. **Done 2026-10-13 (step 2).** **`scripts/eval_simtime_navigation.py` fails when run directly** ("No module named 'scripts'", from `scripts/eval_navigation_vehicle_config.py:12`) unless `PYTHONPATH` includes the repo root.
+21. **Done 2026-10-13 (step 2); rechecked with 20 in step 11 (2026-10-16, `.logs/s11`).** **`scripts/eval_simtime_navigation.py` fails when run directly** ("No module named 'scripts'", from `scripts/eval_navigation_vehicle_config.py:12`) unless `PYTHONPATH` includes the repo root.
 22. **The navigation eval misses its 0.5 m SNAP gate at speedup 10** (`scripts/eval_navigation_cases.py`). Lateral misses are 1.3-4.3 m, on `2c887d9` and `cc430e8` alike. Investigate, or set the gate from a measured baseline.
 23. **4 `test_board_detector` tests fail** (IndexError at `tools/cam/calibration/board_detector.py:34`), since `9db0a26`.
 24. **`tools/cam/calibration/camer_calibration3.py:39` `_collect_detections` has no annotations.** The SOLID re-pin to `e9b1591` stopped reporting it.
