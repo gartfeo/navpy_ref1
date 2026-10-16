@@ -609,3 +609,18 @@
   delete `dist/` after a build.
 - One-way message timestamps cannot separate clock offset from queue delay. An offset
   averaged from heartbeats absorbs reader backlog, so stale messages pass TTL.
+
+## Delivery e2b slice (2026-10-16)
+
+- **A Python heredoc turned `\b` in a regex into a backspace.** I wrote
+  `rf"\bCONFIRMING"` through a Bash heredoc into Python source and got
+  a 0x08 byte; the gate then never matched. Make regex edits with the Edit
+  tool, and grep the file for control bytes after any scripted edit.
+- **Read the done criterion's own words before choosing a gate window.** I
+  opened the approval window at `CONFIRMING`; the criterion said "during
+  that approval orbit", and NavPy offers a second dock about 120 ms before
+  `CONFIRMING`, in the same orbit. Changing a gate after a run is a goalpost
+  risk: write down why, keep the run-time report, and get it reviewed.
+- **A swarm offer carries no obj_id on the wire.** To prove which world dock
+  was offered, log the link at the first registration
+  (`Task offered: ... obj_id=`), not a position match.

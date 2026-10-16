@@ -274,6 +274,47 @@ class TaskActorTest(unittest.TestCase):
             [101, 202],
         )
 
+    def _offered_poi(self, obj_id, task_id, location):
+        poi = make_detected_poi(
+            obj_id=obj_id,
+            task_id=task_id,
+            x_error=0.0,
+            y_error=0.0,
+            reference_height_m=1.0,
+            k=1.0,
+            g_data=Mock(spec=GimbalData),
+            uas_att=Mock(spec=Attitude),
+            t_g_loc_debug=location,
+        )
+        poi.set_p_t_g_loc(poi.geo.truth_poi_location)
+        return poi
+
+    def test_first_offer_logs_task_obj_location_and_send_result(self):
+        """The first offer names its task, detection obj_id and location (e2b evidence)."""
+        poi = self._offered_poi(1, 101, Location(12.34, 56.78, 90.0))
+
+        self.task_actor.notify_pois([poi])
+        self.task_actor.notify_pois([poi])
+
+        offers = [
+            c.args[0] for c in self.logger.info.call_args_list
+            if str(c.args[0]).startswith("Task offered:")
+        ]
+        self.assertEqual(
+            offers,
+            ["Task offered: task_id=101 obj_id=1 at (12.3400000, 56.7800000) sent=True"],
+        )
+
+    def test_offer_log_reports_a_failed_send(self):
+        self.network.broadcast.side_effect = OSError("link down")
+        poi = self._offered_poi(2, 202, Location(23.45, 67.89, 100.0))
+
+        self.task_actor.notify_pois([poi])
+
+        self.logger.info.assert_any_call(
+            "Task offered: task_id=202 obj_id=2 at (23.4500000, 67.8900000) sent=False"
+        )
+
     def test_on_message_with_wrong_receiver(self):
         # Arrange
         msg = CheckInMsg(sender_id=2)

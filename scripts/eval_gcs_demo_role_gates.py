@@ -48,6 +48,7 @@ PEER_ASSIGNMENT_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("offer re-advertised", re.compile(r"\bTask \d+ re-advertised by owner \d+")),
     ("advert while busy", re.compile(r"\bBusy \(holding a task or flying a final approach\); not bidding")),
     ("advert without location", re.compile(r"\bLocation not set\. Cannot send available message")),
+    ("first task offer", re.compile(r"\bTask offered: task_id=\d+")),  # task_rebroadcast.py
     ("advert with no task", re.compile(r"\bNo tasks can handle\b")),
     ("assignment not applied", re.compile(r"\bTask \d+ from owner \d+ not applied within")),  # task_assign_reply.py
     ("peer approach", re.compile(re.escape(_PEER_APPROACH))),  # peer_approach_start.py

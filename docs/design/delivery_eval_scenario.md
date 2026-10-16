@@ -208,6 +208,39 @@ Not in this plan: a lockstep version of this scenario (after step 11, if the own
 
 e5 builds both, each with a mechanism test.
 
+**e2b as built (2026-10-16, sim only).**
+- `scripts/eval_delivery_slice.py` flies the offerer's zone alone. It uses the wall eval's launch path: the isolated
+  launcher, mission upload with readback, and `targ_wps=0`. It writes the fixture's `docks` block as the run's
+  `NAVPY_SIM_DOCKS` file and never approves. Before launch it checks that the fixture's `runtime` block equals the
+  applied settings.
+- The offer message carries no obj_id, so the first offer of a task now logs
+  `Task offered: task_id=<t> obj_id=<o> at (<lat>, <lon>) sent=<result>` (`task_rebroadcast.py`). This is log text
+  only. A detection's world id is `docks[obj_id]`.
+- `scripts/eval_delivery_slice_gates.py` checks the full log after the stack stops. It passes when:
+  - the first selection is d1, with its self-detect orbit directly before it;
+  - `CONFIRMING` follows inside that orbit;
+  - d2's first offer is sent inside that orbit, which runs from the d1 selection to the first answer, abort, new
+    orbit or new selection, so before or after `CONFIRMING`;
+  - nothing answers: no approval and no assignment traffic.
+- Codex reviewed the design ("ship with changes", 6 points), and all were applied: the obj_id link in place of a
+  position match, first offer vs. rebroadcast, orbit evidence, fixture runtime check, full-log "unanswered", and other
+  offers kept as diagnostics.
+- Run `e2b-1` (`.logs/e2b-1`):
+  - d1 selected (obj_id 0) at 17:12:21.711, after its orbit command at .693;
+  - d2 offered (obj_id 1, at d2's file position, sent) at .833;
+  - `CONFIRMING` at .950, and the window ended at the 30 s confirm wait;
+  - no answer.
+- The gate first opened the window at `CONFIRMING`, so it failed this run by 117 ms (`slice_report.json`). The plan's
+  criterion is "during that approval orbit", and the geometry note expects the offer "as soon as it picks d1". So
+  the window now starts at the d1 selection, and the same log passes (`slice_report_regated.json`). Codex judged
+  this a correction, not a goalpost move.
+- Before the selection every frame holds one POI (`pois=1`): d1 (P0) just before it, and from 17:11:55, near launch,
+  another POI labelled P3 that was never selected or offered. Frames with two POIs (`pois=2`) run from 17:12:21.790 to
+  .865, inside the orbit. These are detection debug lines, not a per-frame identity check. The run does not show
+  whether d2 stays in view later in the orbit, and the offer is sent only once.
+- Codex's result review was "ship with changes" (bind the orbit to the selection, no offer before the selection, no
+  geometry overclaim). All three were applied, and the re-review said "ship".
+
 ## Risks
 - The winner flies past d1 on its way to d2 (150 m apart). Peer acquisition stays in DETECT, and `DetectAction` and
   `ConfirmationAction` still select and offer other docks there, so two things can go wrong: it may lock d1 instead
