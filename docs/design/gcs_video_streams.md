@@ -162,11 +162,17 @@ so these are our radio-link defaults, not protocol values:
   manual control, under the map buttons and confirmation cards, same docked and
   expanded sizes.
 - Rendered only when at least one vehicle has a stream. Its header shows a
-  `UavBadge` per vehicle with a stream; a click switches the feed. Default: the
-  followed vehicle if it has a stream, else the first one. A stream picker only
-  if that vehicle has more than one.
-- One feed at a time in v1 (one radio stream, small map cover). Side-by-side
-  tiles are a follow-up if wanted.
+  `UavBadge` per vehicle with a stream; a click switches the feed. A stream
+  picker only if that vehicle has more than one.
+- The panel follows the map's follow selector (top-right, "Free" or a UAV):
+  choosing a UAV that has video switches the feed to it; choosing Free or a UAV
+  without video keeps the current feed (never an empty box). A badge click
+  switches only the video, not the map camera. First feed: the followed UAV if
+  it has video, else the first UAV with video.
+- The RC button (top-left) is untouched. Manual control hides the panel, as
+  today (joysticks, flight-mode column and HUD own the screen).
+- One feed at a time (owner, 2026-10-16: the demo has one video). Tiles become
+  an option only once several streams play at the same time.
 - Connecting and stalled use the existing overlay, but only for a bounded time:
   no first frame within `VIDEO_FIRST_FRAME_DEADLINE_S` (default 10 s: ICE setup
   plus one keyframe interval, which the display stream keeps at 2 s or less), or
@@ -223,7 +229,9 @@ failure leaves video off and is logged; the rest of the stack still runs.
   outside `<path>/whep/` each end in error with no further fetch.
 - Frontend (vitest): no panel without streams; first-frame and stall deadlines
   (peer connected but no frames; frames then freeze) collapse to the header; badges only for vehicles with
-  streams; switching; default to followed vehicle; codec-not-supported and error
+  streams; switching; follow selector to a UAV with video switches the feed, to
+  Free or a UAV without video keeps it, a badge click leaves the map camera;
+  hidden in manual control; codec-not-supported and error
   collapse to the header; stream removal closes the feed. `npm test`,
   `npm run build`.
 - Live (`live-tester`): 3-UAV SITL with the test source, from two slots at once
@@ -238,9 +246,8 @@ failure leaves video off and is logged; the rest of the stack still runs.
 ## Open points for the owner
 
 1. Approve the approach: camera protocol discovery, browser WHEP straight to each
-   aircraft's MediaMTX, one feed at a time with a per-vehicle switch.
-2. One feed at a time (recommended for v1) or side-by-side tiles?
-3. Display codec: the Jetson publishes a software H.264 display stream
+   aircraft's MediaMTX, one feed at a time that follows the follow selector.
+2. Display codec: the Jetson publishes a software H.264 display stream
    (recommended; leaves the ZR10 and the vision input untouched, costs Jetson CPU
    that is measured first), or switch the ZR10 to H.264
    (changes the vision input, needs its own check).
