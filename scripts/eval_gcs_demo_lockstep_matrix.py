@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Any
@@ -64,7 +65,10 @@ def read_run(run_dir: Path, exit_code: int) -> dict[str, Any]:
     """One run's gate evidence; a missing file is recorded, not raised."""
     record: dict[str, Any] = {"exit_code": exit_code}
     try:
-        record["digest"] = (run_dir / DIGEST_FILE).read_text(encoding="utf-8").strip()
+        digest = (run_dir / DIGEST_FILE).read_text(encoding="utf-8").strip()
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError(f"{DIGEST_FILE} is not a sha256: {digest!r}")
+        record["digest"] = digest
         report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
         record["report"] = {
             "passed": report["passed"], "errors": report["errors"],

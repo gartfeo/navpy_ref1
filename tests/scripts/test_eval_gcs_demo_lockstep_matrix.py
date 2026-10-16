@@ -9,7 +9,7 @@ from scripts import eval_gcs_demo_lockstep_matrix as matrix
 DIGEST = "d" * 64
 
 
-def _write_run(run_dir, *, digest=DIGEST, passed=True, wall_s=100.0, extra=b"x"):
+def _write_run(run_dir, *, digest=DIGEST, passed=True, wall_s=100.0, parked_tick=5000, extra=b"x"):
     run_dir.mkdir()
     (run_dir / matrix.DIGEST_FILE).write_text(digest + "\n", encoding="utf-8")
     vehicle = {"sys_id": 1, "role": "owner", "passed": passed, "errors": [], "metrics": {}}
@@ -20,7 +20,7 @@ def _write_run(run_dir, *, digest=DIGEST, passed=True, wall_s=100.0, extra=b"x")
         json.dumps({"grid": {"drain_period_us": 40000}}) + "\n{}\n", encoding="utf-8")
     (run_dir / matrix.RUN_HOST_FILE).write_text(json.dumps({
         "wall_s": wall_s, "result": {"outcome": "ok", "terminal_tick": 4900,
-                                     "final_tick": 4990, "parked_tick": 5000}}), encoding="utf-8")
+                                     "final_tick": 4990, "parked_tick": parked_tick}}), encoding="utf-8")
     (run_dir / "artifact.csv").write_bytes(extra)
 
 
@@ -86,12 +86,25 @@ def test_missing_evidence_fails_without_raising(tmp_path):
     assert any("journal digests differ" in error for error in errors)
 
 
-def test_a_zero_tick_run_is_recorded_as_failed_evidence(tmp_path):
+def test_a_zero_wall_time_run_is_recorded_as_failed_evidence(tmp_path):
     _write_run(tmp_path / "a", wall_s=0.0)
     run = matrix.read_run(tmp_path / "a", 0)
     assert run["evidence_error"].startswith("ZeroDivisionError")
     assert matrix.verdict({"a": run}, {"a": matrix.inventory(tmp_path / "a")}) \
         == ["a: ZeroDivisionError: float division by zero"]
+
+
+def test_a_zero_tick_run_is_recorded_as_failed_evidence(tmp_path):
+    _write_run(tmp_path / "a", parked_tick=0)
+    assert matrix.read_run(tmp_path / "a", 0)["evidence_error"].startswith("ZeroDivisionError")
+
+
+def test_runs_whose_digest_files_are_all_blank_fail(tmp_path):
+    runs, inventories = _matrix(tmp_path, a={"digest": " "}, b={"digest": " "}, c={"digest": " "})
+    errors = matrix.verdict(runs, inventories)
+    assert all(f"{name}: ValueError: {matrix.DIGEST_FILE} is not a sha256: ''" in errors
+               for name in "abc")
+    assert any("journal digests differ or are missing" in error for error in errors)
 
 
 class _Burner:
