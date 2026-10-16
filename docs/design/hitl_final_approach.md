@@ -481,16 +481,17 @@ No closed-loop board run against a real log exists yet. The bands were approved 
 | "160" (file SYSID 157) | 7 / 7 | 2025-01 to 2025-09 | 117 | own AHRS trim and servo trims; identity unconfirmed; throttle -0.16 from log 29 |
 | 149 | 1 / 1 | 2023-05 | 10 | other model, not used |
 
-**Which airframes are alike (log fingerprints, 2026-10-16).** The accelerometer and gyro device IDs in the logs name the flight controller board, and a board can move between airframes, so
-the SYSID alone does not name an airframe (owner: the SYSID may not have been changed when a board moved).
-- Board A (IDs 2688010): SYSID 149, 151, 155, and the two 158 logs of 2024-11-02 (`peron_158_20241102_*`). Those two flew on the 151 board and share its accelerometer offset (0.41) and AHRS trim (0.042).
-- Board B (IDs 2819082): SYSID 152 (2023-12, 2024-08), SYSID 157 (2024), and all seven `peron_160_*` logs (2025, SYSID 157). Their AHRS pitch trims (0.03-0.11) are alike. The `peron_160_*` log
-  numbers (11-35) continue the 157 logs 2 and 6 of 2024; the "160" file name is an archive label, not an airframe.
-- Board C (IDs 3866906, Pixhawk 6X): SYSID 158 from 2025-01 to 2026-01 only.
-- Boards B and C flew at the same time on 2025-08-16 and 2025-09-27 (both at 22-34 m/s, about 100 m apart in height, at different positions; GPS time), so the `peron_160_*` logs are not airframe 158.
+**Which airframes are alike (log fingerprints, 2026-10-16, corrected the same day).** The accelerometer and gyro device IDs (INS_ACC2_ID, INS_GYR_ID) name the IMU hardware type,
+not one physical board: a scan of all 137 logs on disk finds type A (2688010) in SYSID 24, 41, 143, 146, 148, 149, 151, 155 and 158 and type B (2819082) in SYSID 11, 24, 142-145, 149, 151, 152, 157
+and 201, from 2021 on. The SYSID alone does not name an airframe either (owner: it may not have been changed when a board moved; the scan also shows SYSID 151 on type B in 2022 and on type A in 2023-24).
+- Type A: 149, 151, 155, and the two 158 logs of 2024-11-02 (`peron_158_20241102_*`). Those two share 151's accelerometer offset (0.41) and AHRS trim (0.042), so they probably flew on the 151 board.
+- Type B: 152 (2023-12, 2024-08), 157 (2024), and all seven `peron_160_*` logs (2025, SYSID 157). The `peron_160_*` log numbers (11-35) continue the 157 logs 2 and 6 of 2024, and the
+  `peron_160_*` folder also held byte copies of those two 157 logs, so they come from the same SD card as 157. The "160" file name is an archive label, not an airframe.
+- Type C (3866906, Pixhawk 6X): only SYSID 158 from 2025-01 to 2026-01.
+- The `peron_160_*` aircraft and 158 (type C) flew at the same time on 2025-08-16 and 2025-09-27 (both at 22-34 m/s, about 100 m apart in height, at different positions; GPS time), so the `peron_160_*` logs are not airframe 158.
 - By how the aircraft behaved (level throttle against the model at 24 m/s, per-log offsets from the replay): 151, 152, 157 and 158 (2024) agree within +-0.03; 158 (2025-26) needs 0.03-0.11 more
   throttle (median +0.06); the `peron_160_*` logs go from +0.04 (log 11) to -0.04 (logs 18-22) to -0.17 (logs 29-35). So 151, 152, 157 and 158 (2024) are alike; 158 (2025-26) and the `peron_160_*` logs are not, and not like each other.
-- Which airframe carried board B in 2025 is not proven by the logs (Codex agrees): 157 all along, or board B moved to another airframe with SYSID 157 kept. The throttle drift fits a propeller,
+- Which airframe flew the 157 SD card in 2025 is not proven by the logs (Codex agrees): 157 all along, or the card and board moved to another airframe with SYSID 157 kept. The throttle drift fits a propeller,
   motor or airframe change equally. A dated flight or maintenance record would settle it. In this section "160" is only the name of the seven `peron_160_*` logs as their own group.
 
 | Item that matters | Covered by | How much |
@@ -628,7 +629,7 @@ Consequence: do not fit thrust or drag to log 30. Row 13 stands as "fail" on the
    bridge through the legs of a real log and compare. This is the first test of the autopilot loop with the model and is needed before the final approach is called ready.
 
 **Owner decisions needed.**
-1. Target: **fleet median** with per-airframe spread (owner, 2026-10-16). Per-airframe propulsion profiles (propeller, motor) stay a later option, not part of the fleet model. The `peron_160_*` logs stay a group of their own: board B with SYSID 157, not 158, airframe not proven (see the fingerprint paragraph); a dated flight record would settle it.
+1. Target: **fleet median** with per-airframe spread (owner, 2026-10-16). Per-airframe propulsion profiles (propeller, motor) stay a later option, not part of the fleet model. The `peron_160_*` logs stay a group of their own: the 157 SD card in 2025, not 158, airframe not proven (see the fingerprint paragraph); a dated flight record would settle it.
 2. Step 5 starts with the high-throttle dive gap (row 13). May it test thrust and drag changes on a temporary copy of the model first (the model files stay untouched until you agree)? Do you accept that the cruise throttle offset is not applied to full-throttle dives?
 3. What were the steep dives for (target, mode, who flew)? Is a 50-70 m/s dive in scope for the HITL final approach?
 4. Are logs for 161-163 or 153/154/156 held elsewhere? None are on this PC. What changed on 158 for the flight of 2025-09-27 (battery, propeller, ESC)? Owner, 2026-10-16: not known; log 30 stays an unexplained outlier, but some airframes may fly an APC 14x8.5 Thin Electric propeller, or a different motor. A larger propeller at the same pitch would explain more thrust and more current at high speed; this is an unverified hypothesis (no propeller type is in the logs). Check: compare static thrust or rpm per airframe, and the model's propeller table against an APC 14x8.5 table.
