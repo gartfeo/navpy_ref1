@@ -13,8 +13,8 @@ from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 from scripts.eval_gcs_demo_stack_ops import configure_vehicle_params
-from scripts.lockstep_slice_actor import NAMED_PARAMETER_NAMES, named_parameter_snapshot
-from scripts.lockstep_wsl_sitl import DRAIN_PERIOD_US, MAX_FRAME_GAP_US
+from scripts.lockstep_fleet_actor import NAMED_PARAMETER_NAMES, named_parameter_snapshot
+from scripts.lockstep_wsl_sitl import BOOT_BUDGET_US, DRAIN_PERIOD_US, MAX_FRAME_GAP_US
 
 ROOT = Path(__file__).resolve().parents[2]
 SLICE_PATH = ROOT / "scripts" / "eval_lockstep_slice_scenario.json"
@@ -75,7 +75,8 @@ def test_the_manifest_takes_the_grid_and_the_slice_roles():
     plan = manifest(SLICE, OPTIONS)
     assert (plan.max_frame_gap_us, plan.drain_period_us) == (MAX_FRAME_GAP_US, DRAIN_PERIOD_US)
     assert plan.mission_budget_us == lockstep_eval.MISSION_BUDGET_S * 1_000_000
-    assert set(plan.roles) == {"backend", "navpy"} and plan.companion_roles == ("navpy",)
+    assert set(plan.roles) == {"backend", "navpy1"} and plan.companion_roles == ("navpy1",)
+    assert plan.boot_budget_us == BOOT_BUDGET_US  # a SITL that never quiets ends the run
 
 
 class _Api:
@@ -183,3 +184,60 @@ def test_a_failed_lockstep_report_names_no_host_path(tmp_path, monkeypatch):
     values = json.dumps(parsed)
     for host in (str(tmp_path), tmp_path.as_posix(), "elsewhere"):
         assert host not in values
+
+
+def test_the_slice_manifest_is_unchanged_by_the_fleet_wiring():
+    """10g-3: the manifest comes from the scenario's layout; for the slice it
+    is the 1-UAV manifest built from the slice actor's constants (digest kept)."""
+    from navpy.sim.lockstep.coordinator_types import Manifest
+    from scripts.lockstep_slice_actor import BACKEND, ROUTER, SITL_PORTS, slice_roles
+    from scripts.lockstep_slice_actor import SLICE as SLICE_LAYOUT
+    from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
+
+    assert manifest(SLICE, OPTIONS) == Manifest(
+        seed=OPTIONS.seed, epoch_us=lockstep_eval.EPOCH_US, max_frame_gap_us=MAX_FRAME_GAP_US,
+        drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(lockstep_eval.MISSION_BUDGET_S * 1_000_000),
+        roles=slice_roles(SLICE, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR),
+        sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),),
+        companion_roles=SLICE_LAYOUT.companion_roles, expected_fleet=SLICE_LAYOUT.expected_fleet,
+        boot_budget_us=BOOT_BUDGET_US)
+
+
+def test_the_certified_manifest_wires_three_uavs():
+    plan = manifest(CERTIFIED, OPTIONS)
+    assert set(plan.roles) == {"backend", "navpy1", "navpy2", "navpy3"}
+    assert plan.companion_roles == ("navpy1", "navpy2", "navpy3") and plan.expected_fleet == (1, 2, 3)
+    assert plan.sitl_ports == tuple((f"lockstep:serial0.{i}", f"sitl{i}.serial1") for i in (1, 2, 3))
+    assert plan.initial == (("backend", 4),) and plan.router == "lockstep:router"
+    assert set(plan.roles["backend"].config["companions"]) == {"1", "2", "3"}
+
+
+def test_each_profile_names_its_homes_and_lines_files():
+    from scripts.eval_gcs_demo_fleet_gates import navpy_lines_file
+    from scripts.eval_gcs_demo_slice_gates import NAVPY_LINES_FILE
+    from scripts.lockstep_topology import fleet_homes
+
+    slice_wiring = lockstep_eval.WIRING[SLICE.gate_profile]
+    certified = lockstep_eval.WIRING[CERTIFIED.gate_profile]
+    assert slice_wiring.homes(SLICE, lockstep_eval.fleet_layout(SLICE)) == (SLICE.home,)
+    assert slice_wiring.lines_file(1) == NAVPY_LINES_FILE
+    homes = certified.homes(CERTIFIED, lockstep_eval.fleet_layout(CERTIFIED))
+    assert homes == fleet_homes(CERTIFIED.home, 3) and len(set(homes)) == 3
+    assert [certified.lines_file(i) for i in (1, 2, 3)] == [navpy_lines_file(i) for i in (1, 2, 3)]
+
+
+@pytest.mark.parametrize("scenario", ["slice", "certified"])
+def test_write_lines_writes_each_navpys_lines_with_their_ticks(tmp_path, scenario):
+    import json
+
+    chosen = SLICE if scenario == "slice" else CERTIFIED
+    layout = lockstep_eval.fleet_layout(chosen)
+    journal = SimpleNamespace(
+        log_lines={i: [f"line {i}.a", f"line {i}.b"] for i in (*layout.sys_ids, layout.backend)},
+        log_ticks={i: [i, 10 + i] for i in (*layout.sys_ids, layout.backend)})
+    lockstep_eval.write_lines(tmp_path, chosen, SimpleNamespace(journal=journal))
+    name = lockstep_eval.WIRING[chosen.gate_profile].lines_file
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted(name(i) for i in layout.sys_ids)
+    for sys_id in layout.sys_ids:
+        rows = [json.loads(row) for row in (tmp_path / name(sys_id)).read_text(encoding="utf-8").splitlines()]
+        assert rows == [[sys_id, f"line {sys_id}.a"], [10 + sys_id, f"line {sys_id}.b"]]

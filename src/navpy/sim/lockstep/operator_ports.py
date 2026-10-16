@@ -18,8 +18,8 @@ and reaches the stack only through these:
 
 With the operator's ``evidence`` on, each receive's start and return ticks
 and each sleep's start and wake ticks are journaled too, and
-:func:`due_check_hook` journals the confirmation loop's due checks
-(``operator_journal``).
+:func:`polling_start_hook` and :func:`due_check_hook` journal the
+confirmation loop's start and due checks (``operator_journal``).
 
 The ``TailPort`` is :class:`~navpy.sim.lockstep.operator_tail.LockstepLogTail`.
 """
@@ -125,9 +125,9 @@ class LockstepEventStream:
         try:
             delivered_k, data = self.queue.get(timeout=timeout_s)
         except rt.Empty as error:
-            journal.receive(start, self._operator.tick, event=False)
+            journal.receive(start, self._operator.tick, False, self.subscription)
             raise TimeoutError(f"no event within {timeout_s} s") from error
-        journal.receive(start, self._operator.tick, event=True)
+        journal.receive(start, self._operator.tick, True, self.subscription)
         journal.receipt(self._operator.tick, self.subscription, delivered_k, data)
         return data
 
@@ -151,6 +151,16 @@ class BatonClock:
         self._operator.journal.sleep(start, self._operator.tick)
 
 
+def polling_start_hook(operator: OperatorBaton) -> Callable[[float], None]:
+    """The confirmation loop's ``on_polling_start``: journals the loop's
+    start tick and its deadline on the operator's journal."""
+
+    def record(deadline_s: float) -> None:
+        operator.journal.polling(operator.tick, deadline_s)
+
+    return record
+
+
 def due_check_hook(operator: OperatorBaton) -> Callable[[float, Iterable[Any]], None]:
     """The confirmation loop's ``on_due_check``: journals each pass's due check
     (its tick, ``now`` and the due requests' identities) on the operator's journal."""
@@ -162,4 +172,5 @@ def due_check_hook(operator: OperatorBaton) -> Callable[[float, Iterable[Any]], 
     return record
 
 
-__all__ = ["ApiError", "BatonClock", "LockstepApi", "LockstepEventStream", "due_check_hook"]
+__all__ = ["ApiError", "BatonClock", "LockstepApi", "LockstepEventStream", "due_check_hook",
+           "polling_start_hook"]

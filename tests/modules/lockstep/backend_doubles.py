@@ -8,7 +8,11 @@ strictly alternate, as ``lockstep_relay.py`` copies them.
 
 :func:`build` runs it under the 9d coordinator with the operator's script
 (default: the scripted API actor's setup calls,
-``scripts.lockstep_slice_actor.setup_script``).
+``scripts.lockstep_fleet_actor.setup_script`` for the slice).
+:func:`build_fleet` runs N of them on the router path, one reference
+autopilot per sysid, with the backend for every vehicle (10e); with
+``navpy``, the backend's launcher port spawns a real NavPy per sysid and the
+autopilots route between their ports, so peer NAVLINK crosses the router (10f).
 """
 
 from __future__ import annotations
@@ -27,19 +31,27 @@ from navpy.sim.lockstep.mavlink_wire import StreamDecoder
 from navpy.sim.lockstep.part_wire import Done, RequestId
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.step_wire import Frame, PortState, pack_frame, unpack_reply
+from scripts.eval_gcs_demo_config import build_settings
 from scripts.eval_gcs_demo_scenario import DemoScenario, load_scenario
 from scripts.lockstep_slice_actor import (
     BACKEND,
+    NAVPY_ROLE,
     ROUTER,
     SERIAL0,
     SITL_PORTS,
-    setup_script,
+    SLICE,
     slice_roles,
 )
+from scripts.eval_lockstep_fleet_backend import load_fleet_scenario
+from scripts.lockstep_fleet_actor import FleetLayout, fleet_roles, fleet_script, setup_script
+from scripts.lockstep_fleet_companions import companion_script
 from tests.modules.lockstep.coordinator_doubles import PYTHON_PATH, REPO, AllowAll, HostDelays
-from tests.modules.lockstep.lockstep_autopilot import ReferenceAutopilot
+from tests.modules.lockstep.lockstep_autopilot import ReferenceAutopilot, navpy_parameters
 
 SLICE_SCENARIO = REPO / "scripts" / "eval_lockstep_slice_scenario.json"
+#: A fleet run's mission sim budget: a backstop; the mission ends when the
+#: operator's script returns (``operator_returned``: no NavPy, no SNAP).
+FLEET_MISSION_BUDGET_US = 600_000_000
 #: The toy companion's readiness payload (what a configured restart validates).
 READY_PAYLOAD = {"mission_items": 6, "targ_wps": 4, "nav_last_wp": 5}
 BOUND_VALUES = {"PTCH_LIM_MIN_DEG": -25.0, "PTCH_LIM_MAX_DEG": 20.0, "AAS_DEL_THR": -1.0,
@@ -107,7 +119,7 @@ def manifest(scenario: DemoScenario, *, mission_budget_us: int = 0,
         seed=1, epoch_us=1_760_000_000_000_000, max_frame_gap_us=25_000, drain_period_us=20_000,
         mission_budget_us=mission_budget_us, roles=roles, sitl_ports=SITL_PORTS, router=ROUTER,
         initial=(("backend", BACKEND),),
-        companion_roles=("navpy",) if "navpy" in roles else (),
+        companion_roles=SLICE.companion_roles if NAVPY_ROLE in roles else (),
     )
 
 
@@ -150,7 +162,7 @@ def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
                     HostSidecar(run_dir / PROCESSES_HOST_FILE),
                     WallBudgets(register_s=120, done_s=120, exit_s=60))
     ids = RequestIds(0)
-    operator = OperatorBaton(ids, (script or setup_script)(scenario))
+    operator = OperatorBaton(ids, (script or (lambda s: setup_script(s, SLICE)))(scenario))
     coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir / "host",
                                       delay=delays)
     run = BackendRun(coordinator, sitl, operator)
@@ -165,5 +177,49 @@ def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
     return run
 
 
-__all__ = ["AutopilotSitl", "BOUND_VALUES", "BackendRun", "READY_PAYLOAD", "SLICE_SCENARIO", "build",
-           "manifest"]
+@dataclass
+class FleetRun:
+    coordinator: LockstepCoordinator
+    sitls: tuple[AutopilotSitl, ...]
+    operator: OperatorBaton
+
+    def run(self) -> RunResult:
+        return self.coordinator.run()
+
+
+def fleet_manifest(scenario: DemoScenario, layout: FleetLayout, *, navpy: bool = False) -> Manifest:
+    """The backend on the router device for every vehicle of ``layout``; with
+    ``navpy`` each NavPy role, the companions and the expected fleet."""
+    return Manifest(
+        seed=1, epoch_us=1_760_000_000_000_000, max_frame_gap_us=25_000, drain_period_us=20_000,
+        mission_budget_us=FLEET_MISSION_BUDGET_US,
+        roles=fleet_roles(build_settings(scenario), layout, navpy=navpy),
+        sitl_ports=layout.sitl_ports, router=layout.router, initial=(("backend", layout.backend),),
+        companion_roles=layout.companion_roles if navpy else (),
+        expected_fleet=layout.expected_fleet if navpy else (),
+    )
+
+
+def build_fleet(run_dir: Path, layout: FleetLayout, *, delay_seed: int = 0, script=None,
+                navpy: bool = False) -> FleetRun:
+    """``script(scenario, layout)`` makes the operator's script (default: 10e's
+    fleet actor; with ``navpy``, the fleet's companion script)."""
+    scenario, _pin = load_fleet_scenario()  # the pinned fixture, refused if it changed
+    plan = fleet_manifest(scenario, layout, navpy=navpy)
+    delays = HostDelays(delay_seed)
+    sitls = tuple(AutopilotSitl(ReferenceAutopilot(
+        parameters={**BOUND_VALUES, **(navpy_parameters(sys_id) if navpy else {})},
+        sys_id=sys_id, forward=navpy), delays=delays) for sys_id in layout.sys_ids)
+    script = script or (companion_script if navpy else fleet_script)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    roster = Roster(plan, LocalSpawner(run_dir / "host", PYTHON_PATH), AllowAll(),
+                    HostSidecar(run_dir / PROCESSES_HOST_FILE),
+                    WallBudgets(register_s=120, done_s=120, exit_s=60))
+    ids = RequestIds(0)
+    operator = OperatorBaton(ids, script(scenario, layout))
+    coordinator = LockstepCoordinator(plan, sitls, operator, roster, ids, run_dir / "host", delay=delays)
+    return FleetRun(coordinator, sitls, operator)
+
+
+__all__ = ["AutopilotSitl", "BOUND_VALUES", "BackendRun", "FleetRun", "READY_PAYLOAD",
+           "SLICE_SCENARIO", "build", "build_fleet", "fleet_manifest", "manifest"]

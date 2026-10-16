@@ -1,8 +1,24 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { analyzeArea } from '../utils/planner';
 import { convexHull } from '../utils/geo';
 import { buildDeliveryHubsFromDownload } from '../utils/deliveryHubAssignment';
+import { MAX_UAV_COUNT, ROUTE_OFFSET_MAX_M, ROUTE_OFFSET_MIN_M } from '../utils/planLimits';
+
+// Generator inputs, besides geometry, that shape the tracks: a plan file must
+// carry them to regenerate the same lines (and so keep its sim-dock waypoint
+// indices valid). null = auto. Present values must lie in the ranges the
+// planning sidebar offers, or the file is rejected before any state changes.
+const PLAN_SHAPE_FIELDS = {
+  route_offset_m: (v) => Number.isFinite(v) && v >= ROUTE_OFFSET_MIN_M && v <= ROUTE_OFFSET_MAX_M,
+  partition_angle_deg: (v) => Number.isFinite(v),
+  uav_count: (v) => Number.isInteger(v) && v >= 1 && v <= MAX_UAV_COUNT,
+};
+
+function hasInvalidPlanShape(raw) {
+  return Object.entries(PLAN_SHAPE_FIELDS).some(([key, isValid]) =>
+    raw[key] != null && !isValid(raw[key]));
+}
 
 /**
  * Save/load plan geometry to/from JSON files, and derive polygon from downloaded plan tracks.
@@ -12,8 +28,14 @@ export default function usePlanPersistence({
   launchPoint,
   corridorPoints,
   searchPattern,
+  uavCount,
+  partitionAngleDeg,
+  routeOffsetM,
   setPolygon,
   setSearchPattern,
+  setUavCount,
+  setPartitionAngleDeg,
+  setRouteOffsetM,
   setLaunchPoint,
   setCorridorPoints,
   setLaunchPoints,
@@ -24,7 +46,8 @@ export default function usePlanPersistence({
   setPlan,
   setCorridorPointsArr,
   drawing,
-  localAnalyze,
+  regenerateLoadedPlan,
+  resetZoneSelectionBaseline,
   undoRef,
   suppressRegenRef,
   deliveryHubAssignments,
@@ -51,6 +74,8 @@ export default function usePlanPersistence({
   settings,
   handleSaveSettings,
   plannerReady,
+  pendingPlanFile,
+  setPendingPlanFile,
 }) {
   const { t } = useTranslation();
 
@@ -62,6 +87,9 @@ export default function usePlanPersistence({
     const data = {
       polygon: polygon.map((p) => ({ lat: p.lat, lon: p.lon })),
       search_pattern: searchPattern,
+      uav_count: uavCount ?? null,
+      partition_angle_deg: partitionAngleDeg ?? null,
+      route_offset_m: routeOffsetM ?? null,
     };
     // Save per-set launch points and corridors
     const savedLps = setLaunchPoints.map((lp) => lp ? { lat: lp.lat, lon: lp.lon } : null);
@@ -99,7 +127,119 @@ export default function usePlanPersistence({
     a.download = 'plan.json';
     a.click();
     URL.revokeObjectURL(url);
-  }, [polygon, launchPoint, corridorPoints, searchPattern, setLaunchPoints, setCorridorPointsArr, deliveryHubAssignments, simDockWps, detectAfterWps, settings, fenceEnabled, fenceOffsetM, fenceTouched, fenceIntent, fenceCustomVertices, exclusionPolygons]);
+  }, [polygon, launchPoint, corridorPoints, searchPattern, uavCount, partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr, deliveryHubAssignments, simDockWps, detectAfterWps, settings, fenceEnabled, fenceOffsetM, fenceTouched, fenceIntent, fenceCustomVertices, exclusionPolygons]);
+
+  // Apply a validated plan file. It needs the planner configuration: the
+  // loaded area is analyzed (auto UAV count, set count) and its tracks
+  // regenerated from it.
+  const applyPlanFile = useCallback((raw) => {
+    try {
+      // A hand-edited fence ring / keep-outs belong to the plan they were
+      // shaped against — loading a plan replaces them with THAT plan's
+      // saved rings (or clears them when the file has none). Never keep a
+      // stale ring from the previous plan.
+      setFenceCustomVertices?.(
+        raw?.fence?.custom_vertices?.length >= 3
+          ? raw.fence.custom_vertices.map((p) => ({ lat: p.lat, lon: p.lon }))
+          : null,
+      );
+      setExclusionPolygons?.(
+        Array.isArray(raw?.exclusions)
+          ? raw.exclusions
+              .filter((r) => Array.isArray(r) && r.length >= 3)
+              .map((r) => r.map((p) => ({ lat: p.lat, lon: p.lon })))
+          : [],
+      );
+      // The file's area replaces the current one, even when it has none (a
+      // corridor): a kept area would be re-analyzed later and bring back the
+      // replaced plan's UAV count.
+      const poly = raw.polygon.length >= 3 ? raw.polygon : [];
+      const regenerates = poly.length >= 3 && raw.search_pattern !== 'corridor';
+      setPolygon(poly);
+      drawing.loadVertices(poly);
+      // Analyze the loaded area at the loaded spacing in this same update:
+      // the auto UAV count, and from it the set count that sizes the
+      // per-set launch points below, must come from THIS plan, not from
+      // the analysis of the plan being replaced. A plan without an area
+      // (a corridor with no polygon) has no analysis, so its auto count is
+      // the planner default — never the replaced area's requirement.
+      setAnalysis(poly.length >= 3
+        ? analyzeArea(poly.map((p) => ({ lat: p.lat, lon: p.lon })), undefined,
+          { trackSpacingOverrideM: raw.route_offset_m ?? null })
+        : null);
+      if (raw.search_pattern) setSearchPattern(raw.search_pattern);
+      // Older files carry no spacing / partition angle: load them as auto.
+      // Without a saved UAV count the session's current count stays.
+      setRouteOffsetM(raw.route_offset_m ?? null);
+      setPartitionAngleDeg(raw.partition_angle_deg ?? null);
+      if (Object.hasOwn(raw, 'uav_count')) setUavCount(raw.uav_count);
+      // Restore per-set state.
+      if (raw.set_launch_points?.length > 0) {
+        setSetLaunchPoints(raw.set_launch_points.map((lp) => lp ? { lat: lp.lat, lon: lp.lon } : null));
+      } else {
+        setSetLaunchPoints([null]);
+      }
+      if (raw.set_corridors?.length > 0) {
+        setSetCorridorPoints(raw.set_corridors.map((cp) => (cp || []).map((p) => ({ lat: p.lat, lon: p.lon }))));
+      } else {
+        setSetCorridorPoints([[]]);
+      }
+      setActiveSetIndex(0);
+      if (raw.default_delivery_hubs?.length > 0 && handleSaveSettings) {
+        handleSaveSettings({ default_delivery_hubs: raw.default_delivery_hubs });
+      }
+      if (raw.delivery_hub_assignments?.length > 0 && setDeliveryHubAssignments) {
+        setDeliveryHubAssignments(raw.delivery_hub_assignments);
+      }
+      // The waypoint selections describe the plan regenerated from this
+      // file, not the zones of the plan being replaced. Save omits empty
+      // maps, so an omitted map means "none" — never the previous plan's.
+      resetZoneSelectionBaseline?.();
+      setSimDockWps?.(raw.sim_dock_wps ?? {});
+      setDetectAfterWps?.(raw.detect_after_wps ?? {});
+      if (raw.fence && setFenceEnabled) {
+        // A saved fence block is an operator decision from that plan —
+        // load it as authored intent (including a legacy explicit off), so
+        // it is re-sent once and then consumed on acknowledgement.
+        if (authorFenceIntent) {
+          authorFenceIntent(!!raw.fence.enabled);
+        } else {
+          setFenceTouched?.(true);
+          setFenceEnabled(!!raw.fence.enabled);
+        }
+        if (raw.fence.offset_m != null && setFenceOffsetM) setFenceOffsetM(raw.fence.offset_m);
+      } else {
+        // No fence block: the loaded plan carries no fence decision. A
+        // request still pending belongs to the plan being replaced — keeping
+        // it would send the discarded plan's fence on the next upload — and
+        // the previous toggle state is not this plan's either.
+        clearFenceIntent?.();
+        setFenceEnabled?.(false);
+        setFenceTouched?.(false);
+      }
+      // This is a replacement plan: the previous plan's vehicle fence
+      // observations no longer describe it.
+      resetFenceObservations?.();
+      undoRef.current = [];
+      if (regenerates) regenerateLoadedPlan();
+    } catch {
+      window.alert(t('planFile.invalidData'));
+    }
+  }, [t, setAnalysis, setPolygon, drawing.loadVertices, regenerateLoadedPlan, resetZoneSelectionBaseline, setSearchPattern, setUavCount, setPartitionAngleDeg, setRouteOffsetM, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations, handleSaveSettings, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, setDeliveryHubAssignments, setSimDockWps, setDetectAfterWps, setFenceOffsetM, setFenceCustomVertices, setExclusionPolygons, undoRef]);
+
+  // A file loaded before the planner is ready is held, not applied: applied
+  // early, its analysis would be empty and the readiness transition would
+  // re-derive the UAV count and set count without it. It is applied, as
+  // loaded, once the planner is ready. While it is held, plan generation
+  // treats the planner as not ready (see usePlanningOrchestrator), so the
+  // readiness transition cannot regenerate the plan the file replaces.
+  const plannerReadyRef = useRef(plannerReady);
+  plannerReadyRef.current = plannerReady;
+  useEffect(() => {
+    if (!plannerReady || !pendingPlanFile) return;
+    setPendingPlanFile(null);
+    applyPlanFile(pendingPlanFile);
+  }, [plannerReady, pendingPlanFile, applyPlanFile]);
 
   // Load plan geometry from file
   const handleLoadPolygon = useCallback(() => {
@@ -119,86 +259,18 @@ export default function usePlanPersistence({
           return;
         }
         if (!raw || !Array.isArray(raw.polygon)
-          || ['poi_classes', 'delivery_docks', 'delivery_dock_assignments', 'tactic'].some((key) => Object.hasOwn(raw, key))) {
+          || ['poi_classes', 'delivery_docks', 'delivery_dock_assignments', 'tactic'].some((key) => Object.hasOwn(raw, key))
+          || hasInvalidPlanShape(raw)) {
           window.alert(t('planFile.invalidData'));
           return;
         }
-        try {
-          // A hand-edited fence ring / keep-outs belong to the plan they were
-          // shaped against — loading a plan replaces them with THAT plan's
-          // saved rings (or clears them when the file has none). Never keep a
-          // stale ring from the previous plan.
-          setFenceCustomVertices?.(
-            raw?.fence?.custom_vertices?.length >= 3
-              ? raw.fence.custom_vertices.map((p) => ({ lat: p.lat, lon: p.lon }))
-              : null,
-          );
-          setExclusionPolygons?.(
-            Array.isArray(raw?.exclusions)
-              ? raw.exclusions
-                  .filter((r) => Array.isArray(r) && r.length >= 3)
-                  .map((r) => r.map((p) => ({ lat: p.lat, lon: p.lon })))
-              : [],
-          );
-          const poly = raw.polygon;
-          if (poly && Array.isArray(poly) && poly.length >= 3) {
-            setPolygon(poly);
-            drawing.loadVertices(poly);
-          }
-          if (raw.search_pattern) setSearchPattern(raw.search_pattern);
-          // Restore per-set state.
-          if (raw.set_launch_points?.length > 0) {
-            setSetLaunchPoints(raw.set_launch_points.map((lp) => lp ? { lat: lp.lat, lon: lp.lon } : null));
-          } else {
-            setSetLaunchPoints([null]);
-          }
-          if (raw.set_corridors?.length > 0) {
-            setSetCorridorPoints(raw.set_corridors.map((cp) => (cp || []).map((p) => ({ lat: p.lat, lon: p.lon }))));
-          } else {
-            setSetCorridorPoints([[]]);
-          }
-          setActiveSetIndex(0);
-          if (raw.default_delivery_hubs?.length > 0 && handleSaveSettings) {
-            handleSaveSettings({ default_delivery_hubs: raw.default_delivery_hubs });
-          }
-          if (raw.delivery_hub_assignments?.length > 0 && setDeliveryHubAssignments) {
-            setDeliveryHubAssignments(raw.delivery_hub_assignments);
-          }
-          if (raw.sim_dock_wps && setSimDockWps) setSimDockWps(raw.sim_dock_wps);
-          if (raw.detect_after_wps && setDetectAfterWps) setDetectAfterWps(raw.detect_after_wps);
-          if (raw.fence && setFenceEnabled) {
-            // A saved fence block is an operator decision from that plan —
-            // load it as authored intent (including a legacy explicit off), so
-            // it is re-sent once and then consumed on acknowledgement.
-            if (authorFenceIntent) {
-              authorFenceIntent(!!raw.fence.enabled);
-            } else {
-              setFenceTouched?.(true);
-              setFenceEnabled(!!raw.fence.enabled);
-            }
-            if (raw.fence.offset_m != null && setFenceOffsetM) setFenceOffsetM(raw.fence.offset_m);
-          } else {
-            // No fence block: the loaded plan carries no fence decision. A
-            // request still pending belongs to the plan being replaced — keeping
-            // it would send the discarded plan's fence on the next upload — and
-            // the previous toggle state is not this plan's either.
-            clearFenceIntent?.();
-            setFenceEnabled?.(false);
-            setFenceTouched?.(false);
-          }
-          // This is a replacement plan: the previous plan's vehicle fence
-          // observations no longer describe it.
-          resetFenceObservations?.();
-          undoRef.current = [];
-          if (poly?.length >= 3 && raw.search_pattern !== 'corridor') localAnalyze(poly);
-        } catch {
-          window.alert(t('planFile.invalidData'));
-        }
+        if (plannerReadyRef.current) applyPlanFile(raw);
+        else setPendingPlanFile(raw);
       };
       reader.readAsText(file);
     };
     input.click();
-  }, [t, setPolygon, drawing.loadVertices, localAnalyze, setSearchPattern, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations]);
+  }, [t, applyPlanFile, setPendingPlanFile]);
 
   // Derive polygon + launch/corridor from plan tracks using corridor_end_index
   const derivePlanPolygon = useCallback((zones, downloadedSearchPattern, downloadedPolygon, downloadedCorridorBackbone, downloadedLaunchPoint, downloadedMissionDeliveryHubs) => {

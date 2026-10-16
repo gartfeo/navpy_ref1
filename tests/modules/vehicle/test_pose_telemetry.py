@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from navpy.plugins.vehicle.ardupilot.pose_telemetry import (
+    position_sample_from_message,
     simulator_truth_pose_from_sample,
     simulator_truth_source_time_s,
 )
@@ -66,3 +67,35 @@ def test_truth_pose_without_stamp_has_none_source_time() -> None:
 
     assert pose is not None
     assert pose.source_time_s is None
+
+
+def _global_position(**overrides: object) -> SimpleNamespace:
+    fields: dict[str, object] = {
+        "lat": 401234567,
+        "lon": 441234567,
+        "alt": 1250500,
+        "relative_alt": 50000,
+        "time_boot_ms": 12345,
+    }
+    fields.update(overrides)
+    return SimpleNamespace(**fields)
+
+
+def test_position_sample_is_absolute_and_stamped_from_integer_boot_ms() -> None:
+    sample = position_sample_from_message(_global_position(), 77.5)
+
+    assert sample is not None
+    assert sample.lat == pytest.approx(40.1234567)
+    assert sample.lon == pytest.approx(44.1234567)
+    assert sample.alt == pytest.approx(1250.5)
+    assert sample.time_boot_s == float(12345) * 1e-3
+    assert sample.receipt_time_s == 77.5
+
+
+@pytest.mark.parametrize("time_boot_ms", [None, True, 12345.0, "12345"])
+def test_position_sample_rejects_a_non_integer_boot_stamp(
+    time_boot_ms: object,
+) -> None:
+    message = _global_position(time_boot_ms=time_boot_ms)
+
+    assert position_sample_from_message(message, 1.0) is None

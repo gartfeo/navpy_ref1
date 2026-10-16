@@ -78,7 +78,7 @@ def test_the_setup_calls_repeat_byte_for_byte_under_two_slots_and_host_delays(tm
     coordinator, sitl, operator, result = plain
     autopilot = sitl.autopilot
     # The backend's writes reached the autopilot, and the mission is the scenario's.
-    written = {AAS_PARAM_MAP[field]: float(value) for field, value in operator.result["aas"].items()}
+    written = {AAS_PARAM_MAP[field]: float(value) for field, value in operator.result["aas"]["1"].items()}
     assert {name: autopilot.parameters[name] for name in written} == pytest.approx(written)
     assert len(autopilot.mission) > 6
     kinds = {kind for port, kind, source, _c in autopilot.received if port == 1 and source == 255}
@@ -86,7 +86,8 @@ def test_the_setup_calls_repeat_byte_for_byte_under_two_slots_and_host_delays(tm
             "MISSION_ITEM_INT", "MISSION_REQUEST_LIST"} <= kinds
     assert not any(port == 0 for port, *_ in autopilot.received)  # serial0 had no participant
     # Bounds were read by name, fresh (never MAVFTP).
-    assert "-25.0" in operator.result["bounds"] and str(BOUND_VALUES["TRIM_THROTTLE"] / 100) in operator.result["bounds"]
+    bounds = operator.result["bounds"]["1"]  # the setup keys its results by sysid (10e)
+    assert "-25.0" in bounds and str(BOUND_VALUES["TRIM_THROTTLE"] / 100) in bounds
     types = [json.loads(event)["type"] for event in operator.result["events"]]
     assert "telemetry" in types and "upload_progress" in types
     # Drain: the backend ended flushed, with the strict shutdown, and exited 0.

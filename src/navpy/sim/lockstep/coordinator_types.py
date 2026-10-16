@@ -128,8 +128,9 @@ class Manifest:
     expected_fleet: tuple[int, ...] = ()
     #: The boot barrier's sim budget from frame 1: every SITL must have
     #: latched ``helpers_quiet`` within it, else ``CoordinatorFault("boot_barrier")``.
-    #: None is no budget (the slice). Step 10d sets it from the recorded
-    #: latest latch tick of a 3-SITL boot plus a documented margin.
+    #: None is no budget (test doubles only). Every serial-step run, the
+    #: slice included, takes ``lockstep_wsl_sitl.BOOT_BUDGET_US`` (10d: the
+    #: recorded latest latch of a 3-SITL boot plus a documented margin).
     boot_budget_us: int | None = None
 
     def __post_init__(self) -> None:

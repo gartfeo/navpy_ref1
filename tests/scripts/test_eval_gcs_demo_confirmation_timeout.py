@@ -62,6 +62,8 @@ def _ports(log_dir: Path) -> dict:
         "scenario": CERTIFIED,
         "event_stream_factory": lambda _url: _Stream(),
         "navigation_tail": NavigationLogTails(log_dir),
+        "on_polling_start": None,  # wall mode: no polling journal
+        "on_due_check": None,
     }
 
 

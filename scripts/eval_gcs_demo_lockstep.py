@@ -11,8 +11,8 @@ One run (``lockstep_slice.md``, "Run phases"):
    coordinator's baton through the lockstep ports, then stops the companion
    (finalization). An operator workflow that fails is the run's outcome, not
    a host fault: the companion is still stopped and the run drains cleanly.
-4. Write the journal (``lockstep_journal.jsonl``, its digest), NavPy's log
-   lines with their ticks, the approvals, and ``report.json`` (with the
+4. Write the journal (``lockstep_journal.jsonl``, its digest), each NavPy's
+   log lines with their ticks, the approvals, and ``report.json`` (with the
    run-relative ``log_dir``); host facts only in ``*_host`` files.
 5. Release the slot by ownership.
 
@@ -20,8 +20,11 @@ The participants run with the run directory as their working directory, so
 NavPy's ``uav_<sys>_*`` files and the backend's ``gcs/`` land where the wall
 eval puts them, and :func:`~scripts.eval_gcs_demo_analysis.analyze_run`
 reads them with the scenario's gate profile (``owner_only_slice``, which adds
-the journal's slice gates). Only that profile can run here: the certified
-3-UAV scenario needs step 10.
+the journal's slice gates; ``certified``, which resolves to
+``certified_lockstep`` and its fleet gates). The fleet is the scenario's
+(``FleetLayout``: sysid i flies SITL i and NavPy i); each profile names its
+SITL homes and its lines files (:data:`WIRING`). Only the slice runs here
+until the certified acceptance runs (step 10h).
 """
 
 from __future__ import annotations
@@ -41,12 +44,14 @@ from navpy.sim.lockstep.coordinator_types import Manifest, WallBudgets
 from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.participant_hooks import RequestIds
-from scripts import lockstep_wsl
+from scripts import lockstep_topology, lockstep_wsl
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 from scripts.eval_gcs_demo_audit import validate_approval_records
+from scripts.eval_gcs_demo_config import build_settings
 from scripts.eval_gcs_demo_confirmation import ConfirmationTimeout
 from scripts.eval_gcs_demo_constants import ROOT, SRC
-from scripts.eval_gcs_demo_gate_profiles import OWNER_ONLY_SLICE_PROFILE
+from scripts.eval_gcs_demo_fleet_gates import navpy_lines_file
+from scripts.eval_gcs_demo_gate_profiles import CERTIFIED_PROFILE, OWNER_ONLY_SLICE_PROFILE
 from scripts.eval_gcs_demo_inputs import dem_tiles, scenario_points
 from scripts.eval_gcs_demo_lifecycle import stop_companions
 from scripts.eval_gcs_demo_lockstep_inputs import write_lockstep_input_manifest
@@ -56,16 +61,16 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoScenario
 from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, NAVPY_LINES_FILE
-from scripts.lockstep_slice_actor import (
-    BACKEND,
-    NAVPY,
-    ROUTER,
-    SITL_PORTS,
-    SYS_ID,
-    slice_roles,
-    stack_context,
+from scripts.lockstep_fleet_actor import FleetLayout, fleet_roles, stack_context
+from scripts.lockstep_wsl_sitl import (
+    BOOT_BUDGET_US,
+    DRAIN_PERIOD_US,
+    MAX_FRAME_GAP_US,
+    FleetLaunch,
+    HostDelays,
+    WslFleet,
+    exchange_deadline,
 )
-from scripts.lockstep_wsl_sitl import DRAIN_PERIOD_US, MAX_FRAME_GAP_US, HostDelays, WslSitl
 
 RUN_HOST_FILE = "lockstep_run_host.json"
 APPROVALS_FILE = "operator_approvals.json"
@@ -78,6 +83,28 @@ EPOCH_US = SITL_START_TIME_UTC * 1_000_000
 MISSION_BUDGET_S = 3600.0
 #: Host supervision of the participants (registration, a DONE, an exit).
 WALL_BUDGETS = WallBudgets(register_s=120, done_s=120, exit_s=60)
+
+
+@dataclass(frozen=True)
+class Wiring:
+    #: SITL 1..N's ``--home`` from the scenario's.
+    homes: Callable[[DemoScenario, FleetLayout], tuple[str, ...]]
+    #: NavPy ``sys_id``'s lines file.
+    lines_file: Callable[[int], str]
+
+
+#: Gate profile -> its fleet wiring. The slice's one SITL boots at the home as
+#: given and keeps its one lines file; the certified fleet's homes are
+#: ``run_swarm.sh``'s grid, one lines file per UAV (``eval_gcs_demo_fleet_gates``).
+WIRING: dict[str, Wiring] = {
+    OWNER_ONLY_SLICE_PROFILE: Wiring(lambda scenario, _layout: (scenario.home,),
+                                     lambda _sys_id: NAVPY_LINES_FILE),
+    CERTIFIED_PROFILE: Wiring(lambda scenario, layout: lockstep_topology.fleet_homes(
+        scenario.home, layout.size), navpy_lines_file),
+}
+#: The profiles ``--lockstep`` runs; the certified scenario joins with its
+#: acceptance runs (step 10h).
+RUNNABLE_PROFILES = (OWNER_ONLY_SLICE_PROFILE,)
 
 
 @dataclass(frozen=True)
@@ -101,21 +128,28 @@ class LockstepRun:
 
 
 def require_slice(scenario: DemoScenario) -> None:
-    if scenario.gate_profile != OWNER_ONLY_SLICE_PROFILE or len(scenario.slots) != 1:
+    if scenario.gate_profile not in RUNNABLE_PROFILES or len(scenario.slots) != 1:
         raise RegressionError(
             f"--lockstep runs only the 1-UAV {OWNER_ONLY_SLICE_PROFILE!r} scenario "
             f"(scripts/eval_lockstep_slice_scenario.json); {scenario.path.name} has gate profile "
-            f"{scenario.gate_profile!r} with {len(scenario.slots)} slots: the 3-UAV lockstep is step 10"
+            f"{scenario.gate_profile!r} with {len(scenario.slots)} slots: the 3-UAV lockstep run is step 10h"
         )
 
 
+def fleet_layout(scenario: DemoScenario) -> FleetLayout:
+    """The scenario's fleet: one UAV per slot."""
+    return FleetLayout(len(scenario.slots))
+
+
 def manifest(scenario: DemoScenario, options: LockstepOptions) -> Manifest:
+    layout = fleet_layout(scenario)
     return Manifest(
         seed=options.seed, epoch_us=EPOCH_US, max_frame_gap_us=MAX_FRAME_GAP_US,
         drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(MISSION_BUDGET_S * 1_000_000),
-        roles=slice_roles(scenario, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR),
-        sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),),
-        companion_roles=("navpy",), expected_fleet=(NAVPY,),
+        roles=fleet_roles(build_settings(scenario), layout, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR),
+        sitl_ports=layout.sitl_ports, router=layout.router, initial=(("backend", layout.backend),),
+        companion_roles=layout.companion_roles, expected_fleet=layout.expected_fleet,
+        boot_budget_us=BOOT_BUDGET_US,
     )
 
 
@@ -124,10 +158,11 @@ def operator_script(scenario: DemoScenario, run_dir: Path,
     """The wall eval's mission on the baton, then the companion stop (finalization)."""
 
     scrub = HostPathScrubber(run_dir)
+    layout = fleet_layout(scenario)
 
     def script(operator: OperatorBaton) -> dict:
-        operator.wait_ready(BACKEND)
-        context = stack_context(operator, scenario, epoch_us=EPOCH_US)
+        operator.wait_ready(layout.backend)
+        context = stack_context(operator, scenario, layout, epoch_us=EPOCH_US)
         outcome: dict = {"approvals": [], "error": None}
         try:
             mission = run_mission(context, run_dir, options.timeout_s, options.confirmation_delay_s)
@@ -145,12 +180,23 @@ def operator_script(scenario: DemoScenario, run_dir: Path,
     return script
 
 
-def _write_lines(path: Path, operator: OperatorBaton) -> None:
-    lines = operator.journal.log_lines.get(NAVPY, [])
-    ticks = operator.journal.log_ticks.get(NAVPY, [])
-    path.write_bytes(b"".join(
-        json.dumps([k, line], ensure_ascii=False, separators=(",", ":")).encode("utf-8") + b"\n"
-        for k, line in zip(ticks, lines)))
+def lockstep_operator(ids: RequestIds, scenario: DemoScenario, run_dir: Path,
+                      options: LockstepOptions) -> OperatorBaton:
+    """The run's operator, its evidence on: the approval gate replays its
+    polling schedule (``eval_gcs_demo_approval_replay``)."""
+    return OperatorBaton(ids, operator_script(scenario, run_dir, options), evidence=True)
+
+
+def write_lines(run_dir: Path, scenario: DemoScenario, operator: OperatorBaton) -> None:
+    """Each NavPy's log lines with their ticks, one file per UAV (its profile's name)."""
+    layout, name = fleet_layout(scenario), WIRING[scenario.gate_profile].lines_file
+    for sys_id in layout.sys_ids:
+        ordinal = layout.navpy(sys_id)
+        lines = operator.journal.log_lines.get(ordinal, [])
+        ticks = operator.journal.log_ticks.get(ordinal, [])
+        (run_dir / name(sys_id)).write_bytes(b"".join(
+            json.dumps([k, line], ensure_ascii=False, separators=(",", ":")).encode("utf-8") + b"\n"
+            for k, line in zip(ticks, lines)))
 
 
 def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
@@ -165,40 +211,44 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     plan = manifest(scenario, options)
     defaults = lockstep_wsl.merged_defaults()  # the SITL's defaults.parm, hashed and then written
     tiles = terrain_tiles()  # its terrain/, hashed and then written
-    write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults, tiles)
+    layout = fleet_layout(scenario)
+    homes = WIRING[scenario.gate_profile].homes(scenario, layout)
+    topology = lockstep_topology.topology_inputs(homes, lockstep_topology.run_swarm_sha256())
+    write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults, tiles, topology)
     slot, owner = lockstep.claim(run_token=f"seed-{options.seed}", clone=str(ROOT),
                                  owner=f"dir:{ROOT}")
     started = time.perf_counter()
-    sitl = WslSitl(run_dir, slot, owner, seed=options.seed, delay_seed=options.host_delay_seed,
-                   defaults=defaults, tiles=tiles)
+    fleet = WslFleet(run_dir, slot, owner, FleetLaunch(
+        tuple(zip(layout.sys_ids, homes)), options.seed, options.host_delay_seed, defaults, tiles))
     roster = Roster(plan, LocalSpawner(run_dir, (str(SRC), str(ROOT)),
                                        host_delay_seed=options.host_delay_seed),
                     lockstep.RegistryChildRecorder(slot, owner),
-                    HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS)
+                    HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS,
+                    deadline=exchange_deadline())
     ids = RequestIds(0)
-    operator = OperatorBaton(ids, operator_script(scenario, run_dir, options))
-    coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir,
-                                      delay=HostDelays(options.host_delay_seed))
+    operator = lockstep_operator(ids, scenario, run_dir, options)
+    # The backend spawns and registers before the coordinator launches the SITL.
+    coordinator = LockstepCoordinator(plan, fleet.sitls, operator, roster, ids, run_dir,
+                                      delay=HostDelays(options.host_delay_seed), launch=fleet.launch)
     result = fault = None
     try:
-        sitl.start(scenario.home, SYS_ID)
         result = coordinator.run()
     except Exception as error:  # noqa: BLE001 - journaled by the coordinator; re-raised below
         fault = error
     finally:
         try:
-            sitl.stop()  # idempotent after the coordinator's own stop
+            fleet.stop()  # idempotent after the coordinator's own stop
         finally:
             lockstep.release_if_owner(slot, owner)
     journal: RunJournal = coordinator.journal
     journal.write(run_dir / JOURNAL_FILE)
-    _write_lines(run_dir / NAVPY_LINES_FILE, operator)
+    write_lines(run_dir, scenario, operator)
     script = operator.result if isinstance(operator.result, dict) else {"approvals": [], "error": None}
     approvals = validate_approval_records(script["approvals"])
     (run_dir / APPROVALS_FILE).write_text(json.dumps({"approvals": approvals}, indent=2),
                                           encoding="utf-8")
     (run_dir / RUN_HOST_FILE).write_text(json.dumps({
-        "slot": slot, "wsl_root": sitl.root, "wall_s": time.perf_counter() - started,
+        "slot": slot, "wsl_root": fleet.root, "wall_s": time.perf_counter() - started,
         "host_delay_seed": options.host_delay_seed,
         "result": None if result is None else asdict(result),
         "fault": None if fault is None else f"{type(fault).__name__}: {fault}",
@@ -210,5 +260,6 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
 
 __all__ = [
     "APPROVALS_FILE", "JOURNAL_FILE", "LockstepOptions", "MISSION_BUDGET_S", "LockstepRun", "NAVPY_LINES_FILE",
-    "RUN_HOST_FILE", "execute_lockstep_run", "manifest", "operator_script", "require_slice",
+    "RUNNABLE_PROFILES", "RUN_HOST_FILE", "WIRING", "Wiring", "execute_lockstep_run", "fleet_layout",
+    "lockstep_operator", "manifest", "operator_script", "require_slice", "write_lines",
 ]

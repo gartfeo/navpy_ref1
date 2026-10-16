@@ -315,25 +315,50 @@ class TestMavBusReaderQuietPaths(unittest.TestCase):
 
 
 class TestMavBusReaderCooperativeScheduling(unittest.TestCase):
-    """A continuous MAVLink backlog must not monopolize the Python runtime."""
+    """A continuous MAVLink backlog must not monopolize the Python runtime.
 
-    def _run_messages(self, messages, dispatch=None):
+    The reader yields once per batch of already-decodable packets, bounded by
+    the bus budget (docs/design/reader_batch.md).  These replace the former
+    per-packet-yield tests on purpose: one yield per packet throttled the
+    reader to ~500 packets/s at 10x SITL and let NAV fly on attitude up to
+    354 ms old.
+    """
+
+    def _run(self, stream, dispatch=None, budget_s=1.0, tick_s=0.0):
+        """``stream`` is the decodable packets in arrival order.
+
+        A ``None`` entry is a moment the socket is empty: the non-blocking read
+        returns it, a blocking read waits past it.  The fake clock advances
+        ``tick_s`` per dispatch; the reader stops once the stream is exhausted.
+        """
         from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
         from navpy.plugins.vehicle.ardupilot.mav_bus_membership import MavBusMembership
         from navpy.plugins.vehicle.ardupilot.mav_bus_reader import MavBusReader
 
         stop = threading.Event()
         connection = MagicMock()
-        pending = list(messages)
+        stream = list(stream)
+        calls = []
+        now = [0.0]
 
-        def receive(**_kwargs):
-            if pending:
-                return pending.pop(0)
-            stop.set()
-            return None
+        def receive(**kwargs):
+            calls.append(kwargs)
+            if kwargs.get("blocking"):
+                while stream and stream[0] is None:
+                    stream.pop(0)
+                if stream:
+                    return stream.pop(0)
+                stop.set()
+                return None
+            return stream.pop(0) if stream else None
 
         connection.recv_match.side_effect = receive
         events = []
+
+        def record(message):
+            now[0] += tick_s
+            events.append(message)
+
         reader = MavBusReader(
             connection,
             "udp:0.0.0.0:5992",
@@ -341,25 +366,67 @@ class TestMavBusReaderCooperativeScheduling(unittest.TestCase):
             MavBusHeartbeats(),
             stop,
             cooperative_yield=lambda: events.append("yield"),
+            batch_budget_s=lambda: budget_s,
+            clock=lambda: now[0],
         )
-        reader._dispatch = dispatch or (lambda _message: events.append("dispatch"))
+        reader._dispatch = dispatch(events, stop) if dispatch else record
         reader._run()
-        return events
+        return events, calls
 
-    def test_yields_after_each_decoded_packet(self):
+    def test_dispatches_all_ready_packets_in_order_before_one_yield(self):
+        events, calls = self._run(["a", "a2", "a3", None, "b"])
+        self.assertEqual(events, ["a", "a2", "a3", "yield", "b", "yield"])
         self.assertEqual(
-            self._run_messages([_make_data(1), _make_data(1)]),
-            ["dispatch", "yield", "dispatch", "yield"],
+            [call.get("blocking") for call in calls],
+            [True, False, False, False, True, False, True],
         )
 
-    def test_does_not_yield_when_receive_times_out(self):
-        self.assertEqual(self._run_messages([]), [])
+    def test_burst_longer_than_the_budget_yields_at_the_bound(self):
+        events, _calls = self._run(
+            ["a", "b", "c", "d"], budget_s=0.002, tick_s=0.001,
+        )
+        # Two 1 ms dispatches use the 2 ms budget: the batch yields with "c"
+        # still ready, and the next blocking read takes it.
+        self.assertEqual(events, ["a", "b", "yield", "c", "d", "yield"])
+
+    def test_stop_mid_batch_exits_after_one_yield(self):
+        def stop_after_second(events, stop):
+            def dispatch(message):
+                events.append(message)
+                if len(events) == 2:
+                    stop.set()
+            return dispatch
+
+        events, _calls = self._run(
+            ["a", "b", "c"], dispatch=stop_after_second,
+        )
+        self.assertEqual(events, ["a", "b", "yield"])
+
+    def test_idle_socket_blocks_with_the_timeout_and_does_not_yield(self):
+        events, calls = self._run([])
+        self.assertEqual(events, [])
+        self.assertEqual(calls, [{"blocking": True, "timeout": 0.5}])
 
     def test_dispatch_failure_still_yields_before_reader_continues(self):
-        def fail(_message):
-            raise RuntimeError("receiver failed")
+        def fail_first(events, _stop):
+            def dispatch(message):
+                if message == "bad":
+                    raise RuntimeError("receiver failed")
+                events.append(message)
+            return dispatch
 
-        self.assertEqual(self._run_messages([_make_data(1)], fail), ["yield"])
+        with patch("navpy.plugins.vehicle.ardupilot.mav_bus_reader.log.exception"):
+            events, _calls = self._run(["bad", "next"], dispatch=fail_first)
+        # The failing batch ends at its error and yields in ``finally``; the
+        # packet it had not received yet is read by the next batch.
+        self.assertEqual(events, ["yield", "next", "yield"])
+
+    def test_default_budget_is_one_50hz_slot(self):
+        from navpy.plugins.vehicle.ardupilot.mav_bus_reader_budget import (
+            DEFAULT_READER_BATCH_BUDGET_S,
+        )
+
+        self.assertAlmostEqual(DEFAULT_READER_BATCH_BUDGET_S, 0.020)
 
 
 class TestMavBusHeartbeats(unittest.TestCase):

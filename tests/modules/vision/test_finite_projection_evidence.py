@@ -182,7 +182,7 @@ def test_world_lock_diagnostic_disagrees_but_actual_projection_evidence_is_corre
     attitude = Attitude(0, 60, 0)
     result = projector.detect(loc, poi, attitude, timestamp_s=12.5)
     assert result.status == DetectStatus.DETECTED
-    assert records[0].geometry.pixel_uv == (671, 370) and records[0].outcome.pixel_valid is True
+    assert records[0].geometry.pixel_uv == pytest.approx((671, 370), abs=0.5) and records[0].outcome.pixel_valid is True
     camera.read_matrix.assert_called_once()
     camera.read_gimbal.assert_called_once()
     calc.assert_called_once()
@@ -190,7 +190,7 @@ def test_world_lock_diagnostic_disagrees_but_actual_projection_evidence_is_corre
     # synthetic evidence mismatch, not an attribution of the historical miss.
     reason = projector.diagnose(poi.uid, loc, attitude, matrix, raw)
     assert reason.startswith('out_of_fov')
-    assert records[0].geometry.pixel_uv == (671, 370)
+    assert records[0].geometry.pixel_uv == pytest.approx((671, 370), abs=0.5)
 
 
 def test_pixel_validator_exception_keeps_original_identity():

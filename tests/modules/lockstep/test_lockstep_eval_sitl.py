@@ -71,7 +71,7 @@ def test_each_run_ends_ok_and_passes_the_journal_gates(runs, name):
     poi, owner = plan.pois[0].task_id, plan.owner.sys_id
     assert (run_errors(records) + sensor_errors(lines, poi) + assignment_errors(records, lines, owner)
             + approval_errors(records, lines, run.approvals, owner, poi) + snap_errors(records, lines)
-            + pose_cadence_errors(run_dir, owner)) == []
+            + pose_cadence_errors(run_dir, (owner,))) == []
 
 
 @pytest.mark.parametrize("name", list(RUNS))

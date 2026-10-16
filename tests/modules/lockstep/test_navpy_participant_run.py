@@ -40,13 +40,13 @@ from scripts.eval_gcs_demo_config import build_settings
 from scripts.eval_gcs_demo_scenario import load_scenario
 from scripts.lockstep_slice_actor import (
     NAVPY,
-    NAVPY_HOOKS,
     ROUTER,
     SERIAL0,
     SITL_PORTS,
-    companion_argv,
+    slice_argv,
     companion_script,
 )
+from scripts.lockstep_fleet_actor import NAVPY_HOOKS
 from tests.modules.lockstep.backend_doubles import BOUND_VALUES, SLICE_SCENARIO, AutopilotSitl, build
 from tests.modules.lockstep.coordinator_doubles import PYTHON_PATH, AllowAll
 from tests.modules.lockstep.lockstep_autopilot import ReferenceAutopilot, navpy_parameters
@@ -97,7 +97,7 @@ def test_navpy_boots_and_stops_through_the_api_and_the_run_repeats(runs):
     assert _navpy_files(tmp_path / "first") == _navpy_files(tmp_path / "second")
 
     result = plain.operator.result
-    ready = result["ready"]
+    (ready,) = result["ready"]  # one status per companion
     assert ready["running"] and ready["connection"] == SERIAL0
     assert ready["runtime"]["ordinal"] == NAVPY and ready["runtime"]["process_pid"] == NAVPY
     assert ready["runtime"]["mission_items"] > 6 and ready["runtime"]["role"] == "navpy"
@@ -109,7 +109,7 @@ def test_navpy_boots_and_stops_through_the_api_and_the_run_repeats(runs):
     ending = dones[-1]
     assert ending.ended is True and [e.kind for e in ending.events] == ["stopped"]
     host = json.loads((tmp_path / "first" / "lockstep_participants_host.json").read_text())
-    assert sorted((row["role"], row["exit_code"]) for row in host) == [("backend", 0), ("navpy", 0)]
+    assert sorted((row["role"], row["exit_code"]) for row in host) == [("backend", 0), ("navpy1", 0)]
 
 
 def test_navpy_log_lines_are_its_file_log_and_name_no_host_path(runs):
@@ -161,7 +161,7 @@ def test_navpy_not_stopped_by_the_api_ends_on_the_drain_end(tmp_path):
     """NavPy as an initial participant: the operator returns once it is ready,
     and the first drain ``TICK`` (``end``) stops its run loop; it ends
     flushed, with no ``stopped`` event (there was no participant stop)."""
-    argv = companion_argv(build_settings(load_scenario(SLICE_SCENARIO)))
+    argv = slice_argv(build_settings(load_scenario(SLICE_SCENARIO)))
     plan = Manifest(seed=1, epoch_us=1_760_000_000_000_000, max_frame_gap_us=25_000,
                     drain_period_us=20_000, mission_budget_us=0,
                     roles={"navpy": RoleSpec(NAVPY_HOOKS, (SERIAL0,), {DEVICE_KEY: SERIAL0, "argv": argv})},

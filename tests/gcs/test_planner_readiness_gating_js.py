@@ -33,7 +33,11 @@ class TestPlannerReadyThreading(unittest.TestCase):
     def test_orchestrator_threads_planner_ready_to_hooks(self):
         source = _read("hooks", "usePlanningOrchestrator.js")
         self.assertIn("settingsVersion, plannerReady,", source)
-        self.assertIn("plannerReady,\n    setDeliveryHubAssignments", source)
+        # Plan generation gets readiness gated on a held plan file: while a file
+        # loaded before readiness waits, the readiness transition must not
+        # regenerate the plan it replaces.
+        self.assertIn("const generationReady = plannerReady && !pendingPlanFile;", source)
+        self.assertIn("plannerReady: generationReady,\n    setDeliveryHubAssignments", source)
         self.assertIn("handleSaveSettings,\n    plannerReady,", source)
         self.assertIn("localAnalyze, localGenerate,\n    plannerReady,", source)
 

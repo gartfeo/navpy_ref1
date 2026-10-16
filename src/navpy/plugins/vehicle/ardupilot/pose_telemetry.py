@@ -43,6 +43,27 @@ def copy_attitude_sample(sample: SimpleNamespace) -> SimpleNamespace:
     )
 
 
+def position_sample_from_message(
+    message: MAVLink_message,
+    receipt_time_s: float,
+) -> SimpleNamespace | None:
+    """GLOBAL_POSITION_INT as one stamped absolute-position sample.
+
+    ``time_boot_s`` uses the ATTITUDE conversion, so equal integer
+    ``time_boot_ms`` gives equal boot times; a non-integer stamp has none.
+    """
+    time_boot_ms = getattr(message, "time_boot_ms", None)
+    if isinstance(time_boot_ms, bool) or not isinstance(time_boot_ms, int):
+        return None
+    return SimpleNamespace(
+        lat=message.lat / 1e7,
+        lon=message.lon / 1e7,
+        alt=message.alt / 1e3,
+        time_boot_s=float(time_boot_ms) * 1e-3,
+        receipt_time_s=float(receipt_time_s),
+    )
+
+
 def sim_state_coordinates_deg(
     message: MAVLink_message,
 ) -> tuple[float, float] | None:
@@ -192,6 +213,14 @@ class PoseTelemetry:
         return copy_attitude_sample(
             attitude_sample_from_message(sample.message, sample.receipt_time_s)
         )
+
+    @property
+    def position_sample(self) -> SimpleNamespace | None:
+        """A fresh copy of the latest GLOBAL_POSITION_INT sample."""
+        sample = self._messages.latest("GLOBAL_POSITION_INT")
+        if sample is None:
+            return None
+        return position_sample_from_message(sample.message, sample.receipt_time_s)
 
     @property
     def simulator_truth_pose(self) -> SimpleNamespace | None:

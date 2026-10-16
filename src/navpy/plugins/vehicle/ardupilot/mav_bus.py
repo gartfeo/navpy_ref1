@@ -15,6 +15,7 @@ from navpy.plugins.vehicle.ardupilot.mav_bus_membership import (
     MavMessageReceiver,
 )
 from navpy.plugins.vehicle.ardupilot.mav_bus_reader import MavBusReader
+from navpy.plugins.vehicle.ardupilot.mav_bus_reader_budget import ReaderBudgetRegistry
 from navpy.plugins.vehicle.ardupilot.mav_bus_registry import (
     MavBusRegistry,
     MavBusRegistryPorts,
@@ -119,6 +120,10 @@ class MavBus:
         self.device = device
         self._send_lock = rt.RLock()
         self._heartbeats = MavBusHeartbeats()
+        # Public plain attribute, like ``device``: each scheduler sharing the
+        # bus requests a reader-batch budget here (``request(owner)``); the
+        # smallest live request bounds one reader batch.
+        self.reader_budgets = ReaderBudgetRegistry()
         membership = MavBusMembership()
         self._membership = membership
         self._lifecycle = MavBusLifecycle(
@@ -134,6 +139,7 @@ class MavBus:
             self._heartbeats,
             self._lifecycle.stop_event,
             on_exit=self._lifecycle.reader_exited,
+            batch_budget_s=self.reader_budgets.current_s,
         )
         self._lifecycle.bind_reader(reader)
         reader.start()

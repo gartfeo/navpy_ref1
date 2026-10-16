@@ -4,7 +4,8 @@ The same ``input_manifest.json`` as wall mode (``eval_gcs_demo_inputs``):
 source, scenario, NavPy's DEM, assets, vision profiles and dialect. The SITL
 part is the serial-step firmware lock, the merged pre-boot ``defaults.parm``
 (WSL's stock ``plane.parm`` plus the lockstep overrides), the deployed Lua and the
-pinned SITL terrain tiles (the wall eval's ``seed/terrain``); the run options are the seed, the operator's budgets, the
+pinned SITL terrain tiles (the wall eval's ``seed/terrain``) and the topology
+(``lockstep_topology``); the run options are the seed, the operator's budgets, the
 tick grid and the participants' role configs. The host delay seed is a host
 perturbation (acceptance (c)) and stays out: a delayed run must consume the
 same inputs. The WSL root's path is host data (``lockstep_run_host.json``).
@@ -50,7 +51,10 @@ def lockstep_sitl_inputs(defaults: str, tiles: Mapping[str, bytes]) -> dict[str,
 
 def write_lockstep_input_manifest(run_dir: Path, scenario: DemoScenario, plan: Manifest,
                                   options: "LockstepOptions", defaults: str,
-                                  tiles: Mapping[str, bytes]) -> dict[str, JsonValue]:
+                                  tiles: Mapping[str, bytes],
+                                  topology: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    """``topology`` is ``lockstep_topology.topology_inputs``: the wall launcher's
+    hash, the SITLs' homes, the router entry table and binary, ``FIFO_CAP``."""
     roles = {name: {"hooks": spec.hooks, "devices": list(spec.devices), "config": spec.config}
              for name, spec in sorted(plan.roles.items())}
     run_options: dict[str, JsonValue] = {
@@ -67,8 +71,8 @@ def write_lockstep_input_manifest(run_dir: Path, scenario: DemoScenario, plan: M
     # A participant's whole environment besides its record and host start
     # variables (``coordinator_spawn.hermetic_environment``).
     environment = {"PYTHONHASHSEED": PYTHON_HASH_SEED}
-    return write_input_manifest(run_dir, environment, lockstep_sitl_inputs(defaults, tiles), "", run_options,
-                                scenario)
+    sitl = {**lockstep_sitl_inputs(defaults, tiles), "topology": dict(topology)}
+    return write_input_manifest(run_dir, environment, sitl, "", run_options, scenario)
 
 
 __all__ = ["lockstep_sitl_inputs", "write_lockstep_input_manifest"]

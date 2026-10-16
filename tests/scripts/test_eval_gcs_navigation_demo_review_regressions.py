@@ -473,6 +473,8 @@ def test_confirmation_accepts_repeated_vehicle_local_task_ids(
         scenario=CERTIFIED,
         event_stream_factory=lambda _url: object(),
         navigation_tail=api_module.NavigationLogTails(tmp_path),
+        on_polling_start=None,
+        on_due_check=None,
     )
 
     approvals = mission.approve_requests_until_snap(

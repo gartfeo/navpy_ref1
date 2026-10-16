@@ -106,7 +106,8 @@ def _render_associated_frame(body_rates, compass_yaw):
         coordinator=SimpleNamespace(
             stop_event=threading.Event(), wait_and_pop_pose=Mock(side_effect=[pose, None]),
         ),
-        polling_pose_reader=Mock(), error=errors, cadence_lease=Mock(),
+        polling_pose_reader=Mock(), advance_source_time=Mock(),
+        unpaired_pose_monitor=Mock(), error=errors, cadence_lease=Mock(),
         scheduler_period_s=0.02, ideal_360=True,
         detect_pois=pipeline.detect_pois, record_outcome=Mock(),
     )

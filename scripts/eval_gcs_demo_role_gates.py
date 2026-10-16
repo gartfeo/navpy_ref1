@@ -5,7 +5,11 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
-from scripts.eval_gcs_demo_gate_profiles import CERTIFIED_PROFILE, OWNER_ONLY_SLICE_PROFILE
+from scripts.eval_gcs_demo_gate_profiles import (
+    CERTIFIED_LOCKSTEP_PROFILE,
+    CERTIFIED_PROFILE,
+    OWNER_ONLY_SLICE_PROFILE,
+)
 
 
 _ASSIGNED_RE = re.compile(r"\bTask \d+ assigned by owner \d+\b")
@@ -119,9 +123,11 @@ def _owner_only_slice_role_errors(
     return _owner_orbit_errors(navigation_text) + peer_assignment_marker_errors(navigation_text)
 
 
-#: Gate profile -> its role checks; the rest of the workflow gates are shared.
+#: Execution profile -> its role checks; the rest of the workflow gates are
+#: shared. Lockstep keeps the certified roles (owner dispatch and orbit, peers).
 ROLE_GATES: dict[str, Callable[[str, str, bool], list[str]]] = {
     CERTIFIED_PROFILE: _certified_role_errors,
+    CERTIFIED_LOCKSTEP_PROFILE: _certified_role_errors,
     OWNER_ONLY_SLICE_PROFILE: _owner_only_slice_role_errors,
 }
 

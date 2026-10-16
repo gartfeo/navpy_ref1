@@ -47,15 +47,19 @@ from scripts import lockstep_wsl  # noqa: E402
 from scripts.eval_gcs_demo_scenario import load_scenario  # noqa: E402
 from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles  # noqa: E402
 from scripts.lockstep_wsl_sitl import (  # noqa: E402
+    BOOT_BUDGET_US,
     DRAIN_PERIOD_US,
     MAX_FRAME_GAP_US,
+    FleetLaunch,
     HostDelays,
-    WslSitl,
+    WslFleet,
+    exchange_deadline,
 )
 from scripts.lockstep_slice_actor import (  # noqa: E402
     BACKEND,
     NAVPY,
     ROUTER,
+    SLICE,
     SITL_PORTS,
     SYS_ID,
     companion_script,
@@ -83,7 +87,8 @@ def manifest(seed: int) -> Manifest:
         # No SNAP in 9f: the mission phase ends at its first tick, and
         # finalization lasts until the actor returns.
         mission_budget_us=0, roles=slice_roles(scenario, navpy=True),
-        sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),), companion_roles=("navpy",),
+        sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),), companion_roles=SLICE.companion_roles,
+        boot_budget_us=BOOT_BUDGET_US,
     )
 
 
@@ -92,21 +97,21 @@ def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: in
     scenario = load_scenario(SLICE_SCENARIO)
     plan = manifest(seed)
     delays = HostDelays(delay_seed)
-    sitl = WslSitl(run_dir, slot, owner, seed=seed, delay_seed=delay_seed,
-                   defaults=lockstep_wsl.merged_defaults(), tiles=terrain_tiles())
+    fleet = WslFleet(run_dir, slot, owner, FleetLaunch(
+        ((SYS_ID, scenario.home),), seed, delay_seed, lockstep_wsl.merged_defaults(), terrain_tiles()))
     roster = Roster(plan, LocalSpawner(run_dir / "host", (str(ROOT / "src"), str(ROOT))),
                     lockstep.RegistryChildRecorder(slot, owner),
-                    HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS)
+                    HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS,
+                    deadline=exchange_deadline())
     ids = RequestIds(0)
     operator = OperatorBaton(ids, companion_script(scenario))
-    coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir / "host",
-                                      delay=delays)
+    coordinator = LockstepCoordinator(plan, fleet.sitls, operator, roster, ids, run_dir / "host",
+                                      delay=delays, launch=fleet.launch)
     started = time.perf_counter()
     try:
-        sitl.start(scenario.home, SYS_ID)
         result: RunResult = coordinator.run()
     finally:
-        sitl.stop()  # idempotent after the coordinator's own stop
+        fleet.stop()  # idempotent after the coordinator's own stop
     wall_s = time.perf_counter() - started
     journal = coordinator.journal
     navpy_lines = operator.journal.log_lines.get(NAVPY, [])
@@ -115,7 +120,7 @@ def run_once(run_dir: Path, slot: int, owner: dict, *, seed: int, delay_seed: in
     (run_dir / "lockstep_digest.txt").write_text(journal.digest + "\n", encoding="utf-8")
     (run_dir / "navpy_log_lines.txt").write_text("\n".join(navpy_lines) + "\n", encoding="utf-8")
     (run_dir / "lockstep_run_host.json").write_text(json.dumps(
-        {"slot": slot, "root": sitl.root, "wall_s": wall_s, "delay_seed": delay_seed,
+        {"slot": slot, "root": fleet.root, "wall_s": wall_s, "delay_seed": delay_seed,
          "result": asdict(result)}, indent=2) + "\n", encoding="utf-8")
     return RunOutcome(journal.digest, {"run": asdict(result), "actor": operator.result},
                       len(navpy_lines), wall_s)

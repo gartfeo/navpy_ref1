@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import useDrawing from '../components/map/useDrawing';
 import usePlanGeneration from './usePlanGeneration';
 import useCorridorPath from './useCorridorPath';
@@ -41,6 +41,19 @@ export default function usePlanningOrchestrator({
   const regenTimerRef = useRef(null);
   const undoRef = useRef([]);
   const draggingRef = useRef(false);
+  // Zone count the current sim-dock / detect-after selections were made for.
+  const prevZoneCountRef = useRef(plan?.zones?.length || 0);
+  // A plan file loaded before the planner was ready, held until it is. Until
+  // it is applied, generation must not run: a readiness-triggered regen of the
+  // plan it replaces would re-zone the file's waypoint selections away.
+  const [pendingPlanFile, setPendingPlanFile] = useState(null);
+  const generationReady = plannerReady && !pendingPlanFile;
+  // The held file replaces the plan as it was when the file was loaded. Any
+  // operator action that replaces or edits that plan first (Clear All,
+  // drawing, launch/corridor edits, a download) cancels it.
+  useEffect(() => {
+    setPendingPlanFile(null);
+  }, [polygon, setLaunchPoints, setCorridorPointsArr]);
 
   // ---- Drawing ref (for usePlanSnapshot, which needs loadVertices at call time) ----
   const drawingRef = useRef(null);
@@ -72,7 +85,7 @@ export default function usePlanningOrchestrator({
   // ---- Plan generation ----
   const {
     effectiveUavCount, effectiveSets,
-    localAnalyze, localGenerate,
+    localAnalyze, localGenerate, regenerateLoadedPlan,
     approachPoint, corridorPath,
   } = usePlanGeneration({
     polygon, setPolygon,
@@ -96,7 +109,7 @@ export default function usePlanningOrchestrator({
     regenTimerRef,
     settings,
     settingsVersion,
-    plannerReady,
+    plannerReady: generationReady,
     setDeliveryHubAssignments,
     manualDeliveryHubEdit,
   });
@@ -159,6 +172,10 @@ export default function usePlanningOrchestrator({
     undoRef,
   });
 
+  // A loaded plan file brings its own waypoint selections: they belong to the
+  // plan regenerated from it, so its zone count must not clear them.
+  const resetZoneSelectionBaseline = useCallback(() => { prevZoneCountRef.current = 0; }, []);
+
   // ---- Plan persistence ----
   const {
     handleSavePolygon,
@@ -169,8 +186,14 @@ export default function usePlanningOrchestrator({
     launchPoint,
     corridorPoints,
     searchPattern,
+    uavCount,
+    partitionAngleDeg,
+    routeOffsetM,
     setPolygon,
     setSearchPattern,
+    setUavCount,
+    setPartitionAngleDeg,
+    setRouteOffsetM,
     setLaunchPoint,
     setCorridorPoints,
     setSetLaunchPoints,
@@ -181,7 +204,8 @@ export default function usePlanningOrchestrator({
     setCorridorPointsArr,
     setLaunchPoints,
     drawing,
-    localAnalyze,
+    regenerateLoadedPlan,
+    resetZoneSelectionBaseline,
     undoRef,
     suppressRegenRef,
     deliveryHubAssignments,
@@ -208,6 +232,8 @@ export default function usePlanningOrchestrator({
     settings,
     handleSaveSettings,
     plannerReady,
+    pendingPlanFile,
+    setPendingPlanFile,
   });
 
   // ---- Drag handlers ----
@@ -374,7 +400,6 @@ export default function usePlanningOrchestrator({
   // Clear sim POI and detect-after selections when zone count changes
   // during planning (plan regenerated with different zones). Skip during
   // monitor — download sets these directly and must not be overwritten.
-  const prevZoneCountRef = useRef(plan?.zones?.length || 0);
   useEffect(() => {
     const zc = plan?.zones?.length || 0;
     if (prevZoneCountRef.current !== 0 && zc !== prevZoneCountRef.current) {

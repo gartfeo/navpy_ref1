@@ -34,6 +34,7 @@ from pathlib import Path
 
 from navpy.app import runtime_ready
 from navpy.app.navpy_argparse import make_parser
+from navpy.app.network_args import NetworkType
 from navpy.app.runtime_composition import RuntimePorts, compose_runtime
 from navpy.app.runtime_stop import LifecycleStopRequest
 from navpy.core.kernel.logging import logger_factory
@@ -50,6 +51,11 @@ from navpy.sim.lockstep.participant_hooks import OutboxBuffer, ParticipantContex
 LOG_DIR = "."
 #: The acknowledgement of a participant stop, in the ending ``DONE``.
 STOPPED_EVENT = "stopped"
+#: The peer transports a lockstep NavPy may run: the vehicle bus
+#: (``NetworkMavlink``, its NAVLINK on the companion device) or none.
+#: ``NetworkWifi`` and ``NetworkSerial`` open host sockets and ports, so they
+#: stay wall-only (``lockstep_fleet.md``, "Remaining packages" item 8).
+LOCKSTEP_NETWORK_TYPES = frozenset({NetworkType.MAV, NetworkType.NONE})
 #: The navigation file log's line format (``logger_factory.initialize_logger``).
 LINE_FORMAT = "%(asctime)s %(levelname)s %(message)s"
 
@@ -63,6 +69,9 @@ def parse_lockstep_args(argv: Sequence[str], device: str) -> Namespace:
         raise ValueError("lockstep NavPy stops on its lifecycle record only (--stop-on-lifecycle)")
     if args.nav_sim_speedup > 0.0:
         raise ValueError("lockstep NavPy never writes SIM_SPEEDUP (-gsu)")
+    if args.network_type not in LOCKSTEP_NETWORK_TYPES:
+        raise ValueError(f"lockstep NavPy's peer transport is -nt mav or none, not "
+                         f"{args.network_type.value!r}: a host socket or port is wall-only")
     return args
 
 
@@ -100,7 +109,7 @@ class NavpyHost:
         """Compose, then run until the stop; a failure is kept for the flushes."""
         ports = RuntimePorts(
             open_bus=self._link.open,
-            scheduler_cadence=lambda _vehicle: IdentitySchedulerCadence(),
+            scheduler_cadence=lambda _vehicle, _bus: IdentitySchedulerCadence(),
             observe_logger=self._observe_logger,
             lifecycle_stop=self.stop,
         )
@@ -125,4 +134,4 @@ class NavpyHost:
             close_strictly(self._logger)
 
 
-__all__ = ["LINE_FORMAT", "LOG_DIR", "NavpyHost", "STOPPED_EVENT", "parse_lockstep_args"]
+__all__ = ["LINE_FORMAT", "LOCKSTEP_NETWORK_TYPES", "LOG_DIR", "NavpyHost", "STOPPED_EVENT", "parse_lockstep_args"]

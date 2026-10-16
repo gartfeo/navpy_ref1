@@ -1,0 +1,96 @@
+{
+  "source": "step 10d recordings: eval_lockstep_fleet_auto.py, 3 serial-step SITLs (firmware per scripts/lockstep_firmware.lock.json); delay_seed drives the relays, the coordinator and the firmware helper jitter",
+  "runs": [
+    {
+      "run": ".logs/s10d/rec1/run1",
+      "seed": 1,
+      "delay_seed": 0,
+      "slot": 40,
+      "latches": [
+        1,
+        1,
+        1
+      ],
+      "frame1_t_us": 1744302,
+      "barrier_t_us": 1744302
+    },
+    {
+      "run": ".logs/s10d/acc1/run1",
+      "seed": 1,
+      "delay_seed": 0,
+      "slot": 40,
+      "latches": [
+        1,
+        1,
+        1
+      ],
+      "frame1_t_us": 1744302,
+      "barrier_t_us": 1744302
+    },
+    {
+      "run": ".logs/s10d/acc1/run2",
+      "seed": 1,
+      "delay_seed": 0,
+      "slot": 41,
+      "latches": [
+        1,
+        1,
+        1
+      ],
+      "frame1_t_us": 1744302,
+      "barrier_t_us": 1744302
+    },
+    {
+      "run": ".logs/s10d/acc1/run3",
+      "seed": 1,
+      "delay_seed": 7,
+      "slot": 42,
+      "latches": [
+        1,
+        1,
+        1
+      ],
+      "frame1_t_us": 1744302,
+      "barrier_t_us": 1744302
+    },
+    {
+      "run": ".logs/s10d/seed2/run1",
+      "seed": 2,
+      "delay_seed": 0,
+      "slot": 40,
+      "latches": [
+        1,
+        1,
+        1
+      ],
+      "frame1_t_us": 1744302,
+      "barrier_t_us": 1744302
+    },
+    {
+      "run": ".logs/s10d/r2/acc/run1",
+      "seed": 1,
+      "delay_seed": 0,
+      "slot": 40,
+      "latches": [
+        1,
+        1,
+        1
+      ],
+      "frame1_t_us": 1744302,
+      "barrier_t_us": 1744302
+    },
+    {
+      "run": ".logs/s10d/r2/acc/run2",
+      "seed": 1,
+      "delay_seed": 7,
+      "slot": 41,
+      "latches": [
+        1,
+        1,
+        1
+      ],
+      "frame1_t_us": 1744302,
+      "barrier_t_us": 1744302
+    }
+  ]
+}

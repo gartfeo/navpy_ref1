@@ -218,7 +218,7 @@ Each participant's work at tick k depends only on `TICK k`, so concurrency canno
   - `conn` (the encoder plus `mode_mapping`), `send_lock` and `device`;
   - `reserve`, `attach`, `close` and `wait_heartbeat`;
   - heartbeats and membership.
-- **Inbound:** `TICK` bytes go through `StreamDecoder` to `_dispatch`, on a managed reader that yields after each packet as the wall reader does.
+- **Inbound:** `TICK` bytes go through `StreamDecoder` to `_dispatch`, on a managed reader that yields after each packet (the wall reader yields once per bounded batch, `reader_batch.md`).
 - **Wall parity:** the bus admits heartbeats as `MavBusHeartbeats` does today, and `mode_mapping` follows `mavfile` (fixed-wing before any heartbeat, then the latest vehicle heartbeat's type).
 - **Outbound:** drained into `DONE`.
 - **Reservations:** `reserve` returns a reservation with `attach` and `release`, as real composition uses (`vehicle_build_transaction.py:70,117`, `vehicle_lifecycle.py:55,93`). Message subscriptions stay the `MavBusMembership` receivers. Releasing the last reservation closes the link: the coordinator stops routing its egress and journals the close.

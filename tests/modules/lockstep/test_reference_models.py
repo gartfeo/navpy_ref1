@@ -100,3 +100,21 @@ def test_the_decoder_skips_boot_text_like_a_real_link():
     (message,) = decoder.feed(b"0 0 0 " + _messages(1))
     assert message.seq == 0
     assert decoder.skipped_bytes == 6
+
+
+def test_the_forwarding_autopilot_passes_a_peers_targeted_navlink_to_its_companion():
+    """A task request for sysid 2 arriving on SITL 2's serial1 reaches the
+    NavPy that shares sysid 2 on serial0 (real ArduPilot forwards it: the
+    10f journals); a parameter read for SITL 2's autopilot stays local."""
+    from pymavlink.dialects.v20 import ardupilotmega as mavlink
+
+    from tests.modules.lockstep.lockstep_autopilot import ReferenceAutopilot
+
+    autopilot = ReferenceAutopilot(sys_id=2, forward=True, heartbeats=frozenset())
+    peer, wire = encoder(1, 191)
+    peer.send(mavlink.MAVLink_task_assign_request_message(7, 3, 0, 2000, 2, 1, 0, 0, 0, 0, 0.0))
+    peer.param_request_read_send(2, mavlink.MAV_COMP_ID_AUTOPILOT1, b"AAS_NAV_CGT", -1)
+    serial0, serial1 = autopilot.step(0, [b"", wire.drain()])
+    forwarded = [(m.get_type(), m.get_srcSystem()) for m in StreamDecoder().feed(serial0)]
+    assert forwarded == [("TASK_ASSIGN_REQUEST", 1)]
+    assert "PARAM_VALUE" in {m.get_type() for m in StreamDecoder().feed(serial1)}  # answered, not forwarded

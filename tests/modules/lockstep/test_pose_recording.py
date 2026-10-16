@@ -53,7 +53,7 @@ def test_the_lockstep_eval_records_in_both_participants():
     scenario = load_scenario(REPO / "scripts" / "eval_lockstep_slice_scenario.json")
     roles = manifest(scenario, LockstepOptions(1, 600.0, 15.0)).roles
     assert {name: spec.config.get(POSE_CADENCE_DIR) for name, spec in roles.items()} == {
-        "backend": "source-time", "navpy": "source-time"}
+        "backend": "source-time", "navpy1": "source-time"}
 
 
 def test_the_variable_is_the_one_the_recorder_reads():

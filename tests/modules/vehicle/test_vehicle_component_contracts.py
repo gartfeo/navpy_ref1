@@ -666,6 +666,116 @@ def test_mission_upload_accepts_next_request_published_during_item_send():
     assert connection.mav.mission_item_int_send.call_count == 2
 
 
+def _mission_message(message_type, **fields):
+    item = MagicMock(**fields)
+    item.get_type.return_value = message_type
+    item.get_srcSystem.return_value = 7
+    item.mission_type = 0
+    return item
+
+
+def test_mission_inbox_reports_cursor_overrun_instead_of_false_timeout():
+    inbox = MissionInbox(max_messages=4)
+    cursor = inbox.cursor()
+    inbox.publish(_mission_message("MISSION_ACK", type=0), 1.0)
+    for sequence in range(4):
+        inbox.publish(_mission_message("MISSION_REQUEST_INT", seq=sequence), 2.0)
+
+    with pytest.raises(MessageHistoryOverrun) as raised:
+        inbox.wait_after(
+            cursor,
+            lambda message: message.get_type() == "MISSION_ACK",
+            deadline=time.monotonic() + 0.01,
+        )
+
+    assert raised.value.cursor == cursor
+    assert raised.value.message_types == (
+        "MISSION_ACK", "MISSION_REQUEST", "MISSION_REQUEST_INT",
+    )
+
+
+def test_mission_inbox_retains_match_at_exact_capacity():
+    inbox = MissionInbox(max_messages=4)
+    cursor = inbox.cursor()
+    wanted = _mission_message("MISSION_ACK", type=0)
+    inbox.publish(wanted, 1.0)
+    for sequence in range(3):
+        inbox.publish(_mission_message("MISSION_REQUEST_INT", seq=sequence), 2.0)
+
+    envelope = inbox.wait_after(
+        cursor,
+        lambda message: message.get_type() == "MISSION_ACK",
+        deadline=time.monotonic() + 0.01,
+    )
+    assert envelope is not None and envelope.message is wanted
+
+
+def test_a_reply_burst_within_one_reader_batch_reaches_blocked_waiters():
+    """A reader batch publishes without yielding; history covers the burst."""
+    store = MessageStore(MESSAGE_HISTORY_POLICY)
+    inbox = MissionInbox()
+    store_cursor = store.cursor("PARAM_VALUE")
+    inbox_cursor = inbox.cursor()
+    results = {}
+    started = threading.Barrier(3)
+
+    def wait_store():
+        started.wait()
+        results["store"] = store.wait_after(
+            "PARAM_VALUE", store_cursor,
+            lambda message: message.param_id == "WANTED",
+            deadline=time.monotonic() + 2.0,
+        )
+
+    def wait_inbox():
+        started.wait()
+        results["inbox"] = inbox.wait_after(
+            inbox_cursor,
+            lambda message: message.get_type() == "MISSION_ACK",
+            deadline=time.monotonic() + 2.0,
+        )
+
+    waiters = [threading.Thread(target=wait_store), threading.Thread(target=wait_inbox)]
+    for waiter in waiters:
+        waiter.start()
+    started.wait()
+    store.publish("PARAM_VALUE", SimpleNamespace(param_id="WANTED"), receipt_time_s=1.0)
+    inbox.publish(_mission_message("MISSION_ACK", type=0), 1.0)
+    for index in range(100):  # one batch: far over rate x budget, under depth
+        store.publish("PARAM_VALUE", SimpleNamespace(param_id=f"N{index}"), receipt_time_s=2.0)
+        inbox.publish(_mission_message("MISSION_REQUEST_INT", seq=index), 2.0)
+    for waiter in waiters:
+        waiter.join(timeout=3.0)
+
+    assert results["store"].message.param_id == "WANTED"
+    assert results["inbox"].message.get_type() == "MISSION_ACK"
+
+
+def test_mission_upload_fails_closed_when_its_reply_was_evicted():
+    inbox = MissionInbox(max_messages=4)
+    connection = SimpleNamespace(mav=MagicMock())
+    store = MagicMock()
+    store.snapshot.return_value = [MagicMock()]
+
+    def burst(*_args):
+        inbox.publish(_mission_message("MISSION_REQUEST_INT", seq=0), 1.0)
+        for _ in range(4):  # unrelated rejections evict the request
+            inbox.publish(_mission_message("MISSION_ACK", type=1), 2.0)
+
+    connection.mav.mission_count_send.side_effect = burst
+    uploader = MissionUploader(
+        7,
+        MavTransport(connection, threading.RLock()),
+        store,
+        inbox,
+        SimpleNamespace(value=MagicMock()),
+    )
+
+    with pytest.raises(MessageHistoryOverrun):
+        uploader.upload(timeout=0.1, retries=1)
+    connection.mav.mission_item_int_send.assert_not_called()
+
+
 def test_callback_registry_order_and_idempotent_self_cancellation():
     registry = CallbackRegistry()
     seen: list[str] = []

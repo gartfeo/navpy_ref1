@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import importlib
 import json
+import math
 from types import SimpleNamespace
 
 import pytest
@@ -144,17 +145,70 @@ def test_manifest_rejects_a_poi_ordinal_on_the_appended_hub_row(tmp_path):
 
 def test_scenario_search_paths_are_equal():
     lengths = [
-        scenario_missions.search_path_m(mission["waypoints"])
+        scenario_missions.search_path_m(
+            mission["waypoints"], scenario_missions.planner_ref_lat(mission["polygon"])
+        )
         for mission in CERTIFIED.missions
     ]
 
     assert max(lengths) - min(lengths) < 0.01
 
 
+def _haversine_m(a, b):
+    lat_a, lat_b = math.radians(a["lat"]), math.radians(b["lat"])
+    h = (
+        math.sin((lat_b - lat_a) / 2) ** 2
+        + math.cos(lat_a) * math.cos(lat_b) * math.sin(math.radians(b["lon"] - a["lon"]) / 2) ** 2
+    )
+    return 2 * 6_371_000.0 * math.asin(math.sqrt(h))
+
+
+def _one_lane_mission(lat, west_lon, east_lon):
+    mission = copy.deepcopy(dict(CERTIFIED.missions[0]))
+    mission["waypoints"] = [{"lat": lat, "lon": east_lon}, {"lat": lat, "lon": west_lon}]
+    return mission
+
+
+def test_equal_planner_lanes_at_different_latitudes_pass_and_a_short_lane_fails():
+    # The planner's lanes are equal in its flat frame; on the sphere the
+    # northern lane is shorter by more than the encoding tolerance.
+    south = _one_lane_mission(40.3032, 44.4332, 44.453)
+    north = _one_lane_mission(40.3096, 44.4332, 44.453)
+    sphere_gap = _haversine_m(*south["waypoints"]) - _haversine_m(*north["waypoints"])
+    assert sphere_gap > scenario_missions._SEARCH_PATH_TOLERANCE_M_PER_ROW * 2
+
+    scenario_missions._require_equal_search_paths([south, north])
+
+    # Ends the northern lane 0.00001 degree of longitude (about 0.85 m) short.
+    short = _one_lane_mission(40.3096, 44.43321, 44.453)
+    with pytest.raises(ValueError, match="search paths must be equal"):
+        scenario_missions._require_equal_search_paths([south, short])
+
+
+def test_manifest_rejects_a_peer_polygon_that_rescales_a_short_path(tmp_path):
+    def shorten_peer_and_move_its_polygon(raw):
+        # Codex counterexample: about 0.17 m short in the shared frame (over the
+        # tolerance), equal if peer 1 were measured from its own polygon's centre.
+        raw["missions"][1]["waypoints"][-1]["lon"] = 44.433202
+        for point in raw["missions"][1]["polygon"]:
+            if point["lat"] == 40.3028:
+                point["lat"] = 40.298253
+
+    def shorten_peer(raw):
+        raw["missions"][1]["waypoints"][-1]["lon"] = 44.433202
+
+    (tmp_path / "short").mkdir()
+    (tmp_path / "moved").mkdir()
+    with pytest.raises(ValueError, match="search paths must be equal"):
+        scenario.load_scenario(_write_manifest(tmp_path / "short", shorten_peer))
+    with pytest.raises(ValueError, match="share the planner's area polygon"):
+        scenario.load_scenario(_write_manifest(tmp_path / "moved", shorten_peer_and_move_its_polygon))
+
+
 def test_manifest_rejects_unequal_search_paths(tmp_path):
     def shorten_peer_line(raw):
-        # Ends peer 1's last line 0.0010 degree (about 111 m) short.
-        raw["missions"][1]["waypoints"][-1]["lat"] = 40.3038
+        # Ends peer 1's last east-west line 0.0010 degree of longitude (about 85 m) short.
+        raw["missions"][1]["waypoints"][-1]["lon"] = 44.4342
 
     path = _write_manifest(tmp_path, shorten_peer_line)
 

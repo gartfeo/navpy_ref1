@@ -169,11 +169,14 @@ class DetectorTestCase(unittest.TestCase):
 
         actual_loc = self._zc_util.ray_to_terrain_ned(current_location, actual_ned)
 
-        # the NED is considered same as UAS
-        self.assertAlmostEqual(actual_loc.lat, poi_location.lat, delta=1e-8)
-        self.assertAlmostEqual(actual_loc.lng, poi_location.lng, delta=1e-8)
+        # the NED is considered same as UAS. The pixel is sub-pixel now (it
+        # used to round onto the exact centre), so the reverse ray carries the
+        # ~0.01 px residual of the forward projection: ~7 cm at this range.
+        # 1e-6 deg (~11 cm) and 1 cm in height sit inside the 0.15 m bound below.
+        self.assertAlmostEqual(actual_loc.lat, poi_location.lat, delta=1e-6)
+        self.assertAlmostEqual(actual_loc.lng, poi_location.lng, delta=1e-6)
         self.assertAlmostEqual(current_location.alt - actual_loc.alt, current_location.alt - poi_location.alt,
-                               delta=1e-8)
+                               delta=0.01)
 
         dist = np.linalg.norm(pymap3d.geodetic2ned(poi_location.lat, poi_location.lng, poi_location.alt,
                                                    actual_loc.lat, actual_loc.lng, actual_loc.alt))
@@ -198,7 +201,8 @@ class DetectorTestCase(unittest.TestCase):
 
         detect_data = self._detector.update(self._current_location, self._poi, uas_att)
 
-        self.assertAlmostEqual(detect_data.pixel.v_px, 400)
+        # Sub-pixel projection: delta 0.5 is the old round() == 400 check.
+        self.assertAlmostEqual(detect_data.pixel.v_px, 400, delta=0.5)
 
     def test_pitch_error_with_actualPitch(self):
         uas_att = Attitude(-25, 0, 0)
@@ -206,7 +210,7 @@ class DetectorTestCase(unittest.TestCase):
         self._camera.set_zoom(1)
 
         detect_data = self._detector.update(self._current_location, self._poi, uas_att)
-        self.assertAlmostEqual(detect_data.pixel.v_px, 509)
+        self.assertAlmostEqual(detect_data.pixel.v_px, 509, delta=0.5)
 
     def test_roll_should_not_change(self):
         uas_att = Attitude(-15, 0, 0)
@@ -222,7 +226,7 @@ class DetectorTestCase(unittest.TestCase):
         self._camera.set_zoom(1)
 
         detect_data = self._detector.update(self._current_location, self._poi, uas_att)
-        self.assertAlmostEqual(detect_data.pixel.u_px, 987)
+        self.assertAlmostEqual(detect_data.pixel.u_px, 987, delta=0.5)
 
     def test_get_detect_data_returns_primary_poi_first(self):
         import threading

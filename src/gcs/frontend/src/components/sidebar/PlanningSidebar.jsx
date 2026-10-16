@@ -2,6 +2,9 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors, zoneColorsLabel } from '../../styles';
 import { computeSets, getUavsPerSet } from '../../utils/planner';
+import {
+  ROUTE_OFFSET_MAX_M, ROUTE_OFFSET_MIN_M, ROUTE_OFFSET_STEP_M, autoUavCount, maxUavCountFor,
+} from '../../utils/planLimits';
 import { SectionTitle, Divider, Label, InfoRow, StepBtn } from './SidebarPrimitives';
 import DeliveryHubAssignmentSection, { zoneLabel } from './DeliveryHubAssignmentSection';
 import MultiSelectWps from './MultiSelectWps';
@@ -117,8 +120,8 @@ export default function PlanningSidebar({
           {uavCount || '?'}
         </span>
         <StepBtn
-          disabled={analysis && uavCount >= analysis.max_uavs}
-          onClick={() => setUavCount(Math.min(analysis?.max_uavs || 99, (uavCount || 1) + 1))}
+          disabled={uavCount >= maxUavCountFor(analysis)}
+          onClick={() => setUavCount(Math.min(maxUavCountFor(analysis), (uavCount || 1) + 1))}
         >+</StepBtn>
       </div>
       {analysis && (
@@ -127,13 +130,13 @@ export default function PlanningSidebar({
             label={t('planningSidebar.containers')}
             value={`${computeSets(uavCount)} x ${getUavsPerSet()}`}
           />
-          {uavCount !== analysis.required_uavs && (
+          {uavCount !== autoUavCount(analysis) && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
               <span style={{ color: colors.textDim, fontSize: 13 }}>
-                {t('planningSidebar.recommended', { count: analysis.required_uavs })}
+                {t('planningSidebar.recommended', { count: autoUavCount(analysis) })}
               </span>
               <button
-                onClick={() => setUavCount(analysis.required_uavs)}
+                onClick={() => setUavCount(autoUavCount(analysis))}
                 style={{
                   background: 'transparent',
                   color: colors.accent,
@@ -164,9 +167,9 @@ export default function PlanningSidebar({
           </div>
           <input
             type="range"
-            min={20}
-            max={500}
-            step={5}
+            min={ROUTE_OFFSET_MIN_M}
+            max={ROUTE_OFFSET_MAX_M}
+            step={ROUTE_OFFSET_STEP_M}
             value={routeOffsetM ?? analysis?.track_spacing_m ?? 150}
             onChange={(e) => setRouteOffsetM(Number(e.target.value))}
             style={{ width: '100%', accentColor: colors.accent, cursor: 'pointer' }}

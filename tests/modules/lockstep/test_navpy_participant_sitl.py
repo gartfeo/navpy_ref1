@@ -40,6 +40,6 @@ def test_navpy_on_a_serial_step_sitl_is_stopped_through_the_api_and_repeats(tmp_
     lines = [(tmp_path / name / "navpy_log_lines.txt").read_bytes() for name in ("run1", "run2")]
     assert journals[0] == journals[1] and lines[0] == lines[1]
     actor = first.result["actor"]
-    assert actor["ready"]["runtime"]["role"] == "navpy" and actor["stopped"]["instances"] == []
+    assert actor["ready"][0]["runtime"]["role"] == "navpy" and actor["stopped"]["instances"] == []
     host = json.loads((tmp_path / "run1" / "lockstep_participants_host.json").read_text())
-    assert sorted((row["role"], row["exit_code"]) for row in host) == [("backend", 0), ("navpy", 0)]
+    assert sorted((row["role"], row["exit_code"]) for row in host) == [("backend", 0), ("navpy1", 0)]

@@ -601,12 +601,18 @@ _RETAINED_GATE_MUTATIONS = {
         _sub(_DEBUG, r"^.*obs_ts=1000\.[3-8]00.*\n", ""),
         "max observation gap 0.700s > 0.500s",
     ),
+    # The gated reversals are of the achieved roll: commanded-roll reversals
+    # are a diagnostic only (scripts/eval_gcs_demo_limits.py).
     "roll quality": (
         _all(*(
-            _sub(_DEBUG, rf"cmd_roll={old}\.00;", f"cmd_roll={new}.00;")
+            _sub(
+                _DEBUG,
+                rf"(cmd_roll_deg={old}\.00;cmd_pitch_deg=-10;)aircraft_roll_deg=0\.00;",
+                rf"\g<1>aircraft_roll_deg={new}.00;",
+            )
             for old, new in (("11", "-15"), ("9", "15"), ("7", "-15"))
         )),
-        "significant roll reversals 3 > 1",
+        "significant achieved-roll reversals 2 > 1",
     ),
 }
 

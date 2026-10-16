@@ -14,7 +14,9 @@ from navpy.sim.detection.sim_runtime_ports import (
     DetectFramePort,
     ErrorSink,
     FrameOutcomeSink,
+    SourceTimeAdvance,
 )
+from navpy.sim.detection.unpaired_pose_monitor import UnpairedPoseMonitor
 from navpy.core.ports.worker_failure import WorkerFailureLatch
 
 
@@ -26,6 +28,8 @@ class SimDetectorWorker:
         *,
         coordinator: WorkerCoordinatorPort[IdealPoseSample],
         polling_pose_reader: PollingPoseReaderPort,
+        advance_source_time: SourceTimeAdvance,
+        unpaired_pose_monitor: UnpairedPoseMonitor,
         error: ErrorSink,
         cadence_lease: SchedulerCadenceLease,
         scheduler_period_s: float,
@@ -36,6 +40,8 @@ class SimDetectorWorker:
         self._execution = SimDetectorExecution(
             coordinator=coordinator,
             polling_pose_reader=polling_pose_reader,
+            advance_source_time=advance_source_time,
+            unpaired_pose_monitor=unpaired_pose_monitor,
             error=error,
             cadence_lease=cadence_lease,
             scheduler_period_s=scheduler_period_s,

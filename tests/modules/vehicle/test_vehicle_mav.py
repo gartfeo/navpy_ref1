@@ -1068,6 +1068,44 @@ class VehicleMavTest(unittest.TestCase):
         sample.attitude.pitch = 99.0
         self.assertAlmostEqual(dm.attitude_sample.attitude.pitch, -5.0)
 
+    def test_position_sample_exposes_boot_stamp_receipt_and_copies(self):
+        dm = self._new_dm(device='dev', target_system=1)
+        position = self._make_vehicle_msg(
+            dm,
+            "GLOBAL_POSITION_INT",
+            time_boot_ms=250,
+            lat=404100000,
+            lon=441100000,
+            alt=250000,
+            relative_alt=50000,
+        )
+        attitude = self._make_vehicle_msg(
+            dm,
+            "ATTITUDE",
+            time_boot_ms=250,
+            pitch=0.0,
+            yaw=0.0,
+            roll=0.0,
+            rollspeed=0.0,
+            pitchspeed=0.0,
+            yawspeed=0.0,
+        )
+
+        self.assertIsNone(dm.position_sample)
+        with patch("navpy.plugins.vehicle.ardupilot.inbound_router.rt.time", return_value=456.25):
+            dm.feed_message(position)
+            dm.feed_message(attitude)
+        sample = dm.position_sample
+
+        self.assertAlmostEqual(sample.lat, 40.41)
+        self.assertAlmostEqual(sample.lon, 44.11)
+        self.assertAlmostEqual(sample.alt, 250.0)
+        self.assertEqual(sample.time_boot_s, dm.attitude_sample.time_boot_s)
+        self.assertEqual(sample.receipt_time_s, 456.25)
+        sample.lat = 0.0
+        self.assertAlmostEqual(dm.position_sample.lat, 40.41)
+        self.assertIsNot(dm.position_sample, dm.position_sample)
+
     def test_simulator_truth_pose_prefers_integer_coordinates_and_copies_pose(self):
         dm = self._new_dm(device="dev", target_system=1)
         sim_state = self._make_vehicle_msg(

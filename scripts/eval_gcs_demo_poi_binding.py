@@ -8,7 +8,7 @@ from pathlib import Path
 
 from scripts.eval_gcs_demo_evidence import (
     mission_navigation_segment,
-    parse_final_approach_command_episodes,
+    parse_final_approach_episodes,
 )
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan
 from scripts.eval_gcs_demo_vehicle import navigation_log
@@ -60,10 +60,11 @@ def final_approach_poi_binding_errors(
                     errors="replace",
                 )
             )
-            episodes = parse_final_approach_command_episodes(
+            # Docking is the vehicle's own gate; the binding reads the commands.
+            episodes = [list(episode.commands) for episode in parse_final_approach_episodes(
                 log_dir / f"uav_{sys_id}_navigation_debug.csv",
                 vehicle_id=sys_id,
-            )
+            )]
         except (OSError, UnicodeError, ValueError) as error:
             errors.append(
                 f"vehicle {sys_id} has invalid final-approach-POI evidence: {error}"

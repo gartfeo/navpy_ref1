@@ -11,7 +11,7 @@ snapshot like every gate: the hash-chained journal
 | Sensor | NavPy lines | ``POI: P<task> (tracking`` from the owner |
 | Workflow ticks | NavPy lines as (tick, stream position) | the retained order |
 | Assignment | the journal's decoded message counts (with their source and target), NavPy lines | no peer relay, none of :data:`SLICE_FORBIDDEN_MESSAGES` but the owner's self-assignment, no peer marker |
-| Approval | the approvals and the journal | exactly one, for P, with the confirmation timing |
+| Approval | the approvals and the journal | exactly one, for P, with the confirmation timing and the polling-schedule replay |
 | SNAP | NavPy lines and the outcome | the first SNAP line is at the mission terminal tick |
 | Pose cadence | ``source-time/*.csv`` | producer-named files, the owner's NavPy arrival streams, every file's tail flushed whole |
 
@@ -33,6 +33,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.sim.lockstep.coordinator_mavlink import MessageKey, parse_key
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
+from scripts.eval_gcs_demo_approval_replay import approval_replay_errors
 from scripts.eval_gcs_demo_confirmation_timing import confirmation_timing_errors
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_role_gates import peer_assignment_marker_errors
@@ -108,15 +109,22 @@ def sensor_errors(lines: Sequence[tuple[int, str]], poi: int) -> list[str]:
     return [] if any(marker in line for _k, line in lines) else [f"owner never logged {marker!r}"]
 
 
+def first_markers(lines: Sequence[tuple[int, str]],
+                  markers: Mapping[str, str]) -> dict[str, tuple[int, int]]:
+    """Each marker's first line as ``(tick, stream position)``."""
+    at: dict[str, tuple[int, int]] = {}
+    for position, (k, line) in enumerate(lines):
+        for name, marker in markers.items():
+            if name not in at and marker in line:
+                at[name] = (k, position)
+    return at
+
+
 def workflow_tick_errors(lines: Sequence[tuple[int, str]]) -> list[str]:
     ticks = [k for k, _line in lines]
     if ticks != sorted(ticks):
         return ["NavPy lines are not in tick order"]
-    at: dict[str, tuple[int, int]] = {}
-    for position, (k, line) in enumerate(lines):
-        for name, marker in WORKFLOW_MARKERS.items():
-            if name not in at and marker in line:
-                at[name] = (k, position)
+    at = first_markers(lines, WORKFLOW_MARKERS)
     missing = [name for name in WORKFLOW_MARKERS if name not in at]
     if missing:
         return [f"workflow ticks: no {', '.join(missing)} marker"]
@@ -177,7 +185,8 @@ def approval_errors(records: Sequence[Mapping], lines: Sequence[tuple[int, str]]
     (approval,) = approvals
     if (approval["sys_id"], approval["task_id"]) != (sys_id, poi):
         return [f"approval for ({approval['sys_id']}, P{approval['task_id']}), not ({sys_id}, P{poi})"]
-    return confirmation_timing_errors(records, lines, approval, poi, sys_id)
+    return (confirmation_timing_errors(records, lines, approval, poi, sys_id)
+            + approval_replay_errors(records, approvals))
 
 
 def snap_errors(records: Sequence[Mapping], lines: Sequence[tuple[int, str]]) -> list[str]:
@@ -190,15 +199,17 @@ def snap_errors(records: Sequence[Mapping], lines: Sequence[tuple[int, str]]) ->
     return []
 
 
-def pose_cadence_errors(log_dir: Path, sys_id: int) -> list[str]:
-    """The pose-cadence CSVs: stable producer names, the owner's arrival
-    streams, and each file flushed whole (a header, then complete rows ending
-    in a newline: the strict flush at the participant stop)."""
+def pose_cadence_errors(log_dir: Path, sys_ids: Sequence[int],
+                        producers: Sequence[str] = ("navpy",)) -> list[str]:
+    """The pose-cadence CSVs: stable producer names, each producer's arrival
+    streams for every sysid, and each file flushed whole (a header, then
+    complete rows ending in a newline: the strict flush at the participant stop)."""
     directory = log_dir / SOURCE_TIME_SUBDIR
     files = sorted(directory.glob("*.csv")) if directory.is_dir() else []
     names = {path.name for path in files}
     errors = [f"pose cadence: no {name}" for name in
-              (f"pose_cadence_{stream}_uav_{sys_id}_navpy.csv" for stream in POSE_CADENCE_STREAMS)
+              (f"pose_cadence_{stream}_uav_{sys_id}_{producer}.csv" for sys_id in sys_ids
+               for producer in producers for stream in POSE_CADENCE_STREAMS)
               if name not in names]
     for path in files:
         if not _PRODUCER_FILE.match(path.name):
@@ -227,13 +238,13 @@ def slice_gate_errors(log_dir: Path, plan: DemoMissionPlan,
     return (run_errors(records) + sensor_errors(lines, poi) + workflow_tick_errors(lines)
             + assignment_errors(records, lines, sys_id)
             + approval_errors(records, lines, approvals, sys_id, poi) + snap_errors(records, lines)
-            + pose_cadence_errors(log_dir, sys_id))
+            + pose_cadence_errors(log_dir, (sys_id,)))
 
 
 __all__ = [
     "COMPANION_COMPONENT", "GCS_SYSTEM", "JOURNAL_FILE", "NAVPY_LINES_FILE", "SLICE_FORBIDDEN_MESSAGES",
     "SliceEvidence", "is_self_assignment",
-    "WORKFLOW_MARKERS", "approval_errors", "assignment_errors", "forbidden_message_ids",
+    "WORKFLOW_MARKERS", "approval_errors", "assignment_errors", "first_markers", "forbidden_message_ids",
     "POSE_CADENCE_STREAMS", "load_slice_evidence", "pose_cadence_errors", "run_errors", "sensor_errors", "slice_gate_errors", "snap_errors",
     "workflow_tick_errors",
 ]

@@ -8,6 +8,10 @@ from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 
 CERTIFIED_PROFILE = "certified"
 OWNER_ONLY_SLICE_PROFILE = "owner_only_slice"
+#: The certified scenario run in lockstep: a resolved execution profile, never
+#: a scenario's own ``gate_profile`` (``lockstep_fleet.md``, Execution profile).
+CERTIFIED_LOCKSTEP_PROFILE = "certified_lockstep"
+WALL, LOCKSTEP = "wall", "lockstep"
 # Owner track rows only: NavPy also counts the appended hub row the GCS parser drops.
 CERTIFIED_POI_NAV_WAYPOINT_ORDINALS = (2, 3, 6)
 
@@ -39,12 +43,25 @@ _PROFILE_SHAPES: dict[str, Callable[[Sequence[str], tuple[int, ...]], None]] = {
     OWNER_ONLY_SLICE_PROFILE: _require_owner_only_slice_shape,
 }
 GATE_PROFILES = tuple(_PROFILE_SHAPES)
-#: Gate profile -> the sim-time factor its cadence gates expect: the certified
-#: run's wall launch speedup, and lockstep's 1 for the slice.
+#: Execution profile -> the sim-time factor its cadence gates expect: the
+#: certified run's wall launch speedup, and lockstep's 1.
 PROFILE_SIM_SPEEDUP: dict[str, float] = {
     CERTIFIED_PROFILE: SIM_SPEEDUP,
+    CERTIFIED_LOCKSTEP_PROFILE: 1.0,
     OWNER_ONLY_SLICE_PROFILE: 1.0,
 }
+#: (gate profile, execution mode) pairs that resolve to another profile; every
+#: other pair resolves to its gate profile.
+_RESOLVED_PROFILES: dict[tuple[str, str], str] = {
+    (CERTIFIED_PROFILE, LOCKSTEP): CERTIFIED_LOCKSTEP_PROFILE,
+}
+
+
+def execution_profile(gate_profile: str, mode: str) -> str:
+    """The profile every profile-keyed gate table reads for a run."""
+    if gate_profile not in _PROFILE_SHAPES or mode not in (WALL, LOCKSTEP):
+        raise ValueError(f"no execution profile for ({gate_profile!r}, {mode!r})")
+    return _RESOLVED_PROFILES.get((gate_profile, mode), gate_profile)
 
 
 def require_profile_shape(
@@ -62,10 +79,14 @@ def require_profile_shape(
 
 
 __all__ = [
+    "CERTIFIED_LOCKSTEP_PROFILE",
     "CERTIFIED_POI_NAV_WAYPOINT_ORDINALS",
     "CERTIFIED_PROFILE",
     "GATE_PROFILES",
+    "LOCKSTEP",
     "OWNER_ONLY_SLICE_PROFILE",
     "PROFILE_SIM_SPEEDUP",
+    "WALL",
+    "execution_profile",
     "require_profile_shape",
 ]
