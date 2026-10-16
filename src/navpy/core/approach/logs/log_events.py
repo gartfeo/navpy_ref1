@@ -9,7 +9,7 @@ Two row shapes:
     FINAL_APPROACH_CMD, FINAL_APPROACH_PITCH_STATE, FINAL_APPROACH_PREDICTION,
     FINAL_APPROACH_ATTITUDE_DIAG, FINAL_APPROACH_RESPONSE_STATE,
     FINAL_APPROACH_BEARING_RATE_DIAG, FINAL_APPROACH_VERTICAL_FLOW_DIAG,
-    FINAL_APPROACH_PREVIEW_STATE, DOCK_ARMED, DOCKED):
+    FINAL_APPROACH_PREVIEW_STATE, DOCK_ARMED, DOCK_DISARMED, DOCKED):
       {ts},EVENT:{NAME},{k=v;k=v},,,,,,,,,
     12-column CSV-parseable. Payload uses sanitized k=v pairs.
 """
@@ -49,6 +49,8 @@ class LogEvent(Enum):
     FINAL_APPROACH_PREVIEW_STATE = "FINAL_APPROACH_PREVIEW_STATE"
     # The approach episode the contact sensor is armed for (NAV entry).
     DOCK_ARMED = "DOCK_ARMED"
+    # NAV exit of an armed episode (its source time ends the cadence window).
+    DOCK_DISARMED = "DOCK_DISARMED"
     # Dock contact: the only success of a final approach (physical_docking.md).
     DOCKED = "DOCKED"
 

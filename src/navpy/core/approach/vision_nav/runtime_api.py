@@ -12,7 +12,17 @@ from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 class VisionNavStatus(Protocol):
     def poi_passed_override(self) -> bool: ...
 
-    def begin_dock_episode(self, identity: DockContactIdentity) -> None: ...
+    def begin_dock_episode(
+        self,
+        identity: DockContactIdentity,
+        source_s: float | None = None,
+    ) -> None: ...
+
+    def end_dock_episode(
+        self,
+        identity: DockContactIdentity,
+        source_s: float | None,
+    ) -> None: ...
 
     def latch_docked(self, event: DockContactEvent) -> bool: ...
 

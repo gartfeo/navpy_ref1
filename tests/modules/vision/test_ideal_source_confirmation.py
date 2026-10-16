@@ -92,7 +92,7 @@ def _render_associated_frame(body_rates, compass_yaw):
             logger=Mock(),
         ),
         SimpleNamespace(ideal_360=True),
-        SimpleNamespace(coordinator=coordinator),
+        SimpleNamespace(coordinator=coordinator, poll_timer=None),
         SimpleNamespace(
             capture=SimCaptureState(), gap=ForcedGapState(), evidence_recorder=None,
             tracking=SimpleNamespace(tracking_obj_id=None), projector=dispatcher,

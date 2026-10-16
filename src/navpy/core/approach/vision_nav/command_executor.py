@@ -122,6 +122,7 @@ class FinalApproachCommandExecutor:
         entry: list[FinalApproachDiagnosticEntry | None] = [None]
         timing = self._ports.mailbox.timing(work.diagnostic_token)
         entry_s = rt.perf_counter()
+        entry_cpu_s = rt.thread_time()
         work.begin_postprocess(self._ports.postprocess_fence)
         with CleanupStack() as cleanup:
             cleanup.push(
@@ -137,6 +138,7 @@ class FinalApproachCommandExecutor:
                     result,
                     entry[0],
                     entry_s,
+                    entry_cpu_s,
                 )
             )
             cleanup.push(
@@ -250,12 +252,22 @@ class FinalApproachCommandExecutor:
         result: FinalApproachCommandResult | None,
         entry: FinalApproachDiagnosticEntry | None,
         entry_s: float,
+        entry_cpu_s: float,
     ) -> None:
+        frame = work.frame
+        source_time = self._ports.source_time
         if result is None or not result.issued:
+            # Not executed (superseded lease or stale timing) or not issued.
+            source_time.record_frame_disposition(
+                stage="worker",
+                epoch=frame.source_generation,
+                source_timestamp_s=frame.source_timestamp_s,
+                disposition="stale" if result is None else "unissued",
+            )
             return
-        self._ports.source_time.record_command(
+        source_time.record_command(
             wall_start_s=entry_s,
-            source_timestamp_s=work.frame.source_timestamp_s,
+            source_timestamp_s=frame.source_timestamp_s,
             source_now_s=(
                 None if entry is None else entry.timing.source_now_s
             ),
@@ -264,6 +276,15 @@ class FinalApproachCommandExecutor:
                 (rt.perf_counter() - entry_s) * 1000.0,
             ),
             outcome="fresh",
+            # Same scope and thread as execution_ms.
+            work_cpu_ms=max(0.0, (rt.thread_time() - entry_cpu_s) * 1000.0),
+            epoch=frame.source_generation,
+        )
+        source_time.record_frame_disposition(
+            stage="worker",
+            epoch=frame.source_generation,
+            source_timestamp_s=frame.source_timestamp_s,
+            disposition="consumed",
         )
 
 

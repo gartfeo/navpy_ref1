@@ -124,6 +124,7 @@ class FrameOutcomeSink(Protocol):
         boot_s: Optional[float],
         outcome: str,
         frame_timestamp_s: Optional[float],
+        epoch: Optional[int] = None,
     ) -> None: ...
 
 

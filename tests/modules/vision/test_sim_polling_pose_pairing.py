@@ -18,6 +18,7 @@ from navpy.plugins.vehicle.ardupilot.pose_telemetry import (
     attitude_sample_from_message,
     position_sample_from_message,
 )
+from navpy.sim.detection.detector_poll_timer import DetectorPollTimer
 from navpy.sim.detection.pose_frame_clock import PoseFrameClock
 from navpy.sim.detection.scheduler_cadence_lease import SchedulerCadenceLease
 from navpy.sim.detection.sim_detector_execution import SimDetectorExecution
@@ -310,6 +311,7 @@ def _execution(
     record_outcome: object,
     advance_source_time: object = None,
     monitor: Optional[UnpairedPoseMonitor] = None,
+    poll_timer: Optional[DetectorPollTimer] = None,
 ) -> tuple[SimDetectorExecution, _StopAfterWaits, Mock]:
     stop_event = _StopAfterWaits(len(reads))
     reader = Mock(read=Mock(side_effect=reads))
@@ -326,6 +328,7 @@ def _execution(
         ideal_360=False,
         detect_pois=detect_pois,
         record_outcome=record_outcome,
+        poll_timer=poll_timer,
     )
     return execution, stop_event, reader
 
@@ -358,6 +361,51 @@ def test_loop_drops_unpaired_polls_without_detecting_and_keeps_its_period() -> N
     assert [c.args for c in advance.call_args_list] == [(1.0,), (1.02,), (1.04,)]
     assert len(stop_event.timeouts) == 3
     assert all(0.0 < t <= POLL_WALL_PERIOD_S for t in stop_event.timeouts)
+
+
+def _three_polls() -> list[PollingPoseRead]:
+    pair = _reader(_attitude(1_040, 10.04), _position(1_040, 10.04)).read()
+    return [PollingPoseRead(None, None), PollingPoseRead(1.02, None), pair]
+
+
+def test_poll_timer_rows_cover_every_iteration_including_empty_reads() -> None:
+    rows: list[tuple] = []
+    detect = Mock(return_value=True)
+    execution, stop_event, _reader_mock = _execution(
+        _three_polls(), detect_pois=detect, record_outcome=Mock(),
+        poll_timer=DetectorPollTimer(rows.append, Mock()),
+    )
+
+    execution.run()
+
+    assert [row[1] for row in rows] == ["empty", "unpaired", "paired"]
+    for row, timeout in zip(rows, stop_event.timeouts):
+        assert row[4] == pytest.approx(timeout * 1000.0)  # requested wait
+        assert row[2] >= 0.0 and row[5] >= 0.0
+    assert rows[0][10] == "" and all(row[10] != "" for row in rows[1:])
+
+
+def test_failing_poll_sink_leaves_detection_and_waits_unchanged() -> None:
+    def broken(_row: tuple) -> None:
+        raise OSError("disk full")
+
+    warning = Mock()
+    plain_detect, timed_detect = Mock(return_value=True), Mock(return_value=True)
+    plain, plain_stop, _ = _execution(
+        _three_polls(), detect_pois=plain_detect, record_outcome=Mock(),
+    )
+    timed, timed_stop, _ = _execution(
+        _three_polls(), detect_pois=timed_detect, record_outcome=Mock(),
+        poll_timer=DetectorPollTimer(broken, warning),
+    )
+
+    plain.run()
+    timed.run()
+
+    assert timed_detect.call_args_list == plain_detect.call_args_list
+    assert len(timed_stop.timeouts) == len(plain_stop.timeouts) == 3
+    assert all(0.0 < t <= POLL_WALL_PERIOD_S for t in timed_stop.timeouts)
+    warning.assert_called_once()
 
 
 def test_poll_without_attitude_boot_does_not_advance_the_clock() -> None:
@@ -518,7 +566,7 @@ def test_execution_composition_wires_pairing_collaborators() -> None:
     )
     source = SimpleNamespace(
         coordinator=Mock(), pose_source=Mock(), activation=Mock(),
-        record_outcome=Mock(), polling_reader=Mock(),
+        record_outcome=Mock(), polling_reader=Mock(), poll_timer=None,
     )
     render = SimpleNamespace(
         poi_provider=Mock(), capture=Mock(), gap=Mock(), tracking=Mock(),

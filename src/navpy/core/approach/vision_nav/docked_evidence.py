@@ -60,16 +60,31 @@ class FinalApproachDockedEvidence:
         lock: rt.RLock,
         record: Callable[[DockContactEvent], None],
         fence: FinalApproachPostprocessFence,
-        record_armed: Callable[[DockContactIdentity], None],
+        record_armed: Callable[[DockContactIdentity, float | None], None],
+        record_disarmed: Callable[[DockContactIdentity, float | None], None] = (
+            lambda _identity, _source_s: None
+        ),
     ) -> None:
         self._lock = lock
         self._record = record
         self._fence = fence
         self._record_armed = record_armed
+        self._record_disarmed = record_disarmed
         self._staged: DockContactEvent | None = None
 
-    def record_armed(self, identity: DockContactIdentity) -> None:
-        self._record_armed(identity)
+    def record_armed(
+        self,
+        identity: DockContactIdentity,
+        source_s: float | None = None,
+    ) -> None:
+        self._record_armed(identity, source_s)
+
+    def record_disarmed(
+        self,
+        identity: DockContactIdentity,
+        source_s: float | None,
+    ) -> None:
+        self._record_disarmed(identity, source_s)
 
     @property
     def pending(self) -> bool:

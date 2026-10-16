@@ -41,6 +41,9 @@ class DetectionPublicationBuffer:
         self._store = store
         self._record_outcome = record_outcome
         self._fallback_source_name = fallback_source_name
+        # Diagnostics only: source-discontinuity publications drained so far,
+        # the frame lineage epoch of the emitted rows.
+        self._emitted_epoch = 0
 
     @property
     def source_driven(self) -> bool:
@@ -80,10 +83,13 @@ class DetectionPublicationBuffer:
     ) -> List[DetectionPublication]:
         responses = []
         for publication in publications:
+            if publication.source_discontinuity:
+                self._emitted_epoch += 1
             self._record_outcome(
                 publication.source_timestamp_s,
                 "emitted",
                 publication.source_timestamp_s,
+                self._emitted_epoch,
             )
             forced = self.resolve_forced_poi(
                 request,

@@ -50,6 +50,7 @@ def build_execution_graph(
         ideal_360=options.ideal_360,
         detect_pois=pipeline.detect_pois,
         record_outcome=source.record_outcome,
+        poll_timer=source.poll_timer,
     )
     resetter = SimDetectorReset(
         pose_source=source.pose_source,

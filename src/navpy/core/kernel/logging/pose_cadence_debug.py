@@ -15,35 +15,8 @@ When the value looks like a directory path it is used verbatim; the sentinels
 ``1`` / ``on`` / ``true`` / ``yes`` select a default scratch directory. Disabled
 by default with a single module-level boolean check on the hot path.
 
-Event streams, keyed by ``(sys_id, stream)``:
-
-- ``attitude_arrival`` -- one row per ATTITUDE that is ACCEPTED and updates the
-  pose cache (``vehicle_mav._process_message``, after
-  ``_accept_telemetry_sample``). ``boot_ms`` is the autopilot sample time
-  (sim-time under SIM_SPEEDUP); the ``boot_ms`` delta approximates ArduPilot's
-  accepted emission cadence in SIM time, the ``wall_s`` delta the
-  transport/reader cadence.
-- ``position_arrival`` -- same, for GLOBAL_POSITION_INT (the position half of
-  the pose the sim detector reads without a timestamp).
-- ``telemetry_reject`` -- one row per autopilot-telemetry packet that
-  ``_accept_telemetry_sample`` refused (foreign component / stale boot time),
-  making the drop path countable instead of silent.
-- ``detector_pose`` -- source-pose admission and final-approach detector outcomes:
-  raw attitude boot time, accepted poses, emitted frames, explicit queue /
-  reset / invalidation drops, missing timestamps, duplicates, and reordering.
-  Only an actual frame publication is ``emitted``; its unchanged raw source
-  timestamp appears in ``frame_ts``.
-- ``observation`` -- one row per detection delivered to final approach
-  (``runtime.nav``): the frame's source timestamp, the source clock's "now"
-  read through the detection's own provider, and the delivery ``outcome``
-  (fresh / duplicate / gap_mismatch / invalid).
-- ``worker`` -- one row per final-approach command actually SENT
-  (``execute_final_approach_command``, every command -- not decimated like the
-  FINAL_APPROACH_CMD log event): raw observation source timestamp, matching source-
-  clock now, diagnostic execution time, and the compatibility marker
-  ``measured``, and whether the 25 Hz tick used a ``fresh`` command or a
-  zero-order ``held`` primitive command. The current final-approach runtime does not
-  issue predictions.
+Event streams, keyed by ``(sys_id, stream)``, and their CSV headers:
+``pose_cadence_streams``.
 
 Rows buffer in memory (append-only lists; list.append is atomic in CPython). A
 daemon thread flushes every ``_FLUSH_INTERVAL_S``, APPENDING only the rows added
@@ -60,6 +33,7 @@ from typing import Dict, List, Tuple
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.pose_cadence_flusher import PoseCadenceFlusher
+from navpy.core.kernel.logging.pose_cadence_streams import HEADERS as _HEADERS
 from navpy.core.kernel.logging.pose_cadence_naming import (
     file_owner,
     resolve_naming,
@@ -159,13 +133,21 @@ def record_detector_pose(
         boot_s: float | None,
         outcome: str,
         frame_ts: float | None = None,
+        epoch: int | None = None,
 ) -> None:
     """Record one detector timestamp attempt (detector-thread hot path)."""
     if not ENABLED:
         return
     _buffer_for(int(sys_id), "detector_pose").append(
-        (wall_s, _cell(boot_s), outcome, _cell(frame_ts))
+        (wall_s, _cell(boot_s), outcome, _cell(frame_ts), _cell(epoch))
     )
+
+
+def record_detector_poll(sys_id: int, row: tuple) -> None:
+    """Record one detector poll iteration (``detector_poll_timer`` row)."""
+    if not ENABLED:
+        return
+    _buffer_for(int(sys_id), "detector_poll").append(tuple(_cell(c) for c in row))
 
 
 def record_observation(
@@ -174,12 +156,13 @@ def record_observation(
         obs_ts: float | None,
         src_now_s: float | None,
         outcome: str,
+        epoch: int | None = None,
 ) -> None:
     """Record one detection delivered to final approach (nav())."""
     if not ENABLED:
         return
     _buffer_for(int(sys_id), "observation").append(
-        (wall_s, _cell(obs_ts), _cell(src_now_s), outcome)
+        (wall_s, _cell(obs_ts), _cell(src_now_s), outcome, _cell(epoch))
     )
 
 
@@ -191,6 +174,8 @@ def record_worker(
         src_now_s: float | None = None,
         source: str = "",
         outcome: str = "fresh",
+        work_cpu_ms: float | None = None,
+        epoch: int | None = None,
 ) -> None:
     """Record one final-approach command actually sent (execute_final_approach_command)."""
     if not ENABLED:
@@ -203,18 +188,28 @@ def record_worker(
             _cell(src_now_s),
             source,
             outcome,
+            _cell(work_cpu_ms),
+            _cell(epoch),
         )
     )
 
 
-_HEADERS = {
-    "attitude_arrival": "wall_s,boot_ms\n",
-    "position_arrival": "wall_s,boot_ms\n",
-    "telemetry_reject": "wall_s,mtype,reason\n",
-    "detector_pose": "wall_s,boot_s,outcome,frame_ts\n",
-    "observation": "wall_s,obs_ts,src_now_s,outcome\n",
-    "worker": "wall_start_s,exec_ms,obs_ts,src_now_s,source,outcome\n",
-}
+def record_frame_lineage(
+        sys_id: int,
+        wall_s: float,
+        stage: str,
+        epoch: int,
+        frame_ts: float,
+        disposition: str,
+) -> None:
+    """Record what became of one fresh final-approach frame."""
+    if not ENABLED:
+        return
+    _buffer_for(int(sys_id), "frame_lineage").append(
+        (wall_s, stage, epoch, frame_ts, disposition)
+    )
+
+
 
 
 def dump_all(*, strict: bool = False) -> None:

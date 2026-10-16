@@ -165,6 +165,7 @@ def compose_final_approach_runtime(
         diagnostics.record_docked,
         postprocess_fence,
         diagnostics.record_dock_armed,
+        diagnostics.record_dock_disarmed,
     )
     command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock,

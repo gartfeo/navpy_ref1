@@ -35,6 +35,9 @@ class _EventLogger:
         del timestamp
         self.events.append((event, payload))
 
+    def wall_time_s(self) -> float:
+        return 1000.0
+
 
 def _docked_row(
     wall: str = "12:00:00.300",

@@ -122,6 +122,10 @@ class DockArmed:
     task: int
     dock: int
     episode: int
+    # ATTITUDE boot time at NAV entry; None for logs made before it existed.
+    source_ts: float | None = None
+    # Epoch wall time at NAV entry; None for logs made before it existed.
+    wall_s: float | None = None
 
     @property
     def identity(self) -> tuple[int, int, int, int]:
@@ -211,6 +215,8 @@ class VehicleReport:
     passed: bool
     metrics: EpisodeMetrics
     errors: list[str] = field(default_factory=list)
+    # Approach-window observation cadence: an annotation, never a verdict input.
+    cadence: dict = field(default_factory=dict)
 
 
 @dataclass

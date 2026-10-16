@@ -58,6 +58,11 @@ class LockstepClock:
     def perf_counter(self) -> float:
         return self._baton.monotonic()
 
+    def thread_time(self) -> float:
+        # No host CPU time in a lockstep artifact: it would differ run to run.
+        # The sim clock keeps diagnostic CPU columns deterministic (equal to wall).
+        return self._baton.monotonic()
+
     def now(self, tz: tzinfo | None = None) -> datetime:
         instant = _UNIX_EPOCH + timedelta(microseconds=self.unix_us())
         return instant.replace(tzinfo=None) if tz is None else instant.astimezone(tz)
@@ -109,7 +114,7 @@ class LockstepRuntime(rt.RuntimeTime):
 
 #: The ``rt`` module functions, by the facet that serves each.
 _PORT_FUNCTIONS = {
-    "clock": ("monotonic", "time", "perf_counter", "now", "sleep"),
+    "clock": ("monotonic", "time", "perf_counter", "thread_time", "now", "sleep"),
     "threads": (
         "Lock", "RLock", "Condition", "Event", "Semaphore", "BoundedSemaphore",
         "Thread", "Timer", "current_thread", "get_ident", "Queue", "shielded", "detached",

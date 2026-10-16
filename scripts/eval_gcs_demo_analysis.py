@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
+from scripts.eval_gcs_demo_cadence import cadence_annotation
 from scripts.eval_gcs_demo_audit import (
     load_approval_records,
     validate_approval_records,
@@ -249,6 +250,9 @@ def analyze_run(
         )
         for vehicle in plan.vehicles
     ]
+    for report in reports:
+        # After every verdict: cadence is reported beside them, never in them.
+        report.cadence = cadence_annotation(log_dir, report.sys_id)
     passed = (
         not errors
         and len(reports) == len(scenario.slots)

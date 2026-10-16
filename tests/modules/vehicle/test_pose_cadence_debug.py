@@ -70,9 +70,9 @@ def test_enabled_writes_pid_keyed_csv(monkeypatch, tmp_path):
 
     mod.record_attitude_arrival(7, 100.0, 1000)
     mod.record_attitude_arrival(7, 100.02, 1033)
-    mod.record_detector_pose(7, 100.0, 1.0, "emitted", 205.5)
+    mod.record_detector_pose(7, 100.0, 1.0, "emitted", 205.5, 3)
     mod.record_detector_pose(7, 100.01, None, "no_attitude", None)  # None -> empty
-    mod.record_worker(7, 100.0, 4.5, 1.0, 1.02, "measured")
+    mod.record_worker(7, 100.0, 4.5, 1.0, 1.02, "measured", "fresh", 3.125, 3)
     mod.record_worker(7, 100.04, 1.5, 1.0, 1.06, "measured", "held")
     mod.dump_all()
 
@@ -86,14 +86,14 @@ def test_enabled_writes_pid_keyed_csv(monkeypatch, tmp_path):
         "wall_s,boot_ms", "100.0,1000", "100.02,1033",
     ]
     assert det.read_text(encoding="utf-8").splitlines() == [
-        "wall_s,boot_s,outcome,frame_ts",
-        "100.0,1.0,emitted,205.5",
-        "100.01,,no_attitude,",
+        "wall_s,boot_s,outcome,frame_ts,epoch",
+        "100.0,1.0,emitted,205.5,3",
+        "100.01,,no_attitude,,",
     ]
     assert wrk.read_text(encoding="utf-8").splitlines() == [
-        "wall_start_s,exec_ms,obs_ts,src_now_s,source,outcome",
-        "100.0,4.5,1.0,1.02,measured,fresh",
-        "100.04,1.5,1.0,1.06,measured,held",
+        "wall_start_s,exec_ms,obs_ts,src_now_s,source,outcome,work_cpu_ms,epoch",
+        "100.0,4.5,1.0,1.02,measured,fresh,3.125,3",
+        "100.04,1.5,1.0,1.06,measured,held,,",
     ]
 
 
@@ -102,8 +102,10 @@ def test_new_pipeline_streams_write_their_headers_and_rows(monkeypatch, tmp_path
 
     mod.record_position_arrival(5, 50.0, 2000)
     mod.record_telemetry_reject(5, 50.1, "GLOBAL_POSITION_INT", "stale_boot")
-    mod.record_observation(5, 50.2, 12.5, 12.53, "fresh")
+    mod.record_observation(5, 50.2, 12.5, 12.53, "fresh", 2)
     mod.record_observation(5, 50.3, None, None, "duplicate")  # Nones -> empty
+    mod.record_frame_lineage(5, 50.4, "slot", 2, 12.5, "replaced")
+    mod.record_detector_poll(5, (50.5, "empty", 0.4, 0.0, 2.9, 3.1, 0.2, 0.0, 0.0, 0.2, ""))
     mod.dump_all()
 
     pid = os.getpid()
@@ -118,9 +120,19 @@ def test_new_pipeline_streams_write_their_headers_and_rows(monkeypatch, tmp_path
         "wall_s,mtype,reason", "50.1,GLOBAL_POSITION_INT,stale_boot",
     ]
     assert obs.read_text(encoding="utf-8").splitlines() == [
-        "wall_s,obs_ts,src_now_s,outcome",
-        "50.2,12.5,12.53,fresh",
-        "50.3,,,duplicate",
+        "wall_s,obs_ts,src_now_s,outcome,epoch",
+        "50.2,12.5,12.53,fresh,2",
+        "50.3,,,duplicate,",
+    ]
+    lineage = tmp_path / f"pose_cadence_frame_lineage_uav_5_pid_{pid}.csv"
+    assert lineage.read_text(encoding="utf-8").splitlines() == [
+        "wall_s,stage,epoch,frame_ts,disposition", "50.4,slot,2,12.5,replaced",
+    ]
+    poll = tmp_path / f"pose_cadence_detector_poll_uav_5_pid_{pid}.csv"
+    assert poll.read_text(encoding="utf-8").splitlines() == [
+        "start_wall_s,outcome,work_ms,work_cpu_ms,requested_wait_ms,actual_wait_ms,"
+        "read_ms,project_ms,publish_ms,log_ms,residual_before_ms",
+        "50.5,empty,0.4,0.0,2.9,3.1,0.2,0.0,0.0,0.2,",
     ]
 
 
@@ -128,7 +140,8 @@ def test_every_stream_has_a_header():
     # A stream without a header row would silently produce a CSV whose first
     # data row is consumed as the header by every reader.
     for stream in ("attitude_arrival", "position_arrival", "telemetry_reject",
-                   "detector_pose", "observation", "worker"):
+                   "detector_pose", "detector_poll", "observation", "worker",
+                   "frame_lineage"):
         assert pcd._HEADERS.get(stream), stream
 
 

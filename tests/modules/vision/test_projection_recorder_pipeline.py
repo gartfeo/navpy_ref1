@@ -77,7 +77,7 @@ def test_execution_composition_wires_owned_recorder_close_without_starting_worke
     recorder = ProjectionRunRecorder(file)
     deps = SimpleNamespace(vehicle=Mock(), mount=Mock(), logger=Mock(), scheduler_cadence=Mock())
     source = SimpleNamespace(coordinator=Mock(),pose_source=Mock(),activation=Mock(),record_outcome=Mock(),
-                             polling_reader=Mock())
+                             polling_reader=Mock(),poll_timer=None)
     render = SimpleNamespace(poi_provider=Mock(),capture=Mock(),gap=Mock(),tracking=Mock(),
                              ideal_camera=Mock(),evidence_recorder=recorder)
     graph = build_execution_graph(deps, SimpleNamespace(ideal_360=False),source,render,Mock())
@@ -122,7 +122,7 @@ def test_real_render_composition_owns_recorder_and_binds_pipeline(tmp_path,monke
     options = SimpleNamespace(ideal_360=False,tracking_config=None,zoom_config=None,sim_assets_path=None)
     coordinator,store,_ = _coordinator()
     source = SimpleNamespace(pose_source=SimpleNamespace(source_now_s=12.5),store=store,record_outcome=Mock(),
-                             coordinator=coordinator,clock=Mock())
+                             coordinator=coordinator,clock=Mock(),poll_timer=None)
     render = build_render_foundation(deps,options,source)
     pipeline = build_pipeline(deps,options,source,render)
     assert pipeline.detect_pois(loc,Attitude(0,40,0),frame_timestamp_s=12.5,frame_generation=coordinator.token)

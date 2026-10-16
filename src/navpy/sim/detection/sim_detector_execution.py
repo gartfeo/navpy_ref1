@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 
+from typing import Optional
+
 from navpy.core.kernel import runtime_time as rt
+from navpy.sim.detection.detector_poll_timer import DetectorPollTimer
 from navpy.sim.detection.ideal_pose_source import IdealPoseSample
 from navpy.sim.detection.scheduler_cadence_lease import SchedulerCadenceLease
 from navpy.sim.detection.sim_coordinator_ports import WorkerCoordinatorPort
@@ -33,6 +36,7 @@ class SimDetectorExecution:
         ideal_360: bool,
         detect_pois: DetectFramePort,
         record_outcome: FrameOutcomeSink,
+        poll_timer: Optional[DetectorPollTimer] = None,
     ) -> None:
         self._coordinator = coordinator
         self._polling_pose_reader = polling_pose_reader
@@ -44,6 +48,7 @@ class SimDetectorExecution:
         self._ideal_360 = bool(ideal_360)
         self._detect_pois = detect_pois
         self._record_outcome = record_outcome
+        self._poll_timer = poll_timer
 
     def run(self) -> None:
         if self._ideal_360:
@@ -99,18 +104,31 @@ class SimDetectorExecution:
 
     def _run_polling_loop(self) -> None:
         stop_event = self._coordinator.stop_event
+        timer = self._poll_timer
         while not stop_event.is_set():
             started_s = rt.monotonic()
-            self._poll_once()
+            if timer is not None:
+                timer.begin()
+            outcome = self._poll_once()
             elapsed_s = rt.monotonic() - started_s
-            stop_event.wait(max(
+            wait_s = max(
                 0.0,
                 self.wall_period_for_scheduler_period(
                     self._scheduler_period_s
                 ) - elapsed_s,
-            ))
+            )
+            if timer is None:
+                stop_event.wait(wait_s)
+                continue
+            timer.end_work()
+            stop_event.wait(wait_s)
+            timer.finish(outcome, wait_s)
 
-    def _poll_once(self) -> None:
+    def _mark(self, stage: str) -> None:
+        if self._poll_timer is not None:
+            self._poll_timer.mark(stage)
+
+    def _poll_once(self) -> str:
         read = self._polling_pose_reader.read()
         # Every polled ATTITUDE advances the source clock, paired or not, so a
         # restart is detected on the raw stream before any post-reboot pair.
@@ -121,13 +139,17 @@ class SimDetectorExecution:
             read.attitude_time_boot_s,
             paired=sample is not None,
         )
+        self._mark("read")
         if sample is None:
             self._record_outcome(
                 read.attitude_time_boot_s,
                 "unpaired_pose_dropped",
                 None,
             )
-            return
+            self._mark("log")
+            return "empty" if read.attitude_time_boot_s is None else "unpaired"
+        if self._poll_timer is not None:
+            self._poll_timer.frame()
         self._detect_pois(
             sample.location,
             sample.attitude,
@@ -136,6 +158,10 @@ class SimDetectorExecution:
             frame_receipt_timestamp_s=sample.receipt_time_s,
             frame_air_speed_mps=sample.air_speed_mps,
         )
+        # The pipeline marks "project" after projection and "publish" after
+        # the commit; the rest (the projection evidence write) is logging.
+        self._mark("log")
+        return "paired"
 
 
 __all__ = ["SimDetectorExecution"]

@@ -218,6 +218,9 @@ class _SourceTimeObserver:
     def record_command(self, **kwargs):
         self.command_outcomes.append(kwargs.get("outcome", "fresh"))
 
+    def record_frame_disposition(self, **_kwargs):
+        return None
+
 
 def _ray(yaw_deg=0.0, down_deg=0.0):
     y = math.tan(math.radians(yaw_deg))
@@ -274,7 +277,7 @@ def _runtime(
     armed_rows = []
     docked_evidence = FinalApproachDockedEvidence(
         lock, lambda event: docked_recorder[0](event), postprocess_fence,
-        armed_rows.append,
+        lambda identity, _source_s: armed_rows.append(identity),
     )
     command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock, slot, mailbox, hold, law, visual_pass, status, liveness,

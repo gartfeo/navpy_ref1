@@ -759,6 +759,35 @@ def test_exact_three_uav_run_passes_owner_and_peer_workflow_gates(tmp_path):
     assert [vehicle.role for vehicle in report.vehicles] == ["owner", "peer", "peer"]
 
 
+def test_cadence_annotation_never_changes_verdicts_or_errors(tmp_path, monkeypatch):
+    rolls = [12, 11, 9, 7, 5, 3, 1, 0, -1, -2, -2, -1]
+    for sys_id, role in ((4, "owner"), (5, "peer"), (6, "peer")):
+        _write_episode(tmp_path, sys_id, rolls, snap_m=0.4, role=role)
+    _write_resolved_plan(tmp_path)
+
+    def run():
+        return evaluator.analyze_run(
+            tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6),
+            approvals=_approval_records(),
+        )
+
+    real = run()
+    starved = {"status": "ok", "gate": False, "episodes": [{"coverage": 0.0}]}
+    monkeypatch.setattr(
+        "scripts.eval_gcs_demo_analysis.cadence_annotation",
+        lambda _log_dir, _sys_id: starved,
+    )
+    annotated = run()
+
+    assert all(vehicle.cadence["gate"] is False for vehicle in real.vehicles)
+    assert annotated.vehicles[0].cadence is starved
+    assert (annotated.passed, annotated.errors) == (real.passed, real.errors)
+    for left, right in zip(annotated.vehicles, real.vehicles):
+        assert (left.passed, left.errors, left.metrics) == (
+            right.passed, right.errors, right.metrics
+        )
+
+
 def _write_acked_backend_log(log_dir: Path) -> None:
     """The same auction in the acked format: copies, a reject, APPLIED."""
     backend_log = backend_log_path(log_dir)

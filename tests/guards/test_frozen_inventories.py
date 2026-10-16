@@ -131,7 +131,8 @@ CLOCK_MODULES = {"time", "timeit", "datetime"}
 RUNTIME_PORT = "navpy.core.kernel.runtime_time"
 CLOCK_CALLS = {
     "time", "time_ns", "monotonic", "monotonic_ns", "perf_counter",
-    "perf_counter_ns", "process_time", "default_timer", "now", "utcnow",
+    "perf_counter_ns", "process_time", "thread_time", "thread_time_ns",
+    "default_timer", "now", "utcnow",
 }
 NON_PERIOD_WORDS = {
     "source", "timestamp", "age", "dt", "clock", "elapsed", "now",
@@ -637,6 +638,7 @@ def test_gyro_rate_allowance_is_exact_and_file_scoped() -> None:
 
 
 def test_executor_perf_counter_is_deferred_diagnostics_only() -> None:
+    """Wall and thread-CPU reads are execution diagnostics, never command inputs."""
     tree = _tree(EXECUTOR)
     owner = _definition(tree, "FinalApproachCommandExecutor", ast.ClassDef)
     execute = _definition(owner, "execute", ast.FunctionDef)
@@ -651,8 +653,11 @@ def test_executor_perf_counter_is_deferred_diagnostics_only() -> None:
     parents = _parents(tree)
     clocks = [call for call in _calls(owner)
               if _path(call.func)[-1:] in {(name,) for name in CLOCK_CALLS}]
-    assert len(clocks) == 2
-    assert {_path(call.func) for call in clocks} == {("rt", "perf_counter")}
+    assert len(clocks) == 4
+    assert sorted(_path(call.func) for call in clocks) == [
+        ("rt", "perf_counter"), ("rt", "perf_counter"),
+        ("rt", "thread_time"), ("rt", "thread_time"),
+    ]
     transaction = _calls(execute_current, "transaction", "execute")
     assert len(transaction) == 1
     assert [_path(arg) for arg in transaction[0].args] == [("work", "frame")]
@@ -666,22 +671,33 @@ def test_executor_perf_counter_is_deferred_diagnostics_only() -> None:
     assert _path(push.func)[-2:] == ("cleanup", "push")
     entry = [call for call in clocks
              if _ancestor(call, parents, ast.FunctionDef) is execute]
-    assert len(entry) == 1
-    assignment = _ancestor(entry[0], parents, ast.Assign)
-    assert isinstance(assignment, ast.Assign) and [_path(target) for target
-                                                   in assignment.targets] == [("entry_s",)]
-    entry_uses = [node for node in ast.walk(execute) if isinstance(node, ast.Name)
-                  and node.id == "entry_s" and isinstance(node.ctx, ast.Load)]
-    assert entry_uses and all(_ancestor(node, parents, ast.Call) is diagnostic[0]
-                              for node in entry_uses)
+    targets = {}
+    for call in entry:
+        assignment = _ancestor(call, parents, ast.Assign)
+        assert isinstance(assignment, ast.Assign) and len(assignment.targets) == 1
+        targets[_path(assignment.targets[0])] = _path(call.func)
+    assert targets == {
+        ("entry_s",): ("rt", "perf_counter"),
+        ("entry_cpu_s",): ("rt", "thread_time"),
+    }
+    for name in ("entry_s", "entry_cpu_s"):
+        uses = [node for node in ast.walk(execute) if isinstance(node, ast.Name)
+                and node.id == name and isinstance(node.ctx, ast.Load)]
+        assert uses and all(_ancestor(node, parents, ast.Call) is diagnostic[0]
+                            for node in uses), name
     completion = [call for call in clocks
                   if _ancestor(call, parents, ast.FunctionDef) is recorder]
-    assert len(completion) == 1
-    keyword = _ancestor(completion[0], parents, ast.keyword)
-    record_call = parents.get(keyword) if keyword is not None else None
-    assert isinstance(keyword, ast.keyword) and keyword.arg == "execution_ms"
-    assert isinstance(record_call, ast.Call)
-    assert _path(record_call.func)[-2:] == ("source_time", "record_command")
+    keywords = {}
+    for call in completion:
+        keyword = _ancestor(call, parents, ast.keyword)
+        record_call = parents.get(keyword) if keyword is not None else None
+        assert isinstance(keyword, ast.keyword) and isinstance(record_call, ast.Call)
+        assert _path(record_call.func)[-2:] == ("source_time", "record_command")
+        keywords[keyword.arg] = _path(call.func)
+    assert keywords == {
+        "execution_ms": ("rt", "perf_counter"),
+        "work_cpu_ms": ("rt", "thread_time"),
+    }
 
 
 def test_command_input_scan_catches_injected_poi_position(tmp_path) -> None:

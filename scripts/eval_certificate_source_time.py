@@ -7,6 +7,11 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Mapping
 
+from scripts.eval_certificate_poll_streams import (
+    reconcile_lineage,
+    summarize_lineage,
+    summarize_poll,
+)
 from scripts.eval_certificate_source_streams import (
     EMITTED_OUTCOMES,
     SOURCE_STREAMS,
@@ -23,7 +28,7 @@ SOURCE_TIME_SUBDIR = "source-time"
 SOURCE_TIME_ENV = "NAVPY_POSE_CADENCE_DEBUG"
 SOURCE_TIME_FLUSH_GRACE_S = 0.6
 
-_SOURCE_TIME_FILE_RE = re.compile(
+SOURCE_TIME_FILE_RE = re.compile(
     r"^pose_cadence_(?P<stream>[a-z_]+)_uav_(?P<sys>\d+)_(?:pid_(?P<pid>\d+)|(?P<producer>[a-z]+))\.csv$"
 )
 
@@ -43,6 +48,7 @@ def source_time_summary(
         if not all(type(name) is str and name for name in selected_files):
             raise ValueError("source-time include_files must contain file names")
     files_by_stream: dict[str, list[list[dict[str, str]]]] = {}
+    rows_by_sys: dict[int, dict[str, list[dict[str, str]]]] = {}
     file_count = 0
     matched_names: list[str] = []
     if source_dir.exists() and not source_dir.is_dir():
@@ -51,7 +57,7 @@ def source_time_summary(
         for path in sorted(source_dir.iterdir()):
             if selected_files is not None and path.name not in selected_files:
                 continue
-            match = _SOURCE_TIME_FILE_RE.fullmatch(path.name)
+            match = SOURCE_TIME_FILE_RE.fullmatch(path.name)
             if match is None:
                 continue
             if sys_id is not None and int(match.group("sys")) != sys_id:
@@ -63,7 +69,11 @@ def source_time_summary(
                 )
             file_count += 1
             matched_names.append(path.name)
-            files_by_stream.setdefault(stream, []).append(read_rows(path, stream))
+            rows = read_rows(path, stream)
+            files_by_stream.setdefault(stream, []).append(rows)
+            rows_by_sys.setdefault(int(match.group("sys")), {}).setdefault(
+                stream, []
+            ).extend(rows)
 
     streams: dict[str, Any] = {}
     for stream in ("attitude_arrival", "position_arrival"):
@@ -75,11 +85,17 @@ def source_time_summary(
         "detector_pose": summarize_detector,
         "observation": summarize_observations,
         "worker": summarize_worker,
+        "detector_poll": summarize_poll,
+        "frame_lineage": summarize_lineage,
     }
     for stream, handler in handlers.items():
         entries = files_by_stream.get(stream)
         if entries is not None:
             streams[stream] = handler(entries)
+    if "frame_lineage" in streams:
+        streams["frame_lineage"]["reconciliation"] = reconcile_lineage(
+            rows_by_sys.values()
+        )
     return {
         "source_dir": str(source_dir),
         "files": file_count,
@@ -173,6 +189,7 @@ def source_time_row_metrics(summary: Mapping[str, Any] | None) -> dict[str, Any]
 
 __all__ = [
     "SOURCE_TIME_ENV",
+    "SOURCE_TIME_FILE_RE",
     "SOURCE_TIME_FLUSH_GRACE_S",
     "SOURCE_TIME_SUBDIR",
     "source_time_row_metrics",

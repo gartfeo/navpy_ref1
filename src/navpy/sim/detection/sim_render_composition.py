@@ -197,6 +197,7 @@ def build_pipeline(
         forced_gap_policy=gap_policy,
         tracking_updater=tracking_update,
         evidence_recorder=render.evidence_recorder,
+        stage=None if source.poll_timer is None else source.poll_timer.mark,
     )
 
 

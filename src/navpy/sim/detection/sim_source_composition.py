@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
 from navpy.core.kernel import runtime_time as rt
+import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 from navpy.core.ports.pose_stream_rate import pose_frame_association_max_skew_s
 from navpy.plugins.vehicle.ardupilot.pose_streams import (
     request_pose_streams,
@@ -17,6 +18,7 @@ from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.sim.detection.detection_publication_store import (
     DetectionPublicationStore,
 )
+from navpy.sim.detection.detector_poll_timer import DetectorPollTimer
 from navpy.sim.detection.frame_generation_gate import FrameGenerationGate
 from navpy.sim.detection.frame_outcome_recorder import FrameOutcomeRecorder
 from navpy.sim.detection.ideal_pose_source import IdealPoseSource
@@ -41,6 +43,8 @@ class SimSourceGraph:
     activation: SimSourceActivation
     record_outcome: FrameOutcomeRecorder
     polling_reader: SimPollingPoseReader
+    #: Poll-loop diagnostics, only while source-time debug rows are recorded.
+    poll_timer: Optional[DetectorPollTimer] = None
 
 
 class SourceTimestampClock:
@@ -100,6 +104,20 @@ def build_source_graph(
         activation,
         record_outcome,
         build_polling_reader(vehicle, receipt_skew_s),
+        _poll_timer(dependencies, options),
+    )
+
+
+def _poll_timer(
+    dependencies: SimDetectorDependencies,
+    options: SimDetectorOptions,
+) -> Optional[DetectorPollTimer]:
+    if options.ideal_360 or not pose_cadence_debug.ENABLED:
+        return None
+    sys_id = _target_system(dependencies.vehicle)
+    return DetectorPollTimer(
+        lambda row: pose_cadence_debug.record_detector_poll(sys_id, row),
+        dependencies.logger.warning,
     )
 
 

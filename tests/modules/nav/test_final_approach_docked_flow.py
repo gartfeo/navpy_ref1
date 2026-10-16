@@ -291,3 +291,23 @@ def test_failure_latch_asks_the_arbiter_before_latching():
     latch = NavigationFailureLatch(lambda: False)
     assert latch.mark_failed() is False
     assert latch.failed is False
+
+
+def test_episode_rows_carry_the_source_time_at_nav_entry_and_exit():
+    flow = _Flow()
+    clock = iter((10.0, 10.9))
+    begun, ended = [], []
+    contact = FinalApproachDockContact(
+        flow.sensor, lambda: 7,
+        lambda identity, source_s: begun.append((identity, source_s)) or True,
+        flow.service.latch_docked, Mock(),
+        source_now_s=lambda: next(clock),
+        end_episode=lambda identity, source_s: ended.append((identity, source_s)),
+    )
+
+    contact.arm(flow.poi)
+    contact.disarm()
+    contact.disarm()  # nothing armed: no second exit row
+
+    assert [source for _identity, source in begun] == [10.0]
+    assert ended == [(begun[0][0], 10.9)]

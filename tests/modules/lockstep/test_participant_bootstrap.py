@@ -83,7 +83,7 @@ def test_the_product_imports_on_the_baton_with_pose_recording_on(tmp_path, monke
         "bootstrap done": True,
         "buffer lock": "BatonLock",
         "identity": {"generation": 3, "ordinal": 2, "process_pid": 2},
-        "periodic rows": [["0.02,0.0,0.0,fresh"]],  # recorded at the admission tick
+        "periodic rows": [["0.02,0.0,0.0,fresh,"]],  # recorded at the admission tick
         "recording": True,
         "threads": ["bootstrap", "pose-cadence-flush"],
         "used before bind": False,

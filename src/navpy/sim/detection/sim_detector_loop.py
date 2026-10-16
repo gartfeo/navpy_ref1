@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 
+from typing import Optional
+
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
+from navpy.sim.detection.detector_poll_timer import DetectorPollTimer
 from navpy.sim.detection.ideal_pose_source import IdealPoseSample
 from navpy.sim.detection.scheduler_cadence_lease import SchedulerCadenceLease
 from navpy.sim.detection.sim_coordinator_ports import WorkerCoordinatorPort
@@ -36,6 +39,7 @@ class SimDetectorWorker:
         ideal_360: bool,
         detect_pois: DetectFramePort,
         record_outcome: FrameOutcomeSink,
+        poll_timer: Optional[DetectorPollTimer] = None,
     ) -> None:
         self._execution = SimDetectorExecution(
             coordinator=coordinator,
@@ -48,6 +52,7 @@ class SimDetectorWorker:
             ideal_360=ideal_360,
             detect_pois=detect_pois,
             record_outcome=record_outcome,
+            poll_timer=poll_timer,
         )
         self._coordinator = coordinator
         self._lifecycle_lock = rt.RLock()

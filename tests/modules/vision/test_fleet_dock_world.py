@@ -233,7 +233,8 @@ def test_real_render_pipeline_projects_a_file_dock(tmp_path, monkeypatch):
                               sim_assets_path=None)
     coordinator, store, _ = _coordinator()
     source = SimpleNamespace(pose_source=SimpleNamespace(source_now_s=12.5), store=store,
-                             record_outcome=Mock(), coordinator=coordinator, clock=Mock())
+                             record_outcome=Mock(), coordinator=coordinator, clock=Mock(),
+                             poll_timer=None)
 
     render = build_render_foundation(deps, options, source)
     pipeline = build_pipeline(deps, options, source, render)

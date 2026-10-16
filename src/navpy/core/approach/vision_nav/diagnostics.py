@@ -150,17 +150,20 @@ class NavigationFinalApproachDiagnostics:
             self._record_event(diagnostic)
             self._record_law_evidence(diagnostic)
 
-    def record_dock_armed(self, identity: DockContactIdentity) -> None:
-        """The approach's own episode identity, before its command rows."""
-        self._logger.log_event(
-            LogEvent.DOCK_ARMED,
-            {
-                "vehicle": identity.vehicle,
-                "task": identity.task_id,
-                "dock": identity.dock_uid,
-                "episode": identity.episode,
-            },
-        )
+    def record_dock_armed(self, identity: DockContactIdentity,
+                          source_s: float | None = None) -> None:
+        """NAV entry, before the episode's command rows; ``source_ts`` is the
+        latest ATTITUDE boot time (the observation clock) and ``wall_s`` the
+        logger's wall clock (in production rt.time, the observation rows'
+        arrival clock). Evidence only."""
+        self._logger.log_event(LogEvent.DOCK_ARMED, {
+            **_episode_payload(identity, source_s), "wall_s": self._logger.wall_time_s(),
+        })
+
+    def record_dock_disarmed(self, identity: DockContactIdentity,
+                             source_s: float | None) -> None:
+        """NAV exit of an armed episode, with the ATTITUDE boot time then."""
+        self._logger.log_event(LogEvent.DOCK_DISARMED, _episode_payload(identity, source_s))
 
     def record_docked(self, event: DockContactEvent) -> None:
         """Evidence row for a dock contact (the sim net stand-in)."""
@@ -275,6 +278,11 @@ def _copy_snapshot(
         attitude=copy_attitude(snapshot.attitude),
         location=copy_location(snapshot.location),
     )
+
+
+def _episode_payload(identity: DockContactIdentity, source_s: float | None) -> dict[str, object]:
+    return {"vehicle": identity.vehicle, "task": identity.task_id, "dock": identity.dock_uid,
+            "episode": identity.episode, "source_ts": "" if source_s is None else source_s}
 
 
 __all__ = [

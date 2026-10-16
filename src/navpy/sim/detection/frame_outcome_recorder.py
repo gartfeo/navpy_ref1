@@ -19,6 +19,7 @@ class FrameOutcomeRecorder:
             boot_s: Optional[float],
             outcome: str,
             frame_ts_s: Optional[float],
+            epoch: Optional[int] = None,
     ) -> None:
         if not pose_cadence_debug.ENABLED:
             return
@@ -28,4 +29,5 @@ class FrameOutcomeRecorder:
             boot_s,
             outcome,
             frame_ts_s,
+            epoch,
         )

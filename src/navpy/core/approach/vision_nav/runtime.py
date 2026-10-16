@@ -157,11 +157,23 @@ class FinalApproachSessionRuntime:
         with self._lock:
             return self._episode.docked
 
-    def begin_dock_episode(self, identity: DockContactIdentity) -> None:
+    def begin_dock_episode(
+        self,
+        identity: DockContactIdentity,
+        source_s: float | None = None,
+    ) -> None:
         with self._lock:
             self._episode.begin(identity)
         # NAV entry: no command row of this episode exists yet.
-        self._docked_evidence.record_armed(identity)
+        self._docked_evidence.record_armed(identity, source_s)
+
+    def end_dock_episode(
+        self,
+        identity: DockContactIdentity,
+        source_s: float | None,
+    ) -> None:
+        """NAV exit: evidence only; the episode latch is reset elsewhere."""
+        self._docked_evidence.record_disarmed(identity, source_s)
 
     def latch_docked(self, event: DockContactEvent) -> bool:
         """Latch the contact, retire command work and stage DOCKED evidence.

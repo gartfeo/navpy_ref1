@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Optional, Tuple
 
 from navpy.core.kernel import runtime_time as rt
@@ -29,12 +30,16 @@ class SimDetectionPipeline:
         forced_gap_policy: ForcedDetectionGapPolicy,
         tracking_updater: SimTrackingUpdater,
         evidence_recorder: Optional[ProjectionRunRecorder] = None,
+        stage: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._context = context
         self._confirmation_capture = confirmation_capture
         self._forced_gap_policy = forced_gap_policy
         self._tracking_updater = tracking_updater
         self._evidence_recorder = evidence_recorder
+        # Diagnostics only: the poll timer's stage boundaries ("project" after
+        # projection, "publish" after the commit, before the evidence write).
+        self._stage = stage
 
     def detect_pois(
         self,
@@ -81,26 +86,33 @@ class SimDetectionPipeline:
                     frame_navigation_attitude,
                     frame,
                 )
+                self._mark("project")
+                accepted = False
                 with self._context.commit(frame, pending) as publication:
                     if publication is None:
                         if evidence is not None:
                             evidence.publication = 'rejected'
-                        return False
-                    if self._forced_gap_policy.commit(gap_plan):
-                        detections = []
-                        if positions is not None:
-                            positions = []
-                    self._confirmation_capture.capture(detections, positions)
-                    self._tracking_updater.update(
-                        detections,
-                        c_g_loc,
-                        uas_att,
-                        frame.timestamp_s,
-                    )
-                    accepted = publication.publish(detections)
-                    if evidence is not None:
-                        evidence.published(accepted, len(detections))
-                    return accepted
+                    else:
+                        if self._forced_gap_policy.commit(gap_plan):
+                            detections = []
+                            if positions is not None:
+                                positions = []
+                        self._confirmation_capture.capture(detections, positions)
+                        self._tracking_updater.update(
+                            detections,
+                            c_g_loc,
+                            uas_att,
+                            frame.timestamp_s,
+                        )
+                        accepted = publication.publish(detections)
+                        if evidence is not None:
+                            evidence.published(accepted, len(detections))
+                self._mark("publish")
+                return accepted
+
+    def _mark(self, stage: str) -> None:
+        if self._stage is not None:
+            self._stage(stage)
 
     def _collect_pois(
         self,

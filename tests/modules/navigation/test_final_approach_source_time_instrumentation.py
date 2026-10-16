@@ -176,7 +176,7 @@ def _runtime(
     visual_pass = Mock()
     episode = FinalApproachEpisodeLatch()
     docked_evidence = FinalApproachDockedEvidence(
-        lock, lambda _event: None, postprocess_fence, lambda _identity: None,
+        lock, lambda _event: None, postprocess_fence, lambda _identity, _source_s: None,
     )
     command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
         lock,
@@ -301,13 +301,16 @@ def test_fresh_ingress_and_issued_command_emit_source_time_rows(monkeypatch):
 
     observation_record.assert_called_once()
     worker_record.assert_called_once()
-    assert observation_record.call_args.args[2:] == (5.0, 5.03, "fresh")
-    assert worker_record.call_args.args[3:] == (
+    # (obs_ts, src_now, outcome, epoch): the frame's source generation.
+    assert observation_record.call_args.args[2:] == (5.0, 5.03, "fresh", 0)
+    assert worker_record.call_args.args[3:7] == (
         5.0,
         5.03,
         "measured",
         "fresh",
     )
+    work_cpu_ms, epoch = worker_record.call_args.args[7:]
+    assert work_cpu_ms >= 0.0 and epoch == 0
     # Ingress diagnostic (unlocked), freshness and the hold's refresh anchor
     # (both control, locked), then the worker diagnostic row (unlocked).
     assert provider_calls == [False, True, True, False]
@@ -339,7 +342,7 @@ def test_held_command_reuses_raw_timestamp_without_rerunning_transaction(
     assert transaction.execute.call_count == 1
     assert actuator.calls == [(1.0, 2.0, 0.5)]
     assert [call.args[3] for call in worker_record.call_args_list] == [5.0, 5.0]
-    assert [call.args[-1] for call in worker_record.call_args_list] == [
+    assert [call.args[6] for call in worker_record.call_args_list] == [
         "fresh",
         "held",
     ]
@@ -368,12 +371,12 @@ def test_all_ingress_outcomes_are_recorded_after_unlock(monkeypatch):
     assert runtime.nav(_poi(_frame(2.0), now))
     assert not runtime.nav(_poi(_frame(1.0), now))
 
-    assert [call.args[-1] for call in records.call_args_list] == [
-        "invalid_source",
-        "invalid_frame",
-        "fresh",
-        "duplicate",
-        "regression",
+    assert [call.args[4:] for call in records.call_args_list] == [
+        ("invalid_source", None),
+        ("invalid_frame", None),
+        ("fresh", 0),
+        ("duplicate", 0),
+        ("regression", 0),
     ]
 
 
@@ -389,7 +392,7 @@ def test_newest_observation_replaces_pending_work_without_changing_timestamps(
     assert runtime.nav(_poi(_frame(3.02), lambda: 3.03))
     assert runtime.nav(_poi(_frame(3.04), lambda: 3.05))
 
-    assert [call.args[-1] for call in records.call_args_list] == [
+    assert [call.args[4] for call in records.call_args_list] == [
         "fresh",
         "fresh",
         "fresh",
@@ -580,7 +583,8 @@ def _source_time_run(monkeypatch, output_dir, wall_times):
     pose_cadence_debug._written.clear()
     monkeypatch.setattr(pose_cadence_debug, "ENABLED", True)
     monkeypatch.setattr(pose_cadence_debug, "_OUTPUT_DIR", str(output_dir))
-    wall = iter(wall_times[::2])
+    # Per frame: the observation row, then the worker's lineage row.
+    wall = iter(value for start in wall_times[::2] for value in (start, start))
     command_times = iter(
         value
         for start in wall_times[1::2]

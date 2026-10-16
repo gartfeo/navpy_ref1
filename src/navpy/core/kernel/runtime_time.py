@@ -47,13 +47,10 @@ class QueuePort(Protocol):
 
 class ClockPort(Protocol):
     def monotonic(self) -> float: ...
-
     def time(self) -> float: ...
-
     def perf_counter(self) -> float: ...
-
+    def thread_time(self) -> float: ...
     def now(self, tz: Optional[tzinfo] = None) -> datetime: ...
-
     def sleep(self, seconds: float) -> None: ...
 
 
@@ -79,9 +76,7 @@ class ThreadsPort(Protocol):
 
 class EntropyPort(Protocol):
     def rng(self) -> Any: ...
-
     def uuid4(self) -> _uuid.UUID: ...
-
     def token_urlsafe(self, nbytes: Optional[int] = None) -> str: ...
 
 
@@ -103,6 +98,9 @@ class WallClock:
 
     def perf_counter(self) -> float:
         return _time.perf_counter()
+
+    def thread_time(self) -> float:
+        return _time.thread_time()
 
     def now(self, tz: Optional[tzinfo] = None) -> datetime:
         return datetime.now(tz)
@@ -209,6 +207,10 @@ def perf_counter() -> float:
     return _binding.current().clock.perf_counter()
 
 
+def thread_time() -> float:  # the calling thread's CPU time: diagnostics only
+    return _binding.current().clock.thread_time()
+
+
 def sleep(seconds: float) -> None:
     _binding.current().clock.sleep(seconds)
 
@@ -294,5 +296,5 @@ __all__ = [
     "LockPort", "Queue", "QueuePort", "RLock", "RuntimeBinding", "RuntimeTime", "Semaphore",
     "Thread", "ThreadsPort", "Timer", "WallClock", "WallEntropy", "WallThreads", "bind",
     "current_thread", "detached", "get_ident", "monotonic", "now", "perf_counter", "rng", "shielded",
-    "sleep", "time", "token_urlsafe", "uuid4", "wall_runtime",
+    "sleep", "thread_time", "time", "token_urlsafe", "uuid4", "wall_runtime",
 ]

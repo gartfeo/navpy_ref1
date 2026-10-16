@@ -108,3 +108,33 @@
   with it read 0 or 16 ms; use perf_counter for sub-tick diagnostics.
 - **Run tests/guards before the full suite.** The SOLID 300-line module
   cap failed only after a 10-minute full run.
+
+## Approach-window cadence diagnostics (2026-10-16)
+
+- **Measure cadence inside the approach window.** Whole-run poll-gap
+  medians hid starved final-approach windows; report gaps per episode in
+  source time, entry->first and last->exit included
+  (scripts/eval_gcs_demo_cadence.py).
+- **codex exec -s read-only can fail every shell call on this host**
+  ("helper_unknown_error: setup refresh had errors"). For a static review,
+  inline the diff and evidence in the prompt instead of asking Codex to read.
+- **time.thread_time steps 15.625 ms on Windows** (GetThreadTimes). Per-row
+  CPU reads 0 or 16 ms; compare CPU with wall per wall second instead.
+- **Bash heredocs fail on an apostrophe in the body.** Even a quoted
+  heredoc ('PYEOF') ended in "unexpected EOF while looking for matching"
+  when the body held a word like CSV's, and applied nothing; cat > file
+  without a heredoc waited on stdin. Write edit scripts with the Write tool
+  into the scratchpad and assert each replacement's count.
+- **Log order is not event order across threads.** DOCK_DISARMED (NAV
+  exit) was logged before DOCKED (the contact thread) in 2 of 3 wall UAVs,
+  so "first terminal row" picked the wrong exit. Resolve an episode from all
+  its rows; unit fixtures written in the intuitive order hid it, the wall
+  eval showed it.
+- **A mutation must remove the behaviour, not just the counter.** Dropping
+  only the dedupe continue still counted duplicates as out_of_order, so
+  tests passed; mutate the whole branch to see whether a test pins it.
+- **Join two clocks through the producer, not the evaluator's timezone.**
+  Mapping epoch wall_s to the debug CSV's time of day with
+  datetime.fromtimestamp broke on midnight, dates and other timezones
+  (Codex round 3). The fix: one epoch wall_s on the anchor row
+  (DOCK_ARMED), and later rows placed by their offset from it, mod a day.

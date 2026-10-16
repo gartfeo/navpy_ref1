@@ -7,6 +7,12 @@ import math
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from scripts.eval_certificate_poll_streams import (
+    EMITTED_OUTCOMES,
+    LINEAGE_COLUMNS,
+    POLL_COLUMNS,
+    cpu_fraction_by_second,
+)
 from scripts.eval_certificate_statistics import distribution
 
 
@@ -17,9 +23,10 @@ _REQUIRED_COLUMNS: dict[str, frozenset[str]] = {
     "detector_pose": frozenset({"outcome", "frame_ts"}),
     "observation": frozenset({"outcome", "obs_ts", "src_now_s"}),
     "worker": frozenset({"wall_start_s", "obs_ts", "src_now_s"}),
+    "detector_poll": POLL_COLUMNS,
+    "frame_lineage": LINEAGE_COLUMNS,
 }
 SOURCE_STREAMS = frozenset(_REQUIRED_COLUMNS)
-EMITTED_OUTCOMES = frozenset({"emitted", "emitted_reanchor"})
 
 
 def read_rows(path: Path, stream: str) -> list[dict[str, str]]:
@@ -143,7 +150,9 @@ def summarize_worker(entries: Sequence[list[dict[str, str]]]) -> dict[str, Any]:
     ages: list[float] = []
     total = 0
     outcomes: dict[str, int] = {}
+    cpu_seconds: list[list[float]] = []
     for rows in entries:
+        cpu_seconds.extend(cpu_fraction_by_second(rows, "wall_start_s", "exec_ms"))
         measured_ts: list[float] = []
         source_clock_ts: list[float] = []
         walls: list[float] = []
@@ -178,6 +187,9 @@ def summarize_worker(entries: Sequence[list[dict[str, str]]]) -> dict[str, Any]:
         "source_clock_gap_ms": _dist_dict(source_clock_gaps),
         "wall_gap_ms": _dist_dict(wall_gaps),
         "age_ms": _dist_dict(ages),
+        "cpu_fraction_per_second": _dist_dict(
+            [cpu / wall for cpu, wall in cpu_seconds if wall > 0.0]
+        ),
     }
 
 

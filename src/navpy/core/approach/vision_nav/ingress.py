@@ -27,6 +27,7 @@ from navpy.core.approach.vision_nav.source_time_ports import (
 )
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.frame import FinalApproachVisionFrame
 
 
 class FinalApproachIngressCommandReset(Protocol):
@@ -70,31 +71,41 @@ class FinalApproachIngress:
             ),
         )
         with ports.lock:
-            accepted, outcome = self._nav_locked(
+            admitted = self._nav_locked(
                 poi,
                 source_timestamp_s,
                 timing,
             )
-            if not accepted:
+            if not admitted.accepted:
                 ports.command_reset.invalidate_commands()
+        frame = admitted.frame
         ports.source_time.record_observation(
             source_timestamp_s=source_timestamp_s,
             source_now_s=source_now_s,
-            outcome=outcome,
+            outcome=admitted.outcome,
+            epoch=None if frame is None else frame.source_generation,
         )
-        return accepted
+        displaced = admitted.displaced
+        if displaced is not None:
+            ports.source_time.record_frame_disposition(
+                stage="slot",
+                epoch=displaced.source_generation,
+                source_timestamp_s=displaced.source_timestamp_s,
+                disposition="replaced",
+            )
+        return admitted.accepted
 
     def _nav_locked(
         self,
         poi: DetectedObject,
         source_timestamp_s: float | None,
         timing: FinalApproachCommandTiming,
-    ) -> tuple[bool, ObservationOutcome]:
+    ) -> _Admission:
         ports = self._ports
         visual = poi.visual_detection()
         source_name = ports.projector.source_name(visual)
         if source_name is None:
-            return False, "invalid_source"
+            return _Admission(False, "invalid_source")
         frame = ports.projector.project(
             visual,
             ports.epochs.generation(source_name),
@@ -102,19 +113,32 @@ class FinalApproachIngress:
         )
         if frame is None:
             outcome = "invalid_source" if source_timestamp_s is None else "invalid_frame"
-            return False, outcome
+            return _Admission(False, outcome)
         admission = ports.epochs.admit(frame)
         if admission is FrameAdmission.REGRESSION:
-            return False, "regression"
+            return _Admission(False, "regression", frame)
         if admission is FrameAdmission.DUPLICATE:
-            return True, "duplicate"
+            return _Admission(True, "duplicate", frame)
         token = ports.mailbox.put(poi, timing)
         queued = FinalApproachQueuedFrame(frame, token)
         replaced = ports.slot.replace(queued)
+        displaced = None
         if isinstance(replaced, FinalApproachQueuedFrame):
             ports.mailbox.discard(replaced.diagnostic_token)
+            displaced = replaced.frame
         ports.slot.signal_pending()
-        return True, "fresh"
+        return _Admission(True, "fresh", frame, displaced)
+
+
+@dataclass(frozen=True)
+class _Admission:
+    """One POI's admission; ``frame``/``displaced`` feed diagnostics only."""
+
+    accepted: bool
+    outcome: ObservationOutcome
+    frame: FinalApproachVisionFrame | None = None
+    # The queued frame this one replaced before the worker took it.
+    displaced: FinalApproachVisionFrame | None = None
 
 
 def _source_timestamp(value: object) -> float | None:

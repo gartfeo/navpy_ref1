@@ -73,6 +73,8 @@ def compose_nav_application(
         navigation.final_approach.begin_dock_episode,
         navigation.final_approach.latch_docked,
         logger,
+        source_now_s=lambda: _attitude_boot_s(vehicle),
+        end_episode=navigation.final_approach.end_dock_episode,
     )
     nav_transition = NavTransition(
         NavEntry(
@@ -192,6 +194,15 @@ def compose_nav_application(
         logger,
     )
     return NavApplication(loop, observation.network, shutdown, state.overrides)
+
+
+def _attitude_boot_s(vehicle: IVehicle) -> Optional[float]:
+    """Latest ATTITUDE boot time (the observation clock), for evidence rows."""
+    sample = getattr(vehicle, "attitude_sample", None)
+    value = getattr(sample, "time_boot_s", None)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
 
 
 __all__ = ["compose_nav_application"]

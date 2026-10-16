@@ -65,14 +65,29 @@ class FinalApproachNavigationService:
                 else final_approach.status.poi_passed_override()
             )
 
-    def begin_dock_episode(self, identity: DockContactIdentity) -> bool:
+    def begin_dock_episode(
+        self,
+        identity: DockContactIdentity,
+        source_s: float | None = None,
+    ) -> bool:
         """Expect contact for this armed episode; False with no final approach."""
         with self._mode_state.session() as active:
             final_approach = active.final_approach
             if final_approach is None:
                 return False
-            final_approach.status.begin_dock_episode(identity)
+            final_approach.status.begin_dock_episode(identity, source_s)
             return True
+
+    def end_dock_episode(
+        self,
+        identity: DockContactIdentity,
+        source_s: float | None,
+    ) -> None:
+        """NAV exit of an armed episode (evidence row only)."""
+        with self._mode_state.session() as active:
+            final_approach = active.final_approach
+            if final_approach is not None:
+                final_approach.status.end_dock_episode(identity, source_s)
 
     def latch_docked(self, event: DockContactEvent) -> bool:
         """Contact callback: latch and fence only (physical_docking.md)."""

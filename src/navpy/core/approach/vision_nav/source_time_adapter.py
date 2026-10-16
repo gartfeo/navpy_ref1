@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 from navpy.core.approach.vision_nav.source_time_ports import (
     CommandOutcome,
+    FrameDisposition,
     ObservationOutcome,
     SourceNow,
 )
@@ -36,6 +37,7 @@ class PoseCadenceFinalApproachSourceTimeObserver:
         source_timestamp_s: float | None,
         source_now_s: SourceNow | None,
         outcome: ObservationOutcome,
+        epoch: int | None = None,
     ) -> None:
         if not pose_cadence_debug.ENABLED:
             return
@@ -47,6 +49,29 @@ class PoseCadenceFinalApproachSourceTimeObserver:
                 source_timestamp_s,
                 _read_source_now(source_now_s),
                 outcome,
+                epoch,
+            ),
+        )
+
+    def record_frame_disposition(
+        self,
+        *,
+        stage: str,
+        epoch: int,
+        source_timestamp_s: float,
+        disposition: FrameDisposition,
+    ) -> None:
+        if not pose_cadence_debug.ENABLED:
+            return
+        self._isolate(
+            "frame lineage",
+            lambda: pose_cadence_debug.record_frame_lineage(
+                self._sys_id,
+                self._wall_time_s(),
+                stage,
+                epoch,
+                source_timestamp_s,
+                disposition,
             ),
         )
 
@@ -58,6 +83,8 @@ class PoseCadenceFinalApproachSourceTimeObserver:
         source_now_s: SourceNow | None,
         execution_ms: float,
         outcome: CommandOutcome = "fresh",
+        work_cpu_ms: float | None = None,
+        epoch: int | None = None,
     ) -> None:
         if not pose_cadence_debug.ENABLED:
             return
@@ -71,6 +98,8 @@ class PoseCadenceFinalApproachSourceTimeObserver:
                 _read_source_now(source_now_s),
                 "measured",
                 outcome,
+                work_cpu_ms,
+                epoch,
             ),
         )
 

@@ -32,6 +32,10 @@ _DOCKED_FIELDS = (
     "closest_v_m",
 )
 _DOCK_ARMED_FIELDS = ("vehicle", "task", "dock", "episode")
+# Current shape: the legacy fields plus the NAV-entry ATTITUDE boot time.
+_DOCK_ARMED_SOURCE_FIELDS = (*_DOCK_ARMED_FIELDS, "source_ts")
+# Then the epoch wall time at NAV entry (the observation rows' clock).
+_DOCK_ARMED_WALL_FIELDS = (*_DOCK_ARMED_SOURCE_FIELDS, "wall_s")
 # A held command expires FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S of aircraft
 # time after its frame (command_freshness.py) and the approach then ends as
 # NAV_FAIL, so a genuine contact cannot come later than that after the last
@@ -73,12 +77,20 @@ def parse_docked(row: list[str], line_number: int) -> DockedEvidence:
 def parse_dock_armed(row: list[str], line_number: int) -> DockArmed:
     if len(row) < 3:
         raise ValueError(f"DOCK_ARMED row {line_number} has fewer than 3 columns")
-    payload = _payload(row[2], _DOCK_ARMED_FIELDS, "DOCK_ARMED")
+    if ";wall_s=" in row[2]:
+        fields = _DOCK_ARMED_WALL_FIELDS
+    elif ";source_ts=" in row[2]:
+        fields = _DOCK_ARMED_SOURCE_FIELDS
+    else:
+        fields = _DOCK_ARMED_FIELDS
+    payload = _payload(row[2], fields, "DOCK_ARMED")
     return DockArmed(
         vehicle=_integer("vehicle", payload["vehicle"], allow_zero=False),
         task=_integer("task", payload["task"], allow_zero=False),
         dock=_integer("dock", payload["dock"], allow_zero=True),
         episode=_integer("episode", payload["episode"], allow_zero=False),
+        source_ts=_float("source_ts", payload.get("source_ts", ""), optional=True),
+        wall_s=_float("wall_s", payload.get("wall_s", ""), optional=True),
     )
 
 

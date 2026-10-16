@@ -57,6 +57,7 @@ class NavigationLogger:
         row_timestamp = timestamp or current_wall_timestamp
         self._logger = logger
         self._streams = owned_streams
+        self._wall_time = wall_time or rt.time
         self._events = NavigationEventRecorder(
             owned_streams,
             row_timestamp,
@@ -67,7 +68,7 @@ class NavigationLogger:
             owned_streams,
             self._snap_session,
             NavigationStatusEmitter(logger),
-            wall_time or rt.time,
+            self._wall_time,
             row_timestamp,
             time_source,
             cadence_interval,
@@ -133,6 +134,10 @@ class NavigationLogger:
             ),
             rate_gate,
         )
+
+    def wall_time_s(self) -> float:
+        """The logger's wall clock (epoch seconds in production): evidence only."""
+        return self._wall_time()
 
     def capture_event_timestamp(self) -> str:
         """Capture wall time at the producing command boundary."""

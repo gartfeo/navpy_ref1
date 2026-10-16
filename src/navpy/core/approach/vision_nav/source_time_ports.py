@@ -15,6 +15,8 @@ ObservationOutcome = Literal[
     "fresh",
 ]
 CommandOutcome = Literal["fresh", "held"]
+# What became of a fresh frame after the observation hop (frame lineage).
+FrameDisposition = Literal["replaced", "consumed", "unissued", "stale"]
 
 
 class FinalApproachObservationSourceTimeObserver(Protocol):
@@ -26,6 +28,16 @@ class FinalApproachObservationSourceTimeObserver(Protocol):
         source_timestamp_s: float | None,
         source_now_s: SourceNow | None,
         outcome: ObservationOutcome,
+        epoch: int | None = None,
+    ) -> None: ...
+
+    def record_frame_disposition(
+        self,
+        *,
+        stage: str,
+        epoch: int,
+        source_timestamp_s: float,
+        disposition: FrameDisposition,
     ) -> None: ...
 
 
@@ -40,12 +52,24 @@ class FinalApproachCommandSourceTimeObserver(Protocol):
         source_now_s: SourceNow | None,
         execution_ms: float,
         outcome: CommandOutcome = "fresh",
+        work_cpu_ms: float | None = None,
+        epoch: int | None = None,
+    ) -> None: ...
+
+    def record_frame_disposition(
+        self,
+        *,
+        stage: str,
+        epoch: int,
+        source_timestamp_s: float,
+        disposition: FrameDisposition,
     ) -> None: ...
 
 
 __all__ = [
     "ObservationOutcome",
     "CommandOutcome",
+    "FrameDisposition",
     "SourceNow",
     "FinalApproachCommandSourceTimeObserver",
     "FinalApproachObservationSourceTimeObserver",

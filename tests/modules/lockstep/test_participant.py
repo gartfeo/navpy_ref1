@@ -122,7 +122,7 @@ def test_the_drain_flush_puts_every_line_on_disk(participant, tmp_path):
     assert result["before"] == ""
     assert "INFO before the end" in result["after"]
     (csv,) = (tmp_path / "pose").glob(f"pose_cadence_observation_uav_{SYS_ID}_*.csv")
-    assert csv.read_text(encoding="utf-8") == "wall_s,obs_ts,src_now_s,outcome\n0.0,1.0,2.0,fresh\n"
+    assert csv.read_text(encoding="utf-8") == "wall_s,obs_ts,src_now_s,outcome,epoch\n0.0,1.0,2.0,fresh,\n"
 
 
 def test_a_failed_flush_reports_not_flushed_and_the_rest_still_run(participant, tmp_path):
