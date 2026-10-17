@@ -15,7 +15,7 @@ from scripts.eval_gcs_demo_gate_profiles import (
 _ASSIGNED_RE = re.compile(r"\bTask \d+ assigned by owner \d+\b")
 # Logged when the peer approach is dispatched; a GUIDED_LOITER alone can be a
 # free peer's default delivery hub return, before any assignment.
-_PEER_APPROACH = "Peer navigation started"
+PEER_APPROACH_MARKER = "Peer navigation started"
 #: NavPy log markers of task dispatch, the auction or peer flight (label,
 #: pattern). The certified owner must show its dispatch (the first two); an
 #: owner-only slice must show none of them. Every line the dispatch, auction
@@ -51,7 +51,7 @@ PEER_ASSIGNMENT_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("first task offer", re.compile(r"\bTask offered: task_id=\d+")),  # task_rebroadcast.py
     ("advert with no task", re.compile(r"\bNo tasks can handle\b")),
     ("assignment not applied", re.compile(r"\bTask \d+ from owner \d+ not applied within")),  # task_assign_reply.py
-    ("peer approach", re.compile(re.escape(_PEER_APPROACH))),  # peer_approach_start.py
+    ("peer approach", re.compile(re.escape(PEER_APPROACH_MARKER))),  # peer_approach_start.py
     ("peer task priority", re.compile(r"\bflying peer task\b")),  # peer_task_priority.py
 )
 
@@ -61,11 +61,11 @@ def _peer_assignment_errors(navigation_text: str) -> list[str]:
     assigned = _ASSIGNED_RE.search(navigation_text)
     if assigned is None:
         return ["peer never logged 'Task T assigned by owner O'"]
-    approach = navigation_text.find(_PEER_APPROACH)
+    approach = navigation_text.find(PEER_APPROACH_MARKER)
     if approach < 0:
-        return [f"peer never logged {_PEER_APPROACH!r}"]
+        return [f"peer never logged {PEER_APPROACH_MARKER!r}"]
     if approach < assigned.start():
-        return [f"peer logged {_PEER_APPROACH!r} before 'Task T assigned by owner O'"]
+        return [f"peer logged {PEER_APPROACH_MARKER!r} before 'Task T assigned by owner O'"]
     return []
 
 
@@ -134,6 +134,7 @@ ROLE_GATES: dict[str, Callable[[str, str, bool], list[str]]] = {
 
 
 __all__ = [
+    "PEER_APPROACH_MARKER",
     "PEER_ASSIGNMENT_MARKERS",
     "ROLE_GATES",
     "peer_assignment_marker_errors",

@@ -252,6 +252,17 @@ e5 builds both, each with a mechanism test.
 - While a peer task is pending or flown, nothing is offered and only a detection at the task's position is taken.
 - The limits are todo 56: hardware estimate error, other UAVs' home docks, no de-duplication by position.
 
+**e4 as built (2026-10-17, wiring only).**
+- `eval_gcs_navigation_demo.py --scenario delivery` loads the fixture (`scripts/eval_delivery_fixture.py`): three
+  slots in zone order, the offerer's zone as owner, no POI ordinals, gate profile `delivery` (wall only, no lockstep).
+- Before launch it checks the fixture's `runtime` block for every slot, refuses a run dir that already holds NavPy
+  logs, and writes the `docks` block as the run's `NAVPY_SIM_DOCKS` file; the env reaches every NavPy process.
+- The mission runner is unchanged: with no ordinals it approves requests until every UAV has a SNAP.
+- `scripts/eval_delivery_roles.py` names the roles from a run's logs: the offerer by zone, the winner as the other
+  UAV with a peer task, home as the other UAV with a home-dock task and no peer task. Either peer may win. Nothing
+  calls it yet: e6's analysis does.
+- The analysis refuses the `delivery` profile until e6 adds its gates, so a delivery run ends with that refusal.
+
 ## Risks
 - The winner flies past d1 on its way to d2 (150 m apart). Peer acquisition stays in DETECT, and `DetectAction` and
   `ConfirmationAction` still select and offer other docks there, so two things can go wrong: it may lock d1 instead

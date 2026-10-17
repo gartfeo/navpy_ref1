@@ -25,13 +25,13 @@ for _path in (_REPO, _REPO / "src"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from navpy.sim.world.fleet_dock_world import FLEET_DOCKS_ENV, parse_fleet_docks  # noqa: E402
+from navpy.sim.world.fleet_dock_world import FLEET_DOCKS_ENV  # noqa: E402
+from scripts.eval_delivery_fixture import (  # noqa: E402
+    FIXTURE_PATH, require_fixture_runtime, write_dock_file,
+)
 from scripts.eval_delivery_slice_gates import SliceResult, evaluate_slice  # noqa: E402
 from scripts.eval_gcs_demo_api import navigation_log_path  # noqa: E402
-from scripts.eval_gcs_demo_config import (  # noqa: E402
-    aas_params_for, build_environment, build_settings,
-)
-from scripts.eval_gcs_demo_constants import EXPECTED_NAV_LAST_WP_ORDINAL  # noqa: E402
+from scripts.eval_gcs_demo_config import build_environment, build_settings  # noqa: E402
 from scripts.eval_gcs_demo_inputs import dem_tiles, scenario_points, write_input_manifest  # noqa: E402
 from scripts.eval_gcs_demo_lifecycle import connect_vehicles, start_companions  # noqa: E402
 from scripts.eval_gcs_demo_mission import prepare_container_launch, trigger_all  # noqa: E402
@@ -47,7 +47,6 @@ from scripts.eval_gcs_demo_stack_ops import (  # noqa: E402
     wait_for_missions, wait_for_vehicles,
 )
 
-FIXTURE_PATH = _REPO / "scripts" / "eval_delivery_scenario.json"
 GATE_PROFILE = "delivery_offer_slice"
 POLL_S = 2.0
 
@@ -66,27 +65,6 @@ def slice_scenario(fixture: Mapping, path: Path) -> DemoScenario:
         missions=(fixture["missions"][zone],),
         path=path,
     )
-
-
-def require_fixture_runtime(fixture: Mapping, scenario: DemoScenario) -> None:
-    """The settings the fixture's oracle assumes are the ones this launch applies."""
-    aas = aas_params_for(scenario, 1, 1)
-    applied = {
-        "nav_last_wp": aas["nav_last_wp"],
-        "nav_oneshot": aas["nav_oneshot"],
-        "search_zoom": int(build_settings(scenario)["camera"]["vision_zoom"]),
-    }
-    if fixture["runtime"] != applied or aas["targ_wps"] != 0:
-        raise RegressionError(f"fixture runtime {fixture['runtime']} != applied {applied}")
-    if applied["nav_last_wp"] != EXPECTED_NAV_LAST_WP_ORDINAL:
-        raise RegressionError("nav_last_wp drifted from the eval constant")
-
-
-def write_dock_file(fixture: Mapping, run_dir: Path) -> tuple[Path, list[str]]:
-    docks = parse_fleet_docks(fixture["docks"])
-    path = run_dir / "fleet_docks.json"
-    path.write_text(json.dumps(fixture["docks"], indent=2, sort_keys=True), encoding="utf-8")
-    return path, [dock.name for dock in docks]
 
 
 def _watch(context: StackContext, docks: list[str], kept: str, offered: str,

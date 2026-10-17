@@ -174,7 +174,7 @@ def scenario_missions(
     track = cast(list[dict[str, float]], missions[list(slot_names).index(owner_slot)]["waypoints"])
     # The owner mission also ends with an appended default-delivery-hub NAV row,
     # which the GCS mission parser drops but NavPy still counts.
-    if max(poi_ordinals) > len(track):
+    if poi_ordinals and max(poi_ordinals) > len(track):
         raise ValueError(
             "scenario POI ordinals must select owner track rows, "
             "never the appended default-delivery-hub row"

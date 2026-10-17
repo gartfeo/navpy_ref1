@@ -8,6 +8,9 @@ from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 
 CERTIFIED_PROFILE = "certified"
 OWNER_ONLY_SLICE_PROFILE = "owner_only_slice"
+#: The owner's delivery scenario (docs/design/delivery_eval_scenario.md): a
+#: wall run only, with no waypoint docks.
+DELIVERY_PROFILE = "delivery"
 #: The certified scenario run in lockstep: a resolved execution profile, never
 #: a scenario's own ``gate_profile`` (``lockstep_fleet.md``, Execution profile).
 CERTIFIED_LOCKSTEP_PROFILE = "certified_lockstep"
@@ -37,10 +40,21 @@ def _require_owner_only_slice_shape(roles: Sequence[str], ordinals: tuple[int, .
         )
 
 
+def _require_delivery_shape(roles: Sequence[str], ordinals: tuple[int, ...]) -> None:
+    if sorted(roles) != ["owner", "peer", "peer"]:
+        raise ValueError(
+            "the delivery scenario requires exactly three slots: the offerer's zone "
+            "as owner and two peers"
+        )
+    if ordinals:
+        raise ValueError("the delivery scenario has no POI NAV waypoint ordinals")
+
+
 #: Gate profile -> the scenario shape (slot roles, POI ordinals) its gates are written for.
 _PROFILE_SHAPES: dict[str, Callable[[Sequence[str], tuple[int, ...]], None]] = {
     CERTIFIED_PROFILE: _require_certified_shape,
     OWNER_ONLY_SLICE_PROFILE: _require_owner_only_slice_shape,
+    DELIVERY_PROFILE: _require_delivery_shape,
 }
 GATE_PROFILES = tuple(_PROFILE_SHAPES)
 #: Execution profile -> the sim-time factor its cadence gates expect: the
@@ -49,7 +63,10 @@ PROFILE_SIM_SPEEDUP: dict[str, float] = {
     CERTIFIED_PROFILE: SIM_SPEEDUP,
     CERTIFIED_LOCKSTEP_PROFILE: 1.0,
     OWNER_ONLY_SLICE_PROFILE: 1.0,
+    DELIVERY_PROFILE: SIM_SPEEDUP,
 }
+#: Gate profiles with no lockstep version.
+_WALL_ONLY_PROFILES = frozenset({DELIVERY_PROFILE})
 #: (gate profile, execution mode) pairs that resolve to another profile; every
 #: other pair resolves to its gate profile.
 _RESOLVED_PROFILES: dict[tuple[str, str], str] = {
@@ -59,7 +76,11 @@ _RESOLVED_PROFILES: dict[tuple[str, str], str] = {
 
 def execution_profile(gate_profile: str, mode: str) -> str:
     """The profile every profile-keyed gate table reads for a run."""
-    if gate_profile not in _PROFILE_SHAPES or mode not in (WALL, LOCKSTEP):
+    if (
+        gate_profile not in _PROFILE_SHAPES
+        or mode not in (WALL, LOCKSTEP)
+        or (mode == LOCKSTEP and gate_profile in _WALL_ONLY_PROFILES)
+    ):
         raise ValueError(f"no execution profile for ({gate_profile!r}, {mode!r})")
     return _RESOLVED_PROFILES.get((gate_profile, mode), gate_profile)
 
@@ -82,6 +103,7 @@ __all__ = [
     "CERTIFIED_LOCKSTEP_PROFILE",
     "CERTIFIED_POI_NAV_WAYPOINT_ORDINALS",
     "CERTIFIED_PROFILE",
+    "DELIVERY_PROFILE",
     "GATE_PROFILES",
     "LOCKSTEP",
     "OWNER_ONLY_SLICE_PROFILE",

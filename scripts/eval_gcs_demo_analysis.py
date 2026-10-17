@@ -201,6 +201,8 @@ def analyze_run(
     requested_speedup = finite_number("navigation_speedup", navigation_speedup)
     mode = execution_mode(log_dir)
     profile = execution_profile(scenario.gate_profile, mode)
+    if profile not in _ASSIGNMENT_EVIDENCE:
+        raise ValueError(f"execution profile {profile!r} has no gates yet")
     sim_speedup = PROFILE_SIM_SPEEDUP[profile]
     if requested_speedup > 0.0 and profile != CERTIFIED_PROFILE:
         # A lockstep cadence is factor 1; no override may relax it.

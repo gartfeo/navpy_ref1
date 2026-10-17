@@ -22,7 +22,9 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_process import exclusive_evaluator_lock
 from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run
 from scripts.eval_gcs_demo_runtime import execute_live_run
-from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, DemoScenario, load_scenario
+from scripts.eval_delivery_fixture import load_eval_scenario, prepare_sim_docks, scenario_path
+from scripts.eval_gcs_demo_gate_profiles import DELIVERY_PROFILE
+from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, DemoScenario
 
 
 def report_dict(report: RunReport) -> dict[str, JsonValue]:
@@ -35,10 +37,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--scenario",
-        type=Path,
+        type=scenario_path,
         default=CERTIFIED_SCENARIO_PATH,
         metavar="PATH",
-        help="scenario file to fly and gate (default: the certified three-UAV scenario)",
+        help="scenario file to fly and gate, or 'delivery' for the delivery fixture "
+        "(default: the certified three-UAV scenario)",
     )
     parser.add_argument(
         "--analyze-only",
@@ -133,9 +136,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Analysis reads the run's recorded execution mode; --lockstep would launch.
         raise RegressionError("--lockstep and --analyze-only are exclusive")
     try:
-        scenario = load_scenario(args.scenario)
+        scenario = load_eval_scenario(args.scenario)
     except (TypeError, ValueError) as error:
         raise RegressionError(f"invalid --scenario: {error}") from error
+    if args.lockstep and scenario.gate_profile == DELIVERY_PROFILE:
+        raise RegressionError("the delivery scenario has no lockstep run")
     if args.lockstep:
         report = run_lockstep(args, scenario, limits)
     elif args.analyze_only is not None:
@@ -157,6 +162,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 delay,
                 scenario=scenario,
                 navigation_speedup=speedup,
+                sim_docks=prepare_sim_docks(run_dir, scenario),
             )
             report = analyze_run(
                 run_dir,
