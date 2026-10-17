@@ -639,3 +639,12 @@
   entry's clone is this directory.
 - **`sed -i` in Git Bash rewrites a CRLF file as LF.** Edit CRLF files with the Edit tool or
   with read_bytes/write_bytes, and check with `file` afterwards.
+
+## Coordinating nested sessions (2026-10-17)
+
+- **Do not ask a nested session to report back.** The owner opens nested sessions
+  directly, so a "report to me" or "report it" step in a brief adds nothing. My
+  briefs had one, and I relayed every interim note ("still waiting", "suite running")
+  to the owner. The owner said this is not needed. In a brief, state the task and
+  what done means. Pass on a note only when it brings a decision for the owner or
+  finished work.
