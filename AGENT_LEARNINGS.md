@@ -648,3 +648,17 @@
   to the owner. The owner said this is not needed. In a brief, state the task and
   what done means. Pass on a note only when it brings a decision for the owner or
   finished work.
+
+## Delivery e5 dock roles (2026-10-17)
+
+- **A bare `Mock()` task actor looks assigned.** Its `selected_poi()` returns a truthy
+  Mock, so `PeerTaskPriority.pending()` is true. Nine selector tests relied on that
+  by accident once "assigned UAVs offer nothing" landed. Give an idle mock actor
+  `selected_poi.return_value = None`.
+- **Run the SOLID guard after every constructor change, not only `tests/modules`.**
+  A Codex fix added a 13th dependency to `NavigationTaskAction`; only the full suite
+  caught it. Prefer a port on the class that owns the behaviour.
+- **Sim detections carry truth, not a projected position.** `SelfDetectedApproach`
+  centres its circle on `truth_poi_location`; a test dock with only
+  `set_p_t_g_loc` circles somewhere else. Build sim test docks with
+  `replace_geo(replace(poi.geo, truth_poi_location=...))`.

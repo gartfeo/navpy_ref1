@@ -311,6 +311,8 @@ class SelectPoiReaskTests(unittest.TestCase):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
         controller.network.task_actor = Mock()
+        # No assigned task: an assigned UAV offers nothing (ruling 5).
+        controller.network.task_actor.selected_poi.return_value = None
         poi = _create_detected_poi(obj_id=10)
         controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
         controller.retry_state.reask_attempts[10] = CONFIRM_REASK_MAX_ATTEMPTS
@@ -338,6 +340,8 @@ class SelectPoiReaskTests(unittest.TestCase):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         controller = _create_controller(vehicle=vehicle)
         controller.network.task_actor = Mock()
+        # No assigned task: an assigned UAV offers nothing (ruling 5).
+        controller.network.task_actor.selected_poi.return_value = None
         exhausted = _create_detected_poi(obj_id=10)
         controller.confirmation_manager.update_status(exhausted, ConfirmationStatus.TIMEOUT_REJECTED)
         controller.retry_state.reask_attempts[10] = CONFIRM_REASK_MAX_ATTEMPTS

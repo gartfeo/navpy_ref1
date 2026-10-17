@@ -241,6 +241,17 @@ e5 builds both, each with a mechanism test.
 - Codex's result review was "ship with changes" (bind the orbit to the selection, no offer before the selection, no
   geometry overclaim). All three were applied, and the re-review said "ship".
 
+**e5 as built (2026-10-17, unit level).**
+- `DockRoles` (`src/navpy/core/skills/search/dock_roles.py`) feeds `PoiSelector`, which every offer path uses
+  (DETECT, CONFIRM, NAV).
+- A detection is the home dock, or the assigned task's dock, when its position lies within
+  `DOCK_ASSOCIATION_RADIUS_M` (30 m, the reacquire gate). The position is the one an offer would carry: the
+  projected position, else sim truth, else the ground estimate.
+- The home dock is never offered. On the way home, delivery docks come before the home dock, and a delivery dock
+  taken there gets its own waiting circle (Codex round 1).
+- While a peer task is pending or flown, nothing is offered and only a detection at the task's position is taken.
+- The limits are todo 56: hardware estimate error, other UAVs' home docks, no de-duplication by position.
+
 ## Risks
 - The winner flies past d1 on its way to d2 (150 m apart). Peer acquisition stays in DETECT, and `DetectAction` and
   `ConfirmationAction` still select and offer other docks there, so two things can go wrong: it may lock d1 instead
