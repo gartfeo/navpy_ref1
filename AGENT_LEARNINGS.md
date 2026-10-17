@@ -631,9 +631,9 @@
   2d44662 (a sim gimbal change) as the cause of a new digest; a run at the commit before it
   already had the new digest. Single seed-1 runs in detached worktrees at 10h's commit, the
   merge and its parent located it (the HITL merge 79ace48) in three runs.
-- **Check for slot-0 wall stacks before each lockstep batch, and again after any rebase.**
-  Main moved twice during step 11, and each move changed the digest. Each final certification
-  needed its own quiet window on the exact tree that would fast-forward onto main.
+- **Recertify after any rebase.** Main moved twice during step 11, and each move changed the
+  digest, so each final certification ran on the exact tree that would fast-forward onto main.
+  (A quiet PC is no longer needed since todo 51; see below.)
 - **`gcs_stop.py --eval` cannot find a lockstep slot** (todo 55: the claim's owner is not
   normcased). Stop it with `gcs_stop.py --chat <its slot>` after checking that the registry
   entry's clone is this directory.
@@ -662,3 +662,17 @@
   centres its circle on `truth_poi_location`; a test dock with only
   `set_p_t_g_loc` circles somewhere else. Build sim test docks with
   `replace_geo(replace(poi.geo, truth_poi_location=...))`.
+
+## Wall cleanup by ownership (todo 51, 2026-10-17)
+
+- **Do not edit the tree while a matrix runs.** `input_manifest.json` hashes the uncommitted
+  diff and untracked files. A doc edit and a `git add -N` mid-run failed the artifact gate in
+  two cells, although every digest was equal. Commit first, keep doc drafts outside the
+  worktree, and apply them after the runs.
+- **A `pgrep -f` probe matches its own `bash -c` shell.** My waits returned at once, so the
+  first "wall stack mid-run" cycles stopped the stack before its SITLs existed. Anchor the
+  pattern (`^/[^ ]*/bin/arduplane .*[-]-sim-address`), and log the matched pids with their
+  environment, so the evidence shows that the target processes really existed.
+- **Backslash continuations in a heredoc'd Python edit collapse into one line.** `\` plus a
+  newline inside a normal string literal is a line continuation. Edit test code that has `\`
+  continuations with the Edit tool.
