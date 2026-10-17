@@ -456,149 +456,194 @@ Four layers, in the owner's order (2026-10-16). Each has its own plan; do not mi
 | H3 | Real board (COM15 via the router, COM11 bridge; Mission Planner must not hold COM15), 1 then 10 | As H2, results beside H2 |
 | H4 | Later: auto-zoom (owner: after HITL), real ZR10 K by reading after a per-reading calibration, GCS approval, moving dock, 18x fixed-camera runs | Separate designs |
 
-## 10. Layer 1: the simulated Peron flies like the real flights (v3, 2026-10-16)
+## 10. Layer 1: the simulated Peron flies like the real flights (v4, 2026-10-17)
 **Goal.** Fewer real re-flights: a flight in the bridge model looks like a real flight of the same kind. The reference
 is the real logs. Launch and catapult are low priority. Flight tuning (`flight_tuning.md`) is a separate, parked feature.
 **Evidence level of everything below:** logs and an offline replay of the model (JSBSim `Peron15_hitl4`, open loop).
 No closed-loop board run against a real log exists yet. The bands were approved by the owner on 2026-10-16 and `Peron15_hitl4` is scored below.
+v4 (2026-10-17) corrects v3 after a deeper log analysis by Codex that Claude checked against the logs; its findings are in section 10a.
 
-**Step 1: inventory (read only).** Facts on disk (2026-10-16), not names from memory:
-- 31 flight-log files in `Downloads\Logs`. Airframe = SYSID in the log. Dates are GPS time from the log.
-- 104 logs of other aircraft in `Downloads\Logs_other_frames` (142, 145, 146, 41, ...). Not used. Its two `peron_160_*` files (00000002, 00000006) were byte copies of
-  `peron_157_20241019_00000002` and `peron_157_20241102_00000006` and went to the Recycle Bin on 2026-10-16 (owner).
-- No log file is named for 153, 154, 156, 161, 162 or 163 (file names checked; the SYSID of about 20 date-named files in `Logs_other_frames` was not read). For 161-163 only preflight parameter files exist (`Peron\Tune\20260711_Preflight`).
-- Aircraft mass is not recorded in an ArduPilot log; 7.5 kg is the model value. No MODE record exists in the log extracts,
-  so flight modes are unknown. Segments are picked by what the aircraft did (rates, speed, sink, bank), not by mode. The
-  per-log table and the dive table are in the session notes (`layer1-log-inventory.md`).
+**Step 1: inventory (read only).** Facts on disk (2026-10-17), not names from memory:
+- 31 flight-log files in `Downloads\Logs`. Group = SYSID in the log, except that the seven `peron_160_*` files (SYSID 157) form their own group "160". A SYSID is a parameter: it names neither a board nor a frame. Dates are GPS time from the log.
+- Short log names in this section: "log N" alone is the SYSID 158 file `gdrive_<date>_000000NN` (logs 6, 10, 11, 15, 16, 21, 25, 30, 32; "log 30" = `gdrive_20250927_00000030`);
+  '"160" log N' is `peron_160_000000NN`; a SYSID before "log N" names that SYSID's file with that number ("151 log 22" = `gdrive_151_00000022`). Other files are named in full.
+- The folder of other aircraft (`Downloads\Logs_other_frames`, 104 logs, not used) is no longer on this PC. Its two `peron_160_*` files (00000002, 00000006) were byte copies of
+  `peron_157_20241019_00000002` and `peron_157_20241102_00000006` (owner, 2026-10-16).
+- Text `.log` copies of the 31 BIN files were made on 2026-10-17 by someone else. They match the BIN files record by record, except one metadata record (the first UNIT record) per file, and they hold floats to 7 significant digits. The BIN files stay the source.
+- No log file on this PC is named for 153, 154, 156, 161, 162 or 163. For 161-163 only preflight parameter files exist (`Peron\Tune\20260711_Preflight`), plus one Mission Planner telemetry log of 163
+  (`Mission Planner\logs\FIXED_WING\163\2026-10-12 18-42-28.tlog`): 7.5 s, disarmed, ground speed 0, so no flight.
+- Aircraft mass is not recorded in an ArduPilot log; 7.5 kg is the model value. No log holds a MODE record, but the mode class (automatic throttle, FBWA-like,
+  AUTOTUNE, MANUAL) can be measured for most of the flight time (section 10a, B1). Segments are picked by what the aircraft did (rates, speed, sink, bank). The
+  per-log table and the dive table are in the session notes of 2026-10-16
+  (`%APPDATA%\Claude\side-session-notes\local_5f42d6d8-c1df-43a1-9cb4-6cd20c3e9c83\layer1-log-inventory.md`). They predate v4: they call the SYSID groups
+  airframes, and their per-log table gives 3D speeds that include wind. Where they differ from this section, this section holds. The 38 dives with their heights
+  are also in `verify\_resolve\R7a\table.md` of the section 10a output.
 
-| Airframe (SYSID) | Files / flying logs | Dates | Flight min | Note |
+| SYSID group | Files / flying logs | Dates | Flight min | Note |
 |---|---|---|---|---|
-| 151 | 5 / 4 | 2023-11 to 2024-01 | 62 | 1100-1900 us throttle range |
-| 152 | 3 / 2 | 2023-12, 2024-08 | 47 | |
+| 151 | 5 / 4 | 2023-11 to 2024-01 | 62 | 1100-1900 us throttle range; two APJ 50 boards (P on 2023-11-11, Q from 2023-11-18) |
+| 152 | 3 / 2 | 2023-12, 2024-08 | 47 | the Durandal board of 157 and "160" |
 | 155 | 1 / 0 | 2024-09 | 0 | one failed launch only |
-| 157 | 3 / 3 | 2024-10 to 2024-11 | 58 | |
-| 158 | 11 / 11 | 2024-11 to 2026-01 | 174 | 2026-01-18 is the model's one fit flight; throttle +0.06 vs model (ESC) |
-| "160" (file SYSID 157) | 7 / 7 | 2025-01 to 2025-09 | 117 | own AHRS trim and servo trims; identity unconfirmed; throttle -0.16 from log 29 |
-| 149 | 1 / 1 | 2023-05 | 10 | other model, not used |
+| 157 | 3 / 3 | 2024-10 to 2024-11 | 58 | the Durandal board of 152 and "160" |
+| 158 | 11 / 11 | 2024-11 to 2026-01 | 174 | 2 logs on an APJ 50 board (2024-11, very probably board P), 9 on a Pixhawk 6X (2025-26); 2026-01-18 is the model's one fit flight; throttle about +0.06 vs model on the 6X logs, about -0.01 on the two 2024 logs (cause not in the logs) |
+| "160" (file SYSID 157) | 7 / 7 | 2025-01 to 2025-09 | 117 | the Durandal board of 152 and 157; frame not identified; own AHRS trim and servo trims; throttle about -0.17 from "160" log 29 |
+| 149 | 1 / 1 | 2023-05 | 10 | other model, not used except 3 of the 15 throttle-off drag windows (section 10a, A4) |
 
-**Which airframes are alike (log fingerprints, 2026-10-16, corrected the same day).** The accelerometer and gyro device IDs (INS_ACC2_ID, INS_GYR_ID) name the IMU hardware type,
-not one physical board: a scan of all 137 logs on disk finds type A (2688010) in SYSID 24, 41, 143, 146, 148, 149, 151, 155 and 158 and type B (2819082) in SYSID 11, 24, 142-145, 149, 151, 152, 157
-and 201, from 2021 on. The SYSID alone does not name an airframe either (owner: it may not have been changed when a board moved; the scan also shows SYSID 151 on type B in 2022 and on type A in 2023-24).
+**Which boards and settings are alike (log fingerprints; corrected 2026-10-17).** The logs identify boards and parameter states, not frames. No logged value names a frame:
+BRD_SERIAL_NUM is 0 in all 31 files. The files hold no MSG and no MODE records although both formats are defined, so these copies were probably filtered.
+The original SD-card logs should hold the board's start-up messages (with its MCU ID) and the mode records; ask the owner for them. File names are archive labels.
 - Owner practice (2026-10-16): there are few boards and parts are reused, so a board moves to a new frame together with its airspeed sensor and ESC. The level (AHRS trim) is
-  redone after a new frame with an old board, and sometimes again on the same board. So board IDs, accelerometer offsets, airspeed scale and ESC settings follow the board, not the frame; a new AHRS
-  trim hints at a new frame but does not prove one. No logged value names the frame.
-- Type A: 149, 151, 155, and the two 158 logs of 2024-11-02 (`peron_158_20241102_*`). Those two share 151's accelerometer offset (0.41) and AHRS trim (0.042), so they probably flew on the 151 board (the frame is not known).
-- Type B: 152 (2023-12, 2024-08), 157 (2024), and all seven `peron_160_*` logs (2025, SYSID 157). The `peron_160_*` log numbers (11-35) continue the 157 logs 2 and 6 of 2024, and the
-  `peron_160_*` folder also held byte copies of those two 157 logs, so they come from the same SD card as 157. The "160" file name is an archive label, not an airframe.
-- Type C (3866906, Pixhawk 6X): only SYSID 158 from 2025-01 to 2026-01.
-- The `peron_160_*` aircraft and 158 (type C) flew at the same time on 2025-08-16 and 2025-09-27 (both at 22-34 m/s, about 100 m apart in height, at different positions; GPS time), so the `peron_160_*` logs are not airframe 158.
-- By how the aircraft behaved (level throttle against the model at 24 m/s, per-log offsets from the replay): 151, 152, 157 and 158 (2024) agree within +-0.03; 158 (2025-26) needs 0.03-0.11 more
-  throttle (median +0.06); the `peron_160_*` logs go from +0.04 (log 11) to -0.04 (logs 18-22) to -0.17 (logs 29-35). So 151, 152, 157 and 158 (2024) are alike; 158 (2025-26) and the `peron_160_*` logs are not, and not like each other.
-- Which airframe flew the 157 SD card in 2025 is not proven by the logs (Codex agrees): 157 all along, or the card and board moved to another airframe with SYSID 157 kept. The throttle drift fits a propeller,
-  motor or airframe change equally. A dated flight or maintenance record would settle it. In this section "160" is only the name of the seven `peron_160_*` logs as their own group.
+  redone after a new frame with an old board, and sometimes again on the same board. So a new AHRS trim hints at a new frame but does not prove one.
+- Board models. The IMU device IDs (INS_ACC*_ID, INS_GYR*_ID) encode bus, address and sensor type, so they name a board model, never one board. In the 31 logs:
+  APJ 50 (FMUv5 class, IMU type A, INS_ACC2_ID 2688010) in 9 logs; Durandal (APJ 139, type B, 2819082) in 13 logs; Pixhawk 6X (APJ 53, type C, three ICM45686) in 9 logs.
+  (A scan of the 137 logs then on disk on 2026-10-16 (these 31, the 104 of the other folder and its two `peron_160_*` copies) found type A and type B on many other SYSIDs from 2021 on; that folder is gone and the scan was not repeated.)
+- What can name a board. Parameter files carry values from board to board: values match after a 7-digit text round trip (for example ARSPD_RATIO 1.8086971 of the Durandal on 2024-10-05
+  becomes 1.808697 on the same Durandal from 2024-10-19 and on two other boards: the 2024-11 SYSID 158 board (very probably board P) and the 6X until 2025-04-05). So accelerometer offsets, AHRS trim and airspeed ratio cannot name a board. Two kinds of values do follow a board: the boot gyro offsets, which are
+  measured again at every boot, and the AP_Stats counters (STAT_RESET, BOOTCNT, FLTTIME, RUNTIME). The counters are parameters and can be rewritten, so they are strong evidence, not proof.
+- Durandal (APJ 139): SYSID 152 in 2023-12 and 2024-08, then SYSID 157 from 2024-10, including all seven `peron_160_*` files. All 13 logs share one AP_Stats history
+  (the same STAT_RESET stamp of 2022-01-28, BOOTCNT rising from 216 to 475). From `peron_157_20241019_00000002` to `peron_160_00000035` (2025-09-27) each file's flight time starts where the previous
+  file ended (gap 0 s in 8 pairs). So very probably one board flew all these logs (strong evidence, not proof), and no flight time of it in that period is missing from the archive.
+  Its AHRS trim changed six times from 2023-12 to 2025-05: between 2023-12-24 and 2024-08-31 (still SYSID 152), at the SYSID change (between 2024-08-31 and 2024-10-05), slightly between 2024-10-05 and 2024-10-19,
+  then between 2024-11 and 2025-01, by 2025-04-05 and by 2025-05-04; it is unchanged from 2025-05-04 to 2025-09-27. Each change fits a re-level, which hints at a frame change but does not prove one. "160" may be a frame name, but no logged value shows it.
+- SYSID 151 was two APJ 50 boards: P on 2023-11-11 and Q from 2023-11-18 to 2024-01-13. Q carries P's calibration through a text parameter file. The two
+  `peron_152_20231120_*` files are SYSID 151 and were recorded on 2023-11-18 by GPS time (file 04 holds no flight).
+- SYSID 158 on 2024-11-02 (`peron_158_20241102_*`, APJ 50): its boot gyro offsets match board P (0.5-0.9 mrad/s apart at 25-27 C), so these two logs very probably flew on
+  board P, with parameters from board Q's line. Its accelerometer calibration is new. The v3 statement that they share 151's offset (0.41) and trim (0.042) rested on one component and is withdrawn.
+- SYSID 158 on the Pixhawk 6X (2025-01-28 to 2026-01-18): the AP_Stats counters restart between 2025-05-18 and 2025-05-25. The 2025-05-25 log is also the first with a new airspeed sensor setup, a CAN
+  compass, a new accelerometer calibration and a new AHRS trim; the logs do not show whether these came on one day. The compass offsets are the old values after a
+  7-digit text round trip (COMPASS_OFS_X -51.3976135 to -51.3976097), which points to a parameter-file load, not a new compass calibration. The logs cannot tell a parameter reset on the same board from a second 6X; the boot gyro offsets continue across the break, which favours the same board.
+  A second counter drop on 2026-01-18 (firmware 4.6.3) is not explained.
+- Two aircraft flew at the same time on three dates (both logs flying, GPS fixes matched within 0.1 s): 2025-01-28 (235 s, 0.2-2.2 km apart), 2025-08-16 (1328 s, median 0.51 km
+  apart and 99 m in height) and 2025-09-27 (325 s, 0.46 km, 97 m). So the `peron_160_*` logs and the SYSID 158 6X logs are two aircraft on those dates.
+- The SYSID groups used later in this section are not independent boards: 152, 157 and "160" are very probably one Durandal board; "158 with all its dates" is very probably board P in 2024 and a 6X in 2025-26; 151 is boards P and Q.
+- By how the aircraft behaved (each log's throttle offset against the model, as the replay applies it: the mean over that log's trim bins at 20 m/s or more, all banks): 151, 152, 157
+  and 158 (2024) lie within -0.04 to +0.03 (the one level bin of 151 log 22, at 26 m/s, reads +0.11); 158 (2025-26) needs +0.01 to +0.11 more throttle (median +0.06); the
+  `peron_160_*` logs go from +0.04 ("160" log 11) to -0.03 ("160" log 21, the only one of logs 18-22 with a bin) to -0.17 ("160" logs 29-35). These per-log values come from the
+  v3 replay data and were not re-derived in v4. This is not a gradual drift. "160" log 11's high throttle is mostly its low pack voltage. Between "160" log 22 (2025-05-18) and
+  "160" log 29 (2025-08-10) the throttle-to-power map steps: at the same power and speed, throttle x pack voltage falls by about 28 %, and at 0.7-0.8 throttle the current is
+  about 100 A in "160" logs 29-35 against 50-56 A in "160" logs 18-22. The throttle settings checked (servo output range, THR_MAX, battery compensation, output protocol,
+  current scaling) did not change; the throttle RC calibration moved by 1-2 us (RC3 990/2012 to 988/2011 us), and a full parameter comparison is still open. The cause (ESC calibration or replacement, motor, or propeller such as the APC 14x8.5) is not in the logs: there is no RPM or ESC telemetry.
+- Which frame carried the Durandal board in 2025 is not shown. A dated flight or maintenance record would settle it. In this section "160" is only the name of the seven `peron_160_*` logs as their own group.
 
 | Item that matters | Covered by | How much |
 |---|---|---|
-| (a) roll and pitch response | all flying logs; 25 Hz ATT and rate-controller rates | 241 roll and 83 pitch windows (peak rate > 30 and > 12 deg/s). Stick and mode unknown, no clean doublets. |
-| (b) trim and speed | steady level and turn bins; throttle steps | 82 bins (all banks), 1-4 level bins per log; 5-8 s steady windows; elevator per g in 25 turn pairs |
+| (a) roll and pitch response | all flying logs; 25 Hz ATT and rate-controller rates | 241 roll and 83 pitch windows (peak rate > 30 and > 12 deg/s). No clean doublets; the one MANUAL segment is 80 s of roll (section 10a, B1). |
+| (b) trim and speed | steady level and turn bins; throttle steps | 82 bins (all banks), 0-4 level bins per log (11 of the 29 replayed logs have none); 5-8 s steady windows; elevator per g in 25 turn pairs |
 | (c) dive and pull-out | see below | **Yes, real dives exist** |
-| (d) wind and gusts | EKF wind estimate (XKF2), every log | 1.1-8.8 m/s median per log; gust is only an EKF-smoothed estimate |
+| (d) wind and gusts | EKF wind estimate (XKF2), every flying log | 1.1-8.8 m/s median per log (the 155 launch-only log, 1.0 m/s from 19 samples, left out); gust is only an EKF-smoothed estimate |
 
-**Are there real dives? Yes.** 38 dives of 4-10 s with mean pitch -30 deg or steeper, in 11 logs on airframes 151, 152, 157, 158
-and "160"; about 22 of them steeper than -45 deg. One (`peron_160_00000018`, 15-20 m/s, throttle 0) looks like a crash and is not used.
-Speeds are air-relative (3D ground speed minus the EKF wind):
-- `gdrive_151_00000022`: 6 steep dives, 8-10 s, pitch -59 to -61 deg, throttle 0.08-0.17, 24-29 m/s to 55-59 m/s, 270-360 m lost.
-- `gdrive_20250927_00000030` (158): 10 dives, 4-7.4 s, pitch -31 to -61 deg, throttle 0.9-0.97, 28-33 m/s to 58-68 m/s, 130-230 m lost.
-- `gdrive_20250518_00000015` (158): 4 dives, 8.1-8.9 s, pitch -49 to -50 deg, throttle 0.45-0.48, 23 m/s to 51-52 m/s, 230-250 m lost.
-The dives of one log end close together (the 4 in `gdrive_20250518_00000015` within about 25 m, the 6 in
-`gdrive_151_00000022` within about 90 m; positions are in the session notes). That fits passes at a fixed ground point, but the target and
-the mode are not logged, so "toward a target" is not proven. The owner knows what these flights were.
-Limits: these speeds are 50-70 m/s, far above the 17-34 m/s the model was replayed at. The pitot true airspeed agrees with ground speed
-minus EKF wind within 6 % in the dives (for example 70.3 against 68.1 m/s), but the EKF wind is partly fitted to the pitot, so this is a consistency check, not an
-independent calibration. The airspeed scale of a flight is 0.92-1.06.
+**Are there real dives? Yes.** 38 dives of 4-10 s with mean pitch -30 deg or steeper, in 11 logs of SYSID groups 151, 152, 157, 158
+and "160"; 23 of them steeper than -45 deg (22 without the one left out). That one (`peron_160_00000018` at 2387 s, 15-20 m/s, throttle 0) is a low-speed departure
+that ends in a ground impact; it is not used. Speeds are air-relative (EKF velocity minus the EKF wind). Heights lost are from IMU height fitted to GPS (section 10a, A2); EKF height reads high under load, so it gives 1-17 m less per dive:
+- `gdrive_151_00000022`: 6 steep dives, 8-10 s, pitch -59 to -61 deg, throttle 0.08-0.17, 24-29 m/s to 55-59 m/s, 286-375 m lost.
+- `gdrive_20250927_00000030` (158): 10 dives, 4-7.4 s, pitch -31 to -61 deg, throttle 0.91-0.97, 28-33 m/s to 58-68 m/s, 137-238 m lost. The last one (from 3606.04 s) runs
+  into the in-air event at 3611.8 s that came before the ground impact at 3615.5 s, and section 10a excludes this log's data from 3611.0 s. Without that dive the ranges are the same,
+  except the height lost (137-234 m).
+- `gdrive_20250518_00000015` (158): 4 dives, 8.1-8.9 s, pitch -49 to -50 deg, throttle 0.45-0.48, 23 m/s to 51-52 m/s, 241-259 m lost.
+The passes of one log repeat closely: the same entry point, height and heading (in `gdrive_20250518_00000015` the four entry points lie within 16 m, and the dive
+tracks extended to the home-height plane end within 25 m). The tracks run parallel, so this shows a repeatable manoeuvre, not steering to a common ground point. In
+`gdrive_20250927_00000030` the end point moves with the saved AAS_TERM_PITCH value (passes from one spot with -30 and -55 end 307 m apart). In 41 of 49 steep intervals the NTUN
+target at dive entry is the aircraft's own position at the moment the target was set, 1-28 s before the dive (in 20 of them at a logged GUIDED request), so it is not an
+aim point. The sticks are centred in most dives and the logged pitch demand follows the dive, so the demand came from an automatic source. Of the 47 steep intervals with
+automatic demand, 21 start 4-50 s after an accepted GUIDED request and 26 have no logged mode request (log 30 has none at all); in 16 of the 47 the pitch stick goes nose-up
+at recovery (STICK_MIXING 1; section 10a, B1). The owner says 50-70 m/s approaches were flown and some dives may have tested maximum load; mode and pilot are not known
+(owner decision 3).
+Limits: these speeds are 50-70 m/s, far above the replay windows and trim bins behind rows 1-12 (window start EAS 16-36 m/s, real speed in them at most 36 m/s; trim bins 18-31 m/s); only the dive replay of rows 13-15 compares the model with real flight above that (model peaks up to 61 m/s as corrected, 64 m/s with the elevator offset only). In 22 dives of logs 30, 151 log 22, "160" logs 11 and 30, and log 16 (after its autocal)
+the raw pitot TAS (ARSP airspeed x CTUN.E2T) is 0.97-1.02 of GPS velocity minus EKF wind (median over each dive; a 0.2 s GPS velocity lag lowers these ratios by 1.6-2.5 %); log 25 reads 1.04-1.10, and log 15 1.26-1.31 (inferred: a sensor read on the wrong pressure scale, section 10a, B3). Comparing peaks, the raw pitot reads higher than the EKF air speed: 1.01-1.09 in log 30, 1.04-1.12 in "160" log 30 and 1.09-1.18 in log 25. In the scored dive of "160" log 18 at 2130 s the replay TAS peak is 12 % above the EKF peak. The EKF wind is partly
+fitted to the pitot, so this is a consistency check, not an independent calibration. (v3 quoted "within 6 %, for example 70.3 against 68.1 m/s": that pair is the first log-30 dive,
+the replay's CTUN-based TAS peak against the air-relative peak. The v3 check used that replay TAS throughout, and in log 15 and the 151 logs it is the EKF's own synthetic airspeed.) Against a GPS wind triangle that uses no compass and no EKF wind, the logged TAS
+of a flight is 0.92-1.07 of the GPS air speed (median 0.995, 22 logs); it varies 6-8 % between logs of one unchanged setup and up to +-7 % within one log.
 
 **Step 2: scorecard (approved 2026-10-16).**
 How the bands are built:
-- Ratios are model / real from the open-loop replay (corrected mode, one value per airframe group: 151, 152, 157, 158 with all its dates, "160").
-  With one fixed model, the spread of these ratios between airframes is the best available picture of how much real aircraft differ
+- Ratios are model / real from the open-loop replay (corrected mode, one value per SYSID group: 151, 152, 157, 158 with all its dates, "160").
+  With one fixed model, the spread of these ratios between groups is the best available picture of how much real aircraft differ
   (plus window and noise effects). The shared offset of the fleet median is the model error. So the fleet-median band judges the model
-  and the per-airframe band allows for real airframe spread. They are engineering targets set from these spreads, not measured tolerances. The ratio spread still mixes airframe differences, the operating
+  and the per-group band ("each group" in the table) allows for real spread. They are engineering targets set from these spreads, not measured tolerances. The ratio spread still mixes aircraft differences, the operating
   condition of each window and noise, so step 3 also reports it by condition (speed, bank, throttle).
+- The groups are not independent aircraft (fingerprint paragraph): 152, 157 and "160" are very probably one Durandal board; 151 is two APJ 50 boards (P and Q); 158 is very probably board P in 2024 and a Pixhawk 6X in 2025-26, so 151 and 158 very probably share board P. No logged value maps a group to a frame,
+  so a frame-weighted fleet median cannot be derived from the logs; the bands stay as approved, and this limits what the per-group spread shows.
 - "Reference" shows the old `Peron15_hitl3 -> hitl4` numbers from the validation reports (`compare.txt`), for context only. It is not a score.
 - Rows with small samples are marked provisional; step 3 recomputes every spread with a bootstrap interval before the bands are fixed.
 
 | # | Item | Measure | Real spread (the basis) | Band | Reference |
 |---|---|---|---|---|---|
-| 1 | Roll-rate gain | airframe medians | old-model ratios by airframe 0.69-0.83 (range 0.14); IQR inside 158: 0.70-0.91 | fleet median 0.95-1.05; each airframe 0.85-1.15 | 0.69-0.83 -> 0.85-1.03 |
-| 2 | Roll lag | model - real | airframe medians -50..0 ms; 25 Hz = 40 ms steps | each airframe within +-40 ms; fleet median within +-30 ms; step 3 first measures the lag uncertainty | -50..0 -> -15..+33 ms |
+| 1 | Roll-rate gain | group medians | old-model ratios by group 0.69-0.83 (range 0.14); IQR inside 158: 0.70-0.91 | fleet median 0.95-1.05; each group 0.85-1.15 | 0.69-0.83 -> 0.85-1.03 |
+| 2 | Roll lag | model - real | group medians -50..0 ms; 25 Hz = 40 ms steps | each group within +-40 ms; fleet median within +-30 ms; step 3 first measures the lag uncertainty | -50..0 -> -15..+33 ms |
 | 3 | Pitch-rate gain | as 1 | old-model ratios 0.82-0.92 (range 0.10); only 1-5 windows on 158-fit, 152, 158 (2025) | as 1, provisional | 0.82-0.92 -> 0.86-1.00 |
-| 4 | Pitch lag | as 2 | airframe medians -30..+30 ms | as 2 | -30..+30 -> -25..+30 ms |
+| 4 | Pitch lag | as 2 | group medians -30..+30 ms | as 2 | -30..+30 -> -25..+30 ms |
 | 5 | Rate-response shape | RMS error and correlation next to gain and lag | held-out roll gain 0.81 -> 1.00 while RMS went 35 -> 46 deg/s | report only until step 3 shows the floor; a row 1-4 pass with a worse RMS is flagged | RMS 20-30 deg/s |
 | 6 | Elevator per g in turns | median of per-pair ratios real/model, pairs in one log | 25 pairs, real -0.06..-0.51, median -0.181 | ratio 0.85-1.15, provisional | 0.96 -> 1.11 |
-| 7 | Level trim offset | real - model at each bin's own EAS: throttle; elevator (us) | throttle offsets by airframe -0.13..+0.07 (fleet median +0.01); elevator -42..+36 us (10 mm CG = 19 us) | fleet-median offset: throttle within +-0.03, elevator within +-20 us; each airframe's own offset inside the real range (throttle -0.16..+0.07, elevator -45..+40 us); an airframe with fewer than 3 bins is inconclusive (151) | thr -0.13..+0.07; elev -42..-6 us |
+| 7 | Level trim offset | real - model at each bin's own EAS: throttle; elevator (us) | throttle offsets by group -0.13..+0.07 (fleet median +0.01); elevator -42..+36 us (10 mm CG = 19 us) | fleet-median offset: throttle within +-0.03, elevator within +-20 us; each group's own offset inside the real range (throttle -0.16..+0.07, elevator -45..+40 us); a group with fewer than 3 bins is inconclusive (151 with 1 bin, 152 with 2) | thr -0.13..+0.07; elev -42..-6 us |
 | 8 | Trim attitude | pitch in the AHRS frame | real - model offsets -0.5..-3.0 deg; AoA is an EKF estimate with its own reference | report only (reference frame unknown) | model 2-3 deg nose-higher |
 | 9 | Trim slope with speed | per m/s: throttle; elevator | sessions with 4-8 level bins: throttle 0.010-0.026, elevator 0.004-0.010 (157, 158-2024, 158-fit, 160; 158 pooled over 7 flights is not used because each flight has its own trim, elevator offsets -67..+41 us) | model slope inside each range, provisional | thr 0.012-0.025; elev 0.009-0.010 |
 | 10 | Throttle needed in a 30-45 deg turn | (turn - level) at the same EAS, model - real, matched pairs; also check climb and acceleration in the pair | 9 pairs, real median +0.006, range -0.02..+0.05 | median difference within +-0.03 | model +0.051 (0.02-0.09) |
 | 11 | Speed after a throttle step, 8 s | EAS error, model - real, below 30 m/s | no real repeat spread known | engineering target +-2 m/s, provisional; above 30 m/s report only (known pitch-up) | -8..+6 m/s |
-| 12 | Steady cruise and turn, 5-8 s | EAS error; height error (steady windows exist for 151, 152, 158, "160"; none for 157) | no real repeat spread known | engineering target EAS +-1.5 m/s, height +-8 m (the old model reached -9..+1 m), provisional | EAS -0.6..+0.8; height -9..+1 |
+| 12 | Steady cruise and turn, 5-8 s | EAS error; height error (steady windows exist for 151, 152, 158, "160"; none for 157) | no real repeat spread known | engineering target EAS +-1.5 m/s, height +-8 m (hitl4 group medians were -9..+1 m in the validation reports), provisional | EAS -0.6..+0.8; height -9..+1 |
 | 13 | Dive speed gain | air-relative speed gain 5 s after dive start and peak speed; replay from the logged state with the logged elevon and throttle (free response; also report pitch and flight-path angle) | families: 151 steep (6): gain 20.4-22.6 m/s, peak 54.8-58.7; 158 log 30 shallow (5): gain 23.7-29.5, peak 58.3-63.8; 158 log 15 (4): gain 23.1-25.4, peak 51.4-51.9 | gain within +-15 % and peak within +-8 % of the matched real dive (family repeat spread is +-5 to +-11 % and +-0.5 to +-4.5 %) | not measured |
 | 14 | Dive time history | RMS of speed, flight-path angle, pitch and height over the whole dive and pull-out | none yet | report only until step 3 sets the floor (separates drag, lift and control errors) | not measured |
-| 15 | Pull-out | from the first pitch rate above 25 deg/s: height lost to the lowest point; peak pitch rate (the pull-out start is not the dive start) | 158 log 30 shallow: 8-10 m, rate 121-131 deg/s; 151 steep: 23-30 m (one 57), rate 92-103; 158 log 15: 74-99 m, rate 89-103 (a slower recovery: it depends on the logged control history and the entry state, so replay the logged elevator) | height within +-25 % or 5 m, whichever is larger; peak rate +-20 %, provisional | not measured |
+| 15 | Pull-out | from the first pitch rate above 25 deg/s: height lost to the lowest point; peak pitch rate (the pull-out start is not the dive start) | 158 log 30 shallow: 9-12 m, rate 121-131 deg/s; 151 steep: 27-32 m (one 65), rate 92-103; 158 log 15: 86-114 m, rate 89-103 (a slower recovery: it depends on the logged control history and the entry state, so replay the logged elevator). Heights from IMU height fitted to GPS (2026-10-17); v3 used EKF height, which reads 1-15 m less here | height within +-25 % or 5 m, whichever is larger; peak rate +-20 %, provisional | not measured |
 | 16 | Wind input | what the bridge applies | EKF wind median 1.1-8.8 m/s per log, p95 up to 10.5; 5 s change p95 0.2-2.1 m/s | capability test: steady wind 0-12 m/s applied to air-relative velocity, direction and frames checked; gust realism stays unvalidated (EKF smooths gusts) | not tested |
 
 Notes on the bands:
 - Event definitions. Dive: flying, climb < -3 m/s and pitch < -20 deg for at least 4 s, mean pitch <= -30 deg. Pull-out start: the first pitch rate
-  above 25 deg/s after 2 s of dive; the height loss and the peak rate are taken over the next 10 s. Speed gain: over 5 s, or to the dive end if the dive is shorter (flagged).
-- Rows 1-6 and 11-12 reuse the validation replay. Rows 7-10 come from the trim bins. Rows 13-15 need a dive replay. Row 16 is an input check.
-- A band is no tighter than the measurement allows: rigging offsets (elevator -42..+36 us, aileron about +-40 us), 25 Hz sampling, the airspeed scale (0.92-1.06), the
-  EKF wind, and repeated windows of one log are not independent samples. Fleet bands (the model) and per-airframe bands (real spread) are kept separate.
+  above 25 deg/s after 2 s of dive; the height loss and the peak rate are taken over the next 10 s. Speed gain: over 5 s, or to the dive end if the dive is shorter (to be flagged; the v3 outputs do not flag them: 3 of the 37 scored dives, 4.08-4.72 s, in logs 25 and 30).
+- Rows 1-5 and 11-12 reuse the validation replay windows. Rows 6-10 come from the trim bins (row 6 from turn and level bin pairs). Rows 13-15 need a dive replay. Row 16 is an input check.
+- A band is no tighter than the measurement allows: rigging offsets (elevator -42..+36 us, aileron about +-40 us), 25 Hz sampling, the airspeed scale (0.92-1.07 per log, up to
+  +-7 % within one log), the EKF wind, and repeated windows of one log are not independent samples. Fleet bands (the model) and per-group bands (real spread) are kept separate.
+- Pull-out and dive heights come from IMU height fitted to GPS, not from barometer or EKF height: every barometer reads falsely high under load (section 10a, A3).
 - The old "held-out" log (`peron_157_20241005_00000100`) has been looked at, so it is a regression log. Final acceptance uses logs not replayed
-  so far (the dive logs, and flights still to come), chosen by a rule written down in step 3 before any change.
+  so far (flights still to come; the dive logs do not count: their roll windows were in the hitl4 fit and step 3 scored their dives), chosen by a rule written down in step 3 before any change.
 - Known open gaps the card should show, not hide: row 10 (model needs more throttle in a turn), the model's pitch-up above 30 m/s, and everything
   above 40 m/s (never validated). Launch, catapult and the < 17 m/s region stay out of scope.
 
 **Step 3 result: `Peron15_hitl4` scored on the card (2026-10-16).** The owner approved the bands as proposed ("Bands approved"). No model file was changed.
 Scripts and outputs: `%LOCALAPPDATA%\navpy-hitl-tools\validation\2026-10-16-layer1\` (outside the repo). Evidence level: logs and offline open-loop replay; descriptive, not independent validation.
-- Rows 1-12 reuse the existing hitl4 replay windows. Those windows were also used to fit hitl4 (roll +25 %, 35 ms delay, pitch +15 %), so rows 1-6 are in-sample.
-- Rows 13-15 are new: 37 real dives replayed from the logged state with the logged elevon and throttle (the crash-like dive is left out). "Corrected" means the log's own
-  steady-flight trim offsets (elevator, aileron, throttle, AoA; fitted at 20-28 m/s on that same log) are removed, as in the other rows.
+- Rows 1-5 and 11-12 reuse the existing hitl4 replay windows, and rows 6-10 its trim bins (`trim.json`). The roll and pitch windows were also used to fit hitl4 (roll +25 %, 35 ms delay, pitch +15 %), so rows 1-5 are in-sample.
+- Rows 13-15 are new: 37 real dives replayed from the logged state with the logged elevon and throttle (the departure dive of `peron_160_00000018` is left out). "Corrected" means the log's own
+  trim offsets (elevator, aileron, throttle, AoA) are removed, as in the other rows. They are the n-weighted mean of all trim bins of that log at EAS 20 m/s or more and any bank
+  (20.1-30.6 m/s, 79 bins in all); seven logs with no such bin take their group mean. (v3 said "fitted at 20-28 m/s"; the replay code does the above.)
 - No aggregation rule was set in the card for rows 5-16, so each verdict gives the median and how many windows or dives are inside the band. "Mixed" means the median is inside and many are not.
 - Acceptance logs: `gdrive_20250927_00000030` is not untouched: its roll and pitch windows were in the hitl4 fit, and its dives are now scored. It stays a known-failing family; final
   acceptance needs logs that no fit and no scoring has used (flights still to come; `peron_160_00000002` and `_00000006` are copies of 157 logs already used, so they do not count).
-- Bootstrap intervals are 95 % over windows inside each airframe group (151, 152, 157, 158 all dates, "160"). Windows of one log are not independent.
+- Bootstrap intervals are 95 % over windows inside each SYSID group (151, 152, 157, 158 all dates, "160"). Windows of one log are not independent.
+- The replay inputs were checked again on 2026-10-17 (section 10a, A1-A2). Rows 14-15 were rescored then against a better real height, with the stored model values (no model rerun).
+  The other rows are scored as run; the effects of the input errors found in A1 are estimates, not rescores.
 
 | # | Result | Verdict |
 |---|---|---|
 | 1 Roll gain | fleet median 0.97 (CI 0.96-1.04); groups 0.88 (157) to 1.03 (160) | pass (in-sample) |
 | 2 Roll lag | fleet median 0 ms (CI -5..+3); groups -15 (152) to +30 ms (157) | pass (in-sample) |
-| 3 Pitch gain | fleet median 0.94 (CI 0.91-0.99); groups 0.86 (152, 3 windows) to 1.00 | fail, narrowly (band 0.95-1.05) |
+| 3 Pitch gain | fleet median 0.94 (CI 0.91-0.99); groups 0.86 (152, 3 windows) to 1.00 | fail, narrowly (band 0.95-1.05); with the compass-free wind-triangle airspeed on every log about 0.954, a narrow pass (estimate, low confidence, 10a A1) |
 | 4 Pitch lag | fleet median -15 ms (CI -20..-5); groups -25 to +25 ms | pass (in-sample) |
 | 5 Shape | roll RMS 21-31 deg/s, correlation 0.89-0.96; pitch RMS 5.5-25 deg/s, correlation 0.85-0.97 | report only (no earlier model to compare in this run) |
-| 6 Elevator per g | median 1.11 (CI 0.95-1.20, n 25 pairs); 158 alone 1.31 (n 13), 160 0.95 (n 11) | pooled median inside the band; CI crosses the edge and 158 is outside: weak pass |
+| 6 Elevator per g | median 1.11 (CI 0.95-1.20, n 25 pairs); 158 alone 1.31 (n 13), 160 0.95 (n 11) | pooled median inside the band; CI crosses the edge and 158 is outside: weak pass as scored. Not settled: the replay air density comes from E2T, which uses the airspeed sensor's temperature at arming (B3); with ISA air the median would be about 1.26 (ISA+15 K: 1.20), out of band (estimate, 10a A1) |
 | 7 Level trim offset | fleet median (157, 158, 160) throttle +0.012; elevator -22 us (band +-20); 151 and 152 have under 3 bins | throttle pass; elevator fail, narrowly |
 | 8 Trim attitude | real - model -2.0 to -2.9 deg on every group | report only (model flies 2-3 deg nose-higher) |
-| 9 Trim slope | model slopes inside both ranges on all 4 sessions; on "160" the model throttle slope is 0.024 against 0.010 real | pass (the band is wide) |
-| 10 Throttle in a turn | model - real median +0.040 (n 9; real median +0.006, model +0.051); acceleration in the pairs not checked | **fail** (band +-0.03) |
+| 9 Trim slope | model slopes inside both ranges on all 4 sessions; on "160" the model throttle slope is 0.024 against 0.010 real | pass (the band is wide); with ISA air density the 157 model throttle slope may be about 0.030, above the 0.026 band top (estimate, low confidence, 10a A1) |
+| 10 Throttle in a turn | model - real median +0.040 (n 9; real median +0.006, model +0.051); acceleration in the pairs not checked | **fail** as scored (band +-0.03). Not settled: with ISA air density about +0.029, at the band edge (ISA+15 K: +0.034) (estimate, 10a A1) |
 | 11 Throttle-step speed | median error +0.1 m/s, but only 51 % of 81 windows within +-2 m/s; 151: +8.2 m/s (7 windows), 152: +11.5 (1 window) | mixed; 151 fails |
-| 12 Steady cruise and turn | EAS median -0.2 m/s, 89 % of 36 windows within +-1.5; height median -0.3 m, 78 % within +-8 m; 151 height -9 m (4 windows); none for 157 | mixed to pass |
-| 13 Dive speed | **Corrected (card convention): 12 of 37 dives have gain (+-15 %) and peak (+-8 %) both inside; median gain -16 %, peak -7 %.** By logged throttle: below 0.5, 10 of 13 inside (gain -4 %); 0.5-0.85, 2 of 10; 0.85 and up, 0 of 14 (gain -31 %, peak -16 %). With the elevator offset only: 22 of 37 inside (gain -6 %, peak -3 %); 7 of 14 at throttle 0.85 and up (gain -16 %) | **fail as scored**; the throttle offset explains about half of the gap, the rest is unresolved |
-| 14 Time history | only endpoints measured: pitch at the dive end model - real +6.7 deg median (absolute 11.6); dive height loss model/real 0.86 | not fully measured |
-| 15 Pull-out | peak rate: 27 of 37 within +-20 % (median +1 %); height: 16 of 37 within 25 % or 5 m (raw 3, elevator offset only 5, throttle offset only 3) | mixed; height fails |
+| 12 Steady cruise and turn | EAS median -0.2 m/s, 89 % of 36 windows within +-1.5; height median -0.3 m, 78 % within +-8 m; 151 height -9 m (4 windows); none for 157. One window (log 6 at 3783.8 s) is not flight (10a A1); without it, EAS 32 of 35 and height 28 of 35 inside (a recount, not an estimate) | mixed to pass |
+| 13 Dive speed | **Corrected (card convention): 12 of 37 dives have gain (+-15 %) and peak (+-8 %) both inside; median gain -16 %, peak -7 %.** By logged throttle: below 0.5, 10 of 13 inside (gain -4 %); 0.5-0.85, 2 of 10; 0.85 and up, 0 of 14 (gain -31 %, peak -16 %). With the elevator offset only: 22 of 37 inside (gain -6 %, peak -3 %); 7 of 14 at throttle 0.85 and up (gain -16 %). Input sensitivity (estimates, section 10a A1): the start speed biases the peak by -5.1 to +4.0 % per dive; started at the EKF speed, corrected 14-16 and elevator only 22-23 of 37; at ISA density, corrected 9 and elevator only 22 (19 of 27 without log 30). Still scored although 10a C excludes their data: log 30's last dive (window to 3612.16 s) and the 2023-11-11 and log 16 dives, which end in the last 1 s of their recording; without these three, corrected 11 of 34 and elevator only 21 of 34 (a recount). The log 25 dive at 4109 s flew on a depleted pack (10a A4) | **fail as scored**; the cause is unresolved: the throttle offset alone changes little, while the AoA and aileron offsets together make the gain much worse; the dive convention for those two offsets, thrust and drag remain open (see "What the scores say") |
+| 14 Time history | only endpoints measured: pitch at the dive end model - real +6.7 deg median (absolute 11.6); dive height loss model/real 0.82 against IMU+GPS height, 1.08 with the elevator offset only (v3 against EKF height: 0.86 and 1.14). This includes the four dives that end the flight (row 15) and the three that run into excluded data (row 13); without either set it is 0.83 | not fully measured |
+| 15 Pull-out | peak rate: 27 of 37 within +-20 % (median +1 %); height against IMU+GPS: 14 of 37 within 25 % or 5 m (raw 3, elevator offset only 3, throttle offset only 3; v3 against EKF height: 16, 3, 5, 3). Four scored dives do not reach a lowest point in flight: in three the recording stops inside the 10 s window (2023-11-11, log 16, `peron_152_20240831_00000096`), and in log 30's last dive the aircraft hits the ground (3615.5 s). Their "pull-out" is only the height lost before that; without them: height 12 of 33, rate 25 of 33 | mixed; height fails |
 | 16 Wind input | the bridge applies one constant horizontal wind (`--wind-speed-m-s`, `--wind-from-deg`) 5 s after boot; the 3 existing wind tests pass (direction convention, plant velocity); not run at 12 m/s; no gust or turbulence exists | steady wind: partly checked; gust: not available |
 
 What the scores say:
-- The gap that matters for the final approach is row 13, high-throttle dives. The model is slow there: log 30 (throttle 0.92-0.97) gains 20 m/s in 5 s where the aircraft gains 30,
-  and peaks at 51-56 m/s where the aircraft reaches 58-68. At throttle 0.1 the model matches (151: gain -4 %, peak -5 %).
+- The gap that matters for the final approach is row 13, high-throttle dives. The model is slow there: log 30 (logged throttle 0.91-0.97) gains about 20 m/s in 5 s where the aircraft gains about 30,
+  and peaks at 50-56 m/s where the aircraft reaches 58-68. At low throttle the model matches (151, logged throttle 0.08-0.37, median 0.14: gain -4 %, peak -5 %).
 - What drives it is only partly known. Evidence for throttle: within the same pitch band, dives below 0.5 applied throttle have gain -4 % (steep, n 10) and +17 % (shallow, n 3), dives at 0.85 and
   up have -33 % (n 7) and -29 % (n 5). Against a clean conclusion: the high-throttle dives come from few logs (25, 30, "160" 11), and the correction itself matters:
-  the throttle offset of the log (+0.07 to +0.08 on logs 16 and 25, -0.17 on "160" log 30) was measured at 20-28 m/s and should not carry to full throttle. Dropping it improves 12 to 22 of 37.
-  So the cause is open: throttle offset convention, thrust or drag at 40-70 m/s, or both. Step 5 has to separate them (see steps).
-- Row 10 (the model needs more throttle in a turn) and row 11 for 151 are the next gaps. The roll and pitch response (rows 1-4) is at the bands, but in-sample.
-- The pull-out height depends on the combined trim correction (corrected 16 of 37 inside, raw 3, one offset alone 3-5), so it measures rigging offsets as much as the model; treat it as soft.
+  the throttle offset of the log (+0.07 to +0.08 on logs 16 and 25, -0.17 on "160" log 30) was measured at 20-31 m/s EAS and should not carry to full throttle. Applying only the elevator offset (and dropping the throttle, aileron and AoA offsets together) improves 12 to 22 of 37.
+  No run dropped the throttle offset alone. The runs that apply only some of the offsets point away from it: the throttle offset alone moves the median gain from -21 % (raw) to -22 %, while the AoA and
+  aileron offsets together take it to -53 % (`score_dives2.txt`). So the cause is open: the dive convention for the AoA and aileron offsets, thrust or drag at 40-70 m/s, or a mix. Step 5 has to separate them (see steps).
+- Row 10 (the model needs more throttle in a turn; not settled until the outside air temperature is known, 10a A1) and row 11 for 151 are the next gaps. The roll and pitch response (rows 1-4) passes except pitch gain, which fails narrowly (0.94 against 0.95); all four rows are in-sample.
+- The pull-out height depends on the combined trim correction (corrected 14 of 37 inside, raw 3, one offset alone 3), so it measures rigging offsets as much as the model; treat it as soft.
+  With the elevator offset only (the step-5 dive convention) the stored model values lose a median 299 m in the 10 s window where the aircraft loses 32 m (section 10a, A2).
 - Not verified here: rows 1-6 on logs the fit did not see (only `peron_157_20241005_00000100`, already used once), gusts, and the replay machinery beyond speed summaries (the 151 dive speeds agree to -4 % gain and -5 % peak; mapping, timing and full histories are not independently checked).
 
-**Step 5, first part: row 13 on temporary model copies (2026-10-16, owner approved the test).** The cruise throttle offset is no longer applied to dives (owner: "Cruise throttle offset is not applied
-to full-throttle dives"); the elevator offset still is. Same 37 dives. The `Peron15_hitl4` folder is unchanged (sha256 c7f6cea3...); each variant is a temporary copy.
+**Step 5, first part: row 13 on temporary model copies (2026-10-16, owner approved the test).** In these runs only the elevator offset is applied. The throttle, aileron and AoA offsets are dropped in every dive. The owner accepted dropping the throttle offset in full-throttle dives ("Cruise throttle offset is not applied
+to full-throttle dives"). Dropping it in the other dives, and dropping the aileron and AoA offsets, has not yet been put to the owner (decision 6). Same 37 dives. The `Peron15_hitl4` folder is unchanged (sha256 c7f6cea3...); each variant is a temporary copy.
 Output: `validation\2026-10-16-layer1\score_variants.txt`.
 
 | Variant (temporary copy) | Dives with gain and peak both inside | Gain, median, by logged throttle: < 0.5 / 0.5-0.85 / >= 0.85 |
@@ -612,31 +657,173 @@ Output: `validation\2026-10-16-layer1\score_variants.txt`.
 
 - No single thrust or drag change beats the unchanged model overall: every change that closes the high-throttle gap opens a gap at low and middle throttle. So these two terms are not the whole answer.
 - The high-throttle gap is concentrated in one log: gain error -25 % median on `gdrive_20250927_00000030` (10 dives, speeds up to 68 m/s, the fastest in the set), -10 % on `gdrive_20250816_00000025` (3), -4 % on `peron_160_00000011` (1).
-  That looks like an airframe or flight condition (158 on 2025-09-27: battery, ESC, propeller, or the pitot above 60 m/s) more than a model-wide fault, but the data cannot tell which.
-- The next check (below) found the cause: log 30 draws about twice the power of its sibling logs.
+  That looks like a condition of that flight (SYSID 158 on the Pixhawk 6X board, 2025-09-27: battery, ESC, propeller, or the pitot above 60 m/s) more than a model-wide fault, but the data cannot tell which.
+- The next check (below) found where the gap sits: log 30 draws 1.7 times the power of log 25 in matched full-throttle descents and the same power in level cruise.
 
-**Row 13 force check (read only, 2026-10-16).** At matched states (the real speed, attitude and controls at 1.5, 2.5 and 3.5 s into a dive; the model run 0.3 s) the model's along-path
-acceleration agrees with the log within 1 N (7.5 kg) in every log but one: 151 (-0.5 N), 158 log 15 (-0.8), 158 log 25 (+1.1), "160" log 11 (-0.8). Log 30 (158, 2025-09-27) has a real
-excess of 14 N (real 7.2 m/s2, model 5.6 at 47 m/s). Its battery power at logged throttle 1.0 was 1850 W (73 A) against 941 W (38 A) in log 25 (same airframe, same monitor) and 1476 W (60 A) in "160" log 11.
-So the extra thrust in log 30 matches an extra power draw: a different battery, ESC or propeller state, or a current-sensor effect, not an aerodynamic fault of the model.
-Without log 30, row 13 is 19 of 27 dives inside (gain -2 %, peak +1 %; the 4 high-throttle dives are all inside). Output: `force_out.txt`.
-Consequence: do not fit thrust or drag to log 30. Row 13 stands as "fail" on the card's rule only because of that log. Ask the owner what changed on 158 for 2025-09-27 (battery, propeller, ESC settings).
+**Row 13 force check (read only, 2026-10-16; corrected 2026-10-17).** The check covers five dive logs. At states taken from the log (the replay speed, the real attitude and controls at 1.5, 2.5 and 3.5 s into a dive; the model run 0.3 s)
+the model's along-path acceleration was within about 1 N (7.5 kg) of the log, as run, in four of the five: 151 (-0.5 N), 158 log 15 (-0.8), 158 log 25 (+1.1), "160" log 11 (-0.8).
+The log 25 samples include three throttle-off points and its depleted-pack dive (4111-4113 s, 15.8-16.2 V), which list C excludes for propulsion; without them its median is +1.2 N.
+Log 30 (`gdrive_20250927_00000030`) had a median real excess of 14 N per sample (median accelerations: real 7.2 m/s2, model 5.6, at 47 m/s); 13.9 N without its last dive.
+- Start speed (section 10a, A1): the model starts at the replay TAS, which in logs 30 and 25 is 0.9-4.2 m/s (median 2.4) below the EKF speed that the real acceleration uses.
+  Started at the EKF speed, the estimated deficit is about 20 N in log 30 and about 5 N in log 25, so "within 1 N" probably fails for log 25 as well. These are estimates from the model's own speed slope, not reruns.
+- Power (log facts): in matched full-throttle descents (35-45 m/s air-relative, 24.5-27 V), log 30 drew 2.04 kW (79 A, 7 dives). Log 25 drew 1.20 kW (47 A, 3 dives) on the same SYSID 158 board with the same INA monitor settings.
+  "160" log 11 (SYSID 157, analog monitor) drew 1.60 kW (65 A, 1 dive, 24.6 V). In level cruise logs 30 and 25 drew the same power (425 and 422 W).
+  The v3 figures (1850 W against 941 W) were medians of mixed samples: log 25's included throttle-off and depleted-pack samples, log 30's partial throttle and the terminal dive.
+- Net force (log facts): under the same rule, (T-D)/m is +1.75 m/s2 in log 30 (EKF; +1.90 from GPS, +2.06 from the IMU), against -0.21 to +0.12 in log 25, "160" log 11, `peron_160_00000030` and `peron_157_20241102_00000006`.
+  So log 30 is the outlier in net force. In power it stands out only against log 25, which is the low one: the three SYSID 157 logs draw 1.6-2.2 kW.
+- Inference, not a log fact (mass assumed 7.5 kg): with the throttle-off drag of section 10a A4, the implied propulsive efficiency is 0.76-0.78 in the two SYSID 158 INA logs and 0.49-0.56 in three SYSID 157 analog logs.
+  The logs cannot separate the causes: an INA current that reads low, a different mass, drag or propulsion set.
+- So log 30's extra net forward force comes with more power draw than log 25 on the same board with the same INA monitor settings. It points to a condition of that flight: more thrust (battery, ESC, propeller or motor) or less drag.
+  An EKF wind error is less likely, because the GPS and IMU variants agree, but it is not ruled out (with a pitot speed gate the difference falls to +1.35 m/s2). The logs cannot tell which.
+  This does not clear the model: started at the EKF speed, log 25 may also have a deficit of about 5 N (an estimate, not a rerun), and under the elevator-only convention
+  the stored model values lose far more height in the pull-out than the aircraft (section 10a, A2; end values only, no traces).
+
+Without log 30, row 13 with the elevator offset only is 19 of 27 dives inside (gain -2 %, peak +1 %; the 4 high-throttle dives are all inside). Source: `var_base.json` (the step 5 base run).
+Consequence: do not fit thrust or drag to log 30. Under the card's corrected convention, row 13 still fails without log 30 (12 of 27 inside, median gain -11 %).
+With the elevator offset only, log 30 holds 7 of the 15 dives outside, including all 7 high-throttle ones. With the start-speed correction, log 25 may also show a deficit of about 5 N (an estimate).
 
 **Steps (the owner approved the bands on 2026-10-16).**
-3. Done above. Prepare and score. First fix, before any replay, the acceptance logs and their exclusion rules (candidates: one dive family kept untouched, e.g. `gdrive_20250927_00000030`),
-   and use a different dive family (151) for the machinery check. Check the bridge and replay: signs, scaling, timing, limits, units, elevon and throttle mapping, start state, wind. Then score `Peron15_hitl4` on the card with one script and write the result next to the card. No model change in this step.
+3. Done above. Prepare and score. First fix, before any replay, the acceptance logs and their exclusion rules. Log 30 can no longer be one: it was used in the hitl4 fit and in this scoring.
+   Final acceptance needs logs that no fit and no scoring has used (flights still to come). Use a different dive family (151) for the machinery check. Check the bridge and replay: signs, scaling, timing, limits, units, elevon and throttle mapping, start state, wind. Then score `Peron15_hitl4` on the card with one script and write the result next to the card. No model change in this step.
    Also list which unknowns move the failing rows (mass, CG, elevon angle against PWM, static thrust, servo speed under load, `validation/2026-10-13/REPORT.md` section 5).
 4. Ask the owner for the measurements that those rows depend on (at least mass and CG, static thrust) before fitting, so a wrong parameter cannot hide behind a passing row.
-5. Close the biggest failing rows one change at a time, starting with row 13: first decide the throttle-offset convention at high throttle, then test a thrust-only and a drag-only change on a temporary copy of the model, each checked on the whole card (the roll change of hitl4 raised the elevator-per-g ratio from 0.96 to 1.11).
-6. Closed loop, in stages: cruise, then a shallow dive, then a steep dive, each with a stated stop rule (the bridge checks are already done in step 3). Fly the board and
+5. Close the biggest failing rows one change at a time, starting with row 13: first decide the dive convention for the aileron and AoA offsets (decision 2 covers the throttle offset only in full-throttle dives, but the step 5 runs drop it in every dive; decision 6 asks about the other dives and about the aileron and AoA offsets).
+   Then rerun the dive replay with saved model traces, to see whether under the elevator-only convention the model fails to pull out or pulls out late
+   (from stored end values it loses a median 299 m in the 10 s window where the aircraft loses 32 m; row 15 height 3 of 37; section 10a, A2).
+   Then test a thrust-only and a drag-only change on a temporary copy of the model, each checked on the whole card, with rows 13-15 scored together for every variant
+   (the +15 % elevon pitch power of hitl4 cut the model's elevator per g by about 13.5 % and so moved the elevator-per-g ratio from 0.96 to 1.11).
+6. Closed loop, in stages: cruise, then a shallow dive, then a steep dive, each with a stated stop rule. Step 3 checked the bridge only in part: before this, fix the replay inputs found in section 10a, A1
+   (start speed, pitot lag, one EKF core for all states, density), and check the mapping, timing and full histories. Fly the board and
    bridge through the legs of a real log and compare. This is the first test of the autopilot loop with the model and is needed before the final approach is called ready.
 
 **Owner decisions needed.**
-1. Target: **fleet median** with per-airframe spread (owner, 2026-10-16). Per-airframe propulsion profiles (propeller, motor) stay a later option, not part of the fleet model. The `peron_160_*` logs stay a group of their own: the 157 SD card in 2025, not 158, airframe not proven (see the fingerprint paragraph); a dated flight record would settle it.
-2. Step 5 starts with the high-throttle dive gap (row 13). May it test thrust and drag changes on a temporary copy of the model first (the model files stay untouched until you agree)? Do you accept that the cruise throttle offset is not applied to full-throttle dives?
+1. Target: **fleet median** with per-group spread (owner, 2026-10-16; the groups are not airframes, see step 1). Per-airframe propulsion profiles (propeller, motor) stay a later option, not part of the fleet model. The `peron_160_*` logs stay a group of their own: they come from the Durandal board (one AP_Stats history with 152 and 157), not 158; the frame is not identified (see the fingerprint paragraph); a dated flight record would settle it.
+2. Step 5 starts with the high-throttle dive gap (row 13). May it test thrust and drag changes on a temporary copy of the model first (the model files stay untouched until you agree)? Do you accept that the cruise throttle offset is not applied to full-throttle dives? Owner, 2026-10-16: the test on temporary copies
+   is approved, and "Cruise throttle offset is not applied to full-throttle dives" (step 5). The aileron and AoA offsets are a new question (item 6).
 3. What were the steep dives for (target, mode, who flew)? Is a 50-70 m/s dive in scope for the HITL final approach? Owner, 2026-10-17: approaches at 50-70 m/s have been flown, so the range is in scope; some of the dives may have been tests of the aircraft's maximum load. Mode and pilot are still unknown.
+   This scope change touches parts written for 24 m/s: the zoom and timing plan of section 4, and the 4-9 m pull-out margin of section 6. The real
+   pull-outs (row 15 rule, IMU+GPS height, the 33 recovered ones) lose 9-12 m after the shallow (about -30 deg) log 30 dives that peak at 58-64 m/s, 19-36 m after the steep log 30 dives and the three short log 25 dives,
+   27-65 m after the six steep dives of 151 log 22 (83 m after its shallow, pilot-flown one) and 86-114 m in log 15; the whole set spans 9-216 m. In 11 of the 13 that lose more than 70 m the rule's start falls 1.9-6.1 s before the dive ends, so part of that loss is still dive.
+   Sections 4 and 6 need a recheck at 50-70 m/s.
 4. Are logs for 161-163 or 153/154/156 held elsewhere? None are on this PC. What changed on 158 for the flight of 2025-09-27 (battery, propeller, ESC)? Owner, 2026-10-16: not known; log 30 stays an unexplained outlier, but some airframes may fly an APC 14x8.5 Thin Electric propeller, or a different motor. A larger propeller at the same pitch would explain more thrust and more current at high speed; this is an unverified hypothesis (no propeller type is in the logs). Check: compare static thrust or rpm per airframe, and the model's propeller table against an APC 14x8.5 table.
+   2026-10-17: log 30 is the outlier in net force; in power it is high only against log 25 and lies inside the 1.6-2.2 kW of the three SYSID 157 logs (row 13 force check). Its INA current probably went over the 90 A range at times (inferred, not read from the driver; for the 19 terminal records the cause is open, section 10a A6): 83 records read 0 A in flight at full throttle
+   (64 in climbs, 19 in the terminal sequence; none in the matched descents; section 10a, A4).
 5. Are you willing to supply the measurements of step 4 (weigh and balance, static thrust, elevon angle at five PWM values)?
+6. New from the log analysis (2026-10-17, section 10a):
+   - What does the SERVO5 pass-through operate (a recovery parachute?), and on which flights was it used on purpose?
+   - The airspeed sensor history of SYSID 158: which sensor flew from 2025-04-05 to 2025-05-18, and what changed on 2025-07-13 (the pressure sign flips)?
+   - Frame, board, propeller and motor records per date, and the outside air temperature per flight (the replay density depends on it, A1).
+   - What happened in the air at 3611.8 s in log 30 and at 2453.9 s in `gdrive_20250128_00000006`, and what was that log doing at 3659-4151 s (on or near the ground)?
+   - Do the GUIDED request, dive and AUTO sequences come from an onboard script? The logs carry AAS_TERM_* parameters, and the log 30 dive end moves with AAS_TERM_PITCH. Not all requests can come from a script: in `peron_152_20240831_00000096` the own-SYSID requests came with scripting off (SCR_ENABLE 0). 26 of the 47 steep intervals with automatic demand have no logged request (B1).
+   - Can you supply GCS telemetry logs (tlogs), or logs that hold MODE and MSG records, for the dive flights, and the GCS and companion setup behind the senders 255/0, own SYSID/0 and 255/190? They would show which mode was active (B1).
+   - How did the flights of 2023-11-11 (SYSID 151), 2025-05-25 (log 16) and 2024-08-31 (`peron_152_20240831_00000096`) end: an impact, a net catch or a power cut? Each recording stops while armed in a fast descent. Do you agree that these three dives and the last dive of log 30 stay out of the row 15 pull-out score?
+   - The step 5 runs drop the aileron, AoA and throttle trim offsets in every dive; decision 2 covers only the throttle offset in full-throttle dives. Should the aileron and AoA offsets be dropped in dives, and the throttle offset in dives below full throttle?
+   - Can the SYSID 158 INA current be bench-checked against a clamp meter? It would show whether the 0.76-0.78 implied efficiency is a sensor error (A4).
+   - For future flights: raise BATT_MAX_AMPS or fit a higher-range shunt, so full-throttle current is measured (A4), and set LOG_DISARMED to 1, so the end of a flight after an in-air disarm is recorded (B4).
+   - What is the battery pack spec (cell count, capacity)? The cell count is not logged (A4).
+
+## 10a. Independent log analysis (Codex, checked by Claude, 2026-10-17)
+
+**Method.** Codex 0.163 at reasoning effort xhigh analysed the 31 BIN files with its own parsers, read only. Claude agents then re-derived 40 claim groups (C01-C38 without C30, with C07 in four parts) with pymavlink; a critic listed 28 issues,
+and Codex resolved them in seven rounds (R1-R7b). Claude spot-checked the key numbers against the logs (log 30 heights and zero-current records, the log 25 autotune, the 2023-11-11 log end,
+the 2025-01-28 overlap, matched power, one 151 pull-out height). Output: `%LOCALAPPDATA%\navpy-hitl-tools\validation\2026-10-17-codex-deep\` (topic folders; checks in `verify\`, resolutions in `verify\_resolve\`).
+No model was run. "Log fact" means read from the logs; "inferred" and "estimate" mean it is not. This section has not had an independent review: Codex found the facts, and Claude checked and wrote them.
+
+### A. For the model
+
+**A1. Replay inputs (R7b).**
+- The 151 logs fly with ARSPD_USE 0, so their replay airspeed is the EKF synthetic airspeed, not a pitot reading.
+- In logs 10, 11 and 15 ARSPD_USE went to 0 in flight, so the replay uses synthetic airspeed. The cause is inferred: the airspeed consistency monitor (ARSPD_OPTIONS 11), since the logged health probability fell below 0.1 at that moment. No message record names the cause. In logs 10 and 11 the per-flight scale makes the replay TAS 6-9 % low.
+- In log 16 the ratio changed in flight (autocal, B3): the replay TAS is +6.7 % before 877.6 s and -4.4 % after 1174.7 s.
+- `gdrive_20250128_00000006` at 3659-4151 s is not flight (it holds the replay's flights 2-4: 3734.6-3833.3, 3989.4-4041.0 and 4119.3-4150.6 s): pitot 2.6-3.0 m/s at 13-21 m/s ground speed, baro height 2.6-15.9 m (inferred: moved on or near the ground).
+  The row 12 window at 3783.8 s comes from it. Without it, row 12 is EAS 32 of 35 and height 28 of 35 inside (a recount). Without all five flagged row 12 windows (logs 6, 11 and 16), EAS 29 of 31 and height 25 of 31.
+- Density: the replay takes density from E2T, which uses the airspeed sensor's temperature at arming (B3); this gives 0.85-1.01 of ISA at the logged pressure. If the air was at ISA, the model's dynamic pressure is 0-15 % low.
+  Estimated effects: row 6 1.11 to 1.26 (out of band), row 7 elevator -22 to -27 us, row 9 the 157 model throttle slope 0.025 to 0.030 per m/s, above the 0.010-0.026 band (low confidence), row 10 +0.040 to +0.029, row 13 corrected 12 to 9 of 37. Rows 6 and 10 are not settled until the outside air temperature is known.
+- EKF cores: the replay takes attitude from ATT (the active core) but velocity and wind from core 0. Their TAS agrees within 0.6 m/s (p99) except in log 15 at 964-1012 s (up to 14.6 m/s) and one `peron_157_20241102_00000006` throttle window (2.3 m/s). Take all states from one core.
+- Row 11 without the flagged windows: 36 of 70 inside, median +0.01 m/s. Rows 1 and 3: correcting the TAS of logs 10, 11 and 16 moves the roll fleet median from 0.967 to 0.977; with the compass-free wind-triangle factor on every log, roll is 0.989 and pitch 0.954 (from 0.945), so row 3 may be a narrow pass (low confidence; the flagged logs give no pitch windows).
+- Replay TAS lags the EKF speed by 0.38 s in log 30 and 0.22 s in log 25. The model starts each dive at the replay TAS, -2.2 to +2.2 m/s off the EKF speed per scored dive. That biases the row 13 peak by -5.1 to +4.0 %; started at the EKF speed, row 13 is corrected 14-16 and elevator only 22-23 of 37 (estimates). For the force, see the row 13 force check.
+
+**A2. Pull-out and dive heights (R7a).** v3 measured height loss with EKF height. Against IMU height fitted to GPS (three parameters per window, GPS lag 0-0.13 s), EKF height understates the
+pull-out loss by 0.8-14.5 m (median 4.4 m) and the dive loss by 1-17 m. Rows 14 and 15 above use the new heights. With the elevator offset only, the stored model values lose a median 299 m
+(0-555 m) in the 10 s pull-out window, where the aircraft loses 32 m. This comes from stored end values only; rerun the replay with saved traces before using it for tuning.
+
+**A3. Barometer and EKF height under load (C25, R5).**
+- Every barometer reads falsely high in pull-outs. Log 30 BARO0: +26-34 m, with steps of 9.6-13.7 m in 0.1 s. Other logs: +13-38 m at 5.8-9.1 g, about 2-3.5 m per g.
+- Log 30 against its RTK GPS (GPS1 RTK fixed in 6103 of 6132 in-flight samples): barometer and EKF height read about +19 m high in steady flight as well. The barometer error grows with dynamic pressure, about 21 m per kPa (R5; other checkers got 16-30 m per kPa, so the size depends on the method).
+- In log 30 every pull-out fails the EKF height test (SH 2.0-2.7 in d01-d09, 5.0 in d10; the gate fails at SH 1) and the EKF switches core, 10 of 10. Logs 15, 25 and 151 log 22 also switch at most pull-outs (log 15 4 of 4, log 25 5 of 6, 151 log 22 5 of 7), with nearly equal SH on the two cores. In the other seven dive logs the EKF does not switch core in any of their section 10 dives. In log 30 the EKF height error peaks 1.6-2.9 s after the load peak. Across the 33 recovered pull-outs it peaks 1.8-9 s after the pull-out start; the long pull-outs of logs 15 and 25 and the "160" logs reach their lowest point only after 3-9 s.
+- So barometer or EKF height is not height truth at speed or under load; use GPS, or IMU height fitted to GPS.
+
+**A4. Propulsion and power (R4, C10, C16, C17).**
+- Log 30 against log 25: 1.71 times the power in matched full-throttle descents (1.70-1.74 under other gates), the same power in level cruise; log 30 is also the outlier in net force (row 13 force check).
+- The INA monitor of the SYSID 158 6X logs (BATT_MONITOR 21, BATT_MAX_AMPS 90) logs exactly 0 A at full throttle near its range. This is inferred, not read from the driver: an over-range sample counts as 0 inside a 4-sample average (the readings next to the zeros are 22.4 A and 44.8 A, which are 1/4 and 1/2 of about 89.6 A). Log 30 has 83 such records while flying at full throttle
+  (64 in climbs at 2391-2800 s, 19 in the terminal sequence at 3611.85-3613.65 s); its maximum is 89.74 A. The logged charge does not count those records. Log 25 has none (maximum 78.6 A).
+  For log 30 current, drop the zeros and the records within 0.5 s of them; the current behind them is only estimated.
+- The analog monitor of the Durandal logs (BATT_MONITOR 4) has a ceiling of 3.3 V x 36.364 A/V = 120 A. This was checked in "160" logs 29, 30 and 35 only. In each of them one record touches the ceiling (119.97-119.99 A, an isolated spike at 17-20 m/s). Their 96-106 A medians at 25-30 m/s are not clipped.
+- Throttle-off drag from 15 windows in 4 logs (SYSID 151 and 157, plus 3 windows from SYSID 149, which is another model): D = 0.0154 V^2 N at an assumed 7.5 kg (24.6 N at 40 m/s; per-log medians 24.7-28.3 N; rms 3.1 N).
+  It includes the drag of the unpowered propeller (windmilling or stopped; no RPM is logged); 13 of the 15 windows are in dives (-25 to -60 deg path angle), and 11 end 0.1-4.3 s before a 4-9 g pull-out; 4 reach 1.3-1.6 g; nothing above 49 m/s.
+- Implied propulsive efficiency 0.76-0.78 (SYSID 158, INA) against 0.49-0.56 (SYSID 157, analog); the cause is not separable (row 13 force check).
+- In the `peron_160_*` logs the current at 0.7-0.8 throttle and 25-30 m/s doubles between "160" log 22 and "160" log 29 (50-56 A in "160" logs 18, 21, 22; 101-105 A in "160" logs 29, 30, 35) with the same monitor settings. At full throttle the current is similar in both groups (97-110 A; the later logs draw about 8 % more at matched voltage), so the change is mainly at part throttle. The cause is not logged.
+- Log 25's pack is depleted after about 4040 s (15.6-16.3 V in the last dive). Charge used exceeds the configured capacity in 5 logs. The voltages fit an 8S pack (the cell count is not logged).
+
+**A5. Controls (R6).**
+- Elevon mixing uses MIXING_GAIN 0.5, and the PWM spans either side of the trim differ. Put the saturation at the pre-mixer +-4500 limit: pre-mixer rails are about 27 times more common than PWM endpoints.
+- Where SERVO_AUTO_TRIM is on (19 logs throughout, 4 more for part of the log), the saved trims are controller state, not rigging: auto-trim keeps them within 40-60 % of the servo range (1400-1600 us for 1000-2000 limits). In the 8 Durandal logs with auto-trim off throughout, the trims never change. Drive the model surfaces from RCOU in all logs.
+- 12 gain sets across the logs, and autotune changes gains in flight. In log 25 the last 13 s flew with roll P 0.045 instead of 0.130 (an autotune value that was not saved). Use the gains in force at each time.
+- Demand-to-rate lag is about 0.10-0.12 s (median over logs; per log 0.07-0.28 s in roll and 0.02-0.19 s in pitch). Roll is close to one delay of about 0.10 s. In pitch the delay rises with frequency, from about 0.03 s below 0.6 Hz to about 0.16 s at 1.5-2.5 Hz. It is a closed-loop number: compare it with SITL or HITL on the same gains.
+- Elevator trim gradient: about 62 us per unit of n (24/V)^2.
+- Simple regressions give no usable damping or control power from these logs.
+- The roll oscillation of about 5-6.5 Hz (a broad peak, not one line) in 151 on 2023-11-18 belongs to that session only.
+
+**A6. Loads.**
+- Log 30: 9 recovered pull-outs at 11.2-12.5 g (raw -AccZ, IMU with a 20 Hz filter; 80 ms running mean 11.1-12.3 g; Codex's 25 Hz grid metric, a mean of 5 samples over 80 ms, 10.9-12.1 g). Log 25: 7.5-9.7 g. Peak load per unit dynamic pressure is similar in log 30, log 25 and 151 log 22, about 5-6 g per kPa (log medians 5.3-5.8). So speed explains most of log 30's higher loads (inferred; mass, CG and CL are unknown).
+- The last dive of log 30: normal load peaks at 14.1 g at 3611.954 s; in the air the IMU shows axial decelerations of -12.35 g (3611.939 s) and -18.31 g (3612.384 s); ground contact is at 3615.459 s (24.6 g).
+  Both in-air events (this one and `gdrive_20250128_00000006` at 2453.91 s, 10.9 g in level flight) show the current reading 0 A while the voltage drops. In log 30 it drops by up to 7.4 V for 1.8 s (3611.85-3613.65 s). In `gdrive_20250128_00000006` it drops by 6-9 V for about 8 s, from 2454.77 s, just after the shock, through the ground hits to 2462.6 s. In both logs the 0 A may also come from the INA monitor going over its range (A4): `gdrive_20250128_00000006` has the same 90 A INA monitor (BATT_MONITOR 21, BATT_MAX_AMPS 90). The cause is not logged.
+
+### B. Identity and configuration
+
+**B1. Modes (R1, C01, C32, C34, C36).**
+- There are 0 MODE records. AUXF has 199 mode-function records; of the 4,191 MAVC records, 231 are DO_SET_MODE requests in 15 logs (227 accepted, 4 failed; 92 after merging repeats within 2 s). The flight-mode slot reads FBWA in 90.9 % of flight, but TECS runs in 77.2 % of that time, so the slot does not give the mode.
+- Mode classes from TECS, ATRP and the demand records: automatic throttle 70.9 %, FBWA-like 20.3 %, AUTOTUNE 8.5 %, MANUAL 0.3 %. A replay of the mode events agrees with them in 99.15 % of the airborne samples it can label. The other 15.7 % of airborne time comes before the first logged event in its log: it has a class but no mode name.
+- The one MANUAL segment: `peron_158_20241102_00000002` at 4687.13-4767.63 s; roll -105.5 to +38 deg, roll rate up to 213 deg/s; between 4697 and 4757 s the EKF often rejected GPS velocity (about 400 of 2,018 records per core), and at 4710.6-4717.8 s also GPS position (innovation up to 151.5 m). Do not use EKF velocity, position, AOA/SSA or the wind triangle there.
+  It can serve roll-axis identification from IMU, attitude, pitot and the elevon outputs (AETR) only.
+- Steep-pitch intervals (C32: pitch below -30 deg for at least 2 s, armed, GPS speed above 12 m/s): 49 intervals in 14 logs, 47 manoeuvres. This is a wider set than the 38 dives of section 10. 2 are flown by the pilot with large stick input (`gdrive_151_00000022` at 1489.8-1494.7 s, `peron_157_20241102_00000006` at 761.4-766.8 s). In the other 47 intervals the sticks are centred or nearly so (36 fully centred; stick activity in under 20 % of samples) and the pitch demand follows the dive, so it came from an automatic source. Of these 47, 21 follow an accepted GUIDED request 4-50 s before and 26 have no logged request. Within 3 s after the interval, nose-up pitch stick of 200 us or more appears in 16 of the 47 (STICK_MIXING 1): use the recorded RC.
+- RC overrides in 6 logs, including 747 s of machine square waves during autotune; an RC failsafe in `peron_157_20241005_00000100` (7.3 s); fence errors in 4 logs. In the 2026 log the mission is reset to item 1 from outside 17 times (16 times from item 4, LOITER_UNLIM, which never ends by itself, and once from item 2); what sent the resets is not logged.
+
+**B2. Boards.** See "Which boards and settings are alike" in step 1: three board models; one Durandal board carries SYSID 152, 157 and all `peron_160_*` files in one AP_Stats history;
+SYSID 151 is two APJ 50 boards; SYSID 158 is very probably board P in 2024 and a Pixhawk 6X in 2025-26. Values copied by parameter file do not identify a board.
+
+**B3. Airspeed sensor (R3, C07a-c, C37).**
+- k is the fitted pitot coefficient: the ARSPD_RATIO that would make the pitot read the GPS air-relative speed (GPS wind triangle, no compass, no EKF wind). It is not the logged ARSPD_RATIO. Each k is given with the logged E2T and at ISA. k scales as 1/T (about 3.6 % per 10 K), and the outside air temperature is not logged, so neither value is the true coefficient.
+- SYSID 158 has four epochs: (1) to 2025-01-28, MS4525 driver (TYPE 1, logged ARSPD_RATIO 1.8087): k 1.89-1.98 with the logged E2T, 1.95-2.03 at ISA; (2) 2025-04-05 to 2025-05-18, the pressure gain falls 2.78-2.86 times, which fits a +-10 inH2O sensor read on the MS4525 scale
+  (inferred), so do not use logs 10, 11 and 15 at the logged scale; (3) log 16, autocal moves the ratio from 1.99 to 1.60 in flight; that moved it toward the truth only if the outside air was warmer than about 21 C; (4) from 2025-07-13, RawPress has the opposite sign: k 1.70-1.80 with the logged E2T, 1.70-2.10 at ISA.
+- SYSID 157 (9 logs, TYPE 1): k 1.63-2.12 with the logged E2T, 1.85-2.26 at ISA, with no logged configuration change.
+- Log 30 DiffPress reaches 2456 Pa, 99 % of the 2491 Pa full scale of a +-10 inH2O sensor, which the TYPE 9 / PSI_RANGE 0.36 setting implies (the part is not logged). No clipping is seen.
+- E2T is not the outside air. In ArduPlane 4.3-4.5 it is built from GndTemp, the airspeed sensor's temperature at arming, held fixed for the flight (4.5-57 C). In log 32 (4.6.3) it comes from ISA.
+
+**B4. Flight ends (R2).**
+- 32 flights: 9 normal landings; 13 slow descents after the SERVO5 pass-through output (functions 59, 60, 62) went high, which fits a recovery parachute (inferred; CHUTE_ENABLED is 0 in all logs);
+  5 with pulses but no slow descent; 3 recordings that stop while armed in a fast descent; 2 in-air events followed by ground impact.
+- Logging stops about 15 s after an in-air disarm (LOG_DISARMED 0): 14.96-15.00 s after 14 of the 15 in-air disarms, and 17.9 s in `peron_158_20241102_00000002`, where a switch arm attempt restarted the timer. So the touchdown is missing in 10 of the 13 slow descents. It is recorded in `gdrive_20250713_00000021` (never disarmed), `peron_158_20241102_00000002` (disarmed at 14.1 m) and `peron_158_20241102_00000003` (re-armed in the air).
+- The barometer re-zeroes every 5-6 s after an in-air disarm (HOME_RESET_ALT 0): use GPS height there.
+
+**B5. Archive.** File names do not always match the SYSID in the log (the `peron_152_20231120_*` files are SYSID 151 and were recorded on 2023-11-18 by GPS time; file 04 holds no flight). The text `.log` copies match their BIN files record by record, except the first UNIT record per file, and hold floats to 7 significant digits (step 1).
+Gaps inside a file come from the disarm logic (LOG_DISARMED 0), not from records the logger dropped: the dropped-record counter (DSF.Dp) does not change across any gap. Inside a gap no sensor or state data is recorded (B4).
+
+### C. Data not to trust (exclusion list)
+
+- From the first rise of the pass-through output above 1700 us (or the GCS servo command) to the end of that flight: 21 events in 20 flights.
+- Everything after an in-air disarm, and the in-air re-arm of `peron_158_20241102_00000003` at 2183.77-2203.07 s.
+- Log 30: everything from 3611.0 s; its last dive (d10) in force fits, from its commanded dive start at 3605.67 s; its barometer and EKF height as height truth at any time (A3).
+- `gdrive_20250128_00000006` from 2453.91 s to the end of the file: the in-air event and the impact, then 3659-4151 s on or near the ground (inferred; the replay's flights 2-4, A1), which includes the low pitot readings at 3661.8-3668.8 s.
+- `peron_160_00000018` from about 2374 s; `gdrive_151_2023-12-24_13-46-44` at 2870-2872.6 s (launch hop).
+- The last 1 s of the three recordings that stop while armed (`gdrive_2023_11_11_2023-11-11_17-06-18`, `gdrive_20250525_00000016`, `peron_152_20240831_00000096`).
+- Raw ARSP in logs 10, 11 and 15, and in log 16 up to the end of its autocal (1175.6 s). Use log 16 only with a per-window k (B3).
+- Log 25 after 4040 s for propulsion.
+- Log 30 current at the 90 A range (A4).
+- Barometer and EKF height as height truth at speed or under load (A3). In the log 30 pull-outs (d01-d09) the barometer error lasts to about 3 s and the EKF height error to about 8 s after the load peak. Across the 33 recovered pull-outs the EKF height error peaks 1.8-9 s after the pull-out start, so in long pull-outs 8 s may not be enough (inferred).
+- RC override periods and RC failsafe periods as pilot input (B1). During a failsafe RCIN does not show the pilot's sticks: roll, pitch and yaw show the firmware's RC trim values, and throttle keeps its last value: `peron_157_20241005_00000100` at 1012.06-1019.34 s, and very probably `peron_152_20231224_00000087` at 863.65-867.17 s.
+- Periods that STAT marks as flying on the ground: log 25 at 4484-4854 s, and all 16 STAT "flying" records of `gdrive_155_2024-09-14_12-10-49` (a ground movement at about 2 m/s, 1535.6-1536.8 s, and the failed launch at 1953.2-1954.8 s). Gate "flying" with airspeed or GPS speed as well as STAT.
+- Accelerometer samples within +-0.25 s of a clip-count increase.
 
 ## Owner answers (2026-10-15)
 1. Board: keep 2.4 x 3.2 m. → 4, 6.

@@ -288,6 +288,42 @@
 - Bootstrap a median gate over a few items before trusting it. With 7 items, the 90 % interval
   of the median was wider than the gate band.
 
+## Peron flight-log deep analysis (2026-10-17)
+
+- Barometer and EKF height read falsely high in pull-outs (+13-38 m, about 2-3.5 m per g), and
+  in four dive logs most pull-outs fail the EKF height test and switch the core (10 of 10 in one log). Scoring pull-out height against
+  EKF height understated the loss by a median 4.4 m (up to 14.5 m). For height at speed or under
+  load, use GPS, or IMU height fitted to GPS per window.
+- Two different files are both called "log 30" (gdrive_20250927_00000030, SYSID 158, INA monitor,
+  and peron_160_00000030, SYSID 157, analog monitor). A current maximum was put on the wrong one.
+  Use full file names in claims, scripts and handoffs.
+- ArduPilot 4.3-4.5 takes EAS2TAS from GndTemp, the airspeed sensor's temperature at arming, held for the flight (4.5-57 C), so a
+  replay density built from it was 0.85-1.01 of ISA. Do not use it as outside-air density; ask
+  the owner for the outside temperature.
+- SYSID is a parameter, not an airframe, and values copied in a parameter file match exactly
+  after a 7-digit round trip, so they do not identify a board. AP_Stats counters and boot gyro
+  offsets follow the board (the counters are parameters and can be rewritten, so they are strong
+  evidence, not proof). Check them before calling two logs "the same aircraft".
+- An INA2xx monitor (BATT_MONITOR 21) logged exactly 0 A at full throttle near its BATT_MAX_AMPS
+  range, and the logged charge skips those records. The mechanism is inferred, not read from the
+  driver (an over-range sample seems to count as 0 in a 4-sample average). Treat such zeros as
+  probable over-range, not as power off, and drop them from current statistics.
+- Comparing per-log medians of mixed samples gave a power ratio of 1.97; with matched throttle,
+  voltage and speed gates it was 1.71. Gate by state before comparing power or force across logs.
+- The logs hold no MODE records, and the flight-mode slot read FBWA while TECS ran 77 % of that
+  time. Derive the mode class from TECS, ATRP and demand records.
+- A force check started the model at the replay TAS but took the real acceleration from EKF
+  speed; the 2.4 m/s start gap hid most of an estimated 5 N deficit. Start the model from the same speed
+  source as the comparison.
+- A resolution round counted 2 dives ending in bad data where the flight-end inventory showed 4.
+  Cross-check exclusion counts against an independent list before writing them down.
+- The first draft said the throttle offset explained half of the row 13 gap, but no run had
+  dropped that offset alone; the single-offset runs pointed elsewhere. Name a cause only when a
+  run isolated it.
+- Batch doc edits drafted by a workflow: check that each old text occurs once and that no two
+  edits overlap before applying (4 pairs overlapped here), and keep the working copy's CRLF
+  line endings (read and write with newline="").
+
 ## Hardware-in-the-loop link work (2026-10-13)
 
 - From Git Bash, `wsl.exe bash -lc '...'` lost every `$variable` in the command. Paths under
@@ -444,7 +480,8 @@
   misses: packet records carry message ids, not names.
 - **Codex's read-only shell can fail to start.** Three of four codex exec
   runs ended with "helper_unknown_error: setup refresh had errors" before
-  reading anything. Inline the diff and evidence in the prompt, and pass a
+  reading anything (cause and fix: see "Approach-window cadence
+  diagnostics" below). Inline the diff and evidence in the prompt, and pass a
   long prompt on stdin (codex exec ... - < prompt.md): a 52 KB argument
   exits 126 on Windows without running Codex.
 
@@ -564,8 +601,18 @@
   source time, entry->first and last->exit included
   (scripts/eval_gcs_demo_cadence.py).
 - **codex exec -s read-only can fail every shell call on this host**
-  ("helper_unknown_error: setup refresh had errors"). For a static review,
-  inline the diff and evidence in the prompt instead of asking Codex to read.
+  ("helper_unknown_error: setup refresh had errors"). Cause found on
+  2026-10-17: the standalone CLI on PATH (0.162.1) updates the ACL of
+  node_repl.exe during sandbox setup and gets os error 32 while any
+  node_repl.exe runs; the Codex desktop app keeps about ten running. Fix:
+  run the CLI bundled with the desktop app
+  (%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe, 0.163), whose setup
+  succeeds in the same state. Do not close the desktop app, and do not
+  change ACLs. Inside that sandbox the user's Python 3.11 gives "Access is
+  denied"; give Codex its own runtime Python
+  (~\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe:
+  numpy and pandas, no scipy or pymavlink). Pipe the prompt on stdin with
+  `-`; PowerShell quoting broke a long argument.
 - **time.thread_time steps 15.625 ms on Windows** (GetThreadTimes). Per-row
   CPU reads 0 or 16 ms; compare CPU with wall per wall second instead.
 - **Bash heredocs fail on an apostrophe in the body.** Even a quoted
