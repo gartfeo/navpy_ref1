@@ -66,7 +66,6 @@ _retire = relay_io.retire
 _wsl_argv = wsl.wsl_argv
 ensure_fork_supports_companion_udp = wsl.ensure_fork_supports_companion_udp
 _sysid_process_pattern = wsl.sysid_process_pattern
-_router_process_pattern = wsl.router_process_pattern
 _param_name = verify_model.param_name
 _boot_ms = verify_model.boot_ms
 _boot_limit_ms = verify_model.boot_limit_ms
@@ -95,8 +94,8 @@ def _resolve_chat(explicit: int | None, eval_mode: bool = False) -> int:
     )
 
 
-def _wsl(command: str) -> None:
-    subprocess.run(_wsl_argv(command), capture_output=True)
+def _wsl(command: str) -> subprocess.CompletedProcess:
+    return subprocess.run(_wsl_argv(command), capture_output=True)
 
 
 def cleanup(chat: int) -> None:

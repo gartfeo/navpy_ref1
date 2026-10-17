@@ -251,10 +251,12 @@ def main() -> int:
     finally:
         # Teardown runs whatever happened, including a crash above, and only
         # ever touches the aircraft this run launched.
-        _cleanup_sysids(chat, sysids)
-        if swarm is not None and swarm.poll() is None:
-            swarm.terminate()
-        _release_span(held)
+        try:
+            _cleanup_sysids(chat, sysids)
+        finally:
+            if swarm is not None and swarm.poll() is None:
+                swarm.terminate()
+        _release_span(held)  # kept when the reap failed: its aircraft may still run
 
     print("=== results ===", flush=True)
     for sysid in sysids:

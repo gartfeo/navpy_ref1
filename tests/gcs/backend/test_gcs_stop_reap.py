@@ -71,6 +71,25 @@ class TestGcsStopReap(unittest.TestCase):
         self.assertLess(order.index(("kill", 4242)),
                         order.index(("cleanup", 3)))
 
+    def test_a_failed_sitl_reap_keeps_the_slot_and_says_so(self):
+        for failure in (RuntimeError("no pidfd"), FileNotFoundError("wsl")):
+            m = _load_stop()
+            with self.subTest(failure=failure),                  patch.object(m.reg, "get", return_value=None),                  patch.object(m.reg, "release") as release,                  patch.object(m.reg, "registered_pids", return_value=set()),                  patch.object(m.reg, "reap_port", return_value=[]),                  patch.object(m.reg, "reap_companion_ports", return_value=[]),                  patch.object(m.swarm_run, "cleanup", side_effect=failure):
+                self.assertFalse(m.stop_chat(3, kill_sitl=True))
+                release.assert_not_called()
+
+    def test_stop_all_continues_past_a_failed_chat_and_exits_nonzero(self):
+        m = _load_stop()
+        stopped = []
+
+        def stop(n, kill_sitl=True):
+            stopped.append(n)
+            return n != 1
+
+        with patch.object(m.reg, "live", return_value=[{"chat_index": n} for n in (0, 1, 2)]),              patch.object(m, "stop_chat", side_effect=stop),              patch.object(sys, "argv", ["gcs_stop.py", "--all"]):
+            self.assertEqual(m.main(), 1)
+        self.assertEqual(stopped, [0, 1, 2])
+
 
 if __name__ == "__main__":
     unittest.main()

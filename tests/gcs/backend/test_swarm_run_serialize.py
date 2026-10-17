@@ -20,6 +20,7 @@ import contextlib
 import importlib.util
 import os
 import pathlib
+import shlex
 import sys
 import threading
 import time
@@ -1786,58 +1787,24 @@ class TestLaunchLoopFailsLoudly(unittest.TestCase):
         self.assertIn("could not bind verify port", printed)
 
 
-class TestCleanupForceKills(unittest.TestCase):
-    """A wedged SITL ignores SIGTERM, so cleanup must escalate to SIGKILL — else it
-    keeps holding its serial0 port and the relaunched instance can't bind."""
+class TestCleanupReapsOnlyItsOwnLaunch(unittest.TestCase):
+    """Cleanup reaps by ownership (sysid AND the chat's SWARM_OFFSET), never by
+    sysid alone: a lockstep SITL on another slot also runs --sysid 1..3 (todo 51)."""
 
-    def test_escalates_sigterm_then_sigkill_for_each_sysid(self):
+    def _command(self, chat):
         m = _load_swarm()
-        with patch.object(m, "_wsl") as wsl:
-            m.cleanup(1)  # chat 1 -> sysids 4,5,6
-        cmd = wsl.call_args[0][0]
-        for s in (4, 5, 6):
-            # A polite terminate for every instance...
-            self.assertIn(f"pkill -f -- '[-]-sysid[[:space:]=]+{s}([[:space:]]|$)'", cmd)
-            # ...and a forced kill for every instance.
-            self.assertIn(
-                f"pkill -KILL -f -- '[-]-sysid[[:space:]=]+{s}([[:space:]]|$)'",
-                cmd,
-            )
-        # SIGTERM is issued before SIGKILL (grace period between).
-        self.assertLess(
-            cmd.index("pkill -f -- '[-]-sysid[[:space:]=]+4([[:space:]]|$)'"),
-            cmd.index("pkill -KILL -f -- '[-]-sysid[[:space:]=]+4([[:space:]]|$)'"),
-        )
+        with patch.object(m, "_wsl", return_value=MagicMock(returncode=0)) as wsl:
+            m.cleanup(chat)
+        return shlex.split(wsl.call_args[0][0])
 
-    def test_cleanup_patterns_do_not_match_invoking_shell(self):
-        m = _load_swarm()
-        with patch.object(m, "_wsl") as wsl:
-            m.cleanup(0)
-        cmd = wsl.call_args[0][0]
-        # `pkill -f` sees the cleanup shell's own command line. The regex text
-        # must not contain the literal process marker it is trying to kill, or
-        # the shell can terminate before the SIGKILL pass runs.
-        self.assertNotIn("'--sysid 1", cmd)
-        # Both spellings ArduPilot accepts are killed; the bracket escape still
-        # keeps the pattern text from naming the process it hunts.
-        self.assertNotIn("'--sysid=1", cmd)
-        self.assertIn("'[-]-sysid[[:space:]=]+1([[:space:]]|$)'", cmd)
-        self.assertNotIn("'mavlink-routerd", cmd)
-        self.assertIn("'[m]avlink-routerd.*:15550([[:space:]]|$)'", cmd)
+    def test_runs_the_reap_helper_for_this_chats_offset_router_and_sysids(self):
+        argv = self._command(1)  # chat 1 -> offset 3, monitor 15551, sysids 4,5,6
+        self.assertEqual(argv[:2], ["python3", "-c"])
+        self.assertIn("def reap(", argv[2])
+        self.assertEqual(argv[3:], ["reap", "3", "15551", "4", "5", "6"])
 
-    def test_force_kills_only_this_chats_router(self):
-        m = _load_swarm()
-        with patch.object(m, "_wsl") as wsl:
-            m.cleanup(1)
-        cmd = wsl.call_args[0][0]
-        # chat 1's monitor port is 15551; another chat's router must be untouched.
-        self.assertIn("[m]avlink-routerd.*:15551([[:space:]]|$)", cmd)
-        self.assertNotIn(":15550([[:space:]]|$)", cmd)
-        self.assertNotIn(":15552([[:space:]]|$)", cmd)
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_issues_no_sysid_pkill(self):
+        self.assertNotIn("pkill", " ".join(self._command(0)))
 
 
 class TestOneClockDomain(unittest.TestCase):
