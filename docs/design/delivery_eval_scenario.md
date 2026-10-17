@@ -284,6 +284,18 @@ the code three times (ship with changes twice, then ship).
   command chain above stands for "mode change, search ends" and "reached the orbit"; mode and orbit logging is a
   todo after the demo.
 
+**e10 results (2026-10-17, wall SITL, sim only; not physical docking).** Runs in `.logs/e10/`; roles in every run:
+UAV 1 keeps d1 and offers d2 (task 3), UAV 2 wins it, UAV 3 flies to home-west.
+- r1 (33b6cf0): all three DOCKED, but the gate failed on two e6 gate bugs (offerer order; `approved_at_unix_s` taken
+  after the POST returns). Fixed in fa855eb (Codex: ship); `--analyze-only` on r1 then passes.
+- r2 and r3 (fa855eb, quiet PC): every gate passes; DOCKED closest pass 0.41/0.18/0.36 m and 0.45/0.46/0.08 m.
+  Done criterion met.
+- Live check (`delivery_e10_live_report.md`, committed unedited): the operator view follows the run, with gaps
+  logged as todos 60-63 and an unexplained disarm offset as todo 64. Its own run failed UAV 3's roll-step gate
+  (12% observation coverage) while another session's full suite loaded the PC.
+- r4 (loaded the same way) failed setup on UAV 1 `NAV_FAIL: no_detection`; r5 (d1c1802 = fa855eb code, quiet)
+  passes every gate (0.01/0.07/0.04 m, coverage 95-98%). Load sensitivity is todo 65.
+
 ## Risks
 - The winner flies past d1 on its way to d2 (150 m apart). Peer acquisition stays in DETECT, and `DetectAction` and
   `ConfirmationAction` still select and offer other docks there, so two things can go wrong: it may lock d1 instead
