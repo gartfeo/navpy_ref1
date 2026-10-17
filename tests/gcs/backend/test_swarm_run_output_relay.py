@@ -630,7 +630,8 @@ class KillLaunchReaps(unittest.TestCase):
 
     def test_a_failed_cleanup_still_terminates_and_retires_then_raises(self):
         proc = mock.MagicMock()
-        with mock.patch.object(m, "cleanup", side_effect=RuntimeError("reap failed")),              mock.patch.object(m, "_retire_relays") as drain:
+        with mock.patch.object(m, "cleanup", side_effect=RuntimeError("reap failed")), \
+             mock.patch.object(m, "_retire_relays") as drain:
             with self.assertRaisesRegex(RuntimeError, "reap failed"):
                 m._kill_launch(proc, 7, [])
         proc.terminate.assert_called_once()
