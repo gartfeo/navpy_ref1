@@ -89,32 +89,27 @@ def test_prepare_sim_docks_skips_other_profiles(tmp_path):
 @pytest.mark.parametrize("winner", [2, 3])
 def test_roles_resolve_either_peer_as_winner(winner):
     home = 5 - winner
-    texts = {1: "", winner: PEER, home: HOMING}
-    roles = resolve_roles([1, 2, 3], texts, EXPECTED)
+    roles = resolve_roles([1, 2, 3], EXPECTED, {(1, winner, 2)})
     assert roles.errors == []
     assert roles.roles == {1: OFFERER, winner: WINNER, home: HOME}
+    assert roles.applied == (1, winner, 2)
     assert roles.home_docks == {1: "home-east", 2: "home-middle", 3: "home-west"}
 
 
 @pytest.mark.parametrize(
-    ("texts", "error"),
+    ("applied", "error"),
     [
-        ({1: "", 2: PEER, 3: PEER}, "exactly one winner"),
-        ({1: "", 2: PEER, 3: ""}, "exactly one home"),
-        ({1: PEER, 2: PEER, 3: HOMING}, "offerer 1 flew a peer task"),
-        ({1: "", 2: PEER + HOMING, 3: ""}, "exactly one home"),
+        (set(), "exactly one logical APPLIED"),
+        ({(1, 2, 2), (1, 3, 3)}, "exactly one logical APPLIED"),
+        ({(2, 3, 2)}, "APPLIED owner 2 is not the offerer 1"),
+        ({(1, 1, 2)}, "APPLIED helper 1 is not another UAV"),
+        ({(1, 7, 2)}, "APPLIED helper 7 is not another UAV"),
     ],
 )
-def test_roles_report_each_failure(texts, error):
-    assert any(error in message for message in resolve_roles([1, 2, 3], texts, EXPECTED).errors)
-
-
-def test_analysis_refuses_delivery_until_its_gates_exist(tmp_path):
-    from scripts.eval_gcs_demo_analysis import analyze_run
-
-    scenario = fixture.load_eval_scenario(fixture.FIXTURE_PATH)
-    with pytest.raises(ValueError, match="no gates yet"):
-        analyze_run(tmp_path, scenario=scenario)
+def test_roles_report_each_failure(applied, error):
+    roles = resolve_roles([1, 2, 3], EXPECTED, applied)
+    assert roles.applied is None
+    assert any(error in message for message in roles.errors)
 
 
 class _Launched(Exception):

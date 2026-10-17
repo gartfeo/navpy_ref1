@@ -112,6 +112,8 @@ class FinalApproachEpisode:
     #: A valid DOCKED row before the episode's SNAP; its absence is the
     #: docking gate's failure, not an evidence error.
     docked: bool
+    armed: DockArmed | None = None  # the episode's own DOCK_ARMED row
+    docked_row: DockedEvidence | None = None  # its matched DOCKED row
 
 
 @dataclass(frozen=True)

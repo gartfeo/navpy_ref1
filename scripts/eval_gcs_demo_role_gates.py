@@ -8,6 +8,7 @@ from collections.abc import Callable
 from scripts.eval_gcs_demo_gate_profiles import (
     CERTIFIED_LOCKSTEP_PROFILE,
     CERTIFIED_PROFILE,
+    DELIVERY_PROFILE,
     OWNER_ONLY_SLICE_PROFILE,
 )
 
@@ -124,12 +125,22 @@ def _owner_only_slice_role_errors(
     return _owner_orbit_errors(navigation_text) + peer_assignment_marker_errors(navigation_text)
 
 
+def _delivery_role_errors(
+    navigation_text: str, role: str, assignment_acked: bool,
+) -> list[str]:
+    """None per vehicle: the delivery roles come from the run's one APPLIED,
+    so every role check is in the run gate (eval_delivery_gates.py)."""
+    del navigation_text, role, assignment_acked
+    return []
+
+
 #: Execution profile -> its role checks; the rest of the workflow gates are
 #: shared. Lockstep keeps the certified roles (owner dispatch and orbit, peers).
 ROLE_GATES: dict[str, Callable[[str, str, bool], list[str]]] = {
     CERTIFIED_PROFILE: _certified_role_errors,
     CERTIFIED_LOCKSTEP_PROFILE: _certified_role_errors,
     OWNER_ONLY_SLICE_PROFILE: _owner_only_slice_role_errors,
+    DELIVERY_PROFILE: _delivery_role_errors,
 }
 
 

@@ -258,10 +258,29 @@ e5 builds both, each with a mechanism test.
 - Before launch it checks the fixture's `runtime` block for every slot, refuses a run dir that already holds NavPy
   logs, and writes the `docks` block as the run's `NAVPY_SIM_DOCKS` file; the env reaches every NavPy process.
 - The mission runner is unchanged: with no ordinals it approves requests until every UAV has a SNAP.
-- `scripts/eval_delivery_roles.py` names the roles from a run's logs: the offerer by zone, the winner as the other
-  UAV with a peer task, home as the other UAV with a home-dock task and no peer task. Either peer may win. Nothing
-  calls it yet: e6's analysis does.
-- The analysis refuses the `delivery` profile until e6 adds its gates, so a delivery run ends with that refusal.
+- `scripts/eval_delivery_roles.py` names the roles (changed in e6, below). Either peer may win.
+- Until e6 the analysis refused the `delivery` profile.
+
+**e6 as built (2026-10-17, synthetic logs only).** `eval_delivery_gates.py` is the delivery run gate;
+`eval_delivery_checks.py` holds the checks. Codex reviewed the design twice (rework, then ship with changes) and
+the code three times (ship with changes twice, then ship).
+- Roles: the offerer by fixture zone; the winner is the helper of the run's one logical APPLIED in the GCS backend
+  log, whose owner must be the offerer; home is the other UAV. No NavPy log line decides a role.
+- Offer: exactly one logical offer fleet-wide, by the offerer, of d2 at d2's position (1 m), for the APPLIED task. An offer of a home
+  dock, by id or within 30 m of one (the e5 home-dock radius; "one dock diagonal" is defined nowhere), fails.
+- Assignment: the APPLIED names an accepted bid of the winner, no rejection from it, the request is at d2, and the
+  home UAV takes part in no assignment line.
+- Offerer: orbit, then the d1 lock, then its selection and review, in that one order. Winner: assigned by the offerer, then DO_REPOSITION to d2,
+  then peer navigation, then the d2 selection and review, and no AUTO resume after the assignment. Home: hub
+  navigation at its own home dock, then that dock's lock and selection.
+- Each UAV: one episode at its role's dock; NAV entry (DOCK_ARMED wall time) after its approval; a DOCKED row at that
+  dock after NAV entry (aircraft clock); the 1 m truth binding to the dock. Every obj id is a world dock.
+- Docked = the DOCKED row, the contact sensor's closest pass from telemetry (owner, 2026-10-17). The SNAP line is
+  frame-sampled and coarser: in `.logs/s11/attrib/c5547c3` it read 2.1, 1.7 and 0.5 m where the sensor read 0.05,
+  0.31 and 0.04 m.
+- Owner choice A (2026-10-17): no log records the flight mode, the search state or orbit arrival, so the ordered
+  command chain above stands for "mode change, search ends" and "reached the orbit"; mode and orbit logging is a
+  todo after the demo.
 
 ## Risks
 - The winner flies past d1 on its way to d2 (150 m apart). Peer acquisition stays in DETECT, and `DetectAction` and

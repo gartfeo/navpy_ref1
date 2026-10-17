@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import NamedTuple, Sequence
+from typing import Sequence
 
 from scripts.eval_gcs_demo_cadence import cadence_annotation
 from scripts.eval_gcs_demo_audit import (
     load_approval_records,
     validate_approval_records,
 )
-from scripts.eval_gcs_demo_assignment_audit import derive_global_assignment_map
+from scripts.eval_gcs_demo_assignment_audit import AssignmentEvidence, derive_global_assignment_map
 from scripts.eval_gcs_demo_assignment_lines import LogFormat, parse_assignment_lines
 from scripts.eval_gcs_demo_command_bounds import load_command_bounds
 from scripts.eval_gcs_demo_constants import (
@@ -27,12 +27,14 @@ from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_gate_profiles import (
     CERTIFIED_LOCKSTEP_PROFILE,
     CERTIFIED_PROFILE,
+    DELIVERY_PROFILE,
     LOCKSTEP,
     OWNER_ONLY_SLICE_PROFILE,
     PROFILE_SIM_SPEEDUP,
     WALL,
     execution_profile,
 )
+from scripts.eval_delivery_gates import delivery_assignment_evidence, delivery_run_gate_errors
 from scripts.eval_gcs_demo_fleet_gates import certified_lockstep_gate_errors
 from scripts.eval_gcs_demo_inputs import recorded_lockstep, require_recorded_scenario
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario, load_resolved_plan
@@ -80,13 +82,6 @@ def approval_counts(
                 f"vehicle {sys_id} expected exactly one audited approval, found {count}"
             )
     return counts, errors
-
-
-class AssignmentEvidence(NamedTuple):
-    assignments: dict[int, int]
-    errors: list[str]
-    # Acked log format: peers fly only after their owner's APPLIED.
-    acked: bool
 
 
 def global_assignment_evidence(
@@ -143,19 +138,22 @@ def owner_only_assignment_evidence(
 
 def _no_run_gates(
     _log_dir: Path, _plan: DemoMissionPlan, _approvals: list[dict[str, JsonValue]],
+    _scenario: DemoScenario | None = None,
 ) -> list[str]:
     return []
 
 
 #: (execution profile, execution mode) -> its run-level gates beyond the
 #: shared ones: a lockstep run adds its profile's journal gates; a wall run
-#: (either profile) has none. A pair without an entry is refused, not passed.
-RunGates = Callable[[Path, DemoMissionPlan, list[dict[str, JsonValue]]], list[str]]
+#: (either profile) has none; the delivery run has its role gates. A pair
+#: without an entry is refused, not passed.
+RunGates = Callable[[Path, DemoMissionPlan, list[dict[str, JsonValue]], DemoScenario], list[str]]
 _RUN_GATES: dict[tuple[str, str], RunGates] = {
     (CERTIFIED_PROFILE, WALL): _no_run_gates,
     (CERTIFIED_LOCKSTEP_PROFILE, LOCKSTEP): certified_lockstep_gate_errors,
     (OWNER_ONLY_SLICE_PROFILE, WALL): _no_run_gates,
     (OWNER_ONLY_SLICE_PROFILE, LOCKSTEP): slice_gate_errors,
+    (DELIVERY_PROFILE, WALL): delivery_run_gate_errors,
 }
 
 
@@ -180,7 +178,13 @@ _ASSIGNMENT_EVIDENCE: dict[str, Callable[[Path, DemoMissionPlan], AssignmentEvid
     CERTIFIED_PROFILE: global_assignment_evidence,
     CERTIFIED_LOCKSTEP_PROFILE: global_assignment_evidence,
     OWNER_ONLY_SLICE_PROFILE: owner_only_assignment_evidence,
+    DELIVERY_PROFILE: delivery_assignment_evidence,
 }
+#: Profiles whose approaches bind to the resolved plan's POIs; the delivery
+#: run binds each role to its world dock in its run gates.
+_PLAN_POI_BINDING = frozenset(
+    {CERTIFIED_PROFILE, CERTIFIED_LOCKSTEP_PROFILE, OWNER_ONLY_SLICE_PROFILE}
+)
 
 
 def analyze_run(
@@ -201,8 +205,6 @@ def analyze_run(
     requested_speedup = finite_number("navigation_speedup", navigation_speedup)
     mode = execution_mode(log_dir)
     profile = execution_profile(scenario.gate_profile, mode)
-    if profile not in _ASSIGNMENT_EVIDENCE:
-        raise ValueError(f"execution profile {profile!r} has no gates yet")
     sim_speedup = PROFILE_SIM_SPEEDUP[profile]
     if requested_speedup > 0.0 and profile != CERTIFIED_PROFILE:
         # A lockstep cadence is factor 1; no override may relax it.
@@ -231,12 +233,14 @@ def analyze_run(
     counts, approval_errors = approval_counts(approval_rows, plan)
     evidence = _ASSIGNMENT_EVIDENCE[profile](log_dir, plan)
     assignments = evidence.assignments
-    errors = approval_errors + evidence.errors + mission_assignment_errors(
-        log_dir,
-        plan,
-        assignments,
-        approval_rows,
-    ) + _run_gates(profile, mode)(log_dir, plan, approval_rows)
+    binding = (
+        mission_assignment_errors(log_dir, plan, assignments, approval_rows)
+        if profile in _PLAN_POI_BINDING
+        else []
+    )
+    errors = approval_errors + evidence.errors + binding + _run_gates(profile, mode)(
+        log_dir, plan, approval_rows, scenario,
+    )
     reports = [
         analyze_vehicle(
             log_dir,
