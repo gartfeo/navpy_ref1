@@ -1,6 +1,6 @@
 # GCS video streams per vehicle
 
-Status: design v7 (video rounds 1-4, FPV UX rounds 1-3, one view at a time), awaiting owner approval. No code yet.
+Status: design v8 (video rounds 1-4, FPV UX rounds 1-3, one view at a time, operator walkthrough), awaiting owner approval. No code yet.
 
 Owner request (2026-10-16): "we should be able to see video streams in our GCS if
 those are available."
@@ -160,72 +160,84 @@ so these are our radio-link defaults, not protocol values:
 
 Owner, 2026-10-16: build each feature for a purpose; in the demo any UAV may
 have a stream but one plays at a time; Cesium FPV must work without video; no
-need for FPV and video together. Controls below were proposed independently by
-Claude and Codex and merged; each is tied to a delivery moment.
+need for FPV and video together. v8 (2026-10-17): every element was walked
+through a 3-UAV delivery mission by a field operator, a delivery operations
+adviser, a UX designer and Codex, then debated with Codex; elements without a
+concrete operator use were cut.
 
 Purpose of the two views:
 
-- **Camera (real video)**: the operator inspects the real scene where a decision
-  or a watch happens: dock/task confirmation, final approach, handover area.
-  The map cannot show this.
-- **FPV (Cesium, synthetic)**: orientation and a stand-in vehicle view when
-  there is no usable stream (SITL demo, UAV without camera, failed feed). It
-  never confirms anything.
+- **Camera (real video)**: inspect the real scene at the two delivery moments
+  the map cannot show: the dock confirmation (does the live scene still match
+  the detector's still?) and the final approach (is there a reason to Cancel
+  task?). Watching is optional; the map stays the main view.
+- **FPV (Cesium, synthetic)**: orientation, and a vehicle view where there is no
+  usable video (SITL demo, UAV without camera, failed feed), without taking RC
+  authority. It shows attitude over terrain, not what the camera or detector
+  sees, and never confirms anything.
 
 So the operator sees **map + camera panel** (default) or **FPV** (main map
 switches to first person, camera panel hidden and its reader closed), never both.
+One rule: **the follow selector moves the map (and FPV); badges and View camera
+move the video** (owner decision D1 below).
 
 #### Controls
 
-| Control | v1 | Delivery moment and purpose |
+| Control | v1 | Operator use |
 |---|---|---|
-| UAV badges in the panel header (one per UAV with a stream) | yes | pick whose camera to watch; one stream plays |
-| **View camera** on each task confirm card | yes | confirmation: the card has the detector's still image (`TaskConfirmCard.jsx:168`); live video shows whether the scene still holds. One tap switches the panel to that UAV (and leaves FPV). It does not approve, deny, reset or pause the countdown or auto-approve. Shown only when that UAV has a stream and RC is off (confirm cards stay visible in RC, but the camera panel is hidden there, so the button is not offered) |
-| **FPV** toggle beside the follow selector | yes | orientation; fallback when there is no video |
-| **View FPV** in a failed feed's collapsed header | yes | video loss: explicit fallback, never automatic. With no stream at all there is no panel; the FPV toggle is the fallback |
-| Live state in the panel: LIVE dot, connecting, "no frames for N s", Retry | yes | approach/handover: never read a frozen picture as live. "Last frame N s ago" is frame arrival, not camera latency |
-| Expand / restore (exists) | yes | inspect detail at confirmation or handover |
-| Separate "video lost" vs "link lost" | yes | abnormal events: losing imagery is not losing the vehicle; neither changes mission state |
-| Auto-switch to a UAV that raises a confirm, with a pin | later | can pull the view off another UAV's approach; manual View camera is enough for the demo |
-| Snapshot / recording as evidence | later | needs storage, timestamps, task association; an image does not prove physical docking or cargo receipt |
-| Gimbal or zoom control from the panel | later | NavPy owns the gimbal during approach; zoom changes vision calibration assumptions; needs an ownership design |
-| FPV and video together, tiles, mission phase in the header | no | no operator decision needs them in the demo; the phase is not in the snapshot and the sidebar shows status |
-| Flight or mission actions in the panel, "handover complete" from video | no | duplicates existing controls; observation is not outcome |
+| UAV badges in the panel header (one per UAV with a stream) | yes | watching UAV 1's approach, check UAV 2's camera and tap 1 to come back, without moving the map. Selected badge: outline + fill + the full "UAV n" label, never colour alone. A badge never changes follow or RC |
+| **View camera** on each task confirm card | yes | a card arrives: tap, compare the live scene with the still, then Approve/Deny on the card. It opens that UAV's live stream, so the operator does not watch the wrong UAV; it does not prove the camera still shows the same dock (it may have moved since the still). Neutral button beside the still, away from Approve/Deny; "Viewing" when the panel already shows that UAV; on tap the old picture clears and "connecting · UAV n" shows. The countdown keeps running (the card says so); the tap never approves, denies or pauses. Pending cards only; shown only when that UAV has a stream and RC is off |
+| **FPV** toggle (text label, clear on state, unlike the RC button) beside the follow selector | yes | SITL demo or a dead feed: a vehicle view without RC. Shows the followed UAV; from Free it takes the panel's UAV if eligible, else the first eligible UAV, and the follow selector then names it |
+| Live state: LIVE (frames arriving), connecting, stale shown on the picture as text ("NO FRAMES 7 s"), failed, **Reconnect video** | yes | before relying on the picture at confirm or approach: a frozen frame looks like a calm scene. LIVE means frames arrive, not low latency |
+| Expand / restore, plus collapse to header for a healthy feed (labelled buttons) | yes | expand to judge detail at confirmation; collapse to give the map back without entering FPV. No tap-anywhere toggle |
+| "Camera video lost" vs "Vehicle link lost" | yes | camera only: keep monitoring; link: check the vehicle, consider Cancel task or E-STOP. Both shown when both happen, link first. Video loss says nothing about NavPy or the detector; neither changes mission state |
+| Header names the view from stream metadata (e.g. "UAV 2 · tracking overlay") | yes | the operator knows the picture is the Jetson overlay with detector boxes, not the raw camera |
+| Stream picker (two views on one UAV) | later | no delivery decision needs it; the data model keeps all streams, v1 plays the UAV's default stream: the lowest stream id, and the companion config gives the display stream id 1 |
+| View FPV in a failed feed | cut | no decision beyond the FPV toggle; it made synthetic imagery look like the answer to lost video |
+| Auto-switch to a confirming UAV, with a pin | later | pulls the view off another UAV's approach; View camera is one tap |
+| Snapshot / recording | later | after-action review only; an image does not prove docking or cargo receipt |
+| Gimbal or zoom control | later, payload module | NavPy owns the gimbal during approach; zoom changes vision calibration; needs an ownership design |
+| FPV and video together; mission phase in the header | no | no decision needs them; phase belongs in the sidebar |
+| Tiles | later option (owner, 2026-10-16) | only with a new operator need once several streams play at once |
+| Flight or mission actions in the panel | no | Cancel task and E-STOP already exist; observation is not outcome |
 
-All controls are touch targets of at least 32 px with text labels and no
-hover-only actions (handheld use). E-STOP, confirm cards and alerts stay on top
-and reachable when the panel is expanded.
+Generic vs delivery: badges, live state, loss wording, expand and FPV serve any
+mission module; View camera depends on the task-confirmation flow.
 
-Narrow screens (map pane under 480 px wide, the handheld): badges shrink to the
-UAV number, the stream picker becomes one icon menu, and the header never wraps
-past one line. Expanded takes the pane width minus the 12 px margins and stops
-below the top-right controls and confirm cards (today's expanded cap already
-keeps clear of the top bar), so Approve/Deny and E-STOP are never covered.
+Touch and layout (handheld): new and touched controls are 44 px targets with
+text labels, no hover-only actions, nothing within 8 px of Approve/Deny. Header
+text 14 px on an opaque background. The header line holds only badges, the
+"UAV n" title and the live state; a failure goes on a row under it (reason,
+Reconnect video, Dismiss). Narrow map pane (under 480 px): badges show the
+number, the full "UAV n" stays in the title, and badges that do not fit move
+into one menu button. Expanded takes the pane width minus 12 px margins and stops below the
+top-right controls. In monitor mode confirm cards and E-STOP are in the sidebar,
+not over the map, so the panel cannot cover them.
 
 #### Camera panel
 
-- Bottom-left of the map, monitor view only, under the map buttons and
-  confirmation cards, same docked and expanded sizes as today. Rendered only
-  when at least one UAV has a stream; hidden in FPV and in manual control.
-- Header: badges (selected one outlined), then **CAMERA · UAV n** and the live
-  state; a stream picker only if that UAV has more than one stream.
-- Selection: the follow selector (top-right, "Free" or a UAV) choosing a UAV
-  with video switches the feed to it; Free or a UAV without video keeps the
-  current feed (never an empty box). A badge or View camera switches only the
-  video, not the map camera. First feed: the followed UAV if it has video, else
-  the first UAV with video.
+- Bottom-left of the map, monitor view only. Shown while any UAV advertises a
+  stream or a lost feed is still on screen; hidden in FPV and in manual control.
+  The GCS learns of streams only from the camera protocol: a camera that is
+  expected but never advertises is not shown here; preflight reports it
+  (`architecture_todo.md` 57).
+- Selection: badges and View camera switch the video only. The follow selector
+  picks only the first feed (the followed UAV if it has video, else the first
+  UAV with video); later follow changes leave the video alone (D1).
 - Deadlines: no first frame within `VIDEO_FIRST_FRAME_DEADLINE_S` (default 10 s:
   ICE setup plus one keyframe interval, which the display stream keeps at 2 s or
-  less), or a stall longer than `VIDEO_STALL_DEADLINE_S` (default 5 s, a few
-  keyframe intervals), becomes the failed state. Both named in one frontend
-  constants file, with fake-timer tests.
-- Failed or codec not supported: the video area collapses to the header with a
-  short reason, Retry and View FPV, so a dead feed never leaves a black box.
-- Streams changing: the shown stream disappears -> that UAV's other stream, else
-  the followed UAV's stream, else the first stream; the last stream gone ->
-  panel gone.
-- One reader per browser; the demo has one GCS, so no radio-wide arbitration in
-  v1. Tiles become an option only once several streams play at once.
+  less), or no new frame for `VIDEO_STALL_DEADLINE_S` (default 5 s, a few
+  keyframe intervals), becomes the failed state. Measured by frame progress
+  (`requestVideoFrameCallback`, fallback `getVideoPlaybackQuality`), not only the
+  video element's waiting/stalled events. Both named in one frontend constants
+  file, with fake-timer tests.
+- Failed or codec not supported: the video area collapses to the header with the
+  UAV, a short reason and Reconnect video, so a dead feed never leaves a black box.
+- Streams changing: the shown stream disappears -> that UAV's other stream if
+  any; else the panel stays on "Camera video lost · UAV n" with Reconnect video
+  and Dismiss until it returns. Never a silent switch to another UAV. The panel
+  goes away only when no advertised stream is left and nothing failed is pending.
+- One reader per browser; the demo has one GCS, so no radio-wide arbitration in v1.
 - Removed: `VITE_VIDEO_WHEP_URL`, `videoConfig.js` and the single-feed wiring (no
   shim). `useWhepStream` and the vendored reader stay; `src/gcs/AGENTS.md` and
   the Jetson config notes are updated.
@@ -235,20 +247,19 @@ keeps clear of the top bar), so Approve/Deny and E-STOP are never covered.
 - The FPV toggle puts the main map camera in the followed UAV's first-person
   view through today's `useFollowUav` FPV path (body attitude), for any eligible
   UAV, with or without video. The camera panel hides and its reader closes.
-- FPV pressed while following Free sets the follow selector to the panel's UAV
-  if eligible, else the first eligible UAV; the selector then names it. View FPV
-  in a failed feed sets the follow selector to that feed's UAV and turns FPV on.
+  Pending confirm cards and alerts stay in the sidebar, which FPV does not hide.
 - Eligible = the existing backend `link_ok` flag (used by the bottom bar and
   preflight) plus finite position and attitude in the snapshot; no new
-  freshness threshold. Checked on every entry (toggle, View FPV, changing the
-  followed UAV while in FPV); an ineligible target leaves the current view as it
-  is with a short notice naming the UAV. No eligible UAV: the toggle stays off
-  with a notice.
-- Always labelled: a fixed top-centre tag **SYNTHETIC · UAV n · body view** and
-  a distinct frame around the map. In FPV the camera holds the last valid pose
-  and resumes on the next valid one; the tag adds "link lost" when `link_ok` is
-  false and "pose unavailable" when linked but position or attitude is not
-  finite.
+  freshness threshold. Checked on every entry (toggle, changing the followed UAV
+  while in FPV); an ineligible target leaves the current view as it is, with a
+  short notice naming the UAV; a follow change made in FPV is reverted, so the
+  selector always names the UAV FPV shows. No eligible UAV: the toggle stays off with a notice.
+- Always labelled: a fixed top-centre tag **SYNTHETIC · UAV n · nose view, not
+  camera** and a frame in a colour not used for warnings; the same tag in RC's
+  FPV. In FPV the camera holds the last valid pose and resumes on the next valid
+  one; while held, a full-width banner reads **View held · vehicle link lost**
+  (when `link_ok` is false) or **View held · pose unavailable** (linked but
+  position or attitude not finite), with the time held in seconds.
 - View mode is separate from control mode: FPV never enables RC; RC keeps
   today's behavior (body FPV of the RC target, panel hidden).
 - Map camera ownership: one saved map camera, taken when the view first leaves
@@ -271,6 +282,22 @@ keeps clear of the top bar), so Approve/Deny and E-STOP are never covered.
 - Deferred: a second Cesium viewer, swapping map and panel, and a
   camera-direction synthetic view from gimbal attitude + FOV (needs verified
   mount axes and stream-to-device association).
+
+#### Found by the walkthrough, outside this design
+
+Logged in `architecture_todo.md` (54-59): a pending-confirm cue and card order
+by time left; the confirm card says what happens at zero (code and demo config
+reject on expiry: `aas_params.lua:19`, `eval_gcs_demo_config.py:144`); E-STOP
+and the right UAV's Cancel task reachable when cards stack; a per-UAV camera
+row in preflight, including an expected camera that never advertises; the
+still's capture time and its dock; operator status clarity (what the companion
+indicator measures, mission phase, dock assignment, honest completion wording).
+
+Unchanged and not part of this design: confirm cards and their countdown stay
+over the map in RC (`App.jsx:771-795`). Deferred: an audit of who decided each
+confirm (operator or timeout), recipient authorization for real delivery,
+fleet separation checks (a mission-level verification), and outdoor
+glare/glove acceptance (the 44 px and 14 px rules are built now).
 
 ### 6. SITL vs real hardware
 
@@ -314,33 +341,36 @@ failure leaves video off and is logged; the rest of the stack still runs.
   outside `<path>/whep/` each end in error with no further fetch.
 - Frontend (vitest): no panel without streams; first-frame and stall deadlines
   (peer connected but no frames; frames then freeze) collapse to the header; badges only for vehicles with
-  streams; switching; follow selector to a UAV with video switches the feed, to
-  Free or a UAV without video keeps it, a badge click leaves the map camera;
+  streams; switching; the follow selector picks only the first feed and later
+  follow changes keep the video, a badge click leaves the map camera;
   hidden in manual control; FPV toggle for a UAV without video, from Free (picks
   the panel's UAV), off and on Free returns to the saved map camera, never
   stored as startup view, SYNTHETIC tag always shown, RC entry and
   exit while in FPV; codec-not-supported and error
-  collapse to the header; stream removal picks the replacement feed (same UAV's other stream, followed
-  UAV, first; last one gone -> no panel); View FPV from a failed feed's header while
-  following another UAV; every row of the transition table; no eligible UAV;
+  collapse to the header; stream removal: same UAV's other stream, else "Camera video lost · UAV n" with
+  Reconnect video and Dismiss, never another UAV; panel gone only after the last
+  failed feed is dismissed and no stream is advertised; stall from frame progress (frames stop while the
+  element raises no waiting/stalled event); collapse and expand of a healthy
+  feed; every row of the transition table; no eligible UAV;
   `link_ok` lost and back in FPV; non-finite position, then attitude, while
-  linked (hold, "pose unavailable", resume); ineligible target on each entry
-  path; FPV hides the panel and closes its reader, FPV off brings it back;
-  View camera on a confirm card switches the panel (and leaves FPV), is absent
-  when that UAV has no stream and during RC; tapped midway through a countdown
+  linked (hold, "View held" banner with time held, resume); SYNTHETIC tag in RC FPV; ineligible target on each entry
+  path, with the follow selector reverting to the FPV UAV; FPV hides the panel and closes its reader, FPV off brings it back;
+  View camera on a pending confirm card switches the panel (and leaves FPV),
+  shows "Viewing" when already shown, is absent on approved cards, when that UAV
+  has no stream and during RC; tapped midway through a countdown
   it keeps the original deadline, expiry runs the existing timeout action once,
   the tap calls neither approve nor deny, and the pending card survives leaving
   FPV; LIVE dot only while frames arrive, "no frames for
-  N s" after; "video lost" and "link lost" shown separately. `npm test`,
+  N s" after; "Camera video lost" and "Vehicle link lost" shown separately, both when both. `npm test`,
   `npm run build`.
 - Layout: at desktop size and a 375 x 812 touch viewport, with 3 UAVs, a UAV
-  with two streams, the panel expanded and a pending confirm card: header on
-  one line, Approve/Deny, E-STOP and the map buttons visible and tappable, no
-  overlap (vitest layout contract plus a `live-tester` screenshot check).
+  with two streams, the panel expanded and three cards in the sidebar: header on
+  one line, 44 px targets, the map buttons and FPV toggle fit with the plan
+  button showing, Approve/Deny and E-STOP not covered, no overlap (vitest layout contract plus a `live-tester` screenshot check).
 - Live (`live-tester`): 3-UAV SITL with the test source, from two slots at once
   (each plays its own slot's patterns): each badge plays its
   labelled pattern, switching works, killing a path's FFmpeg collapses to the
-  header and Retry recovers; with the source off: no panel, no console errors.
+  header and Reconnect video recovers; with the source off: no panel, no console errors.
   Then, with video off: FPV on, switch UAVs while they fly (view follows pose),
   follow Free (map camera restored), FPV on then RC entry and exit, then reload
   the page and check the startup map view is the map, not an FPV pose.
@@ -352,8 +382,15 @@ failure leaves video off and is logged; the rest of the stack still runs.
 ## Open points for the owner
 
 1. Approve the approach: camera protocol discovery, browser WHEP straight to each
-   aircraft's MediaMTX, one feed at a time that follows the follow selector,
-   and an FPV toggle for Cesium FPV of any UAV.
+   aircraft's MediaMTX, one feed at a time, and an FPV toggle for Cesium FPV of
+   any UAV.
+D1. Follow selector and video (changes the 2026-10-16 ruling "video follows the
+   follow selector"): (a) follow moves only the map and FPV, badges and View
+   camera move the video, follow picks only the first feed (recommended by the
+   field operator, Codex and Claude: following UAV 3 on the map must not replace
+   UAV 1's approach picture, and one rule is easier to learn); or (b) keep the
+   coupling, but only for an explicit selector change and with a visible switch
+   (delivery adviser, UX).
 2. Display codec: the Jetson publishes a software H.264 display stream
    (recommended; leaves the ZR10 and the vision input untouched, costs Jetson CPU
    that is measured first), or switch the ZR10 to H.264
