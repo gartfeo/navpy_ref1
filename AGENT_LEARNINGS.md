@@ -690,3 +690,11 @@
   `nav_before_approval` is the literal `False` (todo 59). A field name is not evidence.
 - **`--analyze-only` prints the new report and leaves the run's `report.json` alone**, so a
   failed run can be re-gated after a gate fix without losing its original report.
+
+## DOCKED final state (2026-10-17)
+
+- The local `main` ref in a worktree can be far behind `origin/main`. Rebasing onto it replayed
+  other chats' commits. Fetch, then rebase onto `origin/main`.
+- The SNAP row is sampled only at command rows, and the dock contact latch stops the commands, so
+  SNAP misses the crossing segment (SITL 2026-10-17: contact 0.07 m, SNAP 4.4 m). Decide or score
+  docking from the contact sensor's `DOCKED` row, never from SNAP.

@@ -78,7 +78,7 @@ def test_empty_flyable_offer_waits_invisible_to_nav(slot):
 def test_empty_offer_while_approaching_or_unflyable_is_rejected(
     slot, approaching, flyable,
 ):
-    slot.set_approaching(approaching)
+    slot.set_participation(approaching, False)
 
     decision = slot.on_request(_task(), REQUEST, flyable=flyable)
 
@@ -198,7 +198,7 @@ def test_waiting_keeps_other_adverts(slot, advert, task_ids):
 def test_waiting_drops_when_own_final_approach_starts(slot):
     held = _wait(slot)
 
-    assert slot.set_approaching(True) == held
+    assert slot.set_participation(True, False) == held
     assert slot.state() is SlotState.EMPTY
     assert slot.node_state() is SwarmNodeState.BUSY
 
@@ -228,7 +228,7 @@ def test_assigned_ignores_adverts_acks_and_approach(slot):
     assert slot.on_ack(MsgRef(2, 9, 5), ACK_STATUS_RECEIVED, MsgRef(OWNER, BOOT, 61))[0] is (
         AckKind.NONE
     )
-    assert slot.set_approaching(True) is None
+    assert slot.set_participation(True, False) is None
     assert slot.state() is SlotState.ASSIGNED
     assert slot.held() == held
 

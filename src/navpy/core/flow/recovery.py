@@ -11,7 +11,7 @@ from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.flow.nav_constants import ALT_HYST
-from navpy.core.flow.nav_state import NavPhaseState, NavState
+from navpy.core.flow.nav_state import NavPhaseState, NavState, PostDockClimb
 from navpy.core.flow.nav_status import NavigationStatusReporter
 from navpy.core.ports.flight_mode import FlightMode
 
@@ -38,16 +38,23 @@ class RecoveryAction:
         args: NavArgs,
         status: NavigationStatusReporter,
         logger: ILogger,
+        post_dock_climb: PostDockClimb | None = None,
     ) -> None:
         self._ports = ports
         self._phase = phase
         self._args = args
         self._status = status
         self._logger = logger
+        self._post_dock_climb = post_dock_climb or PostDockClimb()
         self._altitude_available: Optional[bool] = None
 
     def advance(self) -> bool:
-        if self._ports.final_approach_active():
+        if self._phase.current == NavState.DOCKED:
+            return self._leave_docked()
+        if (
+            self._ports.final_approach_active()
+            and not self._post_dock_climb.active
+        ):
             return self._advance_final_approach()
         if self._phase.current == NavState.RESET:
             self._ports.detector_stop()
@@ -106,6 +113,21 @@ class RecoveryAction:
             self._phase.request(NavState.DETECT)
             return True
         return self._hold_completed_oneshot()
+
+    def _leave_docked(self) -> bool:
+        """Cyclic mode after DOCKED: climb (RECOVERY) if low, then AUTO.
+
+        The approach has ended, so the altitude read is outside it.
+        """
+        altitude = self._altitude()
+        if altitude is None:
+            return True
+        self._phase.request(
+            NavState.RECOVERY
+            if altitude < self._args.min_alt - ALT_HYST
+            else NavState.DETECT
+        )
+        return True
 
     def _hold_completed_oneshot(self) -> bool:
         if not (self._args.is_oneshot and self._phase.oneshot_completed):

@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
@@ -45,13 +46,18 @@ class FinalApproachDockContact:
         self._end_episode = end_episode
         self._episode = 0
         self._armed: Optional[DockContactIdentity] = None
+        # The armed episode's latched contact: the DOCKED state's source.
+        self._lock = rt.Lock()
+        self._docked: Optional[DockContactEvent] = None
 
     def arm(self, poi: Optional[DetectedObject]) -> None:
         """NAV entry: expect contact with this POI's own dock only."""
         if self._sensor is None:
             return
         self._sensor.disarm()
-        self._armed = None
+        with self._lock:
+            self._armed = None
+            self._docked = None
         task_id = None if poi is None else get_poi_task_id(poi)
         if poi is None or task_id is None:
             return
@@ -63,19 +69,32 @@ class FinalApproachDockContact:
             episode=self._episode,
         )
         if self._begin_episode(identity, self._source_now_s()):
-            self._armed = identity
+            with self._lock:
+                self._armed = identity
             self._sensor.arm(identity, self._on_docked)
 
-    def disarm(self) -> None:
+    def disarm(self) -> Optional[DockContactEvent]:
+        """NAV exit: stop expecting contact; return the episode's contact.
+
+        The sensor publishes only a closest pass inside the net, and only
+        for the armed identity, so the event is the DOCKED evidence.
+        """
         if self._sensor is not None:
             self._sensor.disarm()
-        armed, self._armed = self._armed, None
+        with self._lock:
+            armed, self._armed = self._armed, None
+            docked, self._docked = self._docked, None
         if armed is not None:
             self._end_episode(armed, self._source_now_s())
+        return docked
 
     def _on_docked(self, event: DockContactEvent) -> None:
-        if not self._latch_docked(event):
-            return
+        # Latch and keep under one lock, so NAV exit sees both or neither.
+        # Lock order: this lock, then the mode lock inside the latch.
+        with self._lock:
+            if event.identity != self._armed or not self._latch_docked(event):
+                return
+            self._docked = event
         identity = event.identity
         self._logger.info(
             f"DOCKED: task={identity.task_id} dock={identity.dock_uid} "

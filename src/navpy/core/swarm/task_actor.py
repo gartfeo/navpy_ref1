@@ -152,9 +152,9 @@ class TaskActor(ListenerAbc):
     def has_selected_pois(self) -> bool:
         return self.selected_poi() is not None
 
-    def set_approaching(self, approaching: bool) -> None:
-        """Nav publishes whether it flies a final approach (BUSY)."""
-        self._participation.set_approaching(approaching)
+    def set_participation(self, approaching: bool, docked: bool) -> None:
+        """Nav publishes a final approach or a dock (both BUSY)."""
+        self._participation.set_participation(approaching, docked)
 
     def clear_selected_poi(self) -> None:
         """Nav ended its task; a WAITING offer is kept."""

@@ -157,7 +157,7 @@ class HeartbeatNodeStateTest(unittest.TestCase):
         self._assert_reported(SwarmNodeState.FREE)
 
     def test_final_approach_is_busy(self):
-        self.slot.set_approaching(True)
+        self.slot.set_participation(True, False)
         self._assert_reported(SwarmNodeState.BUSY)
 
     def test_waiting_task_is_busy(self):
@@ -170,7 +170,7 @@ class HeartbeatNodeStateTest(unittest.TestCase):
         self.slot.record_reply(decision.held.token, ref)
         self.slot.on_ack(ref, 2, MsgRef(3, 7, 99))
         self._assert_reported(SwarmNodeState.BUSY)
-        self.slot.set_approaching(True)
+        self.slot.set_participation(True, False)
         self._assert_reported(SwarmNodeState.BUSY)
 
     def test_state_is_stamped_under_the_actor_lock_and_sent_outside(self):

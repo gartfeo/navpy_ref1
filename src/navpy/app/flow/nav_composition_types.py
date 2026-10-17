@@ -42,6 +42,7 @@ from navpy.core.swarm.nav_network import NavNetworkRuntime
 from navpy.core.flow.nav_state import (
     ConfirmGateState,
     ConfirmOverrideInbox,
+    PostDockClimb,
     NavigationTaskState,
     GeoHoldState,
     NavigationFailureLatch,
@@ -98,6 +99,7 @@ class NavStateOwnership:
     geo_hold: GeoHoldState
     confirm: ConfirmGateState
     overrides: ConfirmOverrideInbox
+    post_dock_climb: PostDockClimb
 
 
 @dataclass(frozen=True)

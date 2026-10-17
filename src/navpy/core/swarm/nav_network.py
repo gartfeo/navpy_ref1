@@ -108,17 +108,17 @@ class NavNetworkRuntime:
         if self.peer_dispatch is not None and pois:
             self.peer_dispatch.submit(pois)
 
-    def publish_approaching(self, approaching: bool) -> None:
-        """Tell the swarm whether nav flies a final approach (BUSY).
+    def publish_participation(self, approaching: bool, docked: bool) -> None:
+        """Tell the swarm whether nav flies a final approach or is docked.
 
-        Called every nav cycle; only a change, or a new actor, takes the
-        actor's lock.
+        Either one is BUSY. Called every nav cycle; only a change, or a new
+        actor, takes the actor's lock, and both flags change in one update.
         """
         actor = self.task_actor
-        if actor is None or self._published == (actor, approaching):
+        if actor is None or self._published == (actor, approaching, docked):
             return
-        self._published = (actor, approaching)
-        actor.set_approaching(approaching)
+        self._published = (actor, approaching, docked)
+        actor.set_participation(approaching, docked)
 
     def start_task_actor(self) -> None:
         if self.task_actor is not None:

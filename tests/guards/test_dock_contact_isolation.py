@@ -30,6 +30,8 @@ CONTACT_VALUE_READERS = frozenset({
     "src/navpy/core/ports/dock_contact.py",
     "src/navpy/core/approach/vision_nav/diagnostics.py",
     "src/navpy/core/approach/dock_contact_episode.py",
+    # The DOCKED state line, after the command fence (docked_state.md).
+    "src/navpy/core/flow/nav_transition.py",
 })
 # The final-approach command path: frames, projection, admission, the law
 # and every file that can reach the actuator.
@@ -108,6 +110,19 @@ def test_contact_values_are_read_only_by_evidence_and_the_producer():
         hits += [
             f"{relative}:{hit}"
             for hit in _contact_value_reads(ast.parse(path.read_text("utf-8")))
+        ]
+    assert not hits, hits
+
+
+def test_command_path_never_reads_the_docked_state_gate():
+    """The DOCKED state's contact is read after the fence, never a command input."""
+    gate = {"own_dock_contact"}
+    hits = []
+    for path in _command_path_files():
+        hits += [
+            f"{_relative(path)}:{node.attr}@{node.lineno}"
+            for node in ast.walk(ast.parse(path.read_text("utf-8")))
+            if isinstance(node, ast.Attribute) and node.attr in gate
         ]
     assert not hits, hits
 

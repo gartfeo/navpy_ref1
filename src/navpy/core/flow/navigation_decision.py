@@ -236,6 +236,10 @@ class NavigationDecision:
 
     def decide(self) -> None:
         previous = self._phase.current
+        if previous is NavState.DOCKED and self._args.is_oneshot:
+            # A single-cycle dock is final (docked_state.md): no other
+            # decision may turn it into ONHOLD, DETECT or a new task.
+            return
         mode = self._ports.vehicle_mode()
         next_waypoint = self._ports.next_waypoint()
         if self._inactive.apply(mode, next_waypoint):

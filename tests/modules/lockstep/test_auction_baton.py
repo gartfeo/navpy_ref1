@@ -173,7 +173,7 @@ def test_a_request_ack_on_the_resend_deadline_tick_is_handled_before_the_resend(
 # -- stale BUSY evidence (MsgRef.follows) -------------------------------------
 
 def _set_approaching(swarm: BatonSwarm, node: int, approaching: bool):
-    return lambda: swarm.actors[node].set_approaching(approaching)
+    return lambda: swarm.actors[node].set_participation(approaching, False)
 
 
 def _heartbeat(s: Sent, sender: int, state: SwarmNodeState) -> bool:

@@ -362,17 +362,19 @@ class TestNavState(unittest.TestCase):
         self.assertEqual(NavState.NAV.value, 3)
         self.assertEqual(NavState.RESET.value, 4)
         self.assertEqual(NavState.RECOVERY.value, 5)
+        self.assertEqual(NavState.DOCKED.value, 6)
 
     def test_all_states_defined(self):
         """All expected states are defined."""
         states = list(NavState)
-        self.assertEqual(len(states), 6)
+        self.assertEqual(len(states), 7)
         self.assertIn(NavState.ONHOLD, states)
         self.assertIn(NavState.DETECT, states)
         self.assertIn(NavState.CONFIRM, states)
         self.assertIn(NavState.NAV, states)
         self.assertIn(NavState.RESET, states)
         self.assertIn(NavState.RECOVERY, states)
+        self.assertIn(NavState.DOCKED, states)
 
 
 # =============================================================================
