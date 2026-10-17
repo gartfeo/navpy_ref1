@@ -104,17 +104,27 @@ def load_delivery_evidence(
 
 
 def _approved_at(approvals: Sequence[Mapping[str, JsonValue]], sys_id: int) -> tuple[int, float] | None:
+    """(task, the earliest time the approval could be posted).
+
+    approved_at_unix_s is taken when the POST returns, after the backend has
+    forwarded the approval, so NavPy can arm before it. The POST is sent
+    only once the operator delay has passed since the request was seen.
+    """
     rows = [row for row in approvals if row["sys_id"] == sys_id]
     if len(rows) != 1:
         return None  # approval_counts reports it
-    return int(rows[0]["task_id"]), float(rows[0]["approved_at_unix_s"])  # type: ignore[arg-type]
+    row = rows[0]
+    posted = float(row["request_observed_at_unix_s"]) + float(row["requested_delay_s"])  # type: ignore[arg-type]
+    return int(row["task_id"]), posted  # type: ignore[arg-type]
 
 
 def docking_errors(
     sys_id: int, text: str, episodes: list[FinalApproachEpisode],
     docks: Sequence[DockSpec], dock: int, approval: tuple[int, float] | None,
 ) -> list[str]:
-    """One episode at *dock*, entered after its approval, then DOCKED there."""
+    """One episode at *dock*, entered after its approval (the operator's
+    earliest POST time, and NavPy's own confirmed -> INIT NAV order), then
+    DOCKED there."""
     name = docks[dock].name
     if len(episodes) != 1:
         return [f"UAV {sys_id} has {len(episodes)} final-approach episodes, not one at {name}"]
@@ -129,6 +139,10 @@ def docking_errors(
         armed.wall_s is not None and math.isfinite(armed.wall_s) and armed.wall_s >= approval[1]
     ):
         errors.append(f"UAV {sys_id} entered NAV for {name} before its approval")
+    if approval is not None and not (
+        0 <= text.find(f"POI {approval[0]} confirmed by ground station.") < text.find("INIT: NAV MODE")
+    ):
+        errors.append(f"UAV {sys_id} entered NAV before it logged the approval of task {approval[0]}")
     docked = episode.docked_row
     if docked is None or docked.dock != dock:
         errors.append(f"UAV {sys_id} has no DOCKED row at {name}")

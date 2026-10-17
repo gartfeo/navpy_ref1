@@ -129,16 +129,17 @@ def _selection(obj: int) -> str:
 
 
 def offerer_errors(text: str, dock: int) -> list[str]:
-    """Orbit, then the d1 detection lock, then its selection and review."""
+    """The d1 detection lock, then its self-detect orbit, then its selection
+    and review (e2b: the orbit directly before the selection)."""
     errors = []
     if _ASSIGNED_RE.search(text) or PEER_APPROACH_MARKER in text:
         errors.append("offerer flew a peer task")
     lock = _at(text, f"start_tracking obj_id={dock} ")
     select = _at(text, _selection(dock))
     confirming = _at(text, "CONFIRMING: P")
-    orbit = _at(text, _ORBIT)
-    if not 0 <= orbit < lock <= select < confirming:
-        errors.append(f"offerer order is not orbit -> lock -> select -> CONFIRMING for obj {dock}")
+    orbit = _at(text, _ORBIT, max(lock, 0))
+    if not 0 <= lock < orbit < select < confirming:
+        errors.append(f"offerer order is not lock -> orbit -> select -> CONFIRMING for obj {dock}")
     return errors
 
 

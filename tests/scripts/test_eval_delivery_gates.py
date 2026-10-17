@@ -32,6 +32,7 @@ DOCKS = parse_fleet_docks(FIXTURE["docks"])
 NAMES = [dock.name for dock in DOCKS]
 D1, D2 = NAMES.index("d1"), NAMES.index("d2")
 HOME_WEST = NAMES.index("home-west")
+#: The earliest the approval can be posted: request seen + operator delay.
 APPROVED_AT = 1000.0
 T = "2026-10-17 10:00:00,000 INFO "
 
@@ -46,6 +47,7 @@ def _review(dock: int, snap: float = 0.3) -> list[str]:
         f"POI: P1 (tracking obj_id={dock})",
         "CONFIRMING: P1",
         "POI 1 confirmed by ground station.",
+        "INIT: NAV MODE",
         f"t_l (truth): {_at(dock)}, 0.0",
         f"SNAP(VISION-NAV-PN): 3d={snap}(h=0.2; v=0.1)",
     ]
@@ -58,7 +60,7 @@ def _text(lines: list[str]) -> str:
 def _offerer() -> list[str]:
     review = _review(D1)
     offer = f"Task offered: task_id=2 obj_id={D2} at ({_at(D2)}) sent=True"
-    return ["Self-detect orbit: poi=x orbit_r=500m", *review[:2], offer, *review[2:]]
+    return [review[0], "Self-detect orbit: poi=x orbit_r=500m", review[1], offer, *review[2:]]
 
 
 def _winner() -> list[str]:
@@ -107,7 +109,8 @@ def _evidence(texts=None, episodes=None, backend=BACKEND) -> DeliveryEvidence:
 
 
 APPROVALS = [
-    {"sys_id": sys_id, "task_id": 1, "approved_at_unix_s": APPROVED_AT} for sys_id in (1, 2, 3)
+    {"sys_id": sys_id, "task_id": 1, "request_observed_at_unix_s": APPROVED_AT - 15.0,
+     "requested_delay_s": 15.0, "approved_at_unix_s": APPROVED_AT + 0.6} for sys_id in (1, 2, 3)
 ]
 
 
@@ -144,6 +147,22 @@ def test_an_approach_before_approval_fails():
     episodes = {1: [_episode(1, D1, wall_s=APPROVED_AT - 1.0)], 2: [_episode(2, D2)],
                 3: [_episode(3, HOME_WEST)]}
     _fails(_evidence(episodes=episodes), "UAV 1 entered NAV for d1 before its approval")
+
+
+def test_arming_while_the_approval_post_is_in_flight_passes():
+    """The POST returns after the backend forwards the approval (e10 r1: 0.5 s)."""
+    episodes = {1: [_episode(1, D1, wall_s=APPROVED_AT + 0.05)], 2: [_episode(2, D2)],
+                3: [_episode(3, HOME_WEST)]}
+    assert _errors(_evidence(episodes=episodes)) == []
+
+
+def test_nav_before_navpy_logs_the_approval_fails():
+    """Inside the time bound, but NavPy entered NAV before its confirmation."""
+    winner = [line for line in _winner() if "INIT: NAV" not in line]
+    at = next(i for i, line in enumerate(winner) if "confirmed by ground station" in line)
+    winner.insert(at, "INIT: NAV MODE")
+    _fails(_evidence({1: _offerer(), 2: winner, 3: _home()}),
+           "UAV 2 entered NAV before it logged the approval of task 1")
 
 
 def test_a_home_dock_offer_fails_by_id_and_by_position():
@@ -183,10 +202,16 @@ def test_an_offer_of_another_task_fails():
     _fails(_evidence({1: offerer, 2: _winner(), 3: _home()}), "offered task 99 is not the APPLIED task 2")
 
 
-def test_a_lock_before_the_orbit_fails():
+def test_an_orbit_before_the_lock_fails():
     offerer = _offerer()
     reordered = [offerer[1], offerer[0], *offerer[2:]]
-    _fails(_evidence({1: reordered, 2: _winner(), 3: _home()}), "offerer order is not orbit -> lock")
+    _fails(_evidence({1: reordered, 2: _winner(), 3: _home()}), "offerer order is not lock -> orbit")
+
+
+def test_an_orbit_after_the_selection_fails():
+    offerer = _offerer()
+    reordered = [offerer[0], offerer[2], offerer[1], *offerer[3:]]
+    _fails(_evidence({1: reordered, 2: _winner(), 3: _home()}), "offerer order is not lock -> orbit")
 
 
 def test_the_parser_keeps_each_episode_s_own_armed_and_docked_rows(tmp_path):

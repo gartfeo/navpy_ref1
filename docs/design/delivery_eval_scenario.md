@@ -270,10 +270,12 @@ the code three times (ship with changes twice, then ship).
   dock, by id or within 30 m of one (the e5 home-dock radius; "one dock diagonal" is defined nowhere), fails.
 - Assignment: the APPLIED names an accepted bid of the winner, no rejection from it, the request is at d2, and the
   home UAV takes part in no assignment line.
-- Offerer: orbit, then the d1 lock, then its selection and review, in that one order. Winner: assigned by the offerer, then DO_REPOSITION to d2,
+- Offerer: the d1 lock, then its self-detect orbit, then its selection and review, in that one order (e2b; e10 r1
+  showed the lock first). Winner: assigned by the offerer, then DO_REPOSITION to d2,
   then peer navigation, then the d2 selection and review, and no AUTO resume after the assignment. Home: hub
   navigation at its own home dock, then that dock's lock and selection.
-- Each UAV: one episode at its role's dock; NAV entry (DOCK_ARMED wall time) after its approval; a DOCKED row at that
+- Each UAV: one episode at its role's dock; NAV entry (DOCK_ARMED wall time) no earlier than its approval could be posted (request seen +
+  operator delay; `approved_at_unix_s` is taken after the POST returns, todo 59); a DOCKED row at that
   dock after NAV entry (aircraft clock); the 1 m truth binding to the dock. Every obj id is a world dock.
 - Docked = the DOCKED row, the contact sensor's closest pass from telemetry (owner, 2026-10-17). The SNAP line is
   frame-sampled and coarser: in `.logs/s11/attrib/c5547c3` it read 2.1, 1.7 and 0.5 m where the sensor read 0.05,
