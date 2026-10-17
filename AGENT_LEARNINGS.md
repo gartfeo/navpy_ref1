@@ -676,3 +676,17 @@
 - **Backslash continuations in a heredoc'd Python edit collapse into one line.** `\` plus a
   newline inside a normal string literal is a line continuation. Edit test code that has `\`
   continuations with the Edit tool.
+
+## Delivery e6 gates and e10 runs (2026-10-17)
+
+- **Check a gate's source and order against a real run before a review locks it in.** Three
+  e6 checks were wrong on first contact with real logs: the frame-sampled SNAP line read
+  2.1 m where the contact sensor read 0.05 m; the offerer locks d1 before its self-detect
+  orbit, not after (my build note had it backwards, and a review then tightened the wrong
+  chain); `approved_at_unix_s` is taken after the approve POST returns, so NavPy arms about
+  0.5 s before it. Each fix took a run. Before writing an ordering or timing check, grep one
+  existing run log (e2b, s11) for the exact markers and timestamps.
+- **Read what a "check" field actually computes.** The approval record's
+  `nav_before_approval` is the literal `False` (todo 59). A field name is not evidence.
+- **`--analyze-only` prints the new report and leaves the run's `report.json` alone**, so a
+  failed run can be re-gated after a gate fix without losing its original report.
