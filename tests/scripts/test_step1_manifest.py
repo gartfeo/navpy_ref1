@@ -104,7 +104,7 @@ def test_reexports_match_the_plan() -> None:
 
 def test_exceptions_parse() -> None:
     guards = Counter(e.guard for e in sm.load_exceptions(REPO_ROOT))
-    assert guards == {"layer": 28, "vision": 15}
+    assert guards == {"layer": 27, "vision": 15}
 
 
 @pytest.mark.parametrize("bad_line, message", [

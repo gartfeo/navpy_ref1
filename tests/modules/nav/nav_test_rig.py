@@ -144,7 +144,6 @@ class NavTestRig:
         self.nav_decision = self.decision._nav
         self.navigation_failures = self.nav_decision._failures
         self.poi_status = self.decision._poi_status
-        self.mission = self.decision._mission
         self.detection_state = self.cycle._detections
         self.detections = _DetectionTestView(self.detection_state)
 
@@ -187,6 +186,7 @@ class NavTestRig:
         self.speedup = self.navigation_task_action._speedup
         self.vehicle_navigation = self.fallback_navigation._commands
         self.approach_planner = self.fallback_navigation._approach_planner
+        self.mission = self.fallback_navigation._catalog
 
         self.frame_policy = self.confirmation_action._frame_policy
         self.final_approach_admission = self.confirmation_action._final_approach_admission

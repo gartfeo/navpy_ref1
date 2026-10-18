@@ -8,7 +8,6 @@ from typing import Callable, Optional
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
-from navpy.core.flow.mission_catalog import MissionCatalog
 from navpy.core.flow.mission_navigation import MissionPassPolicy
 from navpy.core.flow.nav_constants import (
     GUIDED_ACCEPT_TIMEOUT_S,
@@ -33,6 +32,7 @@ from navpy.core.ports.flight_mode import FlightMode
 class InactiveGuardPorts:
     vehicle_armed: Callable[[], bool]
     clear_navigation_task: Callable[[], None]
+    flow_task_active: Callable[[], bool]
     # A swarm-assigned peer task flies to its dock from wherever the UAV is,
     # so the detection-waypoint hold does not apply to it; own search still
     # waits (DetectAction). Disarm or a manual mode cancels it like any task.
@@ -53,7 +53,6 @@ class InactiveNavigationGuard:
         phase: NavPhaseState,
         navigation_task: NavigationTaskState,
         confirm: ConfirmGateState,
-        mission: MissionCatalog,
         confirmation_manager: ConfirmationManager,
         loiter_radius: LoiterRadiusLease,
         mission_pass: MissionPassPolicy,
@@ -63,7 +62,6 @@ class InactiveNavigationGuard:
         self._phase = phase
         self._navigation_task = navigation_task
         self._confirm = confirm
-        self._mission = mission
         self._confirmation_manager = confirmation_manager
         self._loiter_radius = loiter_radius
         self._mission_pass = mission_pass
@@ -76,7 +74,7 @@ class InactiveNavigationGuard:
             or self._confirmation_manager.active_poi is not None
             or self._navigation_task.navigation_poi_location is not None
             or self._navigation_task.peer_navigation
-            or self._mission.default_delivery_hub_active
+            or self._ports.flow_task_active()
             or self._ports.peer_task_assigned()
         )
         if not self._ports.vehicle_armed():
@@ -221,7 +219,6 @@ class NavigationDecision:
         recovery: RecoveryAction,
         nav: NavStateDecision,
         poi_status: ConfirmationStatusDecision,
-        mission: MissionCatalog,
     ) -> None:
         self._ports = ports
         self._phase = phase
@@ -229,7 +226,6 @@ class NavigationDecision:
         self._recovery = recovery
         self._nav = nav
         self._poi_status = poi_status
-        self._mission = mission
 
     def decide(self) -> None:
         previous = self._phase.current

@@ -32,6 +32,7 @@ from navpy.app.flow.nav_final_approach_composition import (
 )
 from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.plugins.vehicle.ardupilot.mission_metadata import read_mission_metadata
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
@@ -65,12 +66,14 @@ def create_nav_application(
         scheduler_cadence,
         navigation.final_approach.latch_failure,
     )
+    metadata = read_mission_metadata(vehicle)
     poi = compose_poi_mission_ownership(
         vehicle,
         detection,
         args,
         logger,
         state,
+        metadata,
     )
     approach = compose_vehicle_approach_ownership(
         vehicle,
@@ -79,6 +82,7 @@ def create_nav_application(
         logger,
         profile,
         approach_kind,
+        metadata.scan_altitude_rel,
         state,
         navigation_capabilities,
         lambda *pos, **kw: calc_peer_approach_offset(*pos, **kw),
@@ -98,7 +102,6 @@ def create_nav_application(
         detection,
         args,
         logger,
-        approach_kind,
         state,
         poi,
         approach,

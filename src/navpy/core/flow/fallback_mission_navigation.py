@@ -8,7 +8,6 @@ from typing import Callable, Optional
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
-from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
 from navpy.core.skills.acquire.approach_planner import ApproachPlanner
 from navpy.core.flow.mission_catalog import MissionCatalog
 from navpy.core.flow.nav_state import NavigationTaskState
@@ -35,7 +34,6 @@ class FallbackMissionNavigation:
         navigation_task: NavigationTaskState,
         approach_planner: ApproachPlanner,
         commands: VehicleNavigationCommands,
-        approach_kind: ApproachKind,
         logger: ILogger,
     ) -> None:
         self._ports = ports
@@ -43,7 +41,6 @@ class FallbackMissionNavigation:
         self._navigation_task = navigation_task
         self._approach_planner = approach_planner
         self._commands = commands
-        self._approach_kind = approach_kind
         self._logger = logger
 
     def should_nav_to_fallback(self) -> bool:
@@ -66,7 +63,7 @@ class FallbackMissionNavigation:
                 poi,
                 location_type=self._catalog.default_delivery_hub_type,
             )
-        plan, loiter_alt = self.plan_orbit_approach(
+        plan, loiter_alt = self._approach_planner.plan_orbit_approach(
             poi,
             DOCK_DETECT_CLASS_ID,
             self._ports.current_relative(),
@@ -88,18 +85,4 @@ class FallbackMissionNavigation:
             f"{f', orbit_r={plan.orbit_radius:.0f}m' if plan.orbit_radius else ''})",
             key="nav",
             dest=LogStatusDest.DRONE,
-        )
-
-    def plan_orbit_approach(
-        self,
-        poi: Location,
-        class_id: int,
-        drone_location: Optional[Location],
-    ) -> tuple[ApproachPlan, Optional[float]]:
-        return self._approach_planner.plan(
-            poi,
-            class_id,
-            drone_location,
-            approach_kind=self._approach_kind,
-            approach_alt_rel=self._catalog.scan_altitude_rel,
         )

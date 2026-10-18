@@ -92,7 +92,7 @@ def _homing_controller(approach_kind=ApproachKind.OFFSET):
         approach_kind=approach_kind,
     )
     controller.mission.default_delivery_hub = HOME
-    controller.mission.scan_altitude_rel = 90.0
+    controller.approach_planner.scan_altitude_rel = 90.0
     task_actor = _idle_task_actor(controller)
     return controller, task_actor
 

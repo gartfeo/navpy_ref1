@@ -342,7 +342,6 @@ def _decision(*, oneshot: bool):
         recovery,
         nav,
         poi_status,
-        Mock(),
     )
     return decision, (inactive, recovery, nav, poi_status)
 

@@ -25,6 +25,7 @@ from navpy.core.flow.navigation_speedup import (
 )
 from navpy.core.flow.mission_catalog import MissionCatalog
 from navpy.core.flow.nav_clock import NavClock
+from navpy.plugins.vehicle.ardupilot.mission_metadata import MissionMetadata
 from navpy.app.flow.nav_composition_types import (
     DetectionReviewOwnership,
     NavCapabilities,
@@ -102,9 +103,10 @@ def compose_poi_mission_ownership(
     args: NavArgs,
     logger: ILogger,
     state: NavStateOwnership,
+    metadata: MissionMetadata,
 ) -> PoiMissionOwnership:
-    mission = MissionCatalog(vehicle)
-    mission.refresh()
+    mission = MissionCatalog()
+    mission.update(metadata.default_delivery_hub, metadata.default_delivery_hub_type)
     pass_tracker = LegacyPassTracker(
         close_distance_m=POI_CLOSE_DIST,
         distance_epsilon_m=DIST_EPS,
@@ -138,6 +140,7 @@ def compose_vehicle_approach_ownership(
     logger: ILogger,
     profile: dict,
     approach_kind: ApproachKind,
+    scan_altitude_rel: Optional[float],
     state: NavStateOwnership,
     navigation: NavCapabilities,
     calculate_approach: ApproachCalculator,
@@ -148,6 +151,8 @@ def compose_vehicle_approach_ownership(
         lambda: navigation.final_approach.is_active,
         profile,
         logger,
+        approach_kind,
+        scan_altitude_rel,
         calculate_approach,
     )
     loiter_radius = LoiterRadiusLease(vehicle, logger)

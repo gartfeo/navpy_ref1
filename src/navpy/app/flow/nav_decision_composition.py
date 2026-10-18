@@ -61,12 +61,12 @@ def compose_decision_workflows(
         InactiveGuardPorts(
             vehicle_armed=lambda: vehicle.is_armed,
             clear_navigation_task=confirmation.reset.reset.clear,
+            flow_task_active=lambda: poi.mission.default_delivery_hub_active,
             peer_task_assigned=lambda: observation.network.selected_poi() is not None,
         ),
         state.phase,
         state.navigation_task,
         state.confirm,
-        poi.mission,
         poi.confirmation_manager,
         approach.loiter_radius,
         navigation_workflows.mission_navigation.mission_pass,
@@ -98,7 +98,6 @@ def compose_decision_workflows(
         recovery,
         nav,
         confirmation.poi_status,
-        poi.mission,
     )
     return DecisionWorkflows(recovery, decision)
 

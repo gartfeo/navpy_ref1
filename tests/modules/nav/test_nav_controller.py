@@ -5191,7 +5191,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             vehicle, _create_mock_detector(), navigation,
             _create_mock_args(), Mock(), approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = 90.0
+        controller.approach_planner.scan_altitude_rel = 90.0
         poi = Location(40.001, 44.001, 100.0, is_absolute=True)
         camera_sized = ApproachPlan(
             kind=ApproachKind.ORBIT,
@@ -5204,7 +5204,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
                 "navpy.app.flow.nav_composition.calc_peer_approach_offset",
                 return_value=camera_sized,
         ):
-            plan, _ = controller.fallback_navigation.plan_orbit_approach(
+            plan, _ = controller.approach_planner.plan_orbit_approach(
                 poi,
                 class_id=0,
                 drone_location=Location(40.0, 44.0, 135.0, is_absolute=True),
@@ -5230,7 +5230,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             vehicle, _create_mock_detector(), navigation,
             _create_mock_args(), Mock(), approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = 150.0
+        controller.approach_planner.scan_altitude_rel = 150.0
 
         for height_above_poi_m in (0.0, 9.0, 10.0, 11.0):
             poi = Location(
@@ -5249,7 +5249,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
                     "navpy.app.flow.nav_composition.calc_peer_approach_offset",
                     return_value=camera_sized,
             ):
-                plan, _ = controller.fallback_navigation.plan_orbit_approach(
+                plan, _ = controller.approach_planner.plan_orbit_approach(
                     poi,
                     class_id=0,
                     drone_location=Location(
@@ -5376,7 +5376,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         )
 
         with patch.object(
-                controller.fallback_navigation, "plan_orbit_approach",
+                controller.approach_planner, "plan_orbit_approach",
                 return_value=(plan, 115.0),
         ):
             controller.fallback_navigation.setup()
@@ -5433,7 +5433,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             vehicle, _create_mock_detector(), navigation,
             _create_mock_args(), logger, approach_kind=ApproachKind.ORBIT,
         )
-        controller.fallback_navigation.plan_orbit_approach = Mock(return_value=(
+        controller.approach_planner.plan_orbit_approach = Mock(return_value=(
             ApproachPlan(
                 kind=ApproachKind.ORBIT,
                 approach_location=ground,
@@ -5460,7 +5460,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         navigation.legacy_pois.ground_location.assert_called_once_with(
             poi, allow_fallback=False, reference_height_m=0.0)
         self.assertEqual(
-            controller.fallback_navigation.plan_orbit_approach.call_args.args[0],
+            controller.approach_planner.plan_orbit_approach.call_args.args[0],
             ground)
         loiter = navigation.vehicle_commands.peer_poi_loiter
         loiter.assert_called_once_with(ground, 300.0, 115.0)
@@ -5472,7 +5472,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
         controller.navigation_task_action.start(poi)
 
-        controller.fallback_navigation.plan_orbit_approach.assert_not_called()
+        controller.approach_planner.plan_orbit_approach.assert_not_called()
         navigation.vehicle_commands.peer_poi_loiter.assert_not_called()
         self.assertEqual(controller.navigation_task.orbit_radius_m, 0.0)
         self.assertIsNone(controller.navigation_task.navigation_poi_location)
@@ -5733,7 +5733,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             vehicle, _create_mock_detector(), navigation,
             _create_mock_args(), Mock(), approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = 150.0  # mission scan/navigation task alt
+        controller.approach_planner.scan_altitude_rel = 150.0  # mission scan/navigation task alt
 
         with patch(
             "navpy.app.flow.nav_composition.calc_peer_approach_offset",
@@ -5998,7 +5998,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = 150.0
+        controller.approach_planner.scan_altitude_rel = 150.0
         controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
@@ -6037,7 +6037,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = 150.0
+        controller.approach_planner.scan_altitude_rel = 150.0
         controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
@@ -6071,7 +6071,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = 150.0
+        controller.approach_planner.scan_altitude_rel = 150.0
         controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
@@ -6106,7 +6106,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, approach_kind=ApproachKind.OFFSET,
         )
-        controller.mission.scan_altitude_rel = 150.0
+        controller.approach_planner.scan_altitude_rel = 150.0
         controller.mission.default_delivery_hub = Location(40.001, -74.001, 0.0)
 
         with patch(
@@ -6130,15 +6130,15 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         # The mission's scan/zone band (not the higher corridor band) is
         # the navigation task altitude the orbit is sized for.
         controller = _create_controller()
-        controller.mission.scan_altitude_rel = 150.0
-        self.assertEqual(controller.mission.scan_altitude_rel, 150.0)
+        controller.approach_planner.scan_altitude_rel = 150.0
+        self.assertEqual(controller.approach_planner.scan_altitude_rel, 150.0)
 
     def test_navigation_task_alt_rel_none_without_mission_source(self):
         # No mission scan altitude -> None (callers fall back to legacy
         # camera-range sizing, never the climb-time or corridor altitude).
         controller = _create_controller()
-        controller.mission.scan_altitude_rel = None
-        self.assertIsNone(controller.mission.scan_altitude_rel)
+        controller.approach_planner.scan_altitude_rel = None
+        self.assertIsNone(controller.approach_planner.scan_altitude_rel)
 
     def test_setup_peer_navigation_sizes_orbit_for_scan_alt(self):
         """Peer-nav that begins mid-climb must size the ORBIT for the
@@ -6160,7 +6160,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = 150.0  # scan/navigation task alt (rel-to-home)
+        controller.approach_planner.scan_altitude_rel = 150.0  # scan/navigation task alt (rel-to-home)
         task_loc = Mock(lat=40.5, lng=-74.5, alt=1300.0)  # POI MSL
         controller.network.task_actor = Mock()
         controller.network.task_actor.selected_poi.return_value = Mock(
@@ -6235,7 +6235,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = 150.0
+        controller.approach_planner.scan_altitude_rel = 150.0
         drone_rel = Location(40.0, -74.0, 30.0, is_absolute=False)
         with patch(
             "navpy.app.flow.nav_composition.calc_peer_approach_offset",
@@ -6244,7 +6244,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
                 approach_location=Location(40.5, -74.5, 0.0),
                 offset_distance=0.0, orbit_radius=300.0),
         ) as calc:
-            _, loiter_alt = controller.fallback_navigation.plan_orbit_approach(
+            _, loiter_alt = controller.approach_planner.plan_orbit_approach(
                 Location(40.5, -74.5, 1296.0, is_absolute=True), 0, drone_rel)
         drone_arg = calc.call_args.args[1]
         self.assertTrue(drone_arg.is_absolute)
@@ -6266,7 +6266,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = 150.0
+        controller.approach_planner.scan_altitude_rel = 150.0
         drone_rel = Location(40.0, -74.0, 30.0, is_absolute=False)
         with patch(
             "navpy.app.flow.nav_composition.calc_peer_approach_offset",
@@ -6275,7 +6275,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
                 approach_location=Location(40.5, -74.5, 0.0),
                 offset_distance=0.0, orbit_radius=300.0),
         ) as calc:
-            _, loiter_alt = controller.fallback_navigation.plan_orbit_approach(
+            _, loiter_alt = controller.approach_planner.plan_orbit_approach(
                 Location(40.5, -74.5, 0.0, is_absolute=False), 0, drone_rel)
         drone_arg = calc.call_args.args[1]
         self.assertFalse(drone_arg.is_absolute)
@@ -6294,7 +6294,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, approach_kind=ApproachKind.ORBIT,
         )
-        controller.mission.scan_altitude_rel = None
+        controller.approach_planner.scan_altitude_rel = None
         drone = Location(40.0, -74.0, 30.0, is_absolute=False)
         with patch(
             "navpy.app.flow.nav_composition.calc_peer_approach_offset",
@@ -6303,7 +6303,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
                 approach_location=Location(40.5, -74.5, 0.0),
                 offset_distance=0.0, orbit_radius=80.0),
         ) as calc:
-            _, loiter_alt = controller.fallback_navigation.plan_orbit_approach(
+            _, loiter_alt = controller.approach_planner.plan_orbit_approach(
                 Location(40.5, -74.5, 1296.0, is_absolute=True), 0, drone)
         self.assertIs(calc.call_args.args[1], drone)
         self.assertIsNone(calc.call_args.kwargs["orbit_limits"])
@@ -6929,7 +6929,7 @@ class TestNavControllerReset(unittest.TestCase):
 
                     return Mock(side_effect=run)
 
-                controller.state_reset._mission.clear_navigation_task = action("mission")
+                controller.mission.clear_navigation_task = action("mission")
                 controller.state_reset._detections.clear = action("detections")
                 controller.state_reset._retry.full_reset = action("retry")
                 controller.state_reset._pass_tracker.reset = action("pass")

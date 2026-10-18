@@ -61,7 +61,6 @@ def compose_mission_navigation_ownership(
     detection: DetectionCoordination,
     args: NavArgs,
     logger: ILogger,
-    approach_kind: ApproachKind,
     state: NavStateOwnership,
     poi: PoiMissionOwnership,
     approach: VehicleApproachOwnership,
@@ -79,7 +78,6 @@ def compose_mission_navigation_ownership(
         state.navigation_task,
         approach.planner,
         approach.commands,
-        approach_kind,
         logger,
     )
     mission_pass = MissionPassPolicy(
@@ -148,10 +146,7 @@ def compose_navigation_task_workflows(
             PeerApproachPorts(
                 current_absolute=lambda: vehicle.location(False),
                 plan_orbit=lambda *pos, **kw: (
-                    mission_navigation.fallback_navigation.plan_orbit_approach(
-                        *pos,
-                        **kw,
-                    )
+                    approach.planner.plan_orbit_approach(*pos, **kw)
                 ),
                 request_guided=lambda: approach.commands.request_guided(),
                 dispatch_approach=lambda *pos, **kw: (
@@ -203,10 +198,7 @@ def compose_navigation_task_workflows(
             ground_location=navigation.legacy_pois.ground_location,
             current_relative=lambda: vehicle.location(True),
             plan_orbit=lambda *pos, **kw: (
-                mission_navigation.fallback_navigation.plan_orbit_approach(
-                    *pos,
-                    **kw,
-                )
+                approach.planner.plan_orbit_approach(*pos, **kw)
             ),
             absolute_location=approach.commands.absolute_location,
             save_loiter_radius=lambda: approach.commands.save_loiter_radius(),
