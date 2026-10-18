@@ -750,3 +750,16 @@
 - A position reported "at disarm" is the first GCS telemetry frame after the event, and frames are 0.2 s wall = 2 s sim
   at SIM_SPEEDUP 10. Before suspecting a frame offset, take the frames on both sides from the WS trace and check whether
   the line between them passes the dock horizontally; here within 0.7 m and the aircraft kept moving after a net-less contact.
+
+## GCS video streams and FPV (2026-10-18)
+- `plugins/vehicle` must not import `core/perception`; pass the camera's stream specs in as plain
+  data from the app composition layer, or the layer guard fails.
+- `rt` (runtime_time) has no bounded-queue full exception; design request queues so they never need one.
+- Standalone HTML mocks: never declare a global `top` (it clashes with `window.top` and blanks the page),
+  and the app's file preview runs no JS, so pre-render mocks to static HTML or PNG.
+- A saved "free map" camera must be taken on every departure from the free map, chase included;
+  saving only when FPV/RC starts missed Free → chase → FPV → Free (Codex round 1).
+- A profile field that mirrors a protocol numbering must enforce the protocol's rule (MAVLink stream
+  ids are 1..count), or the consumer silently discards it.
+- Untracked `.codex/agents/janitor.toml` / `live-tester.toml` in a worktree fail
+  `test_gen_codex_agents.py` as STALE; check `git status` before blaming a change.
