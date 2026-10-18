@@ -698,3 +698,8 @@
 - The SNAP row is sampled only at command rows, and the dock contact latch stops the commands, so
   SNAP misses the crossing segment (SITL 2026-10-17: contact 0.07 m, SNAP 4.4 m). Decide or score
   docking from the contact sensor's `DOCKED` row, never from SNAP.
+
+## Todo 64 disarm offset (2026-10-18)
+- A position reported "at disarm" is the first GCS telemetry frame after the event, and frames are 0.2 s wall = 2 s sim
+  at SIM_SPEEDUP 10. Before suspecting a frame offset, take the frames on both sides from the WS trace and check whether
+  the line between them passes the dock horizontally; here within 0.7 m and the aircraft kept moving after a net-less contact.
