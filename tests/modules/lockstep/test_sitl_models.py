@@ -47,6 +47,8 @@ def test_the_rng_seed_is_the_noise_stream_for_the_sysid_while_any_sitl_model_is_
     off_wind = ModelDraw("wind", False, {"speed_mps": 6.5})
     assert sm.sitl_rng_seed(realization(NOISE, seed=7), 2) == seed
     assert sm.sitl_rng_seed(realization(off_noise, WIND, seed=7), 2) == seed
+    assert sm.sitl_rng_seed(realization(WIND, seed=7), 2) == seed
+    assert sm.sitl_rng_seeds(realization(WIND, seed=7), (2,)) == {2: seed}
     assert sm.sitl_rng_seed(realization(off_noise, off_wind), 2) is None
     assert sm.sitl_rng_seed(realization(), 2) is None
     assert sm.sitl_rng_seeds(realization(off_noise, off_wind), (1, 2, 3)) == {}
@@ -69,7 +71,7 @@ def test_the_noise_seed_spans_one_to_two_to_the_32_minus_one(monkeypatch, r, see
 
 
 def test_the_shipped_profiles_draw_wind_and_noise_in_the_designs_ranges():
-    """Noise always on (off would only replay the firmware's one fixed sequence),
+    """Noise always on (off, with wind off, would only replay the firmware's one fixed sequence),
     ``SIM_GPS_NOISE`` 0-1 m. Wind 0-8 m/s from any direction with turbulence 0-2 m/s,
     on half the runs, except in ``quiet``: the wall runs it is calibrated against
     fly without wind. ``none`` lists no model."""
