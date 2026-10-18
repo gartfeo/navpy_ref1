@@ -20,8 +20,10 @@ from navpy.core.skills.acquire.approach_strategy import (
 )
 from navpy.core.flow.nav_constants import DOCK_ASSOCIATION_RADIUS_M
 from navpy.core.kernel.location import Location
-from navpy.core.skills.search.dock_roles import DockRolePorts, DockRoles
+from navpy.core.skills.search.poi_selection import PoiSelector
+from navpy.core.skills.search.task_focus import TaskFocus, TaskFocusPorts
 from navpy.core.ports.flight_mode import FlightMode
+from navpy.products.delivery.home_dock import HomeDockRules
 from tests.modules.nav.test_nav_controller import (
     _assigned_peer_task,
     _commit,
@@ -334,51 +336,61 @@ def _north_of(location, metres):
     return Location(location.lat + metres / 111_195.0, location.lng, 0.0)
 
 
-def _roles(*, assigned_dock=None, ground=None, simulation=True):
-    return DockRoles(DockRolePorts(
-        home_dock=lambda: HOME,
-        homing=lambda: False,
+def _rules(*, assigned_dock=None, ground=None, simulation=True):
+    focus = TaskFocus(TaskFocusPorts(
         assigned=lambda: assigned_dock is not None,
         assigned_dock=lambda: assigned_dock,
         detector_is_simulation=lambda: simulation,
         ground_location=lambda *_a, **_k: ground,
     ))
+    return focus, HomeDockRules(focus, lambda: HOME, lambda: False)
+
+
+def _selector_offers(focus, home, poi):
+    """The combined offer check, through the selector that composes it."""
+    manager = Mock(active_poi=None)
+    manager.get_status.return_value = ConfirmationStatus.REJECTED
+    selector = PoiSelector(
+        manager, Mock(), lambda: True, focus, home.offer_allowed, home.order,
+    )
+    _, peers = selector.select([poi])
+    return any(peer is poi for peer in peers)
 
 
 class TestDockAssociationRadius(unittest.TestCase):
 
     def test_the_home_dock_ends_at_the_association_radius(self):
-        roles = _roles()
+        focus, home = _rules()
         inside = _dock(1, _north_of(HOME, DOCK_ASSOCIATION_RADIUS_M - 0.5))
         outside = _dock(2, _north_of(HOME, DOCK_ASSOCIATION_RADIUS_M + 0.5))
 
-        self.assertTrue(roles.is_home_dock(inside))
-        self.assertFalse(roles.is_home_dock(outside))
-        self.assertFalse(roles.may_offer(inside))
-        self.assertTrue(roles.may_offer(outside))
+        self.assertTrue(home.is_home_dock(inside))
+        self.assertFalse(home.is_home_dock(outside))
+        self.assertFalse(_selector_offers(focus, home, inside))
+        self.assertTrue(_selector_offers(focus, home, outside))
 
     def test_the_assigned_dock_ends_at_the_association_radius(self):
-        roles = _roles(assigned_dock=D2)
+        focus, _ = _rules(assigned_dock=D2)
         inside = _dock(1, _north_of(D2, DOCK_ASSOCIATION_RADIUS_M - 0.5))
         outside = _dock(2, _north_of(D2, DOCK_ASSOCIATION_RADIUS_M + 0.5))
 
-        self.assertTrue(roles.may_take(inside))
-        self.assertFalse(roles.may_take(outside))
+        self.assertTrue(focus.may_take(inside))
+        self.assertFalse(focus.may_take(outside))
 
     def test_a_detection_without_a_position_is_neither_home_nor_taken(self):
         # Off the sim and with no ground estimate there is no position.
-        roles = _roles(assigned_dock=D2, simulation=False)
+        focus, home = _rules(assigned_dock=D2, simulation=False)
         poi = _create_detected_poi(obj_id=3)
 
-        self.assertFalse(roles.is_home_dock(poi))
-        self.assertFalse(roles.may_take(poi))
-        self.assertFalse(roles.may_offer(poi))
+        self.assertFalse(home.is_home_dock(poi))
+        self.assertFalse(focus.may_take(poi))
+        self.assertFalse(_selector_offers(focus, home, poi))
 
     def test_off_the_sim_the_ground_estimate_is_used(self):
-        roles = _roles(ground=_north_of(HOME, 5.0), simulation=False)
+        _, home = _rules(ground=_north_of(HOME, 5.0), simulation=False)
         poi = _create_detected_poi(obj_id=3)
 
-        self.assertTrue(roles.is_home_dock(poi))
+        self.assertTrue(home.is_home_dock(poi))
 
 if __name__ == "__main__":
     unittest.main()

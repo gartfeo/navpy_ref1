@@ -13,7 +13,9 @@ from navpy.core.flow.navigation_decision import NavStateDecision
 from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.core.skills.search.task_focus import TaskFocus
 from navpy.products.delivery.flow import DeliveryFlow
+from navpy.products.delivery.home_dock import HomeDockRules
 from navpy.products.delivery.nav_oneshot_completion import (
     OneShotCompletion,
     OneShotCompletionPorts,
@@ -54,4 +56,19 @@ def compose_sortie_finish(
     )
 
 
-__all__ = ["compose_delivery_flow", "compose_sortie_finish"]
+def compose_home_dock_rules(
+    focus: TaskFocus,
+    poi: PoiMissionOwnership,
+) -> HomeDockRules:
+    return HomeDockRules(
+        focus,
+        lambda: poi.mission.default_delivery_hub,
+        lambda: poi.mission.default_delivery_hub_active,
+    )
+
+
+__all__ = [
+    "compose_delivery_flow",
+    "compose_home_dock_rules",
+    "compose_sortie_finish",
+]
