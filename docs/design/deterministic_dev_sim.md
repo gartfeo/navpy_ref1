@@ -9,7 +9,7 @@ Owner, later the same day: avoid two execution routes; one deterministic run for
 
 So lockstep (`deterministic_demo_eval.md`, `lockstep_fleet.md`, `lockstep_contracts.md`) becomes the only way anything simulated runs: development, evals and the simulated demo. Wall time is left for real hardware only, with the same product code on the wall clock (the `RuntimeTime` port, `runtime_time.py`). Two properties must hold together:
 - **Realistic:** the timing, ordering, loss and noise effects that cause bugs in wall mode, and on hardware, also happen in lockstep.
-- **Repeatable:** the same code, manifest and seed give the same digest, as the 5-run matrix proves today (`65aae9e1…`).
+- **Repeatable:** the same code, manifest and seed give the same digest, as the 5-run matrix proves (`dd58131e…` since step 1).
 
 The way to get both is the one established deterministic simulation testing uses: every source of chaos is a model that draws from the run seed, in sim time.
 
@@ -55,7 +55,7 @@ Two kinds of wall bugs need different answers:
 One limit stays: the baton switches threads only at primitives (locks, queues, sleeps), so a race between two bytecodes with no primitive between them cannot happen in lockstep. Seeded thread order (section 2) covers races at primitives, which is where our documented races are (todo 31, 45). A bytecode-level race needs a code review or a wall run; it is listed as a known gap.
 
 ## 2. Seeded realism models
-All models live on the coordinator side or in the participant loop, never in product code. Each draws from its own stream, seeded by SHA-256 of `domain:run seed:model:link or ordinal` as participant seeds are, with values from `random()` only, so turning one model on or off does not shift another's draws. Delays are counted in ticks (about 20 ms; `t_k` is the SITL's `source_us`). Every delayed, dropped or reordered packet keeps a journaled disposition, as the gates require today (`lockstep_fleet.md:196`). With every model off, the digest must equal today's `65aae9e1…`.
+All models live on the coordinator side or in the participant loop, never in product code. Each draws from its own stream, seeded by SHA-256 of `domain:run seed:model:link or ordinal` as participant seeds are, with values from `random()` only, so turning one model on or off does not shift another's draws. Delays are counted in ticks (about 20 ms; `t_k` is the SITL's `source_us`). Every delayed, dropped or reordered packet keeps a journaled disposition, as the gates require today (`lockstep_fleet.md:196`). With every model off, the digest must equal the step-1 baseline `dd58131e…`.
 
 A **profile** (`src/navpy/sim/lockstep/sim_profiles.json`, chosen with `--sim-profile`, default `hw`) gives each model's range. Per seed, the swarm step draws which models are on (each on with probability 0.5 by default) and a value inside each range. The draw is recorded in `input_manifest.json` (`run_options.sim_profile`), not in the journal. A model joins the file in the step that builds it, so until then every profile is empty.
 
@@ -122,11 +122,11 @@ The demo and daily development use the same lockstep run, watched and driven fro
 - **Launcher.** A lockstep run with the app needs frontend and relay ports from its slot, a change to owner ruling 4 ("the eval band, no frontend", `lockstep_slice.md:61`), and todo 55 fixed so `gcs_stop.py` can stop it.
 
 ## 6. Steps
-Each step is small and has its proof. Every step keeps the digest with all models off (`65aae9e1…`, or a documented re-baseline).
+Each step is small and has its proof. Every step keeps the digest with all models off (`dd58131e…`, or a documented re-baseline).
 
 | Step | Change | Proof |
 |---|---|---|
-| 1 | Profile file, per-model seed streams, swarm on/off draw; no model yet | unit tests; matrix digest unchanged |
+| 1 | Profile file, per-model seed streams, swarm on/off draw; no model yet | unit tests; matrix digest unchanged. Done 2026-10-18: base `ae22fb9` gives `dd58131e…` (`65aae9e1…` was an older commit); the branch's 5-run matrix (`hw`) and a `none` run give the same, and only `input_manifest.json` differs |
 | 2 | Firmware: `NAVPY_STEP_RNG_SEED`; lock bump; wind and noise parameters from the profile | same seed: equal baro and airspeed streams; seeds 1 and 2 differ from frame 1; matrix passes |
 | 3 | Link model: delay, jitter, loss, bandwidth, outage at the router and queue seams, every disposition journaled | per-link unit tests with mutations; matrix passes with `hw` |
 | 4 | Process freeze and CPU budget in the participant loop | a regression test where work is already runnable when the freeze starts and timers come due during it; `stress` reproduces todo 65's mode; matrix passes |
