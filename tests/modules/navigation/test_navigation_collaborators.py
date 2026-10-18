@@ -1230,6 +1230,7 @@ def test_navigation_construction_defers_worker_start_until_explicit_start():
         lifecycle=lifecycle,
         mode_state=Mock(),
         final_approach=Mock(),
+        dock_outcome=Mock(),
         legacy_pois=Mock(),
         vehicle_commands=Mock(),
         bind_source_dispatch=Mock(),

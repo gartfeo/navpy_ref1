@@ -136,9 +136,10 @@ class FixedCadenceRunner:
     def _run(self, stop_event: rt.Event | None = None) -> None:
         stop_event = self._stop_event if stop_event is None else stop_event
         while not stop_event.is_set():
-            started_s = rt.monotonic()
+            # perf_counter: monotonic ticks at 15.6 ms on Windows (see the detector poll).
+            started_s = rt.perf_counter()
             self._step.advance()
-            elapsed_s = rt.monotonic() - started_s
+            elapsed_s = rt.perf_counter() - started_s
             wall_period_s = self._scheduler_period_s
             if self._cadence is not None:
                 wall_period_s = self._cadence.wall_period_for_scheduler_period(

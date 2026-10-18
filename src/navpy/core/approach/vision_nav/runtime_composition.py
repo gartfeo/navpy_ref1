@@ -67,6 +67,7 @@ from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.approach.vision_nav.source_time_adapter import (
     PoseCadenceFinalApproachSourceTimeObserver,
 )
+from navpy.core.approach.vision_nav.dock_outcome import FinalApproachDockOutcome
 from navpy.core.approach.vision_nav.docked_evidence import FinalApproachDockedEvidence
 from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch, TerminalObserver
 from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
@@ -76,6 +77,7 @@ from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 class FinalApproachRuntimeComposition:
     runtime: VisionNavRuntime
     confirmation: FinalApproachConfirmation
+    dock_outcome: FinalApproachDockOutcome
 
 
 class FinalApproachVehicleActuator:
@@ -229,7 +231,8 @@ def compose_final_approach_runtime(
             docked_evidence,
         ),
     )
-    return FinalApproachRuntimeComposition(runtime, confirmation)
+    dock_outcome = FinalApproachDockOutcome(lock, episode, diagnostics.record_dock_failed)
+    return FinalApproachRuntimeComposition(runtime, confirmation, dock_outcome)
 
 
 def _attitude_or_none(value: Attitude | None) -> Attitude | None:

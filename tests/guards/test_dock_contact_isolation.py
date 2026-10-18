@@ -115,8 +115,9 @@ def test_contact_values_are_read_only_by_evidence_and_the_producer():
 
 
 def test_command_path_never_reads_the_docked_state_gate():
-    """The DOCKED state's contact is read after the fence, never a command input."""
-    gate = {"own_dock_contact"}
+    """The DOCKED state's contact and the failed-dock terminal (missed_dock.md)
+    are read after the fence, never a command input."""
+    gate = {"own_dock_contact", "dock_terminal", "dock_outcome", "terminal_snapshot"}
     hits = []
     for path in _command_path_files():
         hits += [

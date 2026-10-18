@@ -1,27 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import MediaMTXWebRTCReader from '../vendor/mediamtx/reader';
 
 /**
- * Playback state of the single video feed. `unavailable` means the feed is not
- * configured at all (no build-time WHEP URL) — not that it failed.
- */
-export const WHEP_STATUS = {
-  UNAVAILABLE: 'unavailable',
-  CONNECTING: 'connecting',
-  LIVE: 'live',
-  STALLED: 'stalled',
-  ERROR: 'error',
-};
-
-/**
- * Plays one WHEP stream into a <video> element.
+ * Plays one WHEP stream into a <video> element: signalling, track attach and
+ * release only. Whether frames actually arrive is measured by the caller from
+ * frame progress (useVideoFeed), not from this hook or the element's events.
  *
- * Reconnect on a lost stream is the vendored reader's job (it retries on its
- * own and says so through onError), so nothing here loops or polls. `retry()`
- * is the operator's explicit "start over": it tears the reader down and builds
- * a fresh one, which is the only way out of the reader's terminal failure.
+ * One reader per (url, session). A null url opens nothing and releases the
+ * current reader. A reader error is reported through `error`; the caller
+ * decides what to do (the camera panel treats it as failed and drops the url).
  *
- * @param {string|null} url - WHEP endpoint, or null when unconfigured.
+ * `sessionId` counts the readers this hook has opened, so the caller can tell
+ * a fresh session (e.g. after a back-forward-cache restore) from the old one.
+ *
+ * @param {string|null} url - WHEP endpoint, or null for no stream.
  */
 export default function useWhepStream(url) {
   const videoRef = useRef(null);
@@ -29,22 +21,15 @@ export default function useWhepStream(url) {
   // already detached the ref by the time an unmount cleanup runs, so the
   // element is no longer reachable when the tracks must be stopped.
   const streamRef = useRef(null);
-  const [status, setStatus] = useState(url ? WHEP_STATUS.CONNECTING : WHEP_STATUS.UNAVAILABLE);
   const [error, setError] = useState(null);
   const [attempt, setAttempt] = useState(0);
+  const [sessionId, setSessionId] = useState(0);
 
-  const retry = useCallback(() => setAttempt((n) => n + 1), []);
-
-  // Signalling + teardown. One reader per (url, attempt).
   useEffect(() => {
-    if (!url) {
-      setStatus(WHEP_STATUS.UNAVAILABLE);
-      setError(null);
-      return undefined;
-    }
-
-    setStatus(WHEP_STATUS.CONNECTING);
     setError(null);
+    if (!url) return undefined;
+
+    setSessionId((n) => n + 1);
 
     let released = false;
     const reader = new MediaMTXWebRTCReader({
@@ -52,7 +37,6 @@ export default function useWhepStream(url) {
       onError: (err) => {
         if (released) return;
         setError(String(err));
-        setStatus(WHEP_STATUS.ERROR);
       },
       onTrack: (evt) => {
         const video = videoRef.current;
@@ -111,28 +95,5 @@ export default function useWhepStream(url) {
     };
   }, [url, attempt]);
 
-  // The element's own events are the only honest source of "is it playing".
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return undefined;
-
-    const onPlaying = () => {
-      setStatus(WHEP_STATUS.LIVE);
-      setError(null);
-    };
-    // Frames stopped arriving. Only meaningful once playback had started;
-    // before that the reader's own state already describes the situation.
-    const onStall = () => setStatus((s) => (s === WHEP_STATUS.LIVE ? WHEP_STATUS.STALLED : s));
-
-    video.addEventListener('playing', onPlaying);
-    video.addEventListener('waiting', onStall);
-    video.addEventListener('stalled', onStall);
-    return () => {
-      video.removeEventListener('playing', onPlaying);
-      video.removeEventListener('waiting', onStall);
-      video.removeEventListener('stalled', onStall);
-    };
-  }, [url, attempt]);
-
-  return { status, error, videoRef, retry };
+  return { videoRef, error, sessionId };
 }

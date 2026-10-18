@@ -197,6 +197,8 @@ def _take_over_entry(
         backend_pid_start=None,
         frontend_pid=None,
         frontend_pid_start=None,
+        video_pid=None,
+        video_pid_start=None,
         clone=clone or entry.get("clone"),
         branch=branch or entry.get("branch"),
         label=label or entry.get("label"),

@@ -187,14 +187,18 @@ class FinalApproachSessionRuntime:
                 return False
             # Terminal: nothing may actuate after docking (no held refresh,
             # no queued frame); the episode latch itself is kept.
-            self._command_reset.retire_after_docking()
+            self._command_reset.retire_after_terminal()
             self._docked_evidence.stage(event)
             return True
 
-    def latch_failure(self) -> bool:
-        """Admit a NAV_FAIL; False once the episode docked (first latch wins)."""
+    def latch_failure(self, reason: str | None = None) -> bool:
+        """Admit a NAV_FAIL; False once the episode docked (first latch wins).
+        An armed episode's failure retires its work in this lock (missed_dock.md)."""
         with self._lock:
-            return self._episode.latch_failure()
+            admitted = self._episode.latch_failure(reason)
+            if admitted and self._episode.failure_ends_commands:
+                self._command_reset.retire_after_terminal()
+            return admitted
 
     def consume_missed_dock(self) -> bool:
         with self._lock:

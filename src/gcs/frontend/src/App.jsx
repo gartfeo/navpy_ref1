@@ -47,7 +47,17 @@ import { computePlanEntry } from './constants/monitorPhases';
 import NotificationBanner from './components/NotificationBanner';
 import LoadingScreen from './components/LoadingScreen';
 import VideoPanel from './components/VideoPanel';
+import FpvViewOverlay from './components/map/FpvViewOverlay';
+import useVideoFleet from './hooks/useVideoFleet';
+import useVideoSelection from './hooks/useVideoSelection';
+import useFpvView from './hooks/useFpvView';
+import { DEFAULT_TOP_CONTROLS_BOTTOM_PX } from './utils/videoPanelLayout';
+import { cameraPanelVisible } from './utils/videoStreams';
+import { fleetEntryHoldReason } from './utils/fpvView';
 import { prunePendingVehicles, upsertPendingVehicles } from './utils/pendingVehicles';
+
+// RC FPV: the SYNTHETIC tag sits below the HUD heading tape (top 12, 36 px tall).
+const RC_FPV_TAG_TOP_PX = 12 + 36 + 6;
 
 export default function App() {
   const { t } = useTranslation();
@@ -103,6 +113,8 @@ export default function App() {
 
   const resetViewRef = useRef(null);
   const flyToRef = useRef(null);
+  const mapCameraRef = useRef(null);
+  const [topControlsBottom, setTopControlsBottom] = useState(DEFAULT_TOP_CONTROLS_BOTTOM_PX);
   const [mapReady, setMapReady] = useState(false);
   const [vehicleTargWps, setVehicleTargWps] = useState({});
   const [vehicleNavLastWp, setVehicleNavLastWp] = useState({});
@@ -135,10 +147,6 @@ export default function App() {
       setFollowSysId(null);
     }
   }, [vehicleList, followSysId, phase]);
-
-  const handleFollowChange = useCallback((sysId) => {
-    setFollowSysId(sysId);
-  }, []);
 
   // Fly camera to a lat/lon coordinate (map fills flyToRef once the viewer is ready)
   const flyToLocation = useCallback((lat, lon) => {
@@ -527,20 +535,31 @@ export default function App() {
     resetViewRef.current?.(a.polygon, a.vehicleList, a.plan, a.launchPoint, a.corridorPoints);
   }, []);
 
-  // Auto-center when the camera is released back to free view in monitor mode —
-  // the operator either picked "Free" in the follow selector or exited RC
-  // control (both clear followSysId). Runs after CesiumMap's follow hook unlocks
-  // the camera (child effects fire before parent effects), so the fly-to isn't
-  // fighting a still-locked chase-cam transform.
-  const prevFollowRef = useRef(followSysId);
-  useEffect(() => {
-    const prev = prevFollowRef.current;
-    prevFollowRef.current = followSysId;
-    if (phase === PHASES.MONITOR && !mc.manualControlEnabled
-        && prev != null && followSysId == null) {
-      centerView();
-    }
-  }, [followSysId, phase, mc.manualControlEnabled, centerView]);
+  // ---- Camera video + FPV view mode (docs/design/gcs_video_streams.md §5) ----
+  // The follow selector moves the map and FPV; badges and View camera move the
+  // video. useFpvView also owns the saved map camera and the auto-center on
+  // return to Free (which used to live here).
+  const videoFleet = useVideoFleet(storeRef);
+  const video = useVideoSelection({ fleet: videoFleet, followSysId });
+  const fpv = useFpvView({
+    phase, followSysId, setFollowSysId, fleet: videoFleet,
+    panelSysId: video.selection?.sysId ?? null,
+    rcEnabled: mc.manualControlEnabled, rcTarget: mc.manualControlTarget,
+    mapCameraRef, centerView, notify: setNotification,
+  });
+  const showVideoPanel = cameraPanelVisible({
+    monitor: phase === PHASES.MONITOR, rcEnabled: mc.manualControlEnabled, fpvOn: fpv.fpvOn, hasPanel: video.hasPanel,
+  });
+  const viewingSysId = showVideoPanel && !video.collapsed && video.shown.kind === 'stream'
+    ? video.selection.sysId : null;
+  const videoActionFor = useCallback((sysId) => {
+    if (!videoFleet.find((e) => e.sysId === sysId)?.streams.length) return null;
+    return {
+      viewing: viewingSysId === sysId,
+      onView: () => { fpv.leaveFpv(); video.viewCamera(sysId); },
+    };
+  }, [videoFleet, viewingSysId, fpv.leaveFpv, video.viewCamera]);
+  const fpvEntry = videoFleet.find((e) => e.sysId === fpv.fpvSysId);
 
   const mapHeight = `calc(100dvh - ${topBarHeight}px - ${bottomBarHeight}px)`;
 
@@ -658,7 +677,9 @@ export default function App() {
             onRemoveDeliveryHub={planning.handleRemoveDeliveryHub}
             onMoveDeliveryHub={planning.handleMoveDeliveryHub}
             followSysId={followSysId}
-            fpvMode={mc.manualControlEnabled && mc.manualControlTarget != null}
+            fpvMode={fpv.cameraFpv}
+            cameraPersistSuspended={fpv.cameraOwned}
+            mapCameraRef={mapCameraRef}
             onViewerReady={setMapReady}
             plannerReady={plannerReady}
           />
@@ -699,7 +720,10 @@ export default function App() {
             <MonitorMapOverlay
               vehicleList={vehicleList}
               followSysId={followSysId}
-              onFollowChange={handleFollowChange}
+              onFollowChange={fpv.changeFollow}
+              fpvOn={fpv.fpvOn}
+              onToggleFpv={fpv.toggleFpv}
+              onTopControlsBottom={setTopControlsBottom}
               onToggleManualControl={mc.handleToggleManualControl}
               showVision={showVision}
               onToggleVision={() => setShowVision(!showVision)}
@@ -718,12 +742,32 @@ export default function App() {
               })}
             />
           )}
-          {/* Jetson tracking-overlay video — monitor view only, and never
+          {/* Per-vehicle camera video — monitor view only, never in FPV or
               during manual control, so it cannot sit over the joysticks, the
               flight-mode column or the FPV HUD. Bottom-left corner at z-index 9,
               i.e. under the map overlay buttons and the confirmation cards.
-              Hidden entirely unless a build-time WHEP URL is configured. */}
-          {phase === PHASES.MONITOR && !mc.manualControlEnabled && <VideoPanel />}
+              Shown only while a UAV advertises a stream or a lost feed is pending. */}
+          {showVideoPanel && (
+            <VideoPanel
+              fleet={videoFleet}
+              selection={video.selection}
+              shown={video.shown}
+              session={video.session}
+              collapsed={video.collapsed}
+              onCollapse={video.setCollapsed}
+              onSelectUav={video.selectUav}
+              onReconnect={video.reconnect}
+              onDismiss={video.dismiss}
+              topControlsBottom={topControlsBottom}
+            />
+          )}
+          {fpv.fpvSysId != null && (
+            <FpvViewOverlay
+              label={fpvEntry?.label ?? `UAV ${fpv.fpvSysId}`}
+              holdReason={fleetEntryHoldReason(fpvEntry)}
+              top={fpv.fpvKind === 'rc' ? RC_FPV_TAG_TOP_PX : topControlsBottom + 8}
+            />
+          )}
           {mc.manualControlEnabled && (
             <>
               <ManualControlOverlay
@@ -802,8 +846,9 @@ export default function App() {
             showLaunchZone={showLaunchZone}
             setShowLaunchZone={setShowLaunchZone}
           />}
-          {/* Reset zoom — hidden during manual control */}
-          {!mc.manualControlEnabled && <div style={{
+          {/* Reset zoom — hidden during manual control and FPV (the
+              first-person camera would override it every frame) */}
+          {!mc.manualControlEnabled && !fpv.fpvOn && <div style={{
             position: 'absolute',
             bottom: 12,
             right: 12,
@@ -911,6 +956,7 @@ export default function App() {
               aasParams={aasParams}
               onEstop={commands.handleEstop}
               onOpenReadiness={() => setShowReadiness(true)}
+              videoActionFor={videoActionFor}
             />
           )}
         </div>}

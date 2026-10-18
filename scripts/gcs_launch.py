@@ -53,6 +53,7 @@ from gcs.backend.runtime_paths import gcs_log_dir  # noqa: E402
 import swarm_run  # noqa: E402
 from gcs_launch_sitl_args import add_sitl_arguments, swarm_passthrough  # noqa: E402
 from gcs_launch_list import _print_list, _sitl_status  # noqa: E402,F401
+from gcs_launch_video import launch_sim_video, reap_sim_video_ports  # noqa: E402
 
 
 def git_branch() -> str:
@@ -218,6 +219,7 @@ def main() -> int:
         + reg.reap_port(entry["monitor"], kind="udp", exclude=protected)
     )
     reaped += reg.reap_companion_ports(n, exclude=protected)
+    reaped += reap_sim_video_ports(n, protected)
     for pid in reaped:
         print(f"  reaped orphan pid {pid} on this slot's port")
 
@@ -267,6 +269,7 @@ def main() -> int:
         # frontend spawn below, the launch guard must still see the live (not
         # yet bound) backend process instead of handing the slot to a duplicate.
         reg.record_pids(n, backend_pid=backend.pid)
+        launch_sim_video(entry, args.instances)
 
         if args.headless:
             return 0

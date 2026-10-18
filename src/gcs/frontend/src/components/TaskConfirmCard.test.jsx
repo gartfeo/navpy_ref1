@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act, fireEvent } from '@testing-library/react';
+import { useState } from 'react';
 import TaskConfirmCard from './TaskConfirmCard';
 import { LONG_PRESS_MS } from '../utils/armAction';
 
@@ -145,5 +146,78 @@ describe('TaskConfirmCard forced press-and-hold', () => {
     advance(LONG_PRESS_MS);
 
     expect(handlers.onApprove).not.toHaveBeenCalled();
+  });
+});
+
+describe('TaskConfirmCard View camera', () => {
+  const handlers = () => ({ onApprove: vi.fn(), onDeny: vi.fn(), onCancel: vi.fn() });
+  const card = (entry, h, videoAction) => (
+    <TaskConfirmCard
+      sysId={1} entry={entry} vehicleName="UAV 1" vehicleIndex={0}
+      onApprove={h.onApprove} onDeny={h.onDeny} onCancel={h.onCancel}
+      autoApprove={false} timeoutSec={TIMEOUT_SEC} videoAction={videoAction}
+    />
+  );
+
+  it('is a neutral 44 px button on a pending card, with the countdown note', () => {
+    const { getByText } = render(card(entryFor({ roundUid: 'a' }), handlers(), { viewing: false, onView: vi.fn() }));
+    const button = getByText('task.viewCamera');
+    expect(button.style.minHeight).toBe('44px');
+    expect(button.style.background).not.toBe(getByText('task.approve').style.background);
+    expect(getByText('task.viewCameraNote')).toBeInTheDocument();
+    // Its row keeps a 12 px margin before the timer bar and Approve/Deny.
+    expect(button.parentElement.style.marginBottom).toBe('12px');
+  });
+
+  it('shows "Viewing" when the panel already shows that UAV', () => {
+    const { getByText } = render(card(entryFor({ roundUid: 'a' }), handlers(), { viewing: true, onView: vi.fn() }));
+    expect(getByText('task.viewing')).toBeDisabled();
+  });
+
+  it('is absent on decided cards and when not offered (no stream, RC)', () => {
+    const approved = { ...entryFor({ roundUid: 'a' }), status: 'approved' };
+    const r1 = render(card(approved, handlers(), { viewing: false, onView: vi.fn() }));
+    expect(r1.queryByText('task.viewCamera')).toBeNull();
+    r1.unmount();
+    const r2 = render(card(entryFor({ roundUid: 'a' }), handlers(), null));
+    expect(r2.queryByText('task.viewCamera')).toBeNull();
+  });
+
+  it('tapped midway keeps the original deadline, calls neither approve nor deny, and expiry fires once', () => {
+    const h = handlers();
+    const onView = vi.fn();
+    const { getByText } = render(card(entryFor({ roundUid: 'a' }), h, { viewing: false, onView }));
+    advance(10_000);
+    expect(getByText('20s')).toBeInTheDocument();
+    fireEvent.click(getByText('task.viewCamera'));
+    expect(onView).toHaveBeenCalledTimes(1);
+    expect(h.onApprove).not.toHaveBeenCalled();
+    expect(h.onDeny).not.toHaveBeenCalled();
+    advance(5_000);
+    expect(getByText('15s')).toBeInTheDocument();
+    advance(16_000);
+    expect(h.onDeny).toHaveBeenCalledTimes(1);
+    expect(h.onApprove).not.toHaveBeenCalled();
+  });
+
+  it('the pending card survives leaving FPV through View camera', () => {
+    const h = handlers();
+    const entry = entryFor({ roundUid: 'a' });
+    function Host() {
+      const [fpvOn, setFpvOn] = useState(true);
+      return (
+        <div>
+          <span>fpv:{String(fpvOn)}</span>
+          {card(entry, h, { viewing: false, onView: () => setFpvOn(false) })}
+        </div>
+      );
+    }
+    const { getByText } = render(<Host />);
+    advance(12_000);
+    fireEvent.click(getByText('task.viewCamera'));
+    expect(getByText('fpv:false')).toBeInTheDocument();
+    expect(getByText('18s')).toBeInTheDocument();
+    advance(19_000);
+    expect(h.onDeny).toHaveBeenCalledTimes(1);
   });
 });

@@ -17,6 +17,7 @@ from navpy.app.perception.vision_gimbal_profile import (
 )
 from navpy.core.perception.profile.vision_profile_loader import get_devices
 from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
+from navpy.core.perception.profile.vision_video_streams import parse_video_streams
 from navpy.core.perception.zoom.zoom_calibration import ZoomCalibrationTable
 
 if TYPE_CHECKING:
@@ -189,6 +190,7 @@ def build_camera_mounts(
             index,
             used_ids=used_gimbal_device_ids,
         )
+        parse_video_streams(device, name)  # fail at load, not at first request
         camera = build_camera_model(device, logger, log=True)
         gimbal_data = build_gimbal_data(device, index, detector_settings)
         if gimbal_data is None:

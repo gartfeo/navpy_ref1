@@ -366,7 +366,10 @@
     "cancellationRequested": "CANCELLATION REQUESTED",
     "approvalSent": "Approval sent",
     "gateOverridden": "Gate overridden — image may be small/unstable",
-    "holdToApprove": "HOLD TO APPROVE"
+    "holdToApprove": "HOLD TO APPROVE",
+    "viewCamera": "View camera",
+    "viewing": "Viewing",
+    "viewCameraNote": "The countdown keeps running"
   },
   "flightMode": {
     "rc": "RC",
@@ -398,6 +401,7 @@
   },
   "monitorOverlay": {
     "enterRc": "Enter RC control",
+    "follow": "Camera follow",
     "free": "Free",
     "toggleVision": "Toggle vision cones",
     "toggleCoverage": "Toggle coverage overlay",
@@ -407,13 +411,45 @@
     "resetView": "Reset view"
   },
   "videoPanel": {
-    "title": "Tracking Overlay",
-    "connecting": "Connecting to video…",
-    "stalled": "Video stalled",
-    "error": "No video signal",
-    "retry": "Retry",
-    "expand": "Enlarge video",
-    "collapse": "Shrink video"
+    "region": "Camera video",
+    "title": "Camera",
+    "state": {
+      "connecting": "CONNECTING",
+      "live": "LIVE",
+      "stale": "STALE",
+      "failed": "FAILED",
+      "hidden": "HIDDEN",
+      "lost": "LOST"
+    },
+    "connectingUav": "connecting · {{name}}",
+    "noFrames": "NO FRAMES {{seconds}} s",
+    "videoLost": "Camera video lost · {{name}}",
+    "linkLost": "Vehicle link lost · {{name}}",
+    "reason": {
+      "noFirstFrame": "no picture within {{seconds}} s",
+      "stalled": "no new frame for {{seconds}} s",
+      "codec": "{{codec}} video is not supported by this browser",
+      "connection": "connection failed",
+      "notAdvertised": "the camera no longer advertises a stream"
+    },
+    "reconnect": "Reconnect video",
+    "dismiss": "Dismiss",
+    "expand": "Expand",
+    "restore": "Restore",
+    "collapse": "Hide video",
+    "show": "Show video",
+    "moreUavs": "{{count}} more",
+    "moreUavsLabel": "More UAVs with video",
+    "pickUav": "Tap a UAV to show its camera"
+  },
+  "fpvView": {
+    "on": "ON",
+    "toggleTitle": "First-person view (synthetic, no RC)",
+    "tag": "SYNTHETIC · {{name}} · nose view, not camera",
+    "heldLinkLost": "View held · vehicle link lost · {{seconds}} s",
+    "heldPose": "View held · pose unavailable · {{seconds}} s",
+    "ineligible": "{{name}}: no link or pose for FPV",
+    "noEligible": "No UAV has a link and pose for FPV"
   },
   "planningToolbar": {
     "finishDrawing": "Finish drawing",

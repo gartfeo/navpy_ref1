@@ -51,10 +51,57 @@ export function collectFitPoints({ polygon, vehicleList, plan, launchPoint, corr
 }
 
 /**
- * Viewer lifecycle hook — initializes Cesium, manages camera persistence,
- * and exposes the reset-view and fly-to-location imperative refs. SRP: init only.
+ * Snapshot of the camera's world pose, for restoring the map view after FPV or
+ * RC owned the camera. Pure over the Cesium module and camera; exported for tests.
  */
-export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults) {
+export function captureCamera(Cesium, camera) {
+  return {
+    position: Cesium.Cartesian3.clone(camera.positionWC),
+    heading: camera.heading,
+    pitch: camera.pitch,
+    roll: camera.roll,
+  };
+}
+
+/**
+ * Store the camera as the next startup view, unless FPV or RC owns it
+ * (`suspended`): a first-person pose must never become the startup view.
+ * Exported for tests.
+ */
+export function persistCamera(Cesium, camera, suspended, storage) {
+  if (suspended) return;
+  try {
+    const carto = Cesium.Ellipsoid.WGS84.cartesianToCartographic(camera.positionWC);
+    storage.setItem(CAMERA_KEY, JSON.stringify({
+      lat: Cesium.Math.toDegrees(carto.latitude),
+      lon: Cesium.Math.toDegrees(carto.longitude),
+      height: carto.height,
+      heading: Cesium.Math.toDegrees(camera.heading),
+      pitch: Cesium.Math.toDegrees(camera.pitch),
+      roll: Cesium.Math.toDegrees(camera.roll),
+    }));
+  } catch {}
+}
+
+/** Put the camera back to a captureCamera() snapshot, unlocked from any follow transform. */
+export function restoreCamera(Cesium, viewer, saved) {
+  viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+  viewer.camera.setView({
+    destination: saved.position,
+    orientation: { heading: saved.heading, pitch: saved.pitch, roll: saved.roll },
+  });
+  viewer.scene.requestRender();
+}
+
+/**
+ * Viewer lifecycle hook — initializes Cesium, manages camera persistence,
+ * and exposes the reset-view, fly-to-location and map-camera imperative refs.
+ * SRP: init only.
+ *
+ * `persistSuspendedRef.current` true (FPV or RC owns the camera) skips camera
+ * persistence, so a first-person pose is never stored as the startup view.
+ */
+export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { persistSuspendedRef, mapCameraRef } = {}) {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
   const cesiumRef = useRef(null);
@@ -219,20 +266,9 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults) {
         }
       } catch {}
 
-      // Camera persistence: save on moveEnd
+      // Camera persistence: save on moveEnd, unless FPV or RC owns the camera
       viewer.camera.moveEnd.addEventListener(() => {
-        try {
-          const carto = Cesium.Ellipsoid.WGS84.cartesianToCartographic(viewer.camera.positionWC);
-          const data = {
-            lat: Cesium.Math.toDegrees(carto.latitude),
-            lon: Cesium.Math.toDegrees(carto.longitude),
-            height: carto.height,
-            heading: Cesium.Math.toDegrees(viewer.camera.heading),
-            pitch: Cesium.Math.toDegrees(viewer.camera.pitch),
-            roll: Cesium.Math.toDegrees(viewer.camera.roll),
-          };
-          localStorage.setItem(CAMERA_KEY, JSON.stringify(data));
-        } catch {}
+        persistCamera(Cesium, viewer.camera, persistSuspendedRef?.current, localStorage);
       });
 
       viewerRef.current = viewer;
@@ -275,6 +311,13 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults) {
       if (flyToRef) {
         flyToRef.current = (lat, lon) => {
           viewer.camera.flyTo(flyToOptions(Cesium, lat, lon));
+        };
+      }
+
+      if (mapCameraRef) {
+        mapCameraRef.current = {
+          capture: () => captureCamera(Cesium, viewer.camera),
+          restore: (saved) => restoreCamera(Cesium, viewer, saved),
         };
       }
 

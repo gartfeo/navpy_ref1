@@ -4,7 +4,7 @@ Every cell is a seed-1 ``eval_gcs_navigation_demo.py --lockstep`` run of the
 certified 3-UAV scenario, one at a time, each in its own subprocess, eval-band
 slot and WSL root: two plain runs, two with seeded host delays (relays,
 coordinator, participants and the firmware's helper jitter) and one under CPU
-load. The gate passes only when every run exits 0 with ``report.json`` passed,
+load, all with one sim profile (``--sim-profile``, default ``hw``). The gate passes only when every run exits 0 with ``report.json`` passed,
 every journal digest is equal, and every run's artifacts (``*_host*`` and BIN
 excluded) are byte-equal to the first run's. ``matrix.json`` records each run's
 digest, gate results and wall cost per tick.
@@ -27,6 +27,7 @@ for directory in (ROOT, ROOT / "src"):
     if str(directory) not in sys.path:
         sys.path.insert(0, str(directory))
 
+from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, profile_names
 from scripts.eval_gcs_demo_lockstep import JOURNAL_FILE, RUN_HOST_FILE
 from scripts.gcs_demo_artifacts import compare_inventories, without_host_only
 from scripts.gcs_demo_comparison import _inventory
@@ -115,11 +116,11 @@ def verdict(runs: dict[str, dict[str, Any]],
     return errors
 
 
-def run_cell(cell: Cell, base: Path) -> int:
+def run_cell(cell: Cell, base: Path, sim_profile: str = DEFAULT_PROFILE) -> int:
     """One CLI run; its console output goes to ``<cell>.out`` beside the run."""
     command = [sys.executable, str(ROOT / "scripts" / "eval_gcs_navigation_demo.py"), "--lockstep",
                "--seed", str(SEED), "--host-delay-seed", str(cell.host_delay_seed),
-               "--run-dir", str(base / cell.name)]
+               "--sim-profile", sim_profile, "--run-dir", str(base / cell.name)]
     burners: list[subprocess.Popen] = []
     try:
         # Started one by one inside the try, so a failed start stops those already running.
@@ -140,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--run-dir", type=Path, required=True,
                         help="new directory; each cell runs in <run-dir>/<cell>")
+    parser.add_argument("--sim-profile", default=DEFAULT_PROFILE, choices=profile_names(),
+                        help=f"the sim profile of every cell (default: {DEFAULT_PROFILE})")
     args = parser.parse_args(argv)
     base = args.run_dir.resolve()
     if base.exists() and any(base.iterdir()):
@@ -148,7 +151,7 @@ def main(argv: list[str] | None = None) -> int:
     runs, inventories = {}, {}
     for cell in CELLS:
         print(f"matrix cell {cell.name} ...", flush=True)
-        runs[cell.name] = read_run(base / cell.name, run_cell(cell, base))
+        runs[cell.name] = read_run(base / cell.name, run_cell(cell, base, args.sim_profile))
         runs[cell.name]["cell"] = {"host_delay_seed": cell.host_delay_seed, "cpu_load": cell.cpu_load}
         if (base / cell.name).is_dir():
             inventories[cell.name] = inventory(base / cell.name)
@@ -156,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
               f"cost {runs[cell.name].get('cost')}", flush=True)
     errors = verdict(runs, inventories)
     first = next(iter(inventories.values()), {})
-    matrix = {"seed": SEED, "passed": not errors, "errors": errors,
+    matrix = {"seed": SEED, "sim_profile": args.sim_profile, "passed": not errors, "errors": errors,
               "compared_files": len(first), "runs": runs}
     (base / MATRIX_FILE).write_text(json.dumps(matrix, indent=2) + "\n", encoding="utf-8")
     print(f"matrix {'PASSED' if not errors else 'FAILED'}: {base / MATRIX_FILE}")

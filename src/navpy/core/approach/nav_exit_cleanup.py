@@ -4,11 +4,22 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Protocol
 
+from navpy.core.approach.vision_nav.episode_latch import (
+    FinalApproachEpisodeTerminal,
+)
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.dock_contact import DockContactEvent
 from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
+
+
+class DockOutcomePort(Protocol):
+    """How the armed episode ended (missed_dock.md); never a command input."""
+
+    def terminal(self) -> Optional[FinalApproachEpisodeTerminal]: ...
+
+    def record_failed(self, terminal: FinalApproachEpisodeTerminal, reason: str) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -17,6 +28,8 @@ class NavExitCleanupPorts:
     close_final_approach_source: Callable[[], None]
     navigation_reset: Callable[[], object]
     detector_stop: Callable[[], None]
+    # Its terminal is read before the reset clears it; None: no vision runtime.
+    dock_outcome: Optional[DockOutcomePort] = None
 
 
 @dataclass(frozen=True)
@@ -25,6 +38,8 @@ class NavCleanupResult:
     errors: tuple[Exception, ...]
     # The armed episode's own-dock contact, captured before the reset.
     own_dock_contact: DockContactEvent | None = None
+    # The armed episode's first terminal (missed_dock.md), before the reset.
+    dock_terminal: FinalApproachEpisodeTerminal | None = None
 
 
 class NavExitCleanup:
@@ -44,9 +59,15 @@ class NavExitCleanup:
         errors: list[Exception] = []
         snap = None
         contact = None
+        terminal = None
 
         try:
             contact = self._ports.disarm_dock_contact()
+        except Exception as error:  # noqa: BLE001 - teardown transaction
+            errors.append(error)
+        try:
+            outcome = self._ports.dock_outcome
+            terminal = None if outcome is None else outcome.terminal()
         except Exception as error:  # noqa: BLE001 - teardown transaction
             errors.append(error)
         source_closed = False
@@ -79,10 +100,21 @@ class NavExitCleanup:
             snap=snap,
             errors=tuple(errors),
             own_dock_contact=contact,
+            dock_terminal=terminal,
         )
+
+    def record_dock_failed(
+        self,
+        terminal: FinalApproachEpisodeTerminal,
+        reason: str,
+    ) -> None:
+        """The DOCK_FAILED row, once the NAV exit succeeded."""
+        if self._ports.dock_outcome is not None:
+            self._ports.dock_outcome.record_failed(terminal, reason)
 
 
 __all__ = [
+    "DockOutcomePort",
     "NavCleanupResult",
     "NavExitCleanup",
     "NavExitCleanupPorts",

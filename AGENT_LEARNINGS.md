@@ -10,7 +10,8 @@
   that carries the pattern, so it kills its own shell (exit 15). Use `pgrep -af '[a]rduplane'`
   style patterns, or run the script through `bash -s` with a heredoc.
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
-  newlines twice. Edit such lines with the Edit tool and check with `ast.parse`.
+  newlines five times (three more in dev-sim step 1: a test, a scratch script and this
+  note). Insert or change code with the Edit tool, never a heredoc; check with `ast.parse`.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
   5501 + 10 x instance (AP_RCProtocol_UDP.cpp). Driving the "pilot" this way keeps Lua
   RC overrides behaving as on the aircraft; MAVLink RC overrides would compete with them.
@@ -526,7 +527,9 @@
   (distinct task ids hid a shared reassembler). Codex later found two more:
   an ACK test where the acceptance cancelled the timer, and a coalescing test
   without a repeated id. Next time, break the product rule, confirm the test
-  fails, then restore the file.
+  fails, then restore the file. Check that the mutation really breaks the rule:
+  in dev-sim step 1 a "shared key" mutation still gave each parameter its own
+  key and survived; the real one (one key) showed a missing test.
 - **Import-time locks stay on the wall runtime.** Class attributes made with
   rt.Lock() at import (MsgMetaProvider._lock, MsgRegistry._registry_lock)
   and module singletons (full_param_cache) are not rebound by a test's
@@ -784,6 +787,45 @@
 - A position reported "at disarm" is the first GCS telemetry frame after the event, and frames are 0.2 s wall = 2 s sim
   at SIM_SPEEDUP 10. Before suspecting a frame offset, take the frames on both sides from the WS trace and check whether
   the line between them passes the dock horizontally; here within 0.7 m and the aircraft kept moving after a net-less contact.
+
+## Todo 65 load (2026-10-18)
+- A process priority set at spawn on a venv `python.exe` does not reach NavPy: the venv exe is a launcher and its child
+  interpreter starts Normal. Check the real interpreter with Get-Process; set the priority inside the process.
+- On a hybrid CPU, Windows EcoQoS runs a windowless process on E-cores under load (work 2x slower). Opt out with
+  SetProcessInformation(ProcessPowerThrottling) and measure with a small benchmark first.
+- On Windows Python 3.11 `time.monotonic` ticks at 15.6 ms. Never time 1-10 ms of work with it; use perf_counter.
+- A full pytest run is not light load: about 70% CPU average with 100% peaks. Never overlap it with a wall eval.
+- The eval env is an allow-list: ad-hoc env vars do not reach NavPy; derive probe paths from NAVPY_LOG_DIR.
+- To tell a NavPy stall from a SITL stall, compare NavPy's ATTITUDE arrival lag with the GCS receiver's for the same UAV:
+  equal lag is upstream (SITL/WSL), NavPy-only lag is NavPy.
+- In Git Bash pass Windows paths in PYTHONPATH (`pwd -W`); a /c/... path silently imports the main checkout's package.
+
+## GCS video streams and FPV (2026-10-18)
+- `plugins/vehicle` must not import `core/perception`; pass the camera's stream specs in as plain
+  data from the app composition layer, or the layer guard fails.
+- `rt` (runtime_time) has no bounded-queue full exception; design request queues so they never need one.
+- Standalone HTML mocks: never declare a global `top` (it clashes with `window.top` and blanks the page),
+  and the app's file preview runs no JS, so pre-render mocks to static HTML or PNG.
+- A saved "free map" camera must be taken on every departure from the free map, chase included;
+  saving only when FPV/RC starts missed Free → chase → FPV → Free (Codex round 1).
+- A profile field that mirrors a protocol numbering must enforce the protocol's rule (MAVLink stream
+  ids are 1..count), or the consumer silently discards it.
+- Untracked `.codex/agents/janitor.toml` / `live-tester.toml` in a worktree fail
+  `test_gen_codex_agents.py` as STALE; check `git status` before blaming a change.
+
+## Missed dock ends like DOCKED (todo 74, 2026-10-18)
+- Making every FAILED end commands broke runtime tests that send a frame after a NAV_FAIL; those tests
+  cover the real build, which arms no episode. Gate a new terminal rule on the scope that needs it (here
+  an armed sim episode) instead of rewriting the old tests.
+- Evidence parsers: check the same-identity conflict before generic order checks, or tests see a
+  less specific message; require strictly rising episode numbers at every arm, whatever the outcome.
+- SOLID size guards fail late in the full suite; split a new concern into its own port (dock_outcome)
+  rather than growing a class past 15 methods.
+- A terminal outcome must be read before `navigation_reset`: reset_phase clears the episode latch. Take an
+  immutable snapshot in NAV cleanup, then decide and report after the exit succeeded.
+- The venv has no pytest-xdist; `-n auto` fails at once. Run the full suite serially in the background.
+- Tests that build a factory with `object.__new__` break when the code uses a new attribute (here the
+  logger); set it in the test helper.
 
 ## Whole-chain HITL plan (2026-10-18)
 - Codex turned a short firmware hash (9a8c7d66b2) into a full hash that does not exist and called

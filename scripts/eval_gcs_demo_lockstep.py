@@ -43,6 +43,7 @@ from navpy.sim.lockstep.coordinator_types import Manifest, WallBudgets
 from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.participant_hooks import RequestIds
+from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, Realization, load_profile, realize
 from scripts import lockstep_topology, lockstep_wsl
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 from scripts.eval_gcs_demo_audit import validate_approval_records
@@ -112,6 +113,8 @@ class LockstepOptions:
     #: Acceptance (c): seeded host delays in the relay, coordinator and
     #: participants; 0 is none. Never part of the journal.
     host_delay_seed: int = 0
+    #: The sim profile (``sim_profile``): its realization for the seed is a run input.
+    sim_profile: str = DEFAULT_PROFILE
 
 
 @dataclass(frozen=True)
@@ -130,6 +133,15 @@ def require_wired(scenario: DemoScenario) -> None:
             f"--lockstep runs the profiles {sorted(WIRING)}; {scenario.path.name} has gate profile "
             f"{scenario.gate_profile!r}"
         )
+
+
+def sim_realization(options: LockstepOptions) -> Realization:
+    """The run's realism models for its seed; an unknown profile refuses the run."""
+    try:
+        profile = load_profile(options.sim_profile)
+    except ValueError as error:
+        raise RegressionError(f"--sim-profile: {error}") from error
+    return realize(profile, options.seed)
 
 
 def fleet_layout(scenario: DemoScenario) -> FleetLayout:
@@ -198,6 +210,7 @@ def write_lines(run_dir: Path, scenario: DemoScenario, operator: OperatorBaton) 
 def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
                          options: LockstepOptions) -> LockstepRun:
     require_wired(scenario)
+    realization = sim_realization(options)
     if not 0.0 < options.timeout_s < MISSION_BUDGET_S:
         raise RegressionError(f"--timeout-s must be within (0, {MISSION_BUDGET_S}) sim seconds")
     if run_dir.exists() and any(run_dir.iterdir()):
@@ -210,7 +223,8 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     layout = fleet_layout(scenario)
     homes = WIRING[scenario.gate_profile].homes(scenario, layout)
     topology = lockstep_topology.topology_inputs(homes, lockstep_topology.run_swarm_sha256())
-    write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults, tiles, topology)
+    write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults, tiles, topology,
+                                  realization)
     slot, owner = lockstep.claim(run_token=f"seed-{options.seed}", clone=str(ROOT),
                                  owner=f"dir:{ROOT}")
     started = time.perf_counter()
@@ -257,5 +271,6 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
 __all__ = [
     "APPROVALS_FILE", "JOURNAL_FILE", "LockstepOptions", "MISSION_BUDGET_S", "LockstepRun", "NAVPY_LINES_FILE",
     "RUN_HOST_FILE", "WIRING", "Wiring", "execute_lockstep_run", "fleet_layout",
-    "lockstep_operator", "manifest", "operator_script", "require_wired", "write_lines",
+    "lockstep_operator", "manifest", "operator_script", "require_wired", "sim_realization",
+    "write_lines",
 ]

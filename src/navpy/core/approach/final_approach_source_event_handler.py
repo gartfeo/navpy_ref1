@@ -36,7 +36,8 @@ class FinalApproachSourceEventHandlerPorts:
     session_active: Callable[[], bool]
     reset_source: Callable[[], None]
     admission: FinalApproachEventAdmission
-    mark_failed: Callable[[], Optional[bool]]
+    # Takes the NAV_FAIL reason (missed_dock.md).
+    mark_failed: Callable[[str], Optional[bool]]
     logger: ILogger
     commands: FinalApproachSourceCommandRouter
 
@@ -63,7 +64,10 @@ class FinalApproachSourceEventHandler:
             return self._reject()
         active_poi = self._ports.active_poi()
         if active_poi is None:
-            self._mark_failed("NAV_FAIL: source_event_active_poi_missing")
+            self._mark_failed(
+                "source_event_active_poi_missing",
+                "NAV_FAIL: source_event_active_poi_missing",
+            )
             return self._reject()
         if (
             publication.source_discontinuity
@@ -103,8 +107,8 @@ class FinalApproachSourceEventHandler:
         self._ports.reset_source()
         return False
 
-    def _mark_failed(self, message: str) -> None:
-        if self._ports.mark_failed() is False:
+    def _mark_failed(self, reason: str, message: str) -> None:
+        if self._ports.mark_failed(reason) is False:
             return  # the episode already docked: the failure is ignored
         try:
             self._ports.logger.error(message)

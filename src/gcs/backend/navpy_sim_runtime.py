@@ -26,6 +26,7 @@ from gcs.backend.navpy_sim_launch_policy import (
     sim_log_level,
 )
 from gcs.backend.settings_model import GcsSettings
+from gcs.backend.sim_video_companion import sim_video_start_kwargs
 from gcs.backend.settings_store import settings_store
 
 
@@ -80,6 +81,7 @@ def start_instance(
         level = sim_log_level()
         if level is not None:
             kwargs["log_level"] = level
+        kwargs.update(sim_video_start_kwargs(settings, sys_id, _mgr_factory is None))
         return get_or_create_mgr().start(sys_id, connection, **kwargs)
 
 

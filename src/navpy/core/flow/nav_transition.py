@@ -14,6 +14,11 @@ from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.flow.nav_oneshot_completion import OneShotCompletion
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
+from navpy.core.approach.vision_nav.episode_latch import (
+    UNNAMED_FAILURE_REASON,
+    FinalApproachEpisodeTerminal,
+    FinalApproachTerminal,
+)
 from navpy.core.flow.nav_state import NavigationTaskState, NavState
 
 
@@ -61,13 +66,19 @@ class NavTransition:
                 errors.append(error)
 
         outcome = NavExitOutcome()
-        docked = (
-            requested is NavState.RESET
-            and navigation_active
-            and not errors
-            and cleanup.own_dock_contact is not None
+        dock_ending = (
+            requested is NavState.RESET and navigation_active and not errors
         )
-        if docked:
+        docked = dock_ending and cleanup.own_dock_contact is not None
+        # A started approach that ended by NAV_FAIL without contact is a
+        # failed dock: it ends like DOCKED, never back to search
+        # (missed_dock.md). The terminal names an armed (sim) episode.
+        failed = (
+            dock_ending
+            and not docked
+            and _failed_terminal(cleanup.dock_terminal)
+        )
+        if docked or failed:
             # One-shot is how a real dock ends: disarm off the net, final.
             oneshot = self._is_oneshot()
             if oneshot:
@@ -87,7 +98,28 @@ class NavTransition:
             raise ExceptionGroup("NAV exit failed", errors)
         if docked:
             self._report_docked(cleanup)
+        elif failed:
+            self._report_dock_failed(cleanup.dock_terminal)
         return outcome
+
+    def _report_dock_failed(
+        self,
+        terminal: FinalApproachEpisodeTerminal | None,
+    ) -> None:
+        """Evidence row and operator status line, once the exit succeeded."""
+        if terminal is None:
+            return
+        reason = terminal.reason or UNNAMED_FAILURE_REASON
+        self._cleanup.record_dock_failed(terminal, reason)
+        if self._logger is None:
+            return
+        identity = terminal.identity
+        self._logger.info(
+            f"STATE DOCK_FAILED: reason={reason} "
+            f"dock={identity.dock_uid} task={identity.task_id}",
+            key="nav",
+            dest=LogStatusDest.DRONE,
+        )
 
     def _report_docked(self, cleanup: NavCleanupResult) -> None:
         """Operator status line, once the exit succeeded."""
@@ -101,6 +133,13 @@ class NavTransition:
             key="nav",
             dest=LogStatusDest.DRONE,
         )
+
+
+def _failed_terminal(terminal: FinalApproachEpisodeTerminal | None) -> bool:
+    return terminal is not None and terminal.terminal in (
+        FinalApproachTerminal.FAILED,
+        FinalApproachTerminal.MISSED,
+    )
 
 
 __all__ = ["NavExitOutcome", "NavTransition"]

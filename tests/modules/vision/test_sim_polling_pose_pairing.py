@@ -363,6 +363,35 @@ def test_loop_drops_unpaired_polls_without_detecting_and_keeps_its_period() -> N
     assert all(0.0 < t <= POLL_WALL_PERIOD_S for t in stop_event.timeouts)
 
 
+def test_poll_wait_subtracts_frame_work_shorter_than_the_monotonic_tick(monkeypatch) -> None:
+    """Todo 65: the period stays fixed when frame work grows (as under CPU load).
+
+    On Windows ``monotonic`` ticks at 15.6 ms, so it reads a 25 ms-or-less frame
+    as 0 and the loop waited the full period after the work.
+    """
+    from navpy.sim.detection import sim_detector_execution
+    from tests.runtime_overlay import RuntimeOverlay
+
+    perf = [100.0]
+
+    def detect(*_args, **_kwargs) -> bool:
+        perf[0] += 0.025  # the frame takes 25 ms
+        return True
+
+    monkeypatch.setattr(sim_detector_execution, "rt", RuntimeOverlay(
+        monotonic=lambda: 7.0,  # still on one coarse tick
+        perf_counter=lambda: perf[0],
+    ))
+    pair = _reader(_attitude(1_040, 10.04), _position(1_040, 10.04)).read()
+    execution, stop_event, _reader_mock = _execution(
+        [pair], detect_pois=detect, record_outcome=Mock(),
+    )
+
+    execution.run()
+
+    assert stop_event.timeouts == pytest.approx([POLL_WALL_PERIOD_S - 0.025])
+
+
 def _three_polls() -> list[PollingPoseRead]:
     pair = _reader(_attitude(1_040, 10.04), _position(1_040, 10.04)).read()
     return [PollingPoseRead(None, None), PollingPoseRead(1.02, None), pair]

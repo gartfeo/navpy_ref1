@@ -60,8 +60,8 @@ class FinalApproachCommandReset:
             self._ports.liveness.reset()
             self._ports.episode.reset()
 
-    def retire_after_docking(self) -> None:
-        """Stop all actuation after docking; keep the episode latch."""
+    def retire_after_terminal(self) -> None:
+        """Stop all actuation once the episode ended; keep the episode latch."""
         with self._ports.lock:
             self._invalidate_locked()
             self._ports.hold.clear()
