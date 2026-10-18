@@ -467,13 +467,16 @@ firmware lock (a firmware change moves the digest, `deterministic_dev_sim.md:127
   `architecture_todo.md`, stop, and the owner picks the replacement gate. Nothing falls back on its own.
 - **A move keeps it:** a throw-away probe on the c2 parent moves one runtime module c7 moves
   (`core/flow/nav_oneshot_completion.py`) to `products/delivery/` (package files and imports only; no guards) and
-  runs once; the compared set must match. If it differs, find what depends on a module path before c3; a re-baseline needs that mechanism and the owner.
+  runs once; the compared set must match. If it differs, find what depends on a module path before c3; a
+  re-baseline needs that mechanism and the owner.
+- **Done 2026-10-19 on `869d5a4`:** both runs and the probe gave `fbda9e41…` (step 2's `hw` seed 1 digest) and
+  passed; the compared set is 61 files. The probe's three `participant_*_host.log` differ only in the checkout
+  folder it ran from, so every later run starts from the same worktree. Runs in `.logs/delivery_move_ref/base_869d5a4`.
 
 The same rule holds on every later commit: a changed compared set stops the plan until the cause is found. The
-parent's run is redone whenever main moves. The wall
-references are the green and
-forced-miss delivery runs of todo 74 on `feb2b19` (copied to `.logs/delivery_move_ref/green` and `/miss` in the main
-checkout); main's `src/navpy` differs from `feb2b19` only in the lockstep-only `sim/lockstep/sim_profile*`.
+parent's run is redone whenever main moves. The wall references are the green and forced-miss delivery runs of
+todo 74 on `feb2b19` (copied to `.logs/delivery_move_ref/green` and `/miss` in the main checkout); main's
+`src/navpy` differs from `feb2b19` only in lockstep-only files under `sim/lockstep/`.
 
 **Path edit** means only an import, attribute, constructor or patch path changes. No assertion and no expected value
 changes.
