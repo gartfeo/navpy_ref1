@@ -324,6 +324,23 @@
   edits overlap before applying (4 pairs overlapped here), and keep the working copy's CRLF
   line endings (read and write with newline="").
 
+## Owner data against the Peron model (2026-10-18)
+
+- I told the user that mass, CG, battery, motor and elevon data were missing when most of it was
+  already on disk (model header, measurements folder). Search the private tools folder, the model
+  headers and the owner's ArduPilot checkout before saying owner data is missing.
+- A model header's "from CAD" label was not proof: the inertia in every navpy Peron model
+  (0.239/0.534/0.766 slug ft2, zero products) comes from a separate branch (f0f7ddc3da) with no
+  source, while the owner's own commit (e5830898fe) holds a CAD tensor in kg m2 with products.
+  Check the git history of a model's source file (git log --all, merge-base) before trusting its
+  provenance; two commits with one parent are alternatives, not a replacement.
+- IMU vibration lines that stay at one frequency from cruise to full throttle are not motor
+  rotation, and aliasing allows several rpm per line. Do not read rpm from the IMU without a line
+  that moves with power; ask for ESC telemetry or an rpm sensor instead.
+- Compare a static bench sheet with the model at the sheet's own current, not at the model's full
+  throttle: thrust per amp falls with current, so the full-throttle comparison exaggerated the gap
+  (20-37 % against 1-10 %).
+
 ## Hardware-in-the-loop link work (2026-10-13)
 
 - From Git Bash, `wsl.exe bash -lc '...'` lost every `$variable` in the command. Paths under
