@@ -838,3 +838,24 @@
   editing. To commit only my change, build it from `git show HEAD:<file>`, stage it with
   `git hash-object -w --path` and `git update-index --cacheinfo`, then apply the same edit to the
   working copy. With autocrlf=true the blob is LF and the working copy CRLF.
+
+## Run record and model input (HITL stage 1 step 1, 2026-10-18)
+- **Never glob-delete in a shared temp folder.** I ran `rm -rf "$(cygpath "$TEMP")"/tmp*` to clean my
+  test leftovers. In Git Bash `$TEMP` is `/tmp`, the shared `%LOCALAPPDATA%\Temp`, so it deleted every
+  top-level `tmp*` entry there, including other sessions' files, and it cannot be undone. Delete only
+  exact paths I created, and keep scratch files in the session scratchpad. pytest's `tmp_path` cleans
+  itself.
+- The private folder (`%LOCALAPPDATA%\navpy-hitl-tools`) is itself a git repository, so "refuse any git
+  checkout" would refuse it. And "not inside REPO_ROOT" misses the main navpy-temp2 checkout, which is
+  outside a worktree's REPO_ROOT. Require the run folder inside `private_dir()`, and refuse it when any
+  folder above it holds `src/navpy`. A git-history test failed open: in Codex's sandbox git refused the
+  main checkout ("dubious ownership"), and shallow clones report another root (Codex rounds 1-3).
+- In this Bash tool, `\\` inside a quoted heredoc reached Python as `\`: `"\\n"` became a real newline
+  and `C:\\Users` a bad `\U` escape. Write multi-line Python to a scratchpad file first.
+- On this host `os.symlink` for a directory fails without the privilege; tests fall back to
+  `_winapi.CreateJunction`. `Path.is_symlink()` and `rglob` treat a junction as a plain folder, while
+  `shutil.copytree` copies through it. Find links with `os.lstat` and `FILE_ATTRIBUTE_REPARSE_POINT`.
+- `math.isfinite(10**400)` raises OverflowError, and so does the reciprocal of 5e-324. JSON allows both,
+  so a validator must catch it (Codex round 1).
+- Mutating a "refuse inside the repository" guard lets the test write into REPO_ROOT/.logs. The
+  mutation script must remove exactly that folder afterwards, and remove `.logs` only when it is empty.
