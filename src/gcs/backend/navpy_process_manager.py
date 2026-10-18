@@ -55,6 +55,7 @@ class NavpyProcessManager:
         detector_debug_show: bool = False,
         vision_profile: str | None = None,
         log_level: str | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> NavpyInstance:
         """Launch and register one NavPy companion generation."""
         squatters = _foreign_udp_holders(connection)
@@ -79,6 +80,7 @@ class NavpyProcessManager:
                 detector_debug_show=detector_debug_show,
                 vision_profile=vision_profile,
                 log_level=log_level,
+                extra_env=extra_env,
                 navigation_speedup=_GCS_SIM_NAVIGATION_SPEEDUP,
                 popen_factory=subprocess.Popen,
                 output_reader=self._read_output,

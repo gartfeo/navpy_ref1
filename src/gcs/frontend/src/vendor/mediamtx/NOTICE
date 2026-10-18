@@ -25,6 +25,12 @@ Local modifications (all marked "NavPy patch" in reader.js):
   4. #sendOffer() -- a 201 that arrives after close() releases the session the
      server just created, and stops the chain without arming a restart.
   5. ES module export added alongside the upstream window global.
+  6. Fetch policy -- every request (OPTIONS, POST, PATCH, DELETE) uses
+     redirect: 'error' and credentials: 'omit'. The session Location from
+     the POST answer must resolve to the endpoint's own origin and lie under
+     <path>/whep/; otherwise, and on any rejected request (a refused redirect
+     rejects like a network failure), the reader stops for good through
+     #fail(): no restart, no DELETE, no further fetch.
 
 Upstream licence, reproduced in full from the LICENSE file at the revision
 above:

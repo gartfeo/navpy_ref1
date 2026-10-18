@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { fpvHoldReason } from '../../../utils/fpvView';
 
 /**
  * Pure helper: returns followSysId if the vehicle exists in vehicleList, else null.
@@ -16,6 +17,10 @@ export function resolveFollowTarget(followSysId, vehicleList) {
  *
  * When fpvMode is false (default): chase-cam that orbits with smooth heading.
  * When fpvMode is true: first-person view using the vehicle's orientation.
+ * In FPV the camera holds its last valid pose while the vehicle is unlinked or
+ * its snapshot position/attitude is not finite (fpvHoldReason), and resumes on
+ * the next valid one. The viewer runs in request-render mode, so FPV requests a
+ * render per telemetry (pose) update.
  *
  * Extracts the heading from the entity's slerped orientation quaternion
  * (60 fps via CallbackProperty) instead of from vehicleList (5 Hz React
@@ -28,7 +33,7 @@ export function resolveFollowTarget(followSysId, vehicleList) {
  *   hprQuat = inverse(enuRotation) * entityOri * inverse(modelFix)
  *   heading = HeadingPitchRoll.fromQuaternion(hprQuat).heading
  */
-export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSysId, viewerReady, fpvMode) {
+export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSysId, viewerReady, fpvMode, storeRef) {
   const followSysIdRef = useRef(followSysId);
   followSysIdRef.current = followSysId;
 
@@ -36,6 +41,17 @@ export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSy
   fpvModeRef.current = fpvMode;
 
   const initializedRef = useRef(false);
+  // The last frame was first-person: the chase view must re-initialize its
+  // range instead of reading it off a camera that is no longer orbiting.
+  const wasFpvRef = useRef(false);
+
+  // One render per pose update while first-person, plus one on entry.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !viewerReady || followSysId == null || !fpvMode) return undefined;
+    viewer.scene.requestRender();
+    return storeRef?.current?.subscribe?.(() => viewer.scene.requestRender());
+  }, [followSysId, viewerReady, fpvMode]);
 
   useEffect(() => {
     const Cesium = cesiumRef.current;
@@ -92,6 +108,8 @@ export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSy
       Cesium.HeadingPitchRoll.fromQuaternion(scratchQuat1, scratchHpr);
 
       if (fpvModeRef.current) {
+        // Hold the last valid pose: no link, or no finite position/attitude.
+        if (fpvHoldReason(storeRef?.current?.getVehicles?.()[sid])) return;
         // FPV mode: camera looks through vehicle's eyes
         // Unlock from lookAtTransform first if needed
         if (initializedRef.current) {
@@ -108,11 +126,13 @@ export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSy
           },
         });
         initializedRef.current = true;
+        wasFpvRef.current = true;
       } else {
         // Chase-cam mode
         const smoothHeading = scratchHpr.heading;
 
-        if (!initializedRef.current) {
+        if (!initializedRef.current || wasFpvRef.current) {
+          wasFpvRef.current = false;
           viewer.camera.lookAtTransform(
             scratchTransform,
             new Cesium.HeadingPitchRange(smoothHeading, Cesium.Math.toRadians(-25), 200),

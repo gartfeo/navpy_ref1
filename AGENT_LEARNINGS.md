@@ -762,3 +762,16 @@
 - To tell a NavPy stall from a SITL stall, compare NavPy's ATTITUDE arrival lag with the GCS receiver's for the same UAV:
   equal lag is upstream (SITL/WSL), NavPy-only lag is NavPy.
 - In Git Bash pass Windows paths in PYTHONPATH (`pwd -W`); a /c/... path silently imports the main checkout's package.
+
+## GCS video streams and FPV (2026-10-18)
+- `plugins/vehicle` must not import `core/perception`; pass the camera's stream specs in as plain
+  data from the app composition layer, or the layer guard fails.
+- `rt` (runtime_time) has no bounded-queue full exception; design request queues so they never need one.
+- Standalone HTML mocks: never declare a global `top` (it clashes with `window.top` and blanks the page),
+  and the app's file preview runs no JS, so pre-render mocks to static HTML or PNG.
+- A saved "free map" camera must be taken on every departure from the free map, chase included;
+  saving only when FPV/RC starts missed Free → chase → FPV → Free (Codex round 1).
+- A profile field that mirrors a protocol numbering must enforce the protocol's rule (MAVLink stream
+  ids are 1..count), or the consumer silently discards it.
+- Untracked `.codex/agents/janitor.toml` / `live-tester.toml` in a worktree fail
+  `test_gen_codex_agents.py` as STALE; check `git status` before blaming a change.

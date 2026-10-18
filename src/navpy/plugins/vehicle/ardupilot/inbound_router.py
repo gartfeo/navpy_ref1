@@ -16,6 +16,9 @@ from navpy.core.ports.admission_tap import (
     AdmissionTap,
     RulingCallback,
 )
+from navpy.plugins.vehicle.ardupilot.camera_stream_requests import (
+    is_camera_stream_request,
+)
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState, PacketLossTracker
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
@@ -110,6 +113,7 @@ class InboundMessageRouter:
             source_system != self._identity.target_system
             and self._identity.mav_type != MAV_TYPE_GCS
             and not is_navlink
+            and not is_camera_stream_request(message, self._identity.target_system)
         ):
             return
         message_type = message.get_type()

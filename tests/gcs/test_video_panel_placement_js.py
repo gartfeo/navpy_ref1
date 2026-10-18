@@ -1,4 +1,4 @@
-"""Source wiring for the single Jetson tracking-overlay video panel.
+"""Source wiring for the per-vehicle camera video panel (docs/design/gcs_video_streams.md).
 
 Behaviour the panel's own Vitest suites cover (state machine, session/track
 release, corner placement): ``src/gcs/frontend/src/hooks/useWhepStream.test.jsx``,
@@ -12,8 +12,9 @@ repository layout:
   cannot sit over the joysticks, the flight-mode column or the FPV HUD;
 - every operator control the video could have displaced is still wired:
   confirm / deny / cancel, E-STOP in both hosts, and manual control;
-- the feed is configured by exactly one public build-time variable — no
-  credentials in the tree, no settings field, no backend route;
+- streams come only from each vehicle's telemetry ``video_streams`` (the old
+  build-time ``VITE_VIDEO_WHEP_URL`` and ``videoConfig.js`` are gone, no shim),
+  and there is no settings field for a URL;
 - the vendored third-party reader carries its provenance and licence.
 """
 import os
@@ -22,7 +23,6 @@ import unittest
 
 _REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 _FRONTEND = os.path.join(_REPO, "src", "gcs", "frontend", "src")
-_BACKEND = os.path.join(_REPO, "src", "gcs", "backend")
 _ENV_VAR = "VITE_VIDEO_WHEP_URL"
 
 
@@ -47,17 +47,16 @@ class TestAppMountsPanelInMonitorOnly(unittest.TestCase):
 
     def test_imports_and_mounts_the_panel(self):
         self.assertIn("import VideoPanel from './components/VideoPanel'", self.src)
-        self.assertIn(
-            "{phase === PHASES.MONITOR && !mc.manualControlEnabled && <VideoPanel />}",
-            self.src,
-        )
+        # Monitor only, never in manual control or FPV (cameraPanelVisible).
+        self.assertIn("monitor: phase === PHASES.MONITOR, rcEnabled: mc.manualControlEnabled, fpvOn: fpv.fpvOn", self.src)
+        self.assertIn("{showVideoPanel && (", self.src)
         # One feed, mounted once.
         self.assertEqual(self.src.count("<VideoPanel"), 1)
 
     def test_mounted_inside_the_map_pane_before_the_manual_control_block(self):
         map_start = self.src.index("<CesiumMap")
         manual_start = self.src.index("{mc.manualControlEnabled && (")
-        panel = self.src.index("<VideoPanel />")
+        panel = self.src.index("<VideoPanel")
         self.assertLess(map_start, panel)
         self.assertLess(panel, manual_start)
 
@@ -86,28 +85,18 @@ class TestPanelLayering(unittest.TestCase):
             self.assertNotIn("latency", _read(*name).lower())
 
 
-class TestSingleBuildTimeConfiguration(unittest.TestCase):
-    def test_only_the_config_helper_reads_the_variable(self):
+class TestStreamsComeFromTelemetry(unittest.TestCase):
+    def test_build_time_url_and_config_helper_are_gone(self):
+        self.assertFalse(os.path.exists(os.path.join(_FRONTEND, "utils", "videoConfig.js")))
         readers = [
             os.path.relpath(path, _REPO)
             for path, text in _walk_sources(_FRONTEND, (".js", ".jsx"))
-            if _ENV_VAR in text
+            if _ENV_VAR in text or "videoConfig" in text
         ]
-        self.assertEqual(
-            readers, [os.path.join("src", "gcs", "frontend", "src", "utils", "videoConfig.js")]
-        )
+        self.assertEqual(readers, [])
 
-    def test_absent_by_default_and_no_credentials_or_baked_host(self):
-        src = _read("utils", "videoConfig.js")
-        self.assertIn("return null", src)
-        # No endpoint, host or credential baked into the bundle.
-        for token in ("192.168.", "http://", "https://", "user", "pass", "token"):
-            self.assertNotIn(token, src.split("*/", 1)[1])
-
-    def test_no_settings_field_and_no_backend_involvement(self):
+    def test_no_settings_field(self):
         for path, text in _walk_sources(os.path.join(_FRONTEND, "components", "settings"), (".jsx", ".js")):
-            self.assertNotIn("whep", text.lower(), path)
-        for path, text in _walk_sources(_BACKEND, (".py",)):
             self.assertNotIn("whep", text.lower(), path)
 
 
@@ -131,6 +120,11 @@ class TestVendoredReaderProvenance(unittest.TestCase):
         self.assertEqual(self.reader.count("this.#releaseSession();"), 3)
         self.assertEqual(self.reader.count('method: "DELETE"'), 1)
 
+    def test_fetch_policy_patch_is_in_place(self):
+        self.assertIn('{ redirect: "error", credentials: "omit" }', self.reader)
+        self.assertIn("#checkedSessionUrl(", self.reader)
+        self.assertIn("6. Fetch policy", self.notice)
+
     def test_location_is_used_as_returned_not_rebuilt(self):
         self.assertIn('res.headers.get("location")', self.reader)
         # The DELETE takes the stored session URL, never a re-derived path.
@@ -142,7 +136,7 @@ class TestLocaleStrings(unittest.TestCase):
         for locale in ("en", "hy"):
             src = _read("locales", f"{locale}.json")
             self.assertIn('"videoPanel"', src)
-            for key in ("title", "connecting", "stalled", "error", "retry", "expand", "collapse"):
+            for key in ("title", "region", "reconnect", "dismiss", "videoLost", "linkLost", "expand", "restore", "collapse"):
                 self.assertIn(f'"{key}"', src)
 
 

@@ -31,6 +31,8 @@ const ANSWER_SDP = OFFER_SDP;
 
 let peerConnections;
 let fetchCalls;
+let fetchInits;
+let optionsImpl;
 let postDeferred;
 
 const deferred = () => {
@@ -99,6 +101,8 @@ const flush = async () => {
 beforeEach(() => {
   peerConnections = [];
   fetchCalls = [];
+  fetchInits = [];
+  optionsImpl = () => Promise.resolve({ status: 200, headers: { get: () => null } });
   postDeferred = deferred();
   vi.useFakeTimers();
 
@@ -109,9 +113,10 @@ beforeEach(() => {
   globalThis.fetch = vi.fn((url, opts = {}) => {
     const method = opts.method || 'GET';
     fetchCalls.push({ url, method, keepalive: opts.keepalive });
+    fetchInits.push(opts);
     switch (method) {
       case 'OPTIONS':
-        return Promise.resolve({ status: 200, headers: { get: () => null } });
+        return optionsImpl();
       case 'POST':
         return postDeferred.promise;
       case 'PATCH':
@@ -184,12 +189,13 @@ describe('vendored WHEP reader session release', () => {
     expect(callsWithMethod('DELETE')).toHaveLength(0);
 
     // The server created the session anyway and reports it with an absolute
-    // Location — which is exactly what must be deleted.
-    postDeferred.resolve(postResponse({ location: 'http://jetson.test:8889/whep/session/xyz' }));
+    // Location — which is exactly what must be deleted. (It lies under the
+    // endpoint's <path>/whep/, as the fetch-policy patch requires.)
+    postDeferred.resolve(postResponse({ location: 'http://jetson.test:8889/tracking/whep/xyz' }));
     await flush();
 
     expect(callsWithMethod('DELETE')).toEqual([{
-      url: 'http://jetson.test:8889/whep/session/xyz',
+      url: 'http://jetson.test:8889/tracking/whep/xyz',
       method: 'DELETE',
       keepalive: true,
     }]);
@@ -220,5 +226,106 @@ describe('vendored WHEP reader session release', () => {
     expect(callsWithMethod('DELETE')).toHaveLength(0);
     // ...and the pending retry must not fire after close().
     await expectNoReconnect();
+  });
+});
+
+// NavPy patch 6 (see ./NOTICE): the browser is held to the endpoint it was
+// given. A refused redirect rejects the fetch (redirect: 'error'), which looks
+// exactly like a network failure, so every rejection is terminal.
+describe('vendored WHEP reader fetch policy', () => {
+  // Every fetch the reader has made so far, after letting any armed restart run.
+  const settleAndCount = async () => {
+    vi.advanceTimersByTime(30_000);
+    await flush();
+    return fetchCalls.length;
+  };
+
+  const localCandidate = () => ({ candidate: 'candidate:1 1 udp 1 10.0.0.1 9 typ host', sdpMLineIndex: 0 });
+
+  it('sends every request with redirect "error" and no credentials', async () => {
+    const reader = new MediaMTXWebRTCReader({ url: WHEP_URL, onError: vi.fn() });
+    await flush();
+    postDeferred.resolve(postResponse());
+    await flush();
+    readerPc().onicecandidate({ candidate: localCandidate() });
+    await flush();
+    reader.close();
+    await flush();
+
+    expect(fetchCalls.map((c) => c.method)).toEqual(['OPTIONS', 'POST', 'PATCH', 'DELETE']);
+    for (const init of fetchInits) {
+      expect(init.redirect).toBe('error');
+      expect(init.credentials).toBe('omit');
+    }
+  });
+
+  it('a redirect on the endpoint ends in error with no further fetch', async () => {
+    optionsImpl = () => Promise.reject(new TypeError('Failed to fetch'));
+    const onError = vi.fn();
+    new MediaMTXWebRTCReader({ url: WHEP_URL, onError });
+    await flush();
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(fetchCalls.map((c) => c.method)).toEqual(['OPTIONS']);
+    // Upstream would re-offer after its retry pause; the patch must not.
+    expect(await settleAndCount()).toBe(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it('a redirect on the offer ends in error with no further fetch', async () => {
+    const onError = vi.fn();
+    new MediaMTXWebRTCReader({ url: WHEP_URL, onError });
+    await flush();
+    postDeferred.resolve(Promise.reject(new TypeError('Failed to fetch')));
+    await flush();
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(readerPc().closed).toBe(true);
+    expect(fetchCalls.map((c) => c.method)).toEqual(['OPTIONS', 'POST']);
+    expect(await settleAndCount()).toBe(2);
+  });
+
+  const rejectsLocation = (label, location) => {
+    it(`a ${label} session Location ends in error with no further fetch`, async () => {
+      const onError = vi.fn();
+      const reader = new MediaMTXWebRTCReader({ url: WHEP_URL, onError });
+      await flush();
+      // A candidate gathered before the answer is queued for the session URL.
+      readerPc().onicecandidate({ candidate: localCandidate() });
+      postDeferred.resolve(postResponse({ location }));
+      await flush();
+
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError.mock.calls[0][0]).toContain('outside the endpoint');
+      expect(readerPc().closed).toBe(true);
+      // Never PATCHed, never DELETEd: the foreign URL is not fetched at all.
+      expect(fetchCalls.map((c) => c.method)).toEqual(['OPTIONS', 'POST']);
+      expect(await settleAndCount()).toBe(2);
+
+      // close() afterwards has nothing to release either.
+      reader.close();
+      await flush();
+      expect(fetchCalls).toHaveLength(2);
+    });
+  };
+
+  rejectsLocation('foreign-origin', 'http://evil.test:8889/tracking/whep/abc');
+  rejectsLocation('other-port', 'http://jetson.test:9999/tracking/whep/abc');
+  rejectsLocation('other-path', '/other/whep/abc');
+  rejectsLocation('dot-dot escaping', '/tracking/whep/../../api/abc');
+  rejectsLocation('bare endpoint', '/tracking/whep/');
+  rejectsLocation('missing', null);
+
+  it('does not DELETE a foreign Location that arrives after close()', async () => {
+    const onError = vi.fn();
+    const reader = new MediaMTXWebRTCReader({ url: WHEP_URL, onError });
+    await flush();
+    reader.close();
+    postDeferred.resolve(postResponse({ location: 'http://evil.test/tracking/whep/abc' }));
+    await flush();
+
+    expect(callsWithMethod('DELETE')).toHaveLength(0);
+    expect(onError).not.toHaveBeenCalled();
+    expect(await settleAndCount()).toBe(2);
   });
 });

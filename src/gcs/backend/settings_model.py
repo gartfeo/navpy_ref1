@@ -1,9 +1,10 @@
 """Pydantic models for GCS settings with typed defaults."""
 from __future__ import annotations
 
+import ipaddress
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class FlightSettings(BaseModel):
@@ -132,6 +133,27 @@ class SimulationSettings(BaseModel):
     # "explicit": only the start routes start them and nothing restarts them,
     # so a run has exactly one companion lifecycle (the deterministic eval).
     companion_lifecycle: Literal["auto", "explicit"] = "auto"
+    # The slot's sim MediaMTX test-pattern source (gcs_video_streams.md,
+    # section 6). Off: plain SITL announces no video. On: WHEP URLs use this
+    # slot's sim WHEP port (instance_ports.sim_video_whep_port).
+    video_test_source: bool = False
+
+
+class VideoSettings(BaseModel):
+    """Operator video display (gcs_video_streams.md, section 2)."""
+
+    # Networks an announced RTSP host must lie in; default the SIYI/radio
+    # LAN. Loopback is added only in sim mode, never stored here.
+    allowed_networks: list[str] = Field(default_factory=lambda: ["192.168.144.0/24"])
+    # The aircraft MediaMTX's WebRTC (WHEP) HTTP port; 8889 is MediaMTX's default.
+    whep_port: int = Field(default=8889, ge=1, le=65535)
+
+    @field_validator("allowed_networks")
+    @classmethod
+    def _networks_parse(cls, value: list[str]) -> list[str]:
+        for network in value:
+            ipaddress.ip_network(network)  # ValueError -> validation error
+        return value
 
 
 class GcsSettings(BaseModel):
@@ -141,4 +163,5 @@ class GcsSettings(BaseModel):
     map_display: MapDisplaySettings = Field(default_factory=MapDisplaySettings)
     launch: LaunchSettings = Field(default_factory=LaunchSettings)
     simulation: SimulationSettings = Field(default_factory=SimulationSettings)
+    video: VideoSettings = Field(default_factory=VideoSettings)
     default_delivery_hubs: list[DefaultDeliveryHub] = Field(default_factory=list)

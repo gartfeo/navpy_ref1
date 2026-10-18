@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling scripts (swa
 from gcs.backend import instance_ports as ip  # noqa: E402
 from gcs.backend import instance_registry as reg  # noqa: E402
 import swarm_run  # noqa: E402
+from gcs_launch_video import reap_sim_video_ports  # noqa: E402
 from gcs_stop_lockstep import stop_lockstep  # noqa: E402
 
 
@@ -69,16 +70,19 @@ def stop_chat(n: int, kill_sitl: bool = True) -> bool:
     else:
         backend_pid = _verified_pid(entry, "backend_pid", "backend_pid_start")
         frontend_pid = _verified_pid(entry, "frontend_pid", "frontend_pid_start")
+        video_pid = _verified_pid(entry, "video_pid", "video_pid_start")
         _kill_tree(backend_pid)
         _kill_tree(frontend_pid)
+        _kill_tree(video_pid)  # sim MediaMTX; the tree takes its FFmpeg children
         print(f"chat {n}: stopped backend pid={backend_pid} "
-              f"frontend pid={frontend_pid}")
+              f"frontend pid={frontend_pid} video pid={video_pid}")
     # Reap anything still holding this chat's frontend/backend ports — e.g. a Vite
     # dev server that outlived the pid tree-kill. Otherwise it orphans onto the
     # port, stays invisible to the registry, and blocks the next session's slot.
     # Companion UDP ports too (shared helper — see reap_companion_ports).
     protected = reg.registered_pids()
     reaped = reg.reap_port(ip.frontend_port(n)) + reg.reap_port(ip.backend_port(n))
+    reaped += reap_sim_video_ports(n, protected)
     reaped += reg.reap_companion_ports(n, exclude=protected)
     if reaped:
         print(f"chat {n}: reaped orphan pids {reaped} on this chat's ports")

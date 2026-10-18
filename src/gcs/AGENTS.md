@@ -27,14 +27,15 @@ Frontend:
 - scripts: `npm run dev`, `npm run build`, `npm run preview`
 - Handheld (Termux) deployment: the backend serves the built frontend itself
   when `GCS_FRONTEND_DIST` is set
-- Tracking-overlay video (monitor view, bottom-left panel): build-time env var
-  `VITE_VIDEO_WHEP_URL`, the WHEP endpoint of the Jetson publisher's MediaMTX
-  (e.g. `http://192.168.144.10:8889/tracking/whep` — derive it from the
-  publisher's own config, do not assume it). Absent by default, which hides the
-  panel; it is read at build time only, so changing it needs a rebuild. Public
-  and credential-free — never put credentials in it, and it deliberately has no
-  settings field and no backend route. The WHEP client is vendored third-party
-  source: `frontend/src/vendor/mediamtx/` (see its `NOTICE`).
+- Vehicle video (monitor view, camera panel): display only, never a
+  final-approach input. Each vehicle's camera advertises its streams over the
+  MAVLink camera protocol; the backend checks each URI against
+  `video.allowed_networks` and puts a WHEP URL (port `video.whep_port`) in the
+  snapshot's `video_streams`. The browser plays it straight from the
+  aircraft's MediaMTX. No streams, no panel. Sim test pattern:
+  `simulation.video_test_source`. Design: `docs/design/gcs_video_streams.md`.
+  The WHEP client is vendored third-party source:
+  `frontend/src/vendor/mediamtx/` (see its `NOTICE`).
 - Cesium Ion imagery/terrain: build-time env var `VITE_CESIUM_ION_TOKEN`, set
   in an untracked `src/gcs/frontend/.env.local`. Absent, the map stays on OSM.
   The repository is public — never commit the token

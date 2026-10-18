@@ -196,6 +196,7 @@ def launch_navpy_instance(
     vision_profile: str | None,
     log_level: str | None,
     navigation_speedup: float,
+    extra_env: dict[str, str] | None = None,
     popen_factory: Callable[..., subprocess.Popen[bytes]],
     output_reader: Callable[[NavpyInstance], None],
     logger: logging.Logger,
@@ -212,7 +213,7 @@ def launch_navpy_instance(
         "stdin": subprocess.PIPE,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.STDOUT,
-        "env": _build_env(),
+        "env": {**_build_env(), **(extra_env or {})},
     }
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP

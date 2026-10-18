@@ -76,6 +76,43 @@ class TestInstancePorts(unittest.TestCase):
         self.assertEqual(esp32 & others, set())
         self.assertEqual(ip.ports_for_chat(5)["esp32_sim"], 17555)
 
+    def test_sim_video_ports_are_slot_derived_and_clash_with_nothing(self):
+        # The sim MediaMTX's three listeners (gcs_video_streams.md, section 6)
+        # against every other band, and each other, for slots 0..84.
+        rng = range(ip.MAX_CHAT_INDEX + 1)
+        self.assertEqual(
+            (ip.sim_video_rtsp_port(0), ip.sim_video_whep_port(0),
+             ip.sim_video_webrtc_udp_port(0)),
+            (20550, 21550, 22550),
+        )
+        self.assertEqual(ip.sim_video_whep_port(84), 21634)
+        video = {
+            "rtsp": {ip.sim_video_rtsp_port(n) for n in rng},
+            "whep": {ip.sim_video_whep_port(n) for n in rng},
+            "webrtc_udp": {ip.sim_video_webrtc_udp_port(n) for n in rng},
+        }
+        for ports in video.values():
+            self.assertEqual(len(ports), len(rng))
+        self.assertEqual(video["rtsp"] & video["whep"], set())
+        self.assertEqual(video["rtsp"] & video["webrtc_udp"], set())
+        self.assertEqual(video["whep"] & video["webrtc_udp"], set())
+        others = (
+            {ip.frontend_port(n) for n in rng}
+            | {ip.backend_port(n) for n in rng}
+            | {ip.mission_planner_port(n) for n in rng}
+            | {ip.monitor_port(n) for n in rng}
+            | {ip.verify_port(n) for n in rng}
+            | {ip.esp32_sim_port(n) for n in rng}
+            | {ip.lockstep_relay_port(n, k) for n in rng
+               for k in range(ip.VEHICLES_PER_CHAT)}
+            | {ip.companion_port(s) for s in range(1, ip.MAX_SYSID + 1)}
+            # Eval telemetry: udp 24000 + (g-1) (module docstring).
+            | set(range(24000, 24000 + ip.MAX_SYSID))
+        )
+        for name, ports in video.items():
+            self.assertEqual(ports & others, set(), name)
+        self.assertEqual(ip.ports_for_chat(5)["sim_video_whep"], 21555)
+
     def test_sysids_are_globally_unique_and_contiguous(self):
         self.assertEqual(ip.sysids_for_chat(0), [1, 2, 3])
         self.assertEqual(ip.sysids_for_chat(1), [4, 5, 6])

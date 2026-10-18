@@ -14,6 +14,8 @@ Port layout (vehicle ``i = 1..VEHICLES_PER_CHAT``, global vehicle index
     Our GCS monitor            15550 + N       (all UAVs, multiplexed via router)
     NavPy companion (sys_id g) udp 5760 + 10*(g-1)  (companion binds; SITL streams in)
     Eval telemetry (sys_id g)  udp 24000 + (g-1)   (scorer binds; SITL serial1 in)
+    Sim video MediaMTX         RTSP tcp 20550 + N, WebRTC (WHEP) http 21550 + N,
+                               WebRTC udp 22550 + N   (only with the test source on)
     SITL -I / dir / sys_id     (g-1) / g / g
 
 The two GCS-facing ports are exported to the Windows host by the SITL
@@ -51,6 +53,14 @@ ESP32_SIM_BASE = 17550
 # Lockstep relays (TCP, WSL loopback): one per SITL of an eval slot, the
 # coordinator's end of the serial-step link. Its own band, 3 per slot.
 LOCKSTEP_RELAY_BASE = 18550
+# The slot's sim MediaMTX video test source (docs/design/gcs_video_streams.md,
+# section 6): RTSP over TCP (FFmpeg publishes, NavPy's sim companion announces
+# it), WebRTC HTTP (the browser's WHEP endpoint) and WebRTC UDP (media). One
+# port each per slot, in bands of their own above the bench band (17000-19999)
+# and below eval telemetry (24000+).
+SIM_VIDEO_RTSP_BASE = 20550
+SIM_VIDEO_WHEP_BASE = 21550
+SIM_VIDEO_WEBRTC_UDP_BASE = 22550
 # Per-vehicle companion UDP ports. The numbers keep ArduPilot's historical
 # serial0 arithmetic (5760 + 10*instance_idx) but are now Windows-side bind
 # ports: the companion listens here and SITL serial0 (udpclient) streams in.
@@ -152,6 +162,21 @@ def esp32_sim_port(n: int) -> int:
     return ESP32_SIM_BASE + n
 
 
+def sim_video_rtsp_port(n: int) -> int:
+    """TCP port of chat *n*'s sim MediaMTX RTSP listener."""
+    return SIM_VIDEO_RTSP_BASE + n
+
+
+def sim_video_whep_port(n: int) -> int:
+    """HTTP port of chat *n*'s sim MediaMTX WebRTC (WHEP) listener."""
+    return SIM_VIDEO_WHEP_BASE + n
+
+
+def sim_video_webrtc_udp_port(n: int) -> int:
+    """UDP port of chat *n*'s sim MediaMTX WebRTC media."""
+    return SIM_VIDEO_WEBRTC_UDP_BASE + n
+
+
 def lockstep_relay_port(n: int, ordinal: int) -> int:
     """TCP port of chat *n*'s relay for the SITL with *ordinal* (0-based)."""
     if not 0 <= ordinal < VEHICLES_PER_CHAT:
@@ -221,6 +246,9 @@ def ports_for_chat(n: int) -> dict:
         "gcs_monitor": monitor_port(n),
         "mission_planner": mission_planner_port(n),
         "esp32_sim": esp32_sim_port(n),
+        "sim_video_rtsp": sim_video_rtsp_port(n),
+        "sim_video_whep": sim_video_whep_port(n),
+        "sim_video_webrtc_udp": sim_video_webrtc_udp_port(n),
         "sysids": sysids_for_chat(n),
         "companions": companion_ports_for_chat(n),
         "swarm_offset": VEHICLES_PER_CHAT * n,  # -I offset for run_swarm.sh

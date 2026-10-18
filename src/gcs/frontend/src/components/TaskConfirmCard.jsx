@@ -31,6 +31,10 @@ export default function TaskConfirmCard({
   // marked gate-overridden and its approve requires press-and-hold, like the
   // override button itself; a normal popup keeps instant approve.
   forced = false,
+  // Camera panel action for a PENDING card, or null when not offered (that
+  // UAV has no stream, or RC is on): { viewing, onView }. It only moves the
+  // video; it never approves, denies or pauses the countdown.
+  videoAction = null,
 }) {
   const { t } = useTranslation();
   const pending = isPending(entry);
@@ -194,6 +198,26 @@ export default function TaskConfirmCard({
           {t('task.waitingForImage')}
         </div>
       ) : null}
+
+      {/* View camera: neutral, beside the still and away from Approve/Deny. */}
+      {pending && videoAction && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={videoAction.viewing ? undefined : videoAction.onView}
+            disabled={videoAction.viewing}
+            aria-pressed={videoAction.viewing}
+            style={{
+              minHeight: 44, padding: '0 12px', borderRadius: 4, fontSize: 14, fontWeight: 600,
+              cursor: videoAction.viewing ? 'default' : 'pointer', touchAction: 'manipulation',
+              border: `1px solid ${colors.border}`, background: colors.bgLighter, color: colors.textBright,
+            }}
+          >
+            {videoAction.viewing ? t('task.viewing') : t('task.viewCamera')}
+          </button>
+          <span style={{ fontSize: 11, color: colors.textDim }}>{t('task.viewCameraNote')}</span>
+        </div>
+      )}
 
       {/* Timer bar (pending only) */}
       {pending && (

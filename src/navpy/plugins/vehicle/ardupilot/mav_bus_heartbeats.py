@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_message,
+    MAV_TYPE_CAMERA,
     MAV_TYPE_GCS,
     MAV_TYPE_ONBOARD_CONTROLLER,
 )
@@ -11,6 +12,10 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from navpy.core.kernel import runtime_time as rt
 
 _IGNORED_SYSTEM_IDS = frozenset({0, 254, 255})
+# Not the vehicle: a companion camera heartbeats under the vehicle's sysid
+# (camera protocol, docs/design/gcs_video_streams.md) and must not keep a
+# silent autopilot looking alive.
+_NON_VEHICLE_TYPES = frozenset({MAV_TYPE_GCS, MAV_TYPE_CAMERA})
 
 
 class MavBusHeartbeats:
@@ -28,7 +33,7 @@ class MavBusHeartbeats:
         with self._condition:
             if mav_type == MAV_TYPE_ONBOARD_CONTROLLER:
                 self._companion[system_id] = now_s
-            elif mav_type != MAV_TYPE_GCS:
+            elif mav_type not in _NON_VEHICLE_TYPES:
                 self._vehicle[system_id] = now_s
             self._condition.notify_all()
 

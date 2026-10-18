@@ -13,6 +13,11 @@ from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordinator import DetectionCoordinator
 from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
+from navpy.app.perception.camera_stream_composition import streaming_cameras
+from navpy.core.perception.vision_publisher_group import VisionPublisherGroup
+from navpy.plugins.vehicle.ardupilot.camera_stream_publisher import (
+    CameraStreamPublisher,
+)
 from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
@@ -94,7 +99,16 @@ def build_vision_controller(
         )
         detectors = [node.detector for node in nodes]
         coordinator = DetectionCoordinator(detectors, logger)
-        publisher = GimbalTelemetryPublisher(vehicle, profile.mount_specs, logger)
+        publisher = VisionPublisherGroup((
+            GimbalTelemetryPublisher(vehicle, profile.mount_specs, logger),
+            # Operator display only: camera-protocol stream discovery.
+            CameraStreamPublisher(
+                vehicle,
+                vehicle.target_system,
+                streaming_cameras(profile.mount_specs),
+                logger,
+            ),
+        ))
         real_ui = tuple(
             node.real_ui for node in nodes if node.real_ui is not None
         )

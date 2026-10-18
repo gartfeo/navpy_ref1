@@ -90,7 +90,7 @@ EXTERNAL_IMPORTS = frozenset({
     "collections.abc", "contextlib", "contextvars", "copy", "csv", "ctypes", "cv2",
     "dataclasses", "datetime", "enum", "fastapi", "fastapi.middleware.cors",
     "fastapi.responses", "fastapi.staticfiles", "geopy.distance", "geopy.point",
-    "glob", "hashlib", "http.server", "importlib", "io", "itertools", "json",
+    "glob", "hashlib", "http.server", "importlib", "io", "ipaddress", "itertools", "json",
     "logging", "logging.handlers", "math", "numbers", "numpy", "orjson", "os",
     "pathlib", "pydantic", "pymap3d", "pymavlink", "pymavlink.dialects.v20.ardupilotmega",
     "pymavlink.generator.mavcrc", "pymavlink.mavextra", "pymavlink.mavutil",

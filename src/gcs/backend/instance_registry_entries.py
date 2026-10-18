@@ -173,7 +173,7 @@ def registered_pids(
     """Return every process PID protected by a live registry entry."""
     pids: set[int] = set()
     for entry in (live_entries or live)():
-        for key in ("backend_pid", "frontend_pid", "sitl_pid"):
+        for key in ("backend_pid", "frontend_pid", "video_pid", "sitl_pid"):
             pid = entry.get(key)
             if pid:
                 pids.add(int(pid))

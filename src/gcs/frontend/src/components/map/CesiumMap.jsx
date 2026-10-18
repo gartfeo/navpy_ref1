@@ -112,6 +112,8 @@ function CesiumMap({
   onMoveDeliveryHub,
   followSysId,
   fpvMode,
+  cameraPersistSuspended,
+  mapCameraRef,
   onViewerReady,
 }) {
   // Entity refs for cleanup
@@ -216,7 +218,13 @@ function CesiumMap({
   const setLaunchPointCount = (setLaunchPoints || []).filter(lp => lp != null).length;
 
   // Hooks — each manages one concern
-  const { containerRef, viewerRef, cesiumRef, readyRef, viewerReady, terrainReady, tilesReady } = useCesiumViewer(resetViewRef, flyToRef, mapDefaults);
+  // Read by the viewer's moveEnd persistence; set during render so it is
+  // already true before the first first-person frame.
+  const persistSuspendedRef = useRef(false);
+  persistSuspendedRef.current = !!cameraPersistSuspended;
+  const { containerRef, viewerRef, cesiumRef, readyRef, viewerReady, terrainReady, tilesReady } = useCesiumViewer(
+    resetViewRef, flyToRef, mapDefaults, { persistSuspendedRef, mapCameraRef },
+  );
 
   const { planRef, trackPosRef, zonePosRef, lzPosRef, minLzPosRef, clampOuterRef, terrainBaseRef } =
     usePlanSync(cesiumRef, viewerRef, plan, analysis, terrainReady);
@@ -260,7 +268,7 @@ function CesiumMap({
   );
 
   useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady);
-  useFollowUav(cesiumRef, viewerRef, entitiesRef, followSysId, viewerReady, fpvMode);
+  useFollowUav(cesiumRef, viewerRef, entitiesRef, followSysId, viewerReady, fpvMode, storeRef);
   useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${trailResetKey}`);
   useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, coverageResetKey, viewerReady, plannerReady);
   useAssignmentMarkers(cesiumRef, viewerRef, assignments || {}, storeRef, viewerReady);
