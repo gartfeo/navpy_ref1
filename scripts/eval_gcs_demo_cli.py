@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Sequence, cast
 
 from navpy.sim.lockstep.host_paths import HostPathScrubber
+from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, profile_names
 from scripts.eval_gcs_demo_analysis import analyze_run
 from scripts.eval_gcs_demo_models import (
     GateLimits,
@@ -86,6 +87,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="lockstep only: seeded host delays in the relay, coordinator and participants "
         "(acceptance (c)); 0 is none",
     )
+    parser.add_argument(
+        "--sim-profile",
+        default=None,
+        choices=profile_names(),
+        help="lockstep only: the sim profile whose realism models the seed draws "
+        "(src/navpy/sim/lockstep/sim_profiles.json; default: hw)",
+    )
     return parser.parse_args(argv)
 
 
@@ -103,7 +111,7 @@ def run_lockstep(
     run_dir = args.run_dir or Path(tempfile.mkdtemp(prefix="navpy-gcs-demo-lockstep-"))
     print(f"GCS demo lockstep artifacts: {run_dir.resolve()}", flush=True)
     options = LockstepOptions(args.seed, args.timeout_s, args.confirmation_delay_s,
-                              args.host_delay_seed)
+                              args.host_delay_seed, args.sim_profile or DEFAULT_PROFILE)
     run = execute_lockstep_run(run_dir, scenario, options)
     errors = [f"lockstep outcome {run.outcome!r}, not 'ok'"] if run.outcome != "ok" else []
     if run.operator_error is not None:
@@ -139,6 +147,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         scenario = load_eval_scenario(args.scenario)
     except (TypeError, ValueError) as error:
         raise RegressionError(f"invalid --scenario: {error}") from error
+    if args.sim_profile is not None and not args.lockstep:
+        raise RegressionError("--sim-profile is lockstep only")
     if args.lockstep and scenario.gate_profile == DELIVERY_PROFILE:
         raise RegressionError("the delivery scenario has no lockstep run")
     if args.lockstep:

@@ -6,7 +6,8 @@ part is the serial-step firmware lock, the merged pre-boot ``defaults.parm``
 (WSL's stock ``plane.parm`` plus the lockstep overrides), the deployed Lua and the
 pinned SITL terrain tiles (the wall eval's ``seed/terrain``) and the topology
 (``lockstep_topology``); the run options are the seed, the operator's budgets, the
-tick grid and the participants' role configs. The host delay seed is a host
+tick grid, the participants' role configs and the sim profile's realization for the
+seed (``sim_profile``: the profile's hash and every model's draw). The host delay seed is a host
 perturbation (acceptance (c)) and stays out: a delayed run must consume the
 same inputs. The WSL root's path is host data (``lockstep_run_host.json``).
 """
@@ -21,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from navpy.sim.lockstep.coordinator_spawn import PYTHON_HASH_SEED
 from navpy.sim.lockstep.coordinator_types import Manifest
+from navpy.sim.lockstep.sim_profile import Realization
 from scripts import lockstep_wsl
 from scripts.eval_gcs_demo_inputs import write_input_manifest
 from scripts.eval_gcs_demo_ports import JsonValue
@@ -52,7 +54,8 @@ def lockstep_sitl_inputs(defaults: str, tiles: Mapping[str, bytes]) -> dict[str,
 def write_lockstep_input_manifest(run_dir: Path, scenario: DemoScenario, plan: Manifest,
                                   options: "LockstepOptions", defaults: str,
                                   tiles: Mapping[str, bytes],
-                                  topology: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+                                  topology: Mapping[str, JsonValue],
+                                  realization: Realization) -> dict[str, JsonValue]:
     """``topology`` is ``lockstep_topology.topology_inputs``: the wall launcher's
     hash, the SITLs' homes, the router entry table and binary, ``FIFO_CAP``."""
     roles = {name: {"hooks": spec.hooks, "devices": list(spec.devices), "config": spec.config}
@@ -67,6 +70,7 @@ def write_lockstep_input_manifest(run_dir: Path, scenario: DemoScenario, plan: M
         "drain_period_us": plan.drain_period_us,
         "mission_budget_us": plan.mission_budget_us,
         "roles_sha256": _canonical_sha256(roles),
+        "sim_profile": realization.to_json(),
     }
     # A participant's whole environment besides its record and host start
     # variables (``coordinator_spawn.hermetic_environment``).

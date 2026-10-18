@@ -1,6 +1,6 @@
 # One deterministic sim for development and the demo
 
-Status: design, awaiting the owner. No code until it is approved. Updated 2026-10-18: one run for all simulation, with recorded app actions.
+Status: approved by the owner 2026-10-18 (design and the decisions below). Built one step at a time (section 6).
 
 ## Goal
 Owner, 2026-10-18: "we should have one deterministic sim for development. otherwise if we have bug in wall mode it will be very hard to reproduce in locked step mode."
@@ -55,9 +55,9 @@ Two kinds of wall bugs need different answers:
 One limit stays: the baton switches threads only at primitives (locks, queues, sleeps), so a race between two bytecodes with no primitive between them cannot happen in lockstep. Seeded thread order (section 2) covers races at primitives, which is where our documented races are (todo 31, 45). A bytecode-level race needs a code review or a wall run; it is listed as a known gap.
 
 ## 2. Seeded realism models
-All models live on the coordinator side or in the participant loop, never in product code. Each draws from its own stream, `Random(run seed, model name, link or ordinal)`, so turning one model on or off does not shift another's draws. Delays are counted in ticks (about 20 ms; `t_k` is the SITL's `source_us`). Every delayed, dropped or reordered packet keeps a journaled disposition, as the gates require today (`lockstep_fleet.md:196`). With every model off, the digest must equal today's `65aae9e1…`.
+All models live on the coordinator side or in the participant loop, never in product code. Each draws from its own stream, seeded by SHA-256 of `domain:run seed:model:link or ordinal` as participant seeds are, with values from `random()` only, so turning one model on or off does not shift another's draws. Delays are counted in ticks (about 20 ms; `t_k` is the SITL's `source_us`). Every delayed, dropped or reordered packet keeps a journaled disposition, as the gates require today (`lockstep_fleet.md:196`). With every model off, the digest must equal today's `65aae9e1…`.
 
-A **profile** file (part of the input manifest) gives each model's range. Per seed, the swarm step draws which models are on (each on with probability 0.5 by default) and a value inside each range.
+A **profile** (`src/navpy/sim/lockstep/sim_profiles.json`, chosen with `--sim-profile`, default `hw`) gives each model's range. Per seed, the swarm step draws which models are on (each on with probability 0.5 by default) and a value inside each range. The draw is recorded in `input_manifest.json` (`run_options.sim_profile`), not in the journal. A model joins the file in the step that builds it, so until then every profile is empty.
 
 | Model | Where it plugs in | `hw` profile range (default) | Basis |
 |---|---|---|---|
@@ -147,13 +147,13 @@ Each step is small and has its proof. Every step keeps the digest with all model
 
 A bug seen on hardware or in the old wall sim must first be reproduced in lockstep (section 3). If it cannot be, it stays an unreproduced bug in `architecture_todo.md`; it is recorded as a model gap only when mechanism evidence shows one.
 
-## Open decisions for the owner
-1. Approve the firmware change (seeded SITL noise) and a new firmware lock.
-2. Lift ruling 4 ("no frontend" in the eval band) so the app can drive a lockstep run, and choose its ports.
-3. Default target: the `hw` profile (hardware at 1x) as the default and `stress` for 10x-style bugs, as proposed; or tune the default to the wall eval's numbers.
-4. Gate cost: 10 seeds per change (about 15 min) and 150 nightly (about 3 h) on this PC.
-5. Ranges without data: which radio carries NAVLINK on the aircraft, its loss and air rate, camera drops, wind. Use the assumed ranges above until a field test measures them?
-6. Remove the wall sim route after the demo rehearsal (step 14), or keep it longer as a fallback.
+## Owner decisions (2026-10-18: "approved")
+1. The firmware change (seeded SITL noise) and a new firmware lock: approved.
+2. Ruling 4 is lifted: the app may drive a lockstep run. Ports: the slot's own frontend and backend ports, unless step 11 shows a conflict.
+3. Default profile: `hw` (hardware at 1x); `stress` for 10x-style bugs.
+4. Gate cost: 10 seeds per change (about 15 min) and 150 nightly (about 3 h).
+5. Ranges without data (the radio that carries NAVLINK, its loss and air rate, camera drops, wind): the assumed ranges above until a field test measures them.
+6. The wall sim route is removed after the demo rehearsal (step 14).
 
 ## Known gaps
 - Races between bytecodes with no primitive between them (section 1).

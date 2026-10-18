@@ -85,6 +85,69 @@ def test_cli_lockstep_reports_the_run_relative_log_dir(tmp_path, monkeypatch):
     assert "operator: RegressionError: stalled" in report
 
 
+def test_lockstep_records_the_sim_profile_realization_in_the_input_manifest(tmp_path, monkeypatch,
+                                                                           no_claim):
+    """Step 1 of deterministic_dev_sim.md: the default profile and its draws are a run input."""
+    import json
+
+    from navpy.sim.lockstep.sim_profile import load_profile
+
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda: "X 1\n")
+    with pytest.raises(AssertionError, match="must not claim"):
+        execute_lockstep_run(tmp_path / "run", SLICE, OPTIONS)
+    inputs = json.loads((tmp_path / "run" / "input_manifest.json").read_text(encoding="utf-8"))
+    assert inputs["run_options"]["sim_profile"] == {
+        "profile": "hw", "profile_sha256": load_profile("hw").sha256, "models": {}}
+
+
+def test_lockstep_refuses_an_unknown_sim_profile_before_the_run_directory(tmp_path, no_claim):
+    import dataclasses
+
+    with pytest.raises(RegressionError, match="--sim-profile: unknown sim profile 'bogus'"):
+        execute_lockstep_run(tmp_path / "run", SLICE, dataclasses.replace(OPTIONS, sim_profile="bogus"))
+    assert not (tmp_path / "run").exists()
+
+
+def test_the_sim_profile_never_reaches_the_coordinators_manifest():
+    """The journal digest comes from the Manifest's grid and the run's bytes; a profile
+    with no built model must leave both as they were (step 1 keeps the digest)."""
+    import dataclasses
+
+    assert manifest(SLICE, dataclasses.replace(OPTIONS, sim_profile="none")) == manifest(SLICE, OPTIONS)
+
+
+def test_cli_passes_the_sim_profile_and_defaults_to_hw(tmp_path, monkeypatch):
+    seen = []
+
+    def run(_run_dir, _scenario, options):
+        seen.append(options.sim_profile)
+        return lockstep_eval.LockstepRun("d" * 64, "ok", [], None)
+
+    monkeypatch.setattr(cli, "execute_lockstep_run", run)
+    monkeypatch.setattr(cli, "analyze_run", lambda *a, **k: pytest.fail("stop after the run"))
+    for extra, run_dir in (([], "a"), (["--sim-profile", "stress"], "b")):
+        try:
+            cli.main(["--lockstep", "--scenario", str(SLICE_PATH), "--run-dir", str(tmp_path / run_dir),
+                      *extra])
+        except BaseException:  # noqa: BLE001 - the analysis stub ends the run
+            pass
+    assert seen == ["hw", "stress"]
+
+
+def test_cli_refuses_a_sim_profile_without_lockstep(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "execute_live_run", lambda *a, **k: pytest.fail("launched wall"))
+    with pytest.raises(RegressionError, match="--sim-profile is lockstep only"):
+        cli.main(["--scenario", str(SLICE_PATH), "--run-dir", str(tmp_path), "--sim-profile", "hw"])
+
+
+def test_cli_refuses_an_unknown_sim_profile_before_any_directory(monkeypatch, capsys):
+    monkeypatch.setattr(cli.tempfile, "mkdtemp", lambda **_k: pytest.fail("made a run directory"))
+    monkeypatch.setattr(cli, "execute_lockstep_run", lambda *a: pytest.fail("ran"))
+    with pytest.raises(SystemExit):
+        cli.main(["--lockstep", "--scenario", str(SLICE_PATH), "--sim-profile", "bogus"])
+    assert "invalid choice: 'bogus'" in capsys.readouterr().err
+
+
 def test_the_manifest_takes_the_grid_and_the_slice_roles():
     plan = manifest(SLICE, OPTIONS)
     assert (plan.max_frame_gap_us, plan.drain_period_us) == (MAX_FRAME_GAP_US, DRAIN_PERIOD_US)

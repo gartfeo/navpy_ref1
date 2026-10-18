@@ -10,7 +10,8 @@
   that carries the pattern, so it kills its own shell (exit 15). Use `pgrep -af '[a]rduplane'`
   style patterns, or run the script through `bash -s` with a heredoc.
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
-  newlines twice. Edit such lines with the Edit tool and check with `ast.parse`.
+  newlines five times (three more in dev-sim step 1: a test, a scratch script and this
+  note). Insert or change code with the Edit tool, never a heredoc; check with `ast.parse`.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
   5501 + 10 x instance (AP_RCProtocol_UDP.cpp). Driving the "pilot" this way keeps Lua
   RC overrides behaving as on the aircraft; MAVLink RC overrides would compete with them.
@@ -492,7 +493,9 @@
   (distinct task ids hid a shared reassembler). Codex later found two more:
   an ACK test where the acceptance cancelled the timer, and a coalescing test
   without a repeated id. Next time, break the product rule, confirm the test
-  fails, then restore the file.
+  fails, then restore the file. Check that the mutation really breaks the rule:
+  in dev-sim step 1 a "shared key" mutation still gave each parameter its own
+  key and survived; the real one (one key) showed a missing test.
 - **Import-time locks stay on the wall runtime.** Class attributes made with
   rt.Lock() at import (MsgMetaProvider._lock, MsgRegistry._registry_lock)
   and module singletons (full_param_cache) are not rebound by a test's
