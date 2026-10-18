@@ -14,7 +14,7 @@ every approved v4 decision; "Changes from v4" lists each change with its reason.
 - Owner ruling 2026-10-18 (todo 74): a missed final approach is a failed dock and ends like DOCKED; it never goes
   back to search.
 - Line numbers are on main `77abb63`. Paths are under `src/navpy/` unless they start with `tests/`, `scripts/`,
-  `docs/` or `src/gcs/`. App files are in `app/flow/` unless a path says otherwise. Nothing is built yet.
+  `docs/` or `src/gcs/`. App files are in `app/flow/` unless a path says otherwise. Built: c2-c9 are on main (status under "Commits").
 - Here a "product" is a package under `products/` (delivery, later pickup). Other designs' "product code" means all
   shipped runtime code.
 
@@ -80,10 +80,11 @@ Each change is forced by code added since `f744062`, or by a v4 statement that i
    stays the last operand" is now "keeps its place, before `peer_task_assigned`" (`nd:80-81`).
 6. **`DetectAction` asks for work at two points.** The new hold calls `handle_new_poi(None)` (`da:41`) as well as the
    original call (`da:52`). c8's `choose_work` replaces both.
-7. **App composition has no line headroom.** `compose_navigation_task_workflows` is 149 of 150 lines and
-   `compose_nav_application` 150 of 150 (v4: 143 and 124). v4's c7 and c8 would push both over. v5 builds every
-   delivery object in one new app file, `app/flow/nav_delivery_composition.py`, called from `create_nav_application`
-   (136 of 150). Each stage then only swaps arguments; c6's rename at `nrc:125` is one line for one line, and nothing
+7. **App composition has no line headroom.** On `77abb63` `compose_navigation_task_workflows` is 149 of 150 lines
+   and `compose_nav_application` 150 of 150 (v4: 143 and 124). v4's c7 and c8 would push both over. v5 puts the
+   moved delivery wiring in one new app file, `app/flow/nav_delivery_composition.py`; the stage composers call its
+   helpers. As built (c9): 147, 143 and `create_nav_application` 138 (136 + c4's metadata read), all within 150;
+   c7's helper call freed seven lines, and c8a and c8 added four lines of helper calls. Each stage then only swaps arguments; c6's rename at `nrc:125` is one line for one line, and nothing
    else may grow `compose_nav_application` before c7 frees about ten lines. Measured at each commit by the SOLID
    guard.
 8. **Ten product call positions, not seven.** c8a adds three: `offer_allowed`, `order_work` and `needs_own_orbit`.
@@ -392,7 +393,7 @@ v4's five audits (see `779694e`) plus v5's re-scan of `168d84d` and v5.1's of `7
 None of these changes behaviour, a log line the evals read, the wire, the GCS or Lua. The `-nos` help text is the
 only user-visible text that changes.
 
-**Guard** (`tests/guards/test_core_knows_no_product.py`, new in c8, about 70 lines, modelled on
+**Guard** (`tests/guards/test_core_knows_no_product.py`, new in c8, about 115 lines, modelled on
 `tests/guards/test_oracle_stays_in_the_bench.py`; no src code):
 - Scans every `.py` and `.json` under `src/navpy/core` and `src/navpy/plugins`, except the vendored `_mavftp`.
 - Identifiers (split on `_` and camelCase), strings and comments; whole words, any case.
@@ -472,6 +473,15 @@ firmware lock (a firmware change moves the digest, `deterministic_dev_sim.md:127
 - **Done 2026-10-19 on `869d5a4`:** both runs and the probe gave `fbda9e41…` (step 2's `hw` seed 1 digest) and
   passed; the compared set is 61 files. The probe's three `participant_*_host.log` differ only in the checkout
   folder it ran from, so every later run starts from the same worktree. Runs in `.logs/delivery_move_ref/base_869d5a4`.
+- **Built 2026-10-19:** c2-c9 are on main (c2 `1b6faf9`, c3 `75fc2c8`, c4 `eb424b0`, c5 `ee26954`, c6 `420ab6b`,
+  c7 `ef45e61`, c8a `d3b011a`, c8 `6953798`, c9 `27d0575`). Every lockstep run from c3 to c9 kept `fbda9e41…` and
+  the 61-file compared set, and every gate showed only todo 78's nine failures. Wall runs, in
+  `.logs/delivery_move_ref`: the forced miss on c7 passed (each UAV DOCK_FAILED, no return to search, one disarm
+  each); the normal run on c8 passed; the normal run on c9 docked all three, the home UAV on the hub route
+  ("Default delivery hub navigation:") to its home dock, but failed UAV 1's roll-step gate on its last command
+  before contact (63.9 deg at a logged range of 0.9 m). That failure is todo 80, cause not yet traced; the move
+  changed no law, tracker or gimbal code (only comments there), and the lockstep runs stayed byte-equal. The identity reference is now c9's lockstep run
+  (`c9_27d0575/lockstep`, source hashes in its `input_manifest.json`); no `.py` file changed after c9.
 
 The same rule holds on every later commit: a changed compared set stops the plan until the cause is found. The
 parent's run is redone whenever main moves. The wall references are the green and forced-miss delivery runs of
@@ -642,9 +652,11 @@ identity is re-baselined (`scripts/simtime_navigation_identity.py:11-18`).
 ## Guards and tests
 - **Layers:** `products/` becomes a real layer in c2. Refused: core→products, plugins→products, products→plugins,
   products→sim, sim→products. One exception row is removed (c4), none added.
-- **Vision walk:** today 162 roots, 0 violations, 0 stale rows (run on `77abb63`). v4's end-state simulation (163
-  roots) ran on `f744062`; it is re-run on the c6 parent before c6. Without the delivery-flow root, `exceptions.tsv:43`
-  (`trk` → `geo_ref_calc`) goes stale.
+- **Vision walk:** 162 roots, 0 violations, 0 stale rows on `77abb63`. v4's end-state simulation (163 roots) ran on
+  `f744062`. As built, the end-state simulation was not re-run as a separate step before c6; c6's gate walk
+  (`tests/guards/test_step1_vision_walk.py`) stood in for it: 0 violations, 0 stale rows, `products/delivery/flow.py`
+  a root, on every commit from c6 on. Without the delivery-flow root, `exceptions.tsv:43` (`trk` → `geo_ref_calc`)
+  goes stale.
 - **SOLID** (guard rules, `tests/guards/solid_architecture_guard.py:18-23,949-953`; "After" values are projections):
 
   | Item | Limit | Now (`77abb63`) | After (commit) |
@@ -743,9 +755,10 @@ choice out of the plugin (yes); Q4 arming as specified, built with pickup; Q5 a 
    eval cover it.
 2. **Late lookup.** Only the seven bindings named above are fixed at build, and nothing patches them.
 3. **`presence.update` returning True means "aborted" only implicitly** (`trk:98,119,190,233,261,272`): a docstring.
-4. **SOLID headroom.** `compose_nav_application` is at 150/150 and `compose_navigation_task_workflows` at 149/150; any
-   added line in the first fails the guard. `nav_delivery_composition.py` takes every new line;
-   if a stage still grows, it gets a named helper, never a looser limit.
+4. **SOLID headroom.** On `77abb63` `compose_nav_application` was at 150/150 and `compose_navigation_task_workflows`
+   at 149/150. As built (c9) they are 143/150 and 147/150, and `create_nav_application` 138/150.
+   `nav_delivery_composition.py` takes the moved delivery wiring and the stage composers call its helpers; if a stage
+   still grows, it gets a named helper, never a looser limit.
 5. **Test edits.** About 68 path and constructor edits, one new test, three data pins, the c5 harness, c8a's 4 and c9's 6 tests;
    reviewers confirm none drops a check.
 6. **Baseline and checkout.** The test baseline is UNVERIFIED; build in a temp worktree.
@@ -756,14 +769,14 @@ choice out of the plugin (yes); Q4 arming as specified, built with pickup; Q5 a 
 9. **The decision splits in two (c6).** The DOCKED hold, guard and recovery stay in core and run as today; 129
    unchanged `decision.decide()` tests and the DOCKED and one-shot tests cover it.
 10. **Guard words.** A banned word could hit a future generic use; the fix is a better word or a named allow row.
-11. **Vision walk.** The v4 end-state simulation predates DOCKED and the failed-dock end; it is re-run before c6, and
-    a new stale row would change c6's data edits.
+11. **Vision walk.** The v4 end-state simulation predates DOCKED and the failed-dock end. It was not re-run as a
+    separate step; c6's gate walk gave 0 violations and 0 stale rows, so c6's data edits stood.
 12. **Wall eval timing.** Each wall run needs a quiet PC (todo 65); loaded runs are not a gate. If
     `deterministic_dev_sim.md` step 14 removes the wall route before c9, c9 waits until the delivery scenario runs in
     lockstep, or the owner keeps the wall route for it.
-13. **Lockstep identity is UNVERIFIED for a pure move.** A no-runtime-effect change kept the digest once
-    (`deterministic_dev_sim.md:131`). The two checks before c2 (repeatable, and a probe move) settle it before any
-    commit relies on it.
+13. **Lockstep identity for a pure move: settled 2026-10-19.** Two runs and a probe move on `869d5a4` gave
+    `fbda9e41…`, and so did each commit's own run from c3 to c9 (see Commits). Each commit's own run stays the gate;
+    one passing probe does not prove a later move keeps the digest.
 14. **HITL edits the same files.** `hitl_final_approach.md` steps 22, 23 and 25 change `sda`, `approach_planner.py`,
     `peer_orbit_plan.py` and `rel` (`:505-508`). Whichever lands second rebases, re-measures the `ApproachPlanner`
     rows and re-checks the cited lines.

@@ -67,15 +67,17 @@ Files after step 1, not counting new empty `__init__.py` files (56 new packages;
 | deleted | 40 | 20 shims/facades (c01), 20 package inits of folders that dissolve |
 
 - **`products/` is not created.** Delivery code waits in `core/flow` (catalog, DDH fallback route, one-shot finish)
-  and the DDH metadata reader in the vehicle plugin until step 2. Final homes are in the manifest.
+  and the DDH metadata reader in the vehicle plugin until step 2. Final homes are in the manifest. (Step 2, the
+  delivery move of 2026-10-19, created `products/delivery`; the metadata reader stays in the plugin until C3.)
 - **Placement rules:** backend choice and wiring go to `app` now; name lists (law, detector backend) are config in
   `core/kernel`; one folder per concept; approach set-up is the `acquire` skill, `geo_approach` keeps only PID/PN needs;
   `core/command` holds today's arbiters and owners only; a shared type plugins need moves to `core/ports` or
   `core/kernel` by a pure-move split (12 files); importers name the defining module, lines that only re-export go.
 
 ## Exceptions after step 1 (ratchet)
-After step 1, **28 wrong-way import lines (27 file-to-file edges) in 18 files** remain (the layer rules on the
-post-c02 graph). Each has a reason and fixing step in `step1/exceptions.tsv` (`guard=layer`).
+After step 1, **28 wrong-way import lines (27 file-to-file edges) in 18 files** remained (the layer rules on the
+post-c02 graph); delivery move c4 removed the catalog edge (app now reads the mission metadata), leaving **27 lines
+(26 edges) in 17 files**. Each has a reason and fixing step in `step1/exceptions.tsv` (`guard=layer`).
 
 | From -> to | Lines | What | Fixed by |
 |---|---|---|---|
@@ -85,11 +87,12 @@ post-c02 graph). Each has a reason and fixing step in `step1/exceptions.tsv` (`g
 | `core/perception` -> `plugins/detection`, `plugins/vehicle` | 3 | deep search builds YOLO; charuco config type; pose-stream request | C1 registry |
 | `plugins/radio` -> `sim` | 1 | serial transport picks its sim client | C1 registry |
 | `plugins/vehicle` -> `core/perception` | 4 | gimbal telemetry types (3, TYPE_CHECKING only); terrain lookup (1) | C3 gimbal split; C1 |
-| `core/kernel`, `core/flow` -> `plugins/vehicle` | 2 | `NavArgs` waypoint indices; catalog reads our mission metadata | C3 vehicle port (+ R16) |
+| `core/kernel` -> `plugins/vehicle` | 1 | `NavArgs` waypoint indices (the catalog edge went in delivery move c4) | C3 vehicle port |
 
-- **By step:** C3 codec 11, C1 registry 7, R8 law registry 5, C3 gimbal 3, C3 vehicle port 2.
-- **Final layout:** 35 lines in 23 files (`step1/final_violations.tsv`): 27 of the above (the catalog edge goes when step 2
-  moves catalog and reader together), 4 `core` -> `products/delivery` (step 2 hooks, R16, R17), 1 metadata reader ->
+- **By step:** C3 codec 11, C1 registry 7, R8 law registry 5, C3 gimbal 3, C3 vehicle port 1.
+- **Final layout:** 35 lines in 23 files (`step1/final_violations.tsv`): 27 of the above (the catalog edge went in delivery
+  move c4), 4 `core` -> `products/delivery` (step 2 hooks, R16, R17; the delivery move put ports there instead, so none
+  exists), 1 metadata reader ->
   `mission_encoding` (C3), 3 `core` -> `sim` (`navigation_speedup`, C1 sim seam).
 - The plain checker sees split files as one unit and imports through facades: 103 lines in 76 files. c01-c02 remove the gap.
 - **Guard.** A new wrong-way import fails; a listed edge that disappears fails until removed; an unresolved `navpy.*`
@@ -174,7 +177,8 @@ that way). Then bottom-up, so each layer is checked as it lands. The move tool r
   `simtime_navigation_identity.py` hashes `src/navpy`, so they are re-baselined after c18.
 
 ## Not in step 1
-- `products/delivery` (step 2: DDH, metadata reader, fallback route, one-shot finish); registries (C1), the law plugin
+- `products/delivery` (step 2: DDH, metadata reader, fallback route, one-shot finish; done 2026-10-19 except the
+  metadata reader, which waits for C3); registries (C1), the law plugin
   API (R8), the flow runner (R9, R10, R18); logic in `core/safety` and `core/world`, skill contracts, the input
   checker, insect rules; renames (`legacy_*`, `*_fleet`); dead code and dead imports (`navigation_data`,
   `observable_gate`, the VISCA controller); TUNNEL; moving `tests/` to mirror the layout; the repo split.

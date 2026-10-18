@@ -24,8 +24,8 @@ layout and import rules: `docs/design/step1_separation.md`.
   `NetworkSerial`, `NetworkMavlink`), camera, gimbal, detection, tracking,
   `laws` (vision PN, geo PID/PN math)
 - `products/`: mission modules on top of core, `products/delivery` today;
-  they import core only, and core and plugins never import or name them
-  (`tests/guards/test_core_knows_no_product.py`)
+  they import core only; core and plugins never import them and name them
+  only in the allow list of `tests/guards/test_core_knows_no_product.py`
 - `sim/`: simulator plugins and sim world
 - `app/`: argparse, wiring, `NavController` (`app/flow/nav_controller.py`)
 
