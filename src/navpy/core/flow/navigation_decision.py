@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
-from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.core.flow.mission_catalog import MissionCatalog
@@ -208,7 +207,7 @@ class NavStateDecision:
 class NavigationDecisionPorts:
     vehicle_mode: Callable[[], FlightMode]
     next_waypoint: Callable[[], int]
-    clock_s: Callable[[], float]
+    is_oneshot: Callable[[], bool]
 
 
 class NavigationDecision:
@@ -222,7 +221,6 @@ class NavigationDecision:
         recovery: RecoveryAction,
         nav: NavStateDecision,
         poi_status: ConfirmationStatusDecision,
-        args: NavArgs,
         mission: MissionCatalog,
     ) -> None:
         self._ports = ports
@@ -231,12 +229,11 @@ class NavigationDecision:
         self._recovery = recovery
         self._nav = nav
         self._poi_status = poi_status
-        self._args = args
         self._mission = mission
 
     def decide(self) -> None:
         previous = self._phase.current
-        if previous is NavState.DOCKED and self._args.is_oneshot:
+        if previous is NavState.DOCKED and self._ports.is_oneshot():
             # A single-cycle dock is final (docked_state.md): no other
             # decision may turn it into ONHOLD, DETECT or a new task.
             return
@@ -248,20 +245,7 @@ class NavigationDecision:
             return
         if self._nav.advance(mode):
             return
-        if self._poi_status.dispatch():
-            return
-        self._refresh_onhold(previous)
-
-    def _refresh_onhold(self, previous: NavState) -> None:
-        if self._phase.current != NavState.ONHOLD:
-            return
-        now_s = self._ports.clock_s()
-        if previous != NavState.ONHOLD:
-            self._phase.last_parameter_refresh_s = now_s
-        elif now_s - self._phase.last_parameter_refresh_s > 2.0:
-            self._args.refresh()
-            self._mission.refresh()
-            self._phase.last_parameter_refresh_s = now_s
+        self._poi_status.dispatch()
 
 
 __all__ = [

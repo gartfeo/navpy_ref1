@@ -91,14 +91,13 @@ def compose_decision_workflows(
         NavigationDecisionPorts(
             vehicle_mode=lambda: vehicle.get_mode,
             next_waypoint=lambda: vehicle.mission_items_next,
-            clock_s=lambda: state.clock.decision_s(),
+            is_oneshot=lambda: args.is_oneshot,
         ),
         state.phase,
         inactive,
         recovery,
         nav,
         confirmation.poi_status,
-        args,
         poi.mission,
     )
     return DecisionWorkflows(recovery, decision)

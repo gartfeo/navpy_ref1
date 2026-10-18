@@ -99,14 +99,6 @@ class _NavPhaseTestView:
     def oneshot_completed(self, completed) -> None:
         self._state.oneshot_completed = completed
 
-    @property
-    def last_parameter_refresh_s(self):
-        return self._state.last_parameter_refresh_s
-
-    @last_parameter_refresh_s.setter
-    def last_parameter_refresh_s(self, timestamp_s) -> None:
-        self._state.last_parameter_refresh_s = timestamp_s
-
     def __getattr__(self, name):
         return getattr(self._state, name)
 

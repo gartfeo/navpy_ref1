@@ -335,14 +335,13 @@ def _decision(*, oneshot: bool):
         SimpleNamespace(
             vehicle_mode=lambda: None,
             next_waypoint=lambda: 0,
-            clock_s=lambda: 0.0,
+            is_oneshot=lambda: oneshot,
         ),
         phase,
         inactive,
         recovery,
         nav,
         poi_status,
-        SimpleNamespace(is_oneshot=oneshot),
         Mock(),
     )
     return decision, (inactive, recovery, nav, poi_status)
