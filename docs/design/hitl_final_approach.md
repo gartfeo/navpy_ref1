@@ -463,7 +463,7 @@ Owner, 2026-10-18: SITL first (H1, H2), then the real board with the JSBSim brid
 is the real logs. Launch and catapult are low priority. Flight tuning (`flight_tuning.md`) is a separate, parked feature.
 **Evidence level of everything below:** logs and an offline replay of the model (JSBSim `Peron15_hitl4`, open loop).
 No closed-loop board run against a real log exists yet. The bands were approved by the owner on 2026-10-16 and `Peron15_hitl4` is scored below.
-v4 (2026-10-17) corrects v3 after a deeper log analysis by Codex that Claude checked against the logs; its findings are in section 10a.
+v4 (2026-10-17) corrects v3 after a deeper log analysis by Codex that Claude checked against the logs; its findings are in section 10a. Section 10b (2026-10-18) checks the owner's data and answers against the model and the logs.
 
 **Step 1: inventory (read only).** Facts on disk (2026-10-17), not names from memory:
 - 31 flight-log files in `Downloads\Logs`. Group = SYSID in the log, except that the seven `peron_160_*` files (SYSID 157) form their own group "160". A SYSID is a parameter: it names neither a board nor a frame. Dates are GPS time from the log.
@@ -673,7 +673,7 @@ Log 30 (`gdrive_20250927_00000030`) had a median real excess of 14 N per sample 
   The v3 figures (1850 W against 941 W) were medians of mixed samples: log 25's included throttle-off and depleted-pack samples, log 30's partial throttle and the terminal dive.
 - Net force (log facts): under the same rule, (T-D)/m is +1.75 m/s2 in log 30 (EKF; +1.90 from GPS, +2.06 from the IMU), against -0.21 to +0.12 in log 25, "160" log 11, `peron_160_00000030` and `peron_157_20241102_00000006`.
   So log 30 is the outlier in net force. In power it stands out only against log 25, which is the low one: the three SYSID 157 logs draw 1.6-2.2 kW.
-- Inference, not a log fact (mass assumed 7.5 kg): with the throttle-off drag of section 10a A4, the implied propulsive efficiency is 0.76-0.78 in the two SYSID 158 INA logs and 0.49-0.56 in three SYSID 157 analog logs.
+- Inference, not a log fact (mass assumed 7.5 kg; the owner weighed 8.351 kg, section 10b D1): with the throttle-off drag of section 10a A4, the implied propulsive efficiency is 0.76-0.78 in the two SYSID 158 INA logs and 0.49-0.56 in three SYSID 157 analog logs.
   The logs cannot separate the causes: an INA current that reads low, a different mass, drag or propulsion set.
 - So log 30's extra net forward force comes with more power draw than log 25 on the same board with the same INA monitor settings. It points to a condition of that flight: more thrust (battery, ESC, propeller or motor) or less drag.
   An EKF wind error is less likely, because the GPS and IMU variants agree, but it is not ruled out (with a pitot speed gate the difference falls to +1.35 m/s2). The logs cannot tell which.
@@ -708,21 +708,24 @@ With the elevator offset only, log 30 holds 7 of the 15 dives outside, including
    27-65 m after the six steep dives of 151 log 22 (83 m after its shallow, pilot-flown one) and 86-114 m in log 15; the whole set spans 9-216 m. In 11 of the 13 that lose more than 70 m the rule's start falls 1.9-6.1 s before the dive ends, so part of that loss is still dive.
    Sections 4 and 6 need a recheck at 50-70 m/s.
 4. Are logs for 161-163 or 153/154/156 held elsewhere? None are on this PC. What changed on 158 for the flight of 2025-09-27 (battery, propeller, ESC)? Owner, 2026-10-16: not known; log 30 stays an unexplained outlier, but some airframes may fly an APC 14x8.5 Thin Electric propeller, or a different motor. A larger propeller at the same pitch would explain more thrust and more current at high speed; this is an unverified hypothesis (no propeller type is in the logs). Check: compare static thrust or rpm per airframe, and the model's propeller table against an APC 14x8.5 table.
-   2026-10-17: log 30 is the outlier in net force; in power it is high only against log 25 and lies inside the 1.6-2.2 kW of the three SYSID 157 logs (row 13 force check). Its INA current probably went over the 90 A range at times (inferred, not read from the driver; for the 19 terminal records the cause is open, section 10a A6): 83 records read 0 A in flight at full throttle
+   2026-10-17: log 30 is the outlier in net force; in power it is high only against log 25 and lies inside the 1.6-2.2 kW of the three SYSID 157 logs (row 13 force check). Its INA current most likely went over the 90 A range at times (a strong inference from the pattern of the records, not documented by TI; section 10a A4, 10b D5): 83 records read 0 A in flight at full throttle
    (64 in climbs, 19 in the terminal sequence; none in the matched descents; section 10a, A4).
+   Owner, 2026-10-18: the default set is a T-Motor AT4130 KV450, an MA 13x8.5 propeller and a T-Motor AT115 ESC; which airframe flew which set is not recorded, and a Yellow Turnigy motor or propeller is possible. Under the gates of section 10b D3 log 30 is the top of a range in net force, not a lone outlier; under the row 13 gates it is the outlier (section 10b, D3).
 5. Are you willing to supply the measurements of step 4 (weigh and balance, static thrust, elevon angle at five PWM values)?
+   Owner, 2026-10-18: weighed 8.351 kg (the model has 7.50 kg); the CG and the elevon angle against PWM are already in the measurements folder; the inertia is from Fusion 360, but which file holds it is open. The static thrust of the flown set is still needed (section 10b).
 6. New from the log analysis (2026-10-17, section 10a):
-   - What does the SERVO5 pass-through operate (a recovery parachute?), and on which flights was it used on purpose?
+   - What does the SERVO5 pass-through operate (a recovery parachute?), and on which flights was it used on purpose? Owner, 2026-10-18: the chute trigger (section 10b, D5).
    - The airspeed sensor history of SYSID 158: which sensor flew from 2025-04-05 to 2025-05-18, and what changed on 2025-07-13 (the pressure sign flips)?
-   - Frame, board, propeller and motor records per date, and the outside air temperature per flight (the replay density depends on it, A1).
+   - Frame, board, propeller and motor records per date, and the outside air temperature per flight (the replay density depends on it, A1). Owner, 2026-10-18: the temperature is not known (section 10b, still open).
    - What happened in the air at 3611.8 s in log 30 and at 2453.9 s in `gdrive_20250128_00000006`, and what was that log doing at 3659-4151 s (on or near the ground)?
+     Owner, 2026-10-18: probably the chute wrapped on the motor. The logs show no SERVO5 command at either event; the current reads 0 A while the voltage falls, which most likely means over 90 A (an inference). The logs do not confirm the cause (section 10b, D5).
    - Do the GUIDED request, dive and AUTO sequences come from an onboard script? The logs carry AAS_TERM_* parameters, and the log 30 dive end moves with AAS_TERM_PITCH. Not all requests can come from a script: in `peron_152_20240831_00000096` the own-SYSID requests came with scripting off (SCR_ENABLE 0). 26 of the 47 steep intervals with automatic demand have no logged request (B1).
    - Can you supply GCS telemetry logs (tlogs), or logs that hold MODE and MSG records, for the dive flights, and the GCS and companion setup behind the senders 255/0, own SYSID/0 and 255/190? They would show which mode was active (B1).
    - How did the flights of 2023-11-11 (SYSID 151), 2025-05-25 (log 16) and 2024-08-31 (`peron_152_20240831_00000096`) end: an impact, a net catch or a power cut? Each recording stops while armed in a fast descent. Do you agree that these three dives and the last dive of log 30 stay out of the row 15 pull-out score?
    - The step 5 runs drop the aileron, AoA and throttle trim offsets in every dive; decision 2 covers only the throttle offset in full-throttle dives. Should the aileron and AoA offsets be dropped in dives, and the throttle offset in dives below full throttle?
    - Can the SYSID 158 INA current be bench-checked against a clamp meter? It would show whether the 0.76-0.78 implied efficiency is a sensor error (A4).
    - For future flights: raise BATT_MAX_AMPS or fit a higher-range shunt, so full-throttle current is measured (A4), and set LOG_DISARMED to 1, so the end of a flight after an in-air disarm is recorded (B4).
-   - What is the battery pack spec (cell count, capacity)? The cell count is not logged (A4).
+   - What is the battery pack spec (cell count, capacity)? The cell count is not logged (A4). Owner, 2026-10-18: 2 x 4S3P in series (8S3P), mostly "P40" cells, recently P45B (section 10b, D3).
 
 ## 10a. Independent log analysis (Codex, checked by Claude, 2026-10-17)
 
@@ -757,15 +760,20 @@ pull-out loss by 0.8-14.5 m (median 4.4 m) and the dive loss by 1-17 m. Rows 14 
 
 **A4. Propulsion and power (R4, C10, C16, C17).**
 - Log 30 against log 25: 1.71 times the power in matched full-throttle descents (1.70-1.74 under other gates), the same power in level cruise; log 30 is also the outlier in net force (row 13 force check).
-- The INA monitor of the SYSID 158 6X logs (BATT_MONITOR 21, BATT_MAX_AMPS 90) logs exactly 0 A at full throttle near its range. This is inferred, not read from the driver: an over-range sample counts as 0 inside a 4-sample average (the readings next to the zeros are 22.4 A and 44.8 A, which are 1/4 and 1/2 of about 89.6 A). Log 30 has 83 such records while flying at full throttle
-  (64 in climbs at 2391-2800 s, 19 in the terminal sequence at 3611.85-3613.65 s); its maximum is 89.74 A. The logged charge does not count those records. Log 25 has none (maximum 78.6 A).
+- The INA monitor of the SYSID 158 6X logs (BATT_MONITOR 21, BATT_MAX_AMPS 90, BATT_SHUNT 0.0005) reads exactly 0 A at full throttle. Most likely it does this when the current is above its 90 A range (a strong inference, below).
+  The logged values show an INA228 chip (they sit on its 20-bit steps). With these settings its current register tops out at 90 A, and each BAT record is normally the mean of 4 readings.
+  The driver averages the signed readings with no clamp and no zero, and a failed read drops that reading's voltage and current together, so a failed read cannot by itself give 0 A with a valid voltage. The zeros therefore most likely come from the chip's readings.
+  The log holds 4-reading means, not single readings or overflow flags, and TI's datasheet does not say what an overflowed current reads, only that it "may be invalid". So "over range reads 0" is inferred from the pattern below, not observed or documented.
+  Evidence: zeros occur only at 88-100 % throttle and never at idle. Readings next to the zeros sit just below 22.5 A and 45 A, and a few just below 67.5 A and 90 A (35 of 46 neighbours in log 30), as expected if each of the 4 readings is either just under 90 A or 0.
+  When the reading drops to 0 the voltage does not rise (at most +0.04 V). No BAT average at 88 % throttle or more is negative, and none sits at the register maximum. Single readings are not logged, so wrapping in them is not ruled out (four readings of opposite sign could also average to 0).
+  Log 30 has 124 zero records: 41 in ground run-ups at 2176.8-2217.5 s and 83 while flying at full throttle (64 in climbs at 2391-2800 s, 19 in the terminal sequence at 3611.85-3613.65 s). Its maximum is 89.74 A. The logged charge does not count those records. Logs 25 and 32 have none (maximum 78.6 A and 88.1 A).
   For log 30 current, drop the zeros and the records within 0.5 s of them; the current behind them is only estimated.
 - The analog monitor of the Durandal logs (BATT_MONITOR 4) has a ceiling of 3.3 V x 36.364 A/V = 120 A. This was checked in "160" logs 29, 30 and 35 only. In each of them one record touches the ceiling (119.97-119.99 A, an isolated spike at 17-20 m/s). Their 96-106 A medians at 25-30 m/s are not clipped.
 - Throttle-off drag from 15 windows in 4 logs (SYSID 151 and 157, plus 3 windows from SYSID 149, which is another model): D = 0.0154 V^2 N at an assumed 7.5 kg (24.6 N at 40 m/s; per-log medians 24.7-28.3 N; rms 3.1 N).
   It includes the drag of the unpowered propeller (windmilling or stopped; no RPM is logged); 13 of the 15 windows are in dives (-25 to -60 deg path angle), and 11 end 0.1-4.3 s before a 4-9 g pull-out; 4 reach 1.3-1.6 g; nothing above 49 m/s.
 - Implied propulsive efficiency 0.76-0.78 (SYSID 158, INA) against 0.49-0.56 (SYSID 157, analog); the cause is not separable (row 13 force check).
 - In the `peron_160_*` logs the current at 0.7-0.8 throttle and 25-30 m/s doubles between "160" log 22 and "160" log 29 (50-56 A in "160" logs 18, 21, 22; 101-105 A in "160" logs 29, 30, 35) with the same monitor settings. At full throttle the current is similar in both groups (97-110 A; the later logs draw about 8 % more at matched voltage), so the change is mainly at part throttle. The cause is not logged.
-- Log 25's pack is depleted after about 4040 s (15.6-16.3 V in the last dive). Charge used exceeds the configured capacity in 5 logs. The voltages fit an 8S pack (the cell count is not logged).
+- Log 25's pack is depleted after about 4040 s (15.6-16.3 V in the last dive). Charge used exceeds the configured capacity in 5 logs. The voltages fit an 8S pack (the cell count is not logged; owner, 2026-10-18: 8S3P, section 10b D3).
 
 **A5. Controls (R6).**
 - Elevon mixing uses MIXING_GAIN 0.5, and the PWM spans either side of the trim differ. Put the saturation at the pre-mixer +-4500 limit: pre-mixer rails are about 27 times more common than PWM endpoints.
@@ -779,7 +787,7 @@ pull-out loss by 0.8-14.5 m (median 4.4 m) and the dive loss by 1-17 m. Rows 14 
 **A6. Loads.**
 - Log 30: 9 recovered pull-outs at 11.2-12.5 g (raw -AccZ, IMU with a 20 Hz filter; 80 ms running mean 11.1-12.3 g; Codex's 25 Hz grid metric, a mean of 5 samples over 80 ms, 10.9-12.1 g). Log 25: 7.5-9.7 g. Peak load per unit dynamic pressure is similar in log 30, log 25 and 151 log 22, about 5-6 g per kPa (log medians 5.3-5.8). So speed explains most of log 30's higher loads (inferred; mass, CG and CL are unknown).
 - The last dive of log 30: normal load peaks at 14.1 g at 3611.954 s; in the air the IMU shows axial decelerations of -12.35 g (3611.939 s) and -18.31 g (3612.384 s); ground contact is at 3615.459 s (24.6 g).
-  Both in-air events (this one and `gdrive_20250128_00000006` at 2453.91 s, 10.9 g in level flight) show the current reading 0 A while the voltage drops. In log 30 it drops by up to 7.4 V for 1.8 s (3611.85-3613.65 s). In `gdrive_20250128_00000006` it drops by 6-9 V for about 8 s, from 2454.77 s, just after the shock, through the ground hits to 2462.6 s. In both logs the 0 A may also come from the INA monitor going over its range (A4): `gdrive_20250128_00000006` has the same 90 A INA monitor (BATT_MONITOR 21, BATT_MAX_AMPS 90). The cause is not logged.
+  Both in-air events (this one and `gdrive_20250128_00000006` at 2453.91 s in level flight: an acceleration magnitude of 8.2 g filtered with raw clipping, then 9-11 g in the tumble that followed) show the current reading 0 A while the voltage drops. In log 30 it drops by up to 7.4 V for 1.8 s (3611.85-3613.65 s). In `gdrive_20250128_00000006` it drops by 6-9 V for about 8 s, from 2454.77 s, just after the shock, through the ground hits to 2462.6 s. In both logs the 0 A most likely means the INA monitor was over its 90 A range (A4; an inference): `gdrive_20250128_00000006` has the same 90 A INA monitor (BATT_MONITOR 21, BATT_MAX_AMPS 90). What caused the events is not logged. Section 10b D5 checks both events against the owner's answers.
 
 ### B. Identity and configuration
 
@@ -803,7 +811,7 @@ SYSID 151 is two APJ 50 boards; SYSID 158 is very probably board P in 2024 and a
 - E2T is not the outside air. In ArduPlane 4.3-4.5 it is built from GndTemp, the airspeed sensor's temperature at arming, held fixed for the flight (4.5-57 C). In log 32 (4.6.3) it comes from ISA.
 
 **B4. Flight ends (R2).**
-- 32 flights: 9 normal landings; 13 slow descents after the SERVO5 pass-through output (functions 59, 60, 62) went high, which fits a recovery parachute (inferred; CHUTE_ENABLED is 0 in all logs);
+- 32 flights: 9 normal landings; 13 slow descents after the SERVO5 pass-through output (functions 59, 60, 62) went high, which fits a recovery parachute (CHUTE_ENABLED is 0 in all logs; owner, 2026-10-18: SERVO5 is the chute trigger);
   5 with pulses but no slow descent; 3 recordings that stop while armed in a fast descent; 2 in-air events followed by ground impact.
 - Logging stops about 15 s after an in-air disarm (LOG_DISARMED 0): 14.96-15.00 s after 14 of the 15 in-air disarms, and 17.9 s in `peron_158_20241102_00000002`, where a switch arm attempt restarted the timer. So the touchdown is missing in 10 of the 13 slow descents. It is recorded in `gdrive_20250713_00000021` (never disarmed), `peron_158_20241102_00000002` (disarmed at 14.1 m) and `peron_158_20241102_00000003` (re-armed in the air).
 - The barometer re-zeroes every 5-6 s after an in-air disarm (HOME_RESET_ALT 0): use GPS height there.
@@ -826,6 +834,127 @@ Gaps inside a file come from the disarm logic (LOG_DISARMED 0), not from records
 - RC override periods and RC failsafe periods as pilot input (B1). During a failsafe RCIN does not show the pilot's sticks: roll, pitch and yaw show the firmware's RC trim values, and throttle keeps its last value: `peron_157_20241005_00000100` at 1012.06-1019.34 s, and very probably `peron_152_20231224_00000087` at 863.65-867.17 s.
 - Periods that STAT marks as flying on the ground: log 25 at 4484-4854 s, and all 16 STAT "flying" records of `gdrive_155_2024-09-14_12-10-49` (a ground movement at about 2 m/s, 1535.6-1536.8 s, and the failed launch at 1953.2-1954.8 s). Gate "flying" with airspeed or GPS speed as well as STAT.
 - Accelerometer samples within +-0.25 s of a clip-count increase.
+
+## 10b. Owner data against the model (2026-10-18)
+
+**Method.** Sources: the owner's sheet "AAS - Calcs" (tabs `motors` and `bungees`), the owner's answers of 2026-10-18, the owner's ArduPilot checkout (`Tools/autotest/aircraft/Peron15`, read only) and the logs.
+Claude agents analysed them. Codex (xhigh, read only) reviewed nine claims: one held, eight held in part, and its corrections are included. Claude then checked the owner's answers against the logs and files.
+Codex reviewed that result twice more. Claude agents checked each finding of the first of these against the logs, the model builders and the firmware source (ArduPlane V4.5.7, the version of logs 6, 25 and 30); each held, and the text was corrected.
+The second of these found the numbers reproduced but some conclusions stated too strongly (the current monitor, the glides); Claude checked its points against the driver source and the text was weakened where they held.
+Output: `%LOCALAPPDATA%\navpy-hitl-tools\validation\2026-10-18-owner-data\` (the rigging, chute and parameter checks are in `owner-answers\`, the checks of the second Codex review in `owner-answers\review2\`).
+JSBSim (the WSL program) was run 22 times at full throttle, each time on a temporary copy of `Peron15_hitl4` whose model files are byte-identical to the original: 8 held-down runs (a first try that gives only the static point) and 14 runs with the integrators off at 0-65 m/s and 32.8 or 33.6 V.
+They check the solver behind the static and dive figures of D3. D2's short-period figure is a linear calculation on another identical copy. No dive replay was rerun; D6 uses stored values.
+No model file was changed: the `Peron15_hitl4` files match the sha256 values in its README, no file in `models\` is newer than 2026-10-14, and the checkout's `Peron15` files have file times of 2026-02-12 or earlier.
+Nothing here shows that the model is right in closed loop or in HITL.
+
+**Owner answers (2026-10-18).**
+- Mass: 8.351 kg, the real aircraft weighed. The Fusion 360 model holds 2 x 4S3P packs, 2 servos, the AT115 ESC, a 3S1P avionics pack, a Raspberry Pi, the chute box with its chute, a 1.734 kg payload, the 380 g SIYI gimbal and the 499.7 g motor.
+  The inertia was computed in Fusion 360 from each part's position and mass; the owner says the checkout's `Peron15.xml` was updated from it.
+- Propulsion: by default a T-Motor AT4130 KV450 motor, an MA 13x8.5 propeller and a T-Motor AT115 ESC. Which airframe flew which set is not recorded; a Yellow Turnigy motor or propeller is possible (asked about SYSID 157 between 2025-05 and 2025-08). The motor sheet was measured on a nearly full battery.
+- Battery: 2 x 4S3P in series (8S3P), mostly "P40" cells, recently P45B.
+- Catapult: Black 19 mm bungee, always. 4 lines, 2 on each side. Each runs from the rail start over a roller at the far end and back. Usually cocked to 180 %, meaning 1.8 times the rest length. Carriage 4 kg.
+- SERVO5 is the chute trigger. At about 3611.7 s in log 30 and 2453.9 s in `gdrive_20250128_00000006` the owner thinks the chute wrapped on the motor.
+- Outside air temperature: not known.
+
+**D1. Mass.**
+- The model in use has 7.50 kg (`Peron15_hitl4`, emptywt 16.53 lb, no point masses); the checkout's model has 7.46 kg. Both January 2026 commits (e5830898fe and f0f7ddc3da, each co-authored by Claude) use 7.46 kg. The README of e5830898fe and the checkout's uncommitted README call it "FLIGHT VALIDATED" but name no weighing.
+  The logs cannot give the mass (that needs a known lift), so the weighed 8.351 kg is the reference: the model is 10 % light.
+- Effect (inferred from the model builders and fit scripts; not run): every term fitted to logged accelerations assumed 7.5 kg. That is the lift (log 32 from -1 to 7.4 deg, the fleet logs from 8.5 deg, and the 3.1/rad slope from the fleet identification), the drag from 10 deg (fleet normal and axial force) and the motor law (fitted to the thrust the model needs at 7.5 kg in the logged level flight, climbs and launches).
+  In these fits the force and the mass are off by the same factor. So the 7.5 kg model still gives the logged load factor, trims, 1 g speeds, climbs and launches, as far as the fits match. Where the motor law was fitted, the model's (T-D)/m is not too large.
+  A mass error shows only in forces not taken from logged accelerations, and only if those forces are right: the drag at 7.4 deg and below (from cruise power at an assumed efficiency of 0.55) and the CFD or estimated terms (elevon lift and drag, side force).
+  The logged motor-off glides check the low-angle drag. In the stored comparison (glide and model both taken at 7.5 kg), the model's drag at cruise lift (CL 0.25-0.35) is about right or low against them, after an estimated 0.005-0.013 for the windmilling propeller; at CL 0.4-0.45 it is high.
+  So this comparison does not show the model losing speed faster or gliding steeper with the throttle off at cruise. It does not rule out a mass effect either: at a given speed the true mass sets the lift coefficient the aircraft flew at, so a mass change moves the glide points as well as the model. The model's own windmilling drag was not checked.
+  The static thrust over weight (0.92-0.96 at 7.5 kg, 0.83-0.86 at 8.351 kg) extrapolates a motor law fitted at 7.5 kg; only a measured static thrust can check it.
+  Log forces computed as 7.5 kg times a measured acceleration (the throttle-off drag of A4, and so the implied efficiencies of the row 13 force check) scale by 1.113 for a flight at 8.351 kg. The net accelerations (T-D)/m do not depend on the mass. A gap between a log force and a model force does not simply scale.
+- A consistent change (inferred, not run). It holds only if every fitted flight flew at 8.351 kg: log 32 and the fleet logs (airframes 151, 152, 157/160 and 158) of the identification and of the lift, drag and motor fits, where every airframe was taken as 7.5 kg. Then scale every force taken from logged accelerations by 8.351 / 7.5 = 1.113 and keep the rest:
+  - Set the mass, and the inertia once the Fusion output is known (D2).
+  - Multiply CL_basic by 1.113 at every row (about 0.003 from a full refit at most; the elevon lift does not scale).
+  - Rebuild CD_basic from 10 deg from the fleet normal and axial force at 8.351 kg: about 1.08-1.14 times higher, for example 0.217 to 0.236-0.243 at 14 deg. The range depends on how the glides' 0.013 cruise offset is redone.
+  - Keep CD_basic at 7.4 deg and below (a refit moves it by -0.002 to +0.001). The glide drag forces rise with the mass, so the glides would then sit further above it (how far depends on the refit; not computed). A bench test of the efficiency, or a measured windmilling drag, must settle which is right.
+  - Refit the motor law to the thrust needed at 8.351 kg: about the same in level cruise, 3-7 % more at throttle 0.65 and above, about 8 % more in the launches (target thrusts at fixed states, not a refit).
+  - Keep the pitch and roll moment terms (they depend on the inertia, not the mass) and the CFD and estimated terms.
+  Then rerun the model checks. If the flights had different masses, each fit must use its flight's mass, so the payload of every fitted flight is needed.
+  The `Peron15_hitl2` README gives airframes 152 and 157 a normal-force coefficient of only 0.54-0.55 at the elevator stop, against 0.67-0.71 for 151 and 158; that may mean lighter airframes (not checked).
+
+**D2. Inertia.**
+- The checkout's `Peron15.xml` on disk is not its committed version. Its uncommitted edits (file time 2026-02-12) give Ixx/Iyy/Izz 0.239/0.534/0.766 slug ft2, zero products, 7.46 kg and CG 25.22 in: the tensor of the model in use, which the alternative commit f0f7ddc3da also carries.
+  The committed version (from e5830898fe, branch `peron15_jsbsim`) gives 0.221/0.636/0.850 slug ft2 with products (Ixz -0.025) and the CG at a 10.0 in placeholder.
+- Both versions' READMEs call their numbers "from CAD", so the files cannot show which is the Fusion output. Fusion's physical properties would settle it: mass, centre of mass, inertia at the centre of mass, and the axis directions. They would also show whether the tensor belongs to 8.351 kg or 7.46 kg.
+- Codex: the committed Iyy (x1.19) alone lowers the model's short-period frequency by about 8 % (7.69 to 7.04 rad/s, two-state check). The pitch terms were fitted against the old Iyy, and only the sum Cm_q + Cm_adot was identifiable.
+  So a new tensor needs those terms identified again, not just swapped in. Products of inertia and lateral coupling also matter.
+
+**D3. Propulsion and battery.**
+- Static: the model gives 6.9-7.2 kgf at 101-105 A on the stand (Voc 32.8-33.6 V). At the sheet's own currents it is 1-11 % below the sheet's 8S rows (MA 13x8.5: Propdrive 5060 44 A 4.8 kgf, Turnigy 5060 400KV 65 A 5.9 kgf; MA 13x6: 65 A 5.6 kgf).
+  The sheet has no AT4130 row and nothing above 65 A, so it does not check the model's full-throttle point.
+- Dives: at 40-55 m/s and full throttle the logged current is 1.2-2.2 times the model's, and the gap grows with speed in logs 25, 30 and 32 (log 21 has one speed bin: 1.12). The samples are not all descents (pitch up to +32 deg).
+  The hand-scaled propeller table (Ct reaches 0 near J 0.85) is the likely place; this is not proven.
+- Net force (`critic\netforce.py`): flying, throttle 85 % or more, 35-45 m/s air-relative, descending faster than 3 m/s, pitch below -15 deg, pitch rate below 0.15 rad/s in size and the pack above 22 V; the median is over all selected samples.
+  On the SYSID 158 board (T-D)/m is -0.50 (log 25), +0.55 (log 16, 1.3 s only), +0.69 (log 32) and +1.73 m/s2 (log 30), rising with current (43, 64, 64, 78 A). The same run gives -0.95, -0.30 and +1.05 m/s2 (55, 63 and 87 A) for the three SYSID 157 logs of the row 13 force check.
+  Under these gates log 30 is the top of a range, not a lone outlier. The result depends on the gates: with only the flying, speed and throttle gates log 32 gives about -0.1 m/s2 (Codex).
+  The row 13 force check (section 10) uses other gates (throttle 95 % or more, path below -10 deg, 24.5-27 V, under 1.5 g, roll under 25 deg, samples near a 0 A record dropped) and takes the median of per-dive medians. It finds log 30 the outlier: log 25 and the same three SYSID 157 logs give -0.21 to +0.12 m/s2 there. Neither selection shows the cause.
+- Current monitors. The rule: take the first time the estimated resting voltage (VoltR, 21-sample running median) falls below 4.00 V per cell and the first time it falls below 3.70 V per cell, and compare the charge logged between them.
+  - The INA monitor (BATT_MONITOR 21, on SYSID 158) logs 4.67 Ah in log 25 and 4.78 Ah in log 32. The other INA logs (6, 10, 11, 15, 16 and 21) never fall below 3.70 V per cell.
+  - The analog monitors of SYSID 152 and 157 (BATT_MONITOR 4, six logs) log 5.50-6.32 Ah, 1.15-1.36 times more. Other airframes were not compared; one SYSID 151 analog log (`peron_152_20231120_00000005`) gives 4.99 Ah, but its window spans two flights. Two SYSID 158 logs of 2024-11-02 have an analog monitor whose VoltR reads 0 at times, so the rule fails there.
+  - Log 30 (INA) fails the rule: 0.034 Ah. In the ground run-up (2213-2218 s) and at launch (2391.7-2398.4 s) its current reads 0 A or about 22.4, 44.8, 67 or 89 A while the pack sits at 3.4-3.5 V per cell.
+    The firmware does not update VoltR while the current reads 0 and otherwise sets VoltR = Volt + Curr x Res, so the two crossings fall at 2216.05 s and 2391.65 s. The 176 s between them are on the ground except the last 0.7 s, and 108 s of them are disarmed.
+    Searching from 10 s after the flight's arming gives 4.04 Ah (a changed rule, a sensitivity check only); with it the ratio range would be 1.15-1.57.
+  VoltR depends on the logged current and the estimated resistance, so the ratio points to a sensor or pack difference but gives no correction factor. A clamp meter would check the current reading; on its own it cannot settle a pack difference.
+- rpm: the IMU vibration lines give no valid rpm; aliasing allows several rpm per line.
+- Battery (log fact): BATT_CAPACITY is 12000 mAh in every SYSID 157 and 158 log (158 up to 2026-01-18). That fits 3 x 4.0 Ah cells ("P40"), not P45B (3 x 4.5 = 13.5 Ah), unless the parameter was not updated.
+  The models assume P45B, and the checkout's README says "2x 8S3P, 778 Wh", which doubles the pack.
+
+**D4. Catapult.**
+- With the owner's rigging (each line shortens 1:1 with carriage travel; 4 lines of Black 19 mm; moving mass 12.35 kg = 8.351 + 4), the measured start push of the 24-launch ensemble needs 24.1 kgf per line. On the sheet that is 186 % (owner: usually 180 %; at 180 % the sheet gives 23.0 kgf, 5 % less).
+- With the stretch fixed at 180 % and only the rest length free, the sheet curve follows the push over 0.05-3.30 m of travel within 0.40-0.43 g rms. Its stored energy gives 16.8 m/s at release; the ensemble profile itself integrates to 16.8 m/s, and the per-launch estimates give 17.0 +- 0.4. Free fits put the stretch at 182-184 %.
+  The fits imply a rest length of about 4.2-4.8 m per line (cocked 7.7-8.6 m) and a line nearly slack at release (103-108 %). Below 150 % the sheet has no points, so that part of the curve is assumed. Friction (0.05) and a small drag term are assumed too.
+- So the owner's rigging is consistent with the measured launch; this does not show that it is the only rigging that fits. It cannot tell 8.35 kg from 7.5 kg: 7.5 kg would need 177 %.
+- The bridge rail plays back the measured motion, so the nominal launch needs no change. A different payload or stretch would need a force model; these numbers are a start, with the rest length still to be measured.
+
+**D5. The two in-air events.**
+- SERVO5 passes RC channel 12 through (SERVO5_FUNCTION 62 and RC12_OPTION 0 in both logs; CHUTE_ENABLED 0 in all logs). In log 30 channel 12 went high only at 2290.99-2291.91 s, while disarmed on the ground (GPS speed under 0.1 m/s), which looks like a pre-flight test.
+  It stayed low for the whole flight (armed 2388.65-3617.15 s). In `gdrive_20250128_00000006` channel 12 and SERVO5 read 990 for the whole log. RC input and output are logged every 40 ms in flight, so a pulse shorter than about 40 ms might not show. Within that limit, neither event came from a SERVO5 command.
+- Log 30 at about 3611.66 s, at the start of the 10th commanded pull-out of the flight: diving at about -56 deg pitch, 57-59 m/s EAS (65-67 m/s TAS) and full throttle. The pitch demand rose from 3611.55 s and stepped to +30 deg at 3611.67 s.
+  - In the 9 earlier pull-outs (50-59 m/s EAS) the normal load peaked at 11.2-12.5 g, the x reading never went below -4.3 m/s2, the vibration (VIBE) was 2-4.5 m/s2 at the step and the current stayed at 44-67 A.
+  - This time VIBE had already risen from 2.6 (3611.63 s) to 10 m/s2 (3611.67 s), and the 20 Hz-filtered IMU left its steady values at 3611.66 s. Both came before the elevons stepped for the pull-out (logged between 3611.67 and 3611.71 s).
+  - The acceleration magnitude passed 3 g at 3611.76 s. Along x the IMU read -81 m/s2 (3611.80 s), -121 m/s2 (3611.94 s) and -180 m/s2 (3612.38 s); the normal load (-AccZ) peaked at 14.1 g (3611.95 s), about 13 % above the highest earlier peak. The raw accelerometers did not clip until ground contact (first clip count by 3615.43 s; peak 24.6 g at 3615.46 s).
+  - The BAT record at 3611.75 s already shows 30.8 A (from 39.7 A) and 21.9 V (from 25.5 V). Each BAT value is normally the mean of 4 readings 25 ms apart (fewer if a read fails), so it covers about the last 0.1 s, and the logs do not show whether the disturbance or the electrical change came first.
+  - The current then reads 0 A from 3611.85 to 3613.65 s (1.8 s) at 18.2-21.9 V. At 3613.75 s it reads 22.4 A, then 78.9, 69.4 and 65.6 A, then 53-61 A until ground contact, still at full throttle.
+  - Airspeed falls to 37 m/s EAS by 3612.35 s and to about 13 m/s EAS by 3612.75 s; the aircraft then descends at 9-12 m/s (GPS) to ground contact at 3615.46 s.
+- `gdrive_20250128_00000006` at 2453.905 s: level flight at 29 m/s EAS (30.6 m/s TAS) and 52 m, throttle 1770 us, with no change in the pitch or roll demand.
+  - A sharp jolt: the 20 Hz-filtered IMU shows acceleration magnitudes of 8.2 and 7.6 g (2453.910 and 2453.915 s; -72 m/s2 along x). The raw accelerometers clipped between 2453.89 and 2453.93 s, so a raw reading went above 29.5 g on at least one axis.
+  - The yaw rate reaches -3.5 rad/s by 2453.935 s. The vibration stays about 20 times higher until about 2454.77 s, then dies away.
+  - From about 2454.1 s the aircraft rolls fast (up to -22 rad/s at 2454.24 s) while the roll demand stays near 0 deg and one elevon output sits at its limit (2454.17-2454.25 s). It completes a full roll by 2454.65 s and keeps tumbling.
+  - The pitot airspeed falls to about 4 m/s EAS by 2454.37 s. Acceleration magnitudes of 9-11 g occur at 2454.19-2454.23 s and 2454.48-2454.51 s (10.9 g at 2454.505 s), and the raw accelerometers clip again at 2454.37-2454.45 s and 2454.65-2454.73 s.
+  - The current stays at 27-31 A until 2454.57 s and reads 46.9 A at 2454.67 s. It then reads 0 A from 2454.77 to 2462.57 s (7.8 s, past the 18-20 g hits at 2458.29 and 2459.06 s), at 20.5-23.2 V instead of 29.9 V.
+  - At 2462.67 s it reads 1.3 A at 29.5 V and rises to 37 A by 2463.47 s, with the throttle output unchanged at 1920 us.
+- Reading (inferred): when a motor is switched off, the pack voltage rises toward its resting value (27.3 V and 31.3 V here); here it fell. With the firmware's pack-resistance estimate just before each event (43 and 50 mOhm), the sag during the 0 A records means roughly 130-215 A.
+  This assumes the resting voltage and the resistance stay the same; it is not a measured current.
+  The monitor cannot show a current this high. The logged values sit on the 20-bit steps of an INA228 chip, whose current register tops out at 90 A with BATT_MAX_AMPS 90, and each logged value is normally the mean of 4 readings (A4).
+  The pattern of the records (A4) strongly suggests that the chip's current reads 0 above about 90 A, so the 0 A records most likely mean a high current, not a low one. This is an inference: the log holds 4-reading means, not single readings or overflow flags, and TI does not document what an overflowed current reads.
+  If that holds, the battery current was well over 90 A at high throttle in both events; the falling voltage points the same way on its own. The logs cannot tell a heavily loaded or jammed motor from an ESC or wiring fault.
+  A motor loaded by the chute fits the owner's account, but the logs do not confirm it.
+  In log 30 the load eased after about 2 s; in `gdrive_20250128_00000006` it lasted until after the ground hits (to 2462.6 s).
+- If the chute came out, it did so without a logged command: in log 30 at the start of a pull-out at 57-59 m/s EAS, and in `gdrive_20250128_00000006` in level flight at 29 m/s EAS. What released it is not logged. This is a flight-safety point as well as a model point.
+
+**D6. Pull-out (no change from the answers).** Over the 33 recovered pull-outs (row 15 rule; real height from IMU height fitted to GPS, section 10a A2) the aircraft loses a median 31.6 m.
+The stored model values lose a median 299 m with the elevator offset only (range 0-555 m; median paired error, model minus real, +272 m; 3 of 33 inside the row 15 band) and 38 m under the corrected convention (range 2.3-366 m; median paired error -3.9 m; 12 of 33 inside).
+The paired error is the median of the per-dive differences, not the gap between the two medians. Against the EKF height used first, the real median was 29.5 m and the corrected paired error -2.4 m (15 of 33 inside).
+These are stored end values that compare trim conventions at the old inertia. The model's 10 s window starts at the real aircraft's pull-out trigger, not at a recovery found in the model's own trace. An inertia change was not tested. Decision 6 sets the convention.
+
+**Still open.**
+Questions for the owner:
+1. Was the 1.734 kg payload (and the gimbal) on every flight? Which flights were lighter? Above all the flights the model was fitted to: log 32 (2026-01-18) and the fleet logs of airframes 151, 152, 157/160 and 158 (D1).
+2. What does Fusion 360 show for mass, centre of mass, and inertia at the centre of mass, with the axis directions? The two `Peron15.xml` versions disagree (D2).
+3. When did the packs change from P40 to P45B, and which cell is "P40" (maker and model)?
+4. How is the chute held in its box, and can it come out without the SERVO5 command? After 2025-01-28 and 2025-09-27, was the chute found on the propeller, and were the motor, ESC or wiring damaged?
+5. The rest length of one bungee line, or the distance from the rail start to the roller (D4 predicts a rest length of about 4.2-4.8 m).
+
+Measurements still needed:
+- A bench test of the flown set (AT4130 KV450, MA 13x8.5, AT115 ESC, the 8S pack): thrust, current, voltage and rpm at 4-5 throttle steps, with a clamp meter on the current.
+- rpm in flight (ESC telemetry or an rpm sensor) in full-throttle dives, with the fitted propeller written down.
+- Outside air temperature: the logged temperatures are of sensors inside the aircraft. A weather record for the site and date (for example the nearest airport's METAR) would estimate it; it is not a measurement at the aircraft.
+
+Model changes these point to (none made; each needs the owner's approval and a temporary copy first): the flight mass with every log-fitted force scaled by 1.113 (CL_basic x 1.113, CD from 10 deg rebuilt, the motor law refitted), if every fitted flight flew at 8.351 kg; the inertia once the Fusion output is confirmed, with the pitch and yaw terms identified again; the propeller table after the bench test.
 
 ## Owner answers (2026-10-15)
 1. Board: keep 2.4 x 3.2 m. → 4, 6.

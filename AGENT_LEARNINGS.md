@@ -329,17 +329,34 @@
 - I told the user that mass, CG, battery, motor and elevon data were missing when most of it was
   already on disk (model header, measurements folder). Search the private tools folder, the model
   headers and the owner's ArduPilot checkout before saying owner data is missing.
-- A model header's "from CAD" label was not proof: the inertia in every navpy Peron model
-  (0.239/0.534/0.766 slug ft2, zero products) comes from a separate branch (f0f7ddc3da) with no
-  source, while the owner's own commit (e5830898fe) holds a CAD tensor in kg m2 with products.
-  Check the git history of a model's source file (git log --all, merge-base) before trusting its
-  provenance; two commits with one parent are alternatives, not a replacement.
-- IMU vibration lines that stay at one frequency from cruise to full throttle are not motor
-  rotation, and aliasing allows several rpm per line. Do not read rpm from the IMU without a line
+- A model header's "from CAD" label was not proof, and git history alone was not either. I called
+  e5830898fe's tensor (kg m2, with products) "the CAD tensor on record". But the owner's checkout
+  had uncommitted edits holding the other tensor (0.239/0.534/0.766 slug ft2, zero products, the
+  one every navpy model uses), and both versions' READMEs say "from CAD". Run git status and read
+  the working-tree file as well as git log --all and merge-base; two commits with one parent are
+  alternatives, not a replacement. Only the CAD tool's own output settles which numbers are real.
+- IMU vibration lines that stay at one frequency from cruise to full throttle are unlikely to be
+  motor rotation, and aliasing allows several rpm per line. Do not read rpm from the IMU without a line
   that moves with power; ask for ESC telemetry or an rpm sensor instead.
 - Compare a static bench sheet with the model at the sheet's own current, not at the model's full
   throttle: thrust per amp falls with current, so the full-throttle comparison exaggerated the gap
   (20-37 % against 1-10 %).
+- I told the user that a 0 A reading at high throttle meant the motor had stopped. The pack voltage
+  had fallen 7-9 V at the same time; a motor switched off lets it rise (a jammed motor that is
+  still powered does not). With a range-limited current monitor (here the INA at 90 A), 0 A can
+  mean over-range. Before reading 0 A as no current, check
+  the voltage direction and the samples next to the zeros (22.4 A = a quarter of 89.4 A here).
+- I wrote that a 10 % light model has a (T-D)/m 1.11 times too large. But every force term the
+  model had fitted to logged accelerations (lift, high-angle drag, the motor law) assumed the same
+  7.5 kg, so force and mass cancel there. Before scaling a model for a mass error, trace which
+  terms were fitted from logged accelerations at the assumed mass and which came from elsewhere
+  (electrical power, CFD). The first kind cancels only where the fit matches and only if every
+  fitted flight had that mass; the second kind carries the error directly.
+- I described the log-30 event's 12-14 g normal load as part of the jolt. It was the flight's 10th
+  commanded pull-out, and the 9 earlier ones peaked at 11.2-12.5 g; the abnormal signs were the
+  x deceleration, the vibration and the current. Before calling a reading abnormal, compare it
+  with the same manoeuvre elsewhere in the log and check the commanded state (NavPitch, servo
+  outputs).
 
 ## Hardware-in-the-loop link work (2026-10-13)
 
