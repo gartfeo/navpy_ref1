@@ -10,12 +10,17 @@ boot and ramps it in with ``SIM_WIND_TC`` (5 s).
 ``sensor_noise`` seeds each SITL's noise. The firmware reads
 ``NAVPY_STEP_RNG_SEED`` at start, before any sensor draw, and seeds glibc
 ``random()``/``rand()`` and ``get_random16`` with it; SITL ``sysid``'s value
-comes from the model's stream ``sitl.<sysid>``. The noise levels stay
+comes from the ``sensor_noise`` stream ``sitl.<sysid>``. The noise levels stay
 ArduPlane's defaults. ``gps_noise_m`` is ``SIM_GPS_NOISE``: the amplitude of a
 slow sine on GPS altitude (``SIM_GPS.cpp``), not random.
 
-A model that is off, or not in the profile, sets nothing: the SITL runs as
-before step 2 (glibc's default seed 1, ``get_random16``'s fixed seeds, no wind).
+Turbulence draws from the same glibc ``rand()`` as the noise (``SIM_Aircraft.cpp``
+``update_wind``), so either model seeds the SITL, and turning turbulence on
+shifts the noise draws after it (todo 78).
+
+A model that is off, or not in the profile, sets no parameter; with both off
+the SITL runs as before step 2 (glibc's default seed 1, ``get_random16``'s
+fixed seeds, no wind).
 """
 
 from __future__ import annotations
@@ -48,16 +53,16 @@ def sitl_parameters(realization: Realization) -> dict[str, float]:
 
 
 def sitl_rng_seed(realization: Realization, sysid: int) -> int | None:
-    """``NAVPY_STEP_RNG_SEED`` for SITL ``sysid``; None while sensor noise is off."""
-    draw = realization.model(SENSOR_NOISE)
-    if draw is None or not draw.on:
+    """``NAVPY_STEP_RNG_SEED`` for SITL ``sysid``; None while every SITL model is off."""
+    draws = (realization.model(model) for model in SITL_PARAMETERS)
+    if not any(draw is not None and draw.on for draw in draws):
         return None
     r = model_stream(realization.seed, SENSOR_NOISE, f"sitl.{sysid}").random()
     return 1 + math.floor(r * RNG_SEED_MAX)
 
 
 def sitl_rng_seeds(realization: Realization, sysids: Iterable[int]) -> dict[int, int]:
-    """Each SITL's ``NAVPY_STEP_RNG_SEED`` by sysid; empty while sensor noise is off."""
+    """Each SITL's ``NAVPY_STEP_RNG_SEED`` by sysid; empty while every SITL model is off."""
     seeds = {sysid: sitl_rng_seed(realization, sysid) for sysid in sysids}
     return {sysid: seed for sysid, seed in sorted(seeds.items()) if seed is not None}
 

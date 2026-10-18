@@ -851,4 +851,13 @@
   values, and the tap test fed the same bytes on both ports. Give each input distinct values.
 - A new realism model can fail the mission on some seeds; that is a product finding, not a model
   bug. Separate the causes with seeds that turn one model off (here wind off, light wind, strong
-  wind) before blaming either side.
+  wind) before blaming either side. In the SITL, turbulence and noise share glibc `rand()`, so a
+  wind A/B at one seed also changes the noise (todo 78).
+- Independent Python streams do not make models independent inside the firmware. Before claiming
+  that, check which RNG each firmware consumer draws from.
+- When a step moves a baseline or makes a "today" claim false, grep the whole design doc for the
+  old value and the old claim. Step 2 left section 1 and section 2's baseline stale.
+- Quote a SITL wind as it applies: `SIM_WIND_SPD` is the speed from `SIM_WIND_T_ALT` (60 m) up, and
+  the default square-root law cuts it near the ground. Turbulence is not scaled by height.
+- A hook blocks Edit and Write on another worktree's files. To prepare a fix while a long check
+  runs from your own worktree, draft in the scratchpad and copy the files in after the check.

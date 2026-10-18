@@ -107,6 +107,28 @@ def test_lockstep_records_the_sim_profile_realization_in_the_input_manifest(tmp_
     assert inputs["sitl"]["rng_seeds"] == {"1": sitl_rng_seeds(realization, (1,))[1]}
 
 
+def test_lockstep_launches_each_sitl_with_the_input_manifests_rng_seed(tmp_path, monkeypatch):
+    """Step 2: the fleet boots with the defaults and per-sysid RNG seeds the manifest records."""
+    import json
+
+    launches = []
+
+    def fleet(_run_dir, _slot, _owner, launch):
+        launches.append(launch)
+        raise AssertionError("launched")
+
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda *_a: "X 1\n")
+    monkeypatch.setattr(lockstep_eval.lockstep, "claim", lambda **_k: (40, "owner"))
+    monkeypatch.setattr(lockstep_eval, "WslFleet", fleet)
+    with pytest.raises(AssertionError, match="launched"):
+        execute_lockstep_run(tmp_path / "run", CERTIFIED, OPTIONS)
+    inputs = json.loads((tmp_path / "run" / "input_manifest.json").read_text(encoding="utf-8"))
+    (launch,) = launches
+    assert launch.defaults == "X 1\n"
+    assert len(inputs["sitl"]["rng_seeds"]) == 3
+    assert {str(sysid): seed for sysid, seed in launch.rng_seeds.items()} == inputs["sitl"]["rng_seeds"]
+
+
 def test_lockstep_refuses_an_unknown_sim_profile_before_the_run_directory(tmp_path, no_claim):
     import dataclasses
 

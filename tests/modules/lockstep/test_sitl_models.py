@@ -39,13 +39,17 @@ def test_an_on_model_sets_its_sitl_parameters_and_an_off_or_unlisted_one_sets_no
     assert sm.sitl_parameters(realize(load_profile("none"), 1)) == {}
 
 
-def test_the_noise_seed_is_the_models_stream_for_the_sysid_and_none_while_noise_is_off():
-    on = realization(NOISE, seed=7)
+def test_the_rng_seed_is_the_noise_stream_for_the_sysid_while_any_sitl_model_is_on():
+    """Turbulence draws from the same glibc ``rand()`` as the noise, so wind alone seeds it too."""
     r = model_stream(7, "sensor_noise", "sitl.2").random()
-    assert sm.sitl_rng_seed(on, 2) == 1 + math.floor(r * (2**32 - 1))
-    assert sm.sitl_rng_seed(realization(WIND), 2) is None
-    assert sm.sitl_rng_seed(realization(ModelDraw("sensor_noise", False)), 2) is None
-    assert sm.sitl_rng_seeds(realization(WIND), (1, 2, 3)) == {}
+    seed = 1 + math.floor(r * (2**32 - 1))
+    off_noise = ModelDraw("sensor_noise", False)
+    off_wind = ModelDraw("wind", False, {"speed_mps": 6.5})
+    assert sm.sitl_rng_seed(realization(NOISE, seed=7), 2) == seed
+    assert sm.sitl_rng_seed(realization(off_noise, WIND, seed=7), 2) == seed
+    assert sm.sitl_rng_seed(realization(off_noise, off_wind), 2) is None
+    assert sm.sitl_rng_seed(realization(), 2) is None
+    assert sm.sitl_rng_seeds(realization(off_noise, off_wind), (1, 2, 3)) == {}
 
 
 def test_noise_seeds_are_per_sysid_and_per_run_seed_and_ignore_the_other_draws():
@@ -65,19 +69,22 @@ def test_the_noise_seed_spans_one_to_two_to_the_32_minus_one(monkeypatch, r, see
 
 
 def test_the_shipped_profiles_draw_wind_and_noise_in_the_designs_ranges():
-    """Wind 0-8 m/s from any direction with turbulence 0-2 m/s, on half the runs;
-    noise always on (off would only replay the firmware's one fixed sequence),
-    ``SIM_GPS_NOISE`` 0-1 m. ``none`` lists no model."""
+    """Noise always on (off would only replay the firmware's one fixed sequence),
+    ``SIM_GPS_NOISE`` 0-1 m. Wind 0-8 m/s from any direction with turbulence 0-2 m/s,
+    on half the runs, except in ``quiet``: the wall runs it is calibrated against
+    fly without wind. ``none`` lists no model."""
     assert load_profile("none").models == {}
     for name in ("quiet", "hw", "stress"):
         models = load_profile(name).models
-        assert set(models) == {"wind", "sensor_noise"}
+        assert set(models) == ({"sensor_noise"} if name == "quiet" else {"wind", "sensor_noise"})
         assert models["sensor_noise"].p_on == 1.0
         assert models["sensor_noise"].params == {"gps_noise_m": ParamRange(0.0, 1.0)}
-        assert models["wind"].p_on == 0.5
-        assert models["wind"].params == {"speed_mps": ParamRange(0.0, 8.0),
-                                         "direction_deg": ParamRange(0.0, 360.0),
-                                         "turbulence_mps": ParamRange(0.0, 2.0)}
+    for name in ("hw", "stress"):
+        wind = load_profile(name).models["wind"]
+        assert wind.p_on == 0.5
+        assert wind.params == {"speed_mps": ParamRange(0.0, 8.0),
+                               "direction_deg": ParamRange(0.0, 360.0),
+                               "turbulence_mps": ParamRange(0.0, 2.0)}
     draws = [realize(load_profile("hw"), seed) for seed in range(1, 201)]
     assert all(d.model("sensor_noise").on for d in draws)
     assert 70 < sum(d.model("wind").on for d in draws) < 130
