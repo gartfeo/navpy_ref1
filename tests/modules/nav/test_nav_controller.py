@@ -1027,7 +1027,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         controller.retry_policy.register_poi_cooldown(poi)
 
         fresh = _create_detected_poi(obj_id=7)
-        controller.navigation_task_action.handle_new_poi(fresh)
+        controller.work_source.handle_new_poi(fresh)
 
         self.assertIsNone(controller.confirmation_manager.active_poi)
 
@@ -5845,7 +5845,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         controller.network.task_actor = Mock()
         controller.network.task_actor.selected_poi.return_value = Mock()
 
-        controller.navigation_task_action.handle_new_poi(poi)
+        controller.work_source.handle_new_poi(poi)
 
         self.assertIs(controller.confirmation_manager.active_poi, poi)
         vehicle.location.assert_not_called()
@@ -8177,7 +8177,7 @@ class TestNavControllerSwarmDispatchSafety(unittest.TestCase):
         t1 = _create_detected_poi(obj_id=1)
         controller.confirmation_manager.update_status(t1, ConfirmationStatus.PEER_NOTIFIED)
 
-        controller.navigation_task_action.handle_new_poi(t1)
+        controller.work_source.handle_new_poi(t1)
 
         # Should NOT set active POI
         self.assertIsNone(controller.confirmation_manager.active_poi)
@@ -8647,7 +8647,7 @@ class TestSelectPoiSkipsProcessed(unittest.TestCase):
         self.assertIsNone(self_t)
 
         # handle_new_poi should fall through to DDH setup
-        controller.navigation_task_action.handle_new_poi(self_t)
+        controller.work_source.handle_new_poi(self_t)
         self.assertTrue(controller.mission.default_delivery_hub_active)
 
     def test_full_deny_then_delivery_hub_flow(self):

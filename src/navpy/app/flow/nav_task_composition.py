@@ -16,8 +16,11 @@ from navpy.core.skills.geo_approach.self_detected_approach import (
 )
 from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.core.skills.search.task_focus import TaskFocus, TaskFocusPorts
-from navpy.app.flow.nav_delivery_composition import compose_home_dock_rules
-from navpy.core.flow.fallback_mission_navigation import (
+from navpy.app.flow.nav_delivery_composition import (
+    compose_home_dock_rules,
+    compose_work_source,
+)
+from navpy.products.delivery.fallback_mission_navigation import (
     FallbackMissionNavigation,
     FallbackMissionPorts,
 )
@@ -231,8 +234,6 @@ def compose_navigation_task_workflows(
         ),
         approach.speedup,
         peer_navigation,
-        peer_task_priority,
-        mission_navigation.fallback_navigation,
         self_approach,
         lambda: navigation.final_approach.is_active,
         logger,
@@ -243,7 +244,10 @@ def compose_navigation_task_workflows(
         selector=selector,
         peer_notifier=peer_notifier,
         peer_task_priority=peer_task_priority,
-        navigation_task_action=navigation_task_action,
+        work_source=compose_work_source(
+            state, peer_task_priority, peer_navigation,
+            mission_navigation.fallback_navigation, navigation_task_action,
+        ),
     )
 
 

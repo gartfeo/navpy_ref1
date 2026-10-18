@@ -175,13 +175,14 @@ class NavTestRig:
         self.final_approach_nav = self.actions._actions[NavState.NAV].__self__
         self.transitions = self.actions._transitions
         self.selector = self.detect_action._selector
-        self.navigation_task_action = self.detect_action._navigation_task
+        self.work_source = self.detect_action._choose_work.__self__
+        self.navigation_task_action = self.work_source._tasks
         self.peer_notifier = self.detect_action._peer_notifier
         self.peer_geo_tick = self.detect_action._peer_geo
         self.peer_geo_acquisition = self.detect_action._peer_geo._acquisition
         self.peer_navigation = self.navigation_task_action._peer_navigation
         self.peer_geo_tracker = self.peer_navigation._approach._geo_tracker
-        self.fallback_navigation = self.navigation_task_action._fallback_navigation
+        self.fallback_navigation = self.work_source._fallback_navigation
         self.self_approach = self.navigation_task_action._self_approach
         self.final_approach = self.navigation_task_action._final_approach
         self.speedup = self.navigation_task_action._speedup

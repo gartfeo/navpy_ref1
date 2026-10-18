@@ -9,7 +9,7 @@ from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_planner import ApproachPlanner
-from navpy.core.flow.mission_catalog import MissionCatalog
+from navpy.products.delivery.mission_catalog import MissionCatalog
 from navpy.core.flow.nav_state import NavigationTaskState
 from navpy.core.skills.acquire.vehicle_navigation import VehicleNavigationCommands
 from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID

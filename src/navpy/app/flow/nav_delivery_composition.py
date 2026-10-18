@@ -13,7 +13,13 @@ from navpy.core.flow.navigation_decision import NavStateDecision
 from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.core.skills.acquire.peer_navigation import PeerNavigationCoordinator
+from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
 from navpy.core.skills.search.task_focus import TaskFocus
+from navpy.core.swarm.peer_task_priority import PeerTaskPriority
+from navpy.products.delivery.fallback_mission_navigation import (
+    FallbackMissionNavigation,
+)
 from navpy.products.delivery.flow import DeliveryFlow
 from navpy.products.delivery.home_dock import HomeDockRules
 from navpy.products.delivery.nav_oneshot_completion import (
@@ -21,6 +27,7 @@ from navpy.products.delivery.nav_oneshot_completion import (
     OneShotCompletionPorts,
 )
 from navpy.products.delivery.poi_status_decision import ConfirmationStatusDecision
+from navpy.products.delivery.work_source import DeliveryWorkSource
 
 
 def compose_delivery_flow(
@@ -67,8 +74,25 @@ def compose_home_dock_rules(
     )
 
 
+def compose_work_source(
+    state: NavStateOwnership,
+    peer_task: PeerTaskPriority,
+    peer_navigation: PeerNavigationCoordinator,
+    fallback_navigation: FallbackMissionNavigation,
+    tasks: NavigationTaskAction,
+) -> DeliveryWorkSource:
+    return DeliveryWorkSource(
+        state.navigation_task,
+        peer_task,
+        peer_navigation,
+        fallback_navigation,
+        tasks,
+    )
+
+
 __all__ = [
     "compose_delivery_flow",
     "compose_home_dock_rules",
     "compose_sortie_finish",
+    "compose_work_source",
 ]

@@ -26,7 +26,6 @@ from navpy.core.approach.final_approach_record_deadline import FinalApproachReco
 from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPolicy
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
-from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
 from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
 from navpy.core.skills.search.poi_selection import PoiSelector
@@ -35,8 +34,9 @@ from navpy.core.flow.navigation_task_reset import (
     NavigationTaskResetTransaction,
 )
 from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
-from navpy.core.flow.mission_catalog import MissionCatalog
-from navpy.core.flow.fallback_mission_navigation import FallbackMissionNavigation
+from navpy.products.delivery.mission_catalog import MissionCatalog
+from navpy.products.delivery.fallback_mission_navigation import FallbackMissionNavigation
+from navpy.products.delivery.work_source import DeliveryWorkSource
 from navpy.core.flow.mission_navigation import MissionPassPolicy
 from navpy.core.flow.nav_clock import NavClock
 from navpy.core.swarm.nav_network import NavNetworkRuntime
@@ -155,7 +155,7 @@ class NavigationTaskWorkflows:
     selector: PoiSelector
     peer_notifier: PeerPoiNotifier
     peer_task_priority: PeerTaskPriority
-    navigation_task_action: NavigationTaskAction
+    work_source: DeliveryWorkSource
 
 
 @dataclass(frozen=True)

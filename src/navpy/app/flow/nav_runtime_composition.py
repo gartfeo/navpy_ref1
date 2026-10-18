@@ -127,7 +127,7 @@ def compose_nav_application(
     detect_action = DetectAction(
         state.detections,
         navigation_workflows.selector,
-        navigation_workflows.navigation_task_action,
+        navigation_workflows.work_source.handle_new_poi,
         navigation_workflows.peer_notifier,
         poi.confirmation_manager,
         PeerGeoTick(

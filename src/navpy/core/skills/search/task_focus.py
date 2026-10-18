@@ -5,8 +5,6 @@ offers no dock, and it takes only a detection whose position lies within
 ``DOCK_ASSOCIATION_RADIUS_M`` of the task's position (owner ruling 5,
 2026-10-16). This swarm rule is core's; a mission module adds its own offer
 and order rules on top of it in ``PoiSelector``.
-
-See docs/design/delivery_eval_scenario.md, "Remaining plan", step e5.
 """
 
 from __future__ import annotations

@@ -23,7 +23,7 @@ from navpy.core.flow.navigation_speedup import (
     NavigationSpeedupLease,
     SimSpeedupParameterPort,
 )
-from navpy.core.flow.mission_catalog import MissionCatalog
+from navpy.products.delivery.mission_catalog import MissionCatalog
 from navpy.core.flow.nav_clock import NavClock
 from navpy.plugins.vehicle.ardupilot.mission_metadata import MissionMetadata
 from navpy.app.flow.nav_composition_types import (

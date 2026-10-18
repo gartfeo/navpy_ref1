@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from navpy.core.kernel.config.nav_args import NavArgs
-from navpy.core.flow.mission_catalog import MissionCatalog
+from navpy.products.delivery.mission_catalog import MissionCatalog
 from navpy.core.skills.acquire.approach_planner import ApproachPlanner
 from navpy.core.flow.navigation_task_reset import (
     AutoMissionResume,
