@@ -603,7 +603,7 @@ Only unresolved choices that block a stage belong here; read existing private fa
 is the real logs. Launch and catapult are low priority. Flight tuning (`flight_tuning.md`) is a separate, parked feature.
 **Evidence level of everything below:** logs and an offline replay of the model (JSBSim `Peron15_hitl4`, open loop).
 No closed-loop board run against a real log exists yet. The bands were approved by the owner on 2026-10-16 and `Peron15_hitl4` is scored below.
-v4 (2026-10-17) corrects v3 after a deeper log analysis by Codex that Claude checked against the logs; its findings are in section 10a. Section 10b (2026-10-18) checks the owner's data and answers against the model and the logs.
+v4 (2026-10-17) corrects v3 after a deeper log analysis by Codex that Claude checked against the logs; its findings are in section 10a. Section 10b (2026-10-18) checks the owner's data and both sets of answers against the model and the logs; the second set corrects the mass and gives the Fusion 360 inertia.
 
 **Step 1: inventory (read only).** Facts on disk (2026-10-17), not names from memory:
 - 31 flight-log files in `Downloads\Logs`. Group = SYSID in the log, except that the seven `peron_160_*` files (SYSID 157) form their own group "160". A SYSID is a parameter: it names neither a board nor a frame. Dates are GPS time from the log.
@@ -813,7 +813,7 @@ Log 30 (`gdrive_20250927_00000030`) had a median real excess of 14 N per sample 
   The v3 figures (1850 W against 941 W) were medians of mixed samples: log 25's included throttle-off and depleted-pack samples, log 30's partial throttle and the terminal dive.
 - Net force (log facts): under the same rule, (T-D)/m is +1.75 m/s2 in log 30 (EKF; +1.90 from GPS, +2.06 from the IMU), against -0.21 to +0.12 in log 25, "160" log 11, `peron_160_00000030` and `peron_157_20241102_00000006`.
   So log 30 is the outlier in net force. In power it stands out only against log 25, which is the low one: the three SYSID 157 logs draw 1.6-2.2 kW.
-- Inference, not a log fact (mass assumed 7.5 kg; the owner weighed 8.351 kg, section 10b D1): with the throttle-off drag of section 10a A4, the implied propulsive efficiency is 0.76-0.78 in the two SYSID 158 INA logs and 0.49-0.56 in three SYSID 157 analog logs.
+- Inference, not a log fact (mass assumed 7.5 kg; owner: the flown aircraft is 7.46 kg, and the mass of each flight is open, section 10b D1): with the throttle-off drag of section 10a A4, the implied propulsive efficiency is 0.76-0.78 in the two SYSID 158 INA logs and 0.49-0.56 in three SYSID 157 analog logs.
   The logs cannot separate the causes: an INA current that reads low, a different mass, drag or propulsion set.
 - So log 30's extra net forward force comes with more power draw than log 25 on the same board with the same INA monitor settings. It points to a condition of that flight: more thrust (battery, ESC, propeller or motor) or less drag.
   An EKF wind error is less likely, because the GPS and IMU variants agree, but it is not ruled out (with a pitot speed gate the difference falls to +1.35 m/s2). The logs cannot tell which.
@@ -852,20 +852,22 @@ With the elevator offset only, log 30 holds 7 of the 15 dives outside, including
    (64 in climbs, 19 in the terminal sequence; none in the matched descents; section 10a, A4).
    Owner, 2026-10-18: the default set is a T-Motor AT4130 KV450, an MA 13x8.5 propeller and a T-Motor AT115 ESC; which airframe flew which set is not recorded, and a Yellow Turnigy motor or propeller is possible. Under the gates of section 10b D3 log 30 is the top of a range in net force, not a lone outlier; under the row 13 gates it is the outlier (section 10b, D3).
 5. Are you willing to supply the measurements of step 4 (weigh and balance, static thrust, elevon angle at five PWM values)?
-   Owner, 2026-10-18: weighed 8.351 kg (the model has 7.50 kg); the CG and the elevon angle against PWM are already in the measurements folder; the inertia is from Fusion 360, but which file holds it is open. The static thrust of the flown set is still needed (section 10b).
+   Owner, 2026-10-18: the CG and the elevon angle against PWM are already in the measurements folder. Second answers: the flown aircraft is 7.460 kg (the model has 7.50 kg; the 8.351 kg of the first answers came from later modifications in Fusion 360 that are not the flown aircraft).
+   The Fusion 360 inertia (v96) matches the model's moments of inertia; its product of inertia Ixz is not in the model (section 10b, D1-D2). The static thrust of the flown set is still needed; the owner will supply a bench test later (section 10b).
 6. New from the log analysis (2026-10-17, section 10a):
    - What does the SERVO5 pass-through operate (a recovery parachute?), and on which flights was it used on purpose? Owner, 2026-10-18: the chute trigger (section 10b, D5).
    - The airspeed sensor history of SYSID 158: which sensor flew from 2025-04-05 to 2025-05-18, and what changed on 2025-07-13 (the pressure sign flips)?
-   - Frame, board, propeller and motor records per date, and the outside air temperature per flight (the replay density depends on it, A1). Owner, 2026-10-18: the temperature is not known (section 10b, still open).
+   - Frame, board, propeller and motor records per date, and the outside air temperature per flight (the replay density depends on it, A1). Owner, 2026-10-18: the temperature is not known; it will come later with the bench test and the rpm (section 10b, still open).
    - What happened in the air at 3611.8 s in log 30 and at 2453.9 s in `gdrive_20250128_00000006`, and what was that log doing at 3659-4151 s (on or near the ground)?
      Owner, 2026-10-18: probably the chute wrapped on the motor. The logs show no SERVO5 command at either event; the current reads 0 A while the voltage falls, which most likely means over 90 A (an inference). The logs do not confirm the cause (section 10b, D5).
+     Second answers: the chute sits in its box; a Hobbywing ESC used before had no "stop", so the chute rolled onto the turning propeller, and only the chute was damaged. The logs do not show which ESC flew, and the throttle stayed high in both events (section 10b, D5).
    - Do the GUIDED request, dive and AUTO sequences come from an onboard script? The logs carry AAS_TERM_* parameters, and the log 30 dive end moves with AAS_TERM_PITCH. Not all requests can come from a script: in `peron_152_20240831_00000096` the own-SYSID requests came with scripting off (SCR_ENABLE 0). 26 of the 47 steep intervals with automatic demand have no logged request (B1).
    - Can you supply GCS telemetry logs (tlogs), or logs that hold MODE and MSG records, for the dive flights, and the GCS and companion setup behind the senders 255/0, own SYSID/0 and 255/190? They would show which mode was active (B1).
    - How did the flights of 2023-11-11 (SYSID 151), 2025-05-25 (log 16) and 2024-08-31 (`peron_152_20240831_00000096`) end: an impact, a net catch or a power cut? Each recording stops while armed in a fast descent. Do you agree that these three dives and the last dive of log 30 stay out of the row 15 pull-out score?
    - The step 5 runs drop the aileron, AoA and throttle trim offsets in every dive; decision 2 covers only the throttle offset in full-throttle dives. Should the aileron and AoA offsets be dropped in dives, and the throttle offset in dives below full throttle?
    - Can the SYSID 158 INA current be bench-checked against a clamp meter? It would show whether the 0.76-0.78 implied efficiency is a sensor error (A4).
    - For future flights: raise BATT_MAX_AMPS or fit a higher-range shunt, so full-throttle current is measured (A4), and set LOG_DISARMED to 1, so the end of a flight after an in-air disarm is recorded (B4).
-   - What is the battery pack spec (cell count, capacity)? The cell count is not logged (A4). Owner, 2026-10-18: 2 x 4S3P in series (8S3P), mostly "P40" cells, recently P45B (section 10b, D3).
+   - What is the battery pack spec (cell count, capacity)? The cell count is not logged (A4). Owner, 2026-10-18: 2 x 4S3P in series (8S3P), mostly "P40" cells (the Molicel P42A), recently P45B; when they changed is not known (section 10b, D3).
 
 ## 10a. Independent log analysis (Codex, checked by Claude, 2026-10-17)
 
@@ -977,51 +979,67 @@ Gaps inside a file come from the disarm logic (LOG_DISARMED 0), not from records
 
 ## 10b. Owner data against the model (2026-10-18)
 
-**Method.** Sources: the owner's sheet "AAS - Calcs" (tabs `motors` and `bungees`), the owner's answers of 2026-10-18, the owner's ArduPilot checkout (`Tools/autotest/aircraft/Peron15`, read only) and the logs.
+**Method.** Sources: the owner's sheet "AAS - Calcs" (tabs `motors` and `bungees`), the owner's two sets of answers of 2026-10-18, the owner's ArduPilot checkout (`Tools/autotest/aircraft/Peron15`, read only) and the logs.
 Claude agents analysed them. Codex (xhigh, read only) reviewed nine claims: one held, eight held in part, and its corrections are included. Claude then checked the owner's answers against the logs and files.
 Codex reviewed that result twice more. Claude agents checked each finding of the first of these against the logs, the model builders and the firmware source (ArduPlane V4.5.7, the version of logs 6, 25 and 30); each held, and the text was corrected.
 The second of these found the numbers reproduced but some conclusions stated too strongly (the current monitor, the glides); Claude checked its points against the driver source and the text was weakened where they held.
-Output: `%LOCALAPPDATA%\navpy-hitl-tools\validation\2026-10-18-owner-data\` (the rigging, chute and parameter checks are in `owner-answers\`, the checks of the second Codex review in `owner-answers\review2\`).
+The owner's second set of answers corrects the first (mass and inertia). Claude checked it against the files, the logs and the JSBSim source: the rig fit at 7.46 kg, the throttle in the catapult stroke, the ESC settings of logs 30 and 6, the sign rule of the Fusion inertia, and a linear check of the product of inertia.
+Codex reviewed that text. Round 1 asked for rework (the ESC reading, where the lateral terms came from, the mass cancellation, the launch thrust, the open chute question, wording); Claude checked each point against the files and each held, and the text was corrected.
+Round 2 found two statements still too strong (the drag in the motor law's target, the list of model changes) and one leftover wording; each held and was corrected. Round 3 approved.
+Output: `%LOCALAPPDATA%\navpy-hitl-tools\validation\2026-10-18-owner-data\` (the rigging, chute and parameter checks are in `owner-answers\`, the checks of the second Codex review in `owner-answers\review2\`, the checks of the second answers in `owner-answers\round2\`).
 JSBSim (the WSL program) was run 22 times at full throttle, each time on a temporary copy of `Peron15_hitl4` whose model files are byte-identical to the original: 8 held-down runs (a first try that gives only the static point) and 14 runs with the integrators off at 0-65 m/s and 32.8 or 33.6 V.
-They check the solver behind the static and dive figures of D3. D2's short-period figure is a linear calculation on another identical copy. No dive replay was rerun; D6 uses stored values.
-No model file was changed: the `Peron15_hitl4` files match the sha256 values in its README, no file in `models\` is newer than 2026-10-14, and the checkout's `Peron15` files have file times of 2026-02-12 or earlier.
+They check the solver behind the static and dive figures of D3. D2's figures are linear calculations on another identical copy. No dive replay was rerun; D6 uses stored values.
+No model file was changed: the `Peron15_hitl4` files match the sha256 values in its README, no file in `models\` is newer than 2026-10-14, and the checkout's `Peron15` files have file times of 2026-02-12 or earlier (checked again for the second answers).
 Nothing here shows that the model is right in closed loop or in HITL.
 
-**Owner answers (2026-10-18).**
-- Mass: 8.351 kg, the real aircraft weighed. The Fusion 360 model holds 2 x 4S3P packs, 2 servos, the AT115 ESC, a 3S1P avionics pack, a Raspberry Pi, the chute box with its chute, a 1.734 kg payload, the 380 g SIYI gimbal and the 499.7 g motor.
-  The inertia was computed in Fusion 360 from each part's position and mass; the owner says the checkout's `Peron15.xml` was updated from it.
+**Owner answers (2026-10-18).** The second set, later the same day, corrects the first. Superseded figures are marked.
+- Mass (second set): the flown aircraft is 7.460 kg ("the actual weight"); the 380 g SIYI gimbal was not on board in the flights. The first set's 8.351 kg came from later modifications in Fusion 360 that are not the flown aircraft ("later non actual modifications").
+  Superseded with it: that revision's parts list (2 x 4S3P packs, 2 servos, the AT115 ESC, a 3S1P avionics pack, a Raspberry Pi, the chute box with its chute, a 1.734 kg payload, the gimbal and the 499.7 g motor).
+- Inertia (second set): Fusion 360 physical properties of the assembly "Sapsan15v10_assembly v96" (state Working). Mass 7460.267 g. Centre of mass 640.746, 1.071, 6.556 mm from the world origin. Bounding box: length 1238.188, width 1550.02, height 240.032 mm.
+  Inertia at the centre of mass (g mm2): Ixx 3.232E+08, Iyy 7.233E+08, Izz 1.039E+09, Ixy 7.998E+05, Ixz -2.501E+07, Iyz 39021.971. At the origin: Ixx 3.235E+08, Iyy 3.787E+09, Izz 4.102E+09, Ixy -4.318E+06, Ixz -5.635E+07, Iyz -13336.001.
+  The first set said the checkout's `Peron15.xml` was updated from Fusion 360; D2 confirms this for the moments of inertia.
 - Propulsion: by default a T-Motor AT4130 KV450 motor, an MA 13x8.5 propeller and a T-Motor AT115 ESC. Which airframe flew which set is not recorded; a Yellow Turnigy motor or propeller is possible (asked about SYSID 157 between 2025-05 and 2025-08). The motor sheet was measured on a nearly full battery.
-- Battery: 2 x 4S3P in series (8S3P), mostly "P40" cells, recently P45B.
-- Catapult: Black 19 mm bungee, always. 4 lines, 2 on each side. Each runs from the rail start over a roller at the far end and back. Usually cocked to 180 %, meaning 1.8 times the rest length. Carriage 4 kg.
-- SERVO5 is the chute trigger. At about 3611.7 s in log 30 and 2453.9 s in `gdrive_20250128_00000006` the owner thinks the chute wrapped on the motor.
-- Outside air temperature: not known.
+- Battery: 2 x 4S3P in series (8S3P), mostly "P40" cells, recently P45B. Second set: "P40" is the Molicel P42A; no date was given for the change to P45B.
+- Catapult: Black 19 mm bungee, always. 4 lines, 2 on each side. Each runs from the rail start over a roller at the far end and back. Usually cocked to 180 % (recorded from the first set as 1.8 times the rest length; D4 checks both readings). Carriage 4 kg.
+  Second set: the rest length is not known; it "should be around 3 m" and will be measured.
+- Chute: SERVO5 is the chute trigger. At about 3611.7 s in log 30 and 2453.9 s in `gdrive_20250128_00000006` the owner thinks the chute wrapped on the motor.
+  Second set: the chute sits in its box. A Hobbywing ESC used before "doesn't have stop", so the chute rolled onto the turning propeller. Only the chute was damaged. The owner says this is not important.
+- Outside air temperature: not known. Second set: the bench test, the rpm in flight and the outside air temperature will come later.
 
 **D1. Mass.**
-- The model in use has 7.50 kg (`Peron15_hitl4`, emptywt 16.53 lb, no point masses); the checkout's model has 7.46 kg. Both January 2026 commits (e5830898fe and f0f7ddc3da, each co-authored by Claude) use 7.46 kg. The README of e5830898fe and the checkout's uncommitted README call it "FLIGHT VALIDATED" but name no weighing.
-  The logs cannot give the mass (that needs a known lift), so the weighed 8.351 kg is the reference: the model is 10 % light.
+- The flown aircraft is 7.460 kg (Fusion v96). The model in use has 7.50 kg (`Peron15_hitl4`, emptywt 16.53 lb, no point masses), 0.5 % more. The checkout's model and both January 2026 commits (e5830898fe and f0f7ddc3da) have 7.46 kg (16.45 lb).
+  The logs cannot check the mass further (that needs a known lift).
 - Effect (inferred from the model builders and fit scripts; not run): every term fitted to logged accelerations assumed 7.5 kg. That is the lift (log 32 from -1 to 7.4 deg, the fleet logs from 8.5 deg, and the 3.1/rad slope from the fleet identification), the drag from 10 deg (fleet normal and axial force) and the motor law (fitted to the thrust the model needs at 7.5 kg in the logged level flight, climbs and launches).
-  In these fits the force and the mass are off by the same factor. So the 7.5 kg model still gives the logged load factor, trims, 1 g speeds, climbs and launches, as far as the fits match. Where the motor law was fitted, the model's (T-D)/m is not too large.
-  A mass error shows only in forces not taken from logged accelerations, and only if those forces are right: the drag at 7.4 deg and below (from cruise power at an assumed efficiency of 0.55) and the CFD or estimated terms (elevon lift and drag, side force).
-  The logged motor-off glides check the low-angle drag. In the stored comparison (glide and model both taken at 7.5 kg), the model's drag at cruise lift (CL 0.25-0.35) is about right or low against them, after an estimated 0.005-0.013 for the windmilling propeller; at CL 0.4-0.45 it is high.
-  So this comparison does not show the model losing speed faster or gliding steeper with the throttle off at cruise. It does not rule out a mass effect either: at a given speed the true mass sets the lift coefficient the aircraft flew at, so a mass change moves the glide points as well as the model. The model's own windmilling drag was not checked.
-  The static thrust over weight (0.92-0.96 at 7.5 kg, 0.83-0.86 at 8.351 kg) extrapolates a motor law fitted at 7.5 kg; only a measured static thrust can check it.
-  Log forces computed as 7.5 kg times a measured acceleration (the throttle-off drag of A4, and so the implied efficiencies of the row 13 force check) scale by 1.113 for a flight at 8.351 kg. The net accelerations (T-D)/m do not depend on the mass. A gap between a log force and a model force does not simply scale.
-- A consistent change (inferred, not run). It holds only if every fitted flight flew at 8.351 kg: log 32 and the fleet logs (airframes 151, 152, 157/160 and 158) of the identification and of the lift, drag and motor fits, where every airframe was taken as 7.5 kg. Then scale every force taken from logged accelerations by 8.351 / 7.5 = 1.113 and keep the rest:
-  - Set the mass, and the inertia once the Fusion output is known (D2).
-  - Multiply CL_basic by 1.113 at every row (about 0.003 from a full refit at most; the elevon lift does not scale).
-  - Rebuild CD_basic from 10 deg from the fleet normal and axial force at 8.351 kg: about 1.08-1.14 times higher, for example 0.217 to 0.236-0.243 at 14 deg. The range depends on how the glides' 0.013 cruise offset is redone.
-  - Keep CD_basic at 7.4 deg and below (a refit moves it by -0.002 to +0.001). The glide drag forces rise with the mass, so the glides would then sit further above it (how far depends on the refit; not computed). A bench test of the efficiency, or a measured windmilling drag, must settle which is right.
-  - Refit the motor law to the thrust needed at 8.351 kg: about the same in level cruise, 3-7 % more at throttle 0.65 and above, about 8 % more in the launches (target thrusts at fixed states, not a refit).
-  - Keep the pitch and roll moment terms (they depend on the inertia, not the mass) and the CFD and estimated terms.
-  Then rerun the model checks. If the flights had different masses, each fit must use its flight's mass, so the payload of every fitted flight is needed.
-  The `Peron15_hitl2` README gives airframes 152 and 157 a normal-force coefficient of only 0.54-0.55 at the elevator stop, against 0.67-0.71 for 151 and 158; that may mean lighter airframes (not checked).
+  In these fits the force taken from a logged acceleration (7.5 kg times that acceleration) is off by the same factor as the mass, so that part of a mass error cancels as far as the fits match. The motor law's target thrust also holds the model's own drag, which is partly taken from logged accelerations at 7.5 kg (from 10 deg) and partly set otherwise (7.4 deg and below, the CFD terms), so it need not scale with the assumed mass.
+  A mass error shows in the forces not taken from logged accelerations: the drag at 7.4 deg and below (from cruise power at an assumed efficiency of 0.55) and the CFD or estimated terms (elevon lift and drag, side force).
+  At 7.46 kg against 7.5 kg the error is 0.5 %; none of these terms is known that well (D3 alone shows gaps of 1-11 % and more). The log forces computed as 7.5 kg times a measured acceleration (the throttle-off drag of 10a A4, and so the implied efficiencies of the row 13 force check) are 0.5 % high for the same reason.
+- The logged motor-off glides check the low-angle drag. In the stored comparison (glide and model both taken at 7.5 kg), the model's drag at cruise lift (CL 0.25-0.35) is about right or low against them, after an estimated 0.005-0.013 for the windmilling propeller; at CL 0.4-0.45 it is high.
+  So this comparison does not show the model losing speed faster or gliding steeper with the throttle off at cruise. The model's own windmilling drag was not checked.
+- All of this holds only if the fitted flights flew at about 7.46 kg. Not known: whether the 7.46 kg includes a payload (the superseded parts list had 1.734 kg), and whether the mass changed from flight to flight.
+  This matters above all for the flights the model was fitted to: log 32 (2026-01-18) and the fleet logs of SYSID groups 151, 152, 157/160 and 158 (groups, not airframes; section 10 step 1). If their masses differed, each fit must use its flight's mass.
+- The `Peron15_hitl2` README gives SYSID 152 and 157 a normal-force coefficient of only 0.54-0.55 at the elevator stop, against 0.67-0.71 for 151 and 158, all computed with 7.5 kg.
+  The computed coefficient is 7.5 kg x n g / (q S), so it is lower when the true mass is higher. If the true coefficient was the same, the 152 and 157 flights were 1.2-1.3 times heavier than the 151 and 158 flights: about 9.1-9.7 kg if those flew at 7.46 kg. The first version of this section said "lighter", which was the wrong direction.
+  A payload carried on some flights and not others could do this (the superseded parts list had 1.734 kg); so could a different CG, elevon throw or wing. Not checked; it is one more reason to ask for the mass per flight.
+- The static thrust over weight is 0.92-0.97 at 7.46 kg (the model's 6.9-7.2 kgf, D3). It extrapolates a motor law fitted at 7.5 kg; only a measured static thrust can check it.
+- Withdrawn: the first version of this section took 8.351 kg as the flight mass. It proposed to scale every force taken from logged accelerations by 8.351 / 7.5 = 1.113 (CL_basic x 1.113, CD rebuilt from 10 deg, the motor law refitted) and gave a thrust over weight of 0.83-0.86. That premise is gone, and so are these changes.
 
 **D2. Inertia.**
-- The checkout's `Peron15.xml` on disk is not its committed version. Its uncommitted edits (file time 2026-02-12) give Ixx/Iyy/Izz 0.239/0.534/0.766 slug ft2, zero products, 7.46 kg and CG 25.22 in: the tensor of the model in use, which the alternative commit f0f7ddc3da also carries.
-  The committed version (from e5830898fe, branch `peron15_jsbsim`) gives 0.221/0.636/0.850 slug ft2 with products (Ixz -0.025) and the CG at a 10.0 in placeholder.
-- Both versions' READMEs call their numbers "from CAD", so the files cannot show which is the Fusion output. Fusion's physical properties would settle it: mass, centre of mass, inertia at the centre of mass, and the axis directions. They would also show whether the tensor belongs to 8.351 kg or 7.46 kg.
-- Codex: the committed Iyy (x1.19) alone lowers the model's short-period frequency by about 8 % (7.69 to 7.04 rad/s, two-state check). The pitch terms were fitted against the old Iyy, and only the sum Cm_q + Cm_adot was identifiable.
-  So a new tensor needs those terms identified again, not just swapped in. Products of inertia and lateral coupling also matter.
+- Fusion v96 settles which tensor is real. At the centre of mass it gives Ixx/Iyy/Izz 0.3232/0.7233/1.0390 kg m2 = 0.2384/0.5335/0.7663 slug ft2, with the centre of mass at x = 640.746 mm = 25.226 in.
+  Those are the moments of inertia of the checkout's uncommitted `Peron15.xml` (file time 2026-02-12), of commit f0f7ddc3da and of the model in use: 0.239/0.534/0.766 slug ft2 and CG 25.22 in (differences of 0.3 % or less, rounding).
+- The committed version (e5830898fe, branch `peron15_jsbsim`: 0.221/0.636/0.850 slug ft2 = 0.300/0.862/1.152 kg m2, CG at a 10.0 in placeholder) is not v96: Ixx 7 % lower, Iyy 19 % higher, Izz 11 % higher. Where it came from is not known.
+  So Codex's earlier point (the committed Iyy would lower the short-period frequency by about 8 %) no longer applies: the pitch terms were fitted with the Fusion Iyy.
+- One difference remains. Fusion has a product of inertia Ixz of -0.0250 kg m2 (-0.0184 slug ft2); its Ixy (0.0008 kg m2) and Iyz (0.00004) are negligible. The checkout and `Peron15_hitl4` set all products to 0. (e5830898fe has ixz -0.025 in slug ft2; Fusion's -0.025 is in kg m2.)
+- Sign rule of Fusion. Fusion lists the tensor element, Ixz = -∫xz dm: for all three products the value at the origin minus the value at the centre of mass is -m x z (Ixz: -3.134E+07 against m x z = +3.134E+07 g mm2). So ∫xz dm = +0.0250 kg m2 in Fusion's axes.
+- Sign rule of JSBSim. JSBSim reads `<ixz>` as -∫xz dm in its structural frame (x aft, y out of the right wing, z up) and turns it into body axes itself (`FGMassBalance.h` and `.cpp` on GitHub: JSBSim 1.1.0 has only this rule; the current master uses it unless `negated_crossproduct_inertia` is set to false, and the Peron files set no attribute).
+  The WSL program is the FlightGear 2020.3.18 build; its source was not read.
+- Axes. Fusion's x is the structural x, aft from the nose: the centre of mass at 640.7 mm is the model's CG, "640.7mm = 25.22 inches from nose" (f0f7ddc3da). Fusion's y is the span (width 1550 mm) and z the height (240 mm). Whether y points out of the right wing and z up is not in the data.
+  If it does, `<ixz>` is Fusion's Ixz as given: -0.0184 slug ft2. If z points down (and y to the left), it is +0.0184.
+- Size. The principal axis is tilted 2.0 deg from the x axis. Linear check on the lateral model of a `Peron15_hitl4` copy (the `inertia\` folder; fleet trim; sha256 checked), with the coupling Ixx p' - Ixz r' = L and Izz r' - Ixz p' = N added (Ixz = ∫xz dm in body axes):
+  - The Dutch-roll damping ratio goes from 0.169 to 0.142 (z up) or 0.197 (z down). The fleet's is 0.161-0.187, so either sign moves it outside.
+  - The Dutch-roll frequency and the roll pole move by 1.3 % or less. |p/aileron| changes most at the 3.8 rad/s line next to the Dutch roll: from 0.91 of the fleet value to 1.08 (z up, +19 %) or 0.78 (z down, -14 %). 8 or 6 of the 12 lines in the fit band are inside the fleet band, against 7 as built.
+  - Fusion's moments alone (instead of the model's rounded ones) change |p/aileron| by 0.2 % at most.
+- So the product matters for the Dutch roll, but it cannot simply be added. The lateral terms were set with Ixz 0: some identified from the fleet, others kept from the base model (for example Cn_r and Cl_p, `Peron15_hitl` README).
+  With Ixz added, once its sign is confirmed, the coupled response must be checked against the fleet again, and the terms that then need it identified again.
 
 **D3. Propulsion and battery.**
 - Static: the model gives 6.9-7.2 kgf at 101-105 A on the stand (Voc 32.8-33.6 V). At the sheet's own currents it is 1-11 % below the sheet's 8S rows (MA 13x8.5: Propdrive 5060 44 A 4.8 kgf, Turnigy 5060 400KV 65 A 5.9 kgf; MA 13x6: 65 A 5.6 kgf).
@@ -1040,14 +1058,26 @@ Nothing here shows that the model is right in closed loop or in HITL.
     Searching from 10 s after the flight's arming gives 4.04 Ah (a changed rule, a sensitivity check only); with it the ratio range would be 1.15-1.57.
   VoltR depends on the logged current and the estimated resistance, so the ratio points to a sensor or pack difference but gives no correction factor. A clamp meter would check the current reading; on its own it cannot settle a pack difference.
 - rpm: the IMU vibration lines give no valid rpm; aliasing allows several rpm per line.
-- Battery (log fact): BATT_CAPACITY is 12000 mAh in every SYSID 157 and 158 log (158 up to 2026-01-18). That fits 3 x 4.0 Ah cells ("P40"), not P45B (3 x 4.5 = 13.5 Ah), unless the parameter was not updated.
-  The models assume P45B, and the checkout's README says "2x 8S3P, 778 Wh", which doubles the pack.
+- Battery (log fact): BATT_CAPACITY is 12000 mAh in every SYSID 157 and 158 log (158 up to 2026-01-18). The owner's "P40" is the Molicel P42A: 4.2 Ah typical and 4.0 Ah minimum per cell (retailer listings; Molicel's own datasheet not read). So an 8S3P pack has 12.6 Ah typical.
+  12000 mAh is three times the minimum rating, or 95 % of the typical capacity, so it fits P42A. For P45B (3 x 4.5 = 13.5 Ah) it would be 89 %, which fits only if the parameter was set low or not changed with the cells; when they changed is not known.
+  The models assume P45B, and the checkout's README says "2x 8S3P, 778 Wh", which doubles the pack: one 8S3P pack holds about 389 Wh with P45B and 363 Wh with P42A (3.6 V per cell).
 
 **D4. Catapult.**
-- With the owner's rigging (each line shortens 1:1 with carriage travel; 4 lines of Black 19 mm; moving mass 12.35 kg = 8.351 + 4), the measured start push of the 24-launch ensemble needs 24.1 kgf per line. On the sheet that is 186 % (owner: usually 180 %; at 180 % the sheet gives 23.0 kgf, 5 % less).
-- With the stretch fixed at 180 % and only the rest length free, the sheet curve follows the push over 0.05-3.30 m of travel within 0.40-0.43 g rms. Its stored energy gives 16.8 m/s at release; the ensemble profile itself integrates to 16.8 m/s, and the per-launch estimates give 17.0 +- 0.4. Free fits put the stretch at 182-184 %.
-  The fits imply a rest length of about 4.2-4.8 m per line (cocked 7.7-8.6 m) and a line nearly slack at release (103-108 %). Below 150 % the sheet has no points, so that part of the curve is assumed. Friction (0.05) and a small drag term are assumed too.
-- So the owner's rigging is consistent with the measured launch; this does not show that it is the only rigging that fits. It cannot tell 8.35 kg from 7.5 kg: 7.5 kg would need 177 %.
+- With the owner's rigging (each line shortens 1:1 with carriage travel; 4 lines of Black 19 mm; moving mass 11.46 kg = 7.46 + 4), the measured start push of the 24-launch ensemble needs 22.4 kgf per line. On the sheet that is 177 %. At the owner's usual 180 % the sheet gives 23.0 kgf, 3 % more.
+  So the start push agrees with 4 lines, 1:1 and 180 %, and it does not depend on the rest length. It cannot weigh the aircraft: 180 % exactly would mean 7.8 kg, and 8.35 kg would need 186 %.
+- The push model leaves motor thrust out. This is an approximation; thrust is not logged. In all 24 launches of the ensemble the throttle output at the sample nearest release is 1000-1210 us in 21 launches and 1306-1390 us in three, and the logged current stays below 1.5 A before release.
+  The analog monitors read 0 A in the stroke while their voltage dips by up to about 2 V before release; in most of these launches the dip comes with the throttle output still at 1000 us, so it does not show motor current.
+- Rest length, with "180 %" read as 1.8 times the rest length (the first set's note): with the stretch fixed and only the rest length free, the sheet curve follows the push over 0.05-3.30 m of travel within 0.47-0.48 g rms at a rest length of 4.3-4.5 m (cocked 7.8-8.1 m), nearly slack at release (100-104 %).
+  Its stored energy gives 17.2 m/s at release; the ensemble profile itself integrates to 16.8 m/s, and the per-launch estimates give 17.0 +- 0.4. With the stretch free as well, the fits give 173 % and 4.9-5.2 m (0.39-0.41 g rms). So the fit puts the rest length at 4.3-5.2 m.
+  Below 150 % the sheet has no points, so that part of the curve is assumed (two shapes, which give the ranges above). Friction (0.05) and a small drag term are assumed too.
+- The owner's "around 3 m" does not fit this reading, whatever the curve below 150 %. A 3 m line at 1.8 times is 5.4 m long when cocked; after 2.4 m of the 3.45 m stroke it is back at 3 m and goes slack. The push would then stop 1 m early, where the launches still need 190-200 N, and the release speed would be about 14 m/s instead of 17 (1.7-1.8 g rms).
+  It also does not fit the rail: a line anchored at the rail start and led over the roller and back is about twice the rail-start-to-roller distance when cocked (if the carriage is cocked at the anchor), so 5.4 m would put the roller 2.7 m from the start, inside the stroke. Under this reading the rail needs a rest length above 3.8 m.
+- If "180 %" means 180 % elongation (2.8 times the rest length, with the sheet's 150-250 % read the same way), the start push is unchanged, and a 3 m line is 8.4 m long when cocked (roller 4.2 m from the start, past the stroke).
+  Most of the stroke then lies below the sheet's lowest point, and with the assumed curve there it pushes harder near the end than the launches need (310-390 N against 190 N at 3.3 m), giving 17.7-18.3 m/s and 0.76-1.09 g rms.
+  Under this reading the best fits are 2.1-2.5 m at 180 % and 2.0-2.3 m with the stretch free (0.44-0.54 g rms), which puts the roller at or inside the end of the stroke; the rail needs a rest length above about 2.5 m.
+- So under the 1.8-times reading the geometry alone rules out 3 m. Under the 2.8-times reading 3 m fits the rail, and whether it fits the launches depends on the force curve below the sheet's lowest point, which is assumed. The fitted rest lengths are estimates under these assumptions.
+  4 lines and 1:1 are tied to the start push, which agrees. What is open is the meaning of "180 %" (1.8 or 2.8 times the rest length), the rest length itself and the force curve below 150 %.
+  Measurements that settle it: the rest length of one line off the rig; its length when cocked (or the distance from the rail start to the roller, and where the cocked carriage sits); and the pull of one line at a few lengths from rest to cocked (a luggage scale), which also gives the curve below 150 %.
 - The bridge rail plays back the measured motion, so the nominal launch needs no change. A different payload or stretch would need a force model; these numbers are a start, with the rest length still to be measured.
 
 **D5. The two in-air events.**
@@ -1075,26 +1105,34 @@ Nothing here shows that the model is right in closed loop or in HITL.
   A motor loaded by the chute fits the owner's account, but the logs do not confirm it.
   In log 30 the load eased after about 2 s; in `gdrive_20250128_00000006` it lasted until after the ground hits (to 2462.6 s).
 - If the chute came out, it did so without a logged command: in log 30 at the start of a pull-out at 57-59 m/s EAS, and in `gdrive_20250128_00000006` in level flight at 29 m/s EAS. What released it is not logged. This is a flight-safety point as well as a model point.
+- The ESC (second set). The owner's account: a Hobbywing ESC used before "doesn't have stop", so the chute rolled onto the turning propeller; only the chute was damaged; not important to the owner.
+  - The logs cannot show which ESC flew in log 30 or in `gdrive_20250128_00000006`. Neither has ESC telemetry or rpm records (no ESC or RPM messages; SERVO_BLH_MASK, SERVO_FTW_MASK and SERVO_DSHOT_ESC 0; RPM1_TYPE 0), and the throttle is a plain PWM output (SERVO3_FUNCTION 70, 1000-2000 us).
+    Log 30 has DroneCAN on (CAN_P1_DRIVER 1; 0 in the other log), but no ESC records are logged. The owner gave no date for the ESC change, so the account cannot be tied to these two flights.
+  - What fits: in both events the throttle output stayed high (log 30 at 2000 us through ground contact; `gdrive_20250128_00000006` at 1770 us, then 1880-1920 us). With the most likely over-range current, the electrical evidence fits a heavily loaded motor, as a chute caught on a powered propeller would cause; an ESC or wiring fault fits it too, and no rpm is logged.
+  - What it does not explain: how the chute left its box with no SERVO5 command logged. And if "stop" means a brake that holds the propeller when the throttle is cut (an inference; the owner did not say), it would not have acted here: the autopilot never cut the throttle in either event.
 
 **D6. Pull-out (no change from the answers).** Over the 33 recovered pull-outs (row 15 rule; real height from IMU height fitted to GPS, section 10a A2) the aircraft loses a median 31.6 m.
 The stored model values lose a median 299 m with the elevator offset only (range 0-555 m; median paired error, model minus real, +272 m; 3 of 33 inside the row 15 band) and 38 m under the corrected convention (range 2.3-366 m; median paired error -3.9 m; 12 of 33 inside).
 The paired error is the median of the per-dive differences, not the gap between the two medians. Against the EKF height used first, the real median was 29.5 m and the corrected paired error -2.4 m (15 of 33 inside).
-These are stored end values that compare trim conventions at the old inertia. The model's 10 s window starts at the real aircraft's pull-out trigger, not at a recovery found in the model's own trace. An inertia change was not tested. Decision 6 sets the convention.
+These are stored end values that compare trim conventions at the model's inertia (the Fusion moments, with no product of inertia). The model's 10 s window starts at the real aircraft's pull-out trigger, not at a recovery found in the model's own trace. The effect of adding Ixz was not tested. Decision 6 sets the convention.
 
 **Still open.**
+Answered by the second set: the flight mass (7.460 kg, no gimbal), the Fusion output, which cell "P40" is, and the owner's account of the chute damage. Superseded: the first set's 8.351 kg and its parts list.
 Questions for the owner:
-1. Was the 1.734 kg payload (and the gimbal) on every flight? Which flights were lighter? Above all the flights the model was fitted to: log 32 (2026-01-18) and the fleet logs of airframes 151, 152, 157/160 and 158 (D1).
-2. What does Fusion 360 show for mass, centre of mass, and inertia at the centre of mass, with the axis directions? The two `Peron15.xml` versions disagree (D2).
-3. When did the packs change from P40 to P45B, and which cell is "P40" (maker and model)?
-4. How is the chute held in its box, and can it come out without the SERVO5 command? After 2025-01-28 and 2025-09-27, was the chute found on the propeller, and were the motor, ESC or wiring damaged?
-5. The rest length of one bungee line, or the distance from the rail start to the roller (D4 predicts a rest length of about 4.2-4.8 m).
+1. Is a payload part of the 7.460 kg (the superseded parts list had 1.734 kg)? Did the mass change from flight to flight? Above all for the flights the model was fitted to: log 32 (2026-01-18) and the fleet logs of SYSID groups 151, 152, 157/160 and 158 (D1).
+2. In Fusion v96, does y point out of the right wing and z up? It sets the sign of the product of inertia Ixz in the model (D2).
+3. When did the packs change from P42A to P45B (D3)?
+4. The rest length of one bungee line, and its length when cocked (or the distance from the rail start to the roller). Does "180 %" mean 1.8 or 2.8 times the rest length (D4)?
+5. How could the chute leave its box with no SERVO5 command: in log 30 at the start of a pull-out at 57-59 m/s EAS, and in `gdrive_20250128_00000006` in level flight at 29 m/s EAS? The owner says the chute damage is not important; the release itself is still not explained and is a flight-safety point (D5).
 
 Measurements still needed:
-- A bench test of the flown set (AT4130 KV450, MA 13x8.5, AT115 ESC, the 8S pack): thrust, current, voltage and rpm at 4-5 throttle steps, with a clamp meter on the current.
-- rpm in flight (ESC telemetry or an rpm sensor) in full-throttle dives, with the fitted propeller written down.
-- Outside air temperature: the logged temperatures are of sensors inside the aircraft. A weather record for the site and date (for example the nearest airport's METAR) would estimate it; it is not a measurement at the aircraft.
+- A bench test of the default set (AT4130 KV450, MA 13x8.5, AT115 ESC, the 8S pack), and of any other set an airframe flew (not known for the two event flights): thrust, current, voltage and rpm at 4-5 throttle steps, with a clamp meter on the current. Owner: will come later.
+- rpm in flight (ESC telemetry or an rpm sensor) in full-throttle dives, with the fitted propeller written down. Owner: will come later.
+- Outside air temperature: the logged temperatures are of sensors inside the aircraft. A weather record for the site and date (for example the nearest airport's METAR) would estimate it; it is not a measurement at the aircraft. Owner: will come later.
+- The pull of one bungee line at a few lengths from rest to cocked (D4).
 
-Model changes these point to (none made; each needs the owner's approval and a temporary copy first): the flight mass with every log-fitted force scaled by 1.113 (CL_basic x 1.113, CD from 10 deg rebuilt, the motor law refitted), if every fitted flight flew at 8.351 kg; the inertia once the Fusion output is confirmed, with the pitch and yaw terms identified again; the propeller table after the bench test.
+Model changes these point to (none made; each needs the owner's approval and a temporary copy first): the product of inertia Ixz, once its sign is confirmed, with the coupled lateral response checked against the fleet again and the terms that then need it identified again; the propeller table after the bench test.
+The mass (7.50 against 7.46 kg) needs no change on its own; if the model is rebuilt, use the mass of the fitted flights.
 
 ## Owner answers (2026-10-15)
 1. Board: keep 2.4 x 3.2 m. → 4, 6.
