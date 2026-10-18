@@ -27,7 +27,7 @@ import random
 import secrets
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from gcs.backend import instance_ports as ip
@@ -90,15 +90,17 @@ class HostDelays:
 class FleetLaunch:
     """What a :class:`WslFleet` launches: its vehicles ``(sys_id, home)`` in
     SITL order, the run seed (the boot id), the host delay seed (relays and
-    helper jitter; 0 is none), and the root's inputs, read once per run and
+    helper jitter; 0 is none), the root's inputs, read once per run and
     hashed in the input manifest (``lockstep_wsl.merged_defaults``,
-    ``terrain_tiles``)."""
+    ``terrain_tiles``), and each SITL's noise seed by sysid
+    (``sitl_models.sitl_rng_seeds``; a SITL without one keeps the fixed noise)."""
 
     vehicles: tuple[tuple[int, str], ...]
     seed: int
     delay_seed: int
     defaults: str
     tiles: Mapping[str, bytes]
+    rng_seeds: Mapping[int, int] = field(default_factory=dict)
 
 
 class FleetSitl:
@@ -177,7 +179,8 @@ class WslFleet:
         for index, ((sys_id, home), inst_dir) in enumerate(zip(spec.vehicles, dirs)):
             # The boot id comes from the run seed, never the slot, so journals
             # compare across slots (the firmware makes it distinct per sysid).
-            script = (lockstep_wsl.sitl_environment(spec.seed, STEP_DEADLINE_US, spec.delay_seed)
+            script = (lockstep_wsl.sitl_environment(spec.seed, STEP_DEADLINE_US, spec.delay_seed,
+                                                    spec.rng_seeds.get(sys_id))
                       + " " + lockstep_wsl.sitl_command(self.root, home, self.instance(index), sys_id))
             try:
                 # SITL 1 opens frame 1's deadline at its go; every wait of a

@@ -20,7 +20,9 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 
+from navpy.sim.lockstep.sitl_models import RNG_SEED_MAX
 from scripts.eval_gcs_demo_sitl_root import (
     SITL_DEFAULT_OVERRIDES,
     SITL_LUA_DIR,
@@ -75,13 +77,17 @@ def load_firmware_lock() -> dict:
     return json.loads(FIRMWARE_LOCK.read_text(encoding="utf-8"))
 
 
-def merged_defaults() -> str:
+def merged_defaults(profile_parameters: Mapping[str, float] = MappingProxyType({})) -> str:
     """The ``defaults.parm`` a lockstep SITL consumes: WSL's stock ``plane.parm``
-    with :data:`LOCKSTEP_DEFAULT_OVERRIDES` merged in. Read once per run, so the
+    with :data:`LOCKSTEP_DEFAULT_OVERRIDES` and the sim profile's SITL parameters
+    (``sitl_models.sitl_parameters``) merged in. Read once per run, so the
     input manifest hashes exactly what :func:`create_root` writes."""
+    clash = sorted(set(profile_parameters) & set(LOCKSTEP_DEFAULT_OVERRIDES))
+    if clash:
+        raise ValueError(f"sim profile parameters {clash} would replace lockstep defaults")
     home = wsl("printf %s \"$HOME\"")
     stock = wsl(f"cat {shlex.quote(home + '/' + STOCK_DEFAULTS)}")
-    return merge_defaults(stock, LOCKSTEP_DEFAULT_OVERRIDES)
+    return merge_defaults(stock, {**LOCKSTEP_DEFAULT_OVERRIDES, **profile_parameters})
 
 
 def create_root(run_name: str, defaults: str) -> str:
@@ -183,8 +189,11 @@ def sitl_command(root: str, home: str, instance: int, sysid: int) -> str:
     )
 
 
-def sitl_environment(boot_id: int, deadline_us: int, jitter_seed: int) -> str:
-    """``env -i`` prefix: the SITL sees only its serial-step settings."""
+def sitl_environment(boot_id: int, deadline_us: int, jitter_seed: int,
+                     rng_seed: int | None = None) -> str:
+    """``env -i`` prefix: the SITL sees only its serial-step settings.
+    ``rng_seed`` seeds its noise (``sitl_models.sitl_rng_seed``); None keeps
+    the firmware's fixed noise sequence."""
     variables = {
         "PATH": "/usr/bin:/bin",
         "NAVPY_SERIAL_STEP": "1",
@@ -193,6 +202,10 @@ def sitl_environment(boot_id: int, deadline_us: int, jitter_seed: int) -> str:
     }
     if jitter_seed:
         variables["NAVPY_STEP_HELPER_JITTER_SEED"] = str(jitter_seed)
+    if rng_seed is not None:
+        if isinstance(rng_seed, bool) or not isinstance(rng_seed, int) or not 0 < rng_seed <= RNG_SEED_MAX:
+            raise ValueError(f"NAVPY_STEP_RNG_SEED must be an int in 1..{RNG_SEED_MAX}, got {rng_seed!r}")
+        variables["NAVPY_STEP_RNG_SEED"] = str(rng_seed)
     return "env -i " + " ".join(f"{key}={shlex.quote(value)}" for key, value in variables.items())
 
 
