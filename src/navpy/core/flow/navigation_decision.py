@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum, auto
 from typing import Callable, Optional
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
@@ -100,6 +101,16 @@ class InactiveNavigationGuard:
         return False
 
 
+class ApproachOutcome(Enum):
+    """What the approach decision reports for one tick."""
+
+    NONE = auto()  # nothing to report: the POI review runs
+    WAITING = auto()  # waiting for GUIDED
+    ABANDONED = auto()  # GUIDED lost or not accepted; the task is cleared
+    PASSED = auto()  # the approach completed
+    FAILED = auto()  # the approach failed
+
+
 @dataclass(frozen=True)
 class NavDecisionPorts:
     clock_s: Callable[[], float]
@@ -109,7 +120,10 @@ class NavDecisionPorts:
 
 
 class NavStateDecision:
-    """Wait for GUIDED acceptance and classify NAV completion/failure."""
+    """Wait for GUIDED acceptance and classify NAV completion/failure.
+
+    It reports the result and requests no phase; the caller picks the next one.
+    """
 
     def __init__(
         self,
@@ -117,32 +131,28 @@ class NavStateDecision:
         phase: NavPhaseState,
         navigation_task: NavigationTaskState,
         failures: NavigationFailureLatch,
-        confirmation_manager: ConfirmationManager,
         pass_policy: MissionPassPolicy,
-        status: NavigationStatusReporter,
         logger: ILogger,
     ) -> None:
         self._ports = ports
         self._phase = phase
         self._navigation_task = navigation_task
         self._failures = failures
-        self._confirmation_manager = confirmation_manager
         self._pass_policy = pass_policy
-        self._status = status
         self._logger = logger
 
-    def advance(self, mode: FlightMode) -> bool:
+    def advance(self, mode: FlightMode) -> ApproachOutcome:
         if self._phase.current == NavState.NAV:
-            if self._await_guided(mode):
-                return True
+            waiting = self._await_guided(mode)
+            if waiting is not ApproachOutcome.NONE:
+                return waiting
             if (
                 self._navigation_task.nav_mode_observed
                 and self._pass_policy.passed_poi()
             ):
-                self._mark_passed()
-                return True
+                return self._mark_passed()
         if not self._failures.consume():
-            return False
+            return ApproachOutcome.NONE
         if (
             self._phase.current == NavState.NAV
             and (
@@ -151,22 +161,18 @@ class NavStateDecision:
             )
             and self._pass_policy.has_completion_evidence()
         ):
-            self._mark_passed()
-            return True
-        self._confirmation_manager.clear_active_poi()
-        self._phase.request(NavState.RESET)
-        return True
+            return self._mark_passed()
+        return ApproachOutcome.FAILED
 
-    def _await_guided(self, mode: FlightMode) -> bool:
+    def _await_guided(self, mode: FlightMode) -> ApproachOutcome:
         if mode == FlightMode.GUIDED:
             self._navigation_task.nav_mode_observed = True
             self._navigation_task.final_approach_navigation_active = True
             self._clear_guided_wait()
-            return False
+            return ApproachOutcome.NONE
         if self._navigation_task.nav_mode_observed:
             self._ports.clear_navigation_task()
-            self._phase.request(NavState.DETECT)
-            return True
+            return ApproachOutcome.ABANDONED
         now_s = self._ports.clock_s()
         if self._navigation_task.guided_request_started_at is None:
             self._navigation_task.guided_request_started_at = now_s
@@ -180,8 +186,7 @@ class NavStateDecision:
                 key="nav",
             )
             self._ports.clear_navigation_task()
-            self._phase.request(NavState.DETECT)
-            return True
+            return ApproachOutcome.ABANDONED
         last_attempt_s = self._navigation_task.guided_last_attempt_at
         if (
             last_attempt_s is None
@@ -189,16 +194,15 @@ class NavStateDecision:
         ):
             self._navigation_task.guided_last_attempt_at = now_s
             self._ports.request_guided()
-        return True
+        return ApproachOutcome.WAITING
 
     def _clear_guided_wait(self) -> None:
         self._navigation_task.guided_last_attempt_at = None
         self._navigation_task.guided_request_started_at = None
 
-    def _mark_passed(self) -> None:
+    def _mark_passed(self) -> ApproachOutcome:
         self._navigation_task.final_approach_nav_completed = True
-        self._status.ignore(2, "RESET: PASSED POI")
-        self._phase.request(NavState.RESET)
+        return ApproachOutcome.PASSED
 
 
 @dataclass(frozen=True)
@@ -206,6 +210,7 @@ class NavigationDecisionPorts:
     vehicle_mode: Callable[[], FlightMode]
     next_waypoint: Callable[[], int]
     is_oneshot: Callable[[], bool]
+    clear_active_poi: Callable[[], None]
 
 
 class NavigationDecision:
@@ -219,6 +224,7 @@ class NavigationDecision:
         recovery: RecoveryAction,
         nav: NavStateDecision,
         poi_status: ConfirmationStatusDecision,
+        status: NavigationStatusReporter,
     ) -> None:
         self._ports = ports
         self._phase = phase
@@ -226,6 +232,12 @@ class NavigationDecision:
         self._recovery = recovery
         self._nav = nav
         self._poi_status = poi_status
+        self._status = status
+        self._approach_ended = {
+            ApproachOutcome.ABANDONED: self._abandoned,
+            ApproachOutcome.PASSED: self._passed,
+            ApproachOutcome.FAILED: self._failed,
+        }
 
     def decide(self) -> None:
         previous = self._phase.current
@@ -239,12 +251,28 @@ class NavigationDecision:
             return
         if self._recovery.advance():
             return
-        if self._nav.advance(mode):
+        outcome = self._nav.advance(mode)
+        if outcome is ApproachOutcome.NONE:
+            self._poi_status.dispatch()
             return
-        self._poi_status.dispatch()
+        ended = self._approach_ended.get(outcome)
+        if ended is not None:
+            ended()
+
+    def _abandoned(self) -> None:
+        self._phase.request(NavState.DETECT)
+
+    def _passed(self) -> None:
+        self._status.ignore(2, "RESET: PASSED POI")
+        self._phase.request(NavState.RESET)
+
+    def _failed(self) -> None:
+        self._ports.clear_active_poi()
+        self._phase.request(NavState.RESET)
 
 
 __all__ = [
+    "ApproachOutcome",
     "NavDecisionPorts",
     "NavStateDecision",
     "InactiveGuardPorts",

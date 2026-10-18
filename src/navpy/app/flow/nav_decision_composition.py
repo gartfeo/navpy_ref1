@@ -82,9 +82,7 @@ def compose_decision_workflows(
         state.phase,
         state.navigation_task,
         state.navigation_failures,
-        poi.confirmation_manager,
         navigation_workflows.mission_navigation.mission_pass,
-        observation.status,
         logger,
     )
     decision = NavigationDecision(
@@ -92,12 +90,14 @@ def compose_decision_workflows(
             vehicle_mode=lambda: vehicle.get_mode,
             next_waypoint=lambda: vehicle.mission_items_next,
             is_oneshot=lambda: args.is_oneshot,
+            clear_active_poi=lambda: poi.confirmation_manager.clear_active_poi(),
         ),
         state.phase,
         inactive,
         recovery,
         nav,
         confirmation.poi_status,
+        observation.status,
     )
     return DecisionWorkflows(recovery, decision)
 

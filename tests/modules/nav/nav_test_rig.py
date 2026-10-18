@@ -165,7 +165,7 @@ class NavTestRig:
         self.geo_hold = self.poi_status._presence._geo_hold
         self.release = self.poi_status._confirmed._release
         self.freshness = self.release._freshness
-        self.auto_resume = self.poi_status._rejection._resume_auto
+        self.auto_resume = self.poi_status._resume_auto
 
         self.detect_action = self.actions._actions[NavState.DETECT].__self__
         self.confirmation_action = (

@@ -32,7 +32,13 @@ from navpy.core.flow.nav_state import (
     NavState,
 )
 from navpy.core.flow.nav_transition import NavTransition
-from navpy.core.flow.navigation_decision import NavDecisionPorts, NavStateDecision
+from navpy.core.flow.navigation_decision import (
+    ApproachOutcome,
+    NavDecisionPorts,
+    NavigationDecision,
+    NavigationDecisionPorts,
+    NavStateDecision,
+)
 from navpy.core.flow.navigation_loop import StateActionDispatcher
 from navpy.core.flow.navigation_transition_handler import TransitionOutcome
 from navpy.core.ports.dock_contact import DockContactEvent
@@ -52,6 +58,18 @@ class _Sensor:
 
     def disarm(self) -> None:
         self.disarms += 1
+
+
+class _RecordedApproach:
+    """Pass the real approach decision through and keep its last outcome."""
+
+    def __init__(self, decision: NavStateDecision) -> None:
+        self._decision = decision
+        self.outcome = None
+
+    def advance(self, mode: FlightMode) -> ApproachOutcome:
+        self.outcome = self._decision.advance(mode)
+        return self.outcome
 
 
 class _Flow:
@@ -103,10 +121,26 @@ class _Flow:
             self.phase,
             self.task,
             self.failures,
-            self.confirmation,
             policy,
-            self.status,
             Mock(),
+        )
+        self.approach = _RecordedApproach(self.decision)
+        guard, recovery = Mock(), Mock()
+        guard.apply.return_value = False
+        recovery.advance.return_value = False
+        self.navigation_decision = NavigationDecision(
+            NavigationDecisionPorts(
+                vehicle_mode=lambda: FlightMode.GUIDED,
+                next_waypoint=lambda: 0,
+                is_oneshot=lambda: False,
+                clear_active_poi=self.confirmation.clear_active_poi,
+            ),
+            self.phase,
+            guard,
+            recovery,
+            self.approach,
+            Mock(),
+            self.status,
         )
         self.sensor = _Sensor()
         self.logger = Mock()
@@ -125,7 +159,8 @@ class _Flow:
         return identity, on_docked
 
     def decide(self) -> bool:
-        return self.decision.advance(FlightMode.GUIDED)
+        self.navigation_decision.decide()
+        return self.approach.outcome is not ApproachOutcome.NONE
 
 
 def _event(identity) -> DockContactEvent:

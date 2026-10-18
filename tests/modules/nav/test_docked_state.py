@@ -20,7 +20,7 @@ from navpy.core.flow.nav_state import (
     PostDockClimb,
 )
 from navpy.core.flow.nav_transition import NavExitOutcome, NavTransition
-from navpy.core.flow.navigation_decision import NavigationDecision
+from navpy.core.flow.navigation_decision import ApproachOutcome, NavigationDecision
 from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
     TransitionPorts,
@@ -330,18 +330,20 @@ def _decision(*, oneshot: bool):
     for owner in (inactive, recovery, nav):
         owner.apply.return_value = False
         owner.advance.return_value = False
-    poi_status.dispatch.return_value = False
+    nav.advance.return_value = ApproachOutcome.NONE
     decision = NavigationDecision(
         SimpleNamespace(
             vehicle_mode=lambda: None,
             next_waypoint=lambda: 0,
             is_oneshot=lambda: oneshot,
+            clear_active_poi=Mock(),
         ),
         phase,
         inactive,
         recovery,
         nav,
         poi_status,
+        Mock(),
     )
     return decision, (inactive, recovery, nav, poi_status)
 
