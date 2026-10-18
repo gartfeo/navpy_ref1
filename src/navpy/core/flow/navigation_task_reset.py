@@ -209,6 +209,8 @@ class AutoMissionResumePorts:
     pause_navigation: Callable[[], None]
     clear_selected_poi: Callable[[], None]
     clear_flow_task: Callable[[], None]
+    # Which item AUTO resumes at, given the vehicle's next item.
+    resume_waypoint: Callable[[Optional[int]], Optional[int]]
 
 
 class AutoMissionResume:
@@ -238,9 +240,7 @@ class AutoMissionResume:
 
     def run(self) -> None:
         self._ports.close_final_approach_source()
-        resume_waypoint = self._vehicle.mission_items_next
-        if resume_waypoint is not None:
-            resume_waypoint = max(resume_waypoint - 1, 0)
+        resume_waypoint = self._ports.resume_waypoint(self._vehicle.mission_items_next)
         self._ports.pause_navigation()
         self._geo_pointing.stop_geo_tracking()
         self._loiter_radius.restore()

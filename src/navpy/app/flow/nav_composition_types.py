@@ -58,7 +58,7 @@ from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition
 from navpy.core.flow.recovery import RecoveryAction
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.skills.confirm.poi_retry import PoiRetryState
-from navpy.core.flow.poi_status_decision import ConfirmationStatusDecision
+from navpy.products.delivery.poi_status_decision import ConfirmationStatusDecision
 from navpy.core.approach.final_approach_source_admission import FinalApproachSourceAdmission
 from navpy.core.approach.final_approach_source_session import FinalApproachSourceSession
 from navpy.core.approach.final_approach_publication_admission import (

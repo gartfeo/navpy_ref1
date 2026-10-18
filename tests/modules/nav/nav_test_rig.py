@@ -141,9 +141,10 @@ class NavTestRig:
         self.phase = _NavPhaseTestView(self.phase_state)
         self.inactive = self.decision._inactive
         self.recovery = self.decision._recovery
-        self.nav_decision = self.decision._nav
+        self.flow = self.decision._flow.__self__
+        self.nav_decision = self.flow._approach
         self.navigation_failures = self.nav_decision._failures
-        self.poi_status = self.decision._poi_status
+        self.poi_status = self.flow._review
         self.detection_state = self.cycle._detections
         self.detections = _DetectionTestView(self.detection_state)
 

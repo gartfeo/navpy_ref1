@@ -24,7 +24,6 @@ from navpy.core.flow.nav_state import (
 from navpy.core.flow.nav_status import NavigationStatusReporter
 from navpy.core.flow.recovery import RecoveryAction
 from navpy.core.review.confirmation_manager import ConfirmationManager
-from navpy.core.flow.poi_status_decision import ConfirmationStatusDecision
 from navpy.core.skills.acquire.vehicle_navigation import LoiterRadiusLease
 from navpy.core.ports.flight_mode import FlightMode
 
@@ -210,11 +209,13 @@ class NavigationDecisionPorts:
     vehicle_mode: Callable[[], FlightMode]
     next_waypoint: Callable[[], int]
     is_oneshot: Callable[[], bool]
-    clear_active_poi: Callable[[], None]
 
 
 class NavigationDecision:
-    """Execute the ordered state-decision pipeline."""
+    """Execute the ordered state-decision pipeline.
+
+    Core's holds run first; when none acts, the flow decides with the mode.
+    """
 
     def __init__(
         self,
@@ -222,22 +223,13 @@ class NavigationDecision:
         phase: NavPhaseState,
         inactive: InactiveNavigationGuard,
         recovery: RecoveryAction,
-        nav: NavStateDecision,
-        poi_status: ConfirmationStatusDecision,
-        status: NavigationStatusReporter,
+        flow: Callable[[FlightMode], None],
     ) -> None:
         self._ports = ports
         self._phase = phase
         self._inactive = inactive
         self._recovery = recovery
-        self._nav = nav
-        self._poi_status = poi_status
-        self._status = status
-        self._approach_ended = {
-            ApproachOutcome.ABANDONED: self._abandoned,
-            ApproachOutcome.PASSED: self._passed,
-            ApproachOutcome.FAILED: self._failed,
-        }
+        self._flow = flow
 
     def decide(self) -> None:
         previous = self._phase.current
@@ -251,24 +243,7 @@ class NavigationDecision:
             return
         if self._recovery.advance():
             return
-        outcome = self._nav.advance(mode)
-        if outcome is ApproachOutcome.NONE:
-            self._poi_status.dispatch()
-            return
-        ended = self._approach_ended.get(outcome)
-        if ended is not None:
-            ended()
-
-    def _abandoned(self) -> None:
-        self._phase.request(NavState.DETECT)
-
-    def _passed(self) -> None:
-        self._status.ignore(2, "RESET: PASSED POI")
-        self._phase.request(NavState.RESET)
-
-    def _failed(self) -> None:
-        self._ports.clear_active_poi()
-        self._phase.request(NavState.RESET)
+        self._flow(mode)
 
 
 __all__ = [

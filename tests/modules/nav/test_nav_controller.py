@@ -8788,7 +8788,7 @@ class TestNavControllerRecovery(unittest.TestCase):
         navigation.pause_final_approach.assert_called()
 
     def test_recovery_to_detect_sets_auto_and_restarts(self):
-        """RECOVERY → DETECT triggers _restart_auto_mission."""
+        """RECOVERY → DETECT triggers return_to_search."""
         vehicle = _create_mock_vehicle()
         controller = _create_controller(vehicle=vehicle)
 
@@ -8893,7 +8893,7 @@ class TestNavControllerOnStateChange(unittest.TestCase):
         controller.zoom.set_recognition_demand(False)  # must not raise
 
     def test_reset_to_detect_restarts_mission(self):
-        """RESET → DETECT calls _restart_auto_mission."""
+        """RESET → DETECT calls return_to_search."""
         vehicle = _create_mock_vehicle()
         controller = _create_controller(vehicle=vehicle)
 
@@ -8903,7 +8903,7 @@ class TestNavControllerOnStateChange(unittest.TestCase):
         vehicle.restart_mission.assert_called_with(1)
 
     def test_reset_to_recovery_does_not_restart(self):
-        """RESET → RECOVERY does NOT call _restart_auto_mission."""
+        """RESET → RECOVERY does NOT call return_to_search."""
         vehicle = _create_mock_vehicle()
         controller = _create_controller(vehicle=vehicle)
 

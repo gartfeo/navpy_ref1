@@ -35,8 +35,6 @@ from navpy.core.flow.nav_transition import NavTransition
 from navpy.core.flow.navigation_decision import (
     ApproachOutcome,
     NavDecisionPorts,
-    NavigationDecision,
-    NavigationDecisionPorts,
     NavStateDecision,
 )
 from navpy.core.flow.navigation_loop import StateActionDispatcher
@@ -44,6 +42,7 @@ from navpy.core.flow.navigation_transition_handler import TransitionOutcome
 from navpy.core.ports.dock_contact import DockContactEvent
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
+from navpy.products.delivery.flow import DeliveryFlow
 from tests.detection_factory import make_detected_poi
 from tests.modules.navigation.test_navigation import RichPoi, _execute_one, _frame, _runtime
 
@@ -125,22 +124,12 @@ class _Flow:
             Mock(),
         )
         self.approach = _RecordedApproach(self.decision)
-        guard, recovery = Mock(), Mock()
-        guard.apply.return_value = False
-        recovery.advance.return_value = False
-        self.navigation_decision = NavigationDecision(
-            NavigationDecisionPorts(
-                vehicle_mode=lambda: FlightMode.GUIDED,
-                next_waypoint=lambda: 0,
-                is_oneshot=lambda: False,
-                clear_active_poi=self.confirmation.clear_active_poi,
-            ),
+        self.flow = DeliveryFlow(
             self.phase,
-            guard,
-            recovery,
             self.approach,
             Mock(),
             self.status,
+            self.confirmation.clear_active_poi,
         )
         self.sensor = _Sensor()
         self.logger = Mock()
@@ -159,7 +148,7 @@ class _Flow:
         return identity, on_docked
 
     def decide(self) -> bool:
-        self.navigation_decision.decide()
+        self.flow.decide(FlightMode.GUIDED)
         return self.approach.outcome is not ApproachOutcome.NONE
 
 

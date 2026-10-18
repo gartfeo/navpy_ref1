@@ -23,6 +23,7 @@ from navpy.core.flow.navigation_decision import (
     NavigationDecisionPorts,
 )
 from navpy.core.flow.recovery import RecoveryAction, RecoveryPorts
+from navpy.app.flow.nav_delivery_composition import compose_delivery_flow
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
@@ -46,13 +47,12 @@ def compose_decision_workflows(
             detector_stop=detection.tracking_commands.stop_tracking,
             current_relative=lambda: vehicle.location(True),
             pause_navigation=navigation.pause,
-            set_mode=vehicle.set_mode,
-            restart_mission=vehicle.restart_mission,
             set_attitude=vehicle.set_attitude,
             max_pitch_deg=lambda: vehicle.max_pitch,
+            min_alt=lambda: args.min_alt,
+            is_oneshot=lambda: args.is_oneshot,
         ),
         state.phase,
-        args,
         observation.status,
         logger,
         state.post_dock_climb,
@@ -85,19 +85,17 @@ def compose_decision_workflows(
         navigation_workflows.mission_navigation.mission_pass,
         logger,
     )
+    flow = compose_delivery_flow(state, poi, observation, nav, confirmation.poi_status)
     decision = NavigationDecision(
         NavigationDecisionPorts(
             vehicle_mode=lambda: vehicle.get_mode,
             next_waypoint=lambda: vehicle.mission_items_next,
             is_oneshot=lambda: args.is_oneshot,
-            clear_active_poi=lambda: poi.confirmation_manager.clear_active_poi(),
         ),
         state.phase,
         inactive,
         recovery,
-        nav,
-        confirmation.poi_status,
-        observation.status,
+        flow.decide,
     )
     return DecisionWorkflows(recovery, decision)
 

@@ -440,7 +440,7 @@ def _chain(*, oneshot: bool, contact_first: bool = False):
     )
     ports = TransitionPorts(
         decision_clock_s=lambda: 0.0,
-        restart_auto_mission=Mock(),
+        return_to_search=Mock(),
         enter_recovery=Mock(),
         start_task_actor=Mock(),
         is_oneshot=lambda: oneshot,
@@ -459,7 +459,7 @@ def test_a_failed_dock_enters_docked_after_the_drain_and_never_restarts_auto(one
     result = handler.on_change(NavState.NAV, NavState.RESET)
 
     assert result.effective_state is NavState.DOCKED
-    ports.restart_auto_mission.assert_not_called()
+    ports.return_to_search.assert_not_called()
     row = ("row", IDENTITY, "no_detection")
     expected = ["reset", "disarm", row] if oneshot else ["reset", row]
     assert events == expected  # the row follows the reset that drained commands
@@ -475,16 +475,16 @@ def test_cyclic_failed_dock_climbs_before_the_auto_restart():
     handler.on_change(NavState.DOCKED, NavState.RECOVERY)
     assert climb.active
     ports.enter_recovery.assert_called_once_with()
-    ports.restart_auto_mission.assert_not_called()
+    ports.return_to_search.assert_not_called()
 
 
 def test_cyclic_failed_dock_restarts_auto_only_on_leaving_docked_high():
     handler, ports, _, _, _ = _chain(oneshot=False)
     handler.on_change(NavState.NAV, NavState.RESET)
-    ports.restart_auto_mission.assert_not_called()
+    ports.return_to_search.assert_not_called()
 
     handler.on_change(NavState.DOCKED, NavState.DETECT)
-    ports.restart_auto_mission.assert_called_once_with()
+    ports.return_to_search.assert_called_once_with()
 
 
 def test_a_contact_before_the_nav_fail_is_docked_end_to_end():

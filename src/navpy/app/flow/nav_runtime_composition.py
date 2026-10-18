@@ -31,6 +31,7 @@ from navpy.app.flow.nav_composition_types import (
     VehicleApproachOwnership,
 )
 from navpy.core.flow.nav_state import NavState
+from navpy.products.delivery.flow import restart_search
 from navpy.core.flow.nav_task_availability import is_approaching
 from navpy.core.flow.navigation_loop import (
     DetectionSensor,
@@ -122,7 +123,7 @@ def compose_nav_application(
     transitions = NavigationTransitionHandler(
         TransitionPorts(
             decision_clock_s=lambda: state.clock.decision_s(),
-            restart_auto_mission=decision.recovery.restart_auto_mission,
+            return_to_search=lambda: restart_search(vehicle),
             enter_recovery=decision.recovery.enter,
             start_task_actor=observation.network.start_task_actor,
             is_oneshot=lambda: args.is_oneshot,

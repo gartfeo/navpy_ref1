@@ -26,6 +26,7 @@ from navpy.app.flow.nav_composition_types import (
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 from navpy.plugins.vehicle.ardupilot.mission_metadata import read_mission_metadata
+from navpy.products.delivery.flow import interrupted_leg
 
 
 def compose_reset_workflows(
@@ -78,6 +79,7 @@ def compose_reset_workflows(
             pause_navigation=navigation.pause,
             clear_selected_poi=observation.network.clear_selected_poi,
             clear_flow_task=lambda: poi.mission.clear_navigation_task(),
+            resume_waypoint=interrupted_leg,
         ),
         vehicle,
         detection.geo_pointing,

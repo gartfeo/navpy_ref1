@@ -20,7 +20,7 @@ class TransitionOutcome:
 @dataclass(frozen=True)
 class TransitionPorts:
     decision_clock_s: Callable[[], float]
-    restart_auto_mission: Callable[[], None]
+    return_to_search: Callable[[], None]
     enter_recovery: Callable[[], None]
     start_task_actor: Callable[[], None]
     is_oneshot: Callable[[], bool] = lambda: False
@@ -64,9 +64,9 @@ class NavigationTransitionHandler:
             NavState.DOCKED: self._enter_docked,
         }
         self._pair_hooks: dict[tuple[NavState, NavState], Callable[[], None]] = {
-            (NavState.RESET, NavState.DETECT): self._ports.restart_auto_mission,
-            (NavState.RECOVERY, NavState.DETECT): self._ports.restart_auto_mission,
-            (NavState.DOCKED, NavState.DETECT): self._ports.restart_auto_mission,
+            (NavState.RESET, NavState.DETECT): self._ports.return_to_search,
+            (NavState.RECOVERY, NavState.DETECT): self._ports.return_to_search,
+            (NavState.DOCKED, NavState.DETECT): self._ports.return_to_search,
             (NavState.DOCKED, NavState.RECOVERY): self._start_post_dock_climb,
         }
         expected = set(NavState)
