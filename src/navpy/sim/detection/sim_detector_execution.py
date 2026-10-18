@@ -106,11 +106,13 @@ class SimDetectorExecution:
         stop_event = self._coordinator.stop_event
         timer = self._poll_timer
         while not stop_event.is_set():
-            started_s = rt.monotonic()
+            # perf_counter, not monotonic: on Windows monotonic ticks at 15.6 ms
+            # and reads a 1-3 ms frame as 0, so the period would grow by the work.
+            started_s = rt.perf_counter()
             if timer is not None:
                 timer.begin()
             outcome = self._poll_once()
-            elapsed_s = rt.monotonic() - started_s
+            elapsed_s = rt.perf_counter() - started_s
             wait_s = max(
                 0.0,
                 self.wall_period_for_scheduler_period(
