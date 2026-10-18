@@ -9,24 +9,24 @@ there:
   `sysids_for_chat(chat)[:instances]`, and `sysids_for_chat` returns exactly
   three ids (`instance_ports.py`), so `[:36]` is still three. Only the first
   three aircraft are verified as streaming and clock-checked at launch.
-- `swarm_run_wsl.cleanup(chat)` builds its kill patterns from that same
-  three-id list, so aircraft four and up SURVIVE teardown. They keep running,
+- `swarm_run_wsl.cleanup(chat)` reaps that same three-id list by default, so aircraft four and up SURVIVE teardown. They keep running,
   keep burning CPU, and keep answering on their companion ports.
 
 Both of those are the caller's problem to solve, and the scale probe already
 solved them; this module is that solution made reusable so an evaluator does
 not have to import a file whose own docstring says to delete it.
 
-The registry claim is the part that matters most for other people. Teardown
-kills by sysid pattern and `pkill -f -- --sysid N` does not ask who started the
-process, so tearing down a span we do not own would take another session's
-aircraft with it. Claiming every chat in the span first, all-or-nothing, is
-what makes the teardown safe to perform at all.
+The registry claim is the part that matters most for other people. A span we
+do not own holds another session's sysids, so launching into it would put two
+aircraft on one id. Teardown reaps only processes carrying this launch's
+`SWARM_OFFSET` (`wall_reap_wsl.py`), but claiming every chat in the span first,
+all-or-nothing, is what keeps the launch itself from colliding.
 """
 
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -86,9 +86,9 @@ def claim_span(
 ) -> list[int]:
     """Claim every chat in the blast radius, or take none of them.
 
-    Reading `reg.live()` and then pkilling is check-then-act: another session
+    Reading `reg.live()` and then launching is check-then-act: another session
     can claim and launch inside that window. `reg.claim` allocates under the
-    registry's own lock, which is what makes the later teardown safe.
+    registry's own lock, which is what keeps the span's sysids ours alone.
 
     `supervised_by_launcher` names the one chat `swarm_run` will launch on.
     That chat is claimed like any other but NOT registered as ours to
@@ -178,21 +178,16 @@ def cleanup_sysids(
     chat: int,
     sysids: list[int],
     *,
-    wsl_run: Callable[[str], None] | None = None,
+    wsl_run: Callable[[str], subprocess.CompletedProcess] | None = None,
 ) -> None:
     """Terminate exactly the aircraft this run launched, plus its router.
 
-    NOT `wsl.cleanup(chat)`, which builds its pattern list from
-    `sysids_for_chat(chat)` -- always exactly VEHICLES_PER_CHAT entries. A
-    fleet deliberately launches past that, so at N>3 the extra aircraft would
-    survive teardown and contend with whatever runs next.
+    NOT plain `wsl.cleanup(chat)`, which reaps `sysids_for_chat(chat)` --
+    always exactly VEHICLES_PER_CHAT entries. A fleet deliberately launches
+    past that, so at N>3 the extra aircraft would survive teardown and contend
+    with whatever runs next.
     """
-    run = wsl.run_wsl if wsl_run is None else wsl_run
-    patterns = [wsl.sysid_process_pattern(sysid) for sysid in sysids]
-    patterns.append(wsl.router_process_pattern(chat))
-    terminate = "; ".join(f"pkill -f -- '{p}' || true" for p in patterns)
-    kill = "; ".join(f"pkill -KILL -f -- '{p}' || true" for p in patterns)
-    run(f"{terminate}; sleep 2; {kill}")
+    wsl.cleanup(chat, sysids=sysids, wsl_run=wsl.run_wsl if wsl_run is None else wsl_run)
 
 
 def hand_back(
@@ -221,8 +216,9 @@ def hand_back(
     ):
         try:
             step()
-        except Exception:  # noqa: BLE001 - teardown must not mask the result
-            pass
+        except Exception as error:  # noqa: BLE001 - teardown must not mask the result
+            print(f"fleet hand-back step failed: {type(error).__name__}: {error}",
+                  file=sys.stderr)
 
 
 __all__ = [

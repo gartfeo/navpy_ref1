@@ -76,6 +76,7 @@ class SelectedTaskSlot:
         self._held: Optional[HeldTask] = None
         self._replies: set[MsgRef] = set()
         self._approaching = False
+        self._docked = False
         self._tokens = itertools.count(1)
 
     def on_request(
@@ -111,6 +112,8 @@ class SelectedTaskSlot:
                         RequestKind.REJECT, reason="waiting for another task",
                     )
                 self._clear()  # the owner restarted: its old offer is gone
+            if self._docked:
+                return RequestDecision(RequestKind.REJECT, reason="docked")
             if self._approaching:
                 return RequestDecision(
                     RequestKind.REJECT, reason="flying a final approach",
@@ -170,11 +173,19 @@ class SelectedTaskSlot:
             self._clear()
             return held
 
-    def set_approaching(self, approaching: bool) -> Optional[HeldTask]:
-        """Track nav's final approach; its start drops a WAITING task."""
+    def set_participation(
+        self,
+        approaching: bool,
+        docked: bool,
+    ) -> Optional[HeldTask]:
+        """Track nav's approach and dock; becoming busy drops a WAITING task.
+
+        Both flags change in one update, so NAV -> DOCKED is never FREE.
+        """
         with self._lock:
-            started = approaching and not self._approaching
+            started = (approaching or docked) and not self._busy()
             self._approaching = approaching
+            self._docked = docked
             if not started or self._state is not SlotState.WAITING:
                 return None
             held = self._held
@@ -222,9 +233,12 @@ class SelectedTaskSlot:
     def node_state(self) -> SwarmNodeState:
         """BUSY while holding a task or flying a final approach."""
         with self._lock:
-            if self._state is not SlotState.EMPTY or self._approaching:
+            if self._state is not SlotState.EMPTY or self._busy():
                 return SwarmNodeState.BUSY
             return SwarmNodeState.FREE
+
+    def _busy(self) -> bool:
+        return self._approaching or self._docked
 
     def _clear(self) -> None:
         self._state = SlotState.EMPTY

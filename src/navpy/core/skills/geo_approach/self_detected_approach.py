@@ -27,6 +27,7 @@ class SelfDetectedApproachPorts:
     save_loiter_radius: Callable[[], bool]
     request_guided: Callable[[], None]
     loiter_poi: Callable[[Location, float, Optional[float]], None]
+    leaves_home_orbit: Callable[[DetectedObject], bool]
 
 
 class SelfDetectedApproach:
@@ -46,7 +47,11 @@ class SelfDetectedApproach:
 
     def prepare(self, poi: DetectedObject) -> None:
         if self._navigation_task.orbit_radius_m > 0:
-            return
+            if not self._ports.leaves_home_orbit(poi):
+                return
+            # A delivery dock taken on the way home: the home-dock circle
+            # would take it out of view (ruling 4), so circle it instead.
+            self._navigation_task.orbit_radius_m = 0.0
         if self._approach_kind != ApproachKind.ORBIT:
             return
         # Circle the POI until it is confirmed (owner, 2026-10-07), so it

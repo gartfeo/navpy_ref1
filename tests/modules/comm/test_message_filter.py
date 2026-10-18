@@ -3,7 +3,6 @@ Unit tests for message filtering (dedup + TTL).
 
 Tests:
 - DedupCache: LRU + expiry behavior
-- ClockOffsetEstimator: EMA offset calculation
 - MessageFilter: Integration of dedup + TTL checks
 - MsgMeta: Metadata serialization
 - MsgMetaProvider: Sequence generation
@@ -12,11 +11,10 @@ Tests:
 import threading
 import time
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from navpy.core.link.message_filter import (
     DedupCache,
-    ClockOffsetEstimator,
     MessageFilter,
     FilterMetrics,
 )
@@ -253,101 +251,6 @@ class TestDedupCache(unittest.TestCase):
         self.assertFalse(any(duplicates_found))
 
 
-class TestClockOffsetEstimator(unittest.TestCase):
-    """Tests for ClockOffsetEstimator."""
-
-    def test_first_update_sets_offset(self):
-        """First heartbeat should set the offset."""
-        estimator = ClockOffsetEstimator(alpha=0.1)
-
-        now_ms = int(time.time() * 1000)
-        remote_time = now_ms - 100  # Remote is 100ms behind
-
-        offset = estimator.update_offset(sender_id=1, remote_time_ms=remote_time)
-
-        # Offset should be approximately 100ms
-        self.assertAlmostEqual(offset, 100, delta=50)
-
-    def test_offset_is_none_before_update(self):
-        """get_offset should return None before any updates."""
-        estimator = ClockOffsetEstimator()
-
-        self.assertIsNone(estimator.get_offset(sender_id=1))
-
-    def test_ema_smoothing(self):
-        """Test that EMA smoothing works correctly."""
-        estimator = ClockOffsetEstimator(alpha=0.5)  # 50% new, 50% old
-
-        now_ms = int(time.time() * 1000)
-
-        # First sample: offset = 100
-        estimator.update_offset(1, now_ms - 100)
-        offset1 = estimator.get_offset(1)
-
-        # Second sample: offset = 200
-        # New offset should be 0.5 * ~100 + 0.5 * 200 = ~150
-        estimator.update_offset(1, now_ms - 200)
-        offset2 = estimator.get_offset(1)
-
-        self.assertGreater(offset2, offset1)
-        # Should be between 100 and 200
-        self.assertGreater(offset2, 100)
-        self.assertLess(offset2, 200)
-
-    def test_adjust_time_no_offset(self):
-        """Test adjust_time when no offset is known."""
-        estimator = ClockOffsetEstimator()
-
-        remote_time = 1000000
-        adjusted = estimator.adjust_time(sender_id=1, remote_time_ms=remote_time)
-
-        # Should return unchanged (no offset known)
-        self.assertEqual(adjusted, remote_time)
-
-    def test_adjust_time_with_offset(self):
-        """Test adjust_time with known offset."""
-        estimator = ClockOffsetEstimator(alpha=1.0)  # Use exact sample
-
-        now_ms = int(time.time() * 1000)
-        # Simulate remote clock being 1000ms behind
-        estimator.update_offset(1, now_ms - 1000)
-
-        # Now adjust a message time
-        message_time = now_ms - 500  # Message was sent 500ms ago (remote time)
-        adjusted = estimator.adjust_time(1, message_time)
-
-        # Adjusted time should be message_time + offset = message_time + ~1000
-        self.assertAlmostEqual(adjusted, message_time + 1000, delta=100)
-
-    def test_multiple_peers(self):
-        """Test that offsets are tracked per peer."""
-        estimator = ClockOffsetEstimator(alpha=1.0)
-
-        now_ms = int(time.time() * 1000)
-
-        estimator.update_offset(1, now_ms - 100)
-        estimator.update_offset(2, now_ms - 500)
-
-        offset1 = estimator.get_offset(1)
-        offset2 = estimator.get_offset(2)
-
-        self.assertAlmostEqual(offset1, 100, delta=50)
-        self.assertAlmostEqual(offset2, 500, delta=50)
-
-    def test_clear(self):
-        """Test clearing all offsets."""
-        estimator = ClockOffsetEstimator()
-
-        now_ms = int(time.time() * 1000)
-        estimator.update_offset(1, now_ms)
-
-        self.assertIsNotNone(estimator.get_offset(1))
-
-        estimator.clear()
-
-        self.assertIsNone(estimator.get_offset(1))
-
-
 class TestFilterMetrics(unittest.TestCase):
     """Tests for FilterMetrics."""
 
@@ -495,13 +398,6 @@ class TestMessageFilter(unittest.TestCase):
 
         now_ms = int(time.time() * 1000)
 
-        # Establish offset for peer 1 via heartbeat first
-        hb = self._create_mock_message(
-            sender_id=1, msg_type=MsgType.SWARM_HEARTBEAT,
-            msg_seq=0, time_ms=now_ms,
-        )
-        filter.should_process(hb)
-
         # Message created 2 seconds ago with 1 second TTL
         old_time_ms = now_ms - 2000
         msg = self._create_mock_message(time_ms=old_time_ms, ttl_ms=1000)
@@ -541,63 +437,58 @@ class TestMessageFilter(unittest.TestCase):
 
         self.assertFalse(filter.should_process(msg))
 
-    def test_heartbeat_updates_offset(self):
-        """Swarm heartbeat should update clock offset."""
-        filter = MessageFilter()
-
-        now_ms = int(time.time() * 1000)
-        hb = self._create_mock_message(
-            sender_id=1,
-            msg_type=MsgType.SWARM_HEARTBEAT,
-            time_ms=now_ms - 100,  # Remote is 100ms behind
-        )
-
-        filter.should_process(hb)
-
-        offset = filter.offset_estimator.get_offset(1)
-        self.assertIsNotNone(offset)
-        self.assertAlmostEqual(offset, 100, delta=50)
-
     def test_far_future_message_dropped(self):
-        """Message from far future should be dropped (clock issue)."""
+        """A stamp ahead of the local clock beyond the sync tolerance is dropped."""
         filter = MessageFilter()
-
-        now_ms = int(time.time() * 1000)
-
-        # Establish offset for peer 1 via heartbeat first
-        hb = self._create_mock_message(
-            sender_id=1, msg_type=MsgType.SWARM_HEARTBEAT,
-            msg_seq=0, time_ms=now_ms,
-        )
-        filter.should_process(hb)
-
-        # Message "created" 2 minutes in the future (impossible)
-        future_time_ms = now_ms + 120000
+        future_time_ms = int(time.time() * 1000) + 120000
         msg = self._create_mock_message(time_ms=future_time_ms, ttl_ms=5000)
 
         self.assertFalse(filter.should_process(msg))
         self.assertEqual(filter.metrics.get_stats()["rx_dropped_expired"], 1)
 
-    def test_heartbeat_skips_ttl_check(self):
-        """Heartbeat should never be dropped by TTL — it IS the clock reference."""
+    def test_clock_ahead_within_tolerance_passes_beyond_is_dropped(self):
+        """Synchronised clocks may differ slightly; a peer clock further ahead
+        than the tolerance is not synchronised, and is warned about once."""
+        logger = MagicMock()
+        filter = MessageFilter(logger=logger)
+        tolerance = MessageFilter.CLOCK_SYNC_TOLERANCE_MS
+        with patch("navpy.core.link.message_filter.rt.time", return_value=1000.0):
+            near = self._create_mock_message(msg_seq=1, time_ms=1_000_000 + tolerance - 100)
+            far = self._create_mock_message(msg_seq=2, time_ms=1_000_000 + tolerance + 100)
+            far_again = self._create_mock_message(msg_seq=3, time_ms=1_000_000 + tolerance + 100)
+            self.assertTrue(filter.should_process(near))
+            self.assertFalse(filter.should_process(far))
+            self.assertFalse(filter.should_process(far_again))
+        self.assertEqual(logger.warning.call_count, 1)
+        self.assertIn("not synchronised", logger.warning.call_args.args[0])
+
+    def test_stale_heartbeat_is_dropped(self):
+        """Heartbeats are aged like any other message (no clock reference)."""
         filter = MessageFilter()
-
-        # Heartbeat from peer whose clock is 90 seconds ahead (> MAX_FUTURE_MS)
-        future_time_ms = int(time.time() * 1000) + 90000
+        stale_ms = int(time.time() * 1000) - 6000
         hb = self._create_mock_message(
-            sender_id=3,
-            msg_type=MsgType.SWARM_HEARTBEAT,
-            time_ms=future_time_ms,
-            ttl_ms=5000,
+            sender_id=3, msg_type=MsgType.SWARM_HEARTBEAT, time_ms=stale_ms, ttl_ms=5000,
         )
+        self.assertFalse(filter.should_process(hb))
+        self.assertEqual(filter.metrics.get_stats()["rx_dropped_expired"], 1)
 
-        # Should pass despite far-future timestamp
-        self.assertTrue(filter.should_process(hb))
-        self.assertEqual(filter.metrics.get_stats()["rx_passed"], 1)
-
-        # Offset should still be updated for peer 3
-        offset = filter.offset_estimator.get_offset(3)
-        self.assertIsNotNone(offset)
+    def test_inbound_backlog_shows_as_age(self):
+        """Regression (.logs/base-wall-1): with the receiver's reader backed up,
+        heartbeats arrive late too, the backlog growing to 6 s and staying. A
+        6.5 s-old bid must be dropped and a fresh ack admitted, instead of the
+        backlog being taken for clock skew."""
+        filter = MessageFilter()
+        now_ms = 1_000_000
+        backlog_ms = [*range(0, 6000, 200), *[6000] * 40]
+        with patch("navpy.core.link.message_filter.rt.time", return_value=now_ms / 1000):
+            for seq, delay_ms in enumerate(backlog_ms, start=1):
+                filter.should_process(self._create_mock_message(
+                    sender_id=2, msg_type=MsgType.SWARM_HEARTBEAT, msg_seq=seq,
+                    time_ms=now_ms - delay_ms, ttl_ms=5000))
+            stale_bid = self._create_mock_message(sender_id=2, msg_seq=100, time_ms=now_ms - 6500, ttl_ms=5000)
+            fresh_ack = self._create_mock_message(sender_id=2, msg_seq=101, time_ms=now_ms - 30, ttl_ms=5000)
+            self.assertFalse(filter.should_process(stale_bid))
+            self.assertTrue(filter.should_process(fresh_ack))
 
     def test_zero_ttl_skips_ttl_check(self):
         """Message with ttl_ms=0 should skip TTL check."""
@@ -654,74 +545,16 @@ class TestMessageFilter(unittest.TestCase):
 
         self.assertFalse(filter.should_process(msg))
 
-    def test_ttl_skipped_for_unknown_peer(self):
-        """Message from unknown peer (no offset yet) should pass TTL check."""
+    def test_ttl_enforced_before_any_heartbeat(self):
+        """A stale message is dropped even from a peer never heard before."""
         filter = MessageFilter()
-
-        # Message with tight TTL from a peer we've never seen a heartbeat from.
-        # Even if the raw timestamp looks stale, it should pass because we
-        # have no clock offset to compare against.
         old_time_ms = int(time.time() * 1000) - 10000
         msg = self._create_mock_message(
             sender_id=99, msg_seq=1, time_ms=old_time_ms, ttl_ms=1000,
         )
 
-        self.assertTrue(filter.should_process(msg))
-        self.assertEqual(filter.metrics.get_stats()["rx_passed"], 1)
-
-    def test_ttl_enforced_after_heartbeat(self):
-        """After a heartbeat establishes offset, TTL is enforced."""
-        filter = MessageFilter()
-
-        now_ms = int(time.time() * 1000)
-
-        # Send heartbeat first to establish offset for peer 42
-        hb = self._create_mock_message(
-            sender_id=42, msg_type=MsgType.SWARM_HEARTBEAT,
-            msg_seq=1, time_ms=now_ms,
-        )
-        filter.should_process(hb)
-        self.assertIsNotNone(filter.offset_estimator.get_offset(42))
-
-        # Now send stale message from same peer — should be dropped
-        stale_time_ms = now_ms - 10000
-        msg = self._create_mock_message(
-            sender_id=42, msg_seq=2, time_ms=stale_time_ms, ttl_ms=1000,
-        )
         self.assertFalse(filter.should_process(msg))
         self.assertEqual(filter.metrics.get_stats()["rx_dropped_expired"], 1)
-
-    def test_outlier_rejection(self):
-        """Extreme clock jump sample should be rejected, estimate unchanged."""
-        from navpy.core.link.message_filter import ClockOffsetEstimator
-
-        estimator = ClockOffsetEstimator(alpha=0.1)
-
-        now_ms = int(time.time() * 1000)
-
-        # Establish baseline offset of ~100ms
-        estimator.update_offset(1, now_ms - 100)
-        baseline = estimator.get_offset(1)
-
-        # Feed an outlier sample: remote clock jumped by 10s
-        result = estimator.update_offset(1, now_ms - 100 - 10000)
-
-        # Estimate should be unchanged (outlier rejected)
-        self.assertEqual(result, baseline)
-        self.assertEqual(estimator.get_offset(1), baseline)
-
-    def test_outlier_first_sample_accepted(self):
-        """First sample is always accepted regardless of magnitude."""
-        from navpy.core.link.message_filter import ClockOffsetEstimator
-
-        estimator = ClockOffsetEstimator(alpha=0.1)
-
-        now_ms = int(time.time() * 1000)
-
-        # First sample with large offset — should be accepted
-        offset = estimator.update_offset(1, now_ms - 50000)
-        self.assertAlmostEqual(offset, 50000, delta=100)
-        self.assertIsNotNone(estimator.get_offset(1))
 
 
 if __name__ == "__main__":

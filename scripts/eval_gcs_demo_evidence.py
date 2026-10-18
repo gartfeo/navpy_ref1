@@ -214,6 +214,7 @@ def parse_final_approach_episodes(
                 if current:
                     episodes.append(FinalApproachEpisode(
                         tuple(current), tuple(responses), docked is not None,
+                        armed, docked,
                     ))
                 current = []
                 responses = []

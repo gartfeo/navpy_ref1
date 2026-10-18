@@ -220,7 +220,7 @@ not over the map, so the panel cannot cover them.
   stream or a lost feed is still on screen; hidden in FPV and in manual control.
   The GCS learns of streams only from the camera protocol: a camera that is
   expected but never advertises is not shown here; preflight reports it
-  (`architecture_todo.md` 57).
+  (`architecture_todo.md` 69).
 - Selection: badges and View camera switch the video only. The follow selector
   picks only the first feed (the followed UAV if it has video, else the first
   UAV with video); later follow changes leave the video alone (D1).
@@ -285,7 +285,7 @@ not over the map, so the panel cannot cover them.
 
 #### Found by the walkthrough, outside this design
 
-Logged in `architecture_todo.md` (54-59): a pending-confirm cue and card order
+Logged in `architecture_todo.md` (66-71): a pending-confirm cue and card order
 by time left; the confirm card says what happens at zero (code and demo config
 reject on expiry: `aas_params.lua:19`, `eval_gcs_demo_config.py:144`); E-STOP
 and the right UAV's Cancel task reachable when cards stack; a per-UAV camera

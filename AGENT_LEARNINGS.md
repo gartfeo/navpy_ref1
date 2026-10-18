@@ -288,6 +288,42 @@
 - Bootstrap a median gate over a few items before trusting it. With 7 items, the 90 % interval
   of the median was wider than the gate band.
 
+## Peron flight-log deep analysis (2026-10-17)
+
+- Barometer and EKF height read falsely high in pull-outs (+13-38 m, about 2-3.5 m per g), and
+  in four dive logs most pull-outs fail the EKF height test and switch the core (10 of 10 in one log). Scoring pull-out height against
+  EKF height understated the loss by a median 4.4 m (up to 14.5 m). For height at speed or under
+  load, use GPS, or IMU height fitted to GPS per window.
+- Two different files are both called "log 30" (gdrive_20250927_00000030, SYSID 158, INA monitor,
+  and peron_160_00000030, SYSID 157, analog monitor). A current maximum was put on the wrong one.
+  Use full file names in claims, scripts and handoffs.
+- ArduPilot 4.3-4.5 takes EAS2TAS from GndTemp, the airspeed sensor's temperature at arming, held for the flight (4.5-57 C), so a
+  replay density built from it was 0.85-1.01 of ISA. Do not use it as outside-air density; ask
+  the owner for the outside temperature.
+- SYSID is a parameter, not an airframe, and values copied in a parameter file match exactly
+  after a 7-digit round trip, so they do not identify a board. AP_Stats counters and boot gyro
+  offsets follow the board (the counters are parameters and can be rewritten, so they are strong
+  evidence, not proof). Check them before calling two logs "the same aircraft".
+- An INA2xx monitor (BATT_MONITOR 21) logged exactly 0 A at full throttle near its BATT_MAX_AMPS
+  range, and the logged charge skips those records. The mechanism is inferred, not read from the
+  driver (an over-range sample seems to count as 0 in a 4-sample average). Treat such zeros as
+  probable over-range, not as power off, and drop them from current statistics.
+- Comparing per-log medians of mixed samples gave a power ratio of 1.97; with matched throttle,
+  voltage and speed gates it was 1.71. Gate by state before comparing power or force across logs.
+- The logs hold no MODE records, and the flight-mode slot read FBWA while TECS ran 77 % of that
+  time. Derive the mode class from TECS, ATRP and demand records.
+- A force check started the model at the replay TAS but took the real acceleration from EKF
+  speed; the 2.4 m/s start gap hid most of an estimated 5 N deficit. Start the model from the same speed
+  source as the comparison.
+- A resolution round counted 2 dives ending in bad data where the flight-end inventory showed 4.
+  Cross-check exclusion counts against an independent list before writing them down.
+- The first draft said the throttle offset explained half of the row 13 gap, but no run had
+  dropped that offset alone; the single-offset runs pointed elsewhere. Name a cause only when a
+  run isolated it.
+- Batch doc edits drafted by a workflow: check that each old text occurs once and that no two
+  edits overlap before applying (4 pairs overlapped here), and keep the working copy's CRLF
+  line endings (read and write with newline="").
+
 ## Hardware-in-the-loop link work (2026-10-13)
 
 - From Git Bash, `wsl.exe bash -lc '...'` lost every `$variable` in the command. Paths under
@@ -444,7 +480,8 @@
   misses: packet records carry message ids, not names.
 - **Codex's read-only shell can fail to start.** Three of four codex exec
   runs ended with "helper_unknown_error: setup refresh had errors" before
-  reading anything. Inline the diff and evidence in the prompt, and pass a
+  reading anything (cause and fix: see "Approach-window cadence
+  diagnostics" below). Inline the diff and evidence in the prompt, and pass a
   long prompt on stdin (codex exec ... - < prompt.md): a 52 KB argument
   exits 126 on Windows without running Codex.
 
@@ -564,8 +601,18 @@
   source time, entry->first and last->exit included
   (scripts/eval_gcs_demo_cadence.py).
 - **codex exec -s read-only can fail every shell call on this host**
-  ("helper_unknown_error: setup refresh had errors"). For a static review,
-  inline the diff and evidence in the prompt instead of asking Codex to read.
+  ("helper_unknown_error: setup refresh had errors"). Cause found on
+  2026-10-17: the standalone CLI on PATH (0.162.1) updates the ACL of
+  node_repl.exe during sandbox setup and gets os error 32 while any
+  node_repl.exe runs; the Codex desktop app keeps about ten running. Fix:
+  run the CLI bundled with the desktop app
+  (%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe, 0.163), whose setup
+  succeeds in the same state. Do not close the desktop app, and do not
+  change ACLs. Inside that sandbox the user's Python 3.11 gives "Access is
+  denied"; give Codex its own runtime Python
+  (~\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe:
+  numpy and pandas, no scipy or pymavlink). Pipe the prompt on stdin with
+  `-`; PowerShell quoting broke a long argument.
 - **time.thread_time steps 15.625 ms on Windows** (GetThreadTimes). Per-row
   CPU reads 0 or 16 ms; compare CPU with wall per wall second instead.
 - **Bash heredocs fail on an apostrophe in the body.** Even a quoted
@@ -595,3 +642,111 @@
 - A test that sends right after a fail-closed transition must allow the one counted stale drop, not retry until a
   packet lands: an open-ended retry hides an unwanted drop (`send_across_transition`, test_mav_router.py).
 - pytest imports test modules at collection, so a run started before an edit tests the old file. Restart it.
+
+## Bug-fix batch (hub load, gimbal stop, swarm clocks, todo 42; 2026-10-16)
+- I repeated the heredoc mistake above: escaped newlines in a Bash heredoc became real
+  newlines in Python source. Read this file before editing, and write edit scripts with
+  the Write tool.
+- A regression test I wrote passed on the old code too (Codex caught it). To prove a test
+  fails before the fix, export the old source and run the test against it:
+  `git archive HEAD src | tar -x -C <tmp>`, then run pytest with PYTHONPATH set to `<tmp>/src`.
+- The shared .venv now has OpenCV 5.0.0, so the 4 `test_board_detector.py` failures are an
+  environment issue (`board_detector.py:34`, IndexError), not a code regression.
+- A new worktree has no `src/gcs/frontend/node_modules`: run `npm ci` before vitest, and
+  delete `dist/` after a build.
+- One-way message timestamps cannot separate clock offset from queue delay. An offset
+  averaged from heartbeats absorbs reader backlog, so stale messages pass TTL.
+
+## Delivery e2b slice (2026-10-16)
+
+- **A Python heredoc turned `\b` in a regex into a backspace.** I wrote
+  `rf"\bCONFIRMING"` through a Bash heredoc into Python source and got
+  a 0x08 byte; the gate then never matched. Make regex edits with the Edit
+  tool, and grep the file for control bytes after any scripted edit.
+- **Read the done criterion's own words before choosing a gate window.** I
+  opened the approval window at `CONFIRMING`; the criterion said "during
+  that approval orbit", and NavPy offers a second dock about 120 ms before
+  `CONFIRMING`, in the same orbit. Changing a gate after a run is a goalpost
+  risk: write down why, keep the run-time report, and get it reviewed.
+- **A swarm offer carries no obj_id on the wire.** To prove which world dock
+  was offered, log the link at the first registration
+  (`Task offered: ... obj_id=`), not a position match.
+
+## Lockstep matrix and digest attribution (step 11, 2026-10-16)
+
+- **Prove a digest move with a run at the commit before, not by reading diffs.** I named
+  2d44662 (a sim gimbal change) as the cause of a new digest; a run at the commit before it
+  already had the new digest. Single seed-1 runs in detached worktrees at 10h's commit, the
+  merge and its parent located it (the HITL merge 79ace48) in three runs.
+- **Recertify after any rebase.** Main moved twice during step 11, and each move changed the
+  digest, so each final certification ran on the exact tree that would fast-forward onto main.
+  (A quiet PC is no longer needed since todo 51; see below.)
+- **`gcs_stop.py --eval` cannot find a lockstep slot** (todo 55: the claim's owner is not
+  normcased). Stop it with `gcs_stop.py --chat <its slot>` after checking that the registry
+  entry's clone is this directory.
+- **`sed -i` in Git Bash rewrites a CRLF file as LF.** Edit CRLF files with the Edit tool or
+  with read_bytes/write_bytes, and check with `file` afterwards.
+
+## Coordinating nested sessions (2026-10-17)
+
+- **Do not ask a nested session to report back.** The owner opens nested sessions
+  directly, so a "report to me" or "report it" step in a brief adds nothing. My
+  briefs had one, and I relayed every interim note ("still waiting", "suite running")
+  to the owner. The owner said this is not needed. In a brief, state the task and
+  what done means. Pass on a note only when it brings a decision for the owner or
+  finished work.
+
+## Delivery e5 dock roles (2026-10-17)
+
+- **A bare `Mock()` task actor looks assigned.** Its `selected_poi()` returns a truthy
+  Mock, so `PeerTaskPriority.pending()` is true. Nine selector tests relied on that
+  by accident once "assigned UAVs offer nothing" landed. Give an idle mock actor
+  `selected_poi.return_value = None`.
+- **Run the SOLID guard after every constructor change, not only `tests/modules`.**
+  A Codex fix added a 13th dependency to `NavigationTaskAction`; only the full suite
+  caught it. Prefer a port on the class that owns the behaviour.
+- **Sim detections carry truth, not a projected position.** `SelfDetectedApproach`
+  centres its circle on `truth_poi_location`; a test dock with only
+  `set_p_t_g_loc` circles somewhere else. Build sim test docks with
+  `replace_geo(replace(poi.geo, truth_poi_location=...))`.
+
+## Wall cleanup by ownership (todo 51, 2026-10-17)
+
+- **Do not edit the tree while a matrix runs.** `input_manifest.json` hashes the uncommitted
+  diff and untracked files. A doc edit and a `git add -N` mid-run failed the artifact gate in
+  two cells, although every digest was equal. Commit first, keep doc drafts outside the
+  worktree, and apply them after the runs.
+- **A `pgrep -f` probe matches its own `bash -c` shell.** My waits returned at once, so the
+  first "wall stack mid-run" cycles stopped the stack before its SITLs existed. Anchor the
+  pattern (`^/[^ ]*/bin/arduplane .*[-]-sim-address`), and log the matched pids with their
+  environment, so the evidence shows that the target processes really existed.
+- **Backslash continuations in a heredoc'd Python edit collapse into one line.** `\` plus a
+  newline inside a normal string literal is a line continuation. Edit test code that has `\`
+  continuations with the Edit tool.
+
+## Delivery e6 gates and e10 runs (2026-10-17)
+
+- **Check a gate's source and order against a real run before a review locks it in.** Three
+  e6 checks were wrong on first contact with real logs: the frame-sampled SNAP line read
+  2.1 m where the contact sensor read 0.05 m; the offerer locks d1 before its self-detect
+  orbit, not after (my build note had it backwards, and a review then tightened the wrong
+  chain); `approved_at_unix_s` is taken after the approve POST returns, so NavPy arms about
+  0.5 s before it. Each fix took a run. Before writing an ordering or timing check, grep one
+  existing run log (e2b, s11) for the exact markers and timestamps.
+- **Read what a "check" field actually computes.** The approval record's
+  `nav_before_approval` is the literal `False` (todo 59). A field name is not evidence.
+- **`--analyze-only` prints the new report and leaves the run's `report.json` alone**, so a
+  failed run can be re-gated after a gate fix without losing its original report.
+
+## DOCKED final state (2026-10-17)
+
+- The local `main` ref in a worktree can be far behind `origin/main`. Rebasing onto it replayed
+  other chats' commits. Fetch, then rebase onto `origin/main`.
+- The SNAP row is sampled only at command rows, and the dock contact latch stops the commands, so
+  SNAP misses the crossing segment (SITL 2026-10-17: contact 0.07 m, SNAP 4.4 m). Decide or score
+  docking from the contact sensor's `DOCKED` row, never from SNAP.
+
+## Todo 64 disarm offset (2026-10-18)
+- A position reported "at disarm" is the first GCS telemetry frame after the event, and frames are 0.2 s wall = 2 s sim
+  at SIM_SPEEDUP 10. Before suspecting a frame offset, take the frames on both sides from the WS trace and check whether
+  the line between them passes the dock horizontally; here within 0.7 m and the aircraft kept moving after a net-less contact.

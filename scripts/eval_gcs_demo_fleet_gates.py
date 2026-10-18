@@ -36,7 +36,7 @@ from scripts.eval_gcs_demo_fleet_packets import (
     packet_run_errors,
 )
 from scripts.eval_gcs_demo_ports import JsonValue
-from scripts.eval_gcs_demo_scenario import DemoMissionPlan
+from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario
 from scripts.eval_gcs_demo_slice_gates import (
     JOURNAL_FILE,
     SNAP_MARKER,
@@ -155,7 +155,9 @@ def fleet_snap_errors(records: Sequence[Mapping], lines: Mapping[int, Lines]) ->
 
 
 def certified_lockstep_gate_errors(log_dir: Path, plan: DemoMissionPlan,
-                                   approvals: Sequence[Mapping[str, JsonValue]]) -> list[str]:
+                                   approvals: Sequence[Mapping[str, JsonValue]],
+                                   scenario: DemoScenario | None = None) -> list[str]:
+    del scenario  # these gates read the run's own logs only
     sys_ids = plan.sys_ids
     if sys_ids != tuple(range(1, len(sys_ids) + 1)):
         return [f"certified lockstep: sysids {list(sys_ids)} are not the fleet's 1..{len(sys_ids)}"]

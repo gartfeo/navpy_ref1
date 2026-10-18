@@ -16,7 +16,8 @@ Replaces the v1 terminal-divergence rule ("rework"). Codex resolved all 5 v2 fin
      which matters for `ideal_360`, where an aft dock stays visible.
 2. **Real flight:** the net catches the aircraft, so no software decision is made in the approach. A capture signal for
    the autopilot is later work.
-3. **Simulation: a contact sensor stands in for the net.** It is the only success source.
+3. **Simulation: a contact sensor stands in for the net.** It is the only success source, and the
+   final `DOCKED` state follows it (`docked_state.md`).
 
 ## Sim contact sensor
 - **Where it lives:** `src/navpy/sim/world`, next to `FleetDockWorld` / `PoiProvider`. Only the sim composition wires it,

@@ -239,6 +239,16 @@ owner O` must appear before `Peer navigation started`.
 Timers bound liveness only; no safety property depends on them. Tests pin
 the relationships and recompute under a monkeypatched `TTL_DEFAULTS`.
 
+**Clocks (2026-10-16, owner choice).** A message's age is the receiver's clock
+minus the sender's `time_ms` (`message_filter.py`), from the first message on.
+Peers must therefore run synchronised clocks: one host clock in wall SITL, the
+run epoch plus the shared tick under lockstep, GPS or chrony time sync on real
+companions. A stamp more than `CLOCK_SYNC_TOLERANCE_MS` (500 ms) ahead marks an
+unsynchronised peer: it is dropped and warned about. A peer clock behind makes
+its messages look old, so TTL drops them. The earlier per-peer offset, averaged
+from heartbeats, took queue delay for clock skew and admitted stale bids
+(`.logs/base-wall-1`).
+
 ## Loss and busy cases
 
 | Case | Outcome |

@@ -70,7 +70,7 @@ def final_approach_poi_binding_errors(
                 f"vehicle {sys_id} has invalid final-approach-POI evidence: {error}"
             )
             continue
-        errors.extend(_vehicle_binding_errors(
+        errors.extend(vehicle_poi_binding_errors(
             sys_id,
             text,
             episodes,
@@ -80,7 +80,7 @@ def final_approach_poi_binding_errors(
     return errors
 
 
-def _vehicle_binding_errors(
+def vehicle_poi_binding_errors(
     sys_id: int,
     navigation_text: str,
     episodes: list,
@@ -210,4 +210,8 @@ def _valid_coordinate(coordinate: tuple[float, float]) -> bool:
     )
 
 
-__all__ = ["MAX_POI_COORD_ERROR_M", "final_approach_poi_binding_errors"]
+__all__ = [
+    "MAX_POI_COORD_ERROR_M",
+    "final_approach_poi_binding_errors",
+    "vehicle_poi_binding_errors",
+]

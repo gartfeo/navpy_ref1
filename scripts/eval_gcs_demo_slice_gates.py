@@ -37,7 +37,7 @@ from scripts.eval_gcs_demo_approval_replay import approval_replay_errors
 from scripts.eval_gcs_demo_confirmation_timing import confirmation_timing_errors
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_role_gates import peer_assignment_marker_errors
-from scripts.eval_gcs_demo_scenario import DemoMissionPlan
+from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario
 
 JOURNAL_FILE = "lockstep_journal.jsonl"
 NAVPY_LINES_FILE = "lockstep_navpy_lines.jsonl"
@@ -228,7 +228,9 @@ def pose_cadence_errors(log_dir: Path, sys_ids: Sequence[int],
 
 
 def slice_gate_errors(log_dir: Path, plan: DemoMissionPlan,
-                      approvals: Sequence[Mapping[str, JsonValue]]) -> list[str]:
+                      approvals: Sequence[Mapping[str, JsonValue]],
+                      scenario: DemoScenario | None = None) -> list[str]:
+    del scenario  # these gates read the run's own logs only
     try:
         evidence = load_slice_evidence(log_dir)
     except (OSError, ValueError) as error:

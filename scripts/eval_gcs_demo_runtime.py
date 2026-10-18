@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from navpy.sim.world.fleet_dock_world import FLEET_DOCKS_ENV
 from scripts.eval_gcs_demo_audit import validate_approval_records
 from scripts.eval_gcs_demo_config import build_environment, build_settings
 from scripts.eval_gcs_demo_inputs import (
@@ -30,7 +31,10 @@ def execute_live_run(
     *,
     scenario: DemoScenario,
     navigation_speedup: float = 0.0,
+    sim_docks: Path | None = None,
 ) -> MissionArtifacts:
+    """Fly one scenario; *sim_docks* names the run's shared dock world file
+    (``NAVPY_SIM_DOCKS``), else each NavPy builds docks from its waypoints."""
     timeout = finite_number("live-run timeout", timeout_s)
     if timeout <= 0.0:
         raise ValueError("live-run timeout must be positive")
@@ -57,6 +61,8 @@ def execute_live_run(
         run_dir,
         navigation_speedup=speedup,
     )
+    if sim_docks is not None:
+        env[FLEET_DOCKS_ENV] = str(sim_docks.resolve())
     sitl_root, sitl_inputs, sitl_root_host = prepare_sitl_root(run_dir)
     write_input_manifest(
         run_dir, env, sitl_inputs, sitl_root_host,

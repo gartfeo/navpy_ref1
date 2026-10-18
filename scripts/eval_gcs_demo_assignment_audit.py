@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from scripts.eval_gcs_demo_assignment_lines import (
     AssignmentLines,
@@ -15,6 +16,15 @@ from scripts.eval_gcs_demo_scenario import DemoMissionPlan
 
 
 MAX_ASSIGNMENT_COORD_ERROR_M = 1.0
+
+
+class AssignmentEvidence(NamedTuple):
+    """How a run's global assignment was established, per profile."""
+
+    assignments: dict[int, int]
+    errors: list[str]
+    # Acked log format: peers fly only after their owner's APPLIED.
+    acked: bool
 
 
 @dataclass(frozen=True)
@@ -244,4 +254,8 @@ def _valid_coordinate(lat: float, lon: float) -> bool:
     )
 
 
-__all__ = ["MAX_ASSIGNMENT_COORD_ERROR_M", "derive_global_assignment_map"]
+__all__ = [
+    "MAX_ASSIGNMENT_COORD_ERROR_M",
+    "AssignmentEvidence",
+    "derive_global_assignment_map",
+]

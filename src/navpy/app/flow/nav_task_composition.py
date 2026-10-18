@@ -15,6 +15,7 @@ from navpy.core.skills.geo_approach.self_detected_approach import (
     SelfDetectedApproachPorts,
 )
 from navpy.core.skills.search.poi_selection import PoiSelector
+from navpy.core.skills.search.dock_roles import DockRolePorts, DockRoles
 from navpy.core.flow.fallback_mission_navigation import (
     FallbackMissionNavigation,
     FallbackMissionPorts,
@@ -176,11 +177,6 @@ def compose_navigation_task_workflows(
             logger,
         ),
     )
-    selector = PoiSelector(
-        poi.confirmation_manager,
-        observation.retry,
-        observation.network.has_task_actor,
-    )
     peer_notifier = PeerPoiNotifier(
         PeerPoiNotifierPorts(
             detector_is_simulation=lambda: detection.simulation.is_simulation,
@@ -190,6 +186,16 @@ def compose_navigation_task_workflows(
         poi.confirmation_manager,
         logger,
     )
+    peer_task_priority = PeerTaskPriority(
+        PeerTaskPriorityPorts(
+            selected_poi=observation.network.selected_poi,
+            stop_tracking=detection.tracking_commands.stop_tracking,
+        ),
+        state.navigation_task,
+        poi.confirmation_manager,
+        logger,
+    )
+    dock_roles = _dock_roles(detection, state, poi, navigation, peer_task_priority)
     self_approach = SelfDetectedApproach(
         SelfDetectedApproachPorts(
             final_approach_active=lambda: navigation.final_approach.is_active,
@@ -206,19 +212,17 @@ def compose_navigation_task_workflows(
             save_loiter_radius=lambda: approach.commands.save_loiter_radius(),
             request_guided=lambda: approach.commands.request_guided(),
             loiter_poi=navigation.vehicle_commands.peer_poi_loiter,
+            leaves_home_orbit=dock_roles.leaves_home_orbit,
         ),
         state.navigation_task,
         approach_kind,
         logger,
     )
-    peer_task_priority = PeerTaskPriority(
-        PeerTaskPriorityPorts(
-            selected_poi=observation.network.selected_poi,
-            stop_tracking=detection.tracking_commands.stop_tracking,
-        ),
-        state.navigation_task,
+    selector = PoiSelector(
         poi.confirmation_manager,
-        logger,
+        observation.retry,
+        observation.network.has_task_actor,
+        dock_roles,
     )
     navigation_task_action = NavigationTaskAction(
         state.navigation_task,
@@ -244,6 +248,28 @@ def compose_navigation_task_workflows(
         peer_notifier=peer_notifier,
         peer_task_priority=peer_task_priority,
         navigation_task_action=navigation_task_action,
+    )
+
+
+def _dock_roles(
+    detection: DetectionCoordination,
+    state: NavStateOwnership,
+    poi: PoiMissionOwnership,
+    navigation: NavCapabilities,
+    peer_task: PeerTaskPriority,
+) -> DockRoles:
+    task = state.navigation_task
+    return DockRoles(
+        DockRolePorts(
+            home_dock=lambda: poi.mission.default_delivery_hub,
+            homing=lambda: poi.mission.default_delivery_hub_active,
+            assigned=lambda: task.peer_navigation or peer_task.pending(),
+            assigned_dock=lambda: (
+                task.peer_poi_location if task.peer_navigation else None
+            ),
+            detector_is_simulation=lambda: detection.simulation.is_simulation,
+            ground_location=navigation.legacy_pois.ground_location,
+        )
     )
 
 

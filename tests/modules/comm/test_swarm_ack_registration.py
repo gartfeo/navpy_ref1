@@ -11,6 +11,7 @@ of NetworkMavlink as a SwarmAckMsg.
 import os
 import subprocess
 import sys
+import time
 import unittest
 from unittest.mock import MagicMock
 
@@ -71,7 +72,7 @@ def _swarm_ack_packet(src_system: int):
         ref_boot_id=1234, ref_msg_seq=7,
         ref_msg_type=MsgType.TASK_ASSIGN_RESPONSE.value,
         status=ACK_STATUS_APPLIED,
-        meta=MsgMeta(boot_id=99, msg_seq=5, time_ms=0, ttl_ms=5000),
+        meta=MsgMeta(boot_id=99, msg_seq=5, time_ms=int(time.time() * 1000), ttl_ms=5000),
     )
     mav_msg = ack.to_mavlink()
     mav_msg._header.srcSystem = src_system

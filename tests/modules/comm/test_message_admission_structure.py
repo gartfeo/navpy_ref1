@@ -1,16 +1,6 @@
 """Regression tests for the message-admission composition boundary."""
 
-from navpy.core.link.message_admission_state import (
-    ClockOffsetEstimator as PackageClockOffsetEstimator,
-    DedupCache as PackageDedupCache,
-)
-from navpy.core.link.message_admission_state import (
-    ClockOffsetEstimator,
-    DedupCache,
-)
-from navpy.core.link.message_filter import (
-    ClockOffsetEstimator as FacadeClockOffsetEstimator,
-)
+from navpy.core.link.message_admission_state import DedupCache
 from navpy.core.link.message_filter import DedupCache as FacadeDedupCache
 from navpy.core.link.message_filter import MessageFilter
 from navpy.core.link.msg_meta import MsgMeta
@@ -19,12 +9,9 @@ from navpy.core.link.swarm_heartbeat_msg import SwarmHeartbeatMsg
 
 def test_legacy_and_package_exports_reference_the_state_owners() -> None:
     assert FacadeDedupCache is DedupCache
-    assert PackageDedupCache is DedupCache
-    assert FacadeClockOffsetEstimator is ClockOffsetEstimator
-    assert PackageClockOffsetEstimator is ClockOffsetEstimator
 
 
-def test_heartbeat_updates_clock_before_duplicate_rejection() -> None:
+def test_duplicate_rejection_precedes_the_ttl_check() -> None:
     events: list[str] = []
 
     class RecordingDedup:
@@ -32,18 +19,8 @@ def test_heartbeat_updates_clock_before_duplicate_rejection() -> None:
             events.append("dedup")
             return True
 
-    class RecordingOffsets:
-        def update_offset(self, sender_id: int, remote_time_ms: int) -> float:
-            events.append("offset")
-            return 0.0
-
-        def get_offset(self, sender_id: int) -> float:
-            raise AssertionError("duplicate rejection must precede TTL lookup")
-
-    message_filter = MessageFilter(
-        dedup_cache=RecordingDedup(),
-        offset_estimator=RecordingOffsets(),
-    )
+    # time_ms=30 is long expired: only the duplicate counter may move.
+    message_filter = MessageFilter(dedup_cache=RecordingDedup())
     heartbeat = SwarmHeartbeatMsg(
         sender_id=7,
         meta=MsgMeta(
@@ -55,7 +32,7 @@ def test_heartbeat_updates_clock_before_duplicate_rejection() -> None:
     )
 
     assert message_filter.should_process(heartbeat) is False
-    assert events == ["offset", "dedup"]
+    assert events == ["dedup"]
     assert message_filter.metrics.get_stats() == {
         "rx_total": 1,
         "rx_dropped_duplicate": 1,

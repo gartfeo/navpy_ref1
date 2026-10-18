@@ -165,7 +165,7 @@ Product semantics are preserved; nothing changes in `core/swarm`. Inputs arrive 
 | Offer rows | `task_auction_planning.py:165-181` | Dispatch insertion order = task registration (detection) order |
 | Ack/resend (2000 ms), rebroadcast (0.5 s), dispatch and reply timers | `ttl_defaults.py:20`; `task_rebroadcast.py:18`; `task_dispatch.py:117,180,213`; `task_assign_reply.py:180` | Sim time; on a deadline tick, input runs before the timer |
 | Message identity `(sender, boot_id, msg_seq)` | `task_msg_refs.py:26-56` | `boot_id` comes from `Random(seed, ordinal)` |
-| TTL and dedup | `message_filter.py:155-167,212-224`; `message_admission_state.py:137-173` | Not raw epoch ages. A heartbeat receipt updates a clock-offset estimator; TTL is bypassed before the first heartbeat; later ages use adjusted timestamps. Deterministic, and preserved |
+| TTL and dedup | `message_filter.py:155-167,212-224`; `message_admission_state.py:137-173` | Raw ages on the shared clock (run epoch plus the tick), from the first message; no offset estimate (removed 2026-10-16, `swarm-task-assignment-ack.md`, Clocks). Deterministic |
 | Plan | `task_assignment_planner.py:62-63` (Hungarian, float32) | Float32 ties stay Not in scope |
 | Bids (ETA) | `fly_estimator.py:56-68` | Uses ground speed and wind; this is not the final-approach command path |
 
@@ -175,7 +175,7 @@ Product semantics are preserved; nothing changes in `core/swarm`. Inputs arrive 
 - stale BUSY evidence (`follows`);
 - a retry and a release;
 - task registration order;
-- offset-adjusted TTL before and after the first heartbeat.
+- TTL on the shared clock from the first message (raw ages).
 
 **Expected assignment (Q3):** P1 → UAV 1 (the owner keeps it), P2 → UAV 2, P3 → UAV 3. Wall evidence: `.logs/step5-output/step5-d` backend log, lines 115 and 119.
 

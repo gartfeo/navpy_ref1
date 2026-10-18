@@ -139,18 +139,24 @@ def kill_launch(
     cleanup: Callable[[int], None],
     retire_relays: Callable[..., None],
 ) -> None:
-    """Tear down one failed launch and then retire its output relays."""
-    cleanup(chat)
-    reaped = False
+    """Tear down one failed launch and then retire its output relays.
+
+    A failed ``cleanup`` still terminates the launcher and retires the relays,
+    then propagates.
+    """
     try:
-        process.terminate()
-        process.wait(timeout=5)
-        reaped = True
-    except Exception:
+        cleanup(chat)
+    finally:
+        reaped = False
         try:
-            process.kill()
+            process.terminate()
             process.wait(timeout=5)
             reaped = True
         except Exception:
-            pass
-    retire_relays(chat, relays, reaped=reaped)
+            try:
+                process.kill()
+                process.wait(timeout=5)
+                reaped = True
+            except Exception:
+                pass
+        retire_relays(chat, relays, reaped=reaped)

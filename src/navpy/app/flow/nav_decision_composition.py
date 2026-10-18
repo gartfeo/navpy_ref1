@@ -55,6 +55,7 @@ def compose_decision_workflows(
         args,
         observation.status,
         logger,
+        state.post_dock_climb,
     )
     inactive = InactiveNavigationGuard(
         InactiveGuardPorts(

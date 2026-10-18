@@ -545,10 +545,10 @@ def _chats_spanned(sysids: list[int]) -> list[int]:
 def _claim_span(sysids: list[int]) -> list[int]:
     """CLAIM every chat in the blast radius, or take none of them.
 
-    Reading `reg.live()` and then pkilling is check-then-act: another session can
-    claim and launch inside that window, and `pkill -f -- --sysid N` does not ask
-    who started the process. `reg.claim` allocates under the registry's own lock,
-    which is what makes the later teardown safe. All-or-nothing: a partial span
+    Reading `reg.live()` and then launching is check-then-act: another session can
+    claim and launch inside that window, and two aircraft would share a sysid.
+    `reg.claim` allocates under the registry's own lock, which is what keeps the
+    span's sysids ours alone. All-or-nothing: a partial span
     is released rather than run, because the levels that need the extra chats are
     exactly the ones whose teardown would reach into them.
     """
@@ -629,18 +629,14 @@ def _release_span(chats: list[int]) -> None:
 def _cleanup_sysids(chat: int, sysids: list[int]) -> None:
     """Terminate exactly the aircraft this probe launched, plus its router.
 
-    NOT `wsl.cleanup(chat)`: that builds its pattern list from
+    NOT plain `wsl.cleanup(chat)`: that reaps
     `ip.sysids_for_chat(chat)`, always exactly VEHICLES_PER_CHAT entries
     (instance_ports.py:143-146). This probe deliberately launches past that, so
     at N>3 the extra aircraft would survive teardown and contend with the next
     level -- making later levels look slower for a reason that has nothing to do
     with scale.
     """
-    patterns = [wsl.sysid_process_pattern(sysid) for sysid in sysids]
-    patterns.append(wsl.router_process_pattern(chat))
-    terminate = "; ".join(f"pkill -f -- '{p}' || true" for p in patterns)
-    kill = "; ".join(f"pkill -KILL -f -- '{p}' || true" for p in patterns)
-    wsl.run_wsl(f"{terminate}; sleep 2; {kill}")
+    wsl.cleanup(chat, sysids=sysids)
 
 
 def _spawn(

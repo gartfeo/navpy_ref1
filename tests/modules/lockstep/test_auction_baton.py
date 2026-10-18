@@ -4,8 +4,8 @@ Three real swarm nodes run on one baton (:mod:`swarm_baton`): every timer
 is a baton timer and every message a tick input after the measured hop.
 The cases are the plan's: an incomplete matrix never selects, a final bid
 or ACK on its deadline tick is handled before the timer, stale BUSY
-evidence, a retry and a release, task registration order, and the
-offset-adjusted TTL before and after the first heartbeat.
+evidence, a retry and a release, task registration order, and TTL against
+the shared clock (raw sender stamps, from the first message).
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.core.link.check_msg import CheckInMsg
 from navpy.core.link.listener_abc import ListenerAbc
+from navpy.core.link.message_filter import MessageFilter
 from navpy.core.link.msg_meta import MsgMeta
 from navpy.core.link.swarm_ack_msg import SwarmAckMsg
 from navpy.core.link.swarm_heartbeat_msg import SwarmHeartbeatMsg, SwarmNodeState
@@ -172,7 +173,7 @@ def test_a_request_ack_on_the_resend_deadline_tick_is_handled_before_the_resend(
 # -- stale BUSY evidence (MsgRef.follows) -------------------------------------
 
 def _set_approaching(swarm: BatonSwarm, node: int, approaching: bool):
-    return lambda: swarm.actors[node].set_approaching(approaching)
+    return lambda: swarm.actors[node].set_participation(approaching, False)
 
 
 def _heartbeat(s: Sent, sender: int, state: SwarmNodeState) -> bool:
@@ -281,10 +282,11 @@ def test_offer_rows_follow_task_registration_order():
         assert [s.message.task.task_id for s in swarm.requests(TaskAssignRequestMsg, OWNER)][:2] == [7, 3]
 
 
-# -- TTL against the offset estimate ---------------------------------------------
+# -- TTL against the shared clock -----------------------------------------------
 
-SKEW_MS = 8_000  # the sender's clock runs this far behind
+STALE_MS = 8_000  # older than the 5 s TTL
 TTL_MS = get_ttl_ms(MsgType.CHECK_IN)
+HOP_MS = HOP_TICKS * 10
 
 
 class _Admitted(ListenerAbc):
@@ -295,30 +297,31 @@ class _Admitted(ListenerAbc):
         self._swarm.note(OWNER, f"admitted {type(message).__name__} seq {message.meta.msg_seq}")
 
 
-def test_ttl_is_bypassed_before_the_first_heartbeat_and_offset_adjusted_after():
+def test_ttl_uses_the_shared_clock_from_the_first_message():
+    """Every participant stamps and ages messages on the run's one clock
+    (manifest epoch plus the tick), so the age is the hop plus any sender delay,
+    with no heartbeat needed and no offset to absorb a backlog."""
     link, sink = encoder(FAR_PEER, mavlink.MAV_COMP_ID_ONBOARD_COMPUTER)
     epoch_ms = EPOCH_US // 1000
 
     def stamped(message, seq: int, sent_k: int, extra_age_ms: int = 0) -> bytes:
-        message.meta = MsgMeta(boot_id=77, msg_seq=seq, time_ms=epoch_ms + sent_k * 10 - SKEW_MS - extra_age_ms,
+        message.meta = MsgMeta(boot_id=77, msg_seq=seq, time_ms=epoch_ms + sent_k * 10 - extra_age_ms,
                                ttl_ms=TTL_MS)
         link.send(message.to_mavlink())
         return sink.drain()
 
     with baton_swarm(start=False) as swarm:
         swarm.query(lambda: swarm.networks[OWNER].set_listener(_Admitted(swarm)))
-        # Before any heartbeat: 8 s behind, past its 5 s TTL, still admitted.
-        swarm.inject(10, OWNER, stamped(CheckInMsg(FAR_PEER), 1, 6))
-        # The first heartbeat: the offset is the skew plus the 4-tick hop.
-        swarm.inject(20, OWNER, stamped(SwarmHeartbeatMsg(FAR_PEER), 2, 16))
-        swarm.inject(30, OWNER, stamped(CheckInMsg(FAR_PEER), 3, 26))  # adjusted age 0
-        swarm.inject(40, OWNER, stamped(CheckInMsg(FAR_PEER), 4, 36, TTL_MS))  # exactly the TTL
-        swarm.inject(50, OWNER, stamped(CheckInMsg(FAR_PEER), 5, 46, TTL_MS + 10))  # one tick past it
+        swarm.inject(10, OWNER, stamped(CheckInMsg(FAR_PEER), 1, 6))  # age = the hop
+        # Before any heartbeat, a stale message is dropped.
+        swarm.inject(20, OWNER, stamped(CheckInMsg(FAR_PEER), 2, 16, STALE_MS))
+        swarm.inject(30, OWNER, stamped(CheckInMsg(FAR_PEER), 3, 26, TTL_MS - HOP_MS))  # exactly the TTL
+        swarm.inject(40, OWNER, stamped(CheckInMsg(FAR_PEER), 4, 36, TTL_MS - HOP_MS + 10))  # one tick past
+        # A sender clock further ahead than the sync tolerance is not synchronised.
+        ahead_ms = MessageFilter.CLOCK_SYNC_TOLERANCE_MS + 100
+        swarm.inject(50, OWNER, stamped(CheckInMsg(FAR_PEER), 5, 46, -(ahead_ms + HOP_MS)))
         swarm.run(60)
         admitted = [(k, line) for k, line in swarm.lines(OWNER, "admitted")]
-        offset = swarm.query(lambda: swarm.networks[OWNER].message_filter._offset.get_offset(FAR_PEER))
         expired = swarm.query(lambda: swarm.networks[OWNER].message_filter.metrics.rx_dropped_expired)
-    assert offset == SKEW_MS + HOP_TICKS * 10
-    assert admitted == [(10, "admitted CheckInMsg seq 1"), (20, "admitted SwarmHeartbeatMsg seq 2"),
-                        (30, "admitted CheckInMsg seq 3"), (40, "admitted CheckInMsg seq 4")]
-    assert expired == 1
+    assert admitted == [(10, "admitted CheckInMsg seq 1"), (30, "admitted CheckInMsg seq 3")]
+    assert expired == 3

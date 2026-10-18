@@ -74,31 +74,31 @@ def test_runtime_forwards_only_changes_to_the_task_actor():
     runtime.task_actor = actor
 
     for approaching in (False, True, True, False, False):
-        runtime.publish_approaching(approaching)
+        runtime.publish_participation(approaching, False)
 
-    assert actor.set_approaching.call_args_list == [
-        call(False), call(True), call(False),
+    assert actor.set_participation.call_args_list == [
+        call(False, False), call(True, False), call(False, False),
     ]
 
 
 def test_a_replacement_actor_learns_the_current_value():
     runtime = _runtime()
     runtime.task_actor = Mock()
-    runtime.publish_approaching(True)
+    runtime.publish_participation(True, False)
     replacement = Mock()
     runtime.task_actor = replacement
 
-    runtime.publish_approaching(True)
+    runtime.publish_participation(True, False)
 
-    replacement.set_approaching.assert_called_once_with(True)
+    replacement.set_participation.assert_called_once_with(True, False)
 
 
 def test_without_a_task_actor_nothing_is_published():
     runtime = _runtime()
 
-    runtime.publish_approaching(True)
+    runtime.publish_participation(True, False)
 
     actor = Mock()
     runtime.task_actor = actor
-    runtime.publish_approaching(True)
-    actor.set_approaching.assert_called_once_with(True)
+    runtime.publish_participation(True, False)
+    actor.set_participation.assert_called_once_with(True, False)

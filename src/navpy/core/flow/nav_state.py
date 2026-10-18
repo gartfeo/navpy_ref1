@@ -19,6 +19,8 @@ class NavState(Enum):
     NAV = 3
     RESET = 4
     RECOVERY = 5
+    # Terminal state of a docked approach (docs/design/docked_state.md).
+    DOCKED = 6
 
 
 @dataclass(frozen=True)
@@ -114,6 +116,17 @@ class NavPhaseState:
             self._oneshot_completed = (
                 self._oneshot_completed or oneshot_completed
             )
+
+
+@dataclass
+class PostDockClimb:
+    """Cyclic mode: the RECOVERY right after DOCKED climbs before AUTO.
+
+    Set by the DOCKED -> RECOVERY transition, cleared by any RECOVERY exit.
+    Navigation-thread state only.
+    """
+
+    active: bool = False
 
 
 @dataclass
@@ -238,4 +251,5 @@ __all__ = [
     "NavPhaseSnapshot",
     "NavState",
     "FinalApproachNavState",
+    "PostDockClimb",
 ]

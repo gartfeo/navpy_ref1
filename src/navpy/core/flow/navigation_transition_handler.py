@@ -8,7 +8,7 @@ from typing import Callable
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.core.flow.nav_transition import NavExitOutcome, NavTransition
-from navpy.core.flow.nav_state import ConfirmGateState, NavState
+from navpy.core.flow.nav_state import ConfirmGateState, NavState, PostDockClimb
 
 
 @dataclass(frozen=True)
@@ -23,6 +23,7 @@ class TransitionPorts:
     restart_auto_mission: Callable[[], None]
     enter_recovery: Callable[[], None]
     start_task_actor: Callable[[], None]
+    is_oneshot: Callable[[], bool] = lambda: False
 
 
 class NavigationTransitionHandler:
@@ -35,19 +36,23 @@ class NavigationTransitionHandler:
         nav: NavTransition,
         reset: NavigationTaskResetTransaction,
         logger: ILogger,
+        post_dock_climb: PostDockClimb | None = None,
     ) -> None:
         self._ports = ports
         self._confirm = confirm
         self._nav = nav
         self._reset = reset
         self._logger = logger
-        self._exit_hooks: dict[NavState, Callable[[], NavExitOutcome]] = {
+        self._post_dock_climb = post_dock_climb or PostDockClimb()
+        # Each exit hook gets the requested state; only NAV uses it.
+        self._exit_hooks: dict[NavState, Callable[[NavState], NavExitOutcome]] = {
             NavState.ONHOLD: self._no_exit,
             NavState.DETECT: self._no_exit,
             NavState.CONFIRM: self._exit_confirmation,
             NavState.NAV: self._nav.exit,
             NavState.RESET: self._no_exit,
-            NavState.RECOVERY: self._no_exit,
+            NavState.RECOVERY: self._exit_recovery,
+            NavState.DOCKED: self._no_exit,
         }
         self._entry_hooks: dict[NavState, Callable[[], None]] = {
             NavState.ONHOLD: self._no_entry,
@@ -56,10 +61,13 @@ class NavigationTransitionHandler:
             NavState.NAV: self._enter_nav,
             NavState.RESET: self._enter_reset_active,
             NavState.RECOVERY: self._enter_recovery,
+            NavState.DOCKED: self._enter_docked,
         }
         self._pair_hooks: dict[tuple[NavState, NavState], Callable[[], None]] = {
             (NavState.RESET, NavState.DETECT): self._ports.restart_auto_mission,
             (NavState.RECOVERY, NavState.DETECT): self._ports.restart_auto_mission,
+            (NavState.DOCKED, NavState.DETECT): self._ports.restart_auto_mission,
+            (NavState.DOCKED, NavState.RECOVERY): self._start_post_dock_climb,
         }
         expected = set(NavState)
         if set(self._exit_hooks) != expected or set(self._entry_hooks) != expected:
@@ -70,7 +78,7 @@ class NavigationTransitionHandler:
         previous: NavState,
         requested: NavState,
     ) -> TransitionOutcome:
-        exit_outcome = self._exit_hooks[previous]()
+        exit_outcome = self._exit_hooks[previous](requested)
         effective = exit_outcome.redirect or requested
         self._pair_hooks.get((previous, effective), self._no_entry)()
         self._entry_hooks[effective]()
@@ -84,14 +92,14 @@ class NavigationTransitionHandler:
         self._logger.refresh()
 
     @staticmethod
-    def _no_exit() -> NavExitOutcome:
+    def _no_exit(_requested: NavState) -> NavExitOutcome:
         return NavExitOutcome()
 
     @staticmethod
     def _no_entry() -> None:
         return None
 
-    def _exit_confirmation(self) -> NavExitOutcome:
+    def _exit_confirmation(self, _requested: NavState) -> NavExitOutcome:
         self._reset_confirmation(None)
         return NavExitOutcome()
 
@@ -109,6 +117,23 @@ class NavigationTransitionHandler:
 
     def _enter_recovery(self) -> None:
         self._ports.enter_recovery()
+        self._ports.start_task_actor()
+
+    def _exit_recovery(self, _requested: NavState) -> NavExitOutcome:
+        self._post_dock_climb.active = False
+        return NavExitOutcome()
+
+    def _start_post_dock_climb(self) -> None:
+        self._post_dock_climb.active = True
+
+    def _enter_docked(self) -> None:
+        """DOCKED replaces a RESET entry and takes over its cleanup owner.
+
+        One-shot: OneShotCompletion already ran the reset transaction at NAV
+        exit, so it is not run twice.
+        """
+        if not self._ports.is_oneshot():
+            self.enter_reset()
         self._ports.start_task_actor()
 
     def _reset_confirmation(self, entered_at: float | None) -> None:

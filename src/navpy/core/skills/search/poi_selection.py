@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
+from navpy.core.skills.search.dock_roles import DockRoles
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
@@ -23,10 +24,15 @@ class PoiSelector:
         confirmation_manager: ConfirmationManager,
         retry: PoiRetryPolicy,
         peer_available: Callable[[], bool],
+        roles: DockRoles,
     ) -> None:
         self._confirmation_manager = confirmation_manager
         self._retry = retry
         self._peer_available = peer_available
+        self._roles = roles
+
+    def _may_offer(self, poi: DetectedObject) -> bool:
+        return self._peer_available() and self._roles.may_offer(poi)
 
     def select(
         self,
@@ -44,7 +50,7 @@ class PoiSelector:
             peers = [
                 poi
                 for poi in available_pois
-                if self._peer_available() and poi is not own
+                if poi is not own and self._may_offer(poi)
             ]
             return own, peers
         own = None
@@ -54,21 +60,22 @@ class PoiSelector:
             ConfirmationStatus.REJECTED,
             ConfirmationStatus.CONFIRMED,
         }
-        for poi in prioritize_pois(available_pois, primary_poi):
+        ordered = prioritize_pois(available_pois, primary_poi)
+        for poi in self._roles.order(ordered):
             status = self._confirmation_manager.get_status(poi)
             exhausted = (
                 status is ConfirmationStatus.TIMEOUT_REJECTED
                 and not self._retry.can_reask(poi)
             )
             if status in permanent or exhausted:
-                if self._peer_available():
+                if self._may_offer(poi):
                     peers.append(poi)
                 continue
             if self._retry.is_in_poi_cooldown(poi):
                 continue
-            if own is None:
+            if own is None and self._roles.may_take(poi):
                 own = poi
-            elif self._peer_available():
+            elif self._may_offer(poi):
                 peers.append(poi)
         return own, peers
 

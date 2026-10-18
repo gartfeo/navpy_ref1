@@ -8,6 +8,7 @@ from collections.abc import Callable
 from scripts.eval_gcs_demo_gate_profiles import (
     CERTIFIED_LOCKSTEP_PROFILE,
     CERTIFIED_PROFILE,
+    DELIVERY_PROFILE,
     OWNER_ONLY_SLICE_PROFILE,
 )
 
@@ -15,7 +16,7 @@ from scripts.eval_gcs_demo_gate_profiles import (
 _ASSIGNED_RE = re.compile(r"\bTask \d+ assigned by owner \d+\b")
 # Logged when the peer approach is dispatched; a GUIDED_LOITER alone can be a
 # free peer's default delivery hub return, before any assignment.
-_PEER_APPROACH = "Peer navigation started"
+PEER_APPROACH_MARKER = "Peer navigation started"
 #: NavPy log markers of task dispatch, the auction or peer flight (label,
 #: pattern). The certified owner must show its dispatch (the first two); an
 #: owner-only slice must show none of them. Every line the dispatch, auction
@@ -48,9 +49,10 @@ PEER_ASSIGNMENT_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("offer re-advertised", re.compile(r"\bTask \d+ re-advertised by owner \d+")),
     ("advert while busy", re.compile(r"\bBusy \(holding a task or flying a final approach\); not bidding")),
     ("advert without location", re.compile(r"\bLocation not set\. Cannot send available message")),
+    ("first task offer", re.compile(r"\bTask offered: task_id=\d+")),  # task_rebroadcast.py
     ("advert with no task", re.compile(r"\bNo tasks can handle\b")),
     ("assignment not applied", re.compile(r"\bTask \d+ from owner \d+ not applied within")),  # task_assign_reply.py
-    ("peer approach", re.compile(re.escape(_PEER_APPROACH))),  # peer_approach_start.py
+    ("peer approach", re.compile(re.escape(PEER_APPROACH_MARKER))),  # peer_approach_start.py
     ("peer task priority", re.compile(r"\bflying peer task\b")),  # peer_task_priority.py
 )
 
@@ -60,11 +62,11 @@ def _peer_assignment_errors(navigation_text: str) -> list[str]:
     assigned = _ASSIGNED_RE.search(navigation_text)
     if assigned is None:
         return ["peer never logged 'Task T assigned by owner O'"]
-    approach = navigation_text.find(_PEER_APPROACH)
+    approach = navigation_text.find(PEER_APPROACH_MARKER)
     if approach < 0:
-        return [f"peer never logged {_PEER_APPROACH!r}"]
+        return [f"peer never logged {PEER_APPROACH_MARKER!r}"]
     if approach < assigned.start():
-        return [f"peer logged {_PEER_APPROACH!r} before 'Task T assigned by owner O'"]
+        return [f"peer logged {PEER_APPROACH_MARKER!r} before 'Task T assigned by owner O'"]
     return []
 
 
@@ -123,16 +125,27 @@ def _owner_only_slice_role_errors(
     return _owner_orbit_errors(navigation_text) + peer_assignment_marker_errors(navigation_text)
 
 
+def _delivery_role_errors(
+    navigation_text: str, role: str, assignment_acked: bool,
+) -> list[str]:
+    """None per vehicle: the delivery roles come from the run's one APPLIED,
+    so every role check is in the run gate (eval_delivery_gates.py)."""
+    del navigation_text, role, assignment_acked
+    return []
+
+
 #: Execution profile -> its role checks; the rest of the workflow gates are
 #: shared. Lockstep keeps the certified roles (owner dispatch and orbit, peers).
 ROLE_GATES: dict[str, Callable[[str, str, bool], list[str]]] = {
     CERTIFIED_PROFILE: _certified_role_errors,
     CERTIFIED_LOCKSTEP_PROFILE: _certified_role_errors,
     OWNER_ONLY_SLICE_PROFILE: _owner_only_slice_role_errors,
+    DELIVERY_PROFILE: _delivery_role_errors,
 }
 
 
 __all__ = [
+    "PEER_APPROACH_MARKER",
     "PEER_ASSIGNMENT_MARKERS",
     "ROLE_GATES",
     "peer_assignment_marker_errors",

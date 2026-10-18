@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Optional
 
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.ports.dock_contact import DockContactEvent
 from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
 
 
 @dataclass(frozen=True)
 class NavExitCleanupPorts:
-    disarm_dock_contact: Callable[[], None]
+    disarm_dock_contact: Callable[[], Optional[DockContactEvent]]
     close_final_approach_source: Callable[[], None]
     navigation_reset: Callable[[], object]
     detector_stop: Callable[[], None]
@@ -21,6 +23,8 @@ class NavExitCleanupPorts:
 class NavCleanupResult:
     snap: object | None
     errors: tuple[Exception, ...]
+    # The armed episode's own-dock contact, captured before the reset.
+    own_dock_contact: DockContactEvent | None = None
 
 
 class NavExitCleanup:
@@ -39,9 +43,10 @@ class NavExitCleanup:
     def run(self) -> NavCleanupResult:
         errors: list[Exception] = []
         snap = None
+        contact = None
 
         try:
-            self._ports.disarm_dock_contact()
+            contact = self._ports.disarm_dock_contact()
         except Exception as error:  # noqa: BLE001 - teardown transaction
             errors.append(error)
         source_closed = False
@@ -70,7 +75,11 @@ class NavExitCleanup:
                 )
         except Exception as error:  # noqa: BLE001 - teardown transaction
             errors.append(error)
-        return NavCleanupResult(snap=snap, errors=tuple(errors))
+        return NavCleanupResult(
+            snap=snap,
+            errors=tuple(errors),
+            own_dock_contact=contact,
+        )
 
 
 __all__ = [

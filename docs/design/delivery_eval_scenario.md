@@ -113,8 +113,8 @@ would go home.
 - Synthetic-log tests cover the pass case and each failure: a missing offer, two winners, an approach before
   approval, a home-dock offer, and the winner still searching.
 
-**Unchanged:** vision-only with the ZR10 mount, roll quality, command bounds, cadence, the SNAP truth limit of 0.5 m
-(`eval_gcs_demo_limits.py:97`), and the speedup audit.
+**Unchanged:** vision-only with the ZR10 mount, roll quality, command bounds, cadence, and the speedup audit. The SNAP
+truth limit was replaced by DOCKED evidence (see Remaining plan).
 
 The roles in `workflow_errors` change from owner/peer to offerer, winner and home (`gates.py:183-213`). The tests
 change on purpose, and each commit message says why. No test is weakened.
@@ -156,6 +156,146 @@ change on purpose, and each commit message says why. No test is weakened.
 | e9 | The SNAP miss above 0.5 m (todo 22): root cause and fix | M-L |
 | e10 | Two wall runs, then a live check by the live-tester agent; the report is committed unedited | S |
 
+## Remaining plan (2026-10-16, v2, Codex and owner approved)
+**Where it stands.** On main: e1 (`fa9ea47`), e2 (`2bc1289`), e3 (`37cb1e5`). Later work changed three items:
+- e7 (stale commands): bounded attitude refresh (`1313d58`), reader batching (`099a690`) and synced swarm clocks
+  (`58af9de`) address the known causes. This is not proven; the runs re-check it.
+- e8 (track loss during approval): fixed 2026-10-13 (todo 31, runs `self-orbit-c`, `-d`).
+- e9 (SNAP 0.5 m): docking is now decided by the sim contact sensor (`3a401df`, `physical_docking.md`), so the SNAP
+  limit above no longer gates. **Valid DOCKED evidence:** a DOCKED row matched to its own DOCK_ARMED episode
+  (`eval_gcs_demo_docked.py`), naming the role's expected world dock id (d1, d2 or that UAV's home dock), and
+  after that dock's approval.
+
+Todo 29 (a home dock offered as a task) is still open.
+
+**Known blockers.** Todo 31's `no_detection` and `missed_dock`, and pitch divergence, still occur in recent wall
+runs. Other chats work on them (sparse observations, LOS-rate spikes). e10 starts after their fixes land. Any
+failure that remains in e10 is a blocker owned by this plan.
+
+One step at a time, each with tests, a Codex review, and an ff push to main:
+1. **e2b, 1-UAV slice.** A flies its fixture route alone. Done when, in one wall run:
+   - A selects d1 (stable world id) and asks for its approval;
+   - during that approval orbit, it offers d2 (by world id; the offer goes unanswered).
+   If d2 is not seen, move d2 in the generator and re-run the oracle.
+2. **e5, product fix for todo 29.**
+   - Rule: during the home-dock fallback, a detection is the UAV's own home dock only if it lies within the dock
+     association radius of that home dock's position. Using that position is allowed: it is the DDH exemption.
+   - The home dock is never offered. Any other unassigned dock seen then is handled per ruling 4.
+   - Mechanism tests:
+     - the home dock is not offered;
+     - with an unassigned delivery dock in view on the way home, the UAV asks for it (ruling 4);
+     - a never-seen home dock keeps the orbit, with no confirmation and no command;
+     - the winner passing d1 neither locks d1 nor offers it again (ruling 5, the Risks item).
+3. **e4, eval wiring.** `eval_gcs_navigation_demo.py --scenario delivery` uploads the fixture missions, writes
+   `NAVPY_SIM_DOCKS` and resolves roles. It lives in new modules, because the mission and scenario modules are at
+   their 300-line limit. The rectangle eval stays as it is.
+4. **e6, role gates.** Offerer, winner and home checks as in "What the eval checks", with the DOCKED evidence above in
+   place of SNAP. Synthetic-log tests cover the pass case and each failure listed there, plus a DOCKED row for the
+   wrong dock id.
+5. **e10, green runs.**
+   - Two 3-UAV wall runs, in a quiet window agreed with the Deterministic Run chat.
+   - Then a live check of the GCS view by the live-tester agent; the report is committed unedited.
+   - Each failure becomes its own root-caused bug, fixed before re-running.
+   - Done when both runs pass every gate, with all three UAVs DOCKED at their expected docks in sim. That is not
+     physical docking.
+
+Not in this plan: a lockstep version of this scenario (after step 11, if the owner wants it); todo 54.
+
+**Owner rulings (2026-10-16).**
+4. A UAV on its way home that sees a delivery dock nobody took treats it as a dock found in its own zone: it asks
+   for confirmation and, if approved, approaches it instead of going home.
+5. A UAV with an assigned dock goes to that dock only. It does not lock or offer any other dock on the way.
+
+e5 builds both, each with a mechanism test.
+
+**e2b as built (2026-10-16, sim only).**
+- `scripts/eval_delivery_slice.py` flies the offerer's zone alone. It uses the wall eval's launch path: the isolated
+  launcher, mission upload with readback, and `targ_wps=0`. It writes the fixture's `docks` block as the run's
+  `NAVPY_SIM_DOCKS` file and never approves. Before launch it checks that the fixture's `runtime` block equals the
+  applied settings.
+- The offer message carries no obj_id, so the first offer of a task now logs
+  `Task offered: task_id=<t> obj_id=<o> at (<lat>, <lon>) sent=<result>` (`task_rebroadcast.py`). This is log text
+  only. A detection's world id is `docks[obj_id]`.
+- `scripts/eval_delivery_slice_gates.py` checks the full log after the stack stops. It passes when:
+  - the first selection is d1, with its self-detect orbit directly before it;
+  - `CONFIRMING` follows inside that orbit;
+  - d2's first offer is sent inside that orbit, which runs from the d1 selection to the first answer, abort, new
+    orbit or new selection, so before or after `CONFIRMING`;
+  - nothing answers: no approval and no assignment traffic.
+- Codex reviewed the design ("ship with changes", 6 points), and all were applied: the obj_id link in place of a
+  position match, first offer vs. rebroadcast, orbit evidence, fixture runtime check, full-log "unanswered", and other
+  offers kept as diagnostics.
+- Run `e2b-1` (`.logs/e2b-1`):
+  - d1 selected (obj_id 0) at 17:12:21.711, after its orbit command at .693;
+  - d2 offered (obj_id 1, at d2's file position, sent) at .833;
+  - `CONFIRMING` at .950, and the window ended at the 30 s confirm wait;
+  - no answer.
+- The gate first opened the window at `CONFIRMING`, so it failed this run by 117 ms (`slice_report.json`). The plan's
+  criterion is "during that approval orbit", and the geometry note expects the offer "as soon as it picks d1". So
+  the window now starts at the d1 selection, and the same log passes (`slice_report_regated.json`). Codex judged
+  this a correction, not a goalpost move.
+- Before the selection every frame holds one POI (`pois=1`): d1 (P0) just before it, and from 17:11:55, near launch,
+  another POI labelled P3 that was never selected or offered. Frames with two POIs (`pois=2`) run from 17:12:21.790 to
+  .865, inside the orbit. These are detection debug lines, not a per-frame identity check. The run does not show
+  whether d2 stays in view later in the orbit, and the offer is sent only once.
+- Codex's result review was "ship with changes" (bind the orbit to the selection, no offer before the selection, no
+  geometry overclaim). All three were applied, and the re-review said "ship".
+
+**e5 as built (2026-10-17, unit level).**
+- `DockRoles` (`src/navpy/core/skills/search/dock_roles.py`) feeds `PoiSelector`, which every offer path uses
+  (DETECT, CONFIRM, NAV).
+- A detection is the home dock, or the assigned task's dock, when its position lies within
+  `DOCK_ASSOCIATION_RADIUS_M` (30 m, the reacquire gate). The position is the one an offer would carry: the
+  projected position, else sim truth, else the ground estimate.
+- The home dock is never offered. On the way home, delivery docks come before the home dock, and a delivery dock
+  taken there gets its own waiting circle (Codex round 1).
+- While a peer task is pending or flown, nothing is offered and only a detection at the task's position is taken.
+- The limits are todo 56: hardware estimate error, other UAVs' home docks, no de-duplication by position.
+
+**e4 as built (2026-10-17, wiring only).**
+- `eval_gcs_navigation_demo.py --scenario delivery` loads the fixture (`scripts/eval_delivery_fixture.py`): three
+  slots in zone order, the offerer's zone as owner, no POI ordinals, gate profile `delivery` (wall only, no lockstep).
+- Before launch it checks the fixture's `runtime` block for every slot, refuses a run dir that already holds NavPy
+  logs, and writes the `docks` block as the run's `NAVPY_SIM_DOCKS` file; the env reaches every NavPy process.
+- The mission runner is unchanged: with no ordinals it approves requests until every UAV has a SNAP.
+- `scripts/eval_delivery_roles.py` names the roles (changed in e6, below). Either peer may win.
+- Until e6 the analysis refused the `delivery` profile.
+
+**e6 as built (2026-10-17, synthetic logs only).** `eval_delivery_gates.py` is the delivery run gate;
+`eval_delivery_checks.py` holds the checks. Codex reviewed the design twice (rework, then ship with changes) and
+the code three times (ship with changes twice, then ship).
+- Roles: the offerer by fixture zone; the winner is the helper of the run's one logical APPLIED in the GCS backend
+  log, whose owner must be the offerer; home is the other UAV. No NavPy log line decides a role.
+- Offer: exactly one logical offer fleet-wide, by the offerer, of d2 at d2's position (1 m), for the APPLIED task. An offer of a home
+  dock, by id or within 30 m of one (the e5 home-dock radius; "one dock diagonal" is defined nowhere), fails.
+- Assignment: the APPLIED names an accepted bid of the winner, no rejection from it, the request is at d2, and the
+  home UAV takes part in no assignment line.
+- Offerer: the d1 lock, then its self-detect orbit, then its selection and review, in that one order (e2b; e10 r1
+  showed the lock first). Winner: assigned by the offerer, then DO_REPOSITION to d2,
+  then peer navigation, then the d2 selection and review, and no AUTO resume after the assignment. Home: hub
+  navigation at its own home dock, then that dock's lock and selection.
+- Each UAV: one episode at its role's dock; NAV entry (DOCK_ARMED wall time) no earlier than its approval could be posted (request seen +
+  operator delay; `approved_at_unix_s` is taken after the POST returns, todo 59); a DOCKED row at that
+  dock after NAV entry (aircraft clock); the 1 m truth binding to the dock. Every obj id is a world dock.
+- Docked = the DOCKED row, the contact sensor's closest pass from telemetry (owner, 2026-10-17). The SNAP line is
+  frame-sampled and coarser: in `.logs/s11/attrib/c5547c3` it read 2.1, 1.7 and 0.5 m where the sensor read 0.05,
+  0.31 and 0.04 m.
+- Owner choice A (2026-10-17): no log records the flight mode, the search state or orbit arrival, so the ordered
+  command chain above stands for "mode change, search ends" and "reached the orbit"; mode and orbit logging is a
+  todo after the demo.
+
+**e10 results (2026-10-17, wall SITL, sim only; not physical docking).** Runs in `.logs/e10/`; roles in every run:
+UAV 1 keeps d1 and offers d2 (task 3), UAV 2 wins it, UAV 3 flies to home-west.
+- r1 (33b6cf0): all three DOCKED, but the gate failed on two e6 gate bugs (offerer order; `approved_at_unix_s` taken
+  after the POST returns). Fixed in fa855eb (Codex: ship); `--analyze-only` on r1 then passes.
+- r2 and r3 (fa855eb, quiet PC): every gate passes; DOCKED closest pass 0.41/0.18/0.36 m and 0.45/0.46/0.08 m.
+  Done criterion met.
+- Live check (`delivery_e10_live_report.md`, committed unedited): the operator view follows the run, with gaps
+  logged as todos 60-63 and an unexplained disarm offset as todo 64. Its own run failed UAV 3's roll-step gate
+  (12% observation coverage) while another session's full suite loaded the PC.
+- r4 (loaded the same way) failed setup on UAV 1 `NAV_FAIL: no_detection`; r5 (d1c1802 = fa855eb code, quiet)
+  passes every gate (0.01/0.07/0.04 m, coverage 95-98%). Load sensitivity is todo 65.
+
 ## Risks
 - The winner flies past d1 on its way to d2 (150 m apart). Peer acquisition stays in DETECT, and `DetectAction` and
   `ConfirmationAction` still select and offer other docks there, so two things can go wrong: it may lock d1 instead
@@ -164,7 +304,7 @@ change on purpose, and each commit message says why. No test is weakened.
 - Wall-time timing can change who wins the auction. The geometry keeps B nearest by a wide margin, and the check is by
   role.
 - A planner change forces the fixture to be regenerated. That is intended.
-- e9 (the SNAP miss) is the largest unknown and may take longer than the rest.
+- The open approach failures (Known blockers in the Remaining plan) are the largest unknown.
 - Simulation shows neither physical docking nor cargo receipt.
 
 ## Owner questions (recommended answer in bold)

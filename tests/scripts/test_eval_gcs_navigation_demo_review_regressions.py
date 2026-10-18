@@ -898,3 +898,54 @@ def test_evaluator_has_no_magic_poi_mask_regex_or_owner_order_inference():
     assert "actual_ids[0]" not in text
     assert "actual_ids[:EXPECTED_UAV_COUNT]" not in text
     assert "= 76" not in text
+
+
+@pytest.mark.parametrize(
+    ("log_text", "cause"),
+    [
+        (
+            "NAV_FAIL: no_detection task=1 obj=0\n"
+            "Heartbeat from system 4\n"
+            "NAV_FAIL: missed_dock task=1 obj=0\n"
+            "NAV_FAIL: source_command_stale task=1 obj=0\n"
+            "later line\n",
+            "after NAV_FAIL: source_command_stale task=1 obj=0",
+        ),
+        (
+            "NAV_FAIL: no_detection task=1 obj=0\nHeartbeat from system 4\n",
+            "(no NAV_FAIL logged before it)",
+        ),
+    ],
+)
+def test_second_confirmation_round_names_the_nav_fail_behind_it(
+    monkeypatch, tmp_path, log_text, cause
+):
+    """Todo 42: the abort names the current process's last NAV_FAIL."""
+    api_module = importlib.import_module("scripts.eval_gcs_demo_api")
+    mission = importlib.import_module("scripts.eval_gcs_demo_mission")
+    models = importlib.import_module("scripts.eval_gcs_demo_models")
+    ids = models.UavIds.from_values((7, 4, 9), 3)
+    api_module.navigation_log_path(tmp_path, 4).write_text(log_text, encoding="utf-8")
+
+    def confirmation_workflow(**kwargs):
+        for _round in range(2):
+            kwargs["on_request_observed"](mission.ConfirmationRequest(4, 1, "10:1"))
+        return []
+
+    monkeypatch.setattr(mission, "run_confirmation_workflow", confirmation_workflow)
+    context = SimpleNamespace(
+        clock=SystemClock(),
+        sys_ids=ids.values,
+        api=SimpleNamespace(websocket_url="ws://example"),
+        scenario=CERTIFIED,
+        event_stream_factory=lambda _url: object(),
+        navigation_tail=api_module.NavigationLogTails(tmp_path),
+        on_polling_start=None,
+        on_due_check=None,
+        backend_tail=SimpleNamespace(read_new=lambda: None, text=""),
+    )
+
+    with pytest.raises(models.RegressionError) as raised:
+        mission.approve_requests_until_snap(context, None, tmp_path, 30.0, 0.0)
+
+    assert f"more than one confirmation round at (4, 1) {cause}" in str(raised.value)
