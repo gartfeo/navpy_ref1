@@ -60,7 +60,7 @@ def test_speedup_changes_only_wall_period(monkeypatch, speedup: float):
     runner = FixedCadenceRunner(step, 0.02, cadence)
     event = _OneCycleEvent()
     runner._stop_event = event  # type: ignore[assignment]
-    monkeypatch.setattr(gimbal_cadence, "rt", RuntimeOverlay(monotonic=_Clock(10.0, 10.0).monotonic))
+    monkeypatch.setattr(gimbal_cadence, "rt", RuntimeOverlay(perf_counter=_Clock(10.0, 10.0).monotonic))
 
     runner._run()
 
@@ -74,12 +74,28 @@ def test_slow_step_does_not_create_catch_up_steps(monkeypatch):
     runner = FixedCadenceRunner(step, 0.02, None)
     event = _OneCycleEvent()
     runner._stop_event = event  # type: ignore[assignment]
-    monkeypatch.setattr(gimbal_cadence, "rt", RuntimeOverlay(monotonic=_Clock(10.0, 10.08).monotonic))
+    monkeypatch.setattr(gimbal_cadence, "rt", RuntimeOverlay(perf_counter=_Clock(10.0, 10.08).monotonic))
 
     runner._run()
 
     assert step.calls == 1
     assert event.waits == [0.0]
+
+
+def test_step_time_is_measured_below_the_windows_monotonic_tick(monkeypatch):
+    """A 1 ms step shortens the 2 ms wall slot to 1 ms although monotonic did not tick."""
+    step = _Step()
+    runner = FixedCadenceRunner(step, 0.02, _Cadence(10.0))
+    event = _OneCycleEvent()
+    runner._stop_event = event  # type: ignore[assignment]
+    monkeypatch.setattr(gimbal_cadence, "rt", RuntimeOverlay(
+        monotonic=lambda: 10.0,  # GetTickCount64: still on the same 15.6 ms tick
+        perf_counter=_Clock(5.0, 5.001).monotonic,
+    ))
+
+    runner._run()
+
+    assert event.waits == pytest.approx([0.001])
 
 
 def test_stop_before_start_is_safe():

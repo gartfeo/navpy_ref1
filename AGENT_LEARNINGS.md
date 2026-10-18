@@ -751,6 +751,18 @@
   at SIM_SPEEDUP 10. Before suspecting a frame offset, take the frames on both sides from the WS trace and check whether
   the line between them passes the dock horizontally; here within 0.7 m and the aircraft kept moving after a net-less contact.
 
+## Todo 65 load (2026-10-18)
+- A process priority set at spawn on a venv `python.exe` does not reach NavPy: the venv exe is a launcher and its child
+  interpreter starts Normal. Check the real interpreter with Get-Process; set the priority inside the process.
+- On a hybrid CPU, Windows EcoQoS runs a windowless process on E-cores under load (work 2x slower). Opt out with
+  SetProcessInformation(ProcessPowerThrottling) and measure with a small benchmark first.
+- On Windows Python 3.11 `time.monotonic` ticks at 15.6 ms. Never time 1-10 ms of work with it; use perf_counter.
+- A full pytest run is not light load: about 70% CPU average with 100% peaks. Never overlap it with a wall eval.
+- The eval env is an allow-list: ad-hoc env vars do not reach NavPy; derive probe paths from NAVPY_LOG_DIR.
+- To tell a NavPy stall from a SITL stall, compare NavPy's ATTITUDE arrival lag with the GCS receiver's for the same UAV:
+  equal lag is upstream (SITL/WSL), NavPy-only lag is NavPy.
+- In Git Bash pass Windows paths in PYTHONPATH (`pwd -W`); a /c/... path silently imports the main checkout's package.
+
 ## GCS video streams and FPV (2026-10-18)
 - `plugins/vehicle` must not import `core/perception`; pass the camera's stream specs in as plain
   data from the app composition layer, or the layer guard fails.
