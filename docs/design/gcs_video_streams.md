@@ -1,6 +1,6 @@
 # GCS video streams per vehicle
 
-Status: design v8 (video rounds 1-4, FPV UX rounds 1-3, one view at a time, operator walkthrough), awaiting owner approval. No code yet.
+Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson). Implementation in progress.
 
 Owner request (2026-10-16): "we should be able to see video streams in our GCS if
 those are available."
@@ -379,19 +379,11 @@ failure leaves video off and is logged; the rest of the stack still runs.
   origin): glass-to-glass latency (on-screen clock),
   bitrate, and vision capture timing unchanged while the GCS watches.
 
-## Open points for the owner
+## Owner decisions (2026-10-18)
 
-1. Approve the approach: camera protocol discovery, browser WHEP straight to each
-   aircraft's MediaMTX, one feed at a time, and an FPV toggle for Cesium FPV of
-   any UAV.
-D1. Follow selector and video (changes the 2026-10-16 ruling "video follows the
-   follow selector"): (a) follow moves only the map and FPV, badges and View
-   camera move the video, follow picks only the first feed (recommended by the
-   field operator, Codex and Claude: following UAV 3 on the map must not replace
-   UAV 1's approach picture, and one rule is easier to learn); or (b) keep the
-   coupling, but only for an explicit selector change and with a visible switch
-   (delivery adviser, UX).
-2. Display codec: the Jetson publishes a software H.264 display stream
-   (recommended; leaves the ZR10 and the vision input untouched, costs Jetson CPU
-   that is measured first), or switch the ZR10 to H.264
-   (changes the vision input, needs its own check).
+1. Approach approved: camera protocol discovery, browser WHEP straight to each
+   aircraft's MediaMTX, one feed at a time, FPV toggle for Cesium FPV of any UAV.
+2. D1 (a): the follow selector moves only the map and FPV; badges and View
+   camera move the video; follow picks only the first feed.
+3. Display codec: the Jetson publishes a software H.264 display stream; the
+   ZR10 and the vision input stay untouched (Jetson CPU measured first).
