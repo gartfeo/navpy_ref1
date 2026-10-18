@@ -1,11 +1,13 @@
-# One deterministic sim for development
+# One deterministic sim for development and the demo
 
-Status: design, awaiting the owner. No code until it is approved.
+Status: design, awaiting the owner. No code until it is approved. Updated 2026-10-18: one run for all simulation, with recorded app actions.
 
 ## Goal
 Owner, 2026-10-18: "we should have one deterministic sim for development. otherwise if we have bug in wall mode it will be very hard to reproduce in locked step mode."
 
-So lockstep (`deterministic_demo_eval.md`, `lockstep_fleet.md`, `lockstep_contracts.md`) becomes the sim developers use every day. Two properties must hold together:
+Owner, later the same day: avoid two execution routes; one deterministic run for simulation, the demo and the rest. Operators may click in the GCS app during a run, but each action must be fixed in time so a bug is easy to reproduce.
+
+So lockstep (`deterministic_demo_eval.md`, `lockstep_fleet.md`, `lockstep_contracts.md`) becomes the only way anything simulated runs: development, evals and the simulated demo. Wall time is left for real hardware only, with the same product code on the wall clock (the `RuntimeTime` port, `runtime_time.py`). Two properties must hold together:
 - **Realistic:** the timing, ordering, loss and noise effects that cause bugs in wall mode, and on hardware, also happen in lockstep.
 - **Repeatable:** the same code, manifest and seed give the same digest, as the 5-run matrix proves today (`65aae9e1…`).
 
@@ -103,13 +105,21 @@ Options:
   - each model's own output matches its range or measured distribution (a unit test on the drawn delays, freezes or frame gaps);
   - a `quiet` profile (delays, jitter, camera latency and measured-length freezes; no loss, outages or faults) must land inside the quiet wall runs' cadence and coverage (`.logs/e10/r2`: gap median 60 ms, longest 140-181 ms, coverage 0.93-0.95). The fault-bearing `hw` and `stress` profiles are judged by the outcome and recovery gates instead, and `stress` must reproduce todo 65.
 
-## 5. Watching it live
-So developers use it day to day, lockstep needs the live app. What it needs:
-- **Pacing to 1x.** The coordinator sleeps after each tick until `wall_start + t_k`. It sits where host delays already sleep (`coordinator_run.py:242,256`) and stays out of the manifest, as host delays do, so the digest does not change. If the run is slower than 1x it simply runs slower. Pause is not in v1: the SITL waits at most 30 s for a reply (`STEP_DEADLINE_US`, `lockstep_wsl_sitl.py:63`).
-- **A read-only live relay.** The backend runs in-process with no socket (`lockstep_asgi.py:1`), and a subscriber inside it would change the digest. The coordinator already journals every backend broadcast in each `DONE` (`event_sink.py:5-6`). A relay process outside the baton gets those events from the coordinator and serves `/ws/telemetry` (and the read-only REST the frontend needs) on the eval slot's ports. The frontend connects to it unchanged.
-- **Frontend fixes for sim time.** The armed token is checked against `Date.now()` (`useFullParams.js:454,463`) and would always look expired, because sim time starts 2026-01-01; it must use the backend's `ts`. The confirm card auto-approves on a wall-time countdown (`TaskConfirmCard.jsx:51-88`); in a lockstep view it must count in sim time or be off. Map animations on wall time are display only and stay.
-- **Operator input.** v1 keeps the scripted operator (`eval_gcs_demo_confirmation.py`). v2: a button press goes to the relay, the coordinator delivers it in the next tick (`deliver_operator_requests`) and journals it as `(tick, request)`; the run's input file then replays it exactly.
-- **Launcher.** A frontend for the eval band needs ports (the eval slot's own 3000+N and 8000+N, or a new band), a change to owner ruling 4 ("the eval band, no frontend", `lockstep_slice.md:61`), and todo 55 fixed so `gcs_stop.py --eval` can stop it.
+## 5. Driving it live: the app, the demo and recorded actions
+The demo and daily development use the same lockstep run, watched and driven from the GCS app.
+
+- **Pacing to 1x.** The coordinator sleeps after each tick until `wall_start + t_k`. It sits where host delays already sleep (`coordinator_run.py:242,256`) and stays out of the manifest, as host delays do, so the digest does not change. If the PC is slower than 1x the run runs slower; that is safe while each tick ends inside the SITL's 30 s reply deadline (below), and ticks take 8-20 ms of wall time. The 3-UAV run is 1.6-1.9x faster than real time on a quiet PC, but 0.98x with host delays and 0.77x under CPU load (`deterministic_demo_eval.md:31`), so the demo PC runs nothing else. Pause is not in v1: the SITL waits at most 30 s for a reply (`STEP_DEADLINE_US`, `lockstep_wsl_sitl.py:63`).
+- **A live relay.** The backend runs in-process with no socket (`lockstep_asgi.py:1`). A relay process outside the baton serves the app on the slot's ports:
+  - `/ws/telemetry` from the backend broadcasts the coordinator already journals in each `DONE` (`event_sink.py:5-6`). Watching never enters the run.
+  - every REST request is forwarded into the run, and its response comes back from the `DONE` of the tick its handler finishes in (`lockstep_contracts.md`, ASGI).
+- **Every request is an input, reads too.** Some reads talk to the vehicle: `GET /api/vehicles/{id}/params` reads parameters over MAVLink (`routes/params.py:18-30`), and `GET .../fence` downloads the fence (`routes/missions.py:122-142`). So no request is assumed harmless.
+- **The wire already exists.** The backend takes typed operator inputs: `OperatorRequest{target, id, payload}` with payload `{"kind": "http", "method", "target", "json"?, "deadline_s"?}`, and `OperatorCancel{target, id}` (`coordinator_types.py:175-185`; `src/gcs/backend/lockstep/requests.py:1-20`). Each request runs in its own cancel scope; a cancel ends exactly that request; a request past its sim-time `deadline_s` ends the same way; a response stands, so a cancel after it does nothing. Cancels are delivered before requests in a tick (`participant_loop.py:9-11`). The target carries the query string. Headers and non-JSON bodies are not carried; step 10's inventory says whether any route needs them, and the payload grows only then.
+- **How an action is fixed in time.** The coordinator owns admission. In tick k's operator phase (`coordinator_run.py:224-231`) it takes, in one step, everything the relay has received so far, and puts them in one admission order, scripted items first, then relay items in arrival order. Each new request gets its request id from one counter shared with the scripted operator. A cancel keeps the id of the request it cancels. A cancel for a request taken in the same step (not yet delivered) is resolved by the coordinator: the request is never delivered, its handler never starts, and the coordinator answers `{"cancelled": true}` for it. The tick's journal record holds the whole admission (every item, delivered or not, and any answer the coordinator gave), so the digest covers it. This matters because cancels are delivered before requests in a tick. They are delivered as tick k+1's inputs (`coordinator_operator.py:17-28`). The journal keeps them in the encoding the TICK already carries (TICK hashes are journaled, `deterministic_demo_eval.md:25`), so they are in the digest. A test changes one action (its tick, order, payload or a cancel, including the payload of a suppressed request) and the digest must change.
+- **The action file** is that list: each admitted request and cancel with its tick and id, scripted and human alike. Replay feeds only the file and turns the script off, so nothing is sent twice.
+- **Responses.** A response returns in the `DONE` of the tick its handler finishes in, as `{"status", "body"}`, `{"cancelled": true}` or `{"deadline": true}`, matched by id; completions may come back in any order. The relay sends each to the browser connection that asked. A browser that closed or reloaded gets nothing: the relay logs it and sends no cancel, because a disconnect is not an operator action. Only an explicit abort becomes a cancel. Tests: two slow MAVLink reads overlapping, completions out of order, a disconnect mid-request, a cancel before dispatch, during MAVLink work and after the response.
+- **Replay.** A bug report is the commit, the manifest with seed and profile, and the action file. The replay runner needs no relay and no browser. It gives the same digest, and it runs as fast as the PC allows. "Stop at tick N" means the replay ends at tick N and writes its journal, logs and a state snapshot; there is no live pause in v1. A click lands on the tick the run is at when the coordinator takes it, not the frame the operator saw; replay is exact either way.
+- **No app-side clock decides anything sent to the run.** The confirm card counts down on `Date.now()` and auto-approves or denies at zero (`TaskConfirmCard.jsx:55-88`). At a 0.8x run the operator would get less sim time than the timeout says, so the countdown counts sim time (the telemetry `ts`). The armed token is checked against `Date.now()` (`useFullParams.js:454,463`) and would always look expired, because sim time starts 2026-01-01; it must use the backend's `ts`. Fetch timeouts (20 s and 45 s wall, `usePlanningApi.js:10-11`) become the request's sim-time `deadline_s`; the browser's own abort only frees the page and sends no cancel. Step 10 audits every `Date.now`, `setTimeout` and `setInterval` in the frontend that can lead to a request, and the backend code behind every request supported in simulation. A request not supported in simulation is refused (`501`, hardware-only) and the refusal is recorded like any answer. Map animations on wall time are display only and stay.
+- **Launcher.** A lockstep run with the app needs frontend and relay ports from its slot, a change to owner ruling 4 ("the eval band, no frontend", `lockstep_slice.md:61`), and todo 55 fixed so `gcs_stop.py` can stop it.
 
 ## 6. Steps
 Each step is small and has its proof. Every step keeps the digest with all models off (`65aae9e1…`, or a documented re-baseline).
@@ -125,28 +135,28 @@ Each step is small and has its proof. Every step keeps the digest with all model
 | 7 | Faults: link drop, late heartbeat, NavPy restart, partition; heal before the last phase; journaled with id and recovery deadline | a fault enters the default sweep only with an executable recovery assertion that passes; a fault without one stays experimental (off by default) with a named todo; an unscheduled exit is a product failure |
 | 8 | Seed sweep runner, regression seed list, failure classes | sweep of 10 seeds; a planted bug is found and reruns with one digest |
 | 9 | Wall-bug tool: fit a profile from wall logs, seed search | todo 65 and todo 31 reproduced from their wall logs |
-| 10 | 1x pacing, live relay, frontend sim-time fixes, launcher ports | `live-tester` watches a lockstep run in the app; digest equal to an unpaced run |
-| 11 | Recorded operator input (v2) | a button press replays to the same digest |
-| 12 | Make lockstep the default dev sim in the docs and `src/gcs/AGENTS.md` | owner sign-off |
+| 10 | Inventory of every request the app sends (startup reads included), each marked demo-required or not, with what it needs (headers, uploads, MAVLink) | the list, checked against `src/gcs/frontend/src` by a test; a clock audit of the backend routes, services and background work behind every request supported in simulation (no `time.time`, `datetime.now`, wall sleeps or wall timers outside `RuntimeTime`) and of the frontend timers that can send a request; the relay keeps no timer that reaches the run |
+| 11 | 1x pacing; the relay with telemetry and REST through the coordinator; coordinator admission (one order, shared request ids, cancel identity) and the action file written; responses by id; frontend sim-time fixes; launcher ports | `live-tester` uses the app on a lockstep run whose fleet the coordinator starts and whose missions the scenario sets up, as the eval does today (app-driven start, upload and the ESP32 launch come in step 13); tests with scripted and relay traffic in the same tick, overlapping reads, out-of-order completion, disconnect, and cancels before dispatch (handler never starts), during MAVLink work and after the response |
+| 12 | Replay runner from the action file (script off), stop at tick N with a snapshot | a `live-tester` session with clicks, then its replay: same digest; a paced and an unpaced replay: same digest; a changed action changes the digest; a request taken in tick k runs in k+1 in admission order |
+| 13 | Wall-only sim features moved to lockstep: MAVFTP (refused today), the ESP32 HTTP simulator, the app's NavPy-sim start and stop (`/api/control/navpy-sim/*`) | every demo-required route from step 10 works end to end in lockstep (uploads, MAVLink reads, start and stop); the rest pass the step-10 audit and work, or are refused as hardware-only |
+| 14 | The demo runs on lockstep; the wall sim launch path is removed; docs and `src/gcs/AGENTS.md` updated | a full demo rehearsal in the app; owner sign-off |
 
-## Wall mode after this
-Wall mode stays, but not for development:
-- the investor demo and live operator sessions with real people;
-- HITL and hardware (real time cannot be stepped);
-- a smoke check before hardware, run now and then.
+## Wall time after this
+- **Real hardware and HITL** run on the wall clock (real time cannot be stepped), with the same product code; only the `RuntimeTime` binding differs.
+- **The wall sim route is removed** once step 14 passes. Until then it stays only as the fallback for the demo.
 
-A bug seen only in wall mode must first be reproduced in lockstep (section 3). If it cannot be, it stays an unreproduced bug in `architecture_todo.md`; it is recorded as a model gap only when mechanism evidence shows one.
+A bug seen on hardware or in the old wall sim must first be reproduced in lockstep (section 3). If it cannot be, it stays an unreproduced bug in `architecture_todo.md`; it is recorded as a model gap only when mechanism evidence shows one.
 
 ## Open decisions for the owner
 1. Approve the firmware change (seeded SITL noise) and a new firmware lock.
-2. Lift ruling 4 ("no frontend" in the eval band) for a read-only live relay, and choose its ports.
+2. Lift ruling 4 ("no frontend" in the eval band) so the app can drive a lockstep run, and choose its ports.
 3. Default target: the `hw` profile (hardware at 1x) as the default and `stress` for 10x-style bugs, as proposed; or tune the default to the wall eval's numbers.
 4. Gate cost: 10 seeds per change (about 15 min) and 150 nightly (about 3 h) on this PC.
 5. Ranges without data: which radio carries NAVLINK on the aircraft, its loss and air rate, camera drops, wind. Use the assumed ranges above until a field test measures them?
-6. Interactive operator input in lockstep (step 11): now or later.
+6. Remove the wall sim route after the demo rehearsal (step 14), or keep it longer as a fallback.
 
 ## Known gaps
 - Races between bytecodes with no primitive between them (section 1).
 - Delays are whole ticks (about 20 ms). `SCHED_LOOP_RATE 100` would give 10 ms ticks at about twice the cost (`lockstep_fleet.md:283`).
-- MAVFTP and the ESP32 HTTP simulator are wall-only.
+- MAVFTP and the ESP32 HTTP simulator are wall-only until step 13.
 - Detector compute time on the Orin Nano is not measured; the freeze and budget models stand in for it until HITL measures it.
