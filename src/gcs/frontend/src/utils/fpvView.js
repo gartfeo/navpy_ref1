@@ -30,6 +30,9 @@ export function fpvHoldReason(v) {
 
 export const fpvEligible = (v) => fpvHoldReason(v) === null;
 
+/** The banner reason for a fleet entry: its own (null = live), or link lost when the UAV left the fleet. */
+export const fleetEntryHoldReason = (entry) => (entry ? entry.holdReason : 'linkLost');
+
 /**
  * Which UAV the FPV toggle puts on screen. `fleet` entries carry `sysId` and
  * `fpvEligible`.

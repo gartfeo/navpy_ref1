@@ -53,6 +53,7 @@ import useVideoSelection from './hooks/useVideoSelection';
 import useFpvView from './hooks/useFpvView';
 import { DEFAULT_TOP_CONTROLS_BOTTOM_PX } from './utils/videoPanelLayout';
 import { cameraPanelVisible } from './utils/videoStreams';
+import { fleetEntryHoldReason } from './utils/fpvView';
 import { prunePendingVehicles, upsertPendingVehicles } from './utils/pendingVehicles';
 
 // RC FPV: the SYNTHETIC tag sits below the HUD heading tape (top 12, 36 px tall).
@@ -763,7 +764,7 @@ export default function App() {
           {fpv.fpvSysId != null && (
             <FpvViewOverlay
               label={fpvEntry?.label ?? `UAV ${fpv.fpvSysId}`}
-              holdReason={fpvEntry?.holdReason ?? 'linkLost'}
+              holdReason={fleetEntryHoldReason(fpvEntry)}
               top={fpv.fpvKind === 'rc' ? RC_FPV_TAG_TOP_PX : topControlsBottom + 8}
             />
           )}
