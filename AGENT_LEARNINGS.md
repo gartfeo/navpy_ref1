@@ -784,3 +784,15 @@
 - A position reported "at disarm" is the first GCS telemetry frame after the event, and frames are 0.2 s wall = 2 s sim
   at SIM_SPEEDUP 10. Before suspecting a frame offset, take the frames on both sides from the WS trace and check whether
   the line between them passes the dock horizontally; here within 0.7 m and the aircraft kept moving after a net-less contact.
+
+## Whole-chain HITL plan (2026-10-18)
+- Codex turned a short firmware hash (9a8c7d66b2) into a full hash that does not exist and called
+  it the reviewers' pin. Check every commit hash in a plan with `git cat-file -t` in the repo it
+  names (WSL for the firmware) before it goes into a doc, and record the binary that runs (its
+  embedded version string), not the branch tip.
+- Codex cannot run the Claude CLI from its sandbox (connection refused), so its "review incomplete"
+  note was about its own attempt. Start cross-reviews from the orchestrating session.
+- Another chat had commits and uncommitted edits in this worktree's files. Run `git status` before
+  editing. To commit only my change, build it from `git show HEAD:<file>`, stage it with
+  `git hash-object -w --path` and `git update-index --cacheinfo`, then apply the same edit to the
+  working copy. With autocrlf=true the blob is LF and the working copy CRLF.
