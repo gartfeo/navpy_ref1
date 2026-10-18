@@ -16,7 +16,7 @@ the loader `scripts/step1_manifest.py`, and the guards `tests/guards/test_step1_
 
 ## Final layout (approved 2026-10-11)
 ```
-missions/<name>/   goals on top: mission graphs, mission logic (delivery: DDH, one-shot finish; pickup later)
+products/<name>/   goals on top: mission graphs, mission logic (delivery: DDH, one-shot finish; pickup later)
 core/              the platform, always there, ours
   kernel/          shared neutral types, settings, logging, time, small pure utils
   ports/           contracts every plugin implements + the neutral types they exchange
@@ -47,7 +47,7 @@ app/               composition root: argparse, profiles, backend choice, wiring 
 
 ## What step 1 reaches
 Files after step 1, not counting new empty `__init__.py` files (56 new packages; 58 in the final layout with
-`missions`, `missions/delivery`), which keep every folder a regular package as today.
+`products`, `products/delivery`), which keep every folder a regular package as today.
 
 | Folder | Files | Subfolders (files) |
 |---|---|---|
@@ -66,7 +66,7 @@ Files after step 1, not counting new empty `__init__.py` files (56 new packages;
 | `src/gcs/backend` | 2 | ESP32 trigger client and ESP32 simulator |
 | deleted | 40 | 20 shims/facades (c01), 20 package inits of folders that dissolve |
 
-- **`missions/` is not created.** Delivery code waits in `core/flow` (catalog, DDH fallback route, one-shot finish)
+- **`products/` is not created.** Delivery code waits in `core/flow` (catalog, DDH fallback route, one-shot finish)
   and the DDH metadata reader in the vehicle plugin until step 2. Final homes are in the manifest.
 - **Placement rules:** backend choice and wiring go to `app` now; name lists (law, detector backend) are config in
   `core/kernel`; one folder per concept; approach set-up is the `acquire` skill, `geo_approach` keeps only PID/PN needs;
@@ -89,7 +89,7 @@ post-c02 graph). Each has a reason and fixing step in `step1/exceptions.tsv` (`g
 
 - **By step:** C3 codec 11, C1 registry 7, R8 law registry 5, C3 gimbal 3, C3 vehicle port 2.
 - **Final layout:** 35 lines in 23 files (`step1/final_violations.tsv`): 27 of the above (the catalog edge goes when step 2
-  moves catalog and reader together), 4 `core` -> `missions/delivery` (step 2 hooks, R16, R17), 1 metadata reader ->
+  moves catalog and reader together), 4 `core` -> `products/delivery` (step 2 hooks, R16, R17), 1 metadata reader ->
   `mission_encoding` (C3), 3 `core` -> `sim` (`navigation_speedup`, C1 sim seam).
 - The plain checker sees split files as one unit and imports through facades: 103 lines in 76 files. c01-c02 remove the gap.
 - **Guard.** A new wrong-way import fails; a listed edge that disappears fails until removed; an unresolved `navpy.*`
@@ -174,7 +174,7 @@ that way). Then bottom-up, so each layer is checked as it lands. The move tool r
   `simtime_navigation_identity.py` hashes `src/navpy`, so they are re-baselined after c18.
 
 ## Not in step 1
-- `missions/delivery` (step 2: DDH, metadata reader, fallback route, one-shot finish); registries (C1), the law plugin
+- `products/delivery` (step 2: DDH, metadata reader, fallback route, one-shot finish); registries (C1), the law plugin
   API (R8), the flow runner (R9, R10, R18); logic in `core/safety` and `core/world`, skill contracts, the input
   checker, insect rules; renames (`legacy_*`, `*_fleet`); dead code and dead imports (`navigation_data`,
   `observable_gate`, the VISCA controller); TUNNEL; moving `tests/` to mirror the layout; the repo split.

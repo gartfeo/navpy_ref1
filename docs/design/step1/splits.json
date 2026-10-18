@@ -25,7 +25,7 @@
    {"symbols": ["LegacyNavigationRuntime"], "final": "core/approach/geo/legacy_navigation_runtime.py", "step1": "core/approach/geo/legacy_navigation_runtime.py", "vision_path": "n"}
   ]},
  "modules/nav/mission_navigation.py": {"parts": [
-   {"symbols": ["FallbackMissionPorts", "FallbackMissionNavigation"], "final": "missions/delivery/fallback_mission_navigation.py", "step1": "core/flow/fallback_mission_navigation.py", "vision_path": "n"}
+   {"symbols": ["FallbackMissionPorts", "FallbackMissionNavigation"], "final": "products/delivery/fallback_mission_navigation.py", "step1": "core/flow/fallback_mission_navigation.py", "vision_path": "n"}
   ]},
  "modules/vehicle/message_subscriptions.py": {"parts": [
    {"symbols": ["Subscription"], "final": "core/ports/subscription.py", "step1": "core/ports/subscription.py", "vision_path": "n"}
