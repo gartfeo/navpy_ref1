@@ -17,6 +17,7 @@ def snapshot(entry: VehicleEntry) -> dict:
     # transition.
     entry._refresh_prearm_flags()
     entry._refresh_confirm_blocked()
+    entry._video_streams.tick()
     loc = v.location(is_relative=False)
     loc_rel = v.location(is_relative=True)
     mode = v.get_mode
@@ -76,6 +77,7 @@ def snapshot(entry: VehicleEntry) -> dict:
         "gimbals": entry._gimbal_snapshot(),
         "confirm_blocked": entry._confirm_blocked,
         "swarm": entry._swarm_state.snapshot(),
+        "video_streams": entry._video_streams.snapshot(),
     }
     rc_channels = entry._rc_channels_snapshot()
     if rc_channels is not None:

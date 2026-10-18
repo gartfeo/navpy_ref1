@@ -632,3 +632,20 @@ class TestEnlargeRecvBuffer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMavBusHeartbeatKinds(unittest.TestCase):
+    """A companion camera heartbeats under the vehicle's sysid
+    (docs/design/gcs_video_streams.md); it must not mark the vehicle seen."""
+
+    def test_camera_heartbeat_does_not_count_as_vehicle(self):
+        from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_CAMERA
+        from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
+
+        heartbeats = MavBusHeartbeats()
+        heartbeats.observe(_make_heartbeat(3, MAV_TYPE_CAMERA))
+        self.assertEqual(heartbeats.vehicle, {})
+        self.assertFalse(heartbeats.wait_for(3, 0.0))
+
+        heartbeats.observe(_make_heartbeat(3, MAV_TYPE_FIXED_WING))
+        self.assertIn(3, heartbeats.vehicle)
