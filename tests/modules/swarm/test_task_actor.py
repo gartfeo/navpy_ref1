@@ -4,7 +4,6 @@ from dataclasses import replace
 from unittest.mock import Mock, patch
 
 from navpy.core.ports.gimbal_abc import GimbalData
-from navpy.core.link.message_filter import MessageFilter
 from navpy.core.link.task_assignment_msg import (
     TaskAssignResponseMsg,
     TaskAssignRequestMsg,
@@ -41,7 +40,6 @@ from navpy.core.link.types import MsgType
 from navpy.core.swarm.task_actor import TaskActor
 from navpy.core.swarm.task_dispatch import TaskDispatch
 from navpy.core.swarm.task_msg_refs import MsgRef
-from navpy.core.swarm.task_ports import MessageClockReset
 from navpy.core.kernel.logging.cache_logger import ILogger
 
 
@@ -274,6 +272,47 @@ class TaskActorTest(unittest.TestCase):
         self.assertCountEqual(
             self.task_actor._auction_state.task_ids(),
             [101, 202],
+        )
+
+    def _offered_poi(self, obj_id, task_id, location):
+        poi = make_detected_poi(
+            obj_id=obj_id,
+            task_id=task_id,
+            x_error=0.0,
+            y_error=0.0,
+            reference_height_m=1.0,
+            k=1.0,
+            g_data=Mock(spec=GimbalData),
+            uas_att=Mock(spec=Attitude),
+            t_g_loc_debug=location,
+        )
+        poi.set_p_t_g_loc(poi.geo.truth_poi_location)
+        return poi
+
+    def test_first_offer_logs_task_obj_location_and_send_result(self):
+        """The first offer names its task, detection obj_id and location (e2b evidence)."""
+        poi = self._offered_poi(1, 101, Location(12.34, 56.78, 90.0))
+
+        self.task_actor.notify_pois([poi])
+        self.task_actor.notify_pois([poi])
+
+        offers = [
+            c.args[0] for c in self.logger.info.call_args_list
+            if str(c.args[0]).startswith("Task offered:")
+        ]
+        self.assertEqual(
+            offers,
+            ["Task offered: task_id=101 obj_id=1 at (12.3400000, 56.7800000) sent=True"],
+        )
+
+    def test_offer_log_reports_a_failed_send(self):
+        self.network.broadcast.side_effect = OSError("link down")
+        poi = self._offered_poi(2, 202, Location(23.45, 67.89, 100.0))
+
+        self.task_actor.notify_pois([poi])
+
+        self.logger.info.assert_any_call(
+            "Task offered: task_id=202 obj_id=2 at (23.4500000, 67.8900000) sent=False"
         )
 
     def test_on_message_with_wrong_receiver(self):
@@ -1018,14 +1057,7 @@ class TaskActorTest(unittest.TestCase):
         self.network.broadcast.assert_not_called()
 
     def test_reset_clears_all_state(self):
-        """Reset must clear actor state AND clock offsets on the network filter."""
-        # Use a real MessageFilter so we can verify offset clearing
-        msg_filter = MessageFilter()
-        self.network.message_filter = msg_filter
-        self.task_actor._clock_reset = MessageClockReset(
-            msg_filter.offset_estimator.clear
-        )
-
+        """Reset must clear actor state (message ages need no clock state)."""
         # Populate actor state
         self._discover(5, 6)
         _assign_slot(self.task_actor._selection, TaskAssignMsgData(
@@ -1037,13 +1069,6 @@ class TaskActorTest(unittest.TestCase):
                            location=LocationMsgData(1.0, 2.0, 3.0))
         self._register(task)
 
-        # Populate clock offsets (simulating previous heartbeats)
-        import time
-        now_ms = int(time.time() * 1000)
-        msg_filter.offset_estimator.update_offset(5, now_ms - 100)
-        msg_filter.offset_estimator.update_offset(6, now_ms - 200)
-        self.assertIsNotNone(msg_filter.offset_estimator.get_offset(5))
-
         # Act
         self.task_actor.reset()
 
@@ -1052,23 +1077,6 @@ class TaskActorTest(unittest.TestCase):
         self.assertIsNone(self.task_actor.selected_poi())
         self.assertEqual(len(self.task_actor._auction_state.task_ids()), 0)
         self.assertFalse(self.task_actor._presence.is_started())
-
-        # Assert — clock offsets cleared
-        self.assertIsNone(msg_filter.offset_estimator.get_offset(5))
-        self.assertIsNone(msg_filter.offset_estimator.get_offset(6))
-
-    def test_fresh_actor_clears_stale_network_clock_offsets(self):
-        msg_filter = MessageFilter()
-        now_ms = 1_000_000
-        msg_filter.offset_estimator.update_offset(5, now_ms - 100)
-        self.assertIsNotNone(msg_filter.offset_estimator.get_offset(5))
-        network = Mock(spec=NetworkAbc)
-        network.message_filter = msg_filter
-
-        actor = TaskActor(self.vehicle, network, self.logger)
-
-        self.assertIsNone(msg_filter.offset_estimator.get_offset(5))
-        actor.reset()
 
     def test_checkout_is_thin_presence_delegation(self):
         self.task_actor._presence.checkout = Mock()
@@ -1208,9 +1216,6 @@ class TaskActorTest(unittest.TestCase):
         3. Detect NEW POI → broadcast → peer responds → assign → peer accepts
         Verifies no stale state blocks the second cycle.
         """
-        msg_filter = MessageFilter()
-        self.network.message_filter = msg_filter
-
         gimbal_data = Mock(spec=GimbalData)
         vehicle_attitude = Mock(spec=Attitude)
 
@@ -1262,7 +1267,6 @@ class TaskActorTest(unittest.TestCase):
         self.assertIsNone(self.task_actor.selected_poi())
         self.assertEqual(len(self.task_actor._rebroadcast.known_peers()), 0)
         self.assertFalse(self.task_actor._presence.is_started())
-        self.assertIsNone(msg_filter.offset_estimator.get_offset(5))
 
         # ---- Phase 2: start fresh, detect new POI, assign again ----
         self.task_actor.start()

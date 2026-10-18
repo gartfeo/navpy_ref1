@@ -55,9 +55,9 @@ def wsl_argv(script: str) -> list[str]:
     return [*WSL_BASH_ARGV, script]
 
 
-def run_wsl(command: str) -> None:
+def run_wsl(command: str) -> subprocess.CompletedProcess:
     """Run a Bash command inside WSL."""
-    subprocess.run(wsl_argv(command), capture_output=True)
+    return subprocess.run(wsl_argv(command), capture_output=True)
 
 
 def ensure_fork_supports_companion_udp() -> None:
@@ -138,22 +138,39 @@ def sysid_process_pattern(sys_id: int) -> str:
     return f"[-]-sysid[[:space:]=]+{sys_id}([[:space:]]|$)"
 
 
-def router_process_pattern(chat: int) -> str:
-    """Return a pkill-safe pattern for one chat's MAVLink router."""
-    return f"[m]avlink-routerd.*:{ip.monitor_port(chat)}([[:space:]]|$)"
+REAP_HELPER = Path(__file__).with_name("wall_reap_wsl.py")
 
 
-def cleanup(chat: int, *, wsl_run: Callable[[str], None] = run_wsl) -> None:
-    """Terminate only one chat's SITL instances and router."""
-    patterns = [sysid_process_pattern(sysid) for sysid in ip.sysids_for_chat(chat)]
-    patterns.append(router_process_pattern(chat))
-    terminate = "; ".join(
-        f"pkill -f -- '{pattern}' || true" for pattern in patterns
-    )
-    kill = "; ".join(
-        f"pkill -KILL -f -- '{pattern}' || true" for pattern in patterns
-    )
-    wsl_run(f"{terminate}; sleep 2; {kill}")
+def cleanup_command(chat: int, sysids: list[int]) -> str:
+    """The WSL command that reaps one wall launch's SITLs and router.
+
+    ``wall_reap_wsl.py`` kills a process only when its command line names one
+    of ``sysids`` (or the chat's router) AND its environment holds this chat's
+    ``SWARM_OFFSET``, which :func:`launch_command` sets. A sysid alone is no
+    owner: lockstep SITLs run ``--sysid 1..3`` on any slot (todo 51). The
+    helper's source goes inline, so it works from any checkout.
+    """
+    arguments = ["reap", ip.VEHICLES_PER_CHAT * chat, ip.monitor_port(chat), *sysids]
+    return (f"python3 -c {shlex.quote(REAP_HELPER.read_text(encoding='utf-8'))} "
+            + " ".join(str(argument) for argument in arguments))
+
+
+def cleanup(
+    chat: int,
+    *,
+    sysids: list[int] | None = None,
+    wsl_run: Callable[[str], subprocess.CompletedProcess] = run_wsl,
+) -> None:
+    """Terminate only one chat's SITL instances and router.
+
+    ``sysids`` defaults to the chat's own three; a fleet launched past three
+    aircraft passes every sysid it launched. A failed reap raises, so a stop
+    does not release the slot and a launch does not start over its orphans.
+    """
+    result = wsl_run(cleanup_command(chat, ip.sysids_for_chat(chat) if sysids is None else sysids))
+    if result.returncode != 0:
+        detail = (result.stderr or b"").decode("utf-8", "replace").strip()[-500:]
+        raise RuntimeError(f"wall cleanup of chat {chat} failed ({result.returncode}): {detail}")
 
 
 def ensure_experimental_paths(

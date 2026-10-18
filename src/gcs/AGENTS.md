@@ -53,7 +53,10 @@ Frontend:
   same ports before spawning.
 - **Do NOT run `swarm_run.py` on top of a `gcs_launch` stack** — the launcher
   already starts SITL (`--sitl` default), and `swarm_run.py` begins with
-  `cleanup(chat)`, killing the chat's running SITL/router.
+  `cleanup(chat)`, killing the chat's running SITL/router. Wall cleanup
+  (`wall_reap_wsl.py`) kills only processes whose command line names the
+  chat's sysids or router port AND whose environment holds the chat's
+  `SWARM_OFFSET`, never by sysid alone.
 - **Registry inspection must be read-only via the JSON file** when you must
   not mutate it — `gcs_launch.py --list` calls `registry.live()`, which prunes
   dead entries and persists.
@@ -66,7 +69,12 @@ Frontend:
   process (pid, start time, cwd) at spawn and stop only those records; they
   never stop by sysid or name. The lockstep coordinator (step 9; run it with
   `python scripts\eval_gcs_navigation_demo.py --lockstep --scenario scripts\eval_lockstep_slice_scenario.json --seed 1 --run-dir <dir>`
-  for the 1-UAV slice, or without `--scenario` for the certified 3-UAV fleet) is the one
+  for the 1-UAV slice, or without `--scenario` for the certified 3-UAV fleet; the
+  repeatable gate is `python scripts\eval_gcs_demo_lockstep_matrix.py --run-dir <dir>`:
+  five seed-1 certified runs one at a time (two plain, host delay seeds 7 and 13, CPU
+  load), passing only with every report passed, one journal digest and byte-equal
+  artifacts, summary in `<dir>\matrix.json`; about 10 wall minutes; other chats' wall
+  stacks may start and stop meanwhile, todo 51) is the one
   exception to "no `gcs_launch` for eval-only runs": `gcs_launch.lockstep_claim`
   claims an eval-band `lockstep` slot in-process with the full owner identity
   (pid, start time, run token, claim nonce); children are recorded under the

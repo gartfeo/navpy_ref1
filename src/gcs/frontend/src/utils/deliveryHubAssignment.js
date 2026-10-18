@@ -204,6 +204,31 @@ export function buildDeliveryHubsFromDownload(missionDeliveryHubs, existingDeliv
 }
 
 /**
+ * Delivery hubs from a plan file, in the shape the settings API accepts.
+ *
+ * Files written by other tools may carry only lat/lon/type; the settings model
+ * requires a name, so a missing name or type gets the default. Returns null when
+ * any hub has no finite position, so the caller rejects the file.
+ *
+ * @param {Array<object>} hubs - `default_delivery_hubs` from a plan file
+ * @returns {Array<{name: string, type: string, lat: number, lon: number}>|null}
+ */
+export function normalizePlanFileHubs(hubs) {
+  if (!Array.isArray(hubs)) return null;
+  const normalized = [];
+  for (const [i, hub] of hubs.entries()) {
+    if (!hub || !Number.isFinite(hub.lat) || !Number.isFinite(hub.lon)) return null;
+    normalized.push({
+      name: typeof hub.name === 'string' && hub.name.trim() ? hub.name : `Default delivery hub ${i + 1}`,
+      type: typeof hub.type === 'string' && hub.type ? hub.type : 'other',
+      lat: hub.lat,
+      lon: hub.lon,
+    });
+  }
+  return normalized;
+}
+
+/**
  * Get distance from a zone's last track point to a delivery hub.
  * @param {object} zone - Zone with .track array
  * @param {{lat, lon}} location - Target delivery hub

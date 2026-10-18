@@ -58,11 +58,12 @@ def _verified_pid(entry: dict, pid_key: str, start_key: str):
     return pid
 
 
-def stop_chat(n: int, kill_sitl: bool = True) -> None:
+def stop_chat(n: int, kill_sitl: bool = True) -> bool:
+    """Stop chat *n*'s stack; False when its SITL could not be reaped (slot kept)."""
     entry = reg.get(n)
     if entry is not None and entry.get("lockstep") is not None:
         stop_lockstep(n, kill=_kill_tree)  # by ownership records, never by sysid or port
-        return
+        return True
     if entry is None:
         print(f"chat {n}: no registry entry (already stopped?)")
     else:
@@ -90,10 +91,15 @@ def stop_chat(n: int, kill_sitl: bool = True) -> None:
             if supervisor_pid:
                 _kill_tree(supervisor_pid)
                 print(f"chat {n}: stopped SITL supervisor pid={supervisor_pid}")
-        swarm_run.cleanup(n)  # per-chat: only this chat's sys_ids + its router
+        try:
+            swarm_run.cleanup(n)  # by ownership: this chat's SWARM_OFFSET, sys_ids, router
+        except (RuntimeError, OSError) as error:  # a failed reap, or WSL did not start
+            print(f"chat {n}: SITL NOT stopped, slot kept: {error}", file=sys.stderr)
+            return False
         print(f"chat {n}: stopped SITL (sys_ids {ip.sysids_for_chat(n)})")
     reg.release(n)
     print(f"chat {n}: released slot")
+    return True
 
 
 def main() -> int:
@@ -121,9 +127,8 @@ def main() -> int:
         instances = reg.live()
         if not instances:
             print("No running GCS instances to stop.")
-        for e in instances:
-            stop_chat(e["chat_index"], kill_sitl=not args.keep_sitl)
-        return 0
+        results = [stop_chat(e["chat_index"], kill_sitl=not args.keep_sitl) for e in instances]
+        return 0 if all(results) else 1
 
     chat = args.chat
     if chat is None:
@@ -148,8 +153,7 @@ def main() -> int:
             return 2
         chat = entry["chat_index"]
 
-    stop_chat(chat, kill_sitl=not args.keep_sitl)
-    return 0
+    return 0 if stop_chat(chat, kill_sitl=not args.keep_sitl) else 1
 
 
 if __name__ == "__main__":

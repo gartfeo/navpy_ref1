@@ -142,7 +142,7 @@ def test_busy_helper_does_not_bid(timers, busy):
     if busy == "waiting":
         helper.request(task_id=20)
     else:
-        helper.coordinator.set_approaching(True)
+        helper.coordinator.set_participation(True, False)
     helper.network.reset_mock()
 
     helper.advert(1.5)
@@ -172,7 +172,7 @@ def test_step_three_while_approaching_or_unflyable_is_acked_and_rejected(
 ):
     helper = Helper()
     if reason == "approaching":
-        helper.coordinator.set_approaching(True)
+        helper.coordinator.set_participation(True, False)
     else:
         helper.etas = {1.5: -1}
 
@@ -220,7 +220,7 @@ def test_own_final_approach_drops_waiting_and_rejects_it(timers):
     helper.request()
     helper.network.reset_mock()
 
-    helper.coordinator.set_approaching(True)
+    helper.coordinator.set_participation(True, False)
     assert helper.sent() == []  # nothing sent on the caller (nav) thread
     timers.fire_due_now()
 

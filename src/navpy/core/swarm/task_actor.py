@@ -30,10 +30,6 @@ from navpy.core.swarm.task_messaging import (
     TaskMessageSender,
 )
 from navpy.core.swarm.task_peer_status import PeerStatusCoordinator
-from navpy.core.swarm.task_ports import (
-    ClockOffsetResetPort,
-    MessageClockReset,
-)
 from navpy.core.swarm.task_rebroadcast import TaskRebroadcastCoordinator
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.ports.detect_data import DetectedObject
@@ -48,7 +44,6 @@ class TaskActor(ListenerAbc):
         vehicle: IVehicle,
         network: NetworkAbc,
         logger: ILogger,
-        clock_reset: ClockOffsetResetPort | None = None,
         monotonic_s: Callable[[], float] = rt.monotonic,
     ) -> None:
         self.id: int = vehicle.source_system
@@ -131,10 +126,6 @@ class TaskActor(ListenerAbc):
         self._auction = auction
         self._presence = presence
         self._router = router
-        self._clock_reset = clock_reset or MessageClockReset.from_network(network)
-        # A replacement actor must not inherit timing estimates from the prior
-        # network session before NavNetworkRuntime performs its first checkin.
-        self._clock_reset.reset()
 
     def start(self) -> None:
         self._presence.start()
@@ -161,9 +152,9 @@ class TaskActor(ListenerAbc):
     def has_selected_pois(self) -> bool:
         return self.selected_poi() is not None
 
-    def set_approaching(self, approaching: bool) -> None:
-        """Nav publishes whether it flies a final approach (BUSY)."""
-        self._participation.set_approaching(approaching)
+    def set_participation(self, approaching: bool, docked: bool) -> None:
+        """Nav publishes a final approach or a dock (both BUSY)."""
+        self._participation.set_participation(approaching, docked)
 
     def clear_selected_poi(self) -> None:
         """Nav ended its task; a WAITING offer is kept."""
@@ -173,7 +164,6 @@ class TaskActor(ListenerAbc):
         self._presence.stop()
         self._auction_state.reset(self.logger)
         self._selection.release_assigned()
-        self._clock_reset.reset()
 
     def shutdown(self) -> None:
         try:

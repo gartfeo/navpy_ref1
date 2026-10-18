@@ -362,17 +362,19 @@ class TestNavState(unittest.TestCase):
         self.assertEqual(NavState.NAV.value, 3)
         self.assertEqual(NavState.RESET.value, 4)
         self.assertEqual(NavState.RECOVERY.value, 5)
+        self.assertEqual(NavState.DOCKED.value, 6)
 
     def test_all_states_defined(self):
         """All expected states are defined."""
         states = list(NavState)
-        self.assertEqual(len(states), 6)
+        self.assertEqual(len(states), 7)
         self.assertIn(NavState.ONHOLD, states)
         self.assertIn(NavState.DETECT, states)
         self.assertIn(NavState.CONFIRM, states)
         self.assertIn(NavState.NAV, states)
         self.assertIn(NavState.RESET, states)
         self.assertIn(NavState.RECOVERY, states)
+        self.assertIn(NavState.DOCKED, states)
 
 
 # =============================================================================
@@ -4721,6 +4723,8 @@ class TestNavControllerPoiSelection(unittest.TestCase):
         """_select_poi returns remaining as peers when task_actor exists."""
         controller = _create_controller()
         controller.network.task_actor = Mock()
+        # No assigned task: an assigned UAV offers nothing (ruling 5).
+        controller.network.task_actor.selected_poi.return_value = None
         t1 = _create_detected_poi(obj_id=1)
         t2 = _create_detected_poi(obj_id=2)
         t3 = _create_detected_poi(obj_id=3)
@@ -4747,6 +4751,8 @@ class TestNavControllerPoiSelection(unittest.TestCase):
         """Processed primary POI is skipped and next valid POI is chosen."""
         controller = _create_controller()
         controller.network.task_actor = Mock()
+        # No assigned task: an assigned UAV offers nothing (ruling 5).
+        controller.network.task_actor.selected_poi.return_value = None
         t1 = _create_detected_poi(obj_id=1)
         t2 = _create_detected_poi(obj_id=2)
         controller.detections.primary_poi = t1
@@ -4763,6 +4769,8 @@ class TestNavControllerPoiSelection(unittest.TestCase):
         """Active POI (obj_id=1) is returned as self even when detections reorder."""
         controller = _create_controller()
         controller.network.task_actor = Mock()
+        # No assigned task: an assigned UAV offers nothing (ruling 5).
+        controller.network.task_actor.selected_poi.return_value = None
         t1 = _create_detected_poi(obj_id=1)
         t2 = _create_detected_poi(obj_id=2)
         t3 = _create_detected_poi(obj_id=3)
@@ -4802,6 +4810,8 @@ class TestNavControllerPoiSelection(unittest.TestCase):
         """When active POI not in detections, self_poi is None."""
         controller = _create_controller()
         controller.network.task_actor = Mock()
+        # No assigned task: an assigned UAV offers nothing (ruling 5).
+        controller.network.task_actor.selected_poi.return_value = None
         t1 = _create_detected_poi(obj_id=1)
         t2 = _create_detected_poi(obj_id=2)
         t3 = _create_detected_poi(obj_id=3)
@@ -7876,11 +7886,12 @@ class TestNavControllerPeerTaskPriority(unittest.TestCase):
 
     def test_the_peer_approach_takes_up_a_dropped_poi_at_its_dock(self):
         # The dropped POI may be the assigned dock: near it, the peer
-        # approach starts it, and its confirmation can be asked.
+        # approach starts it, and its confirmation can be asked. It lies at
+        # the task's position: only the assigned dock is taken (ruling 5).
         controller = _create_controller()
         _assigned_peer_task(controller)
         own = _create_detected_poi(obj_id=6)
-        own.set_p_t_g_loc(Location(40.002, -74.002, 0.0))
+        own.set_p_t_g_loc(Location(40.001, -74.001, 0.0))
         controller.detections.detected_pois = [own]
         _commit(controller, NavState.DETECT)
         controller.detect_action.act()
@@ -8122,6 +8133,8 @@ class TestNavControllerSwarmDispatchSafety(unittest.TestCase):
         """_select_poi skips PEER_NOTIFIED POIs when no active POI, picks next valid."""
         controller = _create_controller()
         controller.network.task_actor = Mock()
+        # No assigned task: an assigned UAV offers nothing (ruling 5).
+        controller.network.task_actor.selected_poi.return_value = None
 
         t1 = _create_detected_poi(obj_id=1)
         t2 = _create_detected_poi(obj_id=2)
@@ -8142,6 +8155,8 @@ class TestNavControllerSwarmDispatchSafety(unittest.TestCase):
         """_select_poi returns self_poi=None when ALL POIs are PEER_NOTIFIED."""
         controller = _create_controller()
         controller.network.task_actor = Mock()
+        # No assigned task: an assigned UAV offers nothing (ruling 5).
+        controller.network.task_actor.selected_poi.return_value = None
 
         t1 = _create_detected_poi(obj_id=1)
         t2 = _create_detected_poi(obj_id=2)
@@ -8172,6 +8187,8 @@ class TestNavControllerSwarmDispatchSafety(unittest.TestCase):
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED)
         controller = _create_controller(vehicle=vehicle)
         controller.network.task_actor = Mock()
+        # No assigned task: an assigned UAV offers nothing (ruling 5).
+        controller.network.task_actor.selected_poi.return_value = None
         controller.network.peer_dispatch = Mock()
 
         # Active POI P1 being navigated to

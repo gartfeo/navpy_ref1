@@ -429,7 +429,7 @@ def test_every_applied_lost_strands_the_task_without_duplicating_it(swarm):
 
 
 def test_busy_peer_is_skipped(swarm):
-    swarm.actors[NEAR_PEER].set_approaching(True)
+    swarm.actors[NEAR_PEER].set_participation(True, False)
     swarm.beat()
 
     swarm.detect()
@@ -440,13 +440,13 @@ def test_busy_peer_is_skipped(swarm):
 
 def test_all_peers_busy_get_no_adverts_until_one_is_free(swarm):
     for peer_id in (NEAR_PEER, FAR_PEER):
-        swarm.actors[peer_id].set_approaching(True)
+        swarm.actors[peer_id].set_participation(True, False)
     swarm.beat()
 
     swarm.detect()
     swarm.run_until(3.0)
     assert swarm.sent(AvailableTaskRequestMsg, OWNER, since_s=0.5) == []
-    swarm.actors[FAR_PEER].set_approaching(False)
+    swarm.actors[FAR_PEER].set_participation(False, False)
     swarm.run_until(4.0)
 
     assert _confirmed_to(swarm, FAR_PEER)
@@ -460,7 +460,7 @@ def test_own_final_approach_while_waiting_rejects_and_the_owner_retries(swarm):
     assert swarm.state(NEAR_PEER) is SlotState.WAITING
     swarm.run_until(1.5)
 
-    swarm.actors[NEAR_PEER].set_approaching(True)
+    swarm.actors[NEAR_PEER].set_participation(True, False)
     swarm.run_until(1.5)  # the deferred first reject copy
 
     assert swarm.state(NEAR_PEER) is SlotState.EMPTY

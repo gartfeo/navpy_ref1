@@ -5,6 +5,7 @@ import unittest
 from navpy.core.kernel.attitude import Attitude
 from navpy.sim.gimbal.siyi.gimbal_physics import GimbalPhysics
 from navpy.sim.gimbal.siyi.gimbal_angles import (
+    GimbalAngularPlant,
     MAX_SLEW_RATE,
     MODE_FOLLOW,
     MODE_FPV,
@@ -165,6 +166,61 @@ class TestAngleSeek(unittest.TestCase):
         angular = p.snapshot().angular
         self.assertIsNone(angular.target_yaw)
         self.assertIsNone(angular.target_pitch)
+
+
+def _lock_plant(heading: float, body_yaw: float) -> GimbalAngularPlant:
+    """A LOCK-mode plant on an aircraft at ``heading``, camera at ``body_yaw``."""
+    plant = GimbalAngularPlant(0.0, _wrap180(heading + body_yaw))
+    plant.set_vehicle_attitude(Attitude(0.0, heading, 0.0))
+    return plant
+
+
+class TestLockYawPath(unittest.TestCase):
+    """In LOCK a world-yaw target is reached through the body range, never
+    across the +/-135 deg stop (todo 48: the shortest world path drove into
+    the stop forever)."""
+
+    def _run(self, plant, heading, steps, dt=0.05):
+        bodies = []
+        for _ in range(steps):
+            plant.advance(dt)
+            bodies.append(_wrap180(plant.snapshot().yaw - heading))
+        return bodies
+
+    def test_target_behind_the_seam_travels_through_the_range(self):
+        for heading in (0.0, 120.0):
+            with self.subTest(heading=heading):
+                plant = _lock_plant(heading, -130.0)
+                plant.set_target_angles(heading + 90.0, 0.0)
+                # 220 deg at 90 deg/s: 2.44 s, plus one step.
+                bodies = self._run(plant, heading, 50)
+                snap = plant.snapshot()
+                self.assertAlmostEqual(_wrap180(snap.yaw - heading), 90.0)
+                self.assertIsNone(snap.target_yaw)
+                self.assertTrue(all(abs(b) <= ZR10.MAX_YAW_DEG for b in bodies))
+                self.assertTrue(any(abs(b) < 5.0 for b in bodies))
+
+    def test_long_step_does_not_clear_the_target_before_arrival(self):
+        plant = _lock_plant(0.0, -135.0)
+        plant.set_target_angles(135.0, 0.0)
+        plant.advance(1.0)  # 90 deg of the 270 deg path
+        snap = plant.snapshot()
+        self.assertAlmostEqual(snap.yaw, -45.0)
+        self.assertAlmostEqual(snap.target_yaw, 135.0)
+
+    def test_target_behind_the_stop_is_held_at_the_nearer_stop(self):
+        plant = _lock_plant(0.0, 0.0)
+        plant.set_target_angles(170.0, 0.0)
+        self._run(plant, 0.0, 100)
+        snap = plant.snapshot()
+        self.assertAlmostEqual(snap.yaw, ZR10.MAX_YAW_DEG)
+        self.assertAlmostEqual(snap.target_yaw, 170.0)
+        # Once the aircraft turns so the target is in range, it is reached.
+        plant.set_vehicle_attitude(Attitude(0.0, 60.0, 0.0))
+        self._run(plant, 60.0, 20)
+        snap = plant.snapshot()
+        self.assertAlmostEqual(snap.yaw, 170.0)
+        self.assertIsNone(snap.target_yaw)
 
 
 class TestCommandArbitration(unittest.TestCase):

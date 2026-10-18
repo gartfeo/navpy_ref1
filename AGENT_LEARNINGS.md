@@ -642,3 +642,111 @@
 - A test that sends right after a fail-closed transition must allow the one counted stale drop, not retry until a
   packet lands: an open-ended retry hides an unwanted drop (`send_across_transition`, test_mav_router.py).
 - pytest imports test modules at collection, so a run started before an edit tests the old file. Restart it.
+
+## Bug-fix batch (hub load, gimbal stop, swarm clocks, todo 42; 2026-10-16)
+- I repeated the heredoc mistake above: escaped newlines in a Bash heredoc became real
+  newlines in Python source. Read this file before editing, and write edit scripts with
+  the Write tool.
+- A regression test I wrote passed on the old code too (Codex caught it). To prove a test
+  fails before the fix, export the old source and run the test against it:
+  `git archive HEAD src | tar -x -C <tmp>`, then run pytest with PYTHONPATH set to `<tmp>/src`.
+- The shared .venv now has OpenCV 5.0.0, so the 4 `test_board_detector.py` failures are an
+  environment issue (`board_detector.py:34`, IndexError), not a code regression.
+- A new worktree has no `src/gcs/frontend/node_modules`: run `npm ci` before vitest, and
+  delete `dist/` after a build.
+- One-way message timestamps cannot separate clock offset from queue delay. An offset
+  averaged from heartbeats absorbs reader backlog, so stale messages pass TTL.
+
+## Delivery e2b slice (2026-10-16)
+
+- **A Python heredoc turned `\b` in a regex into a backspace.** I wrote
+  `rf"\bCONFIRMING"` through a Bash heredoc into Python source and got
+  a 0x08 byte; the gate then never matched. Make regex edits with the Edit
+  tool, and grep the file for control bytes after any scripted edit.
+- **Read the done criterion's own words before choosing a gate window.** I
+  opened the approval window at `CONFIRMING`; the criterion said "during
+  that approval orbit", and NavPy offers a second dock about 120 ms before
+  `CONFIRMING`, in the same orbit. Changing a gate after a run is a goalpost
+  risk: write down why, keep the run-time report, and get it reviewed.
+- **A swarm offer carries no obj_id on the wire.** To prove which world dock
+  was offered, log the link at the first registration
+  (`Task offered: ... obj_id=`), not a position match.
+
+## Lockstep matrix and digest attribution (step 11, 2026-10-16)
+
+- **Prove a digest move with a run at the commit before, not by reading diffs.** I named
+  2d44662 (a sim gimbal change) as the cause of a new digest; a run at the commit before it
+  already had the new digest. Single seed-1 runs in detached worktrees at 10h's commit, the
+  merge and its parent located it (the HITL merge 79ace48) in three runs.
+- **Recertify after any rebase.** Main moved twice during step 11, and each move changed the
+  digest, so each final certification ran on the exact tree that would fast-forward onto main.
+  (A quiet PC is no longer needed since todo 51; see below.)
+- **`gcs_stop.py --eval` cannot find a lockstep slot** (todo 55: the claim's owner is not
+  normcased). Stop it with `gcs_stop.py --chat <its slot>` after checking that the registry
+  entry's clone is this directory.
+- **`sed -i` in Git Bash rewrites a CRLF file as LF.** Edit CRLF files with the Edit tool or
+  with read_bytes/write_bytes, and check with `file` afterwards.
+
+## Coordinating nested sessions (2026-10-17)
+
+- **Do not ask a nested session to report back.** The owner opens nested sessions
+  directly, so a "report to me" or "report it" step in a brief adds nothing. My
+  briefs had one, and I relayed every interim note ("still waiting", "suite running")
+  to the owner. The owner said this is not needed. In a brief, state the task and
+  what done means. Pass on a note only when it brings a decision for the owner or
+  finished work.
+
+## Delivery e5 dock roles (2026-10-17)
+
+- **A bare `Mock()` task actor looks assigned.** Its `selected_poi()` returns a truthy
+  Mock, so `PeerTaskPriority.pending()` is true. Nine selector tests relied on that
+  by accident once "assigned UAVs offer nothing" landed. Give an idle mock actor
+  `selected_poi.return_value = None`.
+- **Run the SOLID guard after every constructor change, not only `tests/modules`.**
+  A Codex fix added a 13th dependency to `NavigationTaskAction`; only the full suite
+  caught it. Prefer a port on the class that owns the behaviour.
+- **Sim detections carry truth, not a projected position.** `SelfDetectedApproach`
+  centres its circle on `truth_poi_location`; a test dock with only
+  `set_p_t_g_loc` circles somewhere else. Build sim test docks with
+  `replace_geo(replace(poi.geo, truth_poi_location=...))`.
+
+## Wall cleanup by ownership (todo 51, 2026-10-17)
+
+- **Do not edit the tree while a matrix runs.** `input_manifest.json` hashes the uncommitted
+  diff and untracked files. A doc edit and a `git add -N` mid-run failed the artifact gate in
+  two cells, although every digest was equal. Commit first, keep doc drafts outside the
+  worktree, and apply them after the runs.
+- **A `pgrep -f` probe matches its own `bash -c` shell.** My waits returned at once, so the
+  first "wall stack mid-run" cycles stopped the stack before its SITLs existed. Anchor the
+  pattern (`^/[^ ]*/bin/arduplane .*[-]-sim-address`), and log the matched pids with their
+  environment, so the evidence shows that the target processes really existed.
+- **Backslash continuations in a heredoc'd Python edit collapse into one line.** `\` plus a
+  newline inside a normal string literal is a line continuation. Edit test code that has `\`
+  continuations with the Edit tool.
+
+## Delivery e6 gates and e10 runs (2026-10-17)
+
+- **Check a gate's source and order against a real run before a review locks it in.** Three
+  e6 checks were wrong on first contact with real logs: the frame-sampled SNAP line read
+  2.1 m where the contact sensor read 0.05 m; the offerer locks d1 before its self-detect
+  orbit, not after (my build note had it backwards, and a review then tightened the wrong
+  chain); `approved_at_unix_s` is taken after the approve POST returns, so NavPy arms about
+  0.5 s before it. Each fix took a run. Before writing an ordering or timing check, grep one
+  existing run log (e2b, s11) for the exact markers and timestamps.
+- **Read what a "check" field actually computes.** The approval record's
+  `nav_before_approval` is the literal `False` (todo 59). A field name is not evidence.
+- **`--analyze-only` prints the new report and leaves the run's `report.json` alone**, so a
+  failed run can be re-gated after a gate fix without losing its original report.
+
+## DOCKED final state (2026-10-17)
+
+- The local `main` ref in a worktree can be far behind `origin/main`. Rebasing onto it replayed
+  other chats' commits. Fetch, then rebase onto `origin/main`.
+- The SNAP row is sampled only at command rows, and the dock contact latch stops the commands, so
+  SNAP misses the crossing segment (SITL 2026-10-17: contact 0.07 m, SNAP 4.4 m). Decide or score
+  docking from the contact sensor's `DOCKED` row, never from SNAP.
+
+## Todo 64 disarm offset (2026-10-18)
+- A position reported "at disarm" is the first GCS telemetry frame after the event, and frames are 0.2 s wall = 2 s sim
+  at SIM_SPEEDUP 10. Before suspecting a frame offset, take the frames on both sides from the WS trace and check whether
+  the line between them passes the dock horizontally; here within 0.7 m and the aircraft kept moving after a net-less contact.

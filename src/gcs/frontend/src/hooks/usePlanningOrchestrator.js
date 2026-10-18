@@ -210,6 +210,7 @@ export default function usePlanningOrchestrator({
     suppressRegenRef,
     deliveryHubAssignments,
     setDeliveryHubAssignments,
+    setManualDeliveryHubEdit,
     simDockWps,
     setSimDockWps,
     detectAfterWps,

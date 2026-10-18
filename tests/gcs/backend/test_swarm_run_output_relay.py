@@ -628,6 +628,15 @@ class KillLaunchReaps(unittest.TestCase):
         _proc, drain, _waits = self._kill(terminate_ok=True, kill_wait_ok=True)
         self.assertTrue(drain.call_args.kwargs["reaped"])
 
+    def test_a_failed_cleanup_still_terminates_and_retires_then_raises(self):
+        proc = mock.MagicMock()
+        with mock.patch.object(m, "cleanup", side_effect=RuntimeError("reap failed")), \
+             mock.patch.object(m, "_retire_relays") as drain:
+            with self.assertRaisesRegex(RuntimeError, "reap failed"):
+                m._kill_launch(proc, 7, [])
+        proc.terminate.assert_called_once()
+        drain.assert_called_once()
+
     def test_a_terminate_that_raises_still_reaches_the_kill_and_wait(self):
         """`terminate()` can fail outright, not just time out in its wait."""
         proc = mock.MagicMock()

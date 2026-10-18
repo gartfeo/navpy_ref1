@@ -180,10 +180,14 @@ class TaskParticipationCoordinator:
                 "no longer offers it; dropping it."
             )
 
-    def set_approaching(self, approaching: bool) -> None:
-        """Nav's own final approach drops a WAITING offer; the owner retries."""
+    def set_participation(self, approaching: bool, docked: bool) -> None:
+        """Nav becoming busy drops a WAITING offer; the owner retries.
+
+        DOCKED follows NAV, which already made the slot busy, so in practice
+        only a final approach start drops one.
+        """
         with self._lock:
-            dropped = self._selection.set_approaching(approaching)
+            dropped = self._selection.set_participation(approaching, docked)
             if dropped is None:
                 return
             self._replies.stop_accept()

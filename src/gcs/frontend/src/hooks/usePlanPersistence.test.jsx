@@ -20,7 +20,7 @@ function fixture(overrides = {}) {
   for (const key of ['setPolygon','setSearchPattern',
     'setLaunchPoint','setCorridorPoints','setSetLaunchPoints','setSetCorridorPoints',
     'setActiveSetIndex','setAnalysis','setPlan','regenerateLoadedPlan','resetZoneSelectionBaseline',
-    'setUavCount','setPartitionAngleDeg','setRouteOffsetM','setDeliveryHubAssignments',
+    'setUavCount','setPartitionAngleDeg','setRouteOffsetM','setDeliveryHubAssignments','setManualDeliveryHubEdit',
     'setSimDockWps','setDetectAfterWps','handleSaveSettings',
     'setFenceCustomVertices','setExclusionPolygons','setFenceEnabled','setFenceTouched','setFenceOffsetM',
     'authorFenceIntent','clearFenceIntent','resetFenceObservations']) props[key] = vi.fn();
@@ -112,6 +112,20 @@ describe('current development plan files', () => {
     expect(io.props.setSetCorridorPoints).toHaveBeenCalledWith(data.set_corridors);
   });
 
+  it('names the hubs of a file written without names, so the settings save is accepted', () => {
+    const io = fixture();
+    io.load({ polygon: io.props.polygon,
+      default_delivery_hubs: [{ lat: 40.31, lon: 44.45, type: 'building' }, { lat: 40.32, lon: 44.46, name: ' ' }],
+      delivery_hub_assignments: [1, 0, 1] });
+    expect(io.props.handleSaveSettings).toHaveBeenCalledWith({ default_delivery_hubs: [
+      { name: 'Default delivery hub 1', type: 'building', lat: 40.31, lon: 44.45 },
+      { name: 'Default delivery hub 2', type: 'other', lat: 40.32, lon: 44.46 },
+    ] });
+    // The saved assignment is an operator decision: it survives regeneration.
+    expect(io.props.setDeliveryHubAssignments).toHaveBeenCalledWith([1, 0, 1]);
+    expect(io.props.setManualDeliveryHubEdit).toHaveBeenCalledWith(true);
+  });
+
   it.each([null, 7, [], { polygon: [], poi_classes: ['old'] }, {}, { polygon: [], delivery_docks: [] }, { polygon: [], delivery_dock_assignments: [] },
     { polygon: [], tactic: 'corridor' },
     { polygon: [], tactic: 'corridor', search_pattern: 'distributed' },
@@ -119,6 +133,14 @@ describe('current development plan files', () => {
     { polygon: [], route_offset_m: 1e-9 }, { polygon: [], route_offset_m: 19 }, { polygon: [], route_offset_m: 501 },
     { polygon: [], partition_angle_deg: 'north' }, { polygon: [], uav_count: 2.5 },
     { polygon: [], uav_count: 0 }, { polygon: [], uav_count: 100 }, { polygon: [], uav_count: 1e100 },
+    { polygon: [], default_delivery_hubs: [{ lat: 40.3, type: 'building' }] },
+    { polygon: [], default_delivery_hubs: [{ lat: '40.3', lon: 44.4 }] },
+    { polygon: [], default_delivery_hubs: [null] }, { polygon: [], default_delivery_hubs: {} },
+    { polygon: [], delivery_hub_assignments: 0 }, { polygon: [], delivery_hub_assignments: [0.5] },
+    { polygon: [], delivery_hub_assignments: [-1] },
+    { polygon: [], default_delivery_hubs: [{ lat: 40.3, lon: 44.4 }], delivery_hub_assignments: [1] },
+    // No hubs in the file: indices refer to the one settings hub of the fixture.
+    { polygon: [], delivery_hub_assignments: [1] },
   ].map(data => [data]))(
     'rejects unsupported structure %j before any state changes', (data) => {
       const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
@@ -134,11 +156,15 @@ describe('current development plan files', () => {
     },
   );
 
-  it('preserves existing empty optional-array behavior and clears omitted selections', () => {
+  it('keeps settings on empty hubs and clears omitted selections', () => {
     const io = fixture();
     io.load({ polygon: io.props.polygon, default_delivery_hubs: [], delivery_hub_assignments: [] });
     expect(io.props.handleSaveSettings).not.toHaveBeenCalled();
-    expect(io.props.setDeliveryHubAssignments).not.toHaveBeenCalled();
+    // No saved assignment: start from none in auto mode, never the replaced
+    // plan's (a corridor load does not regenerate, so a kept stale list would
+    // be uploaded as is).
+    expect(io.props.setDeliveryHubAssignments).toHaveBeenCalledWith([]);
+    expect(io.props.setManualDeliveryHubEdit).toHaveBeenCalledWith(false);
     // Save omits empty selection maps, so omitted means none, not "keep".
     expect(io.props.setSimDockWps).toHaveBeenCalledWith({});
     expect(io.props.setDetectAfterWps).toHaveBeenCalledWith({});

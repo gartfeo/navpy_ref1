@@ -42,7 +42,14 @@ class TaskRebroadcastCoordinator:
             if registered is None:
                 continue
             _, generation = registered
-            self.notify_task_available([task])
+            sent = self.notify_task_available([task])
+            # The first offer of a task; repeats log "Rebroadcast task".
+            self._logger.info(
+                f"Task offered: task_id={task.task_id} "
+                f"obj_id={poi.identity.obj_id} "
+                f"at ({task.location.lat:.7f}, {task.location.lng:.7f}) "
+                f"sent={sent}"
+            )
             self._rebroadcast.schedule(
                 task.task_id,
                 generation,
@@ -50,8 +57,9 @@ class TaskRebroadcastCoordinator:
                 REBROADCAST_INTERVAL_S,
             )
 
-    def notify_task_available(self, tasks: list[TaskMsgData]) -> None:
-        self._rebroadcast.send_if_available(tasks, self._sender.available)
+    def notify_task_available(self, tasks: list[TaskMsgData]) -> bool | None:
+        """None when nothing is AVAILABLE, else whether the send succeeded."""
+        return self._rebroadcast.send_if_available(tasks, self._sender.available)
 
     def peer_discovered(self, peer_id: int) -> None:
         self._rebroadcast.discover_peer(peer_id, self._rebroadcast_task)

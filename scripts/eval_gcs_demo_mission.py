@@ -64,6 +64,14 @@ def final_approach_nav_started(context: StackContext, sys_id: int) -> bool:
     return "INIT: NAV MODE" in current
 
 
+def _last_nav_failure(context: StackContext, sys_id: int) -> str:  # since its process started
+    text = _navigation_text(context, sys_id)
+    start = text.rfind("NAV_FAIL: ")
+    if start < 0 or start < text.rfind("Heartbeat from system"):
+        return "(no NAV_FAIL logged before it)"
+    return "after " + text[start:].splitlines()[0]
+
+
 def resolve_live_plan(context: StackContext, log_dir: Path) -> DemoMissionPlan:
     scenario = context.scenario
     ids = scenario.uav_ids(context.sys_ids)
@@ -137,7 +145,8 @@ def approve_requests_until_snap(
         if request.sys_id in observed_sys_ids:
             raise RegressionError(
                 "vehicle requested more than one confirmation round "
-                f"at ({request.sys_id}, {request.local_task_id})"
+                f"at ({request.sys_id}, {request.local_task_id}) "
+                + _last_nav_failure(context, request.sys_id)
             )
         observed_sys_ids.add(request.sys_id)
 

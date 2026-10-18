@@ -250,10 +250,10 @@ def main() -> int:
                     f"child had to be killed after {options.child_timeout}s")
     finally:
         # Teardown runs whatever happened, including a crash above, and only
-        # ever touches the aircraft this run launched.
-        _cleanup_sysids(chat, sysids)
+        # touches this run's aircraft; a failed reap raises and keeps the span.
         if swarm is not None and swarm.poll() is None:
             swarm.terminate()
+        _cleanup_sysids(chat, sysids)
         _release_span(held)
 
     print("=== results ===", flush=True)

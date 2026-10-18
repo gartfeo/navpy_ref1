@@ -5,9 +5,13 @@ Provides central enforcement of:
 1. Deduplication: Process each logical message once
 2. Time validity (TTL): Drop stale messages
 
+Message age is the local clock minus the sender's stamp. Peers must run
+synchronised clocks (one host clock in sim, the lockstep run epoch, GPS/chrony
+time sync on companions): an offset estimated from one-way stamps cannot tell
+clock skew from queue delay, and hid inbound delay (stale bids admitted).
+
 Components:
 - DedupCache: LRU cache with expiry for tracking seen message UIDs
-- ClockOffsetEstimator: Per-peer clock offset estimation using EMA
 - FilterMetrics: Counters for monitoring
 - MessageFilter: Main filter integrating all checks
 """
@@ -16,11 +20,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, TYPE_CHECKING
 
 from navpy.core.kernel import runtime_time as rt
-from navpy.core.link.message_admission_state import (
-    ClockOffsetEstimator,
-    DedupCache,
-    MsgUID,
-)
+from navpy.core.link.message_admission_state import DedupCache, MsgUID
 
 if TYPE_CHECKING:
     from navpy.core.link.msg_abc import MsgABC
@@ -87,8 +87,7 @@ class MessageFilter:
 
     Integrates:
     - DedupCache for duplicate detection
-    - ClockOffsetEstimator for time adjustment
-    - TTL checking using adjusted timestamps
+    - TTL checking against the sender's stamp (synchronised clocks)
     - Metrics collection
 
     Pipeline order:
@@ -100,13 +99,17 @@ class MessageFilter:
     Thread-safe.
     """
 
-    # Maximum allowed clock skew before rejecting (60 seconds into future)
-    MAX_FUTURE_MS = 60000
+    # A stamp further ahead of the local clock than this means the sender's
+    # clock is not synchronised; its age cannot be trusted, so it is dropped.
+    # Time sync keeps peers within milliseconds; 500 ms is far above that and
+    # far below the TTLs (seconds), so skew can extend freshness only slightly.
+    CLOCK_SYNC_TOLERANCE_MS = 500
+    # Repeat the unsynchronised-clock warning per peer at most this often.
+    UNSYNCED_WARN_INTERVAL_S = 60.0
 
     def __init__(
         self,
         dedup_cache: Optional[DedupCache] = None,
-        offset_estimator: Optional[ClockOffsetEstimator] = None,
         logger: Optional["ILogger"] = None,
         strict_ttl: bool = False,
         enable_ttl: bool = True,
@@ -117,12 +120,11 @@ class MessageFilter:
 
         Args:
             dedup_cache: Custom DedupCache, or None to create default
-            offset_estimator: Custom ClockOffsetEstimator, or None to create default
             logger: Logger for debug output
             strict_ttl: If True, drop messages without metadata. If False, pass them.
         """
         self._dedup = dedup_cache or DedupCache()
-        self._offset = offset_estimator or ClockOffsetEstimator()
+        self._unsynced_warned_s: Dict[int, float] = {}
         self._logger = logger
         self._strict_ttl = strict_ttl
         self._enable_ttl = enable_ttl
@@ -145,31 +147,15 @@ class MessageFilter:
 
     def should_process(self, msg: "MsgABC") -> bool:
         """Return whether a message passes metadata, dedup, and TTL checks."""
-        from navpy.core.link.types import MsgType
-
         self.metrics.increment_total()
 
         if not self._is_valid_meta(msg):
             return self._handle_invalid_metadata(msg)
 
-        meta = msg.meta
-        if msg.msg_type() == MsgType.SWARM_HEARTBEAT:
-            self._offset.update_offset(msg.sender_id, meta.time_ms)
-
         if self._drop_duplicate(msg):
             return False
 
-        # Skip TTL when no offset is known for this peer (pre-heartbeat)
-        if self._offset.get_offset(msg.sender_id) is None:
-            return self._pass()
-
-        # TTL check — skip for heartbeats (they ARE the clock reference)
-        is_heartbeat = msg.msg_type() == MsgType.SWARM_HEARTBEAT
-        if self._drop_for_ttl(
-            msg,
-            meta=meta,
-            is_heartbeat=is_heartbeat,
-        ):
+        if self._drop_for_ttl(msg, meta=msg.meta):
             return False
 
         return self._pass()
@@ -199,25 +185,13 @@ class MessageFilter:
             )
         return True
 
-    def _drop_for_ttl(
-        self,
-        msg: "MsgABC",
-        *,
-        meta: "MsgMeta",
-        is_heartbeat: bool,
-    ) -> bool:
-        if not self._enable_ttl or meta.ttl_ms <= 0 or is_heartbeat:
+    def _drop_for_ttl(self, msg: "MsgABC", *, meta: "MsgMeta") -> bool:
+        if not self._enable_ttl or meta.ttl_ms <= 0:
             return False
 
-        now_ms = int(rt.time() * 1000)
-        adjusted_time = self._offset.adjust_time(msg.sender_id, meta.time_ms)
-        age_ms = now_ms - adjusted_time
-        if age_ms < -self.MAX_FUTURE_MS:
-            if self._logger:
-                self._logger.warning(
-                    f"Dropping message from far future ({-age_ms}ms ahead): "
-                    f"{msg.msg_type().name} from {msg.sender_id}"
-                )
+        age_ms = int(rt.time() * 1000) - meta.time_ms
+        if age_ms < -self.CLOCK_SYNC_TOLERANCE_MS:
+            self._warn_unsynced(msg.sender_id, -age_ms)
             self.metrics.increment_expired()
             return True
 
@@ -231,6 +205,18 @@ class MessageFilter:
                 )
             return True
         return False
+
+    def _warn_unsynced(self, sender_id: int, ahead_ms: int) -> None:
+        now_s = rt.monotonic()
+        last_s = self._unsynced_warned_s.get(sender_id)
+        if last_s is not None and now_s - last_s < self.UNSYNCED_WARN_INTERVAL_S:
+            return
+        self._unsynced_warned_s[sender_id] = now_s
+        if self._logger:
+            self._logger.warning(
+                f"Peer {sender_id} clock is {ahead_ms}ms ahead: clocks not "
+                f"synchronised, dropping its timed messages"
+            )
 
     def _pass(self) -> bool:
         self.metrics.increment_passed()
@@ -255,11 +241,6 @@ class MessageFilter:
     def dedup_cache(self) -> DedupCache:
         """Access the dedup cache."""
         return self._dedup
-
-    @property
-    def offset_estimator(self) -> ClockOffsetEstimator:
-        """Access the offset estimator."""
-        return self._offset
 
     @property
     def enable_ttl(self) -> bool:

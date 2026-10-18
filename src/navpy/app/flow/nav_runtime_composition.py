@@ -116,6 +116,7 @@ def compose_nav_application(
         ),
         state.navigation_task,
         lambda: args.is_oneshot,
+        logger=logger,
     )
     transitions = NavigationTransitionHandler(
         TransitionPorts(
@@ -123,11 +124,13 @@ def compose_nav_application(
             restart_auto_mission=decision.recovery.restart_auto_mission,
             enter_recovery=decision.recovery.enter,
             start_task_actor=observation.network.start_task_actor,
+            is_oneshot=lambda: args.is_oneshot,
         ),
         state.confirm,
         nav_transition,
         confirmation.reset.reset,
         logger,
+        state.post_dock_climb,
     )
     detect_action = DetectAction(
         state.detections,
@@ -167,9 +170,11 @@ def compose_nav_application(
             NavState.NAV: final_approach_nav.act_nav,
             NavState.RESET: navigation.pause,
             NavState.RECOVERY: decision.recovery.act,
+            NavState.DOCKED: navigation.pause,
         },
-        lambda committed: observation.network.publish_approaching(
-            is_approaching(committed)
+        lambda committed: observation.network.publish_participation(
+            is_approaching(committed),
+            committed is NavState.DOCKED,
         ),
     )
     sensor = DetectionSensor(

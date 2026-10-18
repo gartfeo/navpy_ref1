@@ -72,13 +72,13 @@ const LARGE_AREA = [
 const LAUNCH_A = { lat: 40.31, lon: 44.47 };
 const LAUNCH_B = { lat: 40.29, lon: 44.44 };
 
-function renderPlanner(io, { unlocked = false } = {}) {
+function renderPlanner(io, { unlocked = false, settings = {} } = {}) {
   vi.useFakeTimers();
   const props = { settingsVersion: 0, plannerReady: true };
   const { result, rerender } = renderHook(({ settingsVersion, plannerReady }) => {
     const mission = useMissionState();
     const planning = usePlanningOrchestrator({
-      mission, settings: {}, handleSaveSettings: () => {}, settingsVersion, plannerReady,
+      mission, settings, handleSaveSettings: () => {}, settingsVersion, plannerReady,
     });
     return { mission, planning };
   }, { initialProps: props });
@@ -136,6 +136,22 @@ describe('plan file round trip', () => {
     for (const i of mission.simDockWps[0]) expect(i).toBeLessThan(mission.plan.zones[0].track.length);
   });
 
+  it('keeps the file\'s delivery hub assignment through the load\'s regeneration', () => {
+    const io = stubFileIo();
+    const hubs = [
+      { name: 'Near', type: 'building', lat: 40.3099864, lon: 44.4561868 },
+      { name: 'Far', type: 'other', lat: 40.35, lon: 44.50 },
+    ];
+    const planner = renderPlanner(io, { settings: { default_delivery_hubs: hubs } });
+    const { default_delivery_hubs: _h, ...file } = OWNER_FILE;
+    // Two hubs, three zones: auto-assign uses both, so [1, 1, 1] is not its result.
+    planner.load({ ...file, route_offset_m: 90, delivery_hub_assignments: [1, 1, 1] });
+    const { mission } = planner.result.current;
+    expect(mission.plan.zones).toHaveLength(3);
+    expect(mission.deliveryHubAssignments).toEqual([1, 1, 1]);
+    expect(mission.manualDeliveryHubEdit).toBe(true);
+  });
+
   it('applies the loaded spacing over an auto-spaced plan already on screen', () => {
     const io = stubFileIo();
     const planner = renderPlanner(io);
@@ -155,13 +171,16 @@ describe('plan file round trip', () => {
 
   it('saves what it loaded and a fresh session regenerates the same tracks', () => {
     const io = stubFileIo();
-    const first = renderPlanner(io);
+    // The saved assignment indexes the settings hubs, so a session that saves
+    // and reloads it has them (the stubbed settings save does not store any).
+    const settings = { default_delivery_hubs: [{ name: 'Hub', type: 'building', lat: 40.3099864, lon: 44.4561868 }] };
+    const first = renderPlanner(io, { settings });
     first.load({ ...OWNER_FILE, route_offset_m: 90 });
     const saved = first.save();
     expect(saved).toMatchObject({ route_offset_m: 90, uav_count: 3, partition_angle_deg: null });
     const tracks = first.result.current.mission.plan.zones.map((z) => z.track);
 
-    const second = renderPlanner(io);
+    const second = renderPlanner(io, { settings });
     second.load(saved);
     const { mission } = second.result.current;
     expect(mission.plan.zones.map((z) => z.track)).toEqual(tracks);
