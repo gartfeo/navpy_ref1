@@ -838,3 +838,17 @@
   editing. To commit only my change, build it from `git show HEAD:<file>`, stage it with
   `git hash-object -w --path` and `git update-index --cacheinfo`, then apply the same edit to the
   working copy. With autocrlf=true the blob is LF and the working copy CRLF.
+
+## Deterministic dev sim step 2: seeded SITL noise and wind (2026-10-18)
+- Every firmware commit moves the lockstep digest, even with every model off: the boot line
+  `Init ArduPlane V4.6.3 (<git hash>)` is frame 1's serial0 egress. Prove a firmware patch inert
+  by comparing journals record by record with a run on main (old firmware): only frame 1 may differ.
+- A hook blocks the Edit tool on `\\wsl.localhost\...` paths. Copy the file out with `wsl cp`,
+  edit the copy, copy it back, `chmod 644`, and check `git diff` in WSL (no CR, no mode change).
+- In Git Bash, `wsl.exe -e bash ~/x.sh` expands `~` to the Windows home. Use
+  `wsl.exe -e bash -c 'bash ~/x.sh'`.
+- Two mutations survived because the tests could not tell them apart: an off draw carried no
+  values, and the tap test fed the same bytes on both ports. Give each input distinct values.
+- A new realism model can fail the mission on some seeds; that is a product finding, not a model
+  bug. Separate the causes with seeds that turn one model off (here wind off, light wind, strong
+  wind) before blaming either side.

@@ -9,7 +9,7 @@ Owner, later the same day: avoid two execution routes; one deterministic run for
 
 So lockstep (`deterministic_demo_eval.md`, `lockstep_fleet.md`, `lockstep_contracts.md`) becomes the only way anything simulated runs: development, evals and the simulated demo. Wall time is left for real hardware only, with the same product code on the wall clock (the `RuntimeTime` port, `runtime_time.py`). Two properties must hold together:
 - **Realistic:** the timing, ordering, loss and noise effects that cause bugs in wall mode, and on hardware, also happen in lockstep.
-- **Repeatable:** the same code, manifest and seed give the same digest, as the 5-run matrix proves (`dd58131e…` since step 1).
+- **Repeatable:** the same code, manifest and seed give the same digest, as the 5-run matrix proves (`c184d961…` with every model off since step 2; section 6).
 
 The way to get both is the one established deterministic simulation testing uses: every source of chaos is a model that draws from the run seed, in sim time.
 
@@ -69,10 +69,10 @@ A **profile** (`src/navpy/sim/lockstep/sim_profiles.json`, chosen with `--sim-pr
 | Thread order | baton runnable queue: seeded order instead of FIFO among threads runnable in the same tick | on in half the seeds | FDB, Antithesis (scheduling is varied) |
 | Reader service budget | lockstep reader: decode at most B packets per tick and yield per batch of b, the rest carry over to the next tick | off in `hw`; `stress` B 20-200, b 1-16 | wall reader handled 400-540 of 3000 pkt/s (`reader_batch.md:5-14`) |
 | Input versus timeout at the same tick | participant loop: per seed, let due timers fire before that tick's inputs | on in a quarter of the seeds | the wall race behind a just-late reply |
-| Wind and turbulence | SITL parameters `SIM_WIND_SPD`, `_DIR`, `_TURB`, `_T` per run | speed 0-8 m/s, any direction, turbulence 0-2 | 8 m/s used in tests (`test_vision_static_point_mass.py:47`); no real-flight data |
-| Sensor noise | SITL `srandom(seed)` (firmware patch, step 2) plus the default `SIM_*_RND`; optional `SIM_GPS_NOISE` 0-1 m | default ArduPlane values | `SITL.cpp`; the patch is new |
+| Wind and turbulence | SITL parameters `SIM_WIND_SPD`, `_DIR` (from), `_TURB` per run, one sky for the fleet, in every SITL's `defaults.parm` (`sitl_models.py`); `SIM_WIND_T` stays the default (full speed from 60 m up, square-root law below) | speed 0-8 m/s, any direction, turbulence 0-2 m/s; on in half the seeds | 8 m/s used in tests (`test_vision_static_point_mass.py:47`); no real-flight data |
+| Sensor noise | SITL `srandom(seed)` (firmware patch, step 2), one seed per SITL from the run seed and sysid, plus the default `SIM_*_RND`; `SIM_GPS_NOISE` 0-1 m (a slow sine on GPS altitude, not random) | default ArduPlane levels; always on, since off only replays the firmware's one fixed sequence | `SITL.cpp`; the patch is new |
 
-The **`quiet` profile** is `hw` without loss, outages or faults; it is the one calibrated against quiet wall runs (section 4). The **`stress` profile** widens every range (freezes 5-12 ticks, radio loss up to 30%, the CPU budget on, one SITL's link held back to mimic the 6.7x case). The fleet clock stays one clock: the barrier needs frame k from every SITL with the same `source_us` (`coordinator_frames.py:92-97`). So "a slow SITL" is modeled as its serial bytes, both ways, being held d ticks at the queue seams, not as a vehicle clock that lags. It is the profile used to reach 10x artifacts.
+The **`quiet` profile** is `hw` without loss, outages or faults; it is the one calibrated against quiet wall runs (section 4). The **`stress` profile** widens every range except wind and noise, which are no 10x artifacts and keep the `hw` ranges (freezes 5-12 ticks, radio loss up to 30%, the CPU budget on, one SITL's link held back to mimic the 6.7x case). The fleet clock stays one clock: the barrier needs frame k from every SITL with the same `source_us` (`coordinator_frames.py:92-97`). So "a slow SITL" is modeled as its serial bytes, both ways, being held d ticks at the queue seams, not as a vehicle clock that lags. It is the profile used to reach 10x artifacts.
 
 **Faults** are scheduled events in the same profile, drawn per seed, and healed before the mission's last phase (liveness):
 - link drop: one link at 100% loss for 1-10 s;
@@ -80,7 +80,7 @@ The **`quiet` profile** is `hw` without loss, outages or faults; it is the one c
 - NavPy restart: the coordinator stops a participant and respawns it with `generation + 1`, which `REGISTER` already carries (`lockstep_contracts.md`, Ownership);
 - radio partition: one UAV hears no peer for 2-20 s.
 
-The firmware RNG patch: an env var `NAVPY_STEP_RNG_SEED`, set per instance from the run seed and sysid, and `srandom(seed)`/`srand(seed)` once in SITL start, before any sensor draw; also re-seed `get_random16`. An env var, not a `SIM_` parameter, because parameters load after the first draws and would persist in `eeprom.bin`. It is a firmware branch change and a new `lockstep_firmware.lock.json`.
+The firmware RNG patch: an env var `NAVPY_STEP_RNG_SEED`, set per instance from the run seed and sysid, and `srandom(seed)`/`srand(seed)` once in SITL start, before any sensor draw; also re-seed `get_random16`. An env var, not a `SIM_` parameter, because parameters load after the first draws and would persist in `eeprom.bin`. It is a firmware branch change and a new `lockstep_firmware.lock.json`. Built in step 2 as `95d96adbde` on `2dbd7e38dd`: `HAL_SITL::run` calls `NavPyStep::seed_random()` first; the value must be decimal 1..2^32-1 and is refused outside serial-step mode; unset changes nothing. Each SITL's seed is `1 + floor(r * (2^32-1))`, with `r` from the `sensor_noise` stream `sitl.<sysid>`; the seeds and the profile's SITL parameters are in `input_manifest.json` (`sitl.rng_seeds`, `sitl.profile_parameters`).
 
 ## 3. Reproducing a wall bug in lockstep
 Options:
@@ -123,6 +123,8 @@ The demo and daily development use the same lockstep run, watched and driven fro
 
 ## 6. Steps
 Each step is small and has its proof. Every step keeps the digest with all models off (`dd58131e…`, or a documented re-baseline).
+
+Re-baselines (seed 1, profile `none`): todo 74 (`feb2b19`, the only code commit after step 1) moved `dd58131e…` to `246c1d81…` (measured on main `77abb63`). Step 2 moves it to `c184d961…`: the firmware prints its git hash in the boot line (`Init ArduPlane V4.6.3 (95d96adb)`), which is frame 1's serial0 egress. A `none` run on main `77abb63` (old firmware) and on the step-2 branch differ in that one journal record only (frame 1's hash; 8790 records), and in no artifact besides `input_manifest.json` and the journal. Every firmware commit moves it this way.
 
 | Step | Change | Proof |
 |---|---|---|
