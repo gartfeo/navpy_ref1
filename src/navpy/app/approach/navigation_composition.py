@@ -28,6 +28,7 @@ from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
     NavigationSourceDispatchSlot,
 )
+from navpy.core.approach.navigation_dock_outcome import FinalApproachDockOutcomeService
 from navpy.core.approach.navigation_final_approach import FinalApproachNavigationService
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
 from navpy.core.approach.geo.legacy_destination_resolver import (
@@ -64,6 +65,7 @@ class NavigationComposition:
     lifecycle: NavigationLifecycle
     mode_state: NavigationModeState
     final_approach: FinalApproachNavigationService
+    dock_outcome: FinalApproachDockOutcomeService
     legacy_pois: LegacyDestinationResolver
     vehicle_commands: NavigationVehicleCommands
     bind_source_dispatch: BindSourceDispatch
@@ -142,6 +144,7 @@ def _vision_runtime_factory(
         final_approach = NavigationFinalApproachCapabilities(
             status=built.runtime.session,
             confirmation=built.confirmation,
+            dock_outcome=built.dock_outcome,
         )
         return RuntimeBuildResult(runtime=built.runtime, final_approach=final_approach)
 
@@ -242,6 +245,7 @@ def compose_navigation(
         lifecycle=lifecycle,
         mode_state=mode_state,
         final_approach=FinalApproachNavigationService(mode_state),
+        dock_outcome=FinalApproachDockOutcomeService(mode_state),
         legacy_pois=poi_resolver,
         vehicle_commands=NavigationVehicleCommands(vehicle),
         bind_source_dispatch=source_dispatch.bind,

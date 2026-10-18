@@ -16,8 +16,9 @@ from navpy.core.perception.detection.poi_identity import get_poi_task_id
 @dataclass(frozen=True)
 class FinalApproachCommandPorts:
     nav: Callable[[Optional[DetectedObject]], bool]
-    # False when the episode already docked: the failure is ignored.
-    mark_failed: Callable[[], Optional[bool]]
+    # Takes the NAV_FAIL reason; False when the episode already docked: the
+    # failure is ignored.
+    mark_failed: Callable[[str], Optional[bool]]
     logger: ILogger
 
 
@@ -89,6 +90,7 @@ class FinalApproachCommandDispatch:
     def mark_no_detection(self, active_poi: DetectedObject) -> None:
         # Losing the dock is never success: only contact completes.
         self._mark_failed_and_log(
+            "no_detection",
             lambda: (
                 f"NAV_FAIL: no_detection "
                 f"task={get_poi_task_id(active_poi)} "
@@ -99,11 +101,13 @@ class FinalApproachCommandDispatch:
     def mark_missed_dock(self, poi: DetectedObject | None) -> None:
         """The armed dock went aft: the approach missed it."""
         self._mark_failed_and_log(
+            "missed_dock",
             lambda: "NAV_FAIL: missed_dock " + self._poi_identity(poi)
         )
 
     def mark_navigation_rejected(self, poi: DetectedObject) -> None:
         self._mark_failed_and_log(
+            "navigation_rejected",
             lambda: (
                 f"NAV_FAIL: navigation_rejected "
                 f"task={get_poi_task_id(poi)} "
@@ -116,14 +120,19 @@ class FinalApproachCommandDispatch:
         poi: DetectedObject | None,
     ) -> None:
         self._mark_failed_and_log(
+            "source_command_stale",
             lambda: (
                 "NAV_FAIL: source_command_stale "
                 + self._poi_identity(poi)
             )
         )
 
-    def _mark_failed_and_log(self, message: Callable[[], str]) -> None:
-        if self._ports.mark_failed() is False:
+    def _mark_failed_and_log(
+        self,
+        reason: str,
+        message: Callable[[], str],
+    ) -> None:
+        if self._ports.mark_failed(reason) is False:
             return
         self._log(message)
 

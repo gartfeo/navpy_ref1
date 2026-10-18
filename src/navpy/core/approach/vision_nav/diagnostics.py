@@ -165,6 +165,11 @@ class NavigationFinalApproachDiagnostics:
         """NAV exit of an armed episode, with the ATTITUDE boot time then."""
         self._logger.log_event(LogEvent.DOCK_DISARMED, _episode_payload(identity, source_s))
 
+    def record_dock_failed(self, identity: DockContactIdentity, reason: str) -> None:
+        payload = _episode_payload(identity, None)
+        del payload["source_ts"]
+        self._logger.log_event(LogEvent.DOCK_FAILED, {**payload, "reason": reason})
+
     def record_docked(self, event: DockContactEvent) -> None:
         """Evidence row for a dock contact (the sim net stand-in)."""
         identity = event.identity

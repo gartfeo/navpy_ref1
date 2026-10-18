@@ -151,10 +151,14 @@ class NavigationFailureLatch:
 
     ``admit`` arbitrates with the final-approach episode latch (first latch
     wins): once the episode docked, a later NAV_FAIL is ignored, and an
-    admitted NAV_FAIL makes a later contact ignored.
+    admitted NAV_FAIL makes a later contact ignored. The reason names the
+    failure for the dock-failed report (missed_dock.md).
     """
 
-    def __init__(self, admit: Optional[Callable[[], bool]] = None) -> None:
+    def __init__(
+        self,
+        admit: Optional[Callable[[Optional[str]], bool]] = None,
+    ) -> None:
         self._lock = rt.Lock()
         self._failed = False
         self._admit = admit
@@ -164,9 +168,9 @@ class NavigationFailureLatch:
         with self._lock:
             return self._failed
 
-    def mark_failed(self) -> bool:
+    def mark_failed(self, reason: Optional[str] = None) -> bool:
         """Latch a failure; False when the episode already docked."""
-        if self._admit is not None and not self._admit():
+        if self._admit is not None and not self._admit(reason):
             return False
         with self._lock:
             self._failed = True

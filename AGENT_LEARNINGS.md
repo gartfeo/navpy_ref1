@@ -10,7 +10,8 @@
   that carries the pattern, so it kills its own shell (exit 15). Use `pgrep -af '[a]rduplane'`
   style patterns, or run the script through `bash -s` with a heredoc.
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
-  newlines twice. Edit such lines with the Edit tool and check with `ast.parse`.
+  newlines five times (three more in dev-sim step 1: a test, a scratch script and this
+  note). Insert or change code with the Edit tool, never a heredoc; check with `ast.parse`.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
   5501 + 10 x instance (AP_RCProtocol_UDP.cpp). Driving the "pilot" this way keeps Lua
   RC overrides behaving as on the aircraft; MAVLink RC overrides would compete with them.
@@ -324,6 +325,40 @@
   edits overlap before applying (4 pairs overlapped here), and keep the working copy's CRLF
   line endings (read and write with newline="").
 
+## Owner data against the Peron model (2026-10-18)
+
+- I told the user that mass, CG, battery, motor and elevon data were missing when most of it was
+  already on disk (model header, measurements folder). Search the private tools folder, the model
+  headers and the owner's ArduPilot checkout before saying owner data is missing.
+- A model header's "from CAD" label was not proof, and git history alone was not either. I called
+  e5830898fe's tensor (kg m2, with products) "the CAD tensor on record". But the owner's checkout
+  had uncommitted edits holding the other tensor (0.239/0.534/0.766 slug ft2, zero products, the
+  one every navpy model uses), and both versions' READMEs say "from CAD". Run git status and read
+  the working-tree file as well as git log --all and merge-base; two commits with one parent are
+  alternatives, not a replacement. Only the CAD tool's own output settles which numbers are real.
+- IMU vibration lines that stay at one frequency from cruise to full throttle are unlikely to be
+  motor rotation, and aliasing allows several rpm per line. Do not read rpm from the IMU without a line
+  that moves with power; ask for ESC telemetry or an rpm sensor instead.
+- Compare a static bench sheet with the model at the sheet's own current, not at the model's full
+  throttle: thrust per amp falls with current, so the full-throttle comparison exaggerated the gap
+  (20-37 % against 1-10 %).
+- I told the user that a 0 A reading at high throttle meant the motor had stopped. The pack voltage
+  had fallen 7-9 V at the same time; a motor switched off lets it rise (a jammed motor that is
+  still powered does not). With a range-limited current monitor (here the INA at 90 A), 0 A can
+  mean over-range. Before reading 0 A as no current, check
+  the voltage direction and the samples next to the zeros (22.4 A = a quarter of 89.4 A here).
+- I wrote that a 10 % light model has a (T-D)/m 1.11 times too large. But every force term the
+  model had fitted to logged accelerations (lift, high-angle drag, the motor law) assumed the same
+  7.5 kg, so force and mass cancel there. Before scaling a model for a mass error, trace which
+  terms were fitted from logged accelerations at the assumed mass and which came from elsewhere
+  (electrical power, CFD). The first kind cancels only where the fit matches and only if every
+  fitted flight had that mass; the second kind carries the error directly.
+- I described the log-30 event's 12-14 g normal load as part of the jolt. It was the flight's 10th
+  commanded pull-out, and the 9 earlier ones peaked at 11.2-12.5 g; the abnormal signs were the
+  x deceleration, the vibration and the current. Before calling a reading abnormal, compare it
+  with the same manoeuvre elsewhere in the log and check the commanded state (NavPitch, servo
+  outputs).
+
 ## Hardware-in-the-loop link work (2026-10-13)
 
 - From Git Bash, `wsl.exe bash -lc '...'` lost every `$variable` in the command. Paths under
@@ -492,7 +527,9 @@
   (distinct task ids hid a shared reassembler). Codex later found two more:
   an ACK test where the acceptance cancelled the timer, and a coalescing test
   without a repeated id. Next time, break the product rule, confirm the test
-  fails, then restore the file.
+  fails, then restore the file. Check that the mutation really breaks the rule:
+  in dev-sim step 1 a "shared key" mutation still gave each parameter its own
+  key and survived; the real one (one key) showed a missing test.
 - **Import-time locks stay on the wall runtime.** Class attributes made with
   rt.Lock() at import (MsgMetaProvider._lock, MsgRegistry._registry_lock)
   and module singletons (full_param_cache) are not rebound by a test's
@@ -775,3 +812,29 @@
   ids are 1..count), or the consumer silently discards it.
 - Untracked `.codex/agents/janitor.toml` / `live-tester.toml` in a worktree fail
   `test_gen_codex_agents.py` as STALE; check `git status` before blaming a change.
+
+## Missed dock ends like DOCKED (todo 74, 2026-10-18)
+- Making every FAILED end commands broke runtime tests that send a frame after a NAV_FAIL; those tests
+  cover the real build, which arms no episode. Gate a new terminal rule on the scope that needs it (here
+  an armed sim episode) instead of rewriting the old tests.
+- Evidence parsers: check the same-identity conflict before generic order checks, or tests see a
+  less specific message; require strictly rising episode numbers at every arm, whatever the outcome.
+- SOLID size guards fail late in the full suite; split a new concern into its own port (dock_outcome)
+  rather than growing a class past 15 methods.
+- A terminal outcome must be read before `navigation_reset`: reset_phase clears the episode latch. Take an
+  immutable snapshot in NAV cleanup, then decide and report after the exit succeeded.
+- The venv has no pytest-xdist; `-n auto` fails at once. Run the full suite serially in the background.
+- Tests that build a factory with `object.__new__` break when the code uses a new attribute (here the
+  logger); set it in the test helper.
+
+## Whole-chain HITL plan (2026-10-18)
+- Codex turned a short firmware hash (9a8c7d66b2) into a full hash that does not exist and called
+  it the reviewers' pin. Check every commit hash in a plan with `git cat-file -t` in the repo it
+  names (WSL for the firmware) before it goes into a doc, and record the binary that runs (its
+  embedded version string), not the branch tip.
+- Codex cannot run the Claude CLI from its sandbox (connection refused), so its "review incomplete"
+  note was about its own attempt. Start cross-reviews from the orchestrating session.
+- Another chat had commits and uncommitted edits in this worktree's files. Run `git status` before
+  editing. To commit only my change, build it from `git show HEAD:<file>`, stage it with
+  `git hash-object -w --path` and `git update-index --cacheinfo`, then apply the same edit to the
+  working copy. With autocrlf=true the blob is LF and the working copy CRLF.

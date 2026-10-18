@@ -133,7 +133,8 @@ def test_stale_docked_episode_is_rejected(tmp_path: Path) -> None:
         + _armed_row(episode=2) + _issued(start=4)
         + _docked_row(episode=2, aircraft_ts=1.45) + SNAP_ROW
     )
-    with pytest.raises(ValueError, match="stale DOCKED episode"):
+    # The repeated DOCK_ARMED is now rejected before its DOCKED row (missed_dock.md).
+    with pytest.raises(ValueError, match="DOCK_ARMED episode 2 repeats or regresses"):
         _parse(_write(tmp_path, text))
 
 
@@ -253,3 +254,116 @@ def test_an_armed_row_inside_an_open_episode_is_rejected(tmp_path: Path) -> None
     text = _armed_row() + _issued() + _armed_row(episode=2) + SNAP_ROW
     with pytest.raises(ValueError, match="DOCK_ARMED inside an open"):
         _parse(_write(tmp_path, text))
+
+
+# DOCK_FAILED (missed_dock.md): matched to its armed episode by identity
+
+
+def _failed_row(
+    wall: str = "12:00:00.500",
+    *,
+    vehicle: int = VEHICLE,
+    task: int = 1,
+    dock: int = 11,
+    episode: int = 1,
+    reason: str = "no_detection",
+) -> str:
+    logger = _EventLogger()
+    diagnostics = NavigationFinalApproachDiagnostics(logger, reader=None)  # type: ignore[arg-type]
+    diagnostics.record_dock_failed(DockContactIdentity(vehicle, task, dock, episode), reason)
+    return _formatted(wall, logger, LogEvent.DOCK_FAILED)
+
+
+def _episodes(path: Path) -> list:
+    return evidence.parse_final_approach_episodes(path, vehicle_id=VEHICLE)
+
+
+def test_a_failed_row_after_snap_closes_an_undocked_episode(tmp_path: Path) -> None:
+    [episode] = _episodes(_write(tmp_path, _armed_row() + _issued() + SNAP_ROW + _failed_row()))
+    assert not episode.docked
+
+
+def test_a_failure_before_any_command_is_kept(tmp_path: Path) -> None:
+    """GUIDED accepted, then lost at once: no command row, still one failure."""
+    for text in (_armed_row() + SNAP_ROW + _failed_row(), _armed_row() + _failed_row()):
+        episodes, failures = evidence.parse_final_approach_outcomes(
+            _write(tmp_path, text), vehicle_id=VEHICLE,
+        )
+        assert episodes == []
+        assert [(item.episode, item.reason) for item in failures] == [(1, "no_detection")]
+
+
+def test_a_failed_attempt_after_a_docked_one_is_not_hidden(tmp_path: Path) -> None:
+    text = (
+        _armed_row() + _issued() + _docked_row() + SNAP_ROW
+        + _armed_row(episode=2) + _failed_row(episode=2)
+    )
+    episodes, failures = evidence.parse_final_approach_outcomes(
+        _write(tmp_path, text), vehicle_id=VEHICLE,
+    )
+    assert [episode.docked for episode in episodes] == [True]
+    assert [item.episode for item in failures] == [2]
+
+
+def test_a_new_episode_may_command_after_a_failed_one(tmp_path: Path) -> None:
+    text = (
+        _armed_row() + _issued() + SNAP_ROW + _failed_row()
+        + _armed_row(episode=2) + _issued(start=4) + SNAP_ROW
+    )
+    assert len(_episodes(_write(tmp_path, text))) == 2
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    (
+        (_armed_row() + _issued() + SNAP_ROW + _failed_row() + _failed_row(),
+         "duplicate DOCK_FAILED"),
+        (_issued() + SNAP_ROW + _failed_row(), "without a DOCK_ARMED row"),
+        (_armed_row() + _issued() + SNAP_ROW + _failed_row(episode=2),
+         "is not the armed episode"),
+        (_armed_row() + _issued() + SNAP_ROW + _failed_row(dock=12),
+         "is not the armed episode"),
+        (_armed_row(vehicle=8) + _issued() + SNAP_ROW + _failed_row(vehicle=8),
+         "not this UAV"),
+        (_armed_row() + _issued() + _docked_row() + SNAP_ROW + _failed_row(),
+         "DOCK_FAILED and DOCKED"),
+        (_armed_row() + _issued() + SNAP_ROW + _failed_row() + _issued(count=1, start=7),
+         "after DOCK_FAILED"),
+        (_armed_row() + _failed_row(reason=""), "no reason"),
+        (_armed_row() + _issued() + _failed_row() + _docked_row() + SNAP_ROW,
+         "DOCKED appeared after DOCK_FAILED"),
+        (_armed_row() + _failed_row() + _armed_row() + _issued() + SNAP_ROW,
+         "repeats or regresses"),
+        (_armed_row(episode=5) + _failed_row(episode=5) + _armed_row(episode=2)
+         + _failed_row(episode=2), "repeats or regresses"),
+        (_armed_row(episode=3) + _failed_row(episode=3) + _armed_row(episode=3, dock=12)
+         + _issued() + SNAP_ROW, "repeats or regresses"),
+        (_armed_row(episode=5) + _issued() + _docked_row(episode=5) + SNAP_ROW
+         + _armed_row(episode=2) + _failed_row(episode=2), "repeats or regresses"),
+        (_armed_row(episode=5) + SNAP_ROW + _armed_row(episode=2) + _failed_row(episode=2),
+         "repeats or regresses"),  # an arm with no outcome still sets the watermark
+        (_armed_row(episode=2) + SNAP_ROW + _armed_row(episode=2) + _failed_row(episode=2),
+         "repeats or regresses"),
+        (_armed_row(episode=2) + _armed_row(episode=2) + _failed_row(episode=2),
+         "repeats or regresses"),
+        (_armed_row(episode=3) + _failed_row(episode=3)
+         + _armed_row(episode=2) + _issued() + _docked_row(episode=2)
+         + SNAP_ROW, "repeats or regresses"),  # an episode number regressed
+    ),
+)
+def test_an_invalid_failed_row_is_rejected(tmp_path: Path, text: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        _episodes(_write(tmp_path, text))
+
+
+def test_the_delivery_gate_reports_a_failed_dock_with_its_reason(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from scripts.eval_delivery_gates import docking_errors
+
+    rows = _armed_row(vehicle=2, dock=0) + _failed_row(vehicle=2, dock=0, reason="missed_dock")
+    _, failed = evidence.parse_final_approach_outcomes(_write(tmp_path, rows), vehicle_id=2)
+    errors = docking_errors(2, "", [], [SimpleNamespace(name="kept")], 0, None, failed)
+
+    assert errors[0] == "UAV 2 dock failed at kept: missed_dock"
+    assert "has 0 final-approach episodes" in errors[1]

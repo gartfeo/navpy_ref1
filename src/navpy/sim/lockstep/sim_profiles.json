@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "profiles": {
+    "none": {"models": {}},
+    "quiet": {"models": {}},
+    "hw": {"models": {}},
+    "stress": {"models": {}}
+  }
+}

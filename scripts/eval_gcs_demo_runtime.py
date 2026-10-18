@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from navpy.sim.world.dock_contact_sensor import SIM_DOCK_NET_RADIUS_ENV, SIM_DOCK_NET_RADIUS_M
 from navpy.sim.world.fleet_dock_world import FLEET_DOCKS_ENV
 from scripts.eval_gcs_demo_audit import validate_approval_records
 from scripts.eval_gcs_demo_config import build_environment, build_settings
@@ -32,9 +33,11 @@ def execute_live_run(
     scenario: DemoScenario,
     navigation_speedup: float = 0.0,
     sim_docks: Path | None = None,
+    sim_dock_net_radius_m: float | None = None,
 ) -> MissionArtifacts:
     """Fly one scenario; *sim_docks* names the run's shared dock world file
-    (``NAVPY_SIM_DOCKS``), else each NavPy builds docks from its waypoints."""
+    (``NAVPY_SIM_DOCKS``), else each NavPy builds docks from its waypoints.
+    *sim_dock_net_radius_m* overrides the sim net radius (0 forces a miss)."""
     timeout = finite_number("live-run timeout", timeout_s)
     if timeout <= 0.0:
         raise ValueError("live-run timeout must be positive")
@@ -63,12 +66,15 @@ def execute_live_run(
     )
     if sim_docks is not None:
         env[FLEET_DOCKS_ENV] = str(sim_docks.resolve())
+    options = {"confirmation_delay_s": delay, "navigation_speedup": speedup, "timeout_s": timeout}
+    if sim_dock_net_radius_m is not None:
+        radius = finite_number("sim dock net radius", sim_dock_net_radius_m)
+        if not 0.0 <= radius <= SIM_DOCK_NET_RADIUS_M:
+            raise ValueError(f"sim dock net radius must be in [0, {SIM_DOCK_NET_RADIUS_M:g}] m")
+        env[SIM_DOCK_NET_RADIUS_ENV] = repr(radius)
+        options["sim_dock_net_radius_m"] = radius
     sitl_root, sitl_inputs, sitl_root_host = prepare_sitl_root(run_dir)
-    write_input_manifest(
-        run_dir, env, sitl_inputs, sitl_root_host,
-        {"confirmation_delay_s": delay, "navigation_speedup": speedup, "timeout_s": timeout},
-        scenario,
-    )
+    write_input_manifest(run_dir, env, sitl_inputs, sitl_root_host, options, scenario)
     # One launch: the backend writes its complete log into the run.
     mission = with_owned_stack(
         env,

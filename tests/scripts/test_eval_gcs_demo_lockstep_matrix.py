@@ -1,6 +1,7 @@
 """Step 11's matrix gate: every run passes, digests and artifacts are equal."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -133,6 +134,37 @@ def test_a_failed_burner_start_stops_the_burners_already_running(tmp_path, monke
     with pytest.raises(OSError):
         matrix.run_cell(matrix.Cell("cpuload", 0, True), tmp_path)
     assert log == ["kill", "kill", "wait", "wait"]
+
+
+def test_every_cell_runs_the_matrix_sim_profile(tmp_path, monkeypatch):
+    commands = []
+
+    def run(command, **_kwargs):
+        commands.append(command)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(matrix.subprocess, "run", run)
+    matrix.run_cell(matrix.Cell("plain-a", 0, False), tmp_path)
+    matrix.run_cell(matrix.Cell("plain-b", 0, False), tmp_path, "none")
+    profiles = [command[command.index("--sim-profile") + 1] for command in commands]
+    assert profiles == ["hw", "none"]
+
+
+def test_the_matrix_runs_every_cell_with_its_sim_profile_and_records_it(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(matrix, "run_cell", lambda _cell, _base, profile: seen.append(profile) or 1)
+    for extra, name, profile in (([], "a", "hw"), (["--sim-profile", "stress"], "b", "stress")):
+        matrix.main(["--run-dir", str(tmp_path / name), *extra])
+        recorded = json.loads((tmp_path / name / matrix.MATRIX_FILE).read_text(encoding="utf-8"))
+        assert recorded["sim_profile"] == profile
+    assert seen == ["hw"] * len(matrix.CELLS) + ["stress"] * len(matrix.CELLS)
+
+
+def test_the_matrix_refuses_an_unknown_sim_profile_before_any_cell(tmp_path, monkeypatch):
+    monkeypatch.setattr(matrix, "run_cell", lambda *a: pytest.fail("ran a cell"))
+    with pytest.raises(SystemExit):
+        matrix.main(["--run-dir", str(tmp_path / "m"), "--sim-profile", "bogus"])
+    assert not (tmp_path / "m").exists()
 
 
 def test_the_declared_matrix_is_five_seed_one_runs_with_delays_and_load():

@@ -914,6 +914,52 @@ def test_nav_fail_then_contact_is_ignored():
     assert runtime.take_work() is None
 
 
+def test_an_armed_nav_fail_retires_the_held_command_and_suppresses_later_frames():
+    """missed_dock.md: an armed episode's NAV_FAIL ends commands at once."""
+    aircraft_now_s = [1.0]
+    runtime, actuator, _, _ = _armed_runtime()
+    assert runtime.nav(_advancing_poi(_frame(1.0), aircraft_now_s))
+    assert _execute_one(runtime) is not None
+    queued = _frame(1.05)
+    assert runtime.nav(_advancing_poi(queued, aircraft_now_s))  # queued, not taken
+
+    assert runtime.session.latch_failure("no_detection") is True
+
+    aircraft_now_s[0] = 1.0 + 2.0 * ATTITUDE_REFRESH_S
+    assert runtime.take_work() is None  # neither the queued frame nor a held refresh
+    assert runtime.nav(_advancing_poi(_frame(1.1), aircraft_now_s))
+    assert _execute_one(runtime) is None  # a frame admitted after the NAV_FAIL
+    assert len(actuator.calls) == 1
+
+
+def test_an_armed_worker_failure_ends_the_episode_until_reset_phase():
+    runtime, actuator, _, _ = _armed_runtime()
+    stale = RichPoi(
+        _frame(1.0),
+        timing=_DiagnosticTiming(
+            detection_now_s=lambda: 1.0 + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
+        ),
+    )
+    assert runtime.nav(stale)
+    assert _execute_one(runtime) is None
+    runtime.nav(RichPoi(_frame(2.0)))
+    assert _execute_one(runtime) is None
+    assert actuator.calls == []
+
+    runtime.reset_phase()  # the next episode (unarmed here) flies again
+    runtime.nav(RichPoi(_frame(3.0)))
+    assert _execute_one(runtime) is not None
+
+
+def test_an_unarmed_nav_fail_keeps_todays_flow_until_reset():
+    """The real build arms no episode: a NAV_FAIL only wins the contact race."""
+    runtime, actuator, _, _ = _runtime()
+    assert runtime.session.latch_failure("no_detection") is True
+    runtime.nav(RichPoi(_frame(1.0)))
+    assert _execute_one(runtime) is not None
+    assert len(actuator.calls) == 1
+
+
 def test_contact_source_reset_then_late_frame_issues_zero_commands():
     """Race: contact, a source reset, then a late frame: still no command."""
     aircraft_now_s = [1.0]
