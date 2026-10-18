@@ -812,6 +812,12 @@
   ids are 1..count), or the consumer silently discards it.
 - Untracked `.codex/agents/janitor.toml` / `live-tester.toml` in a worktree fail
   `test_gen_codex_agents.py` as STALE; check `git status` before blaming a change.
+- v9 (FPV in the panel): I started coding a styling fix plus a wording change before the owner
+  had agreed the layout, and the owner stopped it ("before agree with me design and show"). For
+  UI feedback, show a side-by-side mock of the options first, then code the chosen one.
+- Cesium 1.138 ignores the Viewer option `imageryProvider` (removed in 1.107); use `baseLayer`.
+  A throw in a `scene.preRender` listener stops that widget's render loop with no `renderError`
+  (`Scene.js:4440` raises it outside the error wrapper), so catch inside the listener.
 
 ## Missed dock ends like DOCKED (todo 74, 2026-10-18)
 - Making every FAILED end commands broke runtime tests that send a frame after a NAV_FAIL; those tests

@@ -1,6 +1,6 @@
 # GCS video streams per vehicle
 
-Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson). Implementation in progress.
+Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson) and shipped as PR #18. v9 draft (2026-10-18, design C: FPV in the bottom-left panel while the map keeps chasing) awaits owner approval; its open questions are at the end.
 
 Owner request (2026-10-16): "we should be able to see video streams in our GCS if
 those are available."
@@ -176,8 +176,9 @@ Purpose of the two views:
   authority. It shows attitude over terrain, not what the camera or detector
   sees, and never confirms anything.
 
-So the operator sees **map + camera panel** (default) or **FPV** (main map
-switches to first person, camera panel hidden and its reader closed), never both.
+So the map always stays and chases (v9), and the bottom-left panel shows
+**camera video** (default) or the **FPV** nose view (camera reader closed),
+never both. Only RC still turns the main map first-person.
 One rule: **the follow selector moves the map (and FPV); badges and View camera
 move the video** (owner decision D1 below).
 
@@ -187,7 +188,7 @@ move the video** (owner decision D1 below).
 |---|---|---|
 | UAV badges in the panel header (one per UAV with a stream) | yes | watching UAV 1's approach, check UAV 2's camera and tap 1 to come back, without moving the map. Selected badge: outline + fill + the full "UAV n" label, never colour alone. A badge never changes follow or RC |
 | **View camera** on each task confirm card | yes | a card arrives: tap, compare the live scene with the still, then Approve/Deny on the card. It opens that UAV's live stream, so the operator does not watch the wrong UAV; it does not prove the camera still shows the same dock (it may have moved since the still). Neutral button beside the still, away from Approve/Deny; "Viewing" when the panel already shows that UAV; on tap the old picture clears and "connecting · UAV n" shows. The countdown keeps running (the card says so); the tap never approves, denies or pauses. Pending cards only; shown only when that UAV has a stream and RC is off |
-| **FPV** toggle (text label, clear on state, unlike the RC button) beside the follow selector | yes | SITL demo or a dead feed: a vehicle view without RC. Shows the followed UAV; from Free it takes the panel's UAV if eligible, else the first eligible UAV, and the follow selector then names it |
+| **FPV** toggle (text label, clear on state, unlike the RC button) beside the follow selector | yes | SITL demo or a dead feed: a vehicle view without RC, in the bottom-left panel while the map chases the same UAV (v9). Shows the followed UAV; from Free it takes the panel's UAV if eligible, else the first eligible UAV, and the follow selector then names it |
 | Live state: LIVE (frames arriving), connecting, stale shown on the picture as text ("NO FRAMES 7 s"), failed, **Reconnect video** | yes | before relying on the picture at confirm or approach: a frozen frame looks like a calm scene. LIVE means frames arrive, not low latency |
 | Expand / restore, plus collapse to header for a healthy feed (labelled buttons) | yes | expand to judge detail at confirmation; collapse to give the map back without entering FPV. No tap-anywhere toggle |
 | "Camera video lost" vs "Vehicle link lost" | yes | camera only: keep monitoring; link: check the vehicle, consider Cancel task or E-STOP. Both shown when both happen, link first. Video loss says nothing about NavPy or the detector; neither changes mission state |
@@ -212,12 +213,16 @@ Reconnect video, Dismiss). Narrow map pane (under 480 px): badges show the
 number, the full "UAV n" stays in the title, and badges that do not fit move
 into one menu button. Expanded takes the pane width minus 12 px margins and stops below the
 top-right controls. In monitor mode confirm cards and E-STOP are in the sidebar,
-not over the map, so the panel cannot cover them.
+not over the map, so the panel cannot cover them. Open conflict (v9 question 4):
+the owner asked for the follow selector at its pre-PR #18 size and the FPV
+toggle at the bar's height, which makes the top-right bar 32 px, below this
+44 px rule; the panel's 44 px "FPV off" is then the touch-size exit from FPV.
 
 #### Camera panel
 
 - Bottom-left of the map, monitor view only. Shown while any UAV advertises a
-  stream or a lost feed is still on screen; hidden in FPV and in manual control.
+  stream or a lost feed is still on screen; replaced by the FPV panel in FPV,
+  hidden in manual control.
   The GCS learns of streams only from the camera protocol: a camera that is
   expected but never advertises is not shown here; preflight reports it
   (`architecture_todo.md` 70).
@@ -242,47 +247,108 @@ not over the map, so the panel cannot cover them.
   shim). `useWhepStream` and the vendored reader stay; `src/gcs/AGENTS.md` and
   the Jetson config notes are updated.
 
-#### FPV
+#### FPV (v9: in the panel, the map keeps chasing)
 
-- The FPV toggle puts the main map camera in the followed UAV's first-person
-  view through today's `useFollowUav` FPV path (body attitude), for any eligible
-  UAV, with or without video. The camera panel hides and its reader closes.
-  Pending confirm cards and alerts stay in the sidebar, which FPV does not hide.
-- Eligible = the existing backend `link_ok` flag (used by the bottom bar and
-  preflight) plus finite position and attitude in the snapshot; no new
-  freshness threshold. Checked on every entry (toggle, changing the followed UAV
-  while in FPV); an ineligible target leaves the current view as it is, with a
-  short notice naming the UAV; a follow change made in FPV is reverted, so the
-  selector always names the UAV FPV shows. No eligible UAV: the toggle stays off with a notice.
-- Always labelled: a fixed top-centre tag **SYNTHETIC · UAV n · nose view, not
-  camera** and a frame in a colour not used for warnings; the same tag in RC's
-  FPV. In FPV the camera holds the last valid pose and resumes on the next valid
-  one; while held, a full-width banner reads **View held · vehicle link lost**
-  (when `link_ok` is false) or **View held · pose unavailable** (linked but
-  position or attitude not finite), with the time held in seconds.
-- View mode is separate from control mode: FPV never enables RC; RC keeps
-  today's behavior (body FPV of the RC target, panel hidden).
-- Map camera ownership: one saved map camera, taken when the view first leaves
-  the free map (chase, FPV on, or RC entry), restored on return to Free only if
-  FPV or RC took the camera meanwhile (a plain chase keeps today's auto-centre);
-  switching the FPV UAV does not overwrite it. Camera persistence (`useCesiumViewer.js` stores camera moves) is
-  suspended while FPV or RC owns the camera, so a first-person pose is never
-  the startup view. The viewer runs in request-render mode, so FPV requests a
-  render per pose update.
+Owner, 2026-10-18: "FPV in the bottom-left panel while the map keeps chasing."
+v8 put FPV on the main map; v9 moves it into the camera panel's place.
+
+- Slot: the bottom-left slot shows camera video or FPV, never both. FPV on
+  replaces the camera panel and closes its reader (one reader per browser); the
+  video selection and any collapsed or lost state are kept and come back on FPV
+  off, docked, with a fresh connection. With no streams (SITL default) FPV on
+  shows the FPV panel and FPV off leaves nothing there. A stream appearing,
+  failing or going away during FPV never switches the slot. The main map keeps
+  chasing the followed UAV and never goes first-person outside RC. Reset view
+  stays hidden in FPV, as in v8: the chase re-applies its framing on every
+  frame (`useFollowUav.js:141-147`), so a fit would be overridden.
+- Which UAV: as v8. FPV shows the followed UAV, so map and panel always show
+  the same UAV and the follow selector names it. Eligibility (`link_ok` plus
+  finite position and attitude, checked on every entry), the notice for an
+  ineligible target, the reverted follow change and D1 are unchanged. The FPV
+  panel has no badges.
+- Rendering: a second public `CesiumWidget` filling the panel picture, created
+  on FPV on, destroyed on FPV off (at most one, also under React StrictMode).
+  One Scene has one camera and CesiumJS has no public multi-viewport API, so a
+  second widget is Cesium's own pattern (Sandcastle "Multiple Synced Views");
+  the private `SharedContext`, `View` and `Framebuffer` are not used. Options
+  (Cesium 1.138.0 installed): `baseLayer` is a new `ImageryLayer` over the main
+  map's current imagery provider, or `false` when it has none (never
+  `imageryProvider`, ignored since 1.107, and never undefined, which adds Ion
+  world imagery); `terrainProvider` is the main map's instance. The main map
+  swaps in Ion imagery, then Ion terrain, asynchronously
+  (`useCesiumViewer.js:226-242`), so an open panel follows both (imagery layer
+  added or removed, terrain changed) and unsubscribes on teardown;
+  `requestRenderMode` with `maximumRenderTimeChange`
+  Infinity, the main map's target frame rate as one shared constant,
+  `msaaSamples` 1, `showRenderLoopErrors` false, camera inputs off; sky
+  atmosphere on (the horizon is the attitude cue), sun, moon, sky box and
+  lighting off. No entities: terrain and imagery only; peers, docks and tracks
+  stay on the chasing map. Credits stay in the widget.
+- Pose: the same interpolated position and orientation the map's UAV model
+  uses (copies through a narrow source ref from `CesiumMap`, wired like the
+  map camera ref), through today's first-person math moved into one pure helper
+  shared with RC FPV. The panel applies a pose only when the snapshot passes
+  the hold check (`fpvHoldReason`) and the copied position and orientation are
+  finite; otherwise it holds the last good pose. Prerequisite, part of v9: the
+  shared source validates before it builds or advances a pose. Today it skips
+  only a missing lat/lon and fills a missing altitude or attitude with 0
+  (`useUavMarkers.js:37-56`), then interpolates towards that pose
+  (`lerpAnim.js`); a UAV with no altitude drops to the terrain on the map. v9
+  skips the update unless lat, lon, altitude, heading, roll and pitch are all
+  finite numbers, so the model, the chase and FPV keep the last valid pose and
+  resume from it. One render request per telemetry update. The
+  panel saves no camera, so a nose pose is never the startup view.
+- Failure: the widget fails to create, `scene.renderError` fires, the canvas
+  loses its WebGL context, or the panel's own pose callback throws -> widget
+  destroyed, FPV off, notice "FPV view unavailable". The callback needs its own
+  catch: Cesium raises `preRender` outside its error wrapper
+  (`Scene.js:4440`), and a throw there stops the widget's render loop with no
+  event (`CesiumWidget.js:73-80`, error panel off). The main map keeps
+  rendering (live-tested). Retry is a new tap; no automatic retry.
+- Panel: the camera panel's layout contract (bottom-left, width
+  min(432, pane - 68) px, stops below the top controls). Header: "UAV n · nose
+  view" and **SYNTHETIC** in the state slot (never LIVE, never a green dot).
+  While the view holds its last pose, a row under the header reads **View held ·
+  vehicle link lost** or **View held · pose unavailable** with the seconds held.
+  Picture 16:9, shrinking to fit the height limit, with an accent inner frame
+  (video never has one) and a fixed tag **SYNTHETIC · not camera**. One 44 px
+  **FPV off** button. No expand in v1.
+- RC: unchanged. Body FPV of the RC target on the main map with today's
+  full-pane tag, frame and held banner (`FpvViewOverlay`, now RC only); no panel.
+- Map camera ownership: only RC takes the map camera now. The saved map camera
+  and the persistence suspension (`useCesiumViewer.js`) apply to RC only; FPV
+  then Free auto-centres like a plain chase (change from v8).
+- Load gate before merge, on the demo PC with FPV off and on: main-map frame
+  time, GPU process memory, tile and Ion request counts. Then toggle FPV 20
+  times: no panel canvas is left in the DOM, a heap snapshot holds no panel
+  widget, scene or WebGL context, and GPU and JS memory return near the
+  first-FPV level (Cesium frees its resources on destroy but does not release
+  the WebGL context explicitly, `Context.js:1729-1750`). Throughout the gate the
+  main map renders with no context loss and no render-loop stop.
+  The owner accepts the measured cost before merge; the handheld is measured
+  before handheld use. If the cost is too high, the
+  fallback is a 2D attitude indicator in the panel (QGroundControl and Mission
+  Planner show the vehicle view this way).
 
 | Event | Result |
 |---|---|
-| FPV off | chase view of the same UAV; camera panel back; saved map camera restored when follow goes to Free |
-| Follow set to Free (FPV on) | FPV off, saved map camera restored, camera panel back |
-| Followed UAV removed | as Free |
-| View camera on a confirm card (FPV on) | FPV off as above, panel shows that UAV |
-| View camera during RC | not offered (panel hidden in RC) |
-| RC entry (FPV on or off) | today's RC FPV of the RC target |
-| RC exit | Free map with the saved map camera (today: Free); FPV off |
+| FPV on (followed UAV eligible) | panel shows its nose view; camera video, if shown, unmounts and its reader closes; the map keeps chasing |
+| FPV on from Free | target picked as in v8, follow set to it, the map starts a plain chase, the panel shows FPV |
+| FPV on, target ineligible or none eligible | nothing changes; notice names the UAV or says none is eligible |
+| Follow changed (FPV on) | map and panel switch together, same widget; an ineligible UAV is refused with a notice |
+| FPV off (bar toggle or panel button) | widget destroyed; camera video comes back as it was (fresh connection, docked), or nothing when there are no streams; the map keeps chasing |
+| Follow set to Free, or followed UAV removed (FPV on) | FPV off as above; the map auto-centres (no saved-camera restore) |
+| Link lost or pose not finite (FPV on) | picture holds its last pose with the held row; resumes on the next valid pose |
+| Stream appears, fails or goes away (FPV on) | the panel stays on FPV; the video state shows after FPV off |
+| View camera on a confirm card (FPV on) | FPV off; the panel shows that UAV's video; follow unchanged (D1) |
+| Widget fails, render error, WebGL context lost or pose callback throws | FPV off with "FPV view unavailable"; the main map keeps rendering |
+| RC entry (FPV on or off) | FPV off; today's RC FPV of the RC target on the main map; no panel |
+| RC exit | Free map with the saved map camera; FPV off |
+| Leaving the monitor view, or page reload | FPV off; the startup view is the saved map camera |
 
-- Deferred: a second Cesium viewer, swapping map and panel, and a
-  camera-direction synthetic view from gimbal attitude + FOV (needs verified
-  mount axes and stream-to-device association).
+- Deferred: swapping map and panel, and a camera-direction synthetic view from
+  gimbal attitude + FOV (needs verified mount axes and stream-to-device
+  association).
 
 #### Found by the walkthrough, outside this design
 
@@ -345,8 +411,9 @@ failure leaves video off and is logged; the rest of the stack still runs.
   streams; switching; the follow selector picks only the first feed and later
   follow changes keep the video, a badge click leaves the map camera;
   hidden in manual control; FPV toggle for a UAV without video, from Free (picks
-  the panel's UAV), off and on Free returns to the saved map camera, never
-  stored as startup view, SYNTHETIC tag always shown, RC entry and
+  the panel's UAV), off and on Free auto-centres the map (RC alone restores the
+  saved map camera), never stored as startup view, SYNTHETIC tag always shown,
+  the main camera stays in chase in view FPV (never set to a nose pose), RC entry and
   exit while in FPV; codec-not-supported and error
   collapse to the header; stream removal: same UAV's other stream, else "Camera video lost · UAV n" with
   Reconnect video and Dismiss, never another UAV; panel gone only after the last
@@ -355,7 +422,20 @@ failure leaves video off and is logged; the rest of the stack still runs.
   feed; every row of the transition table; no eligible UAV;
   `link_ok` lost and back in FPV; non-finite position, then attitude, while
   linked (hold, "View held" banner with time held, resume); SYNTHETIC tag in RC FPV; ineligible target on each entry
-  path, with the follow selector reverting to the FPV UAV; FPV hides the panel and closes its reader, FPV off brings it back;
+  path, with the follow selector reverting to the FPV UAV; FPV replaces the camera panel and closes its reader, FPV off brings it back
+  (kept lost state included); the FPV panel with zero streams (header, SYNTHETIC state,
+  frame, tag, held row, 44 px FPV off, no badges, never LIVE); the FPV widget (Cesium
+  mocked): one per mount under StrictMode, `baseLayer` set explicitly, shared terrain
+  provider, no entities, inputs off, the shared pose helper gives today's RC FPV
+  values, hold then resume, the shared pose source (real `useUavMarkers` and
+  `lerpAnim`) skips a sample with a missing or non-finite lat, lon, altitude or
+  attitude, keeps the last valid pose and resumes from it while the main map keeps
+  rendering, no pose applied while the snapshot fails the hold check
+  or the copy is not finite, one render per update, same widget on a follow change,
+  an imagery or terrain upgrade while open is followed and unsubscribed on unmount,
+  destroyed on unmount, and a create error, render error, context loss or a throw
+  in the pose callback each end FPV once with the notice, never touching the main
+  camera or stored view; reset view hidden in FPV;
   View camera on a pending confirm card switches the panel (and leaves FPV),
   shows "Viewing" when already shown, is absent on approved cards, when that UAV
   has no stream and during RC; tapped midway through a countdown
@@ -372,9 +452,15 @@ failure leaves video off and is logged; the rest of the stack still runs.
   (each plays its own slot's patterns): each badge plays its
   labelled pattern, switching works, killing a path's FFmpeg collapses to the
   header and Reconnect video recovers; with the source off: no panel, no console errors.
-  Then, with video off: FPV on, switch UAVs while they fly (view follows pose),
-  follow Free (map camera restored), FPV on then RC entry and exit, then reload
-  the page and check the startup map view is the map, not an FPV pose.
+  Then, with video off: FPV on shows the nose view in the panel while the map
+  chases the same UAV, switch UAVs while they fly (both follow), link loss
+  shows the held row, FPV off from the bar and from the panel, follow Free
+  (map auto-centres), FPV on then RC entry and exit, force a WebGL context loss
+  on the panel canvas (FPV ends with the notice, the map keeps rendering), then
+  reload the page and check the startup map view is the map, not an FPV pose.
+  Screenshots at desktop size and under 480 px. With the test source on: FPV
+  replaces the video, FPV off reconnects, View camera ends FPV. Then the FPV
+  load gate (FPV section), on a quiet PC.
 - Hardware (later, with the owner): Jetson H.264 stream over the radio from the
   laptop and from a second device (WHEP OPTIONS/POST accepted from the real GCS
   origin): glass-to-glass latency (on-screen clock),
@@ -388,3 +474,20 @@ failure leaves video off and is logged; the rest of the stack still runs.
    camera move the video; follow picks only the first feed.
 3. Display codec: the Jetson publishes a software H.264 display stream; the
    ZR10 and the vision input stay untouched (Jetson CPU measured first).
+4. v9 direction (2026-10-18): design C, FPV in the bottom-left panel while the
+   map keeps chasing.
+
+## Open for the owner (v9)
+
+1. Second Cesium view in the panel (recommended), behind the load gate. The
+   alternative is a 2D attitude indicator: cheap and proven, but no terrain
+   picture.
+2. Follow set to Free while FPV is on ends FPV (recommended: one selector
+   always names both views). The alternative keeps the last UAV's nose view
+   while the map goes free, but FPV then needs its own UAV choice.
+3. The FPV picture shows terrain and imagery only (recommended); peers and
+   docks stay on the chasing map. Adding them doubles each entity layer.
+4. Top-right bar at 32 px (your request: follow selector at its pre-PR #18
+   size, FPV at the bar's height) breaks the 44 px touch rule for that bar.
+   Recommended: accept it as the one exception; the panel's 44 px FPV off is
+   the touch exit. The alternative is the whole bar at 44 px.
