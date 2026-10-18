@@ -61,6 +61,10 @@ def parse_video_streams(
         if stream.stream_id in seen:
             raise ValueError(f"{where} has duplicate stream_id {stream.stream_id}")
         seen.add(stream.stream_id)
+    # MAVLink numbers a camera's streams 1..count (1 first, 2 second, ...);
+    # the GCS discards ids outside that range, so a gap could never finish.
+    if seen != set(range(1, len(streams) + 1)):
+        raise ValueError(f"{where} stream_ids must be 1..{len(streams)} without gaps")
     return tuple(sorted(streams, key=lambda stream: stream.stream_id))
 
 

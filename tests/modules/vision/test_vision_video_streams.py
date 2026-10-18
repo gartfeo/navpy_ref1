@@ -67,6 +67,8 @@ def test_valid_streams_parse_in_stream_id_order():
         pytest.param([_stream(stream_id=True)], "stream_id", id="id-bool"),
         pytest.param([_stream(stream_id=1.0)], "stream_id", id="id-float"),
         pytest.param([_stream(), _stream()], "duplicate stream_id 1", id="duplicate-id"),
+        pytest.param([_stream(stream_id=2)], r"1\.\.1 without gaps", id="id-gap-single"),
+        pytest.param([_stream(), _stream(stream_id=3)], r"1\.\.2 without gaps", id="id-gap"),
         pytest.param([_stream(encoding="MJPEG")], "encoding must be one of", id="encoding"),
         pytest.param([_stream(uri="http://192.168.144.30/x")], "rtsp://", id="uri-scheme"),
         pytest.param([_stream(uri="rtsp://")], "must name a host", id="uri-no-host"),

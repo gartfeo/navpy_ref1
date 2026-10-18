@@ -62,7 +62,10 @@ def validate_rtsp_uri(uri: object, networks: Iterable[IpNetwork]) -> UriVerdict:
         return _reject("query")
     if "#" in uri:
         return _reject("fragment")
-    parts = urlsplit(uri)
+    try:
+        parts = urlsplit(uri)
+    except ValueError:  # e.g. an unclosed "[" in the authority
+        return _reject("malformed authority")
     if parts.scheme != "rtsp":
         return _reject("scheme")
     if "@" in parts.netloc:

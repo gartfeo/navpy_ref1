@@ -176,7 +176,7 @@ class TestRegistryAndStop(_ScriptsPath):
         killed = []
         with patch.object(stop.reg, "get", return_value=entry), \
              patch.object(stop.reg, "release"), \
-             patch.object(stop.reg, "registered_pids", return_value=set()), \
+             patch.object(stop.reg, "registered_pids", return_value={999}), \
              patch.object(stop.reg, "reap_port", return_value=[]) as reap, \
              patch.object(stop.reg, "reap_companion_ports", return_value=[]), \
              patch.object(stop.reg, "pid_matches", return_value=matches), \
@@ -195,3 +195,11 @@ class TestRegistryAndStop(_ScriptsPath):
     def test_gcs_stop_spares_a_recycled_video_pid(self):
         killed, _ = self._stop(False)
         self.assertNotIn(4321, killed)
+
+    def test_video_port_reap_spares_registered_pids(self):
+        _, reap = self._stop(False)
+        video_ports = {ip.sim_video_rtsp_port(3), ip.sim_video_whep_port(3),
+                       ip.sim_video_webrtc_udp_port(3)}
+        calls = [c for c in reap.call_args_list if c.args[0] in video_ports]
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(all(c.kwargs.get("exclude") == {999} for c in calls))

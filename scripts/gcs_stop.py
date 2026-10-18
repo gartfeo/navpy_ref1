@@ -82,7 +82,7 @@ def stop_chat(n: int, kill_sitl: bool = True) -> bool:
     # Companion UDP ports too (shared helper — see reap_companion_ports).
     protected = reg.registered_pids()
     reaped = reg.reap_port(ip.frontend_port(n)) + reg.reap_port(ip.backend_port(n))
-    reaped += reap_sim_video_ports(n, set())
+    reaped += reap_sim_video_ports(n, protected)
     reaped += reg.reap_companion_ports(n, exclude=protected)
     if reaped:
         print(f"chat {n}: reaped orphan pids {reaped} on this chat's ports")

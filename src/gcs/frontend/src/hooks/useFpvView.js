@@ -92,21 +92,27 @@ export default function useFpvView({
 
   // Map camera ownership. Runs after CesiumMap's follow hook (child effects run
   // first), so a restore or fly-to never fights a still-locked chase camera.
+  // The free-map camera is saved whenever the view leaves the free map (chase
+  // too, since a chase may become FPV); it is restored on return only if FPV
+  // or RC took the camera meanwhile. A plain chase keeps today's auto-center.
   const savedCameraRef = useRef(null);
+  const cameraTakenRef = useRef(false);
   const prevRef = useRef({ follow: followSysId, fpv: viewFpv, rc: rcEnabled });
   useEffect(() => {
     const prev = prevRef.current;
     prevRef.current = { follow: followSysId, fpv: viewFpv, rc: rcEnabled };
     const wasFreeMap = prev.follow == null && !prev.fpv && !prev.rc;
     const isFreeMap = followSysId == null && !viewFpv && !rcEnabled;
-    const takesCamera = (viewFpv && !prev.fpv) || (rcEnabled && !prev.rc);
 
-    if (wasFreeMap && takesCamera && savedCameraRef.current == null) {
+    if (wasFreeMap && !isFreeMap) {
       savedCameraRef.current = mapCameraRef.current?.capture() ?? null;
+      cameraTakenRef.current = false;
     }
+    if (viewFpv || rcEnabled) cameraTakenRef.current = true;
     if (isFreeMap && !wasFreeMap) {
-      const saved = savedCameraRef.current;
+      const saved = cameraTakenRef.current ? savedCameraRef.current : null;
       savedCameraRef.current = null;
+      cameraTakenRef.current = false;
       if (saved) mapCameraRef.current?.restore(saved);
       else if (phase === PHASES.MONITOR && prev.follow != null) centerView();
     }

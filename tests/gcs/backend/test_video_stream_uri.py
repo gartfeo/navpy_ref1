@@ -54,6 +54,7 @@ def test_accepts_rtsp_literal_ip_in_network(uri: str, host: str, path: str) -> N
     ("rtsp://192.168.144.10:8554/main?", "query"),
     ("rtsp://192.168.144.10:8554/main#frag", "fragment"),
     ("", "empty"),
+    ("rtsp://[192.168.144.25/stream", "malformed authority"),
 ])
 def test_rejects(uri: str, reason: str) -> None:
     verdict = validate_rtsp_uri(uri, RADIO_LAN)

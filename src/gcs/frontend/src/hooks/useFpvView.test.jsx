@@ -178,8 +178,31 @@ describe('FPV transition table', () => {
     const { result, camera, centerView } = setup();
     act(() => result.current.fpv.changeFollow(2));
     act(() => result.current.fpv.changeFollow(null));
-    expect(camera.capture).not.toHaveBeenCalled();
+    // Saved on leaving the map (the chase may become FPV), but not restored.
+    expect(camera.restore).not.toHaveBeenCalled();
     expect(centerView).toHaveBeenCalledTimes(1);
+  });
+
+  it('Free → chase → FPV → Free restores the map camera saved before the chase', () => {
+    const { result, camera, centerView } = setup();
+    act(() => result.current.fpv.changeFollow(2));
+    act(() => result.current.fpv.toggleFpv());
+    act(() => result.current.fpv.changeFollow(null));
+    expect(camera.capture).toHaveBeenCalledTimes(1);
+    expect(camera.restore).toHaveBeenCalledWith({ saved: 'map' });
+    expect(centerView).not.toHaveBeenCalled();
+  });
+
+  it('Free → chase → RC → exit restores the map camera saved before the chase', () => {
+    const { result, camera, centerView } = setup();
+    act(() => result.current.fpv.changeFollow(2));
+    act(() => result.current.setRc({ enabled: true, target: 2 }));
+    act(() => {
+      result.current.setRc({ enabled: false, target: null });
+      result.current.setFollowSysId(null);
+    });
+    expect(camera.restore).toHaveBeenCalledWith({ saved: 'map' });
+    expect(centerView).not.toHaveBeenCalled();
   });
 
   it('camera persistence is suspended exactly while FPV or RC owns the camera', () => {

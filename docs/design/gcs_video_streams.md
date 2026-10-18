@@ -263,8 +263,9 @@ not over the map, so the panel cannot cover them.
 - View mode is separate from control mode: FPV never enables RC; RC keeps
   today's behavior (body FPV of the RC target, panel hidden).
 - Map camera ownership: one saved map camera, taken when the view first leaves
-  the map (FPV on, or RC entry from the map); switching the FPV UAV does not
-  overwrite it. Camera persistence (`useCesiumViewer.js` stores camera moves) is
+  the free map (chase, FPV on, or RC entry), restored on return to Free only if
+  FPV or RC took the camera meanwhile (a plain chase keeps today's auto-centre);
+  switching the FPV UAV does not overwrite it. Camera persistence (`useCesiumViewer.js` stores camera moves) is
   suspended while FPV or RC owns the camera, so a first-person pose is never
   the startup view. The viewer runs in request-render mode, so FPV requests a
   render per pose update.
