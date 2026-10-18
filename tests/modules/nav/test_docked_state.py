@@ -144,7 +144,7 @@ def _exit(
     completion.run.side_effect = lambda: events.append("oneshot") or ()
     logger = Mock()
     transition = NavTransition(
-        Mock(), cleanup, Mock(), completion, navigation_task,
+        Mock(), cleanup, Mock(), completion.run, navigation_task,
         lambda: oneshot, logger=logger,
     )
     return transition.exit(requested), events, logger
@@ -418,7 +418,7 @@ def _flow(*, oneshot: bool):
         NavExitCleanup,
         NavExitCleanupPorts,
     )
-    from navpy.core.flow.nav_oneshot_completion import (
+    from navpy.products.delivery.nav_oneshot_completion import (
         OneShotCompletion,
         OneShotCompletionPorts,
     )
@@ -458,7 +458,7 @@ def _flow(*, oneshot: bool):
     # NAV_FAIL without completion evidence: no completion flag.
     task = NavigationTaskState(final_approach_navigation_active=True)
     transition = NavTransition(
-        Mock(), cleanup, Mock(), completion, task, lambda: oneshot,
+        Mock(), cleanup, Mock(), completion.run, task, lambda: oneshot,
         logger=Mock(),
     )
     climb = PostDockClimb()

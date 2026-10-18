@@ -129,8 +129,8 @@ class NavigationTransitionHandler:
     def _enter_docked(self) -> None:
         """DOCKED replaces a RESET entry and takes over its cleanup owner.
 
-        One-shot: OneShotCompletion already ran the reset transaction at NAV
-        exit, so it is not run twice.
+        One-shot: the sortie finish (``NavTransition``'s ``finish_sortie``)
+        already ran the reset transaction at NAV exit, so it is not run twice.
         """
         if not self._ports.is_oneshot():
             self.enter_reset()

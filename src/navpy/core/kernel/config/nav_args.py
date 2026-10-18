@@ -68,7 +68,7 @@ class NavArgs(object):
                        help=f"Confirm on fail. Default: {p['AAS_NAV_CM_FL']}")
         g.add_argument("-nos", dest='AAS_NAV_ONESHOT', action=StoreTrueWithFlag,
                        default=p['AAS_NAV_ONESHOT'],
-                       help="Single-run mode: stop starting new final-approach attempts after navigation completion; disarm only a simulated autopilot.")
+                       help="Single-run mode: stop starting new final-approach attempts after navigation completion; the mission module finishes the sortie.")
         g.add_argument("-cgt", dest='AAS_NAV_CGT', type=int, action=StoreWithFlag,
                        default=p['AAS_NAV_CGT'],
                        help=f"CONFIRM zoom-stability timeout (sec). Recognition-size pixels are still required;"

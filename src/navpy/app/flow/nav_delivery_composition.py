@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from navpy.app.flow.nav_composition_types import (
     DetectionReviewOwnership,
     NavStateOwnership,
     PoiMissionOwnership,
 )
 from navpy.core.flow.navigation_decision import NavStateDecision
+from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.products.delivery.flow import DeliveryFlow
+from navpy.products.delivery.nav_oneshot_completion import (
+    OneShotCompletion,
+    OneShotCompletionPorts,
+)
 from navpy.products.delivery.poi_status_decision import ConfirmationStatusDecision
 
 
@@ -28,4 +37,21 @@ def compose_delivery_flow(
     )
 
 
-__all__ = ["compose_delivery_flow"]
+def compose_sortie_finish(
+    vehicle: IVehicle,
+    reset: NavigationTaskResetTransaction,
+    logger: ILogger,
+    is_stopping: Callable[[], bool],
+) -> OneShotCompletion:
+    return OneShotCompletion(
+        OneShotCompletionPorts(
+            is_simulated_autopilot=vehicle.is_simulated_autopilot,
+            disarm=vehicle.disarm,
+            is_stopping=is_stopping,
+        ),
+        reset,
+        logger,
+    )
+
+
+__all__ = ["compose_delivery_flow", "compose_sortie_finish"]

@@ -268,7 +268,7 @@ def _nav_transition(task: NavigationTaskState, oneshot: bool):
         Mock(),
         cleanup,
         Mock(spec=NavSnapReporter),
-        completion,
+        completion.run,
         task,
         lambda: oneshot,
     )

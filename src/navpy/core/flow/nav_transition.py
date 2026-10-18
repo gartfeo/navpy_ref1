@@ -12,7 +12,6 @@ from navpy.core.approach.nav_entry import NavEntry
 from navpy.core.approach.nav_exit_cleanup import NavCleanupResult, NavExitCleanup
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.core.flow.nav_oneshot_completion import OneShotCompletion
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.core.approach.vision_nav.episode_latch import (
     UNNAMED_FAILURE_REASON,
@@ -29,14 +28,19 @@ class NavExitOutcome:
 
 
 class NavTransition:
-    """Coordinate NAV entry, fenced cleanup, diagnostics, and completion."""
+    """Coordinate NAV entry, fenced cleanup, diagnostics, and completion.
+
+    ``finish_sortie`` ends with the task teardown;
+    ``NavigationTransitionHandler._enter_docked`` relies on it for a one-shot
+    DOCKED entry, contact or dock failed.
+    """
 
     def __init__(
         self,
         entry: NavEntry,
         cleanup: NavExitCleanup,
         snap_reporter: NavSnapReporter,
-        oneshot: OneShotCompletion,
+        finish_sortie: Callable[[], tuple[Exception, ...]],
         navigation_task: NavigationTaskState,
         is_oneshot: Callable[[], bool],
         *,
@@ -45,7 +49,7 @@ class NavTransition:
         self._entry = entry
         self._cleanup = cleanup
         self._snap_reporter = snap_reporter
-        self._oneshot = oneshot
+        self._finish_sortie = finish_sortie
         self._navigation_task = navigation_task
         self._is_oneshot = is_oneshot
         self._logger = logger
@@ -79,16 +83,16 @@ class NavTransition:
             and _failed_terminal(cleanup.dock_terminal)
         )
         if docked or failed:
-            # One-shot is how a real dock ends: disarm off the net, final.
+            # One-shot is how a real dock ends: the sortie finishes, final.
             oneshot = self._is_oneshot()
             if oneshot:
-                errors.extend(self._oneshot.run())
+                errors.extend(self._finish_sortie())
             outcome = NavExitOutcome(
                 redirect=NavState.DOCKED,
                 oneshot_completed=oneshot,
             )
         elif self._is_oneshot() and completed:
-            errors.extend(self._oneshot.run())
+            errors.extend(self._finish_sortie())
             outcome = NavExitOutcome(
                 redirect=NavState.ONHOLD,
                 oneshot_completed=True,
