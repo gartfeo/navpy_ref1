@@ -818,6 +818,11 @@
 - Cesium 1.138 ignores the Viewer option `imageryProvider` (removed in 1.107); use `baseLayer`.
   A throw in a `scene.preRender` listener stops that widget's render loop with no `renderError`
   (`Scene.js:4440` raises it outside the error wrapper), so catch inside the listener.
+- Two Cesium widgets cannot share attribution: a `Credit` owns one DOM element that each
+  `CreditDisplay` re-parents, and Bing metadata (with its credits) is cached across provider
+  instances, so a second view needs its own non-Bing providers (v10 chose terrain only).
+- Mocks for the owner: the browser pane cannot screenshot local files; render with headless
+  Edge (`msedge --headless=new --screenshot=... file:///...`) and send the PNG.
 
 ## Missed dock ends like DOCKED (todo 74, 2026-10-18)
 - Making every FAILED end commands broke runtime tests that send a frame after a NAV_FAIL; those tests
