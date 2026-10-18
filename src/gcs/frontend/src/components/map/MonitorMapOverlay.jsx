@@ -4,7 +4,7 @@ import MapIconBtn from '../MapIconBtn';
 import { colors } from '../../styles';
 import useElementSize from '../../hooks/useElementSize';
 import {
-  DEFAULT_TOP_CONTROLS_BOTTOM_PX, HEADER_FONT_PX, PANEL_MARGIN_PX, TOUCH_TARGET_PX,
+  DEFAULT_TOP_CONTROLS_BOTTOM_PX, MAP_CONTROL_PX, PANEL_MARGIN_PX,
 } from '../../utils/videoPanelLayout';
 
 /** Acronym, like "UAV" and "RC": the same in every locale. */
@@ -117,7 +117,7 @@ export default function MonitorMapOverlay({
           value={followSysId ?? ''}
           onChange={(e) => onFollowChange(e.target.value === '' ? null : Number(e.target.value))}
           style={{
-            height: TOUCH_TARGET_PX,
+            height: MAP_CONTROL_PX,
             padding: '0 8px',
             borderRadius: 6,
             fontSize: 12,
@@ -138,25 +138,27 @@ export default function MonitorMapOverlay({
           ))}
         </select>
         {/* FPV view toggle: a text label whose on state is plain to see
-            (filled, "FPV · ON"), unlike the icon-only RC button. Never RC. */}
+            ("FPV · ON"), unlike the icon-only RC button. Sized and coloured
+            like the bar's map buttons. Never RC. */}
         <button
           type="button"
           onClick={onToggleFpv}
           aria-pressed={!!fpvOn}
           title={t('fpvView.toggleTitle')}
           style={{
-            height: TOUCH_TARGET_PX,
-            minWidth: TOUCH_TARGET_PX,
-            padding: '0 12px',
+            height: MAP_CONTROL_PX,
+            minWidth: MAP_CONTROL_PX,
+            padding: '0 10px',
             borderRadius: 6,
-            fontSize: HEADER_FONT_PX,
-            fontWeight: 700,
+            fontSize: 12,
+            fontWeight: 600,
             cursor: 'pointer',
             whiteSpace: 'nowrap',
             touchAction: 'manipulation',
-            border: `2px solid ${fpvOn ? colors.accent : colors.border}`,
-            background: fpvOn ? colors.accent : 'rgba(22, 33, 62, 0.85)',
-            color: fpvOn ? colors.bg : colors.textBright,
+            border: `1px solid ${fpvOn ? colors.accent : colors.border}`,
+            background: fpvOn ? 'rgba(0, 210, 255, 0.2)' : 'rgba(22, 33, 62, 0.85)',
+            color: fpvOn ? colors.accent : colors.textBright,
+            backdropFilter: 'blur(4px)',
           }}
         >
           {fpvOn ? `${FPV_LABEL} · ${t('fpvView.on')}` : FPV_LABEL}

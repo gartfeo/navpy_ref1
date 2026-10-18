@@ -14,6 +14,12 @@
 export const TOUCH_TARGET_PX = 44;
 /** Distance from the pane edges and between neighbouring controls. */
 export const PANEL_MARGIN_PX = 12;
+/**
+ * Height of the monitor map's top-right bar controls (map buttons, plan,
+ * follow, FPV). They keep the existing 32 px map-button size so the bar stays
+ * one consistent row (owner, 2026-10-18).
+ */
+export const MAP_CONTROL_PX = 32;
 /** Size of the existing reset-view map button in the bottom-right corner. */
 export const RESET_VIEW_PX = 32;
 /** Below this map-pane width the badges show only the UAV number. */
@@ -91,5 +97,5 @@ export function videoPanelLayout({
   };
 }
 
-/** Fallback for the top controls' bottom edge before it is measured: one 44 px row. */
-export const DEFAULT_TOP_CONTROLS_BOTTOM_PX = PANEL_MARGIN_PX + TOUCH_TARGET_PX;
+/** Fallback for the top controls' bottom edge before it is measured: one row. */
+export const DEFAULT_TOP_CONTROLS_BOTTOM_PX = PANEL_MARGIN_PX + MAP_CONTROL_PX;

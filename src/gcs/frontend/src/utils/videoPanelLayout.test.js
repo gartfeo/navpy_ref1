@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { sidebarWidth, topBarHeight, bottomBarHeight } from '../styles';
 import {
-  DEFAULT_TOP_CONTROLS_BOTTOM_PX, HEADER_GAP_PX, HEADER_PADDING_PX, MENU_BUTTON_PX,
+  DEFAULT_TOP_CONTROLS_BOTTOM_PX, HEADER_GAP_PX, HEADER_PADDING_PX, MAP_CONTROL_PX, MENU_BUTTON_PX,
   NARROW_PANE_PX, PANEL_MARGIN_PX, RESET_VIEW_PX, STATE_PX, TITLE_MIN_PX, TOUCH_TARGET_PX,
   videoPanelLayout,
 } from './videoPanelLayout';
@@ -14,8 +14,8 @@ const DESKTOP = { width: 1920 - sidebarWidth, height: 1080 - topBarHeight - bott
 // The 375 x 812 touch viewport, applied to the map pane itself (see the report:
 // the fixed 320 px sidebar is outside this design).
 const TOUCH = { width: 375, height: 812 - topBarHeight - bottomBarHeight };
-// One 44 px row of top controls on desktop; on the touch pane they wrap to two.
-const TOP_BOTTOM = { desktop: DEFAULT_TOP_CONTROLS_BOTTOM_PX, touch: PANEL_MARGIN_PX + 2 * TOUCH_TARGET_PX + 6 };
+// One row of top controls on desktop; on the touch pane they wrap to two.
+const TOP_BOTTOM = { desktop: DEFAULT_TOP_CONTROLS_BOTTOM_PX, touch: PANEL_MARGIN_PX + 2 * MAP_CONTROL_PX + 6 };
 
 const rect = (x, y, w, h) => ({ x, y, w, h });
 const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
