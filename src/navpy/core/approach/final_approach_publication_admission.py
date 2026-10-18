@@ -15,7 +15,8 @@ from navpy.core.perception.detection.poi_identity import get_poi_task_id
 @dataclass(frozen=True)
 class FinalApproachPublicationAdmissionPorts:
     clear_discontinuity: Callable[[tuple[str, ...]], None]
-    mark_failed: Callable[[], None]
+    # Takes the NAV_FAIL reason (missed_dock.md).
+    mark_failed: Callable[[str], object]
     logger: ILogger
 
 
@@ -84,7 +85,7 @@ class FinalApproachPublicationAdmission:
         self,
         active_poi: DetectedObject | None,
     ) -> None:
-        self._ports.mark_failed()
+        self._ports.mark_failed("discontinuity_source_missing")
         identity = (
             "active_poi=missing"
             if active_poi is None

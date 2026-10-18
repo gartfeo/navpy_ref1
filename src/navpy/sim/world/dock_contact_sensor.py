@@ -10,7 +10,8 @@ path; it only hands one correlated event to the approach lifecycle.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
+import os
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Optional
 
@@ -38,11 +39,32 @@ from navpy.sim.world.simulation_object import SimulationObject
 # Owner-set net radius (2026-10-13). Contact is strictly inside it, matching
 # the eval's strict `< 0.5 m` SNAP gate.
 SIM_DOCK_NET_RADIUS_M = 0.5
+# Sim-only override that shrinks the net for a forced-miss check
+# (missed_dock.md): 0 makes every pass a miss. Never wider than the default,
+# which the eval's DOCKED check assumes.
+SIM_DOCK_NET_RADIUS_ENV = "NAVPY_SIM_DOCK_NET_RADIUS_M"
 # Two consecutive position samples are joined only across at most this many
 # nominal periods of the position stream (one missed sample). A longer gap
 # could straight-line a curved path into a crossing that never happened, so
 # it starts a new segment instead.
 SIM_DOCK_CONTACT_MAX_SEGMENT_PERIODS = 2.0
+
+
+def sim_dock_net_radius_m(env: Mapping[str, str] | None = None) -> float:
+    """The net radius: the override when set, else the owner-set default."""
+    raw = (os.environ if env is None else env).get(SIM_DOCK_NET_RADIUS_ENV)
+    if raw is None or not raw.strip():
+        return SIM_DOCK_NET_RADIUS_M
+    radius_m = _valid_radius_m(float(raw))
+    if radius_m > SIM_DOCK_NET_RADIUS_M:
+        raise ValueError(f"{SIM_DOCK_NET_RADIUS_ENV} may only shrink the net, got {raw!r}")
+    return radius_m
+
+
+def _valid_radius_m(radius_m: float) -> float:
+    if not math.isfinite(radius_m) or radius_m < 0.0:
+        raise ValueError(f"dock net radius must be finite and >= 0, got {radius_m!r}")
+    return radius_m
 
 
 def max_segment_s(position_rate_hz: float) -> float:
@@ -73,8 +95,10 @@ class SimDockContactSensor:
         self,
         docks: Callable[[], Sequence[SimulationObject]],
         position_rate_hz: float = POSE_STREAM_RATE_HZ,
+        net_radius_m: float = SIM_DOCK_NET_RADIUS_M,
     ) -> None:
         self._docks = docks
+        self._net_radius_m = _valid_radius_m(net_radius_m)
         self._max_segment_s = max_segment_s(position_rate_hz)
         self._lock = rt.Lock()
         self._identity: Optional[DockContactIdentity] = None
@@ -141,8 +165,7 @@ class SimDockContactSensor:
             return None, None
         return self._exact_contact(identity, previous.sample, sample, frame.dock)
 
-    @staticmethod
-    def _may_reach(previous: _Joined, current: _Joined) -> bool:
+    def _may_reach(self, previous: _Joined, current: _Joined) -> bool:
         """Coarse filter; never false for a segment the exact test docks.
 
         The exact contact needs closest < radius (the bow is >= 0), and the
@@ -154,7 +177,7 @@ class SimDockContactSensor:
             (0.0, 0.0, 0.0), current.local,
         )
         margin_m = flat_earth_error_bound_m(reach_m, current.frame.abs_tan_lat)
-        return flat_m < SIM_DOCK_NET_RADIUS_M + margin_m
+        return flat_m < self._net_radius_m + margin_m
 
     def _exact_contact(
         self,
@@ -176,7 +199,7 @@ class SimDockContactSensor:
             chord_m / elapsed_s,
         )
         bow_m = chord_bow_bound_m(chord_m, speed_mps)
-        if not components.slant + bow_m < SIM_DOCK_NET_RADIUS_M:
+        if not components.slant + bow_m < self._net_radius_m:
             return None, None
         self._published = True
         return (
@@ -229,7 +252,9 @@ def _valid(sample: PositionSample) -> bool:
 __all__ = [
     "PositionSample",
     "SIM_DOCK_CONTACT_MAX_SEGMENT_PERIODS",
+    "SIM_DOCK_NET_RADIUS_ENV",
     "SIM_DOCK_NET_RADIUS_M",
     "SimDockContactSensor",
+    "sim_dock_net_radius_m",
     "max_segment_s",
 ]

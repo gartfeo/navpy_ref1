@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import Mock
 
 import pytest
 
@@ -185,3 +186,44 @@ def test_live_run_puts_the_dock_file_in_every_process_env(monkeypatch, tmp_path)
     with pytest.raises(_Launched):
         runtime.execute_live_run(tmp_path, 1.0, scenario=scenario, sim_docks=docks)
     assert seen["env"][FLEET_DOCKS_ENV] == str(docks.resolve())
+
+
+@pytest.mark.parametrize(("radius", "expected"), ((None, None), (0.0, "0.0"), (0.25, "0.25")))
+def test_live_run_passes_the_net_radius_override_and_records_it(
+    monkeypatch, tmp_path, radius, expected,
+):
+    from scripts import eval_gcs_demo_runtime as runtime
+    from scripts.eval_gcs_demo_runtime import SIM_DOCK_NET_RADIUS_ENV
+
+    scenario = fixture.load_eval_scenario(fixture.FIXTURE_PATH)
+    seen = {}
+
+    def manifest(_run_dir, _env, _sitl, _host, options, _scenario):
+        seen["options"] = dict(options)
+
+    def launch(env, *_args, **_kwargs):
+        seen["env"] = dict(env)
+        raise _Launched
+
+    monkeypatch.setattr(runtime, "dem_tiles", lambda *_: None)
+    monkeypatch.setattr(runtime, "write_input_manifest", manifest)
+    monkeypatch.setattr(runtime, "with_owned_stack", launch)
+    with pytest.raises(_Launched):
+        runtime.execute_live_run(
+            tmp_path, 1.0, scenario=scenario, sim_dock_net_radius_m=radius,
+        )
+    assert seen["env"].get(SIM_DOCK_NET_RADIUS_ENV) == expected
+    assert seen["options"].get("sim_dock_net_radius_m") == radius
+
+
+@pytest.mark.parametrize("radius", (-0.1, float("nan"), 0.75))
+def test_live_run_refuses_an_invalid_net_radius_before_launch(monkeypatch, tmp_path, radius):
+    from scripts import eval_gcs_demo_runtime as runtime
+
+    scenario = fixture.load_eval_scenario(fixture.FIXTURE_PATH)
+    monkeypatch.setattr(runtime, "dem_tiles", lambda *_: None)
+    monkeypatch.setattr(runtime, "with_owned_stack", Mock(side_effect=AssertionError))
+    with pytest.raises((ValueError, RegressionError)):
+        runtime.execute_live_run(
+            tmp_path, 1.0, scenario=scenario, sim_dock_net_radius_m=radius,
+        )

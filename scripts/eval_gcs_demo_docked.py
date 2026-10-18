@@ -1,10 +1,15 @@
-"""DOCKED and DOCK_ARMED evidence rows (physical_docking.md).
+"""DOCKED, DOCK_FAILED and DOCK_ARMED evidence rows (physical_docking.md).
 
 Docking counts only from a DOCKED row, the sim contact sensor's event,
 matched to the episode's own DOCK_ARMED row and its command time span.
+DOCK_FAILED is the NAV exit of an armed episode that ended without contact
+(missed_dock.md); it is matched to its DOCK_ARMED row by identity only, since
+a failure may come before any command.
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 from navpy.core.approach.vision_nav.command_freshness import (
     FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
@@ -74,6 +79,57 @@ def parse_docked(row: list[str], line_number: int) -> DockedEvidence:
     )
 
 
+@dataclass(frozen=True)
+class DockFailedEvidence:
+    """One DOCK_FAILED row: the episode ended without contact, and why."""
+
+    vehicle: int
+    task: int
+    dock: int
+    episode: int
+    reason: str
+
+    @property
+    def identity(self) -> tuple[int, int, int, int]:
+        return self.vehicle, self.task, self.dock, self.episode
+
+
+_DOCK_FAILED_FIELDS = (*_DOCK_ARMED_FIELDS, "reason")
+
+
+def parse_dock_failed(row: list[str], line_number: int) -> DockFailedEvidence:
+    if len(row) < 3:
+        raise ValueError(f"DOCK_FAILED row {line_number} has fewer than 3 columns")
+    payload = _payload(row[2], _DOCK_FAILED_FIELDS, "DOCK_FAILED")
+    if not payload["reason"]:
+        raise ValueError(f"DOCK_FAILED row {line_number} has no reason")
+    return DockFailedEvidence(
+        vehicle=_integer("vehicle", payload["vehicle"], allow_zero=False),
+        task=_integer("task", payload["task"], allow_zero=False),
+        dock=_integer("dock", payload["dock"], allow_zero=True),
+        episode=_integer("episode", payload["episode"], allow_zero=False),
+        reason=payload["reason"],
+    )
+
+
+def dock_failed_errors(
+    failed: DockFailedEvidence,
+    armed: DockArmed | None,
+    docked: bool,
+    vehicle_id: int | None,
+) -> str | None:
+    """Why a DOCK_FAILED row is invalid for the episode that just closed."""
+    if armed is None:
+        return "DOCK_FAILED without a DOCK_ARMED row for its episode"
+    if failed.identity != armed.identity:
+        return f"DOCK_FAILED {failed.identity} is not the armed episode {armed.identity}"
+    if vehicle_id is not None and failed.vehicle != vehicle_id:
+        return f"DOCK_FAILED for vehicle {failed.vehicle}, not this UAV {vehicle_id}"
+    if docked:
+        return f"DOCK_FAILED and DOCKED for one episode {failed.identity}"
+    return None
+
+
 def parse_dock_armed(row: list[str], line_number: int) -> DockArmed:
     if len(row) < 3:
         raise ValueError(f"DOCK_ARMED row {line_number} has fewer than 3 columns")
@@ -133,7 +189,10 @@ def docked_errors(
 __all__ = [
     "DOCKED_AFTER_LAST_FRAME_MAX_S",
     "DOCK_NET_RADIUS_M",
+    "DockFailedEvidence",
+    "dock_failed_errors",
     "docked_errors",
     "parse_dock_armed",
+    "parse_dock_failed",
     "parse_docked",
 ]

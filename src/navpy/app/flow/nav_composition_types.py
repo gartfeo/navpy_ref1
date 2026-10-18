@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from navpy.core.approach.navigation_dock_outcome import FinalApproachDockOutcomeService
 from navpy.core.approach.navigation_final_approach import FinalApproachNavigationService
 from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
@@ -76,6 +77,7 @@ class NavCapabilities:
     """Only the focused navigation capabilities consumed by navigation."""
 
     final_approach: FinalApproachNavigationService
+    dock_outcome: FinalApproachDockOutcomeService
     legacy_pois: LegacyDestinationResolver
     vehicle_commands: NavigationVehicleCommands
     init: Callable[[], None]

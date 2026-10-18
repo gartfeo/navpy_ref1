@@ -98,13 +98,13 @@ class FinalApproachNavigationService:
                 and final_approach.status.latch_docked(event) is True
             )
 
-    def latch_failure(self) -> bool:
+    def latch_failure(self, reason: Optional[str] = None) -> bool:
         """Admit a NAV_FAIL unless the final-approach episode already docked."""
         with self._mode_state.session() as active:
             final_approach = active.final_approach
             return (
                 final_approach is None
-                or final_approach.status.latch_failure() is True
+                or final_approach.status.latch_failure(reason) is True
             )
 
     def consume_missed_dock(self) -> bool:

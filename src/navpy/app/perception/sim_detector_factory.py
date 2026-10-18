@@ -22,7 +22,10 @@ from navpy.app.perception.vision_tracking_composition import build_tracking_conf
 from navpy.sim.debug_view.vision_ui_ports import SimDebugSnapshot, SimDebugSource
 from navpy.app.perception.vision_zoom_profile import build_zoom_config
 from navpy.sim.world.dock_contact_feed import SimDockContactFeed
-from navpy.sim.world.dock_contact_sensor import SimDockContactSensor
+from navpy.sim.world.dock_contact_sensor import (
+    SimDockContactSensor,
+    sim_dock_net_radius_m,
+)
 
 
 class SimDetectorFactory:
@@ -62,10 +65,13 @@ class SimDetectorFactory:
             return
         if not self._vehicle.is_simulated_autopilot():
             return
+        radius_m = sim_dock_net_radius_m()
+        self._logger.info(f"SIM dock net radius: {radius_m:g} m")
         # The same rate the sim detector requests the position stream at.
         sensor = SimDockContactSensor(
             detector.sim_docks,
             resolve_pose_stream_rate_hz(self._vehicle),
+            radius_m,
         )
         # The subscription lives as long as the vehicle link that feeds it.
         self._dock_contact_feed = SimDockContactFeed(
