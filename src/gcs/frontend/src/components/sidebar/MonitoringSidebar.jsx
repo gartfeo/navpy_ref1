@@ -62,6 +62,7 @@ export default function MonitoringSidebar({
   aasParams,
   onEstop,
   onOpenReadiness,
+  videoActionFor,
 }) {
   // Subscribe to telemetry store for fresh vehicle data (battery, speed, etc.)
   // The prop vehicleList only updates structurally; this gives us live data.
@@ -90,6 +91,7 @@ export default function MonitoringSidebar({
             autoApprove={aasParams.getConfirmedValue(sid, 'nav_cm_fl', AAS_DEFAULTS.nav_cm_fl)}
             timeoutSec={aasParams.getConfirmedValue(sid, 'nav_cwt', AAS_DEFAULTS.nav_cwt)}
             forced={forcedConfirms?.[sid] === entry.taskId}
+            videoAction={videoActionFor?.(sid) ?? null}
           />
         );
       })}

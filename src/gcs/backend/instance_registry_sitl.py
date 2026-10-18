@@ -19,6 +19,7 @@ def record_pids(
     *,
     backend_pid: int | None = None,
     frontend_pid: int | None = None,
+    video_pid: int | None = None,
     sitl: bool | None = None,
     sitl_pid: int | None = None,
     pid_start: Callable[[object], int | None] = runtime.pid_start_time,
@@ -36,6 +37,9 @@ def record_pids(
         if frontend_pid is not None:
             entry["frontend_pid"] = frontend_pid
             entry["frontend_pid_start"] = pid_start(frontend_pid)
+        if video_pid is not None:
+            entry["video_pid"] = video_pid
+            entry["video_pid_start"] = pid_start(video_pid)
         if sitl is not None:
             entry["sitl"] = sitl
         if sitl_pid is not None:

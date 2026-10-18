@@ -107,7 +107,7 @@ class TestFlyToWiring(unittest.TestCase):
     def test_cesium_map_forwards_ref_as_second_hook_arg(self):
         self.assertRegex(
             self.CESIUM_MAP,
-            r"useCesiumViewer\(\s*resetViewRef\s*,\s*flyToRef\s*,\s*mapDefaults\s*\)",
+            r"useCesiumViewer\(\s*resetViewRef\s*,\s*flyToRef\s*,\s*mapDefaults\s*[,)]",
         )
 
     def test_hook_assigns_ref_and_calls_flyto(self):

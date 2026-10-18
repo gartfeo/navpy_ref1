@@ -11,6 +11,10 @@
 //   3. #sendOffer(): a 201 arriving after close() releases the session the
 //      server just created instead of leaving it open.
 //   4. ES module export (upstream only assigns window.MediaMTXWebRTCReader).
+//   5. Fetch policy: every request uses redirect "error" and credentials
+//      "omit", the session Location must stay on the endpoint's origin under
+//      <path>/whep/, and a violation (or a rejected request, which a refused
+//      redirect is indistinguishable from) is terminal: no further fetch.
 
 /**
  * @callback OnError
@@ -39,9 +43,21 @@
  * @property {OnDataChannel} onDataChannel - called when there's a data channel available.
  */
 
+/**
+ * NavPy patch: an error after which the reader must not fetch anything again.
+ * Raised for a rejected request (a refused redirect rejects exactly like a
+ * network failure, so the two cannot be told apart) and for a session Location
+ * outside the WHEP endpoint.
+ */
+class TerminalError extends Error {}
+
 /** WebRTC/WHEP reader. */
 class MediaMTXWebRTCReader {
   static #RETRY_PAUSE = 2000;
+
+  // NavPy patch: the browser is held to the endpoint URL it was given. No
+  // redirect is followed and no cookie or HTTP credential is ever attached.
+  static #FETCH_POLICY = { redirect: "error", credentials: "omit" };
 
   #conf;
   #state = "getting_codecs";
@@ -75,7 +91,89 @@ class MediaMTXWebRTCReader {
       // keepalive: a pagehide-driven close() would otherwise have its DELETE
       // cancelled with the document, leaving the session open on the server.
       // The rejection is swallowed because teardown has nothing left to retry.
-      fetch(sessionUrl, { method: "DELETE", keepalive: true }).catch(() => {});
+      fetch(sessionUrl, {
+        method: "DELETE",
+        keepalive: true,
+        ...MediaMTXWebRTCReader.#FETCH_POLICY,
+      }).catch(() => {});
+    }
+  }
+
+  /**
+   * NavPy patch: every signalling request goes through here, so the fetch
+   * policy cannot be forgotten on one path. A rejection is terminal.
+   */
+  #fetch(url, init) {
+    return fetch(url, { ...init, ...MediaMTXWebRTCReader.#FETCH_POLICY }).catch(
+      (err) => {
+        throw new TerminalError(`request failed: ${err}`);
+      },
+    );
+  }
+
+  /**
+   * NavPy patch: the session resource must lie on the endpoint's own origin,
+   * under "<endpoint path>/" (MediaMTX answers "<path>/whep/<secret>").
+   * Returns the absolute URL, or null when the Location is anything else.
+   */
+  #checkedSessionUrl(location) {
+    if (location === null || location === undefined) {
+      return null;
+    }
+    let resolved;
+    try {
+      resolved = new URL(location, this.#conf.url);
+    } catch {
+      return null;
+    }
+    const endpoint = new URL(this.#conf.url);
+    const prefix = `${endpoint.pathname.replace(/\/+$/, "")}/`;
+    if (
+      resolved.origin !== endpoint.origin ||
+      !resolved.pathname.startsWith(prefix) ||
+      resolved.pathname.length === prefix.length
+    ) {
+      return null;
+    }
+    return resolved.toString();
+  }
+
+  /**
+   * NavPy patch: stop for good after a TerminalError. Unlike #handleError it
+   * arms no restart and sends no DELETE: the server broke the fetch policy,
+   * so nothing more is sent to it.
+   */
+  #fail(err) {
+    if (this.#state === "closed" || this.#state === "failed") {
+      return;
+    }
+    this.#state = "failed";
+
+    if (this.#pc !== null) {
+      this.#pc.close();
+      this.#pc = null;
+    }
+    if (this.#restartTimeout !== null) {
+      clearTimeout(this.#restartTimeout);
+      this.#restartTimeout = null;
+    }
+    this.#offerData = null;
+    this.#queuedCandidates = [];
+    this.#sessionUrl = null;
+
+    if (this.#conf.onError !== undefined) {
+      this.#conf.onError(err);
+    }
+  }
+
+  /**
+   * NavPy patch: route a signalling failure to #fail or #handleError.
+   */
+  #onSignallingError(err) {
+    if (err instanceof TerminalError) {
+      this.#fail(err.message);
+    } else {
+      this.#handleError(err.toString());
     }
   }
 
@@ -519,7 +617,8 @@ class MediaMTXWebRTCReader {
       .then((offer) => this.#sendOffer(offer))
       .then((answer) => this.#setAnswer(answer))
       .catch((err) => {
-        this.#handleError(err.toString());
+        // NavPy patch: was this.#handleError(err.toString()).
+        this.#onSignallingError(err);
       });
   }
 
@@ -535,7 +634,7 @@ class MediaMTXWebRTCReader {
   }
 
   #requestICEServers() {
-    return fetch(this.#conf.url, {
+    return this.#fetch(this.#conf.url, {
       method: "OPTIONS",
       headers: this.#authHeader(),
     }).then((res) =>
@@ -582,7 +681,7 @@ class MediaMTXWebRTCReader {
       throw new Error("closed");
     }
 
-    return fetch(this.#conf.url, {
+    return this.#fetch(this.#conf.url, {
       method: "POST",
       headers: {
         ...this.#authHeader(),
@@ -603,10 +702,13 @@ class MediaMTXWebRTCReader {
           throw new Error(`bad status code ${res.status}`);
       }
 
-      this.#sessionUrl = new URL(
-        res.headers.get("location"),
-        this.#conf.url,
-      ).toString();
+      // NavPy patch: upstream stored any Location. One outside the endpoint
+      // is never stored, PATCHed or DELETEd; the reader stops instead.
+      const sessionUrl = this.#checkedSessionUrl(res.headers.get("location"));
+      if (sessionUrl === null) {
+        throw new TerminalError("WHEP session location outside the endpoint");
+      }
+      this.#sessionUrl = sessionUrl;
 
       // NavPy patch: close() can land while this POST is still in flight. The
       // server has now created the session, so release it with the Location it
@@ -661,7 +763,7 @@ class MediaMTXWebRTCReader {
   }
 
   #sendLocalCandidates(candidates) {
-    fetch(this.#sessionUrl, {
+    this.#fetch(this.#sessionUrl, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/trickle-ice-sdpfrag",
@@ -683,7 +785,8 @@ class MediaMTXWebRTCReader {
         }
       })
       .catch((err) => {
-        this.#handleError(err.toString());
+        // NavPy patch: was this.#handleError(err.toString()).
+        this.#onSignallingError(err);
       });
   }
 

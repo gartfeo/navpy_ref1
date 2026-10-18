@@ -237,6 +237,7 @@ def record_pids(
     *,
     backend_pid: int | None = None,
     frontend_pid: int | None = None,
+    video_pid: int | None = None,
     sitl: bool | None = None,
     sitl_pid: int | None = None,
 ) -> None:
@@ -244,6 +245,7 @@ def record_pids(
         chat,
         backend_pid=backend_pid,
         frontend_pid=frontend_pid,
+        video_pid=video_pid,
         sitl=sitl,
         sitl_pid=sitl_pid,
         pid_start=_pid_start_time,
