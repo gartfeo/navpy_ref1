@@ -805,7 +805,7 @@ def test_ideal_360_empty_publication_still_rejects_as_navigation_rejected():
     publication = Mock(source_discontinuity=False, source_name="ideal_360")
 
     assert handler.handle(publication) is False
-    failed.assert_called_once_with()
+    failed.assert_called_once_with("navigation_rejected")
     assert logger.info.call_args.args[0].startswith("NAV_FAIL: navigation_rejected")
 
 
@@ -1129,5 +1129,5 @@ def test_unnamed_discontinuity_fails_without_receipt_or_dispatch():
     publication = Mock(source_discontinuity=True, source_name=None)
 
     assert handler.handle(publication) is False
-    failed.assert_called_once_with()
+    failed.assert_called_once_with("discontinuity_source_missing")
     commands.dispatch_poi.assert_not_called()

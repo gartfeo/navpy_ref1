@@ -29,10 +29,12 @@ from navpy.sim.world.dock_contact_geometry import (
 )
 from navpy.sim.world.dock_contact_sensor import (
     SIM_DOCK_CONTACT_MAX_SEGMENT_PERIODS,
+    SIM_DOCK_NET_RADIUS_ENV,
     SIM_DOCK_NET_RADIUS_M,
     PositionSample,
     SimDockContactSensor,
     max_segment_s,
+    sim_dock_net_radius_m,
 )
 from navpy.sim.world.simulation_object import SimulationObject
 
@@ -121,6 +123,44 @@ def test_just_outside_the_net_does_not_dock(east_m, up_m):
     sensor, events, _ = _armed()
     _fly_past(sensor, east_m=east_m, up_m=up_m)
     assert events == []
+
+
+def test_a_zero_radius_override_makes_a_dead_centre_pass_a_miss():
+    """The forced-miss check (missed_dock.md): radius 0 never docks."""
+    sensor = SimDockContactSensor(_World(), net_radius_m=0.0)
+    events = []
+    sensor.arm(IDENTITY, events.append)
+    _fly_past(sensor, east_m=0.0)
+    assert events == []
+
+
+def test_a_wider_radius_override_docks_outside_the_default_net():
+    sensor = SimDockContactSensor(_World(), net_radius_m=1.0)
+    events = []
+    sensor.arm(IDENTITY, events.append)
+    _fly_past(sensor, east_m=0.8)
+    assert len(events) == 1
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    (({}, SIM_DOCK_NET_RADIUS_M), ({SIM_DOCK_NET_RADIUS_ENV: " "}, SIM_DOCK_NET_RADIUS_M),
+     ({SIM_DOCK_NET_RADIUS_ENV: "0"}, 0.0), ({SIM_DOCK_NET_RADIUS_ENV: "0.25"}, 0.25)),
+)
+def test_the_net_radius_reads_the_override(env, expected):
+    assert sim_dock_net_radius_m(env) == expected
+
+
+@pytest.mark.parametrize("raw", ("-0.1", "nan", "inf", "wide", "0.75"))
+def test_an_invalid_net_radius_is_refused(raw):
+    with pytest.raises(ValueError):
+        sim_dock_net_radius_m({SIM_DOCK_NET_RADIUS_ENV: raw})
+
+
+@pytest.mark.parametrize("radius_m", (-0.1, math.nan, math.inf))
+def test_the_sensor_refuses_an_invalid_net_radius(radius_m):
+    with pytest.raises(ValueError):
+        SimDockContactSensor(_World(), net_radius_m=radius_m)
 
 
 def test_another_uavs_dock_never_docks():
@@ -259,6 +299,7 @@ def _sim_factory(simulated: bool) -> SimDetectorFactory:
         is_simulated_autopilot=Mock(return_value=simulated),
         on_message=Mock(return_value=Subscription(lambda: None)),
     )
+    factory._logger = Mock()
     factory._dock_contact = None
     factory._dock_contact_feed = None
     return factory
@@ -275,6 +316,14 @@ def test_sim_composition_wires_one_sensor_for_a_sim_autopilot():
     assert factory.dock_contact is sensor
     factory._vehicle.on_message.assert_called_once()
     assert factory._vehicle.on_message.call_args.args[0] == POSITION_MESSAGE
+
+
+def test_sim_composition_applies_and_logs_the_net_radius_override(monkeypatch):
+    monkeypatch.setenv(SIM_DOCK_NET_RADIUS_ENV, "0")
+    factory = _sim_factory(simulated=True)
+    factory._wire_dock_contact(Mock(sim_docks=Mock(return_value=())))
+    factory._logger.info.assert_called_once_with("SIM dock net radius: 0 m")
+    assert factory.dock_contact._net_radius_m == 0.0
 
 
 def test_sim_detector_on_a_real_autopilot_has_no_sensor():

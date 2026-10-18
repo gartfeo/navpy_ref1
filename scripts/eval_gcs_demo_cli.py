@@ -78,6 +78,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="run in lockstep on serial-step SITLs (the owner_only_slice or certified scenario); "
         "--timeout-s and --confirmation-delay-s are then sim seconds",
     )
+    parser.add_argument(
+        "--sim-dock-net-radius-m",
+        type=float,
+        default=None,
+        help="live run only: shrink the sim net (0..0.5 m); 0 forces every pass to miss",
+    )
     parser.add_argument("--seed", type=int, default=1, help="lockstep run seed (default: 1)")
     parser.add_argument(
         "--host-delay-seed",
@@ -100,6 +106,8 @@ def run_lockstep(
     """
     if args.navigation_speedup:
         raise RegressionError("--lockstep has no --navigation-speedup: its cadence factor is 1")
+    if args.sim_dock_net_radius_m is not None:
+        raise RegressionError("--lockstep has no --sim-dock-net-radius-m")
     run_dir = args.run_dir or Path(tempfile.mkdtemp(prefix="navpy-gcs-demo-lockstep-"))
     print(f"GCS demo lockstep artifacts: {run_dir.resolve()}", flush=True)
     options = LockstepOptions(args.seed, args.timeout_s, args.confirmation_delay_s,
@@ -163,6 +171,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 scenario=scenario,
                 navigation_speedup=speedup,
                 sim_docks=prepare_sim_docks(run_dir, scenario),
+                sim_dock_net_radius_m=args.sim_dock_net_radius_m,
             )
             report = analyze_run(
                 run_dir,

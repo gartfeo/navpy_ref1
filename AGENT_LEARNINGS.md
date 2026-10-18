@@ -775,3 +775,17 @@
   ids are 1..count), or the consumer silently discards it.
 - Untracked `.codex/agents/janitor.toml` / `live-tester.toml` in a worktree fail
   `test_gen_codex_agents.py` as STALE; check `git status` before blaming a change.
+
+## Missed dock ends like DOCKED (todo 74, 2026-10-18)
+- Making every FAILED end commands broke runtime tests that send a frame after a NAV_FAIL; those tests
+  cover the real build, which arms no episode. Gate a new terminal rule on the scope that needs it (here
+  an armed sim episode) instead of rewriting the old tests.
+- Evidence parsers: check the same-identity conflict before generic order checks, or tests see a
+  less specific message; require strictly rising episode numbers at every arm, whatever the outcome.
+- SOLID size guards fail late in the full suite; split a new concern into its own port (dock_outcome)
+  rather than growing a class past 15 methods.
+- A terminal outcome must be read before `navigation_reset`: reset_phase clears the episode latch. Take an
+  immutable snapshot in NAV cleanup, then decide and report after the exit succeeded.
+- The venv has no pytest-xdist; `-n auto` fails at once. Run the full suite serially in the background.
+- Tests that build a factory with `object.__new__` break when the code uses a new attribute (here the
+  logger); set it in the test helper.

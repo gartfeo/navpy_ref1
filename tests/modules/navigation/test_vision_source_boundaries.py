@@ -222,7 +222,7 @@ def test_empty_current_publication_fails_without_gap_or_confirmation_deferral():
     commands = FinalApproachCommandDispatch(ports, source)
     event = MagicMock()
     commands.dispatch(NavSourceBatch(True, event, (), False), None, poi)
-    ports.mark_failed.assert_called_once_with()
+    ports.mark_failed.assert_called_once_with("navigation_rejected")
     ports.nav.assert_not_called()
 
 
@@ -362,7 +362,7 @@ def test_no_detection_is_always_a_failure_never_a_pass():
     commands = FinalApproachCommandDispatch(ports, MagicMock())
     commands.mark_no_detection(MagicMock(task_id=1, obj_id=2))
 
-    ports.mark_failed.assert_called_once_with()
+    ports.mark_failed.assert_called_once_with("no_detection")
     message = ports.logger.info.call_args.args[0]
     assert message.startswith("NAV_FAIL: no_detection")
 

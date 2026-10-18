@@ -288,7 +288,7 @@ def test_failure_latch_without_an_arbiter_always_latches():
 
 
 def test_failure_latch_asks_the_arbiter_before_latching():
-    latch = NavigationFailureLatch(lambda: False)
+    latch = NavigationFailureLatch(lambda _reason: False)
     assert latch.mark_failed() is False
     assert latch.failed is False
 

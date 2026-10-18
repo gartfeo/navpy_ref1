@@ -233,7 +233,7 @@ def _report_pump_failure(
     state: NavStateOwnership,
     logger: ILogger,
 ) -> None:
-    state.navigation_failures.mark_failed()
+    state.navigation_failures.mark_failed("source_event_pump")
     try:
         logger.error(
             f"NAV_FAIL: source_event_pump {failure.reason}",

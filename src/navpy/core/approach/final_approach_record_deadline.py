@@ -19,7 +19,7 @@ class FinalApproachRecordDeadline:
     def __init__(
         self,
         state: FinalApproachNavState,
-        mark_failed: Callable[[], None],
+        mark_failed: Callable[[str], object],
         clock_s: Callable[[], float],
         logger: ILogger,
         debug: ConfirmDebugReporter,
@@ -38,7 +38,7 @@ class FinalApproachRecordDeadline:
             now_s - self._state.deferred_record_started_at
             > FINAL_APPROACH_RECORD_TIMEOUT_S
         ):
-            self._mark_failed()
+            self._mark_failed("final_approach_record_unavailable")
             try:
                 self._logger.info(
                     "NAV_FAIL: final_approach_record_unavailable after "

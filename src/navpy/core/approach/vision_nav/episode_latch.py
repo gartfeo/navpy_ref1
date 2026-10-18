@@ -7,11 +7,17 @@ ignored, and a NAV_FAIL or detection loss after a contact is ignored. The
 caller holds the runtime lock for every call. An observer, if given, sees
 each latch (outcome and the armed identity, None when none was armed) under
 that lock: it must not block (the HITL terminal handoff).
+
+A NAV_FAIL of an armed episode ends it as a failed dock (missed_dock.md): it
+ends commands, and its reason is kept for the NAV exit snapshot, so the state
+machine reports why it failed. Unarmed (the real build) it only wins the race
+with a contact, and the navigation loop resets the phase as before.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
@@ -26,11 +32,26 @@ class FinalApproachTerminal(Enum):
 
 TerminalObserver = Callable[[FinalApproachTerminal, Optional[DockContactIdentity]], None]
 
+# The reason of an aft-dock miss, as its NAV_FAIL line names it.
+MISSED_DOCK_REASON = "missed_dock"
+# A NAV_FAIL whose caller names no reason.
+UNNAMED_FAILURE_REASON = "nav_fail"
+
+
+@dataclass(frozen=True)
+class FinalApproachEpisodeTerminal:
+    """The armed episode's first terminal, taken at NAV exit before reset."""
+
+    identity: DockContactIdentity
+    terminal: FinalApproachTerminal
+    reason: str | None
+
 
 class FinalApproachEpisodeLatch:
     def __init__(self, on_terminal: TerminalObserver | None = None) -> None:
         self._identity: DockContactIdentity | None = None
         self._terminal: FinalApproachTerminal | None = None
+        self._reason: str | None = None
         self._miss_reported = False
         self._on_terminal = on_terminal
 
@@ -40,14 +61,31 @@ class FinalApproachEpisodeLatch:
 
     @property
     def commands_ended(self) -> bool:
-        """Docked or missed: nothing may be commanded until RESET.
+        """Docked, missed, or an armed episode failed: nothing may be
+        commanded until RESET or a new episode.
 
-        A NAV_FAIL latches FAILED only to win the race with a contact; the
-        navigation loop then resets the phase as it always did.
+        A frame admitted after an armed NAV_FAIL is suppressed, not flown.
         """
-        return self._terminal in (
-            FinalApproachTerminal.DOCKED,
-            FinalApproachTerminal.MISSED,
+        if self._terminal is FinalApproachTerminal.FAILED:
+            return self.failure_ends_commands
+        return self._terminal is not None
+
+    @property
+    def failure_ends_commands(self) -> bool:
+        """A FAILED latch ends commands only for an armed (sim) episode."""
+        return (
+            self._terminal is FinalApproachTerminal.FAILED
+            and self._identity is not None
+        )
+
+    def terminal_snapshot(self) -> FinalApproachEpisodeTerminal | None:
+        """The armed episode's terminal; None when none was armed or latched."""
+        if self._identity is None or self._terminal is None:
+            return None
+        return FinalApproachEpisodeTerminal(
+            self._identity,
+            self._terminal,
+            self._reason,
         )
 
     def begin(self, identity: DockContactIdentity) -> None:
@@ -64,13 +102,20 @@ class FinalApproachEpisodeLatch:
     def latch_missed(self) -> bool:
         if self._terminal is not None:
             return False
+        self._reason = MISSED_DOCK_REASON
         self._latch(FinalApproachTerminal.MISSED)
         return True
 
-    def latch_failure(self) -> bool:
-        """Admit a NAV_FAIL unless the episode already docked."""
+    def latch_failure(self, reason: str | None = None) -> bool:
+        """Admit a NAV_FAIL unless the episode already docked.
+
+        The first named reason is kept: an unnamed command failure that
+        latched first takes the reason of the NAV_FAIL line that reports it.
+        """
         if self.docked:
             return False
+        if self._reason is None:
+            self._reason = reason
         if self._terminal is None:
             self._latch(FinalApproachTerminal.FAILED)
         return True
@@ -90,7 +135,15 @@ class FinalApproachEpisodeLatch:
     def reset(self) -> None:
         self._identity = None
         self._terminal = None
+        self._reason = None
         self._miss_reported = False
 
 
-__all__ = ["FinalApproachEpisodeLatch", "FinalApproachTerminal", "TerminalObserver"]
+__all__ = [
+    "FinalApproachEpisodeLatch",
+    "FinalApproachEpisodeTerminal",
+    "FinalApproachTerminal",
+    "MISSED_DOCK_REASON",
+    "TerminalObserver",
+    "UNNAMED_FAILURE_REASON",
+]

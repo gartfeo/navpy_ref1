@@ -52,6 +52,7 @@ class Navigation:
         self._lifecycle = composition.lifecycle
         self._mode_state = composition.mode_state
         self.final_approach = composition.final_approach
+        self.dock_outcome = composition.dock_outcome
         self.legacy_pois = composition.legacy_pois
         self.vehicle_commands = composition.vehicle_commands
         self._bind_source_dispatch = composition.bind_source_dispatch

@@ -9,7 +9,8 @@ Two row shapes:
     FINAL_APPROACH_CMD, FINAL_APPROACH_PITCH_STATE, FINAL_APPROACH_PREDICTION,
     FINAL_APPROACH_ATTITUDE_DIAG, FINAL_APPROACH_RESPONSE_STATE,
     FINAL_APPROACH_BEARING_RATE_DIAG, FINAL_APPROACH_VERTICAL_FLOW_DIAG,
-    FINAL_APPROACH_PREVIEW_STATE, DOCK_ARMED, DOCK_DISARMED, DOCKED):
+    FINAL_APPROACH_PREVIEW_STATE, DOCK_ARMED, DOCK_DISARMED, DOCKED,
+    DOCK_FAILED):
       {ts},EVENT:{NAME},{k=v;k=v},,,,,,,,,
     12-column CSV-parseable. Payload uses sanitized k=v pairs.
 """
@@ -53,6 +54,8 @@ class LogEvent(Enum):
     DOCK_DISARMED = "DOCK_DISARMED"
     # Dock contact: the only success of a final approach (physical_docking.md).
     DOCKED = "DOCKED"
+    # NAV exit of an armed episode that ended without contact (missed_dock.md).
+    DOCK_FAILED = "DOCK_FAILED"
 
 
 def format_snap_event_row(

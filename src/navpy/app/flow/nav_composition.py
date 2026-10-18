@@ -51,6 +51,7 @@ def create_nav_application(
     profile = vision_profile or {}
     navigation_capabilities = NavCapabilities(
         final_approach=navigation.final_approach,
+        dock_outcome=navigation.dock_outcome,
         legacy_pois=navigation.legacy_pois,
         vehicle_commands=navigation.vehicle_commands,
         init=navigation.init,

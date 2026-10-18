@@ -98,6 +98,7 @@ def compose_nav_application(
                 close_final_approach_source=final_approach_nav.close_source_admission,
                 navigation_reset=navigation.reset,
                 detector_stop=detection.tracking_commands.stop_tracking,
+                dock_outcome=navigation.dock_outcome,
             ),
             approach.speedup,
             logger,

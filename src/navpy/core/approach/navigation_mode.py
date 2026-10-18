@@ -19,6 +19,7 @@ from navpy.core.approach.nav_law_factory import (
     NavAlgorithmSpec,
     get_nav_algorithm_spec,
 )
+from navpy.core.approach.vision_nav.dock_outcome import FinalApproachDockOutcome
 from navpy.core.approach.vision_nav.runtime_api import (
     VisionNavConfirmation,
     VisionNavStatus,
@@ -31,6 +32,8 @@ class NavigationFinalApproachCapabilities:
 
     status: VisionNavStatus
     confirmation: VisionNavConfirmation
+    # How an armed episode ended, for NAV exit (missed_dock.md).
+    dock_outcome: Optional[FinalApproachDockOutcome] = None
 
 
 @dataclass(frozen=True)

@@ -5,8 +5,9 @@ role's checks are in ``eval_delivery_checks.py``. Each UAV must dock at its
 role's world dock: the offerer at the kept dock, the winner at the offered
 dock, home at its own zone's home dock. Docked means the DOCKED row: the sim
 contact sensor's closest pass to that dock, from telemetry, inside the net
-(owner, 2026-10-17; the frame-sampled SNAP line is coarser). See
-docs/design/delivery_eval_scenario.md, "e6 as built".
+(owner, 2026-10-17; the frame-sampled SNAP line is coarser). A missed
+approach ends with a DOCK_FAILED row (missed_dock.md), reported with its
+reason. See docs/design/delivery_eval_scenario.md, "e6 as built".
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
@@ -31,7 +32,8 @@ from scripts.eval_delivery_fixture import DOCK_FILE_NAME, load_fixture, zone_slo
 from scripts.eval_delivery_roles import HOME, OFFERER, WINNER, DeliveryRoles, resolve_roles
 from scripts.eval_gcs_demo_assignment_lines import AssignmentLines, LogFormat, parse_assignment_lines
 from scripts.eval_gcs_demo_constants import backend_log_path
-from scripts.eval_gcs_demo_evidence import mission_navigation_segment, parse_final_approach_episodes
+from scripts.eval_gcs_demo_docked import DockFailedEvidence
+from scripts.eval_gcs_demo_evidence import mission_navigation_segment, parse_final_approach_outcomes
 from scripts.eval_gcs_demo_assignment_audit import AssignmentEvidence
 from scripts.eval_gcs_demo_models import FinalApproachEpisode
 from scripts.eval_gcs_demo_poi_binding import vehicle_poi_binding_errors
@@ -48,6 +50,8 @@ class DeliveryEvidence:
     texts: dict[int, str]  # full NavPy navigation logs
     episodes: dict[int, list[FinalApproachEpisode]]
     lines: AssignmentLines
+    # The validated DOCK_FAILED rows of each UAV (missed_dock.md).
+    failures: dict[int, list[DockFailedEvidence]] = field(default_factory=dict)
 
     def dock(self, name: str) -> int:
         return [dock.name for dock in self.docks].index(name)
@@ -87,8 +91,8 @@ def load_delivery_evidence(
         sys_id: navigation_log(log_dir, sys_id).read_text(encoding="utf-8", errors="replace")
         for sys_id in sys_ids
     }
-    episodes = {
-        sys_id: parse_final_approach_episodes(
+    outcomes = {
+        sys_id: parse_final_approach_outcomes(
             log_dir / f"uav_{sys_id}_navigation_debug.csv", vehicle_id=sys_id,
         )
         for sys_id in sys_ids
@@ -98,8 +102,9 @@ def load_delivery_evidence(
         cast(Mapping[str, JsonValue], fixture["expected"]),
         parse_fleet_docks(flown),
         texts,
-        episodes,
+        {sys_id: episodes for sys_id, (episodes, _) in outcomes.items()},
         _backend_lines(log_dir),
+        {sys_id: failures for sys_id, (_, failures) in outcomes.items()},
     )
 
 
@@ -121,15 +126,20 @@ def _approved_at(approvals: Sequence[Mapping[str, JsonValue]], sys_id: int) -> t
 def docking_errors(
     sys_id: int, text: str, episodes: list[FinalApproachEpisode],
     docks: Sequence[DockSpec], dock: int, approval: tuple[int, float] | None,
+    failures: Sequence[DockFailedEvidence] = (),
 ) -> list[str]:
     """One episode at *dock*, entered after its approval (the operator's
     earliest POST time, and NavPy's own confirmed -> INIT NAV order), then
     DOCKED there."""
     name = docks[dock].name
+    errors = [
+        f"UAV {sys_id} dock failed at "
+        f"{docks[failed.dock].name if failed.dock < len(docks) else failed.dock}: {failed.reason}"
+        for failed in failures
+    ]
     if len(episodes) != 1:
-        return [f"UAV {sys_id} has {len(episodes)} final-approach episodes, not one at {name}"]
+        return errors + [f"UAV {sys_id} has {len(episodes)} final-approach episodes, not one at {name}"]
     episode = episodes[0]
-    errors = []
     if {command.obj for command in episode.commands} != {dock}:
         errors.append(f"UAV {sys_id} approached dock ids {sorted({c.obj for c in episode.commands})}, not {name}")
     armed = episode.armed
@@ -185,7 +195,7 @@ def delivery_errors(
     for sys_id, dock in targets.items():
         errors += docking_errors(
             sys_id, mission[sys_id], evidence.episodes[sys_id], docks, dock,
-            _approved_at(approvals, sys_id),
+            _approved_at(approvals, sys_id), evidence.failures.get(sys_id, ()),
         )
     return [f"delivery: {error}" for error in errors]
 
