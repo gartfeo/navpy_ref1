@@ -27,8 +27,6 @@ _ARDUPILOT = "src/navpy/plugins/vehicle/ardupilot/"
 ALLOWED = (
     (_ARDUPILOT + "mission_encoding.py", "delivery", 3, "the wire codec the GCS imports"),
     (_ARDUPILOT + "mission_encoding.py", "hub", 3, "the wire codec the GCS imports"),
-    (_ARDUPILOT + "mission_metadata.py", "delivery", 18, "picks the hub marker until c9"),
-    (_ARDUPILOT + "mission_metadata.py", "hub", 18, "picks the hub marker until c9"),
     ("src/navpy/core/approach/vision_nav/command_hold.py", "delivery", 1,
      "names the design file final_approach_delivery_fix"),
 )

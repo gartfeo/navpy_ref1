@@ -1,9 +1,15 @@
-"""Tests for mission_metadata.py — read_default_delivery_hub and read_mission_metadata."""
+"""Tests for mission_metadata.py — read_mission_metadata, and the hub delivery reads from its markers."""
 import unittest
 from unittest.mock import MagicMock
 
+from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_DO_SET_ROI_LOCATION
+
 from gcs.backend.planner.waypoint_builder import build_mission, META_DEFAULT_DELIVERY_HUB
-from navpy.plugins.vehicle.ardupilot.mission_metadata import read_default_delivery_hub, read_mission_metadata
+from navpy.core.kernel.location import Location
+from navpy.core.ports.mission_marker import MissionMarker
+from navpy.plugins.vehicle.ardupilot import mission_encoding
+from navpy.plugins.vehicle.ardupilot.mission_metadata import read_mission_metadata
+from navpy.products.delivery.mission_catalog import HUB_MARKER_CODE, MissionCatalog
 
 
 def _make_track(n=3, base_lat=32.0, base_lon=34.0, step=0.001):
@@ -24,8 +30,19 @@ def _mock_vehicle_from_loader(wp_loader):
     return vehicle
 
 
+def _catalog(meta):
+    """Delivery's catalog, given the plugin's neutral markers."""
+    catalog = MissionCatalog()
+    catalog.update(meta.markers)
+    return catalog
+
+
+def _hub(vehicle):
+    return _catalog(read_mission_metadata(vehicle)).default_delivery_hub
+
+
 class TestReadDefaultDeliveryHub(unittest.TestCase):
-    """read_default_delivery_hub from mission waypoints built by waypoint_builder."""
+    """The hub, read through delivery's catalog from mission waypoints built by waypoint_builder."""
 
     def test_with_default_delivery_hub(self):
         """Default delivery hub present in mission."""
@@ -34,7 +51,7 @@ class TestReadDefaultDeliveryHub(unittest.TestCase):
         wp_loader = build_mission(track, 100, default_delivery_hub=dt)
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
-        loc = read_default_delivery_hub(vehicle)
+        loc = _hub(vehicle)
         self.assertIsNotNone(loc)
         self.assertAlmostEqual(loc.lat, 40.5, places=6)
         self.assertAlmostEqual(loc.lng, 44.5, places=6)
@@ -45,7 +62,7 @@ class TestReadDefaultDeliveryHub(unittest.TestCase):
         wp_loader = build_mission(track, 100)
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
-        loc = read_default_delivery_hub(vehicle)
+        loc = _hub(vehicle)
         self.assertIsNone(loc)
 
     def test_with_other_metadata(self):
@@ -60,7 +77,7 @@ class TestReadDefaultDeliveryHub(unittest.TestCase):
         )
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
-        loc = read_default_delivery_hub(vehicle)
+        loc = _hub(vehicle)
         self.assertIsNotNone(loc)
         self.assertAlmostEqual(loc.lat, 40.5, places=6)
         self.assertAlmostEqual(loc.lng, 44.5, places=6)
@@ -71,7 +88,7 @@ class TestReadDefaultDeliveryHub(unittest.TestCase):
         vehicle.mission_items_count = 0
         vehicle.get_mission_item = MagicMock(return_value=None)
 
-        loc = read_default_delivery_hub(vehicle)
+        loc = _hub(vehicle)
         self.assertIsNone(loc)
 
 
@@ -91,7 +108,7 @@ class TestReadMissionMetadata(unittest.TestCase):
 
         meta = read_mission_metadata(vehicle)
         self.assertEqual(meta.search_pattern, "corridor")
-        self.assertEqual(meta.default_delivery_hub_type, "fuel")
+        self.assertEqual(_catalog(meta).default_delivery_hub_type, "fuel")
 
     def test_decodes_search_pattern(self):
         """Mission search_pattern is correctly decoded."""
@@ -192,10 +209,10 @@ class TestReadMissionMetadata(unittest.TestCase):
         wp_loader = build_mission(track, 100, default_delivery_hub=dt)
         vehicle = _mock_vehicle_from_loader(wp_loader)
 
-        meta = read_mission_metadata(vehicle)
-        self.assertIsNotNone(meta.default_delivery_hub)
-        self.assertAlmostEqual(meta.default_delivery_hub.lat, 40.5, places=6)
-        self.assertEqual(meta.default_delivery_hub_type, "operations_site")
+        catalog = _catalog(read_mission_metadata(vehicle))
+        self.assertIsNotNone(catalog.default_delivery_hub)
+        self.assertAlmostEqual(catalog.default_delivery_hub.lat, 40.5, places=6)
+        self.assertEqual(catalog.default_delivery_hub_type, "operations_site")
 
     def test_empty_mission(self):
         """Empty mission returns defaults."""
@@ -217,6 +234,56 @@ class TestReadMissionMetadata(unittest.TestCase):
         meta = read_mission_metadata(vehicle)
         self.assertFalse(hasattr(meta, "dock_classes"))
         self.assertFalse(hasattr(meta, "detect_class_ids"))
+
+    def test_every_marker_is_kept_without_a_meaning(self):
+        """The plugin hands over each marker's code, place and type, in order."""
+        track = _make_track(3)
+        wp_loader = build_mission(
+            track, 100,
+            polygon=[{"lat": 32.0, "lon": 34.0}],
+            launch_point={"lat": 31.5, "lon": 33.5},
+            default_delivery_hub={"lat": 40.5, "lon": 44.5, "type": "fuel"},
+        )
+        vehicle = _mock_vehicle_from_loader(wp_loader)
+
+        markers = read_mission_metadata(vehicle).markers
+        codes = [marker.code for marker in markers]
+        in_mission = [
+            int(wp_loader.wp(seq).param1) for seq in range(wp_loader.count())
+            if wp_loader.wp(seq).command == MAV_CMD_DO_SET_ROI_LOCATION
+        ]
+        self.assertEqual(codes, in_mission)
+        self.assertIn(mission_encoding.META_POLYGON_VERTEX, codes)
+        self.assertIn(mission_encoding.META_LAUNCH_POINT, codes)
+        self.assertEqual(codes.count(mission_encoding.META_DEFAULT_DELIVERY_HUB), 1)
+        hub = markers[codes.index(mission_encoding.META_DEFAULT_DELIVERY_HUB)]
+        self.assertAlmostEqual(hub.location.lat, 40.5, places=6)
+        self.assertEqual(hub.location_type, "fuel")
+
+
+class TestMissionCatalogMarkers(unittest.TestCase):
+    """Delivery picks its hub among the neutral markers."""
+
+    def test_hub_marker_code_is_the_plugin_wire_code(self):
+        self.assertEqual(HUB_MARKER_CODE, mission_encoding.META_DEFAULT_DELIVERY_HUB)
+
+    def test_the_last_hub_marker_wins(self):
+        """As the plugin's loop kept the last one before the move."""
+        catalog = MissionCatalog()
+        catalog.update([
+            MissionMarker(HUB_MARKER_CODE, Location(1.0, 2.0, 0), "fuel"),
+            MissionMarker(mission_encoding.META_LAUNCH_POINT, Location(5.0, 6.0, 0), None),
+            MissionMarker(HUB_MARKER_CODE, Location(3.0, 4.0, 0), None),
+        ])
+        self.assertEqual(catalog.default_delivery_hub.lat, 3.0)
+        self.assertIsNone(catalog.default_delivery_hub_type)
+
+    def test_no_hub_marker_clears_the_hub(self):
+        catalog = MissionCatalog()
+        catalog.update([MissionMarker(HUB_MARKER_CODE, Location(1.0, 2.0, 0), "fuel")])
+        catalog.update([MissionMarker(mission_encoding.META_LAUNCH_POINT, Location(5.0, 6.0, 0), None)])
+        self.assertIsNone(catalog.default_delivery_hub)
+        self.assertIsNone(catalog.default_delivery_hub_type)
 
 
 if __name__ == "__main__":

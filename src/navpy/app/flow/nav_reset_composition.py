@@ -99,7 +99,7 @@ def refresh_mission_metadata(
     planner: ApproachPlanner,
 ) -> None:
     metadata = read_mission_metadata(vehicle)
-    mission.update(metadata.default_delivery_hub, metadata.default_delivery_hub_type)
+    mission.update(metadata.markers)
     planner.scan_altitude_rel = metadata.scan_altitude_rel
 
 

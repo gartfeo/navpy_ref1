@@ -106,7 +106,7 @@ def compose_poi_mission_ownership(
     metadata: MissionMetadata,
 ) -> PoiMissionOwnership:
     mission = MissionCatalog()
-    mission.update(metadata.default_delivery_hub, metadata.default_delivery_hub_type)
+    mission.update(metadata.markers)
     pass_tracker = LegacyPassTracker(
         close_distance_m=POI_CLOSE_DIST,
         distance_epsilon_m=DIST_EPS,
