@@ -247,8 +247,14 @@ the full "UAV n" stays in the title, buttons that do not fit move into one menu
 button (v10's badge room rule, computed for the whole fleet), and Maximize and
 Close show their standard glyphs with an accessible name. Icons always carry
 an accessible name ("UAV 2, camera" / "UAV 3, no camera, synthetic view").
+The overflow menu opens downward under its button (today it opens upward,
+`VehicleWindow.jsx:138`, which at the top right would run into the action
+bar), stays inside the window (at most down to the window's bottom edge, then
+it scrolls) and draws above the small swapped map; a pick, Escape or a tap
+outside closes it, and Escape returns focus to the menu button.
 Focus: Close removes the control that has focus, so focus moves to the picked
-UAV's button in the picker. In monitor mode confirm cards and E-STOP are in the
+UAV's button in the picker; if that UAV has left the fleet, to the first UAV
+button. (With an empty fleet the window is gone.) In monitor mode confirm cards and E-STOP are in the
 sidebar, not over the map, so neither the window nor the small swapped map can
 cover them. The top-right bar keeps its pre-PR #18 controls at 32 px (owner,
 2026-10-18), without the follow selector; it wraps on a narrow pane
@@ -316,8 +322,12 @@ always starts 12 px below it.
   removed.
 - Maximize swaps the window and the map (QGroundControl, UgCS, DJI Pilot 2):
   the window takes the large box (pane width minus 12 px margins, from below
-  the action bar to the bottom margin) and the map shrinks into the window's
-  normal box at the top right, drawn above it. Maximize is offered only while
+  the action bar to the bottom margin) and the map shrinks into a small box
+  drawn above the large window's picture: at the picture's top right, 12 px
+  under the window's last header, control or failure row and 12 px in from
+  its right edge, width min(320 px, half the large box), 16:9. It never
+  covers the UAV buttons, the overflow menu, the switch, Restore, Close or a
+  failure row. Maximize is offered only while
   viewing, not in the picker. The window's Maximize reads Restore while
   swapped. A tap anywhere on the small map swaps back: a transparent button
   covers it (accessible name "Show the map large"), so the small map is never
@@ -363,7 +373,7 @@ always starts 12 px below it.
   covered. Each Cesium view keeps its credits at its own bottom-left (Cesium's
   default). At normal size the window is at the top right, clear of the main
   map's credit line. Swapped, the small map sits at the top right of the large
-  window, clear of its bottom-left credits (maximized Synthetic) or of nothing
+  window's picture, clear of its bottom-left credits (maximized Synthetic) or of nothing
   (Camera video has no credit line). The small map's own credits stay visible
   inside it; its tap button blocks their "Data attribution" link until the
   swap back.
@@ -532,7 +542,9 @@ large vehicle view.
   - `VehicleWindow.jsx`: the picker state; badges gain the camera or map icon
     and the "link lost" text; the minimized handle goes; Minimize becomes
     Close. `vehicleWindowLayout.js`: the top-right anchor and the bottom limit
-    at the reset-view button; the badge room and overflow menu stay.
+    at the reset-view button; the badge room and overflow menu stay, the menu
+    opening downward with Escape and outside-tap close; the swapped small-map
+    box moves inside the large window's picture.
   - `useMapSwap` cancels any camera flight on maximize (not only its own
     fits), and the sidebar's fly-to swaps back before it flies.
   - `src/gcs/AGENTS.md` ("bottom-left vehicle window") is updated.
@@ -563,7 +575,7 @@ glare/glove acceptance (the 44 px and 14 px rules are built now).
 
 | Setup | Stream source | Discovery |
 |---|---|---|
-| Plain SITL, default | none | nothing announced -> "No camera · UAV n" |
+| Plain SITL, default | none | nothing announced -> map icons; a pick opens Synthetic ("No camera · UAV n" only after a switch to Camera) |
 | Plain SITL, `simulation.video_test_source` on (default off) | one sim MediaMTX for the slot, a path per UAV with `runOnDemand` FFmpeg H.264 test pattern labelled "SIM TEST UAV n" | NavPy sim companion announces `rtsp://127.0.0.1:<slot port>/uav<n>` |
 | SITL + Unreal (aas-hitl video service) | Unreal camera -> FFmpeg -> MediaMTX | the configured URI (needs an H.264 output to play everywhere) |
 | Real aircraft | Jetson MediaMTX over the radio LAN | NavPy companion on the Jetson |
@@ -625,7 +637,12 @@ failure leaves video off and is logged; the rest of the stack still runs.
   from the fleet: button gone, selection kept, link lost and held, resumes on
   return; Maximize absent in the picker; maximize and restore keep the same
   map element (no remount, no animation, never size 0) and the same reader;
-  the small map at the top right; the button over the small map swaps back
+  the small map at the top right of the picture, under the last header,
+  control or failure row, covering no window control, also at 375 px and with
+  a failure row; the overflow menu opens downward inside the window, above the
+  small map, closes on pick, Escape or an outside tap, and Escape returns
+  focus to its button; Close after the picked UAV left the fleet focuses the
+  first UAV button; the button over the small map swaps back
   and passes no input to the map; maximizing during inertia or an active
   touch gesture saves no moved pose, and camera inputs are back on after the
   swap back; reset view hidden while swapped; a reset-view flight running
