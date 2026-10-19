@@ -48,6 +48,7 @@ class PoiPresenceReview:
         active: DetectedObject,
         status: ConfirmationStatus | None,
     ) -> bool:
+        """True only when a failed geo-hold re-arm tore the navigation task down."""
         fresh = self._source.find_active_poi_detection()
         present = fresh is not None
         self._timing.update_loss_tracking(present)

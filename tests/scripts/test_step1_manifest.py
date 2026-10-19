@@ -89,8 +89,8 @@ def test_manifest_rows_parse() -> None:
 def test_splits_match_the_split_rows() -> None:
     splits = sm.load_splits(REPO_ROOT)
     assert set(splits) == {row.src for row in MANIFEST if row.action == "split"}
-    assert len(splits) == 12
-    assert sum(len(parts) for parts in splits.values()) == 13
+    assert len(splits) == 13
+    assert sum(len(parts) for parts in splits.values()) == 14
     assert all(part.symbols for parts in splits.values() for part in parts)
 
 
@@ -104,7 +104,7 @@ def test_reexports_match_the_plan() -> None:
 
 def test_exceptions_parse() -> None:
     guards = Counter(e.guard for e in sm.load_exceptions(REPO_ROOT))
-    assert guards == {"layer": 28, "vision": 15}
+    assert guards == {"layer": 27, "vision": 15}
 
 
 @pytest.mark.parametrize("bad_line, message", [
@@ -148,7 +148,7 @@ def test_path_map_covers_every_row() -> None:
     assert step1["src/navpy/main.py"] == "src/navpy/main.py"
     assert step1["src/navpy/args/nav_args.py"] == "src/navpy/core/kernel/config/nav_args.py"
     assert (step1["src/navpy/modules/nav/mission_catalog.py"], final["src/navpy/modules/nav/mission_catalog.py"]) == (
-        "src/navpy/core/flow/mission_catalog.py", "src/navpy/missions/delivery/mission_catalog.py")
+        "src/navpy/core/flow/mission_catalog.py", "src/navpy/products/delivery/mission_catalog.py")
 
 
 def test_module_map_names_packages_and_skips_data_files() -> None:
@@ -161,7 +161,7 @@ def test_module_map_names_packages_and_skips_data_files() -> None:
     assert step1["navpy"] == "navpy"
     assert len(step1) == sum(row.src.endswith(".py") for row in MANIFEST)
     assert sm.module_map(MANIFEST, "final")["navpy.modules.nav.mission_catalog"] == (
-        "navpy.missions.delivery.mission_catalog")
+        "navpy.products.delivery.mission_catalog")
 
 
 def test_split_symbol_map_follows_each_part() -> None:
@@ -172,7 +172,7 @@ def test_split_symbol_map_follows_each_part() -> None:
     assert step1[("navpy.modules.vision.real_detector_ports", "FrameDetector")] == "navpy.core.ports.detection"
     key = ("navpy.modules.nav.mission_navigation", "FallbackMissionNavigation")
     assert (step1[key], final[key]) == (
-        "navpy.core.flow.fallback_mission_navigation", "navpy.missions.delivery.fallback_mission_navigation")
+        "navpy.core.flow.fallback_mission_navigation", "navpy.products.delivery.fallback_mission_navigation")
     assert len(step1) == sum(len(p.symbols) for parts in splits.values() for p in parts)
 
 
@@ -213,7 +213,7 @@ def test_current_location_of_gcs_and_deleted_rows(tmp_path: Path) -> None:
     ("core/approach/vision_nav/frame.py", "core/approach"),
     ("core/__init__.py", "core"),
     ("plugins/vehicle/ardupilot/vehicle_mav.py", "plugins/vehicle"),
-    ("missions/delivery/mission_catalog.py", "missions/delivery"),
+    ("products/delivery/mission_catalog.py", "products/delivery"),
     ("sim/detection/detector_sim.py", "sim"),
     ("app/perception/frame_capture_factory.py", "app"),
     ("main.py", "app"),
@@ -249,9 +249,13 @@ def test_layer_of_rejects_repo_relative_paths() -> None:
     ("plugins/radio/serial/a.py", "core/ports/b.py", True),
     ("plugins/radio/serial/a.py", "core/link/b.py", False),
     ("plugins/radio/serial/a.py", "plugins/vehicle/ardupilot/b.py", False),
-    ("missions/delivery/a.py", "core/flow/b.py", True),
-    ("missions/delivery/a.py", "missions/pickup/b.py", False),
-    ("missions/delivery/a.py", "plugins/laws/geo/b.py", False),
+    ("products/delivery/a.py", "core/flow/b.py", True),
+    ("products/delivery/a.py", "products/pickup/b.py", False),
+    ("products/delivery/a.py", "plugins/laws/geo/b.py", False),
+    ("products/delivery/a.py", "sim/b.py", False),
+    ("core/flow/a.py", "products/delivery/b.py", False),
+    ("plugins/vehicle/ardupilot/a.py", "products/delivery/b.py", False),
+    ("sim/a.py", "products/delivery/b.py", False),
     ("sim/a.py", "plugins/gimbal/siyi/b.py", True),
     ("sim/a.py", "app/b.py", False),
     ("app/a.py", "sim/b.py", True),

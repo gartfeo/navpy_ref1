@@ -87,7 +87,7 @@ class CommitPrefix:
 
 @dataclass(frozen=True)
 class Layer:
-    """kind: missions, core, plugins, sim, app, gcs, deleted or old (still in
+    """kind: products, core, plugins, sim, app, gcs, deleted or old (still in
     the old tree); part: the mission, core folder or plugin family."""
 
     kind: str
@@ -223,7 +223,7 @@ def layer_of(path: str) -> Layer:
     parts = path.split("/")
     if len(parts) == 1:
         return Layer("app") if parts[0] in ROOT_APP_FILES else Layer("old")
-    if parts[0] in ("missions", "core", "plugins"):
+    if parts[0] in ("products", "core", "plugins"):
         return Layer(parts[0], parts[1] if len(parts) > 2 else "")
     if parts[0] in ("sim", "app"):
         return Layer(parts[0])
@@ -244,7 +244,7 @@ def allowed(importer: Layer, imported: Layer) -> bool:
         return neutral if importer.part == "ports" else imported.kind == "core"
     if importer.kind == "plugins":
         return neutral or imported == importer
-    if importer.kind == "missions":
+    if importer.kind == "products":
         return imported.kind == "core" or imported == importer
     return importer.kind == "sim" and imported.kind in ("core", "plugins", "sim")
 

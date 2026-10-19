@@ -40,7 +40,6 @@ def compose_confirmation_workflows(
         poi,
         approach,
         observation,
-        reset,
         navigation,
     )
     poi_status = _compose_poi_status(

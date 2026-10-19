@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Optional
 
-from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
@@ -19,7 +20,7 @@ class DetectAction:
         self,
         detections: DetectionSnapshot,
         selector: PoiSelector,
-        navigation_task: NavigationTaskAction,
+        choose_work: Callable[[Optional[DetectedObject]], None],
         peer_notifier: PeerPoiNotifier,
         confirmation_manager: ConfirmationManager,
         peer_geo: PeerGeoTick,
@@ -27,7 +28,7 @@ class DetectAction:
     ) -> None:
         self._detections = detections
         self._selector = selector
-        self._navigation_task = navigation_task
+        self._choose_work = choose_work
         self._peer_notifier = peer_notifier
         self._confirmation_manager = confirmation_manager
         self._peer_geo = peer_geo
@@ -38,7 +39,7 @@ class DetectAction:
             # Before the detect waypoint only an assigned peer task runs:
             # own detections are neither offered nor taken up.
             if self._confirmation_manager.active_poi is None:
-                self._navigation_task.handle_new_poi(None)
+                self._choose_work(None)
             self._peer_geo.update()
             return
         selection = self._detections.selection()
@@ -49,7 +50,7 @@ class DetectAction:
         if peers:
             self._peer_notifier.notify(peers)
         if self._confirmation_manager.active_poi is None:
-            self._navigation_task.handle_new_poi(own)
+            self._choose_work(own)
         self._peer_geo.update()
 
 

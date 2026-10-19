@@ -289,7 +289,7 @@ stateDiagram-v2
 | P4 | Pickup graphs; skills hold, acquire, circle, line_up, line_dive, end_pass, verify, observe, clear; CATCH, cancel, handover, capture review; GCS plugin. Needs S11 (LOITER hold), the A6 airspeed task and P1's fence | new module only | after P1-P3 | L |
 | D1 | Delivery's CONFIRM binds the vision circle from P4 | CHANGE | when delivery resumes | M |
 
-- S3 is dropped; S5 and S6 move delivery's DDH and finish into `missions/delivery` after F2 (question 1).
+- S3 is dropped; S5 and S6 move delivery's DDH and finish into `products/delivery` after F2 (question 1).
   S11 and A3 stay separate. An F0 row that disagrees with intent stays and gets a bug task. File now: the
   late-deny window, the stale failure latch, AUTO writes that can override an operator mode change.
 - F1, F2 gates: nav suites unchanged, F0 green, `python -m pytest tests`, evals match S0 (2+ SITL runs).

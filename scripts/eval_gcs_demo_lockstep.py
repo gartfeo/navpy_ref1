@@ -44,6 +44,7 @@ from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, Realization, load_profile, realize
+from navpy.sim.lockstep.sitl_models import sitl_parameters, sitl_rng_seeds
 from scripts import lockstep_topology, lockstep_wsl
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 from scripts.eval_gcs_demo_audit import validate_approval_records
@@ -218,18 +219,21 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     run_dir.mkdir(parents=True, exist_ok=True)
     dem_tiles(scenario_points(scenario))  # an input fault stops the run before launch
     plan = manifest(scenario, options)
-    defaults = lockstep_wsl.merged_defaults()  # the SITL's defaults.parm, hashed and then written
+    # The SITL's defaults.parm with the profile's wind and noise, hashed and then written.
+    defaults = lockstep_wsl.merged_defaults(sitl_parameters(realization))
     tiles = terrain_tiles()  # its terrain/, hashed and then written
     layout = fleet_layout(scenario)
+    rng_seeds = sitl_rng_seeds(realization, layout.sys_ids)
     homes = WIRING[scenario.gate_profile].homes(scenario, layout)
     topology = lockstep_topology.topology_inputs(homes, lockstep_topology.run_swarm_sha256())
     write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults, tiles, topology,
-                                  realization)
+                                  realization, rng_seeds)
     slot, owner = lockstep.claim(run_token=f"seed-{options.seed}", clone=str(ROOT),
                                  owner=f"dir:{ROOT}")
     started = time.perf_counter()
     fleet = WslFleet(run_dir, slot, owner, FleetLaunch(
-        tuple(zip(layout.sys_ids, homes)), options.seed, options.host_delay_seed, defaults, tiles))
+        tuple(zip(layout.sys_ids, homes)), options.seed, options.host_delay_seed, defaults, tiles,
+        rng_seeds))
     roster = Roster(plan, LocalSpawner(run_dir, (str(SRC), str(ROOT)),
                                        host_delay_seed=options.host_delay_seed),
                     lockstep.RegistryChildRecorder(slot, owner),

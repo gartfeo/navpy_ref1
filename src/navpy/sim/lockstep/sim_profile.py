@@ -1,6 +1,6 @@
 """Sim profiles: which realism models a lockstep run turns on, drawn from its seed.
 
-Step 1 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
+Steps 1-2 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
 models, each with a swarm probability ``p_on`` and its parameters, a fixed
 number or a ``[lo, hi]`` range. Per run seed the swarm draw decides which
 models are on and draws a value inside each range. The result, the
@@ -58,8 +58,12 @@ class ModelSpec:
     params: Mapping[str, ParamKind]
 
 
-#: The built models. Step 1 builds none; each model step adds its spec here.
-CATALOGUE: Mapping[str, ModelSpec] = {}
+#: The built models; each model step adds its spec here. Step 2: wind and sensor noise,
+#: applied to the SITLs (``sitl_models``).
+CATALOGUE: Mapping[str, ModelSpec] = {
+    "sensor_noise": ModelSpec("sensor_noise", {"gps_noise_m": "float"}),
+    "wind": ModelSpec("wind", {"speed_mps": "float", "direction_deg": "float", "turbulence_mps": "float"}),
+}
 
 
 @dataclass(frozen=True)

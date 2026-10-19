@@ -1,4 +1,4 @@
-"""Pure planning policy for POI approach geometry."""
+"""Pure planning policy for POI approach geometry and the mission's scan band."""
 
 from __future__ import annotations
 
@@ -26,7 +26,10 @@ class ApproachVehicle(Protocol):
 
 
 class ApproachPlanner:
-    """Compute an approach without owning navigation or vehicle side effects."""
+    """Compute an approach without owning navigation or vehicle side effects.
+
+    It also holds the mission's scan band, which sizes an orbit approach.
+    """
 
     def __init__(
             self,
@@ -35,6 +38,8 @@ class ApproachPlanner:
             final_approach_navigation_enabled: Callable[[], bool],
             vision_profile: dict,
             logger: ILogger,
+            approach_kind: ApproachKind,
+            scan_altitude_rel: Optional[float],
             plan_offset: Callable = calc_peer_approach_offset,
     ) -> None:
         self._vehicle = vehicle
@@ -42,6 +47,8 @@ class ApproachPlanner:
         self._final_approach_navigation_enabled = final_approach_navigation_enabled
         self._vision_profile = vision_profile
         self._logger = logger
+        self._approach_kind = approach_kind
+        self.scan_altitude_rel = scan_altitude_rel
         self._plan_offset = plan_offset
 
     def orbit_limits(self) -> Optional[OrbitNavigationLimits]:
@@ -113,6 +120,20 @@ class ApproachPlanner:
             use_nav_orbit=use_nav_orbit,
         )
         return plan, (approach_alt_rel if use_nav_orbit else None)
+
+    def plan_orbit_approach(
+            self,
+            poi: Location,
+            class_id: int,
+            drone_location: Optional[Location],
+    ) -> tuple[ApproachPlan, Optional[float]]:
+        return self.plan(
+            poi,
+            class_id,
+            drone_location,
+            approach_kind=self._approach_kind,
+            approach_alt_rel=self.scan_altitude_rel,
+        )
 
     def _planning_location(
             self,

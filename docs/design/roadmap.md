@@ -36,14 +36,14 @@ R1 resyncs these points:
 | Step | What | Kind | Size |
 |---|---|---|---|
 | R8 | One law registry replaces 3 tables. Every law (vision PN, PN, PID) is a plugin: inputs in, commands out, nothing else. It declares its required inputs and their quality (GPS CEP, frame rate, latency, real airspeed), and gets only those. The law is chosen at setup and never changes in flight. `NavLaw` stays where it is | keep | M |
-| R9 | Flow types (`core/flow/`) and delivery's label graph in `missions/delivery/`. The PID/PN orbit prep, recovery climb and floor move into a geo-approach skill that drives those laws. They are still gated each tick. Adds the layer guard | keep | M |
+| R9 | Flow types (`core/flow/`) and delivery's label graph in `products/delivery/`. The PID/PN orbit prep, recovery climb and floor move into a geo-approach skill that drives those laws. They are still gated each tick. Adds the layer guard | keep | M |
 | R10 | `take()` replaces `phase.request` at the 21 sites, so only the runner picks edges | keep | M |
 | R11 | Task kinds belong to the module, so comm stops knowing about docks | keep | M |
 | R12 | An approach ends passed, lost or aborted:<reason>, carried through both failure latches | keep | L |
 | R14 | Profiles `dive` and `line_dive`; `FinalApproachRequest(profile, track id)`. The profile is stamped in the log row only, not in the parsed status text | keep | M |
 | R15 | Capture-line class 1 and its sim render. One shared line truth, at its height, is seeded into all 3 sims. The dock's ranges are pinned by a test | keep | M |
-| R16 | DDH moves into `missions/delivery` | keep | M |
-| R17 | The one-shot finish moves into delivery, and delivery is paused | keep | S |
+| R16 | DDH moves into `products/delivery` (done 2026-10-19, delivery move c8-c9) | keep | M |
+| R17 | The one-shot finish moves into delivery (done 2026-10-19, delivery move c7), and delivery is paused | keep | S |
 
 ## C. Pickup platform pieces
 | Step | What | Kind | Size |

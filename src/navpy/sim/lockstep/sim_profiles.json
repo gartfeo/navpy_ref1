@@ -2,8 +2,16 @@
   "schema": 1,
   "profiles": {
     "none": {"models": {}},
-    "quiet": {"models": {}},
-    "hw": {"models": {}},
-    "stress": {"models": {}}
+    "quiet": {"models": {
+      "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}}
+    }},
+    "hw": {"models": {
+      "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}},
+      "wind": {"params": {"speed_mps": [0.0, 8.0], "direction_deg": [0.0, 360.0], "turbulence_mps": [0.0, 2.0]}}
+    }},
+    "stress": {"models": {
+      "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}},
+      "wind": {"params": {"speed_mps": [0.0, 8.0], "direction_deg": [0.0, 360.0], "turbulence_mps": [0.0, 2.0]}}
+    }}
   }
 }

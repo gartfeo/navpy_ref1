@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.products.delivery.mission_catalog import MissionCatalog
+from navpy.core.skills.acquire.approach_planner import ApproachPlanner
 from navpy.core.flow.navigation_task_reset import (
     AutoMissionResume,
     AutoMissionResumePorts,
@@ -23,6 +25,8 @@ from navpy.app.flow.nav_composition_types import (
 )
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
+from navpy.plugins.vehicle.ardupilot.mission_metadata import read_mission_metadata
+from navpy.products.delivery.flow import interrupted_leg
 
 
 def compose_reset_workflows(
@@ -42,7 +46,7 @@ def compose_reset_workflows(
         state.geo_hold,
         state.confirm,
         state.detections,
-        poi.mission,
+        lambda: poi.mission.clear_navigation_task(),
         poi.retry_state,
         poi.pass_tracker,
     )
@@ -50,7 +54,11 @@ def compose_reset_workflows(
         NavigationTaskResourcePorts(
             reset_peer_dispatch=observation.network.reset_peer_dispatch,
             reset_task_actor=observation.network.reset_task_actor,
-            refresh_mission=poi.mission.refresh,
+            refresh_mission=lambda: refresh_mission_metadata(
+                vehicle,
+                poi.mission,
+                approach.planner,
+            ),
         ),
         detection.tracking_commands,
         detection.geo_pointing,
@@ -70,6 +78,8 @@ def compose_reset_workflows(
             close_final_approach_source=close_final_approach_source,
             pause_navigation=navigation.pause,
             clear_selected_poi=observation.network.clear_selected_poi,
+            clear_flow_task=lambda: poi.mission.clear_navigation_task(),
+            resume_waypoint=interrupted_leg,
         ),
         vehicle,
         detection.geo_pointing,
@@ -77,11 +87,20 @@ def compose_reset_workflows(
         state.geo_hold,
         state.confirm,
         state.detections,
-        poi.mission,
         poi.pass_tracker,
         approach.loiter_radius,
     )
     return ResetWorkflows(reset, resume_auto)
 
 
-__all__ = ["compose_reset_workflows"]
+def refresh_mission_metadata(
+    vehicle: IVehicle,
+    mission: MissionCatalog,
+    planner: ApproachPlanner,
+) -> None:
+    metadata = read_mission_metadata(vehicle)
+    mission.update(metadata.markers)
+    planner.scan_altitude_rel = metadata.scan_altitude_rel
+
+
+__all__ = ["compose_reset_workflows", "refresh_mission_metadata"]

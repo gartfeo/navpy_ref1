@@ -26,7 +26,7 @@ from navpy.core.kernel import runtime_time as rt
 # Aircraft-time period between re-sends of an unchanged (held) command.
 # ArduPlane drops a GUIDED roll/pitch/throttle override 3.0 s after the last
 # attitude target (hardcoded, mode_guided.cpp:35-87, Plane-4.6.3). Margin:
-# 0.5 s refresh + <=0.5 s scheduling jitter + <=0.1 s delivery (p95) = 1.1 s,
+# 0.5 s refresh + <=0.5 s scheduling jitter + <=0.1 s transport (p95) = 1.1 s,
 # well under 3.0 s. Pacing held re-sends by aircraft time, not by worker ticks,
 # keeps the uplink within SITL's one-datagram-per-10-ms-of-sim input when SITL
 # runs slower than its nominal speedup (design a2, final_approach_delivery_fix).

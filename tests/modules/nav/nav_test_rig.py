@@ -99,14 +99,6 @@ class _NavPhaseTestView:
     def oneshot_completed(self, completed) -> None:
         self._state.oneshot_completed = completed
 
-    @property
-    def last_parameter_refresh_s(self):
-        return self._state.last_parameter_refresh_s
-
-    @last_parameter_refresh_s.setter
-    def last_parameter_refresh_s(self, timestamp_s) -> None:
-        self._state.last_parameter_refresh_s = timestamp_s
-
     def __getattr__(self, name):
         return getattr(self._state, name)
 
@@ -149,10 +141,10 @@ class NavTestRig:
         self.phase = _NavPhaseTestView(self.phase_state)
         self.inactive = self.decision._inactive
         self.recovery = self.decision._recovery
-        self.nav_decision = self.decision._nav
+        self.flow = self.decision._flow.__self__
+        self.nav_decision = self.flow._approach
         self.navigation_failures = self.nav_decision._failures
-        self.poi_status = self.decision._poi_status
-        self.mission = self.decision._mission
+        self.poi_status = self.flow._review
         self.detection_state = self.cycle._detections
         self.detections = _DetectionTestView(self.detection_state)
 
@@ -174,7 +166,7 @@ class NavTestRig:
         self.geo_hold = self.poi_status._presence._geo_hold
         self.release = self.poi_status._confirmed._release
         self.freshness = self.release._freshness
-        self.auto_resume = self.poi_status._rejection._resume_auto
+        self.auto_resume = self.poi_status._resume_auto
 
         self.detect_action = self.actions._actions[NavState.DETECT].__self__
         self.confirmation_action = (
@@ -183,18 +175,20 @@ class NavTestRig:
         self.final_approach_nav = self.actions._actions[NavState.NAV].__self__
         self.transitions = self.actions._transitions
         self.selector = self.detect_action._selector
-        self.navigation_task_action = self.detect_action._navigation_task
+        self.work_source = self.detect_action._choose_work.__self__
+        self.navigation_task_action = self.work_source._tasks
         self.peer_notifier = self.detect_action._peer_notifier
         self.peer_geo_tick = self.detect_action._peer_geo
         self.peer_geo_acquisition = self.detect_action._peer_geo._acquisition
         self.peer_navigation = self.navigation_task_action._peer_navigation
         self.peer_geo_tracker = self.peer_navigation._approach._geo_tracker
-        self.fallback_navigation = self.navigation_task_action._fallback_navigation
+        self.fallback_navigation = self.work_source._fallback_navigation
         self.self_approach = self.navigation_task_action._self_approach
         self.final_approach = self.navigation_task_action._final_approach
         self.speedup = self.navigation_task_action._speedup
         self.vehicle_navigation = self.fallback_navigation._commands
         self.approach_planner = self.fallback_navigation._approach_planner
+        self.mission = self.fallback_navigation._catalog
 
         self.frame_policy = self.confirmation_action._frame_policy
         self.final_approach_admission = self.confirmation_action._final_approach_admission

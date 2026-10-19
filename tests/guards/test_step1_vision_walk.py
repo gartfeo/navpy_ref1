@@ -2,7 +2,8 @@
 
 The flagged set is every manifest row with vision_path=y plus the flagged
 split parts of splits.json, wherever each file is now. From each flagged
-core/plugins file, runtime imports are followed through core/plugins files;
+core/plugins/products file, runtime imports are followed through
+core/plugins/products files;
 reaching core/perception/geo, core/world, sim, core/approach/geo,
 core/skills/geo_approach or plugins/laws/geo fails unless the hop is a named
 guard=vision edge of exceptions.tsv, and a named edge nothing reaches fails.
@@ -31,8 +32,8 @@ SPLITS = sm.load_splits(REPO_ROOT)
 NAMED = frozenset(
     (row.file, row.imports) for row in sm.load_exceptions(REPO_ROOT) if row.guard == "vision")
 DROPPED = frozenset((row.src, row.line, row.name) for row in sm.load_reexports(REPO_ROOT))
-# 161 flagged rows and 7 flagged split parts, two of them sharing
-# core/ports/detection.py: 167 files, 162 of them in core or plugins.
+# 161 flagged rows and 8 flagged split parts, two of them sharing
+# core/ports/detection.py: 168 files, 163 of them in core, plugins or products.
 MIN_FLAGGED = 150
 
 
@@ -65,6 +66,12 @@ def test_the_flagged_set_is_the_vision_path() -> None:
     assert len(flagged) >= MIN_FLAGGED
     assert len(_walk().roots) >= MIN_FLAGGED
     assert set(_walk().roots) <= set(flagged)
+
+
+def test_the_delivery_flow_is_a_root() -> None:
+    # Delivery's decision runs the approach and the POI review, so the walk
+    # starts there too (delivery_product.md, c6).
+    assert "products/delivery/flow.py" in _walk().roots
 
 
 def test_flagged_files_reach_no_geo_world_or_sim_code() -> None:

@@ -3,8 +3,9 @@
 One final approach per flight: once the swarm assigns a peer task, an own
 POI found but not yet approached is dropped, not offered to the other UAVs
 (it may be the assigned dock itself, and task ids are numbered per UAV, so
-offering it could send a second UAV there), and the DDH return comes after
-the task (docs/design/swarm-task-assignment-ack.md, "Priority (nav)").
+offering it could send a second UAV there), and a mission module's own
+work comes after the task (docs/design/swarm-task-assignment-ack.md,
+"Priority (nav)").
 """
 
 from __future__ import annotations

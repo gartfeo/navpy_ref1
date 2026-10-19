@@ -1,7 +1,7 @@
 """The pure-vision walk (docs/design/step1_separation.md, "Pure-vision guard").
 
-From each flagged core/plugins file, follow runtime imports through core and
-plugins files. Reaching geo, world or sim code fails unless the hop is one of
+From each flagged core/plugins/products file, follow runtime imports through
+core, plugins and products files. Reaching geo, world or sim code fails unless the hop is one of
 the named guard=vision edges in exceptions.tsv; a named edge no flagged file
 reaches any more is stale.
 """
@@ -17,12 +17,12 @@ FORBIDDEN_HOMES = (
     "core/perception/geo/", "core/world/", "sim/", "core/approach/geo/",
     "core/skills/geo_approach/", "plugins/laws/geo/",
 )
-WALKABLE_HOMES = ("core/", "plugins/")
+WALKABLE_HOMES = ("core/", "plugins/", "products/")
 
 
 @dataclass(frozen=True)
 class WalkResult:
-    roots: tuple[str, ...]                  # flagged core/plugins files walked from
+    roots: tuple[str, ...]                  # flagged core/plugins/products files walked from
     violations: tuple[str, ...]             # one path per unnamed hop into forbidden code
     reached: frozenset[tuple[str, str]]     # named (file, imports) hops some root reaches
 
