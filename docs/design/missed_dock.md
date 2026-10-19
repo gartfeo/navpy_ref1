@@ -13,7 +13,8 @@ NAV_FAIL end commands (2), narrows the scope (7), and puts the stop-point readin
   and the next log row is 0.7 m with LOS 171 deg (dock aft). SNAP 3d=0.7 m. Then `ONHOLD: WAYPOINT 1` and a second
   approach that docked (0.16 m).
 - Mechanism: a NAV_FAIL latches FAILED (`episode_latch.py`), which wins over a later contact; `NavStateDecision`
-  requests RESET (`navigation_decision.py:158`); NAV exit disarms the sensor; RESET restarts AUTO at waypoint 1.
+  requests RESET (`navigation_decision.py:158` then; since the delivery move, `NavStateDecision` returns FAILED and
+  `products/delivery/flow.py` requests it); NAV exit disarms the sensor; RESET restarts AUTO at waypoint 1.
 
 ## What vision can and cannot say
 Vision has no range or range rate (Pure Vision), so it cannot prove the closest point was passed. An aft dock
@@ -42,7 +43,7 @@ truth to time the end.
    (`own_dock_contact`). Contact kept → DOCKED; FAILED/MISSED terminal → DOCK FAILED.
    First latch still wins (`physical_docking.md` unchanged): a contact after the NAV_FAIL is not counted. Hit or miss
    stays the sensor's. Lock order stays contact lock → runtime lock; nothing takes them in reverse.
-5. **Behaviour is DOCKED's.** The DOCKED entry, hold, one-shot force-disarm (SITL only, `nav_oneshot_completion.py`)
+5. **Behaviour is DOCKED's.** The DOCKED entry, hold, one-shot force-disarm (SITL only, `products/delivery/nav_oneshot_completion.py`)
    and short-circuit (final), cyclic climb
    then AUTO restart (the sim restart test, as for DOCKED), swarm BUSY. `NavState` gains no value. As built, no
    `dock_outcome` field: nothing reads it, so NAV exit reports the outcome once (status line and row) instead.

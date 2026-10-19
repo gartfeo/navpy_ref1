@@ -11,7 +11,6 @@ from navpy.core.skills.confirm.confirmation_policy import (
     ConfirmationTimingPolicy,
     PoiRetryPolicy,
 )
-from navpy.core.flow.navigation_task_reset import AutoMissionResume
 from navpy.core.flow.nav_state import NavPhaseState, NavState
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
@@ -27,7 +26,7 @@ class PoiRejectionPorts:
 
 
 class PoiRejectionExit:
-    """Close review state and resume AUTO for every rejection-like exit."""
+    """Close review state for every rejection-like exit; True when closed."""
 
     def __init__(
         self,
@@ -35,13 +34,11 @@ class PoiRejectionExit:
         phase: NavPhaseState,
         timing: ConfirmationTimingPolicy,
         retry: PoiRetryPolicy,
-        resume_auto: AutoMissionResume,
     ) -> None:
         self._ports = ports
         self._phase = phase
         self._timing = timing
         self._retry = retry
-        self._resume_auto = resume_auto
 
     def apply(
         self,
@@ -51,17 +48,15 @@ class PoiRejectionExit:
         if status == ConfirmationStatus.REJECTED:
             self._retry.clear_reask(get_poi_task_id(active))
             self._teardown()
-            return self._resume()
+            return True
         if status == ConfirmationStatus.TIMEOUT_REJECTED:
             self._teardown()
-            return self._resume()
+            return True
         if status == ConfirmationStatus.CONFIRMING:
-            if not self._review_expired(active):
-                return False
-            return self._resume()
+            return self._review_expired(active)
         if self._timing.reacquire_timed_out():
             self._abort_missing(active)
-            return self._resume()
+            return True
         self._phase.request(NavState.CONFIRM)
         return False
 
@@ -99,15 +94,6 @@ class PoiRejectionExit:
         self._ports.clear_active_poi()
         self._ports.stop_tracking()
         self._phase.request(NavState.DETECT)
-
-    def _resume(self) -> bool:
-        self._resume_auto.run()
-        self._ports.logger.info(
-            "REJECTED: resuming AUTO mission",
-            key="nav",
-            dest=LogStatusDest.DRONE,
-        )
-        return True
 
 
 __all__ = ["PoiRejectionExit", "PoiRejectionPorts"]

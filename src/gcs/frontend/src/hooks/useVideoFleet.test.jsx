@@ -10,6 +10,7 @@ function makeStore(list) {
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     getSnapshot: () => version,
     getVehicleList() { return this.list; },
+    isTelemetryFresh: () => true,
     set(next) { this.list = next; version += 1; listeners.forEach((fn) => fn()); },
   };
 }
@@ -17,11 +18,17 @@ function makeStore(list) {
 const v = (extra) => ({ sys_id: 1, link_ok: true, lat: 1, lon: 2, alt_rel: 3, roll: 0, pitch: 0, heading: 0, ...extra });
 
 describe('useVideoFleet', () => {
-  it('summarizes streams, link and FPV eligibility per vehicle', () => {
-    const [one, two] = summarizeFleet([v({ video_streams: [{ key: '100:1', whep_url: 'http://x/whep', stream_id: 1 }] }), v({ sys_id: 2, link_ok: false })]);
-    expect(one).toMatchObject({ sysId: 1, index: 0, label: 'UAV 1', linkOk: true, fpvEligible: true });
+  it('summarizes streams, link and the held reason per vehicle', () => {
+    const fresh = () => true;
+    const [one, two] = summarizeFleet([v({ video_streams: [{ key: '100:1', whep_url: 'http://x/whep', stream_id: 1 }] }), v({ sys_id: 2, link_ok: false })], fresh);
+    expect(one).toMatchObject({ sysId: 1, index: 0, label: 'UAV 1', linkOk: true, holdReason: null });
     expect(one.streams).toHaveLength(1);
-    expect(two).toMatchObject({ sysId: 2, index: 1, linkOk: false, fpvEligible: false, holdReason: 'linkLost', streams: [] });
+    expect(two).toMatchObject({ sysId: 2, index: 1, linkOk: false, holdReason: 'linkLost', streams: [] });
+  });
+
+  it('a snapshot not replaced since the socket opened holds as telemetry disconnected', () => {
+    const [one] = summarizeFleet([v()], (sysId) => sysId !== 1);
+    expect(one.holdReason).toBe('telemetryDisconnected');
   });
 
   it('keeps the same array across position-only updates, and changes on a stream change', () => {

@@ -50,7 +50,7 @@ def disconnect_nav_network_session(
                 )
     attempt(lambda: confirmation_manager.set_network(None))
     if actor is not None:
-        # Inbound delivery is detached before checkout/shutdown, while the
+        # Inbound transport is detached before checkout/shutdown, while the
         # actor still owns the sender for its intentional final message.
         attempt(actor.shutdown)
         health.harvest(actor)

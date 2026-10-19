@@ -17,7 +17,7 @@ isolated, then moved into one package. LOITER and floor changes are their own sl
 ```
 src/navpy/
   app/                    platform.runtime: app/runtime_composition.py is the composition root, the
-                          only place that wires missions/ and the legacy laws (main.py, app/runtime_*.py)
+                          only place that wires products/ and the legacy laws (main.py, app/runtime_*.py)
   app/navpy_argparse.py, core/kernel/config/   platform.config; _ARG_MODULES stays static
                           (app/navpy_argparse.py:15-33)
   core/kernel/logging/    platform.logging; core/link/status_logger_network.py = platform.operator
@@ -40,7 +40,7 @@ src/navpy/
                           (app/flow); final-approach NAV workflow (core/approach: final_approach_*, nav_entry)
     core/flow/approach_flow.py   FlowHooks contract [S3] (planned)
   positioning             later: created by the first feeder
-  missions/               mission layer [S3] (not created in step 1)
+  products/               mission layer [S3] (not created in step 1)
     delivery/             module.delivery, PAUSED: hooks, ddh_route, finish, task_kinds
     pickup/               pickup step
   behaviors/              later: created by line_up (pickup)   (src/gcs/: labels only now)
@@ -54,7 +54,7 @@ until extraction. Modules plug in through one contract, `core/flow/approach_flow
   only mid-composition), and each hook names its thread (bid cost: network listener).
 - `app/runtime_composition.py` passes `DeliveryHooks` through NavController. The module-id
   table of `mission_modules.md:118` waits for a second module and the storage step.
-- AST-direct guard: `navpy.core.**` and `navpy.plugins.**` never import `navpy.missions`; mission
+- AST-direct guard: `navpy.core.**` and `navpy.plugins.**` never import `navpy.products`; mission
   modules never import each other; mission code never imports `vision_nav` (`mission_modules.md:57`).
 
 | Point | Delivery (paused) | Pickup (later) |
@@ -165,10 +165,10 @@ changes autopilot config and adds a feeder, not consumers. Only the supervisor s
 | T1 | Tests only: work-source precedence, boot-time review-prep choice, one-shot latch commit, quiescence-gated reset order, every eval-parsed marker (nav, swarm, vehicle, perception), NAV-phase position poison test | none | a test that fails today becomes a bug task, never an edit | S |
 | S1 | GeoLocator into `core/perception/geo/ground_location.py`, injected from `app/runtime_composition.py`; the legacy resolver delegates; generic geo-ref consumers switch | none | the 6 firewall asserts move to the new port in the same commit; clean-process import | M |
 | S2 | MissionCatalog split: the scan band stays in `core/flow/`; acquire's plan_orbit ports use it directly (`app/flow/nav_task_composition.py:141-146,191-196`) | none | repoint the never-called mock (`test_nav_controller.py:5198-5234`) | S |
-| S3 | FlowHooks + `missions/delivery/hooks.py`, wired through NavController; work_sources keeps today's precedence | none | T1 precedence; layer guard v1 | M |
+| S3 | FlowHooks + `products/delivery/hooks.py`, wired through NavController; work_sources keeps today's precedence | none | T1 precedence; layer guard v1 | M |
 | S4 | class -> task kind: one callable owned by delivery, injected at its 3 callers; the comm -> vision lazy import goes (`core/link/types.py:41-48`) | none; wire values unchanged | comm and swarm suites; no new stored field on saturated classes | M |
-| S5 | DDH out: hub fields, hub metadata reader, FallbackMissionNavigation -> `missions/delivery/ddh_route.py`, via reset, refresh, task_open and label hooks | none | golden metadata bytes; patch strings and rig properties | M |
-| S6 | One-shot completion -> `missions/delivery/finish.py` via a finish hook (`core/flow/nav_transition.py:58-63`); the latch stays in NavPhaseState, AAS_NAV_ONESHOT in NavArgs | none | transition, loop, override, re-ask suites | S |
+| S5 | DDH out: hub fields, hub metadata reader, FallbackMissionNavigation -> `products/delivery/ddh_route.py`, via reset, refresh, task_open and label hooks | none | golden metadata bytes; patch strings and rig properties | M |
+| S6 | One-shot completion -> `products/delivery/finish.py` via a finish hook (`core/flow/nav_transition.py:58-63`); the latch stays in NavPhaseState, AAS_NAV_ONESHOT in NavArgs | none | transition, loop, override, re-ask suites | S |
 | S7 | One law table; NavLaw/NavContext leave `nav_law.py` (NavCommand* stays); the legacy runtime resets its own state | none | navigation suites; default-law test | M |
 | S8 | `outcome()`, `before_review()`; pass-policy split; ORBIT prep as legacy contribution (the `navigation/__init__.py` re-export went in step 1) | none | per-site equivalence; guard v2 freezes the is_active list | L |
 | S9 | NavigationArgs stops building PIDArgs (`src/navpy/core/kernel/config/navigation_args.py:85-87,122`); the legacy factory builds it and MissionPlanner (`app/runtime_composition.py:168`); the test default flips to vision and legacy-dependent tests (count UNVERIFIED) get the legacy fixture, assertions unchanged | none | test_legacy_removable (meta_path); removal-set guard | M-L |

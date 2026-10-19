@@ -28,7 +28,6 @@ class NavPhaseSnapshot:
     current: NavState
     previous: NavState
     oneshot_completed: bool
-    last_parameter_refresh_s: float
 
 
 class NavPhaseState:
@@ -39,12 +38,10 @@ class NavPhaseState:
         current: NavState = NavState.ONHOLD,
         previous: NavState = NavState.ONHOLD,
         oneshot_completed: bool = False,
-        last_parameter_refresh_s: float = 0.0,
     ) -> None:
         self._current = current
         self._previous = previous
         self._oneshot_completed = bool(oneshot_completed)
-        self._last_parameter_refresh_s = float(last_parameter_refresh_s)
         self._lock = rt.RLock()
 
     @property
@@ -67,16 +64,6 @@ class NavPhaseState:
         with self._lock:
             self._oneshot_completed = bool(completed)
 
-    @property
-    def last_parameter_refresh_s(self) -> float:
-        with self._lock:
-            return self._last_parameter_refresh_s
-
-    @last_parameter_refresh_s.setter
-    def last_parameter_refresh_s(self, timestamp_s: float) -> None:
-        with self._lock:
-            self._last_parameter_refresh_s = float(timestamp_s)
-
     def request(self, state: NavState) -> None:
         if not isinstance(state, NavState):
             raise TypeError("navigation phase must be a NavState")
@@ -93,7 +80,6 @@ class NavPhaseState:
                 self._current,
                 self._previous,
                 self._oneshot_completed,
-                self._last_parameter_refresh_s,
             )
 
     def commit_transition(

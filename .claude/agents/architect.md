@@ -28,6 +28,7 @@ Design systems, decompose modules, enforce SOLID principles, and analyze depende
 - **core/link**, **plugins/radio** — Messages; `NetworkWifi`/`NetworkSerial`/`NetworkMavlink`
 - **core/swarm** — Multi-vehicle: `TaskActor`, `TaskDispatch`
 - **plugins/vehicle/ardupilot** — `VehicleMav`; **sim** — `DetectorSim` and other simulator plugins
+- **products/delivery** — Mission modules on top of core; core and plugins never import or name them
 
 ### GCS Architecture (`src/gcs/`)
 - **Backend**: FastAPI, route modules in `src/gcs/backend/routes/`

@@ -1,4 +1,4 @@
-"""Altitude recovery and return to the search mission."""
+"""Altitude recovery, the post-dock climb and the one-shot hold."""
 
 from __future__ import annotations
 
@@ -7,13 +7,11 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
-from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.flow.nav_constants import ALT_HYST
 from navpy.core.flow.nav_state import NavPhaseState, NavState, PostDockClimb
 from navpy.core.flow.nav_status import NavigationStatusReporter
-from navpy.core.ports.flight_mode import FlightMode
 
 
 @dataclass(frozen=True)
@@ -22,10 +20,10 @@ class RecoveryPorts:
     detector_stop: Callable[[], None]
     current_relative: Callable[[], Optional[Location]]
     pause_navigation: Callable[[], None]
-    set_mode: Callable[[FlightMode], None]
-    restart_mission: Callable[[int], None]
     set_attitude: Callable[[float, float, float, float], None]
     max_pitch_deg: Callable[[], float]
+    min_alt: Callable[[], float]
+    is_oneshot: Callable[[], bool]
 
 
 class RecoveryAction:
@@ -35,14 +33,12 @@ class RecoveryAction:
         self,
         ports: RecoveryPorts,
         phase: NavPhaseState,
-        args: NavArgs,
         status: NavigationStatusReporter,
         logger: ILogger,
         post_dock_climb: PostDockClimb | None = None,
     ) -> None:
         self._ports = ports
         self._phase = phase
-        self._args = args
         self._status = status
         self._logger = logger
         self._post_dock_climb = post_dock_climb or PostDockClimb()
@@ -63,23 +59,23 @@ class RecoveryAction:
                 return True
             self._phase.request(
                 NavState.RECOVERY
-                if altitude < self._args.min_alt - ALT_HYST
+                if altitude < self._ports.min_alt() - ALT_HYST
                 else NavState.DETECT
             )
             return True
         altitude = self._altitude()
         if altitude is None:
             return True
-        if altitude < self._args.min_alt:
+        if altitude < self._ports.min_alt():
             if self._phase.current != NavState.RECOVERY:
                 self._status.ignore(2, f"RECOVERY: MIN ALT {altitude}")
             self._phase.request(NavState.RECOVERY)
             return True
         if self._phase.current == NavState.RECOVERY:
-            if altitude >= self._args.min_alt + ALT_HYST:
+            if altitude >= self._ports.min_alt() + ALT_HYST:
                 self._phase.request(
                     NavState.ONHOLD
-                    if self._args.is_oneshot and self._phase.oneshot_completed
+                    if self._ports.is_oneshot() and self._phase.oneshot_completed
                     else NavState.DETECT
                 )
             return True
@@ -92,10 +88,6 @@ class RecoveryAction:
             key="nav",
             dest=LogStatusDest.DRONE,
         )
-
-    def restart_auto_mission(self) -> None:
-        self._ports.set_mode(FlightMode.AUTO)
-        self._ports.restart_mission(1)
 
     def act(self) -> None:
         self._ports.pause_navigation()
@@ -124,13 +116,13 @@ class RecoveryAction:
             return True
         self._phase.request(
             NavState.RECOVERY
-            if altitude < self._args.min_alt - ALT_HYST
+            if altitude < self._ports.min_alt() - ALT_HYST
             else NavState.DETECT
         )
         return True
 
     def _hold_completed_oneshot(self) -> bool:
-        if not (self._args.is_oneshot and self._phase.oneshot_completed):
+        if not (self._ports.is_oneshot() and self._phase.oneshot_completed):
             return False
         self._status.ignore(4, "ONHOLD: ONE-SHOT COMPLETE")
         self._phase.request(NavState.ONHOLD)

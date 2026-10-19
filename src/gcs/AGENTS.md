@@ -27,12 +27,14 @@ Frontend:
 - scripts: `npm run dev`, `npm run build`, `npm run preview`
 - Handheld (Termux) deployment: the backend serves the built frontend itself
   when `GCS_FRONTEND_DIST` is set
-- Vehicle video (monitor view, camera panel): display only, never a
-  final-approach input. Each vehicle's camera advertises its streams over the
-  MAVLink camera protocol; the backend checks each URI against
+- Vehicle video (monitor view, bottom-left vehicle window): display only,
+  never a final-approach input. Each vehicle's camera advertises its streams
+  over the MAVLink camera protocol; the backend checks each URI against
   `video.allowed_networks` and puts a WHEP URL (port `video.whep_port`) in the
   snapshot's `video_streams`. The browser plays it straight from the
-  aircraft's MediaMTX. No streams, no panel. Sim test pattern:
+  aircraft's MediaMTX. The window shows whenever the fleet has a UAV: Camera
+  ("No camera" without streams) or Synthetic (shaded terrain from the UAV's
+  pose, never confirms anything). Sim test pattern:
   `simulation.video_test_source`. Design: `docs/design/gcs_video_streams.md`.
   The WHEP client is vendored third-party source:
   `frontend/src/vendor/mediamtx/` (see its `NOTICE`).
@@ -72,7 +74,8 @@ Frontend:
   `python scripts\eval_gcs_navigation_demo.py --lockstep --scenario scripts\eval_lockstep_slice_scenario.json --seed 1 --run-dir <dir>`
   for the 1-UAV slice, or without `--scenario` for the certified 3-UAV fleet; the
   run and the matrix take `--sim-profile <name>`, lockstep only, default `hw`, from
-  `src/navpy/sim/lockstep/sim_profiles.json`; the
+  `src/navpy/sim/lockstep/sim_profiles.json` (wind and seeded SITL noise, `sitl_models.py`;
+  `none` turns both off); the
   repeatable gate is `python scripts\eval_gcs_demo_lockstep_matrix.py --run-dir <dir>`:
   five seed-1 certified runs one at a time (two plain, host delay seeds 7 and 13, CPU
   load), passing only with every report passed, one journal digest and byte-equal
@@ -99,6 +102,15 @@ Frontend:
   `terminated`). `gcs_launch.py --headless` (evaluators): no frontend or
   console windows, child output in `GCS_LOG_DIR`; `NAVPY_LOG_ROTATION=off`
   keeps logs unrotated.
+- **Hand-driven delivery demo** (`scripts/delivery_demo.py`, design
+  `docs/design/delivery_demo_prep.md`): `delivery_demo.py launch` starts this
+  checkout's stack for `scripts/eval_delivery_scenario.json` (dock world,
+  scenario home, three hubs, explicit lifecycle, fresh SITL root, frontend but
+  no browser); `delivery_demo.py prep` then connects, writes the eval's
+  params, uploads the missions with readback, starts the companions and opens
+  the UI. Press Launch, approve each dock within 30 s; reload a tab opened
+  before `prep`. Stop with `gcs_stop.py`. Both refuse a stack `launch` did not
+  start; logs in `.logs/delivery-demo/<time>`.
 - In **dev mode only**, the running git branch is shown in the tab title +
   topbar so parallel instances are distinguishable; non-dev (operator) mode
   hides it (`devMode` gates both, from `settings.simulation.dev_mode`).

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
-from navpy.core.skills.search.dock_roles import DockRoles
+from navpy.core.skills.search.task_focus import TaskFocus
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
@@ -24,15 +24,24 @@ class PoiSelector:
         confirmation_manager: ConfirmationManager,
         retry: PoiRetryPolicy,
         peer_available: Callable[[], bool],
-        roles: DockRoles,
+        focus: TaskFocus,
+        offer_allowed: Callable[[DetectedObject], bool],
+        order_work: Callable[[list[DetectedObject]], list[DetectedObject]],
     ) -> None:
         self._confirmation_manager = confirmation_manager
         self._retry = retry
         self._peer_available = peer_available
-        self._roles = roles
+        self._focus = focus
+        self._offer_allowed = offer_allowed
+        self._order_work = order_work
 
     def _may_offer(self, poi: DetectedObject) -> bool:
-        return self._peer_available() and self._roles.may_offer(poi)
+        # The swarm rule comes first, so a mission module cannot skip it.
+        return (
+            self._peer_available()
+            and self._focus.may_offer(poi)
+            and self._offer_allowed(poi)
+        )
 
     def select(
         self,
@@ -61,7 +70,7 @@ class PoiSelector:
             ConfirmationStatus.CONFIRMED,
         }
         ordered = prioritize_pois(available_pois, primary_poi)
-        for poi in self._roles.order(ordered):
+        for poi in self._order_work(ordered):
             status = self._confirmation_manager.get_status(poi)
             exhausted = (
                 status is ConfirmationStatus.TIMEOUT_REJECTED
@@ -73,7 +82,7 @@ class PoiSelector:
                 continue
             if self._retry.is_in_poi_cooldown(poi):
                 continue
-            if own is None and self._roles.may_take(poi):
+            if own is None and self._focus.may_take(poi):
                 own = poi
             elif self._may_offer(poi):
                 peers.append(poi)

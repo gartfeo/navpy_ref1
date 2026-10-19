@@ -61,7 +61,8 @@ would go home.
 - Today each NavPy builds its own dock list from its own mission waypoints (`navigation_poi_args.py:42-56`,
   `poi_provider.py:194-196`).
 - It also adds docks where it expects them: at a peer task's estimated position (`peer_approach_start.py:31-35`) and at
-  the hub (`fallback_mission_navigation.py:63-68`).
+  the hub (`fallback_mission_navigation.py:63-68`; `products/delivery/fallback_mission_navigation.py:60-65` since
+  delivery move c8).
 - In a shared world those added docks would be ghosts, offset by the estimate error. A UAV could then see two docks
   and offer one.
 - **New:** `sim/world/fleet_dock_world.py`, loaded from a file named by `NAVPY_SIM_DOCKS`.
@@ -242,7 +243,9 @@ e5 builds both, each with a mechanism test.
   geometry overclaim). All three were applied, and the re-review said "ship".
 
 **e5 as built (2026-10-17, unit level).**
-- `DockRoles` (`src/navpy/core/skills/search/dock_roles.py`) feeds `PoiSelector`, which every offer path uses
+- `DockRoles` (`src/navpy/core/skills/search/dock_roles.py`; since delivery move c8a `TaskFocus` in
+  `core/skills/search/task_focus.py` and `HomeDockRules` in `products/delivery/home_dock.py`) feeds `PoiSelector`,
+  which every offer path uses
   (DETECT, CONFIRM, NAV).
 - A detection is the home dock, or the assigned task's dock, when its position lies within
   `DOCK_ASSOCIATION_RADIUS_M` (30 m, the reacquire gate). The position is the one an offer would carry: the

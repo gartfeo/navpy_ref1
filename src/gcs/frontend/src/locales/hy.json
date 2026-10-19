@@ -410,19 +410,20 @@
     "clearTrails": "Մաքրել թռիչքի հետագիծը",
     "resetView": "Վերականգնել տեսքը"
   },
-  "videoPanel": {
-    "region": "Տեսախցիկի տեսանյութ",
-    "title": "Տեսախցիկ",
+  "vehicleWindow": {
+    "region": "Սարքի պատուհան",
     "state": {
       "connecting": "ՄԻԱՑՈՒՄ",
       "live": "ՈՒՂԻՂ",
       "stale": "ՀՆԱՑԱԾ",
       "failed": "ՁԱԽՈՂՎԵՑ",
-      "hidden": "ԹԱՔՑՎԱԾ",
-      "lost": "ԿՈՐԱԾ"
+      "lost": "ԿՈՐԱԾ",
+      "noCamera": "ՏԵՍԱԽՑԻԿ ՉԿԱ",
+      "synthetic": "ՍԻՆԹԵՏԻԿ"
     },
     "connectingUav": "միացում · {{name}}",
     "noFrames": "ԿԱԴՐԵՐ ՉԿԱՆ {{seconds}} վ",
+    "noCamera": "Տեսախցիկ չկա · {{name}}",
     "videoLost": "Տեսախցիկի տեսանյութը կորել է · {{name}}",
     "linkLost": "Կապը սարքի հետ կորել է · {{name}}",
     "reason": {
@@ -434,22 +435,37 @@
     },
     "reconnect": "Վերամիացնել տեսանյութը",
     "dismiss": "Փակել",
-    "expand": "Մեծացնել",
+    "source": {
+      "group": "Տեսքի աղբյուր",
+      "camera": "Տեսախցիկ",
+      "synthetic": "Սինթետիկ"
+    },
+    "maximize": "Մեծացնել",
     "restore": "Վերականգնել",
-    "collapse": "Թաքցնել տեսանյութը",
-    "show": "Ցույց տալ տեսանյութը",
+    "minimize": "Փոքրացնել",
+    "showMapLarge": "Ցույց տալ քարտեզը մեծ",
+    "handle": {
+      "label": "{{name}} · {{state}}",
+      "restoreLabel": "Ցույց տալ սարքի պատուհանը՝ {{name}} · {{state}}",
+      "camera": "Տեսախցիկ",
+      "noCamera": "Տեսախցիկ չկա",
+      "synthetic": "Սինթետիկ",
+      "linkLost": "Կապը սարքի հետ կորել է"
+    },
+    "syntheticTitle": "{{name}} · սինթետիկ տեսք",
+    "syntheticTag": "ՍԻՆԹԵՏԻԿ · ոչ տեսախցիկ",
+    "waitingForPose": "Սպասում ենք դիրքին · {{name}}",
+    "syntheticUnavailable": "Սինթետիկ տեսքը հասանելի չէ",
     "moreUavs": "ևս {{count}}",
-    "moreUavsLabel": "Տեսանյութով այլ ԱԹՍ-ներ",
-    "pickUav": "Ընտրեք ԱԹՍ՝ դրա տեսախցիկը տեսնելու համար"
+    "moreUavsLabel": "Այլ ԱԹՍ-ներ"
   },
   "fpvView": {
-    "on": "ՄԻԱՑ.",
-    "toggleTitle": "Առաջին դեմքի տեսք (սինթետիկ, առանց RC)",
     "tag": "ՍԻՆԹԵՏԻԿ · {{name}} · քթի տեսք, ոչ տեսախցիկ",
-    "heldLinkLost": "Տեսքը պահված է · կապը կորել է · {{seconds}} վ",
-    "heldPose": "Տեսքը պահված է · դիրքը հասանելի չէ · {{seconds}} վ",
-    "ineligible": "{{name}}. FPV-ի համար կապ կամ դիրք չկա",
-    "noEligible": "Ոչ մի ԱԹՍ չունի կապ և դիրք FPV-ի համար"
+    "held": {
+      "telemetryDisconnected": "Տեսքը պահված է · տելեմետրիան անջատված է · {{seconds}} վ",
+      "linkLost": "Տեսքը պահված է · կապը կորել է · {{seconds}} վ",
+      "poseUnavailable": "Տեսքը պահված է · դիրքը հասանելի չէ · {{seconds}} վ"
+    }
   },
   "planningToolbar": {
     "finishDrawing": "Ավարտել նկարումը",

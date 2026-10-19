@@ -34,9 +34,9 @@ export function defaultStream(streams) {
 }
 
 /**
- * The first feed when the panel has none yet (owner decision D1): the followed
- * UAV if it has video, else the first UAV with video. Later follow changes do
- * not call this again.
+ * The UAV with video the vehicle window picks by itself (owner decision D1):
+ * the followed UAV if it has video, else the first UAV with video, else null.
+ * Later follow changes do not call this again.
  */
 export function pickFirstFeed(followSysId, fleet) {
   const withVideo = (fleet || []).filter((e) => e.streams.length > 0);
@@ -44,12 +44,21 @@ export function pickFirstFeed(followSysId, fleet) {
   return (followed ?? withVideo[0])?.sysId ?? null;
 }
 
+/** The window's first pick: a UAV with video as above, else the first UAV in the fleet. */
+export function pickFirstUav(followSysId, fleet) {
+  return pickFirstFeed(followSysId, fleet) ?? fleet?.[0]?.sysId ?? null;
+}
+
 /**
- * What the panel shows for the operator's selection `{ sysId, key }`:
- * - `stream`: that stream, or, when it disappeared, the same UAV's default
- *   remaining stream (`switched` true);
- * - `lost`: the UAV has no stream left. Never another UAV.
- * - `idle`: nothing selected.
+ * What the window's camera shows for the selection `{ sysId, key }`; `key`
+ * null means no stream is expected (the UAV never had one, or the operator
+ * dismissed a lost feed):
+ * - `stream`: that stream, or, when it disappeared or none was expected, the
+ *   same UAV's default stream (`switched` true);
+ * - `lost`: the shown stream went away and the UAV has none left. Never
+ *   another UAV.
+ * - `noCamera`: no stream expected and the UAV advertises none.
+ * - `idle`: nothing selected (empty fleet).
  */
 export function resolveShownStream(selection, fleet) {
   if (!selection) return { kind: 'idle' };
@@ -59,7 +68,7 @@ export function resolveShownStream(selection, fleet) {
   if (exact) return { kind: 'stream', entry, stream: exact, switched: false };
   const fallback = defaultStream(streams);
   if (fallback) return { kind: 'stream', entry, stream: fallback, switched: true };
-  return { kind: 'lost', entry };
+  return { kind: selection.key == null ? 'noCamera' : 'lost', entry };
 }
 
 const CODEC_MIME = { H264: 'video/h264', H265: 'video/h265' };
@@ -77,10 +86,7 @@ export function codecSupported(encoding, receiver = globalThis.RTCRtpReceiver) {
   return caps.codecs.some((c) => String(c.mimeType).toLowerCase() === mime);
 }
 
-/**
- * The camera panel is on screen only in the monitor view, outside manual
- * control and FPV, while a UAV advertises a stream or a lost feed is pending.
- */
-export function cameraPanelVisible({ monitor, rcEnabled, fpvOn, hasPanel }) {
-  return monitor && !rcEnabled && !fpvOn && hasPanel;
+/** The vehicle window is on screen in the monitor view, outside manual control, whenever the fleet has a UAV. */
+export function vehicleWindowVisible({ monitor, rcEnabled, fleetSize }) {
+  return monitor && !rcEnabled && fleetSize > 0;
 }

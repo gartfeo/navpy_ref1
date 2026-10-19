@@ -20,9 +20,9 @@ describe('FpvViewOverlay', () => {
 
   it('link lost: "View held" banner with the time held; link back: banner gone', () => {
     const { getByRole, queryByRole, rerender } = render(<FpvViewOverlay label="UAV 1" holdReason="linkLost" top={64} />);
-    expect(getByRole('status')).toHaveTextContent('fpvView.heldLinkLost 0');
+    expect(getByRole('status')).toHaveTextContent('fpvView.held.linkLost 0');
     advance(3000);
-    expect(getByRole('status')).toHaveTextContent('fpvView.heldLinkLost 3');
+    expect(getByRole('status')).toHaveTextContent('fpvView.held.linkLost 3');
     rerender(<FpvViewOverlay label="UAV 1" holdReason={null} top={64} />);
     expect(queryByRole('status')).toBeNull();
   });
@@ -30,9 +30,14 @@ describe('FpvViewOverlay', () => {
   it('linked but pose not finite: "pose unavailable", and the time restarts per hold', () => {
     const { getByRole, rerender } = render(<FpvViewOverlay label="UAV 1" holdReason="poseUnavailable" top={54} />);
     advance(2000);
-    expect(getByRole('status')).toHaveTextContent('fpvView.heldPose 2');
+    expect(getByRole('status')).toHaveTextContent('fpvView.held.poseUnavailable 2');
     rerender(<FpvViewOverlay label="UAV 1" holdReason={null} top={54} />);
     rerender(<FpvViewOverlay label="UAV 1" holdReason="poseUnavailable" top={54} />);
-    expect(getByRole('status')).toHaveTextContent('fpvView.heldPose 0');
+    expect(getByRole('status')).toHaveTextContent('fpvView.held.poseUnavailable 0');
+  });
+
+  it('telemetry disconnected has its own held reason', () => {
+    const { getByRole } = render(<FpvViewOverlay label="UAV 1" holdReason="telemetryDisconnected" top={54} />);
+    expect(getByRole('status')).toHaveTextContent('fpvView.held.telemetryDisconnected 0');
   });
 });

@@ -2,7 +2,8 @@
 
 A UAV flying a final approach is BUSY for swarm auctions; every other
 phase leaves it free for a peer task: searching, CONFIRM of an own POI,
-the DDH return, ONHOLD, RESET and RECOVERY (docs/design/
+a mission module's own flight (such as a return), ONHOLD, RESET and
+RECOVERY (docs/design/
 swarm-task-assignment-ack.md, "Busy UAVs").
 """
 

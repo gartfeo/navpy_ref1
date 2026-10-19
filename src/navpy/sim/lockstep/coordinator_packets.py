@@ -17,6 +17,8 @@ tick's events, in order (ids are lists):
 - ``["admitted", id, bytes]``: bytes of the packet reply k carried;
   ``["admitted", id, bytes, j]``: bytes of its prefix that reply j < k
   carried before the packet was complete (point-to-point bytes move unframed).
+- ``["arrived", id, left]``: a router copy came out of the radio link model
+  (``link_model``) in tick k; it left its sender's radio in tick ``left``.
 
 and the terminal dispositions, exactly one per id:
 
@@ -24,10 +26,13 @@ and the terminal dispositions, exactly one per id:
   that admitted the last byte, or to a participant (``[ordinal, generation]``)
   in ``TICK k``, written only when that member is admitted and live and
   every byte of the packet went to it;
-- ``["discarded", id, reason]``: ``unadmitted``, ``retired`` or ``drain``;
+- ``["discarded", id, reason]``: ``unadmitted``, ``retired``, ``drain``, or
+  ``link`` (still in the serial link model at parking);
 - ``["router_dropped", id]``: no endpoint accepted it;
 - ``["routed", id, copies]``: a source the router copied;
-- ``["undelivered", id, bytes admitted, bytes pending]``: queued at parking.
+- ``["undelivered", id, bytes admitted, bytes pending]``: queued at parking;
+- ``["lost", id, reason]``: a router copy the radio link lost (``loss`` or ``outage``);
+- ``["in_flight", id, bytes]``: a router copy still in the radio link at parking.
 
 A second disposition, or an id that never ends, is a coordinator fault.
 """
@@ -46,8 +51,8 @@ from navpy.sim.lockstep.router_framer import RouterPacket, Segment
 
 PacketId = tuple[Hashable, int, str, int]
 ROUTER_ORIGIN = "router"
-DISCARD_REASONS = ("unadmitted", "retired", "drain")
-TERMINALS = ("delivered", "discarded", "router_dropped", "routed", "undelivered")
+DISCARD_REASONS = ("unadmitted", "retired", "drain", "link")
+TERMINALS = ("delivered", "discarded", "router_dropped", "routed", "undelivered", "lost", "in_flight")
 _DECODER = mavlink.MAVLink(None)
 
 
@@ -122,6 +127,12 @@ class PacketBook:
         if tick is not None:
             event.append(tick)
         self._events.append(event)
+
+    def arrived(self, packet_id: PacketId, left: int) -> None:
+        """A router copy came out of the radio link this tick; it left in tick ``left``."""
+        if packet_id not in self._open:
+            raise CoordinatorFault("packet_disposition", f"packet {packet_id} arrived: it is not open")
+        self._events.append(["arrived", _wire(packet_id), left])
 
     def end(self, packet_id: PacketId, disposition: str, *detail: object) -> str:
         """Record ``packet_id``'s terminal disposition; returns its tally key."""

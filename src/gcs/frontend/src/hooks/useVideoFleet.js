@@ -3,20 +3,22 @@ import { streamsOf, vehicleLabel } from '../utils/videoStreams';
 import { fpvHoldReason } from '../utils/fpvView';
 
 /**
- * Per-vehicle facts the camera panel and the FPV toggle need, in the fleet's
- * own order (the index is the UAV's zone colour, as elsewhere in the GCS).
+ * Per-vehicle facts the vehicle window and RC FPV need, in the fleet's own
+ * order (the index is the UAV's zone colour, as elsewhere in the GCS).
  * Pure, exported for tests.
+ *
+ * @param {Array} vehicleList
+ * @param {(sysId: number) => boolean} isFresh - telemetryStore.isTelemetryFresh.
  */
-export function summarizeFleet(vehicleList) {
+export function summarizeFleet(vehicleList, isFresh) {
   return (vehicleList || []).map((v, index) => {
-    const holdReason = fpvHoldReason(v);
+    const holdReason = fpvHoldReason(v, isFresh(v.sys_id));
     return {
       sysId: v.sys_id,
       index,
       label: vehicleLabel(v, v.sys_id),
       streams: streamsOf(v),
       linkOk: v.link_ok === true,
-      fpvEligible: holdReason === null,
       holdReason,
     };
   });
@@ -26,7 +28,7 @@ export function summarizeFleet(vehicleList) {
  * Subscribes to the telemetry store, but re-renders only when one of the facts
  * above changes, not on every 5 Hz position update.
  *
- * @param {{ current: object }} storeRef - the telemetry store (subscribe, getSnapshot, getVehicleList).
+ * @param {{ current: object }} storeRef - the telemetry store (subscribe, getSnapshot, getVehicleList, isTelemetryFresh).
  */
 export default function useVideoFleet(storeRef) {
   const cacheRef = useRef({ version: null, signature: null, fleet: [] });
@@ -36,7 +38,7 @@ export default function useVideoFleet(storeRef) {
     const version = store.getSnapshot();
     if (cache.version === version) return cache.fleet;
     cache.version = version;
-    const fleet = summarizeFleet(store.getVehicleList());
+    const fleet = summarizeFleet(store.getVehicleList(), store.isTelemetryFresh);
     const signature = JSON.stringify(fleet);
     if (signature !== cache.signature) {
       cache.signature = signature;

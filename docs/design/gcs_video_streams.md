@@ -1,12 +1,13 @@
 # GCS video streams per vehicle
 
-Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson). Implementation in progress.
+Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson) and shipped as PR #18. v10 (2026-10-19: one bottom-left vehicle window with a Camera / Synthetic switch, minimize and maximize-swap; it replaces the v9 draft, design C) approved by the owner 2026-10-19 (decision 6) and shipped as PR #20. **v11** (owner request, 2026-10-19): the vehicle window moves to the top right under the action bar and holds the UAV picker, each UAV marked with a camera or map icon; a UAV without a camera opens on Synthetic; the follow selector and the map chase go. This reverses D1 / decision 5. Approved by the owner 2026-10-20 with the recommended answers to the open questions (decision 7); not implemented yet.
 
 Owner request (2026-10-16): "we should be able to see video streams in our GCS if
 those are available."
 
 Goal: the monitor view shows live video from any vehicle that has a camera stream,
-and shows nothing extra (no empty or broken panel) for vehicles that have none.
+and for vehicles that have none says "No camera" in plain text, never an empty
+or broken picture.
 
 Video is **operator display only**. Nothing here feeds frames, pixels or stream
 state into NavPy's navigation or the final-approach command path (Pure Vision
@@ -141,7 +142,7 @@ so these are our radio-link defaults, not protocol values:
   2 s or less) at a reduced size such as 1280 x 720 and about 2 Mbit/s. Hardware
   acceptance: Jetson CPU load, added latency and unchanged vision capture timing
   are measured with the encoder running before it is used in flight.
-- The panel checks `RTCRtpReceiver.getCapabilities('video')` against the
+- The window checks `RTCRtpReceiver.getCapabilities('video')` against the
   announced `encoding` before connecting (unknown encoding: try), and treats a
   failed negotiation or no frames as the error state below.
 
@@ -156,133 +157,403 @@ so these are our radio-link defaults, not protocol values:
 - The handheld (Termux) case is the same browser path, so it needs nothing extra
   beyond being on that network.
 
-### 5. UI: one vehicle view at a time
+### 5. UI: one vehicle window
 
 Owner, 2026-10-16: build each feature for a purpose; in the demo any UAV may
 have a stream but one plays at a time; Cesium FPV must work without video; no
 need for FPV and video together. v8 (2026-10-17): every element was walked
 through a 3-UAV delivery mission by a field operator, a delivery operations
 adviser, a UX designer and Codex, then debated with Codex; elements without a
-concrete operator use were cut.
+concrete operator use were cut. v10 (owner, 2026-10-19): one window at the
+bottom left that the operator minimizes or maximizes, instead of a camera panel
+plus a top-right FPV button. v11 (owner, 2026-10-19): the follow selector and
+the window's UAV badges did almost the same job (pick the UAV to look at; a
+map chase is close to a synthetic view), so one control is left, and it lives
+in the window: the window moves to the top right, under the action bar, holds
+the UAV picker, and the follow selector and the map chase go. A UAV without a
+camera opens on Synthetic by itself.
 
-Purpose of the two views:
+Purpose of the two sources:
 
 - **Camera (real video)**: inspect the real scene at the two delivery moments
   the map cannot show: the dock confirmation (does the live scene still match
   the detector's still?) and the final approach (is there a reason to Cancel
   task?). Watching is optional; the map stays the main view.
-- **FPV (Cesium, synthetic)**: orientation, and a vehicle view where there is no
-  usable video (SITL demo, UAV without camera, failed feed), without taking RC
-  authority. It shows attitude over terrain, not what the camera or detector
-  sees, and never confirms anything.
+- **Synthetic (Cesium nose view)**: orientation, and a vehicle view where there
+  is no usable video (SITL demo, UAV without camera, failed feed), without
+  taking RC authority. It shows attitude over terrain, not what the camera or
+  detector sees, and never confirms anything. Named "Synthetic", not "FPV":
+  DJI FlightHub 2 and UgCS use "FPV" for a real camera, and no ground station
+  checked shows a synthetic first-person view in its camera window.
 
-So the operator sees **map + camera panel** (default) or **FPV** (main map
-switches to first person, camera panel hidden and its reader closed), never both.
-One rule: **the follow selector moves the map (and FPV); badges and View camera
-move the video** (owner decision D1 below).
+So the monitor view has one **vehicle window** at the top right, just under
+the action bar. It shows one UAV and one source, **Camera** or **Synthetic**,
+never both. Until the operator picks a UAV it reads **Select a UAV for
+streaming** and lists the fleet. The map stays the main view and never follows
+a UAV; only RC turns the main map first-person. One rule (v11, reverses D1 /
+decision 5): **the UAV buttons in the window and View camera on a confirm card
+pick the window's UAV; each UAV button shows a camera icon when that UAV
+advertises a stream and a map icon when it does not, and a pick opens what the
+icon shows: Camera, or Synthetic.**
+
+Practice it follows (research 2026-10-19): QGroundControl's `PipView` (one
+small window; hide leaves a restore button; a click swaps map and video;
+both choices saved); DJI FlightHub 2 and UgCS (the source switches inside the
+window and stays on the same vehicle; text states when there is no video);
+NUREG-0700 Rev. 4 section 2.5.2 and EASA CS-AWO SVGS.102(c), by analogy only
+(vehicle label at the top, the active mode shown at once, synthetic imagery
+plainly marked, a window never covers commands or warnings).
 
 #### Controls
 
 | Control | v1 | Operator use |
 |---|---|---|
-| UAV badges in the panel header (one per UAV with a stream) | yes | watching UAV 1's approach, check UAV 2's camera and tap 1 to come back, without moving the map. Selected badge: outline + fill + the full "UAV n" label, never colour alone. A badge never changes follow or RC |
-| **View camera** on each task confirm card | yes | a card arrives: tap, compare the live scene with the still, then Approve/Deny on the card. It opens that UAV's live stream, so the operator does not watch the wrong UAV; it does not prove the camera still shows the same dock (it may have moved since the still). Neutral button beside the still, away from Approve/Deny; "Viewing" when the panel already shows that UAV; on tap the old picture clears and "connecting · UAV n" shows. The countdown keeps running (the card says so); the tap never approves, denies or pauses. Pending cards only; shown only when that UAV has a stream and RC is off |
-| **FPV** toggle (text label, clear on state, unlike the RC button) beside the follow selector | yes | SITL demo or a dead feed: a vehicle view without RC. Shows the followed UAV; from Free it takes the panel's UAV if eligible, else the first eligible UAV, and the follow selector then names it |
+| **UAV buttons** in the window, one per UAV in the fleet, each with a camera or map icon | yes (v11) | a glance tells which UAVs have video; tap UAV 2: its camera plays; tap UAV 3 (map icon): its synthetic view opens. Before a pick they fill the window under "Select a UAV for streaming"; after a pick they stay in the header as the quick switch. The icon follows the UAV's stream announcements and changes when they change; a UAV whose link is lost also reads "link lost" in text. Selected button: outline + fill + the full "UAV n" label, never colour alone. A button never moves the map and never changes RC |
+| **View camera** on each task confirm card | yes | a card arrives: tap, compare the live scene with the still, then Approve/Deny on the card. It picks that UAV with the Camera source (from the picker too), so the operator does not watch the wrong UAV; it does not move the map and does not prove the camera still shows the same dock (it may have moved since the still). Neutral button beside the still, away from Approve/Deny; "Viewing" when the window already shows that UAV's camera; on tap the old picture clears and "connecting · UAV n" shows. The countdown keeps running (the card says so); the tap never approves, denies or pauses. Pending cards only; shown only when that UAV has a stream and RC is off |
+| **Camera / Synthetic** switch in the window | yes | change the source for the picked UAV: Synthetic for a UAV with a camera, or Camera to check a map-icon UAV again. Never saved |
 | Live state: LIVE (frames arriving), connecting, stale shown on the picture as text ("NO FRAMES 7 s"), failed, **Reconnect video** | yes | before relying on the picture at confirm or approach: a frozen frame looks like a calm scene. LIVE means frames arrive, not low latency |
-| Expand / restore, plus collapse to header for a healthy feed (labelled buttons) | yes | expand to judge detail at confirmation; collapse to give the map back without entering FPV. No tap-anywhere toggle |
+| **Close** and **Maximize** / restore | yes | Close stops the picture and goes back to "Select a UAV for streaming"; maximize swaps window and map to judge detail at confirmation (or to see Synthetic large) while the map stays visible, small. No tap-anywhere toggle on the window |
+| Follow selector in the action bar, and the map chase | removed (v11) | the UAV buttons pick the UAV; the map no longer needs a chase of its own (Synthetic maximized is the large vehicle view) |
+| Minimize to a handle | removed (v11) | Close replaces it; the picker state is small (open question 3) |
+| "No camera · UAV n" | yes | shown when the operator switches a map-icon UAV to Camera: said in text, never a black box |
 | "Camera video lost" vs "Vehicle link lost" | yes | camera only: keep monitoring; link: check the vehicle, consider Cancel task or E-STOP. Both shown when both happen, link first. Video loss says nothing about NavPy or the detector; neither changes mission state |
 | Header names the view from stream metadata (e.g. "UAV 2 · tracking overlay") | yes | the operator knows the picture is the Jetson overlay with detector boxes, not the raw camera |
 | Stream picker (two views on one UAV) | later | no delivery decision needs it; the data model keeps all streams, v1 plays the UAV's default stream: the lowest stream id, and the companion config gives the display stream id 1 |
-| View FPV in a failed feed | cut | no decision beyond the FPV toggle; it made synthetic imagery look like the answer to lost video |
+| Synthetic offered inside a failed feed | cut | it made synthetic imagery look like the answer to lost video; the switch is enough |
+| Top-right FPV button | removed (v10) | the switch in the window replaces it |
+| Full screen | later | maximize covers the confirmation need; QGroundControl's full screen ends when the link is lost |
 | Auto-switch to a confirming UAV, with a pin | later | pulls the view off another UAV's approach; View camera is one tap |
+| Live preview tiles per UAV | no (owner, 2026-10-19) | several streams at once break the one-stream rule and cost radio bandwidth per UAV; the icons say enough |
 | Snapshot / recording | later | after-action review only; an image does not prove docking or cargo receipt |
 | Gimbal or zoom control | later, payload module | NavPy owns the gimbal during approach; zoom changes vision calibration; needs an ownership design |
-| FPV and video together; mission phase in the header | no | no decision needs them; phase belongs in the sidebar |
+| Camera and Synthetic together; mission phase in the header | no | no decision needs them; phase belongs in the sidebar |
 | Tiles | later option (owner, 2026-10-16) | only with a new operator need once several streams play at once |
-| Flight or mission actions in the panel | no | Cancel task and E-STOP already exist; observation is not outcome |
+| Flight or mission actions in the window | no | Cancel task and E-STOP already exist; observation is not outcome |
 
-Generic vs delivery: badges, live state, loss wording, expand and FPV serve any
-mission module; View camera depends on the task-confirmation flow.
+Generic vs delivery: the UAV buttons, the switch, live state, loss wording,
+close and maximize serve any mission module; View camera depends on the
+task-confirmation flow.
 
-Touch and layout (handheld): new and touched controls are 44 px targets with
-text labels, no hover-only actions, nothing within 8 px of Approve/Deny. Header
-text 14 px on an opaque background. The header line holds only badges, the
-"UAV n" title and the live state; a failure goes on a row under it (reason,
-Reconnect video, Dismiss). Narrow map pane (under 480 px): badges show the
-number, the full "UAV n" stays in the title, and badges that do not fit move
-into one menu button. Expanded takes the pane width minus 12 px margins and stops below the
-top-right controls. In monitor mode confirm cards and E-STOP are in the sidebar,
-not over the map, so the panel cannot cover them.
+Touch and layout (handheld): the window's controls are 44 px targets with text
+labels, no hover-only actions, nothing within 8 px of Approve/Deny. Header text
+14 px on an opaque background. Picker state: the line "Select a UAV for
+streaming", then the UAV buttons, wrapping onto more rows when they do not fit
+(the window grows; past its height limit the list scrolls). Viewing state: the
+header line holds the UAV buttons, the "UAV n" title and the state; a control
+row under it holds the switch (left) and Maximize and Close (right); a failure
+or held view goes on a row under that (reason, Reconnect video, Dismiss).
+Narrow map pane (under 480 px): header buttons show the icon and the number,
+the full "UAV n" stays in the title, buttons that do not fit move into one menu
+button (v10's badge room rule, computed for the whole fleet), and Maximize and
+Close show their standard glyphs with an accessible name. Icons always carry
+an accessible name ("UAV 2, camera" / "UAV 3, no camera, synthetic view").
+The overflow menu opens downward under its button (today it opens upward,
+`VehicleWindow.jsx:138`, which at the top right would run into the action
+bar), stays inside the window (at most down to the window's bottom edge, then
+it scrolls) and draws above the small swapped map; a pick, Escape or a tap
+outside closes it, and Escape returns focus to the menu button.
+Focus: Close removes the control that has focus, so focus moves to the picked
+UAV's button in the picker; if that UAV has left the fleet, to the first UAV
+button. (With an empty fleet the window is gone.) In monitor mode confirm cards and E-STOP are in the
+sidebar, not over the map, so neither the window nor the small swapped map can
+cover them. The top-right bar keeps its pre-PR #18 controls at 32 px (owner,
+2026-10-18), without the follow selector; it wraps on a narrow pane
+(`MonitorMapOverlay.jsx:64-78`) and reports its bottom edge, so the window
+always starts 12 px below it.
 
-#### Camera panel
+#### Vehicle window
 
-- Bottom-left of the map, monitor view only. Shown while any UAV advertises a
-  stream or a lost feed is still on screen; hidden in FPV and in manual control.
-  The GCS learns of streams only from the camera protocol: a camera that is
-  expected but never advertises is not shown here; preflight reports it
-  (`architecture_todo.md` 70).
-- Selection: badges and View camera switch the video only. The follow selector
-  picks only the first feed (the followed UAV if it has video, else the first
-  UAV with video); later follow changes leave the video alone (D1).
+- Where: top right of the map pane, right edge 12 px from the pane edge, top
+  12 px below the action bar's measured bottom (`onTopControlsBottom`, as v10
+  measures it), monitor view only, whenever the fleet has a UAV; hidden in
+  manual control (RC). Width min(432, pane width - 24) px. Its bottom stops
+  12 px above the reset-view button (bottom right, `App.jsx:900-905`), so it
+  never covers it; the picture shrinks to fit that height limit. It does not
+  reach the RC button (top left) or the main map's credit line (bottom left).
+  Two sizes: normal and maximized (the swap, below).
+- Layout, top to bottom (viewing): header line; control row; a status row
+  when needed; the picture (16:9, shrinking to fit the height limit). The UAV
+  label stays at the top in both sources. A state with no picture (no camera,
+  failed, lost, waiting for pose) collapses the picture area at normal size,
+  so the window never shows a black box; maximized, the large area shows that
+  state as text. Picker: the prompt line and the UAV buttons only, no
+  picture.
+- Which UAV: the UAV buttons and View camera pick it, for both sources. Only
+  the operator picks: v10's automatic first pick and its move from "No
+  camera" to the first UAV that starts advertising are removed; the window
+  starts on the picker. Picking the selected UAV again does nothing.
+- Source on a pick (owner, 2026-10-19): a UAV with a stream (camera icon)
+  opens on Camera; a UAV with none (map icon) opens on Synthetic, marked as
+  in the Synthetic view section. This is the only automatic entry into
+  Synthetic; View camera always opens Camera. Once picked, the source changes
+  only by the switch, Dismiss (below) or a synthetic failure: a stream that
+  appears while on Synthetic only turns the icon into a camera; a stream that
+  goes away while on Camera shows "Camera video lost", never a silent switch
+  to Synthetic.
+- The picked UAV leaves the fleet (removed from the backend's `active_ids`,
+  `telemetryStore.js:128-133`): its button disappears and the selection stays
+  (v10). Camera: "Vehicle link lost · UAV n" and "Camera video lost".
+  Synthetic: the last pose holds with "View held · vehicle link lost". Both
+  resume if the UAV returns; the window never switches UAV by itself. Close
+  goes back to the picker.
+- Camera states:
+  - Stream: video with its live state.
+  - **No camera · UAV n**: the operator switched a map-icon UAV to Camera. No
+    Reconnect or Dismiss. If that UAV starts advertising, its video starts.
+  - **Camera video lost · UAV n**: the shown stream went away. That UAV's other
+    stream plays if it has one; else this state, with Reconnect video and
+    Dismiss, until a stream returns. Dismiss opens Synthetic for the same UAV,
+    as a pick of a map-icon UAV would (open question 1). Never a silent switch
+    to another UAV.
+  - The GCS learns of streams only from the camera protocol: a camera that is
+    expected but never advertises shows the map icon; preflight reports it
+    (`architecture_todo.md` 70).
 - Deadlines: no first frame within `VIDEO_FIRST_FRAME_DEADLINE_S` (default 10 s:
   ICE setup plus one keyframe interval, which the display stream keeps at 2 s or
   less), or no new frame for `VIDEO_STALL_DEADLINE_S` (default 5 s, a few
   keyframe intervals), becomes the failed state. Measured by frame progress
   (`requestVideoFrameCallback`, fallback `getVideoPlaybackQuality`), not only the
   video element's waiting/stalled events. Both named in one frontend constants
-  file, with fake-timer tests.
-- Failed or codec not supported: the video area collapses to the header with the
-  UAV, a short reason and Reconnect video, so a dead feed never leaves a black box.
-- Streams changing: the shown stream disappears -> that UAV's other stream if
-  any; else the panel stays on "Camera video lost · UAV n" with Reconnect video
-  and Dismiss until it returns. Never a silent switch to another UAV. The panel
-  goes away only when no advertised stream is left and nothing failed is pending.
+  file, with fake-timer tests. Failed or codec not supported: a short reason and
+  Reconnect video.
+- Close: the camera reader closes and the synthetic widget is destroyed, since
+  an unwatched stream costs radio bandwidth (v10's minimize did the same); the
+  window shows the picker. v10's minimized handle and its saved state are
+  removed.
+- Maximize swaps the window and the map (QGroundControl, UgCS, DJI Pilot 2):
+  the window takes the large box (pane width minus 12 px margins, from below
+  the action bar to the bottom margin) and the map shrinks into a small box
+  drawn above the large window's picture: at the picture's top right, 12 px
+  under the window's last header, control or failure row and 12 px in from
+  its right edge, width min(320 px, half the large box), 16:9. It never
+  covers the UAV buttons, the overflow menu, the switch, Restore, Close or a
+  failure row. Maximize is offered only while
+  viewing, not in the picker. The window's Maximize reads Restore while
+  swapped. A tap anywhere on the small map swaps back: a transparent button
+  covers it (accessible name "Show the map large"), so the small map is never
+  panned, zoomed or picked, and no accidental drag becomes the saved startup
+  view. While swapped the main map's `screenSpaceCameraController.enableInputs`
+  is false, which also stops the inertia of a gesture made just before
+  maximizing (`ScreenSpaceCameraController.js:511`). It is set back to true on
+  the swap back. With no chase (v11), the only thing that can move the map
+  while swapped is a coordinate click in the sidebar (`MissionStatusRow.jsx:54`,
+  through `flyToRef`, which calls `camera.flyTo` directly,
+  `useCesiumViewer.js:329-333`). While swapped it swaps back first, then
+  flies, so the flight runs in the large map with the right aspect.
+  Maximizing during any camera flight cancels it (`camera.cancelFlight`); a
+  reset-view fit is rerun after the swap back (below), a coordinate flight is
+  not (the operator just asked for the window).
+  - CSS only: the map wrapper stays mounted and only its box changes. Never
+    remount `CesiumMap` (the viewer cleanup does not destroy the viewer, so a
+    remount leaks a WebGL context), never animate the size (Cesium resizes its
+    canvas on its render tick, so a transition reallocates it every frame),
+    never hide the map or size it to 0 (rendering would stop).
+    Cesium picks up the new size on its next tick.
+  - While swapped: the top-right bar stays usable (the window starts below
+    it); the header's UAV buttons move the large window to another UAV, with
+    the source its icon gives; reset view is hidden (a fit made in the small
+    box uses its aspect ratio and is wrong after the swap back); markers keep
+    their size, so a 3-UAV map is crowded: it is an overview.
+  - Fits wait for the large map. v10's chase-to-Free auto-centre
+    (`useFpvView.js:46-52`) goes with the chase, and reset view is hidden while
+    swapped, so the one fit left to defer is a reset-view flight still running
+    when the operator maximizes: it is cancelled and deferred (`useMapSwap.js`,
+    which today cancels only flights it tracks in `fitFlyingRef`; v11 cancels
+    any flight). A pending fit is dropped when RC takes the camera. On the
+    swap back the map calls `viewer.resize()` (public, synchronous), then runs
+    the pending fit once. A fit in the small box would use its aspect ratio and
+    be wrong after the swap back; shrinking itself changes only the frustum, so
+    a move end while small saves the unchanged pose.
+  - Swap back on: Restore, a tap on the small map, Close (swap back, then the
+    picker), a sidebar coordinate click (swap back, then fly), RC entry,
+    leaving the monitor view, an empty fleet. A change to another UAV keeps the
+    swap. Never saved: a reload starts unswapped.
+- Credits: Cesium's credit line (the Cesium ion logo, which the engine treats
+  as required, and the data attribution; Cesium ion terms 2.2.3) is never
+  covered. Each Cesium view keeps its credits at its own bottom-left (Cesium's
+  default). At normal size the window is at the top right, clear of the main
+  map's credit line. Swapped, the small map sits at the top right of the large
+  window's picture, clear of its bottom-left credits (maximized Synthetic) or of nothing
+  (Camera video has no credit line). The small map's own credits stay visible
+  inside it; its tap button blocks their "Data attribution" link until the
+  swap back.
+- Saved: nothing. v10's browser storage key `gcs-vehicle-window` (minimized or
+  normal) is no longer read or written; a value left in a browser is ignored.
+  Never the UAV, the source or the swap; a reload opens the picker.
+- Automatic changes are only these: the source a pick gets from its icon, back
+  to Camera on a synthetic failure, the swap ending on the events above, and
+  the picker after an empty fleet. The window never moves to another UAV by
+  itself.
 - One reader per browser; the demo has one GCS, so no radio-wide arbitration in v1.
-- Removed: `VITE_VIDEO_WHEP_URL`, `videoConfig.js` and the single-feed wiring (no
-  shim). `useWhepStream` and the vendored reader stay; `src/gcs/AGENTS.md` and
+- Removed (v8): `VITE_VIDEO_WHEP_URL`, `videoConfig.js` and the single-feed
+  wiring (no shim). `useWhepStream` and the vendored reader stay; `src/gcs/AGENTS.md` and
   the Jetson config notes are updated.
 
-#### FPV
+#### Synthetic view
 
-- The FPV toggle puts the main map camera in the followed UAV's first-person
-  view through today's `useFollowUav` FPV path (body attitude), for any eligible
-  UAV, with or without video. The camera panel hides and its reader closes.
-  Pending confirm cards and alerts stay in the sidebar, which FPV does not hide.
-- Eligible = the existing backend `link_ok` flag (used by the bottom bar and
-  preflight) plus finite position and attitude in the snapshot; no new
-  freshness threshold. Checked on every entry (toggle, changing the followed UAV
-  while in FPV); an ineligible target leaves the current view as it is, with a
-  short notice naming the UAV; a follow change made in FPV is reverted, so the
-  selector always names the UAV FPV shows. No eligible UAV: the toggle stays off with a notice.
-- Always labelled: a fixed top-centre tag **SYNTHETIC · UAV n · nose view, not
-  camera** and a frame in a colour not used for warnings; the same tag in RC's
-  FPV. In FPV the camera holds the last valid pose and resumes on the next valid
-  one; while held, a full-width banner reads **View held · vehicle link lost**
-  (when `link_ok` is false) or **View held · pose unavailable** (linked but
-  position or attitude not finite), with the time held in seconds.
-- View mode is separate from control mode: FPV never enables RC; RC keeps
-  today's behavior (body FPV of the RC target, panel hidden).
-- Map camera ownership: one saved map camera, taken when the view first leaves
-  the free map (chase, FPV on, or RC entry), restored on return to Free only if
-  FPV or RC took the camera meanwhile (a plain chase keeps today's auto-centre);
-  switching the FPV UAV does not overwrite it. Camera persistence (`useCesiumViewer.js` stores camera moves) is
-  suspended while FPV or RC owns the camera, so a first-person pose is never
-  the startup view. The viewer runs in request-render mode, so FPV requests a
-  render per pose update.
+Owner, 2026-10-18 (design C): a second Cesium view while the map keeps chasing;
+2026-10-19: it is a source of the vehicle window; v11: the map no longer
+chases, a UAV without a camera opens on it, and Synthetic maximized is the
+large vehicle view.
+
+- Selection: a pick of a map-icon UAV, Dismiss on a lost feed, or a tap on the
+  switch; never on any other automatic path. Switching to Synthetic closes the
+  camera reader (one reader per browser); switching back reconnects (fresh
+  connection) and shows the kept camera state, a lost feed included. A stream
+  appearing, failing or going away while on Synthetic never changes the
+  source.
+- Which UAV: the window's UAV, picked by the UAV buttons. A pick of another
+  map-icon UAV moves the same widget to the new UAV's pose; a pick of a
+  camera-icon UAV destroys it and opens Camera.
+
+- Rendering: a second public `CesiumWidget` filling the picture, created on
+  entering Synthetic (normal or maximized), destroyed on Camera, Close, RC,
+  leaving the monitor view and failure (at most one, also under React
+  StrictMode). One Scene has one camera and CesiumJS has no public
+  multi-viewport API, so a second widget is Cesium's own pattern (Sandcastle
+  "Multiple Synced Views"); the private `SharedContext`, `View` and
+  `Framebuffer` are not used. Content: shaded terrain in one ground colour and
+  no imagery, the way aircraft synthetic vision draws terrain; it looks
+  plainly unlike camera video and loads no imagery tiles. No imagery also
+  because Bing attributions cannot show in two views at once: Cesium caches
+  Bing metadata, and with it each attribution's `Credit`, across provider
+  instances (`BingMapsImageryProvider.js:83-90,160-169`), and a `Credit` owns
+  one DOM element that each display re-parents (`Credit.js:91-100`,
+  `CreditDisplay.js:111-124`). Options (Cesium 1.138.0 installed):
+  `baseLayer: false` (never `imageryProvider`, ignored since 1.107, and never
+  undefined, which adds Ion world imagery); `terrainProvider` is the widget's
+  own instance of the main map's terrain source, requested with vertex normals
+  for shading, never the main map's instance, so its Ion attribution is its
+  own `Credit` (`IonResource.js:152-164`, `Credit.js:153-156`). The main map
+  swaps in Ion terrain asynchronously (`useCesiumViewer.js:226-242`), so an
+  open widget follows that upgrade with its own new instance and unsubscribes
+  on teardown; with no Ion terrain the ground is the flat ellipsoid under the
+  horizon. Its own tile requests are counted by the load gate. Lighting from
+  one fixed `DirectionalLight` (not the sun, so shading does not change with
+  the time of day) with `globe.enableLighting`; `requestRenderMode` with
+  `maximumRenderTimeChange` Infinity, the main map's target frame rate as one
+  shared constant, `msaaSamples` 1, `showRenderLoopErrors` false, camera
+  inputs off; sky atmosphere on (the horizon is the attitude cue), sun, moon
+  and sky box off. No entities; peers, docks and tracks stay on the main
+  map.
+- Pose: the same interpolated position and orientation the map's UAV model
+  uses (copies through a narrow source ref from `CesiumMap`, wired like the
+  map camera ref), through today's first-person math moved into one pure helper
+  shared with RC FPV. The widget applies a pose only when the GCS telemetry
+  socket is connected and that UAV's snapshot has been replaced since the
+  socket last opened, the snapshot passes the hold check (`fpvHoldReason`) and
+  the copied position and orientation are finite; otherwise it holds the last
+  good pose. A closed socket leaves the cached snapshots, `link_ok` included,
+  unchanged, and reopening keeps them until new telemetry arrives
+  (`telemetryStore.js:69-70,102-133,146-149`: the store's per-UAV fresh flag
+  is cleared on open and close and set by that UAV's next snapshot); the store replaces a vehicle's snapshot
+  object on each update for it, so "replaced" needs no timer. Both checks go
+  into the shared hold check, so RC FPV gets the same held reason. A UAV removed from the fleet
+  has no source entry, which the source reports as "no pose", never as a throw.
+  The shared source validates before it builds or advances a pose (shipped
+  in v10: `poseFinite`, `fpvView.js:16`, used by `useUavMarkers.js:44`): it
+  skips the update unless lat, lon, altitude, heading, roll and pitch are all
+  finite numbers, so the model, RC FPV and the synthetic view keep the last
+  valid pose and resume from it. One render request per
+  telemetry update. The widget saves no camera, so a nose pose is never the
+  startup view.
+- Wrong-UAV guard: the picture shows the widget only while its pose belongs to
+  the window's UAV. After a pick of another UAV, until that UAV has a valid pose, an
+  opaque layer over the picture reads "Waiting for pose · UAV n"; the previous
+  UAV's view is never shown under the new label.
+- Failure: the widget fails to create, `scene.renderError` fires, the canvas
+  loses its WebGL context, or the widget's own pose callback throws -> widget
+  destroyed, source back to Camera, notice "Synthetic view unavailable". The
+  callback needs its own catch: Cesium raises `preRender` outside its error
+  wrapper (`Scene.js:4440`), and a throw there stops the widget's render loop
+  with no event (`CesiumWidget.js:73-80`, error panel off). The main map keeps
+  rendering. Retry is a new tap; no automatic retry.
+- Look: title "UAV n · synthetic view"; **SYNTHETIC** in the state slot (never
+  LIVE, never a green dot); an accent inner frame (video never has one); a
+  fixed tag **SYNTHETIC · not camera** at the top-left of the picture. While
+  the view holds its last pose, a row under the header reads **View held ·
+  telemetry disconnected**, **View held · vehicle link lost** or **View held ·
+  pose unavailable** with the seconds held.
+- RC: body FPV of the RC target on the main map with today's full-pane tag,
+  frame and held banner (`FpvViewOverlay`, RC only); the window is hidden
+  (`vehicleWindowVisible`). Today the map FPV reads the RC target through
+  `followSysId` (`CesiumMap.jsx:291`), which choosing an RC vehicle sets and
+  leaving RC clears (`useManualControlWiring.js:49,70`); with `followSysId`
+  gone, the map FPV reads the RC target itself, and RC never changes the
+  window's UAV. On RC exit the window comes back on the same UAV with the
+  source its icon gives (open question 2).
+- Map camera ownership: only RC takes the map camera. The saved map camera
+  and the persistence suspension (`useCesiumViewer.js`) apply to RC only;
+  with the chase gone, `cameraTaken` (today `followSysId != null` or RC,
+  `CesiumMap.jsx:239`) is RC only.
+- Load gate before merge, on the demo PC: main-map frame time, GPU process
+  memory, tile and Ion request counts with Camera, with Synthetic at normal
+  size, and with Synthetic maximized (map small). Then switch to Synthetic and
+  back 20 times, and maximize and restore 20 times on Synthetic: no extra
+  canvas is left in the DOM, a heap snapshot holds no stale widget, scene or
+  WebGL context, and GPU and JS memory return near the first-Synthetic level
+  (Cesium frees its resources on destroy but does not release the WebGL
+  context explicitly, `Context.js:1729-1750`). Throughout, the main map
+  renders with no context loss and no render-loop stop. The owner accepts the
+  measured cost before merge; the handheld is measured before handheld use. If
+  the cost is too high, the fallback is a 2D attitude indicator in the window
+  (QGroundControl and Mission Planner show the vehicle view this way).
 
 | Event | Result |
 |---|---|
-| FPV off | chase view of the same UAV; camera panel back; saved map camera restored when follow goes to Free |
-| Follow set to Free (FPV on) | FPV off, saved map camera restored, camera panel back |
-| Followed UAV removed | as Free |
-| View camera on a confirm card (FPV on) | FPV off as above, panel shows that UAV |
-| View camera during RC | not offered (panel hidden in RC) |
-| RC entry (FPV on or off) | today's RC FPV of the RC target |
-| RC exit | Free map with the saved map camera (today: Free); FPV off |
+| UAVs join (monitor view) | window shows the picker: "Select a UAV for streaming" and one button per UAV with its camera or map icon |
+| Pick a camera-icon UAV (picker or header) | that UAV on Camera, fresh connection; the swap stays; the map does not move |
+| Pick a map-icon UAV | that UAV on Synthetic, or "Waiting for pose · UAV n"; the swap stays; the map does not move |
+| Close | swap back if swapped; reader closed, widget destroyed; the picker |
+| Switch to Synthetic | camera reader closes; the window's UAV in the synthetic view, or "Waiting for pose · UAV n" |
+| Switch to Camera | widget destroyed; that UAV's camera state ("No camera · UAV n" for a map-icon UAV), fresh connection |
+| View camera on a pending confirm card | that UAV on Camera, fresh connection, also from the picker; the swap stays; the map does not move |
+| Maximize (viewing only) | map and window swap; nothing reconnects or rebuilds |
+| Restore, or tap on the small map | swap back; nothing reconnects or rebuilds |
+| Sidebar coordinate click while swapped | swap back, then the map flies there |
+| Maximize during a camera flight | the flight is cancelled; a reset-view fit reruns after the swap back, a coordinate flight does not |
+| A UAV's stream appears or goes away | its icon changes; the shown source does not |
+| Shown stream goes away (Camera) | that UAV's other stream, else "Camera video lost · UAV n" with Reconnect video and Dismiss; Dismiss opens Synthetic for that UAV |
+| Telemetry disconnected, link lost or pose not finite (Synthetic) | the last pose holds with the held row; resumes on the next valid pose |
+| Link lost (Camera) | "Vehicle link lost · UAV n", and "Camera video lost" if the stream goes too; its button reads "link lost" |
+| Picked UAV removed from the fleet | button gone, selection kept; Camera: link lost and video lost; Synthetic: held; resumes if it returns |
+| Widget fails, render error, WebGL context lost or pose callback throws | widget destroyed; source Camera with "Synthetic view unavailable" ("No camera · UAV n" for a map-icon UAV); the main map keeps rendering |
+| RC entry | swap back; window hidden; widget destroyed; today's RC FPV of the RC target on the main map; the window's UAV is kept |
+| RC exit, or back to the monitor view | RC: the map with the saved map camera; the window returns on the same UAV with the source its icon gives, normal size (open question 2) |
+| The fleet becomes empty | swap back; window gone; selection cleared, so the next UAV brings the picker |
+| Page reload | the picker; unswapped; the startup view is the saved map camera |
 
-- Deferred: a second Cesium viewer, swapping map and panel, and a
-  camera-direction synthetic view from gimbal attitude + FOV (needs verified
-  mount axes and stream-to-device association).
+- Code impact of v10 (shipped, PR #20): `useFpvView` shrank to RC FPV and
+  RC-only map camera ownership; the top-right FPV toggle went; a `noCamera`
+  kind; Dismiss on a lost feed goes to it.
+- Code impact of v11 (no shims):
+  - The follow selector (`MonitorMapOverlay.jsx:111-136`), `followSysId`
+    (`App.jsx:134`, its clear effect `App.jsx:152-159`) and the map chase go:
+    `useFollowUav` keeps only the RC first-person camera, fed with the RC
+    target (today through `followSysId`, `CesiumMap.jsx:291`, which RC sets
+    and clears, `useManualControlWiring.js:49,70`); `useFpvView` loses the
+    chase-to-Free auto-centre; `CesiumMap`'s `cameraTaken` becomes RC only
+    (`CesiumMap.jsx:239`); the "Camera follow" and "Free" strings
+    (`locales/en.json:404-405`, `hy.json`) go.
+  - `useVehicleWindow`: no first pick (`pickFirstFeed`, `pickFirstUav`,
+    `auto` go), a null selection is the picker; a pick sets the source from
+    the UAV's streams; Dismiss goes to Synthetic; minimize, restore and the
+    saved state (`WINDOW_STORAGE_KEY`) go; Close clears the selection.
+  - `VehicleWindow.jsx`: the picker state; badges gain the camera or map icon
+    and the "link lost" text; the minimized handle goes; Minimize becomes
+    Close. `vehicleWindowLayout.js`: the top-right anchor and the bottom limit
+    at the reset-view button; the badge room and overflow menu stay, the menu
+    opening downward with Escape and outside-tap close; the swapped small-map
+    box moves inside the large window's picture.
+  - `useMapSwap` cancels any camera flight on maximize (not only its own
+    fits), and the sidebar's fly-to swaps back before it flies.
+  - `src/gcs/AGENTS.md` ("bottom-left vehicle window") is updated.
+  - Tests of the removed behaviour go with it; the test plan below lists the
+    new ones.
+- Deferred: full screen; a camera-direction synthetic view from gimbal attitude
+  + FOV (needs verified mount axes and stream-to-device association); resizing
+  the window by drag; a "follow on map" option if operators ask for the chase
+  back.
 
 #### Found by the walkthrough, outside this design
 
@@ -295,7 +566,7 @@ still's capture time and its dock; operator status clarity (what the companion
 indicator measures, mission phase, dock assignment, honest completion wording).
 
 Unchanged and not part of this design: confirm cards and their countdown stay
-over the map in RC (`App.jsx:771-795`). Deferred: an audit of who decided each
+over the map in RC (`App.jsx:855-886`). Deferred: an audit of who decided each
 confirm (operator or timeout), recipient authorization for real delivery,
 fleet separation checks (a mission-level verification), and outdoor
 glare/glove acceptance (the 44 px and 14 px rules are built now).
@@ -304,7 +575,7 @@ glare/glove acceptance (the 44 px and 14 px rules are built now).
 
 | Setup | Stream source | Discovery |
 |---|---|---|
-| Plain SITL, default | none | nothing announced -> no panel |
+| Plain SITL, default | none | nothing announced -> map icons; a pick opens Synthetic ("No camera · UAV n" only after a switch to Camera) |
 | Plain SITL, `simulation.video_test_source` on (default off) | one sim MediaMTX for the slot, a path per UAV with `runOnDemand` FFmpeg H.264 test pattern labelled "SIM TEST UAV n" | NavPy sim companion announces `rtsp://127.0.0.1:<slot port>/uav<n>` |
 | SITL + Unreal (aas-hitl video service) | Unreal camera -> FFmpeg -> MediaMTX | the configured URI (needs an H.264 output to play everywhere) |
 | Real aircraft | Jetson MediaMTX over the radio LAN | NavPy companion on the Jetson |
@@ -340,51 +611,171 @@ failure leaves video off and is logged; the rest of the stack still runs.
   without port clashes, start failure leaves the stack running.
 - Reader patch tests: a redirect, a foreign-origin `Location` and a `Location`
   outside `<path>/whep/` each end in error with no further fetch.
-- Frontend (vitest): no panel without streams; first-frame and stall deadlines
-  (peer connected but no frames; frames then freeze) collapse to the header; badges only for vehicles with
-  streams; switching; the follow selector picks only the first feed and later
-  follow changes keep the video, a badge click leaves the map camera;
-  hidden in manual control; FPV toggle for a UAV without video, from Free (picks
-  the panel's UAV), off and on Free returns to the saved map camera, never
-  stored as startup view, SYNTHETIC tag always shown, RC entry and
-  exit while in FPV; codec-not-supported and error
-  collapse to the header; stream removal: same UAV's other stream, else "Camera video lost · UAV n" with
-  Reconnect video and Dismiss, never another UAV; panel gone only after the last
-  failed feed is dismissed and no stream is advertised; stall from frame progress (frames stop while the
-  element raises no waiting/stalled event); collapse and expand of a healthy
-  feed; every row of the transition table; no eligible UAV;
-  `link_ok` lost and back in FPV; non-finite position, then attitude, while
-  linked (hold, "View held" banner with time held, resume); SYNTHETIC tag in RC FPV; ineligible target on each entry
-  path, with the follow selector reverting to the FPV UAV; FPV hides the panel and closes its reader, FPV off brings it back;
-  View camera on a pending confirm card switches the panel (and leaves FPV),
-  shows "Viewing" when already shown, is absent on approved cards, when that UAV
-  has no stream and during RC; tapped midway through a countdown
-  it keeps the original deadline, expiry runs the existing timeout action once,
-  the tap calls neither approve nor deny, and the pending card survives leaving
-  FPV; LIVE dot only while frames arrive, "no frames for
-  N s" after; "Camera video lost" and "Vehicle link lost" shown separately, both when both. `npm test`,
-  `npm run build`.
-- Layout: at desktop size and a 375 x 812 touch viewport, with 3 UAVs, a UAV
-  with two streams, the panel expanded and three cards in the sidebar: header on
-  one line, 44 px targets, the map buttons and FPV toggle fit with the plan
-  button showing, Approve/Deny and E-STOP not covered, no overlap (vitest layout contract plus a `live-tester` screenshot check).
+- Frontend (vitest): the window at the top right, 12 px under the measured
+  action bar (also when the bar wraps) and 12 px above the reset-view button,
+  in monitor view whenever the fleet has a UAV, hidden in manual control and
+  outside the monitor view, gone with an empty fleet; it starts on the picker
+  ("Select a UAV for streaming", one button per UAV), also when UAVs have
+  streams (no automatic pick), and a reload starts there; each button shows the
+  camera icon when that UAV advertises a stream and the map icon when not, and
+  the icon follows announcements; "link lost" text on a UAV with a lost link;
+  accessible names carry the UAV and its icon meaning; a camera-icon pick opens
+  Camera and a map-icon pick opens Synthetic, from the picker and from the
+  header, also while swapped (the swap stays); picking the selected UAV does
+  nothing; View camera always opens Camera; a stream appearing while on
+  Synthetic changes only the icon, and a stream going away while on Camera
+  shows "Camera video lost", never Synthetic by itself; Dismiss opens
+  Synthetic for that UAV; Close closes the reader, destroys the widget and
+  shows the picker with focus on that UAV's button; no follow selector in the
+  bar and no chase: no pick, View camera or switch moves the map camera or
+  changes the saved camera, and none changes RC; no minimized handle, nothing
+  read from or written to browser storage; first-frame and stall deadlines
+  (peer connected but no frames; frames then freeze; frames stop while the
+  element raises no waiting/stalled event); codec-not-supported and error
+  states with Reconnect video; stream removal: the same UAV's other stream,
+  else "Camera video lost · UAV n", never another UAV; the picked UAV removed
+  from the fleet: button gone, selection kept, link lost and held, resumes on
+  return; Maximize absent in the picker; maximize and restore keep the same
+  map element (no remount, no animation, never size 0) and the same reader;
+  the small map at the top right of the picture, under the last header,
+  control or failure row, covering no window control, also at 375 px and with
+  a failure row; the overflow menu opens downward inside the window, above the
+  small map, closes on pick, Escape or an outside tap, and Escape returns
+  focus to its button; Close after the picked UAV left the fleet focuses the
+  first UAV button; the button over the small map swaps back
+  and passes no input to the map; maximizing during inertia or an active
+  touch gesture saves no moved pose, and camera inputs are back on after the
+  swap back; reset view hidden while swapped; a reset-view flight running
+  when maximizing is cancelled and rerun once after the swap back with the
+  large pane's aspect, and dropped on RC entry; a sidebar coordinate click
+  while swapped swaps back, then flies, and maximizing during a coordinate
+  flight cancels it without a rerun; Close, RC entry, leaving the monitor
+  view and an empty fleet each swap back; every row of the transition table.
+  Synthetic: entered by a map-icon pick, Dismiss or the switch, never on any
+  other automatic path; SYNTHETIC state and tag, accent frame, never LIVE;
+  held rows with the time held; the telemetry socket closing and reopening
+  with no snapshot in between keeps holding with "telemetry disconnected", and
+  the next snapshot for that UAV resumes it; "Waiting for pose · UAV n" after
+  a pick of another UAV until that UAV has a valid pose. The widget (Cesium
+  mocked): one per mount under StrictMode, `baseLayer: false`, its own terrain
+  provider instance (never the main map's) that follows the Ion terrain
+  upgrade, no imagery layer, no entities, inputs off, the shared pose helper
+  gives today's RC FPV values, the shared pose source (real `useUavMarkers`
+  and `lerpAnim`) skips a sample with a missing or non-finite lat, lon,
+  altitude or attitude, keeps the last valid pose and resumes from it while
+  the main map keeps rendering, no pose applied while the snapshot fails the
+  hold check or the copy is not finite, a missing source entry reads as "no
+  pose", one render per update, the same widget on a pick of another map-icon
+  UAV, unsubscribed and destroyed on unmount, and a create error, render
+  error, context loss or a pose-callback throw each return to Camera once with
+  the notice, never touching the main camera or stored view. A real
+  `CreditDisplay` (Cesium not mocked; Ion and Bing endpoint metadata mocked
+  and cached) with the main map and the widget rendering at once, then the
+  widget torn down: the main map keeps its Bing and terrain attributions and
+  ion logo in its own container throughout, and the widget shows its own
+  terrain attribution and ion logo. RC: the map FPV follows the RC target
+  while the window shows another UAV; choosing the RC vehicle never changes
+  the window's UAV; RC exit restores the saved map camera and brings the
+  window back on the same UAV with the source its icon gives; RC FPV keeps
+  its SYNTHETIC tag and the new held reason; a nose pose is never stored as
+  the startup view. View camera on a pending confirm card picks that UAV on
+  Camera, also from the picker, keeps the swap, shows "Viewing" only when that
+  UAV's camera is shown, is absent on approved cards, when that UAV has no
+  stream and during RC; tapped midway through a countdown it keeps the
+  original deadline, expiry runs the existing timeout action once, the tap
+  calls neither approve nor deny. LIVE dot only while frames arrive, "no
+  frames for N s" after; "Camera video lost" and "Vehicle link lost" shown
+  separately, both when both. `npm test`, `npm run build`.
+- Layout: at desktop size and a 375 px wide map pane (a 695 x 812 touch
+  viewport: the 320 px sidebar does not shrink, `styles.js:92`), with 3 UAVs, a
+  UAV with two streams, the window in the picker, viewing and maximized, and
+  three cards in the sidebar: the window under the wrapped bar and above the
+  reset-view button, picker buttons wrapping, header on one line (buttons or
+  the menu), 44 px window targets, the map buttons fit with the plan button
+  showing, the RC button and Approve/Deny and E-STOP not covered, the Cesium
+  credit line visible in every state, no overlap (vitest layout contract plus
+  a `live-tester` screenshot check).
 - Live (`live-tester`): 3-UAV SITL with the test source, from two slots at once
-  (each plays its own slot's patterns): each badge plays its
-  labelled pattern, switching works, killing a path's FFmpeg collapses to the
-  header and Reconnect video recovers; with the source off: no panel, no console errors.
-  Then, with video off: FPV on, switch UAVs while they fly (view follows pose),
-  follow Free (map camera restored), FPV on then RC entry and exit, then reload
-  the page and check the startup map view is the map, not an FPV pose.
+  (each plays its own slot's patterns): the window opens on the picker with
+  camera icons; each UAV pick plays its labelled pattern and the map does not
+  move; killing a path's FFmpeg shows the failed state and Reconnect video
+  recovers; maximize, pick another UAV while maximized, tap the small map to
+  swap back, Close back to the picker, then View camera on a confirm card
+  opens that UAV's camera. With the source off: map icons on every UAV;
+  picking UAV 1 opens its synthetic view, no console errors; pick other UAVs
+  while they fly, link loss shows the held row, maximize Synthetic, switch to
+  Camera ("No camera · UAV n"), RC entry and exit (the window comes back on
+  the same UAV, Synthetic), force a WebGL context loss on the widget canvas
+  (back to Camera with the notice, the map keeps rendering), then reload the
+  page: the picker and the saved map view. Screenshots at desktop size and
+  under 480 px. With the test source on: Synthetic by the switch replaces the
+  video, Camera reconnects, View camera from Synthetic shows that UAV's
+  camera. Then the load gate (Synthetic view section), on a quiet PC.
 - Hardware (later, with the owner): Jetson H.264 stream over the radio from the
   laptop and from a second device (WHEP OPTIONS/POST accepted from the real GCS
   origin): glass-to-glass latency (on-screen clock),
   bitrate, and vision capture timing unchanged while the GCS watches.
 
-## Owner decisions (2026-10-18)
+## Open questions for v11 (owner; answered 2026-10-20)
 
-1. Approach approved: camera protocol discovery, browser WHEP straight to each
-   aircraft's MediaMTX, one feed at a time, FPV toggle for Cesium FPV of any UAV.
-2. D1 (a): the follow selector moves only the map and FPV; badges and View
-   camera move the video; follow picks only the first feed.
-3. Display codec: the Jetson publishes a software H.264 display stream; the
-   ZR10 and the vision input stay untouched (Jetson CPU measured first).
+Settled by the owner on 2026-10-19: the window sits at the top right under
+the action bar and holds the UAV picker ("Select a UAV for streaming"); each
+UAV shows a camera icon or a map icon; a map-icon pick opens Synthetic by
+itself; the follow selector and the map chase go (so the map never follows a
+UAV); no live preview tiles. The design above is written with each
+recommended answer below; the owner approved all six on 2026-10-20.
+
+1. **Dismiss on "Camera video lost".** Recommended: it opens Synthetic for
+   the same UAV, as a pick of that UAV now would (its icon has turned into a
+   map). Alternative: "No camera · UAV n" as in v10, Synthetic one tap away.
+2. **Back from RC or from another view.** Recommended: the window returns on
+   the same UAV with the source its icon gives, normal size. Alternative: back
+   to the picker.
+3. **Hiding the window.** Recommended: no minimize in v1; the picker is one
+   line plus a row of buttons, and Close stops the picture. If the corner
+   proves needed for the map, a collapse comes back later.
+4. **Lost link on the buttons.** Recommended: a "link lost" text on that UAV's
+   button, never colour alone, so the picker shows the same warning the
+   window does.
+5. **Picked UAV leaves the fleet.** Recommended: as in v10 (approved): its
+   button goes, the window keeps the selection with "Vehicle link lost" or the
+   held view, and resumes if it returns; Close gives the picker.
+6. **Handheld.** Recommended: on a narrow pane the window spans the width
+   minus 24 px under the wrapped bar, header buttons show icon and number with
+   an overflow menu (v10 rule), and the picture shrinks to stay above the
+   reset-view button.
+
+## Owner decisions
+
+1. Approach approved (2026-10-18): camera protocol discovery, browser WHEP
+   straight to each aircraft's MediaMTX, one feed at a time, FPV toggle for
+   Cesium FPV of any UAV (v10: replaced by the Synthetic source, decision 5).
+2. D1 (a) (2026-10-18): the follow selector moves only the map and FPV; badges
+   and View camera move the video; follow picks only the first feed (v10: the
+   follow selector moves only the map; decision 5). Reversed by decision 7 (v11).
+3. Display codec (2026-10-18): the Jetson publishes a software H.264 display
+   stream; the ZR10 and the vision input stay untouched (Jetson CPU measured
+   first).
+4. v9 direction (2026-10-18): design C, FPV in the bottom-left panel while the
+   map keeps chasing.
+5. v10 direction (2026-10-19): one bottom-left vehicle window that the
+   operator minimizes or maximizes; badges pick the UAV for both sources and
+   the follow selector moves only the map; maximize swaps map and window; plain
+   SITL opens on "No camera" (v11, decision 7: the follow selector goes,
+   the window moves to the top right). The top-right FPV button goes; the synthetic
+   source is named Synthetic, chosen by hand only and never saved; only
+   minimized or normal is saved.
+6. v10 approved (2026-10-19) with the recommended answers: minimizing stops
+   the camera video and the synthetic view (restore reconnects); the
+   synthetic view shows shaded terrain without imagery. A second Cesium view
+   stays behind the load gate (fallback: a 2D attitude indicator).
+7. v11 direction (owner, 2026-10-19; reverses decisions 2 and 5): one control
+   picks the UAV. Reason: the follow selector and the window's badges
+   duplicated each other. Final form the same day: the vehicle window sits at
+   the top right under the action bar; with no UAV picked it reads "Select a
+   UAV for streaming" and lists the UAVs, each with a camera icon (stream
+   advertised) or a map icon (none); a pick opens Camera or Synthetic as the
+   icon shows; Synthetic then Maximize gives the large synthetic view; the
+   follow selector and the map chase go; no live preview tiles (one stream at
+   a time, no extra radio load). Approved by the owner on 2026-10-20,
+   with the recommended answers to open questions 1-6.

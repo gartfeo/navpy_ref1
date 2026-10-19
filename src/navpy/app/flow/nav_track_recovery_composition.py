@@ -7,7 +7,6 @@ from navpy.app.flow.nav_composition_types import (
     DetectionReviewOwnership,
     NavCapabilities,
     NavStateOwnership,
-    ResetWorkflows,
     PoiMissionOwnership,
     TrackRecoveryWorkflows,
     VehicleApproachOwnership,
@@ -30,7 +29,6 @@ def _compose_track_recovery(
     poi: PoiMissionOwnership,
     approach: VehicleApproachOwnership,
     observation: DetectionReviewOwnership,
-    reset: ResetWorkflows,
     navigation: NavCapabilities,
 ) -> TrackRecoveryWorkflows:
     recovery = TrackRecovery(
@@ -43,7 +41,6 @@ def _compose_track_recovery(
         ),
         poi.confirmation_manager,
         observation.retry,
-        reset.resume_auto,
         logger,
     )
     identity = IdentityReacquisition(

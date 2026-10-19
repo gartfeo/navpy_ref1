@@ -127,9 +127,9 @@ class FakeWsl:
         return [f"{role}: stopped" for role in roles]
 
 
-def _fleet(tmp_path, *, delay_seed: int = 0) -> WslFleet:
+def _fleet(tmp_path, *, delay_seed: int = 0, rng_seeds: dict[int, int] | None = None) -> WslFleet:
     return WslFleet(tmp_path, SLOT, {"owner": "me"},
-                    FleetLaunch(tuple(zip((1, 2, 3), HOMES)), 5, delay_seed, "D", {}))
+                    FleetLaunch(tuple(zip((1, 2, 3), HOMES)), 5, delay_seed, "D", {}, rng_seeds or {}))
 
 
 def test_the_launch_prepares_every_instance_then_relays_then_sitls_on_frame_ones_deadline(
@@ -159,6 +159,17 @@ def test_the_launch_prepares_every_instance_then_relays_then_sitls_on_frame_ones
     # SITL 1's go came after 4 spawns of 1 s: frame 1's deadline counts from it.
     assert deadline.due == pytest.approx(4.0 + 30.0 - 0.5)
     assert [r["role"] for r in json.loads((tmp_path / lockstep_wsl.PROCESSES_FILE).read_text())] == ALL_ROLES
+    assert not any("NAVPY_STEP_RNG_SEED" in e[2] for e in fake.events if e[0] == "spawn")
+
+
+def test_each_sitl_gets_its_own_noise_seed_and_a_sitl_without_one_gets_none(tmp_path, monkeypatch):
+    """Step 2 of deterministic_dev_sim.md: ``NAVPY_STEP_RNG_SEED`` is per SITL, by sysid."""
+    clock = FakeClock()
+    fake = FakeWsl(monkeypatch, clock=clock)
+    _fleet(tmp_path, rng_seeds={1: 11, 3: 33}).launch(ExchangeDeadline(30.0, 0.5, clock=clock))
+    scripts = {e[1]: e[2] for e in fake.events if e[0] == "spawn" and e[1].startswith("sitl")}
+    assert "NAVPY_STEP_RNG_SEED=11" in scripts["sitl1"] and "NAVPY_STEP_RNG_SEED=33" in scripts["sitl3"]
+    assert "NAVPY_STEP_RNG_SEED" not in scripts["sitl2"]
 
 
 def test_sitl_launches_that_overrun_frame_ones_deadline_are_an_exchange_budget_fault(
