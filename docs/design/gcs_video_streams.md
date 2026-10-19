@@ -236,7 +236,9 @@ labels, no hover-only actions, nothing within 8 px of Approve/Deny. Header text
 the state; a control row under it holds the switch (left) and Maximize and
 Close (right); a failure or held view goes on a row under that (reason,
 Reconnect video, Dismiss). Narrow map pane (under 480 px): Maximize and Close
-show their standard glyphs with an accessible name. With the badges gone the
+show their standard glyphs with an accessible name. Focus: Close removes the
+control that has focus, so focus moves to the selector; the same when the
+window closes because its UAV left the fleet while focus was inside it. With the badges gone the
 header needs no fleet-size room and no overflow menu. In monitor mode confirm
 cards and E-STOP are in the sidebar, not over the map, so neither the window
 nor the small swapped map can cover them. The top-right bar keeps its pre-PR
@@ -309,7 +311,14 @@ still starts below it.
   `screenSpaceCameraController.enableInputs` is false, which also stops the
   inertia of a gesture made just before maximizing
   (`ScreenSpaceCameraController.js:511`). It is set back to true on the swap
-  back. With no chase (v11) nothing moves the small map while swapped.
+  back. With no chase (v11), the only thing that can move the map while
+  swapped is a coordinate click in the sidebar (`MissionStatusRow.jsx:54`,
+  through `flyToRef`, which calls `camera.flyTo` directly,
+  `useCesiumViewer.js:329-333`). While swapped it swaps back first, then
+  flies, so the flight runs in the large map with the right aspect.
+  Maximizing during any camera flight cancels it (`camera.cancelFlight`); a
+  reset-view fit is rerun after the swap back (below), a coordinate flight is
+  not (the operator just asked for the window).
   - CSS only: the map wrapper stays mounted and only its box changes. Never
     remount `CesiumMap` (the viewer cleanup does not destroy the viewer, so a
     remount leaks a WebGL context), never animate the size (Cesium resizes its
@@ -323,16 +332,17 @@ still starts below it.
     size, so a 3-UAV map is crowded: it is an overview.
   - Fits wait for the large map. v10's chase-to-Free auto-centre
     (`useFpvView.js:46-52`) goes with the chase, and reset view is hidden while
-    swapped, so the one fit left to handle is a reset-view flight still running
-    when the operator maximizes: it is cancelled (`camera.cancelFlight`) and
-    deferred (`useMapSwap.js`). A pending fit is dropped when RC takes the
+    swapped, so the one fit left to defer is a reset-view flight still running
+    when the operator maximizes: it is cancelled and deferred (`useMapSwap.js`,
+    which today cancels only flights it tracks in `fitFlyingRef`; v11 cancels
+    any flight). A pending fit is dropped when RC takes the
     camera. On the swap back the map calls `viewer.resize()` (public,
     synchronous), then runs the pending fit once. A fit in the small box would
     use its aspect ratio and be wrong after the swap back; shrinking itself
     changes only the frustum, so a move end while small saves the unchanged
     pose.
   - Swap back on: Restore, a tap on the small map, Close or Free (swap back,
-    then close), RC entry, leaving the monitor view, the picked UAV leaving the
+    then close), a sidebar coordinate click (swap back, then fly), RC entry, leaving the monitor view, the picked UAV leaving the
     fleet. A change to another UAV keeps the swap. Never saved: a reload starts
     unswapped (and closed).
 - Credits: Cesium's credit line (the Cesium ion logo, which the engine treats
@@ -348,8 +358,13 @@ still starts below it.
 - Saved: nothing. v10's browser storage key `gcs-vehicle-window` (minimized or
   normal) is no longer read or written; a value left in a browser is ignored.
   Never the UAV, the source or the swap.
-- The window never switches UAV or source by itself; only the selector, View
-  camera, the switch, Close and a synthetic failure change them.
+- The window never moves to another UAV and never enters Synthetic by
+  itself. Only the operator picks a UAV (selector, View camera) or a source
+  (switch). The lifecycle resets in the transition table are the only
+  automatic changes: back to Camera on a synthetic failure, RC entry or
+  leaving the monitor view, and closed (selector Free) when the picked UAV
+  leaves the fleet, the fleet empties or the monitor view is left. A closed
+  window never reopens by itself, also when that UAV rejoins.
 - One reader per browser; the demo has one GCS, so no radio-wide arbitration in v1.
 - Removed (v8): `VITE_VIDEO_WHEP_URL`, `videoConfig.js` and the single-feed
   wiring (no shim). `useWhepStream` and the vendored reader stay; `src/gcs/AGENTS.md` and
@@ -406,17 +421,16 @@ chases, and Synthetic maximized is the large vehicle view.
   the copied position and orientation are finite; otherwise it holds the last
   good pose. A closed socket leaves the cached snapshots, `link_ok` included,
   unchanged, and reopening keeps them until new telemetry arrives
-  (`telemetryStore.js:93-125,135-139`); the store replaces a vehicle's snapshot
+  (`telemetryStore.js:69-70,102-133,146-149`: the store's per-UAV fresh flag
+  is cleared on open and close and set by that UAV's next snapshot); the store replaces a vehicle's snapshot
   object on each update for it, so "replaced" needs no timer. Both checks go
   into the shared hold check, so RC FPV gets the same held reason. A UAV removed from the fleet
   has no source entry, which the source reports as "no pose", never as a throw.
-  Prerequisite: the shared source validates before it builds or advances a
-  pose. Today it skips only a missing lat/lon and fills a missing altitude or
-  attitude with 0 (`useUavMarkers.js:37-56`), then interpolates towards that
-  pose (`lerpAnim.js`); a UAV with no altitude drops to the terrain on the map.
-  The source skips the update unless lat, lon, altitude, heading, roll and
-  pitch are all finite numbers, so the model, RC FPV and the synthetic view
-  keep the last valid pose and resume from it. One render request per
+  The shared source validates before it builds or advances a pose (shipped
+  in v10: `poseFinite`, `fpvView.js:16`, used by `useUavMarkers.js:44`): it
+  skips the update unless lat, lon, altitude, heading, roll and pitch are all
+  finite numbers, so the model, RC FPV and the synthetic view keep the last
+  valid pose and resume from it. One render request per
   telemetry update. The widget saves no camera, so a nose pose is never the
   startup view.
 - Wrong-UAV guard: the picture shows the widget only while its pose belongs to
@@ -473,6 +487,8 @@ chases, and Synthetic maximized is the large vehicle view.
 | View camera on a pending confirm card | selector set to that UAV, source Camera, fresh connection; opens a closed window normal; the swap stays; the map does not move |
 | Maximize | map and window swap; nothing reconnects or rebuilds |
 | Restore, or tap on the small map | swap back; nothing reconnects or rebuilds |
+| Sidebar coordinate click while swapped | swap back, then the map flies there; the window stays open |
+| Maximize during a camera flight | the flight is cancelled; a reset-view fit reruns after the swap back, a coordinate flight does not |
 | Telemetry disconnected, link lost or pose not finite (Synthetic) | the last pose holds with the held row; resumes on the next valid pose |
 | Link lost (UAV still in the fleet), Camera | "Vehicle link lost · UAV n", and "Camera video lost" if the stream goes too |
 | Picked UAV removed from the fleet | selector to Free; swap back; window closed with the notice "UAV n left the fleet · vehicle window closed" |
@@ -500,6 +516,9 @@ chases, and Synthetic maximized is the large vehicle view.
     fed with the RC target; `useFpvView` loses the chase-to-Free auto-centre;
     `CesiumMap`'s `cameraTaken` becomes RC only; `useManualControlWiring` no
     longer writes the selection.
+  - `useMapSwap` cancels any camera flight on maximize (not only its own
+    fits), and the sidebar's fly-to swaps back before it flies; Close moves
+    focus to the selector.
   - The selector's accessible name "Camera follow" (`locales/en.json:404`,
     `hy.json:404`) and its height change (open questions 8 and 9).
   - `src/gcs/AGENTS.md` ("the window shows whenever the fleet has a UAV")
@@ -575,7 +594,12 @@ failure leaves video off and is logged; the rest of the stack still runs.
   minimized handle, nothing read from or written to browser storage; hidden in
   manual control and outside the monitor view; the picked UAV removed from the
   fleet sets Free, closes the window and shows the notice, while a lost link
-  keeps it open with "Vehicle link lost"; the selector and View camera never
+  keeps it open with "Vehicle link lost"; a UAV removed during RC and then
+  rejoining leaves the window closed; keyboard: the selector opens and moves
+  the window, Close and a removal with focus inside move focus to the
+  selector, the selector's accessible name is "Vehicle view"; a sidebar
+  coordinate click while swapped swaps back, then flies, and maximizing during
+  a coordinate flight cancels it without a rerun; the selector and View camera never
   move the map camera (no chase, no fit, no saved-camera change) and never
   change RC; first-frame and stall deadlines (peer connected but no frames;
   frames then freeze; frames stop while the element raises no
@@ -671,13 +695,15 @@ The design above is written with each recommended answer.
    yes: the selector moves map and window together, View camera also moves
    the map, and Minimize (question 3) keeps a use: chase without the window.
 2. **Should the badges go, or stay as a quick switch while the window is
-   open?** Recommended: go. The selector is one tap, View camera covers the
+   open?** Recommended: go. The selector is one pick away, View camera covers the
    confirm-time switch, and the header loses its fleet-size room, number
    badges and overflow menu. Cost: on a wide desktop the selector is at the
    top right, away from the window at the bottom left.
 3. **Minimize.** Recommended: replace it with Close (= Free) and drop the
-   handle and the saved minimized state, since with no chase a minimized
-   window keeps nothing Free does not. If question 1 is "yes", keep Minimize.
+   handle and the saved minimized state. The handle kept the source and
+   offered a nearby restore; without it the next pick opens on Camera and the
+   selector is at the top right. With no chase, Free does the rest of what
+   minimize did. If question 1 is "yes", keep Minimize.
 4. **View camera on a confirm card.** Recommended: it sets the selector to
    that UAV, so it opens a closed window (Camera); the map does not move.
 5. **Source when the selector changes UAV while open.** Recommended: keep the
@@ -691,9 +717,10 @@ The design above is written with each recommended answer.
    UAV it does not list. A lost link is not a removal and keeps the window
    open with "Vehicle link lost". Alternative: keep the window open on "Vehicle
    link lost" with the selector showing Free, which makes the two disagree.
-8. **Selector wording.** Its accessible name is "Camera follow" and its empty
-   entry "Free"; with no chase both are wrong. Recommended: name it "Vehicle
-   view" and keep "Free" only if question 1 is "yes", else "Off".
+8. **Selector wording.** Its accessible name is "Camera follow"
+   (`locales/en.json:404`), wrong once the map no longer chases. Recommended:
+   rename it "Vehicle view" (Armenian string too); keep the entry "Free"
+   (`en.json:405`), the owner's own word for "no vehicle shown".
 9. **Handheld and narrow layout.** Recommended: the selector, now the only
    way to open the window, is 44 px on a touch device (the rest of the top bar
    stays 32 px); the window header holds only the title and state; Close in
