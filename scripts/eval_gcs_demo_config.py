@@ -65,13 +65,21 @@ def launch_command(
     sitl_arguments: Sequence[str] = (),
     *,
     instances: int | None = None,
+    headless: bool = True,
+    browser: bool = True,
 ) -> list[str]:
     """Use only the isolated launcher; its directory owns the slot.
 
     *instances* is the scenario's slot count: the launcher starts that many
-    SITL vehicles of the slot's reserved sysids, in order.
+    SITL vehicles of the slot's reserved sysids, in order. The hand demo
+    (``delivery_demo.py``) keeps the frontend (*headless* False) and opens
+    the browser itself (*browser* False).
     """
-    command = [sys.executable, str(GCS_LAUNCH), "--headless"]
+    command = [sys.executable, str(GCS_LAUNCH)]
+    if headless:
+        command.append("--headless")
+    elif not browser:
+        command.append("--no-browser")
     if instances is not None:
         command.extend(("-n", str(positive_int("instances", instances))))
     if launch_token is not None:

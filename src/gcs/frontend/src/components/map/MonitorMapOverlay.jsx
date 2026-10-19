@@ -4,24 +4,21 @@ import MapIconBtn from '../MapIconBtn';
 import { colors } from '../../styles';
 import useElementSize from '../../hooks/useElementSize';
 import {
-  DEFAULT_TOP_CONTROLS_BOTTOM_PX, HEADER_FONT_PX, PANEL_MARGIN_PX, TOUCH_TARGET_PX,
-} from '../../utils/videoPanelLayout';
-
-/** Acronym, like "UAV" and "RC": the same in every locale. */
-export const FPV_LABEL = 'FPV';
+  DEFAULT_TOP_CONTROLS_BOTTOM_PX, MAP_CONTROL_PX, PANEL_MARGIN_PX,
+} from '../../utils/vehicleWindowLayout';
 
 const NO_SIZE = { width: 0, height: DEFAULT_TOP_CONTROLS_BOTTOM_PX - PANEL_MARGIN_PX };
 
 /**
- * Monitor-mode map overlay: RC control toggle, camera follow selector with the
- * FPV view toggle beside it, vision/coverage/trail toggles and clears. The
- * top-right controls wrap on a narrow pane; their bottom edge is reported so
- * the camera panel and the FPV tag stay below them.
+ * Monitor-mode map overlay: RC control toggle, camera follow selector,
+ * vision/coverage/trail toggles and clears. The top-right controls wrap on a
+ * narrow pane; their bottom edge is reported so the vehicle window stays
+ * below them.
  */
 export default function MonitorMapOverlay({
   vehicleList,
   followSysId, onFollowChange,
-  fpvOn, onToggleFpv, onTopControlsBottom,
+  onTopControlsBottom,
   onToggleManualControl,
   showVision, onToggleVision,
   showCoverage, onToggleCoverage,
@@ -64,7 +61,7 @@ export default function MonitorMapOverlay({
           </svg>
         </MapIconBtn>
       </div>
-      {/* Top-right bar: camera follow + FPV + display toggles. Wraps on a
+      {/* Top-right bar: camera follow + display toggles. Wraps on a
           narrow pane instead of running under the RC button. */}
       <div ref={topRightRef} data-testid="monitor-top-right" style={{
         position: 'absolute',
@@ -117,7 +114,7 @@ export default function MonitorMapOverlay({
           value={followSysId ?? ''}
           onChange={(e) => onFollowChange(e.target.value === '' ? null : Number(e.target.value))}
           style={{
-            height: TOUCH_TARGET_PX,
+            height: MAP_CONTROL_PX,
             padding: '0 8px',
             borderRadius: 6,
             fontSize: 12,
@@ -137,30 +134,6 @@ export default function MonitorMapOverlay({
             </option>
           ))}
         </select>
-        {/* FPV view toggle: a text label whose on state is plain to see
-            (filled, "FPV · ON"), unlike the icon-only RC button. Never RC. */}
-        <button
-          type="button"
-          onClick={onToggleFpv}
-          aria-pressed={!!fpvOn}
-          title={t('fpvView.toggleTitle')}
-          style={{
-            height: TOUCH_TARGET_PX,
-            minWidth: TOUCH_TARGET_PX,
-            padding: '0 12px',
-            borderRadius: 6,
-            fontSize: HEADER_FONT_PX,
-            fontWeight: 700,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            touchAction: 'manipulation',
-            border: `2px solid ${fpvOn ? colors.accent : colors.border}`,
-            background: fpvOn ? colors.accent : 'rgba(22, 33, 62, 0.85)',
-            color: fpvOn ? colors.bg : colors.textBright,
-          }}
-        >
-          {fpvOn ? `${FPV_LABEL} · ${t('fpvView.on')}` : FPV_LABEL}
-        </button>
         {/* Vision toggle */}
         <MapIconBtn
           title={t('monitorOverlay.toggleVision')}

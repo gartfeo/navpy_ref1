@@ -9,7 +9,7 @@ Two models, applied by the coordinator's ports (``coordinator_router``,
   autopilot also share ``bytes_per_s``. The autopilot's bytes to NavPy are
   not rate limited: the SITL already sends more than a 115200 baud line
   carries (12.2 kB/s measured), and a real autopilot fits its streams to the
-  UART's free space, which only the firmware can model (todo 82).
+  UART's free space, which only the firmware can model (todo 84).
 - ``radio_link``, the router path (every SITL's serial1 and the backend):
   each endpoint's radio sends its packets in order at ``bytes_per_s``; each
   router copy then is lost with probability ``loss``, or in an outage
