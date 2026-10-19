@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from types import SimpleNamespace
 
+from pymavlink.dialects.v20 import ardupilotmega as mavlink
+
 from navpy.core.kernel.location import Location
 from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
 from navpy.core.review.confirmation_round_runner import ConfirmationRoundRunner
@@ -17,8 +19,10 @@ def _request(location):
     )
     runner = SimpleNamespace(_sys_id=5)
     request = ConfirmationRoundRunner._request_message(runner, poi, 1)
-    # Through the wire, as the GCS receives it.
-    return TaskConfirmRequestMsg.from_mavlink(request.to_mavlink())
+    # Packed to bytes and parsed back, as the GCS receives it.
+    link = mavlink.MAVLink(None, srcSystem=5, srcComponent=191)
+    raw = request.to_mavlink().pack(link)
+    return TaskConfirmRequestMsg.from_mavlink(link.parse_char(raw))
 
 
 def test_unknown_position_is_sent_as_nan_not_zero() -> None:

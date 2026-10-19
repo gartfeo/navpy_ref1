@@ -21,6 +21,24 @@ const HUBS = [
   { lat: 40.2, lon: 44.2, name: 'Hub C' },
 ];
 
+it('draws hubs that arrived before the viewer once the viewer is ready, with no terrain', () => {
+  const entities = { add: vi.fn(value => value), remove: vi.fn() };
+  const cesium = { current: null };
+  const viewer = { current: null };
+  const { rerender } = renderHook(
+    ({ viewerReady }) => useDeliveryHubLayer(
+      cesium, viewer, HUBS, null, null, viewerReady, false, null, null, false,
+    ),
+    { initialProps: { viewerReady: false } },
+  );
+  expect(entities.add).not.toHaveBeenCalled();
+
+  cesium.current = fakeCesium().current;
+  viewer.current = { entities, scene: { requestRender: vi.fn() } };
+  rerender({ viewerReady: true });
+  expect(entities.add).toHaveBeenCalledTimes(3);
+});
+
 it('draws the hubs before terrain is ready (no Ion token) and redraws when terrain arrives', () => {
   const entities = { add: vi.fn(value => value), remove: vi.fn() };
   const viewer = { current: { entities, scene: { requestRender: vi.fn() } } };

@@ -101,5 +101,5 @@ export default function useDeliveryHubLayer(cesiumRef, viewerRef, deliveryHubs, 
 
     entitiesRef.current = added;
     viewer.scene.requestRender();
-  }, [deliveryHubs, deliveryHubAssignments, plan, showTracks, terrainReady]);
+  }, [deliveryHubs, deliveryHubAssignments, plan, showTracks, viewerReady, terrainReady]);
 }
