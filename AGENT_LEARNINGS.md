@@ -335,7 +335,9 @@
   had uncommitted edits holding the other tensor (0.239/0.534/0.766 slug ft2, zero products, the
   one every navpy model uses), and both versions' READMEs say "from CAD". Run git status and read
   the working-tree file as well as git log --all and merge-base; two commits with one parent are
-  alternatives, not a replacement. Only the CAD tool's own output settles which numbers are real.
+  alternatives, not a replacement. Only the CAD tool's own output settles which numbers are real:
+  the Fusion v96 output the owner gave later matched the working-tree file's moments of inertia
+  (not its zero products), not e5830898fe's.
 - IMU vibration lines that stay at one frequency from cruise to full throttle are unlikely to be
   motor rotation, and aliasing allows several rpm per line. Do not read rpm from the IMU without a line
   that moves with power; ask for ESC telemetry or an rpm sensor instead.
@@ -349,10 +351,29 @@
   the voltage direction and the samples next to the zeros (22.4 A = a quarter of 89.4 A here).
 - I wrote that a 10 % light model has a (T-D)/m 1.11 times too large. But every force term the
   model had fitted to logged accelerations (lift, high-angle drag, the motor law) assumed the same
-  7.5 kg, so force and mass cancel there. Before scaling a model for a mass error, trace which
+  7.5 kg, so force and mass cancel there (for the motor law only in the mass-times-acceleration part
+  of its target thrust). Before scaling a model for a mass error, trace which
   terms were fitted from logged accelerations at the assumed mass and which came from elsewhere
   (electrical power, CFD). The first kind cancels only where the fit matches and only if every
-  fitted flight had that mass; the second kind carries the error directly.
+  fitted flight had that mass; the second kind carries the error directly. (The 10 % premise
+  itself was wrong; see the next item.)
+- I built a mass correction (scale every log-fitted force by 1.113) on the owner's 8.351 kg,
+  although both January 2026 commits and the checkout's model had 7.46 kg. The 8.351 kg came
+  from later Fusion modifications that are not the flown aircraft; the flown aircraft is
+  7.460 kg (Fusion v96). When an owner figure contradicts the files, ask which revision and date it comes
+  from, and whether that is what flew, before building on it.
+- I read a lower normal-force coefficient, computed at an assumed 7.5 kg, as a lighter airframe.
+  CN = m g n / (q S) with the assumed m, so if the true coefficient is the same, a lower value
+  means the true mass is higher (a different CG, control travel or aerodynamics could also cause
+  it). Write the formula out before naming the direction of a mass effect.
+- Fusion 360 lists products of inertia as tensor elements (Ixz = -integral(x z dm)); the
+  parallel-axis test shows it (origin value minus centre-of-mass value = -m x z). JSBSim's <ixz>
+  is also -integral(x z dm), but in its structural frame (x aft, y right, z up), so the sign of a
+  copied CAD product depends on the CAD axes. Run the parallel-axis test and confirm the axes
+  before copying a product of inertia.
+- I recorded the owner's "180 %" bungee stretch as "1.8 times the rest length"; the owner's own
+  words for it were not kept, and a percent stretch can also mean elongation (2.8 times). Keep the
+  owner's exact words and mark any reading added to them.
 - I described the log-30 event's 12-14 g normal load as part of the jolt. It was the flight's 10th
   commanded pull-out, and the 9 earlier ones peaked at 11.2-12.5 g; the abnormal signs were the
   x deceleration, the vibration and the current. Before calling a reading abnormal, compare it
@@ -937,3 +958,14 @@
 - Never pass `-x` to the full pytest here: the known board_detector failures stop it early.
 - An eval error late in a report can be a consequence: "demo_mission_plan.json missing" came from the
   operator failing at setup, not from the relative `--run-dir` it looked like. Read the first error.
+
+## Todo 31 trace: detector frames late in NAV (2026-10-19)
+- A wall eval's WSL SITL root is named from the run dir (`~/navpy-eval-roots/<name>-<hash>`), so a retry with the
+  same run name fails at once with `WSL input step failed (1):` and empty stderr (`test ! -e` under `set -e`).
+  Use a new run name for every attempt; remove your own roots afterwards.
+- Under 16 busy processes the stack launch can time out at 60 s. Start load only after NavPy is up.
+- To tell OS starvation from in-process contention, sample per-thread `QueryThreadCycleTime` from outside (TSC-based,
+  not 15.6 ms quantized) and name threads with `py-spy dump --nonblocking`: if the process still gets its quiet CPU
+  share while one thread's work stretches, the wait is inside the process (GIL or a lock), not the OS.
+- Python `gc` gen-2 passes (30-70 ms here) look like a pure-CPU spike in whichever thread triggers them and like a
+  wait in every other thread; log `gc.callbacks` before blaming a stage.
