@@ -35,7 +35,7 @@ under ``from_sitl``) and every queued byte as ``undelivered``, then drops
 the queues. :meth:`RoutedPorts.closing` requires every packet to have
 ended and journals an incomplete frame a stream still holds.
 
-The link models (``Manifest.links``, ``link_model``) plug in at these seams:
+The link models (the coordinator's ``links``, ``link_model``) plug in at these seams:
 SITL i's serial0 egress passes the serial link before step 1's framing;
 NavPy i's egress joins its queue with a ready tick and the port's line rate
 (``coordinator_queues``); every router copy goes through its sender's radio,

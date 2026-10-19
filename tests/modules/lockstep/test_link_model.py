@@ -220,6 +220,28 @@ def test_loss_draws_do_not_move_with_the_jitter_draws():
     assert lost(0) == lost(3) and lost(0)
 
 
+def test_one_links_draws_do_not_move_with_other_links_or_the_serial_model():
+    """SITL 1 to SITL 2's losses and arrival ticks stay put when other links and the serial
+    model carry traffic. Mutations: one loss stream for every link; one jitter stream."""
+    def watched(busy: bool) -> list:
+        spec = LinkSpec(1, 3, loss=0.3)
+        src = Sources()
+        run = PortsHarness(LinkModels(1, LinkSpec(1, 2, bytes_per_s=11500) if busy else None, spec))
+        backend = run.roster.add(BACKEND, ROUTER)
+        for k in range(1, 201):
+            egress = {serial1(1): src.heartbeat(1, 1)}
+            if busy:
+                egress |= {serial1(3): src.heartbeat(3, 1), serial0(2): src.heartbeat(2, 1)}
+            run.tick(k, egress=egress, admitted=[backend])
+        parent = {tuple(e[1]): tuple(e[2]) for _k, e in run.events("copy")}
+        return [(k, e[0]) for k, e in run.events("lost") + run.events("arrived")
+                if e[1][2] == serial1(2) and parent[tuple(e[1])][2] == serial1(1)]
+
+    quiet = watched(False)
+    assert {kind for _k, kind in quiet} == {"lost", "arrived"}
+    assert sorted(watched(True)) == sorted(quiet)
+
+
 def test_an_outage_loses_every_copy_that_leaves_inside_it():
     """Mutation: ``in_outage`` always False."""
     src, run = Sources(), _radio(LinkSpec(0, 0, outages=((5, 8),)))

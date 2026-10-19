@@ -878,3 +878,14 @@
 - Check every doc claim against the code before committing, even a closing note: a rewritten todo said `NavArgs`
   reads params only at start-up, which the same design doc contradicts (it re-reads at each task reset). An
   adversarial docs check caught it, plus stale line counts and cites in docs the move made stale.
+
+## Link model (dev sim step 3, 2026-10-19)
+- A mutation can survive because a second mechanism enforces the same rule: removing the jitter clamp
+  left serial bytes in order, since the delay line releases only its head. Mutate both mechanisms
+  together to prove the test, and say which one each test covers.
+- An order assertion that compares a list with itself sorted proves nothing when the input is already
+  sorted. Pick parameters where the broken code would reorder, and confirm the test fails on it.
+- Measure the traffic before applying a designed rate: the SITL sends 12.2 kB/s to NavPy, more than
+  the 11.5 kB/s line the design assumed, so a rate on that direction would only build backlog.
+- The bundled Codex binary route (see "Approach-window cadence diagnostics") was still needed: the
+  PATH CLI failed its sandbox setup again.
