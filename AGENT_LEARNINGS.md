@@ -868,7 +868,12 @@
 - Measured ZR10 calibrations on this PC (1920x1080): reading 1.0 = wall model at the wide stop
   (output/wall-matrix/run1/solution_v3.json); reading 1.8 = ChArUco after absolute zoom 2.0
   (output/tuning-2x/scale/base-model.json; held-out groups in out/recovered-unreachable-20261009). The per-zoom
-  checkerboard fits of 2026-10-08 are on the rig only. navpy's older siyi_zr10 "1" row records no zoom state.
+  checkerboard fits were on the rig only (copied to the private folder 2026-10-19). navpy's older siyi_zr10 "1" row records no zoom state.
+- The rig's per-zoom fits (~/calib-helpers/fits.json points at gimbal-controller out/zoom_calibrations, 2026-09-13
+  sessions; the 2026-10-08 sweep is single-view and cannot fit a lens) pass held-out board projection but read
+  1.8-2.6 % narrower in FOV than the reference, like the laser finding that board focal lengths are ~1.8 % high.
+  Low held-out error does not validate focal scale. Check a fit against an independent scale (laser, pointing)
+  and read gimbal-controller's reports on it (output/flat-zoom-trial-20260914/REPORT.md) before enabling a row.
 - One reading can be two lens states: reading 1.1 is scale 1.030 after absolute zoom 1.0 but 1.069 after a held
   zoom-in. Key rows by reading and by how the zoom was set.
 - `Path.read_text` turns CRLF into LF, and `write_text(newline="")` then writes LF; `read_text(newline=...)` needs
