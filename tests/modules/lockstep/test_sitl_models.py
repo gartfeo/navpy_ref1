@@ -7,6 +7,7 @@ import math
 import pytest
 
 from navpy.sim.lockstep import sitl_models as sm
+from navpy.sim.lockstep.link_model import RADIO_LINK, SERIAL_LINK
 from navpy.sim.lockstep.sim_profile import CATALOGUE, ModelDraw, ParamRange, Realization, load_profile, \
     model_stream, realize
 
@@ -19,8 +20,11 @@ def realization(*models: ModelDraw, seed: int = 7) -> Realization:
 
 
 def test_every_parameter_of_the_built_models_has_one_sitl_parameter():
-    assert set(sm.SITL_PARAMETERS) == set(CATALOGUE)
-    for name, spec in CATALOGUE.items():
+    """Since step 3 the coordinator's link models apply the rest of the catalogue."""
+    assert set(sm.SITL_PARAMETERS) | {SERIAL_LINK, RADIO_LINK} == set(CATALOGUE)
+    assert not set(sm.SITL_PARAMETERS) & {SERIAL_LINK, RADIO_LINK}
+    for name in sm.SITL_PARAMETERS:
+        spec = CATALOGUE[name]
         assert set(sm.SITL_PARAMETERS[name]) == set(spec.params)
     names = [p for params in sm.SITL_PARAMETERS.values() for p in params.values()]
     assert len(names) == len(set(names)) and all(p.startswith("SIM_") for p in names)
@@ -77,7 +81,7 @@ def test_the_shipped_profiles_draw_wind_and_noise_in_the_designs_ranges():
     fly without wind. ``none`` lists no model."""
     assert load_profile("none").models == {}
     for name in ("quiet", "hw", "stress"):
-        models = load_profile(name).models
+        models = {m: e for m, e in load_profile(name).models.items() if m in sm.SITL_PARAMETERS}
         assert set(models) == ({"sensor_noise"} if name == "quiet" else {"wind", "sensor_noise"})
         assert models["sensor_noise"].p_on == 1.0
         assert models["sensor_noise"].params == {"gps_noise_m": ParamRange(0.0, 1.0)}

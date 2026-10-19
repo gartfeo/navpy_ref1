@@ -90,6 +90,9 @@ class PacketJournal:
                 self._packets[packet_id] = _Packet(k, parent.length, tuple(event[2]))
             elif kind == "admitted" and packet_id in self._packets:
                 self._packets[packet_id].admitted += event[2]
+            elif kind == "arrived" and packet_id in self._packets:
+                if self._packets[packet_id].ends:
+                    self._problems.append(f"tick {k}: {list(packet_id)} arrived after it ended")
             elif kind in TERMINALS:
                 self._end(k, packet_id, event)
             else:

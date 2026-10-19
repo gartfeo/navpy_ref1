@@ -43,6 +43,7 @@ from navpy.sim.lockstep.coordinator_types import Manifest, WallBudgets
 from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.participant_hooks import RequestIds
+from navpy.sim.lockstep.link_model import link_models
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, Realization, load_profile, realize
 from navpy.sim.lockstep.sitl_models import sitl_parameters, sitl_rng_seeds
 from scripts import lockstep_topology, lockstep_wsl
@@ -243,7 +244,8 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     operator = lockstep_operator(ids, scenario, run_dir, options)
     # The backend spawns and registers before the coordinator launches the SITL.
     coordinator = LockstepCoordinator(plan, fleet.sitls, operator, roster, ids, run_dir,
-                                      delay=HostDelays(options.host_delay_seed), launch=fleet.launch)
+                                      delay=HostDelays(options.host_delay_seed), launch=fleet.launch,
+                                      links=link_models(realization))
     result = fault = None
     try:
         result = coordinator.run()

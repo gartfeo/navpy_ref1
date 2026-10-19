@@ -81,23 +81,24 @@ def launch_stack(
     *,
     clock: ClockPort,
     scenario: DemoScenario,
+    headless: bool = True,
+    browser: bool = True,
+    launch_token: str | None = None,
 ) -> StackContext:
     if owned_entry(env) is not None:
         raise PreexistingOwnedStackError(
             "an owned GCS stack already exists; exact evaluation requires "
             "a fresh generation"
         )
-    launch_token = secrets.token_hex(16)
+    launch_token = launch_token or secrets.token_hex(16)
     backend_log = backend_log_file(env)
     navigation_dir = navigation_log_dir(env)
     result = run_process(
         # The scenario pins the SITL start point instead of the launcher
         # default, and launches one SITL vehicle per scenario slot.
         launch_command(
-            launch_token,
-            scenario.home,
-            sitl_arguments,
-            instances=len(scenario.slots),
+            launch_token, scenario.home, sitl_arguments,
+            instances=len(scenario.slots), headless=headless, browser=browser,
         ),
         env,
         timeout_s=min(timeout_s, 60.0),
@@ -114,6 +115,17 @@ def launch_stack(
         transient_exceptions=(OSError,),
         clock=clock,
     )
+    return owned_stack_context(
+        env, entry, launch_token, backend_log, navigation_dir,
+        clock=clock, scenario=scenario,
+    )
+
+
+def owned_stack_context(
+    env: Mapping[str, str], entry: dict[str, JsonValue], launch_token: str,
+    backend_log: Path, navigation_dir: Path, *, clock: ClockPort, scenario: DemoScenario,
+) -> StackContext:
+    """Generation *launch_token*'s context once its backend is healthy."""
     sys_ids = flown_sys_ids(entry, scenario)
     chat_index = entry.get("chat_index")
     if type(chat_index) is not int:
@@ -278,6 +290,7 @@ __all__ = [
     "exclusive_evaluator_lock",
     "launch_stack",
     "owned_entry",
+    "owned_stack_context",
     "registry_path",
     "run_process",
     "stop_stack",
