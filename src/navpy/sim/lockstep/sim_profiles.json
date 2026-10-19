@@ -3,14 +3,20 @@
   "profiles": {
     "none": {"models": {}},
     "quiet": {"models": {
-      "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}}
+      "radio_link": {"params": {"delay_ticks": [2, 8], "jitter_ticks": [0, 5], "loss": 0.0, "bytes_per_s": 8000}},
+      "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}},
+      "serial_link": {"params": {"delay_ticks": [0, 2], "jitter_ticks": [0, 1], "bytes_per_s": 11500}}
     }},
     "hw": {"models": {
+      "radio_link": {"params": {"delay_ticks": [2, 8], "jitter_ticks": [0, 5], "loss": [0.0, 0.1], "bytes_per_s": 8000}},
       "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}},
+      "serial_link": {"params": {"delay_ticks": [0, 2], "jitter_ticks": [0, 1], "bytes_per_s": 11500}},
       "wind": {"params": {"speed_mps": [0.0, 8.0], "direction_deg": [0.0, 360.0], "turbulence_mps": [0.0, 2.0]}}
     }},
     "stress": {"models": {
+      "radio_link": {"params": {"delay_ticks": [2, 16], "jitter_ticks": [0, 10], "loss": [0.0, 0.3], "bytes_per_s": 8000}},
       "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}},
+      "serial_link": {"params": {"delay_ticks": [0, 4], "jitter_ticks": [0, 2], "bytes_per_s": 11500}},
       "wind": {"params": {"speed_mps": [0.0, 8.0], "direction_deg": [0.0, 360.0], "turbulence_mps": [0.0, 2.0]}}
     }}
   }

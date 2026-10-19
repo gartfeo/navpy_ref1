@@ -6,7 +6,7 @@ NAVLINK traces built from them (``navpy.sim.lockstep.navlink_trace``):
 | Gate | Pass |
 |---|---|
 | Run (packets) | every packet id is defined once and has exactly one terminal disposition (``PacketJournal``); no NAVLINK packet is ``undelivered`` |
-| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for; every packet's source is a fleet sysid or the ground station; no NAVLINK packet is ``router_dropped`` |
+| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for, unless the radio link model lost the copy (``lost``); every packet's source is a fleet sysid or the ground station; no NAVLINK packet is ``router_dropped`` |
 
 The chain of a peer task, correlated by UID and ``task_id`` (auction task ids
 are the detector's namespace, so the plan's POIs are joined by the backend
@@ -189,6 +189,8 @@ def _advert_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int])
     errors = []
     for trace in trace_navlink(records, sys_ids):
         if trace.msgid not in ADVERT_IDS or (stop is not None and trace.hops[0][1] >= stop):
+            continue
+        if trace.lost is not None:  # the radio link model lost it: injected, journaled as lost
             continue
         if not trace.complete or trace.ambiguous:
             errors.append(f"forwarding: advert {trace.msgid} {list(trace.uid)} from {trace.sender} "

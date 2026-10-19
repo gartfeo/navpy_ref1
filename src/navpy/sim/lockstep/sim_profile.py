@@ -1,6 +1,6 @@
 """Sim profiles: which realism models a lockstep run turns on, drawn from its seed.
 
-Steps 1-2 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
+Steps 1-3 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
 models, each with a swarm probability ``p_on`` and its parameters, a fixed
 number or a ``[lo, hi]`` range. Per run seed the swarm draw decides which
 models are on and draws a value inside each range. The result, the
@@ -59,9 +59,14 @@ class ModelSpec:
 
 
 #: The built models; each model step adds its spec here. Step 2: wind and sensor noise,
-#: applied to the SITLs (``sitl_models``).
+#: applied to the SITLs (``sitl_models``). Step 3: the serial and radio links, applied by the
+#: coordinator's ports (``link_model``).
 CATALOGUE: Mapping[str, ModelSpec] = {
+    "radio_link": ModelSpec("radio_link", {"delay_ticks": "int", "jitter_ticks": "int", "loss": "float",
+                                           "bytes_per_s": "int"}),
     "sensor_noise": ModelSpec("sensor_noise", {"gps_noise_m": "float"}),
+    "serial_link": ModelSpec("serial_link", {"delay_ticks": "int", "jitter_ticks": "int",
+                                             "bytes_per_s": "int"}),
     "wind": ModelSpec("wind", {"speed_mps": "float", "direction_deg": "float", "turbulence_mps": "float"}),
 }
 
