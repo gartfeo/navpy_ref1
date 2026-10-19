@@ -6,7 +6,7 @@ NAVLINK traces built from them (``navpy.sim.lockstep.navlink_trace``):
 | Gate | Pass |
 |---|---|
 | Run (packets) | every packet id is defined once and has exactly one terminal disposition (``PacketJournal``); no NAVLINK packet is ``undelivered`` |
-| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (not checked when the SITLs lose bytes, ``SIM_UART_LOSS``: SITL journals no lost byte, so a lost advert and a forwarding fault look alike); every packet's source is a fleet sysid or the ground station; no NAVLINK packet is ``router_dropped`` |
+| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (when the SITLs lose bytes, ``SIM_UART_LOSS``, an advert may stop where a SITL should re-emit it: SITL journals no lost byte); every packet's source is a fleet sysid or the ground station; no NAVLINK packet is ``router_dropped`` |
 
 The chain of a peer task, correlated by UID and ``task_id`` (auction task ids
 are the detector's namespace, so the plan's POIs are joined by the backend
@@ -41,6 +41,9 @@ RESPONSE = mavlink.MAVLINK_MSG_ID_TASK_ASSIGN_RESPONSE
 ACK = mavlink.MAVLINK_MSG_ID_SWARM_ACK
 #: A free peer's availability advert and the owner's offer.
 ADVERT_IDS = (mavlink.MAVLINK_MSG_ID_AVAILABLE_TASK_REQUEST, mavlink.MAVLINK_MSG_ID_AVAILABLE_TASK_RESPONSE)
+#: The last hops of a trace whose next hop is a SITL's re-emission (``navlink_trace.HOPS``):
+#: SITL i's serial1 write and SITL j's serial0 write, the only hops SITL's byte loss can remove.
+SITL_WRITE_STOPS = ("sitl_serial0", "router_copy")
 
 
 def packet_events(records: Iterable[Mapping[str, Any]]) -> Iterator[tuple[int, list[Any]]]:
@@ -184,11 +187,13 @@ def _assignment_errors(records: Sequence[Mapping[str, Any]], owner: int, peers: 
     return errors
 
 
-def _advert_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int]) -> list[str]:
+def _advert_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int], uart_loss: bool) -> list[str]:
     stop = first_stop_tick(list(records))
     errors = []
     for trace in trace_navlink(records, sys_ids):
         if trace.msgid not in ADVERT_IDS or (stop is not None and trace.hops[0][1] >= stop):
+            continue
+        if uart_loss and not trace.ambiguous and trace.hops[-1][0] in SITL_WRITE_STOPS:
             continue
         if not trace.complete or trace.ambiguous:
             errors.append(f"forwarding: advert {trace.msgid} {list(trace.uid)} from {trace.sender} "
@@ -211,9 +216,10 @@ def _source_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int])
 
 def forwarding_errors(records: Sequence[Mapping[str, Any]], owner: int, peers: Sequence[int],
                       sys_ids: Sequence[int], *, uart_loss: bool = False) -> list[str]:
-    """``uart_loss``: the run's SITLs lose bytes (``SIM_UART_LOSS``), so adverts are not checked."""
-    adverts = [] if uart_loss else _advert_errors(records, sys_ids)
-    return _assignment_errors(records, owner, peers, sys_ids) + adverts + _source_errors(records, sys_ids)
+    """``uart_loss``: the run's SITLs lose bytes (``SIM_UART_LOSS``), so an advert may stop
+    before a SITL's re-emission."""
+    return (_assignment_errors(records, owner, peers, sys_ids) + _advert_errors(records, sys_ids, uart_loss)
+            + _source_errors(records, sys_ids))
 
 
 __all__ = ["ADVERT_IDS", "applied_chains", "applied_emissions", "forwarding_errors", "held_tasks", "packet_events", "packet_run_errors"]

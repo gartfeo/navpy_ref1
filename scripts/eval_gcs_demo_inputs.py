@@ -209,7 +209,8 @@ def recorded_profile_parameters(run_dir: Path) -> dict[str, float]:
     sitl = manifest.get("sitl") if isinstance(manifest, dict) else None
     parameters = sitl.get("profile_parameters", {}) if isinstance(sitl, dict) else {}
     if not isinstance(parameters, dict) or not all(
-            isinstance(value, (int, float)) and not isinstance(value, bool) for value in parameters.values()):
+            isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+            for value in parameters.values()):
         raise RegressionError(f"input manifest {path} has invalid profile_parameters")
     return {str(name): float(value) for name, value in parameters.items()}
 

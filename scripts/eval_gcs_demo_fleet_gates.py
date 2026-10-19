@@ -9,7 +9,7 @@ Sysid i is SITL i and NavPy ordinal i (``FleetLayout``).
 | Gate | Pass |
 |---|---|
 | Run | outcome ``ok``, no fault record (``fleet_clock``, ``boot_barrier``, ``exchange_budget`` and an out-of-loop advance are faults); the packet dispositions (``eval_gcs_demo_fleet_packets``) |
-| Assignment and forwarding | ``eval_gcs_demo_fleet_packets.forwarding_errors``, without the advert check when the input manifest's profile sets ``SIM_UART_LOSS`` above 0; R2 joined to the journal: every APPLIED line of the backend log is an APPLIED the owner's NavPy emitted of a response its helper emitted for that task (UIDs equal), and every held task has one |
+| Assignment and forwarding | ``eval_gcs_demo_fleet_packets.forwarding_errors``, with ``uart_loss`` when the input manifest's profile sets ``SIM_UART_LOSS`` above 0; R2 joined to the journal: every APPLIED line of the backend log is an APPLIED the owner's NavPy emitted of a response its helper emitted for that task (UIDs equal), and every held task has one |
 | Approval timing | the polling-schedule replay over every approval (``eval_gcs_demo_approval_replay``); per approval, its k1 <= k2 <= k3, its response sends and its audit (``approval_timing_errors``) |
 | Workflow ticks | per vehicle, the retained order, then its role's: the owner's orbit before its request state; a peer's assignment, then its approach, then its request state |
 | Pose cadence | the ``navpy`` and ``gcs`` arrival streams of every sysid, each file flushed whole |

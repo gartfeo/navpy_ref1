@@ -242,8 +242,34 @@ def test_an_advert_that_stops_short_fails_unless_sent_after_stop_all(fleet):
     stopped = copy.deepcopy(changed)
     stopped[5]["lifecycle"] = [{"kind": "stop"}]  # stop-all's first request, before the advert
     assert _forwarding(stopped) == []
-    # SITL's byte loss journals no lost byte: a short advert is not a forwarding error then.
-    assert forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=True) == []
+    # SITL's byte loss explains only a missing SITL re-emission, never a missing coordinator hop.
+    assert forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=True) == errors
+
+
+@pytest.mark.parametrize("sitl", ["sitl1", "sitl3"])
+def test_with_sitl_byte_loss_an_advert_may_stop_only_at_a_sitls_write(fleet, sitl):
+    """Step 3 of deterministic_dev_sim.md: SITL 1's serial1 re-emission or SITL 3's serial0
+    re-emission missing is SITL's loss with ``uart_loss`` and a fault without it; a lost router
+    copy is a fault either way."""
+    records, _lines, _approvals = fleet
+    _uid, emitted = _uid_events(records, ADVERT, OWNER)
+    gone = copy.deepcopy(records)  # the SITL never wrote its re-emission: every record of it goes
+    ids = {tuple(e[1]) for e in emitted if e[1][0] == sitl}
+    ids |= {tuple(e[1]) for _r, e in _events(gone) if e[0] == "copy" and tuple(e[2]) in ids}
+    for record in gone:
+        if "packets" in record:
+            record["packets"] = [e for e in record["packets"] if tuple(e[1]) not in ids]
+    stop = "sitl_serial0" if sitl == "sitl1" else "router_copy"
+    errors = _forwarding(gone)
+    assert errors and all(e.startswith(f"forwarding: advert {ADVERT} ") and e.endswith(f"stopped at {stop}")
+                          for e in errors)
+    assert forwarding_errors(gone, OWNER, PEERS, SYS_IDS, uart_loss=True) == []
+    up = {tuple(e[1]) for e in emitted if e[1][0] == "sitl1" and e[1][2] == "sitl1.serial1"}
+    copies = {tuple(e[1]) for _r, e in _events(records)
+              if e[0] == "copy" and tuple(e[2]) in up and e[1][2] == "sitl3.serial1"}
+    no_copy = _drop(records, lambda e: e[0] == "delivered" and tuple(e[1]) in copies)
+    lost_copy = forwarding_errors(no_copy, OWNER, PEERS, SYS_IDS, uart_loss=True)
+    assert len(lost_copy) == 1 and lost_copy[0].endswith("from 1 to 3 stopped at ap_serial1")
 
 
 def test_the_certified_gate_skips_adverts_only_when_the_manifest_records_byte_loss(tmp_path, monkeypatch):
@@ -279,7 +305,9 @@ def test_recorded_profile_parameters_reads_the_manifests_sitl_parameters(tmp_pat
         "SIM_BAUDLIMIT_EN": 1, "SIM_UART_LOSS": 0.15}}}), encoding="utf-8")
     assert recorded_profile_parameters(tmp_path) == {"SIM_BAUDLIMIT_EN": 1.0, "SIM_UART_LOSS": 0.15}
     for bad in ('{"sitl": {"profile_parameters": [1]}}', '{"sitl": {"profile_parameters": {"A": true}}}',
-                "{not json"):
+                '{"sitl": {"profile_parameters": {"SIM_UART_LOSS": Infinity}}}',
+                '{"sitl": {"profile_parameters": {"SIM_UART_LOSS": NaN}}}',
+                '{"sitl": {"profile_parameters": {"SIM_UART_LOSS": 1e309}}}', "{not json"):
         (tmp_path / INPUT_MANIFEST).write_text(bad, encoding="utf-8")
         with pytest.raises(RegressionError):
             recorded_profile_parameters(tmp_path)
