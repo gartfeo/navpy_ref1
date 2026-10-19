@@ -25,8 +25,9 @@ const LIGHT_ENU = [0.5, -0.5, -0.7];
  * - Pose from the main map's pose source (`poseSourceRef`), applied only when
  *   the shared hold check passes and the copied numbers are finite; otherwise
  *   the last good pose holds. One render request per telemetry update.
- * - "Waiting for pose · UAV n" covers the picture until the window's UAV has
- *   had a valid pose, so a previous UAV's view never shows under a new label.
+ * - "Waiting for pose · UAV n" until the window's UAV has had a valid pose, so
+ *   a previous UAV's view never shows under a new label: one text row with the
+ *   picture collapsed at normal size, over the large area when maximized.
  * - Failure (create, render error, WebGL context lost, a throw in the pose
  *   callback) calls `onFail` once; the parent then switches to Camera, which
  *   unmounts this and destroys the widget.
@@ -40,14 +41,17 @@ const LIGHT_ENU = [0.5, -0.5, -0.7];
  * @param {() => void} props.onFail
  * @param {(px: number) => void} [props.onCreditsHeight]
  * @param {object} [props.style] - box of the picture.
+ * @param {boolean} [props.expanded] - maximized: the waiting state keeps the
+ *   large area; at normal size it collapses to one text row.
  */
 export default function SyntheticView({
-  sysId, label, poseSourceRef, storeRef, ionTerrain, onFail, onCreditsHeight, style,
+  sysId, label, poseSourceRef, storeRef, ionTerrain, onFail, onCreditsHeight, style, expanded = false,
 }) {
   const { t } = useTranslation();
   const containerRef = useRef(null);
   const widgetRef = useRef(null);
   const cesiumRef = useRef(null);
+  const checkReadyRef = useRef(null);
   const [widgetReady, setWidgetReady] = useState(false);
   const [poseFor, setPoseFor] = useState(null);
 
@@ -108,27 +112,38 @@ export default function SyntheticView({
       const poseMath = createPoseMath(Cesium);
       const lightEnu = new Cesium.Cartesian3(...LIGHT_ENU);
       const lightDir = new Cesium.Cartesian3();
-      let shownFor = null;
+      // The window UAV's pose when the shared hold check passes and the copied
+      // numbers are finite; else null (the last good pose holds).
+      const validPose = (id) => {
+        const store = storeRef.current;
+        if (fpvHoldReason(store.getVehicles()[id], store.isTelemetryFresh(id))) return null;
+        const pose = poseSourceRef.current?.pose(id);
+        if (!pose) return null;
+        const orientation = noseOrientation(poseMath.vehicleHpr(pose.position, pose.orientation));
+        const values = [pose.position.x, pose.position.y, pose.position.z,
+          orientation.heading, orientation.pitch, orientation.roll];
+        return values.every(Number.isFinite) ? { position: pose.position, orientation } : null;
+      };
+      // Readiness is checked per telemetry update, not in preRender: while
+      // waiting the picture is collapsed, and a zero-size canvas never renders.
+      const checkReady = () => {
+        try {
+          const id = sysIdRef.current;
+          if (validPose(id)) setPoseFor(id);
+          scene.requestRender();
+        } catch (e) {
+          fail(e);
+        }
+      };
       // Cesium raises preRender outside its error wrapper, and a throw there
       // stops the widget's render loop with no event: catch it here.
       const onPreRender = () => {
         try {
-          const id = sysIdRef.current;
-          const store = storeRef.current;
-          if (fpvHoldReason(store.getVehicles()[id], store.isTelemetryFresh(id))) return;
-          const pose = poseSourceRef.current?.pose(id);
+          const pose = validPose(sysIdRef.current);
           if (!pose) return;
-          const orientation = noseOrientation(poseMath.vehicleHpr(pose.position, pose.orientation));
-          const values = [pose.position.x, pose.position.y, pose.position.z,
-            orientation.heading, orientation.pitch, orientation.roll];
-          if (!values.every(Number.isFinite)) return;
-          widget.camera.setView({ destination: pose.position, orientation });
+          widget.camera.setView({ destination: pose.position, orientation: pose.orientation });
           Cesium.Matrix4.multiplyByPointAsVector(poseMath.transform, lightEnu, lightDir);
           light.direction = Cesium.Cartesian3.normalize(lightDir, new Cesium.Cartesian3());
-          if (shownFor !== id) {
-            shownFor = id;
-            setPoseFor(id);
-          }
         } catch (e) {
           fail(e);
         }
@@ -136,27 +151,35 @@ export default function SyntheticView({
       scene.preRender.addEventListener(onPreRender);
       cleanups.push(() => scene.preRender.removeEventListener(onPreRender));
 
-      cleanups.push(storeRef.current.subscribe(() => scene.requestRender()));
-      cleanups.push(observeHeight(widget.creditContainer, (h) => onCreditsRef.current?.(h)));
+      cleanups.push(storeRef.current.subscribe(checkReady));
+      // The credit line itself (CesiumWidget's inner credits element), not the
+      // credit container, which is the whole widget by default.
+      cleanups.push(observeHeight(widget.creditDisplay.container, (h) => onCreditsRef.current?.(h)));
 
       cesiumRef.current = Cesium;
       widgetRef.current = widget;
+      checkReadyRef.current = checkReady;
       setWidgetReady(true);
-      scene.requestRender();
+      checkReady();
     })().catch(fail);
 
     return () => {
       cancelled = true;
       widgetRef.current = null;
+      checkReadyRef.current = null;
       for (const c of cleanups.reverse()) c();
       onCreditsRef.current?.(0);
     };
   }, [poseSourceRef, storeRef]);
 
-  // A badge tap moves the same widget to the new UAV.
+  // A badge tap moves the same widget to the new UAV; the picture expands
+  // once that UAV has a valid pose.
+  useEffect(() => {
+    checkReadyRef.current?.();
+  }, [sysId, widgetReady]);
   useEffect(() => {
     widgetRef.current?.scene.requestRender();
-  }, [sysId, widgetReady]);
+  }, [poseFor]);
 
   // Its own terrain instance of the main map's source, following the Ion upgrade.
   useEffect(() => {
@@ -174,49 +197,75 @@ export default function SyntheticView({
     return () => { cancelled = true; };
   }, [ionTerrain, widgetReady]);
 
+  const waiting = poseFor !== sysId;
+  // Waiting at normal size: no picture, one text row (never a black box). The
+  // widget stays mounted, at zero height, so it keeps its state.
+  const collapsed = waiting && !expanded;
+  const waitingText = t('vehicleWindow.waitingForPose', { name: label });
   return (
-    <div style={{ position: 'relative', background: colors.bg, ...style }}>
-      <div ref={containerRef} data-testid="synthetic-widget" style={{ position: 'absolute', inset: 0 }} />
-      {poseFor !== sysId && (
+    <>
+      {collapsed && (
         <div
           role="status"
           style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            padding: '8px 10px',
             fontSize: HEADER_FONT_PX,
             fontWeight: 700,
             color: colors.textDim,
             background: colors.bgLight,
+            borderTop: `1px solid ${colors.border}`,
           }}
         >
-          {t('vehicleWindow.waitingForPose', { name: label })}
+          {waitingText}
         </div>
       )}
       <div
-        data-testid="synthetic-frame"
-        style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 0 3px ${colors.accent}` }}
-      />
-      <div
-        role="note"
-        style={{
-          position: 'absolute',
-          top: 6,
-          left: 6,
-          padding: '4px 8px',
-          fontSize: HEADER_FONT_PX,
-          fontWeight: 700,
-          color: colors.textBright,
-          background: colors.bgLight,
-          border: `1px solid ${colors.accent}`,
-          borderRadius: 4,
-          pointerEvents: 'none',
-        }}
+        style={collapsed
+          ? { position: 'relative', height: 0, overflow: 'hidden', flex: '0 0 auto' }
+          : { position: 'relative', background: colors.bg, ...style }}
       >
-        {t('vehicleWindow.syntheticTag')}
+        <div ref={containerRef} data-testid="synthetic-widget" style={{ position: 'absolute', inset: 0 }} />
+        {waiting && !collapsed && (
+          <div
+            role="status"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: HEADER_FONT_PX,
+              fontWeight: 700,
+              color: colors.textDim,
+              background: colors.bgLight,
+            }}
+          >
+            {waitingText}
+          </div>
+        )}
+        <div
+          data-testid="synthetic-frame"
+          style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 0 3px ${colors.accent}` }}
+        />
+        <div
+          role="note"
+          style={{
+            position: 'absolute',
+            top: 6,
+            left: 6,
+            padding: '4px 8px',
+            fontSize: HEADER_FONT_PX,
+            fontWeight: 700,
+            color: colors.textBright,
+            background: colors.bgLight,
+            border: `1px solid ${colors.accent}`,
+            borderRadius: 4,
+            pointerEvents: 'none',
+          }}
+        >
+          {t('vehicleWindow.syntheticTag')}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

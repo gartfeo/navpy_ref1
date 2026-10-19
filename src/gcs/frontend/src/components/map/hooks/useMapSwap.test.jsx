@@ -3,6 +3,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import useMapSwap from './useMapSwap';
+import { createFitFlight } from './useCesiumViewer';
 
 function setup({ flying = false } = {}) {
   const viewer = {
@@ -82,5 +83,38 @@ describe('useMapSwap', () => {
     resetView('centre');
     set({ swapped: false, cameraTaken: true });
     expect(fit).not.toHaveBeenCalled();
+  });
+});
+
+describe('createFitFlight', () => {
+  // Like Camera.flyTo: a new flight cancels the one in progress synchronously.
+  function fakeCamera() {
+    const camera = { flight: null };
+    camera.flyTo = vi.fn((options) => {
+      camera.flight?.cancel();
+      camera.flight = options;
+    });
+    return camera;
+  }
+
+  it('a replacement fit keeps the flag; it clears when the newest fit ends', () => {
+    const camera = fakeCamera();
+    const flying = { current: false };
+    const fly = createFitFlight(camera, flying);
+    fly({ destination: 'a' });
+    expect(flying.current).toBe(true);
+    fly({ destination: 'b' });
+    expect(flying.current).toBe(true);
+    expect(camera.flyTo).toHaveBeenLastCalledWith(expect.objectContaining({ destination: 'b', duration: 1 }));
+    camera.flight.complete();
+    expect(flying.current).toBe(false);
+  });
+
+  it('another camera flight cancelling the fit clears the flag', () => {
+    const camera = fakeCamera();
+    const flying = { current: false };
+    createFitFlight(camera, flying)({ destination: 'a' });
+    camera.flight.cancel();
+    expect(flying.current).toBe(false);
   });
 });

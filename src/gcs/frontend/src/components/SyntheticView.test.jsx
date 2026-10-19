@@ -30,7 +30,10 @@ const { fake } = vi.hoisted(() => {
       this.options = options;
       this.destroyed = false;
       this.canvas = document.createElement('canvas');
-      this.creditContainer = document.createElement('div');
+      // As in Cesium: without a creditContainer option the credit container is
+      // the whole widget; the credit line is the CreditDisplay's container.
+      this.creditContainer = container;
+      this.creditDisplay = { container: document.createElement('div') };
       this.camera = { setView: vi.fn() };
       this.scene = {
         globe: {},
@@ -63,6 +66,13 @@ const { fake } = vi.hoisted(() => {
   return { fake };
 });
 vi.mock('cesium', () => fake.Cesium);
+vi.mock('./map/utils/observeHeight', () => ({
+  observeHeight: (el, onHeight) => {
+    fake.observed = el;
+    onHeight(24);
+    return () => { fake.observed = null; };
+  },
+}));
 vi.mock('./map/utils/fpvPose', () => ({
   createPoseMath: () => ({ transform: {}, vehicleHpr: () => ({ heading: 1, pitch: 2, roll: 3 }) }),
   noseOrientation: (hpr) => ({ heading: hpr.heading, pitch: hpr.roll, roll: -hpr.pitch }),
@@ -84,8 +94,9 @@ function makeStore(vehicles = { 1: linked, 2: linked }) {
 
 const pose = { position: { x: 1, y: 2, z: 3 }, orientation: { w: 1 } };
 
-function setup({ sysId = 1, ionTerrain = false, poseFn } = {}) {
+function setup({ sysId = 1, ionTerrain = false, poseFn, fresh = true, expanded = false } = {}) {
   const store = makeStore();
+  store.fresh = fresh;
   const storeRef = { current: store };
   const poseSourceRef = { current: { pose: poseFn ?? (() => pose) } };
   const onFail = vi.fn();
@@ -99,6 +110,7 @@ function setup({ sysId = 1, ionTerrain = false, poseFn } = {}) {
       ionTerrain={ionTerrain}
       onFail={onFail}
       onCreditsHeight={onCreditsHeight}
+      expanded={expanded}
       {...props}
     />
   );
@@ -145,34 +157,52 @@ describe('SyntheticView', () => {
     expect(onFail).not.toHaveBeenCalled();
   });
 
-  it('"Waiting for pose" until the window UAV has a valid pose; a held UAV keeps it', async () => {
-    const { getByText, queryByText, store } = setup();
+  const emit = (store) => act(() => store.listeners.forEach((fn) => fn()));
+  const pictureBox = (getByTestId) => getByTestId('synthetic-widget').parentElement;
+
+  it('"Waiting for pose": one text row with the picture collapsed until the UAV has a valid pose', async () => {
+    const { getByText, getByTestId, queryByText, store } = setup({ fresh: false });
     await widgetReady();
+    await act(async () => {});
     const [w] = fake.widgets;
     expect(getByText('vehicleWindow.waitingForPose UAV 1')).toBeInTheDocument();
-    store.fresh = false;
+    // Collapsed, not a 16:9 box over the map; the widget stays mounted.
+    expect(pictureBox(getByTestId).style.height).toBe('0px');
     frame(w);
+    emit(store);
     expect(w.camera.setView).not.toHaveBeenCalled();
     expect(getByText('vehicleWindow.waitingForPose UAV 1')).toBeInTheDocument();
+    // Readiness comes from the telemetry update: a collapsed canvas never renders.
     store.fresh = true;
+    emit(store);
+    expect(queryByText(/waitingForPose/)).toBeNull();
+    expect(pictureBox(getByTestId).style.height).not.toBe('0px');
     frame(w);
     expect(w.camera.setView).toHaveBeenCalledWith({ destination: pose.position, orientation: { heading: 1, pitch: 3, roll: -2 } });
-    expect(queryByText(/waitingForPose/)).toBeNull();
     expect(getByText('vehicleWindow.syntheticTag')).toBeInTheDocument();
+  });
+
+  it('maximized, waiting keeps the large area and covers it with the text', async () => {
+    const { getByText, getByTestId } = setup({ fresh: false, expanded: true });
+    await widgetReady();
+    expect(getByText('vehicleWindow.waitingForPose UAV 1')).toBeInTheDocument();
+    expect(pictureBox(getByTestId).style.height).not.toBe('0px');
   });
 
   it('a badge tap to another UAV covers the old view until the new UAV has a pose', async () => {
     const { getByText, queryByText, rerenderWith, store } = setup();
     await widgetReady();
     const [w] = fake.widgets;
-    frame(w);
+    await act(async () => {});
+    expect(queryByText(/waitingForPose/)).toBeNull();
     store.vehicles = { 1: linked, 2: { ...linked, link_ok: false } };
     rerenderWith({ sysId: 2, label: 'UAV 2' });
     expect(fake.widgets).toHaveLength(1);
     frame(w);
+    expect(w.camera.setView).toHaveBeenCalledTimes(0);
     expect(getByText('vehicleWindow.waitingForPose UAV 2')).toBeInTheDocument();
     store.vehicles = { 1: linked, 2: linked };
-    frame(w);
+    emit(store);
     expect(queryByText(/waitingForPose/)).toBeNull();
   });
 
@@ -232,5 +262,14 @@ describe('SyntheticView', () => {
     expect(w.scene.preRender.fns.size).toBe(0);
     expect(store.listeners.size).toBe(0);
     expect(onCreditsHeight).toHaveBeenLastCalledWith(0);
+  });
+
+  it('measures the credit line, not the whole widget', async () => {
+    const { onCreditsHeight } = setup();
+    await widgetReady();
+    await act(async () => {});
+    expect(fake.observed).toBe(fake.widgets[0].creditDisplay.container);
+    expect(fake.observed).not.toBe(fake.widgets[0].creditContainer);
+    expect(onCreditsHeight).toHaveBeenCalledWith(24);
   });
 });

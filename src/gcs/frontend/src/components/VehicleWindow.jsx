@@ -253,7 +253,11 @@ function Row({ children, tone }) {
   );
 }
 
-/** "Vehicle link lost" first, then "Camera video lost" with its reason and actions. */
+/**
+ * "Vehicle link lost" first, then "Camera video lost" with its reason and
+ * actions. Dismiss only for a withdrawn stream; a failed feed that is still
+ * advertised offers Reconnect video alone.
+ */
 function LossRows({ label, linkLost, videoLostReason, onReconnect, reconnectDisabled, onDismiss }) {
   const { t } = useTranslation();
   return (
@@ -271,9 +275,11 @@ function LossRows({ label, linkLost, videoLostReason, onReconnect, reconnectDisa
           <button type="button" style={buttonStyle} onClick={onReconnect} disabled={reconnectDisabled}>
             {t('vehicleWindow.reconnect')}
           </button>
-          <button type="button" style={buttonStyle} onClick={onDismiss}>
-            {t('vehicleWindow.dismiss')}
-          </button>
+          {onDismiss && (
+            <button type="button" style={buttonStyle} onClick={onDismiss}>
+              {t('vehicleWindow.dismiss')}
+            </button>
+          )}
         </Row>
       )}
     </>
@@ -317,7 +323,7 @@ function StateArea({ text }) {
 }
 
 /** One live camera session; remounted (new key) for every fresh connection. */
-function CameraFeed({ chrome, stream, label, linkLost, swapped, onReconnect, onDismiss }) {
+function CameraFeed({ chrome, stream, label, linkLost, swapped, onReconnect }) {
   const { t } = useTranslation();
   const feed = useVideoFeed(stream);
   const failed = feed.status === FEED_STATUS.FAILED;
@@ -325,7 +331,7 @@ function CameraFeed({ chrome, stream, label, linkLost, swapped, onReconnect, onD
   return (
     <>
       {chrome(feed.status)}
-      <LossRows label={label} linkLost={linkLost} videoLostReason={reason} onReconnect={onReconnect} onDismiss={onDismiss} />
+      <LossRows label={label} linkLost={linkLost} videoLostReason={reason} onReconnect={onReconnect} />
       {failed && swapped && <StateArea text={t('vehicleWindow.videoLost', { name: label })} />}
       {!failed && (
         <div style={{ ...pictureBox(swapped), position: 'relative', background: '#000' }}>
@@ -462,6 +468,7 @@ export default function VehicleWindow({
           onFail={win.syntheticFailed}
           onCreditsHeight={onSyntheticCreditsHeight}
           style={pictureBox(swapped)}
+          expanded={swapped}
         />
       </>
     );
@@ -475,7 +482,6 @@ export default function VehicleWindow({
         linkLost={linkLost}
         swapped={swapped}
         onReconnect={win.reconnect}
-        onDismiss={win.dismiss}
       />
     );
   } else if (shown.kind === 'lost') {

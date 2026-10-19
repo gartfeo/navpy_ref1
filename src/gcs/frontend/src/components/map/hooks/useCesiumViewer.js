@@ -101,6 +101,24 @@ export function restoreCamera(Cesium, viewer, saved) {
  * `persistSuspendedRef.current` true (FPV or RC owns the camera) skips camera
  * persistence, so a first-person pose is never stored as the startup view.
  */
+/**
+ * The reset-view fit flight. `flyingRef` stays true exactly while the newest
+ * fit flies: Camera.flyTo cancels the previous flight synchronously, and that
+ * flight's cancel callback must not clear the flag of the fit replacing it.
+ */
+export function createFitFlight(camera, flyingRef) {
+  let current = 0;
+  return (options) => {
+    current += 1;
+    const id = current;
+    const done = () => {
+      if (id === current) flyingRef.current = false;
+    };
+    flyingRef.current = true;
+    camera.flyTo({ ...options, duration: 1.0, complete: done, cancel: done });
+  };
+}
+
 export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { persistSuspendedRef, mapCameraRef } = {}) {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
@@ -277,11 +295,7 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
 
       // Expose reset-view function via ref
       if (resetViewRef) {
-        const flyFit = (options) => {
-          fitFlyingRef.current = true;
-          const done = () => { fitFlyingRef.current = false; };
-          viewer.camera.flyTo({ ...options, duration: 1.0, complete: done, cancel: done });
-        };
+        const flyFit = createFitFlight(viewer.camera, fitFlyingRef);
         resetViewRef.current = (polygon, vehicleList, plan, launchPoint, corridorPoints) => {
           const pts = collectFitPoints({ polygon, vehicleList, plan, launchPoint, corridorPoints });
           if (pts.length === 0) {

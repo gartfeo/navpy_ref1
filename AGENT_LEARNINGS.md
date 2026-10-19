@@ -700,6 +700,8 @@
   `rf"\bCONFIRMING"` through a Bash heredoc into Python source and got
   a 0x08 byte; the gate then never matched. Make regex edits with the Edit
   tool, and grep the file for control bytes after any scripted edit.
+  Repeated 2026-10-19 (GCS vehicle window): same cause, same fix; the
+  control-byte grep caught it.
 - **Read the done criterion's own words before choosing a gate window.** I
   opened the approval window at `CONFIRMING`; the criterion said "during
   that approval orbit", and NavPy offers a second dock about 120 ms before
@@ -849,3 +851,14 @@
   editing. To commit only my change, build it from `git show HEAD:<file>`, stage it with
   `git hash-object -w --path` and `git update-index --cacheinfo`, then apply the same edit to the
   working copy. With autocrlf=true the blob is LF and the working copy CRLF.
+
+## GCS vehicle window v10 (2026-10-19)
+- `git add a b missing-path` aborts the whole add on the missing path, and a
+  following `git commit` then records only what was staged before (here the
+  renames, no content). After a rename, stage the new path only, and check
+  `git show --stat HEAD` before reviewing a commit.
+- Vitest 4: under React StrictMode the second dynamic `import('cesium')` of a
+  `vi.mock`ed module got the real Cesium, even after warming the mock. Trace
+  the import (which module came back) before blaming the component; test the
+  effect's cancel guard directly (unmount before the import resolves) and
+  check that the test fails with the guard removed.

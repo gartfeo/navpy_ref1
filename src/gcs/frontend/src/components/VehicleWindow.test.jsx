@@ -240,7 +240,8 @@ describe('live state from frame progress', () => {
     expect(getByText('vehicleWindow.state.failed')).toBeInTheDocument();
     expect(getByText(/vehicleWindow.videoLost UAV 1 — vehicleWindow.reason.stalled 5/)).toBeInTheDocument();
     expect(getByText('vehicleWindow.reconnect')).toBeInTheDocument();
-    expect(getByText('vehicleWindow.dismiss')).toBeInTheDocument();
+    // Still advertised: Reconnect video only; Dismiss is for a withdrawn stream.
+    expect(queryByText('vehicleWindow.dismiss')).toBeNull();
     // A failed feed holds no session.
     expect(reader.closeCount).toBe(1);
   });
