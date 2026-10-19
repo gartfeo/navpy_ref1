@@ -205,7 +205,8 @@ plainly marked, a window never covers commands or warnings).
 
 | Control | v1 | Operator use |
 |---|---|---|
-| **Selector** at the top right ("Free" / one entry per UAV in the fleet; today's follow combo box) | yes (v11) | pick UAV 2: the window opens on UAV 2's camera; pick UAV 1 to come back; Free gives the map back. A UAV picked while the window is closed opens it normal on Camera; another UAV while it is open moves the window to it and keeps the source and the size; Free closes it. The selector never moves the map and never changes RC |
+| **Selector** at the top right (today's follow combo box, now a button that opens the vehicle list below) | yes (v11) | pick UAV 2: the window opens on UAV 2's camera; pick UAV 1 to come back; Free gives the map back. A UAV picked while the window is closed opens it normal on Camera; another UAV while it is open moves the window to it and keeps the source and the size; Free closes it. The selector never moves the map and never changes RC |
+| **Vehicle list** opened by the selector (owner, 2026-10-19) | yes (v11) | before picking, the operator sees which UAVs have a camera and which have lost their link. A panel under the selector at the top right: a "Free" row, then one row per UAV in the fleet: colour dot, "UAV n", and a text state from telemetry and stream announcements: "Camera", "No camera" or "Vehicle link lost" (link first when both). Status only: no picture, no reader, no synthetic view (owner, 2026-10-19: live tiles would play several streams at once, against the one-stream rule, and cost radio bandwidth per UAV). The picked row shows a check mark and "Viewing", never colour alone. A row tap picks, as in the selector row above, and closes the list; Escape, a tap outside or the selector again closes it with no change |
 | UAV badges in the window header | removed (v11) | they repeated the selector (open question 2) |
 | **View camera** on each task confirm card | yes | a card arrives: tap, compare the live scene with the still, then Approve/Deny on the card. It sets the selector to that UAV and the source to Camera (opening the window if it is closed), so the operator does not watch the wrong UAV; it does not move the map and does not prove the camera still shows the same dock (it may have moved since the still). Neutral button beside the still, away from Approve/Deny; "Viewing" when the window already shows that UAV's camera; on tap the old picture clears and "connecting · UAV n" shows. The countdown keeps running (the card says so); the tap never approves, denies or pauses. Pending cards only; shown only when that UAV has a stream and RC is off |
 | **Camera / Synthetic** switch in the window | yes | SITL demo or a dead feed: a vehicle view without RC, for the window's UAV. Synthetic only by a tap here: never automatic, never saved |
@@ -246,7 +247,13 @@ nor the small swapped map can cover them. The top-right bar keeps its pre-PR
 only way to open the window, so it gets the 44 px height on a touch device
 (open question 9). The bar already wraps on a narrow pane
 (`MonitorMapOverlay.jsx:64-78`) and reports its bottom edge, so the window
-still starts below it.
+still starts below it. The vehicle list drops from the selector's bottom edge,
+right-aligned to it, above the map and the window (normal or maximized); its
+rows are 44 px on touch, its width at most the pane width minus 24 px, and
+past the pane height it scrolls. It is a disclosure button with a list of
+options (WAI-ARIA listbox pattern): arrow keys move, Enter picks, Escape
+closes and returns focus to the selector, and each row's accessible name
+holds the UAV and its state.
 
 #### Vehicle window
 
@@ -519,7 +526,10 @@ chases, and Synthetic maximized is the large vehicle view.
   - `useMapSwap` cancels any camera flight on maximize (not only its own
     fits), and the sidebar's fly-to swaps back before it flies; Close moves
     focus to the selector.
-  - The selector's accessible name "Camera follow" (`locales/en.json:404`,
+  - The native `<select>` (`MonitorMapOverlay.jsx:112-136`) becomes a button
+    plus the vehicle list, a new focused component fed by `useVideoFleet`
+    entries (`label`, `streams`, `linkOk`, as `VehicleWindow.jsx:382` reads
+    them); its accessible name "Camera follow" (`locales/en.json:404`,
     `hy.json:404`) and its height change (open questions 8 and 9).
   - `src/gcs/AGENTS.md` ("the window shows whenever the fleet has a UAV")
     is updated.
@@ -595,8 +605,14 @@ failure leaves video off and is logged; the rest of the stack still runs.
   manual control and outside the monitor view; the picked UAV removed from the
   fleet sets Free, closes the window and shows the notice, while a lost link
   keeps it open with "Vehicle link lost"; a UAV removed during RC and then
-  rejoining leaves the window closed; keyboard: the selector opens and moves
-  the window, Close and a removal with focus inside move focus to the
+  rejoining leaves the window closed; the vehicle list: a Free row and one
+  row per fleet UAV with its colour, label and text state ("Camera", "No
+  camera", "Vehicle link lost", link first when both), updating while open,
+  no video reader and no Cesium widget created by opening it, the picked row
+  marked with a check and "Viewing", a row tap picks and closes, Escape, a tap
+  outside and the selector close it with no change, a UAV leaving the fleet
+  while open drops its row; keyboard: the selector opens the list, arrow keys
+  and Enter pick and move the window, Escape returns focus to the selector; Close and a removal with focus inside move focus to the
   selector, the selector's accessible name is "Vehicle view"; a sidebar
   coordinate click while swapped swaps back, then flies, and maximizing during
   a coordinate flight cancels it without a rerun; the selector and View camera never
@@ -650,7 +666,7 @@ failure leaves video off and is logged; the rest of the stack still runs.
   action once, the tap calls neither approve nor deny. LIVE dot only while
   frames arrive, "no frames for N s" after; "Camera video lost" and "Vehicle
   link lost" shown separately, both when both. The top-right bar has no FPV
-  button; the selector lists Free and every UAV in the fleet. `npm test`,
+  button. `npm test`,
   `npm run build`.
 - Layout: at desktop size and a 375 px wide map pane (a 695 x 812 touch
   viewport: the 320 px sidebar does not shrink, `styles.js:92`), with 3 UAVs, a
@@ -717,7 +733,8 @@ The design above is written with each recommended answer.
    UAV it does not list. A lost link is not a removal and keeps the window
    open with "Vehicle link lost". Alternative: keep the window open on "Vehicle
    link lost" with the selector showing Free, which makes the two disagree.
-8. **Selector wording.** Its accessible name is "Camera follow"
+8. **Selector wording.** (The list itself is decided: status rows, owner
+   2026-10-19.) Its accessible name is "Camera follow"
    (`locales/en.json:404`), wrong once the map no longer chases. Recommended:
    rename it "Vehicle view" (Armenian string too); keep the entry "Free"
    (`en.json:405`), the owner's own word for "no vehicle shown".
@@ -756,5 +773,7 @@ The design above is written with each recommended answer.
    picks the UAV. The vehicle window is closed by default; picking a UAV in
    the top-right selector opens it on that UAV, Camera first; Free closes it;
    Synthetic then Maximize gives the large synthetic view; the badges go.
-   Reason: the follow selector and the badges duplicated each other. Pending:
+   Reason: the follow selector and the badges duplicated each other. Same
+   day: the selector opens a status-only vehicle list at the top right
+   (no live tiles: one stream at a time, no extra radio load). Pending:
    approval of v11 and the open questions above.
