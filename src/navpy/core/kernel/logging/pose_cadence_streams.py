@@ -24,7 +24,7 @@ Event streams, keyed by ``(sys_id, stream)``:
   iteration's residual. ``detector_pose`` rows skip polls that read nothing.
 - ``observation`` -- one row per detection delivered to final approach
   (``runtime.nav``): the frame's source timestamp, the source clock's "now"
-  read through the detection's own provider, and the delivery ``outcome``
+  read through the detection's own provider, and the hand-off ``outcome``
   (fresh / duplicate / regression / invalid_*) and the frame's source
   ``epoch`` (the final-approach source generation, empty without a frame).
 - ``worker`` -- one row per final-approach command actually SENT

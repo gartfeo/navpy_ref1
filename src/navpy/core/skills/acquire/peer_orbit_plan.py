@@ -1,4 +1,4 @@
-"""Orbit sizing for peer-assigned or default delivery hub approach planning."""
+"""Orbit sizing for peer-assigned or mission-marker approach planning."""
 
 from __future__ import annotations
 

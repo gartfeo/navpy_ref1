@@ -1,4 +1,4 @@
-"""Tracking-loop, visual recovery, and gimbal measurement delivery."""
+"""Tracking-loop, visual recovery, and gimbal measurement hand-off."""
 
 from __future__ import annotations
 

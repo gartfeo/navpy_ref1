@@ -16,6 +16,15 @@ export const LAUNCH_POINT_ICON = makeLaunchIcon('#ff9800', 24);
 
 export const CAMERA_KEY = 'gcs-camera';
 
+/**
+ * Render-loop cap of every Cesium view (the main map and the vehicle window's
+ * synthetic view): enough for 5 Hz telemetry with lerp interpolation.
+ */
+export const MAP_TARGET_FRAME_RATE = 30;
+
+/** Cesium ion asset of the world terrain the main map upgrades to; the synthetic view uses its own instance. */
+export const ION_TERRAIN_ASSET_ID = 1;
+
 // Generate colored assembly point icon per set — X-cross with circle
 export function makeLaunchIcon(color, size) {
   const c = size / 2;

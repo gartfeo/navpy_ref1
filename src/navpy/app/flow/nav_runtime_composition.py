@@ -13,10 +13,6 @@ from navpy.core.approach.nav_exit_cleanup import (
     NavExitCleanup,
     NavExitCleanupPorts,
 )
-from navpy.core.flow.nav_oneshot_completion import (
-    OneShotCompletion,
-    OneShotCompletionPorts,
-)
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.core.skills.acquire.peer_geo_tick import PeerGeoTick
 from navpy.core.flow.nav_application import NavApplication, NavShutdown
@@ -31,6 +27,8 @@ from navpy.app.flow.nav_composition_types import (
     VehicleApproachOwnership,
 )
 from navpy.core.flow.nav_state import NavState
+from navpy.app.flow.nav_delivery_composition import compose_sortie_finish
+from navpy.products.delivery.flow import restart_search
 from navpy.core.flow.nav_task_availability import is_approaching
 from navpy.core.flow.navigation_loop import (
     DetectionSensor,
@@ -104,17 +102,10 @@ def compose_nav_application(
             logger,
         ),
         NavSnapReporter(navigation.algorithm_info, logger),
-        OneShotCompletion(
-            OneShotCompletionPorts(
-                is_simulated_autopilot=vehicle.is_simulated_autopilot,
-                disarm=vehicle.disarm,
-                is_stopping=(
-                    lambda: loop is not None and loop.is_stopping()
-                ),
-            ),
-            confirmation.reset.reset,
-            logger,
-        ),
+        compose_sortie_finish(
+            vehicle, confirmation.reset.reset, logger,
+            lambda: loop is not None and loop.is_stopping(),
+        ).run,
         state.navigation_task,
         lambda: args.is_oneshot,
         logger=logger,
@@ -122,7 +113,7 @@ def compose_nav_application(
     transitions = NavigationTransitionHandler(
         TransitionPorts(
             decision_clock_s=lambda: state.clock.decision_s(),
-            restart_auto_mission=decision.recovery.restart_auto_mission,
+            return_to_search=lambda: restart_search(vehicle),
             enter_recovery=decision.recovery.enter,
             start_task_actor=observation.network.start_task_actor,
             is_oneshot=lambda: args.is_oneshot,
@@ -136,7 +127,7 @@ def compose_nav_application(
     detect_action = DetectAction(
         state.detections,
         navigation_workflows.selector,
-        navigation_workflows.navigation_task_action,
+        navigation_workflows.work_source.handle_new_poi,
         navigation_workflows.peer_notifier,
         poi.confirmation_manager,
         PeerGeoTick(

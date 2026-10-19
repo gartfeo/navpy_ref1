@@ -21,7 +21,7 @@ from navpy.core.skills.confirm.poi_rejection_exit import (
     PoiRejectionExit,
     PoiRejectionPorts,
 )
-from navpy.core.flow.poi_status_decision import (
+from navpy.products.delivery.poi_status_decision import (
     PoiSelectionPorts,
     ConfirmationStatusDecision,
 )
@@ -81,8 +81,9 @@ def _compose_poi_status(
             state.phase,
             observation.timing,
             observation.retry,
-            reset.resume_auto,
         ),
         peer_task,
+        reset.resume_auto,
+        logger,
     )
     return poi_status

@@ -34,6 +34,19 @@ def test_the_sitl_environment_holds_only_serial_step_settings():
     assert "NAVPY_STEP_HELPER_JITTER_SEED=9" in lockstep_wsl.sitl_environment(5, 1, 9)
 
 
+def test_the_sitl_environment_carries_a_noise_seed_only_when_given():
+    """Step 2: ``NAVPY_STEP_RNG_SEED`` is 1..2**32-1; the firmware refuses
+    anything else, so the host never sends it."""
+    assert "NAVPY_STEP_RNG_SEED" not in lockstep_wsl.sitl_environment(5, 1, 0)
+    assert "NAVPY_STEP_RNG_SEED" not in lockstep_wsl.sitl_environment(5, 1, 0, None)
+    env = shlex.split(lockstep_wsl.sitl_environment(5, 1, 0, 2**32 - 1))
+    assert "NAVPY_STEP_RNG_SEED=4294967295" in env and "NAVPY_STEP_RNG_SEED=1" in \
+        shlex.split(lockstep_wsl.sitl_environment(5, 1, 0, 1))
+    for bad in (0, -1, 2**32, True, 1.0, "7"):
+        with pytest.raises(ValueError, match="NAVPY_STEP_RNG_SEED"):
+            lockstep_wsl.sitl_environment(5, 1, 0, bad)
+
+
 def test_lockstep_defaults_turn_off_the_logger_and_keep_terrain_on():
     """Terrain is on as in the wall eval (todo 46: with it off the SITL ground was
     flat at home altitude, 3.46 m above the dock); SITL reads tiles on its main

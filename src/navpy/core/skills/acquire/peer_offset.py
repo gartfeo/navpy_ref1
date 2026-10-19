@@ -1,4 +1,4 @@
-"""Compute approach points for peer-assigned or default delivery hub navigation based on camera geometry.
+"""Compute approach points for a peer-assigned or mission-marker position based on camera geometry.
 
 Two strategies (see ``approach_strategy.py``):
 - OFFSET: offset point behind POI, bank-corrected for fixed cameras.
@@ -75,7 +75,7 @@ def calc_peer_approach_offset(
     Parameters
     ----------
     poi : Location
-        Peer-assigned or default delivery hub position.
+        Peer-assigned or mission-marker position.
     drone_loc : Location
         Current drone position (used for approach bearing and altitude).
     mounts : list[CameraMount]

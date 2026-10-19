@@ -35,7 +35,7 @@ def test_lockstep_runs_the_certified_scenario_up_to_the_slot_claim(tmp_path, mon
     """Step 10h: the certified fleet is no longer refused; its inputs name three SITLs."""
     import json
 
-    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda: "X 1\n")
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda *_a: "X 1\n")
     with pytest.raises(AssertionError, match="must not claim"):
         execute_lockstep_run(tmp_path / "run", CERTIFIED, OPTIONS)
     inputs = json.loads((tmp_path / "run" / "input_manifest.json").read_text(encoding="utf-8"))
@@ -87,17 +87,46 @@ def test_cli_lockstep_reports_the_run_relative_log_dir(tmp_path, monkeypatch):
 
 def test_lockstep_records_the_sim_profile_realization_in_the_input_manifest(tmp_path, monkeypatch,
                                                                            no_claim):
-    """Step 1 of deterministic_dev_sim.md: the default profile and its draws are a run input."""
+    """Steps 1-2 of deterministic_dev_sim.md: the default profile's draws are a run input;
+    its SITL parameters go into the merged defaults and each SITL gets its noise seed."""
     import json
 
-    from navpy.sim.lockstep.sim_profile import load_profile
+    from navpy.sim.lockstep.sim_profile import load_profile, realize
+    from navpy.sim.lockstep.sitl_models import sitl_parameters, sitl_rng_seeds
 
-    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda: "X 1\n")
+    merged = []
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults",
+                        lambda parameters: merged.append(parameters) or "X 1\n")
     with pytest.raises(AssertionError, match="must not claim"):
         execute_lockstep_run(tmp_path / "run", SLICE, OPTIONS)
     inputs = json.loads((tmp_path / "run" / "input_manifest.json").read_text(encoding="utf-8"))
-    assert inputs["run_options"]["sim_profile"] == {
-        "profile": "hw", "profile_sha256": load_profile("hw").sha256, "models": {}}
+    realization = realize(load_profile("hw"), OPTIONS.seed)
+    assert inputs["run_options"]["sim_profile"] == realization.to_json()
+    assert merged == [sitl_parameters(realization)] and "SIM_GPS_NOISE" in merged[0]
+    assert inputs["sitl"]["profile_parameters"] == merged[0]
+    assert inputs["sitl"]["rng_seeds"] == {"1": sitl_rng_seeds(realization, (1,))[1]}
+
+
+def test_lockstep_launches_each_sitl_with_the_input_manifests_rng_seed(tmp_path, monkeypatch):
+    """Step 2: the fleet boots with the defaults and per-sysid RNG seeds the manifest records."""
+    import json
+
+    launches = []
+
+    def fleet(_run_dir, _slot, _owner, launch):
+        launches.append(launch)
+        raise AssertionError("launched")
+
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda *_a: "X 1\n")
+    monkeypatch.setattr(lockstep_eval.lockstep, "claim", lambda **_k: (40, "owner"))
+    monkeypatch.setattr(lockstep_eval, "WslFleet", fleet)
+    with pytest.raises(AssertionError, match="launched"):
+        execute_lockstep_run(tmp_path / "run", CERTIFIED, OPTIONS)
+    inputs = json.loads((tmp_path / "run" / "input_manifest.json").read_text(encoding="utf-8"))
+    (launch,) = launches
+    assert launch.defaults == "X 1\n"
+    assert len(inputs["sitl"]["rng_seeds"]) == 3
+    assert {str(sysid): seed for sysid, seed in launch.rng_seeds.items()} == inputs["sitl"]["rng_seeds"]
 
 
 def test_lockstep_refuses_an_unknown_sim_profile_before_the_run_directory(tmp_path, no_claim):
@@ -217,6 +246,21 @@ def test_the_manifest_hashes_the_merged_defaults_the_sitl_consumes(monkeypatch):
     assert lockstep_sitl_inputs(first, tiles)["defaults_parm_sha256"] != \
         lockstep_sitl_inputs(second, tiles)["defaults_parm_sha256"]
     assert lockstep_sitl_inputs(first, tiles) == lockstep_sitl_inputs(first, tiles)
+
+
+def test_merged_defaults_take_the_profile_parameters_but_never_replace_a_lockstep_default(monkeypatch):
+    """Step 2: the profile's wind and noise parameters join the defaults the SITL
+    boots with; one that would replace a lockstep default is refused."""
+    from scripts import lockstep_wsl
+
+    monkeypatch.setattr(lockstep_wsl, "wsl", lambda script, **_k: "/home/u" if "HOME" in script
+                        else "SIM_WIND_SPD 0\nARSPD_FBW_MIN 9\n")
+    merged = lockstep_wsl.merged_defaults({"SIM_WIND_SPD": 6.5, "SIM_WIND_DIR": 270.0})
+    assert "SIM_WIND_SPD 6.5" in merged and "SIM_WIND_DIR 270" in merged
+    assert merged.count("SIM_WIND_SPD") == 1 and "ARSPD_FBW_MIN 9" in merged
+    assert "SIM_WIND_DIR" not in lockstep_wsl.merged_defaults()
+    with pytest.raises(ValueError, match="LOG_BACKEND_TYPE"):
+        lockstep_wsl.merged_defaults({"LOG_BACKEND_TYPE": 1.0})
 
 
 def test_the_manifest_hashes_the_terrain_tiles_the_sitl_root_gets():

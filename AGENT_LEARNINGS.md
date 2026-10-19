@@ -335,7 +335,9 @@
   had uncommitted edits holding the other tensor (0.239/0.534/0.766 slug ft2, zero products, the
   one every navpy model uses), and both versions' READMEs say "from CAD". Run git status and read
   the working-tree file as well as git log --all and merge-base; two commits with one parent are
-  alternatives, not a replacement. Only the CAD tool's own output settles which numbers are real.
+  alternatives, not a replacement. Only the CAD tool's own output settles which numbers are real:
+  the Fusion v96 output the owner gave later matched the working-tree file's moments of inertia
+  (not its zero products), not e5830898fe's.
 - IMU vibration lines that stay at one frequency from cruise to full throttle are unlikely to be
   motor rotation, and aliasing allows several rpm per line. Do not read rpm from the IMU without a line
   that moves with power; ask for ESC telemetry or an rpm sensor instead.
@@ -349,10 +351,29 @@
   the voltage direction and the samples next to the zeros (22.4 A = a quarter of 89.4 A here).
 - I wrote that a 10 % light model has a (T-D)/m 1.11 times too large. But every force term the
   model had fitted to logged accelerations (lift, high-angle drag, the motor law) assumed the same
-  7.5 kg, so force and mass cancel there. Before scaling a model for a mass error, trace which
+  7.5 kg, so force and mass cancel there (for the motor law only in the mass-times-acceleration part
+  of its target thrust). Before scaling a model for a mass error, trace which
   terms were fitted from logged accelerations at the assumed mass and which came from elsewhere
   (electrical power, CFD). The first kind cancels only where the fit matches and only if every
-  fitted flight had that mass; the second kind carries the error directly.
+  fitted flight had that mass; the second kind carries the error directly. (The 10 % premise
+  itself was wrong; see the next item.)
+- I built a mass correction (scale every log-fitted force by 1.113) on the owner's 8.351 kg,
+  although both January 2026 commits and the checkout's model had 7.46 kg. The 8.351 kg came
+  from later Fusion modifications that are not the flown aircraft; the flown aircraft is
+  7.460 kg (Fusion v96). When an owner figure contradicts the files, ask which revision and date it comes
+  from, and whether that is what flew, before building on it.
+- I read a lower normal-force coefficient, computed at an assumed 7.5 kg, as a lighter airframe.
+  CN = m g n / (q S) with the assumed m, so if the true coefficient is the same, a lower value
+  means the true mass is higher (a different CG, control travel or aerodynamics could also cause
+  it). Write the formula out before naming the direction of a mass effect.
+- Fusion 360 lists products of inertia as tensor elements (Ixz = -integral(x z dm)); the
+  parallel-axis test shows it (origin value minus centre-of-mass value = -m x z). JSBSim's <ixz>
+  is also -integral(x z dm), but in its structural frame (x aft, y right, z up), so the sign of a
+  copied CAD product depends on the CAD axes. Run the parallel-axis test and confirm the axes
+  before copying a product of inertia.
+- I recorded the owner's "180 %" bungee stretch as "1.8 times the rest length"; the owner's own
+  words for it were not kept, and a percent stretch can also mean elongation (2.8 times). Keep the
+  owner's exact words and mark any reading added to them.
 - I described the log-30 event's 12-14 g normal load as part of the jolt. It was the flight's 10th
   commanded pull-out, and the 9 earlier ones peaked at 11.2-12.5 g; the abnormal signs were the
   x deceleration, the vibration and the current. Before calling a reading abnormal, compare it
@@ -700,6 +721,8 @@
   `rf"\bCONFIRMING"` through a Bash heredoc into Python source and got
   a 0x08 byte; the gate then never matched. Make regex edits with the Edit
   tool, and grep the file for control bytes after any scripted edit.
+  Repeated 2026-10-19 (GCS vehicle window): same cause, same fix; the
+  control-byte grep caught it.
 - **Read the done criterion's own words before choosing a gate window.** I
   opened the approval window at `CONFIRMING`; the criterion said "during
   that approval orbit", and NavPy offers a second dock about 120 ms before
@@ -812,6 +835,17 @@
   ids are 1..count), or the consumer silently discards it.
 - Untracked `.codex/agents/janitor.toml` / `live-tester.toml` in a worktree fail
   `test_gen_codex_agents.py` as STALE; check `git status` before blaming a change.
+- v9 (FPV in the panel): I started coding a styling fix plus a wording change before the owner
+  had agreed the layout, and the owner stopped it ("before agree with me design and show"). For
+  UI feedback, show a side-by-side mock of the options first, then code the chosen one.
+- Cesium 1.138 ignores the Viewer option `imageryProvider` (removed in 1.107); use `baseLayer`.
+  A throw in a `scene.preRender` listener stops that widget's render loop with no `renderError`
+  (`Scene.js:4440` raises it outside the error wrapper), so catch inside the listener.
+- Two Cesium widgets cannot share attribution: a `Credit` owns one DOM element that each
+  `CreditDisplay` re-parents, and Bing metadata (with its credits) is cached across provider
+  instances, so a second view needs its own non-Bing providers (v10 chose terrain only).
+- Mocks for the owner: the browser pane cannot screenshot local files; render with headless
+  Edge (`msedge --headless=new --screenshot=... file:///...`) and send the PNG.
 
 ## Missed dock ends like DOCKED (todo 74, 2026-10-18)
 - Making every FAILED end commands broke runtime tests that send a frame after a NAV_FAIL; those tests
@@ -891,3 +925,100 @@
   `\n` escapes with the Write tool.
 - `tests/gcs/test_vision_profiles_route.py::test_known_gimbal_contract_metadata` fails on eee4cc3 without this change
   (expects gimbal_seq XYZ; the siyi_zr10 profile has ZYX).
+
+## Deterministic dev sim step 2: seeded SITL noise and wind (2026-10-18)
+- Every firmware commit moves the lockstep digest, even with every model off: the boot line
+  `Init ArduPlane V4.6.3 (<git hash>)` is frame 1's serial0 egress. Prove a firmware patch inert
+  by comparing journals record by record with a run on main (old firmware): only frame 1 may differ.
+- A hook blocks the Edit tool on `\\wsl.localhost\...` paths. Copy the file out with `wsl cp`,
+  edit the copy, copy it back, `chmod 644`, and check `git diff` in WSL (no CR, no mode change).
+- In Git Bash, `wsl.exe -e bash ~/x.sh` expands `~` to the Windows home. Use
+  `wsl.exe -e bash -c 'bash ~/x.sh'`.
+- Two mutations survived because the tests could not tell them apart: an off draw carried no
+  values, and the tap test fed the same bytes on both ports. Give each input distinct values.
+- A new realism model can fail the mission on some seeds; that is a product finding, not a model
+  bug. Separate the causes with seeds that turn one model off (here wind off, light wind, strong
+  wind) before blaming either side. In the SITL, turbulence and noise share glibc `rand()`, so a
+  wind A/B at one seed also changes the noise (todo 81).
+- Independent Python streams do not make models independent inside the firmware. Before claiming
+  that, check which RNG each firmware consumer draws from.
+- When a step moves a baseline or makes a "today" claim false, grep the whole design doc for the
+  old value and the old claim. Step 2 left section 1 and section 2's baseline stale.
+- Quote a SITL wind as it applies: `SIM_WIND_SPD` is the speed from `SIM_WIND_T_ALT` (60 m) up, and
+  the default square-root law cuts it near the ground. Turbulence is not scaled by height.
+- A hook blocks Edit and Write on another worktree's files. To prepare a fix while a long check
+  runs from your own worktree, draft in the scratchpad and copy the files in after the check.
+
+## Moving a product out of core in reviewed steps (delivery move c2-c9, 2026-10-19)
+- Never edit a worktree while its pytest or lockstep gate runs: the suite reads the files mid-run. Gate in
+  one worktree, build the next commit in a side worktree, and fast-forward the gate worktree between commits.
+- Long edit scripts sent inline through the Bash tool failed to parse ("unexpected EOF while looking for
+  matching `''"), even in a quoted heredoc. Write them to files with the Write tool and run them; a small helper
+  that keeps CRLF and fails on a missing or repeated match made every edit checkable.
+- Before adding a test helper, grep the file for the name: a new `_offered` replaced an existing one and broke
+  two unrelated tests.
+- A word guard must check each whole token in any case before splitting camelCase, again after each `_` or `-`
+  joiner (even a leading or trailing one), and count adjacent parts that join into a refused word (pick_up,
+  PickUpLatch). Three review rounds each found one of these gaps. Pin each allow row to an exact count.
+- When a plugin hands data to a product it may not import, pass a neutral core record and pin the shared wire
+  constant with a test on both sides.
+- Check every doc claim against the code before committing, even a closing note: a rewritten todo said `NavArgs`
+  reads params only at start-up, which the same design doc contradicts (it re-reads at each task reset). An
+  adversarial docs check caught it, plus stale line counts and cites in docs the move made stale.
+- Delivery demo prep (2026-10-19): a stack launched with the frontend from a fresh worktree "came up" with a dead
+  `npm run dev` (no `node_modules`, nothing logged); `delivery_demo.py launch` now waits for the frontend to answer.
+- For a `source_command_stale` failure, read the source-time CSVs, not the navigation log (its times are cached
+  and late): the lineage CSV gives the last frame NAV consumed, and the detector-poll CSV's `publish_ms` and
+  `work_cpu_ms` show whether the poll was waiting (CPU near 0) or computing. Two runs on one day showed both.
+
+## GCS vehicle window v10 (2026-10-19)
+- `git add a b missing-path` aborts the whole add on the missing path, and a
+  following `git commit` then records only what was staged before (here the
+  renames, no content). After a rename, stage the new path only, and check
+  `git show --stat HEAD` before reviewing a commit.
+- Vitest 4: under React StrictMode the second dynamic `import('cesium')` of a
+  `vi.mock`ed module got the real Cesium, even after warming the mock. Trace
+  the import (which module came back) before blaming the component; test the
+  effect's cancel guard directly (unmount before the import resolves) and
+  check that the test fails with the guard removed.
+
+## GCS video design v11 (2026-10-19)
+- I wrote "nothing moves the small map" after removing the chase; Codex found the sidebar
+  coordinate fly-to (`flyToRef` -> `camera.flyTo`). Before claiming nothing moves the Cesium
+  camera, grep every caller of `camera.flyTo`, `setView`, `flyToRef` and `resetViewRef`.
+- The design doc is CRLF in the worktree; the Edit tool and a Python splice left mixed line
+  endings. After scripted edits, compare the CRLF and LF counts and normalise
+  before committing.
+- A conflict-resolving script failed and the chained git add and commit still
+  ran, committing the markers. Chain them with && (or check the script's exit)
+  and grep for markers before git add.
+
+## Link model (dev sim step 3, 2026-10-19)
+- A mutation can survive because a second mechanism enforces the same rule: removing the jitter clamp
+  left serial bytes in order, since the delay line releases only its head. Mutate both mechanisms
+  together to prove the test, and say which one each test covers.
+- An order assertion that compares a list with itself sorted proves nothing when the input is already
+  sorted. Pick parameters where the broken code would reorder, and confirm the test fails on it.
+- Measure the traffic before applying a designed rate: the SITL sends 12.2 kB/s to NavPy, more than
+  the 11.5 kB/s line the design assumed, so a rate on that direction would only build backlog.
+- The bundled Codex binary route (see "Approach-window cadence diagnostics") was still needed: the
+  PATH CLI failed its sandbox setup again.
+- A "shared stream" mutation must share one RNG object. Giving every link the same key only gives each
+  link its own copy of one sequence, so the isolation test survived it. Check that the mutant really
+  shares state before trusting a kill or a survival.
+- `sed -i` in Git Bash wrote LF over CRLF docs twice; re-add CRLF (`sed -i 's/$/\r/'`) or use the Edit
+  tool on CRLF files.
+- Never pass `-x` to the full pytest here: the known board_detector failures stop it early.
+- An eval error late in a report can be a consequence: "demo_mission_plan.json missing" came from the
+  operator failing at setup, not from the relative `--run-dir` it looked like. Read the first error.
+
+## Todo 31 trace: detector frames late in NAV (2026-10-19)
+- A wall eval's WSL SITL root is named from the run dir (`~/navpy-eval-roots/<name>-<hash>`), so a retry with the
+  same run name fails at once with `WSL input step failed (1):` and empty stderr (`test ! -e` under `set -e`).
+  Use a new run name for every attempt; remove your own roots afterwards.
+- Under 16 busy processes the stack launch can time out at 60 s. Start load only after NavPy is up.
+- To tell OS starvation from in-process contention, sample per-thread `QueryThreadCycleTime` from outside (TSC-based,
+  not 15.6 ms quantized) and name threads with `py-spy dump --nonblocking`: if the process still gets its quiet CPU
+  share while one thread's work stretches, the wait is inside the process (GIL or a lock), not the OS.
+- Python `gc` gen-2 passes (30-70 ms here) look like a pure-CPU spike in whichever thread triggers them and like a
+  wait in every other thread; log `gc.callbacks` before blaming a stage.

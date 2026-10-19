@@ -10,7 +10,6 @@ from typing import Callable, Optional
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
 from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
-from navpy.core.flow.mission_catalog import MissionCatalog
 from navpy.core.flow.nav_constants import PEER_APPROACH_DIST
 from navpy.core.flow.nav_state import (
     ConfirmGateState,
@@ -62,7 +61,7 @@ class NavigationTaskStateReset:
         geo_hold: GeoHoldState,
         confirm: ConfirmGateState,
         detections: DetectionSnapshot,
-        mission: MissionCatalog,
+        clear_flow_task: Callable[[], None],
         retry: PoiRetryState,
         pass_tracker: LegacyPassTracker,
     ) -> None:
@@ -71,7 +70,7 @@ class NavigationTaskStateReset:
         self._geo_hold = geo_hold
         self._confirm = confirm
         self._detections = detections
-        self._mission = mission
+        self._clear_flow_task = clear_flow_task
         self._retry = retry
         self._pass_tracker = pass_tracker
 
@@ -98,7 +97,7 @@ class NavigationTaskStateReset:
         _run_cleanup_steps(
             "navigation task state reset failed",
             (
-                ("mission", self._mission.clear_navigation_task),
+                ("mission", self._clear_flow_task),
                 ("detections", self._detections.clear),
                 ("retry", self._retry.full_reset),
                 ("pass tracker", self._pass_tracker.reset),
@@ -209,6 +208,9 @@ class AutoMissionResumePorts:
     close_final_approach_source: Callable[[], None]
     pause_navigation: Callable[[], None]
     clear_selected_poi: Callable[[], None]
+    clear_flow_task: Callable[[], None]
+    # Which item AUTO resumes at, given the vehicle's next item.
+    resume_waypoint: Callable[[Optional[int]], Optional[int]]
 
 
 class AutoMissionResume:
@@ -223,7 +225,6 @@ class AutoMissionResume:
         geo_hold: GeoHoldState,
         confirm: ConfirmGateState,
         detections: DetectionSnapshot,
-        mission: MissionCatalog,
         pass_tracker: LegacyPassTracker,
         loiter_radius: LoiterRadiusLease,
     ) -> None:
@@ -234,15 +235,12 @@ class AutoMissionResume:
         self._geo_hold = geo_hold
         self._confirm = confirm
         self._detections = detections
-        self._mission = mission
         self._pass_tracker = pass_tracker
         self._loiter_radius = loiter_radius
 
     def run(self) -> None:
         self._ports.close_final_approach_source()
-        resume_waypoint = self._vehicle.mission_items_next
-        if resume_waypoint is not None:
-            resume_waypoint = max(resume_waypoint - 1, 0)
+        resume_waypoint = self._ports.resume_waypoint(self._vehicle.mission_items_next)
         self._ports.pause_navigation()
         self._geo_pointing.stop_geo_tracking()
         self._loiter_radius.restore()
@@ -257,7 +255,7 @@ class AutoMissionResume:
         self._navigation_task.peer_poi_location = None
         self._navigation_task.navigation_poi_location = None
         self._confirm.hold_active = False
-        self._mission.clear_navigation_task()
+        self._ports.clear_flow_task()
         self._pass_tracker.reset()
         self._detections.clear()
         self._geo_hold.last_own_poi_geo = None

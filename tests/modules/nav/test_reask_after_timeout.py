@@ -372,7 +372,7 @@ class HandleNewPoiReaskTests(unittest.TestCase):
             ConfirmationStatus.TIMEOUT_REJECTED,
         )
 
-        controller.navigation_task_action.handle_new_poi(poi)
+        controller.work_source.handle_new_poi(poi)
 
         detector.start_tracking.assert_not_called()
         self.assertIsNone(controller.confirmation_manager.active_poi)
@@ -382,7 +382,7 @@ class HandleNewPoiReaskTests(unittest.TestCase):
         )
         self.assertNotIn(19, controller.retry_state.reask_attempts)
 
-        controller.navigation_task_action.handle_new_poi(poi)
+        controller.work_source.handle_new_poi(poi)
 
         detector.start_tracking.assert_called_once_with(19)
         self.assertIs(controller.confirmation_manager.active_poi, poi)
@@ -396,7 +396,7 @@ class HandleNewPoiReaskTests(unittest.TestCase):
         poi = _create_detected_poi(obj_id=10)
         controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
 
-        controller.navigation_task_action.handle_new_poi(poi)
+        controller.work_source.handle_new_poi(poi)
 
         detector.start_tracking.assert_called_once()
         self.assertIs(controller.confirmation_manager.active_poi, poi)
@@ -413,7 +413,7 @@ class HandleNewPoiReaskTests(unittest.TestCase):
         controller.confirmation_manager.update_status(poi, ConfirmationStatus.TIMEOUT_REJECTED)
         controller.retry_state.reask_attempts[10] = CONFIRM_REASK_MAX_ATTEMPTS
 
-        controller.navigation_task_action.handle_new_poi(poi)
+        controller.work_source.handle_new_poi(poi)
 
         detector.start_tracking.assert_not_called()
         self.assertIsNone(controller.confirmation_manager.active_poi)
@@ -429,7 +429,7 @@ class HandleNewPoiReaskTests(unittest.TestCase):
         poi = _create_detected_poi(obj_id=10)
         controller.confirmation_manager.update_status(poi, ConfirmationStatus.REJECTED)
 
-        controller.navigation_task_action.handle_new_poi(poi)
+        controller.work_source.handle_new_poi(poi)
 
         detector.start_tracking.assert_not_called()
         self.assertIsNone(controller.confirmation_manager.active_poi)
@@ -528,7 +528,7 @@ class FullReaskCycleIntegrationTests(unittest.TestCase):
         self.assertIsNone(controller.confirmation_manager.active_poi)
 
         self_poi, _ = controller.selector.select([poi])
-        controller.navigation_task_action.handle_new_poi(self_poi)
+        controller.work_source.handle_new_poi(self_poi)
 
     def test_bounded_reask_then_permanently_rejected(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)

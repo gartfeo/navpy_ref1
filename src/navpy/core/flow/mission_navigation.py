@@ -1,4 +1,4 @@
-"""Default delivery hub mission navigation and pass classification."""
+"""Mission pass classification."""
 
 from __future__ import annotations
 

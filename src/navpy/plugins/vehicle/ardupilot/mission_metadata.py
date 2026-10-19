@@ -9,10 +9,10 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_CMD_NAV_WAYPOINT,
 )
 
+from navpy.core.ports.mission_marker import MissionMarker
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.kernel.location import Location
 from navpy.plugins.vehicle.ardupilot.mission_encoding import (
-    META_DEFAULT_DELIVERY_HUB,
     decode_meta_z, decode_location_type_from_z,
 )
 
@@ -26,22 +26,8 @@ class MissionMetadata:
     # ``altitude_m`` band the drone orbits and descends from, distinct from
     # the (often higher) corridor/transit band. See _resolve_scan_altitude.
     scan_altitude_rel: Optional[float] = None
-    default_delivery_hub: Optional[Location] = None
-    default_delivery_hub_type: Optional[str] = None
-
-
-def read_default_delivery_hub(vehicle: IVehicle) -> Optional[Location]:
-    """Scan mission items for a META_DEFAULT_DELIVERY_HUB metadata entry.
-
-    Returns the default delivery hub Location or None if not present.
-    """
-    for seq in range(vehicle.mission_items_count):
-        wp = vehicle.get_mission_item(seq)
-        if wp is None:
-            continue
-        if wp.command == MAV_CMD_DO_SET_ROI_LOCATION and int(wp.param1) == META_DEFAULT_DELIVERY_HUB:
-            return Location(wp.x / 1e7, wp.y / 1e7, 0)
-    return None
+    # Every position marker in mission order, without a meaning.
+    markers: List[MissionMarker] = field(default_factory=list)
 
 
 def _resolve_scan_altitude(
@@ -80,22 +66,21 @@ def _resolve_scan_altitude(
 
 
 def read_mission_metadata(vehicle: IVehicle) -> MissionMetadata:
-    """Read search_pattern, altitudes, and default delivery hub from mission.
+    """Read search_pattern, altitudes, and the position markers from mission.
 
     Scans all mission items for:
     - Metadata markers (DO_SET_ROI_LOCATION): search_pattern from last z
     - NAV_WAYPOINT items: collects distinct altitudes, split into the
       corridor band (before the first marker) and the scan/zone band
       (after it) to resolve ``scan_altitude_rel``
-    - Default delivery hub location
+    - Every marker's code, position and site type, in mission order
     """
     last_meta_z = 0.0
     altitudes: set[float] = set()
     pre_marker_alts: set[float] = set()
     post_marker_alts: set[float] = set()
     seen_corridor_marker = False
-    default_delivery_hub: Optional[Location] = None
-    default_delivery_hub_type: Optional[str] = None
+    markers: List[MissionMarker] = []
 
     for seq in range(vehicle.mission_items_count):
         wp = vehicle.get_mission_item(seq)
@@ -106,10 +91,11 @@ def read_mission_metadata(vehicle: IVehicle) -> MissionMetadata:
             # The metadata block is inserted between the corridor and the
             # scan track, so the first marker is the corridor/scan boundary.
             seen_corridor_marker = True
-            meta_type = int(wp.param1)
-            if meta_type == META_DEFAULT_DELIVERY_HUB:
-                default_delivery_hub = Location(wp.x / 1e7, wp.y / 1e7, 0)
-                default_delivery_hub_type = decode_location_type_from_z(wp.z)
+            markers.append(MissionMarker(
+                int(wp.param1),
+                Location(wp.x / 1e7, wp.y / 1e7, 0),
+                decode_location_type_from_z(wp.z),
+            ))
             if wp.z != 0:
                 last_meta_z = wp.z
 
@@ -125,6 +111,5 @@ def read_mission_metadata(vehicle: IVehicle) -> MissionMetadata:
         search_pattern=decode_meta_z(last_meta_z),
         waypoint_altitudes=sorted(altitudes),
         scan_altitude_rel=_resolve_scan_altitude(post_marker_alts, pre_marker_alts),
-        default_delivery_hub=default_delivery_hub,
-        default_delivery_hub_type=default_delivery_hub_type,
+        markers=markers,
     )

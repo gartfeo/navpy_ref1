@@ -10,7 +10,7 @@ from navpy.core.approach.nav_exit_cleanup import (
     NavExitCleanup,
     NavExitCleanupPorts,
 )
-from navpy.core.flow.nav_oneshot_completion import (
+from navpy.products.delivery.nav_oneshot_completion import (
     OneShotCompletion,
     OneShotCompletionPorts,
 )
@@ -108,7 +108,7 @@ def _transition(
         Mock(),
         cleanup,
         reporter,
-        oneshot,
+        oneshot.run,
         navigation_task,
         lambda: oneshot_enabled,
     )

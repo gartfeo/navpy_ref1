@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Callable
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
 from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
-from navpy.core.flow.fallback_mission_navigation import FallbackMissionNavigation
 from navpy.core.flow.nav_state import NavigationTaskState, FinalApproachNavState
 from navpy.core.skills.acquire.peer_navigation import PeerNavigationCoordinator
-from navpy.core.swarm.peer_task_priority import PeerTaskPriority
 from navpy.core.skills.geo_approach.self_detected_approach import SelfDetectedApproach
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
@@ -21,7 +19,7 @@ from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
 
 class NavigationTaskAction:
-    """Choose the next work source and begin a local navigation_task."""
+    """Admit an own POI and begin a local navigation_task."""
 
     def __init__(
         self,
@@ -32,8 +30,6 @@ class NavigationTaskAction:
         tracking: TrackingCommandPort,
         speedup: NavigationSpeedupLease,
         peer_navigation: PeerNavigationCoordinator,
-        peer_task: PeerTaskPriority,
-        fallback_navigation: FallbackMissionNavigation,
         self_approach: SelfDetectedApproach,
         final_approach_active: Callable[[], bool],
         logger: ILogger,
@@ -45,51 +41,37 @@ class NavigationTaskAction:
         self._tracking = tracking
         self._speedup = speedup
         self._peer_navigation = peer_navigation
-        self._peer_task = peer_task
-        self._fallback_navigation = fallback_navigation
         self._self_approach = self_approach
         self._final_approach_active = final_approach_active
         self._logger = logger
 
-    def handle_new_poi(self, poi: Optional[DetectedObject]) -> None:
-        if self._peer_task.pending():
-            # The peer task outranks an own POI and the DDH return.
-            if poi is not None:
-                self._peer_task.hand_off(poi)
-            self._peer_navigation.setup()
-            return
-        if poi is not None:
-            if (
-                self._navigation_task.peer_navigation
-                and not self._final_approach_active()
-                and not self._peer_navigation.near_poi()
-            ):
-                return
-            status = self._confirmation_manager.get_status(poi)
-            if status in {
-                ConfirmationStatus.CONFIRMED,
-                ConfirmationStatus.REJECTED,
-                ConfirmationStatus.PEER_NOTIFIED,
-            }:
-                return
-            is_reask = status is ConfirmationStatus.TIMEOUT_REJECTED
-            if is_reask:
-                if not self._retry.can_reask(poi):
-                    return
-            if self._retry.is_in_poi_cooldown(poi):
-                return
-            started = self.start(poi)
-            if started and status is ConfirmationStatus.DROPPED:
-                # Taken up again by the peer approach; a status would keep
-                # the confirmation from being asked.
-                self._confirmation_manager.clear_status(poi)
-            if started and is_reask:
-                self._retry.begin_reask(poi)
-        elif (
-            self._fallback_navigation.should_nav_to_fallback()
-            and not self._navigation_task.peer_navigation
+    def try_start(self, poi: DetectedObject) -> None:
+        if (
+            self._navigation_task.peer_navigation
+            and not self._final_approach_active()
+            and not self._peer_navigation.near_poi()
         ):
-            self._fallback_navigation.setup()
+            return
+        status = self._confirmation_manager.get_status(poi)
+        if status in {
+            ConfirmationStatus.CONFIRMED,
+            ConfirmationStatus.REJECTED,
+            ConfirmationStatus.PEER_NOTIFIED,
+        }:
+            return
+        is_reask = status is ConfirmationStatus.TIMEOUT_REJECTED
+        if is_reask:
+            if not self._retry.can_reask(poi):
+                return
+        if self._retry.is_in_poi_cooldown(poi):
+            return
+        started = self.start(poi)
+        if started and status is ConfirmationStatus.DROPPED:
+            # Taken up again by the peer approach; a status would keep
+            # the confirmation from being asked.
+            self._confirmation_manager.clear_status(poi)
+        if started and is_reask:
+            self._retry.begin_reask(poi)
 
     def start(self, poi: DetectedObject) -> bool:
         poi_id = get_poi_task_id(poi)
