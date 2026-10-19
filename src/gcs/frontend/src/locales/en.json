@@ -401,8 +401,6 @@
   },
   "monitorOverlay": {
     "enterRc": "Enter RC control",
-    "follow": "Camera follow",
-    "free": "Free",
     "toggleVision": "Toggle vision cones",
     "toggleCoverage": "Toggle coverage overlay",
     "clearCoverage": "Clear coverage",
@@ -442,15 +440,14 @@
     },
     "maximize": "Maximize",
     "restore": "Restore",
-    "minimize": "Minimize",
+    "close": "Close",
     "showMapLarge": "Show the map large",
-    "handle": {
-      "label": "{{name}} · {{state}}",
-      "restoreLabel": "Show the vehicle window: {{name}} · {{state}}",
-      "camera": "Camera",
-      "noCamera": "No camera",
-      "synthetic": "Synthetic",
-      "linkLost": "Vehicle link lost"
+    "pickerPrompt": "Select a UAV for streaming",
+    "uav": {
+      "camera": "{{name}}, camera",
+      "map": "{{name}}, no camera, synthetic view",
+      "linkLost": "link lost",
+      "withLinkLost": "{{name}}, link lost"
     },
     "syntheticTitle": "{{name}} · synthetic view",
     "syntheticTag": "SYNTHETIC · not camera",

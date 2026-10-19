@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors, topBarHeight, bottomBarHeight, sidebarWidth, setColors } from './styles';
 import useTelemetry from './hooks/useTelemetry';
@@ -40,7 +40,6 @@ import FlightModeColumn from './components/FlightModeColumn';
 import { computePrearmWarnings, launchGatesFromSettings } from './utils/prearmChecks';
 import VehicleSelector from './components/VehicleSelector';
 import TaskConfirmCard from './components/TaskConfirmCard';
-import { resolveFollowTarget } from './components/map/hooks/useFollowUav';
 import PlanningToolbar from './components/map/PlanningToolbar';
 import MonitorMapOverlay from './components/map/MonitorMapOverlay';
 import { computePlanEntry } from './constants/monitorPhases';
@@ -123,6 +122,7 @@ export default function App() {
   const mapPane = useElementSize(mapPaneRef, FALLBACK_PANE);
   const [mapCreditsPx, setMapCreditsPx] = useState(0);
   const [windowCreditsPx, setWindowCreditsPx] = useState(0);
+  const [windowChromePx, setWindowChromePx] = useState(0);
   const [ionTerrain, setIonTerrain] = useState(false);
   const [topControlsBottom, setTopControlsBottom] = useState(DEFAULT_TOP_CONTROLS_BOTTOM_PX);
   const [mapReady, setMapReady] = useState(false);
@@ -131,7 +131,6 @@ export default function App() {
   const [showConnPanel, setShowConnPanel] = useState(false);
   const connFromSidebarRef = useRef(false);
   const [availableVehicles, setAvailableVehicles] = useState(() => []);
-  const [followSysId, setFollowSysId] = useState(null);
 
   // ---- Notification banner ----
   const [notification, setNotification] = useState(null);
@@ -148,20 +147,6 @@ export default function App() {
       setShowConnPanel(false);
     }
   }, [vehicleList]);
-
-  // ---- Follow UAV: clear when vehicle disconnects or leaving monitor ----
-  useEffect(() => {
-    if (phase !== PHASES.MONITOR && followSysId != null) {
-      setFollowSysId(null);
-    } else if (resolveFollowTarget(followSysId, vehicleList) === null && followSysId != null) {
-      setFollowSysId(null);
-    }
-  }, [vehicleList, followSysId, phase]);
-
-  // Fly camera to a lat/lon coordinate (map fills flyToRef once the viewer is ready)
-  const flyToLocation = useCallback((lat, lon) => {
-    flyToRef.current?.(lat, lon);
-  }, []);
 
 
   // ---- Settings ----
@@ -532,12 +517,12 @@ export default function App() {
     sendWsMessage, storeRef,
     phase, vehicleList,
     handleSetMode: commands.handleSetMode,
-    setFollowSysId, setNotification,
+    setNotification,
   });
 
   // ---- Center view (frame the plan + GPS-fixed UAVs) ----
-  // Keep the latest fit inputs in a ref so the reset button and the auto-center
-  // effect share one call site without re-creating callbacks or going stale.
+  // Keep the latest fit inputs in a ref so the reset button's callback stays
+  // stable without going stale.
   const centerArgsRef = useRef(null);
   centerArgsRef.current = { polygon, vehicleList, plan, launchPoint, corridorPoints };
   const centerView = useCallback(() => {
@@ -546,31 +531,41 @@ export default function App() {
   }, []);
 
   // ---- Vehicle window + RC FPV (docs/design/gcs_video_streams.md §5) ----
-  // The follow selector moves only the map; badges and View camera pick the
-  // window's UAV. useFpvView owns RC FPV, the saved map camera and the
-  // auto-center on return to Free (which used to live here).
+  // The window's UAV buttons and View camera pick the window's UAV; the map
+  // never follows a UAV. useFpvView owns RC FPV and the saved map camera.
   const videoFleet = useVideoFleet(storeRef);
   const monitor = phase === PHASES.MONITOR;
-  const win = useVehicleWindow({ fleet: videoFleet, followSysId, active: monitor && !mc.manualControlEnabled });
+  const win = useVehicleWindow({ fleet: videoFleet, active: monitor && !mc.manualControlEnabled });
   const fpv = useFpvView({
-    phase, followSysId, rcEnabled: mc.manualControlEnabled, rcTarget: mc.manualControlTarget,
-    mapCameraRef, centerView,
+    rcEnabled: mc.manualControlEnabled, rcTarget: mc.manualControlTarget, mapCameraRef,
   });
   const showWindow = vehicleWindowVisible({
     monitor, rcEnabled: mc.manualControlEnabled, fleetSize: videoFleet.length,
   });
-  const swapped = showWindow && win.swapped;
   const windowLayout = vehicleWindowLayout({
     paneWidth: mapPane.width,
     paneHeight: mapPane.height,
     topControlsBottom,
     badgeCount: videoFleet.length,
     selectedIndex: videoFleet.findIndex((e) => e.sysId === win.sysId),
-    swapped,
+    swapped: showWindow && win.swapped,
     mapCreditsPx,
+    windowChromePx,
     windowCreditsPx,
   });
+  const swapped = showWindow && win.swapped && windowLayout.canSwap;
   const smallMap = windowLayout.smallMap;
+  const { unswap } = win;
+  // The pane became too short for a whole small map: the swap ends, before paint.
+  useLayoutEffect(() => {
+    if (win.swapped && !windowLayout.canSwap) unswap();
+  }, [win.swapped, windowLayout.canSwap, unswap]);
+  // Sidebar coordinate click: swap back first, so the map flies large
+  // (the map's fly-to waits for the swap back while the map is small).
+  const flyToLocation = useCallback((lat, lon) => {
+    unswap();
+    flyToRef.current?.(lat, lon);
+  }, [unswap]);
   const { viewing, viewCamera } = win;
   const videoActionFor = useCallback((sysId) => {
     if (!videoFleet.find((e) => e.sysId === sysId)?.streams.length) return null;
@@ -620,14 +615,14 @@ export default function App() {
         {/* Map */}
         <div ref={mapPaneRef} style={{ flex: 1, position: 'relative', height: mapHeight }}>
           {/* The map box. Swapped with the maximized vehicle window it shrinks
-              into the window's normal box: CSS only, never a remount, never an
-              animation, never size 0. */}
+              into a small box at the top right of the window's picture: CSS
+              only, never a remount, never an animation, never size 0. */}
           <div
             data-testid="map-box"
             style={smallMap ? {
               position: 'absolute',
-              left: smallMap.left,
-              bottom: smallMap.bottom,
+              top: smallMap.top,
+              right: smallMap.right,
               width: smallMap.width,
               height: smallMap.height,
               zIndex: MAP_SWAPPED_Z_INDEX,
@@ -713,8 +708,7 @@ export default function App() {
             onPlaceDeliveryHub={planning.handlePlaceDeliveryHub}
             onRemoveDeliveryHub={planning.handleRemoveDeliveryHub}
             onMoveDeliveryHub={planning.handleMoveDeliveryHub}
-            followSysId={followSysId}
-            fpvMode={fpv.cameraFpv}
+            fpvSysId={fpv.fpvSysId}
             cameraPersistSuspended={fpv.cameraOwned}
             mapCameraRef={mapCameraRef}
             swapped={swapped}
@@ -772,9 +766,6 @@ export default function App() {
           )}
           {phase === PHASES.MONITOR && vehicleList.length > 0 && !mc.manualControlEnabled && (
             <MonitorMapOverlay
-              vehicleList={vehicleList}
-              followSysId={followSysId}
-              onFollowChange={setFollowSysId}
               onTopControlsBottom={setTopControlsBottom}
               onToggleManualControl={mc.handleToggleManualControl}
               showVision={showVision}
@@ -796,8 +787,8 @@ export default function App() {
           )}
           {/* Vehicle window — monitor view only, never during manual control,
               so it cannot sit over the joysticks, the flight-mode column or
-              the RC FPV HUD. Bottom-left at z-index 9, under the map overlay
-              buttons and the confirmation cards. */}
+              the RC FPV HUD. Top-right under the action bar at z-index 9,
+              under the map overlay buttons and the confirmation cards. */}
           {showWindow && (
             <VehicleWindow
               fleet={videoFleet}
@@ -807,6 +798,7 @@ export default function App() {
               storeRef={storeRef}
               ionTerrain={ionTerrain}
               onSyntheticCreditsHeight={setWindowCreditsPx}
+              onChromeHeight={setWindowChromePx}
             />
           )}
           {fpv.fpvSysId != null && (

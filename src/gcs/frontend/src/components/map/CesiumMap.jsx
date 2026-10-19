@@ -113,8 +113,7 @@ function CesiumMap({
   onPlaceDeliveryHub,
   onRemoveDeliveryHub,
   onMoveDeliveryHub,
-  followSysId,
-  fpvMode,
+  fpvSysId,
   cameraPersistSuspended,
   mapCameraRef,
   swapped = false,
@@ -229,14 +228,15 @@ function CesiumMap({
   // already true before the first first-person frame.
   const persistSuspendedRef = useRef(false);
   persistSuspendedRef.current = !!cameraPersistSuspended;
-  // The viewer's own fit; useMapSwap publishes the one that waits for the large map.
+  // The viewer's own fit and fly-to; useMapSwap publishes the ones that wait for the large map.
   const fitRef = useRef(null);
+  const flyRef = useRef(null);
   const { containerRef, viewerRef, cesiumRef, readyRef, fitFlyingRef, viewerReady, terrainReady, tilesReady } = useCesiumViewer(
-    fitRef, flyToRef, mapDefaults, { persistSuspendedRef, mapCameraRef },
+    fitRef, flyRef, mapDefaults, { persistSuspendedRef, mapCameraRef },
   );
   useMapSwap({
-    viewerRef, viewerReady, fitRef, fitFlyingRef, resetViewRef, swapped,
-    cameraTaken: followSysId != null || !!cameraPersistSuspended,
+    viewerRef, viewerReady, fitRef, flyRef, fitFlyingRef, resetViewRef, flyToRef, swapped,
+    cameraTaken: !!cameraPersistSuspended,
   });
   useEffect(() => {
     if (!viewerReady || !onCreditsHeight) return undefined;
@@ -288,7 +288,7 @@ function CesiumMap({
   );
 
   useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady);
-  useFollowUav(cesiumRef, viewerRef, entitiesRef, followSysId, viewerReady, fpvMode, storeRef);
+  useFollowUav(cesiumRef, viewerRef, entitiesRef, fpvSysId, viewerReady, storeRef);
   useUavPoseSource(poseSourceRef, cesiumRef, viewerRef, entitiesRef, viewerReady);
   useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${trailResetKey}`);
   useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, coverageResetKey, viewerReady, plannerReady);

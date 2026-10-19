@@ -1,76 +1,51 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { fpvHoldReason } from '../../../utils/fpvView';
 import { createPoseMath, noseOrientation } from '../utils/fpvPose';
 
 /**
- * Pure helper: returns followSysId if the vehicle exists in vehicleList, else null.
+ * Pure helper: returns sysId if the vehicle exists in vehicleList, else null.
  * Exported for testability.
  */
-export function resolveFollowTarget(followSysId, vehicleList) {
-  if (followSysId == null) return null;
+export function resolveFollowTarget(sysId, vehicleList) {
+  if (sysId == null) return null;
   if (!vehicleList || vehicleList.length === 0) return null;
-  const found = vehicleList.some(v => v.sys_id === followSysId);
-  return found ? followSysId : null;
+  const found = vehicleList.some(v => v.sys_id === sysId);
+  return found ? sysId : null;
 }
 
 /**
- * Chase-cam / FPV-cam that follows a UAV.
+ * RC FPV: the main map's first-person camera on the RC target
+ * (docs/design/gcs_video_streams.md, section 5 "Synthetic view", RC). The map
+ * never chases a UAV otherwise.
  *
- * When fpvMode is false (default): chase-cam that orbits with smooth heading.
- * When fpvMode is true (RC FPV): first-person view using the vehicle's
- * orientation. In FPV the camera holds its last valid pose while the telemetry
- * is not current, the vehicle is unlinked or its snapshot position/attitude is
- * not finite (fpvHoldReason), and resumes on the next valid one. The viewer
- * runs in request-render mode, so FPV requests a render per telemetry (pose)
- * update.
+ * The camera looks through the vehicle's nose, using the model's slerped
+ * orientation (utils/fpvPose.js), so it moves with the model. It holds its last
+ * valid pose while the telemetry is not current, the vehicle is unlinked or
+ * its snapshot position/attitude is not finite (fpvHoldReason), and resumes on
+ * the next valid one. The viewer runs in request-render mode, so FPV requests
+ * a render per telemetry (pose) update.
  *
- * Heading, pitch and roll come from the model's slerped orientation
- * (utils/fpvPose.js), so the camera moves with the model.
+ * @param {number|null} fpvSysId - the RC target while RC owns the camera, else null.
  */
-export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSysId, viewerReady, fpvMode, storeRef) {
-  const followSysIdRef = useRef(followSysId);
-  followSysIdRef.current = followSysId;
-
-  const fpvModeRef = useRef(fpvMode);
-  fpvModeRef.current = fpvMode;
-
-  const initializedRef = useRef(false);
-  // The last frame was first-person: the chase view must re-initialize its
-  // range instead of reading it off a camera that is no longer orbiting.
-  const wasFpvRef = useRef(false);
-
+export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, fpvSysId, viewerReady, storeRef) {
   // One render per pose update while first-person, plus one on entry.
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (!viewer || !viewerReady || followSysId == null || !fpvMode) return undefined;
+    if (!viewer || !viewerReady || fpvSysId == null) return undefined;
     viewer.scene.requestRender();
     return storeRef?.current?.subscribe?.(() => viewer.scene.requestRender());
-  }, [followSysId, viewerReady, fpvMode]);
+  }, [fpvSysId, viewerReady]);
 
   useEffect(() => {
     const Cesium = cesiumRef.current;
     const viewer = viewerRef.current;
-    if (!Cesium || !viewer || !viewerReady) return;
-
-    if (followSysId == null) {
-      if (initializedRef.current) {
-        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-        initializedRef.current = false;
-      }
-      return;
-    }
-
-    initializedRef.current = false;
+    if (!Cesium || !viewer || !viewerReady || fpvSysId == null) return undefined;
 
     // Scratch-backed pose math — no allocations at 60 fps
     const poseMath = createPoseMath(Cesium);
-    const scratchTransform = poseMath.transform;
 
     const onPreRender = () => {
-      const sid = followSysIdRef.current;
-      if (sid == null) return;
-
-      const entity = entitiesRef.current.uavMap?.[sid];
+      const entity = entitiesRef.current.uavMap?.[fpvSysId];
       if (!entity) return;
 
       const time = viewer.clock.currentTime;
@@ -78,51 +53,13 @@ export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSy
       const orientation = entity.orientation?.getValue(time);
       if (!position || !orientation) return;
 
-      // Smooth heading/pitch/roll; also builds the ENU frame used for lookAtTransform
-      const scratchHpr = poseMath.vehicleHpr(position, orientation);
-
-      if (fpvModeRef.current) {
-        // Hold the last valid pose: telemetry not current, no link, or no finite position/attitude.
-        const store = storeRef.current;
-        if (fpvHoldReason(store.getVehicles()[sid], store.isTelemetryFresh(sid))) return;
-        // FPV mode: camera looks through vehicle's eyes
-        // Unlock from lookAtTransform first if needed
-        if (initializedRef.current) {
-          viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-        }
-        viewer.camera.setView({ destination: position, orientation: noseOrientation(scratchHpr) });
-        initializedRef.current = true;
-        wasFpvRef.current = true;
-      } else {
-        // Chase-cam mode
-        const smoothHeading = scratchHpr.heading;
-
-        if (!initializedRef.current || wasFpvRef.current) {
-          wasFpvRef.current = false;
-          viewer.camera.lookAtTransform(
-            scratchTransform,
-            new Cesium.HeadingPitchRange(smoothHeading, Cesium.Math.toRadians(-25), 200),
-          );
-          initializedRef.current = true;
-        } else {
-          const p = viewer.camera.pitch;
-          const r = Cesium.Cartesian3.magnitude(viewer.camera.position);
-          viewer.camera.lookAtTransform(
-            scratchTransform,
-            new Cesium.HeadingPitchRange(smoothHeading, p, r),
-          );
-        }
-      }
+      // Hold the last valid pose: telemetry not current, no link, or no finite position/attitude.
+      const store = storeRef.current;
+      if (fpvHoldReason(store.getVehicles()[fpvSysId], store.isTelemetryFresh(fpvSysId))) return;
+      viewer.camera.setView({ destination: position, orientation: noseOrientation(poseMath.vehicleHpr(position, orientation)) });
     };
 
     viewer.scene.preRender.addEventListener(onPreRender);
-
-    return () => {
-      viewer.scene.preRender.removeEventListener(onPreRender);
-      if (initializedRef.current) {
-        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-        initializedRef.current = false;
-      }
-    };
-  }, [followSysId, viewerReady]);
+    return () => viewer.scene.preRender.removeEventListener(onPreRender);
+  }, [fpvSysId, viewerReady]);
 }

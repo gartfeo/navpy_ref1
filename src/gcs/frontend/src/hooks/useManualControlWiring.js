@@ -12,7 +12,7 @@ export default function useManualControlWiring({
   sendWsMessage, storeRef,
   phase, vehicleList,
   handleSetMode,
-  setFollowSysId, setNotification,
+  setNotification,
 }) {
   const setModeRef = useRef(null);
   setModeRef.current = handleSetMode;
@@ -33,7 +33,7 @@ export default function useManualControlWiring({
     },
   );
 
-  // Wrap toggleManualControl to reset follow mode when exiting
+  // Wrap toggleManualControl: confirm the mode restore and release the POI on exit
   const handleToggleManualControl = useCallback(() => {
     if (manualControlEnabled && manualControlTarget != null) {
       const restoreMode = peekRestoreMode(manualControlTarget);
@@ -46,7 +46,6 @@ export default function useManualControlWiring({
       const restored = releasePoi(manualControlTarget);
       if (restored) setNotification(`UAV ${manualControlTarget} → ${restored}`);
       setManualControlTarget(null);
-      setFollowSysId(null);
     } else if (!manualControlEnabled && manualControlTarget != null) {
       capturePrevMode(manualControlTarget);
     }
@@ -67,7 +66,6 @@ export default function useManualControlWiring({
     }
     setManualControlTarget(sysId);
     capturePrevMode(sysId);
-    setFollowSysId(sysId);
   }, [manualControlTarget, setManualControlTarget, releasePoi, capturePrevMode, peekRestoreMode]);
 
   // Auto-disable manual control on phase change or target disconnect
