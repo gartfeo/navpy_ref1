@@ -859,3 +859,21 @@
   so a validator must catch it (Codex round 1).
 - Mutating a "refuse inside the repository" guard lets the test write into REPO_ROOT/.logs. The
   mutation script must remove exactly that folder afterwards, and remove `.logs` only when it is empty.
+
+## Reading-keyed optics (HITL stage 1 step 3, 2026-10-19)
+- I first copied gimbal-controller's console-zoom knots (1.1-10.0) into the profile as measured rows. They are a
+  focal-only estimate: centre and distortion are borrowed from the wide model, and POINTING-MODEL.md:180 says that
+  distortion has the wrong sign at high zoom (Codex round 1). Before reusing a calibration, read its caveats and
+  check that every field was measured at that zoom.
+- Measured ZR10 calibrations on this PC (1920x1080): reading 1.0 = wall model at the wide stop
+  (output/wall-matrix/run1/solution_v3.json); reading 1.8 = ChArUco after absolute zoom 2.0
+  (output/tuning-2x/scale/base-model.json; held-out groups in out/recovered-unreachable-20261009). The per-zoom
+  checkerboard fits of 2026-10-08 are on the rig only. navpy's older siyi_zr10 "1" row records no zoom state.
+- One reading can be two lens states: reading 1.1 is scale 1.030 after absolute zoom 1.0 but 1.069 after a held
+  zoom-in. Key rows by reading and by how the zoom was set.
+- `Path.read_text` turns CRLF into LF, and `write_text(newline="")` then writes LF; `read_text(newline=...)` needs
+  Python 3.13. Read with `open(path, newline="")` and write back the line ending found.
+- The heredoc backslash collapse (step 1 above) hit again in a generated mutation list. Write any script that holds
+  `\n` escapes with the Write tool.
+- `tests/gcs/test_vision_profiles_route.py::test_known_gimbal_contract_metadata` fails on eee4cc3 without this change
+  (expects gimbal_seq XYZ; the siyi_zr10 profile has ZYX).

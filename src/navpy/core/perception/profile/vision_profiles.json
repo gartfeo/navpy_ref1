@@ -609,6 +609,56 @@
               "9.8": 9.5,
               "9.9": 9.6,
               "10.0": 10.0
+            },
+            "reading_intrinsics": {
+              "source": "gimbal-controller: 1.0 from output/wall-matrix/run1/solution_v3.json (wall marks), 1.8 from output/tuning-2x/scale/base-model.json (ChArUco, 45 views). Other readings have no measured centre or distortion, so they stay disabled.",
+              "streams": [
+                {
+                  "mode": "main",
+                  "image_width": 1920,
+                  "image_height": 1080,
+                  "crop": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                  ],
+                  "readings": {
+                    "1.0": {
+                      "set_by": "wide_stop",
+                      "fx": 2028.919,
+                      "fy": 2027.113,
+                      "cx": 987.347,
+                      "cy": 548.66,
+                      "skew": 0.0,
+                      "dist": [
+                        -0.275204,
+                        0.204547,
+                        0.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    "1.8": {
+                      "set_by": {
+                        "absolute_zoom": 2.0
+                      },
+                      "fx": 3280.098,
+                      "fy": 3270.088,
+                      "cx": 991.156,
+                      "cy": 548.917,
+                      "skew": 0.0,
+                      "dist": [
+                        -0.134795,
+                        0.527685,
+                        0.0,
+                        0.0,
+                        0.0
+                      ]
+                    }
+                  }
+                }
+              ]
             }
           },
           "gimbal": {
