@@ -338,6 +338,17 @@ describe('source switch', () => {
     fireEvent.click(getByText('vehicleWindow.source.synthetic'));
     expect(getByText('fpvView.held.linkLost 0')).toBeInTheDocument();
   });
+
+  it('the held time restarts for a newly picked UAV held for the same reason', () => {
+    const held = { linkOk: false, holdReason: 'linkLost' };
+    const fleet = [entry(1, [], held), entry(2, [], held)];
+    const { getByText, getByRole } = render(<Harness fleet={fleet} />);
+    fireEvent.click(getByText('vehicleWindow.source.synthetic'));
+    advance(3000);
+    expect(getByText('fpvView.held.linkLost 3')).toBeInTheDocument();
+    fireEvent.click(getByRole('button', { name: 'UAV 2' }));
+    expect(getByText('fpvView.held.linkLost 0')).toBeInTheDocument();
+  });
 });
 
 describe('size', () => {

@@ -458,7 +458,8 @@ export default function VehicleWindow({
     body = (
       <>
         {chrome('synthetic')}
-        <HeldRow holdReason={fleetEntryHoldReason(entry)} />
+        {/* Keyed by UAV: the held time is that UAV's, not the previous one's. */}
+        <HeldRow key={sysId} holdReason={fleetEntryHoldReason(entry)} />
         <SyntheticView
           sysId={sysId}
           label={label}
