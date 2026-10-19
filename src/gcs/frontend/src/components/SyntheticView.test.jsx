@@ -30,6 +30,11 @@ const { fake } = vi.hoisted(() => {
       this.options = options;
       this.destroyed = false;
       this.canvas = document.createElement('canvas');
+      // The context Cesium created (WebGL 2); losing it raises webglcontextlost.
+      this.contextsReleased = 0;
+      const lose = { loseContext: () => { this.contextsReleased += 1; this.canvas.dispatchEvent(new Event('webglcontextlost')); } };
+      const gl = { getExtension: (name) => (name === 'WEBGL_lose_context' ? lose : null) };
+      this.canvas.getContext = (type) => (type === 'webgl2' ? gl : null);
       // As in Cesium: without a creditContainer option the credit container is
       // the whole widget; the credit line is the CreditDisplay's container.
       this.creditContainer = container;
@@ -278,13 +283,26 @@ describe('SyntheticView', () => {
     expect(onFail).toHaveBeenCalledTimes(1);
   });
 
-  it('unmount destroys the widget, removes listeners and clears the credits offset', async () => {
-    const { unmount, store, onCreditsHeight } = setup();
+  it('the SYNTHETIC tag wraps at the width it is given (maximized: left of the small map), none by default', async () => {
+    const { getByText, rerenderWith } = setup();
+    await widgetReady();
+    await act(async () => {});
+    expect(getByText('vehicleWindow.syntheticTag').style.maxWidth).toBe('');
+    rerenderWith({ tagMaxWidth: 140 });
+    expect(getByText('vehicleWindow.syntheticTag').style.maxWidth).toBe('140px');
+  });
+
+  it('unmount destroys the widget, releases its WebGL context, removes listeners and clears the credits offset', async () => {
+    const { unmount, store, onCreditsHeight, onFail } = setup();
     await widgetReady();
     await act(async () => {});
     const [w] = fake.widgets;
     unmount();
     expect(w.destroyed).toBe(true);
+    // Released at once, not left for the garbage collector (the browser's context
+    // limit would drop the main map's); its context-lost event is no failure.
+    expect(w.contextsReleased).toBe(1);
+    expect(onFail).not.toHaveBeenCalled();
     expect(w.scene.preRender.fns.size).toBe(0);
     expect(w.scene.postRender.fns.size).toBe(0);
     expect(store.listeners.size).toBe(0);

@@ -1,9 +1,9 @@
-// Vehicle window state: the UAV pick, the camera states, the source and the
-// size (docs/design/gcs_video_streams.md section 5, "Vehicle window" and the
-// transition table).
-import { describe, it, expect, beforeEach } from 'vitest';
+// Vehicle window state: the picker, the UAV pick, the camera states, the
+// source and the swap (docs/design/gcs_video_streams.md section 5, "Vehicle
+// window" and the transition table).
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import useVehicleWindow, { SOURCE, WINDOW_STORAGE_KEY } from './useVehicleWindow';
+import useVehicleWindow, { SOURCE } from './useVehicleWindow';
 
 const stream = (camera, id) => ({
   key: `${camera}:${id}`, camera_component: camera, stream_id: id, name: 'tracking overlay',
@@ -13,127 +13,122 @@ const entry = (sysId, streams = []) => ({
   sysId, index: sysId - 1, label: `UAV ${sysId}`, streams, linkOk: true, holdReason: null,
 });
 
-const setup = (fleet, followSysId = null, active = true) =>
-  renderHook((props) => useVehicleWindow(props), { initialProps: { fleet, followSysId, active } });
+const setup = (fleet, active = true) =>
+  renderHook((props) => useVehicleWindow(props), { initialProps: { fleet, active } });
 
-beforeEach(() => localStorage.clear());
+afterEach(() => vi.restoreAllMocks());
 
-describe('first pick', () => {
-  it('no streams: the first UAV, on "No camera"', () => {
-    const { result } = setup([entry(1), entry(2)]);
-    expect(result.current.sysId).toBe(1);
-    expect(result.current.shown.kind).toBe('noCamera');
-    expect(result.current.source).toBe(SOURCE.CAMERA);
-  });
-
-  it('the followed UAV with video, else the first UAV with video', () => {
-    expect(setup([entry(1, [stream(100, 1)]), entry(2, [stream(100, 1)])], 2).result.current.sysId).toBe(2);
-    expect(setup([entry(1), entry(2, [stream(100, 1)]), entry(3, [stream(100, 1)])], 1).result.current.sysId).toBe(2);
-  });
-
-  it('empty fleet: nothing picked; the first UAV to join is picked', () => {
-    const { result, rerender } = setup([]);
+describe('the picker', () => {
+  it('starts on the picker, also when UAVs have streams: no automatic pick', () => {
+    const { result, rerender } = setup([entry(1, [stream(100, 1)]), entry(2)]);
     expect(result.current.sysId).toBeNull();
     expect(result.current.shown.kind).toBe('idle');
-    rerender({ fleet: [entry(4)], followSysId: null, active: true });
-    expect(result.current.sysId).toBe(4);
-  });
-
-  it('D1: later follow changes never move the window', () => {
-    const fleet = [entry(1, [stream(100, 1)]), entry(2, [stream(100, 1)])];
-    const { result, rerender } = setup(fleet, 1);
-    rerender({ fleet, followSysId: 2, active: true });
-    rerender({ fleet, followSysId: null, active: true });
-    expect(result.current.sysId).toBe(1);
-  });
-
-  it('automatic on "No camera": moves to the first UAV that starts advertising', () => {
-    const { result, rerender } = setup([entry(1), entry(2)]);
-    rerender({ fleet: [entry(1), entry(2, [stream(100, 1)])], followSysId: null, active: true });
-    expect(result.current.sysId).toBe(2);
-    expect(result.current.shown.kind).toBe('stream');
-  });
-
-  it('a badge tap ends the automatic pick: no move when another UAV starts advertising', () => {
-    const { result, rerender } = setup([entry(1), entry(2)]);
-    act(() => result.current.selectUav(1));
-    rerender({ fleet: [entry(1), entry(2, [stream(100, 1)])], followSysId: null, active: true });
-    expect(result.current.sysId).toBe(1);
-    expect(result.current.shown.kind).toBe('noCamera');
-  });
-
-  it('the switch also ends the automatic pick', () => {
-    const { result, rerender } = setup([entry(1), entry(2)]);
-    act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
-    act(() => result.current.chooseSource(SOURCE.CAMERA));
-    rerender({ fleet: [entry(1), entry(2, [stream(100, 1)])], followSysId: null, active: true });
-    expect(result.current.sysId).toBe(1);
-  });
-
-  it('the window\'s own UAV starting to advertise starts its video', () => {
-    const { result, rerender } = setup([entry(1)]);
-    act(() => result.current.selectUav(1));
-    rerender({ fleet: [entry(1, [stream(100, 1)])], followSysId: null, active: true });
-    expect(result.current.shown.kind).toBe('stream');
-    expect(result.current.shown.stream.key).toBe('100:1');
-  });
-
-  it('an empty fleet re-arms the first pick and resets source and swap', () => {
-    const { result, rerender } = setup([entry(1), entry(2, [stream(100, 1)])]);
-    act(() => result.current.selectUav(1));
-    act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
-    act(() => result.current.toggleMaximized());
-    rerender({ fleet: [], followSysId: null, active: true });
-    expect(result.current.sysId).toBeNull();
-    expect(result.current.source).toBe(SOURCE.CAMERA);
+    expect(result.current.session).toBeNull();
     expect(result.current.swapped).toBe(false);
-    rerender({ fleet: [entry(1), entry(2, [stream(100, 1)])], followSysId: null, active: true });
-    expect(result.current.sysId).toBe(2);
+    rerender({ fleet: [entry(1, [stream(100, 1)]), entry(2, [stream(100, 1)])], active: true });
+    expect(result.current.sysId).toBeNull();
+  });
+
+  it('nothing is read from or written to browser storage', () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem');
+    const set = vi.spyOn(Storage.prototype, 'setItem');
+    const { result } = setup([entry(1, [stream(100, 1)])]);
+    act(() => result.current.selectUav(1));
+    act(() => result.current.toggleMaximized());
+    act(() => result.current.close());
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('Maximize does nothing in the picker', () => {
+    const { result } = setup([entry(1)]);
+    act(() => result.current.toggleMaximized());
+    expect(result.current.swapped).toBe(false);
+  });
+
+  it('an empty fleet clears the selection and the swap; the next UAV brings the picker', () => {
+    const fleet = [entry(1), entry(2, [stream(100, 1)])];
+    const { result, rerender } = setup(fleet);
+    act(() => result.current.selectUav(2));
+    act(() => result.current.toggleMaximized());
+    rerender({ fleet: [], active: true });
+    expect(result.current.sysId).toBeNull();
+    expect(result.current.swapped).toBe(false);
+    rerender({ fleet, active: true });
+    expect(result.current.sysId).toBeNull();
+    expect(result.current.swapped).toBe(false);
   });
 });
 
-describe('badges and View camera', () => {
-  it('badges pick the UAV and keep the source; the selected badge is a no-op', () => {
-    const fleet = [entry(1, [stream(100, 1)]), entry(2, [stream(100, 2), stream(101, 1)])];
+describe('UAV buttons and View camera', () => {
+  it('a camera-icon pick opens Camera on its default stream; a map-icon pick opens Synthetic', () => {
+    const fleet = [entry(1, [stream(100, 2), stream(101, 1)]), entry(2)];
     const { result } = setup(fleet);
-    const before = result.current.session;
     act(() => result.current.selectUav(1));
-    expect(result.current.session).toBe(before);
-    act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
+    expect(result.current.sysId).toBe(1);
+    expect(result.current.source).toBe(SOURCE.CAMERA);
+    // Default stream = the lowest stream id.
+    expect(result.current.shown.stream.key).toBe('101:1');
     act(() => result.current.selectUav(2));
     expect(result.current.sysId).toBe(2);
     expect(result.current.source).toBe(SOURCE.SYNTHETIC);
-    // Default stream = the lowest stream id.
-    expect(result.current.shown.stream.key).toBe('101:1');
+    // From the header too: back to the camera-icon UAV opens Camera, not the last source.
+    act(() => result.current.selectUav(1));
+    expect(result.current.source).toBe(SOURCE.CAMERA);
   });
 
-  it('View camera: that UAV, Camera, a fresh session and a minimized window restored; the swap stays', () => {
+  it('picking the selected UAV again does nothing', () => {
+    const { result } = setup([entry(1, [stream(100, 1)])]);
+    act(() => result.current.selectUav(1));
+    act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
+    const before = result.current.session;
+    act(() => result.current.selectUav(1));
+    expect(result.current.source).toBe(SOURCE.SYNTHETIC);
+    expect(result.current.session).toBe(before);
+  });
+
+  it('a pick while swapped keeps the swap', () => {
+    const { result } = setup([entry(1, [stream(100, 1)]), entry(2)]);
+    act(() => result.current.selectUav(1));
+    act(() => result.current.toggleMaximized());
+    act(() => result.current.selectUav(2));
+    expect(result.current.swapped).toBe(true);
+    expect(result.current.source).toBe(SOURCE.SYNTHETIC);
+  });
+
+  it('View camera: that UAV on Camera with a fresh session, also from the picker; the swap stays', () => {
     const fleet = [entry(1, [stream(100, 1)]), entry(2, [stream(100, 1)])];
     const { result } = setup(fleet);
+    act(() => result.current.viewCamera(2));
+    expect(result.current.sysId).toBe(2);
+    expect(result.current.source).toBe(SOURCE.CAMERA);
     act(() => result.current.toggleMaximized());
     act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
     const before = result.current.session;
-    act(() => result.current.viewCamera(1));
+    act(() => result.current.viewCamera(2));
     expect(result.current.source).toBe(SOURCE.CAMERA);
     expect(result.current.session).not.toBe(before);
     expect(result.current.swapped).toBe(true);
-    act(() => result.current.minimize());
-    act(() => result.current.viewCamera(2));
-    expect(result.current.minimized).toBe(false);
-    expect(result.current.sysId).toBe(2);
   });
 
-  it('"Viewing" needs Camera, a shown stream of that UAV and a window that is not minimized', () => {
-    const { result, rerender } = setup([entry(1, [stream(100, 1)]), entry(2)]);
+  it('View camera always opens Camera, even for a UAV without streams', () => {
+    const { result } = setup([entry(1)]);
+    act(() => result.current.viewCamera(1));
+    expect(result.current.source).toBe(SOURCE.CAMERA);
+    expect(result.current.shown.kind).toBe('noCamera');
+  });
+
+  it('"Viewing" needs Camera, a shown stream of that UAV and the active window', () => {
+    const fleet = [entry(1, [stream(100, 1)]), entry(2)];
+    const { result, rerender } = setup(fleet);
+    expect(result.current.viewing(1)).toBe(false);
+    act(() => result.current.selectUav(1));
     expect(result.current.viewing(1)).toBe(true);
     expect(result.current.viewing(2)).toBe(false);
     act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
     expect(result.current.viewing(1)).toBe(false);
     act(() => result.current.chooseSource(SOURCE.CAMERA));
-    act(() => result.current.minimize());
-    expect(result.current.viewing(1)).toBe(false);
-    act(() => result.current.restore());
-    rerender({ fleet: [entry(1, [stream(100, 1)]), entry(2)], followSysId: null, active: false });
+    rerender({ fleet, active: false });
     expect(result.current.viewing(1)).toBe(false);
   });
 });
@@ -142,40 +137,49 @@ describe('camera states', () => {
   it('stream removal: the same UAV\'s other stream, kept when the original returns', () => {
     const two = entry(1, [stream(100, 1), stream(101, 2)]);
     const { result, rerender } = setup([two, entry(2, [stream(100, 1)])]);
+    act(() => result.current.selectUav(1));
     expect(result.current.shown.stream.key).toBe('100:1');
-    rerender({ fleet: [entry(1, [stream(101, 2)]), entry(2, [stream(100, 1)])], followSysId: null, active: true });
+    rerender({ fleet: [entry(1, [stream(101, 2)]), entry(2, [stream(100, 1)])], active: true });
     expect(result.current.shown.stream.key).toBe('101:2');
-    rerender({ fleet: [two, entry(2, [stream(100, 1)])], followSysId: null, active: true });
+    rerender({ fleet: [two, entry(2, [stream(100, 1)])], active: true });
     expect(result.current.shown.stream.key).toBe('101:2');
   });
 
-  it('last stream gone: lost, never another UAV; it comes back on the same UAV', () => {
+  it('last stream gone on Camera: lost, never another UAV and never Synthetic by itself', () => {
     const { result, rerender } = setup([entry(1, [stream(100, 1)]), entry(2, [stream(100, 1)])]);
-    rerender({ fleet: [entry(1), entry(2, [stream(100, 1)])], followSysId: null, active: true });
+    act(() => result.current.selectUav(1));
+    rerender({ fleet: [entry(1), entry(2, [stream(100, 1)])], active: true });
     expect(result.current.shown.kind).toBe('lost');
     expect(result.current.sysId).toBe(1);
-    rerender({ fleet: [entry(1, [stream(100, 1)]), entry(2, [stream(100, 1)])], followSysId: null, active: true });
+    expect(result.current.source).toBe(SOURCE.CAMERA);
+    rerender({ fleet: [entry(1, [stream(100, 1)]), entry(2, [stream(100, 1)])], active: true });
     expect(result.current.shown.kind).toBe('stream');
     expect(result.current.sysId).toBe(1);
   });
 
-  it('Dismiss goes to "No camera" for the same UAV, never another', () => {
+  it('Dismiss opens Synthetic for the same UAV, never another', () => {
     const { result, rerender } = setup([entry(1, [stream(100, 1)]), entry(2, [stream(100, 1)])]);
-    rerender({ fleet: [entry(1), entry(2, [stream(100, 1)])], followSysId: null, active: true });
+    act(() => result.current.selectUav(1));
+    rerender({ fleet: [entry(1), entry(2, [stream(100, 1)])], active: true });
     act(() => result.current.dismiss());
-    expect(result.current.shown.kind).toBe('noCamera');
+    expect(result.current.source).toBe(SOURCE.SYNTHETIC);
     expect(result.current.sysId).toBe(1);
   });
 
-  it('the selected UAV leaves the fleet: the selection stays', () => {
-    const { result, rerender } = setup([entry(1, [stream(100, 1)]), entry(2)]);
-    rerender({ fleet: [entry(2)], followSysId: null, active: true });
+  it('the picked UAV leaves the fleet: the selection stays, lost; it resumes on return', () => {
+    const fleet = [entry(1, [stream(100, 1)]), entry(2)];
+    const { result, rerender } = setup(fleet);
+    act(() => result.current.selectUav(1));
+    rerender({ fleet: [entry(2)], active: true });
     expect(result.current.sysId).toBe(1);
     expect(result.current.shown.kind).toBe('lost');
+    rerender({ fleet, active: true });
+    expect(result.current.shown.kind).toBe('stream');
   });
 
   it('Reconnect video opens a fresh session on the same stream', () => {
     const { result } = setup([entry(1, [stream(100, 1)])]);
+    act(() => result.current.selectUav(1));
     const before = result.current.session;
     act(() => result.current.reconnect());
     expect(result.current.session).not.toBe(before);
@@ -184,8 +188,9 @@ describe('camera states', () => {
 });
 
 describe('source', () => {
-  it('Synthetic only by the switch; back to Camera is a fresh connection', () => {
+  it('the switch: Synthetic, and back to Camera is a fresh connection', () => {
     const { result } = setup([entry(1, [stream(100, 1)])]);
+    act(() => result.current.selectUav(1));
     const before = result.current.session;
     act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
     expect(result.current.source).toBe(SOURCE.SYNTHETIC);
@@ -195,15 +200,17 @@ describe('source', () => {
 
   it('a stream appearing or going away on Synthetic never changes the source', () => {
     const { result, rerender } = setup([entry(1)]);
-    act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
-    rerender({ fleet: [entry(1, [stream(100, 1)])], followSysId: null, active: true });
-    rerender({ fleet: [entry(1)], followSysId: null, active: true });
+    act(() => result.current.selectUav(1));
+    expect(result.current.source).toBe(SOURCE.SYNTHETIC);
+    rerender({ fleet: [entry(1, [stream(100, 1)])], active: true });
+    expect(result.current.source).toBe(SOURCE.SYNTHETIC);
+    rerender({ fleet: [entry(1)], active: true });
     expect(result.current.source).toBe(SOURCE.SYNTHETIC);
   });
 
   it('synthetic failure: Camera with a notice, cleared by the next operator action', () => {
     const { result } = setup([entry(1)]);
-    act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
+    act(() => result.current.selectUav(1));
     act(() => result.current.syntheticFailed());
     expect(result.current.source).toBe(SOURCE.CAMERA);
     expect(result.current.notice).toBe('syntheticUnavailable');
@@ -211,60 +218,52 @@ describe('source', () => {
     expect(result.current.notice).toBeNull();
   });
 
-  it('RC entry or leaving the monitor view: swap back and Camera; the window returns as it was', () => {
-    const fleet = [entry(1)];
-    const { result, rerender } = setup(fleet);
-    act(() => result.current.chooseSource(SOURCE.SYNTHETIC));
+  it('RC entry or leaving the monitor view swaps back; the return re-picks the same UAV by its icon', () => {
+    const { result, rerender } = setup([entry(1), entry(2)]);
+    act(() => result.current.selectUav(1));
+    act(() => result.current.chooseSource(SOURCE.CAMERA));
     act(() => result.current.toggleMaximized());
-    rerender({ fleet, followSysId: null, active: false });
+    rerender({ fleet: [entry(1), entry(2)], active: false });
+    expect(result.current.swapped).toBe(false);
+    rerender({ fleet: [entry(1), entry(2)], active: true });
+    expect(result.current.sysId).toBe(1);
+    expect(result.current.source).toBe(SOURCE.SYNTHETIC);
+    expect(result.current.swapped).toBe(false);
+    // The icon at the return decides: a stream that appeared meanwhile gives Camera.
+    rerender({ fleet: [entry(1), entry(2)], active: false });
+    rerender({ fleet: [entry(1, [stream(100, 1)]), entry(2)], active: true });
     expect(result.current.source).toBe(SOURCE.CAMERA);
-    expect(result.current.swapped).toBe(false);
-    rerender({ fleet, followSysId: null, active: true });
-    expect(result.current.swapped).toBe(false);
-    expect(result.current.minimized).toBe(false);
+    expect(result.current.shown.kind).toBe('stream');
+  });
+
+  it('the picker stays the picker across RC', () => {
+    const { result, rerender } = setup([entry(1)]);
+    rerender({ fleet: [entry(1)], active: false });
+    rerender({ fleet: [entry(1)], active: true });
+    expect(result.current.sysId).toBeNull();
   });
 });
 
-describe('size', () => {
-  it('minimized is saved; maximized is not and ends on minimize', () => {
-    const { result } = setup([entry(1)]);
+describe('Close and the swap', () => {
+  it('Close swaps back and returns to the picker', () => {
+    const { result } = setup([entry(1, [stream(100, 1)])]);
+    act(() => result.current.selectUav(1));
     act(() => result.current.toggleMaximized());
-    expect(result.current.swapped).toBe(true);
-    act(() => result.current.minimize());
+    act(() => result.current.close());
     expect(result.current.swapped).toBe(false);
-    expect(result.current.minimized).toBe(true);
-    expect(localStorage.getItem(WINDOW_STORAGE_KEY)).toBe('minimized');
-    act(() => result.current.restore());
-    expect(localStorage.getItem(WINDOW_STORAGE_KEY)).toBe('normal');
-    // Restore gives the normal size, not the swap.
+    expect(result.current.sysId).toBeNull();
+    expect(result.current.session).toBeNull();
+    // The next maximize needs a new pick.
+    act(() => result.current.selectUav(1));
     expect(result.current.swapped).toBe(false);
-  });
-
-  it('a reload opens minimized as saved, unswapped, on Camera', () => {
-    localStorage.setItem(WINDOW_STORAGE_KEY, 'minimized');
-    const { result } = setup([entry(1)]);
-    expect(result.current.minimized).toBe(true);
-    expect(result.current.swapped).toBe(false);
-    expect(result.current.source).toBe(SOURCE.CAMERA);
-  });
-
-  it('storage that throws: the window opens normal and still minimizes', () => {
-    const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-    Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('blocked'); } });
-    try {
-      const { result } = setup([entry(1)]);
-      expect(result.current.minimized).toBe(false);
-      act(() => result.current.minimize());
-      expect(result.current.minimized).toBe(true);
-    } finally {
-      Object.defineProperty(globalThis, 'localStorage', original);
-    }
   });
 
   it('Restore or a tap on the small map swaps back; nothing reconnects', () => {
     const { result } = setup([entry(1, [stream(100, 1)])]);
+    act(() => result.current.selectUav(1));
     const before = result.current.session;
     act(() => result.current.toggleMaximized());
+    expect(result.current.swapped).toBe(true);
     act(() => result.current.unswap());
     expect(result.current.swapped).toBe(false);
     act(() => result.current.toggleMaximized());

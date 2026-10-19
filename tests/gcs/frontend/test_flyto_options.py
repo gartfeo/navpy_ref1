@@ -8,7 +8,7 @@ Two layers:
    ``export``) so the test guards the shipped helper, not a copy.
 
 2. Wiring guard: static assertions that ``flyToRef`` is threaded App -> CesiumMap ->
-   useCesiumViewer and that neither legacy global (``window.Cesium``,
+   useMapSwap -> useCesiumViewer and that neither legacy global (``window.Cesium``,
    ``__CESIUM_VIEWER__``) survives anywhere in the frontend source. The helper test
    alone would pass even if the wiring were broken, which is exactly the failure
    mode that made this action silently dead.
@@ -105,13 +105,15 @@ class TestFlyToWiring(unittest.TestCase):
         self.assertIn("flyToRef={flyToRef}", self.APP)
 
     def test_cesium_map_forwards_ref_as_second_hook_arg(self):
-        # The viewer gets its own fit ref; useMapSwap wraps it into the parent's
-        # resetViewRef so a fit waits while the vehicle window is maximized.
+        # The viewer gets its own fit and fly refs; useMapSwap wraps them into the
+        # parent's resetViewRef and flyToRef so a move waits while the vehicle
+        # window is maximized.
         self.assertRegex(
             self.CESIUM_MAP,
-            r"useCesiumViewer\(\s*fitRef\s*,\s*flyToRef\s*,\s*mapDefaults\s*[,)]",
+            r"useCesiumViewer\(\s*fitRef\s*,\s*flyRef\s*,\s*mapDefaults\s*[,)]",
         )
         self.assertRegex(self.CESIUM_MAP, r"useMapSwap\(\{[^}]*\bfitRef\b[^}]*\bresetViewRef\b")
+        self.assertRegex(self.CESIUM_MAP, r"useMapSwap\(\{[^}]*\bflyRef\b[^}]*\bflyToRef\b")
 
     def test_hook_assigns_ref_and_calls_flyto(self):
         self.assertRegex(self.HOOK, r"flyToRef\.current\s*=")

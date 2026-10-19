@@ -940,6 +940,37 @@
   ran, committing the markers. Chain them with && (or check the script's exit)
   and grep for markers before git add.
 
+## GCS video v11 implementation (2026-10-20)
+- Moving the window to the top right dropped the reset-view reserve, so the
+  window got wider and 3 UAV buttons fit at 375 px: the overflow-menu fixture
+  silently stopped testing the menu. After changing a layout anchor, redo the
+  fixture sizes from the new formula and assert the precondition
+  (overflow.length > 0).
+- A test helper that found UAV buttons by accessible name broke for link-lost
+  UAVs, whose name differs. Pick by a stable attribute (data-sysid).
+- Line endings differ per file (locale JSON and some tests CRLF, others LF);
+  a remembered "LF" was wrong. Run `file` on each target before a scripted edit.
+- A full `pytest tests/gcs` started while edits went on: its vitest leg timed
+  out at 5 s under load and the same test passed alone. Run the full suite
+  after the edits, on a quiet PC, and rerun a timeout alone before blaming
+  the change.
+- A dirty file that main also changed blocks a fast-forward. Without a WIP
+  commit or the shared stash: save `git diff -- <file>` as a patch, check the
+  file out, fast-forward, `git apply --3way` (it stages), then `git reset -- <file>`.
+- A chained `git rev-parse A B && cat > PROMPT.md <<EOF` stopped at the bad
+  rev-parse, so the Codex prompt was never written and the run failed on a
+  missing file. Write review prompts with the Write tool, and guard the run
+  with `test -s PROMPT.md`.
+- Each Synthetic mount made a WebGL context that `widget.destroy()` does not
+  release; after about 16 the browser dropped the oldest, the main map's.
+  Unit tests could not show it; a live 20x switch loop did. Release a
+  Cesium widget's context (WEBGL_lose_context) on unmount, and add a
+  mount/unmount loop to live checks of any per-view Cesium widget.
+- Size floors chosen by feel (96 px, then 1 px) each broke a different design
+  rule (credits, never size 0). Derive a floor from the thing it must hold
+  (here the 138 px ion logo), and when the room is missing, offer no swap
+  rather than a box that breaks a rule.
+
 ## Link model (dev sim step 3, 2026-10-19)
 - A mutation can survive because a second mechanism enforces the same rule: removing the jitter clamp
   left serial bytes in order, since the delay line releases only its head. Mutate both mechanisms

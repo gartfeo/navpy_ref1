@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  codecSupported, defaultStream, pickFirstFeed, pickFirstUav, resolveShownStream, streamsOf, vehicleLabel,
+  codecSupported, defaultStream, hasVideo, resolveShownStream, streamsOf, vehicleLabel,
   vehicleWindowVisible,
 } from './videoStreams';
 import { fleetEntryHoldReason, fpvHoldReason, poseFinite } from './fpvView';
@@ -35,12 +35,10 @@ describe('video stream helpers', () => {
     expect(defaultStream([])).toBeNull();
   });
 
-  it('first feed: the followed UAV if it has video, else the first UAV with video', () => {
-    const fleet = [entry(1), entry(2, [stream(100, 1)]), entry(3, [stream(100, 1)])];
-    expect(pickFirstFeed(3, fleet)).toBe(3);
-    expect(pickFirstFeed(1, fleet)).toBe(2);
-    expect(pickFirstFeed(null, fleet)).toBe(2);
-    expect(pickFirstFeed(null, [entry(1)])).toBeNull();
+  it('a UAV has video while it advertises a stream (its camera or map icon)', () => {
+    expect(hasVideo(entry(1, [stream(100, 1)]))).toBe(true);
+    expect(hasVideo(entry(1))).toBe(false);
+    expect(hasVideo(undefined)).toBe(false);
   });
 
   it('a vanished stream falls back to the same UAV, never another', () => {
@@ -62,12 +60,6 @@ describe('video stream helpers', () => {
     expect(appeared.stream.key).toBe('101:1');
     // A UAV that left the fleet keeps its state; never another UAV.
     expect(resolveShownStream({ sysId: 3, key: null }, [entry(1, [stream(100, 1)])]).kind).toBe('noCamera');
-  });
-
-  it('first pick: a UAV with video as before, else the first UAV in the fleet', () => {
-    expect(pickFirstUav(2, [entry(1), entry(2)])).toBe(1);
-    expect(pickFirstUav(2, [entry(1), entry(2), entry(3, [stream(100, 1)])])).toBe(3);
-    expect(pickFirstUav(null, [])).toBeNull();
   });
 
   it('the vehicle window shows in the monitor view, outside RC, whenever the fleet has a UAV', () => {

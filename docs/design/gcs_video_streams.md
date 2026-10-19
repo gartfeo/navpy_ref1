@@ -1,6 +1,6 @@
 # GCS video streams per vehicle
 
-Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson) and shipped as PR #18. v10 (2026-10-19: one bottom-left vehicle window with a Camera / Synthetic switch, minimize and maximize-swap; it replaces the v9 draft, design C) approved by the owner 2026-10-19 (decision 6) and shipped as PR #20. **v11** (owner request, 2026-10-19): the vehicle window moves to the top right under the action bar and holds the UAV picker, each UAV marked with a camera or map icon; a UAV without a camera opens on Synthetic; the follow selector and the map chase go. This reverses D1 / decision 5. Approved by the owner 2026-10-20 with the recommended answers to the open questions (decision 7); not implemented yet.
+Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson) and shipped as PR #18. v10 (2026-10-19: one bottom-left vehicle window with a Camera / Synthetic switch, minimize and maximize-swap; it replaces the v9 draft, design C) approved by the owner 2026-10-19 (decision 6) and shipped as PR #20. **v11** (owner request, 2026-10-19): the vehicle window moves to the top right under the action bar and holds the UAV picker, each UAV marked with a camera or map icon; a UAV without a camera opens on Synthetic; the follow selector and the map chase go. This reverses D1 / decision 5. Approved by the owner 2026-10-20 with the recommended answers to the open questions (decision 7) and implemented 2026-10-20.
 
 Owner request (2026-10-16): "we should be able to see video streams in our GCS if
 those are available."
@@ -325,7 +325,11 @@ always starts 12 px below it.
   the action bar to the bottom margin) and the map shrinks into a small box
   drawn above the large window's picture: at the picture's top right, 12 px
   under the window's last header, control or failure row and 12 px in from
-  its right edge, width min(320 px, half the large box), 16:9. It never
+  its right edge, width min(320 px, half the large box), 16:9, shrinking
+  only to stay 12 px above the picture's credit line. It is never narrower
+  than its own whole credit line (Cesium's ion logo, 138 px, does not wrap;
+  145 px with padding and border): a pane without that room offers no
+  Maximize, and a swap ends when the pane shrinks below it. It never
   covers the UAV buttons, the overflow menu, the switch, Restore, Close or a
   failure row. Maximize is offered only while
   viewing, not in the picker. The window's Maximize reads Restore while
@@ -366,7 +370,8 @@ always starts 12 px below it.
     a move end while small saves the unchanged pose.
   - Swap back on: Restore, a tap on the small map, Close (swap back, then the
     picker), a sidebar coordinate click (swap back, then fly), RC entry,
-    leaving the monitor view, an empty fleet. A change to another UAV keeps the
+    leaving the monitor view, an empty fleet, a pane too short for the small
+    map. A change to another UAV keeps the
     swap. Never saved: a reload starts unswapped.
 - Credits: Cesium's credit line (the Cesium ion logo, which the engine treats
   as required, and the data attribution; Cesium ion terms 2.2.3) is never
@@ -381,7 +386,8 @@ always starts 12 px below it.
   normal) is no longer read or written; a value left in a browser is ignored.
   Never the UAV, the source or the swap; a reload opens the picker.
 - Automatic changes are only these: the source a pick gets from its icon, back
-  to Camera on a synthetic failure, the swap ending on the events above, and
+  to Camera on a synthetic failure, the swap ending on the events above (and
+  on a pane too short for the small map), and
   the picker after an empty fleet. The window never moves to another UAV by
   itself.
 - One reader per browser; the demo has one GCS, so no radio-wide arbitration in v1.
