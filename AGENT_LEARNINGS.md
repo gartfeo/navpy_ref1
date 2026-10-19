@@ -908,16 +908,17 @@
   effect's cancel guard directly (unmount before the import resolves) and
   check that the test fails with the guard removed.
 
-<<<<<<< HEAD
 ## GCS video design v11 (2026-10-19)
 - I wrote "nothing moves the small map" after removing the chase; Codex found the sidebar
   coordinate fly-to (`flyToRef` -> `camera.flyTo`). Before claiming nothing moves the Cesium
   camera, grep every caller of `camera.flyTo`, `setView`, `flyToRef` and `resetViewRef`.
 - The design doc is CRLF in the worktree; the Edit tool and a Python splice left mixed line
-  endings. After scripted edits, check `
-` vs `
-` counts and normalise before committing.
-=======
+  endings. After scripted edits, compare the CRLF and LF counts and normalise
+  before committing.
+- A conflict-resolving script failed and the chained git add and commit still
+  ran, committing the markers. Chain them with && (or check the script's exit)
+  and grep for markers before git add.
+
 ## Link model (dev sim step 3, 2026-10-19)
 - A mutation can survive because a second mechanism enforces the same rule: removing the jitter clamp
   left serial bytes in order, since the delay line releases only its head. Mutate both mechanisms
@@ -936,4 +937,3 @@
 - Never pass `-x` to the full pytest here: the known board_detector failures stop it early.
 - An eval error late in a report can be a consequence: "demo_mission_plan.json missing" came from the
   operator failing at setup, not from the relative `--run-dir` it looked like. Read the first error.
->>>>>>> eae60d9d945125a1163fd8b7f89572030f48a122
