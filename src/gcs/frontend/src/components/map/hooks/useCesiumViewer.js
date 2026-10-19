@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { CAMERA_KEY } from '../constants/icons';
+import { CAMERA_KEY, ION_TERRAIN_ASSET_ID, MAP_TARGET_FRAME_RATE } from '../constants/icons';
 import { flyToOptions } from '../../../utils/cameraFlyTo';
 import { cesiumIonToken } from '../../../utils/cesiumConfig';
 
@@ -101,11 +101,31 @@ export function restoreCamera(Cesium, viewer, saved) {
  * `persistSuspendedRef.current` true (FPV or RC owns the camera) skips camera
  * persistence, so a first-person pose is never stored as the startup view.
  */
+/**
+ * The reset-view fit flight. `flyingRef` stays true exactly while the newest
+ * fit flies: Camera.flyTo cancels the previous flight synchronously, and that
+ * flight's cancel callback must not clear the flag of the fit replacing it.
+ */
+export function createFitFlight(camera, flyingRef) {
+  let current = 0;
+  return (options) => {
+    current += 1;
+    const id = current;
+    const done = () => {
+      if (id === current) flyingRef.current = false;
+    };
+    flyingRef.current = true;
+    camera.flyTo({ ...options, duration: 1.0, complete: done, cancel: done });
+  };
+}
+
 export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { persistSuspendedRef, mapCameraRef } = {}) {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
   const cesiumRef = useRef(null);
   const readyRef = useRef(false);
+  // A reset-view fit is flying (the map swap cancels and defers it).
+  const fitFlyingRef = useRef(false);
   const mapDefaultsRef = useRef(mapDefaults);
   mapDefaultsRef.current = mapDefaults;
   const [viewerReady, setViewerReady] = useState(false);
@@ -169,7 +189,7 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
       // Continuous clock ticking so CallbackProperty animations render
       viewer.clock.shouldAnimate = true;
       // Cap at 30 fps — sufficient for 5 Hz telemetry with lerp interpolation
-      viewer.targetFrameRate = 30;
+      viewer.targetFrameRate = MAP_TARGET_FRAME_RATE;
 
       // Enable depth test so tracks above terrain render correctly
       viewer.scene.globe.depthTestAgainstTerrain = true;
@@ -230,7 +250,7 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
           viewer.imageryLayers.removeAll();
           viewer.imageryLayers.addImageryProvider(ionImagery);
           viewer.scene.requestRender();
-          const ionTerrain = await Cesium.CesiumTerrainProvider.fromIonAssetId(1);
+          const ionTerrain = await Cesium.CesiumTerrainProvider.fromIonAssetId(ION_TERRAIN_ASSET_ID);
           await ionTerrain.requestTileGeometry(0, 0, 0);
           if (cancelled || viewer.isDestroyed()) return;
           viewer.terrainProvider = ionTerrain;
@@ -275,6 +295,7 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
 
       // Expose reset-view function via ref
       if (resetViewRef) {
+        const flyFit = createFitFlight(viewer.camera, fitFlyingRef);
         resetViewRef.current = (polygon, vehicleList, plan, launchPoint, corridorPoints) => {
           const pts = collectFitPoints({ polygon, vehicleList, plan, launchPoint, corridorPoints });
           if (pts.length === 0) {
@@ -282,10 +303,9 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
             const lon = md?.default_lon ?? 34.8;
             const lat = md?.default_lat ?? 31.5;
             const height = md?.default_zoom != null ? zoomToHeight(md.default_zoom) : 800000;
-            viewer.camera.flyTo({
+            flyFit({
               destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
               orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
-              duration: 1.0,
             });
             return;
           }
@@ -299,10 +319,9 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
             rect.west - dLon, rect.south - dLat,
             rect.east + dLon, rect.north + dLat,
           );
-          viewer.camera.flyTo({
+          flyFit({
             destination: padded,
             orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
-            duration: 1.0,
           });
         };
       }
@@ -330,5 +349,5 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
     };
   }, []);
 
-  return { containerRef, viewerRef, cesiumRef, readyRef, viewerReady, terrainReady, tilesReady };
+  return { containerRef, viewerRef, cesiumRef, readyRef, fitFlyingRef, viewerReady, terrainReady, tilesReady };
 }

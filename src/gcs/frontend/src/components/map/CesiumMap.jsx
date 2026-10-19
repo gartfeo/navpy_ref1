@@ -21,6 +21,9 @@ import useDockMarkers from './hooks/useDockMarkers';
 import useDetectionMarkers from './hooks/useDetectionMarkers';
 import useDeliveryHubLayer from './hooks/useDeliveryHubLayer';
 import useFollowUav from './hooks/useFollowUav';
+import useMapSwap from './hooks/useMapSwap';
+import useUavPoseSource from './hooks/useUavPoseSource';
+import { observeHeight } from './utils/observeHeight';
 import useTrackWpMarkers from './hooks/useTrackWpMarkers';
 import { resolveSimDocks, resolveSimDocksFromPlan, resolveDetectionStart, resolveDetectionStartFromPlan } from './utils/dockResolver';
 
@@ -114,6 +117,10 @@ function CesiumMap({
   fpvMode,
   cameraPersistSuspended,
   mapCameraRef,
+  swapped = false,
+  poseSourceRef,
+  onCreditsHeight,
+  onTerrainReady,
   onViewerReady,
 }) {
   // Entity refs for cleanup
@@ -222,9 +229,22 @@ function CesiumMap({
   // already true before the first first-person frame.
   const persistSuspendedRef = useRef(false);
   persistSuspendedRef.current = !!cameraPersistSuspended;
-  const { containerRef, viewerRef, cesiumRef, readyRef, viewerReady, terrainReady, tilesReady } = useCesiumViewer(
-    resetViewRef, flyToRef, mapDefaults, { persistSuspendedRef, mapCameraRef },
+  // The viewer's own fit; useMapSwap publishes the one that waits for the large map.
+  const fitRef = useRef(null);
+  const { containerRef, viewerRef, cesiumRef, readyRef, fitFlyingRef, viewerReady, terrainReady, tilesReady } = useCesiumViewer(
+    fitRef, flyToRef, mapDefaults, { persistSuspendedRef, mapCameraRef },
   );
+  useMapSwap({
+    viewerRef, viewerReady, fitRef, fitFlyingRef, resetViewRef, swapped,
+    cameraTaken: followSysId != null || !!cameraPersistSuspended,
+  });
+  useEffect(() => {
+    if (!viewerReady || !onCreditsHeight) return undefined;
+    return observeHeight(viewerRef.current?.bottomContainer, onCreditsHeight);
+  }, [viewerReady, onCreditsHeight]);
+  useEffect(() => {
+    onTerrainReady?.(terrainReady);
+  }, [terrainReady, onTerrainReady]);
 
   const { planRef, trackPosRef, zonePosRef, lzPosRef, minLzPosRef, clampOuterRef, terrainBaseRef } =
     usePlanSync(cesiumRef, viewerRef, plan, analysis, terrainReady);
@@ -269,6 +289,7 @@ function CesiumMap({
 
   useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady);
   useFollowUav(cesiumRef, viewerRef, entitiesRef, followSysId, viewerReady, fpvMode, storeRef);
+  useUavPoseSource(poseSourceRef, cesiumRef, viewerRef, entitiesRef, viewerReady);
   useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${trailResetKey}`);
   useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, coverageResetKey, viewerReady, plannerReady);
   useAssignmentMarkers(cesiumRef, viewerRef, assignments || {}, storeRef, viewerReady);

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { zoneColorsSolid } from '../../../styles';
 import { needsTerrainSample, sampleTerrain } from '../utils/terrainCache';
 import { lerpPosition, slerpOrientation, advanceAnim } from '../utils/lerpAnim';
+import { poseFinite } from '../../../utils/fpvView';
 
 /**
  * 3D UAV vehicle models with smooth interpolated motion.
@@ -13,6 +14,11 @@ import { lerpPosition, slerpOrientation, advanceAnim } from '../utils/lerpAnim';
  * Altitude uses terrain-sampled height + relative (AGL) altitude.
  * heightReference is incompatible with explicit orientation quaternions
  * (causes model to shift when camera rotates as terrain LOD changes).
+ *
+ * A snapshot whose lat, lon, altitude, heading, roll or pitch is not a finite
+ * number is skipped: the model, the chase and the first-person views keep the
+ * last valid pose and resume from it (no 0 fill, which used to drop a UAV
+ * without altitude to the terrain).
  */
 export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady) {
   const terrainCacheRef = useRef({});
@@ -34,15 +40,19 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
 
       if (vehicleList && vehicleList.length > 0) {
         vehicleList.forEach((v, i) => {
-          if (v.lat == null || v.lon == null) return;
-          seen.add(v.sys_id);
           const sid = v.sys_id;
+          if (!poseFinite(v)) {
+            // Keep the existing model at its last valid pose.
+            if (existing[sid]) seen.add(sid);
+            return;
+          }
+          seen.add(sid);
           const colorStr = zoneColorsSolid[i % zoneColorsSolid.length];
 
             // Target position: cached terrain height + AGL altitude
             const cached = cache[sid];
             const terrainH = cached?.terrainHeight ?? 0;
-            const altRel = v.alt_rel ?? v.alt ?? 0;
+            const altRel = v.alt_rel ?? v.alt;
             const poiPos = Cesium.Cartesian3.fromDegrees(v.lon, v.lat, terrainH + altRel);
 
             // Async terrain sample when cache is missing, stale, or UAV moved
@@ -51,9 +61,9 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
             }
 
             // Target orientation
-            const headingRad = v.heading != null ? Cesium.Math.toRadians(v.heading) : 0;
-            const modelPitch = v.roll != null ? -Cesium.Math.toRadians(v.roll) : 0;
-            const modelRoll = v.pitch != null ? Cesium.Math.toRadians(v.pitch) : 0;
+            const headingRad = Cesium.Math.toRadians(v.heading);
+            const modelPitch = -Cesium.Math.toRadians(v.roll);
+            const modelRoll = Cesium.Math.toRadians(v.pitch);
             const vehicleHpr = new Cesium.HeadingPitchRoll(headingRad, modelPitch, modelRoll);
             const vehicleQuat = Cesium.Transforms.headingPitchRollQuaternion(poiPos, vehicleHpr);
 

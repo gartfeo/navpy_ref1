@@ -105,10 +105,13 @@ class TestFlyToWiring(unittest.TestCase):
         self.assertIn("flyToRef={flyToRef}", self.APP)
 
     def test_cesium_map_forwards_ref_as_second_hook_arg(self):
+        # The viewer gets its own fit ref; useMapSwap wraps it into the parent's
+        # resetViewRef so a fit waits while the vehicle window is maximized.
         self.assertRegex(
             self.CESIUM_MAP,
-            r"useCesiumViewer\(\s*resetViewRef\s*,\s*flyToRef\s*,\s*mapDefaults\s*[,)]",
+            r"useCesiumViewer\(\s*fitRef\s*,\s*flyToRef\s*,\s*mapDefaults\s*[,)]",
         )
+        self.assertRegex(self.CESIUM_MAP, r"useMapSwap\(\{[^}]*\bfitRef\b[^}]*\bresetViewRef\b")
 
     def test_hook_assigns_ref_and_calls_flyto(self):
         self.assertRegex(self.HOOK, r"flyToRef\.current\s*=")

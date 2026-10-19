@@ -13,6 +13,8 @@ IDENTICAL_VALUE_ALLOWLIST = {
     "mapMarkers.dock",  # D is the owner-selected international dock marker.
     # Short technical label rather than untranslated prose.
     "connectionTab.id",
+    # Placeholders and a separator only: "{{name}} · {{state}}".
+    "vehicleWindow.handle.label",
     # Universal acronyms — identical in Armenian by design, not untranslated.
     "preflight.ekf",
     "preflight.gps",

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  codecSupported, defaultStream, pickFirstFeed, resolveShownStream, streamsOf, vehicleLabel,
+  codecSupported, defaultStream, pickFirstFeed, pickFirstUav, resolveShownStream, streamsOf, vehicleLabel,
+  vehicleWindowVisible,
 } from './videoStreams';
-import { fpvEligible, fpvHoldReason, pickFpvTarget, poseFinite } from './fpvView';
+import { fleetEntryHoldReason, fpvHoldReason, poseFinite } from './fpvView';
 import { FEED_FAILURE, FEED_STATUS, feedTiming } from './videoFeed';
 import {
   VIDEO_FIRST_FRAME_DEADLINE_S, VIDEO_STALE_AFTER_S, VIDEO_STALL_DEADLINE_S,
@@ -12,7 +13,7 @@ const stream = (camera, id, extra = {}) => ({
   key: `${camera}:${id}`, camera_component: camera, stream_id: id, name: `cam ${camera}/${id}`,
   encoding: 'H264', whep_url: `http://192.168.144.10:8889/c${camera}s${id}/whep`, ...extra,
 });
-const entry = (sysId, streams = [], extra = {}) => ({ sysId, index: sysId - 1, label: `UAV ${sysId}`, streams, linkOk: true, fpvEligible: true, ...extra });
+const entry = (sysId, streams = [], extra = {}) => ({ sysId, index: sysId - 1, label: `UAV ${sysId}`, streams, linkOk: true, holdReason: null, ...extra });
 
 describe('video stream helpers', () => {
   it('names the design constants', () => {
@@ -54,6 +55,28 @@ describe('video stream helpers', () => {
     expect(resolveShownStream(null, fleet).kind).toBe('idle');
   });
 
+  it('no stream expected: "No camera", or the UAV\'s default stream once it advertises one', () => {
+    expect(resolveShownStream({ sysId: 1, key: null }, [entry(1)]).kind).toBe('noCamera');
+    const appeared = resolveShownStream({ sysId: 1, key: null }, [entry(1, [stream(100, 2), stream(101, 1)])]);
+    expect(appeared).toMatchObject({ kind: 'stream', switched: true });
+    expect(appeared.stream.key).toBe('101:1');
+    // A UAV that left the fleet keeps its state; never another UAV.
+    expect(resolveShownStream({ sysId: 3, key: null }, [entry(1, [stream(100, 1)])]).kind).toBe('noCamera');
+  });
+
+  it('first pick: a UAV with video as before, else the first UAV in the fleet', () => {
+    expect(pickFirstUav(2, [entry(1), entry(2)])).toBe(1);
+    expect(pickFirstUav(2, [entry(1), entry(2), entry(3, [stream(100, 1)])])).toBe(3);
+    expect(pickFirstUav(null, [])).toBeNull();
+  });
+
+  it('the vehicle window shows in the monitor view, outside RC, whenever the fleet has a UAV', () => {
+    expect(vehicleWindowVisible({ monitor: true, rcEnabled: false, fleetSize: 1 })).toBe(true);
+    expect(vehicleWindowVisible({ monitor: true, rcEnabled: false, fleetSize: 0 })).toBe(false);
+    expect(vehicleWindowVisible({ monitor: true, rcEnabled: true, fleetSize: 3 })).toBe(false);
+    expect(vehicleWindowVisible({ monitor: false, rcEnabled: false, fleetSize: 3 })).toBe(false);
+  });
+
   it('checks the announced codec against the receiver capabilities', () => {
     const h264Only = { getCapabilities: () => ({ codecs: [{ mimeType: 'video/H264' }] }) };
     expect(codecSupported('H264', h264Only)).toBe(true);
@@ -65,27 +88,26 @@ describe('video stream helpers', () => {
   });
 });
 
-describe('FPV eligibility', () => {
+describe('first-person hold check', () => {
   const linked = { link_ok: true, lat: 32, lon: 34, alt_rel: 100, roll: 1, pitch: 2, heading: 90 };
 
-  it('is link_ok plus a finite position and attitude', () => {
-    expect(fpvEligible(linked)).toBe(true);
-    expect(fpvHoldReason({ ...linked, link_ok: false })).toBe('linkLost');
-    expect(fpvHoldReason(undefined)).toBe('linkLost');
-    expect(fpvHoldReason({ ...linked, lat: null })).toBe('poseUnavailable');
-    expect(fpvHoldReason({ ...linked, roll: NaN })).toBe('poseUnavailable');
+  it('current telemetry, then link_ok, then a finite position and attitude', () => {
+    expect(fpvHoldReason(linked, true)).toBeNull();
+    expect(fpvHoldReason({ ...linked, link_ok: false }, true)).toBe('linkLost');
+    expect(fpvHoldReason(undefined, true)).toBe('linkLost');
+    expect(fpvHoldReason({ ...linked, lat: null }, true)).toBe('poseUnavailable');
+    expect(fpvHoldReason({ ...linked, roll: NaN }, true)).toBe('poseUnavailable');
     expect(poseFinite({ ...linked, alt_rel: undefined, alt: 400 })).toBe(true);
+    expect(poseFinite({ ...linked, alt_rel: undefined, alt: undefined })).toBe(false);
     // Link first, even when the pose is also missing.
-    expect(fpvHoldReason({ ...linked, link_ok: false, heading: null })).toBe('linkLost');
+    expect(fpvHoldReason({ ...linked, link_ok: false, heading: null }, true)).toBe('linkLost');
+    // A cached snapshot (socket closed, or not replaced since it reopened) holds first.
+    expect(fpvHoldReason(linked, false)).toBe('telemetryDisconnected');
   });
 
-  it('picks the followed UAV, else from Free the panel UAV, else the first eligible', () => {
-    const fleet = [entry(1, [], { fpvEligible: false }), entry(2), entry(3)];
-    expect(pickFpvTarget({ followSysId: 3, panelSysId: 2, fleet })).toEqual({ sysId: 3 });
-    expect(pickFpvTarget({ followSysId: 1, panelSysId: 2, fleet })).toEqual({ ineligible: 1 });
-    expect(pickFpvTarget({ followSysId: null, panelSysId: 3, fleet })).toEqual({ sysId: 3 });
-    expect(pickFpvTarget({ followSysId: null, panelSysId: 1, fleet })).toEqual({ sysId: 2 });
-    expect(pickFpvTarget({ followSysId: null, panelSysId: null, fleet: [entry(1, [], { fpvEligible: false })] })).toEqual({ none: true });
+  it('a UAV that left the fleet holds as link lost', () => {
+    expect(fleetEntryHoldReason(undefined)).toBe('linkLost');
+    expect(fleetEntryHoldReason({ holdReason: null })).toBeNull();
   });
 });
 
