@@ -80,7 +80,10 @@ def test_launch_starts_the_fixture_stack_with_frontend_and_no_browser(monkeypatc
 
     (env, arguments, kwargs, record), frontend = calls
     assert frontend == {"frontend": 3100}
-    assert env[demo.FLEET_DOCKS_ENV] == str((run_dir / fixture_module.DOCK_FILE_NAME).resolve())
+    # Waypoint docks: no shared dock world, and the owner carries d1 and d2.
+    assert "NAVPY_SIM_DOCKS" not in env
+    assert not (run_dir / fixture_module.DOCK_FILE_NAME).exists() and "docks_sha256" not in record
+    assert kwargs["scenario"].poi_nav_waypoint_ordinals == (4, 5)
     assert arguments == ["--sitl-root", "r"]
     assert (kwargs["headless"], kwargs["browser"]) == (False, False)
     # The record exists before the stack starts, under the token it is given.

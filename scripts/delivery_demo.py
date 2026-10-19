@@ -1,7 +1,9 @@
 """Hand-driven delivery demo: put the delivery fixture on this checkout's stack.
 
-``launch`` starts the slot's stack with the fixture's dock world, SITL home,
-settings and a fresh SITL root (no stored mission); ``prep`` then connects the
+``launch`` starts the slot's stack with the fixture's SITL home, settings and a
+fresh SITL root (no stored mission). The demo docks d1 and d2 are owner mission
+waypoints (``AAS_TARG_WPS``), so the GCS map shows them; the shared dock world
+(``NAVPY_SIM_DOCKS``) stays the eval's. ``prep`` then connects the
 vehicles, writes their params, uploads the fixture missions with readback,
 starts the companions and opens the UI. The operator presses Launch and
 approves each dock. Both steps reuse the delivery eval's helpers; see
@@ -26,15 +28,9 @@ for _import_root in (_REPOSITORY_ROOT, _REPOSITORY_ROOT / "src"):
     if str(_import_root) not in sys.path:
         sys.path.insert(0, str(_import_root))
 
-from navpy.sim.world.fleet_dock_world import FLEET_DOCKS_ENV  # noqa: E402
 from gcs.backend.runtime_paths import LOG_DIR_ENV as GCS_LOG_DIR_ENV  # noqa: E402
-from scripts.eval_delivery_fixture import (  # noqa: E402
-    DOCK_FILE_NAME,
-    FIXTURE_PATH,
-    delivery_scenario,
-    load_fixture,
-    prepare_sim_docks,
-)
+from scripts.delivery_demo_docks import waypoint_dock_scenario  # noqa: E402
+from scripts.eval_delivery_fixture import FIXTURE_PATH, load_fixture  # noqa: E402
 from scripts.eval_gcs_demo_config import build_environment, build_settings  # noqa: E402
 from scripts.eval_gcs_demo_execution import SystemClock, wait_until  # noqa: E402
 from scripts.eval_gcs_demo_lifecycle import (  # noqa: E402
@@ -83,7 +79,6 @@ def demo_settings(fixture: Mapping[str, JsonValue], scenario) -> dict[str, JsonV
 def demo_environment(run_dir: Path, source: Mapping[str, str] = os.environ) -> dict[str, str]:
     env = build_environment(run_dir / SETTINGS_NAME, run_dir, base_environment=dict(source))
     env.update({key: source[key] for key in FRONTEND_ENV if key in source})
-    env[FLEET_DOCKS_ENV] = str((run_dir / DOCK_FILE_NAME).resolve())
     return env
 
 
@@ -94,7 +89,6 @@ def file_sha256(path: Path) -> str:
 def _guarded_files(run_dir: Path) -> dict[str, Path]:
     return {
         "fixture_sha256": FIXTURE_PATH,
-        "docks_sha256": run_dir / DOCK_FILE_NAME,
         "settings_sha256": run_dir / SETTINGS_NAME,
     }
 
@@ -116,11 +110,11 @@ def _stop_command() -> str:
 def launch(runs_dir: Path, clock: ClockPort, now: dt.datetime) -> Path:
     """Start this checkout's stack for the fixture; return its run directory."""
     fixture = load_fixture(FIXTURE_PATH)
-    scenario = delivery_scenario(fixture, FIXTURE_PATH)
+    scenario = waypoint_dock_scenario(fixture)
     run_dir = runs_dir / now.strftime("%Y%m%d-%H%M%S")
     if run_dir.exists():
         raise RegressionError(f"run directory already exists: {run_dir}")
-    prepare_sim_docks(run_dir, scenario)
+    run_dir.mkdir(parents=True)
     (run_dir / SETTINGS_NAME).write_text(
         json.dumps(demo_settings(fixture, scenario), indent=2), encoding="utf-8"
     )
@@ -237,7 +231,7 @@ def prep(runs_dir: Path, clock: ClockPort, open_browser=webbrowser.open) -> Path
     run_dir = find_run(runs_dir, token)
     require_unchanged(run_dir)
     fixture = load_fixture(FIXTURE_PATH)
-    scenario = delivery_scenario(fixture, FIXTURE_PATH)
+    scenario = waypoint_dock_scenario(fixture)
     env = demo_environment(run_dir)
     context = owned_stack_context(
         env, entry, str(token), Path(env[GCS_LOG_DIR_ENV]) / "backend.log", run_dir,
