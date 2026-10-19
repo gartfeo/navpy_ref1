@@ -206,7 +206,7 @@ plainly marked, a window never covers commands or warnings).
 | Control | v1 | Operator use |
 |---|---|---|
 | **Selector** at the top right (today's follow combo box, now a button that opens the vehicle list below) | yes (v11) | pick UAV 2: the window opens on UAV 2's camera; pick UAV 1 to come back; Free gives the map back. A UAV picked while the window is closed opens it normal on Camera; another UAV while it is open moves the window to it and keeps the source and the size; Free closes it. The selector never moves the map and never changes RC |
-| **Vehicle list** opened by the selector (owner, 2026-10-19) | yes (v11) | before picking, the operator sees which UAVs have a camera and which have lost their link. A panel under the selector at the top right: a "Free" row, then one row per UAV in the fleet: colour dot, "UAV n", and a text state from telemetry and stream announcements: "Camera", "No camera" or "Vehicle link lost" (link first when both). Status only: no picture, no reader, no synthetic view (owner, 2026-10-19: live tiles would play several streams at once, against the one-stream rule, and cost radio bandwidth per UAV). The picked row shows a check mark and "Viewing", never colour alone. A row tap picks, as in the selector row above, and closes the list; Escape, a tap outside or the selector again closes it with no change |
+| **Vehicle list** opened by the selector (owner, 2026-10-19) | yes (v11) | before picking, the operator sees which UAVs have a camera and which have lost their link. A panel under the selector at the top right: a "Free" row, then one row per UAV in the fleet: colour dot, "UAV n", and a text state from telemetry and stream announcements: "Camera", "No camera" or "Vehicle link lost" (link first when both). Status only: no picture, no reader, no synthetic view (owner, 2026-10-19: live tiles would play several streams at once, against the one-stream rule, and cost radio bandwidth per UAV). The current row shows a check mark, never colour alone; a UAV row also reads "Viewing" (Free shows only the check). A row tap picks, as in the selector row above, and closes the list; Escape, a tap outside or the selector again closes it with no change |
 | UAV badges in the window header | removed (v11) | they repeated the selector (open question 2) |
 | **View camera** on each task confirm card | yes | a card arrives: tap, compare the live scene with the still, then Approve/Deny on the card. It sets the selector to that UAV and the source to Camera (opening the window if it is closed), so the operator does not watch the wrong UAV; it does not move the map and does not prove the camera still shows the same dock (it may have moved since the still). Neutral button beside the still, away from Approve/Deny; "Viewing" when the window already shows that UAV's camera; on tap the old picture clears and "connecting · UAV n" shows. The countdown keeps running (the card says so); the tap never approves, denies or pauses. Pending cards only; shown only when that UAV has a stream and RC is off |
 | **Camera / Synthetic** switch in the window | yes | SITL demo or a dead feed: a vehicle view without RC, for the window's UAV. Synthetic only by a tap here: never automatic, never saved |
@@ -250,10 +250,12 @@ only way to open the window, so it gets the 44 px height on a touch device
 still starts below it. The vehicle list drops from the selector's bottom edge,
 right-aligned to it, above the map and the window (normal or maximized); its
 rows are 44 px on touch, its width at most the pane width minus 24 px, and
-past the pane height it scrolls. It is a disclosure button with a list of
-options (WAI-ARIA listbox pattern): arrow keys move, Enter picks, Escape
-closes and returns focus to the selector, and each row's accessible name
-holds the UAV and its state.
+past the space from the selector to the pane's bottom margin it scrolls. It is a disclosure button with a list of
+options (WAI-ARIA listbox pattern): opening puts focus on the current row;
+arrow keys move focus without picking; Enter picks, closes and returns focus
+to the selector; Escape and Tab close with no change (Tab then moves on, no
+trap); a focused row that leaves the fleet moves focus to the next row, else
+the previous; each row's accessible name holds the UAV and its state.
 
 #### Vehicle window
 
@@ -609,7 +611,10 @@ failure leaves video off and is logged; the rest of the stack still runs.
   row per fleet UAV with its colour, label and text state ("Camera", "No
   camera", "Vehicle link lost", link first when both), updating while open,
   no video reader and no Cesium widget created by opening it, the picked row
-  marked with a check and "Viewing", a row tap picks and closes, Escape, a tap
+  marked with a check ("Viewing" on a UAV row, not on Free), a row tap picks
+  and closes, opening focuses the current row, arrows move without picking,
+  Enter picks and returns focus to the selector, Tab closes with no change,
+  a focused row leaving the fleet moves focus to its neighbour, Escape, a tap
   outside and the selector close it with no change, a UAV leaving the fleet
   while open drops its row; keyboard: the selector opens the list, arrow keys
   and Enter pick and move the window, Escape returns focus to the selector; Close and a removal with focus inside move focus to the
@@ -671,7 +676,9 @@ failure leaves video off and is logged; the rest of the stack still runs.
 - Layout: at desktop size and a 375 px wide map pane (a 695 x 812 touch
   viewport: the 320 px sidebar does not shrink, `styles.js:92`), with 3 UAVs, a
   UAV with two streams, the window closed, normal and maximized, and three
-  cards in the sidebar: header on one line, 44 px window targets, the
+  cards in the sidebar, and the vehicle list open (under a wrapped bar, over
+  the normal and the maximized window, every row reachable by scrolling):
+  header on one line, 44 px window targets, the
   selector 44 px on touch, the map buttons fit with the plan button showing,
   the window starts below the wrapped top-right bar, Approve/Deny and E-STOP
   not covered, the Cesium credit line visible in every state, no overlap
