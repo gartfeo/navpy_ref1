@@ -878,3 +878,8 @@
 - Check every doc claim against the code before committing, even a closing note: a rewritten todo said `NavArgs`
   reads params only at start-up, which the same design doc contradicts (it re-reads at each task reset). An
   adversarial docs check caught it, plus stale line counts and cites in docs the move made stale.
+- Delivery demo prep (2026-10-19): a stack launched with the frontend from a fresh worktree "came up" with a dead
+  `npm run dev` (no `node_modules`, nothing logged); `delivery_demo.py launch` now waits for the frontend to answer.
+- For a `source_command_stale` failure, read the source-time CSVs, not the navigation log (its times are cached
+  and late): the lineage CSV gives the last frame NAV consumed, and the detector-poll CSV's `publish_ms` and
+  `work_cpu_ms` show whether the poll was waiting (CPU near 0) or computing. Two runs on one day showed both.
