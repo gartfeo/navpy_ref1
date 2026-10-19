@@ -908,6 +908,7 @@
   effect's cancel guard directly (unmount before the import resolves) and
   check that the test fails with the guard removed.
 
+<<<<<<< HEAD
 ## GCS video design v11 (2026-10-19)
 - I wrote "nothing moves the small map" after removing the chase; Codex found the sidebar
   coordinate fly-to (`flyToRef` -> `camera.flyTo`). Before claiming nothing moves the Cesium
@@ -916,3 +917,23 @@
   endings. After scripted edits, check `
 ` vs `
 ` counts and normalise before committing.
+=======
+## Link model (dev sim step 3, 2026-10-19)
+- A mutation can survive because a second mechanism enforces the same rule: removing the jitter clamp
+  left serial bytes in order, since the delay line releases only its head. Mutate both mechanisms
+  together to prove the test, and say which one each test covers.
+- An order assertion that compares a list with itself sorted proves nothing when the input is already
+  sorted. Pick parameters where the broken code would reorder, and confirm the test fails on it.
+- Measure the traffic before applying a designed rate: the SITL sends 12.2 kB/s to NavPy, more than
+  the 11.5 kB/s line the design assumed, so a rate on that direction would only build backlog.
+- The bundled Codex binary route (see "Approach-window cadence diagnostics") was still needed: the
+  PATH CLI failed its sandbox setup again.
+- A "shared stream" mutation must share one RNG object. Giving every link the same key only gives each
+  link its own copy of one sequence, so the isolation test survived it. Check that the mutant really
+  shares state before trusting a kill or a survival.
+- `sed -i` in Git Bash wrote LF over CRLF docs twice; re-add CRLF (`sed -i 's/$/\r/'`) or use the Edit
+  tool on CRLF files.
+- Never pass `-x` to the full pytest here: the known board_detector failures stop it early.
+- An eval error late in a report can be a consequence: "demo_mission_plan.json missing" came from the
+  operator failing at setup, not from the relative `--run-dir` it looked like. Read the first error.
+>>>>>>> eae60d9d945125a1163fd8b7f89572030f48a122

@@ -240,6 +240,26 @@ def test_an_advert_that_stops_short_fails_unless_sent_after_stop_all(fleet):
     assert _forwarding(stopped) == []
 
 
+def test_an_advert_copy_the_radio_link_lost_is_injected_not_a_forwarding_error(fleet):
+    """Step 3 of deterministic_dev_sim.md: a copy the radio link model lost ends ``lost``;
+    the same copy missing its delivery with no ``lost`` record still fails."""
+    records, _lines, _approvals = fleet
+    _uid, emitted = _uid_events(records, ADVERT, OWNER)
+    up = {tuple(e[1]) for e in emitted if e[1][0] == "sitl1" and e[1][2] == "sitl1.serial1"}
+    copies = {tuple(e[1]) for _r, e in _events(records)
+              if e[0] == "copy" and tuple(e[2]) in up and e[1][2] == "sitl3.serial1"}
+    assert len(copies) == 1
+    lost = copy.deepcopy(records)
+    for _r, event in _events(lost):
+        if event[0] == "delivered" and tuple(event[1]) in copies:
+            event[:] = ["lost", event[1], "loss"]
+    assert _forwarding(lost) == []
+    assert packet_run_errors(lost) == []
+    gone = _drop(records, lambda e: e[0] == "delivered" and tuple(e[1]) in copies)
+    errors = _forwarding(gone)
+    assert len(errors) == 1 and errors[0].endswith("from 1 to 3 stopped at ap_serial1")
+
+
 def test_a_source_outside_the_fleet_and_a_router_dropped_navlink_packet_fail(fleet):
     records, _lines, _approvals = fleet
     changed = copy.deepcopy(records)
