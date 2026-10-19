@@ -1,6 +1,6 @@
 # Delivery demo by hand: prep command and the stale-after-approval failure
 
-Status: design v3 (after Codex reviews 1-2), owner decisions 2026-10-19.
+Status: v3 shipped (`26cb913`). Waypoint docks: design v1 after Codex review (3 findings applied), 2026-10-20.
 
 ## Goal
 
@@ -191,3 +191,72 @@ the open trace.
 1. Speedup 10x.
 2. The live test may stop slot 0 (`navpy-demo`) first.
 3. The trace of the 30-50 ms frame delay is a separate task.
+
+## Waypoint docks for the hand demo (v1, 2026-10-20)
+
+**Owner (2026-10-20):** the hand demo puts d1 and d2 on mission waypoints, so the
+GCS map shows them and the run is easy to check. The shared dock world
+(`NAVPY_SIM_DOCKS`) stays for the delivery eval and for later.
+
+**Why the map shows nothing today.** The map draws a sim dock only at the track
+point of each bit in a vehicle's `targ_wps` (`dockResolver.js:36-81`, filled from
+`/params` in `useVehicleConnection.js:620-647`). The demo sets `targ_wps=0` on
+every UAV and keeps d1 and d2 in the dock file, which the GCS never reads.
+
+**How waypoint docks work** (no `NAVPY_SIM_DOCKS`; the rectangle eval's mode):
+- Each NavPy builds its own sim world from its own `AAS_TARG_WPS` waypoints
+  (`navigation_poi_args.py:42-56`, `poi_provider.py:115-145`), height
+  `AAS_TARG_ALT` above ground (demo: 0). Dock ids are per UAV.
+- A peer that accepts an offered task gets one dock at the task message's
+  position, which in sim is the offerer's truth (`peer_approach_start.py:30-35`,
+  `nav_network.py:159-167`).
+- A UAV that reaches its hub row gets a dock at the hub
+  (`products/delivery/fallback_mission_navigation.py:60-65`).
+- Dock location rule: navigation never reads d1/d2 before detection or a task
+  message; they feed only the sim renderer. The hub is the rule's exception:
+  fallback navigates to the operator-assigned hub before seeing it
+  (`fallback_mission_navigation.py:54-66`), as today.
+
+**Change (demo only; the eval is untouched):**
+- d1 and d2 sit mid-segment on the owner's (zone-0) northbound leg at lon
+  44.4737067, between NAV ordinals 3 and 4. The demo inserts two NAV waypoints
+  there, at the fixture's d1 and d2 positions. The points are collinear, so the
+  path is the same. d1 becomes ordinal 4, d2 ordinal 5; the hub row stays last.
+  `nav_last_wp` (ordinal 1) and detection start are unchanged. Peers' missions
+  are unchanged.
+- The demo scenario is the fixture scenario with that owner mission and
+  `poi_nav_waypoint_ordinals (4, 5)`. The delivery gate profile refuses any POI
+  ordinal (`eval_gcs_demo_gate_profiles.py:43`), so the demo builds it in one
+  named function: missions through `scenario_missions(..., (4, 5))`, which checks
+  the ordinals against the owner track, then `dataclasses.replace`. No eval code
+  path builds it; prep runs no delivery gate. Then the eval's `aas_params_for` gives the
+  owner `targ_wps=24` and the peers 0, and the eval's upload writes the new
+  mission with readback.
+- `launch` does not set `NAVPY_SIM_DOCKS` and does not call `prepare_sim_docks`
+  (its runtime check refuses `targ_wps != 0`, `eval_delivery_fixture.py:135`);
+  the launch record and the hash check drop the dock file.
+
+**Expected run:** UAV 1 sees d1 and d2 in its own world, keeps the first
+(`poi_selection.py:72-88`) and offers the other; the peer that wins gets that dock
+from the task message; the third UAV flies to its hub and gets the hub dock. The
+map shows d1 and d2 on UAV 1's track and the three hubs (UNVERIFIED: the map
+uses the plan's track, rebuilt from the downloaded mission; the live test checks
+that it includes the two inserted points).
+
+**Limits:** peer and hub docks are not drawn (peers' `targ_wps` is 0); any RESET
+drops a peer's or hub's added dock (`navigation_task_reset.py:157-161`), but a
+failed approach ends like DOCKED in sim, without a RESET. Which of d1/d2 UAV 1
+keeps depends on which it detects first and its selection rules
+(`poi_selection.py:72`, `poi_priority.py:29`); the scenario's rule (keep one,
+offer one) holds either way, if both are seen.
+
+**Tests:** the demo scenario's owner mission has the two inserted points at the
+fixture's d1/d2 positions and the same path; its ordinals are (4, 5) and the
+owner's params carry `targ_wps=24`, peers 0; `launch` sets no `NAVPY_SIM_DOCKS`
+and writes no dock file; prep's hash check covers the fixture and settings only;
+`resolve_live_plan` accepts the demo scenario (prep's steps through plan
+resolution, fake context).
+
+**Verify:** live-tester runs `launch` and `prep`, checks the map shows d1 and d2
+on UAV 1's track, then Launch and approvals: UAV 1 keeps one dock, a peer wins
+the other, one UAV flies home.
