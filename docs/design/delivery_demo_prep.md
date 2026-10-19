@@ -1,6 +1,6 @@
 # Delivery demo by hand: prep command and the stale-after-approval failure
 
-Status: design v3 (after Codex reviews 1-2), 2026-10-19. Owner OK pending.
+Status: design v3 (after Codex reviews 1-2), owner decisions 2026-10-19.
 
 ## Goal
 
@@ -85,10 +85,10 @@ snapshot read and ingress, plus lock waits, with the page open and closed, on
 a quiet PC. That separates late publication, a rejected publication and an
 old snapshot read by a late NAV tick. The finding goes into todo 31.
 
-**Operating choice for the hand demo:** a lower speedup widens the receipt
-budget (1/S s of wall time: 250 ms at 4x). That is a mitigation, not a fix,
-and its margin is checked live: the live test reports pose-receipt-to-command
-age and source age per command with the page open.
+**Speedup (owner, 2026-10-19): the hand demo runs at 10x, like the eval.** A
+lower speedup would widen the receipt budget (1/S s of wall time), but it is
+a mitigation, not a fix. The live test reports pose-receipt-to-command age and
+source age per command with the page open.
 
 ## Design: `scripts/delivery_demo.py`
 
@@ -108,7 +108,7 @@ puts the scenario on it, then opens the UI. Each prints the next command.
 
 - run dir `.logs\delivery-demo\<YYYYmmdd-HHMMSS>` (fresh: the SITL root and
   logs need one);
-- `load_delivery_scenario(FIXTURE_PATH)`; `prepare_sim_docks` writes
+- `load_fixture` and `delivery_scenario`; `prepare_sim_docks` writes
   `fleet_docks.json` and checks the fixture runtime;
 - settings = `build_settings(scenario)` plus `default_delivery_hubs` from the
   fixture's `inputs.delivery_hubs`. It keeps the eval's `auto_connect false`
@@ -117,12 +117,12 @@ puts the scenario on it, then opens the UI. Each prints the next command.
   order;
 - env = `build_environment(...)` plus `NAVPY_SIM_DOCKS`;
 - `prepare_sitl_root(run_dir)`: fresh eeprom, so no stored mission;
-- `launch_stack(..., headless=False, browser=False, speedup=S)`: the eval's
+- `launch_stack(..., headless=False, browser=False)`: the eval's
   launch with the scenario home, `-n 3` and a launch token, with the frontend
   but no browser. The browser opens only after prep, because a page open
   before the upload sees empty missions and never shows a plan to launch
   (`planDownloadRun.js:98`, `useVehicleConnection.js:479`);
-- writes `demo_launch.json` in the run dir: launch token, speedup, home, and
+- writes `demo_launch.json` in the run dir: launch token, home, and
   the sha256 of the fixture, of `fleet_docks.json` and of the settings file.
 
 **`prep`**:
@@ -152,20 +152,20 @@ Stop as always: the same checkout's `scripts\gcs_stop.py`.
 Changes to eval code for reuse (the eval keeps its behavior; default argv
 unchanged):
 
-- `launch_command` and `launch_stack` take `headless=True`, `browser=True`
-  and `speedup=SIM_SPEEDUP` keywords; the registry check compares with the
-  requested speedup.
+- `launch_command` and `launch_stack` take `headless=True` and
+  `browser=True` keywords.
 - the end of `launch_stack` (backend health wait, generation re-check, API
   close on failure, `StackContext` build) becomes
-  `owned_stack_context(env, entry, clock, scenario)`, used by both.
+  `owned_stack_context(env, entry, launch_token, backend_log,
+  navigation_dir, clock=, scenario=)`, used by both (prep passes the
+  existing `backend.log`, which `backend_log_file` would refuse).
 
 Module size: about 170 lines. Tests (no SITL): argument parsing; refusals (no
 stack, token not found, a hash changed, backend settings differ, companion
 running); settings carry the fixture hubs and explicit lifecycle; env carries
 `NAVPY_SIM_DOCKS`; prep calls the eval steps in order and opens the browser
 last (fake context); `launch_command` default argv unchanged and the new
-keywords map to `--no-browser`, no `--headless` and `--speedup`; the registry
-check accepts the requested speedup and rejects another; the extracted
+keywords map to `--no-browser` and no `--headless`; the extracted
 `owned_stack_context` keeps the health wait and the API close, and fails
 when the registry generation changes during the health wait.
 
@@ -179,13 +179,12 @@ the open trace.
    UI's Launch and approvals with the page open; pass = d1 kept, d2 offered
    and won by one peer, one UAV homes, no stale NAV_FAIL; report per command
    the receipt age and source age. Also open the page before `prep` and
-   reload it after: the plan must show and Launch must be enabled. The
-   owner's slot 0 stack still runs.
+   reload it after: the plan must show and Launch must be enabled. The owner
+   allowed stopping slot 0 first.
 3. Push to main fast-forward only; the targeted tests on main.
 
-## Owner decisions
+## Owner decisions (2026-10-19)
 
-1. Default speedup for the hand demo: 10x (eval parity; the same budget that
-   failed) or 4x (recommended; 250 ms budget, checked in the live test).
-2. May the live test run while slot 0 runs, or do you stop slot 0 first?
-3. The trace of the 30-50 ms frame delay as a separate task: yes or later.
+1. Speedup 10x.
+2. The live test may stop slot 0 (`navpy-demo`) first.
+3. The trace of the 30-50 ms frame delay is a separate task.

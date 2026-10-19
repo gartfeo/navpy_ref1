@@ -100,6 +100,15 @@ Frontend:
   `terminated`). `gcs_launch.py --headless` (evaluators): no frontend or
   console windows, child output in `GCS_LOG_DIR`; `NAVPY_LOG_ROTATION=off`
   keeps logs unrotated.
+- **Hand-driven delivery demo** (`scripts/delivery_demo.py`, design
+  `docs/design/delivery_demo_prep.md`): `delivery_demo.py launch` starts this
+  checkout's stack for `scripts/eval_delivery_scenario.json` (dock world,
+  scenario home, three hubs, explicit lifecycle, fresh SITL root, frontend but
+  no browser); `delivery_demo.py prep` then connects, writes the eval's
+  params, uploads the missions with readback, starts the companions and opens
+  the UI. Press Launch, approve each dock within 30 s; reload a tab opened
+  before `prep`. Stop with `gcs_stop.py`. Both refuse a stack `launch` did not
+  start; logs in `.logs/delivery-demo/<time>`.
 - In **dev mode only**, the running git branch is shown in the tab title +
   topbar so parallel instances are distinguishable; non-dev (operator) mode
   hides it (`devMode` gates both, from `settings.simulation.dev_mode`).
