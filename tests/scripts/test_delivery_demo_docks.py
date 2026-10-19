@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import importlib
 from types import SimpleNamespace
 
@@ -23,6 +24,7 @@ config = importlib.import_module("scripts.eval_gcs_demo_config")
 models = importlib.import_module("scripts.eval_gcs_demo_models")
 scenario_module = importlib.import_module("scripts.eval_gcs_demo_scenario")
 missions_module = importlib.import_module("scripts.eval_gcs_demo_scenario_missions")
+upload = importlib.import_module("scripts.eval_gcs_demo_upload")
 
 FIXTURE = fixture_module.load_fixture(fixture_module.FIXTURE_PATH)
 EVAL = fixture_module.delivery_scenario(FIXTURE, fixture_module.FIXTURE_PATH)
@@ -45,8 +47,14 @@ def test_d1_and_d2_become_owner_waypoints_on_the_same_path():
     assert [m for i, m in enumerate(DEMO.missions) if i != owner] == [
         m for i, m in enumerate(EVAL.missions) if i != owner
     ]
-    # The fixture itself is not edited.
-    assert len(FIXTURE["missions"][owner]["waypoints"]) == len(EVAL.missions[owner]["waypoints"])
+
+
+def test_the_fixture_is_not_edited():
+    fixture = copy.deepcopy(FIXTURE)
+
+    waypoint_dock_scenario(fixture)
+
+    assert fixture == FIXTURE
 
 
 def test_only_the_owner_marks_the_dock_waypoints():
@@ -90,6 +98,10 @@ def test_the_plan_and_navpy_both_resolve_d1_and_d2_at_ordinals_4_and_5():
     vehicle = _onboard(owner)
     parsed = parse_mission_items(vehicle, vehicle.mission_items_count, owner["sys_id"])
 
+    # The upload's exact readback holds for the longer owner mission.
+    assert upload.mission_assignment(
+        parsed, expected_sys_id=owner["sys_id"], zone_index=owner["zone_index"]
+    ) == owner
     plan = scenario_module.resolve_demo_plan(models.UavIds.from_values(SYS_IDS, 3), parsed, DEMO)
 
     assert [poi.nav_waypoint_ordinal for poi in plan.pois] == [4, 5]

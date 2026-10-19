@@ -61,10 +61,13 @@ def test_settings_carry_the_fixture_hubs_and_the_explicit_lifecycle():
 
 
 def test_environment_keeps_the_frontend_map_token_and_drops_other_shell_variables(tmp_path):
-    env = demo.demo_environment(tmp_path, {"VITE_CESIUM_ION_TOKEN": "t", "NAVPY_X": "1", "PATH": "p"})
+    env = demo.demo_environment(
+        tmp_path, {"VITE_CESIUM_ION_TOKEN": "t", "NAVPY_SIM_DOCKS": "x", "PATH": "p"}
+    )
 
     assert env["VITE_CESIUM_ION_TOKEN"] == "t" and env["PATH"] == "p"
-    assert "NAVPY_X" not in env
+    # A shell's dock world must not replace the demo's waypoint docks.
+    assert "NAVPY_SIM_DOCKS" not in env
     assert "VITE_CESIUM_ION_TOKEN" not in demo.demo_environment(tmp_path, {"PATH": "p"})
 
 
