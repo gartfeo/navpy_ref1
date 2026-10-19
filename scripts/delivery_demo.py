@@ -97,8 +97,8 @@ def _guarded_files(run_dir: Path) -> dict[str, Path]:
 
 
 def powershell_command(*paths: object, step: str = "") -> str:
-    """A PowerShell 5.1 line; paths quoted so spaces survive."""
-    quoted = " ".join(f'"{path}"' for path in paths)
+    """A PowerShell 5.1 line; literal-quoted paths keep spaces, ``$`` and backticks."""
+    quoted = " ".join("'" + str(path).replace("'", "''") + "'" for path in paths)
     return f"& {quoted} {step}".rstrip()
 
 

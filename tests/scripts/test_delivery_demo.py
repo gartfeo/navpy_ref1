@@ -67,8 +67,8 @@ def test_environment_keeps_the_frontend_map_token_and_drops_other_shell_variable
 
 
 def test_printed_commands_survive_spaces_in_powershell():
-    assert demo.powershell_command(r"C:\Program Files\py.exe", r"C: b\d.py", step="prep") == (
-        r'& "C:\Program Files\py.exe" "C: b\d.py" prep'
+    assert demo.powershell_command(r"C:\Program Files\py.exe", r"C: $b`'c\d.py", step="prep") == (
+        r"& 'C:\Program Files\py.exe' 'C: $b`''c\d.py' prep"
     )
 
 
