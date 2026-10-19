@@ -221,8 +221,9 @@ def test_loss_draws_do_not_move_with_the_jitter_draws():
 
 
 def test_one_links_draws_do_not_move_with_other_links_or_the_serial_model():
-    """SITL 1 to SITL 2's losses and arrival ticks stay put when other links and the serial
-    model carry traffic. Mutations: one loss stream for every link; one jitter stream."""
+    """SITL 1 to SITL 2's losses and arrival ticks stay put when other links (SITL 1's own
+    to SITL 3 among them) and the serial model carry traffic. Mutations: one loss stream,
+    or one jitter stream, for every link; one of each per sender."""
     def watched(busy: bool) -> list:
         spec = LinkSpec(1, 3, loss=0.3)
         src = Sources()
@@ -232,6 +233,8 @@ def test_one_links_draws_do_not_move_with_other_links_or_the_serial_model():
             egress = {serial1(1): src.heartbeat(1, 1)}
             if busy:
                 egress |= {serial1(3): src.heartbeat(3, 1), serial0(2): src.heartbeat(2, 1)}
+                if k > 1:  # SITL 3 is known from tick 1: SITL 1's request goes to it alone
+                    egress[serial1(1)] += src.param((1, 1), 3, 1)
             run.tick(k, egress=egress, admitted=[backend])
         parent = {tuple(e[1]): tuple(e[2]) for _k, e in run.events("copy")}
         return [(k, e[0]) for k, e in run.events("lost") + run.events("arrived")

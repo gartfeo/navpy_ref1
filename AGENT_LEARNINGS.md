@@ -889,3 +889,11 @@
   the 11.5 kB/s line the design assumed, so a rate on that direction would only build backlog.
 - The bundled Codex binary route (see "Approach-window cadence diagnostics") was still needed: the
   PATH CLI failed its sandbox setup again.
+- A "shared stream" mutation must share one RNG object. Giving every link the same key only gives each
+  link its own copy of one sequence, so the isolation test survived it. Check that the mutant really
+  shares state before trusting a kill or a survival.
+- `sed -i` in Git Bash wrote LF over CRLF docs twice; re-add CRLF (`sed -i 's/$/\r/'`) or use the Edit
+  tool on CRLF files.
+- Never pass `-x` to the full pytest here: the known board_detector failures stop it early.
+- An eval error late in a report can be a consequence: "demo_mission_plan.json missing" came from the
+  operator failing at setup, not from the relative `--run-dir` it looked like. Read the first error.
