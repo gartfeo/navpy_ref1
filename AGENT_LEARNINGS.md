@@ -907,3 +907,12 @@
   the import (which module came back) before blaming the component; test the
   effect's cancel guard directly (unmount before the import resolves) and
   check that the test fails with the guard removed.
+
+## GCS video design v11 (2026-10-19)
+- I wrote "nothing moves the small map" after removing the chase; Codex found the sidebar
+  coordinate fly-to (`flyToRef` -> `camera.flyTo`). Before claiming nothing moves the Cesium
+  camera, grep every caller of `camera.flyTo`, `setView`, `flyToRef` and `resetViewRef`.
+- The design doc is CRLF in the worktree; the Edit tool and a Python splice left mixed line
+  endings. After scripted edits, check `
+` vs `
+` counts and normalise before committing.
