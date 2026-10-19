@@ -1,14 +1,15 @@
-"""Source wiring for the per-vehicle camera video panel (docs/design/gcs_video_streams.md).
+"""Source wiring for the monitor view's vehicle window (docs/design/gcs_video_streams.md).
 
-Behaviour the panel's own Vitest suites cover (state machine, session/track
+Behaviour the window's own Vitest suites cover (state machine, session/track
 release, corner placement): ``src/gcs/frontend/src/hooks/useWhepStream.test.jsx``,
-``src/gcs/frontend/src/components/VideoPanel.test.jsx`` and
+``src/gcs/frontend/src/hooks/useVehicleWindow.test.jsx``,
+``src/gcs/frontend/src/components/VehicleWindow.test.jsx`` and
 ``src/gcs/frontend/src/vendor/mediamtx/reader.test.js``.
 
 What is asserted here instead is the part that only exists in App.jsx and in the
 repository layout:
 
-- the panel is mounted in the monitor view, and NOT during manual control, so it
+- the window is mounted in the monitor view, and NOT during manual control, so it
   cannot sit over the joysticks, the flight-mode column or the FPV HUD;
 - every operator control the video could have displaced is still wired:
   confirm / deny / cancel, E-STOP in both hosts, and manual control;
@@ -41,24 +42,25 @@ def _walk_sources(root, suffixes):
                     yield path, handle.read()
 
 
-class TestAppMountsPanelInMonitorOnly(unittest.TestCase):
+class TestAppMountsWindowInMonitorOnly(unittest.TestCase):
     def setUp(self):
         self.src = _read("App.jsx")
 
-    def test_imports_and_mounts_the_panel(self):
-        self.assertIn("import VideoPanel from './components/VideoPanel'", self.src)
-        # Monitor only, never in manual control or FPV (cameraPanelVisible).
-        self.assertIn("monitor: phase === PHASES.MONITOR, rcEnabled: mc.manualControlEnabled, fpvOn: fpv.fpvOn", self.src)
-        self.assertIn("{showVideoPanel && (", self.src)
-        # One feed, mounted once.
-        self.assertEqual(self.src.count("<VideoPanel"), 1)
+    def test_imports_and_mounts_the_window(self):
+        self.assertIn("import VehicleWindow, { MAP_SWAPPED_Z_INDEX } from './components/VehicleWindow'", self.src)
+        # Monitor only, never in manual control (vehicleWindowVisible).
+        self.assertIn("monitor, rcEnabled: mc.manualControlEnabled, fleetSize: videoFleet.length", self.src)
+        self.assertIn("active: monitor && !mc.manualControlEnabled", self.src)
+        self.assertIn("{showWindow && (", self.src)
+        # One window, mounted once.
+        self.assertEqual(self.src.count("<VehicleWindow"), 1)
 
     def test_mounted_inside_the_map_pane_before_the_manual_control_block(self):
         map_start = self.src.index("<CesiumMap")
         manual_start = self.src.index("{mc.manualControlEnabled && (")
-        panel = self.src.index("<VideoPanel")
-        self.assertLess(map_start, panel)
-        self.assertLess(panel, manual_start)
+        window = self.src.index("<VehicleWindow")
+        self.assertLess(map_start, window)
+        self.assertLess(window, manual_start)
 
     def test_operator_controls_are_untouched(self):
         # Confirmation actions (map cards and sidebar) still reach the handlers.
@@ -72,16 +74,16 @@ class TestAppMountsPanelInMonitorOnly(unittest.TestCase):
         self.assertIn("<FlightModeColumn", self.src)
 
 
-class TestPanelLayering(unittest.TestCase):
+class TestWindowLayering(unittest.TestCase):
     def test_video_sits_below_the_control_layers(self):
-        src = _read("components", "VideoPanel.jsx")
+        src = _read("components", "VehicleWindow.jsx")
         match = re.search(r"const Z_INDEX = (\d+);", src)
-        self.assertIsNotNone(match, "VideoPanel must name its z-order explicitly")
+        self.assertIsNotNone(match, "VehicleWindow must name its z-order explicitly")
         # Map overlay buttons are 10, confirmation cards 20.
         self.assertLess(int(match.group(1)), 10)
 
     def test_no_latency_claim_in_the_operator_surface(self):
-        for name in (("components", "VideoPanel.jsx"), ("hooks", "useWhepStream.js")):
+        for name in (("components", "VehicleWindow.jsx"), ("components", "SyntheticView.jsx"), ("hooks", "useWhepStream.js")):
             self.assertNotIn("latency", _read(*name).lower())
 
 
@@ -132,11 +134,13 @@ class TestVendoredReaderProvenance(unittest.TestCase):
 
 
 class TestLocaleStrings(unittest.TestCase):
-    def test_panel_strings_exist_in_both_locales(self):
+    def test_window_strings_exist_in_both_locales(self):
         for locale in ("en", "hy"):
             src = _read("locales", f"{locale}.json")
-            self.assertIn('"videoPanel"', src)
-            for key in ("title", "region", "reconnect", "dismiss", "videoLost", "linkLost", "expand", "restore", "collapse"):
+            self.assertIn('"vehicleWindow"', src)
+            self.assertNotIn('"videoPanel"', src)
+            for key in ("region", "reconnect", "dismiss", "videoLost", "linkLost", "noCamera", "maximize", "restore",
+                        "minimize", "syntheticTag", "waitingForPose", "syntheticUnavailable"):
                 self.assertIn(f'"{key}"', src)
 
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { fpvHoldReason } from '../../../utils/fpvView';
+import { createPoseMath, noseOrientation } from '../utils/fpvPose';
 
 /**
  * Pure helper: returns followSysId if the vehicle exists in vehicleList, else null.
@@ -16,22 +17,15 @@ export function resolveFollowTarget(followSysId, vehicleList) {
  * Chase-cam / FPV-cam that follows a UAV.
  *
  * When fpvMode is false (default): chase-cam that orbits with smooth heading.
- * When fpvMode is true: first-person view using the vehicle's orientation.
- * In FPV the camera holds its last valid pose while the vehicle is unlinked or
- * its snapshot position/attitude is not finite (fpvHoldReason), and resumes on
- * the next valid one. The viewer runs in request-render mode, so FPV requests a
- * render per telemetry (pose) update.
+ * When fpvMode is true (RC FPV): first-person view using the vehicle's
+ * orientation. In FPV the camera holds its last valid pose while the telemetry
+ * is not current, the vehicle is unlinked or its snapshot position/attitude is
+ * not finite (fpvHoldReason), and resumes on the next valid one. The viewer
+ * runs in request-render mode, so FPV requests a render per telemetry (pose)
+ * update.
  *
- * Extracts the heading from the entity's slerped orientation quaternion
- * (60 fps via CallbackProperty) instead of from vehicleList (5 Hz React
- * state), giving buttery-smooth camera rotation that matches the model.
- *
- * The entity orientation in useUavMarkers is built as:
- *   entityOri = enuRotation(pos) * hprQuat(heading,pitch,roll) * modelFixQuat
- *
- * To recover heading we reverse this:
- *   hprQuat = inverse(enuRotation) * entityOri * inverse(modelFix)
- *   heading = HeadingPitchRoll.fromQuaternion(hprQuat).heading
+ * Heading, pitch and roll come from the model's slerped orientation
+ * (utils/fpvPose.js), so the camera moves with the model.
  */
 export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSysId, viewerReady, fpvMode, storeRef) {
   const followSysIdRef = useRef(followSysId);
@@ -68,21 +62,9 @@ export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSy
 
     initializedRef.current = false;
 
-    // Inverse of the model-fix rotation applied in useUavMarkers
-    const modelFixHpr = new Cesium.HeadingPitchRoll(
-      -Cesium.Math.PI, Cesium.Math.PI_OVER_TWO, 0,
-    );
-    const invModelFix = Cesium.Quaternion.inverse(
-      Cesium.Quaternion.fromHeadingPitchRoll(modelFixHpr),
-      new Cesium.Quaternion(),
-    );
-
-    // Scratch variables — reused every frame to avoid allocations at 60 fps
-    const scratchTransform = new Cesium.Matrix4();
-    const scratchQuat1 = new Cesium.Quaternion();
-    const scratchQuat2 = new Cesium.Quaternion();
-    const scratchMat3 = new Cesium.Matrix3();
-    const scratchHpr = new Cesium.HeadingPitchRoll();
+    // Scratch-backed pose math — no allocations at 60 fps
+    const poseMath = createPoseMath(Cesium);
+    const scratchTransform = poseMath.transform;
 
     const onPreRender = () => {
       const sid = followSysIdRef.current;
@@ -96,35 +78,19 @@ export default function useFollowUav(cesiumRef, viewerRef, entitiesRef, followSy
       const orientation = entity.orientation?.getValue(time);
       if (!position || !orientation) return;
 
-      // Build ENU frame at entity position (also used for lookAtTransform)
-      Cesium.Transforms.eastNorthUpToFixedFrame(position, undefined, scratchTransform);
-
-      // Extract smooth heading/pitch/roll from the slerped orientation quaternion
-      Cesium.Quaternion.multiply(orientation, invModelFix, scratchQuat1);
-      Cesium.Matrix4.getMatrix3(scratchTransform, scratchMat3);
-      Cesium.Quaternion.fromRotationMatrix(scratchMat3, scratchQuat2);
-      Cesium.Quaternion.inverse(scratchQuat2, scratchQuat2);
-      Cesium.Quaternion.multiply(scratchQuat2, scratchQuat1, scratchQuat1);
-      Cesium.HeadingPitchRoll.fromQuaternion(scratchQuat1, scratchHpr);
+      // Smooth heading/pitch/roll; also builds the ENU frame used for lookAtTransform
+      const scratchHpr = poseMath.vehicleHpr(position, orientation);
 
       if (fpvModeRef.current) {
-        // Hold the last valid pose: no link, or no finite position/attitude.
-        if (fpvHoldReason(storeRef?.current?.getVehicles?.()[sid])) return;
+        // Hold the last valid pose: telemetry not current, no link, or no finite position/attitude.
+        const store = storeRef.current;
+        if (fpvHoldReason(store.getVehicles()[sid], store.isTelemetryFresh(sid))) return;
         // FPV mode: camera looks through vehicle's eyes
         // Unlock from lookAtTransform first if needed
         if (initializedRef.current) {
           viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
         }
-        // Un-swap pitch/roll: useUavMarkers swaps them for the 3D model
-        // (modelPitch = -vehicle_roll, modelRoll = vehicle_pitch)
-        viewer.camera.setView({
-          destination: position,
-          orientation: {
-            heading: scratchHpr.heading,
-            pitch: scratchHpr.roll,
-            roll: -scratchHpr.pitch,
-          },
-        });
+        viewer.camera.setView({ destination: position, orientation: noseOrientation(scratchHpr) });
         initializedRef.current = true;
         wasFpvRef.current = true;
       } else {

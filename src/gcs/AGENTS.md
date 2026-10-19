@@ -27,12 +27,14 @@ Frontend:
 - scripts: `npm run dev`, `npm run build`, `npm run preview`
 - Handheld (Termux) deployment: the backend serves the built frontend itself
   when `GCS_FRONTEND_DIST` is set
-- Vehicle video (monitor view, camera panel): display only, never a
-  final-approach input. Each vehicle's camera advertises its streams over the
-  MAVLink camera protocol; the backend checks each URI against
+- Vehicle video (monitor view, bottom-left vehicle window): display only,
+  never a final-approach input. Each vehicle's camera advertises its streams
+  over the MAVLink camera protocol; the backend checks each URI against
   `video.allowed_networks` and puts a WHEP URL (port `video.whep_port`) in the
   snapshot's `video_streams`. The browser plays it straight from the
-  aircraft's MediaMTX. No streams, no panel. Sim test pattern:
+  aircraft's MediaMTX. The window shows whenever the fleet has a UAV: Camera
+  ("No camera" without streams) or Synthetic (shaded terrain from the UAV's
+  pose, never confirms anything). Sim test pattern:
   `simulation.video_test_source`. Design: `docs/design/gcs_video_streams.md`.
   The WHEP client is vendored third-party source:
   `frontend/src/vendor/mediamtx/` (see its `NOTICE`).

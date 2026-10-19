@@ -1,6 +1,6 @@
 # GCS video streams per vehicle
 
-Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson) and shipped as PR #18. v10 draft (2026-10-19: one bottom-left vehicle window with a Camera / Synthetic switch, minimize and maximize-swap; it replaces the v9 draft, design C) awaits owner approval; its open questions are at the end.
+Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson) and shipped as PR #18. v10 (2026-10-19: one bottom-left vehicle window with a Camera / Synthetic switch, minimize and maximize-swap; it replaces the v9 draft, design C) approved by the owner 2026-10-19 (decision 6).
 
 Owner request (2026-10-16): "we should be able to see video streams in our GCS if
 those are available."
@@ -250,7 +250,8 @@ button gone it holds no new control, so the 44 px rule does not apply to it.
 - Which UAV: badges and View camera pick it, for both sources. First pick, when
   the fleet gets its first UAV: the followed UAV if it has video, else the first
   UAV with video, else the first UAV (lowest sys_id). The first pick stays
-  automatic until the operator taps a badge, the switch or View camera; while
+  automatic until the operator taps a badge, the switch, View camera or
+  Dismiss; while
   automatic and on "No camera", the window moves to the first UAV that starts
   advertising a stream (nothing is on screen to switch away from, so "never a
   silent switch" holds). The pick re-arms when the fleet becomes empty. Later
@@ -630,22 +631,7 @@ failure leaves video off and is logged; the rest of the stack still runs.
    SITL opens on "No camera". The top-right FPV button goes; the synthetic
    source is named Synthetic, chosen by hand only and never saved; only
    minimized or normal is saved.
-
-## Open for the owner (v10)
-
-1. Minimizing stops the camera video and the synthetic view (recommended: an
-   unwatched stream costs radio bandwidth and Jetson encoding; restore then
-   waits for the first frame, up to the 10 s deadline). The alternative keeps
-   video playing while minimized, so restore is instant.
-
-2. The synthetic view shows shaded terrain without imagery (recommended:
-   Cesium cannot show Bing attributions in two views at once, and aircraft
-   synthetic vision also draws terrain without photos). The alternative keeps
-   imagery through a provider wrapper that gives the widget its own copy of
-   every credit: more code that depends on how Cesium caches credits.
-
-Decision 5 closes v9 questions 2 and 4: follow no longer drives the synthetic
-view, and the top-right bar is back to its pre-PR #18 controls at 32 px. v9
-question 1 keeps its recommended answer unless the owner says otherwise: a
-second Cesium view behind the load gate (fallback: a 2D attitude indicator).
-Question 2 above replaces v9 question 3.
+6. v10 approved (2026-10-19) with the recommended answers: minimizing stops
+   the camera video and the synthetic view (restore reconnects); the
+   synthetic view shows shaded terrain without imagery. A second Cesium view
+   stays behind the load gate (fallback: a 2D attitude indicator).
