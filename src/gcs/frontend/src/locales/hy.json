@@ -355,8 +355,9 @@
     }
   },
   "task": {
-    "title": "Առաջադրանք #{{id}}",
+    "title": "POI #{{id}}",
     "map": "[Քարտեզ]",
+    "positionUnknown": "Դիրքն անհայտ է",
     "waitingForImage": "Սպասվում է պատկերին...",
     "approve": "ՀԱՍՏԱՏԵԼ",
     "deny": "ՄԵՐԺԵԼ",
