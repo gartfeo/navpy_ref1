@@ -1,6 +1,6 @@
 # GCS video streams per vehicle
 
-Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson) and shipped as PR #18. v10 (2026-10-19: one bottom-left vehicle window with a Camera / Synthetic switch, minimize and maximize-swap; it replaces the v9 draft, design C) approved by the owner 2026-10-19 (decision 6) and shipped as PR #20. **v11 draft** (owner request, 2026-10-19): the vehicle window moves to the top right under the action bar and holds the UAV picker, each UAV marked with a camera or map icon; a UAV without a camera opens on Synthetic; the follow selector and the map chase go. This reverses D1 / decision 5. Written with the recommended answers to the open questions; awaiting owner approval (decision 7).
+Status: design v8 approved by the owner 2026-10-18 (D1 (a): follow moves only the map; display codec: software H.264 on the Jetson) and shipped as PR #18. v10 (2026-10-19: one bottom-left vehicle window with a Camera / Synthetic switch, minimize and maximize-swap; it replaces the v9 draft, design C) approved by the owner 2026-10-19 (decision 6) and shipped as PR #20. **v11** (owner request, 2026-10-19): the vehicle window moves to the top right under the action bar and holds the UAV picker, each UAV marked with a camera or map icon; a UAV without a camera opens on Synthetic; the follow selector and the map chase go. This reverses D1 / decision 5. Approved by the owner 2026-10-20 with the recommended answers to the open questions (decision 7); not implemented yet.
 
 Owner request (2026-10-16): "we should be able to see video streams in our GCS if
 those are available."
@@ -716,14 +716,14 @@ failure leaves video off and is logged; the rest of the stack still runs.
   origin): glass-to-glass latency (on-screen clock),
   bitrate, and vision capture timing unchanged while the GCS watches.
 
-## Open questions for v11 (owner)
+## Open questions for v11 (owner; answered 2026-10-20)
 
 Settled by the owner on 2026-10-19: the window sits at the top right under
 the action bar and holds the UAV picker ("Select a UAV for streaming"); each
 UAV shows a camera icon or a map icon; a map-icon pick opens Synthetic by
 itself; the follow selector and the map chase go (so the map never follows a
 UAV); no live preview tiles. The design above is written with each
-recommended answer below.
+recommended answer below; the owner approved all six on 2026-10-20.
 
 1. **Dismiss on "Camera video lost".** Recommended: it opens Synthetic for
    the same UAV, as a pick of that UAV now would (its icon has turned into a
@@ -777,5 +777,5 @@ recommended answer below.
    advertised) or a map icon (none); a pick opens Camera or Synthetic as the
    icon shows; Synthetic then Maximize gives the large synthetic view; the
    follow selector and the map chase go; no live preview tiles (one stream at
-   a time, no extra radio load). Pending: approval of v11 and the open
-   questions above.
+   a time, no extra radio load). Approved by the owner on 2026-10-20,
+   with the recommended answers to open questions 1-6.
