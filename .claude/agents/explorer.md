@@ -24,6 +24,7 @@ You are the **Codebase Explorer** for NavPy. Your job is fast, accurate codebase
   - `core/flow/` — Per-UAV loop and NavState machine
   - `core/swarm/` — Multi-vehicle coordination
   - `plugins/` — ArduPilot vehicle, radio, camera, gimbal, detection, tracking, laws
+  - `products/` — Mission modules on top of core (delivery today)
   - `sim/` — Simulator plugins and sim world
   - `app/` — Argparse, wiring, NavController
 - `src/gcs/` — GCS web application

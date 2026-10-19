@@ -144,7 +144,7 @@ def _exit(
     completion.run.side_effect = lambda: events.append("oneshot") or ()
     logger = Mock()
     transition = NavTransition(
-        Mock(), cleanup, Mock(), completion, navigation_task,
+        Mock(), cleanup, Mock(), completion.run, navigation_task,
         lambda: oneshot, logger=logger,
     )
     return transition.exit(requested), events, logger
@@ -204,7 +204,7 @@ def _handler(*, oneshot: bool):
     climb = PostDockClimb()
     ports = TransitionPorts(
         decision_clock_s=lambda: 0.0,
-        restart_auto_mission=Mock(),
+        return_to_search=Mock(),
         enter_recovery=Mock(),
         start_task_actor=Mock(),
         is_oneshot=lambda: oneshot,
@@ -242,7 +242,7 @@ def test_cyclic_climb_latch_lives_from_docked_to_any_recovery_exit():
 
     handler.on_change(NavState.RECOVERY, NavState.ONHOLD)  # interrupted
     assert not climb.active
-    ports.restart_auto_mission.assert_not_called()
+    ports.return_to_search.assert_not_called()
 
 
 def test_leaving_docked_high_restarts_the_auto_mission():
@@ -250,7 +250,7 @@ def test_leaving_docked_high_restarts_the_auto_mission():
 
     handler.on_change(NavState.DOCKED, NavState.DETECT)
 
-    ports.restart_auto_mission.assert_called_once_with()
+    ports.return_to_search.assert_called_once_with()
     assert not climb.active
 
 
@@ -270,14 +270,13 @@ class _Recovery:
                 else Location(0.0, 0.0, self.altitude)
             ),
             pause_navigation=Mock(),
-            set_mode=Mock(),
-            restart_mission=Mock(),
             set_attitude=Mock(),
             max_pitch_deg=lambda: 10.0,
+            min_alt=lambda: MIN_ALT,
+            is_oneshot=lambda: False,
         )
-        args = SimpleNamespace(min_alt=MIN_ALT, is_oneshot=False)
         self.action = RecoveryAction(
-            self.ports, self.phase, args, Mock(), Mock(), self.climb,
+            self.ports, self.phase, Mock(), Mock(), self.climb,
         )
 
 
@@ -326,26 +325,22 @@ def test_any_other_recovery_keeps_todays_final_approach_behavior():
 
 def _decision(*, oneshot: bool):
     phase = NavPhaseState(NavState.DOCKED, NavState.DOCKED)
-    inactive, recovery, nav, poi_status = Mock(), Mock(), Mock(), Mock()
-    for owner in (inactive, recovery, nav):
+    inactive, recovery, flow = Mock(), Mock(), Mock()
+    for owner in (inactive, recovery):
         owner.apply.return_value = False
         owner.advance.return_value = False
-    poi_status.dispatch.return_value = False
     decision = NavigationDecision(
         SimpleNamespace(
             vehicle_mode=lambda: None,
             next_waypoint=lambda: 0,
-            clock_s=lambda: 0.0,
+            is_oneshot=lambda: oneshot,
         ),
         phase,
         inactive,
         recovery,
-        nav,
-        poi_status,
-        SimpleNamespace(is_oneshot=oneshot),
-        Mock(),
+        flow,
     )
-    return decision, (inactive, recovery, nav, poi_status)
+    return decision, (inactive, recovery, flow)
 
 
 def test_one_shot_docked_runs_no_other_decision():
@@ -355,11 +350,12 @@ def test_one_shot_docked_runs_no_other_decision():
     decision.decide()
 
     for owner in owners:
-        assert owner.method_calls == []
+        # mock_calls also records a call of the flow Mock itself.
+        assert owner.mock_calls == []
 
 
 def test_cyclic_docked_lets_the_inactive_guard_decide_first():
-    decision, (inactive, recovery, _, _) = _decision(oneshot=False)
+    decision, (inactive, recovery, _) = _decision(oneshot=False)
 
     decision.decide()
 
@@ -422,7 +418,7 @@ def _flow(*, oneshot: bool):
         NavExitCleanup,
         NavExitCleanupPorts,
     )
-    from navpy.core.flow.nav_oneshot_completion import (
+    from navpy.products.delivery.nav_oneshot_completion import (
         OneShotCompletion,
         OneShotCompletionPorts,
     )
@@ -462,14 +458,14 @@ def _flow(*, oneshot: bool):
     # NAV_FAIL without completion evidence: no completion flag.
     task = NavigationTaskState(final_approach_navigation_active=True)
     transition = NavTransition(
-        Mock(), cleanup, Mock(), completion, task, lambda: oneshot,
+        Mock(), cleanup, Mock(), completion.run, task, lambda: oneshot,
         logger=Mock(),
     )
     climb = PostDockClimb()
     handler = NavigationTransitionHandler(
         TransitionPorts(
             decision_clock_s=lambda: 0.0,
-            restart_auto_mission=lambda: events.append("auto"),
+            return_to_search=lambda: events.append("auto"),
             enter_recovery=Mock(),
             start_task_actor=Mock(),
             is_oneshot=lambda: oneshot,

@@ -89,8 +89,8 @@ def test_manifest_rows_parse() -> None:
 def test_splits_match_the_split_rows() -> None:
     splits = sm.load_splits(REPO_ROOT)
     assert set(splits) == {row.src for row in MANIFEST if row.action == "split"}
-    assert len(splits) == 12
-    assert sum(len(parts) for parts in splits.values()) == 13
+    assert len(splits) == 13
+    assert sum(len(parts) for parts in splits.values()) == 14
     assert all(part.symbols for parts in splits.values() for part in parts)
 
 
@@ -104,7 +104,7 @@ def test_reexports_match_the_plan() -> None:
 
 def test_exceptions_parse() -> None:
     guards = Counter(e.guard for e in sm.load_exceptions(REPO_ROOT))
-    assert guards == {"layer": 28, "vision": 15}
+    assert guards == {"layer": 27, "vision": 15}
 
 
 @pytest.mark.parametrize("bad_line, message", [

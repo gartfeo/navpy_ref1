@@ -16,7 +16,7 @@ slow sine on GPS altitude (``SIM_GPS.cpp``), not random.
 
 Turbulence draws from the same glibc ``rand()`` as the noise (``SIM_Aircraft.cpp``
 ``update_wind``), so either model seeds the SITL, and turning turbulence on
-shifts the noise draws after it (todo 78).
+shifts the noise draws after it (todo 81).
 
 A model that is off, or not in the profile, sets no parameter; with both off
 the SITL runs as before step 2 (glibc's default seed 1, ``get_random16``'s

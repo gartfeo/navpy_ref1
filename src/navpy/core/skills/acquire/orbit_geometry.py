@@ -10,7 +10,7 @@ constraints, whichever dominates:
   ``kappa * V^2 / (g * tan(phi_max))``.
 * descent geometry (usually dominant): the airframe pitch limit must
   convert the orbit altitude into closing range, else the descent rails at
-  ``min_pitch``, overflies, and trips the passed-POI reset —
+  ``min_pitch`` and overflies the POI —
   ``h / tan(eta * |min_pitch|)``.
 
 Orbiting at this radius keeps the camera zoom minimal (widest FOV for

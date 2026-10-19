@@ -2,7 +2,7 @@
 
 Final approach treats a detection as a body-fixed visual direction only when
 it carries a frame-atomic pose. The staleness of that pose is bounded by the
-ATTITUDE stream period, so simulated pose delivery follows the autopilot's own
+ATTITUDE stream period, so simulated pose transport follows the autopilot's own
 scheduler-derived MAVLink limit instead of a detector or wall-clock setting.
 
 ``SET_MESSAGE_INTERVAL`` is applied by ArduPilot PER-LINK, on the channel the

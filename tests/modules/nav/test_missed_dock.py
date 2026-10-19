@@ -227,7 +227,7 @@ def _exit(
     completion.run.return_value = ()
     logger = Mock()
     transition = NavTransition(
-        Mock(), cleanup, Mock(), completion, navigation_task,
+        Mock(), cleanup, Mock(), completion.run, navigation_task,
         lambda: oneshot, logger=logger,
     )
     return transition.exit(requested), logger, cleanup.record_dock_failed, completion
@@ -389,8 +389,8 @@ def test_a_source_pump_failure_names_its_reason():
 # The whole NAV exit, real owners end to end: latch → cleanup → exit → transition
 
 
-def _chain(*, oneshot: bool, contact_first: bool = False):
-    from navpy.core.flow.nav_oneshot_completion import (
+def _chain(*, oneshot: bool, contact_first: bool = False, reset=None):
+    from navpy.products.delivery.nav_oneshot_completion import (
         OneShotCompletion,
         OneShotCompletionPorts,
     )
@@ -423,31 +423,32 @@ def _chain(*, oneshot: bool, contact_first: bool = False):
         speedup,
         Mock(),
     )
+    reset = Mock() if reset is None else reset
     completion = OneShotCompletion(
         OneShotCompletionPorts(
             is_simulated_autopilot=lambda: True,
             is_stopping=lambda: False,
             disarm=lambda: events.append("disarm"),
         ),
-        Mock(),
+        reset,
         Mock(),
     )
     logger = Mock()
     nav = NavTransition(
-        Mock(), cleanup, Mock(), completion,
+        Mock(), cleanup, Mock(), completion.run,
         NavigationTaskState(final_approach_navigation_active=True),
         lambda: oneshot, logger=logger,
     )
     ports = TransitionPorts(
         decision_clock_s=lambda: 0.0,
-        restart_auto_mission=Mock(),
+        return_to_search=Mock(),
         enter_recovery=Mock(),
         start_task_actor=Mock(),
         is_oneshot=lambda: oneshot,
     )
     climb = PostDockClimb()
     handler = NavigationTransitionHandler(
-        ports, ConfirmGateState(), nav, Mock(), Mock(), climb,
+        ports, ConfirmGateState(), nav, reset, Mock(), climb,
     )
     return handler, ports, climb, events, logger
 
@@ -459,13 +460,25 @@ def test_a_failed_dock_enters_docked_after_the_drain_and_never_restarts_auto(one
     result = handler.on_change(NavState.NAV, NavState.RESET)
 
     assert result.effective_state is NavState.DOCKED
-    ports.restart_auto_mission.assert_not_called()
+    ports.return_to_search.assert_not_called()
     row = ("row", IDENTITY, "no_detection")
     expected = ["reset", "disarm", row] if oneshot else ["reset", row]
     assert events == expected  # the row follows the reset that drained commands
     assert [call.args[0] for call in logger.info.call_args_list] == [
         "STATE DOCK_FAILED: reason=no_detection dock=0 task=11",
     ]
+
+
+@pytest.mark.parametrize("oneshot", [True, False])
+def test_a_failed_dock_clears_the_task_exactly_once(oneshot):
+    # One-shot: the sortie finish clears at NAV exit and the DOCKED entry
+    # skips it; cyclic: only the DOCKED entry clears.
+    reset = Mock()
+    handler, _, _, _, _ = _chain(oneshot=oneshot, reset=reset)
+
+    handler.on_change(NavState.NAV, NavState.RESET)
+
+    reset.clear.assert_called_once_with()
 
 
 def test_cyclic_failed_dock_climbs_before_the_auto_restart():
@@ -475,16 +488,16 @@ def test_cyclic_failed_dock_climbs_before_the_auto_restart():
     handler.on_change(NavState.DOCKED, NavState.RECOVERY)
     assert climb.active
     ports.enter_recovery.assert_called_once_with()
-    ports.restart_auto_mission.assert_not_called()
+    ports.return_to_search.assert_not_called()
 
 
 def test_cyclic_failed_dock_restarts_auto_only_on_leaving_docked_high():
     handler, ports, _, _, _ = _chain(oneshot=False)
     handler.on_change(NavState.NAV, NavState.RESET)
-    ports.restart_auto_mission.assert_not_called()
+    ports.return_to_search.assert_not_called()
 
     handler.on_change(NavState.DOCKED, NavState.DETECT)
-    ports.restart_auto_mission.assert_called_once_with()
+    ports.return_to_search.assert_called_once_with()
 
 
 def test_a_contact_before_the_nav_fail_is_docked_end_to_end():

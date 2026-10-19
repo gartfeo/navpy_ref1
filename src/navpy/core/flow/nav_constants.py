@@ -12,11 +12,11 @@ MAX_CONFIRM_GATE_RESETS = 2
 CONFIRM_REACQUIRE_ABORT_SEC = 2.5
 TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC = 180.0
 TRACK_REACQUIRE_GATE_RADIUS_M = 30.0
-# A detection is a known dock (the home dock, or an assigned task's dock)
-# when its position lies this close to that dock's. The same bound as the
-# reacquire gate, which also decides "same dock" by position; it must stay
-# under half the closest dock spacing (150 m between d1 and d2 in
-# docs/design/delivery_eval_scenario.md).
+# A detection is a known dock (an assigned task's dock, or a dock a mission
+# module knows) when its position lies this close to that dock's. The same
+# bound as the reacquire gate, which also decides "same dock" by position; it
+# must stay under half the closest dock spacing (150 m between d1 and d2 in
+# the three-UAV eval scenario).
 DOCK_ASSOCIATION_RADIUS_M = TRACK_REACQUIRE_GATE_RADIUS_M
 CONFIRM_MAX_DWELL_SEC = 45.0
 CONFIRM_DWELL_MARGIN_SEC = 5.0

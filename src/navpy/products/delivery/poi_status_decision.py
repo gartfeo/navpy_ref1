@@ -5,14 +5,21 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.core.skills.confirm.confirmed_poi_release import ConfirmedPoiRelease
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.skills.confirm.confirmed_poi_release import (
+    ConfirmedPoiRelease,
+    ReleaseOutcome,
+)
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
+from navpy.core.flow.navigation_task_reset import AutoMissionResume
 from navpy.core.flow.nav_state import NavPhaseState, NavState
 from navpy.core.flow.nav_status import NavigationStatusReporter
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.skills.confirm.poi_presence_review import PoiPresenceReview
 from navpy.core.skills.confirm.poi_rejection_exit import PoiRejectionExit
 from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
 
 
 @dataclass(frozen=True)
@@ -33,6 +40,8 @@ class ConfirmationStatusDecision:
         confirmed: ConfirmedPoiRelease,
         rejection: PoiRejectionExit,
         peer_task: PeerTaskPriority,
+        resume_auto: AutoMissionResume,
+        logger: ILogger,
     ) -> None:
         self._selection = selection
         self._phase = phase
@@ -41,26 +50,48 @@ class ConfirmationStatusDecision:
         self._confirmed = confirmed
         self._rejection = rejection
         self._peer_task = peer_task
+        self._resume_auto = resume_auto
+        self._logger = logger
 
-    def dispatch(self) -> bool:
+    def dispatch(self) -> None:
         self._status_reporter.last_ignore_code = 0
         active = self._selection.active_poi()
         if active is None:
             self._phase.request(NavState.DETECT)
-            return False
+            return
         if self._phase.previous is not NavState.NAV and self._peer_task.pending():
             # Not yet approached: the own POI yields to the assigned peer
             # task without RESET, which would release that task.
             self._peer_task.hand_off(active)
             self._phase.request(NavState.DETECT)
-            return True
+            return
         status = self._selection.poi_status(active)
         if self._presence.update(active, status):
-            return True
+            self._resume_after_geo_abort(active)
+            return
         if status == ConfirmationStatus.CONFIRMED:
-            self._confirmed.apply(active)
-            return False
-        return self._rejection.apply(active, status)
+            release = self._confirmed.apply(active)
+            if release is ReleaseOutcome.READY:
+                self._phase.request(NavState.NAV)
+            elif release is ReleaseOutcome.ABORTED:
+                self._resume_after_geo_abort(active)
+            return
+        if self._rejection.apply(active, status):
+            self._resume_auto.run()
+            self._logger.info(
+                "REJECTED: resuming AUTO mission",
+                key="nav",
+                dest=LogStatusDest.DRONE,
+            )
+
+    def _resume_after_geo_abort(self, active: DetectedObject) -> None:
+        self._logger.info(
+            f"GEO-HOLD abort: P{get_poi_task_id(active)} navigation task torn "
+            "down to DETECT (no tracking armed), resuming AUTO mission",
+            key="nav",
+            dest=LogStatusDest.DRONE,
+        )
+        self._resume_auto.run()
 
 
 __all__ = ["PoiSelectionPorts", "ConfirmationStatusDecision"]

@@ -14,7 +14,6 @@ from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
-from navpy.core.flow.navigation_task_reset import AutoMissionResume
 from navpy.core.flow.nav_constants import (
     TRACK_LOSS_GEO_HOLD_TIMEOUT_SEC,
     TRACK_REACQUIRE_GATE_RADIUS_M,
@@ -48,7 +47,6 @@ class TrackRecovery:
         tracking: TrackingCommandPort,
         confirmation_manager: ConfirmationManager,
         retry: PoiRetryPolicy,
-        resume_auto: AutoMissionResume,
         logger: ILogger,
     ) -> None:
         self._phase = phase
@@ -57,7 +55,6 @@ class TrackRecovery:
         self._tracking = tracking
         self._confirmation_manager = confirmation_manager
         self._retry = retry
-        self._resume_auto = resume_auto
         self._logger = logger
 
     def held_poi_geo(self, peer_task: Optional[Location]) -> Optional[Location]:
@@ -71,13 +68,6 @@ class TrackRecovery:
         self._confirmation_manager.clear_active_poi()
         self._tracking.stop_tracking()
         self._phase.request(NavState.DETECT)
-        self._logger.info(
-            f"GEO-HOLD abort: P{get_poi_task_id(active)} navigation task torn "
-            "down to DETECT (no tracking armed), resuming AUTO mission",
-            key="nav",
-            dest=LogStatusDest.DRONE,
-        )
-        self._resume_auto.run()
 
     def rearm_detection_or_abort(
         self,

@@ -27,6 +27,9 @@
  "modules/nav/mission_navigation.py": {"parts": [
    {"symbols": ["FallbackMissionPorts", "FallbackMissionNavigation"], "final": "products/delivery/fallback_mission_navigation.py", "step1": "core/flow/fallback_mission_navigation.py", "vision_path": "n"}
   ]},
+ "modules/nav/navigation_decision.py": {"parts": [
+   {"symbols": ["DeliveryFlow"], "final": "products/delivery/flow.py", "step1": "products/delivery/flow.py", "vision_path": "y"}
+  ]},
  "modules/vehicle/message_subscriptions.py": {"parts": [
    {"symbols": ["Subscription"], "final": "core/ports/subscription.py", "step1": "core/ports/subscription.py", "vision_path": "n"}
   ]},

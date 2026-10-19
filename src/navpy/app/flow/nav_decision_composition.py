@@ -23,6 +23,7 @@ from navpy.core.flow.navigation_decision import (
     NavigationDecisionPorts,
 )
 from navpy.core.flow.recovery import RecoveryAction, RecoveryPorts
+from navpy.app.flow.nav_delivery_composition import compose_delivery_flow
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
@@ -46,13 +47,12 @@ def compose_decision_workflows(
             detector_stop=detection.tracking_commands.stop_tracking,
             current_relative=lambda: vehicle.location(True),
             pause_navigation=navigation.pause,
-            set_mode=vehicle.set_mode,
-            restart_mission=vehicle.restart_mission,
             set_attitude=vehicle.set_attitude,
             max_pitch_deg=lambda: vehicle.max_pitch,
+            min_alt=lambda: args.min_alt,
+            is_oneshot=lambda: args.is_oneshot,
         ),
         state.phase,
-        args,
         observation.status,
         logger,
         state.post_dock_climb,
@@ -61,12 +61,12 @@ def compose_decision_workflows(
         InactiveGuardPorts(
             vehicle_armed=lambda: vehicle.is_armed,
             clear_navigation_task=confirmation.reset.reset.clear,
+            flow_task_active=lambda: poi.mission.default_delivery_hub_active,
             peer_task_assigned=lambda: observation.network.selected_poi() is not None,
         ),
         state.phase,
         state.navigation_task,
         state.confirm,
-        poi.mission,
         poi.confirmation_manager,
         approach.loiter_radius,
         navigation_workflows.mission_navigation.mission_pass,
@@ -82,24 +82,20 @@ def compose_decision_workflows(
         state.phase,
         state.navigation_task,
         state.navigation_failures,
-        poi.confirmation_manager,
         navigation_workflows.mission_navigation.mission_pass,
-        observation.status,
         logger,
     )
+    flow = compose_delivery_flow(state, poi, observation, nav, confirmation.poi_status)
     decision = NavigationDecision(
         NavigationDecisionPorts(
             vehicle_mode=lambda: vehicle.get_mode,
             next_waypoint=lambda: vehicle.mission_items_next,
-            clock_s=lambda: state.clock.decision_s(),
+            is_oneshot=lambda: args.is_oneshot,
         ),
         state.phase,
         inactive,
         recovery,
-        nav,
-        confirmation.poi_status,
-        args,
-        poi.mission,
+        flow.decide,
     )
     return DecisionWorkflows(recovery, decision)
 

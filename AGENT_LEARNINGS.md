@@ -852,7 +852,7 @@
 - A new realism model can fail the mission on some seeds; that is a product finding, not a model
   bug. Separate the causes with seeds that turn one model off (here wind off, light wind, strong
   wind) before blaming either side. In the SITL, turbulence and noise share glibc `rand()`, so a
-  wind A/B at one seed also changes the noise (todo 78).
+  wind A/B at one seed also changes the noise (todo 81).
 - Independent Python streams do not make models independent inside the firmware. Before claiming
   that, check which RNG each firmware consumer draws from.
 - When a step moves a baseline or makes a "today" claim false, grep the whole design doc for the
@@ -861,3 +861,20 @@
   the default square-root law cuts it near the ground. Turbulence is not scaled by height.
 - A hook blocks Edit and Write on another worktree's files. To prepare a fix while a long check
   runs from your own worktree, draft in the scratchpad and copy the files in after the check.
+
+## Moving a product out of core in reviewed steps (delivery move c2-c9, 2026-10-19)
+- Never edit a worktree while its pytest or lockstep gate runs: the suite reads the files mid-run. Gate in
+  one worktree, build the next commit in a side worktree, and fast-forward the gate worktree between commits.
+- Long edit scripts sent inline through the Bash tool failed to parse ("unexpected EOF while looking for
+  matching `''"), even in a quoted heredoc. Write them to files with the Write tool and run them; a small helper
+  that keeps CRLF and fails on a missing or repeated match made every edit checkable.
+- Before adding a test helper, grep the file for the name: a new `_offered` replaced an existing one and broke
+  two unrelated tests.
+- A word guard must check each whole token in any case before splitting camelCase, again after each `_` or `-`
+  joiner (even a leading or trailing one), and count adjacent parts that join into a refused word (pick_up,
+  PickUpLatch). Three review rounds each found one of these gaps. Pin each allow row to an exact count.
+- When a plugin hands data to a product it may not import, pass a neutral core record and pin the shared wire
+  constant with a test on both sides.
+- Check every doc claim against the code before committing, even a closing note: a rewritten todo said `NavArgs`
+  reads params only at start-up, which the same design doc contradicts (it re-reads at each task reset). An
+  adversarial docs check caught it, plus stale line counts and cites in docs the move made stale.

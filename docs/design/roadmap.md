@@ -42,8 +42,8 @@ R1 resyncs these points:
 | R12 | An approach ends passed, lost or aborted:<reason>, carried through both failure latches | keep | L |
 | R14 | Profiles `dive` and `line_dive`; `FinalApproachRequest(profile, track id)`. The profile is stamped in the log row only, not in the parsed status text | keep | M |
 | R15 | Capture-line class 1 and its sim render. One shared line truth, at its height, is seeded into all 3 sims. The dock's ranges are pinned by a test | keep | M |
-| R16 | DDH moves into `products/delivery` | keep | M |
-| R17 | The one-shot finish moves into delivery, and delivery is paused | keep | S |
+| R16 | DDH moves into `products/delivery` (done 2026-10-19, delivery move c8-c9) | keep | M |
+| R17 | The one-shot finish moves into delivery (done 2026-10-19, delivery move c7), and delivery is paused | keep | S |
 
 ## C. Pickup platform pieces
 | Step | What | Kind | Size |
