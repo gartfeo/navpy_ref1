@@ -211,7 +211,7 @@ plainly marked, a window never covers commands or warnings).
 | **Camera / Synthetic** switch in the window | yes | SITL demo or a dead feed: a vehicle view without RC, for the window's UAV. Synthetic only by a tap here: never automatic, never saved |
 | Live state: LIVE (frames arriving), connecting, stale shown on the picture as text ("NO FRAMES 7 s"), failed, **Reconnect video** | yes | before relying on the picture at confirm or approach: a frozen frame looks like a calm scene. LIVE means frames arrive, not low latency |
 | **Close** and **Maximize** / restore | yes | Close sets the selector to Free and gives the map back, without a reach to the top right; maximize swaps window and map to judge detail at confirmation (or to see Synthetic large) while the map stays visible, small. No tap-anywhere toggle on the window |
-| Minimize to a handle | removed (v11) | with the selector no longer moving the map, a minimized window kept nothing that Free does not (open question 3) |
+| Minimize to a handle | removed (v11) | Close replaces it; this drops the kept source and the nearby restore (open question 3) |
 | "No camera · UAV n" | yes | that UAV advertises no stream: said in text, never a black box; Synthetic is one tap away |
 | "Camera video lost" vs "Vehicle link lost" | yes | camera only: keep monitoring; link: check the vehicle, consider Cancel task or E-STOP. Both shown when both happen, link first. Video loss says nothing about NavPy or the detector; neither changes mission state |
 | Header names the view from stream metadata (e.g. "UAV 2 · tracking overlay") | yes | the operator knows the picture is the Jetson overlay with detector boxes, not the raw camera |
