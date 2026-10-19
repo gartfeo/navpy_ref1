@@ -40,6 +40,7 @@ const { fake } = vi.hoisted(() => {
         screenSpaceCameraController: { enableInputs: true },
         renderError: event(),
         preRender: event(),
+        postRender: event(),
         requestRender: vi.fn(),
       };
       fake.widgets.push(this);
@@ -122,7 +123,8 @@ function setup({ sysId = 1, ionTerrain = false, poseFn, fresh = true, expanded =
 }
 
 const widgetReady = () => waitFor(() => expect(fake.widgets.length).toBeGreaterThan(0), { timeout: 5000 });
-const frame = (widget) => act(() => widget.scene.preRender.raise());
+// One drawn frame: preRender, then postRender.
+const frame = (widget) => act(() => { widget.scene.preRender.raise(); widget.scene.postRender.raise(); });
 
 beforeEach(() => {
   fake.widgets.length = 0;
@@ -175,9 +177,11 @@ describe('SyntheticView', () => {
     // Readiness comes from the telemetry update: a collapsed canvas never renders.
     store.fresh = true;
     emit(store);
-    expect(queryByText(/waitingForPose/)).toBeNull();
     expect(pictureBox(getByTestId).style.height).not.toBe('0px');
+    // Expanded, still covered until a frame is drawn with this UAV's pose.
+    expect(getByText('vehicleWindow.waitingForPose UAV 1')).toBeInTheDocument();
     frame(w);
+    expect(queryByText(/waitingForPose/)).toBeNull();
     expect(w.camera.setView).toHaveBeenCalledWith({ destination: pose.position, orientation: { heading: 1, pitch: 3, roll: -2 } });
     expect(getByText('vehicleWindow.syntheticTag')).toBeInTheDocument();
   });
@@ -194,7 +198,9 @@ describe('SyntheticView', () => {
     await widgetReady();
     const [w] = fake.widgets;
     await act(async () => {});
+    frame(w);
     expect(queryByText(/waitingForPose/)).toBeNull();
+    w.camera.setView.mockClear();
     store.vehicles = { 1: linked, 2: { ...linked, link_ok: false } };
     rerenderWith({ sysId: 2, label: 'UAV 2' });
     expect(fake.widgets).toHaveLength(1);
@@ -203,7 +209,27 @@ describe('SyntheticView', () => {
     expect(getByText('vehicleWindow.waitingForPose UAV 2')).toBeInTheDocument();
     store.vehicles = { 1: linked, 2: linked };
     emit(store);
+    frame(w);
     expect(queryByText(/waitingForPose/)).toBeNull();
+  });
+
+  it('valid pose for the new UAV, then telemetry lost before a frame: the cover stays', async () => {
+    const { getByText, rerenderWith, store } = setup({ expanded: true });
+    await widgetReady();
+    await act(async () => {});
+    const [w] = fake.widgets;
+    frame(w);
+    rerenderWith({ sysId: 2, label: 'UAV 2' });
+    // UAV 2 is valid on the telemetry update...
+    emit(store);
+    // ...but telemetry drops before the next frame: UAV 1's view must stay covered.
+    store.fresh = false;
+    frame(w);
+    frame(w);
+    expect(getByText('vehicleWindow.waitingForPose UAV 2')).toBeInTheDocument();
+    store.fresh = true;
+    frame(w);
+    expect(() => getByText('vehicleWindow.waitingForPose UAV 2')).toThrow();
   });
 
   it('a non-finite copied pose is not applied', async () => {
@@ -260,6 +286,7 @@ describe('SyntheticView', () => {
     unmount();
     expect(w.destroyed).toBe(true);
     expect(w.scene.preRender.fns.size).toBe(0);
+    expect(w.scene.postRender.fns.size).toBe(0);
     expect(store.listeners.size).toBe(0);
     expect(onCreditsHeight).toHaveBeenLastCalledWith(0);
   });

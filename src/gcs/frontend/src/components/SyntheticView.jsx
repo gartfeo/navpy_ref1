@@ -25,9 +25,11 @@ const LIGHT_ENU = [0.5, -0.5, -0.7];
  * - Pose from the main map's pose source (`poseSourceRef`), applied only when
  *   the shared hold check passes and the copied numbers are finite; otherwise
  *   the last good pose holds. One render request per telemetry update.
- * - "Waiting for pose · UAV n" until the window's UAV has had a valid pose, so
- *   a previous UAV's view never shows under a new label: one text row with the
- *   picture collapsed at normal size, over the large area when maximized.
+ * - "Waiting for pose · UAV n" until a frame was drawn with the window UAV's
+ *   pose, so a previous UAV's view never shows under a new label. At normal
+ *   size the picture stays collapsed to that text row until the UAV has a
+ *   valid pose; then an opaque cover holds until the first such frame.
+ *   Maximized, the cover fills the large area.
  * - Failure (create, render error, WebGL context lost, a throw in the pose
  *   callback) calls `onFail` once; the parent then switches to Camera, which
  *   unmounts this and destroys the widget.
@@ -53,7 +55,10 @@ export default function SyntheticView({
   const cesiumRef = useRef(null);
   const checkReadyRef = useRef(null);
   const [widgetReady, setWidgetReady] = useState(false);
-  const [poseFor, setPoseFor] = useState(null);
+  // The UAV with a valid pose (the picture may expand), and the UAV whose
+  // pose the last drawn frame used (the cover may go).
+  const [readyFor, setReadyFor] = useState(null);
+  const [drawnFor, setDrawnFor] = useState(null);
 
   const sysIdRef = useRef(sysId);
   sysIdRef.current = sysId;
@@ -129,7 +134,7 @@ export default function SyntheticView({
       const checkReady = () => {
         try {
           const id = sysIdRef.current;
-          if (validPose(id)) setPoseFor(id);
+          if (validPose(id)) setReadyFor(id);
           scene.requestRender();
         } catch (e) {
           fail(e);
@@ -137,19 +142,28 @@ export default function SyntheticView({
       };
       // Cesium raises preRender outside its error wrapper, and a throw there
       // stops the widget's render loop with no event: catch it here.
+      // The UAV whose pose the camera holds; a held pose keeps the previous one.
+      let appliedFor = null;
       const onPreRender = () => {
         try {
-          const pose = validPose(sysIdRef.current);
+          const id = sysIdRef.current;
+          const pose = validPose(id);
           if (!pose) return;
           widget.camera.setView({ destination: pose.position, orientation: pose.orientation });
           Cesium.Matrix4.multiplyByPointAsVector(poseMath.transform, lightEnu, lightDir);
           light.direction = Cesium.Cartesian3.normalize(lightDir, new Cesium.Cartesian3());
+          appliedFor = id;
         } catch (e) {
           fail(e);
         }
       };
+      const onPostRender = () => {
+        if (appliedFor === sysIdRef.current) setDrawnFor(appliedFor);
+      };
       scene.preRender.addEventListener(onPreRender);
       cleanups.push(() => scene.preRender.removeEventListener(onPreRender));
+      scene.postRender.addEventListener(onPostRender);
+      cleanups.push(() => scene.postRender.removeEventListener(onPostRender));
 
       cleanups.push(storeRef.current.subscribe(checkReady));
       // The credit line itself (CesiumWidget's inner credits element), not the
@@ -179,7 +193,7 @@ export default function SyntheticView({
   }, [sysId, widgetReady]);
   useEffect(() => {
     widgetRef.current?.scene.requestRender();
-  }, [poseFor]);
+  }, [readyFor]);
 
   // Its own terrain instance of the main map's source, following the Ion upgrade.
   useEffect(() => {
@@ -197,10 +211,10 @@ export default function SyntheticView({
     return () => { cancelled = true; };
   }, [ionTerrain, widgetReady]);
 
-  const waiting = poseFor !== sysId;
+  const waiting = drawnFor !== sysId;
   // Waiting at normal size: no picture, one text row (never a black box). The
   // widget stays mounted, at zero height, so it keeps its state.
-  const collapsed = waiting && !expanded;
+  const collapsed = readyFor !== sysId && !expanded;
   const waitingText = t('vehicleWindow.waitingForPose', { name: label });
   return (
     <>
