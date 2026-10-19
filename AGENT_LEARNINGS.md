@@ -908,6 +908,17 @@
   effect's cancel guard directly (unmount before the import resolves) and
   check that the test fails with the guard removed.
 
+## GCS video design v11 (2026-10-19)
+- I wrote "nothing moves the small map" after removing the chase; Codex found the sidebar
+  coordinate fly-to (`flyToRef` -> `camera.flyTo`). Before claiming nothing moves the Cesium
+  camera, grep every caller of `camera.flyTo`, `setView`, `flyToRef` and `resetViewRef`.
+- The design doc is CRLF in the worktree; the Edit tool and a Python splice left mixed line
+  endings. After scripted edits, compare the CRLF and LF counts and normalise
+  before committing.
+- A conflict-resolving script failed and the chained git add and commit still
+  ran, committing the markers. Chain them with && (or check the script's exit)
+  and grep for markers before git add.
+
 ## Link model (dev sim step 3, 2026-10-19)
 - A mutation can survive because a second mechanism enforces the same rule: removing the jitter clamp
   left serial bytes in order, since the delay line releases only its head. Mutate both mechanisms
