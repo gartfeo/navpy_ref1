@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import importlib
 import json
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -55,6 +56,20 @@ def test_settings_carry_the_fixture_hubs_and_the_explicit_lifecycle():
     assert len(settings["default_delivery_hubs"]) == 3
     assert settings["simulation"]["companion_lifecycle"] == "explicit"
     assert settings["connection"]["auto_connect"] is False
+
+
+def test_environment_keeps_the_frontend_map_token_and_drops_other_shell_variables(tmp_path):
+    env = demo.demo_environment(tmp_path, {"VITE_CESIUM_ION_TOKEN": "t", "NAVPY_X": "1", "PATH": "p"})
+
+    assert env["VITE_CESIUM_ION_TOKEN"] == "t" and env["PATH"] == "p"
+    assert "NAVPY_X" not in env
+    assert "VITE_CESIUM_ION_TOKEN" not in demo.demo_environment(tmp_path, {"PATH": "p"})
+
+
+def test_printed_commands_survive_spaces_in_powershell():
+    assert demo.powershell_command(r"C:\Program Files\py.exe", r"C: b\d.py", step="prep") == (
+        r'& "C:\Program Files\py.exe" "C: b\d.py" prep'
+    )
 
 
 def test_launch_starts_the_fixture_stack_with_frontend_and_no_browser(monkeypatch, tmp_path):
@@ -156,14 +171,15 @@ def test_prep_runs_the_eval_steps_in_order_then_opens_the_browser(monkeypatch, t
 
 
 def test_launch_command_keeps_the_eval_default_and_maps_the_demo_keywords():
-    assert config.launch_command()[-1] == "--headless"
+    assert config.launch_command() == [sys.executable, str(config.GCS_LAUNCH), "--headless"]
     demo_argv = config.launch_command(headless=False, browser=False)
     assert "--headless" not in demo_argv and "--no-browser" in demo_argv
     assert "--no-browser" not in config.launch_command(headless=False)
 
 
 def _owned_context(monkeypatch, tmp_path, entries):
-    api = SimpleNamespace(get_json=lambda _p: {"status": "ok"}, closed=False)
+    health = [{"status": "starting"}, {"status": "ok"}]
+    api = SimpleNamespace(get_json=lambda _p: health.pop(0), closed=False, health=health)
     api.close = lambda: setattr(api, "closed", True)
     monkeypatch.setattr(process, "GcsApi", lambda _port: api)
     monkeypatch.setattr(process, "flown_sys_ids", lambda _entry, _scenario: (1, 2, 3))
@@ -181,7 +197,7 @@ def test_owned_stack_context_waits_for_health_and_rechecks_the_generation(monkey
 
     context = call()
 
-    assert context.api is api and not api.closed
+    assert context.api is api and not api.closed and api.health == []
     assert context.launch_evidence["sitl_pid"] == 6 and context.launch_evidence["launch_token"] == "ours"
 
 

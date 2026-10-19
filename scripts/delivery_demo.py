@@ -65,6 +65,9 @@ LAUNCH_RECORD_NAME = "demo_launch.json"
 SETTINGS_NAME = "gcs_settings.json"
 #: The eval's per-phase wall timeout (``--timeout-s`` default).
 STACK_TIMEOUT_S = 600.0
+#: The frontend's own variables, which the eval's allow-list drops (the map
+#: token may come from the shell instead of ``.env.local``).
+FRONTEND_ENV = ("VITE_CESIUM_ION_TOKEN",)
 
 
 def demo_settings(fixture: Mapping[str, JsonValue], scenario) -> dict[str, JsonValue]:
@@ -74,8 +77,9 @@ def demo_settings(fixture: Mapping[str, JsonValue], scenario) -> dict[str, JsonV
     return settings
 
 
-def demo_environment(run_dir: Path) -> dict[str, str]:
-    env = build_environment(run_dir / SETTINGS_NAME, run_dir)
+def demo_environment(run_dir: Path, source: Mapping[str, str] = os.environ) -> dict[str, str]:
+    env = build_environment(run_dir / SETTINGS_NAME, run_dir, base_environment=dict(source))
+    env.update({key: source[key] for key in FRONTEND_ENV if key in source})
     env[FLEET_DOCKS_ENV] = str((run_dir / DOCK_FILE_NAME).resolve())
     return env
 
@@ -92,12 +96,18 @@ def _guarded_files(run_dir: Path) -> dict[str, Path]:
     }
 
 
+def powershell_command(*paths: object, step: str = "") -> str:
+    """A PowerShell 5.1 line; paths quoted so spaces survive."""
+    quoted = " ".join(f'"{path}"' for path in paths)
+    return f"& {quoted} {step}".rstrip()
+
+
 def _command(step: str) -> str:
-    return f"{sys.executable} {Path(__file__).resolve()} {step}"
+    return powershell_command(sys.executable, Path(__file__).resolve(), step=step)
 
 
 def _stop_command() -> str:
-    return f"{sys.executable} {_REPOSITORY_ROOT / 'scripts' / 'gcs_stop.py'}"
+    return powershell_command(sys.executable, _REPOSITORY_ROOT / "scripts" / "gcs_stop.py")
 
 
 def launch(runs_dir: Path, clock: ClockPort, now: dt.datetime) -> Path:
