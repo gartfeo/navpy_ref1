@@ -74,7 +74,6 @@ from navpy.sim.lockstep.coordinator_types import (
     RunFault,
 )
 from navpy.sim.lockstep.coordinator_tick import TickExchange, TickOutput
-from navpy.sim.lockstep.link_model import LinkModels
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.step_wire import Frame
 
@@ -99,15 +98,14 @@ class LockstepCoordinator:
     def __init__(self, manifest: Manifest, sitls: Sequence[Sitl], operator: OperatorHost,
                  roster: Roster, ids: RequestIds, host_dir: Path, *,
                  delay: Callable[[str], None] = lambda point: None,
-                 launch: Callable[[ExchangeDeadline], None] = anchor_now,
-                 links: LinkModels | None = None) -> None:
+                 launch: Callable[[ExchangeDeadline], None] = anchor_now) -> None:
         self._manifest = manifest
         self._fleet = SitlFleet(manifest, sitls, roster.deadline, launch=launch)
         self._operator = operator
         self._roster = roster
         self._book = LifecycleBook(roster, ids)
         self._exchange = TickExchange(roster, self._book, manifest.companion_roles,
-                                      RoutedPorts(manifest, roster, links=links))
+                                      RoutedPorts(manifest, roster))
         self._snaps = SnapLatch(manifest.expected_fleet)
         self._ids = ids
         self._host_dir = host_dir

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
 
 import pytest
@@ -28,7 +29,10 @@ from scripts.eval_gcs_demo_fleet_gates import (
     role_order_errors,
     vehicle_workflow_errors,
 )
+from scripts import eval_gcs_demo_fleet_gates
 from scripts.eval_gcs_demo_fleet_packets import forwarding_errors, held_tasks, packet_run_errors
+from scripts.eval_gcs_demo_inputs import INPUT_MANIFEST, recorded_profile_parameters
+from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_resolved_plan, load_scenario
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, pose_cadence_errors, run_errors
 from tests.scripts.fleet_journal_evidence import (
@@ -238,26 +242,47 @@ def test_an_advert_that_stops_short_fails_unless_sent_after_stop_all(fleet):
     stopped = copy.deepcopy(changed)
     stopped[5]["lifecycle"] = [{"kind": "stop"}]  # stop-all's first request, before the advert
     assert _forwarding(stopped) == []
+    # SITL's byte loss journals no lost byte: a short advert is not a forwarding error then.
+    assert forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=True) == []
 
 
-def test_an_advert_copy_the_radio_link_lost_is_injected_not_a_forwarding_error(fleet):
-    """Step 3 of deterministic_dev_sim.md: a copy the radio link model lost ends ``lost``;
-    the same copy missing its delivery with no ``lost`` record still fails."""
-    records, _lines, _approvals = fleet
-    _uid, emitted = _uid_events(records, ADVERT, OWNER)
-    up = {tuple(e[1]) for e in emitted if e[1][0] == "sitl1" and e[1][2] == "sitl1.serial1"}
-    copies = {tuple(e[1]) for _r, e in _events(records)
-              if e[0] == "copy" and tuple(e[2]) in up and e[1][2] == "sitl3.serial1"}
-    assert len(copies) == 1
-    lost = copy.deepcopy(records)
-    for _r, event in _events(lost):
-        if event[0] == "delivered" and tuple(event[1]) in copies:
-            event[:] = ["lost", event[1], "loss"]
-    assert _forwarding(lost) == []
-    assert packet_run_errors(lost) == []
-    gone = _drop(records, lambda e: e[0] == "delivered" and tuple(e[1]) in copies)
-    errors = _forwarding(gone)
-    assert len(errors) == 1 and errors[0].endswith("from 1 to 3 stopped at ap_serial1")
+def test_the_certified_gate_skips_adverts_only_when_the_manifest_records_byte_loss(tmp_path, monkeypatch):
+    """Step 3 of deterministic_dev_sim.md: ``uart_loss`` comes from the run's own input manifest;
+    no manifest, or a loss of 0, keeps the advert check; a broken manifest fails the gate."""
+    approvals = write_fleet_run(tmp_path)
+    plan = _plan(tmp_path)
+    seen = []
+
+    def spy(*args, uart_loss):
+        seen.append(uart_loss)
+        return []
+
+    monkeypatch.setattr(eval_gcs_demo_fleet_gates, "forwarding_errors", spy)
+    manifest = tmp_path / INPUT_MANIFEST
+    assert certified_lockstep_gate_errors(tmp_path, plan, approvals) == []
+    for loss in (0.0, 0.15):
+        manifest.write_text(json.dumps({"sitl": {"profile_parameters": {
+            "SIM_GPS_NOISE": 0.5, "SIM_UART_LOSS": loss}}}), encoding="utf-8")
+        assert certified_lockstep_gate_errors(tmp_path, plan, approvals) == []
+    assert seen == [False, False, True]
+    manifest.write_text(json.dumps({"sitl": {"profile_parameters": {"SIM_UART_LOSS": "x"}}}),
+                        encoding="utf-8")
+    errors = certified_lockstep_gate_errors(tmp_path, plan, approvals)
+    assert len(errors) == 1 and errors[0].startswith("certified lockstep evidence: input manifest")
+
+
+def test_recorded_profile_parameters_reads_the_manifests_sitl_parameters(tmp_path):
+    assert recorded_profile_parameters(tmp_path) == {}
+    (tmp_path / INPUT_MANIFEST).write_text(json.dumps({"sitl": {}}), encoding="utf-8")
+    assert recorded_profile_parameters(tmp_path) == {}
+    (tmp_path / INPUT_MANIFEST).write_text(json.dumps({"sitl": {"profile_parameters": {
+        "SIM_BAUDLIMIT_EN": 1, "SIM_UART_LOSS": 0.15}}}), encoding="utf-8")
+    assert recorded_profile_parameters(tmp_path) == {"SIM_BAUDLIMIT_EN": 1.0, "SIM_UART_LOSS": 0.15}
+    for bad in ('{"sitl": {"profile_parameters": [1]}}', '{"sitl": {"profile_parameters": {"A": true}}}',
+                "{not json"):
+        (tmp_path / INPUT_MANIFEST).write_text(bad, encoding="utf-8")
+        with pytest.raises(RegressionError):
+            recorded_profile_parameters(tmp_path)
 
 
 def test_a_source_outside_the_fleet_and_a_router_dropped_navlink_packet_fail(fleet):

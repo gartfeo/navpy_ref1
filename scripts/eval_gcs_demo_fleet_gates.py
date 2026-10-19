@@ -9,7 +9,7 @@ Sysid i is SITL i and NavPy ordinal i (``FleetLayout``).
 | Gate | Pass |
 |---|---|
 | Run | outcome ``ok``, no fault record (``fleet_clock``, ``boot_barrier``, ``exchange_budget`` and an out-of-loop advance are faults); the packet dispositions (``eval_gcs_demo_fleet_packets``) |
-| Assignment and forwarding | ``eval_gcs_demo_fleet_packets.forwarding_errors``; R2 joined to the journal: every APPLIED line of the backend log is an APPLIED the owner's NavPy emitted of a response its helper emitted for that task (UIDs equal), and every held task has one |
+| Assignment and forwarding | ``eval_gcs_demo_fleet_packets.forwarding_errors``, without the advert check when the input manifest's profile sets ``SIM_UART_LOSS`` above 0; R2 joined to the journal: every APPLIED line of the backend log is an APPLIED the owner's NavPy emitted of a response its helper emitted for that task (UIDs equal), and every held task has one |
 | Approval timing | the polling-schedule replay over every approval (``eval_gcs_demo_approval_replay``); per approval, its k1 <= k2 <= k3, its response sends and its audit (``approval_timing_errors``) |
 | Workflow ticks | per vehicle, the retained order, then its role's: the owner's orbit before its request state; a peer's assignment, then its approach, then its request state |
 | Pose cadence | the ``navpy`` and ``gcs`` arrival streams of every sysid, each file flushed whole |
@@ -35,6 +35,8 @@ from scripts.eval_gcs_demo_fleet_packets import (
     forwarding_errors,
     packet_run_errors,
 )
+from scripts.eval_gcs_demo_inputs import recorded_profile_parameters
+from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario
 from scripts.eval_gcs_demo_slice_gates import (
@@ -163,11 +165,12 @@ def certified_lockstep_gate_errors(log_dir: Path, plan: DemoMissionPlan,
         return [f"certified lockstep: sysids {list(sys_ids)} are not the fleet's 1..{len(sys_ids)}"]
     try:
         records, lines = load_fleet_evidence(log_dir, sys_ids)
-    except (OSError, ValueError) as error:
+        uart_loss = recorded_profile_parameters(log_dir).get("SIM_UART_LOSS", 0.0) > 0.0
+    except (OSError, ValueError, RegressionError) as error:
         return [f"certified lockstep evidence: {error}"]
     peers = tuple(vehicle.sys_id for vehicle in plan.peers)
     return (run_errors(records) + packet_run_errors(records)
-            + forwarding_errors(records, plan.owner.sys_id, peers, sys_ids)
+            + forwarding_errors(records, plan.owner.sys_id, peers, sys_ids, uart_loss=uart_loss)
             + backend_assignment_errors(log_dir, records, plan)
             + fleet_approval_errors(records, lines, approvals)
             + vehicle_workflow_errors(lines, plan) + fleet_snap_errors(records, lines)

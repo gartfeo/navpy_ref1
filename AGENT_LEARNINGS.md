@@ -937,6 +937,10 @@
 - Never pass `-x` to the full pytest here: the known board_detector failures stop it early.
 - An eval error late in a report can be a consequence: "demo_mission_plan.json missing" came from the
   operator failing at setup, not from the relative `--run-dir` it looked like. Read the first error.
+- Check what the simulator already offers before building a model. SITL had a sim-time line rate
+  (`SIM_BAUDLIMIT_EN`, with real `txspace` backpressure) and byte loss (`SIM_UART_LOSS`); I built a
+  coordinator rate and loss anyway, and the owner had it replaced by SITL's own (2026-10-20). Grep the
+  firmware's `SIM_` parameters for the effect first; build only what SITL lacks.
 
 ## Todo 31 trace: detector frames late in NAV (2026-10-19)
 - A wall eval's WSL SITL root is named from the run dir (`~/navpy-eval-roots/<name>-<hash>`), so a retry with the

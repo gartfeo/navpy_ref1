@@ -50,11 +50,12 @@ def test_the_sitl_environment_carries_a_noise_seed_only_when_given():
 def test_lockstep_defaults_turn_off_the_logger_and_keep_terrain_on():
     """Terrain is on as in the wall eval (todo 46: with it off the SITL ground was
     flat at home altitude, 3.46 m above the dock); SITL reads tiles on its main
-    thread, so it is no helper (lockstep_contracts.md, Firmware helpers)."""
+    thread, so it is no helper (lockstep_contracts.md, Firmware helpers). The line rate is
+    the profile's ``baud_limit``, so no default may clash with it."""
     overrides = lockstep_wsl.LOCKSTEP_DEFAULT_OVERRIDES
     assert overrides["LOG_BACKEND_TYPE"] == 0.0
     assert overrides["TERRAIN_ENABLE"] == 1.0
-    assert overrides["SIM_BAUDLIMIT_EN"] == 0.0
+    assert not {"SIM_BAUDLIMIT_EN", "SIM_UART_LOSS"} & set(overrides)
 
 
 def test_prepare_instance_seeds_the_pinned_terrain_tiles_into_the_instance(monkeypatch):

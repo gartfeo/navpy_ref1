@@ -6,7 +6,7 @@ NAVLINK traces built from them (``navpy.sim.lockstep.navlink_trace``):
 | Gate | Pass |
 |---|---|
 | Run (packets) | every packet id is defined once and has exactly one terminal disposition (``PacketJournal``); no NAVLINK packet is ``undelivered`` |
-| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for, unless the radio link model lost the copy (``lost``); every packet's source is a fleet sysid or the ground station; no NAVLINK packet is ``router_dropped`` |
+| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (not checked when the SITLs lose bytes, ``SIM_UART_LOSS``: SITL journals no lost byte, so a lost advert and a forwarding fault look alike); every packet's source is a fleet sysid or the ground station; no NAVLINK packet is ``router_dropped`` |
 
 The chain of a peer task, correlated by UID and ``task_id`` (auction task ids
 are the detector's namespace, so the plan's POIs are joined by the backend
@@ -190,8 +190,6 @@ def _advert_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int])
     for trace in trace_navlink(records, sys_ids):
         if trace.msgid not in ADVERT_IDS or (stop is not None and trace.hops[0][1] >= stop):
             continue
-        if trace.lost is not None:  # the radio link model lost it: injected, journaled as lost
-            continue
         if not trace.complete or trace.ambiguous:
             errors.append(f"forwarding: advert {trace.msgid} {list(trace.uid)} from {trace.sender} "
                           f"to {trace.receiver} stopped at {trace.hops[-1][0]}"
@@ -212,9 +210,10 @@ def _source_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int])
 
 
 def forwarding_errors(records: Sequence[Mapping[str, Any]], owner: int, peers: Sequence[int],
-                      sys_ids: Sequence[int]) -> list[str]:
-    return (_assignment_errors(records, owner, peers, sys_ids) + _advert_errors(records, sys_ids)
-            + _source_errors(records, sys_ids))
+                      sys_ids: Sequence[int], *, uart_loss: bool = False) -> list[str]:
+    """``uart_loss``: the run's SITLs lose bytes (``SIM_UART_LOSS``), so adverts are not checked."""
+    adverts = [] if uart_loss else _advert_errors(records, sys_ids)
+    return _assignment_errors(records, owner, peers, sys_ids) + adverts + _source_errors(records, sys_ids)
 
 
 __all__ = ["ADVERT_IDS", "applied_chains", "applied_emissions", "forwarding_errors", "held_tasks", "packet_events", "packet_run_errors"]
