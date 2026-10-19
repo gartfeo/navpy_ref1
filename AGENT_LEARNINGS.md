@@ -902,3 +902,14 @@
   the import (which module came back) before blaming the component; test the
   effect's cancel guard directly (unmount before the import resolves) and
   check that the test fails with the guard removed.
+
+## Todo 31 trace: detector frames late in NAV (2026-10-19)
+- A wall eval's WSL SITL root is named from the run dir (`~/navpy-eval-roots/<name>-<hash>`), so a retry with the
+  same run name fails at once with `WSL input step failed (1):` and empty stderr (`test ! -e` under `set -e`).
+  Use a new run name for every attempt; remove your own roots afterwards.
+- Under 16 busy processes the stack launch can time out at 60 s. Start load only after NavPy is up.
+- To tell OS starvation from in-process contention, sample per-thread `QueryThreadCycleTime` from outside (TSC-based,
+  not 15.6 ms quantized) and name threads with `py-spy dump --nonblocking`: if the process still gets its quiet CPU
+  share while one thread's work stretches, the wait is inside the process (GIL or a lock), not the OS.
+- Python `gc` gen-2 passes (30-70 ms here) look like a pure-CPU spike in whichever thread triggers them and like a
+  wait in every other thread; log `gc.callbacks` before blaming a stage.
