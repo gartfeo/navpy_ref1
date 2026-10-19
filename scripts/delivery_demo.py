@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import sys
+import urllib.request
 import webbrowser
 from collections.abc import Mapping
 from pathlib import Path
@@ -35,7 +36,7 @@ from scripts.eval_delivery_fixture import (  # noqa: E402
     prepare_sim_docks,
 )
 from scripts.eval_gcs_demo_config import build_environment, build_settings  # noqa: E402
-from scripts.eval_gcs_demo_execution import SystemClock  # noqa: E402
+from scripts.eval_gcs_demo_execution import SystemClock, wait_until  # noqa: E402
 from scripts.eval_gcs_demo_lifecycle import (  # noqa: E402
     companion_ids,
     connect_vehicles,
@@ -68,6 +69,8 @@ STACK_TIMEOUT_S = 600.0
 #: The frontend's own variables, which the eval's allow-list drops (the map
 #: token may come from the shell instead of ``.env.local``).
 FRONTEND_ENV = ("VITE_CESIUM_ION_TOKEN",)
+#: Vite's cold start; the launcher does not wait for the frontend.
+FRONTEND_TIMEOUT_S = 60.0
 
 
 def demo_settings(fixture: Mapping[str, JsonValue], scenario) -> dict[str, JsonValue]:
@@ -139,7 +142,26 @@ def launch(runs_dir: Path, clock: ClockPort, now: dt.datetime) -> Path:
             f"this checkout already runs a GCS stack; stop it first: {_stop_command()}"
         ) from error
     context.api.close()
+    wait_for_frontend(owned_entry(env), clock)
     return run_dir
+
+
+def frontend_answers(url: str) -> bool:
+    with urllib.request.urlopen(url, timeout=5.0) as response:
+        return response.status == 200
+
+
+def wait_for_frontend(entry, clock: ClockPort, answers=frontend_answers) -> None:
+    """The UI the operator will open is served (a dead ``npm run dev`` logs nothing)."""
+    url = f"http://localhost:{entry['frontend']}"
+    try:
+        wait_until("GCS frontend", FRONTEND_TIMEOUT_S, lambda: answers(url) or None,
+                   transient_exceptions=(OSError,), clock=clock)
+    except RegressionError as error:
+        raise RegressionError(
+            f"the frontend at {url} does not answer (missing src/gcs/frontend/node_modules? "
+            f"run npm install there); stop the stack: {_stop_command()}"
+        ) from error
 
 
 def find_run(runs_dir: Path, token: object) -> Path:

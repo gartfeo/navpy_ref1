@@ -122,6 +122,9 @@ puts the scenario on it, then opens the UI. Each prints the next command.
   but no browser. The browser opens only after prep, because a page open
   before the upload sees empty missions and never shows a plan to launch
   (`planDownloadRun.js:98`, `useVehicleConnection.js:479`);
+- waits up to 60 s for the frontend to answer: the launcher does not, and
+  a dead `npm run dev` (no `node_modules`, as in a fresh worktree) logs
+  nothing;
 - writes `demo_launch.json` in the run dir: launch token, home, and
   the sha256 of the fixture, of `fleet_docks.json` and of the settings file.
 

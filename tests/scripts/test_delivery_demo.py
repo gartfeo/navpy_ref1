@@ -46,6 +46,8 @@ def _launch(monkeypatch, tmp_path, calls):
         return SimpleNamespace(api=FakeApi())
 
     monkeypatch.setattr(demo, "launch_stack", launch_stack)
+    monkeypatch.setattr(demo, "owned_entry", lambda _env: {"frontend": 3100})
+    monkeypatch.setattr(demo, "wait_for_frontend", lambda entry, _clock: calls.append(entry))
     return demo.launch(tmp_path, SystemClock(), NOW)
 
 
@@ -76,7 +78,8 @@ def test_launch_starts_the_fixture_stack_with_frontend_and_no_browser(monkeypatc
     calls = []
     run_dir = _launch(monkeypatch, tmp_path, calls)
 
-    env, arguments, kwargs, record = calls[0]
+    (env, arguments, kwargs, record), frontend = calls
+    assert frontend == {"frontend": 3100}
     assert env[demo.FLEET_DOCKS_ENV] == str((run_dir / fixture_module.DOCK_FILE_NAME).resolve())
     assert arguments == ["--sitl-root", "r"]
     assert (kwargs["headless"], kwargs["browser"]) == (False, False)
@@ -84,6 +87,27 @@ def test_launch_starts_the_fixture_stack_with_frontend_and_no_browser(monkeypatc
     assert kwargs["launch_token"] == record["launch_token"]
     assert record["home"] == SCENARIO.home
     assert record["settings_sha256"] == demo.file_sha256(run_dir / demo.SETTINGS_NAME)
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def test_launch_refuses_a_frontend_that_never_answers():
+    def refused(url):
+        assert url == "http://localhost:3100"
+        raise ConnectionRefusedError("refused")
+
+    with pytest.raises(models.RegressionError, match="node_modules"):
+        demo.wait_for_frontend({"frontend": 3100}, FakeClock(), refused)
+    demo.wait_for_frontend({"frontend": 3100}, FakeClock(), lambda _url: True)
 
 
 def test_launch_refuses_a_running_stack(monkeypatch, tmp_path):
