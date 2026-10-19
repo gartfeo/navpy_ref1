@@ -23,7 +23,9 @@ function makeStore(vehicles) {
   return {
     vehicles,
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
+    fresh: true,
     getVehicles() { return this.vehicles; },
+    isTelemetryFresh() { return this.fresh; },
     emit() { listeners.forEach((fn) => fn()); },
   };
 }
@@ -76,6 +78,16 @@ describe('useFollowUav FPV', () => {
     frame();
     expect(viewer.camera.setView).not.toHaveBeenCalled();
     store.vehicles = { 1: linked };
+    frame();
+    expect(viewer.camera.setView).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds while the telemetry is not current (socket closed, or reopened with no new snapshot)', () => {
+    const { viewer, store, frame } = setup(linked);
+    store.fresh = false;
+    frame();
+    expect(viewer.camera.setView).not.toHaveBeenCalled();
+    store.fresh = true;
     frame();
     expect(viewer.camera.setView).toHaveBeenCalledTimes(1);
   });

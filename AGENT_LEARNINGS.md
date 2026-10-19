@@ -700,6 +700,8 @@
   `rf"\bCONFIRMING"` through a Bash heredoc into Python source and got
   a 0x08 byte; the gate then never matched. Make regex edits with the Edit
   tool, and grep the file for control bytes after any scripted edit.
+  Repeated 2026-10-19 (GCS vehicle window): same cause, same fix; the
+  control-byte grep caught it.
 - **Read the done criterion's own words before choosing a gate window.** I
   opened the approval window at `CONFIRMING`; the criterion said "during
   that approval orbit", and NavPy offers a second dock about 120 ms before
@@ -812,6 +814,17 @@
   ids are 1..count), or the consumer silently discards it.
 - Untracked `.codex/agents/janitor.toml` / `live-tester.toml` in a worktree fail
   `test_gen_codex_agents.py` as STALE; check `git status` before blaming a change.
+- v9 (FPV in the panel): I started coding a styling fix plus a wording change before the owner
+  had agreed the layout, and the owner stopped it ("before agree with me design and show"). For
+  UI feedback, show a side-by-side mock of the options first, then code the chosen one.
+- Cesium 1.138 ignores the Viewer option `imageryProvider` (removed in 1.107); use `baseLayer`.
+  A throw in a `scene.preRender` listener stops that widget's render loop with no `renderError`
+  (`Scene.js:4440` raises it outside the error wrapper), so catch inside the listener.
+- Two Cesium widgets cannot share attribution: a `Credit` owns one DOM element that each
+  `CreditDisplay` re-parents, and Bing metadata (with its credits) is cached across provider
+  instances, so a second view needs its own non-Bing providers (v10 chose terrain only).
+- Mocks for the owner: the browser pane cannot screenshot local files; render with headless
+  Edge (`msedge --headless=new --screenshot=... file:///...`) and send the PNG.
 
 ## Missed dock ends like DOCKED (todo 74, 2026-10-18)
 - Making every FAILED end commands broke runtime tests that send a frame after a NAV_FAIL; those tests
@@ -883,3 +896,14 @@
 - For a `source_command_stale` failure, read the source-time CSVs, not the navigation log (its times are cached
   and late): the lineage CSV gives the last frame NAV consumed, and the detector-poll CSV's `publish_ms` and
   `work_cpu_ms` show whether the poll was waiting (CPU near 0) or computing. Two runs on one day showed both.
+
+## GCS vehicle window v10 (2026-10-19)
+- `git add a b missing-path` aborts the whole add on the missing path, and a
+  following `git commit` then records only what was staged before (here the
+  renames, no content). After a rename, stage the new path only, and check
+  `git show --stat HEAD` before reviewing a commit.
+- Vitest 4: under React StrictMode the second dynamic `import('cesium')` of a
+  `vi.mock`ed module got the real Cesium, even after warming the mock. Trace
+  the import (which module came back) before blaming the component; test the
+  effect's cancel guard directly (unmount before the import resolves) and
+  check that the test fails with the guard removed.

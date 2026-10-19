@@ -46,18 +46,21 @@ import MonitorMapOverlay from './components/map/MonitorMapOverlay';
 import { computePlanEntry } from './constants/monitorPhases';
 import NotificationBanner from './components/NotificationBanner';
 import LoadingScreen from './components/LoadingScreen';
-import VideoPanel from './components/VideoPanel';
+import VehicleWindow, { MAP_SWAPPED_Z_INDEX } from './components/VehicleWindow';
 import FpvViewOverlay from './components/map/FpvViewOverlay';
 import useVideoFleet from './hooks/useVideoFleet';
-import useVideoSelection from './hooks/useVideoSelection';
+import useVehicleWindow from './hooks/useVehicleWindow';
 import useFpvView from './hooks/useFpvView';
-import { DEFAULT_TOP_CONTROLS_BOTTOM_PX } from './utils/videoPanelLayout';
-import { cameraPanelVisible } from './utils/videoStreams';
+import useElementSize from './hooks/useElementSize';
+import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, vehicleWindowLayout } from './utils/vehicleWindowLayout';
+import { vehicleWindowVisible } from './utils/videoStreams';
 import { fleetEntryHoldReason } from './utils/fpvView';
 import { prunePendingVehicles, upsertPendingVehicles } from './utils/pendingVehicles';
 
 // RC FPV: the SYNTHETIC tag sits below the HUD heading tape (top 12, 36 px tall).
 const RC_FPV_TAG_TOP_PX = 12 + 36 + 6;
+/** Desktop map pane, used until the real pane is measured. */
+const FALLBACK_PANE = { width: 1280, height: 800 };
 
 export default function App() {
   const { t } = useTranslation();
@@ -114,6 +117,13 @@ export default function App() {
   const resetViewRef = useRef(null);
   const flyToRef = useRef(null);
   const mapCameraRef = useRef(null);
+  // The map's UAV pose source for the vehicle window's synthetic view.
+  const poseSourceRef = useRef(null);
+  const mapPaneRef = useRef(null);
+  const mapPane = useElementSize(mapPaneRef, FALLBACK_PANE);
+  const [mapCreditsPx, setMapCreditsPx] = useState(0);
+  const [windowCreditsPx, setWindowCreditsPx] = useState(0);
+  const [ionTerrain, setIonTerrain] = useState(false);
   const [topControlsBottom, setTopControlsBottom] = useState(DEFAULT_TOP_CONTROLS_BOTTOM_PX);
   const [mapReady, setMapReady] = useState(false);
   const [vehicleTargWps, setVehicleTargWps] = useState({});
@@ -535,30 +545,40 @@ export default function App() {
     resetViewRef.current?.(a.polygon, a.vehicleList, a.plan, a.launchPoint, a.corridorPoints);
   }, []);
 
-  // ---- Camera video + FPV view mode (docs/design/gcs_video_streams.md §5) ----
-  // The follow selector moves the map and FPV; badges and View camera move the
-  // video. useFpvView also owns the saved map camera and the auto-center on
-  // return to Free (which used to live here).
+  // ---- Vehicle window + RC FPV (docs/design/gcs_video_streams.md §5) ----
+  // The follow selector moves only the map; badges and View camera pick the
+  // window's UAV. useFpvView owns RC FPV, the saved map camera and the
+  // auto-center on return to Free (which used to live here).
   const videoFleet = useVideoFleet(storeRef);
-  const video = useVideoSelection({ fleet: videoFleet, followSysId });
+  const monitor = phase === PHASES.MONITOR;
+  const win = useVehicleWindow({ fleet: videoFleet, followSysId, active: monitor && !mc.manualControlEnabled });
   const fpv = useFpvView({
-    phase, followSysId, setFollowSysId, fleet: videoFleet,
-    panelSysId: video.selection?.sysId ?? null,
-    rcEnabled: mc.manualControlEnabled, rcTarget: mc.manualControlTarget,
-    mapCameraRef, centerView, notify: setNotification,
+    phase, followSysId, rcEnabled: mc.manualControlEnabled, rcTarget: mc.manualControlTarget,
+    mapCameraRef, centerView,
   });
-  const showVideoPanel = cameraPanelVisible({
-    monitor: phase === PHASES.MONITOR, rcEnabled: mc.manualControlEnabled, fpvOn: fpv.fpvOn, hasPanel: video.hasPanel,
+  const showWindow = vehicleWindowVisible({
+    monitor, rcEnabled: mc.manualControlEnabled, fleetSize: videoFleet.length,
   });
-  const viewingSysId = showVideoPanel && !video.collapsed && video.shown.kind === 'stream'
-    ? video.selection.sysId : null;
+  const swapped = showWindow && win.swapped;
+  const windowLayout = vehicleWindowLayout({
+    paneWidth: mapPane.width,
+    paneHeight: mapPane.height,
+    topControlsBottom,
+    badgeCount: videoFleet.length,
+    selectedIndex: videoFleet.findIndex((e) => e.sysId === win.sysId),
+    swapped,
+    mapCreditsPx,
+    windowCreditsPx,
+  });
+  const smallMap = windowLayout.smallMap;
+  const { viewing, viewCamera } = win;
   const videoActionFor = useCallback((sysId) => {
     if (!videoFleet.find((e) => e.sysId === sysId)?.streams.length) return null;
     return {
-      viewing: viewingSysId === sysId,
-      onView: () => { fpv.leaveFpv(); video.viewCamera(sysId); },
+      viewing: showWindow && viewing(sysId),
+      onView: () => viewCamera(sysId),
     };
-  }, [videoFleet, viewingSysId, fpv.leaveFpv, video.viewCamera]);
+  }, [videoFleet, showWindow, viewing, viewCamera]);
   const fpvEntry = videoFleet.find((e) => e.sysId === fpv.fpvSysId);
 
   const mapHeight = `calc(100dvh - ${topBarHeight}px - ${bottomBarHeight}px)`;
@@ -598,7 +618,24 @@ export default function App() {
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Map */}
-        <div style={{ flex: 1, position: 'relative', height: mapHeight }}>
+        <div ref={mapPaneRef} style={{ flex: 1, position: 'relative', height: mapHeight }}>
+          {/* The map box. Swapped with the maximized vehicle window it shrinks
+              into the window's normal box: CSS only, never a remount, never an
+              animation, never size 0. */}
+          <div
+            data-testid="map-box"
+            style={smallMap ? {
+              position: 'absolute',
+              left: smallMap.left,
+              bottom: smallMap.bottom,
+              width: smallMap.width,
+              height: smallMap.height,
+              zIndex: MAP_SWAPPED_Z_INDEX,
+              borderRadius: 6,
+              overflow: 'hidden',
+              border: `1px solid ${colors.border}`,
+            } : { position: 'absolute', inset: 0 }}
+          >
           <CesiumMap
             polygon={polygon}
             plan={plan}
@@ -680,9 +717,26 @@ export default function App() {
             fpvMode={fpv.cameraFpv}
             cameraPersistSuspended={fpv.cameraOwned}
             mapCameraRef={mapCameraRef}
+            swapped={swapped}
+            poseSourceRef={poseSourceRef}
+            onCreditsHeight={setMapCreditsPx}
+            onTerrainReady={setIonTerrain}
             onViewerReady={setMapReady}
             plannerReady={plannerReady}
           />
+          {smallMap && (
+            <button
+              type="button"
+              aria-label={t('vehicleWindow.showMapLarge')}
+              title={t('vehicleWindow.showMapLarge')}
+              onClick={win.unswap}
+              style={{
+                position: 'absolute', inset: 0, padding: 0, border: 'none',
+                background: 'transparent', cursor: 'pointer', touchAction: 'manipulation',
+              }}
+            />
+          )}
+          </div>
           {/* Map toolbar — right side, vertical */}
           {phase === PHASES.PLANNING && (
             <PlanningToolbar
@@ -720,9 +774,7 @@ export default function App() {
             <MonitorMapOverlay
               vehicleList={vehicleList}
               followSysId={followSysId}
-              onFollowChange={fpv.changeFollow}
-              fpvOn={fpv.fpvOn}
-              onToggleFpv={fpv.toggleFpv}
+              onFollowChange={setFollowSysId}
               onTopControlsBottom={setTopControlsBottom}
               onToggleManualControl={mc.handleToggleManualControl}
               showVision={showVision}
@@ -742,30 +794,26 @@ export default function App() {
               })}
             />
           )}
-          {/* Per-vehicle camera video — monitor view only, never in FPV or
-              during manual control, so it cannot sit over the joysticks, the
-              flight-mode column or the FPV HUD. Bottom-left corner at z-index 9,
-              i.e. under the map overlay buttons and the confirmation cards.
-              Shown only while a UAV advertises a stream or a lost feed is pending. */}
-          {showVideoPanel && (
-            <VideoPanel
+          {/* Vehicle window — monitor view only, never during manual control,
+              so it cannot sit over the joysticks, the flight-mode column or
+              the RC FPV HUD. Bottom-left at z-index 9, under the map overlay
+              buttons and the confirmation cards. */}
+          {showWindow && (
+            <VehicleWindow
               fleet={videoFleet}
-              selection={video.selection}
-              shown={video.shown}
-              session={video.session}
-              collapsed={video.collapsed}
-              onCollapse={video.setCollapsed}
-              onSelectUav={video.selectUav}
-              onReconnect={video.reconnect}
-              onDismiss={video.dismiss}
-              topControlsBottom={topControlsBottom}
+              win={win}
+              layout={windowLayout}
+              poseSourceRef={poseSourceRef}
+              storeRef={storeRef}
+              ionTerrain={ionTerrain}
+              onSyntheticCreditsHeight={setWindowCreditsPx}
             />
           )}
           {fpv.fpvSysId != null && (
             <FpvViewOverlay
               label={fpvEntry?.label ?? `UAV ${fpv.fpvSysId}`}
               holdReason={fleetEntryHoldReason(fpvEntry)}
-              top={fpv.fpvKind === 'rc' ? RC_FPV_TAG_TOP_PX : topControlsBottom + 8}
+              top={RC_FPV_TAG_TOP_PX}
             />
           )}
           {mc.manualControlEnabled && (
@@ -846,9 +894,10 @@ export default function App() {
             showLaunchZone={showLaunchZone}
             setShowLaunchZone={setShowLaunchZone}
           />}
-          {/* Reset zoom — hidden during manual control and FPV (the
-              first-person camera would override it every frame) */}
-          {!mc.manualControlEnabled && !fpv.fpvOn && <div style={{
+          {/* Reset zoom — hidden during manual control (the RC FPV camera
+              would override it every frame) and while the map is small (a fit
+              there would use the small box's aspect ratio) */}
+          {!mc.manualControlEnabled && !swapped && <div style={{
             position: 'absolute',
             bottom: 12,
             right: 12,

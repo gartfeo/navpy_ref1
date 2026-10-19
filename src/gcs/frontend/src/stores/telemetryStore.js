@@ -6,6 +6,10 @@
 
 let _vehicles = {};
 let _connected = false;
+// Vehicles whose snapshot was replaced since the socket last opened. A closed
+// socket keeps the cached snapshots, and reopening keeps them until new
+// telemetry arrives, so "connected" alone does not mean a snapshot is current.
+let _freshIds = new Set();
 let _seenIds = [];
 let _version = 0;
 
@@ -61,6 +65,11 @@ function isConnected() {
   return _connected;
 }
 
+/** The socket is open and this vehicle's snapshot was replaced since it opened. */
+function isTelemetryFresh(sysId) {
+  return _connected && _freshIds.has(sysId);
+}
+
 function getSeenIds() {
   return _seenIds;
 }
@@ -92,6 +101,7 @@ function connect() {
 
   ws.onopen = () => {
     _connected = true;
+    _freshIds = new Set();
     _notify();
     if (_reconnectTimer) {
       clearTimeout(_reconnectTimer);
@@ -113,6 +123,7 @@ function connect() {
             v.status_texts = [...existing.status_texts, ...v.status_texts].slice(-10);
           }
           next[v.sys_id] = { ...existing, ...v };
+          _freshIds.add(v.sys_id);
         }
         if (data.active_ids) {
           const active = new Set(data.active_ids);
@@ -134,6 +145,7 @@ function connect() {
 
   ws.onclose = () => {
     _connected = false;
+    _freshIds = new Set();
     _notify();
     _reconnectTimer = setTimeout(connect, 2000);
   };
@@ -162,6 +174,7 @@ const telemetryStore = {
   getVehicleList,
   getSysIdKey,
   isConnected,
+  isTelemetryFresh,
   getSeenIds,
   getMessageHandlers,
   removeVehicle,

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
-import MonitorMapOverlay, { FPV_LABEL } from './MonitorMapOverlay';
+import MonitorMapOverlay from './MonitorMapOverlay';
 
 const props = (extra = {}) => ({
   vehicleList: [{ sys_id: 1 }, { sys_id: 2 }],
@@ -14,32 +14,21 @@ const props = (extra = {}) => ({
   onClearTrails: vi.fn(),
   onEditPlan: vi.fn(),
   planEntry: { show: true, isEdit: false },
-  fpvOn: false,
-  onToggleFpv: vi.fn(),
   ...extra,
 });
 
-describe('MonitorMapOverlay FPV toggle', () => {
-  it('is a text-labelled 44 px toggle beside the follow selector', () => {
+describe('MonitorMapOverlay top-right bar', () => {
+  it('the follow selector is as tall as the map buttons and moves only the map; no FPV button', () => {
     const p = props();
-    const { getByRole } = render(<MonitorMapOverlay {...p} />);
-    const toggle = getByRole('button', { name: FPV_LABEL });
+    const { getByRole, queryByRole } = render(<MonitorMapOverlay {...p} />);
     const select = getByRole('combobox', { name: 'monitorOverlay.follow' });
-    expect(toggle).toHaveAttribute('aria-pressed', 'false');
-    expect(toggle.style.height).toBe('44px');
-    expect(select.style.height).toBe('44px');
-    expect(select.nextElementSibling).toBe(toggle);
-    fireEvent.click(toggle);
-    expect(p.onToggleFpv).toHaveBeenCalledTimes(1);
-    // FPV is a view toggle: it never touches RC.
+    expect(select.style.height).toBe('32px');
+    fireEvent.change(select, { target: { value: '2' } });
+    expect(p.onFollowChange).toHaveBeenCalledWith(2);
+    fireEvent.change(select, { target: { value: '' } });
+    expect(p.onFollowChange).toHaveBeenLastCalledWith(null);
+    expect(queryByRole('button', { name: /FPV/ })).toBeNull();
     expect(p.onToggleManualControl).not.toHaveBeenCalled();
-  });
-
-  it('shows its on state plainly: filled and labelled "FPV · ON"', () => {
-    const { getByRole } = render(<MonitorMapOverlay {...props({ fpvOn: true })} />);
-    const toggle = getByRole('button', { pressed: true });
-    expect(toggle).toHaveTextContent(`${FPV_LABEL} · fpvView.on`);
-    expect(toggle.style.background).not.toContain('rgba');
   });
 
   it('wraps the top-right controls instead of hiding the plan button', () => {
@@ -53,6 +42,6 @@ describe('MonitorMapOverlay FPV toggle', () => {
   it('reports the bottom edge of the top controls', () => {
     const onTopControlsBottom = vi.fn();
     render(<MonitorMapOverlay {...props({ onTopControlsBottom })} />);
-    expect(onTopControlsBottom).toHaveBeenCalledWith(56);
+    expect(onTopControlsBottom).toHaveBeenCalledWith(44);
   });
 });

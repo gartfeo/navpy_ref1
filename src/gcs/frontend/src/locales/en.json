@@ -410,19 +410,20 @@
     "clearTrails": "Clear flight path trace",
     "resetView": "Reset view"
   },
-  "videoPanel": {
-    "region": "Camera video",
-    "title": "Camera",
+  "vehicleWindow": {
+    "region": "Vehicle window",
     "state": {
       "connecting": "CONNECTING",
       "live": "LIVE",
       "stale": "STALE",
       "failed": "FAILED",
-      "hidden": "HIDDEN",
-      "lost": "LOST"
+      "lost": "LOST",
+      "noCamera": "NO CAMERA",
+      "synthetic": "SYNTHETIC"
     },
     "connectingUav": "connecting · {{name}}",
     "noFrames": "NO FRAMES {{seconds}} s",
+    "noCamera": "No camera · {{name}}",
     "videoLost": "Camera video lost · {{name}}",
     "linkLost": "Vehicle link lost · {{name}}",
     "reason": {
@@ -434,22 +435,37 @@
     },
     "reconnect": "Reconnect video",
     "dismiss": "Dismiss",
-    "expand": "Expand",
+    "source": {
+      "group": "View source",
+      "camera": "Camera",
+      "synthetic": "Synthetic"
+    },
+    "maximize": "Maximize",
     "restore": "Restore",
-    "collapse": "Hide video",
-    "show": "Show video",
+    "minimize": "Minimize",
+    "showMapLarge": "Show the map large",
+    "handle": {
+      "label": "{{name}} · {{state}}",
+      "restoreLabel": "Show the vehicle window: {{name}} · {{state}}",
+      "camera": "Camera",
+      "noCamera": "No camera",
+      "synthetic": "Synthetic",
+      "linkLost": "Vehicle link lost"
+    },
+    "syntheticTitle": "{{name}} · synthetic view",
+    "syntheticTag": "SYNTHETIC · not camera",
+    "waitingForPose": "Waiting for pose · {{name}}",
+    "syntheticUnavailable": "Synthetic view unavailable",
     "moreUavs": "{{count}} more",
-    "moreUavsLabel": "More UAVs with video",
-    "pickUav": "Tap a UAV to show its camera"
+    "moreUavsLabel": "More UAVs"
   },
   "fpvView": {
-    "on": "ON",
-    "toggleTitle": "First-person view (synthetic, no RC)",
     "tag": "SYNTHETIC · {{name}} · nose view, not camera",
-    "heldLinkLost": "View held · vehicle link lost · {{seconds}} s",
-    "heldPose": "View held · pose unavailable · {{seconds}} s",
-    "ineligible": "{{name}}: no link or pose for FPV",
-    "noEligible": "No UAV has a link and pose for FPV"
+    "held": {
+      "telemetryDisconnected": "View held · telemetry disconnected · {{seconds}} s",
+      "linkLost": "View held · vehicle link lost · {{seconds}} s",
+      "poseUnavailable": "View held · pose unavailable · {{seconds}} s"
+    }
   },
   "planningToolbar": {
     "finishDrawing": "Finish drawing",

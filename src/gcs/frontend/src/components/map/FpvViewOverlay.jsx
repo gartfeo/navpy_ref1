@@ -1,16 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../../styles';
-import { VIDEO_CLOCK_TICK_MS } from '../../constants/video';
-import { HEADER_FONT_PX, PANEL_MARGIN_PX } from '../../utils/videoPanelLayout';
-
-const HELD_KEY = {
-  linkLost: 'fpvView.heldLinkLost',
-  poseUnavailable: 'fpvView.heldPose',
-};
+import useHeldSeconds from '../../hooks/useHeldSeconds';
+import { HEADER_FONT_PX, PANEL_MARGIN_PX } from '../../utils/vehicleWindowLayout';
 
 /**
- * Always-on label of the synthetic first-person view (view FPV and RC FPV):
+ * Always-on label of RC FPV, the synthetic first-person view on the main map:
  * a frame in the accent colour (not a warning colour), a fixed top-centre tag
  * "SYNTHETIC · UAV n · nose view, not camera", and while the camera holds its
  * last pose a full-width "View held" banner with the time held. Never takes
@@ -20,21 +15,7 @@ const HELD_KEY = {
  */
 export default function FpvViewOverlay({ label, holdReason, top }) {
   const { t } = useTranslation();
-  const [heldSince, setHeldSince] = useState(null);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!holdReason) {
-      setHeldSince(null);
-      return undefined;
-    }
-    setHeldSince(Date.now());
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), VIDEO_CLOCK_TICK_MS);
-    return () => clearInterval(id);
-  }, [holdReason]);
-
-  const heldSeconds = heldSince == null ? 0 : Math.max(0, Math.floor((now - heldSince) / 1000));
+  const heldSeconds = useHeldSeconds(holdReason);
   const text = {
     fontSize: HEADER_FONT_PX,
     fontWeight: 700,
@@ -78,7 +59,7 @@ export default function FpvViewOverlay({ label, holdReason, top }) {
             color: colors.warning,
           }}
         >
-          {t(HELD_KEY[holdReason], { seconds: heldSeconds })}
+          {t(`fpvView.held.${holdReason}`, { seconds: heldSeconds })}
         </div>
       )}
     </div>
