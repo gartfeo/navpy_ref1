@@ -874,6 +874,15 @@
   1.8-2.6 % narrower in FOV than the reference, like the laser finding that board focal lengths are ~1.8 % high.
   Low held-out error does not validate focal scale. Check a fit against an independent scale (laser, pointing)
   and read gimbal-controller's reports on it (output/flat-zoom-trial-20260914/REPORT.md) before enabling a row.
+- Resolved 2026-10-20 (owner: interpolation is a temporary solution): a single-view still-board sweep cannot fit a
+  lens, but the similarity scale between its views is the focal ratio. tools/hitl/zr10_lens_table.py takes focal
+  length from the sweep x one constant from the tilted fits x the laser factor, and centre/distortion from the
+  tilted sets, interpolated and marked `basis`. Place each measured shape on the interpolation axis at the table's
+  focal length for its setting, not its own biased fit focal length, or measured rows get blended with neighbours.
+- Section 9 keeps private measurements out of the repository: measured constants, session ids and dated input
+  folder names go in the private manifest (measurements/zr10_lens_inputs.json), not in the builder (Codex rounds 3-4).
+- Do not mutate source files while a broad pytest run is in progress: a mutation loop on the builder made that run
+  report false failures. Run mutations before or after, never during.
 - One reading can be two lens states: reading 1.1 is scale 1.030 after absolute zoom 1.0 but 1.069 after a held
   zoom-in. Key rows by reading and by how the zoom was set.
 - `Path.read_text` turns CRLF into LF, and `write_text(newline="")` then writes LF; `read_text(newline=...)` needs
