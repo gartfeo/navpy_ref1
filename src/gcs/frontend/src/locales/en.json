@@ -403,16 +403,14 @@
   "trailsPanel": {
     "button": "Trails",
     "title": "Trails and camera marks",
-    "flightTrail": "Flight trail",
-    "cameraMarks": "Camera marks",
-    "uavs": "UAVs",
-    "all": "All",
-    "none": "None",
+    "flightTrail": "Trail",
+    "cameraMarks": "Marks",
     "pause": "Pause recording",
     "resume": "Resume recording",
     "clearAll": "Clear all",
     "paused": "Paused",
-    "notRecordingSince": "Not recording since {{time}}"
+    "recording": "Recording",
+    "pausedSince": "Paused {{time}}"
   },
   "monitorOverlay": {
     "enterRc": "Enter RC control",

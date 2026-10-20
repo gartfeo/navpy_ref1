@@ -107,7 +107,7 @@ export default function App() {
     showCoverage, setShowCoverage,
     showTrails, setShowTrails,
     showVision, setShowVision,
-    hiddenSysIds, toggleSysIdHidden, showSysIds, hideSysIds,
+    hiddenSysIds, toggleSysIdHidden,
     historyPausedAt, toggleHistoryPaused, resumeHistory,
   } = useDisplaySettings();
 
@@ -784,8 +784,6 @@ export default function App() {
                 onToggleMarks: () => setShowCoverage(!showCoverage),
                 hiddenSysIds,
                 onToggleUav: toggleSysIdHidden,
-                onShowAllUavs: () => showSysIds(vehicleList.map((v) => v.sys_id)),
-                onHideAllUavs: () => hideSysIds(vehicleList.map((v) => v.sys_id)),
                 pausedAt: historyPausedAt,
                 onTogglePause: toggleHistoryPaused,
                 onClearAll: commands.handleClearHistory,

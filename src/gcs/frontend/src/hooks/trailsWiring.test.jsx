@@ -70,7 +70,6 @@ function Harness({ store, viewer, cesium, plan, api, entitiesRef }) {
         showTrails={d.showTrails} onToggleTrails={() => d.setShowTrails((s) => !s)}
         showMarks={d.showCoverage} onToggleMarks={() => d.setShowCoverage((s) => !s)}
         hiddenSysIds={d.hiddenSysIds} onToggleUav={d.toggleSysIdHidden}
-        onShowAllUavs={() => d.showSysIds([1])} onHideAllUavs={() => d.hideSysIds([1])}
         pausedAt={d.historyPausedAt} onTogglePause={d.toggleHistoryPaused}
         onClearAll={c.handleClearHistory}
       />

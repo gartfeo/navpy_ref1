@@ -1,6 +1,9 @@
 # GCS trails and camera marks: one control
 
-Status: design v3, approved by the owner 2026-10-20. Implemented 2026-10-20.
+Status: design v4, approved by the owner 2026-10-20. Implemented 2026-10-20.
+v4 (owner, 2026-10-20): v3's panel was bulky and used tick boxes, which the
+monitor map does not use. The panel is now compact and built from the map
+bar's own toggle buttons; All / None are dropped.
 
 Owner request (2026-10-20): the monitor map has separate show and clear
 buttons for the camera marks and for the UAV trail; they should become one
@@ -76,18 +79,21 @@ colour alone). The Vision toggle stays.
 A tap opens a panel under the button:
 
 ```
-Trails and camera marks
-  [x] Flight trail      [x] Camera marks
-  UAVs   [x] UAV 1   [x] UAV 2   [ ] UAV 3      All · None
-  [ Pause recording ]                 [ Clear all ]
-  (when paused) Not recording since 14:03:12
+  [~ Trail]  [o Marks]
+  ----------------------
+  [* 1]  [* 2]  [* 3]
+  ----------------------
+  [||]  [bin]   Recording        (when paused: [>]  [bin]  Paused 14:03)
 ```
+
+Every control is a 28 px map-bar toggle (the `MapIconBtn` look): cyan tint
+and border when on, plain when off, `aria-pressed` for screen readers.
 
 - **Layers**: Flight trail and Camera marks, each on or off for the whole
   fleet. Off hides; recording goes on.
-- **UAVs**: one checkbox per UAV in the fleet, with its zone colour swatch
-  and the "UAV n" label. Unchecked hides that UAV's trail and marks; recording
-  goes on. All / None set every box.
+- **UAVs**: one toggle per UAV in the fleet, with its zone colour dot and its
+  number (name when it has one; "UAV n" as the accessible name). Off hides
+  that UAV's trail and marks; recording goes on.
 - **Pause recording / Resume recording**: one switch for the whole fleet,
   including UAVs that join or return while paused; while paused no UAV adds
   trail points or marks. Resume starts a new trail run for every UAV.
@@ -96,7 +102,7 @@ Trails and camera marks
   with the next eligible sample. Pause stays as it was. No confirmation: it is
   display only and touches no mission or log data.
 - The live camera footprint shows when Vision is on, or when Camera marks is
-  on and that UAV is checked. Pause does not affect it (it is live, not
+  on and that UAV is toggled on. Pause does not affect it (it is live, not
   history).
 - Recording reads only fresh telemetry: a UAV adds a trail point or a mark
   only while `telemetryStore.isTelemetryFresh(sys_id)` holds (socket open and
@@ -108,11 +114,12 @@ Trails and camera marks
   trail points at the same 2 m step.
 
 Panel rules follow the vehicle window (`gcs_video_streams.md`, section 5):
-44 px targets with text labels, no hover-only actions; it opens downward, draws
+compact 28 px toggles (the map bar's own size class), icon buttons with an
+accessible name and a tooltip, no hover-only actions; it opens downward, draws
 above the vehicle window and the small swapped map, scrolls inside itself on a
 short or narrow pane (the UAV row wraps), and closes on a tap outside or
 Escape (focus back to the button). Nothing in it is saved in browser storage
-(same rule as the vehicle window); a reload starts with all UAVs checked,
+(same rule as the vehicle window); a reload starts with all UAVs on,
 recording, the trail layer on and the camera marks layer off (today's
 defaults; marks record while hidden, so turning the layer on shows them).
 
@@ -148,12 +155,12 @@ drawn with the existing fade over the whole trail.
 
 | Event (as the browser sees it) | Trail and marks | Selection, layers, pause |
 |---|---|---|
-| UAV joins the fleet | records, unless paused | checked |
+| UAV joins the fleet | records, unless paused | on |
 | WebSocket drop and reconnect | kept; nothing recorded during the drop; a new trail run starts | kept |
 | Backend restart, browser open | as a WebSocket reconnect; UAVs absent from the first broadcast's `active_ids` are removed | kept |
 | Vehicle link lost (vehicle stays in `active_ids`) | kept; no new points while no telemetry | kept |
-| UAV leaves the fleet (removed from `active_ids`) | removed, trail and marks (marks fix) | its checkbox goes; its check state is remembered by `sys_id` for the browser session |
-| Same `sys_id` returns after a seen removal | fresh history, as today | restored check state |
+| UAV leaves the fleet (removed from `active_ids`) | removed, trail and marks (marks fix) | its toggle goes; its on/off state is remembered by `sys_id` for the browser session |
+| Same `sys_id` returns after a seen removal | fresh history, as today | restored on/off state |
 | Stop / Start NavPy (companion processes) | kept: the vehicles stay connected | kept |
 | Restart mission | cleared on the click, as today, whatever the backend answers | pause off (a new mission is recorded); selection and layers kept |
 | Plan change (edit or upload) | kept | kept |
@@ -166,14 +173,14 @@ is one tap. Restart mission is the point where a new history starts.
 ### Changes
 
 - `useDisplaySettings`: `showCoverage` and `showTrails` become the two layer
-  flags; add `hiddenSysIds` (a set; absent means checked) and `paused`.
+  flags; add `hiddenSysIds` (a set; absent means on) and `paused`.
 - `useVehicleCommands`: one `historyResetKey` replaces `coverageResetKey` and
   `trailResetKey`; `handleRestart` also sets `paused` false.
 - `App.jsx` and `CesiumMap.jsx`: pass the layer flags, `hiddenSysIds`,
   `paused` and the reset key to both history hooks and to the overlay.
 - `trailAccum.js`: runs, run ends kept by thinning, oldest run dropped when
   over budget.
-- `useUavTrails`: per-UAV show = layer and checked; skip `accumulate` while
+- `useUavTrails`: per-UAV show = layer and UAV on; skip `accumulate` while
   paused or not fresh; new run on resume and on WebSocket reconnect (a
   reconnect counter from the telemetry store).
 - `useCoverageLayer`: key by `sys_id`; record whether or not the layer is
@@ -194,7 +201,7 @@ clearing on arm (QGroundControl).
   many pause and resume cycles past the budget drop the oldest runs and stay
   within it; empty and one-point runs are not drawn.
 - Trail hook (beside `test_uav_trails_update_js.py`, with a fake viewer): a
-  hidden UAV keeps accumulating with the layer off and with its box unchecked;
+  hidden UAV keeps accumulating with the layer off and with its toggle off;
   pause stops every UAV, including one that joins while paused; Clear all
   empties shown and hidden UAVs; a WebSocket reconnect starts a new run;
   position A held through a disconnect, reconnect with no telemetry, another
@@ -205,22 +212,22 @@ clearing on arm (QGroundControl).
 - Marks hook (beside `test_track_coverage_js.py`, `test_coverage_cap_js.py`):
   keyed by `sys_id`, so a lower `sys_id` joining does not move marks between
   UAVs; a leaving UAV's marks are removed; recording goes on with the layer
-  off and the box unchecked; still AUTO only; a stationary UAV whose gimbal
+  off and the UAV toggle off; still AUTO only; a stationary UAV whose gimbal
   state changes still gets a mark; no mark from cached telemetry; pause stops it; Clear all resets
   the sampling anchor; the cap evicts the fleet's oldest mark; the live
-  footprint follows Vision, the marks layer and the checkbox, not pause.
+  footprint follows Vision, the marks layer and the UAV toggle, not pause.
 - Wiring (vitest, the overlay through `useDisplaySettings` and
   `useVehicleCommands` into `CesiumMap`'s hooks with a fake viewer): pause,
   resume, Clear all and Restart mission reach both layers; Restart turns pause
   off; plan change keeps both.
 - `MonitorMapOverlay.test.jsx`: one Trails button replaces the four; keyboard
   opens it; the panel closes on Escape with focus back on the button and on a
-  tap outside; checkboxes, All / None, Pause / Resume and Clear all call their
+  tap outside; the layer and UAV toggles, Pause / Resume and Clear all call their
   handlers; Paused badge text; accessible names; every new key in `en.json` and
   `hy.json`.
 - `npm test` and `npm run build`.
-- Live (`live-tester`, own slot, 3-UAV SITL): uncheck UAV 2 for a minute, check
-  it again, its retained trail and marks with no gap; pause 30 s, resume, a gap
+- Live (`live-tester`, own slot, 3-UAV SITL): toggle UAV 2 off for a minute, check
+  it on again, its retained trail and marks with no gap; pause 30 s, resume, a gap
   with no straight line; Clear all; Restart mission clears and resumes;
   disconnect and reconnect UAV 3, its marks do not reappear in another UAV's
   colour; restart the backend with the page open, no line joins across it;

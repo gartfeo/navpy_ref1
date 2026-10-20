@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { colors, zoneColorsSolid } from '../../styles';
 import { PANEL_MARGIN_PX } from '../../utils/vehicleWindowLayout';
 
-/** Touch target for every control inside the panel (handheld rule). */
-const TARGET_PX = 44;
+/** Height of every control inside the panel: compact, like the map bar. */
+const CONTROL_PX = 28;
 /** Panel width on a wide map pane. */
-const PANEL_MAX_WIDTH_PX = 320;
+const PANEL_MAX_WIDTH_PX = 196;
 /** Gap between the bar button and the panel under it. */
 const PANEL_GAP_PX = 6;
 
@@ -22,50 +22,55 @@ export function panelBounds(buttonRect, paneRect) {
   };
 }
 
-const panelBtn = {
-  minHeight: TARGET_PX,
-  padding: '0 12px',
-  borderRadius: 6,
-  fontSize: 13,
-  cursor: 'pointer',
-  border: `1px solid ${colors.border}`,
-  background: colors.bgLighter,
-  color: colors.textBright,
-};
+/** The map bar's toggle look (MapIconBtn): cyan tint and border when on. */
+function toggleStyle(on) {
+  return {
+    height: CONTROL_PX,
+    minWidth: CONTROL_PX,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: '0 8px',
+    borderRadius: 6,
+    fontSize: 12,
+    cursor: 'pointer',
+    border: `1px solid ${on ? colors.accent : colors.border}`,
+    background: on ? 'rgba(0, 210, 255, 0.2)' : 'rgba(22, 33, 62, 0.85)',
+    color: on ? colors.accent : colors.textBright,
+  };
+}
 
-const checkRow = {
-  minHeight: TARGET_PX,
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  padding: '0 10px',
-  borderRadius: 6,
-  border: `1px solid ${colors.border}`,
-  fontSize: 13,
-  cursor: 'pointer',
-  color: colors.text,
-};
-
-function Check({ checked, onChange, children }) {
+function Toggle({ on, onClick, label, children }) {
   return (
-    <label style={checkRow}>
-      <input type="checkbox" checked={checked} onChange={onChange} />
+    <button type="button" aria-pressed={!!on} aria-label={label} title={label} onClick={onClick} style={toggleStyle(on)}>
       {children}
-    </label>
+    </button>
   );
 }
 
+function IconBtn({ label, onClick, on = false, children }) {
+  return (
+    <button type="button" aria-label={label} title={label} onClick={onClick} style={{ ...toggleStyle(on), padding: 0 }}>
+      {children}
+    </button>
+  );
+}
+
+const sep = { borderTop: `1px solid ${colors.border}`, margin: '6px 0' };
+const row = { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 };
+
 /**
  * The one Trails control (docs/design/gcs_trails_marks_control.md): a 32 px
- * bar button that opens a panel with the two history layers, one checkbox
- * per UAV, fleet-wide Pause / Resume recording and Clear all. Unchecking only
+ * bar button that opens a compact panel of map-bar toggles: the two history
+ * layers, one toggle per UAV, fleet-wide Pause / Resume recording and Clear all. Unchecking only
  * hides; recording goes on. Pure view: state lives in useDisplaySettings.
  */
 export default function TrailsControl({
   vehicleList = [],
   showTrails, onToggleTrails,
   showMarks, onToggleMarks,
-  hiddenSysIds, onToggleUav, onShowAllUavs, onHideAllUavs,
+  hiddenSysIds, onToggleUav,
   pausedAt, onTogglePause,
   onClearAll,
 }) {
@@ -179,61 +184,114 @@ export default function TrailsControl({
             maxHeight: bounds ? bounds.maxHeight : undefined,
             boxSizing: 'border-box',
             overflowY: 'auto',
-            padding: 12,
+            padding: 8,
             borderRadius: 8,
             border: `1px solid ${colors.border}`,
             background: colors.bgLight,
             color: colors.text,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
           }}
         >
-          <div style={{ fontSize: 14, fontWeight: 600, color: colors.textBright }}>
-            {t('trailsPanel.title')}
+          <div style={row}>
+            <Toggle on={showTrails} onClick={onToggleTrails} label={t('trailsPanel.flightTrail')}>
+              <TrailIcon />{t('trailsPanel.flightTrail')}
+            </Toggle>
+            <Toggle on={showMarks} onClick={onToggleMarks} label={t('trailsPanel.cameraMarks')}>
+              <MarksIcon />{t('trailsPanel.cameraMarks')}
+            </Toggle>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            <Check checked={!!showTrails} onChange={onToggleTrails}>{t('trailsPanel.flightTrail')}</Check>
-            <Check checked={!!showMarks} onChange={onToggleMarks}>{t('trailsPanel.cameraMarks')}</Check>
-          </div>
-          <div style={{ fontSize: 12, color: colors.textDim }}>{t('trailsPanel.uavs')}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {vehicleList.map((v, i) => (
-              <Check
-                key={v.sys_id}
-                checked={!hiddenSysIds?.has(v.sys_id)}
-                onChange={() => onToggleUav(v.sys_id)}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 2,
-                    background: zoneColorsSolid[i % zoneColorsSolid.length],
-                  }}
-                />
-                {v.name || `UAV ${v.sys_id}`}
-              </Check>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" style={panelBtn} onClick={onShowAllUavs}>{t('trailsPanel.all')}</button>
-            <button type="button" style={panelBtn} onClick={onHideAllUavs}>{t('trailsPanel.none')}</button>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-            <button type="button" style={panelBtn} onClick={onTogglePause}>
-              {paused ? t('trailsPanel.resume') : t('trailsPanel.pause')}
-            </button>
-            <button type="button" style={panelBtn} onClick={onClearAll}>{t('trailsPanel.clearAll')}</button>
-          </div>
-          {paused && (
-            <div style={{ fontSize: 12, color: colors.warning }}>
-              {t('trailsPanel.notRecordingSince', { time: new Date(pausedAt).toLocaleTimeString() })}
-            </div>
+          {vehicleList.length > 0 && (
+            <>
+              <div style={sep} />
+              <div style={row}>
+                {vehicleList.map((v, i) => (
+                  <Toggle
+                    key={v.sys_id}
+                    on={!hiddenSysIds?.has(v.sys_id)}
+                    onClick={() => onToggleUav(v.sys_id)}
+                    label={v.name || `UAV ${v.sys_id}`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: zoneColorsSolid[i % zoneColorsSolid.length],
+                      }}
+                    />
+                    {v.name || v.sys_id}
+                  </Toggle>
+                ))}
+              </div>
+            </>
           )}
+          <div style={sep} />
+          <div style={row}>
+            <IconBtn
+              on={paused}
+              onClick={onTogglePause}
+              label={paused ? t('trailsPanel.resume') : t('trailsPanel.pause')}
+            >
+              {paused ? <PlayIcon /> : <PauseIcon />}
+            </IconBtn>
+            <IconBtn onClick={onClearAll} label={t('trailsPanel.clearAll')}><TrashIcon /></IconBtn>
+            <span style={{ marginLeft: 4, fontSize: 12, color: paused ? colors.warning : colors.textDim }}>
+              {paused
+                ? t('trailsPanel.pausedSince', { time: formatClock(pausedAt) })
+                : t('trailsPanel.recording')}
+            </span>
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** Pause time as HH:MM, the operator's clock. */
+function formatClock(ms) {
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+const icon = { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', 'aria-hidden': true };
+
+function TrailIcon() {
+  return (
+    <svg {...icon}>
+      <path d="M1.5 12C4 12 3 6 6.5 6S9 2 12.5 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function MarksIcon() {
+  return (
+    <svg {...icon}>
+      <rect x="1.5" y="4" width="11" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+      <circle cx="7" cy="8" r="2" stroke="currentColor" strokeWidth="1.2"/>
+      <path d="M5 4l1-1.5h2L9 4" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg {...icon}>
+      <path d="M5 3v8M9 3v8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg {...icon}>
+      <path d="M4.5 2.5v9l7-4.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg {...icon}>
+      <path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.6 7.5h5.8l.6-7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
   );
 }

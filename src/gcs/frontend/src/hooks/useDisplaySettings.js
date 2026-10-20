@@ -31,17 +31,6 @@ export default function useDisplaySettings() {
       return next;
     });
   }, []);
-  // All / None act on the listed UAVs only; an absent UAV keeps its choice.
-  const showSysIds = useCallback((sysIds) => {
-    setHiddenSysIds((prev) => {
-      const next = new Set(prev);
-      for (const id of sysIds) next.delete(id);
-      return next;
-    });
-  }, []);
-  const hideSysIds = useCallback((sysIds) => {
-    setHiddenSysIds((prev) => new Set([...prev, ...sysIds]));
-  }, []);
   const toggleHistoryPaused = useCallback(() => {
     setHistoryPausedAt((prev) => (prev == null ? Date.now() : null));
   }, []);
@@ -54,7 +43,7 @@ export default function useDisplaySettings() {
     showCoverage, setShowCoverage,
     showVision, setShowVision,
     showTrails, setShowTrails,
-    hiddenSysIds, toggleSysIdHidden, showSysIds, hideSysIds,
+    hiddenSysIds, toggleSysIdHidden,
     historyPausedAt, toggleHistoryPaused, resumeHistory,
   };
 }
