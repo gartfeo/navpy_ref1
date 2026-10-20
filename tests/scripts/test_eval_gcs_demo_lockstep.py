@@ -10,6 +10,7 @@ import pytest
 from scripts import eval_gcs_demo_cli as cli
 from scripts import eval_gcs_demo_lockstep as lockstep_eval
 from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run, manifest, require_wired
+from scripts.eval_gcs_demo_constants import PARAM_REQUEST_BUDGET_S
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 from scripts.eval_gcs_demo_stack_ops import configure_vehicle_params
@@ -214,7 +215,8 @@ def test_command_bounds_come_from_named_reads_under_lockstep_never_mavftp():
     )
     context.clock = SimpleNamespace(monotonic=lambda: 0.0, sleep=lambda _s: None)
     bounds = configure_vehicle_params(context, 5.0)
-    named = f"/api/vehicles/1/params/named?names={','.join(NAMED_PARAMETER_NAMES)}"
+    named = (f"/api/vehicles/1/params/named?names={','.join(NAMED_PARAMETER_NAMES)}"
+             f"&timeout_s={PARAM_REQUEST_BUDGET_S}")  # the request names its budget (todo 97)
     assert named in api.paths
     assert not any("parameters" in path for path in api.paths)  # no MAVFTP read, no full-param write
     (vehicle,) = bounds.vehicles

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.ports.parameter_exchange import ExchangePolicy, ParameterExchange
 from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
 from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
 from navpy.plugins.vehicle.ardupilot.parameter_reader import (
@@ -62,6 +63,18 @@ class ParameterClient:
             mav_param_type=mav_param_type,
             timeout=timeout,
         )
+
+    def read(self, name: str, policy: ExchangePolicy, timeout: float = 2.0) -> ParameterExchange:
+        return self._reader.read(name, policy, timeout)
+
+    def write(
+        self,
+        name: str,
+        value: int | float,
+        policy: ExchangePolicy,
+        timeout: float = 2.0,
+    ) -> ParameterExchange:
+        return self._writer.write(name, value, policy, timeout=timeout)
 
     def send_unverified(self, name: str, value: int | float) -> bool:
         return self._writer.send_unverified(name, value)

@@ -66,6 +66,7 @@ def build_capability_parts(
         foundation.state.parameter_repository,
         foundation.state.messages,
         foundation.link.logger_ref,
+        foundation.state.heartbeat_state,
     )
     sim_state = SimAutopilotState()
     writer = ParameterWriter(
@@ -75,6 +76,7 @@ def build_capability_parts(
         foundation.state.messages,
         foundation.link.logger_ref,
         sim_state,
+        foundation.state.heartbeat_state,
     )
     parameters = ParameterClient(reader, writer, protocols.snapshot)
     simulation = SimAutopilotCapability(

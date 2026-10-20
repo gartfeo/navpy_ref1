@@ -117,8 +117,8 @@ Two separate problems follow:
   The sniffer and the Windows endpoints stay on the command line, since
   `wall_reap_wsl.py` finds the router by its monitor port. The file lives in
   the ArduPilot fork, whose deployed copy has long-standing uncommitted edits;
-  its sha256 pin in `lockstep_topology.py` changes with it (now `4a1c00af…`,
-  with the image block). The new copy is
+  its sha256 pin in `lockstep_topology.py` changes with it (now `38a51884…`,
+  with the image block and the id allowlist). The new copy is
   staged as `run_swarm.sh.radio_budget` beside it and deployed at merge, since
   every chat's launches read the one deployed file.
 - Expected effect: each SITL receives about 1.3 kB/s (23 % of 57600), and each
@@ -302,7 +302,8 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   with reason `no_echo`, `link_lost` or `deadline`. The cache is invalidated
   for every attempted write, as now. The frontend treats anything but
   `true` as failed (`useAasParams.js:276`). The eval passes `timeout_s` 5 s
-  below its HTTP timeout.
+  below its HTTP timeout. Lockstep binds the backend's clock to sim time, so
+  there the budget counts sim seconds; the HTTP timeout counts wall seconds.
 - Not chosen: lowering the `stress` loss (changes the test to pass); an eval
   re-PUT of failed writes (a retry in the gate, not in the product).
 

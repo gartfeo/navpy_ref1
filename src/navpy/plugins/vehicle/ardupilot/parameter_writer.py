@@ -11,10 +11,17 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.kernel import runtime_time as rt
-from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
+from navpy.core.ports.parameter_exchange import (
+    ExchangeOutcome,
+    ExchangePolicy,
+    ExchangeReason,
+    ParameterExchange,
+)
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import run_exchange
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
 from navpy.plugins.vehicle.ardupilot.parameter_spec import (
     ParameterWriteSpec,
@@ -33,6 +40,7 @@ class ParameterWriter:
         messages: MessageStore,
         logger_ref: LoggerRef,
         sim_state: SimAutopilotState,
+        link: HeartbeatState,
     ) -> None:
         self._identity = identity
         self._transport = transport
@@ -40,6 +48,7 @@ class ParameterWriter:
         self._messages = messages
         self._logger_ref = logger_ref
         self._sim_state = sim_state
+        self._link = link
         self._write_lock = rt.Lock()
 
     def set(
@@ -50,6 +59,19 @@ class ParameterWriter:
         mav_param_type: int | None = None,
         timeout: float = 2.0,
     ) -> bool:
+        return self.write(
+            name, value, ExchangePolicy(), mav_param_type=mav_param_type, timeout=timeout,
+        ).confirmed
+
+    def write(
+        self,
+        name: str,
+        value: int | float,
+        policy: ExchangePolicy,
+        *,
+        mav_param_type: int | None = None,
+        timeout: float = 2.0,
+    ) -> ParameterExchange:
         spec = build_parameter_write_spec(
             name.upper(),
             value,
@@ -57,36 +79,44 @@ class ParameterWriter:
             self._logger_ref.value,
         )
         if spec is None:
-            return False
-        with self._write_lock:
+            return ParameterExchange(ExchangeOutcome.UNATTEMPTED, ExchangeReason.INVALID, 0)
+        # A write is idempotent, so a timeout resends it; an echo of an
+        # earlier send still counts.
+        cursor = self._messages.cursor()
+
+        def send() -> None:
             self._repository.invalidate(spec.name)
-            # A write is idempotent, so a timeout resends it; an echo of an
-            # earlier send still counts.
-            cursor = self._messages.cursor()
-            sample = None
-            for _attempt in range(PARAM_PROTOCOL_ATTEMPTS):
-                self._transport.call(
-                    lambda connection: connection.mav.param_set_send(
-                        self._identity.target_system,
-                        0,
-                        spec.name.encode(),
-                        spec.value,
-                        spec.wire_type,
-                    )
+            self._transport.call(
+                lambda connection: connection.mav.param_set_send(
+                    self._identity.target_system,
+                    0,
+                    spec.name.encode(),
+                    spec.value,
+                    spec.wire_type,
                 )
-                sample = self._messages.wait_after(
-                    "PARAM_VALUE",
-                    cursor,
-                    lambda message: self._matches(message, spec),
-                    deadline=rt.monotonic() + timeout,
-                )
-                if sample is not None:
-                    break
-        if sample is None:
-            return False
-        if spec.name == "SIM_SPEEDUP":
+            )
+
+        exchange, sample = run_exchange(
+            policy,
+            self._link,
+            send,
+            lambda deadline: self._messages.wait_after(
+                "PARAM_VALUE", cursor, lambda message: self._matches(message, spec),
+                deadline=deadline,
+            ),
+            timeout,
+            lock=self._write_lock,
+        )
+        if exchange.attempts > 1 or not exchange.confirmed:
+            self._logger_ref.value.info(
+                f"PARAM_SET {spec.name}: {exchange.outcome.value}"
+                f"{'' if exchange.reason is None else ' (' + exchange.reason.value + ')'}"
+                f" after {exchange.attempts}/{policy.attempts} sends",
+                "param",
+            )
+        if sample is not None and spec.name == "SIM_SPEEDUP":
             self._sim_state.observe(sample.message.param_value)
-        return True
+        return exchange
 
     def send_unverified(self, name: str, value: int | float) -> bool:
         normalized = name.upper()

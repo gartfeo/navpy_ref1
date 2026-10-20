@@ -7,6 +7,7 @@ import threading
 import time
 from unittest.mock import MagicMock, patch
 
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
 from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import MESSAGE_HISTORY_POLICY
@@ -34,6 +35,7 @@ def test_operator_refresh_bypasses_cached_value_and_waits_for_fresh_echo():
         repository,
         messages,
         SimpleNamespace(value=MagicMock()),
+        HeartbeatState(7, 5.0),
     )
 
     assert reader.get("TEST") == 1.0
@@ -61,6 +63,7 @@ def test_nonblocking_parameter_write_does_not_wait_for_busy_transport():
         MessageStore(MESSAGE_HISTORY_POLICY),
         SimpleNamespace(value=MagicMock()),
         SimAutopilotState(),
+        HeartbeatState(7, 5.0),
     )
     started_s = time.monotonic()
     result = writer.send_unverified("TEST", 3.0)

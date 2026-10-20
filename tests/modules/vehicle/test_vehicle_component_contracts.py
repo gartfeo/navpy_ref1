@@ -622,6 +622,7 @@ def test_parameter_read_rejects_value_older_than_request():
         ParameterRepository(),
         messages,
         SimpleNamespace(value=MagicMock()),
+        HeartbeatState(7, 5.0),
     )
 
     assert reader.get("TEST", timeout=0.1, retries=1) == 2.0
@@ -641,6 +642,7 @@ def _parameter_writer(connection, messages) -> ParameterWriter:
         messages,
         SimpleNamespace(value=MagicMock()),
         MagicMock(),
+        HeartbeatState(7, 5.0),
     )
 
 
@@ -686,7 +688,8 @@ def test_parameter_read_resends_by_default_and_accepts_a_late_answer():
     messages.wait_after = first_wait_times_out_then_the_answer_lands
     reader = ParameterReader(SimpleNamespace(target_system=7),
                              MavTransport(connection, threading.RLock()),
-                             ParameterRepository(), messages, SimpleNamespace(value=MagicMock()))
+                             ParameterRepository(), messages, SimpleNamespace(value=MagicMock()),
+                             HeartbeatState(7, 5.0))
     assert reader.get("TEST", timeout=0.05) == 4.0
     assert connection.mav.param_request_read_send.call_count == 2
 

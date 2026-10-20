@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder, encoder
 from navpy.sim.lockstep.router_entries import load_entry_table
-from navpy.sim.lockstep.router_framer import RouterFramer
+from navpy.sim.lockstep.router_framer import NO_TARGET, RouterFramer, RouterPacket
 from navpy.sim.lockstep.router_model import SITL_FILTER, EndpointFilter, ReferenceRouter, Route
 from navpy.sim.lockstep.uart_model import StepUart
 
@@ -112,6 +114,26 @@ def test_a_sitl_endpoint_gets_no_peer_autopilot_or_camera_traffic_and_the_gcs_ge
     # The companion's confirmation image goes to the ground station only.
     assert router.route("sitl1", _message("image", (1, 191))) == Route(("backend",), True)
     assert router.dropped_unknown_target == 0
+
+
+def test_a_sitl_endpoint_drops_an_unknown_id_before_learning_its_source():
+    """radio_budget.md, todo 96: SITL byte loss makes garbage frames with random headers; one
+    from the GCS's 255/0 with an id outside the entry table (no CRC check) must not teach the
+    endpoint that source, or the loop check drops every later GCS packet to that UAV."""
+    router = _filtered_router()
+    router.route("backend", _message("heartbeat", (255, 0)))
+    garbage = RouterPacket(b"", 207, (255, 0), (NO_TARGET, NO_TARGET), known=False)
+    assert garbage.msgid not in load_entry_table().entries
+    assert router.route("sitl2", garbage) == Route((), True)
+    assert router.dropped_unknown_target == 0
+    assert router.route("backend", _message("param", (255, 0), system=2, component=1)).destinations == (
+        "sitl2",)
+    # A known id passes and learns as before; the backend has no incoming filter.
+    assert router.route("sitl2", _message("heartbeat", (7, 191))).destinations == ("sitl1", "backend")
+    assert router.route("backend", _message("param", (255, 0), system=7, component=0)).destinations == (
+        "sitl2",)
+    assert router.route("backend", dataclasses.replace(garbage, source=(255, 9))).destinations == (
+        "sitl1", "sitl2")
 
 
 def test_a_blocked_id_is_filtered_before_the_target_rules():

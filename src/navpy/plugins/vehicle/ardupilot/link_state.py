@@ -24,6 +24,7 @@ class HeartbeatState:
         self._clock = clock
         self._lock = rt.Lock()
         self._last_receipt_s = clock()
+        self._last_frame_s = self._last_receipt_s
         self._message = None
 
     def observe(
@@ -45,6 +46,12 @@ class HeartbeatState:
             self._last_receipt_s = (
                 self._clock() if receipt_time_s is None else receipt_time_s
             )
+            self._last_frame_s = self._last_receipt_s
+
+    def observe_frame(self) -> None:
+        """Any valid frame from the autopilot, the heartbeat among them."""
+        with self._lock:
+            self._last_frame_s = self._clock()
 
     @property
     def message(self) -> MAVLink_message | None:
@@ -59,6 +66,13 @@ class HeartbeatState:
     @property
     def link_ok(self) -> bool:
         return self.age_s <= self._timeout_s
+
+    @property
+    def autopilot_silent(self) -> bool:
+        """No autopilot frame for the heartbeat timeout: an inferred disconnection, which
+        one lost heartbeat alone does not make (``radio_budget.md``, todo 97)."""
+        with self._lock:
+            return self._clock() - self._last_frame_s > self._timeout_s
 
 
 class PacketLossTracker:

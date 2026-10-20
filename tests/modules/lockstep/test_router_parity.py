@@ -104,12 +104,16 @@ def test_the_cases_tell_a_wrong_model_apart():
     assert set(FILTERED_CASES) <= failing(filters={})
     assert set(FILTERED_CASES) <= failing(filters={name: SITL_FILTER for name in ENDPOINTS})
     # Each key matters: without the id block the image case disagrees, without the component
-    # block every other filtered case.
+    # block every other filtered case but the garbage one.
     no_ids = EndpointFilter(block_src_comp_out=SITL_FILTER.block_src_comp_out)
     no_comps = EndpointFilter(block_msg_id_out=SITL_FILTER.block_msg_id_out)
     assert "filtered_image" in failing(filters={name: no_ids for name in SITL_FILTERS})
-    assert set(FILTERED_CASES) - {"filtered_image"} <= failing(
+    assert set(FILTERED_CASES) - {"filtered_image", "filtered_garbage"} <= failing(
         filters={name: no_comps for name in SITL_FILTERS})
+    # Without the incoming id allowlist, the garbage case loses the GCS's packet to UAV 2.
+    no_allow = dataclasses.replace(SITL_FILTER, allow_msg_id_in=None)
+    assert {"filtered_garbage", "filtered_unknown_id"} <= failing(
+        filters={name: no_allow for name in SITL_FILTERS})
 
 
 @pytest.mark.skipif(os.environ.get("NAVPY_ROUTER_PARITY") != "1",

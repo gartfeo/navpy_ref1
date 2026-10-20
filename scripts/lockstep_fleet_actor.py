@@ -49,7 +49,11 @@ from navpy.sim.lockstep.participant_hooks import DEVICE_KEY
 from navpy.sim.lockstep.pose_recording import POSE_CADENCE_DIR
 from scripts.eval_gcs_demo_command_bounds import command_bounds_from_snapshot
 from scripts.eval_gcs_demo_config import aas_params_for
-from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
+from scripts.eval_gcs_demo_constants import (
+    FINAL_APPROACH_ROLL_LIMIT_DEG,
+    PARAM_HTTP_TIMEOUT_S,
+    PARAM_REQUEST_BUDGET_S,
+)
 from scripts.eval_gcs_demo_lifecycle import connect_vehicles
 from scripts.eval_gcs_demo_mission_upload import upload_scenario_missions
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
@@ -131,7 +135,8 @@ class FleetLayout:
 def named_parameter_snapshot(api: JsonApiPort, sys_id: int) -> JsonValue:
     """Lockstep's command-bound read: fresh named reads, never MAVFTP (owner ruling 7)."""
     names = ",".join(NAMED_PARAMETER_NAMES)
-    return api.get_json(f"/api/vehicles/{sys_id}/params/named?names={names}", timeout=90.0)
+    return api.get_json(f"/api/vehicles/{sys_id}/params/named?names={names}"
+                        f"&timeout_s={PARAM_REQUEST_BUDGET_S}", timeout=PARAM_HTTP_TIMEOUT_S)
 
 
 def stack_context(operator: OperatorBaton, scenario: DemoScenario, layout: FleetLayout, *,
@@ -229,12 +234,15 @@ def setup_script(scenario: DemoScenario, layout: FleetLayout) -> Callable[[Opera
             wait_for_vehicles(context, VEHICLES_TIMEOUT_S)
             names = ",".join(COMMAND_BOUND_NAMES)
             for sys_id in context.sys_ids:
-                snapshot = api.get_json(f"/api/vehicles/{sys_id}/params/named?names={names}")
+                snapshot = api.get_json(f"/api/vehicles/{sys_id}/params/named?names={names}"
+                                        f"&timeout_s={PARAM_REQUEST_BUDGET_S}", timeout=PARAM_HTTP_TIMEOUT_S)
                 bounds[str(sys_id)] = repr(command_bounds_from_snapshot(
                     sys_id, snapshot, roll_limit_deg=FINAL_APPROACH_ROLL_LIMIT_DEG))
                 written = aas_params_for(scenario, sys_id, owner)
-                require_write_results(api.put_json(f"/api/vehicles/{sys_id}/params", {"params": written}),
-                                      written, "AAS")
+                require_write_results(api.put_json(
+                    f"/api/vehicles/{sys_id}/params",
+                    {"params": written, "timeout_s": PARAM_REQUEST_BUDGET_S},
+                    timeout=PARAM_HTTP_TIMEOUT_S), written, "AAS")
                 aas[str(sys_id)] = written
             upload_scenario_missions(context)
             received = _received(events)

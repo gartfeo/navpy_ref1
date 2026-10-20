@@ -27,46 +27,42 @@ import hashlib
 import json
 import struct
 import subprocess
-from collections.abc import Callable
+import sys
 from pathlib import Path
 
-from pymavlink.dialects.v20 import ardupilotmega as mavlink
+ROOT = Path(__file__).resolve().parents[1]
+for directory in (ROOT, ROOT / "src"):
+    sys.path.insert(0, str(directory))
 
-from navpy.sim.lockstep.mavlink_wire import encoder
 from navpy.sim.lockstep.router_entries import FIELDS, TABLE_FILE, EntryTable
 from navpy.sim.lockstep.router_framer import RouterFramer
 from navpy.sim.lockstep.router_model import SITL_FILTER, SNIFFER_SYSID, EndpointFilter, ReferenceRouter
+from scripts.router_parity_cases import ENDPOINTS, FILTERED_CASES, Step, build_cases
 
-ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "lockstep" / "router_parity.json"
 WSL_HARNESS = ROOT / "scripts" / "router_parity_wsl.py"
 BINARY = "/usr/bin/mavlink-routerd"
-ENDPOINTS = ("sitl1", "sitl2", "sitl3", "backend")
 #: ``mavlink_msg_entry_t`` (12 bytes with its padding) and HEARTBEAT's entry,
 #: the table's first row: where each copy of the table starts in the binary.
 ENTRY = struct.Struct("<IBBBBBBxx")
 HEARTBEAT_ENTRY = ENTRY.pack(0, 50, 9, 9, 0, 0, 0)
-#: A fence packet's source: a sysid per sending endpoint, used by nothing else.
-FENCE_SYSID = 200
-FENCE_COMPID = 199
 #: The filter ``run_swarm.sh`` and the coordinator give each SITL endpoint.
 SITL_FILTERS = {name: SITL_FILTER for name in ENDPOINTS if name.startswith("sitl")}
-#: The cases recorded with :data:`SITL_FILTERS`; the others have no filter.
-FILTERED_CASES = ("filtered_broadcast", "filtered_targeted", "filtered_unknown_id",
-                  "filtered_mixed", "filtered_image")
 
-Step = tuple[str, bytes, bool]
 Filters = dict[str, EndpointFilter]
 
 
 def filters_json(filters: Filters) -> dict[str, dict[str, list[int]]]:
-    """Each endpoint's filter by its mavlink-router conf keys (the fixture's and the job's form)."""
-    return {name: {"BlockMsgIdOut": list(f.block_msg_id_out), "BlockSrcCompOut": list(f.block_src_comp_out)}
+    """Each endpoint's filters by their mavlink-router conf keys (the fixture's and the job's
+    form); an empty ``AllowMsgIdIn`` is no incoming filter."""
+    return {name: {"AllowMsgIdIn": sorted(f.allow_msg_id_in or ()),
+                   "BlockMsgIdOut": list(f.block_msg_id_out), "BlockSrcCompOut": list(f.block_src_comp_out)}
             for name, f in filters.items()}
 
 
 def filters_from_json(data: dict[str, dict[str, list[int]]]) -> Filters:
-    return {name: EndpointFilter(tuple(keys["BlockMsgIdOut"]), tuple(keys["BlockSrcCompOut"]))
+    return {name: EndpointFilter(frozenset(keys["AllowMsgIdIn"]) or None, tuple(keys["BlockMsgIdOut"]),
+                                 tuple(keys["BlockSrcCompOut"]))
             for name, keys in data.items()}
 
 
@@ -90,137 +86,6 @@ def table_json(rows: list[tuple[int, ...]], sha256: str, version: str) -> str:
     head = json.dumps({"source": BINARY, "version": version, "binary_sha256": sha256,
                        "fields": list(FIELDS)}, indent=2)[:-2]
     return f'{head},\n  "entries": [\n{lines}\n  ]\n}}\n'
-
-
-class _Sources:
-    """One encoder per MAVLink source, so sequence numbers run as on a real link."""
-
-    def __init__(self) -> None:
-        self._links: dict[tuple[int, int], tuple[mavlink.MAVLink, object]] = {}
-
-    def __call__(self, system: int, component: int, send: str, *args: object) -> bytes:
-        if (system, component) not in self._links:
-            self._links[(system, component)] = encoder(system, component)
-        link, sink = self._links[(system, component)]
-        getattr(link, f"{send}_send")(*args)
-        return sink.drain()
-
-
-def _case(steps: list[tuple[str, bytes]]) -> list[Step]:
-    """Each step from endpoint E, then E's fence."""
-    fences = _Sources()
-    out: list[Step] = []
-    for endpoint, data in steps:
-        out.append((endpoint, data, False))
-        index = ENDPOINTS.index(endpoint)
-        fence = fences(FENCE_SYSID + index, FENCE_COMPID, "heartbeat", 6, 8, 0, 0, 0)
-        out.append((endpoint, fence, True))
-    return out
-
-
-def _unknown_navlink(system: int, component: int) -> bytes:
-    """A MAVLink 2 frame whose id (25500) is in neither the entry table nor the dialect."""
-    payload = bytes(range(1, 9))
-    header = bytes((0xFD, len(payload), 0, 0, 0, system, component)) + (25500).to_bytes(3, "little")
-    return header + payload + b"\x12\x34"
-
-
-def build_cases() -> dict[str, list[Step]]:
-    m = _Sources()
-    hb = lambda system, component: m(system, component, "heartbeat", 1, 3, 0, 0, 0)  # noqa: E731
-    param = lambda src, system, component: m(  # noqa: E731
-        *src, "param_request_read", system, component, b"X", -1)
-    learn = [("sitl1", hb(1, 1)), ("sitl2", hb(2, 1)), ("sitl3", hb(3, 1)), ("backend", hb(255, 190))]
-    assign = lambda src, target: m(  # noqa: E731
-        *src, "task_assign_request", 7, 1, 1000, 5000, target, 4, 1, 2, 1, 2, 3)
-    ack = lambda src, target: m(*src, "swarm_ack", 7, 2, 1000, 5000, target, 0, 0, 0, 0)  # noqa: E731
-    heartbeat = hb(1, 1)
-    corrupt = bytearray(hb(2, 1))
-    corrupt[-1] ^= 0xFF
-    v1 = bytes((0xFE, 9, 0, 3, 1, 0)) + bytes(9)
-    return {
-        "broadcast": _case([*learn, ("sitl1", hb(1, 1) + hb(1, 191)), ("sitl3", v1 + _checksum_v1(v1))]),
-        "targeted": _case([*learn, ("backend", param((255, 190), 2, 1)), ("backend", param((255, 190), 2, 0)),
-                           ("backend", param((255, 190), 2, 5)), ("sitl2", param((2, 1), 1, 1))]),
-        "sniffer": _case([*learn, ("sitl1", param((1, 1), 2, 1)), ("sitl3", param((3, 1), 9, 1))]),
-        "unknown_target": _case([("sitl1", hb(1, 1)), ("backend", param((255, 190), 9, 1)),
-                                 ("backend", hb(255, 190)), ("sitl2", param((2, 1), 9, 1))]),
-        "targeted_navlink": _case([*learn, ("sitl1", hb(1, 191)), ("sitl1", assign((1, 191), 2)),
-                                   ("sitl2", ack((2, 191), 1)), ("sitl2", ack((2, 191), 0)),
-                                   ("sitl1", assign((1, 191), 9)), ("sitl3", _unknown_navlink(3, 191))]),
-        "boot_text": _case([("sitl1", b"Init ArduPlane V4.6.0\r\nFree RAM: 4096\r\n" + heartbeat),
-                            ("sitl2", b"APM: no marker here\r\n"), ("sitl2", bytes(corrupt) + hb(2, 1)),
-                            ("backend", hb(255, 190))]),
-        "split_packet": _split_case(hb, assign),
-        "ap_echo": _case([*learn, ("sitl1", hb(1, 191)), ("sitl2", hb(1, 191)),
-                          ("sitl3", assign((1, 191), 2)), ("backend", hb(1, 191))]),
-        **_filtered_cases(m, hb, param, learn, assign, ack),
-    }
-
-
-def _filtered_cases(m: _Sources, hb: Callable[..., bytes], param: Callable[..., bytes],
-                    learn: list[tuple[str, bytes]], assign: Callable[..., bytes],
-                    ack: Callable[..., bytes]) -> dict[str, list[Step]]:
-    """The cases recorded with :data:`SITL_FILTERS`."""
-    command = lambda src, system, component, number: m(  # noqa: E731
-        *src, "command_long", system, component, number, 0, 0, 0, 0, 0, 0, 0, 0)
-    command_ack = lambda src, system, component, number: m(  # noqa: E731
-        *src, "command_ack", number, 0, 0, 0, system, component)
-    param_set = m(255, 190, "param_set", 1, 1, b"X", 1.0, 9)
-    param_value = m(1, 1, "param_value", b"X", 1.0, 9, 1, 0)
-    camera_info = m(2, 100, "camera_information", 0, b"V" * 32, b"M" * 32, 0, 0.0, 0.0, 0.0, 0, 0, 0,
-                    0, 0, b"")
-    request = mavlink.MAV_CMD_REQUEST_MESSAGE
-    learn_more = [*learn, ("sitl1", hb(1, 191)), ("sitl2", hb(2, 191)), ("sitl2", hb(2, 100))]
-    # A confirmation image as NavPy sends it (image_transfer.py): no target field, so a broadcast.
-    handshake = lambda system: m(system, 191, "data_transmission_handshake",  # noqa: E731
-                                 mavlink.MAVLINK_DATA_STREAM_IMG_JPEG, 300, 64, 48, 2, 253, 50)
-    chunk = lambda system, seq: m(system, 191, "encapsulated_data", seq, bytes(range(seq, seq + 253)))  # noqa: E731
-    return {
-        "filtered_broadcast": _case([*learn, ("sitl1", hb(1, 1)), ("sitl1", hb(1, 191)),
-                                     ("sitl1", hb(1, 100)), ("sitl1", hb(1, 101)),
-                                     ("backend", hb(255, 190)), ("backend", hb(255, 0))]),
-        "filtered_targeted": _case([*learn_more,
-                                    ("sitl1", param((1, 1), 2, 1)),  # filtered at sitl2, sniffed by the backend
-                                    ("backend", command((255, 190), 2, 1, 400)),
-                                    ("sitl2", command_ack((2, 1), 255, 190, 400)),
-                                    ("backend", param_set), ("sitl1", param_value),
-                                    ("backend", command((255, 190), 2, 100, request)),
-                                    ("sitl2", camera_info),
-                                    ("sitl2", command_ack((2, 100), 255, 190, request))]),
-        "filtered_unknown_id": _case([*learn, ("sitl1", _unknown_navlink(1, 1)),
-                                      ("sitl1", _unknown_navlink(1, 191)),
-                                      ("sitl2", _unknown_navlink(2, 100))]),
-        "filtered_mixed": _case([*learn_more,
-                                 ("sitl1", param((1, 1), 9, 1)),  # filtered and rejected: not unknown
-                                 ("backend", param((255, 190), 9, 1)),  # rejected everywhere: unknown
-                                 ("sitl3", hb(1, 1)),  # sitl1's source from sitl3: loop, filter, accept
-                                 ("sitl1", assign((1, 191), 2)), ("sitl1", assign((1, 191), 9)),
-                                 ("sitl2", ack((2, 191), 0)), ("sitl2", param((2, 100), 3, 1)),
-                                 # Every endpoint has seen (1, 1): the loop check rejects before
-                                 # the filter, so the packet counts as unknown.
-                                 ("sitl2", hb(1, 1)), ("backend", param((1, 1), 9, 1))]),
-        # The image reaches only the backend; the same companion's NAVLINK still reaches the peers.
-        "filtered_image": _case([*learn_more, ("sitl1", handshake(1)), ("sitl1", chunk(1, 0)),
-                                 ("sitl1", chunk(1, 1)), ("sitl2", handshake(2)), ("sitl2", chunk(2, 0)),
-                                 ("sitl1", assign((1, 191), 0)), ("sitl3", chunk(3, 0))]),
-    }
-
-
-def _split_case(hb: Callable[[int, int], bytes],
-                assign: Callable[[tuple[int, int], int], bytes]) -> list[Step]:
-    packet = assign((1, 191), 2)
-    steps = _case([("sitl1", hb(1, 1)), ("sitl2", hb(2, 1)), ("backend", hb(255, 190))])
-    first, second = packet[:7], packet[7:] + hb(1, 1)
-    return [*steps, ("sitl1", first, False), *_case([("sitl1", second)])]
-
-
-def _checksum_v1(frame: bytes) -> bytes:
-    from pymavlink.generator.mavcrc import x25crc
-
-    crc = x25crc(frame[1:])
-    crc.accumulate(bytes((50,)))  # HEARTBEAT's CRC extra
-    return crc.crc.to_bytes(2, "little")
 
 
 def case_filters(name: str) -> Filters:
