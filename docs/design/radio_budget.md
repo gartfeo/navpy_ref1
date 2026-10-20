@@ -325,6 +325,24 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
 - Runs: `none`, `hw`, `stress` matrices, `hw` seeds 2 and 10, wall eval, full
   pytest, opt-in tests; the attempt-count distribution from the logs.
 
+## Results (round 4, `.logs/radio-budget-r4`, `-r4c`)
+
+- `none` and `hw` matrices pass (one digest each; `hw` rerun on a clean tree
+  in `-r4c`). In `-r4` one `hw` cell failed at start ("slot is stopping",
+  the registry said slot 42 was not active); cause not found, the rerun passed.
+  Parity and opt-in tests pass (26); wall eval passes.
+- **96:** `hw` seed 10 has no router drops and its confirmation goes through;
+  every UAV reaches SNAP. It now fails only like seed 2 (todo-77 reset
+  markers and the dock miss that follows), and seed 2 is unchanged from round 3.
+- **97:** GCS parameter exchanges in all runs: 457 confirmed on the first send,
+  11 on the second, none failed. `stress` now passes every parameter write.
+- **Not passing:** `stress` fails later at one digest on mission transfers
+  (todo 99).
+- Full pytest: 13 failed, none from this change after `f04659eb`: the
+  annotation guard (`delivery_demo.py`), the Codex agent sync (untracked
+  `.codex/agents/*.toml`), the board detector, and the HITL bridge (Windows
+  Application Control blocks the jsbsim DLL).
+
 ## Not covered
 
 - Air timing and per-link loss: todo 90.
