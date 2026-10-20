@@ -171,3 +171,48 @@ def test_every_autopilot_frame_keeps_the_link_alive_but_peers_and_companions_do_
     assert link.autopilot_silent
     router.ingest(frame(42, 1))
     assert not link.autopilot_silent and not link.link_ok  # a frame is not a heartbeat
+
+
+def test_a_queued_write_never_confirms_on_an_echo_from_before_it_took_the_lock():
+    """An earlier exchange's echo of the same value is not this write's answer."""
+    writer, _connection = _writer(HeartbeatState(7, 5.0))
+    results = []
+    writer._write_lock.acquire()  # another write holds the vehicle
+    queued = threading.Thread(target=lambda: results.append(
+        writer.write("TEST", 2.0, ExchangePolicy(2, None, True), timeout=0.01)))
+    queued.start()
+    time.sleep(0.05)  # the queued write is waiting for the lock
+    writer._messages.publish("PARAM_VALUE", _param_value("TEST", 2.0), receipt_time_s=1.0)
+    writer._write_lock.release()
+    queued.join(timeout=5.0)
+    assert (results[0].outcome, results[0].reason) == (ExchangeOutcome.UNCONFIRMED, ExchangeReason.NO_ECHO)
+
+
+def test_a_deadline_that_cuts_the_last_wait_is_a_deadline_not_a_missing_parameter():
+    link = HeartbeatState(7, 5.0)
+    writer, _connection = _writer(link)
+    exchange = writer.write("TEST", 2.0, ExchangePolicy(1, time.monotonic() + 0.03, True), timeout=2.0)
+    assert (exchange.outcome, exchange.reason, exchange.attempts) == (
+        ExchangeOutcome.UNCONFIRMED, ExchangeReason.DEADLINE, 1)
+    repository = ParameterRepository()
+    reader = ParameterReader(SimpleNamespace(target_system=7),
+                             MavTransport(SimpleNamespace(mav=MagicMock()), threading.RLock()),
+                             repository, MessageStore(MESSAGE_HISTORY_POLICY),
+                             SimpleNamespace(value=MagicMock()), link)
+    exchange = reader.read("NOPE", ExchangePolicy(1, time.monotonic() + 0.03, True), timeout=2.0)
+    assert exchange.reason is ExchangeReason.DEADLINE and not repository.missing_is_fresh("NOPE")
+
+
+def test_a_gcs_exchange_logs_every_send_and_its_outcome():
+    """The runs' attempt distribution comes from these lines (todo 97)."""
+    link = HeartbeatState(7, 5.0)
+
+    def echo_on_the_third(messages, _args):
+        if connection.mav.param_set_send.call_count == 3:
+            messages.publish("PARAM_VALUE", _param_value("TEST", 2.0), receipt_time_s=1.0)
+
+    writer, connection = _writer(link, echo_on_the_third)
+    writer.write("TEST", 2.0, GCS, timeout=0.001)
+    lines = [c.args[0] for c in writer._logger_ref.value.info.call_args_list]
+    assert lines == ["PARAM_SET TEST send 1/12: no echo", "PARAM_SET TEST send 2/12: no echo",
+                     "PARAM_SET TEST send 3/12: echo", "PARAM_SET TEST: confirmed after 3/12 sends"]

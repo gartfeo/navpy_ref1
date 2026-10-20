@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -25,10 +26,11 @@ GCS_PARAM_ATTEMPTS = 12
 DEFAULT_PARAM_REQUEST_S = 55.0
 
 
-def _policy(timeout_s: float | None) -> ExchangePolicy:
-    budget = DEFAULT_PARAM_REQUEST_S if timeout_s is None else float(timeout_s)
-    if not budget > 0:
-        raise HTTPException(status_code=400, detail="timeout_s must be positive")
+def _policy(timeout_s: object) -> ExchangePolicy:
+    budget = DEFAULT_PARAM_REQUEST_S if timeout_s is None else timeout_s
+    if (isinstance(budget, bool) or not isinstance(budget, (int, float))
+            or not math.isfinite(budget) or budget <= 0):
+        raise HTTPException(status_code=400, detail="timeout_s must be a finite positive number")
     return ExchangePolicy(GCS_PARAM_ATTEMPTS, rt.monotonic() + budget, stop_on_silence=True)
 
 

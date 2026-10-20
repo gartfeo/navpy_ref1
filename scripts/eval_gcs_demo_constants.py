@@ -25,8 +25,9 @@ SIM_SPEEDUP = 10.0
 NAVIGATION_SPEEDUP_OVERRIDE = 0.0
 FINAL_APPROACH_ROLL_LIMIT_DEG = 45.0
 #: A parameter request's HTTP timeout and the server budget it names
-#: (``timeout_s``), kept below it so the server answers first
-#: (``docs/design/radio_budget.md``, todo 97).
+#: (``timeout_s``), kept 5 s below it (``docs/design/radio_budget.md``, todo
+#: 97). In wall mode the server answers first; under lockstep the budget
+#: counts sim seconds, so a stalled run can still hit the HTTP timeout.
 PARAM_HTTP_TIMEOUT_S = 60.0
 PARAM_REQUEST_BUDGET_S = PARAM_HTTP_TIMEOUT_S - 5.0
 VISION_PROFILE = "siyi_zr10"

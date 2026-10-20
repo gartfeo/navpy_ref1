@@ -181,9 +181,16 @@ class TestSetVehicleParams:
         }
         cache.invalidate_keys.assert_called_once_with(1, ["AAS_DEL_PITCH"])
 
-    def test_a_non_positive_budget_is_refused(self, client):
-        resp = client.put("/api/vehicles/1/params", json={"params": {"del_pitch": 5.0}, "timeout_s": 0})
+    @pytest.mark.parametrize("budget", ["0", "-1", "Infinity", "NaN", '"20"', "true", "[20]"])
+    def test_a_budget_that_is_not_a_finite_positive_number_is_refused(self, client, budget):
+        # Raw JSON: Python's parser takes Infinity and NaN, which a strict client cannot send.
+        body = '{"params": {"del_pitch": 5.0}, "timeout_s": ' + budget + "}"
+        resp = client.put("/api/vehicles/1/params", content=body,
+                          headers={"Content-Type": "application/json"})
         assert resp.status_code == 400
+
+    def test_a_named_read_refuses_an_infinite_budget(self, client):
+        assert client.get("/api/vehicles/1/params/named?names=A&timeout_s=inf").status_code == 400
 
     def test_upload_vehicle_not_found(self):
         mock_mgr = MagicMock()

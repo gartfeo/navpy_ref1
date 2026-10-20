@@ -5,13 +5,13 @@ from __future__ import annotations
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.core.ports.parameter_exchange import ExchangePolicy, ParameterExchange
+from navpy.core.ports.parameter_exchange import ExchangePolicy, ExchangeReason, ParameterExchange
 from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
-from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import run_exchange
+from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import ExchangeIo, run_exchange
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
 from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
 
@@ -74,43 +74,26 @@ class ParameterReader:
         """One fresh read under ``policy``; a parameter that never answers is marked
         missing."""
         normalized = name.upper()
-        # An answer to an earlier request still counts.
-        cursor = self._messages.cursor()
-
-        def miss(attempt: int) -> None:
-            if not quiet:
-                self._logger_ref.value.info(
-                    f"PARAM_VALUE {normalized} not received "
-                    f"(attempt {attempt}/{policy.attempts})",
-                    "param",
-                )
-
         exchange, _sample = run_exchange(
             policy,
             self._link,
-            lambda: self._transport.call(
-                lambda connection: connection.mav.param_request_read_send(
-                    self._identity.target_system,
-                    0,
-                    normalized.encode(),
-                    -1,
-                )
-            ),
-            lambda deadline: self._messages.wait_after(
-                "PARAM_VALUE", cursor, lambda message: self._matches(message, normalized),
-                deadline=deadline,
+            self._messages,
+            ExchangeIo(
+                f"PARAM_REQUEST_READ {normalized}",
+                lambda: self._transport.call(
+                    lambda connection: connection.mav.param_request_read_send(
+                        self._identity.target_system,
+                        0,
+                        normalized.encode(),
+                        -1,
+                    )
+                ),
+                lambda message: self._matches(message, normalized),
             ),
             timeout,
-            on_miss=miss,
+            log=None if quiet else lambda line: self._logger_ref.value.info(line, "param"),
         )
-        if not quiet and (exchange.attempts > 1 or not exchange.confirmed):
-            self._logger_ref.value.info(
-                f"PARAM_REQUEST_READ {normalized}: {exchange.outcome.value}"
-                f"{'' if exchange.reason is None else ' (' + exchange.reason.value + ')'}"
-                f" after {exchange.attempts}/{policy.attempts} sends",
-                "param",
-            )
-        if exchange.attempts == policy.attempts and not exchange.confirmed:
+        if exchange.reason is ExchangeReason.NO_ECHO:
             self._repository.mark_missing(normalized, MISSING_PARAMETER_RETRY_S)
         return exchange
 

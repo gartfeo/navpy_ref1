@@ -291,8 +291,9 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
 - Deadline: both routes take `timeout_s` (default 55 s) and set one
   absolute deadline on entry, shared by every parameter. The lock wait and
   each echo wait are capped by the time left, and the deadline is checked
-  again after taking the lock and before each send. The deadline bounds
-  server work, not the response: the caller keeps a margin above it for
+  again after taking the lock and before each send (each send still waits
+  for the transport's send lock, which a send holds only while writing one
+  frame). The deadline bounds server work, not the response: the caller keeps a margin above it for
   scheduling and delivery, and a write already sent can still take effect
   later. A client that disconnects early does not stop the work; the
   deadline bounds it. Per-parameter results: `true`, or

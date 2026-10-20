@@ -21,7 +21,7 @@ from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
-from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import run_exchange
+from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import ExchangeIo, run_exchange
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
 from navpy.plugins.vehicle.ardupilot.parameter_spec import (
     ParameterWriteSpec,
@@ -80,10 +80,7 @@ class ParameterWriter:
         )
         if spec is None:
             return ParameterExchange(ExchangeOutcome.UNATTEMPTED, ExchangeReason.INVALID, 0)
-        # A write is idempotent, so a timeout resends it; an echo of an
-        # earlier send still counts.
-        cursor = self._messages.cursor()
-
+        # A write is idempotent, so a timeout resends it.
         def send() -> None:
             self._repository.invalidate(spec.name)
             self._transport.call(
@@ -99,21 +96,12 @@ class ParameterWriter:
         exchange, sample = run_exchange(
             policy,
             self._link,
-            send,
-            lambda deadline: self._messages.wait_after(
-                "PARAM_VALUE", cursor, lambda message: self._matches(message, spec),
-                deadline=deadline,
-            ),
+            self._messages,
+            ExchangeIo(f"PARAM_SET {spec.name}", send, lambda message: self._matches(message, spec)),
             timeout,
             lock=self._write_lock,
+            log=lambda line: self._logger_ref.value.info(line, "param"),
         )
-        if exchange.attempts > 1 or not exchange.confirmed:
-            self._logger_ref.value.info(
-                f"PARAM_SET {spec.name}: {exchange.outcome.value}"
-                f"{'' if exchange.reason is None else ' (' + exchange.reason.value + ')'}"
-                f" after {exchange.attempts}/{policy.attempts} sends",
-                "param",
-            )
         if sample is not None and spec.name == "SIM_SPEEDUP":
             self._sim_state.observe(sample.message.param_value)
         return exchange
