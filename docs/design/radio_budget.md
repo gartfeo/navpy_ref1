@@ -207,6 +207,122 @@ its own way to reach them.
   and 3 off from the GCS at the router: todo 96). Both follow SITL byte loss
   (96 traced at the router, 97 inferred); neither is traced to items 2-3.
 
+## Round 4 design: byte-loss fixes (todos 96, 97)
+
+Owner direction (2026-10-20): the aircraft use a mesh radio that broadcasts,
+not a central router, so the fix must not depend on the radio or the router
+topology. Parameter writes get more attempts and fail fast on a dead link
+(heartbeat), without treating heartbeats as lossless. Pipelined resend
+rounds are todo 98.
+
+How SITL loses bytes (`UARTDriver.cpp:283-293`): each UART write call drops
+its last byte with probability `SIM_UART_LOSS` % × the call's size. ArduPilot
+writes a frame as three calls, header, payload and CRC (`mavlink_helpers.h:
+380-382`), so a frame breaks with about loss × its length. Reads lose
+nothing. A receiver may join a broken frame to the next one, which gives a
+frame with a random header. Measured on SITL outputs: breaks per frame match
+loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
+0.023), plus the garbage frames that follow.
+
+### 96. Act only on frames whose CRC was checked
+
+- Rule, for any radio: a node that learns routes or forwards may act only on
+  a frame whose CRC it checked. A mesh radio forwards bytes and learns
+  nothing, so it needs nothing. ArduPilot, NavPy and the GCS check the CRC of
+  every frame they parse (crc_extra from their dialect). The one node that
+  does not is mavlink-router for ids outside its table (`endpoint.cpp:413`),
+  and it learns from them (`:246`).
+- So every lossy router endpoint gets `AllowMsgIdIn` = the ids in the
+  router's entry table (311, `router_entries.json`, extracted from the
+  binary). The incoming filter runs before learning and routing (`:236-247`),
+  and `read_msg` takes the id from the header, so the filter applies to
+  every frame. A broken frame then either has a known id and fails the CRC,
+  or has an unknown id and is dropped. A garbage frame passes only if a
+  random id is known and its CRC matches by chance (about 2^-16 each).
+- Lost legitimate traffic: only id 295, which every SITL sends but neither
+  the router's table nor our pymavlink dialect knows, so nothing here reads
+  it. All NAVLINK ids are in the table.
+- Where: sim, each SITL feed endpoint (they carry the SITL byte loss); the
+  GCS backend's link is lossless local UDP and stays as is. Wall:
+  `run_swarm.sh` writes the key per feed (new pin). Hardware (item 1): the
+  same key on the radio endpoint of each Orin router, after checking that
+  every id the aircraft's components need is in that router build's table;
+  a missing one goes into the router's dialect, never into the list
+  unchecked. Not tied to sysids or topology.
+- Not chosen: `AllowSrcSysIn = <own sysid>` per feed. It fixes the sim but
+  depends on which sysids live behind an endpoint, which a mesh changes.
+- Model: `EndpointFilter` gets `allow_msg_id_in`; `ReferenceRouter.route`
+  applies it before learning; an incoming-filtered packet is not learned,
+  has no destinations and ends `router_filtered`. Parity: the WSL harness
+  writes the key; new cases: an unknown-id frame from 255/0 on a SITL feed,
+  then a GCS packet to that UAV (must arrive), and a known-id frame on the
+  same feed (passes). The source check stays: it checks emissions, before
+  the router.
+
+### 97. More attempts for GCS parameter exchanges, fast fail on a dead link
+
+- QGroundControl resends a PARAM_SET twice after 1 s
+  (`ParameterManager.h`, `kParamSetRetryCount = 2`): 3 attempts, as ours.
+- In this SITL transport only the PARAM_VALUE echo is lossy (37 bytes); the
+  request is a read for SITL. Estimated bound per attempt: the echo breaks,
+  or a broken frame before it swallows it, about 2 × 37 × loss, 44 % at the
+  `stress` top of 0.6 %. This is an estimate, not a measured exchange rate.
+- Budget: `GCS_PARAM_ATTEMPTS = 12`, a provisional engineering budget from
+  0.44^12 < 1e-4 (one GCS write or read failing less than 1 in 10 000 at the
+  `stress` top, if attempts are independent). The 2 s wait per attempt
+  stays. Each attempt logs its send and whether a matching echo came, and
+  each exchange its outcome, so the runs give the consecutive-failure
+  distribution and any false link-lost ends; matrix passes are regression
+  evidence, not proof of the target.
+- Scope: the GCS routes that write parameters (`PUT /params`) and read them
+  by name (`/params/named`) pass the budget explicitly; the defaults stay 3.
+  NavPy's own reads keep 3: one runs on the command path (todo 93).
+- Dead link: the vehicle counts as alive while any valid frame from its
+  autopilot (sysid N, component 1) arrived within `heartbeat_timeout_s`
+  (5 s); the HEARTBEAT is one of them. A heartbeat alone would end a live
+  exchange about 1 time in 1 000 at the `stress` top (21-byte frame, up to
+  25 % lost, five in a row). Tens of frames per second make losing all of
+  them for 5 s unlikely under independent loss, but a correlated outage can
+  still do it: 5 s of silence means an inferred disconnection, not a dead
+  vehicle, and the logs count these ends. The check runs
+  after taking the write lock, before the first send and before each
+  resend; a dead vehicle ends the exchange at most 5 s + one 2 s wait after
+  its last frame.
+- Deadline: both routes take `timeout_s` (default 55 s) and set one
+  absolute deadline on entry, shared by every parameter. The lock wait and
+  each echo wait are capped by the time left, and the deadline is checked
+  again after taking the lock and before each send. The deadline bounds
+  server work, not the response: the caller keeps a margin above it for
+  scheduling and delivery, and a write already sent can still take effect
+  later. A client that disconnects early does not stop the work; the
+  deadline bounds it. Per-parameter results: `true`, or
+  `{"ok": false, "outcome": ..., "reason": ...}`. `unattempted` means
+  nothing was sent (deadline or link lost before the first send);
+  `unconfirmed` means sent without a matching echo, so it may be stored,
+  with reason `no_echo`, `link_lost` or `deadline`. The cache is invalidated
+  for every attempted write, as now. The frontend treats anything but
+  `true` as failed (`useAasParams.js:276`). The eval passes `timeout_s` 5 s
+  below its HTTP timeout.
+- Not chosen: lowering the `stress` loss (changes the test to pass); an eval
+  re-PUT of failed writes (a retry in the gate, not in the product).
+
+### Checks
+
+- 96: model tests (unknown id from 255/0 not learned and later GCS packets
+  delivered; known id passes; filter before learning), mutations (filter off,
+  filter after learning); parity re-recorded with raw-byte cases: an
+  unknown-id frame from 255/0 then a GCS packet to that UAV, a known id with a
+  bad CRC, and legitimate traffic from two sysids on one feed.
+- 97: tests for stale heartbeat with other autopilot frames (no abort), true
+  silence (abort within the bound), live frames without echoes (all
+  attempts, `unconfirmed`/`no_echo`), a late echo (counts), deadline expiry
+  while waiting for the lock (`unattempted`) and after a send
+  (`unconfirmed`/`deadline`), and the budget passed only by the GCS routes;
+  mutations
+  (attempts back to 3, no dead-link check, heartbeat-only liveness).
+- Runs: `none`, `hw`, `stress` matrices, `hw` seeds 2 and 10, wall eval, full
+  pytest, opt-in tests; the attempt-count distribution from the logs.
+
 ## Not covered
 
 - Air timing and per-link loss: todo 90.
