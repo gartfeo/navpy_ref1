@@ -27,9 +27,14 @@ DEFAULT_PARAM_REQUEST_S = 55.0
 
 
 def _policy(timeout_s: object) -> ExchangePolicy:
-    budget = DEFAULT_PARAM_REQUEST_S if timeout_s is None else timeout_s
-    if (isinstance(budget, bool) or not isinstance(budget, (int, float))
-            or not math.isfinite(budget) or budget <= 0):
+    raw = DEFAULT_PARAM_REQUEST_S if timeout_s is None else timeout_s
+    try:
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            raise TypeError(raw)
+        budget = float(raw)  # an oversized JSON integer overflows here
+    except (TypeError, OverflowError):
+        budget = math.nan
+    if not math.isfinite(budget) or budget <= 0:
         raise HTTPException(status_code=400, detail="timeout_s must be a finite positive number")
     return ExchangePolicy(GCS_PARAM_ATTEMPTS, rt.monotonic() + budget, stop_on_silence=True)
 

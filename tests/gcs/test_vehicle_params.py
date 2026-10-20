@@ -181,7 +181,7 @@ class TestSetVehicleParams:
         }
         cache.invalidate_keys.assert_called_once_with(1, ["AAS_DEL_PITCH"])
 
-    @pytest.mark.parametrize("budget", ["0", "-1", "Infinity", "NaN", '"20"', "true", "[20]"])
+    @pytest.mark.parametrize("budget", ["0", "-1", "Infinity", "NaN", '"20"', "true", "[20]", "1" + "0" * 400])
     def test_a_budget_that_is_not_a_finite_positive_number_is_refused(self, client, budget):
         # Raw JSON: Python's parser takes Infinity and NaN, which a strict client cannot send.
         body = '{"params": {"del_pitch": 5.0}, "timeout_s": ' + budget + "}"

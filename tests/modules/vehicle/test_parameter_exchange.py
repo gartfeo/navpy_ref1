@@ -176,14 +176,27 @@ def test_every_autopilot_frame_keeps_the_link_alive_but_peers_and_companions_do_
 def test_a_queued_write_never_confirms_on_an_echo_from_before_it_took_the_lock():
     """An earlier exchange's echo of the same value is not this write's answer."""
     writer, _connection = _writer(HeartbeatState(7, 5.0))
+    lock, waiting = threading.Lock(), threading.Event()
+
+    class Announcing:
+        """The write lock, telling the test when the queued write asks for it."""
+
+        def acquire(self, *args, **kwargs) -> bool:
+            waiting.set()
+            return lock.acquire(*args, **kwargs)
+
+        def release(self) -> None:
+            lock.release()
+
+    writer._write_lock = Announcing()
     results = []
-    writer._write_lock.acquire()  # another write holds the vehicle
+    lock.acquire()  # another write holds the vehicle
     queued = threading.Thread(target=lambda: results.append(
         writer.write("TEST", 2.0, ExchangePolicy(2, None, True), timeout=0.01)))
     queued.start()
-    time.sleep(0.05)  # the queued write is waiting for the lock
+    assert waiting.wait(timeout=5.0)  # the queued write has taken any early cursor
     writer._messages.publish("PARAM_VALUE", _param_value("TEST", 2.0), receipt_time_s=1.0)
-    writer._write_lock.release()
+    lock.release()
     queued.join(timeout=5.0)
     assert (results[0].outcome, results[0].reason) == (ExchangeOutcome.UNCONFIRMED, ExchangeReason.NO_ECHO)
 
