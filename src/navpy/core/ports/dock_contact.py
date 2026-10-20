@@ -42,7 +42,9 @@ class DockContactSensor(Protocol):
         on_docked: DockContactCallback,
     ) -> None: ...
 
-    def disarm(self) -> None: ...
+    def disarm(self, docked: bool = False) -> None:
+        """End the episode; ``docked`` is the lifecycle's accepted outcome."""
+        ...
 
 
 __all__ = [

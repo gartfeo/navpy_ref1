@@ -398,7 +398,11 @@
   "mapMarkers": {
     "launchPoint": "LP",
     "detectionStart": "DS",
-    "dock": "D"
+    "dock": "D",
+    "closestApproach": {
+      "docked": "docked",
+      "missed": "missed"
+    }
   },
   "monitorOverlay": {
     "enterRc": "Enter RC control",

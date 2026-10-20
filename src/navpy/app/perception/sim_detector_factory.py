@@ -21,9 +21,12 @@ from navpy.core.perception.profile.vision_profile_types import CameraMountSpec, 
 from navpy.app.perception.vision_tracking_composition import build_tracking_config
 from navpy.sim.debug_view.vision_ui_ports import SimDebugSnapshot, SimDebugSource
 from navpy.app.perception.vision_zoom_profile import build_zoom_config
+from navpy.sim.world import closest_approach_record
+from navpy.sim.world.closest_approach_record import ClosestApproach
 from navpy.sim.world.dock_contact_feed import SimDockContactFeed
 from navpy.sim.world.dock_contact_sensor import (
     SimDockContactSensor,
+    max_segment_s,
     sim_dock_net_radius_m,
 )
 
@@ -68,17 +71,31 @@ class SimDetectorFactory:
         radius_m = sim_dock_net_radius_m()
         self._logger.info(f"SIM dock net radius: {radius_m:g} m")
         # The same rate the sim detector requests the position stream at.
+        position_rate_hz = resolve_pose_stream_rate_hz(self._vehicle)
         sensor = SimDockContactSensor(
             detector.sim_docks,
-            resolve_pose_stream_rate_hz(self._vehicle),
+            position_rate_hz,
             radius_m,
+            report=self._report_closest_approach,
         )
         # The subscription lives as long as the vehicle link that feeds it.
         self._dock_contact_feed = SimDockContactFeed(
             sensor,
             self._vehicle.on_message,
+            # An attitude labels a position only within the joining window.
+            attitude_max_age_s=max_segment_s(position_rate_hz),
         )
         self._dock_contact = sensor
+
+    def _report_closest_approach(self, record: ClosestApproach) -> None:
+        """Display evidence only: the NavPy log and the GCS stdout record."""
+        distance = record.distance
+        self._logger.info(
+            f"SIM_CLOSEST_APPROACH: task={record.task_id} dock={record.dock_uid} "
+            f"episode={record.episode} {record.outcome} 3d={distance.d3_m:.2f}m "
+            f"h={distance.h_m:.2f}m v={distance.v_m:.2f}m"
+        )
+        closest_approach_record.publish(record)
 
     def create(
         self,

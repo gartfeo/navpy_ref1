@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * Registers all WebSocket message handlers and owns the state they mutate:
- * navpyStatus, launchStates, launching.
+ * navpyStatus, simClosestApproaches, launchStates, launching.
  *
  * Also provides handleTaskApprove/handleTaskDeny which bridge
  * taskConfirm and taskAssign.
@@ -80,11 +80,15 @@ export default function useWsHandlers({
 
   // ---- NavPy sim status ----
   const [navpyStatus, setNavpyStatus] = useState({});
+  // Closest-approach records (sim map marks): null until the first status;
+  // a new array per status, so the map sees every status.
+  const [simClosestApproaches, setSimClosestApproaches] = useState(null);
   useEffect(() => {
     messageHandlersRef.current['navpy_sim_status'] = (msg) => {
       const map = {};
       for (const inst of msg.instances || []) map[inst.sys_id] = inst;
       setNavpyStatus(map);
+      setSimClosestApproaches(Array.isArray(msg.closest_approaches) ? [...msg.closest_approaches] : []);
     };
   }, []);
 
@@ -161,6 +165,7 @@ export default function useWsHandlers({
 
   return {
     navpyStatus,
+    simClosestApproaches,
     launchStates, setLaunchStates,
     launching,
     handleTaskApprove,

@@ -678,6 +678,7 @@ export default function App() {
             showVision={showVision}
             showTrails={showTrails}
             trailResetKey={commands.trailResetKey}
+            simClosestApproaches={ws.simClosestApproaches}
             coverageResetKey={commands.coverageResetKey}
             vehicleList={vehicleList}
             storeRef={storeRef}

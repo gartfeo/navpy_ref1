@@ -398,7 +398,11 @@
   "mapMarkers": {
     "launchPoint": "ԱԿ",
     "detectionStart": "ՀՍ",
-    "dock": "D"
+    "dock": "D",
+    "closestApproach": {
+      "docked": "կցվեց",
+      "missed": "վրիպեց"
+    }
   },
   "monitorOverlay": {
     "enterRc": "Միացնել ՀԿ կառավարումը",

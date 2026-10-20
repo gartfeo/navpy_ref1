@@ -13,6 +13,7 @@ from gcs.backend.navpy_process_instance import (
     terminate_navpy_instance,
 )
 from gcs.backend.navpy_process_stop import STOP_FAILED, stop_navpy_instance
+from gcs.backend.sim_closest_approach_store import SimClosestApproachStore
 from gcs.backend.navpy_process_launch import (
     _build_env,
     _foreign_udp_holders,
@@ -47,6 +48,8 @@ class NavpyProcessManager:
             raise RuntimeError(f"NavpyProcessManager refused: {NavpyProcessManager.refused}")
         self._instances: dict[int, NavpyInstance] = {}
         self._lock = rt.Lock()
+        # Outlives instances: a record survives its process's stop or restart.
+        self._closest_approaches = SimClosestApproachStore()
 
     def start(
         self,
@@ -151,6 +154,10 @@ class NavpyProcessManager:
         with self._lock:
             return [self._snapshot(inst) for inst in self._instances.values()]
 
+    def closest_approach_records(self) -> list[dict[str, object]]:
+        """The sim closest-approach records, newest kept per vehicle."""
+        return self._closest_approaches.snapshot()
+
     def wait_ready(
         self,
         sys_id: int,
@@ -201,7 +208,10 @@ class NavpyProcessManager:
         return stop_navpy_instance(inst, log)
 
     def _read_output(self, inst: NavpyInstance) -> None:
-        read_navpy_output(inst, self._validate_ready_owner)
+        read_navpy_output(inst, self._validate_ready_owner, self._offer_line)
+
+    def _offer_line(self, inst: NavpyInstance, line: str) -> None:
+        self._closest_approaches.offer(inst.sys_id, inst.generation, line)
 
     @staticmethod
     def _validate_ready_owner(
