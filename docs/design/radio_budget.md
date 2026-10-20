@@ -1,7 +1,7 @@
 # Radio budget: peer-telemetry filter and air load
 
 Status: items 2-3 built 2026-10-20, then round 3 (image ids blocked, backlog
-acceptance restated); items 1 and 4 are todos 91 and 92.
+acceptance restated); items 1 and 4 are todos 95 and 96.
 Codex rejected design v1: the hardware filter saved no air time, one autopilot
 link leaked local pose to the radio, and an 8 kB/s gate passed a known
 overload. Round 2 approved items 2-3 with changes, applied here. Found by
@@ -50,7 +50,7 @@ Two separate problems follow:
 
 ## Decision
 
-### 1. Hardware direction (later; its own design and review; todo 91)
+### 1. Hardware direction (later; its own design and review; todo 95)
 
 - Autopilot traffic for NavPy stays on its own autopilot port at the local rates
   and never reaches the radio. A second autopilot port carries the radio rates to
@@ -79,7 +79,7 @@ Two separate problems follow:
   the companion's confirmation image is a broadcast meant for the GCS. One
   transfer is 35.9 kB of frames (handshake and 135 chunks) in 2.7 s, 13.3 kB/s
   against the 5.76 kB/s line, so it floods each peer's serial1 (`hw` seed 2).
-  It still overruns the sender's own link: todo 94.
+  It still overruns the sender's own link: todo 98.
 - In the sim, NavPy's NAVLINK still goes through its autopilot (serial0 to
   serial1), as today.
 - What the filter passes, exactly:
@@ -144,7 +144,7 @@ Two separate problems follow:
 - No pass or fail until the owner sets a usable budget from the bench test, so
   no threshold is invented.
 
-### 4. Stream rates and air rate (owner decision, later; todo 92)
+### 4. Stream rates and air rate (owner decision, later; todo 96)
 
 With the item-3 numbers: lower `SR1_*` (the GCS backend reads ATTITUDE,
 GLOBAL_POSITION_INT, VFR_HUD, SYS_STATUS, GPS_RAW_INT, MISSION_CURRENT,
@@ -175,7 +175,7 @@ its own way to reach them.
   is delivered or explicitly lost. NAVLINK latency is measured in two halves
   (sender: emission to `router_copy`; receiver: `router_copy` to
   `navpy_delivered`) and end to end, from the journal by hand for now; a
-  `report.json` field is todo 95. Firmware queues can grow while coordinator
+  `report.json` field is todo 99. Firmware queues can grow while coordinator
   pending stays 0, so the run must also show, per UAV and half, image periods
   included: each burst drains and latency returns to its pre-burst range
   before the next one; comparable bursts do not add delay over the run; every
@@ -199,21 +199,21 @@ its own way to reach them.
 - **Backlog, `hw` seed 2:** pending 0 on every tick; NAVLINK packets not
   delivered are 5, with `router_copy` at ticks 9330-9333 and the run ending at 9336. Receiver half at most 6
   ticks per 5 s window on every UAV, image periods included. Sender half at
-  most 174 ticks while a UAV's own image goes out (todo 94), back to 2-3 ticks
+  most 174 ticks while a UAV's own image goes out (todo 98), back to 2-3 ticks
   within 10 s; in this run's windows, bursts do not add up. Line rate off: 2 ticks throughout. The
   run fails only on the todo-77 reset markers, as with the line rate off.
 - **Not passing:** `stress` (one digest, 17 files equal, but every run fails
-  UAV 3's parameter write: todo 97) and `hw` seed 10 (a broken frame cut UAVs 2
-  and 3 off from the GCS at the router: todo 96). Both follow SITL byte loss
-  (96 traced at the router, 97 inferred); neither is traced to items 2-3.
+  UAV 3's parameter write: todo 101) and `hw` seed 10 (a broken frame cut UAVs 2
+  and 3 off from the GCS at the router: todo 100). Both follow SITL byte loss
+  (100 traced at the router, 101 inferred); neither is traced to items 2-3.
 
-## Round 4 design: byte-loss fixes (todos 96, 97)
+## Round 4 design: byte-loss fixes (todos 100, 101)
 
 Owner direction (2026-10-20): the aircraft use a mesh radio that broadcasts,
 not a central router, so the fix must not depend on the radio or the router
 topology. Parameter writes get more attempts and fail fast on a dead link
 (heartbeat), without treating heartbeats as lossless. Pipelined resend
-rounds are todo 98.
+rounds are todo 102.
 
 How SITL loses bytes (`UARTDriver.cpp:283-293`): each UART write call drops
 its last byte with probability `SIM_UART_LOSS` % × the call's size. ArduPilot
@@ -224,7 +224,7 @@ frame with a random header. Measured on SITL outputs: breaks per frame match
 loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
 0.023), plus the garbage frames that follow.
 
-### 96. Act only on frames whose CRC was checked
+### 100. Act only on frames whose CRC was checked
 
 - Rule, for any radio: a node that learns routes or forwards may act only on
   a frame whose CRC it checked. A mesh radio forwards bytes and learns
@@ -259,7 +259,7 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   same feed (passes). The source check stays: it checks emissions, before
   the router.
 
-### 97. More attempts for GCS parameter exchanges, fast fail on a dead link
+### 101. More attempts for GCS parameter exchanges, fast fail on a dead link
 
 - QGroundControl resends a PARAM_SET twice after 1 s
   (`ParameterManager.h`, `kParamSetRetryCount = 2`): 3 attempts, as ours.
@@ -276,7 +276,7 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   evidence, not proof of the target.
 - Scope: the GCS routes that write parameters (`PUT /params`) and read them
   by name (`/params/named`) pass the budget explicitly; the defaults stay 3.
-  NavPy's own reads keep 3: one runs on the command path (todo 93).
+  NavPy's own reads keep 3: one runs on the command path (todo 97).
 - Dead link: the vehicle counts as alive while any valid frame from its
   autopilot (sysid N, component 1) arrived within `heartbeat_timeout_s`
   (5 s); the HEARTBEAT is one of them. A heartbeat alone would end a live
@@ -310,12 +310,12 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
 
 ### Checks
 
-- 96: model tests (unknown id from 255/0 not learned and later GCS packets
+- 100: model tests (unknown id from 255/0 not learned and later GCS packets
   delivered; known id passes; filter before learning), mutations (filter off,
   filter after learning); parity re-recorded with raw-byte cases: an
   unknown-id frame from 255/0 then a GCS packet to that UAV, a known id with a
   bad CRC, and legitimate traffic from two sysids on one feed.
-- 97: tests for stale heartbeat with other autopilot frames (no abort), true
+- 101: tests for stale heartbeat with other autopilot frames (no abort), true
   silence (abort within the bound), live frames without echoes (all
   attempts, `unconfirmed`/`no_echo`), a late echo (counts), deadline expiry
   while waiting for the lock (`unattempted`) and after a send
@@ -331,13 +331,13 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   in `-r4c`). In `-r4` one `hw` cell failed at start ("slot is stopping",
   the registry said slot 42 was not active); cause not found, the rerun passed.
   Parity and opt-in tests pass (26); wall eval passes.
-- **96:** `hw` seed 10 has no router drops and its confirmation goes through;
+- **100:** `hw` seed 10 has no router drops and its confirmation goes through;
   every UAV reaches SNAP. It now fails only like seed 2 (todo-77 reset
   markers and the dock miss that follows), and seed 2 is unchanged from round 3.
-- **97:** GCS parameter exchanges in all runs: 457 confirmed on the first send,
+- **101:** GCS parameter exchanges in all runs: 457 confirmed on the first send,
   11 on the second, none failed. `stress` now passes every parameter write.
 - **Not passing:** `stress` fails later at one digest on mission transfers
-  (todo 99).
+  (todo 103).
 - Full pytest: 13 failed, none from this change after `f04659eb`: the
   annotation guard (`delivery_demo.py`), the Codex agent sync (untracked
   `.codex/agents/*.toml`), the board detector, and the HITL bridge (Windows
@@ -345,4 +345,4 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
 
 ## Not covered
 
-- Air timing and per-link loss: todo 90.
+- Air timing and per-link loss: todo 94.

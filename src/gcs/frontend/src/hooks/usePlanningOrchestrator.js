@@ -12,6 +12,8 @@ import { toggleSimDock } from '../utils/planningModes';
 
 export default function usePlanningOrchestrator({
   mission, settings, handleSaveSettings, settingsVersion, plannerReady,
+  // Keep-out editing on the rings the operator sees; defaults to the plan's.
+  exclusionEditing = null,
 }) {
   const {
     phase, polygon, setPolygon, searchPattern, setSearchPattern,
@@ -137,6 +139,15 @@ export default function usePlanningOrchestrator({
   });
 
   // ---- Keep-out (exclusion) drawing ----
+  // Drawing ends as soon as keep-outs stop being drawable (fence switched off,
+  // or the fleet's keep-outs disagree); the derived flag also covers the render
+  // before the reset lands, so no click or draft gets through.
+  const keepOutDrawable = exclusionEditing?.drawable ?? true;
+  const placingExclusionActive = placingExclusion && keepOutDrawable;
+  useEffect(() => {
+    if (!keepOutDrawable && placingExclusion) setPlacingExclusion(false);
+  }, [keepOutDrawable, placingExclusion, setPlacingExclusion]);
+
   const {
     draftExclusion,
     handlePlaceExclusionVertex,
@@ -146,7 +157,11 @@ export default function usePlanningOrchestrator({
     handleExclusionVertexDrag,
     handleExclusionMidpointInsert,
     handleExclusionVertexDelete,
-  } = useExclusionDrawing({ placingExclusion, exclusionPolygons, setExclusionPolygons });
+  } = useExclusionDrawing({
+    placingExclusion: placingExclusionActive,
+    exclusionPolygons: exclusionEditing?.exclusionPolygons ?? exclusionPolygons,
+    setExclusionPolygons: exclusionEditing?.setExclusionPolygons ?? setExclusionPolygons,
+  });
 
   const handleMapClick = useCallback((latlon) => {
     drawing.onMapClick(latlon);
@@ -474,7 +489,7 @@ export default function usePlanningOrchestrator({
     placingCorridor, setPlacingCorridor,
     placingDeliveryHub, setPlacingDeliveryHub,
     placingDeliveryHubType, setPlacingDeliveryHubType,
-    placingExclusion,
+    placingExclusion: placingExclusionActive,
 
     // delivery hub handlers
     handlePlaceDeliveryHub, handleRemoveDeliveryHub, handleMoveDeliveryHub,

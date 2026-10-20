@@ -216,7 +216,7 @@ def test_command_bounds_come_from_named_reads_under_lockstep_never_mavftp():
     context.clock = SimpleNamespace(monotonic=lambda: 0.0, sleep=lambda _s: None)
     bounds = configure_vehicle_params(context, 5.0)
     named = (f"/api/vehicles/1/params/named?names={','.join(NAMED_PARAMETER_NAMES)}"
-             f"&timeout_s={PARAM_REQUEST_BUDGET_S}")  # the request names its budget (todo 97)
+             f"&timeout_s={PARAM_REQUEST_BUDGET_S}")  # the request names its budget (todo 101)
     assert named in api.paths
     assert not any("parameters" in path for path in api.paths)  # no MAVFTP read, no full-param write
     (vehicle,) = bounds.vehicles

@@ -1,87 +1,61 @@
-import { useCallback, useEffect, useState } from 'react';
-import { defaultStream, pickFirstFeed, pickFirstUav, resolveShownStream } from '../utils/videoStreams';
-
-/** Browser storage key: only "minimized" or "normal" is saved, never the source or the swap. */
-export const WINDOW_STORAGE_KEY = 'gcs-vehicle-window';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { defaultStream, hasVideo, resolveShownStream } from '../utils/videoStreams';
 
 export const SOURCE = { CAMERA: 'camera', SYNTHETIC: 'synthetic' };
 
-const streamKeyOf = (fleet, sysId) =>
-  defaultStream(fleet.find((e) => e.sysId === sysId)?.streams)?.key ?? null;
+const entryOf = (fleet, sysId) => fleet.find((e) => e.sysId === sysId);
 
-function readMinimized() {
-  try {
-    return globalThis.localStorage?.getItem(WINDOW_STORAGE_KEY) === 'minimized';
-  } catch {
-    return false;
-  }
-}
-
-function saveMinimized(minimized) {
-  try {
-    globalThis.localStorage?.setItem(WINDOW_STORAGE_KEY, minimized ? 'minimized' : 'normal');
-  } catch {
-    // Storage unavailable: the window still works, it just opens normal next time.
-  }
+/**
+ * A pick of `sysId`: the source its icon gives (Camera when it advertises a
+ * stream, else Synthetic), its default stream and a fresh session.
+ */
+function pickOf(fleet, sysId, previous) {
+  const entry = entryOf(fleet, sysId);
+  return {
+    sysId,
+    key: defaultStream(entry?.streams)?.key ?? null,
+    source: hasVideo(entry) ? SOURCE.CAMERA : SOURCE.SYNTHETIC,
+    nonce: (previous?.nonce ?? 0) + 1,
+  };
 }
 
 /**
  * State of the monitor view's vehicle window (docs/design/gcs_video_streams.md,
- * section 5 "Vehicle window"): which UAV, which source, and which size.
+ * section 5 "Vehicle window"): which UAV, which source, and the swap.
  *
- * - Badges and View camera pick the UAV for both sources; the follow selector
- *   only feeds the first pick (D1). The first pick stays automatic until the
- *   operator taps a badge, the switch, View camera or Dismiss; while automatic and on
- *   "No camera", it moves to the first UAV that starts advertising. An empty
- *   fleet re-arms it.
- * - The shown stream disappears: the same UAV's other stream, else "lost"
- *   until it returns or the operator dismisses it to "No camera". Never
- *   another UAV.
- * - Synthetic only by a tap on the switch; never saved. A synthetic failure
- *   goes back to Camera with a notice.
- * - Minimized is saved; maximized (the map swap) is not, and ends when the
- *   window is not `active` (RC, leaving the monitor view) or the fleet empties.
- * - `session` changes whenever a fresh camera connection is wanted (View
- *   camera, Reconnect video, back to Camera); the window keys its reader on it.
+ * - No selection is the picker. Only the operator picks: the UAV buttons and
+ *   View camera. A pick opens what the UAV's icon shows (Camera with a stream,
+ *   else Synthetic); View camera always opens Camera; picking the selected UAV
+ *   again does nothing. Close goes back to the picker; an empty fleet too.
+ * - Once picked, the source changes only by the switch, Dismiss (to
+ *   Synthetic) or a synthetic failure (to Camera, with a notice). A stream
+ *   appearing or going away only changes what Camera shows: the same UAV's
+ *   other stream, else "lost". Never another UAV.
+ * - Not `active` (RC, leaving the monitor view): swap back; on return the
+ *   window comes back on the same UAV with the source its icon gives.
+ * - Nothing is saved: a reload opens the picker, unswapped.
+ * - `session` changes whenever a fresh camera connection is wanted (a pick,
+ *   View camera, Reconnect video, back to Camera); the window keys its reader on it.
  *
  * @param {object} p
  * @param {Array} p.fleet - useVideoFleet entries.
- * @param {number|null} p.followSysId
  * @param {boolean} p.active - monitor view and not RC.
  */
-export default function useVehicleWindow({ fleet, followSysId, active }) {
+export default function useVehicleWindow({ fleet, active }) {
   const [selection, setSelection] = useState(null);
-  const [auto, setAuto] = useState(true);
-  const [source, setSource] = useState(SOURCE.CAMERA);
-  const [minimized, setMinimizedState] = useState(readMinimized);
   const [maximized, setMaximized] = useState(false);
   const [notice, setNotice] = useState(null);
 
   const empty = fleet.length === 0;
   const shown = resolveShownStream(selection, fleet);
 
-  // First pick, and the re-arm on an empty fleet.
+  // An empty fleet: the window goes, and the next UAV brings the picker.
   useEffect(() => {
-    if (empty) {
-      setSelection(null);
-      setAuto(true);
-      setSource(SOURCE.CAMERA);
-      setMaximized(false);
-      setNotice(null);
-      return;
-    }
-    if (selection) return;
-    const sysId = pickFirstUav(followSysId, fleet);
-    setSelection({ sysId, key: streamKeyOf(fleet, sysId), nonce: 0 });
-  }, [empty, selection, followSysId, fleet]);
-
-  // Automatic and on "No camera": follow the first UAV that starts advertising.
-  const autoMoveTo = auto && shown.kind === 'noCamera' && source === SOURCE.CAMERA
-    ? pickFirstFeed(followSysId, fleet) : null;
-  useEffect(() => {
-    if (autoMoveTo == null) return;
-    setSelection((s) => ({ sysId: autoMoveTo, key: streamKeyOf(fleet, autoMoveTo), nonce: (s?.nonce ?? 0) + 1 }));
-  }, [autoMoveTo, fleet]);
+    if (!empty) return;
+    setSelection(null);
+    setMaximized(false);
+    setNotice(null);
+  }, [empty]);
 
   // Keep the same-UAV fallback (or the stream that appeared on "No camera"),
   // so the original stream coming back later does not switch the picture again.
@@ -90,91 +64,94 @@ export default function useVehicleWindow({ fleet, followSysId, active }) {
     if (fallbackKey) setSelection((s) => (s ? { ...s, key: fallbackKey } : s));
   }, [fallbackKey]);
 
-  // RC entry or leaving the monitor view: swap back, Camera.
+  // RC entry or leaving the monitor view: swap back. Back again: the same UAV
+  // with the source its icon gives now.
+  const fleetRef = useRef(fleet);
+  fleetRef.current = fleet;
+  const wasActiveRef = useRef(active);
   useEffect(() => {
-    if (active) return;
-    setMaximized(false);
-    setSource(SOURCE.CAMERA);
+    const wasActive = wasActiveRef.current;
+    wasActiveRef.current = active;
+    if (!active) {
+      setMaximized(false);
+      return;
+    }
+    if (wasActive) return;
+    setNotice(null);
+    setSelection((s) => (s ? pickOf(fleetRef.current, s.sysId, s) : s));
   }, [active]);
 
-  const setMinimized = useCallback((value) => {
-    setMinimizedState(value);
-    saveMinimized(value);
-  }, []);
+  const selectedSysId = selection?.sysId ?? null;
 
-  const operatorPick = useCallback(() => {
-    setAuto(false);
-    setNotice(null);
-  }, []);
-
-  /** Badge: that UAV in the current source; the selected badge is a no-op. */
+  /** A UAV button: that UAV with the source its icon gives; the selected one is a no-op. */
   const selectUav = useCallback((sysId) => {
-    operatorPick();
-    setSelection((s) => (s?.sysId === sysId ? s
-      : { sysId, key: streamKeyOf(fleet, sysId), nonce: (s?.nonce ?? 0) + 1 }));
-  }, [fleet, operatorPick]);
+    if (sysId === selectedSysId) return;
+    setNotice(null);
+    setSelection((s) => pickOf(fleet, sysId, s));
+  }, [fleet, selectedSysId]);
 
-  /** View camera on a confirm card: that UAV, Camera, a fresh connection, a minimized window restored. */
+  /** View camera on a confirm card: that UAV, Camera, a fresh connection, also from the picker. */
   const viewCamera = useCallback((sysId) => {
-    operatorPick();
-    setSource(SOURCE.CAMERA);
-    setMinimized(false);
-    setSelection((s) => ({ sysId, key: streamKeyOf(fleet, sysId), nonce: (s?.nonce ?? 0) + 1 }));
-  }, [fleet, operatorPick, setMinimized]);
+    setNotice(null);
+    setSelection((s) => ({ ...pickOf(fleet, sysId, s), source: SOURCE.CAMERA }));
+  }, [fleet]);
 
   /** The Camera / Synthetic switch. Back to Camera is a fresh connection. */
   const chooseSource = useCallback((next) => {
-    operatorPick();
-    if (next === source) return;
-    setSource(next);
-    if (next === SOURCE.CAMERA) setSelection((s) => (s ? { ...s, nonce: s.nonce + 1 } : s));
-  }, [source, operatorPick]);
+    if (!selection || next === selection.source) return;
+    setNotice(null);
+    setSelection((s) => (s ? {
+      ...s, source: next, nonce: next === SOURCE.CAMERA ? s.nonce + 1 : s.nonce,
+    } : s));
+  }, [selection]);
 
   const reconnect = useCallback(() => {
     setSelection((s) => (s ? { ...s, nonce: s.nonce + 1 } : s));
   }, []);
 
-  /** Dismiss a lost feed: "No camera" for the same UAV. An operator tap, so
-   * it also ends the automatic pick: never a move to another UAV after it. */
+  /** Dismiss a lost feed: Synthetic for the same UAV, as a pick of a map-icon UAV would. */
   const dismiss = useCallback(() => {
-    setAuto(false);
-    setSelection((s) => (s ? { ...s, key: null } : s));
+    setNotice(null);
+    setSelection((s) => (s ? { ...s, key: null, source: SOURCE.SYNTHETIC } : s));
   }, []);
 
-  const minimize = useCallback(() => {
+  /** Close: swap back, stop the picture and show the picker. */
+  const close = useCallback(() => {
     setMaximized(false);
-    setMinimized(true);
-  }, [setMinimized]);
-  const restore = useCallback(() => setMinimized(false), [setMinimized]);
-  const toggleMaximized = useCallback(() => setMaximized((m) => !m), []);
+    setNotice(null);
+    setSelection(null);
+  }, []);
+
+  /** Maximize is offered only while viewing, not in the picker. */
+  const toggleMaximized = useCallback(() => {
+    if (selection) setMaximized((m) => !m);
+  }, [selection]);
   const unswap = useCallback(() => setMaximized(false), []);
 
   /** The synthetic view failed: back to Camera with a notice. Retry is a new tap. */
   const syntheticFailed = useCallback(() => {
-    setSource(SOURCE.CAMERA);
     setNotice('syntheticUnavailable');
-    setSelection((s) => (s ? { ...s, nonce: s.nonce + 1 } : s));
+    setSelection((s) => (s ? { ...s, source: SOURCE.CAMERA, nonce: s.nonce + 1 } : s));
   }, []);
 
-  const sysId = selection?.sysId ?? null;
+  const source = selection?.source ?? SOURCE.CAMERA;
   return {
-    sysId,
+    /** The window's UAV; null is the picker. */
+    sysId: selectedSysId,
     shown,
     source,
-    minimized,
     /** The map and window are swapped. */
-    swapped: active && !empty && maximized && !minimized,
+    swapped: active && !empty && maximized && selection != null,
     notice,
     session: selection ? `${selection.sysId}:${shown.stream?.key ?? '-'}:${selection.nonce}` : null,
     /** "Viewing" on a confirm card: this UAV's camera is on screen. */
-    viewing: (id) => active && !minimized && source === SOURCE.CAMERA && sysId === id && shown.kind === 'stream',
+    viewing: (id) => active && source === SOURCE.CAMERA && selectedSysId === id && shown.kind === 'stream',
     selectUav,
     viewCamera,
     chooseSource,
     reconnect,
     dismiss,
-    minimize,
-    restore,
+    close,
     toggleMaximized,
     unswap,
     syntheticFailed,

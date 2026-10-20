@@ -17,7 +17,7 @@ from navpy.core.ports.parameter_exchange import ExchangePolicy, ParameterExchang
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-#: Sends per parameter exchange (``docs/design/radio_budget.md``, todo 97): a
+#: Sends per parameter exchange (``docs/design/radio_budget.md``, todo 101): a
 #: provisional budget from an estimated 44 % per-attempt failure at the
 #: ``stress`` byte loss, 0.44^12 < 1e-4 if attempts are independent.
 GCS_PARAM_ATTEMPTS = 12

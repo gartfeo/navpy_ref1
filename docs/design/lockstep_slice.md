@@ -249,7 +249,7 @@ Its test uses `/connect?device=lockstep:router&sys_id=...` (`routes/vehicles.py:
 - **Companion launcher:** spawn and stop requests in `DONE`. Start-all and status answer from the coordinator's lifecycle records, with ordinal and generation (`routes/navpy_sim.py:132`, `navpy_process_instance.py:175`, the telemetry broadcast at `telemetry_loop.py:226`).
 - **ESP32:** an in-process simulator port covers start, status, health (including `launch_session.py:84`), trigger results and stop. It creates no `HTTPServer` (`esp32_simulator.py:234`) and reports no port.
 - **Named parameter reads:** `GET /vehicles/{sys_id}/params/named?names=A,B`.
-  - Fresh reads through `read_parameter` (`vehicle_public_parameters.py`, `parameter_reader.py`), never the cached `get_parameter`, under the GCS budget and the request's `timeout_s` (`radio_budget.md`, todo 97).
+  - Fresh reads through `read_parameter` (`vehicle_public_parameters.py`, `parameter_reader.py`), never the cached `get_parameter`, under the GCS budget and the request's `timeout_s` (`radio_budget.md`, todo 101).
   - A missing or unanswered name is an error that lists it.
   - The operator's command bounds use it under lockstep (owner ruling 7). Wall mode keeps MAVFTP (`eval_gcs_demo_stack_ops.py:119`).
 - **Parameter writes:** the blocking `set_parameter` on the loop thread (`routes/missions.py:247`) moves to the executor. A wall regression test covers it.

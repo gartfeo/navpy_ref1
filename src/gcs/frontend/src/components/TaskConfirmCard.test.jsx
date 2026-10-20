@@ -221,3 +221,22 @@ describe('TaskConfirmCard View camera', () => {
     expect(h.onDeny).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('TaskConfirmCard position', () => {
+  const handlers = () => ({ onApprove: vi.fn(), onDeny: vi.fn(), onCancel: vi.fn() });
+
+  it('shows the coordinates and a map link when the companion sent a position', () => {
+    const { getByText, queryByText } = renderCard(entryFor({ roundUid: '1:1' }), handlers());
+    expect(getByText('task.map')).toBeInTheDocument();
+    expect(queryByText('task.positionUnknown')).toBeNull();
+  });
+
+  it('says the position is unknown instead of a fake 0,0 when none was sent', () => {
+    const entry = { ...entryFor({ roundUid: '1:1' }), lat: null, lon: null, alt: null };
+    const { container, getByText, queryByText } = renderCard(entry, handlers());
+    expect(getByText('task.positionUnknown')).toBeInTheDocument();
+    expect(queryByText('task.map')).toBeNull();
+    expect(container.textContent).not.toMatch(/0\.000000/);
+    expect(container.textContent).not.toMatch(/— 0m/);
+  });
+});

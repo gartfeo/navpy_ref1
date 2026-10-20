@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Callable, Optional
 
 from navpy.core.kernel import runtime_time as rt
@@ -191,10 +192,13 @@ class ConfirmationRoundRunner:
         if poi_id is None:
             raise ValueError("confirmation request requires a POI id")
         source = poi.geo.projected_poi_location
+        # No position known (the vision approach does not geolocate the POI):
+        # NaN is MAVLink's "unknown" for float fields; 0,0,0 would read as a
+        # real point in the Gulf of Guinea.
         location = (
             LocationMsgData(source.lat, source.lng, source.alt)
             if source is not None
-            else LocationMsgData(0.0, 0.0, 0.0)
+            else LocationMsgData(math.nan, math.nan, math.nan)
         )
         class_id = poi.classification.class_id
         task = TaskMsgData(

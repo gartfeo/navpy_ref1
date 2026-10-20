@@ -1,6 +1,6 @@
 """One parameter read or write exchange: its budget and its outcome.
 
-``docs/design/radio_budget.md``, todo 97. A caller that must not wait on a
+``docs/design/radio_budget.md``, todo 101. A caller that must not wait on a
 dead link (the GCS routes) passes an :class:`ExchangePolicy`: an attempt
 budget, an absolute deadline shared by every parameter of its request, and
 an end when the autopilot has sent no frame for its heartbeat timeout. The

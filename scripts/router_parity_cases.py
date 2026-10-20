@@ -135,7 +135,7 @@ def _filtered_cases(m: _Sources, hb: Callable[..., bytes], param: Callable[..., 
         "filtered_image": _case([*learn_more, ("sitl1", handshake(1)), ("sitl1", chunk(1, 0)),
                                  ("sitl1", chunk(1, 1)), ("sitl2", handshake(2)), ("sitl2", chunk(2, 0)),
                                  ("sitl1", assign((1, 191), 0)), ("sitl3", chunk(3, 0))]),
-        # SITL byte loss (todo 96): a frame missing its last byte runs into the next; garbage with
+        # SITL byte loss (todo 100): a frame missing its last byte runs into the next; garbage with
         # an unknown id and a known id with a bad CRC, both from the GCS's (255, 0), must not
         # teach a SITL endpoint that source, so the GCS's packets to that UAV still arrive. Two
         # sysids on one feed both still learn.

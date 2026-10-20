@@ -209,8 +209,16 @@ export default function useMissionState() {
   // ArduPilot exclusion fences). [[{lat,lon}, ...], ...]
   const [exclusionPolygons, setExclusionPolygons] = useState([]);
 
-  const toggleFence = useCallback(() => {
-    authorFenceIntent(!fenceEnabledRef.current);
+  /**
+   * Flip the switch. `shownOn` is what the switch shows when that differs from
+   * the plan's own decision (the fleet's fence on an undecided plan).
+   */
+  const toggleFence = useCallback((shownOn = fenceEnabledRef.current) => {
+    const enabled = !shownOn;
+    // Off discards the hand-shaped ring: switching back on starts from the
+    // auto-derived fence, never from a shape the operator switched away.
+    if (!enabled) setFenceCustomVertices(null);
+    authorFenceIntent(enabled);
   }, [authorFenceIntent]);
 
   // Upload state

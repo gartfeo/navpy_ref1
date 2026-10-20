@@ -117,7 +117,7 @@ def test_a_sitl_endpoint_gets_no_peer_autopilot_or_camera_traffic_and_the_gcs_ge
 
 
 def test_a_sitl_endpoint_drops_an_unknown_id_before_learning_its_source():
-    """radio_budget.md, todo 96: SITL byte loss makes garbage frames with random headers; one
+    """radio_budget.md, todo 100: SITL byte loss makes garbage frames with random headers; one
     from the GCS's 255/0 with an id outside the entry table (no CRC check) must not teach the
     endpoint that source, or the loop check drops every later GCS packet to that UAV."""
     router = _filtered_router()

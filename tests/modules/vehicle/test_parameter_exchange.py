@@ -1,4 +1,4 @@
-"""Bounded parameter exchanges (``docs/design/radio_budget.md``, todo 97): the attempt
+"""Bounded parameter exchanges (``docs/design/radio_budget.md``, todo 101): the attempt
 budget, the link-silence end and the request deadline."""
 from __future__ import annotations
 
@@ -217,7 +217,7 @@ def test_a_deadline_that_cuts_the_last_wait_is_a_deadline_not_a_missing_paramete
 
 
 def test_a_gcs_exchange_logs_every_send_and_its_outcome():
-    """The runs' attempt distribution comes from these lines (todo 97)."""
+    """The runs' attempt distribution comes from these lines (todo 101)."""
     link = HeartbeatState(7, 5.0)
 
     def echo_on_the_third(messages, _args):

@@ -1,6 +1,6 @@
 """The send-and-wait loop of one parameter exchange under an :class:`ExchangePolicy`.
 
-``docs/design/radio_budget.md``, todo 97: the deadline caps the lock wait and
+``docs/design/radio_budget.md``, todo 101: the deadline caps the lock wait and
 every answer wait and is checked again before each send; with
 ``stop_on_silence`` the link is checked after taking the lock and before each
 send. The answer cursor is taken after the lock, so an answer to an earlier

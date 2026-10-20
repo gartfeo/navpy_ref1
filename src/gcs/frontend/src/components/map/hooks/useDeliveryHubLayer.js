@@ -20,11 +20,9 @@ export default function useDeliveryHubLayer(cesiumRef, viewerRef, deliveryHubs, 
       try { viewer.entities.remove(e); } catch {}
     }
 
-    if (!terrainReady) {
-      entitiesRef.current = [];
-      return;
-    }
-
+    // Hubs are clamped to the ground, so they draw on the bare globe too: without
+    // an Ion token (or if Ion fails) terrain never arrives. When it does,
+    // terrainReady re-runs this effect so the markers follow the new terrain.
     if (!deliveryHubs || deliveryHubs.length === 0) {
       entitiesRef.current = [];
       return;
@@ -103,5 +101,5 @@ export default function useDeliveryHubLayer(cesiumRef, viewerRef, deliveryHubs, 
 
     entitiesRef.current = added;
     viewer.scene.requestRender();
-  }, [deliveryHubs, deliveryHubAssignments, plan, showTracks, terrainReady]);
+  }, [deliveryHubs, deliveryHubAssignments, plan, showTracks, viewerReady, terrainReady]);
 }

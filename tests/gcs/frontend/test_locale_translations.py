@@ -13,11 +13,10 @@ IDENTICAL_VALUE_ALLOWLIST = {
     "mapMarkers.dock",  # D is the owner-selected international dock marker.
     # Short technical label rather than untranslated prose.
     "connectionTab.id",
-    # Placeholders and a separator only: "{{name}} · {{state}}".
-    "vehicleWindow.handle.label",
     # Universal acronyms — identical in Armenian by design, not untranslated.
     "preflight.ekf",
     "preflight.gps",
+    "task.title",  # "POI #{{id}}": POI is the glossary acronym in Armenian too.
     # Firmware mode / acronym / product labels that are the same token
     # in Armenian (flight-mode names, protocol acronyms, ArduPilot product names).
     "planningSidebar.fenceActionRtl",                   # RTL

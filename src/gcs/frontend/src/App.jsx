@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors, topBarHeight, bottomBarHeight, sidebarWidth, setColors } from './styles';
 import useTelemetry from './hooks/useTelemetry';
@@ -7,6 +7,7 @@ import useDisplaySettings from './hooks/useDisplaySettings';
 import usePlanningApi from './hooks/usePlanningApi';
 import useSettings from './hooks/useSettings';
 import useAasParams from './hooks/useAasParams';
+import { usePlanCameraCheckResult, usePlanCameraGate } from './hooks/usePlanCameraCheck';
 import useFullParams from './hooks/useFullParams';
 import useCompassCal from './hooks/useCompassCal';
 import useAccelCal from './hooks/useAccelCal';
@@ -33,14 +34,14 @@ import ManualControlOverlay from './components/ManualControlOverlay';
 import { rcPwmToStickY } from './utils/joystickMath';
 import { APP_BRANCH } from './utils/appBranch';
 import { fenceInclusion, fenceCoversPlan, isSimpleRing, analyzeExclusionConflicts, DEFAULT_ORBIT_RADIUS_M } from './utils/geo';
-import { MIN_FENCE_RING, fenceUploadPayload, shouldAutoEnableDemoFence, summarizeFenceObservations } from './utils/fenceIntent';
+import { fenceMapDisplay, fenceUploadPayload, shouldAutoEnableDemoFence, summarizeFenceObservations } from './utils/fenceIntent';
 import useFenceEditing from './hooks/useFenceEditing';
+import useVehicleFence from './hooks/useVehicleFence';
 import TelemetryHud from './components/TelemetryHud';
 import FlightModeColumn from './components/FlightModeColumn';
 import { computePrearmWarnings, launchGatesFromSettings } from './utils/prearmChecks';
 import VehicleSelector from './components/VehicleSelector';
 import TaskConfirmCard from './components/TaskConfirmCard';
-import { resolveFollowTarget } from './components/map/hooks/useFollowUav';
 import PlanningToolbar from './components/map/PlanningToolbar';
 import MonitorMapOverlay from './components/map/MonitorMapOverlay';
 import { computePlanEntry } from './constants/monitorPhases';
@@ -83,13 +84,12 @@ export default function App() {
     setManualDeliveryHubEdit,
     simDockWps, detectAfterWps, setDetectAfterWps,
     fenceEnabled, setFenceEnabled, fenceOffsetM, setFenceOffsetM,
-    fenceTouched, toggleFence,
+    fenceTouched,
     fenceIntent, authorFenceIntent, resolveFenceIntent, fenceAcknowledged,
     fenceGeometryRevision, adoptDownloadedFenceGeometry,
     fenceObservations,
     fenceCustomVertices, setFenceCustomVertices,
     takeoffRoundM, setTakeoffRoundM,
-    exclusionPolygons, setExclusionPolygons,
     uploadProgress, setUploadProgress,
   } = mission;
   const lastPlanDiagnosticRef = useRef(null);
@@ -123,6 +123,7 @@ export default function App() {
   const mapPane = useElementSize(mapPaneRef, FALLBACK_PANE);
   const [mapCreditsPx, setMapCreditsPx] = useState(0);
   const [windowCreditsPx, setWindowCreditsPx] = useState(0);
+  const [windowChromePx, setWindowChromePx] = useState(0);
   const [ionTerrain, setIonTerrain] = useState(false);
   const [topControlsBottom, setTopControlsBottom] = useState(DEFAULT_TOP_CONTROLS_BOTTOM_PX);
   const [mapReady, setMapReady] = useState(false);
@@ -131,7 +132,6 @@ export default function App() {
   const [showConnPanel, setShowConnPanel] = useState(false);
   const connFromSidebarRef = useRef(false);
   const [availableVehicles, setAvailableVehicles] = useState(() => []);
-  const [followSysId, setFollowSysId] = useState(null);
 
   // ---- Notification banner ----
   const [notification, setNotification] = useState(null);
@@ -148,20 +148,6 @@ export default function App() {
       setShowConnPanel(false);
     }
   }, [vehicleList]);
-
-  // ---- Follow UAV: clear when vehicle disconnects or leaving monitor ----
-  useEffect(() => {
-    if (phase !== PHASES.MONITOR && followSysId != null) {
-      setFollowSysId(null);
-    } else if (resolveFollowTarget(followSysId, vehicleList) === null && followSysId != null) {
-      setFollowSysId(null);
-    }
-  }, [vehicleList, followSysId, phase]);
-
-  // Fly camera to a lat/lon coordinate (map fills flyToRef once the viewer is ready)
-  const flyToLocation = useCallback((lat, lon) => {
-    flyToRef.current?.(lat, lon);
-  }, []);
 
 
   // ---- Settings ----
@@ -241,9 +227,6 @@ export default function App() {
   useEffect(() => {
     if (polygon.length < 3 && fenceCustomVertices) setFenceCustomVertices(null);
   }, [polygon.length, fenceCustomVertices, setFenceCustomVertices]);
-  // Fence edit gestures (vertex drag / midpoint insert / vertex delete) — the
-  // first gesture snapshots the rendered ring into fenceCustomVertices.
-  const fenceEditing = useFenceEditing({ fencePolygon, setFenceCustomVertices });
   // A custom-shaped fence can be dragged too tight — warn (never block) when it
   // no longer contains the full flight path (zone + takeoff rounds + corridor +
   // confirmation orbits): outside the inclusion fence means breach → RTL.
@@ -260,21 +243,33 @@ export default function App() {
     () => !!fenceCustomVertices && !isSimpleRing(fenceCustomVertices),
     [fenceCustomVertices],
   );
+  // What the connected vehicles report about their OWN fences. Display truth
+  // only — it never feeds the upload payload.
+  const observedFence = React.useMemo(
+    () => summarizeFenceObservations(fenceObservations, vehicleList.map((v) => v.sys_id)),
+    [fenceObservations, vehicleList],
+  );
+  // A fleet that already holds a fence reads ON on an undecided plan; see the hook.
+  const vehicleFenceState = useVehicleFence({ mission, observedFence, polygonLength: polygon.length });
+  const { vehicleFence, displayExclusionPolygons } = vehicleFenceState;
+  // The keep-outs the operator sees and edits (the fleet's merged in while its
+  // fence shows); the list, the checks and the upload all index this one list.
+  const { editableExclusions } = vehicleFenceState;
   // Nearest-edge insertion can self-intersect a keep-out too (even-odd shrinks
   // the enforced no-fly area) — flag the affected rings in the sidebar list.
   const selfIntersectingExclusions = React.useMemo(
-    () => (exclusionPolygons || [])
+    () => editableExclusions
       .map((r, i) => (Array.isArray(r) && r.length >= 3 && !isSimpleRing(r) ? i : -1))
       .filter((i) => i >= 0),
-    [exclusionPolygons],
+    [editableExclusions],
   );
   // Map-side hazard cue: the amber fence turns red while it is unsafe.
   const fenceWarning = fenceCustomVertices != null && (!fenceCoverageOk || fenceSelfIntersecting);
   // Sanitized exclusion keep-outs (>= 3 vertices) shared by the layer, the
   // conflict check, and the upload payload.
   const exclusions = React.useMemo(
-    () => (exclusionPolygons || []).filter((e) => Array.isArray(e) && e.length >= 3),
-    [exclusionPolygons],
+    () => editableExclusions.filter((e) => Array.isArray(e) && e.length >= 3),
+    [editableExclusions],
   );
   // Does the planned flight (corridor legs, scan tracks, confirmation orbits)
   // enter any keep-out? Detect-and-warn — the operator moves things or replans.
@@ -288,12 +283,6 @@ export default function App() {
       exclusions,
     });
   }, [exclusions, transitPaths, plan, fencePois]);
-  // What the connected vehicles report about their OWN fences. Display truth
-  // only — it never feeds the upload payload.
-  const observedFence = React.useMemo(
-    () => summarizeFenceObservations(fenceObservations, vehicleList.map((v) => v.sys_id)),
-    [fenceObservations, vehicleList],
-  );
   // In demo mode, auto-enable the fence once a search zone exists — unless the
   // operator has deliberately toggled it (fenceTouched), or we have observed
   // the vehicles' real fences. Auto-enabling on top of an observation would
@@ -311,17 +300,12 @@ export default function App() {
     }
   }, [simMode, polygon.length, fenceTouched, fenceEnabled, authorFenceIntent,
       observedFence]);
-  // With no authored fence, show the fleet's own ring so the operator can see
-  // what the vehicles actually hold. It stays out of `fencePolygon`, so the
-  // edit gestures (which snapshot into fenceCustomVertices) cannot adopt it by
-  // accident — adopting an observed ring has to be a deliberate act.
-  const observedRingOnly = !fenceEnabled && observedFence.ring != null;
-  const displayFencePolygon = fenceEnabled ? fencePolygon : observedFence.ring;
-  // Same for the vehicles' stored keep-outs: drawn when the operator has none
-  // of their own, but kept out of exclusionPolygons, which IS upload state.
-  const displayExclusionPolygons = exclusionPolygons?.length
-    ? exclusionPolygons
-    : observedFence.exclusions;
+  const fenceMap = fenceMapDisplay({ enabled: fenceEnabled, polygon: fencePolygon, vehicleFence });
+  // Fence edit gestures (vertex drag / midpoint insert / vertex delete) — the
+  // first gesture snapshots the rendered ring into fenceCustomVertices.
+  const fenceEditing = useFenceEditing({
+    fencePolygon: fenceMap.polygon, setFenceCustomVertices: vehicleFenceState.editFenceVertices,
+  });
   // Upload payload. Absent (null) = leave every vehicle's fence exactly as it
   // is, which is what an untouched download/upload round trip must produce.
   // Only operator-authored geometry can be uploaded.
@@ -344,9 +328,6 @@ export default function App() {
   // Display-only labels for the fence, derived from the same facts the map and
   // the upload already use. They name which ring is on screen and what the
   // next upload will actually request; neither one feeds the payload.
-  const fenceMapSource = fenceEnabled && displayFencePolygon?.length >= MIN_FENCE_RING
-    ? 'planner'
-    : (observedRingOnly ? 'vehicles' : 'none');
   const fenceRequestStatus = fenceInvalid
     ? 'invalid'
     : (fenceUpload == null ? 'none' : (fenceUpload.enabled ? 'enable' : 'disable'));
@@ -394,6 +375,11 @@ export default function App() {
     handleSaveSettings,
     settingsVersion,
     plannerReady,
+    exclusionEditing: {
+      exclusionPolygons: vehicleFenceState.editableExclusions,
+      setExclusionPolygons: vehicleFenceState.editExclusionPolygons,
+      drawable: vehicleFenceState.keepOutDrawable,
+    },
   });
 
   // ---- Task / WS handler wiring ----
@@ -518,6 +504,20 @@ export default function App() {
     fenceInvalid,
     fenceIntentGeneration: fenceIntent?.generation ?? null,
     onFenceIntentResolved: resolveFenceIntent,
+    getAas: aasParams.getConfirmedValue,
+  });
+
+  // ---- Plan/camera check: live in planning, re-run before Launch / Start ----
+  const planCameraCheck = usePlanCameraCheckResult({
+    enabled: simMode && phase === PHASES.PLANNING,
+    plan, corridorPointsArr: setCorridorPointsArr, searchPattern, vehicleList,
+    simDockWps, detectAfterWps, getAas: aasParams.getConfirmedValue, check: api.checkPlanCamera,
+    cameraKey: JSON.stringify(settings?.camera ?? null),
+  });
+  const confirmBeforeStart = usePlanCameraGate({
+    enabled: simMode,
+    plan, corridorPointsArr: setCorridorPointsArr, searchPattern, vehicleList,
+    vehicleTargWps, vehicleNavLastWp, getAas: aasParams.getConfirmedValue, check: api.checkPlanCamera,
   });
 
   // ---- Vehicle commands ----
@@ -526,18 +526,19 @@ export default function App() {
     taskConfirmReset: taskConfirm.reset,
     taskAssignReset: taskAssign.reset,
     setLaunchStates: ws.setLaunchStates,
+    confirmBeforeStart,
   });
   // ---- Manual control wiring (must be after useVehicleCommands for handleSetMode) ----
   const mc = useManualControlWiring({
     sendWsMessage, storeRef,
     phase, vehicleList,
     handleSetMode: commands.handleSetMode,
-    setFollowSysId, setNotification,
+    setNotification,
   });
 
   // ---- Center view (frame the plan + GPS-fixed UAVs) ----
-  // Keep the latest fit inputs in a ref so the reset button and the auto-center
-  // effect share one call site without re-creating callbacks or going stale.
+  // Keep the latest fit inputs in a ref so the reset button's callback stays
+  // stable without going stale.
   const centerArgsRef = useRef(null);
   centerArgsRef.current = { polygon, vehicleList, plan, launchPoint, corridorPoints };
   const centerView = useCallback(() => {
@@ -546,31 +547,41 @@ export default function App() {
   }, []);
 
   // ---- Vehicle window + RC FPV (docs/design/gcs_video_streams.md §5) ----
-  // The follow selector moves only the map; badges and View camera pick the
-  // window's UAV. useFpvView owns RC FPV, the saved map camera and the
-  // auto-center on return to Free (which used to live here).
+  // The window's UAV buttons and View camera pick the window's UAV; the map
+  // never follows a UAV. useFpvView owns RC FPV and the saved map camera.
   const videoFleet = useVideoFleet(storeRef);
   const monitor = phase === PHASES.MONITOR;
-  const win = useVehicleWindow({ fleet: videoFleet, followSysId, active: monitor && !mc.manualControlEnabled });
+  const win = useVehicleWindow({ fleet: videoFleet, active: monitor && !mc.manualControlEnabled });
   const fpv = useFpvView({
-    phase, followSysId, rcEnabled: mc.manualControlEnabled, rcTarget: mc.manualControlTarget,
-    mapCameraRef, centerView,
+    rcEnabled: mc.manualControlEnabled, rcTarget: mc.manualControlTarget, mapCameraRef,
   });
   const showWindow = vehicleWindowVisible({
     monitor, rcEnabled: mc.manualControlEnabled, fleetSize: videoFleet.length,
   });
-  const swapped = showWindow && win.swapped;
   const windowLayout = vehicleWindowLayout({
     paneWidth: mapPane.width,
     paneHeight: mapPane.height,
     topControlsBottom,
     badgeCount: videoFleet.length,
     selectedIndex: videoFleet.findIndex((e) => e.sysId === win.sysId),
-    swapped,
+    swapped: showWindow && win.swapped,
     mapCreditsPx,
+    windowChromePx,
     windowCreditsPx,
   });
+  const swapped = showWindow && win.swapped && windowLayout.canSwap;
   const smallMap = windowLayout.smallMap;
+  const { unswap } = win;
+  // The pane became too short for a whole small map: the swap ends, before paint.
+  useLayoutEffect(() => {
+    if (win.swapped && !windowLayout.canSwap) unswap();
+  }, [win.swapped, windowLayout.canSwap, unswap]);
+  // Sidebar coordinate click: swap back first, so the map flies large
+  // (the map's fly-to waits for the swap back while the map is small).
+  const flyToLocation = useCallback((lat, lon) => {
+    unswap();
+    flyToRef.current?.(lat, lon);
+  }, [unswap]);
   const { viewing, viewCamera } = win;
   const videoActionFor = useCallback((sysId) => {
     if (!videoFleet.find((e) => e.sysId === sysId)?.streams.length) return null;
@@ -620,14 +631,14 @@ export default function App() {
         {/* Map */}
         <div ref={mapPaneRef} style={{ flex: 1, position: 'relative', height: mapHeight }}>
           {/* The map box. Swapped with the maximized vehicle window it shrinks
-              into the window's normal box: CSS only, never a remount, never an
-              animation, never size 0. */}
+              into a small box at the top right of the window's picture: CSS
+              only, never a remount, never an animation, never size 0. */}
           <div
             data-testid="map-box"
             style={smallMap ? {
               position: 'absolute',
-              left: smallMap.left,
-              bottom: smallMap.bottom,
+              top: smallMap.top,
+              right: smallMap.right,
               width: smallMap.width,
               height: smallMap.height,
               zIndex: MAP_SWAPPED_Z_INDEX,
@@ -641,8 +652,9 @@ export default function App() {
             plan={plan}
             analysis={analysis}
             searchPattern={searchPattern}
-            fencePolygon={displayFencePolygon}
-            showFence={fenceEnabled || observedRingOnly}
+            fencePolygon={fenceMap.polygon}
+            showFence={fenceMap.show}
+            fenceEditable={vehicleFenceState.editable}
             fenceWarning={fenceWarning}
             onFenceVertexDrag={fenceEditing.handleFenceVertexDrag}
             onFenceMidpointInsert={fenceEditing.handleFenceMidpointInsert}
@@ -713,8 +725,7 @@ export default function App() {
             onPlaceDeliveryHub={planning.handlePlaceDeliveryHub}
             onRemoveDeliveryHub={planning.handleRemoveDeliveryHub}
             onMoveDeliveryHub={planning.handleMoveDeliveryHub}
-            followSysId={followSysId}
-            fpvMode={fpv.cameraFpv}
+            fpvSysId={fpv.fpvSysId}
             cameraPersistSuspended={fpv.cameraOwned}
             mapCameraRef={mapCameraRef}
             swapped={swapped}
@@ -756,13 +767,14 @@ export default function App() {
               onToggleDeliveryHub={planning.toggleDeliveryHubPlacement}
               placingDeliveryHubType={planning.placingDeliveryHubType}
               setPlacingDeliveryHubType={planning.setPlacingDeliveryHubType}
-              fenceEnabled={fenceEnabled}
-              onToggleFence={toggleFence}
+              fenceEnabled={vehicleFenceState.switchOn}
+              onToggleFence={vehicleFenceState.handleToggleFence}
               observedFenceMode={observedFence.mode}
               observedFenceAutoenableMode={observedFence.autoenableMode}
-              fenceMapSource={fenceMapSource}
+              fenceMapSource={fenceMap.source}
               placingExclusion={planning.placingExclusion}
               onToggleExclusion={planning.toggleExclusionPlacement}
+              keepOutDrawable={vehicleFenceState.keepOutDrawable}
               onUndo={planning.handleUndo}
               canUndo={planning.canUndo}
               onClearAll={planning.handleClearAll}
@@ -772,9 +784,6 @@ export default function App() {
           )}
           {phase === PHASES.MONITOR && vehicleList.length > 0 && !mc.manualControlEnabled && (
             <MonitorMapOverlay
-              vehicleList={vehicleList}
-              followSysId={followSysId}
-              onFollowChange={setFollowSysId}
               onTopControlsBottom={setTopControlsBottom}
               onToggleManualControl={mc.handleToggleManualControl}
               showVision={showVision}
@@ -796,8 +805,8 @@ export default function App() {
           )}
           {/* Vehicle window — monitor view only, never during manual control,
               so it cannot sit over the joysticks, the flight-mode column or
-              the RC FPV HUD. Bottom-left at z-index 9, under the map overlay
-              buttons and the confirmation cards. */}
+              the RC FPV HUD. Top-right under the action bar at z-index 9,
+              under the map overlay buttons and the confirmation cards. */}
           {showWindow && (
             <VehicleWindow
               fleet={videoFleet}
@@ -807,6 +816,7 @@ export default function App() {
               storeRef={storeRef}
               ionTerrain={ionTerrain}
               onSyntheticCreditsHeight={setWindowCreditsPx}
+              onChromeHeight={setWindowChromePx}
             />
           )}
           {fpv.fpvSysId != null && (
@@ -929,6 +939,7 @@ export default function App() {
         >
           {phase === PHASES.PLANNING && (
             <PlanningSidebar
+              cameraCheck={planCameraCheck}
               searchPattern={searchPattern}
               setSearchPattern={planning.handleSearchPatternChange}
               analysis={analysis}
@@ -954,20 +965,21 @@ export default function App() {
               routeOffsetM={routeOffsetM}
               setRouteOffsetM={setRouteOffsetM}
               hasSearchPolygon={polygon.length >= 3}
-              fenceEnabled={fenceEnabled}
-              onToggleFence={toggleFence}
+              fenceEnabled={vehicleFenceState.switchOn}
+              fencePlanned={fenceEnabled}
+              onToggleFence={vehicleFenceState.handleToggleFence}
               observedFence={observedFence}
               fenceRequestStatus={fenceRequestStatus}
               fenceOffsetM={fenceOffsetM}
               setFenceOffsetM={setFenceOffsetM}
               takeoffRoundM={takeoffRoundM}
               setTakeoffRoundM={setTakeoffRoundM}
-              fenceCustomized={fenceCustomVertices != null}
-              onFenceReset={fenceEditing.handleFenceReset}
+              fenceCustomized={fenceCustomVertices != null || vehicleFence != null}
+              onFenceReset={vehicleFenceState.editable ? fenceEditing.handleFenceReset : null}
               fenceCoverageOk={fenceCoverageOk}
               fenceSelfIntersecting={fenceSelfIntersecting}
               selfIntersectingExclusions={selfIntersectingExclusions}
-              exclusionPolygons={exclusionPolygons}
+              exclusionPolygons={editableExclusions}
               exclusionConflicts={exclusionConflicts}
               onRemoveExclusion={planning.handleRemoveExclusion}
               onClearExclusions={planning.handleClearExclusions}

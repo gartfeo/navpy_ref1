@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../styles';
 import { fpvHoldReason } from '../utils/fpvView';
-import { HEADER_FONT_PX } from '../utils/vehicleWindowLayout';
+import { HEADER_FONT_PX, PICTURE_TAG_INSET_PX } from '../utils/vehicleWindowLayout';
 import { ION_TERRAIN_ASSET_ID, MAP_TARGET_FRAME_RATE } from './map/constants/icons';
 import { createPoseMath, noseOrientation } from './map/utils/fpvPose';
 import { observeHeight } from './map/utils/observeHeight';
@@ -45,9 +45,12 @@ const LIGHT_ENU = [0.5, -0.5, -0.7];
  * @param {object} [props.style] - box of the picture.
  * @param {boolean} [props.expanded] - maximized: the waiting state keeps the
  *   large area; at normal size it collapses to one text row.
+ * @param {number|null} [props.tagMaxWidth] - the tag wraps at this width (maximized:
+ *   left of the small map, so the map never covers "not camera").
  */
 export default function SyntheticView({
   sysId, label, poseSourceRef, storeRef, ionTerrain, onFail, onCreditsHeight, style, expanded = false,
+  tagMaxWidth = null,
 }) {
   const { t } = useTranslation();
   const containerRef = useRef(null);
@@ -99,7 +102,15 @@ export default function SyntheticView({
         fail(e);
         return;
       }
-      cleanups.push(() => widget.destroy());
+      // destroy() leaves the WebGL context to the garbage collector, and the
+      // browser keeps only about 16 live contexts, dropping the oldest (the main
+      // map's) first: release it now. Cleanups run in reverse, so the
+      // context-lost listener below is already removed by then.
+      const gl = widget.canvas.getContext('webgl2') ?? widget.canvas.getContext('webgl');
+      cleanups.push(() => {
+        widget.destroy();
+        gl?.getExtension('WEBGL_lose_context')?.loseContext();
+      });
       const { scene } = widget;
       scene.globe.baseColor = Cesium.Color.fromCssColorString(GROUND_COLOR);
       scene.globe.enableLighting = true;
@@ -265,8 +276,10 @@ export default function SyntheticView({
           role="note"
           style={{
             position: 'absolute',
-            top: 6,
-            left: 6,
+            top: PICTURE_TAG_INSET_PX,
+            left: PICTURE_TAG_INSET_PX,
+            maxWidth: tagMaxWidth ?? undefined,
+            boxSizing: 'border-box',
             padding: '4px 8px',
             fontSize: HEADER_FONT_PX,
             fontWeight: 700,

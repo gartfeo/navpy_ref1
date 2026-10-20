@@ -70,7 +70,7 @@ class HeartbeatState:
     @property
     def autopilot_silent(self) -> bool:
         """No autopilot frame for the heartbeat timeout: an inferred disconnection, which
-        one lost heartbeat alone does not make (``radio_budget.md``, todo 97)."""
+        one lost heartbeat alone does not make (``radio_budget.md``, todo 101)."""
         with self._lock:
             return self._clock() - self._last_frame_s > self._timeout_s
 

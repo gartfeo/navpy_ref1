@@ -1,16 +1,18 @@
-"""The hand-driven delivery demo command and the eval code it reuses."""
+"""The hand-driven delivery demo command, its plan file and the eval code it reuses."""
 
 from __future__ import annotations
 
 import datetime as dt
 import importlib
 import json
+import subprocess
 import sys
 from types import SimpleNamespace
 
 import pytest
 
 from scripts import delivery_demo as demo
+from scripts import delivery_demo_plan as plan
 from scripts.eval_gcs_demo_execution import SystemClock
 
 config = importlib.import_module("scripts.eval_gcs_demo_config")
@@ -20,73 +22,146 @@ fixture_module = importlib.import_module("scripts.eval_delivery_fixture")
 
 FIXTURE = fixture_module.load_fixture(fixture_module.FIXTURE_PATH)
 SCENARIO = fixture_module.delivery_scenario(FIXTURE, fixture_module.FIXTURE_PATH)
-NOW = dt.datetime(2026, 10, 19, 12, 0, 0)
+NOW = dt.datetime(2026, 10, 20, 12, 0, 0)
+OWNER = {
+    "connection": {"auto_connect": False, "telemetry_rate_hz": 5},
+    "simulation": {"companion_lifecycle": "explicit", "dev_mode": True},
+    "launch": {"launch_type": "bungee", "esp32_host": "192.168.4.1", "arm_timeout_s": 10.0},
+    "camera": {"vision_profile": None},
+    "default_delivery_hubs": [{"lat": 1.0, "lon": 2.0}],
+}
+
+
+def test_settings_are_the_owners_with_the_scenario_pins_on_top():
+    settings = demo.demo_settings(OWNER, FIXTURE)
+
+    # The normal lifecycle, whatever the owner's file says.
+    assert settings["connection"] == {"auto_connect": True, "telemetry_rate_hz": 5}
+    assert settings["simulation"] == {
+        "companion_lifecycle": "auto", "dev_mode": True,
+        "sim_mode": True, "simulated_vehicle_count": 3,
+    }
+    assert settings["launch"] == {
+        "launch_type": "container", "esp32_host": "127.0.0.1",
+        "esp32_port": config.UNUSED_ESP32_PORT, "arm_timeout_s": 10.0,
+    }
+    assert settings["flight"] == {
+        "uavs_per_set": 3, "takeoff_altitude_m": 40.0, "altitude_separation_m": 20.0,
+    }
+    # Camera and hubs stay the owner's: the plan file brings the hubs.
+    assert settings["camera"] == OWNER["camera"]
+    assert settings["default_delivery_hubs"] == OWNER["default_delivery_hubs"]
+    assert OWNER["connection"]["auto_connect"] is False  # not mutated
+
+
+def test_owner_settings_are_optional_but_must_be_an_object(tmp_path):
+    assert demo.owner_settings(tmp_path / "missing.json") == {}
+    # A BOM (PowerShell 5.1) reads as the normal settings store reads it.
+    bom = tmp_path / "bom.json"
+    bom.write_text('{"connection": {}}', encoding="utf-8-sig")
+    assert demo.owner_settings(bom) == {"connection": {}}
+    bad = tmp_path / "bad.json"
+    bad.write_text("[1]", encoding="utf-8")
+    with pytest.raises(models.RegressionError, match="not an object"):
+        demo.owner_settings(bad)
+
+
+def test_environment_is_the_shells_without_a_dock_world_plus_the_run_paths(tmp_path):
+    env = demo.demo_environment(
+        tmp_path, {"PATH": "p", "VITE_CESIUM_ION_TOKEN": "t", "NAVPY_SIM_DOCKS": "x", "OTHER": "o"}
+    )
+
+    # A shell's shared dock world must not replace the plan's waypoint docks.
+    assert "NAVPY_SIM_DOCKS" not in env
+    assert (env["PATH"], env["VITE_CESIUM_ION_TOKEN"], env["OTHER"]) == ("p", "t", "o")
+    assert env["GCS_SETTINGS_PATH"] == str((tmp_path / demo.SETTINGS_NAME).resolve())
+    assert env["NAVPY_LOG_DIR"] == str(tmp_path.resolve())
+    # No eval pins: thread counts and hash seed stay the shell's.
+    assert not {"PYTHONHASHSEED", "OMP_NUM_THREADS"} & set(env)
+
+
+def test_printed_commands_survive_spaces_in_powershell():
+    assert demo.powershell_command(r"C:\Program Files\py.exe", r"C: $b`'c\d.py") == (
+        r"& 'C:\Program Files\py.exe' 'C: $b`''c\d.py'"
+    )
 
 
 class FakeApi:
-    def __init__(self, settings=None, vehicles=()):
-        self.settings = settings
-        self.vehicles = list(vehicles)
+    def __init__(self):
         self.closed = False
-
-    def get_json(self, path):
-        return {"/api/settings": self.settings, "/api/vehicles": self.vehicles}[path]
 
     def close(self):
         self.closed = True
 
 
-def _launch(monkeypatch, tmp_path, calls):
+def _start(monkeypatch, tmp_path, calls, owner=None, failing=None):
     sitl_root = SimpleNamespace(launch_arguments=lambda: ["--sitl-root", "r"])
-    monkeypatch.setattr(demo, "prepare_sitl_root", lambda _d: (sitl_root, {"root": "r"}, "r"))
+    monkeypatch.setattr(demo, "prepare_sitl_root", lambda _d: (sitl_root, {}, "r"))
+    monkeypatch.setattr(demo, "owner_settings", lambda: owner or {})
+    api = FakeApi()
 
     def launch_stack(env, timeout_s, arguments, **kwargs):
-        record = json.loads((tmp_path / "20261019-120000" / demo.LAUNCH_RECORD_NAME).read_text())
-        calls.append((env, arguments, kwargs, record))
-        return SimpleNamespace(api=FakeApi())
+        calls.append(("launch_stack", env, arguments, kwargs))
+        return SimpleNamespace(api=api)
 
     monkeypatch.setattr(demo, "launch_stack", launch_stack)
     monkeypatch.setattr(demo, "owned_entry", lambda _env: {"frontend": 3100})
-    monkeypatch.setattr(demo, "wait_for_frontend", lambda entry, _clock: calls.append(entry))
-    return demo.launch(tmp_path, SystemClock(), NOW)
+    monkeypatch.setattr(demo, "wait_for_frontend", lambda entry, _clock: calls.append("wait_for_frontend"))
+    for name in ("wait_for_vehicles", "configure_vehicle_params", "verify_aas_profile"):
+        monkeypatch.setattr(demo, name, lambda *_a, _name=name: calls.append(_name))
+    for name, step in (failing or {}).items():
+        monkeypatch.setattr(demo, name, step)
+
+    def open_browser(url):
+        assert api.closed
+        calls.append(("open", url))
+
+    return demo.start(tmp_path, SystemClock(), NOW, open_browser)
 
 
-def test_settings_carry_the_fixture_hubs_and_the_explicit_lifecycle():
-    settings = demo.demo_settings(FIXTURE, SCENARIO)
-
-    assert settings["default_delivery_hubs"] == FIXTURE["inputs"]["delivery_hubs"]
-    assert len(settings["default_delivery_hubs"]) == 3
-    assert settings["simulation"]["companion_lifecycle"] == "explicit"
-    assert settings["connection"]["auto_connect"] is False
-
-
-def test_environment_keeps_the_frontend_map_token_and_drops_other_shell_variables(tmp_path):
-    env = demo.demo_environment(tmp_path, {"VITE_CESIUM_ION_TOKEN": "t", "NAVPY_X": "1", "PATH": "p"})
-
-    assert env["VITE_CESIUM_ION_TOKEN"] == "t" and env["PATH"] == "p"
-    assert "NAVPY_X" not in env
-    assert "VITE_CESIUM_ION_TOKEN" not in demo.demo_environment(tmp_path, {"PATH": "p"})
-
-
-def test_printed_commands_survive_spaces_in_powershell():
-    assert demo.powershell_command(r"C:\Program Files\py.exe", r"C: $b`'c\d.py", step="prep") == (
-        r"& 'C:\Program Files\py.exe' 'C: $b`''c\d.py' prep"
-    )
-
-
-def test_launch_starts_the_fixture_stack_with_frontend_and_no_browser(monkeypatch, tmp_path):
+def test_start_launches_a_normal_stack_sets_params_then_opens_the_ui(monkeypatch, tmp_path):
     calls = []
-    run_dir = _launch(monkeypatch, tmp_path, calls)
+    run_dir = _start(monkeypatch, tmp_path, calls, owner=OWNER)
 
-    (env, arguments, kwargs, record), frontend = calls
-    assert frontend == {"frontend": 3100}
-    assert env[demo.FLEET_DOCKS_ENV] == str((run_dir / fixture_module.DOCK_FILE_NAME).resolve())
+    (_name, env, arguments, kwargs), *steps = calls
     assert arguments == ["--sitl-root", "r"]
     assert (kwargs["headless"], kwargs["browser"]) == (False, False)
-    # The record exists before the stack starts, under the token it is given.
-    assert kwargs["launch_token"] == record["launch_token"]
-    assert record["home"] == SCENARIO.home
-    assert record["settings_sha256"] == demo.file_sha256(run_dir / demo.SETTINGS_NAME)
+    # The plain fixture scenario: no POI ordinals, so every UAV gets
+    # targ_wps 0 until the operator's plan upload writes its own.
+    assert kwargs["scenario"] == SCENARIO and SCENARIO.poi_nav_waypoint_ordinals == ()
+    assert kwargs["launch_token"]
+    # No connect, mission upload or companion start: auto-connect and the
+    # operator's plan do those, as in a normal run.
+    assert steps == [
+        "wait_for_frontend", "wait_for_vehicles", "configure_vehicle_params",
+        "verify_aas_profile", ("open", "http://localhost:3100"),
+    ]
+    written = json.loads((run_dir / demo.SETTINGS_NAME).read_text(encoding="utf-8"))
+    assert written == demo.demo_settings(OWNER, FIXTURE)
+    assert env["GCS_SETTINGS_PATH"] == str((run_dir / demo.SETTINGS_NAME).resolve())
+
+
+def test_start_names_the_stop_command_when_a_step_fails(monkeypatch, tmp_path):
+    calls = []
+
+    def unlinked(*_args):
+        raise models.RegressionError("vehicles never linked")
+
+    with pytest.raises(models.RegressionError, match="never linked; stop the stack: .*gcs_stop.py"):
+        _start(monkeypatch, tmp_path, calls, failing={"wait_for_vehicles": unlinked})
+    assert calls[-1] == "wait_for_frontend"  # nothing after the failure, no browser
+
+
+def test_start_refuses_a_running_stack(monkeypatch, tmp_path):
+    def busy(*_args, **_kwargs):
+        raise process.PreexistingOwnedStackError("exists")
+
+    monkeypatch.setattr(demo, "prepare_sitl_root", lambda _d: (SimpleNamespace(launch_arguments=list), {}, ""))
+    monkeypatch.setattr(demo, "owner_settings", dict)
+    monkeypatch.setattr(demo, "launch_stack", busy)
+
+    with pytest.raises(models.RegressionError, match="gcs_stop.py"):
+        demo.start(tmp_path, SystemClock(), NOW)
 
 
 class FakeClock:
@@ -100,7 +175,7 @@ class FakeClock:
         self.now += seconds
 
 
-def test_launch_refuses_a_frontend_that_never_answers():
+def test_start_refuses_a_frontend_that_never_answers():
     def refused(url):
         assert url == "http://localhost:3100"
         raise ConnectionRefusedError("refused")
@@ -110,88 +185,51 @@ def test_launch_refuses_a_frontend_that_never_answers():
     demo.wait_for_frontend({"frontend": 3100}, FakeClock(), lambda _url: True)
 
 
-def test_launch_refuses_a_running_stack(monkeypatch, tmp_path):
-    def busy(*_args, **_kwargs):
-        raise process.PreexistingOwnedStackError("exists")
-
-    monkeypatch.setattr(demo, "prepare_sitl_root", lambda _d: (SimpleNamespace(launch_arguments=list), {}, ""))
-    monkeypatch.setattr(demo, "launch_stack", busy)
-
-    with pytest.raises(models.RegressionError, match="gcs_stop.py"):
-        demo.launch(tmp_path, SystemClock(), NOW)
+def test_committed_plan_file_is_the_builders_output():
+    assert plan.PLAN_PATH.read_text(encoding="utf-8") == plan.render(FIXTURE)
+    assert plan.main(["--check"]) == 0
 
 
-def test_prep_refuses_without_a_stack_or_with_a_foreign_one(monkeypatch, tmp_path):
-    monkeypatch.setattr(demo, "owned_entry", lambda _env: None)
-    with pytest.raises(models.RegressionError, match="no GCS stack"):
-        demo.prep(tmp_path, SystemClock())
-
-    monkeypatch.setattr(demo, "owned_entry", lambda _env: {"sitl_launch_token": "other"})
-    with pytest.raises(models.RegressionError, match="not started by"):
-        demo.prep(tmp_path, SystemClock())
-
-
-def test_prep_refuses_files_changed_since_launch(monkeypatch, tmp_path):
-    run_dir = _launch(monkeypatch, tmp_path, [])
-    demo.require_unchanged(run_dir)
-
-    (run_dir / demo.SETTINGS_NAME).write_text("{}", encoding="utf-8")
-    with pytest.raises(models.RegressionError, match="changed since launch"):
-        demo.require_unchanged(run_dir)
+#: Runs the builder as a script, then names the navpy package it imported.
+_STANDALONE_PROBE = """
+import runpy, sys
+sys.argv = sys.argv[1:]
+try:
+    runpy.run_path(sys.argv[0], run_name="__main__")
+except SystemExit as stop:
+    assert stop.code == 0, stop.code
+import navpy
+print(navpy.__file__)
+"""
 
 
-def test_prep_refuses_backend_settings_that_differ():
-    expected = demo.demo_settings(FIXTURE, SCENARIO)
-    actual = json.loads(json.dumps(expected))
-    actual["unrelated"] = 1
-    demo.require_backend_settings(SimpleNamespace(api=FakeApi(actual)), expected)
-
-    actual["simulation"]["companion_lifecycle"] = "auto"
-    actual["default_delivery_hubs"] = []
-    with pytest.raises(models.RegressionError, match="simulation.companion_lifecycle, default_delivery_hubs"):
-        demo.require_backend_settings(SimpleNamespace(api=FakeApi(actual)), expected)
-
-
-def test_prep_refuses_a_stack_prep_already_ran_on(monkeypatch, tmp_path):
-    monkeypatch.setattr(demo, "companion_ids", lambda _c: ())
-    with pytest.raises(models.RegressionError, match="already ran"):
-        demo.prepare_scenario(SimpleNamespace(api=FakeApi(vehicles=[{"sys_id": 1}])), tmp_path)
-
-    monkeypatch.setattr(demo, "companion_ids", lambda _c: (1,))
-    with pytest.raises(models.RegressionError, match="already ran"):
-        demo.prepare_scenario(SimpleNamespace(api=FakeApi()), tmp_path)
-
-
-def test_prep_runs_the_eval_steps_in_order_then_opens_the_browser(monkeypatch, tmp_path):
-    run_dir = _launch(monkeypatch, tmp_path, [])
-    token = json.loads((run_dir / demo.LAUNCH_RECORD_NAME).read_text())["launch_token"]
-    monkeypatch.setattr(demo, "owned_entry", lambda _env: {"sitl_launch_token": token, "frontend": 3100})
-    api = FakeApi(demo.demo_settings(FIXTURE, SCENARIO))
-    opened = []
-
-    def owned_stack_context(env, entry, launch_token, backend_log, navigation_dir, **_kwargs):
-        assert launch_token == token and navigation_dir == run_dir
-        assert backend_log.name == "backend.log"
-        return SimpleNamespace(api=api)
-
-    monkeypatch.setattr(demo, "owned_stack_context", owned_stack_context)
-    monkeypatch.setattr(demo, "companion_ids", lambda _c: ())
-    calls = []
-    steps = (
-        "connect_vehicles", "wait_for_vehicles", "configure_vehicle_params",
-        "upload_scenario_missions", "verify_aas_profile", "start_companions",
-        "start_esp32_simulator", "wait_for_missions", "resolve_live_plan",
+def test_plan_builder_imports_its_own_checkout_when_run_standalone():
+    # The shared venv's editable install points at another checkout's src, so
+    # the script must put its own src first.
+    script = plan.PLAN_PATH.with_name("delivery_demo_plan.py")
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", _STANDALONE_PROBE, str(script), "--check"],
+        capture_output=True, text=True, timeout=120,
     )
-    for name in steps:
-        monkeypatch.setattr(demo, name, lambda *_a, _name=name: calls.append(_name))
+    assert result.returncode == 0, result.stderr
+    navpy_file = plan.Path(result.stdout.strip()).resolve()
+    assert navpy_file.is_relative_to(script.resolve().parents[1] / "src")
 
-    def open_browser(url):
-        assert api.closed
-        opened.append(url)
 
-    assert demo.prep(tmp_path, SystemClock(), open_browser) == run_dir
-    assert tuple(calls) == steps
-    assert opened == ["http://localhost:3100"]
+def test_plan_file_keeps_the_fixture_inputs_and_marks_two_docks_on_the_lowest_zone():
+    data = plan.plan_file(FIXTURE)
+    inputs = FIXTURE["inputs"]
+
+    assert data["set_launch_points"] == [inputs["launch_point"]]
+    assert data["default_delivery_hubs"] == inputs["delivery_hubs"]
+    # Each zone keeps its fixture hub (east, middle, west).
+    hub_names = [inputs["delivery_hubs"][i]["name"] for i in data["delivery_hub_assignments"]]
+    assert hub_names == FIXTURE["expected"]["home_dock_by_zone"]
+    assert data["sim_dock_wps"] == {"2": [1, 2]}
+    assert data["detect_after_wps"] == {"0": 0, "1": 0, "2": 0}
+    assert data["route_offset_m"] == plan.LINE_SPACING_M == 150.0
+    lats = {p["lat"] for p in data["polygon"]}
+    assert lats == {p["lat"] for p in inputs["polygon"]}
 
 
 def test_launch_command_keeps_the_eval_default_and_maps_the_demo_keywords():
