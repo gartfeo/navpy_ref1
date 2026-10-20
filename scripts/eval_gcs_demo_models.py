@@ -232,6 +232,8 @@ class RunReport:
     global_assignments: dict[int, int]
     vehicles: list[VehicleReport]
     errors: list[str] = field(default_factory=list)
+    #: Lockstep only: the radio air load (``eval_gcs_demo_air_load``), report only.
+    air_load: dict[str, JsonValue] | None = None
 
 
 @dataclass

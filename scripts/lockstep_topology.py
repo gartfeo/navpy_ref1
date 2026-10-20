@@ -27,8 +27,9 @@ from scripts.eval_gcs_demo_sitl_root import WSL_HOST_FILES
 #: The wall launcher, under the WSL home (``eval_gcs_demo_sitl_root.WSL_HOST_FILES``).
 RUN_SWARM_SCRIPT = WSL_HOST_FILES[2]
 #: sha256 of the deployed ``run_swarm.sh`` whose topology lockstep
-#: reproduces (read 2026-10-14; ``home_coords`` at its lines 253-271).
-RUN_SWARM_SHA256 = "5d43296c7bf1008678359ac3bb10b73c541c7932e605dc142ff567392178d6c8"
+#: reproduces (read 2026-10-20, with the SITL feeds' router filter; ``home_coords``
+#: at its lines 253-271).
+RUN_SWARM_SHA256 = "381e265eca2859aca003ab52dd6c06eed7dbb89c69d0299c998f24d0ee897a98"
 #: The wall eval's ``-d``: swarm_run's default vehicle spacing (``swarm_run_cli``
 #: ``--dist``), which the script reads as ``DIST_M``.
 WALL_SWARM_DIST_M = 50

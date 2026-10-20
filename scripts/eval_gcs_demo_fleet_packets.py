@@ -6,7 +6,7 @@ NAVLINK traces built from them (``navpy.sim.lockstep.navlink_trace``):
 | Gate | Pass |
 |---|---|
 | Run (packets) | every packet id is defined once and has exactly one terminal disposition (``PacketJournal``); no NAVLINK packet is ``undelivered`` |
-| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (when the SITLs lose bytes, ``SIM_UART_LOSS``, an advert may stop where a SITL should re-emit it: SITL journals no lost byte); every packet's source is a fleet sysid or the ground station; no NAVLINK packet is ``router_dropped`` |
+| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (when the SITLs lose bytes, ``SIM_UART_LOSS``, an advert may stop where a SITL should re-emit it: SITL journals no lost byte); every packet's source is a fleet sysid or the ground station; no NAVLINK packet is ``router_dropped`` or ``router_filtered`` |
 
 The chain of a peer task, correlated by UID and ``task_id`` (auction task ids
 are the detector's namespace, so the plan's POIs are joined by the backend
@@ -209,8 +209,9 @@ def _source_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int])
     for k, event in packet_events(records):
         if event[0] == "emitted" and event[5][0] not in allowed:
             errors.append(f"forwarding: {event[1]} from system {event[5][0]} at tick {k}")
-        elif event[0] == "router_dropped" and roots.get(tuple(event[1]), [None] * 5)[4] in NAVLINK_IDS:
-            errors.append(f"forwarding: NAVLINK {event[1]} router_dropped at tick {k}")
+        elif (event[0] in ("router_dropped", "router_filtered")
+              and roots.get(tuple(event[1]), [None] * 5)[4] in NAVLINK_IDS):
+            errors.append(f"forwarding: NAVLINK {event[1]} {event[0]} at tick {k}")
     return errors
 
 

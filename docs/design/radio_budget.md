@@ -1,9 +1,10 @@
 # Radio budget: peer-telemetry filter and air load
 
-Status: design v3, 2026-10-20. Codex rejected v1: the hardware filter saved no
-air time, one autopilot link leaked local pose to the radio, and an 8 kB/s gate
-passed a known overload. Round 2 approved items 2-3 with changes, applied here.
-Found by `deterministic_dev_sim.md` step 3 (line rate).
+Status: items 2-3 built 2026-10-20; items 1 and 4 are todos 91 and 92.
+Codex rejected design v1: the hardware filter saved no air time, one autopilot
+link leaked local pose to the radio, and an 8 kB/s gate passed a known
+overload. Round 2 approved items 2-3 with changes, applied here. Found by
+`deterministic_dev_sim.md` step 3 (line rate).
 
 ## Problem
 
@@ -48,7 +49,7 @@ Two separate problems follow:
 
 ## Decision
 
-### 1. Hardware direction (later; its own design and review)
+### 1. Hardware direction (later; its own design and review; todo 91)
 
 - Autopilot traffic for NavPy stays on its own autopilot port at the local rates
   and never reaches the radio. A second autopilot port carries the radio rates to
@@ -80,11 +81,14 @@ Two separate problems follow:
     and STATUSTEXT;
   - camera components other than 100;
   - GCS traffic (sysid 255, component 0).
-  It blocks targeted messages from components 1 and 100 too. An id outside the
-  router's entry table bypasses the filters, as in the binary.
+  It blocks targeted messages from components 1 and 100 too, and ids outside
+  the router's entry table: `read_msg` takes `msg_id` from the header for every
+  packet, so the `UINT32_MAX` skip in `accept_msg` never applies
+  (`endpoint.cpp:349,369,432`).
 - Router model (`router_model.py`), following `accept_msg`:
   - the loop check first;
-  - then the six out-filters, in their order, each skipped for an unknown id;
+  - then `BlockSrcCompOut`, the only filter this configuration uses (the model
+    takes no other);
   - then target and sniffer rules.
   Each endpoint's result is accepted, filtered or rejected. A packet with at
   least one accepted endpoint is `routed`. A packet with none accepted and at
@@ -96,15 +100,19 @@ Two separate problems follow:
   `router_filtered` fails the forwarding gate like `router_dropped`.
 - Parity: the WSL harness starts the binary with a config file holding the
   filters. Add cases for filtered broadcasts, filtered targeted messages, an
-  unknown id passing the filter, 191 traffic passing, a filtered endpoint
+  unknown id from component 1 filtered, 191 traffic passing, a filtered endpoint
   before the sniffer, and mixed loop, filter and target rejection. Compare bytes at every
   endpoint and the unknown-target counter. Keep the unfiltered cases.
-- Wall: `run_swarm.sh` writes a router config file per launch,
-  `$ARDUPILOT_DIR/router_<SWARM_OFFSET>.conf`. It holds the same endpoints and
-  sniffer as today's arguments, plus the filter on each SITL feed endpoint, and
-  starts the router with `-c`. The file lives in the ArduPilot fork, whose
-  deployed copy has long-standing uncommitted edits; its sha256 pin in
-  `lockstep_topology.py` changes with it.
+- Wall: `run_swarm.sh` writes the SITL feed endpoints, each with the filter,
+  to `$ARDUPILOT_DIR/router_<SWARM_OFFSET>.d/sitl_feeds.conf` per launch and
+  starts the router with `-d` on that directory (`rfd900` profile unchanged).
+  `-d` adds to the default `main.conf` instead of replacing it, as `-c` would.
+  The sniffer and the Windows endpoints stay on the command line, since
+  `wall_reap_wsl.py` finds the router by its monitor port. The file lives in
+  the ArduPilot fork, whose deployed copy has long-standing uncommitted edits;
+  its sha256 pin in `lockstep_topology.py` changes with it. The new copy is
+  staged as `run_swarm.sh.radio_budget` beside it and deployed at merge, since
+  every chat's launches read the one deployed file.
 - Expected effect: each SITL receives about 1.3 kB/s (23 % of 57600), and each
   NavPy's serial0 carries about 7 kB/s (61 % of 115200).
 
@@ -117,14 +125,16 @@ Two separate problems follow:
 - For each node that transmits (each UAV's serial1 output, the backend's
   output): mean and max bytes per second over fixed 50-tick (1 s) windows of
   sim time, plus the network total. A partial last window is scaled by its
-  length. Setup windows (before the first launch) are reported apart.
+  length. Setup (before the first NavPy spawn: connect, parameter writes,
+  mission uploads) is reported apart. Built: `eval_gcs_demo_air_load.py`,
+  `report.json` `air_load`.
 - SITL drops lost bytes before the coordinator sees them, so offered load is
   measured only on runs with `uart_loss` off. A loss-on run reports what it
   observed and says so.
 - No pass or fail until the owner sets a usable budget from the bench test, so
   no threshold is invented.
 
-### 4. Stream rates and air rate (owner decision, later; todo)
+### 4. Stream rates and air rate (owner decision, later; todo 92)
 
 With the item-3 numbers: lower `SR1_*` (the GCS backend reads ATTITUDE,
 GLOBAL_POSITION_INT, VFR_HUD, SYS_STATUS, GPS_RAW_INT, MISSION_CURRENT,
@@ -138,8 +148,8 @@ its own way to reach them.
 
 ## Acceptance for items 2 and 3
 
-- **Router model:** unit tests for each filter rule and its order, the
-  unknown-id bypass, and the three end states, including mixed results. The
+- **Router model:** unit tests for the filter and its place after the
+  loop check and before the target and sniffer rules, unknown ids, and the three end states, including mixed results. The
   parity fixture is recorded again against the binary, with the new cases.
 - **Routing per message class:** model and parity cases for the GCS heartbeat
   to an autopilot, COMMAND_LONG and its COMMAND_ACK, PARAM_SET and
@@ -161,5 +171,4 @@ its own way to reach them.
 
 ## Not covered
 
-- Air timing and per-link loss: the todo "Sim improvement: link delay, jitter,
-  per-link loss and outage".
+- Air timing and per-link loss: todo 90.

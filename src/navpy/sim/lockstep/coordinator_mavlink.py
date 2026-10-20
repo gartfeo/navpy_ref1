@@ -23,7 +23,8 @@ including the parked frame k_F+1), a reply's ingress (``to_sitl``, a packet
 counted at the reply that admits its last byte), the participants' drain
 egress (``drain_to_sitl``: never delivered, still counted so nothing crosses
 a link unseen), ``routed_out`` (router copies into a link),
-``router_dropped`` (packets from a link no endpoint accepted) and
+``router_dropped`` (packets from a link no endpoint accepted or filtered),
+``router_filtered`` (packets from a link no endpoint accepted and some filtered) and
 ``router_skipped_bytes`` (bytes from a link that are no packet, or fail
 their CRC; the autopilot's boot text).
 """
@@ -39,8 +40,10 @@ TO_SITL = "to_sitl"
 DRAIN_TO_SITL = "drain_to_sitl"
 ROUTED_OUT = "routed_out"
 ROUTER_DROPPED = "router_dropped"
+ROUTER_FILTERED = "router_filtered"
 ROUTER_SKIPPED_BYTES = "router_skipped_bytes"
-DIRECTIONS = (FROM_SITL, TO_SITL, DRAIN_TO_SITL, ROUTED_OUT, ROUTER_DROPPED, ROUTER_SKIPPED_BYTES)
+DIRECTIONS = (FROM_SITL, TO_SITL, DRAIN_TO_SITL, ROUTED_OUT, ROUTER_DROPPED, ROUTER_FILTERED,
+              ROUTER_SKIPPED_BYTES)
 #: The tally link of the router's backend endpoint.
 ROUTER_LINK = "router.backend"
 #: The NavPy dialect's NAVLINK message ids (``navlink`` in the MAVLink XML).
@@ -120,6 +123,6 @@ def _note_navlink(record: dict, device: str, direction: str, counts: Counter[str
 
 __all__ = [
     "DIRECTIONS", "DRAIN_TO_SITL", "FROM_SITL", "MavlinkTally", "MessageKey", "NAVLINK_IDS",
-    "NO_TARGET", "ROUTED_OUT", "ROUTER_DROPPED", "ROUTER_LINK",
+    "NO_TARGET", "ROUTED_OUT", "ROUTER_DROPPED", "ROUTER_FILTERED", "ROUTER_LINK",
     "ROUTER_SKIPPED_BYTES", "TO_SITL", "message_id", "parse_key",
 ]

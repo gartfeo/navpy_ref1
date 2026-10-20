@@ -53,16 +53,33 @@ def test_sitl_serial1_routes_first_then_the_backend_and_nothing_overtakes(run):
                                   done=[(backend, ROUTER, gcs + param)])
     # Step 1, endpoint order: the backend's TICK 1 carries every SITL's heartbeat.
     assert delivered == {ROUTER: hb[1] + hb[2] + hb[3]}
-    # Step 4: the backend's bytes join each serial1 queue behind step 1's. The
-    # targeted PARAM_REQUEST_READ reaches only SITL 2, which has seen 2/1.
-    assert ingress[serial1(1)] == hb[2] + hb[3] + gcs
-    assert ingress[serial1(2)] == hb[1] + hb[3] + gcs + param
-    assert ingress[serial1(3)] == hb[1] + hb[2] + gcs
+    # Step 4: the backend's bytes join each serial1 queue behind step 1's. No
+    # SITL gets a peer autopilot's heartbeat (each SITL endpoint filters
+    # components 1 and 100). The targeted PARAM_REQUEST_READ reaches only
+    # SITL 2, which has seen 2/1.
+    assert ingress[serial1(1)] == gcs
+    assert ingress[serial1(2)] == gcs + param
+    assert ingress[serial1(3)] == gcs
     assert all(ingress[serial0(i)] == b"" for i in (1, 2, 3))
     journal = run.journal()
     assert journal.problems() == []
     routed = [event for _k, event in run.events("routed")]
-    assert [event[2] for event in routed] == [3, 3, 3, 3, 1]  # copies per source, in routing order
+    assert [event[2] for event in routed] == [1, 1, 1, 3, 1]  # copies per source, in routing order
+
+
+def test_a_packet_only_filtered_or_rejected_ends_router_filtered_not_dropped(run):
+    src = Sources()
+    backend = run.roster.add(BACKEND, ROUTER)
+    # Tick 1 routes SITL 1 before the backend has said who it is: no sniffer
+    # yet, SITL 2 and 3 filter component 1, so 1/1 -> 2/1 reaches nobody.
+    run.tick(1, egress={serial1(1): src.param((1, 1), 2, 1)}, admitted=[backend],
+             done=[(backend, ROUTER, src.heartbeat(255, 190))])
+    assert run.journal().problems() == []
+    assert [event[0] for _k, event in run.events("router_filtered")] == ["router_filtered"]
+    assert run.events("router_dropped") == []
+    counts = run.ports.closing()["mavlink_counts"]
+    assert counts[serial1(1)]["router_filtered"]["messages"] == {"20:1.1>2": 1}  # its source link
+    assert counts[serial1(1)]["router_dropped"]["messages"] == {}
 
 
 def test_serial0_is_point_to_point_through_its_navpys_tick_and_queue(run):
@@ -211,7 +228,7 @@ def test_the_tally_derives_from_the_records(run):
     # 1/1 -> 9/1 reaches only the sniffer (the backend); 255/190 -> 9/1 nobody.
     assert counts[ROUTER_LINK]["routed_out"]["messages"]["20:1.1>9"] == 1
     assert counts[ROUTER_LINK]["router_dropped"]["messages"] == {"20:255.190>9": 1}
-    assert counts[serial1(2)]["to_sitl"]["messages"] == {"0:1.1>-": 1, "0:3.1>-": 1, "0:255.190>-": 1}
+    assert counts[serial1(2)]["to_sitl"]["messages"] == {"0:255.190>-": 1}
 
 
 def test_every_packet_must_end_and_an_incomplete_frame_is_journaled(run):

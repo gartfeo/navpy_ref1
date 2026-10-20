@@ -4,9 +4,11 @@
 (``tests/fixtures/lockstep/router_parity.json``, recorded offline by
 ``scripts/router_parity.py --record``, never inside a run) holds the
 binary's sha256 and, per case, the datagrams sent into its endpoints and
-the bytes each endpoint received. The model (the router entry table, the
-framer and :class:`~navpy.sim.lockstep.router_model.ReferenceRouter`) must
-deliver the same bytes to the same endpoints. ``NAVPY_ROUTER_PARITY=1``
+the bytes each endpoint received, the case's ``BlockSrcCompOut`` filters
+and the binary's ``msg_to_unknown`` count. The model (the router entry
+table, the framer and
+:class:`~navpy.sim.lockstep.router_model.ReferenceRouter`) must deliver the
+same bytes to the same endpoints and count the same. ``NAVPY_ROUTER_PARITY=1``
 also re-runs the binary in WSL and re-extracts its entry table.
 """
 
@@ -23,10 +25,10 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 from navpy.sim.lockstep.router_entries import TABLE_FILE, EntryTable, load_entry_table
 from navpy.sim.lockstep.router_framer import RouterFramer
 from scripts import router_parity
-from scripts.router_parity import ENDPOINTS, FIXTURE, replay_model
+from scripts.router_parity import ENDPOINTS, FILTERED_CASES, FIXTURE, SITL_FILTERS, replay_model
 
 CASES = ("targeted", "broadcast", "sniffer", "unknown_target", "targeted_navlink", "boot_text",
-         "split_packet", "ap_echo")
+         "split_packet", "ap_echo", *FILTERED_CASES)
 
 
 def _fixture() -> dict:
@@ -41,19 +43,26 @@ def _received(case: dict) -> dict[str, bytes]:
     return {name: bytes.fromhex(data) for name, data in case["received"].items()}
 
 
+def _filters(case: dict) -> dict[str, tuple[int, ...]]:
+    return {name: tuple(components) for name, components in case["filters"].items()}
+
+
 def test_the_fixture_and_the_entry_table_name_the_same_binary():
     fixture, table = _fixture(), load_entry_table()
     assert fixture["binary"] == "/usr/bin/mavlink-routerd" and fixture["version"] == "d59ef94"
     assert fixture["binary_sha256"] == table.binary_sha256
     assert len(fixture["binary_sha256"]) == 64 and table.version == fixture["version"]
     assert set(fixture["cases"]) == set(CASES) and fixture["endpoints"] == list(ENDPOINTS)
+    for name, case in fixture["cases"].items():
+        assert _filters(case) == (SITL_FILTERS if name in FILTERED_CASES else {})
 
 
 @pytest.mark.parametrize("name", CASES)
 def test_the_model_delivers_the_binarys_bytes_to_the_binarys_endpoints(name):
     case = _fixture()["cases"][name]
     received = _received(case)
-    assert replay_model(_steps(case), load_entry_table()) == received
+    assert replay_model(_steps(case), load_entry_table(), filters=_filters(case)) == (
+        received, case["unknown"])
     fences = {data for _endpoint, data, fence in _steps(case) if fence}
     payload = {endpoint: [s.data for s in RouterFramer(load_entry_table()).feed(data)
                           if s.packet is not None and s.data not in fences]
@@ -76,17 +85,22 @@ def test_targets_come_from_the_entry_table_not_the_dialect():
 def test_the_cases_tell_a_wrong_model_apart():
     """Each rule matters: a model without it disagrees with the binary somewhere."""
     fixture, table = _fixture(), load_entry_table()
-    cases = {name: (_steps(case), _received(case)) for name, case in fixture["cases"].items()}
+    cases = {name: (_steps(case), _filters(case), (_received(case), case["unknown"]))
+             for name, case in fixture["cases"].items()}
 
     def failing(**variant) -> set[str]:
-        return {name for name, (steps, received) in cases.items()
-                if replay_model(steps, variant.get("table", table), variant.get("sniffer", 255)) != received}
+        return {name for name, (steps, filters, recorded) in cases.items()
+                if replay_model(steps, variant.get("table", table), variant.get("sniffer", 255),
+                                variant.get("filters", filters)) != recorded}
 
     assert "sniffer" in failing(sniffer=0)
     no_targets = EntryTable(table.binary_sha256, table.version, {
         msgid: dataclasses.replace(entry, flags=0) for msgid, entry in table.entries.items()})
     assert {"targeted", "targeted_navlink"} <= failing(table=no_targets)
     assert "boot_text" in failing(table=EntryTable(table.binary_sha256, table.version, {}))
+    # Without the filter, or with it on the backend too, every filtered case disagrees.
+    assert set(FILTERED_CASES) <= failing(filters={})
+    assert set(FILTERED_CASES) <= failing(filters={name: (1, 100) for name in ENDPOINTS})
 
 
 @pytest.mark.skipif(os.environ.get("NAVPY_ROUTER_PARITY") != "1",
@@ -99,4 +113,4 @@ def test_the_deployed_binary_still_gives_the_recorded_bytes():
     assert [list(row) for row in router_parity.extract_entry_table(image)] == table["entries"]
     cases = {name: _steps(case) for name, case in fixture["cases"].items()}
     live = router_parity.run_binary(cases)
-    assert live == {name: _received(case) for name, case in fixture["cases"].items()}
+    assert live == {name: (_received(case), case["unknown"]) for name, case in fixture["cases"].items()}

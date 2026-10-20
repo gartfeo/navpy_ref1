@@ -25,7 +25,10 @@ and the terminal dispositions, exactly one per id:
   in ``TICK k``, written only when that member is admitted and live and
   every byte of the packet went to it;
 - ``["discarded", id, reason]``: ``unadmitted``, ``retired`` or ``drain``;
-- ``["router_dropped", id]``: no endpoint accepted it;
+- ``["router_dropped", id]``: no endpoint accepted or filtered it (mavlink-router's
+  ``msg_to_unknown``);
+- ``["router_filtered", id]``: no endpoint accepted it and at least one filtered it
+  (``docs/design/radio_budget.md``);
 - ``["routed", id, copies]``: a source the router copied;
 - ``["undelivered", id, bytes admitted, bytes pending]``: queued at parking.
 
@@ -47,7 +50,7 @@ from navpy.sim.lockstep.router_framer import RouterPacket, Segment
 PacketId = tuple[Hashable, int, str, int]
 ROUTER_ORIGIN = "router"
 DISCARD_REASONS = ("unadmitted", "retired", "drain")
-TERMINALS = ("delivered", "discarded", "router_dropped", "routed", "undelivered")
+TERMINALS = ("delivered", "discarded", "router_dropped", "router_filtered", "routed", "undelivered")
 _DECODER = mavlink.MAVLink(None)
 
 

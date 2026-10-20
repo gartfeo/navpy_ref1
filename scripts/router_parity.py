@@ -3,15 +3,20 @@
 ``lockstep_fleet.md``, Router parity (pinned, not claimed). The cases are
 recorded streams of UDP datagrams into the router's four endpoints (SITL
 1-3 serial1 and the backend): targeted, broadcast, sniffer, an unknown
-target, a targeted NAVLINK, boot text, a split packet and an AP echo.
+target, a targeted NAVLINK, boot text, a split packet and an AP echo, and
+cases with the SITL endpoints' ``BlockSrcCompOut`` filter
+(``radio_budget.md`` item 2): filtered broadcasts, filtered targeted
+messages, an unknown id, the message classes the fleet uses, and mixed loop,
+filter and target rejection.
 
 ``--record`` (offline, never inside a run) reads the deployed binary from
 WSL, extracts its message-entry table into
 ``src/navpy/sim/lockstep/router_entries.json``, replays every case through
 the binary (``router_parity_wsl.py``) and writes what each endpoint
-received, with the binary's sha256, to ``tests/fixtures/lockstep/router_parity.json``.
-``test_router_parity`` replays the same datagrams through the model
-(:func:`replay_model`) and requires the same bytes at every endpoint; with
+received and its ``msg_to_unknown`` count, with the binary's sha256, to
+``tests/fixtures/lockstep/router_parity.json``. ``test_router_parity``
+replays the same datagrams through the model (:func:`replay_model`) and
+requires the same bytes at every endpoint and the same count; with
 ``NAVPY_ROUTER_PARITY=1`` it also re-runs the binary.
 """
 
@@ -30,7 +35,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 from navpy.sim.lockstep.mavlink_wire import encoder
 from navpy.sim.lockstep.router_entries import FIELDS, TABLE_FILE, EntryTable
 from navpy.sim.lockstep.router_framer import RouterFramer
-from navpy.sim.lockstep.router_model import SNIFFER_SYSID, ReferenceRouter
+from navpy.sim.lockstep.router_model import SITL_BLOCK_SRC_COMP_OUT, SNIFFER_SYSID, ReferenceRouter
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "lockstep" / "router_parity.json"
@@ -44,8 +49,14 @@ HEARTBEAT_ENTRY = ENTRY.pack(0, 50, 9, 9, 0, 0, 0)
 #: A fence packet's source: a sysid per sending endpoint, used by nothing else.
 FENCE_SYSID = 200
 FENCE_COMPID = 199
+#: The filter ``run_swarm.sh`` and the coordinator give each SITL endpoint.
+SITL_FILTERS = {name: SITL_BLOCK_SRC_COMP_OUT for name in ENDPOINTS if name.startswith("sitl")}
+#: The cases recorded with :data:`SITL_FILTERS`; the others have no filter.
+FILTERED_CASES = ("filtered_broadcast", "filtered_targeted", "filtered_unknown_id",
+                  "filtered_mixed")
 
 Step = tuple[str, bytes, bool]
+Filters = dict[str, tuple[int, ...]]
 
 
 def extract_entry_table(binary: bytes) -> list[tuple[int, ...]]:
@@ -132,6 +143,48 @@ def build_cases() -> dict[str, list[Step]]:
         "split_packet": _split_case(hb, assign),
         "ap_echo": _case([*learn, ("sitl1", hb(1, 191)), ("sitl2", hb(1, 191)),
                           ("sitl3", assign((1, 191), 2)), ("backend", hb(1, 191))]),
+        **_filtered_cases(m, hb, param, learn, assign, ack),
+    }
+
+
+def _filtered_cases(m: _Sources, hb: Callable[..., bytes], param: Callable[..., bytes],
+                    learn: list[tuple[str, bytes]], assign: Callable[..., bytes],
+                    ack: Callable[..., bytes]) -> dict[str, list[Step]]:
+    """The cases recorded with :data:`SITL_FILTERS`."""
+    command = lambda src, system, component, number: m(  # noqa: E731
+        *src, "command_long", system, component, number, 0, 0, 0, 0, 0, 0, 0, 0)
+    command_ack = lambda src, system, component, number: m(  # noqa: E731
+        *src, "command_ack", number, 0, 0, 0, system, component)
+    param_set = m(255, 190, "param_set", 1, 1, b"X", 1.0, 9)
+    param_value = m(1, 1, "param_value", b"X", 1.0, 9, 1, 0)
+    camera_info = m(2, 100, "camera_information", 0, b"V" * 32, b"M" * 32, 0, 0.0, 0.0, 0.0, 0, 0, 0,
+                    0, 0, b"")
+    request = mavlink.MAV_CMD_REQUEST_MESSAGE
+    learn_more = [*learn, ("sitl1", hb(1, 191)), ("sitl2", hb(2, 191)), ("sitl2", hb(2, 100))]
+    return {
+        "filtered_broadcast": _case([*learn, ("sitl1", hb(1, 1)), ("sitl1", hb(1, 191)),
+                                     ("sitl1", hb(1, 100)), ("sitl1", hb(1, 101)),
+                                     ("backend", hb(255, 190)), ("backend", hb(255, 0))]),
+        "filtered_targeted": _case([*learn_more,
+                                    ("sitl1", param((1, 1), 2, 1)),  # filtered at sitl2, sniffed by the backend
+                                    ("backend", command((255, 190), 2, 1, 400)),
+                                    ("sitl2", command_ack((2, 1), 255, 190, 400)),
+                                    ("backend", param_set), ("sitl1", param_value),
+                                    ("backend", command((255, 190), 2, 100, request)),
+                                    ("sitl2", camera_info),
+                                    ("sitl2", command_ack((2, 100), 255, 190, request))]),
+        "filtered_unknown_id": _case([*learn, ("sitl1", _unknown_navlink(1, 1)),
+                                      ("sitl1", _unknown_navlink(1, 191)),
+                                      ("sitl2", _unknown_navlink(2, 100))]),
+        "filtered_mixed": _case([*learn_more,
+                                 ("sitl1", param((1, 1), 9, 1)),  # filtered and rejected: not unknown
+                                 ("backend", param((255, 190), 9, 1)),  # rejected everywhere: unknown
+                                 ("sitl3", hb(1, 1)),  # sitl1's source from sitl3: loop, filter, accept
+                                 ("sitl1", assign((1, 191), 2)), ("sitl1", assign((1, 191), 9)),
+                                 ("sitl2", ack((2, 191), 0)), ("sitl2", param((2, 100), 3, 1)),
+                                 # Every endpoint has seen (1, 1): the loop check rejects before
+                                 # the filter, so the packet counts as unknown.
+                                 ("sitl2", hb(1, 1)), ("backend", param((1, 1), 9, 1))]),
     }
 
 
@@ -151,31 +204,38 @@ def _checksum_v1(frame: bytes) -> bytes:
     return crc.crc.to_bytes(2, "little")
 
 
-def replay_model(steps: list[Step], table: EntryTable,
-                 sniffer_sysid: int = SNIFFER_SYSID) -> dict[str, bytes]:
-    """The model's view of a case: what each endpoint receives, in order."""
-    router = ReferenceRouter(list(ENDPOINTS), sniffer_sysid)
+def case_filters(name: str) -> Filters:
+    return dict(SITL_FILTERS) if name in FILTERED_CASES else {}
+
+
+def replay_model(steps: list[Step], table: EntryTable, sniffer_sysid: int = SNIFFER_SYSID,
+                 filters: Filters | None = None) -> tuple[dict[str, bytes], int]:
+    """The model's view of a case: what each endpoint receives, in order, and its unknown count."""
+    router = ReferenceRouter(list(ENDPOINTS), sniffer_sysid, filters)
     framers = {name: RouterFramer(table) for name in ENDPOINTS}
     received = {name: bytearray() for name in ENDPOINTS}
     for endpoint, data, _fence in steps:
         for segment in framers[endpoint].feed(data):
             if segment.packet is not None:
-                for destination in router.route(endpoint, segment.packet):
+                for destination in router.route(endpoint, segment.packet).destinations:
                     received[destination] += segment.data
-    return {name: bytes(data) for name, data in received.items()}
+    return {name: bytes(data) for name, data in received.items()}, router.dropped_unknown_target
 
 
-def run_binary(cases: dict[str, list[Step]], binary: str = BINARY) -> dict[str, dict[str, bytes]]:
+def run_binary(cases: dict[str, list[Step]],
+               binary: str = BINARY) -> dict[str, tuple[dict[str, bytes], int]]:
+    """Each case's bytes per endpoint and ``msg_to_unknown`` count from the binary."""
     job = {"binary": binary, "endpoints": list(ENDPOINTS),
-           "cases": {name: [[e, d.hex(), f] for e, d, f in steps] for name, steps in cases.items()}}
+           "cases": {name: [[e, d.hex(), f] for e, d, f in steps] for name, steps in cases.items()},
+           "filters": {name: {e: list(c) for e, c in case_filters(name).items()} for name in cases}}
     harness = subprocess.run(["wsl.exe", "-e", "wslpath", "-a", str(WSL_HARNESS)],
                              capture_output=True, text=True, check=True).stdout.strip()
     result = subprocess.run(["wsl.exe", "-e", "python3", harness], input=json.dumps(job),
                             capture_output=True, text=True, timeout=300)
     if result.returncode != 0:
         raise RuntimeError(f"router parity harness failed: {result.stderr.strip()}")
-    return {case: {name: bytes.fromhex(data) for name, data in received.items()}
-            for case, received in json.loads(result.stdout).items()}
+    return {case: ({name: bytes.fromhex(data) for name, data in out["received"].items()}, out["unknown"])
+            for case, out in json.loads(result.stdout).items()}
 
 
 def binary_bytes(binary: str = BINARY) -> bytes:
@@ -198,7 +258,9 @@ def record() -> None:
     fixture = {"binary": BINARY, "version": version, "binary_sha256": sha256,
                "endpoints": list(ENDPOINTS), "cases": {
                    name: {"steps": [[e, d.hex(), f] for e, d, f in steps],
-                          "received": {n: outputs[name][n].hex() for n in ENDPOINTS}}
+                          "filters": {e: list(c) for e, c in case_filters(name).items()},
+                          "received": {n: outputs[name][0][n].hex() for n in ENDPOINTS},
+                          "unknown": outputs[name][1]}
                    for name, steps in cases.items()}}
     FIXTURE.write_text(json.dumps(fixture, indent=1) + "\n", encoding="utf-8")
 

@@ -313,24 +313,29 @@ def test_recorded_profile_parameters_reads_the_manifests_sitl_parameters(tmp_pat
             recorded_profile_parameters(tmp_path)
 
 
-def test_a_source_outside_the_fleet_and_a_router_dropped_navlink_packet_fail(fleet):
+def test_a_source_outside_the_fleet_fails(fleet):
     records, _lines, _approvals = fleet
     changed = copy.deepcopy(records)
     emitted = next(e for _r, e in _events(changed) if e[0] == "emitted" and e[1][0] == "sitl2")
     emitted[5] = [7, 1]
     assert _forwarding(changed) == [f"forwarding: {emitted[1]} from system 7 at tick {AUCTION_TICK + 2}"]
+
+
+@pytest.mark.parametrize("end", ["router_dropped", "router_filtered"])
+def test_a_navlink_packet_the_router_does_not_route_fails(fleet, end):
+    records, _lines, _approvals = fleet
     dropped = copy.deepcopy(records)
     record, routed = next((r, e) for r, e in _events(dropped) if e[0] == "routed")
     copies = [e for e in record["packets"] if e[0] == "copy" and e[2] == routed[1]]
     for event in copies + [routed]:
         record["packets"].remove(event)
-    record["packets"].append(["router_dropped", routed[1]])
+    record["packets"].append([end, routed[1]])
     copy_ids = [c[1] for c in copies]
     for r, e in _events(dropped):
         if e[1] in copy_ids:
             r["packets"].remove(e)
     errors = _forwarding(dropped)
-    assert f"forwarding: NAVLINK {routed[1]} router_dropped at tick {AUCTION_TICK + 2}" in errors
+    assert f"forwarding: NAVLINK {routed[1]} {end} at tick {AUCTION_TICK + 2}" in errors
 
 
 def _cross_check(tmp_path, records, packets):
