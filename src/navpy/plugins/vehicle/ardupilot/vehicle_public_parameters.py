@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
 from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
 from navpy.plugins.vehicle.ardupilot.vehicle_public_ports import (
     ParameterParts,
@@ -32,7 +33,7 @@ class VehicleParameterFacet:
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         return self._parts.parameters.get(name, timeout, retries, quiet)
@@ -41,7 +42,7 @@ class VehicleParameterFacet:
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         return self._parts.parameters.get_fresh(name, timeout, retries, quiet)

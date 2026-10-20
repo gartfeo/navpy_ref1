@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
 from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
 from navpy.plugins.vehicle.ardupilot.parameter_reader import (
     MISSING_PARAMETER_RETRY_S,
@@ -29,7 +30,7 @@ class ParameterClient:
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         return self._reader.get(name, timeout, retries, quiet)
@@ -42,7 +43,7 @@ class ParameterClient:
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         return self._reader.get_fresh(name, timeout, retries, quiet)

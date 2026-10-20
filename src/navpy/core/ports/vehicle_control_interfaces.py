@@ -12,6 +12,10 @@ from navpy.core.ports.flight_mode import FlightMode
 
 ParameterValue = Union[int, float]
 CommandValue = Union[int, float]
+#: Sends of one parameter request or write before it fails. The MAVLink parameter
+#: protocol resends on a timeout, since a lost request or echo is not an answer;
+#: QGroundControl and MAVProxy also resend.
+PARAM_PROTOCOL_ATTEMPTS = 3
 
 
 class VehicleFlightControl(ABC):
@@ -115,7 +119,7 @@ class VehicleParameters(ABC):
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None: ...
 
@@ -124,7 +128,7 @@ class VehicleParameters(ABC):
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None: ...
 
@@ -161,6 +165,7 @@ class VehicleSimulationAccess(ABC):
 
 __all__ = [
     "CommandValue",
+    "PARAM_PROTOCOL_ATTEMPTS",
     "ParameterValue",
     "VehicleFlightControl",
     "VehicleMissionAccess",

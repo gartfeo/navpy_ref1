@@ -6,6 +6,7 @@ from __future__ import annotations
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
@@ -35,7 +36,7 @@ class ParameterReader:
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         normalized = name.upper()
@@ -49,12 +50,13 @@ class ParameterReader:
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         normalized = name.upper()
+        # An answer to an earlier request still counts.
+        cursor = self._messages.cursor()
         for attempt in range(1, retries + 1):
-            cursor = self._messages.cursor()
             self._transport.call(
                 lambda connection: connection.mav.param_request_read_send(
                     self._identity.target_system,

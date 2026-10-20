@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from navpy.core.ports.vehicle_control_interfaces import (
     CommandValue,
+    PARAM_PROTOCOL_ATTEMPTS,
     VehicleFlightControl,
     VehicleMissionAccess,
     VehicleParameters,
@@ -77,7 +78,7 @@ class IVehicle(
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         del timeout, retries, quiet

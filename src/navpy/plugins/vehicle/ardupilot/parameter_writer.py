@@ -11,6 +11,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
@@ -59,22 +60,28 @@ class ParameterWriter:
             return False
         with self._write_lock:
             self._repository.invalidate(spec.name)
+            # A write is idempotent, so a timeout resends it; an echo of an
+            # earlier send still counts.
             cursor = self._messages.cursor()
-            self._transport.call(
-                lambda connection: connection.mav.param_set_send(
-                    self._identity.target_system,
-                    0,
-                    spec.name.encode(),
-                    spec.value,
-                    spec.wire_type,
+            sample = None
+            for _attempt in range(PARAM_PROTOCOL_ATTEMPTS):
+                self._transport.call(
+                    lambda connection: connection.mav.param_set_send(
+                        self._identity.target_system,
+                        0,
+                        spec.name.encode(),
+                        spec.value,
+                        spec.wire_type,
+                    )
                 )
-            )
-            sample = self._messages.wait_after(
-                "PARAM_VALUE",
-                cursor,
-                lambda message: self._matches(message, spec),
-                deadline=rt.monotonic() + timeout,
-            )
+                sample = self._messages.wait_after(
+                    "PARAM_VALUE",
+                    cursor,
+                    lambda message: self._matches(message, spec),
+                    deadline=rt.monotonic() + timeout,
+                )
+                if sample is not None:
+                    break
         if sample is None:
             return False
         if spec.name == "SIM_SPEEDUP":
