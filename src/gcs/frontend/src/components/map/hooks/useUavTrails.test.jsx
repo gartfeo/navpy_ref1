@@ -149,4 +149,17 @@ describe('useUavTrails', () => {
     t.store.notify();
     expect(t.lons(1)).toEqual([44.000, 44.001]);
   });
+
+  it('a no-position snapshot during a link gap does not let the trail bridge it', () => {
+    const t = setup();
+    t.store.send(1, 44.000);
+    t.store.send(1, 44.001); // position A
+    t.store.fresh.clear();
+    t.store.vehicles.set(1, { sys_id: 1, lat: null, lon: null });
+    t.store.notify();
+    t.store.send(1, 44.005); // position B
+    t.store.send(1, 44.006);
+    expect(t.joins(1, 44.001, 44.005)).toBe(false);
+    expect(t.lons(1)).toEqual([44.000, 44.001, 44.005, 44.006]);
+  });
 });

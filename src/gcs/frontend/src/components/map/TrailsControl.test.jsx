@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { act, render, fireEvent } from '@testing-library/react';
 import TrailsControl, { panelBounds } from './TrailsControl';
 import en from '../../locales/en.json';
 import hy from '../../locales/hy.json';
@@ -88,5 +88,29 @@ describe('TrailsControl', () => {
       .toEqual({ width: 188, maxHeight: 138 });
     // Wide pane: the panel keeps its 320 px width.
     expect(panelBounds({ right: 1500, bottom: 44 }, { left: 0, bottom: 900 }).width).toBe(320);
+  });
+
+  it('re-measures when the map pane resizes without a window resize', () => {
+    let onResize;
+    const Orig = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { constructor(cb) { onResize = cb; } observe() {} disconnect() {} };
+    try {
+      const utils = render(
+        <div data-testid="pane" style={{ position: 'relative' }}><div><TrailsControl {...props()} /></div></div>,
+      );
+      const pane = utils.getByTestId('pane');
+      Object.defineProperty(pane, 'offsetParent', { value: null });
+      const bar = utils.getByRole('button', { name: 'trailsPanel.title' }).parentElement.parentElement;
+      Object.defineProperty(bar, 'offsetParent', { value: pane });
+      pane.getBoundingClientRect = () => ({ left: 0, bottom: 900 });
+      utils.getByRole('button', { name: 'trailsPanel.title' }).getBoundingClientRect = () => ({ right: 1500, bottom: 44 });
+      open(utils);
+      expect(utils.getByTestId('trails-panel').style.width).toBe('320px');
+      pane.getBoundingClientRect = () => ({ left: 1300, bottom: 900 });
+      act(() => onResize());
+      expect(utils.getByTestId('trails-panel').style.width).toBe('188px');
+    } finally {
+      globalThis.ResizeObserver = Orig;
+    }
   });
 });

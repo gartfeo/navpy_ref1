@@ -126,7 +126,9 @@ describe('Trails panel wiring into both history layers', () => {
     expect(t.trailPoints()).toBe(points);
     t.panel('trailsPanel.resume');
     t.store.send(1, 44.04);
+    t.store.send(1, 44.05);
     expect(t.marks()).toBeGreaterThan(marks);
+    expect(t.trailPoints()).toBeGreaterThan(points);
   });
 
   it('Clear all while paused empties both layers and stays paused', () => {
@@ -145,12 +147,17 @@ describe('Trails panel wiring into both history layers', () => {
   it('Restart clears and resumes even when the restart request fails', async () => {
     const t = setup();
     t.store.send(1, 44.00);
+    t.store.send(1, 44.01);
+    expect(t.trailPoints()).toBe(2);
     t.panel('trailsPanel.pause');
     await act(async () => { fireEvent.click(t.utils.getByRole('button', { name: 'restart' })); });
     expect(t.marks()).toBe(0);
+    expect(t.trailPoints()).toBe(0);
     expect(t.utils.queryByTestId('trails-paused-badge')).toBeNull();
     t.store.send(1, 44.05);
-    expect(t.marks()).toBe(1);
+    t.store.send(1, 44.06);
+    expect(t.marks()).toBe(2);
+    expect(t.trailPoints()).toBe(2);
   });
 
   it('a new plan object keeps the recorded marks', () => {

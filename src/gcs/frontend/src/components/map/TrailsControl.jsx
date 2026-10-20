@@ -86,6 +86,13 @@ export default function TrailsControl({
       setBounds(panelBounds(button.getBoundingClientRect(), pane.getBoundingClientRect()));
     };
     measure();
+    // The map pane can resize without the window (split view, sidebars).
+    const pane = rootRef.current?.parentElement?.offsetParent;
+    if (typeof ResizeObserver !== 'undefined' && pane) {
+      const ro = new ResizeObserver(measure);
+      ro.observe(pane);
+      return () => ro.disconnect();
+    }
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [open]);
