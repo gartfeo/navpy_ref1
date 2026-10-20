@@ -1158,7 +1158,7 @@ section above is written that way.
    recommended answers to the four open questions." The window starts
    closed behind a video icon at the right end of the action bar; Close
    goes; the UAV chip and its list switch UAV in two taps. The larger touch
-   size for the whole action bar is todo 92.
+   size for the whole action bar is todo 94.
 9. v12.1 approved (owner, 2026-10-20): "approved just have better icon
    this map I don't like much, but first check with me", then "OK use the
    Today for now". The chip and the source switch form one UAV group;

@@ -1086,3 +1086,54 @@
   stop-all/start-all, made each camera seen but discovery ended "retries exhausted"; no UAV ever
   advertised a stream, so the mixed fleet was not set up. Unconfirmed cause: the launcher starts
   the test MediaMTX only at launch. Next time launch with the setting already on.
+
+## GCS fence switch: show the fleet's fence (2026-10-20)
+- Copying the vehicles' fence into plan state (adopt on read) raced with
+  operator edits, stale reads and save/load; Codex found 7 bugs. Deriving
+  it on each render from the newest fleet answer, and writing plan state only
+  on an operator edit, removed the whole class. Prefer derived display state
+  over copying observed state into request state.
+- Edit wrappers that take a React functional updater must resolve it first:
+  a helper may refuse (return null), and side effects run before that check
+  act on an edit that never happened.
+- Python-generated JS test titles with an apostrophe inside single quotes
+  broke the parse twice. Use double-quoted titles.
+- Editing files while a live-tester run was going made Vite hot-reload under
+  it; the run's results were void. Freeze the tree during live runs.
+- A live failure that looked like the fix not working (switch off after a
+  reload) was a different bug: the backend timeline showed the downloaded
+  plan replaced 50 ms later. Read plan_rendered and request order in
+  timeline.jsonl before changing code for a live failure.
+
+## Delivery demo as a normal run (2026-10-20)
+- I designed dock waypoints around the ZR10 preset altitudes (403/383/363 m),
+  but the owner's settings name no camera profile, so the UI planner flew its
+  defaults (240/220/200 m). Codex caught it in code review; the live log
+  confirmed it (v_dist at approach start plus dock height above home). Before
+  reasoning from planner altitudes, read the settings the run actually uses
+  (`camera.vision_profile`) and confirm the flown altitude in a log.
+- A subprocess test of a script's imports passed without the fix, because the
+  shared venv's editable install points at another checkout that also
+  imports. Assert where the module came from (`navpy.__file__`), and
+  mutation-check by restoring the old file.
+- A background waiter that grepped Codex output for "verdict" fired at once:
+  the echoed prompt contains the word. Wait for `tokens used`.
+- `codex exec` sometimes fails before any command runs ("setup refresh had
+  errors") and still prints REJECT. That is no review; retry once.
+
+## Plan/camera check (2026-10-20)
+- Search optics are the device's first zoom (CameraIntrinsics starts there; a track stop resets to it), not
+  settings `vision_zoom`. Codex caught the selected-zoom version in design review; check which zoom a sim gate uses.
+- Exact visibility on a straight segment is cheap: camera coordinates are linear in along-track distance, so edges
+  are linear bounds. Keep the boundary cases the simulator rejects (zero distance) out of a closed interval.
+- Do not run the full pytest suite while a mutation script edits files: its vitest step read a mutated file and
+  failed. Run mutation proofs alone, then the suites.
+- From Python on Windows, capture `npx` output with `encoding="utf-8", errors="replace"`; the cp1252 default
+  floods stderr with reader-thread UnicodeDecodeErrors (the return code is still right).
+- A worktree has no node_modules. `npm ci` there took 13 s; a link to the main checkout's copy would let a build
+  wipe a running dev server's `.vite` cache.
+- App.jsx hands hooks new vehicleList arrays and param getters on telemetry and param updates, so an effect keyed on
+  a memo built from them refired the backend check about once a second. Unit tests missed it; the live test caught it.
+  Key such effects on the request content (a JSON key) and test a rerender with equal but new inputs.
+- When `codex exec` cannot start its shell ("helper_unknown_error: setup refresh had errors"), inline the full patch
+  (tracked diff plus `git diff --no-index /dev/null <new file>`) in the prompt; it then reviews statically.

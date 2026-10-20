@@ -28,6 +28,8 @@ export default function PlanningToolbar({
   fenceMapSource,
   placingExclusion,
   onToggleExclusion,
+  // Keep-outs are part of the fence: drawn only while the switch is on.
+  keepOutDrawable = true,
   onUndo,
   canUndo,
   onClearAll,
@@ -148,18 +150,17 @@ export default function PlanningToolbar({
             : t('planningToolbar.enableFence'))}
         onClick={onToggleFence}
         active={fenceEnabled}
-        disabled={polygon.length < 3}
+        // Off stays reachable without a zone: the fleet's fence can show ON.
+        disabled={polygon.length < 3 && !fenceEnabled}
         color={fenceEnabled ? '#ff9800' : undefined}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M7 1l5 2v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V3l5-2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill={fenceEnabled ? 'currentColor' : 'none'} fillOpacity={fenceEnabled ? 0.25 : 0}/>
         </svg>
       </MapIconBtn>
-      {/* Which ring the map is drawing. The planner preview and the ring read
-          back from the vehicles look identical on the map, and they can differ
-          (an unsent planner edit while the vehicles still hold the old ring),
-          so the source has to be named. Display only — the map's own render
-          selection is unchanged. */}
+      {/* Which ring the map is drawing: the fleet's own fence (shown while the
+          plan has no fence decision) or the planner's fence. They look
+          identical on the map, so the source has to be named. Display only. */}
       {fenceMapSource && (
         <div style={{
           fontSize: 11,
@@ -183,6 +184,7 @@ export default function PlanningToolbar({
         title={placingExclusion ? t('planningToolbar.stopKeepOut') : t('planningToolbar.drawKeepOut')}
         onClick={onToggleExclusion}
         active={placingExclusion}
+        disabled={!placingExclusion && !keepOutDrawable}
         color={placingExclusion ? '#ff3b30' : undefined}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

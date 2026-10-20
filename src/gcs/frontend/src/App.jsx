@@ -7,6 +7,7 @@ import useDisplaySettings from './hooks/useDisplaySettings';
 import usePlanningApi from './hooks/usePlanningApi';
 import useSettings from './hooks/useSettings';
 import useAasParams from './hooks/useAasParams';
+import { usePlanCameraCheckResult, usePlanCameraGate } from './hooks/usePlanCameraCheck';
 import useFullParams from './hooks/useFullParams';
 import useCompassCal from './hooks/useCompassCal';
 import useAccelCal from './hooks/useAccelCal';
@@ -33,8 +34,9 @@ import ManualControlOverlay from './components/ManualControlOverlay';
 import { rcPwmToStickY } from './utils/joystickMath';
 import { APP_BRANCH } from './utils/appBranch';
 import { fenceInclusion, fenceCoversPlan, isSimpleRing, analyzeExclusionConflicts, DEFAULT_ORBIT_RADIUS_M } from './utils/geo';
-import { MIN_FENCE_RING, fenceUploadPayload, shouldAutoEnableDemoFence, summarizeFenceObservations } from './utils/fenceIntent';
+import { fenceMapDisplay, fenceUploadPayload, shouldAutoEnableDemoFence, summarizeFenceObservations } from './utils/fenceIntent';
 import useFenceEditing from './hooks/useFenceEditing';
+import useVehicleFence from './hooks/useVehicleFence';
 import TelemetryHud from './components/TelemetryHud';
 import FlightModeColumn from './components/FlightModeColumn';
 import { computePrearmWarnings, launchGatesFromSettings } from './utils/prearmChecks';
@@ -82,13 +84,12 @@ export default function App() {
     setManualDeliveryHubEdit,
     simDockWps, detectAfterWps, setDetectAfterWps,
     fenceEnabled, setFenceEnabled, fenceOffsetM, setFenceOffsetM,
-    fenceTouched, toggleFence,
+    fenceTouched,
     fenceIntent, authorFenceIntent, resolveFenceIntent, fenceAcknowledged,
     fenceGeometryRevision, adoptDownloadedFenceGeometry,
     fenceObservations,
     fenceCustomVertices, setFenceCustomVertices,
     takeoffRoundM, setTakeoffRoundM,
-    exclusionPolygons, setExclusionPolygons,
     uploadProgress, setUploadProgress,
   } = mission;
   const lastPlanDiagnosticRef = useRef(null);
@@ -227,9 +228,6 @@ export default function App() {
   useEffect(() => {
     if (polygon.length < 3 && fenceCustomVertices) setFenceCustomVertices(null);
   }, [polygon.length, fenceCustomVertices, setFenceCustomVertices]);
-  // Fence edit gestures (vertex drag / midpoint insert / vertex delete) — the
-  // first gesture snapshots the rendered ring into fenceCustomVertices.
-  const fenceEditing = useFenceEditing({ fencePolygon, setFenceCustomVertices });
   // A custom-shaped fence can be dragged too tight — warn (never block) when it
   // no longer contains the full flight path (zone + takeoff rounds + corridor +
   // confirmation orbits): outside the inclusion fence means breach → RTL.
@@ -246,21 +244,33 @@ export default function App() {
     () => !!fenceCustomVertices && !isSimpleRing(fenceCustomVertices),
     [fenceCustomVertices],
   );
+  // What the connected vehicles report about their OWN fences. Display truth
+  // only — it never feeds the upload payload.
+  const observedFence = React.useMemo(
+    () => summarizeFenceObservations(fenceObservations, vehicleList.map((v) => v.sys_id)),
+    [fenceObservations, vehicleList],
+  );
+  // A fleet that already holds a fence reads ON on an undecided plan; see the hook.
+  const vehicleFenceState = useVehicleFence({ mission, observedFence, polygonLength: polygon.length });
+  const { vehicleFence, displayExclusionPolygons } = vehicleFenceState;
+  // The keep-outs the operator sees and edits (the fleet's merged in while its
+  // fence shows); the list, the checks and the upload all index this one list.
+  const { editableExclusions } = vehicleFenceState;
   // Nearest-edge insertion can self-intersect a keep-out too (even-odd shrinks
   // the enforced no-fly area) — flag the affected rings in the sidebar list.
   const selfIntersectingExclusions = React.useMemo(
-    () => (exclusionPolygons || [])
+    () => editableExclusions
       .map((r, i) => (Array.isArray(r) && r.length >= 3 && !isSimpleRing(r) ? i : -1))
       .filter((i) => i >= 0),
-    [exclusionPolygons],
+    [editableExclusions],
   );
   // Map-side hazard cue: the amber fence turns red while it is unsafe.
   const fenceWarning = fenceCustomVertices != null && (!fenceCoverageOk || fenceSelfIntersecting);
   // Sanitized exclusion keep-outs (>= 3 vertices) shared by the layer, the
   // conflict check, and the upload payload.
   const exclusions = React.useMemo(
-    () => (exclusionPolygons || []).filter((e) => Array.isArray(e) && e.length >= 3),
-    [exclusionPolygons],
+    () => editableExclusions.filter((e) => Array.isArray(e) && e.length >= 3),
+    [editableExclusions],
   );
   // Does the planned flight (corridor legs, scan tracks, confirmation orbits)
   // enter any keep-out? Detect-and-warn — the operator moves things or replans.
@@ -274,12 +284,6 @@ export default function App() {
       exclusions,
     });
   }, [exclusions, transitPaths, plan, fencePois]);
-  // What the connected vehicles report about their OWN fences. Display truth
-  // only — it never feeds the upload payload.
-  const observedFence = React.useMemo(
-    () => summarizeFenceObservations(fenceObservations, vehicleList.map((v) => v.sys_id)),
-    [fenceObservations, vehicleList],
-  );
   // In demo mode, auto-enable the fence once a search zone exists — unless the
   // operator has deliberately toggled it (fenceTouched), or we have observed
   // the vehicles' real fences. Auto-enabling on top of an observation would
@@ -297,17 +301,12 @@ export default function App() {
     }
   }, [simMode, polygon.length, fenceTouched, fenceEnabled, authorFenceIntent,
       observedFence]);
-  // With no authored fence, show the fleet's own ring so the operator can see
-  // what the vehicles actually hold. It stays out of `fencePolygon`, so the
-  // edit gestures (which snapshot into fenceCustomVertices) cannot adopt it by
-  // accident — adopting an observed ring has to be a deliberate act.
-  const observedRingOnly = !fenceEnabled && observedFence.ring != null;
-  const displayFencePolygon = fenceEnabled ? fencePolygon : observedFence.ring;
-  // Same for the vehicles' stored keep-outs: drawn when the operator has none
-  // of their own, but kept out of exclusionPolygons, which IS upload state.
-  const displayExclusionPolygons = exclusionPolygons?.length
-    ? exclusionPolygons
-    : observedFence.exclusions;
+  const fenceMap = fenceMapDisplay({ enabled: fenceEnabled, polygon: fencePolygon, vehicleFence });
+  // Fence edit gestures (vertex drag / midpoint insert / vertex delete) — the
+  // first gesture snapshots the rendered ring into fenceCustomVertices.
+  const fenceEditing = useFenceEditing({
+    fencePolygon: fenceMap.polygon, setFenceCustomVertices: vehicleFenceState.editFenceVertices,
+  });
   // Upload payload. Absent (null) = leave every vehicle's fence exactly as it
   // is, which is what an untouched download/upload round trip must produce.
   // Only operator-authored geometry can be uploaded.
@@ -330,9 +329,6 @@ export default function App() {
   // Display-only labels for the fence, derived from the same facts the map and
   // the upload already use. They name which ring is on screen and what the
   // next upload will actually request; neither one feeds the payload.
-  const fenceMapSource = fenceEnabled && displayFencePolygon?.length >= MIN_FENCE_RING
-    ? 'planner'
-    : (observedRingOnly ? 'vehicles' : 'none');
   const fenceRequestStatus = fenceInvalid
     ? 'invalid'
     : (fenceUpload == null ? 'none' : (fenceUpload.enabled ? 'enable' : 'disable'));
@@ -380,6 +376,11 @@ export default function App() {
     handleSaveSettings,
     settingsVersion,
     plannerReady,
+    exclusionEditing: {
+      exclusionPolygons: vehicleFenceState.editableExclusions,
+      setExclusionPolygons: vehicleFenceState.editExclusionPolygons,
+      drawable: vehicleFenceState.keepOutDrawable,
+    },
   });
 
   // ---- Task / WS handler wiring ----
@@ -504,6 +505,20 @@ export default function App() {
     fenceInvalid,
     fenceIntentGeneration: fenceIntent?.generation ?? null,
     onFenceIntentResolved: resolveFenceIntent,
+    getAas: aasParams.getConfirmedValue,
+  });
+
+  // ---- Plan/camera check: live in planning, re-run before Launch / Start ----
+  const planCameraCheck = usePlanCameraCheckResult({
+    enabled: simMode && phase === PHASES.PLANNING,
+    plan, corridorPointsArr: setCorridorPointsArr, searchPattern, vehicleList,
+    simDockWps, detectAfterWps, getAas: aasParams.getConfirmedValue, check: api.checkPlanCamera,
+    cameraKey: JSON.stringify(settings?.camera ?? null),
+  });
+  const confirmBeforeStart = usePlanCameraGate({
+    enabled: simMode,
+    plan, corridorPointsArr: setCorridorPointsArr, searchPattern, vehicleList,
+    vehicleTargWps, vehicleNavLastWp, getAas: aasParams.getConfirmedValue, check: api.checkPlanCamera,
   });
 
   // ---- Vehicle commands ----
@@ -512,6 +527,7 @@ export default function App() {
     taskConfirmReset: taskConfirm.reset,
     taskAssignReset: taskAssign.reset,
     setLaunchStates: ws.setLaunchStates,
+    confirmBeforeStart,
   });
   // ---- Manual control wiring (must be after useVehicleCommands for handleSetMode) ----
   const mc = useManualControlWiring({
@@ -639,8 +655,9 @@ export default function App() {
             plan={plan}
             analysis={analysis}
             searchPattern={searchPattern}
-            fencePolygon={displayFencePolygon}
-            showFence={fenceEnabled || observedRingOnly}
+            fencePolygon={fenceMap.polygon}
+            showFence={fenceMap.show}
+            fenceEditable={vehicleFenceState.editable}
             fenceWarning={fenceWarning}
             onFenceVertexDrag={fenceEditing.handleFenceVertexDrag}
             onFenceMidpointInsert={fenceEditing.handleFenceMidpointInsert}
@@ -753,13 +770,14 @@ export default function App() {
               onToggleDeliveryHub={planning.toggleDeliveryHubPlacement}
               placingDeliveryHubType={planning.placingDeliveryHubType}
               setPlacingDeliveryHubType={planning.setPlacingDeliveryHubType}
-              fenceEnabled={fenceEnabled}
-              onToggleFence={toggleFence}
+              fenceEnabled={vehicleFenceState.switchOn}
+              onToggleFence={vehicleFenceState.handleToggleFence}
               observedFenceMode={observedFence.mode}
               observedFenceAutoenableMode={observedFence.autoenableMode}
-              fenceMapSource={fenceMapSource}
+              fenceMapSource={fenceMap.source}
               placingExclusion={planning.placingExclusion}
               onToggleExclusion={planning.toggleExclusionPlacement}
+              keepOutDrawable={vehicleFenceState.keepOutDrawable}
               onUndo={planning.handleUndo}
               canUndo={planning.canUndo}
               onClearAll={planning.handleClearAll}
@@ -927,6 +945,7 @@ export default function App() {
         >
           {phase === PHASES.PLANNING && (
             <PlanningSidebar
+              cameraCheck={planCameraCheck}
               searchPattern={searchPattern}
               setSearchPattern={planning.handleSearchPatternChange}
               analysis={analysis}
@@ -952,20 +971,21 @@ export default function App() {
               routeOffsetM={routeOffsetM}
               setRouteOffsetM={setRouteOffsetM}
               hasSearchPolygon={polygon.length >= 3}
-              fenceEnabled={fenceEnabled}
-              onToggleFence={toggleFence}
+              fenceEnabled={vehicleFenceState.switchOn}
+              fencePlanned={fenceEnabled}
+              onToggleFence={vehicleFenceState.handleToggleFence}
               observedFence={observedFence}
               fenceRequestStatus={fenceRequestStatus}
               fenceOffsetM={fenceOffsetM}
               setFenceOffsetM={setFenceOffsetM}
               takeoffRoundM={takeoffRoundM}
               setTakeoffRoundM={setTakeoffRoundM}
-              fenceCustomized={fenceCustomVertices != null}
-              onFenceReset={fenceEditing.handleFenceReset}
+              fenceCustomized={fenceCustomVertices != null || vehicleFence != null}
+              onFenceReset={vehicleFenceState.editable ? fenceEditing.handleFenceReset : null}
               fenceCoverageOk={fenceCoverageOk}
               fenceSelfIntersecting={fenceSelfIntersecting}
               selfIntersectingExclusions={selfIntersectingExclusions}
-              exclusionPolygons={exclusionPolygons}
+              exclusionPolygons={editableExclusions}
               exclusionConflicts={exclusionConflicts}
               onRemoveExclusion={planning.handleRemoveExclusion}
               onClearExclusions={planning.handleClearExclusions}

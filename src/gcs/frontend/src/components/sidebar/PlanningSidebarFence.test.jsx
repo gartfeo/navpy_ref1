@@ -114,6 +114,27 @@ describe('PlanningSidebar observed fence — configured autoenable mode', () => 
 });
 
 /**
+ * A fleet fence shown as ON keeps the vehicles' own type and breach action;
+ * the planner's policy rows describe only a fence the plan requests.
+ */
+describe('PlanningSidebar fence policy rows', () => {
+  it("shows the planner policy (polygon, RTL) for the plan's own fence", () => {
+    const { container } = renderSidebar(summarize([]), { fenceEnabled: true });
+    expect(container.textContent).toContain('planningSidebar.fenceActionRtl');
+    expect(container.textContent).toContain('planningSidebar.fenceTypePolygon');
+  });
+
+  it("claims no breach action for the fleet's fence shown as on", () => {
+    const { container } = renderSidebar(summarize([[1, observed(0, 1)]]), {
+      fenceEnabled: true, fencePlanned: false, fenceCustomized: true,
+    });
+    expect(container.textContent).not.toContain('planningSidebar.fenceActionRtl');
+    expect(container.textContent).not.toContain('planningSidebar.fenceTypePolygon');
+    expect(container.textContent).toContain('planningSidebar.fenceResetAuto');
+  });
+});
+
+/**
  * What the next upload will actually do to the fence, and the help that has to
  * be readable before the operator touches anything.
  *
