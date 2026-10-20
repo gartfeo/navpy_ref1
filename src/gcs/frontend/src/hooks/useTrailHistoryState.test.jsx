@@ -26,8 +26,9 @@ describe('trail and camera-mark history state', () => {
     expect(result.current.display.hiddenSysIds.has(2)).toBe(true);
     act(() => result.current.display.hideSysIds([1, 3]));
     expect([...result.current.display.hiddenSysIds].sort()).toEqual([1, 2, 3]);
-    act(() => result.current.display.showAllSysIds());
-    expect(result.current.display.hiddenSysIds.size).toBe(0);
+    // All for the listed UAVs (1, 3) keeps absent UAV 2 unchecked.
+    act(() => result.current.display.showSysIds([1, 3]));
+    expect([...result.current.display.hiddenSysIds]).toEqual([2]);
   });
 
   it('Clear all bumps one history key and keeps pause; Restart clears and resumes', () => {

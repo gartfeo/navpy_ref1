@@ -127,4 +127,26 @@ describe('useUavTrails', () => {
     expect(t.lons(1)).toEqual([44.010, 44.011]);
     expect(t.drawn(1).shown.every((s) => s === false)).toBe(true);
   });
+
+  it('a reconnect alone (no pause) starts a new run at the first fresh position', () => {
+    const t = setup();
+    t.store.send(1, 44.000);
+    t.store.send(1, 44.001); // position A
+    t.store.disconnect();
+    t.store.notify(); // socket reopened: cached snapshots notified, none fresh
+    t.store.send(2, 45.000); // another UAV turns fresh first
+    t.store.send(1, 44.005); // position B
+    t.store.send(1, 44.006);
+    expect(t.joins(1, 44.001, 44.005)).toBe(false);
+    expect(t.drawn(1).pieces.some((p) => p[0] === 44.005 && p.includes(44.006))).toBe(true);
+  });
+
+  it('a fleet UAV without a position keeps its history', () => {
+    const t = setup();
+    t.store.send(1, 44.000);
+    t.store.send(1, 44.001);
+    t.store.vehicles.set(1, { sys_id: 1, lat: null, lon: null });
+    t.store.notify();
+    expect(t.lons(1)).toEqual([44.000, 44.001]);
+  });
 });

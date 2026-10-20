@@ -1,9 +1,26 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors, zoneColorsSolid } from '../../styles';
+import { PANEL_MARGIN_PX } from '../../utils/vehicleWindowLayout';
 
 /** Touch target for every control inside the panel (handheld rule). */
 const TARGET_PX = 44;
+/** Panel width on a wide map pane. */
+const PANEL_MAX_WIDTH_PX = 320;
+/** Gap between the bar button and the panel under it. */
+const PANEL_GAP_PX = 6;
+
+/**
+ * Panel bounds inside the map pane: right-aligned under the button, never
+ * past the pane's left or bottom margin, so a narrow or short pane scrolls
+ * the panel instead of cutting it off.
+ */
+export function panelBounds(buttonRect, paneRect) {
+  return {
+    width: Math.max(0, Math.min(PANEL_MAX_WIDTH_PX, buttonRect.right - paneRect.left - PANEL_MARGIN_PX)),
+    maxHeight: Math.max(0, paneRect.bottom - buttonRect.bottom - PANEL_GAP_PX - PANEL_MARGIN_PX),
+  };
+}
 
 const panelBtn = {
   minHeight: TARGET_PX,
@@ -57,6 +74,21 @@ export default function TrailsControl({
   const rootRef = useRef(null);
   const buttonRef = useRef(null);
   const paused = pausedAt != null;
+  const [bounds, setBounds] = useState(null);
+
+  // The bar sits in the map pane, which is its offset parent.
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const measure = () => {
+      const button = buttonRef.current;
+      const pane = rootRef.current?.parentElement?.offsetParent;
+      if (!button || !pane) return;
+      setBounds(panelBounds(button.getBoundingClientRect(), pane.getBoundingClientRect()));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -134,10 +166,11 @@ export default function TrailsControl({
           data-testid="trails-panel"
           style={{
             position: 'absolute',
-            top: 38,
+            top: 32 + PANEL_GAP_PX,
             right: 0,
-            width: 'min(320px, calc(100vw - 24px))',
-            maxHeight: '60vh',
+            width: bounds ? bounds.width : PANEL_MAX_WIDTH_PX,
+            maxHeight: bounds ? bounds.maxHeight : undefined,
+            boxSizing: 'border-box',
             overflowY: 'auto',
             padding: 12,
             borderRadius: 8,

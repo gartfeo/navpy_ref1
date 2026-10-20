@@ -82,8 +82,9 @@ export default function useUavTrails(
 
       if (vehicleList && vehicleList.length > 0) {
         vehicleList.forEach((v, vIdx) => {
-          if (v.lat == null || v.lon == null) return;
+          // Fleet membership, not a valid position, keeps a UAV's history.
           seen.add(v.sys_id);
+          if (v.lat == null || v.lon == null) return;
           const sid = v.sys_id;
           if (!trailData[sid]) trailData[sid] = newTrail();
           const trail = trailData[sid];

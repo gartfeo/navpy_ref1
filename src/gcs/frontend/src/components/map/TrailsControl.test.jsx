@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
-import TrailsControl from './TrailsControl';
+import TrailsControl, { panelBounds } from './TrailsControl';
 import en from '../../locales/en.json';
 import hy from '../../locales/hy.json';
 
@@ -80,5 +80,13 @@ describe('TrailsControl', () => {
       expect(hy.trailsPanel[k], `hy ${k}`).toBeTruthy();
     }
     expect(hy.trailsPanel.notRecordingSince).toContain('{{time}}');
+  });
+
+  it('keeps the panel inside the map pane, not the browser window', () => {
+    // Narrow pane: 188 px from the pane margin to the button's right edge.
+    expect(panelBounds({ right: 300, bottom: 44 }, { left: 100, bottom: 200 }))
+      .toEqual({ width: 188, maxHeight: 138 });
+    // Wide pane: the panel keeps its 320 px width.
+    expect(panelBounds({ right: 1500, bottom: 44 }, { left: 0, bottom: 900 }).width).toBe(320);
   });
 });
