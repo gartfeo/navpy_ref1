@@ -942,6 +942,21 @@
   coordinator rate and loss anyway, and the owner had it replaced by SITL's own (2026-10-20). Grep the
   firmware's `SIM_` parameters for the effect first; build only what SITL lacks.
 
+## Radio budget build (2026-10-20)
+- `TaskStop` on a background bash runner killed only the current child: the runner went on to the
+  next step and its `trap ... EXIT` (restore launcher, remove pc_busy) never ran. Do not stop a
+  runner that way; if it must stop, kill its process tree and run the restore steps by hand.
+- `pytest ... | tail -5` hid two real failures behind four known ones (the untracked codex toml), and
+  one of them, the 300-line budget, was my own earlier commit's. Print every FAILED line (`-rf |
+  grep FAILED`) and check each one before calling the rest "known".
+- A filter change can break a test double that uses the filtered message as generic load (the
+  router overload test's ENCAPSULATED_DATA blob). Grep the tests for the filtered ids when adding a
+  filter.
+- Codex's measurement corrected mine: the image is 35.9 kB of frames, not the 23.5 kB of one window
+  of chunk payloads. Quote sizes as framed bytes from the journal's byte ranges.
+- When Codex cannot read files (sandbox "setup refresh had errors" twice), paste the revised text
+  with line numbers into the prompt for a narrow re-review.
+
 ## Todo 31 trace: detector frames late in NAV (2026-10-19)
 - A wall eval's WSL SITL root is named from the run dir (`~/navpy-eval-roots/<name>-<hash>`), so a retry with the
   same run name fails at once with `WSL input step failed (1):` and empty stderr (`test ! -e` under `set -e`).

@@ -192,6 +192,21 @@ its own way to reach them.
   artifacts, with new baselines.
 - **Wall:** one wall eval run on the new `run_swarm.sh`, passing.
 
+## Results (round 3, `7f613661`, `.logs/radio-budget-r3`)
+
+- Parity 17 passed against the binary; `none` and `hw` matrices pass (one
+  digest, 58 files equal each); wall eval passes on the `4a1c00af` launcher.
+- **Backlog, `hw` seed 2:** pending 0 on every tick; NAVLINK packets not
+  delivered are 5, with `router_copy` at ticks 9330-9333 and the run ending at 9336. Receiver half at most 6
+  ticks per 5 s window on every UAV, image periods included. Sender half at
+  most 174 ticks while a UAV's own image goes out (todo 94), back to 2-3 ticks
+  within 10 s; in this run's windows, bursts do not add up. Line rate off: 2 ticks throughout. The
+  run fails only on the todo-77 reset markers, as with the line rate off.
+- **Not passing:** `stress` (one digest, 17 files equal, but every run fails
+  UAV 3's parameter write: todo 97) and `hw` seed 10 (a broken frame cut UAVs 2
+  and 3 off from the GCS at the router: todo 96). Both follow SITL byte loss
+  (96 traced at the router, 97 inferred); neither is traced to items 2-3.
+
 ## Not covered
 
 - Air timing and per-link loss: todo 90.
