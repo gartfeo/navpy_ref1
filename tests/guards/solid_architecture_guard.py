@@ -192,7 +192,7 @@ FACADE_METHOD_ALLOWANCES = {
     # finite-FOV sim camera pairs with ATTITUDE by boot time (sim pose
     # pairing design v3, approved 2026-10-15) -- a ratchet, not headroom.
     # 86 = 84 + read_parameter and write_parameter, the bounded parameter
-    # exchanges the GCS routes use (radio_budget.md round 4 design, todo 101,
+    # exchanges the GCS routes use (radio_budget.md round 4 design, todo 103,
     # Codex-reviewed 2026-10-20) -- a ratchet, not headroom.
     (
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",

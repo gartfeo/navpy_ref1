@@ -32,8 +32,8 @@ Frontend:
   over the MAVLink camera protocol; the backend checks each URI against
   `video.allowed_networks` and puts a WHEP URL (port `video.whep_port`) in the
   snapshot's `video_streams`. The browser plays it straight from the
-  aircraft's MediaMTX. The window shows whenever the fleet has a UAV and
-  opens on the UAV picker: a camera icon (the UAV advertises a stream; a pick
+  aircraft's MediaMTX. The window starts closed; the video icon at the right
+  end of the action bar opens it (fleet not empty) on the UAV picker: a camera icon (the UAV advertises a stream; a pick
   opens Camera) or a map icon (a pick opens Synthetic: shaded terrain from
   the UAV's pose, never confirms anything). The map never follows a UAV;
   only RC takes the map camera (first person). Sim test pattern:

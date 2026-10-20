@@ -407,22 +407,19 @@
     "clearCoverage": "Մաքրել ծածկույթը",
     "toggleTrails": "Թռիչքի հետագիծ",
     "clearTrails": "Մաքրել թռիչքի հետագիծը",
-    "resetView": "Վերականգնել տեսքը"
+    "resetView": "Վերականգնել տեսքը",
+    "video": "Սարքի տեսանյութ",
+    "showVideo": "Ցույց տալ սարքի տեսանյութը",
+    "hideVideo": "Թաքցնել սարքի տեսանյութը"
   },
   "vehicleWindow": {
     "region": "Սարքի պատուհան",
     "state": {
       "connecting": "ՄԻԱՑՈՒՄ",
-      "live": "ՈՒՂԻՂ",
-      "stale": "ՀՆԱՑԱԾ",
-      "failed": "ՁԱԽՈՂՎԵՑ",
-      "lost": "ԿՈՐԱԾ",
-      "noCamera": "ՏԵՍԱԽՑԻԿ ՉԿԱ",
-      "synthetic": "ՍԻՆԹԵՏԻԿ"
+      "live": "ՈՒՂԻՂ"
     },
     "connectingUav": "միացում · {{name}}",
     "noFrames": "ԿԱԴՐԵՐ ՉԿԱՆ {{seconds}} վ",
-    "noCamera": "Տեսախցիկ չկա · {{name}}",
     "videoLost": "Տեսախցիկի տեսանյութը կորել է · {{name}}",
     "linkLost": "Կապը սարքի հետ կորել է · {{name}}",
     "reason": {
@@ -435,27 +432,30 @@
     "reconnect": "Վերամիացնել տեսանյութը",
     "dismiss": "Փակել",
     "source": {
-      "group": "Տեսքի աղբյուր",
       "camera": "Տեսախցիկ",
-      "synthetic": "Սինթետիկ"
+      "synthetic": "Սինթետիկ",
+      "groupFor": "Տեսքի աղբյուր · {{name}}",
+      "noCameraFor": "{{name}}-ում տեսախցիկի հոսք չկա"
     },
     "maximize": "Մեծացնել",
     "restore": "Վերականգնել",
-    "close": "Փակել",
     "showMapLarge": "Ցույց տալ քարտեզը մեծ",
     "pickerPrompt": "Ընտրեք ԱԹՍ տեսահոսքի համար",
     "uav": {
       "camera": "{{name}}, տեսախցիկ",
       "map": "{{name}}, տեսախցիկ չկա, սինթետիկ տեսք",
       "linkLost": "կապը կորել է",
-      "withLinkLost": "{{name}}, կապը կորել է"
+      "withLinkLost": "{{name}}, կապը կորել է",
+      "opensCamera": "տեսախցիկ",
+      "opensSynthetic": "սինթետիկ"
     },
-    "syntheticTitle": "{{name}} · սինթետիկ տեսք",
     "syntheticTag": "ՍԻՆԹԵՏԻԿ · ոչ տեսախցիկ",
     "waitingForPose": "Սպասում ենք դիրքին · {{name}}",
     "syntheticUnavailable": "Սինթետիկ տեսքը հասանելի չէ",
-    "moreUavs": "ևս {{count}}",
-    "moreUavsLabel": "Այլ ԱԹՍ-ներ"
+    "retry": "Կրկնել",
+    "chip": "{{name}}, ընտրել ԱԹՍ",
+    "uavList": "ԱԹՍ-ներ",
+    "noRoom": "Պատկերի համար տեղը քիչ է"
   },
   "fpvView": {
     "tag": "ՍԻՆԹԵՏԻԿ · {{name}} · քթի տեսք, ոչ տեսախցիկ",

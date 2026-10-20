@@ -153,7 +153,7 @@ class TestSetVehicleParams:
         assert resp.json()["results"]["del_pitch"] is True
 
     def test_writes_use_the_gcs_budget_and_one_request_deadline(self, client, mock_vehicle):
-        """radio_budget.md, todo 101: 12 sends, a link check, one deadline for the request."""
+        """radio_budget.md, todo 103: 12 sends, a link check, one deadline for the request."""
         from gcs.backend.routes import params
 
         with patch.object(params.rt, "monotonic", return_value=100.0):

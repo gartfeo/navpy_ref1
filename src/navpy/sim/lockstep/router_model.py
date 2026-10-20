@@ -6,7 +6,7 @@ Emulates mavlink-router ``d59ef94`` (the ``/usr/bin/mavlink-routerd`` that
 ``-s 255`` (sniffer sysid 255, the GCS), no endpoint groups, no
 deduplication period (so no dedup), and each SITL endpoint's filters
 (:data:`SITL_FILTER`): ``AllowMsgIdIn`` (``docs/design/radio_budget.md``,
-todo 100), ``BlockMsgIdOut`` and ``BlockSrcCompOut`` (item 2).
+todo 102), ``BlockMsgIdOut`` and ``BlockSrcCompOut`` (item 2).
 
 The coordinator replaces mavlink-router on the serial1 fan-in (contract in
 ``docs/design/lockstep_contracts.md``, Router; ``lockstep_fleet.md``,
@@ -76,7 +76,7 @@ class EndpointFilter:
 
 #: Each SITL endpoint's filters (``docs/design/radio_budget.md``): it takes in only ids in the
 #: router's entry table, whose CRC the router checks, so a frame broken by the SITL byte loss
-#: never teaches it a source (todo 100); no peer autopilot (1) or camera (100) traffic and no
+#: never teaches it a source (todo 102); no peer autopilot (1) or camera (100) traffic and no
 #: confirmation image (its handshake and chunks, for the ground station only) reaches an
 #: autopilot (item 2). The backend's link is lossless and has no filter.
 SITL_FILTER = EndpointFilter(

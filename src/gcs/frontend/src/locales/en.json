@@ -407,22 +407,19 @@
     "clearCoverage": "Clear coverage",
     "toggleTrails": "Toggle flight path trace",
     "clearTrails": "Clear flight path trace",
-    "resetView": "Reset view"
+    "resetView": "Reset view",
+    "video": "Vehicle video",
+    "showVideo": "Show vehicle video",
+    "hideVideo": "Hide vehicle video"
   },
   "vehicleWindow": {
     "region": "Vehicle window",
     "state": {
       "connecting": "CONNECTING",
-      "live": "LIVE",
-      "stale": "STALE",
-      "failed": "FAILED",
-      "lost": "LOST",
-      "noCamera": "NO CAMERA",
-      "synthetic": "SYNTHETIC"
+      "live": "LIVE"
     },
     "connectingUav": "connecting · {{name}}",
     "noFrames": "NO FRAMES {{seconds}} s",
-    "noCamera": "No camera · {{name}}",
     "videoLost": "Camera video lost · {{name}}",
     "linkLost": "Vehicle link lost · {{name}}",
     "reason": {
@@ -435,27 +432,30 @@
     "reconnect": "Reconnect video",
     "dismiss": "Dismiss",
     "source": {
-      "group": "View source",
       "camera": "Camera",
-      "synthetic": "Synthetic"
+      "synthetic": "Synthetic",
+      "groupFor": "View source · {{name}}",
+      "noCameraFor": "No camera stream on {{name}}"
     },
     "maximize": "Maximize",
     "restore": "Restore",
-    "close": "Close",
     "showMapLarge": "Show the map large",
     "pickerPrompt": "Select a UAV for streaming",
     "uav": {
       "camera": "{{name}}, camera",
       "map": "{{name}}, no camera, synthetic view",
       "linkLost": "link lost",
-      "withLinkLost": "{{name}}, link lost"
+      "withLinkLost": "{{name}}, link lost",
+      "opensCamera": "camera",
+      "opensSynthetic": "synthetic"
     },
-    "syntheticTitle": "{{name}} · synthetic view",
     "syntheticTag": "SYNTHETIC · not camera",
     "waitingForPose": "Waiting for pose · {{name}}",
     "syntheticUnavailable": "Synthetic view unavailable",
-    "moreUavs": "{{count}} more",
-    "moreUavsLabel": "More UAVs"
+    "retry": "Retry",
+    "chip": "{{name}}, choose UAV",
+    "uavList": "UAVs",
+    "noRoom": "Too little room for the picture"
   },
   "fpvView": {
     "tag": "SYNTHETIC · {{name}} · nose view, not camera",

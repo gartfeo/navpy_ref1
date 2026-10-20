@@ -123,7 +123,8 @@ export default function App() {
   const mapPane = useElementSize(mapPaneRef, FALLBACK_PANE);
   const [mapCreditsPx, setMapCreditsPx] = useState(0);
   const [windowCreditsPx, setWindowCreditsPx] = useState(0);
-  const [windowChromePx, setWindowChromePx] = useState(0);
+  // Null until the open window measures its bar: no picture mounts before that.
+  const [windowChromePx, setWindowChromePx] = useState(null);
   const [ionTerrain, setIonTerrain] = useState(false);
   const [topControlsBottom, setTopControlsBottom] = useState(DEFAULT_TOP_CONTROLS_BOTTOM_PX);
   const [mapReady, setMapReady] = useState(false);
@@ -547,8 +548,9 @@ export default function App() {
   }, []);
 
   // ---- Vehicle window + RC FPV (docs/design/gcs_video_streams.md §5) ----
-  // The window's UAV buttons and View camera pick the window's UAV; the map
-  // never follows a UAV. useFpvView owns RC FPV and the saved map camera.
+  // The video icon in the action bar opens the window; its picker, its UAV
+  // list and View camera pick the window's UAV; the map never follows a UAV.
+  // useFpvView owns RC FPV and the saved map camera.
   const videoFleet = useVideoFleet(storeRef);
   const monitor = phase === PHASES.MONITOR;
   const win = useVehicleWindow({ fleet: videoFleet, active: monitor && !mc.manualControlEnabled });
@@ -556,14 +558,12 @@ export default function App() {
     rcEnabled: mc.manualControlEnabled, rcTarget: mc.manualControlTarget, mapCameraRef,
   });
   const showWindow = vehicleWindowVisible({
-    monitor, rcEnabled: mc.manualControlEnabled, fleetSize: videoFleet.length,
+    monitor, rcEnabled: mc.manualControlEnabled, fleetSize: videoFleet.length, open: win.open,
   });
   const windowLayout = vehicleWindowLayout({
     paneWidth: mapPane.width,
     paneHeight: mapPane.height,
     topControlsBottom,
-    badgeCount: videoFleet.length,
-    selectedIndex: videoFleet.findIndex((e) => e.sysId === win.sysId),
     swapped: showWindow && win.swapped,
     mapCreditsPx,
     windowChromePx,
@@ -583,13 +583,16 @@ export default function App() {
     flyToRef.current?.(lat, lon);
   }, [unswap]);
   const { viewing, viewCamera } = win;
+  // "Viewing" only while the picture is drawn: not while closed, nor with too
+  // little room for the picture.
+  const pictureShown = showWindow && windowLayout.pictureFits;
   const videoActionFor = useCallback((sysId) => {
     if (!videoFleet.find((e) => e.sysId === sysId)?.streams.length) return null;
     return {
-      viewing: showWindow && viewing(sysId),
+      viewing: pictureShown && viewing(sysId),
       onView: () => viewCamera(sysId),
     };
-  }, [videoFleet, showWindow, viewing, viewCamera]);
+  }, [videoFleet, pictureShown, viewing, viewCamera]);
   const fpvEntry = videoFleet.find((e) => e.sysId === fpv.fpvSysId);
 
   const mapHeight = `calc(100dvh - ${topBarHeight}px - ${bottomBarHeight}px)`;
@@ -801,12 +804,15 @@ export default function App() {
                 isBusyConnecting: (downloadingSysIds?.size || 0) > 0,
                 allDisarmed: vehicleList.length > 0 && vehicleList.every((v) => !v.armed),
               })}
+              videoOpen={win.open}
+              onToggleVideo={win.toggleOpen}
             />
           )}
-          {/* Vehicle window — monitor view only, never during manual control,
-              so it cannot sit over the joysticks, the flight-mode column or
-              the RC FPV HUD. Top-right under the action bar at z-index 9,
-              under the map overlay buttons and the confirmation cards. */}
+          {/* Vehicle window — while the video icon is pressed, monitor view
+              only, never during manual control, so it cannot sit over the
+              joysticks, the flight-mode column or the RC FPV HUD. Top-right
+              under the action bar at z-index 9, under the map overlay buttons
+              and the confirmation cards. */}
           {showWindow && (
             <VehicleWindow
               fleet={videoFleet}

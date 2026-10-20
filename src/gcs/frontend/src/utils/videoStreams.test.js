@@ -62,11 +62,13 @@ describe('video stream helpers', () => {
     expect(resolveShownStream({ sysId: 3, key: null }, [entry(1, [stream(100, 1)])]).kind).toBe('noCamera');
   });
 
-  it('the vehicle window shows in the monitor view, outside RC, whenever the fleet has a UAV', () => {
-    expect(vehicleWindowVisible({ monitor: true, rcEnabled: false, fleetSize: 1 })).toBe(true);
-    expect(vehicleWindowVisible({ monitor: true, rcEnabled: false, fleetSize: 0 })).toBe(false);
-    expect(vehicleWindowVisible({ monitor: true, rcEnabled: true, fleetSize: 3 })).toBe(false);
-    expect(vehicleWindowVisible({ monitor: false, rcEnabled: false, fleetSize: 3 })).toBe(false);
+  it('the vehicle window shows while open, in the monitor view, outside RC, with a UAV in the fleet', () => {
+    const shown = { monitor: true, rcEnabled: false, fleetSize: 1, open: true };
+    expect(vehicleWindowVisible(shown)).toBe(true);
+    expect(vehicleWindowVisible({ ...shown, open: false })).toBe(false);
+    expect(vehicleWindowVisible({ ...shown, fleetSize: 0 })).toBe(false);
+    expect(vehicleWindowVisible({ ...shown, rcEnabled: true })).toBe(false);
+    expect(vehicleWindowVisible({ ...shown, monitor: false })).toBe(false);
   });
 
   it('checks the announced codec against the receiver capabilities', () => {
