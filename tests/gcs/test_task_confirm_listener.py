@@ -89,6 +89,22 @@ class TestOnNavlink:
         assert payload["lon"] == pytest.approx(34.8, abs=0.01)
 
     @patch("gcs.backend.task_confirm_listener.ws_manager")
+    def test_unknown_position_is_relayed_as_null(self, mock_ws, listener, loop):
+        """NaN (no position known) must reach the UI as null, not a fake
+        coordinate and not a bare NaN, which JSON cannot carry."""
+        mock_ws.broadcast = AsyncMock()
+        nan = float("nan")
+        mav_msg = _make_navlink_msg(task_id=1, lat=nan, lon=nan, alt=nan)
+
+        listener._on_navlink(1, mav_msg)
+        loop.run_until_complete(asyncio.sleep(0.05))
+
+        payload = mock_ws.broadcast.call_args[0][0]
+        assert payload["lat"] is None
+        assert payload["lon"] is None
+        assert payload["alt"] is None
+
+    @patch("gcs.backend.task_confirm_listener.ws_manager")
     def test_ignores_non_confirm_navlink(self, mock_ws, listener, loop):
         mock_ws.broadcast = AsyncMock()
         # Create a message with an unregistered msgId

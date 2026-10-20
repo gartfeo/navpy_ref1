@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from typing import Optional
 
 from gcs.backend.broadcast import manager as ws_manager
@@ -24,6 +25,11 @@ from navpy.core.link.msg_abc import MsgRegistry
 
 
 log = logging.getLogger(__name__)
+
+
+def _known(value: float) -> Optional[float]:
+    """A request coordinate, or None when the companion sent NaN (unknown)."""
+    return value if math.isfinite(value) else None
 
 # Historical private names remain importable for compatibility tests and old
 # backend extensions. Concrete ownership lives in the focused modules above.
@@ -101,9 +107,9 @@ class TaskConfirmListener:
             "sys_id": sys_id,
             "task_id": task.task_id,
             "task_type": task.task_type.name,
-            "lat": task.location.lat,
-            "lon": task.location.lng,
-            "alt": task.location.alt,
+            "lat": _known(task.location.lat),
+            "lon": _known(task.location.lng),
+            "alt": _known(task.location.alt),
             "round_uid": uid,
         })
 

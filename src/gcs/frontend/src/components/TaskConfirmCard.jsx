@@ -100,6 +100,8 @@ export default function TaskConfirmCard({
   const decided = DECIDED_UI[entry.status] || null;
   const accent = pending ? colors.warning : (decided?.color || colors.border);
   const timerColor = remaining > 10 ? colors.success : remaining > 5 ? colors.warning : colors.error;
+  // The companion sends no position when it has not geolocated the POI.
+  const hasPosition = entry.lat != null && entry.lon != null;
   const mapsUrl = `https://www.google.com/maps?q=${entry.lat},${entry.lon}`;
 
   return (
@@ -155,14 +157,18 @@ export default function TaskConfirmCard({
 
       {/* Location */}
       <div style={{ fontSize: 11, color: colors.textDim, marginBottom: 6 }}>
-        {entry.lat.toFixed(6)}, {entry.lon.toFixed(6)}
-        {' '}
-        <a
-          href={mapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: colors.accent, textDecoration: 'none' }}
-        >{t('task.map')}</a>
+        {hasPosition ? (
+          <>
+            {entry.lat.toFixed(6)}, {entry.lon.toFixed(6)}
+            {' '}
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: colors.accent, textDecoration: 'none' }}
+            >{t('task.map')}</a>
+          </>
+        ) : t('task.positionUnknown')}
         {entry.alt != null && (
           <span> — {Math.round(entry.alt)}m</span>
         )}

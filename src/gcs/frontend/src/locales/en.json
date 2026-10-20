@@ -355,8 +355,9 @@
     }
   },
   "task": {
-    "title": "Task #{{id}}",
+    "title": "POI #{{id}}",
     "map": "[Map]",
+    "positionUnknown": "Position unknown",
     "waitingForImage": "Waiting for image...",
     "approve": "APPROVE",
     "deny": "DENY",

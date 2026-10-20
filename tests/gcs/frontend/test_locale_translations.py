@@ -16,6 +16,7 @@ IDENTICAL_VALUE_ALLOWLIST = {
     # Universal acronyms — identical in Armenian by design, not untranslated.
     "preflight.ekf",
     "preflight.gps",
+    "task.title",  # "POI #{{id}}": POI is the glossary acronym in Armenian too.
     # Firmware mode / acronym / product labels that are the same token
     # in Armenian (flight-mode names, protocol acronyms, ArduPilot product names).
     "planningSidebar.fenceActionRtl",                   # RTL
