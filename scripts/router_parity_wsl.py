@@ -5,15 +5,15 @@ inside a lockstep run. Reads a JSON job on stdin::
 
     {"binary": "/usr/bin/mavlink-routerd", "endpoints": [...names],
      "cases": {name: [[endpoint, hex, fence], ...]},
-     "filters": {name: {endpoint: [component, ...]}}}
+     "filters": {name: {endpoint: {"BlockMsgIdOut": [...], "BlockSrcCompOut": [...]}}}}
 
 Per case it starts its own router, ``-s 255`` as ``run_swarm.sh`` does, with
 an empty conf dir (the default ``main.conf`` stays unread), no TCP server,
 and one UDP server endpoint per name on a free loopback port. Without
 filters the endpoints are command-line arguments and the conf file holds
 only ``[General]``; a case with filters declares every endpoint in the conf
-file instead (``[UdpEndpoint <name>]``, ``Mode = Server``, its
-``BlockSrcCompOut``). The router logs at trace level; its lines ``to unknown
+file instead (``[UdpEndpoint <name>]``, ``Mode = Server``, its nonempty
+``BlockMsgIdOut`` and ``BlockSrcCompOut``). The router logs at trace level; its lines ``to unknown
 sysid/compid`` count its ``msg_to_unknown``.
 Each harness socket first sends one ``0x00`` byte, which teaches the router
 the socket's address and nothing else (no start marker: the router skips
@@ -74,7 +74,8 @@ def wait_until(condition: Callable[[], bool], what: str) -> None:
 UNKNOWN_LINE = "to unknown sysid/compid"
 
 
-def write_conf(path: str, names: list[str], ports: list[int], filters: dict[str, list[int]]) -> list[str]:
+def write_conf(path: str, names: list[str], ports: list[int],
+               filters: dict[str, dict[str, list[int]]]) -> list[str]:
     """The conf file; returns the endpoint arguments the command line still needs."""
     lines = ["[General]"]  # an empty file does not parse
     endpoints = [f"127.0.0.1:{port}" for port in ports]
@@ -83,15 +84,16 @@ def write_conf(path: str, names: list[str], ports: list[int], filters: dict[str,
         for name, port in zip(names, ports):
             lines += ["", f"[UdpEndpoint {name}]", "Mode = Server", "Address = 127.0.0.1",
                       f"Port = {port}"]
-            if filters.get(name):
-                lines.append("BlockSrcCompOut = " + ",".join(str(c) for c in filters[name]))
+            for key, values in sorted(filters.get(name, {}).items()):
+                if values:
+                    lines.append(f"{key} = " + ",".join(str(value) for value in values))
     with open(path, "w", encoding="ascii") as stream:
         stream.write("\n".join(lines) + "\n")
     return endpoints
 
 
 def run_case(binary: str, names: list[str], steps: list, workdir: str,
-             filters: dict[str, list[int]]) -> dict[str, object]:
+             filters: dict[str, dict[str, list[int]]]) -> dict[str, object]:
     conf_dir = os.path.join(workdir, "conf.d")
     os.makedirs(conf_dir, exist_ok=True)
     conf = os.path.join(workdir, "general.conf")

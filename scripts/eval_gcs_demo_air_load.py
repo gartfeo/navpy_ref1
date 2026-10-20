@@ -8,12 +8,17 @@ frames), counted at the tick that emitted them. Reported apart: bytes that
 are no packet (``router_skipped_bytes``) and an incomplete frame a stream
 still held at the end.
 
-Sim time is cut into windows of :data:`WINDOW_US`; a node's rate is its
-bytes per window second, a partial last window scaled by its length. Setup
-(the ticks before the first NavPy spawn: connect, parameter writes, mission
-uploads) is reported apart from the mission. SITL drops lost bytes before
-the coordinator sees them, so only a run with ``SIM_UART_LOSS`` off measures
-the offered load; a loss-on run reports what it observed.
+A tick's bytes were written over the sim time since the tick before, so
+they count in the interval ``(t_prev, t]`` that ends at the tick's time
+``t_us``; the first tick's starts at SITL boot (0). The parked frame k_F+1
+counts at its own ``t_us``, and drain ticks at theirs; the measurement ends
+at the last of them. Sim time is cut into windows of :data:`WINDOW_US`; a
+node's rate is its bytes per window second, a partial last window scaled by
+its length. Setup (up to the tick of the first NavPy spawn: connect,
+parameter writes, mission uploads) is reported apart from the mission.
+SITL drops lost bytes before the coordinator sees them, so only a run with
+``SIM_UART_LOSS`` off measures the offered load; a loss-on run reports what
+it observed.
 """
 
 from __future__ import annotations
@@ -37,14 +42,13 @@ def _nodes(records: Sequence[Mapping[str, Any]]) -> dict[str, str]:
 
 
 def _ticks(records: Sequence[Mapping[str, Any]]) -> list[tuple[int, list]]:
-    """``(t_us, packet events)`` per tick; the parked record's at the last tick's time."""
-    ticks, last = [], 0
+    """``(t_us, packet events)`` per tick, the parked frame's at its own sim time."""
+    ticks = []
     for record in records:
         if "k" in record and "t_us" in record:
-            last = record["t_us"]
-            ticks.append((last, record.get("packets", [])))
+            ticks.append((record["t_us"], record.get("packets", [])))
         elif "parked" in record:
-            ticks.append((last, record["parked"].get("packets", [])))
+            ticks.append((record["parked"]["t_us"], record["parked"].get("packets", [])))
     return ticks
 
 
@@ -55,13 +59,13 @@ def _first_spawn_us(records: Sequence[Mapping[str, Any]]) -> int | None:
 
 def _rates(samples: list[tuple[int, str, int]], names: Sequence[str], start_us: int,
            end_us: int) -> dict[str, Any]:
-    """Bytes, mean and max bytes per second of each node and of all, over ``[start, end]``."""
+    """Bytes, mean and max bytes per second of each node and of all, over ``(start, end]``."""
     span_us = end_us - start_us
     if span_us <= 0:
         return {"seconds": 0.0, "nodes": {}}
     windows: dict[int, dict[str, int]] = {}
     for t_us, node, size in samples:
-        bucket = windows.setdefault((t_us - start_us) // WINDOW_US, {})
+        bucket = windows.setdefault((t_us - start_us - 1) // WINDOW_US, {})
         bucket[node] = bucket.get(node, 0) + size
     count = -(-span_us // WINDOW_US)  # windows, the last maybe partial
 
@@ -87,20 +91,17 @@ def air_load(records: Sequence[Mapping[str, Any]], uart_loss: bool) -> dict[str,
             if event[0] == "emitted" and event[1][2] in nodes:
                 start, end = event[2]
                 samples.append((t_us, nodes[event[1][2]], end - start))
-    ticks = [t_us for t_us, _events in _ticks(records)]
-    # Each tick covers the sim time up to the next; the last one its predecessor's length.
-    first = ticks[0] if ticks else 0
-    last = ticks[-1] + (ticks[-1] - ticks[-2]) if len(ticks) > 1 else first
+    end = max((t_us for t_us, _events in _ticks(records)), default=0)
     spawn = _first_spawn_us(records)
-    split = spawn if spawn is not None else last
+    split = spawn if spawn is not None else end
     closing = next((r for r in records if "mavlink_counts" in r), {})
     counts = closing.get("mavlink_counts", {})
     links = {**{device: node for device, node in nodes.items() if node != BACKEND}, ROUTER_LINK: BACKEND}
     return {
         "basis": "framed bytes of emitted packets per 1 s window of sim time",
         "measures": "observed after SITL byte loss" if uart_loss else "offered load",
-        "setup": _rates([s for s in samples if s[0] < split], names, first, split),
-        "mission": _rates([s for s in samples if s[0] >= split], names, split, last),
+        "setup": _rates([s for s in samples if s[0] <= split], names, 0, split),
+        "mission": _rates([s for s in samples if s[0] > split], names, split, end),
         "skipped_bytes": {node: counts.get(link, {}).get(ROUTER_SKIPPED_BYTES, {}).get("skipped_bytes", 0)
                           for link, node in sorted(links.items(), key=lambda item: item[1])},
         "held_bytes": {node: sum(held["bytes"] for key, held in closing.get("held", {}).items()

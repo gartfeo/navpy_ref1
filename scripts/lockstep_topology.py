@@ -29,7 +29,7 @@ RUN_SWARM_SCRIPT = WSL_HOST_FILES[2]
 #: sha256 of the deployed ``run_swarm.sh`` whose topology lockstep
 #: reproduces (read 2026-10-20, with the SITL feeds' router filter; ``home_coords``
 #: at its lines 253-271).
-RUN_SWARM_SHA256 = "381e265eca2859aca003ab52dd6c06eed7dbb89c69d0299c998f24d0ee897a98"
+RUN_SWARM_SHA256 = "4a1c00af2338f3e0b403aa4780012c315b6b0aa427bdb1157f931385dfa138c0"
 #: The wall eval's ``-d``: swarm_run's default vehicle spacing (``swarm_run_cli``
 #: ``--dist``), which the script reads as ``DIST_M``.
 WALL_SWARM_DIST_M = 50

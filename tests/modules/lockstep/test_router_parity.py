@@ -4,7 +4,7 @@
 (``tests/fixtures/lockstep/router_parity.json``, recorded offline by
 ``scripts/router_parity.py --record``, never inside a run) holds the
 binary's sha256 and, per case, the datagrams sent into its endpoints and
-the bytes each endpoint received, the case's ``BlockSrcCompOut`` filters
+the bytes each endpoint received, the case's ``BlockMsgIdOut`` and ``BlockSrcCompOut`` filters
 and the binary's ``msg_to_unknown`` count. The model (the router entry
 table, the framer and
 :class:`~navpy.sim.lockstep.router_model.ReferenceRouter`) must deliver the
@@ -24,8 +24,10 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.sim.lockstep.router_entries import TABLE_FILE, EntryTable, load_entry_table
 from navpy.sim.lockstep.router_framer import RouterFramer
+from navpy.sim.lockstep.router_model import SITL_FILTER, EndpointFilter
 from scripts import router_parity
-from scripts.router_parity import ENDPOINTS, FILTERED_CASES, FIXTURE, SITL_FILTERS, replay_model
+from scripts.router_parity import (ENDPOINTS, FILTERED_CASES, FIXTURE, SITL_FILTERS, filters_from_json,
+                                   replay_model)
 
 CASES = ("targeted", "broadcast", "sniffer", "unknown_target", "targeted_navlink", "boot_text",
          "split_packet", "ap_echo", *FILTERED_CASES)
@@ -43,8 +45,8 @@ def _received(case: dict) -> dict[str, bytes]:
     return {name: bytes.fromhex(data) for name, data in case["received"].items()}
 
 
-def _filters(case: dict) -> dict[str, tuple[int, ...]]:
-    return {name: tuple(components) for name, components in case["filters"].items()}
+def _filters(case: dict) -> dict[str, EndpointFilter]:
+    return filters_from_json(case["filters"])
 
 
 def test_the_fixture_and_the_entry_table_name_the_same_binary():
@@ -100,7 +102,14 @@ def test_the_cases_tell_a_wrong_model_apart():
     assert "boot_text" in failing(table=EntryTable(table.binary_sha256, table.version, {}))
     # Without the filter, or with it on the backend too, every filtered case disagrees.
     assert set(FILTERED_CASES) <= failing(filters={})
-    assert set(FILTERED_CASES) <= failing(filters={name: (1, 100) for name in ENDPOINTS})
+    assert set(FILTERED_CASES) <= failing(filters={name: SITL_FILTER for name in ENDPOINTS})
+    # Each key matters: without the id block the image case disagrees, without the component
+    # block every other filtered case.
+    no_ids = EndpointFilter(block_src_comp_out=SITL_FILTER.block_src_comp_out)
+    no_comps = EndpointFilter(block_msg_id_out=SITL_FILTER.block_msg_id_out)
+    assert "filtered_image" in failing(filters={name: no_ids for name in SITL_FILTERS})
+    assert set(FILTERED_CASES) - {"filtered_image"} <= failing(
+        filters={name: no_comps for name in SITL_FILTERS})
 
 
 @pytest.mark.skipif(os.environ.get("NAVPY_ROUTER_PARITY") != "1",

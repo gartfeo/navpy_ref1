@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from pymavlink.dialects.v20 import ardupilotmega as mavlink
+
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder, encoder
 from navpy.sim.lockstep.router_entries import load_entry_table
 from navpy.sim.lockstep.router_framer import RouterFramer
-from navpy.sim.lockstep.router_model import SITL_BLOCK_SRC_COMP_OUT, ReferenceRouter, Route
+from navpy.sim.lockstep.router_model import SITL_FILTER, EndpointFilter, ReferenceRouter, Route
 from navpy.sim.lockstep.uart_model import StepUart
 
 
@@ -51,6 +53,8 @@ def _message(kind: str, src: tuple[int, int], **target):
     link, sink = encoder(*src)
     if kind == "heartbeat":
         link.heartbeat_send(1, 3, 0, 0, 0)
+    elif kind == "image":
+        link.encapsulated_data_send(0, bytes(253))
     else:
         link.param_request_read_send(target["system"], target["component"], b"X", -1)
     (segment,) = RouterFramer(load_entry_table()).feed(sink.drain())
@@ -85,15 +89,16 @@ def test_a_forwarded_echo_is_not_sent_to_an_endpoint_that_saw_its_source():
 
 
 def _filtered_router() -> ReferenceRouter:
-    router = ReferenceRouter(["sitl1", "sitl2", "backend"], block_src_comp_out={
-        "sitl1": SITL_BLOCK_SRC_COMP_OUT, "sitl2": SITL_BLOCK_SRC_COMP_OUT})
+    router = ReferenceRouter(["sitl1", "sitl2", "backend"], filters={
+        "sitl1": SITL_FILTER, "sitl2": SITL_FILTER})
     for endpoint, source in (("sitl1", (1, 1)), ("sitl2", (2, 1)), ("backend", (255, 190))):
         router.route(endpoint, _message("heartbeat", source))
     return router
 
 
 def test_a_sitl_endpoint_gets_no_peer_autopilot_or_camera_traffic_and_the_gcs_gets_all():
-    """radio_budget.md, item 2: BlockSrcCompOut 1,100 on each SITL endpoint, none on the backend."""
+    """radio_budget.md, item 2: BlockSrcCompOut 1,100 and BlockMsgIdOut 130,131 on each SITL
+    endpoint, none on the backend."""
     router = _filtered_router()
     assert router.route("sitl1", _message("heartbeat", (1, 1))) == Route(("backend",), True)
     assert router.route("sitl1", _message("heartbeat", (1, 100))) == Route(("backend",), True)
@@ -104,13 +109,25 @@ def test_a_sitl_endpoint_gets_no_peer_autopilot_or_camera_traffic_and_the_gcs_ge
     # target and sniffer rules.
     assert router.route("sitl1", _message("param", (1, 1), system=2, component=1)) == Route(
         ("backend",), True)
+    # The companion's confirmation image goes to the ground station only.
+    assert router.route("sitl1", _message("image", (1, 191))) == Route(("backend",), True)
+    assert router.dropped_unknown_target == 0
+
+
+def test_a_blocked_id_is_filtered_before_the_target_rules():
+    # BlockMsgIdOut on a targeted id (not the SITL filter's ids, which have no target field).
+    blocked = EndpointFilter(block_msg_id_out=(mavlink.MAVLINK_MSG_ID_PARAM_REQUEST_READ,))
+    router = ReferenceRouter(["sitl1", "sitl2", "backend"], filters={"sitl2": blocked})
+    router.route("sitl2", _message("heartbeat", (2, 1)))
+    assert router.route("backend", _message("param", (255, 190), system=2, component=1)) == Route((), True)
     assert router.dropped_unknown_target == 0
 
 
 def test_a_packet_every_endpoint_filters_or_rejects_is_filtered_not_unknown():
     """With no destination, a packet some endpoint filtered is not ``msg_to_unknown``; the
     loop check comes before the filter."""
-    router = ReferenceRouter(["sitl1", "sitl2", "backend"], block_src_comp_out={"sitl2": (1,)})
+    router = ReferenceRouter(["sitl1", "sitl2", "backend"], filters={"sitl2": EndpointFilter(
+        block_src_comp_out=(1,))})
     router.route("sitl1", _message("heartbeat", (1, 1)))
     router.route("backend", _message("heartbeat", (1, 1)))  # backend has now seen 1/1: loop-rejected
     assert router.route("sitl1", _message("heartbeat", (1, 1))) == Route((), True)
@@ -124,7 +141,7 @@ def test_filters_must_name_router_endpoints():
     import pytest
 
     with pytest.raises(ValueError, match="unknown endpoints"):
-        ReferenceRouter(["sitl1", "backend"], block_src_comp_out={"sitl9": (1,)})
+        ReferenceRouter(["sitl1", "backend"], filters={"sitl9": EndpointFilter(block_src_comp_out=(1,))})
 
 
 def test_admission_is_capped_per_io_tick_and_by_usable_space():

@@ -4,9 +4,9 @@ Emulates mavlink-router ``d59ef94`` (the ``/usr/bin/mavlink-routerd`` that
 ``run_swarm.sh`` starts), ``Endpoint::accept_msg`` and
 ``Mainloop::route_msg``, in the configuration ``run_swarm.sh`` gives it:
 ``-s 255`` (sniffer sysid 255, the GCS), no endpoint groups, no
-deduplication period (so no dedup), and one filter: each SITL endpoint's
-``BlockSrcCompOut`` (:data:`SITL_BLOCK_SRC_COMP_OUT`,
-``docs/design/radio_budget.md``).
+deduplication period (so no dedup), and each SITL endpoint's out filter,
+``BlockMsgIdOut`` and ``BlockSrcCompOut`` (:data:`SITL_FILTER`,
+``docs/design/radio_budget.md``, item 2).
 
 The coordinator replaces mavlink-router on the serial1 fan-in (contract in
 ``docs/design/lockstep_contracts.md``, Router; ``lockstep_fleet.md``,
@@ -19,10 +19,11 @@ mavlink-router applies them:
   packet is routed.
 - No endpoint gets a packet whose source ``(sysid, compid)`` it has seen
   (this excludes the endpoint it came from, and stops loops).
-- Then the filter: an endpoint does not get a packet from a component in its
-  ``BlockSrcCompOut``, whatever its target or id (``read_msg`` sets every
-  packet's id from its header, so ``accept_msg``'s unknown-id skip never
-  applies). A filtered endpoint skips the target and sniffer rules.
+- Then the filter: an endpoint does not get a packet whose id is in its
+  ``BlockMsgIdOut`` or whose source component is in its ``BlockSrcCompOut``,
+  whatever its target (``read_msg`` sets every packet's id from its header,
+  so ``accept_msg``'s unknown-id skip never applies). A filtered endpoint
+  skips the target and sniffer rules.
 - No target (an id outside the entry table, or an entry without a target
   field) or target system 0 is a broadcast: every other endpoint.
 - A nonzero target component goes to endpoints that have seen that
@@ -44,12 +45,33 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from pymavlink.dialects.v20 import ardupilotmega as mavlink
+
 from navpy.sim.lockstep.router_framer import NO_TARGET, RouterPacket
 
 SNIFFER_SYSID = 255
-#: Each SITL endpoint's ``BlockSrcCompOut``: no peer autopilot (1) or camera (100) traffic
-#: reaches an autopilot (``docs/design/radio_budget.md``, item 2). The backend has no filter.
-SITL_BLOCK_SRC_COMP_OUT = (1, 100)
+
+
+@dataclass(frozen=True)
+class EndpointFilter:
+    """An endpoint's out filter, by mavlink-router's conf keys; both end ``Filtered``."""
+
+    #: ``BlockMsgIdOut``: no packet with one of these ids.
+    block_msg_id_out: tuple[int, ...] = ()
+    #: ``BlockSrcCompOut``: no packet from one of these source components.
+    block_src_comp_out: tuple[int, ...] = ()
+
+    def blocks(self, packet: RouterPacket) -> bool:
+        return packet.msgid in self.block_msg_id_out or packet.source[1] in self.block_src_comp_out
+
+
+#: Each SITL endpoint's filter (``docs/design/radio_budget.md``, item 2): no peer autopilot (1)
+#: or camera (100) traffic and no confirmation image (its handshake and chunks, for the ground
+#: station only) reaches an autopilot. The backend has no filter.
+SITL_FILTER = EndpointFilter(
+    block_msg_id_out=(mavlink.MAVLINK_MSG_ID_DATA_TRANSMISSION_HANDSHAKE,
+                      mavlink.MAVLINK_MSG_ID_ENCAPSULATED_DATA),
+    block_src_comp_out=(mavlink.MAV_COMP_ID_AUTOPILOT1, mavlink.MAV_COMP_ID_CAMERA))
 
 
 class Accept(Enum):
@@ -64,7 +86,7 @@ class Accept(Enum):
 class RouterEndpoint:
     name: str
     seen: set[tuple[int, int]] = field(default_factory=set)
-    block_src_comp_out: tuple[int, ...] = ()
+    out_filter: EndpointFilter = EndpointFilter()
 
     def has_system(self, system: int) -> bool:
         return any(sys_id == system for sys_id, _comp in self.seen)
@@ -73,7 +95,7 @@ class RouterEndpoint:
         """``Endpoint::accept_msg``: the loop check, the filter, then the target rules."""
         if packet.source in self.seen:
             return Accept.REJECTED
-        if packet.source[1] in self.block_src_comp_out:
+        if self.out_filter.blocks(packet):
             return Accept.FILTERED
         system, component = packet.target
         if system in (0, NO_TARGET):
@@ -97,11 +119,11 @@ class Route:
 
 class ReferenceRouter:
     def __init__(self, endpoint_names: list[str], sniffer_sysid: int = SNIFFER_SYSID,
-                 block_src_comp_out: dict[str, tuple[int, ...]] | None = None) -> None:
-        filters = block_src_comp_out or {}
+                 filters: dict[str, EndpointFilter] | None = None) -> None:
+        filters = filters or {}
         if not set(filters) <= set(endpoint_names):
             raise ValueError(f"filters name unknown endpoints {sorted(set(filters) - set(endpoint_names))}")
-        self._endpoints = [RouterEndpoint(name, block_src_comp_out=filters.get(name, ()))
+        self._endpoints = [RouterEndpoint(name, out_filter=filters.get(name, EndpointFilter()))
                            for name in endpoint_names]
         self._sniffer_sysid = sniffer_sysid
         self._by_name = {endpoint.name: endpoint for endpoint in self._endpoints}
@@ -123,5 +145,5 @@ class ReferenceRouter:
         return route
 
 
-__all__ = ["Accept", "ReferenceRouter", "Route", "RouterEndpoint", "SITL_BLOCK_SRC_COMP_OUT",
+__all__ = ["Accept", "EndpointFilter", "ReferenceRouter", "Route", "RouterEndpoint", "SITL_FILTER",
            "SNIFFER_SYSID"]

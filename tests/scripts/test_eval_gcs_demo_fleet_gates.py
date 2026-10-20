@@ -30,7 +30,10 @@ from scripts.eval_gcs_demo_fleet_gates import (
     vehicle_workflow_errors,
 )
 from scripts import eval_gcs_demo_fleet_gates
-from scripts.eval_gcs_demo_fleet_packets import forwarding_errors, held_tasks, packet_run_errors
+from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS
+from navpy.sim.lockstep.router_entries import load_entry_table
+from scripts.eval_gcs_demo_fleet_packets import (forwarding_errors, held_tasks, packet_run_errors,
+                                                 unverified_sources)
 from scripts.eval_gcs_demo_inputs import INPUT_MANIFEST, recorded_profile_parameters
 from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_resolved_plan, load_scenario
@@ -319,6 +322,44 @@ def test_a_source_outside_the_fleet_fails(fleet):
     emitted = next(e for _r, e in _events(changed) if e[0] == "emitted" and e[1][0] == "sitl2")
     emitted[5] = [7, 1]
     assert _forwarding(changed) == [f"forwarding: {emitted[1]} from system 7 at tick {AUCTION_TICK + 2}"]
+
+
+#: An id seen in a lossy run (hw seed 10) that is not in the router entry table: no CRC check.
+UNKNOWN_ID = 2895918
+
+
+def _foreign_emission(records, origin_is_sitl: bool, unknown_id: bool):
+    """A copy of ``records`` with one more emission, from system 7, on SITL 2's serial1 or
+    NavPy 2's serial0, and its tick."""
+    changed = copy.deepcopy(records)
+    record = next(r for r in changed if r.get("packets"))
+    origin, device = ("sitl2", "sitl2.serial1") if origin_is_sitl else (2, serial0_device(2))
+    msgid = UNKNOWN_ID if unknown_id else 0  # HEARTBEAT is in the table
+    assert (load_entry_table().get(msgid) is None) == unknown_id and msgid not in NAVLINK_IDS
+    emitted = ["emitted", [origin, 1, device, 9999], [0, 21], "0" * 64, msgid, [7, 1], [-1, -1]]
+    record["packets"].append(emitted)
+    return changed, emitted, record["k"]
+
+
+@pytest.mark.parametrize("loss", [False, True])
+@pytest.mark.parametrize("unknown_id", [False, True])
+def test_only_an_unverified_sitl_packet_under_byte_loss_skips_the_source_check(fleet, loss, unknown_id):
+    """With SIM_UART_LOSS, a SITL packet whose id the router table lacks had no CRC check, so a
+    lost byte can give it any source; it is counted, not gated. Known ids and lossless runs stay gated."""
+    records, _lines, _approvals = fleet
+    changed, emitted, k = _foreign_emission(records, origin_is_sitl=True, unknown_id=unknown_id)
+    exempt = loss and unknown_id
+    errors = forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=loss)
+    assert errors == ([] if exempt else [f"forwarding: {emitted[1]} from system 7 at tick {k}"])
+    assert unverified_sources(changed, SYS_IDS, loss) == ([emitted] if exempt else [])
+
+
+def test_an_unknown_id_from_outside_the_fleet_fails_from_a_participant_even_with_byte_loss(fleet):
+    records, _lines, _approvals = fleet
+    changed, emitted, k = _foreign_emission(records, origin_is_sitl=False, unknown_id=True)
+    assert forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=True) == [
+        f"forwarding: {emitted[1]} from system 7 at tick {k}"]
+    assert unverified_sources(changed, SYS_IDS, True) == []
 
 
 @pytest.mark.parametrize("end", ["router_dropped", "router_filtered"])

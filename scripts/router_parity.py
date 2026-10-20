@@ -35,7 +35,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 from navpy.sim.lockstep.mavlink_wire import encoder
 from navpy.sim.lockstep.router_entries import FIELDS, TABLE_FILE, EntryTable
 from navpy.sim.lockstep.router_framer import RouterFramer
-from navpy.sim.lockstep.router_model import SITL_BLOCK_SRC_COMP_OUT, SNIFFER_SYSID, ReferenceRouter
+from navpy.sim.lockstep.router_model import SITL_FILTER, SNIFFER_SYSID, EndpointFilter, ReferenceRouter
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "lockstep" / "router_parity.json"
@@ -50,13 +50,24 @@ HEARTBEAT_ENTRY = ENTRY.pack(0, 50, 9, 9, 0, 0, 0)
 FENCE_SYSID = 200
 FENCE_COMPID = 199
 #: The filter ``run_swarm.sh`` and the coordinator give each SITL endpoint.
-SITL_FILTERS = {name: SITL_BLOCK_SRC_COMP_OUT for name in ENDPOINTS if name.startswith("sitl")}
+SITL_FILTERS = {name: SITL_FILTER for name in ENDPOINTS if name.startswith("sitl")}
 #: The cases recorded with :data:`SITL_FILTERS`; the others have no filter.
 FILTERED_CASES = ("filtered_broadcast", "filtered_targeted", "filtered_unknown_id",
-                  "filtered_mixed")
+                  "filtered_mixed", "filtered_image")
 
 Step = tuple[str, bytes, bool]
-Filters = dict[str, tuple[int, ...]]
+Filters = dict[str, EndpointFilter]
+
+
+def filters_json(filters: Filters) -> dict[str, dict[str, list[int]]]:
+    """Each endpoint's filter by its mavlink-router conf keys (the fixture's and the job's form)."""
+    return {name: {"BlockMsgIdOut": list(f.block_msg_id_out), "BlockSrcCompOut": list(f.block_src_comp_out)}
+            for name, f in filters.items()}
+
+
+def filters_from_json(data: dict[str, dict[str, list[int]]]) -> Filters:
+    return {name: EndpointFilter(tuple(keys["BlockMsgIdOut"]), tuple(keys["BlockSrcCompOut"]))
+            for name, keys in data.items()}
 
 
 def extract_entry_table(binary: bytes) -> list[tuple[int, ...]]:
@@ -161,6 +172,10 @@ def _filtered_cases(m: _Sources, hb: Callable[..., bytes], param: Callable[..., 
                     0, 0, b"")
     request = mavlink.MAV_CMD_REQUEST_MESSAGE
     learn_more = [*learn, ("sitl1", hb(1, 191)), ("sitl2", hb(2, 191)), ("sitl2", hb(2, 100))]
+    # A confirmation image as NavPy sends it (image_transfer.py): no target field, so a broadcast.
+    handshake = lambda system: m(system, 191, "data_transmission_handshake",  # noqa: E731
+                                 mavlink.MAVLINK_DATA_STREAM_IMG_JPEG, 300, 64, 48, 2, 253, 50)
+    chunk = lambda system, seq: m(system, 191, "encapsulated_data", seq, bytes(range(seq, seq + 253)))  # noqa: E731
     return {
         "filtered_broadcast": _case([*learn, ("sitl1", hb(1, 1)), ("sitl1", hb(1, 191)),
                                      ("sitl1", hb(1, 100)), ("sitl1", hb(1, 101)),
@@ -185,6 +200,10 @@ def _filtered_cases(m: _Sources, hb: Callable[..., bytes], param: Callable[..., 
                                  # Every endpoint has seen (1, 1): the loop check rejects before
                                  # the filter, so the packet counts as unknown.
                                  ("sitl2", hb(1, 1)), ("backend", param((1, 1), 9, 1))]),
+        # The image reaches only the backend; the same companion's NAVLINK still reaches the peers.
+        "filtered_image": _case([*learn_more, ("sitl1", handshake(1)), ("sitl1", chunk(1, 0)),
+                                 ("sitl1", chunk(1, 1)), ("sitl2", handshake(2)), ("sitl2", chunk(2, 0)),
+                                 ("sitl1", assign((1, 191), 0)), ("sitl3", chunk(3, 0))]),
     }
 
 
@@ -227,7 +246,7 @@ def run_binary(cases: dict[str, list[Step]],
     """Each case's bytes per endpoint and ``msg_to_unknown`` count from the binary."""
     job = {"binary": binary, "endpoints": list(ENDPOINTS),
            "cases": {name: [[e, d.hex(), f] for e, d, f in steps] for name, steps in cases.items()},
-           "filters": {name: {e: list(c) for e, c in case_filters(name).items()} for name in cases}}
+           "filters": {name: filters_json(case_filters(name)) for name in cases}}
     harness = subprocess.run(["wsl.exe", "-e", "wslpath", "-a", str(WSL_HARNESS)],
                              capture_output=True, text=True, check=True).stdout.strip()
     result = subprocess.run(["wsl.exe", "-e", "python3", harness], input=json.dumps(job),
@@ -258,7 +277,7 @@ def record() -> None:
     fixture = {"binary": BINARY, "version": version, "binary_sha256": sha256,
                "endpoints": list(ENDPOINTS), "cases": {
                    name: {"steps": [[e, d.hex(), f] for e, d, f in steps],
-                          "filters": {e: list(c) for e, c in case_filters(name).items()},
+                          "filters": filters_json(case_filters(name)),
                           "received": {n: outputs[name][0][n].hex() for n in ENDPOINTS},
                           "unknown": outputs[name][1]}
                    for name, steps in cases.items()}}

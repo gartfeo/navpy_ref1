@@ -60,7 +60,7 @@ from navpy.sim.lockstep.coordinator_streams import StreamAccount
 from navpy.sim.lockstep.coordinator_types import CoordinatorFault, Manifest
 from navpy.sim.lockstep.router_entries import EntryTable, load_entry_table
 from navpy.sim.lockstep.router_framer import RouterFramer, RouterPacket
-from navpy.sim.lockstep.router_model import SITL_BLOCK_SRC_COMP_OUT, ReferenceRouter
+from navpy.sim.lockstep.router_model import SITL_FILTER, ReferenceRouter
 from navpy.sim.lockstep.step_wire import Frame
 
 BACKEND_ENDPOINT = "backend"
@@ -84,8 +84,8 @@ class RoutedPorts:
         #: Each router endpoint's device, in endpoint order.
         self._endpoint_device = dict(zip(endpoints, [ports[1] for ports in self._sitls]
                                          + [manifest.router]))
-        self._router = ReferenceRouter(endpoints, block_src_comp_out={
-            sitl_origin(index): SITL_BLOCK_SRC_COMP_OUT for index in range(1, len(self._sitls) + 1)})
+        self._router = ReferenceRouter(endpoints, filters={
+            sitl_origin(index): SITL_FILTER for index in range(1, len(self._sitls) + 1)})
         self._table = table or load_entry_table()
         self._roster = roster
         self._framers: dict[tuple[Hashable, int, str], RouterFramer] = {}

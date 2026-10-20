@@ -103,8 +103,8 @@ def test_sustained_overload_carries_over_in_order_bounded_by_the_block_and_never
     backend = run.roster.add(BACKEND, ROUTER)
     _learned(run, src, backend)
     sent, received, pending = b"", b"", []
-    for k in range(2, 12):  # ~80 KB a tick for 5 ticks: more than one block each
-        load = b"".join(src.blob((255, 190), 300 * k + n) for n in range(300)) if k < 7 else b""
+    for k in range(2, 12):  # ~77 KB a tick for 5 ticks: more than one block each
+        load = b"".join(src.blob((255, 190), 400 * k + n) for n in range(400)) if k < 7 else b""
         sent += load
         _, ingress = run.tick(k, admitted=[backend], done=[(backend, ROUTER, load)])
         assert len(ingress[serial1(2)]) <= MAX_BLOCK

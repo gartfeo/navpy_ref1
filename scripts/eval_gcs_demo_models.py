@@ -7,18 +7,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from scripts.eval_gcs_demo_ports import (
-    ClockPort,
-    EventStreamPort,
-    JsonApiPort,
-    JsonValue,
-    TailPort,
-)
-from scripts.eval_gcs_demo_limits import (
-    CadenceLimits,
-    GateLimits,
-    RollQualityLimits,
-)
+from scripts.eval_gcs_demo_ports import ClockPort, EventStreamPort, JsonApiPort, JsonValue, TailPort
+from scripts.eval_gcs_demo_limits import CadenceLimits, GateLimits, RollQualityLimits
 
 if TYPE_CHECKING:
     # The scenario module imports this one; the annotation stays a string.
@@ -234,6 +224,9 @@ class RunReport:
     errors: list[str] = field(default_factory=list)
     #: Lockstep only: the radio air load (``eval_gcs_demo_air_load``), report only.
     air_load: dict[str, JsonValue] | None = None
+    #: Lockstep only: the unverified SITL packets the source check exempted
+    #: (``eval_gcs_demo_fleet_packets.unverified_sources``); 0 without SITL byte loss.
+    unverified_sources: int | None = None
 
 
 @dataclass

@@ -14,6 +14,7 @@ from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, profile_names
 from scripts.eval_gcs_demo_air_load import air_load
 from scripts.eval_gcs_demo_analysis import analyze_run
+from scripts.eval_gcs_demo_fleet_packets import unverified_sources
 from scripts.eval_gcs_demo_inputs import recorded_profile_parameters
 from scripts.eval_gcs_demo_models import (
     GateLimits,
@@ -140,11 +141,14 @@ def run_lockstep(
                    (run_dir / JOURNAL_FILE).read_text(encoding="utf-8").splitlines()]
         uart_loss = recorded_profile_parameters(run_dir).get("SIM_UART_LOSS", 0.0) > 0.0
         load: dict[str, JsonValue] = air_load(records, uart_loss)
-    except (OSError, ValueError, KeyError, TypeError, RegressionError) as error:
+        fleet = range(1, len(next(r["grid"] for r in records if "grid" in r)["sitl_ports"]) + 1)
+        unverified: int | None = len(unverified_sources(records, tuple(fleet), uart_loss))
+    except (OSError, ValueError, KeyError, TypeError, StopIteration, RegressionError) as error:
         load = {"error": scrub(f"{type(error).__name__}: {error}")}  # report only: no gate
+        unverified = None
     report = dataclasses.replace(report, log_dir=".", passed=report.passed and not errors,
                                  errors=[scrub(error) for error in errors + report.errors],
-                                 air_load=load)
+                                 air_load=load, unverified_sources=unverified)
     (run_dir / "report.json").write_text(json.dumps(report_dict(report), indent=2),
                                          encoding="utf-8")
     print(f"lockstep journal digest: {run.digest}", flush=True)
