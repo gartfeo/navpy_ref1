@@ -408,9 +408,9 @@ describe('delivery demo plan file', () => {
     expect(mission.simDockWps).toEqual({ 2: [1, 2] });
     expect(mission.detectAfterWps).toEqual({ 0: 0, 1: 0, 2: 0 });
     expect(mission.deliveryHubAssignments).toEqual([2, 1, 0]);
-    const altitudes = mission.plan.zones.map((z) => z.altitude_m);
-    expect(altitudes.every(Number.isFinite)).toBe(true);
-    expect(altitudes[2]).toBe(Math.min(...altitudes));
+    // No camera profile in the settings (the owner's case): the planner's
+    // default altitudes, zone 2 lowest.
+    expect(mission.plan.zones.map((z) => z.altitude_m)).toEqual([240, 220, 200]);
     const [a, b] = [1, 2].map((i) => mission.plan.zones[2].track[i]);
     const metres = Math.hypot(
       (a.lat - b.lat) * 111320,

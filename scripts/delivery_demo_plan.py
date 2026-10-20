@@ -20,8 +20,9 @@ from collections.abc import Mapping
 from pathlib import Path
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPOSITORY_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPOSITORY_ROOT))
+for _import_root in (_REPOSITORY_ROOT, _REPOSITORY_ROOT / "src"):
+    if str(_import_root) not in sys.path:
+        sys.path.insert(0, str(_import_root))
 
 from scripts.eval_delivery_fixture import FIXTURE_PATH, load_fixture  # noqa: E402
 from scripts.eval_gcs_demo_ports import JsonValue  # noqa: E402
@@ -32,10 +33,10 @@ PLAN_PATH = Path(__file__).resolve().parent / "delivery_demo_plan.json"
 LINE_SPACING_M = 150.0
 #: Area width: three lines per UAV, as in the fixture.
 AREA_WIDTH_M = 1350.0
-#: The zone that carries the docks: the lowest (the planner stacks zones 0-2 at
-#: 403/383/363 m with the ZR10 preset). With the fixed -14 deg search pitch only
-#: 363 m leaves a window (about 682-730 m out) where both docks are in frame
-#: and in detection range; at 403 m the frame's near edge is past the range.
+#: The zone that carries the docks: the lowest. With no camera profile in the
+#: settings the planner flies zones 0-2 at 240/220/200 m; with the ZR10 profile
+#: at 403/383/363 m, where only 363 m (with the fixed -14 deg search pitch)
+#: leaves a window, about 682-730 m out, with both docks in frame and in range.
 OFFERER_ZONE = 2
 #: Its track waypoints (0-based) that carry the docks: the south-end turn of
 #: its first two lines.

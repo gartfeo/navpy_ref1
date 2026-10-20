@@ -309,13 +309,16 @@ hubs and per-zone hub index [2, 1, 0]. The area is narrowed to 1.35 km around
 the launch longitude, at `route_offset_m` 150, so each UAV still flies 3 lines
 of 3 km. `detect_after_wps {z: 0}` (`nav_last_wp 1`), `sim_dock_wps {2: [1, 2]}`:
 the south-end turn waypoints of zone 2, 150 m apart, like d1–d2. Zone 2 is the
-lowest: the planner stacks zones 0–2 at 403/383/363 m (`planner.js:280`). With
-the fixed -14° search pitch, 363 m leaves a window of about 682–730 m out where
-both docks are in frame and in detection range (Codex, calibrated ZR10). At
-403 m the frame's near edge (757 m) lies past the range (709 m), so zone 0 can
-see no dock at all. UNVERIFIED: the narrow window yields both detections and
-the approach from 363 m docks; the live test shows it, and if it fails the
-fallback is altitude Y. The zone goes to the third vehicle in the UI list.
+lowest (`planner.js:280`). The UI planner takes its altitudes from the camera
+profile named in the settings (`plannerConfig.js` `configurePlanner`). The
+owner's settings name none, so it uses its built-in defaults: zones 0–2 at
+240/220/200 m, close to the fixture's 220 m. The live run flew these, and both
+docks were detected there. If the owner selects the ZR10 profile, the zones go to 403/383/363 m. With
+the fixed -14° search pitch, only 363 m leaves a window, about 682–730 m out,
+where both docks are in frame and in range. At 403 m the frame's near edge
+(757 m) lies past the range (709 m) (Codex, calibrated ZR10). Zone 2 is the
+only choice that suits both cases, but the ZR10-profile case is not live-tested.
+The zone goes to the third vehicle in the UI list.
 
 **One command** `delivery_demo.py`:
 1. Run dir, settings and SITL root.
@@ -334,9 +337,17 @@ Stop with `gcs_stop.py`.
   context).
 - Plan file: the committed file equals the builder's output.
 - A vitest loads the file through the real loader and checks 3 zones of 6
-  waypoints each, docks 150 m apart on the lowest zone (2), and hubs [2, 1, 0].
+  waypoints each, the default altitudes 240/220/200 m, docks 150 m apart on
+  the lowest zone (2), and hubs [2, 1, 0].
 
 **Live test:**
 1. Run the one command, load the plan file, upload, Launch, approve.
 2. Pass: NavPy restarts on upload, the ESP32 sim is running, the zone-2 UAV keeps one
    dock, a peer takes the other, one UAV homes.
+3. Result (2026-10-20, run `20261020-192919`, PC at 99–100% CPU from other
+   work): start, auto-connect, NavPy and ESP32 auto-start, plan load, upload
+   and companion restart all passed. The zone-2 UAV detected both docks,
+   offered one and DOCKED at 0.46 m. The peer accepted the offer, then lost
+   detection 7 m out (`no_detection`, DOCK_FAILED). That was an endgame miss
+   that began before the offerer's reset. The homing UAV hit the known
+   `source_command_stale` bug.

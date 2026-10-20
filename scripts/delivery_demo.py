@@ -107,7 +107,8 @@ def owner_settings(path: Path = OWNER_SETTINGS_PATH) -> dict[str, JsonValue]:
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        # utf-8-sig, as settings_store reads it: PowerShell 5.1 writes a BOM.
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as error:
         raise RegressionError(f"cannot read the normal settings {path}: {error}") from error
     if not isinstance(data, dict):

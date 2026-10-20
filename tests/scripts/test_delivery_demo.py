@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import importlib
 import json
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -55,6 +56,10 @@ def test_settings_are_the_owners_with_the_scenario_pins_on_top():
 
 def test_owner_settings_are_optional_but_must_be_an_object(tmp_path):
     assert demo.owner_settings(tmp_path / "missing.json") == {}
+    # A BOM (PowerShell 5.1) reads as the normal settings store reads it.
+    bom = tmp_path / "bom.json"
+    bom.write_text('{"connection": {}}', encoding="utf-8-sig")
+    assert demo.owner_settings(bom) == {"connection": {}}
     bad = tmp_path / "bad.json"
     bad.write_text("[1]", encoding="utf-8")
     with pytest.raises(models.RegressionError, match="not an object"):
@@ -183,6 +188,32 @@ def test_start_refuses_a_frontend_that_never_answers():
 def test_committed_plan_file_is_the_builders_output():
     assert plan.PLAN_PATH.read_text(encoding="utf-8") == plan.render(FIXTURE)
     assert plan.main(["--check"]) == 0
+
+
+#: Runs the builder as a script, then names the navpy package it imported.
+_STANDALONE_PROBE = """
+import runpy, sys
+sys.argv = sys.argv[1:]
+try:
+    runpy.run_path(sys.argv[0], run_name="__main__")
+except SystemExit as stop:
+    assert stop.code == 0, stop.code
+import navpy
+print(navpy.__file__)
+"""
+
+
+def test_plan_builder_imports_its_own_checkout_when_run_standalone():
+    # The shared venv's editable install points at another checkout's src, so
+    # the script must put its own src first.
+    script = plan.PLAN_PATH.with_name("delivery_demo_plan.py")
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", _STANDALONE_PROBE, str(script), "--check"],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    navpy_file = plan.Path(result.stdout.strip()).resolve()
+    assert navpy_file.is_relative_to(script.resolve().parents[1] / "src")
 
 
 def test_plan_file_keeps_the_fixture_inputs_and_marks_two_docks_on_the_lowest_zone():
