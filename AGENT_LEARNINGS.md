@@ -1072,3 +1072,19 @@
   reload) was a different bug: the backend timeline showed the downloaded
   plan replaced 50 ms later. Read plan_rendered and request order in
   timeline.jsonl before changing code for a live failure.
+
+## Delivery demo as a normal run (2026-10-20)
+- I designed dock waypoints around the ZR10 preset altitudes (403/383/363 m),
+  but the owner's settings name no camera profile, so the UI planner flew its
+  defaults (240/220/200 m). Codex caught it in code review; the live log
+  confirmed it (v_dist at approach start plus dock height above home). Before
+  reasoning from planner altitudes, read the settings the run actually uses
+  (`camera.vision_profile`) and confirm the flown altitude in a log.
+- A subprocess test of a script's imports passed without the fix, because the
+  shared venv's editable install points at another checkout that also
+  imports. Assert where the module came from (`navpy.__file__`), and
+  mutation-check by restoring the old file.
+- A background waiter that grepped Codex output for "verdict" fired at once:
+  the echoed prompt contains the word. Wait for `tokens used`.
+- `codex exec` sometimes fails before any command runs ("setup refresh had
+  errors") and still prints REJECT. That is no review; retry once.
