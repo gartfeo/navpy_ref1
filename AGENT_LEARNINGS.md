@@ -1072,3 +1072,14 @@
   reload) was a different bug: the backend timeline showed the downloaded
   plan replaced 50 ms later. Read plan_rendered and request order in
   timeline.jsonl before changing code for a live failure.
+
+## GCS Trails control (2026-10-20)
+
+- A live-tester brief that said "never ports 3000/8000, never slot 0" stopped
+  the run: the launcher correctly gave this checkout the free slot 0. Brief
+  by owner, not by port: "your auto-resolved slot; never another session's".
+- The default 3-UAV sim has camera.vision_profile null, so no camera marks
+  record. Set a profile through the settings API before opening the page; a
+  later reload was denied in auto mode. Restore it to null afterwards.
+- A real link outage is hard to make live (suspending SITL or the router left
+  link_ok true); the stale-then-fresh run break is proven by unit tests only.
