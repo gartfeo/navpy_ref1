@@ -1,20 +1,17 @@
-"""Hand-driven delivery demo: put the delivery fixture on this checkout's stack.
+"""Hand-driven delivery demo: a normal GCS run set up for the delivery scenario.
 
-``launch`` starts the slot's stack with the fixture's SITL home, settings and a
-fresh SITL root (no stored mission). The demo docks d1 and d2 are owner mission
-waypoints (``AAS_TARG_WPS``), so the GCS map shows them; the shared dock world
-(``NAVPY_SIM_DOCKS``) stays the eval's. ``prep`` then connects the
-vehicles, writes their params, uploads the fixture missions with readback,
-starts the companions and opens the UI. The operator presses Launch and
-approves each dock. Both steps reuse the delivery eval's helpers; see
-docs/design/delivery_demo_prep.md.
+Starts this checkout's stack like ``AAS_GCS.bat`` (auto-connect, ``auto``
+companion lifecycle, frontend) with only what the scenario needs: a run-local
+SITL root at the fixture home, scenario settings pins and the vehicles' static
+AAS params. The operator then loads ``scripts/delivery_demo_plan.json`` (or
+builds a plan) in the UI, uploads it and presses Launch. See
+docs/design/delivery_demo_prep.md, "Normal-run demo".
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime as dt
-import hashlib
 import json
 import os
 import sys
@@ -28,115 +25,148 @@ for _import_root in (_REPOSITORY_ROOT, _REPOSITORY_ROOT / "src"):
     if str(_import_root) not in sys.path:
         sys.path.insert(0, str(_import_root))
 
-from gcs.backend.runtime_paths import LOG_DIR_ENV as GCS_LOG_DIR_ENV  # noqa: E402
-from scripts.delivery_demo_docks import waypoint_dock_scenario  # noqa: E402
-from scripts.eval_delivery_fixture import FIXTURE_PATH, load_fixture  # noqa: E402
-from scripts.eval_gcs_demo_config import build_environment, build_settings  # noqa: E402
-from scripts.eval_gcs_demo_execution import SystemClock, wait_until  # noqa: E402
-from scripts.eval_gcs_demo_lifecycle import (  # noqa: E402
-    companion_ids,
-    connect_vehicles,
-    start_companions,
+from scripts.delivery_demo_plan import PLAN_PATH  # noqa: E402
+from scripts.eval_delivery_fixture import FIXTURE_PATH, delivery_scenario, load_fixture  # noqa: E402
+from scripts.eval_gcs_demo_config import (  # noqa: E402
+    TAKEOFF_ALTITUDE_M,
+    UNUSED_ESP32_PORT,
+    build_environment,
 )
-from scripts.eval_gcs_demo_mission import resolve_live_plan  # noqa: E402
-from scripts.eval_gcs_demo_mission_upload import upload_scenario_missions  # noqa: E402
-from scripts.eval_gcs_demo_models import RegressionError, StackContext  # noqa: E402
+from scripts.eval_gcs_demo_execution import SystemClock, wait_until  # noqa: E402
+from scripts.eval_gcs_demo_models import RegressionError  # noqa: E402
 from scripts.eval_gcs_demo_ports import ClockPort, JsonValue  # noqa: E402
 from scripts.eval_gcs_demo_process import (  # noqa: E402
     PreexistingOwnedStackError,
     launch_stack,
     owned_entry,
-    owned_stack_context,
 )
 from scripts.eval_gcs_demo_sitl_root import prepare_sitl_root  # noqa: E402
 from scripts.eval_gcs_demo_stack_ops import (  # noqa: E402
     configure_vehicle_params,
-    start_esp32_simulator,
     verify_aas_profile,
-    wait_for_missions,
     wait_for_vehicles,
 )
+from scripts.eval_certificate_source_time import SOURCE_TIME_ENV  # noqa: E402
+
+from gcs.backend.diagnostics import SESSION_ID_ENV as DIAGNOSTICS_SESSION_ID_ENV  # noqa: E402
+from gcs.backend.runtime_paths import LOG_DIR_ENV as GCS_LOG_DIR_ENV  # noqa: E402
+from navpy.core.kernel.logging.pose_cadence_naming import NAMING_ENV as POSE_CADENCE_NAMING_ENV  # noqa: E402
 
 RUNS_DIR = _REPOSITORY_ROOT / ".logs" / "delivery-demo"
-LAUNCH_RECORD_NAME = "demo_launch.json"
+#: The settings a normal run of this checkout reads (settings_store default).
+OWNER_SETTINGS_PATH = _REPOSITORY_ROOT / "gcs_settings.json"
 SETTINGS_NAME = "gcs_settings.json"
 #: The eval's per-phase wall timeout (``--timeout-s`` default).
 STACK_TIMEOUT_S = 600.0
-#: The frontend's own variables, which the eval's allow-list drops (the map
-#: token may come from the shell instead of ``.env.local``).
-FRONTEND_ENV = ("VITE_CESIUM_ION_TOKEN",)
 #: Vite's cold start; the launcher does not wait for the frontend.
 FRONTEND_TIMEOUT_S = 60.0
+#: A shared dock world replaces the waypoint docks the plan marks.
+SIM_DOCKS_ENV = "NAVPY_SIM_DOCKS"
+#: Run paths from the eval's environment: settings and logs only.
+RUN_ENV = (
+    "GCS_SETTINGS_PATH", "NAVPY_LOG_DIR", GCS_LOG_DIR_ENV, SOURCE_TIME_ENV,
+    POSE_CADENCE_NAMING_ENV, DIAGNOSTICS_SESSION_ID_ENV,
+)
 
 
-def demo_settings(fixture: Mapping[str, JsonValue], scenario) -> dict[str, JsonValue]:
-    """The eval's settings, plus the fixture's home hubs for the operator's map."""
-    settings = build_settings(scenario)
-    settings["default_delivery_hubs"] = fixture["inputs"]["delivery_hubs"]
-    return settings
-
-
-def demo_environment(run_dir: Path, source: Mapping[str, str] = os.environ) -> dict[str, str]:
-    env = build_environment(run_dir / SETTINGS_NAME, run_dir, base_environment=dict(source))
-    env.update({key: source[key] for key in FRONTEND_ENV if key in source})
-    return env
-
-
-def file_sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _guarded_files(run_dir: Path) -> dict[str, Path]:
+def scenario_pins(fixture: Mapping[str, JsonValue]) -> dict[str, dict[str, JsonValue]]:
+    """The settings the scenario needs over the owner's normal settings."""
+    inputs = fixture["inputs"]
+    count = inputs["uav_count"]
     return {
-        "fixture_sha256": FIXTURE_PATH,
-        "settings_sha256": run_dir / SETTINGS_NAME,
+        "flight": {
+            "uavs_per_set": count,
+            "takeoff_altitude_m": TAKEOFF_ALTITUDE_M,
+            "altitude_separation_m": inputs["altitude_separation_m"],
+        },
+        "connection": {"auto_connect": True},
+        # Container launch, as the scenario was flown; it also starts the
+        # ESP32 sim. The persisted endpoint stays off the LAN.
+        "launch": {
+            "launch_type": "container",
+            "esp32_host": "127.0.0.1",
+            "esp32_port": UNUSED_ESP32_PORT,
+        },
+        "simulation": {
+            "sim_mode": True,
+            "simulated_vehicle_count": count,
+            "companion_lifecycle": "auto",
+        },
     }
 
 
-def powershell_command(*paths: object, step: str = "") -> str:
+def demo_settings(owner: Mapping[str, JsonValue], fixture: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    settings = json.loads(json.dumps(owner))
+    for section, values in scenario_pins(fixture).items():
+        current = settings.get(section)
+        settings[section] = {**(current if isinstance(current, dict) else {}), **values}
+    return settings
+
+
+def owner_settings(path: Path = OWNER_SETTINGS_PATH) -> dict[str, JsonValue]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise RegressionError(f"cannot read the normal settings {path}: {error}") from error
+    if not isinstance(data, dict):
+        raise RegressionError(f"the normal settings {path} are not an object")
+    return data
+
+
+def demo_environment(run_dir: Path, source: Mapping[str, str] = os.environ) -> dict[str, str]:
+    """The shell's environment, as a normal run gets it, plus the run's paths."""
+    run = build_environment(run_dir / SETTINGS_NAME, run_dir, base_environment=dict(source))
+    env = {key: value for key, value in source.items() if key.upper() != SIM_DOCKS_ENV}
+    env.update({key: run[key] for key in RUN_ENV})
+    return env
+
+
+def powershell_command(*paths: object) -> str:
     """A PowerShell 5.1 line; literal-quoted paths keep spaces, ``$`` and backticks."""
-    quoted = " ".join("'" + str(path).replace("'", "''") + "'" for path in paths)
-    return f"& {quoted} {step}".rstrip()
-
-
-def _command(step: str) -> str:
-    return powershell_command(sys.executable, Path(__file__).resolve(), step=step)
+    return "& " + " ".join("'" + str(path).replace("'", "''") + "'" for path in paths)
 
 
 def _stop_command() -> str:
     return powershell_command(sys.executable, _REPOSITORY_ROOT / "scripts" / "gcs_stop.py")
 
 
-def launch(runs_dir: Path, clock: ClockPort, now: dt.datetime) -> Path:
-    """Start this checkout's stack for the fixture; return its run directory."""
+def start(runs_dir: Path, clock: ClockPort, now: dt.datetime, open_browser=webbrowser.open) -> Path:
+    """Start the demo stack and open the UI; return the run directory."""
     fixture = load_fixture(FIXTURE_PATH)
-    scenario = waypoint_dock_scenario(fixture)
+    scenario = delivery_scenario(fixture, FIXTURE_PATH)
     run_dir = runs_dir / now.strftime("%Y%m%d-%H%M%S")
     if run_dir.exists():
         raise RegressionError(f"run directory already exists: {run_dir}")
     run_dir.mkdir(parents=True)
     (run_dir / SETTINGS_NAME).write_text(
-        json.dumps(demo_settings(fixture, scenario), indent=2), encoding="utf-8"
+        json.dumps(demo_settings(owner_settings(), fixture), indent=2), encoding="utf-8"
     )
     env = demo_environment(run_dir)
-    sitl_root, sitl_section, _ = prepare_sitl_root(run_dir)
-    token = os.urandom(16).hex()
-    record = {"launch_token": token, "home": scenario.home, "sitl_root": sitl_section}
-    record.update({key: file_sha256(path) for key, path in _guarded_files(run_dir).items()})
-    # Written first: prep finds the run by this token in the registry.
-    (run_dir / LAUNCH_RECORD_NAME).write_text(json.dumps(record, indent=2), encoding="utf-8")
+    sitl_root, _, _ = prepare_sitl_root(run_dir)
     try:
         context = launch_stack(
             env, STACK_TIMEOUT_S, sitl_root.launch_arguments(),
             clock=clock, scenario=scenario,
-            headless=False, browser=False, launch_token=token,
+            headless=False, browser=False, launch_token=os.urandom(16).hex(),
         )
     except PreexistingOwnedStackError as error:
         raise RegressionError(
             f"this checkout already runs a GCS stack; stop it first: {_stop_command()}"
         ) from error
-    context.api.close()
-    wait_for_frontend(owned_entry(env), clock)
+    try:
+        wait_for_frontend(owned_entry(env), clock)
+        # Auto-connect connects the vehicles and starts NavPy; the plan
+        # upload's companion restart applies these params.
+        wait_for_vehicles(context, STACK_TIMEOUT_S)
+        configure_vehicle_params(context, STACK_TIMEOUT_S)
+        verify_aas_profile(context)
+    except RegressionError as error:
+        raise RegressionError(f"{error}; stop the stack: {_stop_command()}") from error
+    finally:
+        context.api.close()
+    open_browser(f"http://localhost:{owned_entry(env)['frontend']}")
     return run_dir
 
 
@@ -154,116 +184,23 @@ def wait_for_frontend(entry, clock: ClockPort, answers=frontend_answers) -> None
     except RegressionError as error:
         raise RegressionError(
             f"the frontend at {url} does not answer (missing src/gcs/frontend/node_modules? "
-            f"run npm install there); stop the stack: {_stop_command()}"
+            "run npm install there)"
         ) from error
-
-
-def find_run(runs_dir: Path, token: object) -> Path:
-    for path in sorted(runs_dir.glob(f"*/{LAUNCH_RECORD_NAME}")):
-        try:
-            if json.loads(path.read_text(encoding="utf-8")).get("launch_token") == token:
-                return path.parent
-        except (OSError, ValueError, AttributeError):
-            continue
-    raise RegressionError(
-        "this checkout's running stack was not started by 'delivery_demo.py launch'; "
-        f"stop it ({_stop_command()}) and run: {_command('launch')}"
-    )
-
-
-def require_unchanged(run_dir: Path) -> None:
-    record = json.loads((run_dir / LAUNCH_RECORD_NAME).read_text(encoding="utf-8"))
-    changed = [
-        str(path) for key, path in _guarded_files(run_dir).items()
-        if not path.exists() or file_sha256(path) != record.get(key)
-    ]
-    if changed:
-        raise RegressionError(
-            f"changed since launch: {', '.join(changed)}; relaunch "
-            f"({_stop_command()}, then {_command('launch')})"
-        )
-
-
-def require_backend_settings(context: StackContext, expected: Mapping[str, JsonValue]) -> None:
-    """Every setting the launch wrote is still the backend's setting."""
-    actual = context.api.get_json("/api/settings")
-    if not isinstance(actual, dict):
-        raise TypeError("settings response must be an object")
-    differences = []
-    for section, wanted in expected.items():
-        have = actual.get(section)
-        if isinstance(wanted, dict):
-            have = have if isinstance(have, dict) else {}
-            differences += [
-                f"{section}.{key}" for key, value in wanted.items() if have.get(key) != value
-            ]
-        elif have != wanted:
-            differences.append(section)
-    if differences:
-        raise RegressionError(
-            f"backend settings differ from the launch: {', '.join(differences)}; relaunch"
-        )
-
-
-def prepare_scenario(context: StackContext, run_dir: Path) -> None:
-    """The eval's run_mission steps up to the launch, on a fresh stack."""
-    connected = context.api.get_json("/api/vehicles")
-    if connected or companion_ids(context):
-        raise RegressionError(
-            f"prep already ran on this stack; relaunch ({_stop_command()}, then {_command('launch')})"
-        )
-    connect_vehicles(context)
-    wait_for_vehicles(context, STACK_TIMEOUT_S)
-    configure_vehicle_params(context, STACK_TIMEOUT_S)
-    upload_scenario_missions(context)
-    verify_aas_profile(context)
-    start_companions(context, STACK_TIMEOUT_S)
-    start_esp32_simulator(context)
-    wait_for_missions(context, STACK_TIMEOUT_S)
-    resolve_live_plan(context, run_dir)
-
-
-def prep(runs_dir: Path, clock: ClockPort, open_browser=webbrowser.open) -> Path:
-    entry = owned_entry(os.environ)
-    if entry is None:
-        raise RegressionError(f"no GCS stack runs for this checkout; run: {_command('launch')}")
-    token = entry.get("sitl_launch_token")
-    run_dir = find_run(runs_dir, token)
-    require_unchanged(run_dir)
-    fixture = load_fixture(FIXTURE_PATH)
-    scenario = waypoint_dock_scenario(fixture)
-    env = demo_environment(run_dir)
-    context = owned_stack_context(
-        env, entry, str(token), Path(env[GCS_LOG_DIR_ENV]) / "backend.log", run_dir,
-        clock=clock, scenario=scenario,
-    )
-    try:
-        require_backend_settings(context, demo_settings(fixture, scenario))
-        prepare_scenario(context, run_dir)
-    finally:
-        context.api.close()
-    open_browser(f"http://localhost:{entry['frontend']}")
-    return run_dir
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("step", choices=("launch", "prep"))
-    args = parser.parse_args(argv)
+    parser.parse_args(argv)
     try:
-        if args.step == "launch":
-            run_dir = launch(RUNS_DIR, SystemClock(), dt.datetime.now())
-            print(f"Stack up; logs in {run_dir}\nNext: {_command('prep')}")
-        else:
-            run_dir = prep(RUNS_DIR, SystemClock())
-            print(
-                "Ready. If a GCS tab was already open, reload it. Press Launch, "
-                "then approve each dock (30 s each).\n"
-                f"Logs in {run_dir}\nStop: {_stop_command()}"
-            )
+        run_dir = start(RUNS_DIR, SystemClock(), dt.datetime.now())
     except RegressionError as error:
-        print(f"DELIVERY DEMO {args.step.upper()} FAILED: {error}", file=sys.stderr)
+        print(f"DELIVERY DEMO FAILED: {error}", file=sys.stderr)
         return 2
+    print(
+        "Ready. In the GCS: Load plan -> "
+        f"{PLAN_PATH} (or build your own), Upload, then Launch and approve each dock.\n"
+        f"Logs in {run_dir}\nStop: {_stop_command()}"
+    )
     return 0
 
 

@@ -73,7 +73,7 @@ def launch_command(
     *instances* is the scenario's slot count: the launcher starts that many
     SITL vehicles of the slot's reserved sysids, in order. The hand demo
     (``delivery_demo.py``) keeps the frontend (*headless* False) and opens
-    the browser itself (*browser* False).
+    the browser itself once the vehicle params are set (*browser* False).
     """
     command = [sys.executable, str(GCS_LAUNCH)]
     if headless:

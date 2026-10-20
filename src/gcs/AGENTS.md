@@ -105,15 +105,15 @@ Frontend:
   console windows, child output in `GCS_LOG_DIR`; `NAVPY_LOG_ROTATION=off`
   keeps logs unrotated.
 - **Hand-driven delivery demo** (`scripts/delivery_demo.py`, design
-  `docs/design/delivery_demo_prep.md`): `delivery_demo.py launch` starts this
-  checkout's stack for `scripts/eval_delivery_scenario.json` (scenario home,
-  three hubs, explicit lifecycle, fresh SITL root, frontend but no browser).
-  d1 and d2 are owner mission waypoints (`targ_wps`), so the map shows them;
-  the eval keeps the shared dock world (`NAVPY_SIM_DOCKS`); `delivery_demo.py prep` then connects, writes the eval's
-  params, uploads the missions with readback, starts the companions and opens
-  the UI. Press Launch, approve each dock within 30 s; reload a tab opened
-  before `prep`. Stop with `gcs_stop.py`. Both refuse a stack `launch` did not
-  start; logs in `.logs/delivery-demo/<time>`.
+  `docs/design/delivery_demo_prep.md`): one command starts this checkout's
+  stack like a normal run (auto-connect, `auto` lifecycle, ESP32 sim) with
+  only the scenario's needs: a run-local SITL root, settings pins over the
+  checkout's `gcs_settings.json` (a copy; the original is not touched) and
+  the vehicles' static AAS params. It then opens the UI. Load
+  `scripts/delivery_demo_plan.json` (or build a plan), Upload, Launch, and
+  approve each dock. Regenerate the plan file with
+  `scripts/delivery_demo_plan.py`. Stop with `gcs_stop.py`. Logs in
+  `.logs/delivery-demo/<time>`.
 - In **dev mode only**, the running git branch is shown in the tab title +
   topbar so parallel instances are distinguishable; non-dev (operator) mode
   hides it (`devMode` gates both, from `settings.simulation.dev_mode`).
