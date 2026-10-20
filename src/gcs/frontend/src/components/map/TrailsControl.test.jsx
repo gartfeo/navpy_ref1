@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { act, render, fireEvent } from '@testing-library/react';
-import TrailsControl, { panelBounds } from './TrailsControl';
+import TrailsControl, { formatClock, panelBounds } from './TrailsControl';
 import en from '../../locales/en.json';
 import hy from '../../locales/hy.json';
 
@@ -110,6 +110,16 @@ describe('TrailsControl', () => {
       expect(utils.getByTestId('trails-panel').style.width).toBe('148px');
     } finally {
       globalThis.ResizeObserver = Orig;
+    }
+  });
+
+  it('pause time is 24-hour HH:MM even in a 12-hour locale', () => {
+    const real = Date.prototype.toLocaleTimeString;
+    Date.prototype.toLocaleTimeString = function (_locales, opts) { return real.call(this, 'en-US', opts); };
+    try {
+      expect(formatClock(new Date(2026, 9, 20, 14, 3).getTime())).toBe('14:03');
+    } finally {
+      Date.prototype.toLocaleTimeString = real;
     }
   });
 });

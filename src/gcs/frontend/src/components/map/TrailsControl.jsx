@@ -247,9 +247,9 @@ export default function TrailsControl({
   );
 }
 
-/** Pause time as HH:MM, the operator's clock. */
-function formatClock(ms) {
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+/** Pause time as 24-hour HH:MM in the operator's time zone, in any locale. */
+export function formatClock(ms) {
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
 const icon = { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', 'aria-hidden': true };
