@@ -507,7 +507,13 @@
   written while run 1 flew changed input_manifest.json's
   source.untracked_sha256, so run 1 was no longer byte-equal to runs 2 and
   3. Write and stage every file first; otherwise compare only runs that
-  started after the last edit.
+  started after the last edit. Editing a tracked file mid-run breaks it too
+  (source.uncommitted_diff_sha256; radio budget round 4, 2026-10-20): touch
+  nothing in the worktree until the matrix ends.
+- **Targeted tests miss the root `tests/*.py` files.** A new abstract method
+  passed tests/modules and tests/gcs but broke the pinned IVehicle surface in
+  tests/test_vehicle_logger_runtime_solid_regressions.py; grep tests/ for the
+  class you change before trusting a targeted run.
 - **A passing gate on a real run may be vacuous.** Break a copy of the run's
   evidence for each gate (delete a pose CSV, drop SNAP lines, drop one
   emission, drop the polling record), re-run analyze_run, and check that
