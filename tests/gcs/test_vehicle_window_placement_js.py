@@ -16,7 +16,9 @@ repository layout:
 - streams come only from each vehicle's telemetry ``video_streams`` (the old
   build-time ``VITE_VIDEO_WHEP_URL`` and ``videoConfig.js`` are gone, no shim),
   and there is no settings field for a URL;
-- the vendored third-party reader carries its provenance and licence.
+- the vendored third-party reader carries its provenance and licence;
+- the map never chases a UAV (v11): no follow selector, no chase camera, and
+  the window never touches the map camera, RC or browser storage.
 """
 import os
 import re
@@ -133,6 +135,44 @@ class TestVendoredReaderProvenance(unittest.TestCase):
         self.assertIn("fetch(sessionUrl, {", self.reader)
 
 
+class TestNoMapChase(unittest.TestCase):
+    def test_follow_selector_and_state_are_gone(self):
+        self.assertNotIn("followSysId", _read("App.jsx"))
+        overlay = _read("components", "map", "MonitorMapOverlay.jsx")
+        self.assertNotIn("<select", overlay)
+        self.assertNotIn("monitorOverlay.follow", overlay)
+        for locale in ("en", "hy"):
+            src = _read("locales", f"{locale}.json")
+            self.assertNotIn('"follow"', src)
+            self.assertNotIn('"minimize"', src)
+
+    def test_map_camera_only_moves_for_rc_fpv(self):
+        follow = _read("components", "map", "hooks", "useFollowUav.js")
+        self.assertNotIn("lookAtTransform", follow)
+        self.assertIn("fpvSysId", follow)
+
+    def test_window_never_touches_map_camera_rc_or_storage(self):
+        for parts in (("components", "VehicleWindow.jsx"), ("hooks", "useVehicleWindow.js")):
+            src = _read(*parts)
+            for name in ("mapCameraRef", "flyToRef", "resetViewRef", "viewerRef", "manualControl",
+                         "localStorage", "sessionStorage"):
+                self.assertNotIn(name, src, f"{parts[-1]} must not reference {name}")
+
+    def test_sidebar_fly_to_swaps_back_before_flying(self):
+        # While swapped the map's fly-to waits for the swap back; without unswap() a
+        # sidebar coordinate click would wait until some other action restored the map.
+        app = _read("App.jsx")
+        body = re.search(r"const flyToLocation = useCallback\(\(lat, lon\) => \{(.*?)\}, \[", app, re.S)
+        self.assertIsNotNone(body)
+        self.assertRegex(body.group(1), r"unswap\(\);\s*flyToRef\.current\?\.\(lat, lon\)")
+        self.assertIn("onFlyToLocation={flyToLocation}", app)
+
+    def test_swap_ends_when_the_pane_has_no_room_for_the_small_map(self):
+        app = _read("App.jsx")
+        self.assertIn("const swapped = showWindow && win.swapped && windowLayout.canSwap;", app)
+        self.assertRegex(app, r"useLayoutEffect\(\(\) => \{\s*if \(win\.swapped && !windowLayout\.canSwap\) unswap\(\);")
+
+
 class TestLocaleStrings(unittest.TestCase):
     def test_window_strings_exist_in_both_locales(self):
         for locale in ("en", "hy"):
@@ -140,7 +180,7 @@ class TestLocaleStrings(unittest.TestCase):
             self.assertIn('"vehicleWindow"', src)
             self.assertNotIn('"videoPanel"', src)
             for key in ("region", "reconnect", "dismiss", "videoLost", "linkLost", "noCamera", "maximize", "restore",
-                        "minimize", "syntheticTag", "waitingForPose", "syntheticUnavailable"):
+                        "close", "pickerPrompt", "syntheticTag", "waitingForPose", "syntheticUnavailable"):
                 self.assertIn(f'"{key}"', src)
 
 

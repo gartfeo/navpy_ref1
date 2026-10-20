@@ -402,8 +402,6 @@
   },
   "monitorOverlay": {
     "enterRc": "Միացնել ՀԿ կառավարումը",
-    "follow": "Տեսախցիկի հետևում",
-    "free": "Ազատ",
     "toggleVision": "Տեսողության կոնուսներ",
     "toggleCoverage": "Ծածկման շերտ",
     "clearCoverage": "Մաքրել ծածկույթը",
@@ -443,15 +441,14 @@
     },
     "maximize": "Մեծացնել",
     "restore": "Վերականգնել",
-    "minimize": "Փոքրացնել",
+    "close": "Փակել",
     "showMapLarge": "Ցույց տալ քարտեզը մեծ",
-    "handle": {
-      "label": "{{name}} · {{state}}",
-      "restoreLabel": "Ցույց տալ սարքի պատուհանը՝ {{name}} · {{state}}",
-      "camera": "Տեսախցիկ",
-      "noCamera": "Տեսախցիկ չկա",
-      "synthetic": "Սինթետիկ",
-      "linkLost": "Կապը սարքի հետ կորել է"
+    "pickerPrompt": "Ընտրեք ԱԹՍ տեսահոսքի համար",
+    "uav": {
+      "camera": "{{name}}, տեսախցիկ",
+      "map": "{{name}}, տեսախցիկ չկա, սինթետիկ տեսք",
+      "linkLost": "կապը կորել է",
+      "withLinkLost": "{{name}}, կապը կորել է"
     },
     "syntheticTitle": "{{name}} · սինթետիկ տեսք",
     "syntheticTag": "ՍԻՆԹԵՏԻԿ · ոչ տեսախցիկ",

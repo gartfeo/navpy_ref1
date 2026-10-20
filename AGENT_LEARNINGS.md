@@ -874,6 +874,59 @@
   `git hash-object -w --path` and `git update-index --cacheinfo`, then apply the same edit to the
   working copy. With autocrlf=true the blob is LF and the working copy CRLF.
 
+## Run record and model input (HITL stage 1 step 1, 2026-10-18)
+- **Never glob-delete in a shared temp folder.** I ran `rm -rf "$(cygpath "$TEMP")"/tmp*` to clean my
+  test leftovers. In Git Bash `$TEMP` is `/tmp`, the shared `%LOCALAPPDATA%\Temp`, so it deleted every
+  top-level `tmp*` entry there, including other sessions' files, and it cannot be undone. Delete only
+  exact paths I created, and keep scratch files in the session scratchpad. pytest's `tmp_path` cleans
+  itself.
+- The private folder (`%LOCALAPPDATA%\navpy-hitl-tools`) is itself a git repository, so "refuse any git
+  checkout" would refuse it. And "not inside REPO_ROOT" misses the main navpy-temp2 checkout, which is
+  outside a worktree's REPO_ROOT. Require the run folder inside `private_dir()`, and refuse it when any
+  folder above it holds `src/navpy`. A git-history test failed open: in Codex's sandbox git refused the
+  main checkout ("dubious ownership"), and shallow clones report another root (Codex rounds 1-3).
+- In this Bash tool, `\\` inside a quoted heredoc reached Python as `\`: `"\\n"` became a real newline
+  and `C:\\Users` a bad `\U` escape. Write multi-line Python to a scratchpad file first.
+- On this host `os.symlink` for a directory fails without the privilege; tests fall back to
+  `_winapi.CreateJunction`. `Path.is_symlink()` and `rglob` treat a junction as a plain folder, while
+  `shutil.copytree` copies through it. Find links with `os.lstat` and `FILE_ATTRIBUTE_REPARSE_POINT`.
+- `math.isfinite(10**400)` raises OverflowError, and so does the reciprocal of 5e-324. JSON allows both,
+  so a validator must catch it (Codex round 1).
+- Mutating a "refuse inside the repository" guard lets the test write into REPO_ROOT/.logs. The
+  mutation script must remove exactly that folder afterwards, and remove `.logs` only when it is empty.
+
+## Reading-keyed optics (HITL stage 1 step 3, 2026-10-19)
+- I first copied gimbal-controller's console-zoom knots (1.1-10.0) into the profile as measured rows. They are a
+  focal-only estimate: centre and distortion are borrowed from the wide model, and POINTING-MODEL.md:180 says that
+  distortion has the wrong sign at high zoom (Codex round 1). Before reusing a calibration, read its caveats and
+  check that every field was measured at that zoom.
+- Measured ZR10 calibrations on this PC (1920x1080): reading 1.0 = wall model at the wide stop
+  (output/wall-matrix/run1/solution_v3.json); reading 1.8 = ChArUco after absolute zoom 2.0
+  (output/tuning-2x/scale/base-model.json; held-out groups in out/recovered-unreachable-20261009). The per-zoom
+  checkerboard fits were on the rig only (copied to the private folder 2026-10-19). navpy's older siyi_zr10 "1" row records no zoom state.
+- The rig's per-zoom fits (~/calib-helpers/fits.json points at gimbal-controller out/zoom_calibrations, 2026-09-13
+  sessions; the 2026-10-08 sweep is single-view and cannot fit a lens) pass held-out board projection but read
+  1.8-2.6 % narrower in FOV than the reference, like the laser finding that board focal lengths are ~1.8 % high.
+  Low held-out error does not validate focal scale. Check a fit against an independent scale (laser, pointing)
+  and read gimbal-controller's reports on it (output/flat-zoom-trial-20260914/REPORT.md) before enabling a row.
+- Resolved 2026-10-20 (owner: interpolation is a temporary solution): a single-view still-board sweep cannot fit a
+  lens, but the similarity scale between its views is the focal ratio. tools/hitl/zr10_lens_table.py takes focal
+  length from the sweep x one constant from the tilted fits x the laser factor, and centre/distortion from the
+  tilted sets, interpolated and marked `basis`. Place each measured shape on the interpolation axis at the table's
+  focal length for its setting, not its own biased fit focal length, or measured rows get blended with neighbours.
+- Section 9 keeps private measurements out of the repository: measured constants, session ids and dated input
+  folder names go in the private manifest (measurements/zr10_lens_inputs.json), not in the builder (Codex rounds 3-4).
+- Do not mutate source files while a broad pytest run is in progress: a mutation loop on the builder made that run
+  report false failures. Run mutations before or after, never during.
+- One reading can be two lens states: reading 1.1 is scale 1.030 after absolute zoom 1.0 but 1.069 after a held
+  zoom-in. Key rows by reading and by how the zoom was set.
+- `Path.read_text` turns CRLF into LF, and `write_text(newline="")` then writes LF; `read_text(newline=...)` needs
+  Python 3.13. Read with `open(path, newline="")` and write back the line ending found.
+- The heredoc backslash collapse (step 1 above) hit again in a generated mutation list. Write any script that holds
+  `\n` escapes with the Write tool.
+- `tests/gcs/test_vision_profiles_route.py::test_known_gimbal_contract_metadata` fails on eee4cc3 without this change
+  (expects gimbal_seq XYZ; the siyi_zr10 profile has ZYX).
+
 ## Deterministic dev sim step 2: seeded SITL noise and wind (2026-10-18)
 - Every firmware commit moves the lockstep digest, even with every model off: the boot line
   `Init ArduPlane V4.6.3 (<git hash>)` is frame 1's serial0 egress. Prove a firmware patch inert
@@ -940,6 +993,37 @@
 - A conflict-resolving script failed and the chained git add and commit still
   ran, committing the markers. Chain them with && (or check the script's exit)
   and grep for markers before git add.
+
+## GCS video v11 implementation (2026-10-20)
+- Moving the window to the top right dropped the reset-view reserve, so the
+  window got wider and 3 UAV buttons fit at 375 px: the overflow-menu fixture
+  silently stopped testing the menu. After changing a layout anchor, redo the
+  fixture sizes from the new formula and assert the precondition
+  (overflow.length > 0).
+- A test helper that found UAV buttons by accessible name broke for link-lost
+  UAVs, whose name differs. Pick by a stable attribute (data-sysid).
+- Line endings differ per file (locale JSON and some tests CRLF, others LF);
+  a remembered "LF" was wrong. Run `file` on each target before a scripted edit.
+- A full `pytest tests/gcs` started while edits went on: its vitest leg timed
+  out at 5 s under load and the same test passed alone. Run the full suite
+  after the edits, on a quiet PC, and rerun a timeout alone before blaming
+  the change.
+- A dirty file that main also changed blocks a fast-forward. Without a WIP
+  commit or the shared stash: save `git diff -- <file>` as a patch, check the
+  file out, fast-forward, `git apply --3way` (it stages), then `git reset -- <file>`.
+- A chained `git rev-parse A B && cat > PROMPT.md <<EOF` stopped at the bad
+  rev-parse, so the Codex prompt was never written and the run failed on a
+  missing file. Write review prompts with the Write tool, and guard the run
+  with `test -s PROMPT.md`.
+- Each Synthetic mount made a WebGL context that `widget.destroy()` does not
+  release; after about 16 the browser dropped the oldest, the main map's.
+  Unit tests could not show it; a live 20x switch loop did. Release a
+  Cesium widget's context (WEBGL_lose_context) on unmount, and add a
+  mount/unmount loop to live checks of any per-view Cesium widget.
+- Size floors chosen by feel (96 px, then 1 px) each broke a different design
+  rule (credits, never size 0). Derive a floor from the thing it must hold
+  (here the 138 px ion logo), and when the room is missing, offer no swap
+  rather than a box that breaks a rule.
 
 ## Link model (dev sim step 3, 2026-10-19)
 - A mutation can survive because a second mechanism enforces the same rule: removing the jitter clamp

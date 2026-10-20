@@ -1,4 +1,4 @@
-// FPV camera hold and render requests in useFollowUav, driven with a fake
+// RC FPV camera hold and render requests in useFollowUav, driven with a fake
 // Cesium: the math is stubbed, so these check only which camera calls happen.
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
@@ -30,7 +30,7 @@ function makeStore(vehicles) {
   };
 }
 
-function setup(vehicle, fpvMode = true) {
+function setup(vehicle, fpvSysId = 1) {
   let preRender = null;
   const viewer = {
     clock: { currentTime: 0 },
@@ -40,22 +40,42 @@ function setup(vehicle, fpvMode = true) {
       preRender: { addEventListener: (fn) => { preRender = fn; }, removeEventListener: () => { preRender = null; } },
     },
   };
-  const entitiesRef = { current: { uavMap: { 1: { position: { getValue: () => ({ x: 1 }) }, orientation: { getValue: () => ({ w: 1 }) } } } } };
-  const store = makeStore({ 1: vehicle });
+  const uav = (x) => ({ position: { getValue: () => ({ x }) }, orientation: { getValue: () => ({ w: 1 }) } });
+  const entitiesRef = { current: { uavMap: { 1: uav(1), 2: uav(2) } } };
+  const store = makeStore({ 1: vehicle, 2: vehicle });
   const hook = renderHook(
-    ({ fpv }) => useFollowUav({ current: FakeCesium }, { current: viewer }, entitiesRef, 1, true, fpv, { current: store }),
-    { initialProps: { fpv: fpvMode } },
+    ({ sysId }) => useFollowUav({ current: FakeCesium }, { current: viewer }, entitiesRef, sysId, true, { current: store }),
+    { initialProps: { sysId: fpvSysId } },
   );
-  return { viewer, store, hook, frame: () => preRender?.() };
+  return { viewer, store, hook, frame: () => preRender?.(), hasHandler: () => preRender != null };
 }
 
 const linked = { link_ok: true, lat: 32, lon: 34, alt_rel: 100, roll: 1, pitch: 2, heading: 90 };
 
-describe('useFollowUav FPV', () => {
-  it('follows a valid pose', () => {
+describe('useFollowUav: RC FPV only', () => {
+  it('follows a valid pose of the RC target through the nose, never a chase transform', () => {
     const { viewer, frame } = setup(linked);
     frame();
     expect(viewer.camera.setView).toHaveBeenCalledTimes(1);
+    expect(viewer.camera.setView.mock.calls[0][0].destination).toEqual({ x: 1 });
+    expect(viewer.camera.lookAtTransform).not.toHaveBeenCalled();
+  });
+
+  it('a new RC target moves the first-person camera to that UAV', () => {
+    const { viewer, frame, hook } = setup(linked);
+    hook.rerender({ sysId: 2 });
+    frame();
+    expect(viewer.camera.setView).toHaveBeenLastCalledWith(expect.objectContaining({ destination: { x: 2 } }));
+  });
+
+  it('no RC target: no camera handler, no render requests, no camera moves', () => {
+    const { viewer, store, frame, hasHandler } = setup(linked, null);
+    expect(hasHandler()).toBe(false);
+    act(() => store.emit());
+    frame();
+    expect(viewer.scene.requestRender).not.toHaveBeenCalled();
+    expect(viewer.camera.setView).not.toHaveBeenCalled();
+    expect(viewer.camera.lookAtTransform).not.toHaveBeenCalled();
   });
 
   it('holds the last pose while link_ok is false and resumes when it is back', () => {
@@ -92,26 +112,16 @@ describe('useFollowUav FPV', () => {
     expect(viewer.camera.setView).toHaveBeenCalledTimes(1);
   });
 
-  it('requests a render on entry and per pose update in FPV, not in chase', () => {
-    const { viewer, store, hook } = setup(linked);
+  it('requests a render on entry and per pose update in FPV, and stops when RC ends', () => {
+    const { viewer, store, hook, hasHandler } = setup(linked);
     expect(viewer.scene.requestRender).toHaveBeenCalledTimes(1);
     act(() => store.emit());
     act(() => store.emit());
     expect(viewer.scene.requestRender).toHaveBeenCalledTimes(3);
-    hook.rerender({ fpv: false });
+    hook.rerender({ sysId: null });
     act(() => store.emit());
     expect(viewer.scene.requestRender).toHaveBeenCalledTimes(3);
-  });
-
-  it('FPV off re-initializes the chase range instead of reading a first-person camera', () => {
-    const { viewer, frame, hook } = setup(linked);
-    frame();
-    hook.rerender({ fpv: false });
-    frame();
-    // The chase-default range path: the range is never read off the camera,
-    // whose position after first person is an Earth-centred world position.
-    expect(viewer.camera.lookAtTransform).toHaveBeenCalledTimes(1);
-    expect(FakeCesium.Cartesian3.magnitude).not.toHaveBeenCalled();
+    expect(hasHandler()).toBe(false);
   });
 });
 

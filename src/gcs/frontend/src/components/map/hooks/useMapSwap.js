@@ -6,49 +6,57 @@ import { useEffect, useRef } from 'react';
  * The map is only resized by CSS; this hook keeps its camera right:
  *
  * - Swapped: camera inputs off (which also stops the inertia of a gesture made
- *   just before), and a reset-view fit in flight is cancelled and deferred.
- * - Any fit asked for while swapped (reset view, the Free auto-centre) is
- *   deferred: a fit in the small box would use its aspect ratio.
- * - A deferred fit is dropped when follow or RC takes the camera.
- * - Swap back: inputs on, `viewer.resize()`, then the deferred fit once, only
- *   if the map is still Free.
+ *   just before), and any camera flight is cancelled. A reset-view fit that
+ *   was flying is deferred; a coordinate flight is not re-run (the operator
+ *   just asked for the window).
+ * - A reset-view fit or a coordinate fly-to asked for while swapped waits for
+ *   the large map: in the small box it would use the small aspect ratio. The
+ *   newest request wins. The caller swaps back first for a coordinate click.
+ * - A deferred request is dropped when RC takes the camera.
+ * - Swap back: inputs on, `viewer.resize()`, then the deferred request once.
  *
- * Wraps the viewer's fit: `fitRef` is the viewer's own reset view, and this
- * hook publishes the deferring one on `resetViewRef`.
+ * Wraps the viewer's own camera moves: `fitRef` and `flyRef` are useCesiumViewer's
+ * reset view and fly-to, and this hook publishes the deferring ones on
+ * `resetViewRef` and `flyToRef`.
  *
  * @param {object} p
  * @param {{ current: object|null }} p.viewerRef
  * @param {boolean} p.viewerReady
  * @param {{ current: Function|null }} p.fitRef - useCesiumViewer's reset view.
+ * @param {{ current: Function|null }} [p.flyRef] - useCesiumViewer's fly-to.
  * @param {{ current: boolean }} p.fitFlyingRef
  * @param {{ current: Function|null }} [p.resetViewRef] - the parent's reset view.
+ * @param {{ current: Function|null }} [p.flyToRef] - the parent's fly-to.
  * @param {boolean} p.swapped
- * @param {boolean} p.cameraTaken - follow or RC owns the map camera.
+ * @param {boolean} p.cameraTaken - RC owns the map camera.
  */
 export default function useMapSwap({
-  viewerRef, viewerReady, fitRef, fitFlyingRef, resetViewRef, swapped, cameraTaken,
+  viewerRef, viewerReady, fitRef, flyRef, fitFlyingRef, resetViewRef, flyToRef, swapped, cameraTaken,
 }) {
   const swappedRef = useRef(swapped);
   swappedRef.current = swapped;
   const cameraTakenRef = useRef(cameraTaken);
   cameraTakenRef.current = cameraTaken;
+  // The deferred request: { move: fitRef | flyRef, args }.
   const pendingRef = useRef(null);
   const lastFitRef = useRef(null);
   const appliedRef = useRef(false);
 
   useEffect(() => {
-    if (!resetViewRef || !viewerReady) return;
-    resetViewRef.current = (...args) => {
+    if (!viewerReady) return;
+    const deferring = (moveRef, onRun) => (...args) => {
       if (swappedRef.current) {
-        pendingRef.current = args;
+        pendingRef.current = { move: moveRef, args };
         return;
       }
-      lastFitRef.current = args;
-      fitRef.current?.(...args);
+      onRun?.(args);
+      moveRef.current?.(...args);
     };
-  }, [resetViewRef, viewerReady, fitRef]);
+    if (resetViewRef) resetViewRef.current = deferring(fitRef, (args) => { lastFitRef.current = args; });
+    if (flyToRef && flyRef) flyToRef.current = deferring(flyRef);
+  }, [resetViewRef, flyToRef, viewerReady, fitRef, flyRef]);
 
-  // Before the swap effect: an RC entry that also swaps back drops the fit first.
+  // Before the swap effect: an RC entry that also swaps back drops the request first.
   useEffect(() => {
     if (cameraTaken) pendingRef.current = null;
   }, [cameraTaken]);
@@ -59,17 +67,17 @@ export default function useMapSwap({
     appliedRef.current = swapped;
     viewer.scene.screenSpaceCameraController.enableInputs = !swapped;
     if (swapped) {
-      if (fitFlyingRef.current) {
-        viewer.camera.cancelFlight();
-        pendingRef.current = lastFitRef.current;
-      }
+      // Read before cancelling: the fit's cancel callback clears the flag.
+      const fitFlying = fitFlyingRef.current;
+      viewer.camera.cancelFlight();
+      if (fitFlying && lastFitRef.current) pendingRef.current = { move: fitRef, args: lastFitRef.current };
     } else {
       viewer.resize();
       const pending = pendingRef.current;
       pendingRef.current = null;
       if (pending && !cameraTakenRef.current) {
-        lastFitRef.current = pending;
-        fitRef.current?.(...pending);
+        if (pending.move === fitRef) lastFitRef.current = pending.args;
+        pending.move.current?.(...pending.args);
       }
     }
     viewer.scene.requestRender();

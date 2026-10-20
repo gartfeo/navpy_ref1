@@ -3,21 +3,16 @@ import { useTranslation } from 'react-i18next';
 import MapIconBtn from '../MapIconBtn';
 import { colors } from '../../styles';
 import useElementSize from '../../hooks/useElementSize';
-import {
-  DEFAULT_TOP_CONTROLS_BOTTOM_PX, MAP_CONTROL_PX, PANEL_MARGIN_PX,
-} from '../../utils/vehicleWindowLayout';
+import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX } from '../../utils/vehicleWindowLayout';
 
 const NO_SIZE = { width: 0, height: DEFAULT_TOP_CONTROLS_BOTTOM_PX - PANEL_MARGIN_PX };
 
 /**
- * Monitor-mode map overlay: RC control toggle, camera follow selector,
- * vision/coverage/trail toggles and clears. The top-right controls wrap on a
- * narrow pane; their bottom edge is reported so the vehicle window stays
- * below them.
+ * Monitor-mode map overlay: RC control toggle, plan entry, vision/coverage/
+ * trail toggles and clears. The top-right controls wrap on a narrow pane;
+ * their bottom edge is reported so the vehicle window stays below them.
  */
 export default function MonitorMapOverlay({
-  vehicleList,
-  followSysId, onFollowChange,
   onTopControlsBottom,
   onToggleManualControl,
   showVision, onToggleVision,
@@ -61,7 +56,7 @@ export default function MonitorMapOverlay({
           </svg>
         </MapIconBtn>
       </div>
-      {/* Top-right bar: camera follow + display toggles. Wraps on a
+      {/* Top-right bar: plan entry + display toggles. Wraps on a
           narrow pane instead of running under the RC button. */}
       <div ref={topRightRef} data-testid="monitor-top-right" style={{
         position: 'absolute',
@@ -108,32 +103,6 @@ export default function MonitorMapOverlay({
             {planLabel}
           </button>
         )}
-        {/* Camera follow — combobox */}
-        <select
-          aria-label={t('monitorOverlay.follow')}
-          value={followSysId ?? ''}
-          onChange={(e) => onFollowChange(e.target.value === '' ? null : Number(e.target.value))}
-          style={{
-            height: MAP_CONTROL_PX,
-            padding: '0 8px',
-            borderRadius: 6,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            border: `1px solid ${colors.border}`,
-            background: 'rgba(22, 33, 62, 0.85)',
-            color: colors.textBright,
-            backdropFilter: 'blur(4px)',
-            outline: 'none',
-          }}
-        >
-          <option value="">{t('monitorOverlay.free')}</option>
-          {vehicleList.map((v) => (
-            <option key={v.sys_id} value={v.sys_id}>
-              {v.name || `UAV ${v.sys_id}`}
-            </option>
-          ))}
-        </select>
         {/* Vision toggle */}
         <MapIconBtn
           title={t('monitorOverlay.toggleVision')}

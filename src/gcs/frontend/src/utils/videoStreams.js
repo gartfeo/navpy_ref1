@@ -34,20 +34,10 @@ export function defaultStream(streams) {
 }
 
 /**
- * The UAV with video the vehicle window picks by itself (owner decision D1):
- * the followed UAV if it has video, else the first UAV with video, else null.
- * Later follow changes do not call this again.
+ * The UAV advertises a stream: its picker button shows the camera icon and a
+ * pick opens Camera; otherwise the map icon, and a pick opens Synthetic.
  */
-export function pickFirstFeed(followSysId, fleet) {
-  const withVideo = (fleet || []).filter((e) => e.streams.length > 0);
-  const followed = withVideo.find((e) => e.sysId === followSysId);
-  return (followed ?? withVideo[0])?.sysId ?? null;
-}
-
-/** The window's first pick: a UAV with video as above, else the first UAV in the fleet. */
-export function pickFirstUav(followSysId, fleet) {
-  return pickFirstFeed(followSysId, fleet) ?? fleet?.[0]?.sysId ?? null;
-}
+export const hasVideo = (entry) => (entry?.streams?.length ?? 0) > 0;
 
 /**
  * What the window's camera shows for the selection `{ sysId, key }`; `key`
@@ -58,7 +48,7 @@ export function pickFirstUav(followSysId, fleet) {
  * - `lost`: the shown stream went away and the UAV has none left. Never
  *   another UAV.
  * - `noCamera`: no stream expected and the UAV advertises none.
- * - `idle`: nothing selected (empty fleet).
+ * - `idle`: nothing selected (the picker).
  */
 export function resolveShownStream(selection, fleet) {
   if (!selection) return { kind: 'idle' };
