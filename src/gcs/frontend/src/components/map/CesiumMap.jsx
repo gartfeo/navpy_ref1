@@ -42,6 +42,7 @@ function CesiumMap({
   searchPattern,
   fencePolygon,
   showFence,
+  fenceEditable = true,
   fenceWarning,
   onFenceVertexDrag,
   onFenceMidpointInsert,
@@ -254,7 +255,7 @@ function CesiumMap({
   });
 
   usePolygonLayer(cesiumRef, viewerRef, entitiesRef, polygonRef, polygon, phase, viewerReady);
-  useFenceLayer(cesiumRef, viewerRef, entitiesRef, fencePolygon, showFence, viewerReady, phase === 'PLANNING', fenceWarning);
+  useFenceLayer(cesiumRef, viewerRef, entitiesRef, fencePolygon, showFence, viewerReady, phase === 'PLANNING' && fenceEditable, fenceWarning);
   useExclusionLayer(cesiumRef, viewerRef, entitiesRef, exclusionPolygons, exclusionDraft, exclusionConflicts, viewerReady, phase === 'PLANNING');
   useZoneLayer(cesiumRef, viewerRef, entitiesRef, zonePosRef, zoneCount, showZones, searchPattern, viewerReady);
 
