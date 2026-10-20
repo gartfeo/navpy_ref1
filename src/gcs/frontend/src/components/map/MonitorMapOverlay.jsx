@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import MapIconBtn from '../MapIconBtn';
+import TrailsControl from './TrailsControl';
 import { colors } from '../../styles';
 import useElementSize from '../../hooks/useElementSize';
 import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX } from '../../utils/vehicleWindowLayout';
@@ -8,18 +9,15 @@ import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX } from '../../utils/veh
 const NO_SIZE = { width: 0, height: DEFAULT_TOP_CONTROLS_BOTTOM_PX - PANEL_MARGIN_PX };
 
 /**
- * Monitor-mode map overlay: RC control toggle, plan entry, vision/coverage/
- * trail toggles and clears. The top-right controls wrap on a narrow pane;
+ * Monitor-mode map overlay: RC control toggle, plan entry, vision toggle and
+ * the Trails control (trail and camera-mark history). The top-right controls wrap on a narrow pane;
  * their bottom edge is reported so the vehicle window stays below them.
  */
 export default function MonitorMapOverlay({
   onTopControlsBottom,
   onToggleManualControl,
   showVision, onToggleVision,
-  showCoverage, onToggleCoverage,
-  onClearCoverage,
-  showTrails, onToggleTrails,
-  onClearTrails,
+  trails,
   onEditPlan, planEntry,
 }) {
   const { t } = useTranslation();
@@ -114,49 +112,8 @@ export default function MonitorMapOverlay({
             <path d="M5.5 3.5L2 13h10L8.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill={showVision ? 'currentColor' : 'none'} fillOpacity="0.2"/>
           </svg>
         </MapIconBtn>
-        {/* Coverage toggle */}
-        <MapIconBtn
-          title={t('monitorOverlay.toggleCoverage')}
-          onClick={onToggleCoverage}
-          active={showCoverage}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M2 11L4 3l3 1 4-2 1 9H2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill={showCoverage ? 'currentColor' : 'none'} fillOpacity="0.2"/>
-            <path d="M4 6h6M3 8.5h8" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1.5 1.5" opacity="0.6"/>
-          </svg>
-        </MapIconBtn>
-        {/* Clear coverage */}
-        <MapIconBtn
-          title={t('monitorOverlay.clearCoverage')}
-          onClick={onClearCoverage}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            <line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-          </svg>
-        </MapIconBtn>
-        {/* Flight path trace toggle */}
-        <MapIconBtn
-          title={t('monitorOverlay.toggleTrails')}
-          onClick={onToggleTrails}
-          active={showTrails}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M1.5 12C4 12 3 6 6.5 6S9 2 12.5 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeDasharray={showTrails ? 'none' : '1.5 1.5'}/>
-            <circle cx="12.5" cy="2" r="1.3" fill="currentColor"/>
-          </svg>
-        </MapIconBtn>
-        {/* Clear flight path trace */}
-        <MapIconBtn
-          title={t('monitorOverlay.clearTrails')}
-          onClick={onClearTrails}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M1.5 12C4 12 3 6 6.5 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
-            <line x1="8" y1="3" x2="12.5" y2="7.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            <line x1="12.5" y1="3" x2="8" y2="7.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-          </svg>
-        </MapIconBtn>
+        {/* Trails: flight trail and camera marks history, one control */}
+        <TrailsControl {...trails} />
       </div>
     </>
   );

@@ -400,13 +400,23 @@
     "detectionStart": "ՀՍ",
     "dock": "D"
   },
+  "trailsPanel": {
+    "button": "Հետագծեր",
+    "title": "Հետագծեր և տեսախցիկի հետքեր",
+    "flightTrail": "Թռիչքի հետագիծ",
+    "cameraMarks": "Տեսախցիկի հետքեր",
+    "uavs": "ԱԹՍ-ներ",
+    "all": "Բոլորը",
+    "none": "Ոչ մեկը",
+    "pause": "Դադարեցնել գրանցումը",
+    "resume": "Շարունակել գրանցումը",
+    "clearAll": "Մաքրել բոլորը",
+    "paused": "Դադար",
+    "notRecordingSince": "Չի գրանցվում {{time}}-ից"
+  },
   "monitorOverlay": {
     "enterRc": "Միացնել ՀԿ կառավարումը",
     "toggleVision": "Տեսողության կոնուսներ",
-    "toggleCoverage": "Ծածկման շերտ",
-    "clearCoverage": "Մաքրել ծածկույթը",
-    "toggleTrails": "Թռիչքի հետագիծ",
-    "clearTrails": "Մաքրել թռիչքի հետագիծը",
     "resetView": "Վերականգնել տեսքը"
   },
   "vehicleWindow": {

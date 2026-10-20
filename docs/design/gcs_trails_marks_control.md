@@ -1,6 +1,6 @@
 # GCS trails and camera marks: one control
 
-Status: design v3, approved by the owner 2026-10-20. Not implemented.
+Status: design v3, approved by the owner 2026-10-20. Implemented 2026-10-20.
 
 Owner request (2026-10-20): the monitor map has separate show and clear
 buttons for the camera marks and for the UAV trail; they should become one
@@ -112,8 +112,9 @@ Panel rules follow the vehicle window (`gcs_video_streams.md`, section 5):
 above the vehicle window and the small swapped map, scrolls inside itself on a
 short or narrow pane (the UAV row wraps), and closes on a tap outside or
 Escape (focus back to the button). Nothing in it is saved in browser storage
-(same rule as the vehicle window); a reload starts with all UAVs checked, both
-layers on, recording.
+(same rule as the vehicle window); a reload starts with all UAVs checked,
+recording, the trail layer on and the camera marks layer off (today's
+defaults; marks record while hidden, so turning the layer on shows them).
 
 ### Select and deselect: recommendation
 

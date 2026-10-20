@@ -107,6 +107,8 @@ export default function App() {
     showCoverage, setShowCoverage,
     showTrails, setShowTrails,
     showVision, setShowVision,
+    hiddenSysIds, toggleSysIdHidden, showAllSysIds, hideSysIds,
+    historyPausedAt, toggleHistoryPaused, resumeHistory,
   } = useDisplaySettings();
 
   // Keep phase accessible to effects without making it a dependency
@@ -511,6 +513,7 @@ export default function App() {
     taskConfirmReset: taskConfirm.reset,
     taskAssignReset: taskAssign.reset,
     setLaunchStates: ws.setLaunchStates,
+    resumeHistory,
   });
   // ---- Manual control wiring (must be after useVehicleCommands for handleSetMode) ----
   const mc = useManualControlWiring({
@@ -658,8 +661,9 @@ export default function App() {
             showCoverage={showCoverage}
             showVision={showVision}
             showTrails={showTrails}
-            trailResetKey={commands.trailResetKey}
-            coverageResetKey={commands.coverageResetKey}
+            historyResetKey={commands.historyResetKey}
+            hiddenSysIds={hiddenSysIds}
+            historyPaused={historyPausedAt != null}
             vehicleList={vehicleList}
             storeRef={storeRef}
             trackResetKey={commands.trackResetKey}
@@ -772,12 +776,20 @@ export default function App() {
               onToggleManualControl={mc.handleToggleManualControl}
               showVision={showVision}
               onToggleVision={() => setShowVision(!showVision)}
-              showCoverage={showCoverage}
-              onToggleCoverage={() => setShowCoverage(!showCoverage)}
-              onClearCoverage={commands.handleClearCoverage}
-              showTrails={showTrails}
-              onToggleTrails={() => setShowTrails(!showTrails)}
-              onClearTrails={commands.handleClearTrails}
+              trails={{
+                vehicleList,
+                showTrails,
+                onToggleTrails: () => setShowTrails(!showTrails),
+                showMarks: showCoverage,
+                onToggleMarks: () => setShowCoverage(!showCoverage),
+                hiddenSysIds,
+                onToggleUav: toggleSysIdHidden,
+                onShowAllUavs: showAllSysIds,
+                onHideAllUavs: () => hideSysIds(vehicleList.map((v) => v.sys_id)),
+                pausedAt: historyPausedAt,
+                onTogglePause: toggleHistoryPaused,
+                onClearAll: commands.handleClearHistory,
+              }}
               onEditPlan={planning.handleGoToPlanning}
               planEntry={computePlanEntry({
                 hasPlan: (plan?.zones?.length || 0) > 0,

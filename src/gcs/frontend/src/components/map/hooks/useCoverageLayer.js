@@ -13,6 +13,14 @@ import {
   resolveLiveGimbalCameraConfig,
   selectGimbalTelemetry,
 } from '../utils/gimbalTelemetry';
+import {
+  clearCoverage,
+  coverageFor,
+  dropSid,
+  evictOverCap,
+  newCoverageHistory,
+  recordMark,
+} from '../utils/coverageHistory';
 
 /** Maximum accumulated coverage entities before FIFO eviction. */
 const MAX_COVERAGE_ENTITIES = 500;
@@ -75,45 +83,80 @@ function removeEntity(entityMap, animMap, viewer, key) {
 }
 
 /**
- * Coverage accumulation + live footprint + cleanup.
- * Samples camera detection envelopes based on distance traveled and adds ground-clamped polygons.
+ * Coverage (camera marks) accumulation + live footprint + cleanup.
+ * Samples camera detection envelopes based on distance traveled or a gimbal
+ * change and adds ground-clamped polygons, keyed by sys_id. Marks record for
+ * every UAV in AUTO, shown or hidden, from fresh telemetry only, unless
+ * `paused`; `showCoverage` (layer) and `hiddenSysIds` (per UAV) only hide.
  * Renders live detection envelopes for ALL devices in the active vision profile.
  */
-export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, coverageResetKey, viewerReady, plannerReady) {
-  const coverageRef = useRef({});
+export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, historyResetKey, hiddenSysIds, paused, viewerReady, plannerReady) {
+  const coverageRef = useRef(newCoverageHistory());
   const liveFootprintRef = useRef({});
   const footprintAnimRef = useRef({});
+  const visRef = useRef({});
+  visRef.current = { showCoverage, showVision, hiddenSysIds, plannerReady };
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+
+  // Live footprint: shown with Vision, or with the marks layer for a checked
+  // UAV. It is live, not history, so pause does not affect it.
+  const liveVisibleFor = (sid) => {
+    const vis = visRef.current;
+    return vis.plannerReady && (vis.showVision || (vis.showCoverage && !vis.hiddenSysIds?.has(sid)));
+  };
 
   // Coverage accumulation — subscribes to store for vehicle position updates
   useEffect(() => {
     const Cesium = cesiumRef.current;
     const viewer = viewerRef.current;
-    if (!Cesium || !viewer || !showCoverage) return;
-    // Coverage footprints depend on planner config (vision profiles + dock
-    // detect size); getDeviceConfigs() stays empty until it loads. Skip
-    // accumulation until ready so we never render against incomplete config.
-    if (!plannerReady) {
-      return;
-    }
-
+    if (!Cesium || !viewer) return;
+    const remove = (e) => { try { viewer.entities.remove(e); } catch {} };
     const baseAgl = plan?.altitude_m;
-    if (!baseAgl) return;
 
     function update() {
-      const vehicleList = storeRef.current.getVehicleList();
+      const store = storeRef.current;
+      const vehicleList = store.getVehicleList();
       if (!vehicleList) return;
+      const hist = coverageRef.current;
+
+      // A UAV that left the fleet takes its marks with it.
+      const present = new Set(vehicleList.map((v) => v.sys_id));
+      for (const sid of Object.keys(hist.bySid)) {
+        if (!present.has(Number(sid))) dropSid(hist, Number(sid), remove);
+      }
+
+      // Coverage footprints depend on planner config (vision profiles + dock
+      // detect size); getDeviceConfigs() stays empty until it loads. Skip
+      // accumulation until ready so we never render against incomplete config.
+      if (!plannerReady) {
+        return;
+      }
+      if (!baseAgl) return;
 
       const devices = getDeviceConfigs();
 
       vehicleList.forEach((v, i) => {
+        const sid = v.sys_id;
+        const colorIdx = i % zoneColorsSolid.length;
+        const existing = hist.bySid[sid];
+        if (existing && existing.colorIdx !== colorIdx) {
+          // Colour follows the UAV's current list index, as its trail does.
+          const base = Cesium.Color.fromCssColorString(zoneColorsSolid[colorIdx]);
+          for (const m of existing.marks) m.entity.polygon.material = base.withAlpha(m.alpha);
+          existing.colorIdx = colorIdx;
+        }
+
+        if (pausedRef.current) return;
+        if (store.isTelemetryFresh && !store.isTelemetryFresh(sid)) return;
         if (v.lat == null || v.lon == null) return;
         if (v.heading == null || v.pitch == null || v.roll == null) return;
         if (v.mode !== 'AUTO') return;
 
         const agl = v.alt_rel != null ? v.alt_rel : (plan?.zones?.[i]?.altitude_m || baseAgl);
         const pos = { lat: v.lat, lon: v.lon };
-        const cov = coverageRef.current[i] || { entities: [], lastPos: null };
-        coverageRef.current[i] = cov;
+        const cov = coverageFor(hist, sid);
+        cov.colorIdx = colorIdx;
 
         const liveInputs = liveEnvelopeInputs(v, devices);
         const gimbalSignatures = liveInputs.map(({ telemetry }) => gimbalTelemetrySignature(telemetry));
@@ -122,7 +165,9 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
         if (!movedEnough && !gimbalsChanged) return;
         cov.lastAttemptedGimbalSignatures = gimbalSignatures;
 
-        const colorStr = zoneColorsSolid[i % zoneColorsSolid.length];
+        const colorStr = zoneColorsSolid[colorIdx];
+        const vis = visRef.current;
+        const show = vis.plannerReady && vis.showCoverage && !vis.hiddenSysIds?.has(sid);
         let anyEnvelope = false;
 
         for (const { device: dev, telemetry } of liveInputs) {
@@ -140,44 +185,28 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
           const alpha = dev.primary ? 0.25 : 0.15;
           const positions = envelope.map((p) => Cesium.Cartesian3.fromDegrees(p.lon, p.lat));
           const entity = viewer.entities.add({
+            show,
             polygon: {
               hierarchy: new Cesium.PolygonHierarchy(positions),
               material: Cesium.Color.fromCssColorString(colorStr).withAlpha(alpha),
               classificationType: Cesium.ClassificationType.TERRAIN,
             },
           });
-          cov.entities.push(entity);
+          recordMark(hist, sid, { entity, alpha });
         }
 
         if (anyEnvelope) {
           cov.lastPos = pos;
         }
-
-        // FIFO eviction: cap accumulated entities
-        let total = 0;
-        for (const key of Object.keys(coverageRef.current)) {
-          total += (coverageRef.current[key]?.entities?.length || 0);
-        }
-        while (total > MAX_COVERAGE_ENTITIES) {
-          let removed = false;
-          for (const key of Object.keys(coverageRef.current)) {
-            const c = coverageRef.current[key];
-            if (c?.entities?.length > 0) {
-              const old = c.entities.shift();
-              try { viewer.entities.remove(old); } catch {}
-              total--;
-              removed = true;
-              break;
-            }
-          }
-          if (!removed) break;
-        }
       });
+
+      // FIFO eviction: cap accumulated marks, oldest of the whole fleet first
+      evictOverCap(hist, MAX_COVERAGE_ENTITIES, remove);
     }
 
     update();
     return storeRef.current.subscribe(update);
-  }, [viewerReady, showCoverage, plan, plannerReady]);
+  }, [viewerReady, plan, plannerReady]);
 
   // Live detection envelope with smooth interpolation (CallbackProperty)
   useEffect(() => {
@@ -216,7 +245,7 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
         const agl = v.alt_rel != null ? v.alt_rel : (plan?.zones?.[i]?.altitude_m || baseAgl);
 
         devices.forEach((dev, di) => {
-          const key = `${i}_${di}`;
+          const key = `${v.sys_id}_${di}`;
           seen.add(key);
 
           if (v.lat == null || v.lon == null ||
@@ -273,6 +302,7 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
             const scratch = [];
             const fillAlpha = dev.primary ? 0.30 : 0.20;
             const entity = viewer.entities.add({
+              show: liveVisibleFor(v.sys_id),
               polygon: {
                 hierarchy: new Cesium.CallbackProperty(() => {
                   const a = anim[key];
@@ -299,26 +329,21 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
     return storeRef.current.subscribe(update);
   }, [viewerReady, showCoverage, showVision, plan, plannerReady]);
 
-  // Coverage cleanup (mission restart or manual clear)
+  // Coverage cleanup (mission restart or manual clear). Pause stays as it
+  // was; sampling anchors go with the marks.
   useEffect(() => {
     const Cesium = cesiumRef.current;
     const viewer = viewerRef.current;
     if (!Cesium || !viewer) return;
 
-    for (const key of Object.keys(coverageRef.current)) {
-      const cov = coverageRef.current[key];
-      if (cov?.entities) {
-        cov.entities.forEach((e) => { try { viewer.entities.remove(e); } catch {} });
-      }
-    }
-    coverageRef.current = {};
+    clearCoverage(coverageRef.current, (e) => { try { viewer.entities.remove(e); } catch {} });
 
     for (const key of Object.keys(liveFootprintRef.current)) {
       try { viewer.entities.remove(liveFootprintRef.current[key]); } catch {}
     }
     liveFootprintRef.current = {};
     footprintAnimRef.current = {};
-  }, [trackResetKey, coverageResetKey]);
+  }, [trackResetKey, historyResetKey]);
 
   // Hide/show entities when toggles change
   useEffect(() => {
@@ -326,15 +351,12 @@ export default function useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, s
     const viewer = viewerRef.current;
     if (!Cesium || !viewer) return;
 
-    for (const key of Object.keys(coverageRef.current)) {
-      const cov = coverageRef.current[key];
-      if (cov?.entities) {
-        cov.entities.forEach((e) => { e.show = plannerReady && showCoverage; });
-      }
+    for (const [sid, cov] of Object.entries(coverageRef.current.bySid)) {
+      const show = plannerReady && showCoverage && !hiddenSysIds?.has(Number(sid));
+      for (const m of cov.marks) m.entity.show = show;
     }
-    const showLive = plannerReady && (showCoverage || showVision);
     for (const key of Object.keys(liveFootprintRef.current)) {
-      liveFootprintRef.current[key].show = showLive;
+      liveFootprintRef.current[key].show = liveVisibleFor(Number(key.split('_')[0]));
     }
-  }, [showCoverage, showVision, plannerReady]);
+  }, [showCoverage, showVision, hiddenSysIds, plannerReady]);
 }

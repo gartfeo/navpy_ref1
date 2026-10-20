@@ -23,10 +23,9 @@ class TestCoverageEntityCap(unittest.TestCase):
         self.assertEqual(int(match.group(1)), 500)
 
     def test_fifo_eviction_logic_present(self):
-        """The FIFO eviction logic should reference MAX_COVERAGE_ENTITIES."""
-        self.assertIn("MAX_COVERAGE_ENTITIES", self.source)
-        # Should have a while loop that removes oldest entities
-        self.assertIn("while (total > MAX_COVERAGE_ENTITIES)", self.source)
+        """The cap is applied with the fleet-wide FIFO helper (behaviour is
+        tested in test_coverage_history_js.py)."""
+        self.assertIn("evictOverCap(hist, MAX_COVERAGE_ENTITIES, remove);", self.source)
 
     def test_scratch_variable_optimization(self):
         """lerpPositions should use scratch array to avoid per-frame allocations."""

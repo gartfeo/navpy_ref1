@@ -62,8 +62,9 @@ function CesiumMap({
   showCoverage,
   showVision,
   showTrails,
-  trailResetKey,
-  coverageResetKey,
+  historyResetKey,
+  hiddenSysIds,
+  historyPaused,
   plannerReady,
   vehicleList,
   storeRef,
@@ -291,8 +292,8 @@ function CesiumMap({
   useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady);
   useFollowUav(cesiumRef, viewerRef, entitiesRef, fpvSysId, viewerReady, storeRef);
   useUavPoseSource(poseSourceRef, cesiumRef, viewerRef, entitiesRef, viewerReady);
-  useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${trailResetKey}`);
-  useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, coverageResetKey, viewerReady, plannerReady);
+  useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${historyResetKey}`, hiddenSysIds, historyPaused);
+  useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, historyResetKey, hiddenSysIds, historyPaused, viewerReady, plannerReady);
   useAssignmentMarkers(cesiumRef, viewerRef, assignments || {}, storeRef, viewerReady);
   useAvailableTaskMarkers(cesiumRef, viewerRef, availableTasks || {}, viewerReady);
 

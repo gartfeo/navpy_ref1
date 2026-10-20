@@ -220,5 +220,74 @@ class TestAccumulate(unittest.TestCase):
         self.assertEqual(int(out), 1)
 
 
+class TestTrailRuns(unittest.TestCase):
+    """Runs (pause / link gap) share the trail budget and are never joined."""
+
+    def test_start_run_skips_empty_and_opens_new(self):
+        out = _run_js("""
+            const t = newTrail();
+            startRun(t);
+            addTrailPoint(t, { lon: 35, lat: 32, alt: 0 });
+            startRun(t); startRun(t);
+            console.log(JSON.stringify(t.runs.map(r => r.length)));
+        """)
+        self.assertEqual(json.loads(out), [1, 0])
+
+    def test_pieces_never_cross_runs(self):
+        out = _run_js("""
+            const t = newTrail();
+            for (let i = 0; i < 10; i++) addTrailPoint(t, { lon: 35 + i * 0.001, lat: 32, alt: 0 });
+            startRun(t);
+            for (let i = 0; i < 10; i++) addTrailPoint(t, { lon: 36 + i * 0.001, lat: 32, alt: 0 });
+            startRun(t);
+            addTrailPoint(t, { lon: 37, lat: 32, alt: 0 });
+            const pieces = trailPieces(t.runs).flat();
+            const crosses = pieces.some(p => p.some(q => q.lon < 36) && p.some(q => q.lon >= 36));
+            const lonely = pieces.some(p => p.some(q => q.lon === 37));
+            const covered = new Set(pieces.flat().map(q => q.lon)).size;
+            console.log(JSON.stringify({ crosses, lonely, covered, segs: trailPieces(t.runs).length }));
+        """)
+        r = json.loads(out)
+        self.assertFalse(r["crosses"])
+        self.assertFalse(r["lonely"], "a one-point run is not drawn")
+        self.assertEqual(r["covered"], 20)
+        self.assertEqual(r["segs"], 5)
+
+    def test_budget_covers_all_runs_under_many_pauses(self):
+        out = _run_js("""
+            const t = newTrail();
+            let lon = 35;
+            for (let cycle = 0; cycle < 1500; cycle++) {
+                for (let i = 0; i < 3; i++) { lon += 0.001; addTrailPoint(t, { lon, lat: 32 + (i % 2) * 0.001, alt: 0 }); }
+                startRun(t);
+                addTrailPoint(t, { lon: lon + 0.0005, lat: 32.5, alt: 0 });
+                startRun(t);
+            }
+            const last = t.runs[t.runs.length - 1].length ? t.runs[t.runs.length - 1] : t.runs[t.runs.length - 2];
+            console.log(JSON.stringify({
+                count: trailPointCount(t), max: MAX_TRAIL_LENGTH,
+                newest: last[last.length - 1].lon, expect: lon + 0.0005,
+            }));
+        """)
+        r = json.loads(out)
+        self.assertLessEqual(r["count"], r["max"])
+        self.assertAlmostEqual(r["newest"], r["expect"], places=9)
+
+    def test_single_run_thins_as_before(self):
+        out = _run_js("""
+            const t = newTrail();
+            const single = [];
+            for (let i = 0; i < 2500; i++) {
+                const pt = { lon: 35 + i * 0.0001, lat: 32 + Math.sin(i / 20) * 0.001, alt: 0 };
+                addTrailPoint(t, pt);
+                accumulate(single, { ...pt });
+            }
+            console.log(JSON.stringify([t.runs.length, t.runs[0].length, single.length]));
+        """)
+        runs, n, single = json.loads(out)
+        self.assertEqual(runs, 1)
+        self.assertEqual(n, single)
+
+
 if __name__ == "__main__":
     unittest.main()

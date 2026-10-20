@@ -5,10 +5,7 @@ import MonitorMapOverlay from './MonitorMapOverlay';
 const props = (extra = {}) => ({
   onToggleManualControl: vi.fn(),
   onToggleVision: vi.fn(),
-  onToggleCoverage: vi.fn(),
-  onClearCoverage: vi.fn(),
-  onToggleTrails: vi.fn(),
-  onClearTrails: vi.fn(),
+  trails: { vehicleList: [{ sys_id: 1 }], hiddenSysIds: new Set(), pausedAt: null },
   onEditPlan: vi.fn(),
   planEntry: { show: true, isEdit: false },
   ...extra,
@@ -43,5 +40,14 @@ describe('MonitorMapOverlay top-right bar', () => {
     const onTopControlsBottom = vi.fn();
     render(<MonitorMapOverlay {...props({ onTopControlsBottom })} />);
     expect(onTopControlsBottom).toHaveBeenCalledWith(44);
+  });
+
+  it('one Trails button replaces the four trail and coverage show/clear buttons', () => {
+    const { getByTestId, getByRole } = render(<MonitorMapOverlay {...props()} />);
+    const bar = getByTestId('monitor-top-right');
+    expect(getByRole('button', { name: 'trailsPanel.title' })).toBeInTheDocument();
+    for (const old of ['toggleCoverage', 'clearCoverage', 'toggleTrails', 'clearTrails']) {
+      expect(bar.querySelector(`[title="monitorOverlay.${old}"]`)).toBeNull();
+    }
   });
 });

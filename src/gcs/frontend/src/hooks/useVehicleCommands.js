@@ -2,16 +2,17 @@ import { useCallback, useState } from 'react';
 
 /**
  * Vehicle command callbacks: estop, set mode, arm/disarm, launch, trigger,
- * restart, abort launch, clear coverage/trails. Owns coverageResetKey, trackResetKey and trailResetKey.
+ * restart, abort launch, clear trail and camera-mark history. Owns trackResetKey
+ * and historyResetKey.
  */
 export default function useVehicleCommands({
   api, vehicleList,
   taskConfirmReset, taskAssignReset,
   setLaunchStates,
+  resumeHistory,
 }) {
-  const [coverageResetKey, setCoverageResetKey] = useState(0);
   const [trackResetKey, setTrackResetKey] = useState(0);
-  const [trailResetKey, setTrailResetKey] = useState(0);
+  const [historyResetKey, setHistoryResetKey] = useState(0);
 
   // sysIds omitted/undefined => all vehicles (backend targets fallback);
   // [sysId] => force-disarm only that one UAV (per-UAV E-STOP).
@@ -60,24 +61,26 @@ export default function useVehicleCommands({
   const handleRestart = useCallback(
     (sysIds, opts) => {
       setTrackResetKey((k) => k + 1);
+      // A new mission is recorded: Restart clears history and resumes it.
+      resumeHistory?.();
       taskConfirmReset();
       taskAssignReset();
       return api.restartMission(sysIds, opts);
     },
-    [api.restartMission, taskConfirmReset, taskAssignReset]
+    [api.restartMission, taskConfirmReset, taskAssignReset, resumeHistory]
   );
 
   const handleAbortLaunch = useCallback(async () => {
     await fetch('/api/control/launch/abort', { method: 'POST' });
   }, []);
 
-  const handleClearCoverage = useCallback(() => setCoverageResetKey((k) => k + 1), []);
-  const handleClearTrails = useCallback(() => setTrailResetKey((k) => k + 1), []);
+  // Clear all: trail and camera marks of every UAV, shown or hidden.
+  const handleClearHistory = useCallback(() => setHistoryResetKey((k) => k + 1), []);
 
   return {
     handleEstop, handleSetMode, handleSetModeAll, handleArmDisarm, handleReboot,
     handleLaunch, handleTriggerVehicle, handleRestart,
-    handleAbortLaunch, handleClearCoverage, handleClearTrails,
-    coverageResetKey, trackResetKey, trailResetKey,
+    handleAbortLaunch, handleClearHistory,
+    trackResetKey, historyResetKey,
   };
 }

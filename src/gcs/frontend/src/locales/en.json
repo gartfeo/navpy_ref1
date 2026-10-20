@@ -400,13 +400,23 @@
     "detectionStart": "DS",
     "dock": "D"
   },
+  "trailsPanel": {
+    "button": "Trails",
+    "title": "Trails and camera marks",
+    "flightTrail": "Flight trail",
+    "cameraMarks": "Camera marks",
+    "uavs": "UAVs",
+    "all": "All",
+    "none": "None",
+    "pause": "Pause recording",
+    "resume": "Resume recording",
+    "clearAll": "Clear all",
+    "paused": "Paused",
+    "notRecordingSince": "Not recording since {{time}}"
+  },
   "monitorOverlay": {
     "enterRc": "Enter RC control",
     "toggleVision": "Toggle vision cones",
-    "toggleCoverage": "Toggle coverage overlay",
-    "clearCoverage": "Clear coverage",
-    "toggleTrails": "Toggle flight path trace",
-    "clearTrails": "Clear flight path trace",
     "resetView": "Reset view"
   },
   "vehicleWindow": {

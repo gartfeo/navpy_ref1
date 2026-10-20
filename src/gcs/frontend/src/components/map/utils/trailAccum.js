@@ -118,3 +118,88 @@ export function thin(trail) {
   trail.splice(0, oldEnd, ...kept);
   return trail;
 }
+
+/**
+ * A UAV's trail is a list of runs that are never joined: a new run starts on
+ * Resume and when the UAV's telemetry turns fresh again after a gap, so
+ * neither a pause nor a link gap is drawn as a straight line.
+ * MAX_TRAIL_LENGTH covers all runs together.
+ */
+export function newTrail() {
+  return { runs: [[]] };
+}
+
+/** Total stored points over all runs. */
+export function trailPointCount(trail) {
+  let n = 0;
+  for (const run of trail.runs) n += run.length;
+  return n;
+}
+
+/** Start a new run; a no-op while the last run is still empty. */
+export function startRun(trail) {
+  const last = trail.runs[trail.runs.length - 1];
+  if (last && last.length === 0) return trail;
+  trail.runs.push([]);
+  return trail;
+}
+
+/** Add a point to the current run, then keep the whole trail within budget. */
+export function addTrailPoint(trail, pt) {
+  accumulate(trail.runs[trail.runs.length - 1], pt);
+  if (trailPointCount(trail) > MAX_TRAIL_LENGTH) thinTrail(trail);
+  return trail;
+}
+
+/**
+ * Bring the trail back within MAX_TRAIL_LENGTH. The current run is thinned as
+ * a single trail always was (newest RECENT_FULL_RES points kept); each older
+ * run is halved with its two ends kept. If that is not enough, the oldest run
+ * is dropped whole. Mutates and returns trail.
+ */
+export function thinTrail(trail) {
+  while (trailPointCount(trail) > MAX_TRAIL_LENGTH) {
+    const before = trailPointCount(trail);
+    const last = trail.runs.length - 1;
+    for (let r = 0; r < last; r++) {
+      const run = trail.runs[r];
+      if (run.length > 2) trail.runs[r] = simplify(run, Math.ceil(run.length / 2));
+    }
+    if (trail.runs.length === 1 || trailPointCount(trail) > MAX_TRAIL_LENGTH) {
+      thin(trail.runs[last]);
+    }
+    if (trailPointCount(trail) > MAX_TRAIL_LENGTH && trail.runs.length > 1) {
+      trail.runs.shift();
+    } else if (trailPointCount(trail) >= before) {
+      break;
+    }
+  }
+  return trail;
+}
+
+/** Number of fade steps per trail (graduated alpha from tail to head). */
+export const TRAIL_SEGMENTS = 5;
+
+/**
+ * Split a trail's runs into drawable pieces per fade step. The fade runs over
+ * all points of the trail; a piece never crosses a run boundary, so two runs
+ * are never joined. Returns pieces[seg] = arrays of points (each >= 2).
+ */
+export function trailPieces(runs) {
+  const n = runs.reduce((s, r) => s + r.length, 0);
+  const pieces = [];
+  for (let seg = 0; seg < TRAIL_SEGMENTS; seg++) {
+    const start = Math.floor(seg * n / TRAIL_SEGMENTS);
+    const end = Math.min(Math.floor((seg + 1) * n / TRAIL_SEGMENTS) + 1, n);
+    const segPieces = [];
+    let off = 0;
+    for (const run of runs) {
+      const a = Math.max(start, off);
+      const b = Math.min(end, off + run.length);
+      if (b - a >= 2) segPieces.push(run.slice(a - off, b - off));
+      off += run.length;
+    }
+    pieces.push(segPieces);
+  }
+  return pieces;
+}
