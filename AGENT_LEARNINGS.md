@@ -1088,3 +1088,20 @@
   the echoed prompt contains the word. Wait for `tokens used`.
 - `codex exec` sometimes fails before any command runs ("setup refresh had
   errors") and still prints REJECT. That is no review; retry once.
+
+## Plan/camera check (2026-10-20)
+- Search optics are the device's first zoom (CameraIntrinsics starts there; a track stop resets to it), not
+  settings `vision_zoom`. Codex caught the selected-zoom version in design review; check which zoom a sim gate uses.
+- Exact visibility on a straight segment is cheap: camera coordinates are linear in along-track distance, so edges
+  are linear bounds. Keep the boundary cases the simulator rejects (zero distance) out of a closed interval.
+- Do not run the full pytest suite while a mutation script edits files: its vitest step read a mutated file and
+  failed. Run mutation proofs alone, then the suites.
+- From Python on Windows, capture `npx` output with `encoding="utf-8", errors="replace"`; the cp1252 default
+  floods stderr with reader-thread UnicodeDecodeErrors (the return code is still right).
+- A worktree has no node_modules. `npm ci` there took 13 s; a link to the main checkout's copy would let a build
+  wipe a running dev server's `.vite` cache.
+- App.jsx hands hooks new vehicleList arrays and param getters on telemetry and param updates, so an effect keyed on
+  a memo built from them refired the backend check about once a second. Unit tests missed it; the live test caught it.
+  Key such effects on the request content (a JSON key) and test a rerender with equal but new inputs.
+- When `codex exec` cannot start its shell ("helper_unknown_error: setup refresh had errors"), inline the full patch
+  (tracked diff plus `git diff --no-index /dev/null <new file>`) in the prompt; it then reviews statically.

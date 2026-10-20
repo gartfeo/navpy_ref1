@@ -113,6 +113,19 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
     }
   }, []);
 
+  // Plan/camera compatibility check. Throws on failure so callers can say the
+  // check could not run instead of passing silently.
+  const checkPlanCamera = useCallback(async (zones) => {
+    const res = await fetch('/api/plan-camera-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zones }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(body?.detail ? JSON.stringify(body.detail) : `HTTP ${res.status}`);
+    return body;
+  }, []);
+
   const writeAasParams = useCallback(async (sysId, params) => {
     const res = await fetch(`/api/vehicles/${sysId}/params`, {
       method: 'PUT',
@@ -313,6 +326,7 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
     analyze,
     generate,
     uploadMissions,
+    checkPlanCamera,
     writeAasParams,
     restartCompanionsReady,
     sendCommand,

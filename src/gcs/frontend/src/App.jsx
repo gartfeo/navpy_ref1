@@ -7,6 +7,7 @@ import useDisplaySettings from './hooks/useDisplaySettings';
 import usePlanningApi from './hooks/usePlanningApi';
 import useSettings from './hooks/useSettings';
 import useAasParams from './hooks/useAasParams';
+import { usePlanCameraCheckResult, usePlanCameraGate } from './hooks/usePlanCameraCheck';
 import useFullParams from './hooks/useFullParams';
 import useCompassCal from './hooks/useCompassCal';
 import useAccelCal from './hooks/useAccelCal';
@@ -503,6 +504,20 @@ export default function App() {
     fenceInvalid,
     fenceIntentGeneration: fenceIntent?.generation ?? null,
     onFenceIntentResolved: resolveFenceIntent,
+    getAas: aasParams.getConfirmedValue,
+  });
+
+  // ---- Plan/camera check: live in planning, re-run before Launch / Start ----
+  const planCameraCheck = usePlanCameraCheckResult({
+    enabled: simMode && phase === PHASES.PLANNING,
+    plan, corridorPointsArr: setCorridorPointsArr, searchPattern, vehicleList,
+    simDockWps, detectAfterWps, getAas: aasParams.getConfirmedValue, check: api.checkPlanCamera,
+    cameraKey: JSON.stringify(settings?.camera ?? null),
+  });
+  const confirmBeforeStart = usePlanCameraGate({
+    enabled: simMode,
+    plan, corridorPointsArr: setCorridorPointsArr, searchPattern, vehicleList,
+    vehicleTargWps, vehicleNavLastWp, getAas: aasParams.getConfirmedValue, check: api.checkPlanCamera,
   });
 
   // ---- Vehicle commands ----
@@ -511,6 +526,7 @@ export default function App() {
     taskConfirmReset: taskConfirm.reset,
     taskAssignReset: taskAssign.reset,
     setLaunchStates: ws.setLaunchStates,
+    confirmBeforeStart,
   });
   // ---- Manual control wiring (must be after useVehicleCommands for handleSetMode) ----
   const mc = useManualControlWiring({
@@ -923,6 +939,7 @@ export default function App() {
         >
           {phase === PHASES.PLANNING && (
             <PlanningSidebar
+              cameraCheck={planCameraCheck}
               searchPattern={searchPattern}
               setSearchPattern={planning.handleSearchPatternChange}
               analysis={analysis}

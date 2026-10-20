@@ -3,11 +3,16 @@ import { useCallback, useState } from 'react';
 /**
  * Vehicle command callbacks: estop, set mode, arm/disarm, launch, trigger,
  * restart, abort launch, clear coverage/trails. Owns coverageResetKey, trackResetKey and trailResetKey.
+ *
+ * `confirmBeforeStart` (async, resolves true to go ahead) gates every path that
+ * starts a mission flight — launch (container and per-vehicle, force included)
+ * and restart (bungee Start, Restart) — before any command or local reset.
  */
 export default function useVehicleCommands({
   api, vehicleList,
   taskConfirmReset, taskAssignReset,
   setLaunchStates,
+  confirmBeforeStart,
 }) {
   const [coverageResetKey, setCoverageResetKey] = useState(0);
   const [trackResetKey, setTrackResetKey] = useState(0);
@@ -45,11 +50,12 @@ export default function useVehicleCommands({
   );
 
   const handleLaunch = useCallback(
-    (sysIds, opts) => {
+    async (sysIds, opts) => {
+      if (confirmBeforeStart && !(await confirmBeforeStart())) return null;
       setLaunchStates({});
       return api.launchSequence(sysIds, opts);
     },
-    [api.launchSequence, setLaunchStates]
+    [api.launchSequence, setLaunchStates, confirmBeforeStart]
   );
 
   const handleTriggerVehicle = useCallback(
@@ -58,13 +64,14 @@ export default function useVehicleCommands({
   );
 
   const handleRestart = useCallback(
-    (sysIds, opts) => {
+    async (sysIds, opts) => {
+      if (confirmBeforeStart && !(await confirmBeforeStart())) return null;
       setTrackResetKey((k) => k + 1);
       taskConfirmReset();
       taskAssignReset();
       return api.restartMission(sysIds, opts);
     },
-    [api.restartMission, taskConfirmReset, taskAssignReset]
+    [api.restartMission, taskConfirmReset, taskAssignReset, confirmBeforeStart]
   );
 
   const handleAbortLaunch = useCallback(async () => {

@@ -1106,5 +1106,22 @@
   },
   "planFile": {
     "invalidData": "This file does not contain a supported plan."
+  },
+  "cameraCheck": {
+    "panelTitle": "Plan cannot work with this camera",
+    "confirmTitle": "The camera cannot detect the docks on this plan:",
+    "confirmProceed": "Press OK to continue anyway, or Cancel to fix the plan first.",
+    "whatToDo": "What to do",
+    "estimate": "(Estimate: terrain or the real detector is not modelled.)",
+    "noWindow": "Zone {{zone}} flies {{height}} m above its dock. The image bottom meets the ground {{near}} m out, but detection ends at {{range}} m slant, so no dock can ever be detected. Highest workable height: {{max}} m (level search flight).",
+    "dockNeverInView": "Dock at WP {{wp}} of zone {{zone}} is never in the camera view on the search route ({{height}} m above it; ground is seen {{near}}-{{range}} m ahead, level flight, turns not modelled).",
+    "fixLowerAltitude": "lower the zone altitude (dock preset altitude or zone stack) to at most {{max}} m above the dock",
+    "fixPitch": "point the camera steeper down (gimbal camera pitch in the vision profile)",
+    "fixProfile": "switch to a camera profile with a longer search range",
+    "fixMoveDock": "put the dock on a lane the UAV flies after its detect-after waypoint",
+    "fixDetectAfter": "move the detect-after waypoint earlier",
+    "dockAltUnknown": "Zone {{zone}}: camera check not run, the vehicle's dock altitude (AAS_TARG_ALT) is not known yet.",
+    "couldNotRun": "Camera check could not run ({{error}}). The plan was not checked against the camera. Continue anyway?",
+    "couldNotRunShort": "Camera check could not run: {{error}}"
   }
 }
