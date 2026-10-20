@@ -43,6 +43,7 @@ export default function PlanningSidebar({
   setRouteOffsetM,
   hasSearchPolygon,
   fenceEnabled,
+  fencePlanned = fenceEnabled,
   onToggleFence,
   observedFence,
   fenceRequestStatus,
@@ -239,7 +240,7 @@ export default function PlanningSidebar({
           <span style={{ flex: 1 }} />
           <button
             onClick={onToggleFence}
-            disabled={!hasSearchPolygon}
+            disabled={!hasSearchPolygon && !fenceEnabled}
             title={hasSearchPolygon ? '' : t('planningSidebar.fenceNeedsZone')}
             role="switch"
             aria-checked={fenceEnabled}
@@ -301,14 +302,20 @@ export default function PlanningSidebar({
 
         {fenceEnabled && (
           <>
-            <InfoRow label={t('planningSidebar.fenceType')} value={t('planningSidebar.fenceTypePolygon')} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
-              <span style={{ color: colors.textDim, fontSize: 13 }}>{t('planningSidebar.fenceBreachAction')}</span>
-              <span style={{
-                background: 'rgba(255,152,0,0.16)', color: '#ffb84d',
-                border: '1px solid #ff9800', borderRadius: 4, padding: '1px 7px', fontSize: 11,
-              }}>{t('planningSidebar.fenceActionRtl')}</span>
-            </div>
+            {/* The policy the planner requests. A fleet fence shown as ON keeps
+                the vehicles' own type and action, which this does not describe. */}
+            {fencePlanned && (
+              <>
+                <InfoRow label={t('planningSidebar.fenceType')} value={t('planningSidebar.fenceTypePolygon')} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
+                  <span style={{ color: colors.textDim, fontSize: 13 }}>{t('planningSidebar.fenceBreachAction')}</span>
+                  <span style={{
+                    background: 'rgba(255,152,0,0.16)', color: '#ffb84d',
+                    border: '1px solid #ff9800', borderRadius: 4, padding: '1px 7px', fontSize: 11,
+                  }}>{t('planningSidebar.fenceActionRtl')}</span>
+                </div>
+              </>
+            )}
 
             {/* Custom shape: operator dragged the fence — sliders drive only the
                 auto derivation, so they pause until "Reset to auto". */}
@@ -319,7 +326,7 @@ export default function PlanningSidebar({
                   border: '1px solid #ff9800', borderRadius: 4, padding: '1px 7px', fontSize: 11,
                 }}>{t('planningSidebar.fenceCustom')}</span>
                 <span style={{ flex: 1 }} />
-                <button
+                {onFenceReset && <button
                   onClick={onFenceReset}
                   style={{
                     background: 'transparent', border: `1px solid ${colors.border}`,
@@ -328,7 +335,7 @@ export default function PlanningSidebar({
                   }}
                 >
                   {t('planningSidebar.fenceResetAuto')}
-                </button>
+                </button>}
               </div>
             )}
 

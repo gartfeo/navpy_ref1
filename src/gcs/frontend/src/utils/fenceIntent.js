@@ -244,6 +244,9 @@ export function summarizeFenceObservations(state, sysIds) {
 
   return {
     exclusions: exclusionsAgree ? exclusionSets[0].map((r) => r.map((p) => ({ ...p }))) : [],
+    // Some vehicle holds keep-outs the fleet does not agree on (or that could
+    // not all be read): an empty `exclusions` is then not "no keep-outs".
+    exclusionsMixed: !exclusionsAgree && exclusionSets.some((set) => set.length > 0),
     hasObservations: true,
     count: observations.length,
     knownCount: known.length,
@@ -291,6 +294,53 @@ export function shouldAutoEnableDemoFence({
   if (!simMode || polygonLength < MIN_FENCE_RING) return false;
   if (fenceTouched || fenceEnabled) return false;
   return !observations?.hasObservations;
+}
+
+/**
+ * The fleet's own fence, when the switch should show it.
+ *
+ * The switch shows the fence the vehicles will fly with. On a plan that has
+ * made no fence decision (not touched, nothing pending, not enabled), that is
+ * the fence the fleet already holds: shown ON, drawn, and still never sent,
+ * because nothing was decided. It is derived from the newest fleet answer
+ * every time, never copied into plan state; only an operator edit takes it
+ * over (see App). A partial, failed or disagreeing answer shows nothing.
+ *
+ * Returns `{ ring, exclusions, exclusionsMixed }` or null.
+ */
+export function vehicleFenceInEffect({ observed, touched, intent, enabled }) {
+  if (enabled || touched || intent != null) return null;
+  if (!observed?.hasObservations || observed.failedCount > 0 || !observed.ring) return null;
+  if (observed.mode !== FENCE_MODE.ON && observed.mode !== FENCE_MODE.AUTO) return null;
+  return {
+    ring: observed.ring,
+    exclusions: observed.exclusions || [],
+    exclusionsMixed: !!observed.exclusionsMixed,
+  };
+}
+
+/** `a` then every ring of `b` not already in `a` (rings compared as stored). */
+export function mergeExclusionRings(a, b) {
+  const out = [...(a || [])];
+  for (const r of b || []) {
+    if (!out.some((o) => ringsEqual(o, r))) out.push(r);
+  }
+  return out;
+}
+
+/**
+ * What the map draws for the inclusion fence: the plan's fence while it is on,
+ * else the fleet's fence while the switch shows it. Switched off, nothing is
+ * drawn — not even the ring the vehicles still store.
+ */
+export function fenceMapDisplay({ enabled, polygon, vehicleFence }) {
+  if (enabled && polygon?.length >= MIN_FENCE_RING) {
+    return { show: true, polygon, source: 'planner' };
+  }
+  if (!enabled && vehicleFence) {
+    return { show: true, polygon: vehicleFence.ring, source: 'vehicles' };
+  }
+  return { show: false, polygon: null, source: 'none' };
 }
 
 /**

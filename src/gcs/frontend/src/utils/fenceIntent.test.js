@@ -9,6 +9,8 @@ import {
   recordFenceObservation,
   resetFenceObservations,
   summarizeFenceObservations,
+  fenceMapDisplay,
+  vehicleFenceInEffect,
 } from './fenceIntent';
 
 const ring = (d = 0) => [
@@ -256,5 +258,68 @@ describe('summarizeFenceObservations — exact autoenable mode', () => {
     const sum = summarizeFenceObservations(s, [1]);
     expect(sum.autoenableModes).toEqual({ 1: null });
     expect(sum.autoenableMode).toBeNull();
+  });
+});
+
+describe('vehicleFenceInEffect', () => {
+  const observed = (over = {}) => ({
+    hasObservations: true, failedCount: 0, mode: FENCE_MODE.ON, ring: ring(), exclusions: [],
+    ...over,
+  });
+  const undecided = { touched: false, intent: null, enabled: false };
+
+  it('shows an agreed active fleet fence on an undecided plan', () => {
+    expect(vehicleFenceInEffect({ ...undecided, observed: observed() }))
+      .toEqual({ ring: ring(), exclusions: [], exclusionsMixed: false });
+    expect(vehicleFenceInEffect({ ...undecided, observed: observed({ mode: FENCE_MODE.AUTO }) }))
+      .not.toBeNull();
+  });
+
+  it('shows nothing for a fence that is off, unknown, partial or disagreeing', () => {
+    for (const over of [
+      { mode: FENCE_MODE.OFF }, { mode: FENCE_MODE.UNKNOWN }, { mode: FENCE_MODE.MIXED },
+      { failedCount: 1 }, { ring: null }, { hasObservations: false },
+    ]) {
+      expect(vehicleFenceInEffect({ ...undecided, observed: observed(over) })).toBeNull();
+    }
+  });
+
+  it('gives way to any fence decision of the plan', () => {
+    expect(vehicleFenceInEffect({ ...undecided, touched: true, observed: observed() })).toBeNull();
+    expect(vehicleFenceInEffect({ ...undecided, enabled: true, observed: observed() })).toBeNull();
+    expect(vehicleFenceInEffect({
+      ...undecided, intent: { generation: 1, enabled: false }, observed: observed(),
+    })).toBeNull();
+  });
+});
+
+describe('fenceMapDisplay', () => {
+  const vehicleFence = { ring: ring(1), exclusions: [], exclusionsMixed: false };
+
+  it("draws the plan's fence while it is on", () => {
+    expect(fenceMapDisplay({ enabled: true, polygon: ring(), vehicleFence: null }))
+      .toEqual({ show: true, polygon: ring(), source: 'planner' });
+  });
+
+  it("draws the fleet's fence while the switch shows it", () => {
+    expect(fenceMapDisplay({ enabled: false, polygon: null, vehicleFence }))
+      .toEqual({ show: true, polygon: ring(1), source: 'vehicles' });
+  });
+
+  it('draws nothing when off', () => {
+    expect(fenceMapDisplay({ enabled: false, polygon: null, vehicleFence: null }))
+      .toEqual({ show: false, polygon: null, source: 'none' });
+  });
+});
+
+describe('summarizeFenceObservations — keep-out agreement', () => {
+  it('flags keep-outs the fleet disagrees on, so an empty list is not read as none', () => {
+    let state = emptyFenceObservations();
+    const tok = (seq) => fenceObservationToken(state, seq);
+    state = recordFenceObservation(state, 1, fenceObservationFromDownload(download({ exclusions: [ring(0.1)] })), tok(1));
+    state = recordFenceObservation(state, 2, fenceObservationFromDownload(download({ exclusions: [] })), tok(2));
+    const summary = summarizeFenceObservations(state, [1, 2]);
+    expect(summary.exclusions).toEqual([]);
+    expect(summary.exclusionsMixed).toBe(true);
   });
 });

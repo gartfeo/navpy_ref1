@@ -1054,3 +1054,21 @@
   share while one thread's work stretches, the wait is inside the process (GIL or a lock), not the OS.
 - Python `gc` gen-2 passes (30-70 ms here) look like a pure-CPU spike in whichever thread triggers them and like a
   wait in every other thread; log `gc.callbacks` before blaming a stage.
+
+## GCS fence switch: show the fleet's fence (2026-10-20)
+- Copying the vehicles' fence into plan state (adopt on read) raced with
+  operator edits, stale reads and save/load; Codex found 7 bugs. Deriving
+  it on each render from the newest fleet answer, and writing plan state only
+  on an operator edit, removed the whole class. Prefer derived display state
+  over copying observed state into request state.
+- Edit wrappers that take a React functional updater must resolve it first:
+  a helper may refuse (return null), and side effects run before that check
+  act on an edit that never happened.
+- Python-generated JS test titles with an apostrophe inside single quotes
+  broke the parse twice. Use double-quoted titles.
+- Editing files while a live-tester run was going made Vite hot-reload under
+  it; the run's results were void. Freeze the tree during live runs.
+- A live failure that looked like the fix not working (switch off after a
+  reload) was a different bug: the backend timeline showed the downloaded
+  plan replaced 50 ms later. Read plan_rendered and request order in
+  timeline.jsonl before changing code for a live failure.
