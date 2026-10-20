@@ -711,7 +711,8 @@
 - The shared .venv now has OpenCV 5.0.0, so the 4 `test_board_detector.py` failures are an
   environment issue (`board_detector.py:34`, IndexError), not a code regression.
 - A new worktree has no `src/gcs/frontend/node_modules`: run `npm ci` before vitest, and
-  delete `dist/` after a build.
+  delete `dist/` after a build. It is not gitignored: on 2026-10-20 a `git add -A src` after
+  `npm run build` staged 404 dist files. Delete it before staging, and stage files by name.
 - One-way message timestamps cannot separate clock offset from queue delay. An offset
   averaged from heartbeats absorbs reader backlog, so stale messages pass TTL.
 
