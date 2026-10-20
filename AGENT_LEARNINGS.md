@@ -34,6 +34,7 @@
 - The repository has both LF and CRLF files. On Windows Python's `Path.write_text`
   writes CRLF, so a read_text/write_text edit script flips a whole LF file. Edit by script
   with read_bytes/write_bytes and keep each file's own line endings.
+  Plain open(p, 'w') does the same (repeated in v12.1, 2026-10-20): pass newline=''.
 
 ## ArduPilot Lua scripts (tools/tuning/lua, 2026-10-11)
 
@@ -1054,6 +1055,37 @@
   share while one thread's work stretches, the wait is inside the process (GIL or a lock), not the OS.
 - Python `gc` gen-2 passes (30-70 ms here) look like a pure-CPU spike in whichever thread triggers them and like a
   wait in every other thread; log `gc.callbacks` before blaming a stage.
+
+## GCS video design v12 (2026-10-20)
+- SIYI's site refuses WebFetch and plain curl (HTTP 403, or the home page).
+  The product's /download page, fetched with a browser user agent, links
+  the manual PDF on res.siyi.biz; save it in its own scratch folder and read
+  it with `pdftotext -layout`. Resellers disagree with SIYI (1080P vs
+  1920x1200); cite the manual's page numbers, and state what it does not
+  say (display density, browser) as unknown, not inferred.
+- `backdrop-filter` makes a stacking context. On a box whose menu must draw
+  above a sibling (the swapped small map) put the blur on a background
+  layer; in a mock, a `z-index: -1` layer paints behind the map pane, so
+  give the content `position: relative` instead (Codex rounds 1 and 3).
+- A "not drawn" state must say what stops: hiding a picture left the
+  reader and the WebGL widget running, and a status row that joins the
+  measured chrome changes the room test it reports (Codex rounds 1-2).
+- A mock over app screenshots: put each screenshot's data URI in one CSS class and give the
+  slices that class. Inlining the URI per slice made the HTML 6.7 MB; one class made it 0.55 MB.
+  Draw a mock on real screenshots from the start; the owner judges "same design as we have" on them.
+- Implementing v12, a failure state inside the component that a room test unmounts erased itself: its
+  row grew the chrome, the picture lost room, the failure unmounted, room returned and a new reader
+  started. Latch a failure in the parent keyed by session; mount only the reader by room (Codex impl r1).
+- A measured height reported from a passive effect before the ResizeObserver's first value is 0, and
+  that 0 mounted a reader the real height had no room for. Report only once measured, start the
+  consumer's state as null (unknown), and test with the measurement fed back as the app does.
+- A new worktree has no .venv, so AAS_GCS.bat fails there; the live-tester launched gcs_launch.py
+  with the main checkout's venv on PATH. The SITL fleet advertises no camera stream, so camera
+  states need simulation.video_test_source to be seen live.
+- v12.1 live: turning simulation.video_test_source on over the settings API after launch, then
+  stop-all/start-all, made each camera seen but discovery ended "retries exhausted"; no UAV ever
+  advertised a stream, so the mixed fleet was not set up. Unconfirmed cause: the launcher starts
+  the test MediaMTX only at launch. Next time launch with the setting already on.
 
 ## GCS fence switch: show the fleet's fence (2026-10-20)
 - Copying the vehicles' fence into plan state (adopt on read) raced with

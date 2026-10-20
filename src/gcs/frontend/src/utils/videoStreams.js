@@ -76,7 +76,7 @@ export function codecSupported(encoding, receiver = globalThis.RTCRtpReceiver) {
   return caps.codecs.some((c) => String(c.mimeType).toLowerCase() === mime);
 }
 
-/** The vehicle window is on screen in the monitor view, outside manual control, whenever the fleet has a UAV. */
-export function vehicleWindowVisible({ monitor, rcEnabled, fleetSize }) {
-  return monitor && !rcEnabled && fleetSize > 0;
+/** The vehicle window is on screen while open (the video icon), in the monitor view, outside manual control, with a UAV in the fleet. */
+export function vehicleWindowVisible({ monitor, rcEnabled, fleetSize, open }) {
+  return open && monitor && !rcEnabled && fleetSize > 0;
 }

@@ -20,6 +20,7 @@ repository layout:
 - the map never chases a UAV (v11): no follow selector, no chase camera, and
   the window never touches the map camera, RC or browser storage.
 """
+import json
 import os
 import re
 import unittest
@@ -179,9 +180,32 @@ class TestLocaleStrings(unittest.TestCase):
             src = _read("locales", f"{locale}.json")
             self.assertIn('"vehicleWindow"', src)
             self.assertNotIn('"videoPanel"', src)
-            for key in ("region", "reconnect", "dismiss", "videoLost", "linkLost", "noCamera", "maximize", "restore",
-                        "close", "pickerPrompt", "syntheticTag", "waitingForPose", "syntheticUnavailable"):
+            for key in ("region", "reconnect", "dismiss", "videoLost", "linkLost", "maximize", "restore",
+                        "pickerPrompt", "syntheticTag", "waitingForPose", "syntheticUnavailable", "chip", "uavList",
+                        "noRoom", "opensCamera", "opensSynthetic", "showVideo", "hideVideo", "retry",
+                        "groupFor", "noCameraFor"):
                 self.assertIn(f'"{key}"', src)
+
+    def test_v12_removed_strings_are_gone(self):
+        # Close, the overflow menu and the header state words left with v12;
+        # "No camera" and the fleet-wide source name with v12.1.
+        for locale in ("en", "hy"):
+            window = json.loads(_read("locales", f"{locale}.json"))["vehicleWindow"]
+            for key in ("close", "moreUavs", "moreUavsLabel", "syntheticTitle", "noCamera"):
+                self.assertNotIn(key, window)
+            self.assertNotIn("group", window["source"])
+            self.assertIn("video", json.loads(_read("locales", f"{locale}.json"))["monitorOverlay"])
+
+
+class TestVideoIconOpensTheWindow(unittest.TestCase):
+    def test_app_wires_the_video_icon_to_the_window(self):
+        app = _read("App.jsx")
+        self.assertIn("fleetSize: videoFleet.length, open: win.open", app)
+        self.assertIn("videoOpen={win.open}", app)
+        self.assertIn("onToggleVideo={win.toggleOpen}", app)
+
+    def test_window_has_no_close_button(self):
+        self.assertNotIn("vehicleWindow.close", _read("components", "VehicleWindow.jsx"))
 
 
 if __name__ == "__main__":
