@@ -1072,3 +1072,37 @@
   reload) was a different bug: the backend timeline showed the downloaded
   plan replaced 50 ms later. Read plan_rendered and request order in
   timeline.jsonl before changing code for a live failure.
+
+## Unreal capture cadence, HITL step 4 (2026-10-20)
+- USceneCaptureComponent::IsCulledByDetailMode is protected; a pre-capture check
+  must reimplement it (r.SceneCapture.CullByDetailMode and the cached scalability
+  DetailMode). Check engine access levels before planning to call a helper.
+- The editor build ran 2 compile actions at a time (3 GB free memory) and took
+  17 minutes. Run it in the background with a monitor on its log and do other
+  work meanwhile; filter for "Result:" and " error ", not "Error" ("-WarningsAsErrors"
+  matches).
+- `Automation RunTests NavPy` logs two "Condition failed" errors at startup from a
+  CesiumRuntime struct check, before any test runs. Count "Result={Success}"
+  against "Found N automation tests" instead of grepping for Error.
+- Before writing a new offline helper, grep tools/unreal for one: the pose
+  slerp and the well-conditioned quaternion angle already lived in
+  pose_stamp_log.py.
+- The first 10-minute run (2026-10-21) failed on my setup, not the code: a
+  killed emulator lost its buffered log tail (the log is now line-buffered),
+  the zoom flag was missing, and the deliberate recorder close cut one frame
+  in flight. Check a run's health 30 s in (outcome counts, ticks per second)
+  before waiting the full 10 minutes.
+- This laptop's full scene ticks ~18-26 times per second, so a cadence above
+  the tick rate fails the rate gate. F = 20 passed (19.66). Measure the tick
+  rate before choosing F.
+- A dock-pass replay with an unaimed gimbal keeps the board in detection
+  range under 1 s per pass: 11 board frames in 10 minutes. Aim the gimbal at
+  the board (harness only) to get enough frames for the timing probe.
+- The Codex binary under AppData\Local\OpenAI\Codex\bin\<hash>\ moves on
+  update, and bin\codex.exe there was an old alpha that rejects the current
+  config. Use AppData\Local\Programs\OpenAI\Codex\bin\codex.exe (check
+  `--version`).
+- The SOLID guard (tests/guards) caps a new tools/ module at 300 lines and
+  wants every new definition annotated. The 736-line checker passed five Codex
+  rounds and only the full suite caught it. Run tests/guards with the targeted
+  tests before the first review, not at the end.

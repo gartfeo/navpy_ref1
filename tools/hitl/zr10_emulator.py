@@ -220,6 +220,11 @@ class Zr10Emulator:
             sock.close()
 
 
+def open_log(path: str) -> IO[str]:
+    """Line-buffered: every record is in the file when written, so a stopped process loses none of its steps."""
+    return open(path, "w", encoding="utf-8", buffering=1)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m tools.hitl.zr10_emulator", description=__doc__.split("\n")[0])
     parser.add_argument("--vehicle-state", required=True, metavar="HOST:PORT",
@@ -240,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = EmulatorConfig(**{name: getattr(args, name) for name in EmulatorConfig.__dataclass_fields__})
     device = Zr10Device(config, load_zoom_table(args.profile))
-    log = open(args.log, "w", encoding="utf-8") if args.log else None
+    log = open_log(args.log) if args.log else None
     emulator = Zr10Emulator(device, parse_endpoint(args.siyi), parse_endpoint(args.vehicle_state),
                             parse_endpoint(args.unreal), args.device_id, log)
     stop = threading.Event()
