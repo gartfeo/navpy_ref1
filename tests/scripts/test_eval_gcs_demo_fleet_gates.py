@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
 
 import pytest
@@ -28,7 +29,13 @@ from scripts.eval_gcs_demo_fleet_gates import (
     role_order_errors,
     vehicle_workflow_errors,
 )
-from scripts.eval_gcs_demo_fleet_packets import forwarding_errors, held_tasks, packet_run_errors
+from scripts import eval_gcs_demo_fleet_gates
+from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS
+from navpy.sim.lockstep.router_entries import load_entry_table
+from scripts.eval_gcs_demo_fleet_packets import (forwarding_errors, held_tasks, packet_run_errors,
+                                                 unverified_sources)
+from scripts.eval_gcs_demo_inputs import INPUT_MANIFEST, recorded_profile_parameters
+from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_resolved_plan, load_scenario
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, pose_cadence_errors, run_errors
 from tests.scripts.fleet_journal_evidence import (
@@ -238,46 +245,138 @@ def test_an_advert_that_stops_short_fails_unless_sent_after_stop_all(fleet):
     stopped = copy.deepcopy(changed)
     stopped[5]["lifecycle"] = [{"kind": "stop"}]  # stop-all's first request, before the advert
     assert _forwarding(stopped) == []
+    # SITL's byte loss explains only a missing SITL re-emission, never a missing coordinator hop.
+    assert forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=True) == errors
 
 
-def test_an_advert_copy_the_radio_link_lost_is_injected_not_a_forwarding_error(fleet):
-    """Step 3 of deterministic_dev_sim.md: a copy the radio link model lost ends ``lost``;
-    the same copy missing its delivery with no ``lost`` record still fails."""
+@pytest.mark.parametrize("sitl", ["sitl1", "sitl3"])
+def test_with_sitl_byte_loss_an_advert_may_stop_only_at_a_sitls_write(fleet, sitl):
+    """Step 3 of deterministic_dev_sim.md: SITL 1's serial1 re-emission or SITL 3's serial0
+    re-emission missing is SITL's loss with ``uart_loss`` and a fault without it; a lost router
+    copy is a fault either way."""
     records, _lines, _approvals = fleet
     _uid, emitted = _uid_events(records, ADVERT, OWNER)
+    gone = copy.deepcopy(records)  # the SITL never wrote its re-emission: every record of it goes
+    ids = {tuple(e[1]) for e in emitted if e[1][0] == sitl}
+    ids |= {tuple(e[1]) for _r, e in _events(gone) if e[0] == "copy" and tuple(e[2]) in ids}
+    for record in gone:
+        if "packets" in record:
+            record["packets"] = [e for e in record["packets"] if tuple(e[1]) not in ids]
+    stop = "sitl_serial0" if sitl == "sitl1" else "router_copy"
+    errors = _forwarding(gone)
+    assert errors and all(e.startswith(f"forwarding: advert {ADVERT} ") and e.endswith(f"stopped at {stop}")
+                          for e in errors)
+    assert forwarding_errors(gone, OWNER, PEERS, SYS_IDS, uart_loss=True) == []
     up = {tuple(e[1]) for e in emitted if e[1][0] == "sitl1" and e[1][2] == "sitl1.serial1"}
     copies = {tuple(e[1]) for _r, e in _events(records)
               if e[0] == "copy" and tuple(e[2]) in up and e[1][2] == "sitl3.serial1"}
-    assert len(copies) == 1
-    lost = copy.deepcopy(records)
-    for _r, event in _events(lost):
-        if event[0] == "delivered" and tuple(event[1]) in copies:
-            event[:] = ["lost", event[1], "loss"]
-    assert _forwarding(lost) == []
-    assert packet_run_errors(lost) == []
-    gone = _drop(records, lambda e: e[0] == "delivered" and tuple(e[1]) in copies)
-    errors = _forwarding(gone)
-    assert len(errors) == 1 and errors[0].endswith("from 1 to 3 stopped at ap_serial1")
+    no_copy = _drop(records, lambda e: e[0] == "delivered" and tuple(e[1]) in copies)
+    lost_copy = forwarding_errors(no_copy, OWNER, PEERS, SYS_IDS, uart_loss=True)
+    assert len(lost_copy) == 1 and lost_copy[0].endswith("from 1 to 3 stopped at ap_serial1")
 
 
-def test_a_source_outside_the_fleet_and_a_router_dropped_navlink_packet_fail(fleet):
+def test_the_certified_gate_skips_adverts_only_when_the_manifest_records_byte_loss(tmp_path, monkeypatch):
+    """Step 3 of deterministic_dev_sim.md: ``uart_loss`` comes from the run's own input manifest;
+    no manifest, or a loss of 0, keeps the advert check; a broken manifest fails the gate."""
+    approvals = write_fleet_run(tmp_path)
+    plan = _plan(tmp_path)
+    seen = []
+
+    def spy(*args, uart_loss):
+        seen.append(uart_loss)
+        return []
+
+    monkeypatch.setattr(eval_gcs_demo_fleet_gates, "forwarding_errors", spy)
+    manifest = tmp_path / INPUT_MANIFEST
+    assert certified_lockstep_gate_errors(tmp_path, plan, approvals) == []
+    for loss in (0.0, 0.15):
+        manifest.write_text(json.dumps({"sitl": {"profile_parameters": {
+            "SIM_GPS_NOISE": 0.5, "SIM_UART_LOSS": loss}}}), encoding="utf-8")
+        assert certified_lockstep_gate_errors(tmp_path, plan, approvals) == []
+    assert seen == [False, False, True]
+    manifest.write_text(json.dumps({"sitl": {"profile_parameters": {"SIM_UART_LOSS": "x"}}}),
+                        encoding="utf-8")
+    errors = certified_lockstep_gate_errors(tmp_path, plan, approvals)
+    assert len(errors) == 1 and errors[0].startswith("certified lockstep evidence: input manifest")
+
+
+def test_recorded_profile_parameters_reads_the_manifests_sitl_parameters(tmp_path):
+    assert recorded_profile_parameters(tmp_path) == {}
+    (tmp_path / INPUT_MANIFEST).write_text(json.dumps({"sitl": {}}), encoding="utf-8")
+    assert recorded_profile_parameters(tmp_path) == {}
+    (tmp_path / INPUT_MANIFEST).write_text(json.dumps({"sitl": {"profile_parameters": {
+        "SIM_BAUDLIMIT_EN": 1, "SIM_UART_LOSS": 0.15}}}), encoding="utf-8")
+    assert recorded_profile_parameters(tmp_path) == {"SIM_BAUDLIMIT_EN": 1.0, "SIM_UART_LOSS": 0.15}
+    for bad in ('{"sitl": {"profile_parameters": [1]}}', '{"sitl": {"profile_parameters": {"A": true}}}',
+                '{"sitl": {"profile_parameters": {"SIM_UART_LOSS": Infinity}}}',
+                '{"sitl": {"profile_parameters": {"SIM_UART_LOSS": NaN}}}',
+                '{"sitl": {"profile_parameters": {"SIM_UART_LOSS": 1e309}}}', "{not json"):
+        (tmp_path / INPUT_MANIFEST).write_text(bad, encoding="utf-8")
+        with pytest.raises(RegressionError):
+            recorded_profile_parameters(tmp_path)
+
+
+def test_a_source_outside_the_fleet_fails(fleet):
     records, _lines, _approvals = fleet
     changed = copy.deepcopy(records)
     emitted = next(e for _r, e in _events(changed) if e[0] == "emitted" and e[1][0] == "sitl2")
     emitted[5] = [7, 1]
     assert _forwarding(changed) == [f"forwarding: {emitted[1]} from system 7 at tick {AUCTION_TICK + 2}"]
+
+
+#: An id seen in a lossy run (hw seed 10) that is not in the router entry table: no CRC check.
+UNKNOWN_ID = 2895918
+
+
+def _foreign_emission(records, origin_is_sitl: bool, unknown_id: bool):
+    """A copy of ``records`` with one more emission, from system 7, on SITL 2's serial1 or
+    NavPy 2's serial0, and its tick."""
+    changed = copy.deepcopy(records)
+    record = next(r for r in changed if r.get("packets"))
+    origin, device = ("sitl2", "sitl2.serial1") if origin_is_sitl else (2, serial0_device(2))
+    msgid = UNKNOWN_ID if unknown_id else 0  # HEARTBEAT is in the table
+    assert (load_entry_table().get(msgid) is None) == unknown_id and msgid not in NAVLINK_IDS
+    emitted = ["emitted", [origin, 1, device, 9999], [0, 21], "0" * 64, msgid, [7, 1], [-1, -1]]
+    record["packets"].append(emitted)
+    return changed, emitted, record["k"]
+
+
+@pytest.mark.parametrize("loss", [False, True])
+@pytest.mark.parametrize("unknown_id", [False, True])
+def test_only_an_unverified_sitl_packet_under_byte_loss_skips_the_source_check(fleet, loss, unknown_id):
+    """With SIM_UART_LOSS, a SITL packet whose id the router table lacks had no CRC check, so a
+    lost byte can give it any source; it is counted, not gated. Known ids and lossless runs stay gated."""
+    records, _lines, _approvals = fleet
+    changed, emitted, k = _foreign_emission(records, origin_is_sitl=True, unknown_id=unknown_id)
+    exempt = loss and unknown_id
+    errors = forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=loss)
+    assert errors == ([] if exempt else [f"forwarding: {emitted[1]} from system 7 at tick {k}"])
+    assert unverified_sources(changed, SYS_IDS, loss) == ([emitted] if exempt else [])
+
+
+def test_an_unknown_id_from_outside_the_fleet_fails_from_a_participant_even_with_byte_loss(fleet):
+    records, _lines, _approvals = fleet
+    changed, emitted, k = _foreign_emission(records, origin_is_sitl=False, unknown_id=True)
+    assert forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=True) == [
+        f"forwarding: {emitted[1]} from system 7 at tick {k}"]
+    assert unverified_sources(changed, SYS_IDS, True) == []
+
+
+@pytest.mark.parametrize("end", ["router_dropped", "router_filtered"])
+def test_a_navlink_packet_the_router_does_not_route_fails(fleet, end):
+    records, _lines, _approvals = fleet
     dropped = copy.deepcopy(records)
     record, routed = next((r, e) for r, e in _events(dropped) if e[0] == "routed")
     copies = [e for e in record["packets"] if e[0] == "copy" and e[2] == routed[1]]
     for event in copies + [routed]:
         record["packets"].remove(event)
-    record["packets"].append(["router_dropped", routed[1]])
+    record["packets"].append([end, routed[1]])
     copy_ids = [c[1] for c in copies]
     for r, e in _events(dropped):
         if e[1] in copy_ids:
             r["packets"].remove(e)
     errors = _forwarding(dropped)
-    assert f"forwarding: NAVLINK {routed[1]} router_dropped at tick {AUCTION_TICK + 2}" in errors
+    assert f"forwarding: NAVLINK {routed[1]} {end} at tick {AUCTION_TICK + 2}" in errors
 
 
 def _cross_check(tmp_path, records, packets):

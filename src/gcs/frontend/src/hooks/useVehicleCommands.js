@@ -4,12 +4,17 @@ import { useCallback, useState } from 'react';
  * Vehicle command callbacks: estop, set mode, arm/disarm, launch, trigger,
  * restart, abort launch, clear trail and camera-mark history. Owns trackResetKey
  * and historyResetKey.
+ *
+ * `confirmBeforeStart` (async, resolves true to go ahead) gates every path that
+ * starts a mission flight — launch (container and per-vehicle, force included)
+ * and restart (bungee Start, Restart) — before any command or local reset.
  */
 export default function useVehicleCommands({
   api, vehicleList,
   taskConfirmReset, taskAssignReset,
   setLaunchStates,
   resumeHistory,
+  confirmBeforeStart,
 }) {
   const [trackResetKey, setTrackResetKey] = useState(0);
   const [historyResetKey, setHistoryResetKey] = useState(0);
@@ -46,11 +51,12 @@ export default function useVehicleCommands({
   );
 
   const handleLaunch = useCallback(
-    (sysIds, opts) => {
+    async (sysIds, opts) => {
+      if (confirmBeforeStart && !(await confirmBeforeStart())) return null;
       setLaunchStates({});
       return api.launchSequence(sysIds, opts);
     },
-    [api.launchSequence, setLaunchStates]
+    [api.launchSequence, setLaunchStates, confirmBeforeStart]
   );
 
   const handleTriggerVehicle = useCallback(
@@ -59,7 +65,8 @@ export default function useVehicleCommands({
   );
 
   const handleRestart = useCallback(
-    (sysIds, opts) => {
+    async (sysIds, opts) => {
+      if (confirmBeforeStart && !(await confirmBeforeStart())) return null;
       setTrackResetKey((k) => k + 1);
       // A new mission is recorded: Restart clears history and resumes it.
       resumeHistory?.();
@@ -67,7 +74,7 @@ export default function useVehicleCommands({
       taskAssignReset();
       return api.restartMission(sysIds, opts);
     },
-    [api.restartMission, taskConfirmReset, taskAssignReset, resumeHistory]
+    [api.restartMission, taskConfirmReset, taskAssignReset, resumeHistory, confirmBeforeStart]
   );
 
   const handleAbortLaunch = useCallback(async () => {

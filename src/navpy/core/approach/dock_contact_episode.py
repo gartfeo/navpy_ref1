@@ -54,10 +54,13 @@ class FinalApproachDockContact:
         """NAV entry: expect contact with this POI's own dock only."""
         if self._sensor is None:
             return
-        self._sensor.disarm()
+        # Detach first, under the lock, so the sensor's report and the latch
+        # agree: a contact callback after this finds no armed episode.
         with self._lock:
+            docked = self._docked is not None
             self._armed = None
             self._docked = None
+        self._sensor.disarm(docked)
         task_id = None if poi is None else get_poi_task_id(poi)
         if poi is None or task_id is None:
             return
@@ -79,11 +82,11 @@ class FinalApproachDockContact:
         The sensor publishes only a closest pass inside the net, and only
         for the armed identity, so the event is the DOCKED evidence.
         """
-        if self._sensor is not None:
-            self._sensor.disarm()
         with self._lock:
             armed, self._armed = self._armed, None
             docked, self._docked = self._docked, None
+        if self._sensor is not None:
+            self._sensor.disarm(docked is not None)
         if armed is not None:
             self._end_episode(armed, self._source_now_s())
         return docked

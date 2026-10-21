@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 import subprocess
 import sys
@@ -15,6 +16,9 @@ from navpy.core.kernel import runtime_time as rt
 
 
 _OUTPUT_BUFFER_SIZE = 100
+# Numbers process generations in this backend; with a backend boot id it
+# keys sim records across NavPy restarts and reused PIDs.
+_generations = itertools.count(1)
 
 if sys.platform == "win32":
     import ctypes
@@ -107,6 +111,7 @@ class NavpyInstance:
     connection: str
     process: subprocess.Popen[bytes]
     started_at: float = field(default_factory=rt.time)
+    generation: int = field(default_factory=lambda: next(_generations))
     output: deque[str] = field(
         default_factory=lambda: deque(maxlen=_OUTPUT_BUFFER_SIZE)
     )
@@ -126,8 +131,12 @@ def read_navpy_output(
     readiness_validator: (
         Callable[[NavpyInstance, dict[str, object]], str | None] | None
     ) = None,
+    on_line: Callable[[NavpyInstance, str], object] | None = None,
 ) -> None:
-    """Read stdout and publish the exact runtime-readiness marker."""
+    """Read stdout and publish the exact runtime-readiness marker.
+
+    ``on_line`` sees every line (the sim closest-approach records).
+    """
     stdout = inst.process.stdout
     try:
         if stdout is None:
@@ -135,6 +144,12 @@ def read_navpy_output(
         for raw_line in iter(stdout.readline, b""):
             line = raw_line.decode("utf-8", errors="replace").rstrip("\n\r")
             inst.output.append(line)
+            if on_line is not None:
+                try:
+                    on_line(inst, line)
+                except Exception:
+                    # A display consumer never stops the reader (stop acks).
+                    logging.getLogger(__name__).exception("NavPy output consumer failed")
             if line == NAVPY_STOPPED_MARKER:
                 inst.stop_acked = True
             payload = parse_runtime_ready(line)

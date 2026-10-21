@@ -12,8 +12,8 @@ replaces it, and a download serves it as uploaded. ``answer_limits``
 withholds replies: a message kind is answered at most that many times.
 ``TERRAIN_CHECK`` is never answered, as by an autopilot with
 ``TERRAIN_ENABLE 0`` (the lockstep defaults keep terrain on since step 9h). :func:`navpy_parameters` adds what a NavPy companion
-reads at boot: the firmware's ``SYSID_THISMAV`` and the AAS table that the
-SITL's ``aas_params.lua`` adds. With ``forward``, it routes as ArduPilot
+reads at boot: the firmware's ``SYSID_THISMAV``, its final-approach airframe
+limits and the AAS table that the SITL's ``aas_params.lua`` adds. With ``forward``, it routes as ArduPilot
 does between its MAVLink channels: a packet with no target, a broadcast
 target, a foreign system's target or this system's without one of its own
 components (a NAVLINK packet for the NavPy that shares the sysid) is also
@@ -50,9 +50,17 @@ def aas_lua_parameters() -> dict[str, float]:
     return {prefix + name: float(value) for name, value in _LUA_PARAM.findall(source)}
 
 
+#: ArduPlane's defaults (``ArduPlane/config.h``, ``AP_PitchController.cpp``) for
+#: what the final-approach law reads (``final_approach_airframe_config.py``).
+#: A real autopilot answers them; a missing one costs each law reset a full
+#: parameter-read timeout.
+AIRFRAME_PARAMETERS = {"PTCH_LIM_MIN_DEG": -25.0, "PTCH_LIM_MAX_DEG": 20.0, "ROLL_LIMIT_DEG": 45.0,
+                       "PTCH2SRV_TCONST": 0.5, "TRIM_THROTTLE": 45.0}
+
+
 def navpy_parameters(sys_id: int = SYS_ID) -> dict[str, float]:
-    """What a NavPy companion reads at boot: the firmware's identity and the AAS table."""
-    return {"SYSID_THISMAV": float(sys_id), **aas_lua_parameters()}
+    """What a NavPy companion reads at boot: the firmware's identity and limits, and the AAS table."""
+    return {"SYSID_THISMAV": float(sys_id), **AIRFRAME_PARAMETERS, **aas_lua_parameters()}
 #: Home, takeoff, one waypoint: (command, latitude e7, longitude e7, altitude m).
 MISSION = (
     (mavlink.MAV_CMD_NAV_WAYPOINT, 401_000_000, 444_000_000, 0.0),
@@ -193,4 +201,4 @@ class ReferenceAutopilot:
         )
 
 
-__all__ = ["MISSION", "PARAMETERS", "ReferenceAutopilot", "SYS_ID", "aas_lua_parameters", "navpy_parameters"]
+__all__ = ["AIRFRAME_PARAMETERS", "MISSION", "PARAMETERS", "ReferenceAutopilot", "SYS_ID", "aas_lua_parameters", "navpy_parameters"]

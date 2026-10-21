@@ -42,12 +42,12 @@ PROCESSES_FILE = "lockstep_processes_host.json"
 #: on, as in the wall eval (the firmware default, stated): the SITL's ground
 #: and ``TERRAIN_REPORT`` come from the pinned tiles :func:`prepare_instance`
 #: seeds; SITL reads them on its main thread (contract: Firmware helpers).
+#: ``SIM_BAUDLIMIT_EN`` is left to the sim profile (``sitl_models``, ``baud_limit``).
 LOCKSTEP_DEFAULT_OVERRIDES = {
     **SITL_DEFAULT_OVERRIDES,
     "LOG_BACKEND_TYPE": 0.0,
     "TERRAIN_ENABLE": 1.0,
     "SCR_ENABLE": 1.0,
-    "SIM_BAUDLIMIT_EN": 0.0,
 }
 
 

@@ -16,6 +16,7 @@ from navpy.core.ports.dock_contact import DockContactIdentity
 from navpy.core.ports.subscription import Subscription
 from navpy.core.ports.pose_stream_rate import POSE_STREAM_RATE_HZ
 from navpy.sim.world.dock_contact_feed import (
+    ATTITUDE_MESSAGE,
     POSITION_MESSAGE,
     SimDockContactFeed,
     position_sample,
@@ -284,8 +285,8 @@ def test_feed_samples_every_position_update_independent_of_detection():
         callbacks[name] = callback
         return Subscription(lambda: callbacks.pop(name))
 
-    feed = SimDockContactFeed(sensor, subscribe)
-    assert set(callbacks) == {POSITION_MESSAGE}
+    feed = SimDockContactFeed(sensor, subscribe, attitude_max_age_s=MAX_SEGMENT_S)
+    assert set(callbacks) == {POSITION_MESSAGE, ATTITUDE_MESSAGE}
     callbacks[POSITION_MESSAGE](_position(1_000, _at(-1.25, 0.1)))
     callbacks[POSITION_MESSAGE](_position(1_040, _at(1.25, 0.1)))
     assert len(events) == 1
@@ -314,8 +315,10 @@ def test_sim_composition_wires_one_sensor_for_a_sim_autopilot():
 
     assert isinstance(sensor, SimDockContactSensor)
     assert factory.dock_contact is sensor
-    factory._vehicle.on_message.assert_called_once()
-    assert factory._vehicle.on_message.call_args.args[0] == POSITION_MESSAGE
+    # The position stream feeds contact; ATTITUDE only labels the display record.
+    assert {
+        call.args[0] for call in factory._vehicle.on_message.call_args_list
+    } == {POSITION_MESSAGE, ATTITUDE_MESSAGE}
 
 
 def test_sim_composition_applies_and_logs_the_net_radius_override(monkeypatch):

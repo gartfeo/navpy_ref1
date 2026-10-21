@@ -1,7 +1,9 @@
 import { pickCartographic, pickEntity } from '../../utils/entityPicking';
+import { flyToClosestApproach } from '../../utils/closestApproachView';
 
 /**
- * LEFT_CLICK: place launch point / add corridor point / add vertex during drawing.
+ * LEFT_CLICK: place launch point / add corridor point / add vertex during drawing;
+ * outside drawing, a closest-approach mark (sim) flies the camera to it.
  */
 export function handleClick(Cesium, viewer, click, callbacksRef) {
   const cb = callbacksRef.current;
@@ -47,7 +49,11 @@ export function handleClick(Cesium, viewer, click, callbacksRef) {
     return;
   }
 
-  if (!cb.editable || !cb.isDrawing) return;
+  if (!cb.editable || !cb.isDrawing) {
+    const hit = pickEntity(Cesium, viewer, click.position);
+    if (hit && hit.type === 'closestApproach') flyToClosestApproach(Cesium, viewer, hit.view);
+    return;
+  }
 
   const latlon = pickCartographic(Cesium, viewer, click.position);
   if (latlon) {

@@ -14,6 +14,7 @@ import useCorridorWaypoints from './hooks/useCorridorWaypoints';
 import usePartitionHandle from './hooks/usePartitionHandle';
 import useUavMarkers from './hooks/useUavMarkers';
 import useUavTrails from './hooks/useUavTrails';
+import useClosestApproachMarks from './hooks/useClosestApproachMarks';
 import useCoverageLayer from './hooks/useCoverageLayer';
 import useAssignmentMarkers from './hooks/useAssignmentMarkers';
 import useAvailableTaskMarkers from './hooks/useAvailableTaskMarkers';
@@ -65,6 +66,7 @@ function CesiumMap({
   historyResetKey,
   hiddenSysIds,
   historyPaused,
+  simClosestApproaches,
   plannerReady,
   vehicleList,
   storeRef,
@@ -293,6 +295,10 @@ function CesiumMap({
   useFollowUav(cesiumRef, viewerRef, entitiesRef, fpvSysId, viewerReady, storeRef);
   useUavPoseSource(poseSourceRef, cesiumRef, viewerRef, entitiesRef, viewerReady);
   useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${historyResetKey}`, hiddenSysIds, historyPaused);
+  useClosestApproachMarks(
+    cesiumRef, viewerRef, storeRef, viewerReady, simClosestApproaches,
+    simMode, showTrails, `${trackResetKey}:${historyResetKey}`,
+  );
   useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, historyResetKey, hiddenSysIds, historyPaused, viewerReady, plannerReady);
   useAssignmentMarkers(cesiumRef, viewerRef, assignments || {}, storeRef, viewerReady);
   useAvailableTaskMarkers(cesiumRef, viewerRef, availableTasks || {}, viewerReady);

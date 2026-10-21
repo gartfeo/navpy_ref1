@@ -7,12 +7,13 @@ import math
 import pytest
 
 from navpy.sim.lockstep import sitl_models as sm
-from navpy.sim.lockstep.link_model import RADIO_LINK, SERIAL_LINK
-from navpy.sim.lockstep.sim_profile import CATALOGUE, ModelDraw, ParamRange, Realization, load_profile, \
-    model_stream, realize
+from navpy.sim.lockstep.sim_profile import CATALOGUE, ModelDraw, ModelEntry, ParamRange, Realization, \
+    load_profile, model_stream, realize
 
 WIND = ModelDraw("wind", True, {"speed_mps": 6.5, "direction_deg": 270.0, "turbulence_mps": 1.25})
 NOISE = ModelDraw("sensor_noise", True, {"gps_noise_m": 0.5})
+BAUD = ModelDraw("baud_limit", True)
+LOSS = ModelDraw("uart_loss", True, {"loss_pct": 0.15})
 
 
 def realization(*models: ModelDraw, seed: int = 7) -> Realization:
@@ -20,14 +21,14 @@ def realization(*models: ModelDraw, seed: int = 7) -> Realization:
 
 
 def test_every_parameter_of_the_built_models_has_one_sitl_parameter():
-    """Since step 3 the coordinator's link models apply the rest of the catalogue."""
-    assert set(sm.SITL_PARAMETERS) | {SERIAL_LINK, RADIO_LINK} == set(CATALOGUE)
-    assert not set(sm.SITL_PARAMETERS) & {SERIAL_LINK, RADIO_LINK}
-    for name in sm.SITL_PARAMETERS:
-        spec = CATALOGUE[name]
+    assert set(sm.SITL_PARAMETERS) == set(CATALOGUE)
+    for name, spec in CATALOGUE.items():
         assert set(sm.SITL_PARAMETERS[name]) == set(spec.params)
+    assert set(sm.SITL_SWITCHES) <= set(CATALOGUE)
     names = [p for params in sm.SITL_PARAMETERS.values() for p in params.values()]
+    names += [p for switches in sm.SITL_SWITCHES.values() for p in switches]
     assert len(names) == len(set(names)) and all(p.startswith("SIM_") for p in names)
+    assert set(sm.RANDOM_MODELS) <= set(CATALOGUE)
 
 
 def test_an_on_model_sets_its_sitl_parameters_and_an_off_or_unlisted_one_sets_none():
@@ -41,6 +42,25 @@ def test_an_on_model_sets_its_sitl_parameters_and_an_off_or_unlisted_one_sets_no
         "SIM_WIND_DIR": 270.0, "SIM_WIND_SPD": 6.5, "SIM_WIND_TURB": 1.25}
     assert sm.sitl_parameters(realization()) == {}
     assert sm.sitl_parameters(realize(load_profile("none"), 1)) == {}
+
+
+def test_the_line_rate_and_byte_loss_are_sitls_own_parameters():
+    """``baud_limit`` turns on SITL's line rate, whatever its (empty) draw; ``uart_loss`` sets
+    SITL's byte loss in percent. Off, neither sets anything, so the firmware default (0) holds."""
+    assert sm.sitl_parameters(realization(BAUD)) == {"SIM_BAUDLIMIT_EN": 1.0}
+    assert sm.sitl_parameters(realization(LOSS)) == {"SIM_UART_LOSS": 0.15}
+    assert sm.sitl_parameters(realization(BAUD, LOSS, NOISE)) == {
+        "SIM_BAUDLIMIT_EN": 1.0, "SIM_GPS_NOISE": 0.5, "SIM_UART_LOSS": 0.15}
+    off = (ModelDraw("baud_limit", False), ModelDraw("uart_loss", False, {"loss_pct": 0.15}))
+    assert sm.sitl_parameters(realization(*off)) == {}
+
+
+def test_byte_loss_seeds_the_sitl_and_the_line_rate_alone_does_not():
+    """SITL draws its byte loss from the noise's glibc stream; the line rate draws nothing."""
+    seed = 1 + math.floor(model_stream(7, "sensor_noise", "sitl.2").random() * (2**32 - 1))
+    assert sm.sitl_rng_seed(realization(LOSS, seed=7), 2) == seed
+    assert sm.sitl_rng_seed(realization(BAUD, seed=7), 2) is None
+    assert sm.sitl_rng_seed(realization(BAUD, ModelDraw("uart_loss", False), seed=7), 2) is None
 
 
 def test_the_rng_seed_is_the_noise_stream_for_the_sysid_while_any_sitl_model_is_on():
@@ -81,7 +101,7 @@ def test_the_shipped_profiles_draw_wind_and_noise_in_the_designs_ranges():
     fly without wind. ``none`` lists no model."""
     assert load_profile("none").models == {}
     for name in ("quiet", "hw", "stress"):
-        models = {m: e for m, e in load_profile(name).models.items() if m in sm.SITL_PARAMETERS}
+        models = {m: e for m, e in load_profile(name).models.items() if m in ("wind", "sensor_noise")}
         assert set(models) == ({"sensor_noise"} if name == "quiet" else {"wind", "sensor_noise"})
         assert models["sensor_noise"].p_on == 1.0
         assert models["sensor_noise"].params == {"gps_noise_m": ParamRange(0.0, 1.0)}
@@ -100,3 +120,20 @@ def test_the_shipped_profiles_draw_wind_and_noise_in_the_designs_ranges():
         if d.model("wind").on:
             assert 0.0 <= params["SIM_WIND_SPD"] <= 8.0 and 0.0 <= params["SIM_WIND_DIR"] <= 360.0
             assert 0.0 <= params["SIM_WIND_TURB"] <= 2.0
+
+
+def test_the_shipped_profiles_draw_the_line_rate_and_byte_loss():
+    """The line rate in every profile but ``none``; byte loss 0-0.2 % in ``hw`` (about 0-10 % of
+    50-byte packets) and 0-0.6 % in ``stress``, none in ``quiet``. ``stress`` turns both on in
+    every run, so its seed-1 matrix exercises them."""
+    for name in ("quiet", "hw", "stress"):
+        assert load_profile(name).models["baud_limit"] == ModelEntry(
+            1.0 if name == "stress" else 0.5, {})
+    assert "uart_loss" not in load_profile("quiet").models
+    assert load_profile("hw").models["uart_loss"] == ModelEntry(0.5, {"loss_pct": ParamRange(0.0, 0.2)})
+    assert load_profile("stress").models["uart_loss"] == ModelEntry(1.0, {"loss_pct": ParamRange(0.0, 0.6)})
+    stress = sm.sitl_parameters(realize(load_profile("stress"), 1))
+    assert stress["SIM_BAUDLIMIT_EN"] == 1.0 and 0.0 <= stress["SIM_UART_LOSS"] <= 0.6
+    draws = [realize(load_profile("hw"), seed) for seed in range(1, 201)]
+    assert 70 < sum(d.model("baud_limit").on for d in draws) < 130
+    assert 70 < sum(d.model("uart_loss").on for d in draws) < 130

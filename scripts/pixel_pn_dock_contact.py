@@ -22,7 +22,7 @@ from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.subscription import Subscription
 from navpy.plugins.vehicle.ardupilot.pose_streams import resolve_pose_stream_rate_hz
 from navpy.sim.world.dock_contact_feed import SimDockContactFeed
-from navpy.sim.world.dock_contact_sensor import SimDockContactSensor
+from navpy.sim.world.dock_contact_sensor import SimDockContactSensor, max_segment_s
 from navpy.sim.world.simulation_object import SimulationObject
 
 
@@ -47,10 +47,8 @@ class HarnessDockContact:
     ) -> None:
         self._poi = poi
         self._docks: tuple[SimulationObject, ...] = ()
-        sensor = SimDockContactSensor(
-            lambda: self._docks,
-            resolve_pose_stream_rate_hz(vehicle),
-        )
+        rate_hz = resolve_pose_stream_rate_hz(vehicle)
+        sensor = SimDockContactSensor(lambda: self._docks, rate_hz)
         self._contact = FinalApproachDockContact(
             sensor,
             lambda: vehicle.target_system,
@@ -58,7 +56,7 @@ class HarnessDockContact:
             final_approach.latch_docked,
             logger,
         )
-        self._feed = SimDockContactFeed(sensor, vehicle.on_message)
+        self._feed = SimDockContactFeed(sensor, vehicle.on_message, max_segment_s(rate_hz))
 
     def arm(self, detection: DetectedObject) -> None:
         """Arm for this detection's task; its obj id names the dock."""

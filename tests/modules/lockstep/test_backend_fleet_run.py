@@ -36,14 +36,14 @@ def _packet_events(records: list[dict]) -> list[tuple[int | None, list]]:
 
 
 def _routing(records: list[dict]) -> tuple[dict, dict, dict, dict]:
-    """From the packet records: emissions ``id -> (tick, msgid, target sys)``, each
+    """From the packet records: emissions ``id -> (tick, msgid, target sys, source comp)``, each
     source's router copies ``id -> [destination device]``, each copy's terminal
     disposition, and the ticks whose reply admitted bytes of each copy."""
     emitted, copies, ends, admitted = {}, {}, {}, {}
     for k, event in _packet_events(records):
         kind, packet_id = event[0], tuple(event[1])
         if kind == "emitted":
-            emitted[packet_id] = (k, event[4], event[6][0])
+            emitted[packet_id] = (k, event[4], event[6][0], event[5][1])
         elif kind == "copy":
             copies.setdefault(tuple(event[2]), []).append(packet_id[2])
             ends.setdefault(packet_id, None)
@@ -55,9 +55,9 @@ def _routing(records: list[dict]) -> tuple[dict, dict, dict, dict]:
 
 
 def _check_routing(records: list[dict]) -> None:
-    """Targeted packets reach only their target's serial1; peers are routed from tick 1."""
+    """Targeted packets reach only their target's serial1; SITL traffic is routed from tick 1."""
     emitted, copies, ends, admitted = _routing(records)
-    backend = [(packet_id, msgid, target) for packet_id, (_k, msgid, target) in emitted.items()
+    backend = [(packet_id, msgid, target) for packet_id, (_k, msgid, target, _c) in emitted.items()
                if packet_id[0] == FLEET.backend]
     items = {sys_id: 0 for sys_id in FLEET.sys_ids}
     for packet_id, msgid, target in backend:
@@ -66,15 +66,17 @@ def _check_routing(records: list[dict]) -> None:
             if msgid == MISSION_ITEM_INT:
                 items[target] += 1
     assert all(count > 6 for count in items.values()), items  # every vehicle got its own mission
-    # Tick 1: each SITL's serial1 packets are copied to every peer's serial1 and admitted by reply 1.
+    # Tick 1: each SITL's serial1 broadcasts are copied to the backend's endpoint;
+    # its peers get its gimbal's but not its autopilot's (each SITL endpoint
+    # filters components 1 and 100). Reply 1 admits every copy to a serial1.
     for index in FLEET.sys_ids:
-        first = [packet_id for packet_id, (k, _m, target) in emitted.items()
-                 if k == 1 and packet_id[:3] == (f"sitl{index}", 1, f"sitl{index}.serial1") and target == -1]
-        assert first, f"SITL {index} emitted no broadcast on serial1 at tick 1"
-        peers = {f"sitl{j}.serial1" for j in FLEET.sys_ids if j != index}
-        for packet_id in first:  # every tick-1 broadcast, not only the first
-            routed = copies.get(packet_id, [])
-            assert peers <= set(routed) and f"sitl{index}.serial1" not in routed, (packet_id, routed)
+        first = {packet_id: comp for packet_id, (k, _m, target, comp) in emitted.items()
+                 if k == 1 and packet_id[:3] == (f"sitl{index}", 1, f"sitl{index}.serial1") and target == -1}
+        assert {1, 154} <= set(first.values()), f"SITL {index}: tick-1 broadcasts from {first}"
+        peers = [f"sitl{j}.serial1" for j in FLEET.sys_ids if j != index]
+        for packet_id, comp in first.items():  # every tick-1 broadcast, not only the first
+            expected = [FLEET.router] if comp in (1, 100) else [*peers, FLEET.router]
+            assert copies.get(packet_id) == expected, (packet_id, comp, copies.get(packet_id))
     tick1_copies = [packet_id for (k, event) in _packet_events(records)
                     if k == 1 and event[0] == "copy" for packet_id in [tuple(event[1])]
                     if packet_id[2].endswith(".serial1")]

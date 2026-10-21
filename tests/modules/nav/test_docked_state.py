@@ -66,7 +66,7 @@ class _Sensor:
     def arm(self, identity, on_docked):
         self.on_docked = on_docked
 
-    def disarm(self):
+    def disarm(self, docked=False):
         pass
 
 

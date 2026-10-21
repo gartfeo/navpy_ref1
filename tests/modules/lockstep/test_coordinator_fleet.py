@@ -274,6 +274,7 @@ def test_parking_reads_and_journals_each_sitl_parked_frame_in_order(tmp_path):
     assert log[-3:] == [(1, parked), (2, parked), (3, parked)]
     (record,) = [r["parked"] for r in coordinator.journal.records if "parked" in r]
     assert record["tick"] == parked
+    assert record["t_us"] == recorded_source_us()(parked)  # the parked frame's own sim time
     assert [frame["sha256"] for frame in record["frames"]] == [s.rows[-1][2] for s in sitls]
     for sitl in sitls:  # never replied to: each is still blocked on reply k_F+1
         assert sitl.snapshot_rows[-1][0] == parked and sitl.stopped

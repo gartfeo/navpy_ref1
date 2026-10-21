@@ -34,6 +34,7 @@
 - The repository has both LF and CRLF files. On Windows Python's `Path.write_text`
   writes CRLF, so a read_text/write_text edit script flips a whole LF file. Edit by script
   with read_bytes/write_bytes and keep each file's own line endings.
+  Plain open(p, 'w') does the same (repeated in v12.1, 2026-10-20): pass newline=''.
 
 ## ArduPilot Lua scripts (tools/tuning/lua, 2026-10-11)
 
@@ -528,7 +529,13 @@
   written while run 1 flew changed input_manifest.json's
   source.untracked_sha256, so run 1 was no longer byte-equal to runs 2 and
   3. Write and stage every file first; otherwise compare only runs that
-  started after the last edit.
+  started after the last edit. Editing a tracked file mid-run breaks it too
+  (source.uncommitted_diff_sha256; radio budget round 4, 2026-10-20): touch
+  nothing in the worktree until the matrix ends.
+- **Targeted tests miss the root `tests/*.py` files.** A new abstract method
+  passed tests/modules and tests/gcs but broke the pinned IVehicle surface in
+  tests/test_vehicle_logger_runtime_solid_regressions.py; grep tests/ for the
+  class you change before trusting a targeted run.
 - **A passing gate on a real run may be vacuous.** Break a copy of the run's
   evidence for each gate (delete a pose CSV, drop SNAP lines, drop one
   emission, drop the polling record), re-run analyze_run, and check that
@@ -1043,6 +1050,25 @@
 - Never pass `-x` to the full pytest here: the known board_detector failures stop it early.
 - An eval error late in a report can be a consequence: "demo_mission_plan.json missing" came from the
   operator failing at setup, not from the relative `--run-dir` it looked like. Read the first error.
+- Check what the simulator already offers before building a model. SITL had a sim-time line rate
+  (`SIM_BAUDLIMIT_EN`, with real `txspace` backpressure) and byte loss (`SIM_UART_LOSS`); I built a
+  coordinator rate and loss anyway, and the owner had it replaced by SITL's own (2026-10-20). Grep the
+  firmware's `SIM_` parameters for the effect first; build only what SITL lacks.
+
+## Radio budget build (2026-10-20)
+- `TaskStop` on a background bash runner killed only the current child: the runner went on to the
+  next step and its `trap ... EXIT` (restore launcher, remove pc_busy) never ran. Do not stop a
+  runner that way; if it must stop, kill its process tree and run the restore steps by hand.
+- `pytest ... | tail -5` hid two real failures behind four known ones (the untracked codex toml), and
+  one of them, the 300-line budget, was my own earlier commit's. Print every FAILED line (`-rf |
+  grep FAILED`) and check each one before calling the rest "known".
+- A filter change can break a test double that uses the filtered message as generic load (the
+  router overload test's ENCAPSULATED_DATA blob). Grep the tests for the filtered ids when adding a
+  filter.
+- Codex's measurement corrected mine: the image is 35.9 kB of frames, not the 23.5 kB of one window
+  of chunk payloads. Quote sizes as framed bytes from the journal's byte ranges.
+- When Codex cannot read files (sandbox "setup refresh had errors" twice), paste the revised text
+  with line numbers into the prompt for a narrow re-review.
 
 ## Todo 31 trace: detector frames late in NAV (2026-10-19)
 - A wall eval's WSL SITL root is named from the run dir (`~/navpy-eval-roots/<name>-<hash>`), so a retry with the
@@ -1054,6 +1080,37 @@
   share while one thread's work stretches, the wait is inside the process (GIL or a lock), not the OS.
 - Python `gc` gen-2 passes (30-70 ms here) look like a pure-CPU spike in whichever thread triggers them and like a
   wait in every other thread; log `gc.callbacks` before blaming a stage.
+
+## GCS video design v12 (2026-10-20)
+- SIYI's site refuses WebFetch and plain curl (HTTP 403, or the home page).
+  The product's /download page, fetched with a browser user agent, links
+  the manual PDF on res.siyi.biz; save it in its own scratch folder and read
+  it with `pdftotext -layout`. Resellers disagree with SIYI (1080P vs
+  1920x1200); cite the manual's page numbers, and state what it does not
+  say (display density, browser) as unknown, not inferred.
+- `backdrop-filter` makes a stacking context. On a box whose menu must draw
+  above a sibling (the swapped small map) put the blur on a background
+  layer; in a mock, a `z-index: -1` layer paints behind the map pane, so
+  give the content `position: relative` instead (Codex rounds 1 and 3).
+- A "not drawn" state must say what stops: hiding a picture left the
+  reader and the WebGL widget running, and a status row that joins the
+  measured chrome changes the room test it reports (Codex rounds 1-2).
+- A mock over app screenshots: put each screenshot's data URI in one CSS class and give the
+  slices that class. Inlining the URI per slice made the HTML 6.7 MB; one class made it 0.55 MB.
+  Draw a mock on real screenshots from the start; the owner judges "same design as we have" on them.
+- Implementing v12, a failure state inside the component that a room test unmounts erased itself: its
+  row grew the chrome, the picture lost room, the failure unmounted, room returned and a new reader
+  started. Latch a failure in the parent keyed by session; mount only the reader by room (Codex impl r1).
+- A measured height reported from a passive effect before the ResizeObserver's first value is 0, and
+  that 0 mounted a reader the real height had no room for. Report only once measured, start the
+  consumer's state as null (unknown), and test with the measurement fed back as the app does.
+- A new worktree has no .venv, so AAS_GCS.bat fails there; the live-tester launched gcs_launch.py
+  with the main checkout's venv on PATH. The SITL fleet advertises no camera stream, so camera
+  states need simulation.video_test_source to be seen live.
+- v12.1 live: turning simulation.video_test_source on over the settings API after launch, then
+  stop-all/start-all, made each camera seen but discovery ended "retries exhausted"; no UAV ever
+  advertised a stream, so the mixed fleet was not set up. Unconfirmed cause: the launcher starts
+  the test MediaMTX only at launch. Next time launch with the setting already on.
 
 ## GCS fence switch: show the fleet's fence (2026-10-20)
 - Copying the vehicles' fence into plan state (adopt on read) raced with
@@ -1072,6 +1129,39 @@
   reload) was a different bug: the backend timeline showed the downloaded
   plan replaced 50 ms later. Read plan_rendered and request order in
   timeline.jsonl before changing code for a live failure.
+
+## Delivery demo as a normal run (2026-10-20)
+- I designed dock waypoints around the ZR10 preset altitudes (403/383/363 m),
+  but the owner's settings name no camera profile, so the UI planner flew its
+  defaults (240/220/200 m). Codex caught it in code review; the live log
+  confirmed it (v_dist at approach start plus dock height above home). Before
+  reasoning from planner altitudes, read the settings the run actually uses
+  (`camera.vision_profile`) and confirm the flown altitude in a log.
+- A subprocess test of a script's imports passed without the fix, because the
+  shared venv's editable install points at another checkout that also
+  imports. Assert where the module came from (`navpy.__file__`), and
+  mutation-check by restoring the old file.
+- A background waiter that grepped Codex output for "verdict" fired at once:
+  the echoed prompt contains the word. Wait for `tokens used`.
+- `codex exec` sometimes fails before any command runs ("setup refresh had
+  errors") and still prints REJECT. That is no review; retry once.
+
+## Plan/camera check (2026-10-20)
+- Search optics are the device's first zoom (CameraIntrinsics starts there; a track stop resets to it), not
+  settings `vision_zoom`. Codex caught the selected-zoom version in design review; check which zoom a sim gate uses.
+- Exact visibility on a straight segment is cheap: camera coordinates are linear in along-track distance, so edges
+  are linear bounds. Keep the boundary cases the simulator rejects (zero distance) out of a closed interval.
+- Do not run the full pytest suite while a mutation script edits files: its vitest step read a mutated file and
+  failed. Run mutation proofs alone, then the suites.
+- From Python on Windows, capture `npx` output with `encoding="utf-8", errors="replace"`; the cp1252 default
+  floods stderr with reader-thread UnicodeDecodeErrors (the return code is still right).
+- A worktree has no node_modules. `npm ci` there took 13 s; a link to the main checkout's copy would let a build
+  wipe a running dev server's `.vite` cache.
+- App.jsx hands hooks new vehicleList arrays and param getters on telemetry and param updates, so an effect keyed on
+  a memo built from them refired the backend check about once a second. Unit tests missed it; the live test caught it.
+  Key such effects on the request content (a JSON key) and test a rerender with equal but new inputs.
+- When `codex exec` cannot start its shell ("helper_unknown_error: setup refresh had errors"), inline the full patch
+  (tracked diff plus `git diff --no-index /dev/null <new file>`) in the prompt; it then reviews statically.
 
 ## GCS Trails control (2026-10-20)
 

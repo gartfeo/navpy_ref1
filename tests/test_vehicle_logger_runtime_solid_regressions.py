@@ -16,6 +16,7 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGrou
 from navpy.core.approach.logs.navigation_snap_geometry import calc_distance, calc_h_v_dist
 from navpy.core.approach.logs.navigation_log_streams import NavigationLogStreams
 from navpy.core.kernel.location import Location
+from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 from navpy.plugins.vehicle.ardupilot.vehicle_composition import build_vehicle_parts
 from navpy.plugins.vehicle.ardupilot.vehicle_lifecycle import VehicleLifecycle
@@ -299,6 +300,10 @@ def test_composite_vehicle_preserves_legacy_constructor_and_abstract_surface():
     )
     assert vehicle.target_system == 7
     assert vehicle.source_system == 7
+    with pytest.raises(NotImplementedError):
+        vehicle.read_parameter("TEST", ExchangePolicy())
+    with pytest.raises(NotImplementedError):
+        vehicle.write_parameter("TEST", 1.0, ExchangePolicy())
 
 
 @pytest.mark.parametrize(

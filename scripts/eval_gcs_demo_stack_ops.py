@@ -10,7 +10,11 @@ from scripts.eval_gcs_demo_command_bounds import (
     command_bounds_from_snapshot,
 )
 from scripts.eval_gcs_demo_config import aas_params_for
-from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
+from scripts.eval_gcs_demo_constants import (
+    FINAL_APPROACH_ROLL_LIMIT_DEG,
+    PARAM_HTTP_TIMEOUT_S,
+    PARAM_REQUEST_BUDGET_S,
+)
 from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_ports import JsonApiPort, JsonValue
 from scripts.eval_gcs_demo_process import wait_until
@@ -132,8 +136,8 @@ def configure_vehicle_params(
         aas = aas_params_for(scenario, sys_id, owner)
         written = context.api.put_json(
             f"/api/vehicles/{sys_id}/params",
-            {"params": aas},
-            timeout=60.0,
+            {"params": aas, "timeout_s": PARAM_REQUEST_BUDGET_S},
+            timeout=PARAM_HTTP_TIMEOUT_S,
         )
         require_write_results(written, aas, f"vehicle {sys_id} AAS")
     return DemoCommandBounds(1, tuple(bounds))

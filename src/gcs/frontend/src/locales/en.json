@@ -398,7 +398,11 @@
   "mapMarkers": {
     "launchPoint": "LP",
     "detectionStart": "DS",
-    "dock": "D"
+    "dock": "D",
+    "closestApproach": {
+      "docked": "docked",
+      "missed": "missed"
+    }
   },
   "trailsPanel": {
     "button": "Trails",
@@ -415,22 +419,19 @@
   "monitorOverlay": {
     "enterRc": "Enter RC control",
     "toggleVision": "Toggle vision cones",
-    "resetView": "Reset view"
+    "resetView": "Reset view",
+    "video": "Vehicle video",
+    "showVideo": "Show vehicle video",
+    "hideVideo": "Hide vehicle video"
   },
   "vehicleWindow": {
     "region": "Vehicle window",
     "state": {
       "connecting": "CONNECTING",
-      "live": "LIVE",
-      "stale": "STALE",
-      "failed": "FAILED",
-      "lost": "LOST",
-      "noCamera": "NO CAMERA",
-      "synthetic": "SYNTHETIC"
+      "live": "LIVE"
     },
     "connectingUav": "connecting · {{name}}",
     "noFrames": "NO FRAMES {{seconds}} s",
-    "noCamera": "No camera · {{name}}",
     "videoLost": "Camera video lost · {{name}}",
     "linkLost": "Vehicle link lost · {{name}}",
     "reason": {
@@ -443,27 +444,30 @@
     "reconnect": "Reconnect video",
     "dismiss": "Dismiss",
     "source": {
-      "group": "View source",
       "camera": "Camera",
-      "synthetic": "Synthetic"
+      "synthetic": "Synthetic",
+      "groupFor": "View source · {{name}}",
+      "noCameraFor": "No camera stream on {{name}}"
     },
     "maximize": "Maximize",
     "restore": "Restore",
-    "close": "Close",
     "showMapLarge": "Show the map large",
     "pickerPrompt": "Select a UAV for streaming",
     "uav": {
       "camera": "{{name}}, camera",
       "map": "{{name}}, no camera, synthetic view",
       "linkLost": "link lost",
-      "withLinkLost": "{{name}}, link lost"
+      "withLinkLost": "{{name}}, link lost",
+      "opensCamera": "camera",
+      "opensSynthetic": "synthetic"
     },
-    "syntheticTitle": "{{name}} · synthetic view",
     "syntheticTag": "SYNTHETIC · not camera",
     "waitingForPose": "Waiting for pose · {{name}}",
     "syntheticUnavailable": "Synthetic view unavailable",
-    "moreUavs": "{{count}} more",
-    "moreUavsLabel": "More UAVs"
+    "retry": "Retry",
+    "chip": "{{name}}, choose UAV",
+    "uavList": "UAVs",
+    "noRoom": "Too little room for the picture"
   },
   "fpvView": {
     "tag": "SYNTHETIC · {{name}} · nose view, not camera",
@@ -1114,5 +1118,22 @@
   },
   "planFile": {
     "invalidData": "This file does not contain a supported plan."
+  },
+  "cameraCheck": {
+    "panelTitle": "Plan cannot work with this camera",
+    "confirmTitle": "The camera cannot detect the docks on this plan:",
+    "confirmProceed": "Press OK to continue anyway, or Cancel to fix the plan first.",
+    "whatToDo": "What to do",
+    "estimate": "(Estimate: terrain or the real detector is not modelled.)",
+    "noWindow": "Zone {{zone}} flies {{height}} m above its dock. The image bottom meets the ground {{near}} m out, but detection ends at {{range}} m slant, so no dock can ever be detected. Highest workable height: {{max}} m (level search flight).",
+    "dockNeverInView": "Dock at WP {{wp}} of zone {{zone}} is never in the camera view on the search route ({{height}} m above it; ground is seen {{near}}-{{range}} m ahead, level flight, turns not modelled).",
+    "fixLowerAltitude": "lower the zone altitude (dock preset altitude or zone stack) to at most {{max}} m above the dock",
+    "fixPitch": "point the camera steeper down (gimbal camera pitch in the vision profile)",
+    "fixProfile": "switch to a camera profile with a longer search range",
+    "fixMoveDock": "put the dock on a lane the UAV flies after its detect-after waypoint",
+    "fixDetectAfter": "move the detect-after waypoint earlier",
+    "dockAltUnknown": "Zone {{zone}}: camera check not run, the vehicle's dock altitude (AAS_TARG_ALT) is not known yet.",
+    "couldNotRun": "Camera check could not run ({{error}}). The plan was not checked against the camera. Continue anyway?",
+    "couldNotRunShort": "Camera check could not run: {{error}}"
   }
 }

@@ -191,10 +191,13 @@ FACADE_METHOD_ALLOWANCES = {
     # 84 = 83 + position_sample, the stamped GLOBAL_POSITION_INT view the
     # finite-FOV sim camera pairs with ATTITUDE by boot time (sim pose
     # pairing design v3, approved 2026-10-15) -- a ratchet, not headroom.
+    # 86 = 84 + read_parameter and write_parameter, the bounded parameter
+    # exchanges the GCS routes use (radio_budget.md round 4 design, todo 103,
+    # Codex-reviewed 2026-10-20) -- a ratchet, not headroom.
     (
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
-    ): FacadeMethodAllowance(1, 84, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 86, frozenset({"_parts"})),
     (
         "src/navpy/core/perception/camera/camera_mount.py",
         "CameraMount",

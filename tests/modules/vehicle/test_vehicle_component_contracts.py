@@ -35,6 +35,8 @@ from navpy.plugins.vehicle.ardupilot.mission_download import MissionDownloader
 from navpy.plugins.vehicle.ardupilot.mission_upload import MissionUploader
 from navpy.plugins.vehicle.ardupilot.parameter_client import ParameterReader
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
+from navpy.plugins.vehicle.ardupilot.parameter_writer import ParameterWriter
+from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from navpy.plugins.vehicle.ardupilot.vehicle_composition import build_vehicle_parts
 from navpy.plugins.vehicle.ardupilot.heartbeat_runtime import HeartbeatRuntime
@@ -620,9 +622,76 @@ def test_parameter_read_rejects_value_older_than_request():
         ParameterRepository(),
         messages,
         SimpleNamespace(value=MagicMock()),
+        HeartbeatState(7, 5.0),
     )
 
     assert reader.get("TEST", timeout=0.1, retries=1) == 2.0
+
+
+def _param_value(name: str, value: float) -> MagicMock:
+    message = MagicMock(param_id=name, param_value=value, param_type=9)
+    message.get_srcSystem.return_value = 7
+    return message
+
+
+def _parameter_writer(connection, messages) -> ParameterWriter:
+    return ParameterWriter(
+        SimpleNamespace(target_system=7),
+        MavTransport(connection, threading.RLock()),
+        ParameterRepository(),
+        messages,
+        SimpleNamespace(value=MagicMock()),
+        MagicMock(),
+        HeartbeatState(7, 5.0),
+    )
+
+
+def test_parameter_write_resends_when_its_echo_is_lost():
+    """A lost PARAM_SET or echo is no answer: the write resends (MAVLink parameter protocol)."""
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
+    connection = SimpleNamespace(mav=MagicMock())
+    sends = []
+
+    def param_set(*args):
+        sends.append(args)
+        if len(sends) == 2:  # the first send's echo is lost
+            messages.publish("PARAM_VALUE", _param_value("TEST", 2.0), receipt_time_s=1.0)
+
+    connection.mav.param_set_send.side_effect = param_set
+    assert _parameter_writer(connection, messages).set("TEST", 2.0, timeout=0.05) is True
+    assert len(sends) == 2
+
+
+def test_parameter_write_fails_after_its_bounded_attempts():
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
+    connection = SimpleNamespace(mav=MagicMock())
+    assert _parameter_writer(connection, messages).set("TEST", 2.0, timeout=0.01) is False
+    assert connection.mav.param_set_send.call_count == PARAM_PROTOCOL_ATTEMPTS == 3
+
+
+def test_parameter_read_resends_by_default_and_accepts_a_late_answer():
+    """A read resends by default (a lost answer must not become a default value),
+    and each request waits from before the first one, so an answer that misses
+    its own wait still counts on the next."""
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
+    connection = SimpleNamespace(mav=MagicMock())
+    wait_after = messages.wait_after
+    waits = []
+
+    def first_wait_times_out_then_the_answer_lands(*args, **kwargs):
+        waits.append(args)
+        if len(waits) == 1:
+            messages.publish("PARAM_VALUE", _param_value("TEST", 4.0), receipt_time_s=1.0)
+            return None
+        return wait_after(*args, **kwargs)
+
+    messages.wait_after = first_wait_times_out_then_the_answer_lands
+    reader = ParameterReader(SimpleNamespace(target_system=7),
+                             MavTransport(connection, threading.RLock()),
+                             ParameterRepository(), messages, SimpleNamespace(value=MagicMock()),
+                             HeartbeatState(7, 5.0))
+    assert reader.get("TEST", timeout=0.05) == 4.0
+    assert connection.mav.param_request_read_send.call_count == 2
 
 
 def test_mission_upload_accepts_next_request_published_during_item_send():

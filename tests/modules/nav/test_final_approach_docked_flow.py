@@ -51,12 +51,14 @@ class _Sensor:
     def __init__(self) -> None:
         self.armed = []
         self.disarms = 0
+        self.outcomes = []
 
     def arm(self, identity, on_docked) -> None:
         self.armed.append((identity, on_docked))
 
-    def disarm(self) -> None:
+    def disarm(self, docked: bool = False) -> None:
         self.disarms += 1
+        self.outcomes.append(docked)
 
 
 class _RecordedApproach:

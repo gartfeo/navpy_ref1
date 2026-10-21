@@ -9,8 +9,9 @@ import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX } from '../../utils/veh
 const NO_SIZE = { width: 0, height: DEFAULT_TOP_CONTROLS_BOTTOM_PX - PANEL_MARGIN_PX };
 
 /**
- * Monitor-mode map overlay: RC control toggle, plan entry, vision toggle and
- * the Trails control (trail and camera-mark history). The top-right controls wrap on a narrow pane;
+ * Monitor-mode map overlay: RC control toggle, plan entry, vision toggle,
+ * the Trails control (trail and camera-mark history), and the vehicle video
+ * toggle at the right end, above the window's corner. The top-right controls wrap on a narrow pane;
  * their bottom edge is reported so the vehicle window stays below them.
  */
 export default function MonitorMapOverlay({
@@ -19,6 +20,7 @@ export default function MonitorMapOverlay({
   showVision, onToggleVision,
   trails,
   onEditPlan, planEntry,
+  videoOpen, onToggleVideo,
 }) {
   const { t } = useTranslation();
   const planLabel = planEntry?.isEdit ? t('monitor.editPlan') : t('monitor.startPlanning');
@@ -114,6 +116,20 @@ export default function MonitorMapOverlay({
         </MapIconBtn>
         {/* Trails: flight trail and camera marks history, one control */}
         <TrailsControl {...trails} />
+        {/* Vehicle video: opens and closes the vehicle window below. A stable
+            name with the pressed state; the tooltip says what a tap does. */}
+        <MapIconBtn
+          title={videoOpen ? t('monitorOverlay.hideVideo') : t('monitorOverlay.showVideo')}
+          aria-label={t('monitorOverlay.video')}
+          aria-pressed={videoOpen}
+          onClick={onToggleVideo}
+          active={videoOpen}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <rect x="1" y="4" width="9" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.3"/>
+            <path d="M10 6.5l3-1.8v5.6l-3-1.8z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+          </svg>
+        </MapIconBtn>
       </div>
     </>
   );

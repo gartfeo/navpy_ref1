@@ -3,6 +3,7 @@ import { zoneColorsSolid } from '../../../styles';
 import { needsTerrainSample, sampleTerrain } from '../utils/terrainCache';
 import { lerpPosition, slerpOrientation, advanceAnim } from '../utils/lerpAnim';
 import { poseFinite } from '../../../utils/fpvView';
+import { uavModelOrientation } from '../utils/uavOrientation';
 
 /**
  * 3D UAV vehicle models with smooth interpolated motion.
@@ -61,17 +62,7 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
             }
 
             // Target orientation
-            const headingRad = Cesium.Math.toRadians(v.heading);
-            const modelPitch = -Cesium.Math.toRadians(v.roll);
-            const modelRoll = Cesium.Math.toRadians(v.pitch);
-            const vehicleHpr = new Cesium.HeadingPitchRoll(headingRad, modelPitch, modelRoll);
-            const vehicleQuat = Cesium.Transforms.headingPitchRollQuaternion(poiPos, vehicleHpr);
-
-            const modelFixHpr = new Cesium.HeadingPitchRoll(-Cesium.Math.PI, Cesium.Math.PI_OVER_TWO, 0);
-            const modelFixQuat = Cesium.Quaternion.fromHeadingPitchRoll(modelFixHpr);
-            const poiOri = Cesium.Quaternion.multiply(
-              vehicleQuat, modelFixQuat, new Cesium.Quaternion()
-            );
+            const poiOri = uavModelOrientation(Cesium, poiPos, v.heading, v.roll, v.pitch);
 
             // Advance animation: seamless transition from current interpolated state
             anim[sid] = advanceAnim(anim[sid], poiPos, poiOri, Cesium);

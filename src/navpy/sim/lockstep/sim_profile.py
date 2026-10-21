@@ -58,15 +58,13 @@ class ModelSpec:
     params: Mapping[str, ParamKind]
 
 
-#: The built models; each model step adds its spec here. Step 2: wind and sensor noise,
-#: applied to the SITLs (``sitl_models``). Step 3: the serial and radio links, applied by the
-#: coordinator's ports (``link_model``).
+#: The built models; each model step adds its spec here. All are SITL's own features, applied as
+#: SITL parameters (``sitl_models``). Step 2: wind and sensor noise. Step 3: the UART line rate
+#: and byte loss.
 CATALOGUE: Mapping[str, ModelSpec] = {
-    "radio_link": ModelSpec("radio_link", {"delay_ticks": "int", "jitter_ticks": "int", "loss": "float",
-                                           "bytes_per_s": "int"}),
+    "baud_limit": ModelSpec("baud_limit", {}),
     "sensor_noise": ModelSpec("sensor_noise", {"gps_noise_m": "float"}),
-    "serial_link": ModelSpec("serial_link", {"delay_ticks": "int", "jitter_ticks": "int",
-                                             "bytes_per_s": "int"}),
+    "uart_loss": ModelSpec("uart_loss", {"loss_pct": "float"}),
     "wind": ModelSpec("wind", {"speed_mps": "float", "direction_deg": "float", "turbulence_mps": "float"}),
 }
 
