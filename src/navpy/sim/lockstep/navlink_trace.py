@@ -67,8 +67,6 @@ class NavlinkTrace:
     hops: tuple[tuple[str, int], ...]
     #: The sender emitted this UID with these bytes more than once.
     ambiguous: bool = False
-    #: The radio link model lost the router copy (``loss`` or ``outage``): an injected effect.
-    lost: str | None = None
 
     @property
     def complete(self) -> bool:
@@ -85,8 +83,6 @@ class _Records:
         self.emitted: dict[Id, _Emission] = {}
         self.copies: dict[Id, list[Id]] = {}
         self.delivered: dict[Id, tuple[int, Any]] = {}
-        #: Router copies the radio link lost, and why.
-        self.lost: dict[Id, str] = {}
         #: ``(origin, device, uid, sha256)`` -> the unclaimed ids emitted there, in order.
         self._unclaimed: dict[tuple[Any, str, tuple, str], list[Id]] = {}
         for record in records:
@@ -110,8 +106,6 @@ class _Records:
             elif kind == "delivered":
                 receiver = event[2]
                 self.delivered[packet_id] = (k, tuple(receiver) if isinstance(receiver, list) else receiver)
-            elif kind == "lost":
-                self.lost[packet_id] = event[2]
 
     def sends(self, sender: int, emission: _Emission) -> int:
         """How often NavPy ``sender`` emitted ``emission``'s UID with its bytes."""
@@ -164,14 +158,12 @@ def _upstream(book: _Records, packet_id: Id, emission: _Emission,
 
 def _trace(book: _Records, emission: _Emission, sender: int, receiver: int, up: Id | None,
            hops: list[tuple[str, int]], ambiguous: bool) -> NavlinkTrace:
-    def done(lost: str | None = None) -> NavlinkTrace:
-        return NavlinkTrace(emission.uid, emission.msgid, sender, receiver, tuple(hops), ambiguous, lost)
+    def done() -> NavlinkTrace:
+        return NavlinkTrace(emission.uid, emission.msgid, sender, receiver, tuple(hops), ambiguous)
 
     if up is None:
         return done()
     copies = [c for c in book.copies.get(up, ()) if c[2] == serial1_device(receiver)]
-    if len(copies) == 1 and copies[0] in book.lost:
-        return done(book.lost[copies[0]])
     if len(copies) != 1 or book.delivered.get(copies[0], (None, None))[1] != serial1_device(receiver):
         return done()
     arrived = book.delivered[copies[0]][0]

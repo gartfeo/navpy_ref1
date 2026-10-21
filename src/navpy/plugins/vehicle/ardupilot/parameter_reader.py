@@ -5,10 +5,13 @@ from __future__ import annotations
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.core.kernel import runtime_time as rt
+from navpy.core.ports.parameter_exchange import ExchangePolicy, ExchangeReason, ParameterExchange
+from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
+from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import ExchangeIo, run_exchange
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
 from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
 
@@ -24,18 +27,20 @@ class ParameterReader:
         repository: ParameterRepository,
         messages: MessageStore,
         logger_ref: LoggerRef,
+        link: HeartbeatState,
     ) -> None:
         self._identity = identity
         self._transport = transport
         self._repository = repository
         self._messages = messages
         self._logger_ref = logger_ref
+        self._link = link
 
     def get(
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         normalized = name.upper()
@@ -49,41 +54,48 @@ class ParameterReader:
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         normalized = name.upper()
-        for attempt in range(1, retries + 1):
-            cursor = self._messages.cursor()
-            self._transport.call(
-                lambda connection: connection.mav.param_request_read_send(
-                    self._identity.target_system,
-                    0,
-                    normalized.encode(),
-                    -1,
-                )
-            )
-            sample = self._messages.wait_after(
-                "PARAM_VALUE",
-                cursor,
+        exchange = self.read(
+            normalized, ExchangePolicy(attempts=retries), timeout, quiet=quiet,
+        )
+        return exchange.value if exchange.confirmed else None
+
+    def read(
+        self,
+        name: str,
+        policy: ExchangePolicy,
+        timeout: float = 2.0,
+        *,
+        quiet: bool = False,
+    ) -> ParameterExchange:
+        """One fresh read under ``policy``; a parameter that never answers is marked
+        missing."""
+        normalized = name.upper()
+        exchange, _sample = run_exchange(
+            policy,
+            self._link,
+            self._messages,
+            ExchangeIo(
+                f"PARAM_REQUEST_READ {normalized}",
+                lambda: self._transport.call(
+                    lambda connection: connection.mav.param_request_read_send(
+                        self._identity.target_system,
+                        0,
+                        normalized.encode(),
+                        -1,
+                    )
+                ),
                 lambda message: self._matches(message, normalized),
-                deadline=rt.monotonic() + timeout,
-            )
-            if sample is not None:
-                return sample.message.param_value
-            if not quiet:
-                self._logger_ref.value.info(
-                    f"PARAM_VALUE {normalized} not received "
-                    f"(attempt {attempt}/{retries})",
-                    "param",
-                )
-        if not quiet:
-            self._logger_ref.value.info(
-                f"Parameter {normalized} not found after {retries} retries.",
-                "param",
-            )
-        self._repository.mark_missing(normalized, MISSING_PARAMETER_RETRY_S)
-        return None
+            ),
+            timeout,
+            log=None if quiet else lambda line: self._logger_ref.value.info(line, "param"),
+        )
+        if exchange.reason is ExchangeReason.NO_ECHO:
+            self._repository.mark_missing(normalized, MISSING_PARAMETER_RETRY_S)
+        return exchange
 
     def _matches(self, message: MAVLink_message, name: str) -> bool:
         try:

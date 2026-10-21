@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, fireEvent, act } from '@testing-library/react';
 import MonitorMapOverlay from './MonitorMapOverlay';
 
 const props = (extra = {}) => ({
@@ -43,5 +43,42 @@ describe('MonitorMapOverlay top-right bar', () => {
     const onTopControlsBottom = vi.fn();
     render(<MonitorMapOverlay {...props({ onTopControlsBottom })} />);
     expect(onTopControlsBottom).toHaveBeenCalledWith(44);
+  });
+
+  it('the video icon: last in the bar, a stable name, the tooltip and pressed state follow the window', () => {
+    const p = props({ videoOpen: false, onToggleVideo: vi.fn() });
+    const { getByRole, getByTestId, rerender } = render(<MonitorMapOverlay {...p} />);
+    const video = getByRole('button', { name: 'monitorOverlay.video' });
+    const buttons = getByTestId('monitor-top-right').querySelectorAll('button');
+    expect(buttons[buttons.length - 1]).toBe(video);
+    expect(video).toHaveAttribute('aria-pressed', 'false');
+    expect(video).toHaveAttribute('title', 'monitorOverlay.showVideo');
+    fireEvent.click(video);
+    expect(p.onToggleVideo).toHaveBeenCalledTimes(1);
+    rerender(<MonitorMapOverlay {...p} videoOpen />);
+    expect(getByRole('button', { name: 'monitorOverlay.video' })).toHaveAttribute('aria-pressed', 'true');
+    expect(video).toHaveAttribute('title', 'monitorOverlay.hideVideo');
+    expect(video.style.width).toBe('32px');
+  });
+
+  describe('a wrapped bar', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      delete globalThis.ResizeObserver;
+    });
+
+    it('reports the new bottom when the bar wraps to a second row, so the window moves down', () => {
+      let resize;
+      globalThis.ResizeObserver = class { constructor(cb) { resize = cb; } observe() {} disconnect() {} };
+      let height = 32;
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => height);
+      const onTopControlsBottom = vi.fn();
+      render(<MonitorMapOverlay {...props({ onTopControlsBottom })} />);
+      expect(onTopControlsBottom).toHaveBeenLastCalledWith(44);
+      height = 68;
+      act(() => resize());
+      expect(onTopControlsBottom).toHaveBeenLastCalledWith(80);
+    });
   });
 });

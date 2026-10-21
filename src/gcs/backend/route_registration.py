@@ -34,6 +34,10 @@ _ROUTES = (
         "vision_profiles",
         unavailable_message="Vision profile routes not available",
     ),
+    _RouteSpec(
+        "plan_camera_check",
+        unavailable_message="Plan camera check route not available",
+    ),
     _RouteSpec("logs", unavailable_message="Logs routes not available"),
     _RouteSpec("diagnostics", unavailable_message="Diagnostics routes not available"),
 )

@@ -16,6 +16,18 @@ function isRawTrack(zone) {
 }
 
 /**
+ * The zone's mission waypoints in vehicle order (targ_wps bit (i-1) = WP i =
+ * wps[i-1]): the set's corridor then the track, or the track alone for
+ * corridor search and for a raw downloaded track (see isRawTrack).
+ */
+export function zoneMissionWaypoints(zone, corridorPointsArr, searchPattern) {
+  const zoneTrack = zone?.track || [];
+  if (searchPattern === 'corridor' || isRawTrack(zone)) return zoneTrack;
+  const corridorPts = (corridorPointsArr || [])[zone?.set_index ?? 0] || [];
+  return [...corridorPts, ...zoneTrack];
+}
+
+/**
  * Resolve simulation POI positions from plan data and per-vehicle targ_wps.
  *
  * Waypoint ordering per vehicle mission:
@@ -41,8 +53,6 @@ export function resolveSimDocks(plan, corridorPointsArr, searchPattern, vehicleT
 
   for (let zi = 0; zi < plan.zones.length; zi++) {
     const zone = plan.zones[zi];
-    const zoneTrack = zone.track || [];
-    const setIdx = zone.set_index ?? 0;
 
     // Determine which vehicle owns this zone
     const sysId = zone.sys_id ?? (vehicleList || [])[zi]?.sys_id;
@@ -54,13 +64,7 @@ export function resolveSimDocks(plan, corridorPointsArr, searchPattern, vehicleT
     const wpNumbers = decodeBitmaskArray(bitmask);
     if (wpNumbers.length === 0) continue;
 
-    let wps;
-    if (searchPattern === 'corridor' || isRawTrack(zone)) {
-      wps = zoneTrack;
-    } else {
-      const corridorPts = (corridorPointsArr || [])[setIdx] || [];
-      wps = [...corridorPts, ...zoneTrack];
-    }
+    const wps = zoneMissionWaypoints(zone, corridorPointsArr, searchPattern);
 
     for (const wpNum of wpNumbers) {
       const idx = wpNum - 1;
@@ -157,8 +161,6 @@ export function resolveDetectionStart(plan, corridorPointsArr, searchPattern, ve
 
   for (let zi = 0; zi < plan.zones.length; zi++) {
     const zone = plan.zones[zi];
-    const zoneTrack = zone.track || [];
-    const setIdx = zone.set_index ?? 0;
 
     const sysId = zone.sys_id ?? (vehicleList || [])[zi]?.sys_id;
     if (sysId == null) continue;
@@ -169,13 +171,7 @@ export function resolveDetectionStart(plan, corridorPointsArr, searchPattern, ve
     // Detection starts at WP navLast, which is index (navLast - 1) in 0-based array
     const detIdx = navLast - 1;
 
-    let wps;
-    if (searchPattern === 'corridor' || isRawTrack(zone)) {
-      wps = zoneTrack;
-    } else {
-      const corridorPts = (corridorPointsArr || [])[setIdx] || [];
-      wps = [...corridorPts, ...zoneTrack];
-    }
+    const wps = zoneMissionWaypoints(zone, corridorPointsArr, searchPattern);
 
     if (detIdx >= 0 && detIdx < wps.length) {
       const pt = wps[detIdx];

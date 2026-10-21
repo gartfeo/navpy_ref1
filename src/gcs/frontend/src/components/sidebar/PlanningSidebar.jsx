@@ -10,6 +10,7 @@ import DeliveryHubAssignmentSection, { zoneLabel } from './DeliveryHubAssignment
 import MultiSelectWps from './MultiSelectWps';
 import ConfirmSection from './ConfirmSection';
 import ExclusionSection from './ExclusionSection';
+import CameraCheckSection from './CameraCheckSection';
 
 const SEARCH_PATTERN_OPTIONS = [
   { value: 'distributed' },
@@ -17,6 +18,7 @@ const SEARCH_PATTERN_OPTIONS = [
 ];
 
 export default function PlanningSidebar({
+  cameraCheck = null,
   searchPattern,
   setSearchPattern,
   analysis,
@@ -67,6 +69,8 @@ export default function PlanningSidebar({
     <div style={{ padding: 16 }}>
       <SectionTitle>{t('planningSidebar.missionPlanning')}</SectionTitle>
       <Divider />
+
+      <CameraCheckSection result={cameraCheck} zones={plan?.zones} />
 
       {/* Search pattern */}
       <Label>{t('planningSidebar.searchPattern')}</Label>

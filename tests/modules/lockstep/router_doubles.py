@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from navpy.sim.lockstep.coordinator_journal import TickRecord
 from navpy.sim.lockstep.coordinator_router import RoutedPorts
 from navpy.sim.lockstep.coordinator_types import Manifest, RoleSpec
-from navpy.sim.lockstep.link_model import LinkModels
 from navpy.sim.lockstep.mavlink_wire import encoder
 from navpy.sim.lockstep.packet_journal import PacketJournal
 from navpy.sim.lockstep.step_wire import Frame, PortState
@@ -96,14 +95,14 @@ class Sources:
         return self.send(source, "task_assign_request", 7, 1, 1000, 5000, target, task_id, 1, 2, 1, 2, 3)
 
     def blob(self, source: tuple[int, int], seq: int) -> bytes:
-        """An ``ENCAPSULATED_DATA``: no target, 255 payload bytes."""
-        return self.send(source, "encapsulated_data", seq, bytes([seq % 251 + 1]) * 253)
+        """A ``GPS_RTCM_DATA``: no target, 182 payload bytes, passes the SITL filter."""
+        return self.send(source, "gps_rtcm_data", seq % 256, 180, bytes([seq % 251 + 1]) * 180)
 
 
 class PortsHarness:
-    def __init__(self, links: LinkModels | None = None) -> None:
+    def __init__(self) -> None:
         self.roster = FakeRoster()
-        self.ports = RoutedPorts(routed_manifest(), self.roster, links=links)
+        self.ports = RoutedPorts(routed_manifest(), self.roster)
         self.records: list[dict] = []
         self.parked: dict | None = None
 

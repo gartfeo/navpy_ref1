@@ -1,6 +1,6 @@
 # Delivery demo by hand: prep command and the stale-after-approval failure
 
-Status: v3 shipped (`26cb913`). Waypoint docks: design v1 after Codex review (3 findings applied), 2026-10-20.
+Status: v3 shipped (`26cb913`); waypoint docks v1 (2026-10-20) replaced by the normal-run demo v4 below.
 
 ## Goal
 
@@ -260,3 +260,94 @@ resolution, fake context).
 **Verify:** live-tester runs `launch` and `prep`, checks the map shows d1 and d2
 on UAV 1's track, then Launch and approvals: UAV 1 keeps one dock, a peer wins
 the other, one UAV flies home.
+
+## Normal-run demo (v4, 2026-10-20)
+
+**Owner (2026-10-20):** the hand demo must feel like a normal `AAS_GCS.bat` run.
+The app auto-connects, NavPy and the ESP32 sim start and restart through the
+`auto` lifecycle, and the owner builds or loads a plan in the UI and presses
+Launch. In today's run (`navpy-demo\.logs\delivery-demo\20261020-150146`), the
+eval's `explicit` lifecycle and `prep` forced the fixture missions, so the owner
+E-stopped and relaunched by hand. **Owner choice (A + X):** the demo plan uses
+150 m line spacing so two waypoint docks are seen together, and it flies the
+normal camera-profile altitude.
+
+**What a normal run already does:**
+- Connect starts NavPy per vehicle (`navpy_sim.py:251-256`), and the telemetry
+  loop restarts dead ones (`navpy_sim_runtime.py:176-218`).
+- Browser discovery starts the ESP32 sim when `launch_type` is `container`
+  (`App.jsx:476`, `vehicles.py:92`, `control.py:253-276`).
+- A UI upload writes each UAV's `targ_wps`/`nav_last_wp` from the plan's
+  `sim_dock_wps`/`detect_after_wps`, then restarts and checks the companions
+  (`useMissionUpload.js:168-190`). Other AAS params survive that restart
+  (`missionUploadActivation.js:114`).
+- Without `NAVPY_SIM_DOCKS`, each NavPy builds docks from its own
+  `AAS_TARG_WPS` waypoints only (`poi_provider.py:129`), so peers learn of a
+  dock only from an offer.
+
+**Differences from a normal run, with reasons** (all else is normal):
+
+| Kept | Why |
+|---|---|
+| Run-local SITL root (`prepare_sitl_root`, unchanged) | The demo writes params; the owner's `~/ardupilot/N` eeproms would keep them and stale missions. The root runs the repo's Lua. Its `SITL_DEFAULT_OVERRIDES` restate the shared template eeprom's values (tuning, `ARMING_CHECK 0`, `THR_FAILSAFE 0`, stream rates), so a fresh eeprom flies like the normal one. It also fixes the sim clock epoch, seeds the repo's terrain tiles (`eval_gcs_demo_sitl_root.py:181`, so dock ground heights are the eval's), and uses single-boot/loopback flags. |
+| `-n 3`, home = fixture home | 3 UAVs. The home equals `run_swarm.sh`'s default and is stated. |
+| Per-run settings file: the checkout's `gcs_settings.json` (if any) plus pins | Demo edits (the plan load writes hubs) leave the owner's settings alone. |
+| Pins: `sim_mode`, `simulated_vehicle_count 3`, `uavs_per_set 3`, `takeoff_altitude_m 40`, `altitude_separation_m 20`, `auto_connect true`, `companion_lifecycle auto` | Planner inputs and the normal lifecycle, whatever the owner's file holds. |
+| `launch_type container`, `esp32_host 127.0.0.1`, port 9 | The scenario is proven with container launch, which also starts the ESP32 sim. A loopback endpoint keeps a LAN ESP32 untouched. |
+| Static AAS params + `ROLL_LIMIT_DEG` (`configure_vehicle_params`, plain fixture scenario: `nav_oneshot`, `targ_alt 0`, `del_*`, …; `targ_wps 0`, `nav_last_wp 1` until upload), checked by `verify_aas_profile` | The UI writes only `targ_wps`/`nav_last_wp`. They are written before the browser opens; the upload's restart applies them. |
+| Env: the shell's env minus `NAVPY_SIM_DOCKS`, plus the settings path and run log dirs (incl. source-time CSVs) | `NAVPY_SIM_DOCKS` would replace waypoint docks (`sim_render_composition.py:133`). Logs are evidence for the open stale trace. |
+
+**Dropped:** `prep`, the `explicit` lifecycle, `auto_connect false`, the env
+allow-list and thread pins, `demo_launch.json` and its hash checks, the camera
+pins (the owner's profile is used; altitude X), the settings hubs (the plan file
+brings them), and `delivery_demo_docks.py`.
+
+**Plan file** `scripts/delivery_demo_plan.json`: a normal UI plan file written
+by `scripts/delivery_demo_plan.py` (`--check` fails when it is stale). It keeps
+the fixture's area height, launch point, pattern, 3 UAVs, partition angle,
+hubs and per-zone hub index [2, 1, 0]. The area is narrowed to 1.35 km around
+the launch longitude, at `route_offset_m` 150, so each UAV still flies 3 lines
+of 3 km. `detect_after_wps {z: 0}` (`nav_last_wp 1`), `sim_dock_wps {2: [1, 2]}`:
+the south-end turn waypoints of zone 2, 150 m apart, like d1–d2. Zone 2 is the
+lowest (`planner.js:280`). The UI planner takes its altitudes from the camera
+profile named in the settings (`plannerConfig.js` `configurePlanner`). The
+owner's settings name none, so it uses its built-in defaults: zones 0–2 at
+240/220/200 m, close to the fixture's 220 m. The live run flew these, and both
+docks were detected there. If the owner selects the ZR10 profile, the zones go to 403/383/363 m. With
+the fixed -14° search pitch, only 363 m leaves a window, about 682–730 m out,
+where both docks are in frame and in range. At 403 m the frame's near edge
+(757 m) lies past the range (709 m) (Codex, calibrated ZR10). Zone 2 is the
+only choice that suits both cases, but the ZR10-profile case is not live-tested.
+The zone goes to the third vehicle in the UI list.
+
+**One command** `delivery_demo.py`:
+1. Run dir, settings and SITL root.
+2. `launch_stack(..., headless=False, browser=False)`, which refuses if the
+   checkout already runs a stack.
+3. Frontend wait, then `wait_for_vehicles` (auto-connect connects them).
+4. `configure_vehicle_params` and `verify_aas_profile`.
+5. Open the UI, then print the plan file path and the stop command.
+
+Stop with `gcs_stop.py`.
+
+**Tests:**
+- Settings: the owner file plus pins; owner keys kept, pins win, no hubs.
+- Env: the source env plus paths, with `NAVPY_SIM_DOCKS` removed.
+- Steps: in order, browser last, no connect, upload or companion start (fake
+  context).
+- Plan file: the committed file equals the builder's output.
+- A vitest loads the file through the real loader and checks 3 zones of 6
+  waypoints each, the default altitudes 240/220/200 m, docks 150 m apart on
+  the lowest zone (2), and hubs [2, 1, 0].
+
+**Live test:**
+1. Run the one command, load the plan file, upload, Launch, approve.
+2. Pass: NavPy restarts on upload, the ESP32 sim is running, the zone-2 UAV keeps one
+   dock, a peer takes the other, one UAV homes.
+3. Result (2026-10-20, run `20261020-192919`, PC at 99–100% CPU from other
+   work): start, auto-connect, NavPy and ESP32 auto-start, plan load, upload
+   and companion restart all passed. The zone-2 UAV detected both docks,
+   offered one and DOCKED at 0.46 m. The peer accepted the offer, then lost
+   detection 7 m out (`no_detection`, DOCK_FAILED). That was an endgame miss
+   that began before the offerer's reset. The homing UAV hit the known
+   `source_command_stale` bug.

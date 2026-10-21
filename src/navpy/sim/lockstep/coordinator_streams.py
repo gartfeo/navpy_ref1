@@ -44,13 +44,12 @@ class StreamAccount:
         self._streams: dict[tuple[str, Hashable], tuple[int, int]] = {}
 
     def write(self, device: str, stream: Hashable, fed: int, data: bytes,
-              drain_tick: int | None, ready: int | None = None) -> int:
-        """A stream's bytes, queued (or, in drain, only recorded) and admissible from reply
-        ``ready`` (None: now); returns its queue base."""
+              drain_tick: int | None) -> int:
+        """A stream's bytes, queued (or, in drain, only recorded); returns its queue base."""
         queue = self._queues[device]
         base = queue.stream_base(stream, fed)
         if drain_tick is None:
-            queue.append(data, ready=ready)
+            queue.append(data)
         else:
             queue.write_drain(len(data), drain_tick)
         return base

@@ -86,6 +86,13 @@ export function pickEntity(Cesium, viewer, screenPos) {
     if (Cesium.defined(props.isTrackWp)) {
       return { type: 'trackWp', zoneIndex: props.zoneIndex.getValue(), wpIndex: props.wpIndex.getValue() };
     }
+    if (Cesium.defined(props.closestApproachKey)) {
+      return {
+        type: 'closestApproach',
+        key: props.closestApproachKey.getValue(),
+        view: props.closestApproachView.getValue(),
+      };
+    }
     if (Cesium.defined(props.deliveryHubIndex)) {
       return { type: 'deliveryHub', index: props.deliveryHubIndex.getValue() };
     }

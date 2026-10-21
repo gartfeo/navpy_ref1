@@ -392,3 +392,31 @@ describe('plan file round trip', () => {
     expect(fresh.result.current.mission.plan.zones).toHaveLength(3);
   });
 });
+
+// The hand delivery demo's plan file (scripts/delivery_demo_plan.py): three
+// routes of three lines, and two docks 150 m apart on the lowest zone's track,
+// so its UAV can see both together.
+describe('delivery demo plan file', () => {
+  it('regenerates three routes with the two docks 150 m apart on the lowest zone', async () => {
+    const { default: file } = await import('../../../../../scripts/delivery_demo_plan.json');
+    const io = stubFileIo();
+    const planner = renderPlanner(io);
+    planner.load(file);
+
+    const { mission } = planner.result.current;
+    expect(waypointsPerUav(mission.plan)).toEqual([6, 6, 6]);
+    expect(mission.simDockWps).toEqual({ 2: [1, 2] });
+    expect(mission.detectAfterWps).toEqual({ 0: 0, 1: 0, 2: 0 });
+    expect(mission.deliveryHubAssignments).toEqual([2, 1, 0]);
+    // No camera profile in the settings (the owner's case): the planner's
+    // default altitudes, zone 2 lowest.
+    expect(mission.plan.zones.map((z) => z.altitude_m)).toEqual([240, 220, 200]);
+    const [a, b] = [1, 2].map((i) => mission.plan.zones[2].track[i]);
+    const metres = Math.hypot(
+      (a.lat - b.lat) * 111320,
+      (a.lon - b.lon) * 111320 * Math.cos((a.lat * Math.PI) / 180),
+    );
+    expect(metres).toBeGreaterThan(140);
+    expect(metres).toBeLessThan(160);
+  });
+});

@@ -12,7 +12,10 @@ from typing import Sequence, cast
 
 from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, profile_names
+from scripts.eval_gcs_demo_air_load import air_load
 from scripts.eval_gcs_demo_analysis import analyze_run
+from scripts.eval_gcs_demo_fleet_packets import unverified_sources
+from scripts.eval_gcs_demo_inputs import recorded_profile_parameters
 from scripts.eval_gcs_demo_models import (
     GateLimits,
     RegressionError,
@@ -21,6 +24,7 @@ from scripts.eval_gcs_demo_models import (
 )
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_process import exclusive_evaluator_lock
+from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE
 from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run
 from scripts.eval_gcs_demo_runtime import execute_live_run
 from scripts.eval_delivery_fixture import load_eval_scenario, prepare_sim_docks, scenario_path
@@ -132,8 +136,19 @@ def run_lockstep(
     # Errors may quote host paths (an analysis exception, a missing file):
     # they become run tokens, so report.json stays a byte-equal artifact.
     scrub = HostPathScrubber(run_dir)
+    try:
+        records = [json.loads(row) for row in
+                   (run_dir / JOURNAL_FILE).read_text(encoding="utf-8").splitlines()]
+        uart_loss = recorded_profile_parameters(run_dir).get("SIM_UART_LOSS", 0.0) > 0.0
+        load: dict[str, JsonValue] = air_load(records, uart_loss)
+        fleet = range(1, len(next(r["grid"] for r in records if "grid" in r)["sitl_ports"]) + 1)
+        unverified: int | None = len(unverified_sources(records, tuple(fleet), uart_loss))
+    except (OSError, ValueError, KeyError, TypeError, StopIteration, RegressionError) as error:
+        load = {"error": scrub(f"{type(error).__name__}: {error}")}  # report only: no gate
+        unverified = None
     report = dataclasses.replace(report, log_dir=".", passed=report.passed and not errors,
-                                 errors=[scrub(error) for error in errors + report.errors])
+                                 errors=[scrub(error) for error in errors + report.errors],
+                                 air_load=load, unverified_sources=unverified)
     (run_dir / "report.json").write_text(json.dumps(report_dict(report), indent=2),
                                          encoding="utf-8")
     print(f"lockstep journal digest: {run.digest}", flush=True)

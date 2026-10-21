@@ -189,6 +189,11 @@ class LockstepLauncher:
     def get_all_status(self) -> list[dict[str, object]]:
         return [self._snapshot(companion) for companion in self._instances.values()]
 
+    def closest_approach_records(self) -> list[dict[str, object]]:
+        """None in lockstep: its NavPys log the record only (out of scope,
+        gcs_sim_closest_approach.md)."""
+        return []
+
     def wait_ready(self, sys_id: int, pid: int, timeout_s: float) -> dict[str, object]:
         companion = self._instances.get(sys_id)
         if companion is None or companion.pid != pid:

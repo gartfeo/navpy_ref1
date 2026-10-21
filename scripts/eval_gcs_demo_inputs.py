@@ -196,6 +196,25 @@ def recorded_lockstep(run_dir: Path) -> bool:
     return isinstance(options, dict) and options.get("lockstep") is True
 
 
+def recorded_profile_parameters(run_dir: Path) -> dict[str, float]:
+    """The SITL parameters a lockstep run's sim profile set (``sitl.profile_parameters``);
+    empty for a run without a manifest or without them."""
+    path = run_dir / INPUT_MANIFEST
+    if not path.is_file():
+        return {}
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RegressionError(f"invalid input manifest {path}: {error}") from error
+    sitl = manifest.get("sitl") if isinstance(manifest, dict) else None
+    parameters = sitl.get("profile_parameters", {}) if isinstance(sitl, dict) else {}
+    if not isinstance(parameters, dict) or not all(
+            isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+            for value in parameters.values()):
+        raise RegressionError(f"input manifest {path} has invalid profile_parameters")
+    return {str(name): float(value) for name, value in parameters.items()}
+
+
 def require_recorded_scenario(run_dir: Path, scenario: DemoScenario) -> None:
     """Refuse to analyze a run against a scenario other than the one it flew."""
     recorded = recorded_scenario_sha256(run_dir)
@@ -216,6 +235,7 @@ __all__ = [
     "environment_inputs",
     "navpy_inputs",
     "recorded_lockstep",
+    "recorded_profile_parameters",
     "recorded_scenario_sha256",
     "require_recorded_scenario",
     "scenario_points",

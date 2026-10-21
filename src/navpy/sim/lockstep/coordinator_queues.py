@@ -27,21 +27,15 @@ admission reports the bytes it took per tag (a packet id, or :data:`SKIPPED`
 for bytes framing skipped), so a packet split across replies shows each
 fragment's tick. What is still queued at parking is returned for the
 journal (``undelivered``), then dropped.
-
-The serial link model (``link_model``, step 3 of ``deterministic_dev_sim.md``)
-plugs in here: bytes appended with a ready tick stay queued until that reply,
-and a port with a line rate admits at most its bytes for the tick. Without
-the model every byte is ready when appended and no rate applies.
 """
 
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Hashable, Mapping
+from collections.abc import Hashable
 from dataclasses import dataclass
 
 from navpy.sim.lockstep.coordinator_journal import sha256
-from navpy.sim.lockstep.link_model import ByteRate
 from navpy.sim.lockstep.step_wire import MAX_INGRESS_PER_PORT
 
 #: The firmware ingress FIFO's usable bytes (see the module doc).
@@ -140,9 +134,6 @@ class PortQueue:
         self._end = 0
         #: The stream whose bytes are written now, and the queue offset of its offset 0.
         self._stream: tuple[Hashable, int] | None = None
-        #: Bytes before this offset may be admitted; ``(end, tick)`` marks not yet ready.
-        self._ready_end = 0
-        self._marks: deque[tuple[int, int]] = deque()
 
     def stream_base(self, stream: Hashable, fed: int) -> int:
         """The queue offset of ``stream``'s first byte; ``fed`` of its bytes came before
@@ -161,17 +152,12 @@ class PortQueue:
     def pending(self) -> int:
         return len(self._data)
 
-    def append(self, data: bytes, packet: Hashable | None = None, ready: int | None = None) -> None:
-        """Queue ``data``; ``packet`` tags all of it (a whole packet). ``ready`` is the
-        first reply that may admit it (ticks never decrease); None: ready now."""
+    def append(self, data: bytes, packet: Hashable | None = None) -> None:
+        """Queue ``data``; ``packet`` tags all of it (a whole packet)."""
         start = self.tail
         self._data += data
         self.phases.write(start, len(data), QUEUED)
         self._end = self.tail
-        if ready is None and not self._marks:
-            self._ready_end = self.tail
-        elif data:
-            self._marks.append((self.tail, -1 if ready is None else ready))
         if packet is not None and data:
             self.register(packet, start, self.tail)
 
@@ -192,9 +178,7 @@ class PortQueue:
         self.phases.prune(floor)
 
     def admit(self, room: int, tick: int) -> tuple[bytes, list[Progress]]:
-        while self._marks and self._marks[0][1] <= tick:
-            self._ready_end = self._marks.popleft()[0]
-        count = min(room, self._ready_end - self._head)
+        count = min(room, len(self._data))
         start, end = self._head, self._head + count
         data = bytes(self._data[:count])
         del self._data[:count]
@@ -218,32 +202,23 @@ class PortQueue:
         leftovers = [Leftover(self._device, t.packet, max(0, self._head - t.start),
                               t.end - max(self._head, t.start)) for t in self._tagged]
         self.phases.relabel(self._head, self.tail, QUEUED, UNDELIVERED)
-        self._head = self._ready_end = self.tail
+        self._head = self.tail
         self._data.clear()
         self._tagged.clear()
-        self._marks.clear()
         return data, leftovers
 
 
 class ReplyQueues:
     """Every SITL port's queue, by device."""
 
-    def __init__(self, devices: tuple[str, ...], rates: Mapping[str, ByteRate] | None = None) -> None:
+    def __init__(self, devices: tuple[str, ...]) -> None:
         self._queues = {device: PortQueue(device) for device in devices}
-        #: The line rate of a rate-limited port (the serial link model).
-        self._rates = dict(rates or {})
 
     def __getitem__(self, device: str) -> PortQueue:
         return self._queues[device]
 
-    def admit(self, device: str, fifo_bytes: int, tick: int,
-              t_us: int = 0) -> tuple[bytes, list[Progress]]:
-        """Reply ``tick``'s bytes for ``device``; ``t_us`` is the tick's time (line rates)."""
-        room = admission_room(fifo_bytes)
-        rate = self._rates.get(device)
-        if rate is not None:
-            room = min(room, rate.grant(t_us))
-        return self._queues[device].admit(room, tick)
+    def admit(self, device: str, fifo_bytes: int, tick: int) -> tuple[bytes, list[Progress]]:
+        return self._queues[device].admit(admission_room(fifo_bytes), tick)
 
     def pending(self) -> dict[str, int]:
         """Bytes still queued per port (every port, zero included)."""

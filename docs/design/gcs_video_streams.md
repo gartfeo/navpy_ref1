@@ -577,6 +577,237 @@ confirm (operator or timeout), recipient authorization for real delivery,
 fleet separation checks (a mission-level verification), and outdoor
 glare/glove acceptance (the 44 px and 14 px rules are built now).
 
+#### v12: slim window behind a video icon (approved 2026-10-20)
+
+Owner, 2026-10-20: "collapse the new gcs, also the design need improvement
+current is very bulki optmiize it to be cool matching to our current app and
+also optmized for siyi unirc10pro." Mock:
+`docs/design/gcs_video_v12_mock.html` (static, frames at CSS-pixel size;
+frame 1 is v11 for comparison). v12 changes only the window's form; every
+v11 rule not named below stays (who picks the UAV, sources, live state and
+deadlines, loss wording, swap and its 145 px small-map rule, credits, no
+map chase, nothing saved, WebGL release on unmount). Codex reviewed the
+first draft in 3 rounds and this one in round 4 (approve with changes, 8
+points); all are folded in.
+
+Target device (SIYI UniRC 10 Pro User Manual v1.2,
+`res.siyi.biz/oss/other/2026/07/16/UniRC_10_Pro_Handheld_Ground_Station_User_Manual_v1_2_57e418e4.pdf`,
+linked from `siyi.biz/en/product/hand-gcs/uni-rc-10-pro/download`; spec
+page `siyi.biz/en/product/hand-gcs/uni-rc-10-pro/spec`; both refuse plain
+scripted fetches with HTTP 403, a browser user agent gets them):
+
+- 10.1 in, 1920×1200, 2000 nit, 60 fps, adaptive brightness (manual p.13,
+  p.23); Android 13, 4 GB + 64 GB (p.24); IP54, 2.6 kg (p.23). Some resellers
+  write "1080P"; SIYI's manual and spec page say 1920×1200.
+- Pre-installed (6.1, p.130): UniGCS, SIYI QGroundControl, Ping Tools.
+  Other apps install as APK files from TF card, USB drive or Type-C (6.2,
+  p.130-131). The manual names no browser; whether one ships is not
+  stated. Deployment assumption: a current Chromium-based browser, checked
+  on the device first.
+- Touch: the manual only says tap and slide on the "touchscreen" (p.111-112);
+  touch type, multi-touch and glove use are not stated.
+- Not published: the display density, so the CSS viewport. 1920×1200 on
+  10.1 in is 224 ppi. Test scenarios: 960×600 CSS px (density 2,
+  1 px = 0.23 mm; map pane 640×504 beside the 320 px sidebar, the tight
+  case) and 1280×800 (density 1.5, 1 px = 0.17 mm); browser and system bars
+  can make the real viewport smaller. Before the field test, measure on the
+  device: see "Device check" below.
+
+
+Owner, 2026-10-20, on the first v12 mock: "our panel from right always
+keep design same as we have. the buttons are bulki not as good as our
+current, also make collapsable on top of the icons like others and can show
+as video icon, check to always have good design." So: the app's layout
+stays as it is (sidebar on the right; the first mock drew it on the left);
+every control in the window is the app's own 32 px map button, with no
+larger touch size; and the window collapses into a video icon in the
+top-right action bar, a toggle like the vision, coverage and trail icons.
+The mock is drawn over screenshots of the running app (top bar, sidebar,
+action-bar icons); only the map area is painted, because Cesium renders
+black in a headless capture.
+
+What changes:
+
+1. **Video icon in the action bar.** A `MapIconBtn` with a video-camera
+   glyph joins the top-right action bar at its right end, right above the
+   window's corner. It toggles the window as the vision and trail icons
+   toggle their layers: active style (accent glyph, accent border, 20 %
+   accent fill) while the window is open, plain while it is closed. Accessible
+   name "Vehicle video" (stable), `aria-pressed` for the state; the
+   tooltip says "Show vehicle video" / "Hide vehicle video". With an empty
+   fleet the whole action bar is not drawn (`App.jsx` mounts
+   `MonitorMapOverlay` only with a fleet), so there is no icon and the
+   window is closed. The window has no collapse or close button of its own.
+   Closing stops the camera reader and unmounts the synthetic widget (its
+   WebGL context released), as v10's minimize did (owner decision 6); the
+   picked UAV and source are kept, and opening again plays them with a fresh
+   connection. Closing while swapped swaps back first. View camera on a
+   confirm card opens the window and plays that UAV's camera; while closed a
+   card never says "Viewing". Open or closed is kept across RC and view
+   changes in the session, never saved; a reload starts closed with no UAV
+   picked, and so does a fleet that returns from empty (open question 1).
+2. **One slim bar.** Viewing: [UAV chip ▾] … [Camera | Synthetic]
+   [Maximize/Restore]. All 32 px, `MapIconBtn` style. The source switch is
+   two glyph buttons (camera, map) with `aria-pressed`; the selected one has
+   `MapIconBtn`'s active style (accent border, glyph and fill), the other
+   its plain style, as the action bar's toggles; the picture tag names the
+   source in text, so the cue is not colour alone. Every
+   glyph button has an accessible name and a tooltip. Close goes: the icon
+   closes the window and the chip changes UAV (open question 2). The live
+   state and the stream name move onto the picture's top-left tag ("● LIVE ·
+   tracking overlay", "CONNECTING", "NO FRAMES 7 s"), where v11 already put
+   the stale tag and Synthetic its "SYNTHETIC · not camera" tag; the tag
+   wraps (never cut), and while swapped it wraps before the small map as in
+   v11. Synthetic keeps its 3 px accent frame. Warning rows keep v11's text
+   under the bar: "Vehicle link lost" and "Synthetic view unavailable" sit
+   alongside any picture that still plays (video keeps playing on link loss;
+   a held synthetic view keeps its last picture); only no camera, video
+   lost, failed and Synthetic waiting for its first pose have no picture.
+   Reconnect video and Dismiss are 32 px text buttons in the plan button's
+   style.
+3. **UAV chip and list.** The chip is a 32 px dark button with the UAV's
+   zone colour as a 10 px swatch, "UAV n" (12 px bold, as the plan button)
+   and ▾; "link lost" shows after the name in `colors.error`. Text never
+   sits on a zone colour (white on orange, cyan or silver is under 4.5:1).
+   Chip width: content, at most 160 px. The swatch, "link lost" and ▾
+   never shrink; only the name ellipsizes, and the full name is in the
+   chip's accessible name and in the list. A tap opens the UAV
+   list (disclosure pattern: `aria-expanded` on the chip, the rows are plain
+   32 px buttons with `aria-pressed`, in tab order; no `role="menu"`): one
+   row per UAV with the camera or map glyph, the swatch, "UAV n",
+   "camera"/"synthetic" and "link lost"; the selected row is outlined and
+   checked. It opens downward, draws above the small swapped map, closes on
+   a pick, Escape or a tap outside. Its height limit is the room from the
+   chip down to the window's bottom limit (normal: the margin above reset
+   view; swapped: the window's bottom), not the window's rendered bottom;
+   past it, it scrolls. It replaces the header's UAV buttons and the
+   overflow menu, so the badge room calculation, number-only badges and
+   `NARROW_PANE_PX` go. Cost: a switch is two taps instead of one (open
+   question 3).
+4. **Picker.** Open with no UAV picked: a line "Select a UAV for
+   streaming" (12 px), then 32 px UAV buttons (glyph, swatch, "UAV n",
+   "link lost"), wrapping, as v11.
+5. **Size and style.** Width min(320, pane width - 24) px (v11: 432); the
+   picture is 318×179 px at 320. The window uses the map overlay style
+   already in the app (`MapIconBtn`, the plan button):
+   `rgba(22, 33, 62, 0.85)` with `backdrop-filter: blur(4px)`, a 1 px
+   `colors.border` edge, 6 px radius, 4 px gaps, white glyphs, the accent
+   for the active state. No new colours or sizes. The blur sits on a
+   background layer behind the content, never on the section or a list
+   ancestor: a backdrop filter makes a stacking context, and the swapped
+   window must not have one so its UAV list can draw above the small map
+   (`VehicleWindow.jsx:18-25`).
+6. **Touch on the UniRC (owner, 2026-10-20: the app's sizes).** Controls
+   stay 32 CSS px with 4-6 px gaps, as the action bar. Under the assumed
+   densities that is 7.3 mm at 2 and 5.4 mm at 1.5; 48 CSS px would be
+   10.9 / 8.2 mm. Android recommends touch targets of at least 48 dp
+   (support.google.com/accessibility/android/answer/7101858); how the
+   UniRC's browser maps CSS px to dp is not published. Risk: missed taps with gloves or at
+   density 1.5; the device check below measures it, and a larger size would
+   be a change for the whole action bar, not this window alone.
+   `TOUCH_TARGET_PX` (44) goes.
+7. **Bar fit.** The viewing bar needs chip 160 + switch 64 + 32 + three
+   4 px gaps + 8 px padding = 276 px; a 320 px window has 318 inside, so
+   from a 302 px pane it always fits. Narrower, the bar wraps by itself
+   (flex-wrap) when its contents do not fit: the chip on the first line, the
+   switch and Maximize on a second; buttons never shrink.
+8. **Short pane (todo 87 b).** At normal size the picture keeps its width
+   and shrinks in height to the window's limit, never below 82 px, the 16:9
+   height of `SMALL_MAP_MIN_PX` (145 px, the narrowest box that holds a
+   whole Cesium credit line). With less room the picture area is not drawn
+   and the reader or widget is unmounted (no hidden stream, WebGL released);
+   the selection stays, a card does not say "Viewing", and a row reads "Too
+   little room for the picture". When room returns, a fresh session starts.
+   No picture mounts before the window has measured its bar (the chrome is
+   unknown until then, and again after closing). A camera failure stays
+   latched for its session outside the picture, so its own row taking the
+   picture's room never hides it or reconnects; only Reconnect video does.
+   Maximize follows its own v11 rule (the swapped layout reserves less at
+   the bottom), so it can still be offered here and gives the large picture.
+   Both decisions are computed from the chrome their own layout needs (the
+   bar plus the warning rows that stay), never from the measured height
+   with the "Too little room" row in it; otherwise that row would hide
+   Maximize and delay the picture's return. Todo 87 a (GlobeDepth width 0
+   at load) is the main map and stays a separate trace.
+9. **Focus.** The bar sits outside the reader subtree that is keyed by
+   session, so its buttons are not remounted by a switch. The video icon
+   keeps focus when it opens or closes the window; a pick in the picker or
+   the UAV list moves focus to the chip; a source switch keeps focus on the
+   pressed source button; Restore that
+   disappears (pane too short for the swap) moves focus to the chip; Close's
+   focus rule goes with Close.
+
+Device check before the field test: on the UniRC, open the GCS in the
+browser and record browser and version, `devicePixelRatio`, `innerWidth`,
+`innerHeight`, and whether the 32 px controls are hit reliably by tap
+(bare hand and glove).
+
+Code impact of v12 (no shims):
+
+- `utils/vehicleWindowLayout.js`: `DOCKED_WIDTH_PX` 320;
+  `PICTURE_MIN_H_PX` from `SMALL_MAP_MIN_PX` and a `pictureFits`
+  flag separate from `canSwap`; the list's height limit from the window's
+  bottom limit; `badgeLayout`, `FULL_BADGE_PX`, `NUMBER_BADGE_PX`,
+  `MENU_BUTTON_PX`, `NARROW_PANE_PX`, `TITLE_MIN_PX`, `STATE_PX`,
+  `TOUCH_TARGET_PX` and `narrow` go.
+- `useVehicleWindow`: `open` (starts false; back to false on an empty
+  fleet), `toggleOpen` (closing swaps back and stops); `viewCamera` opens;
+  `close` goes; `viewing` is false while closed or without picture room;
+  `session` changes on opening and when picture room returns.
+- `MonitorMapOverlay.jsx`: the video toggle at the end of the top-right
+  bar (props: open, onToggle). The bar grows by 38 px; its measured bottom
+  (`onTopControlsBottom`) already places the window when it wraps.
+- `VehicleWindow.jsx`: the one bar, the UAV chip and list (from
+  `OverflowMenu`), the glyph switch, state on the picture tag, the blur
+  layer, the focus moves above; `Header`, `ControlRow`, the number badges
+  and the Close focus effect go; buttons reuse `MapIconBtn` (it gains
+  `aria-label`/`aria-pressed` pass-through; its styles are unchanged). `SyntheticView.jsx`: its tag
+  takes the shared tag style.
+- `App.jsx`: mounts the window only while open; passes the toggle state to
+  `MonitorMapOverlay` and `pictureFits` to the window; `useMapSwap.js`
+  unchanged (closing calls `unswap` first).
+- Locales `en.json`, `hy.json`: "Vehicle video", show/hide vehicle video,
+  "Too little room for the picture"; the close string goes.
+- `src/gcs/AGENTS.md`: the window's description.
+
+Tests (vitest unless noted):
+
+- Layout (`vehicleWindowLayout.test.js`; its badge and overflow tests are
+  replaced): width 320 and pane - 24 below 344; bar fit and wrap at 302;
+  picture floor 82 px at pane heights 236 (fits) and 235 (does not fit;
+  swap still offered, the no-room row not counted), for one action-bar row
+  and no warning rows;
+  the picture returns at the same boundary growing and shrinking; list
+  height limit; swap rule unchanged.
+- `tests/gcs/test_vehicle_window_placement_js.py`: the locale key list
+  (`close` out, the new keys in) and the wiring checks (the toggle in the
+  action bar).
+- Hook: starts closed; closing closes the reader and unmounts the widget,
+  swaps back; opening gives the same UAV and source with a new session;
+  View camera opens; empty fleet closes; RC keeps open or closed; no picture
+  room makes `viewing` false and its return a new session.
+- Overlay: the video toggle's stable name, tooltip, pressed state, at the
+  bar's right end. Wrap chain: a ResizeObserver change from one action-bar
+  row to two and back moves the window and changes swap eligibility through
+  `App`, in both locales, with the plan entry shown and hidden, and on
+  reopening after a resize while closed.
+- App: empty fleet → no bar, window closed; a returning fleet starts
+  closed with no UAV picked.
+- Window: bar controls' accessible names and 32 px size; switch pressed
+  state and its box; the UAV list (open, pick to another camera UAV, Escape,
+  outside tap, link lost, selected checked, scrolling in no-camera and
+  waiting-for-pose states); the focus moves above (the actual
+  focused element after a picker pick, a list pick, a source switch and a
+  lost Restore); a long UAV name ellipsizes with "link lost" intact, in
+  both locales; video keeps playing with
+  "Vehicle link lost"; Camera with the synthetic-unavailable notice; LIVE
+  and stream name on the tag; both locales.
+- Live (live-tester) at 1920×1080 and at 960×600 and 1280×800 with touch
+  emulation: toggle open/close, a 20× toggle loop on Synthetic (WebGL
+  contexts stay released), the UAV list over the swapped small map, the bar
+  wrap on a narrow pane, the small map's credits; screenshots compared with
+  the mock.
+
 ### 6. SITL vs real hardware
 
 | Setup | Stream source | Discovery |
@@ -596,6 +827,127 @@ playback, and RTSP's UDP and multicast transports (RTSP is TCP only, and FFmpeg
 publishes over TCP). A test checks that the generated config opens only the
 three allocated ports. A start
 failure leaves video off and is logged; the rest of the stack still runs.
+
+#### v12.1: the source belongs to the UAV (approved 2026-10-20)
+
+Owner, 2026-10-20, on the built v12: "what if one uav has stream the other
+doesn't how should we resolve it current global button seems swithcing for
+all? come up with good design".
+
+What the code does now: the source is part of the current selection
+(`useVehicleWindow.js`, `pickOf`), not remembered per UAV; a pick of another
+UAV sets it from that UAV's icon (picking the selected one is a no-op), so it
+is not global. Three things make a mixed fleet confusing:
+
+- The Camera | Synthetic switch sits at the far end of the bar, apart from
+  the UAV chip, so it reads as a fleet-wide setting.
+- Camera stays enabled on a UAV with no stream; a tap gives "No camera ·
+  UAV n" and no picture (the switch and the list still work).
+- A synthetic failure falls back to Camera, the same empty state on such a
+  UAV, and an automatic source change.
+
+Design (Codex round 1 changes folded in):
+
+1. **One UAV group.** The chip and the switch join into one bordered
+   group, [● UAV 1 ▾ | camera | map], 32 px high with 1 px dividers (fit
+   below); Maximize stays
+   apart at the right end. The group reads "this UAV's camera or map" and
+   never splits: when group and Maximize do not fit on one line, Maximize
+   wraps to a second line; when the group alone does not fit, the chip's
+   name ellipsizes (the swatch, "link lost", ▾ and both source buttons keep
+   their size). The switch's accessible name names the UAV ("Video source
+   · UAV 1"). The list still opens from the chip and draws above the
+   group's border and the small map. The joined borders are drawn by the
+   group: `MapIconBtn` gains a `joined` prop (no border or radius of its
+   own; the group draws the outer border and the dividers) and an
+   `unavailable` look, since today it overwrites a passed `style`. No new
+   colours.
+   Fit (replaces v12 item 7): chip 160 + Camera and Synthetic 64 + one
+   4 px gap + Maximize 32 + 8 px padding = 268 px, so from a 294 px pane
+   the bar is one line. The group's border is an inset outline and the
+   dividers sit inside the 32 px buttons, so the group is 32 px high and
+   takes no extra width.
+2. **Camera availability is the selected UAV's.** Camera is available when
+   the selected UAV advertises any usable stream (the resolver's rule: its
+   selected key, else its default stream; never another UAV's, never link
+   health). Unavailable, Camera shows the camera glyph slashed and dimmed
+   (a cue beyond colour), keeps its place (the bar does not change width
+   between UAVs) and stays focusable. Activating it by mouse, touch, Enter
+   or Space never changes the source; it shows the row "No camera stream on
+   UAV 3" under the bar (`role="status"`, also the button's
+   `aria-describedby`), which clears on the next source change or pick. Its
+   tooltip says the same for mouse users. When the UAV starts advertising,
+   Camera becomes available; nothing switches.
+3. **Only the operator changes the source.** No automatic change remains:
+   - A synthetic failure keeps Synthetic selected. The failed widget
+     unmounts (WebGL released); a latched failure, held outside the widget,
+     shows "Synthetic view unavailable" with Retry (plan-button style), and
+     swapped the large area states it in text. Resizing, a stream appearing
+     or room returning never clear it or retry; Retry does (focus then goes
+     to the Synthetic button). Camera, if available, stays one tap away.
+   - Return from RC or another view keeps the selected source (v12 re-picked
+     it from the icon); the swap still ends.
+   - Dismiss (after the last stream is withdrawn) is the operator's change
+     to Synthetic; a stream coming back does not switch back.
+4. **Camera loss, unchanged and made explicit.** Losing the selected
+   stream moves to the same UAV's other stream; losing its last stream
+   shows "Camera video lost" with Reconnect video (disabled) and Dismiss,
+   and Camera stays pressed though unavailable until the operator changes
+   source; a failed reader whose stream is still advertised offers
+   Reconnect video only. Link loss alone never makes Camera unavailable.
+5. **Entry points.** A pick of another UAV opens what its icon shows (open
+   question 1). View camera is offered only for a UAV with a stream (as
+   now, `App.jsx` `videoActionFor`), and the hook also refuses it without
+   one. A UAV that leaves the fleet stays selected (only an empty fleet
+   clears it): Camera unavailable, link and video lost shown, Synthetic
+   holds; when it returns, nothing switches.
+6. **"No camera · UAV n" goes** as a reachable state: Camera cannot become
+   selected without a stream, and nothing falls back to it.
+
+Code impact: `VehicleWindow.jsx` (the joined group and its wrap; Camera's
+unavailable state and status row; the latched synthetic failure with Retry
+and its swapped area; the "No camera" row and area go), `useVehicleWindow.js`
+(`chooseSource` refuses Camera without a stream and sets the notice;
+`syntheticFailed` keeps Synthetic and latches; `retrySynthetic`; the RC
+return keeps the source; `viewCamera` refuses without a stream),
+`MapIconBtn.jsx` (the `joined` prop and the `unavailable` look, with tests
+that its other uses are unchanged), locales (`vehicleWindow.source.noCameraFor`, `source.groupFor`,
+`retry`; `noCamera` goes if unused).
+
+Tests: Camera unavailable on a map-icon UAV by click, Enter and Space (no
+reader, no source change, the status row and its `aria-describedby`); it
+becomes available when that UAV advertises, without switching; another
+UAV's stream never makes it available; the group's name follows the UAV;
+synthetic failure stays on Synthetic (widget unmounted, failure latched
+across a resize and a new stream, Retry remounts and focuses Synthetic,
+swapped text area); RC return keeps Synthetic on a camera UAV; Dismiss then
+a returning stream does not switch; View camera refused without a stream;
+the departed UAV; the group never splits at 256, 280 and 320 px panes with a
+long Armenian name and "link lost" (Maximize wraps first, then the name
+ellipsizes). Live: the vitest cases carry the mixed fleet, because
+`simulation.video_test_source` is one switch for every UAV
+(`sim_video_companion.py`); the live check starts the companions with it on,
+turns it off, restarts one UAV's companion so that UAV advertises none,
+turns it on again (it also sets the WHEP port in every playback URL), and
+waits for that UAV's old advertisement to expire before checking. If the GCS has no per-UAV companion restart, the live mixed case is
+reported as not run.
+
+Approved by the owner 2026-10-20 with the recommended answers to both
+questions below (decision 9), after the mock
+(`docs/design/gcs_video_v12_1_mock.html`). The Synthetic icon stays the
+folded map; other glyphs were shown and the owner chose it: "OK use the
+Today for now".
+
+Questions for v12.1 (owner):
+
+1. **Remember the source per UAV.** Recommended: no; a pick of another UAV
+   opens what its icon shows, and the list row says which (close/reopen and
+   RC return keep the current source, design 3). Alternative: remember the
+   last source picked for each UAV in the session (never saved), so
+   UAV 1 on Synthetic, then UAV 2, then UAV 1 again gives Synthetic.
+2. **Camera without a stream.** Recommended: shown but unavailable, with
+   the reason in its tooltip. Alternative: hidden, so the bar is narrower
+   for that UAV but changes width between UAVs.
 
 ## Test plan
 
@@ -751,6 +1103,23 @@ recommended answer below; the owner approved all six on 2026-10-20.
    an overflow menu (v10 rule), and the picture shrinks to stay above the
    reset-view button.
 
+## Open questions for v12 (owner)
+
+Answered 2026-10-20 with each recommended answer (decision 8); the v12
+section above is written that way.
+
+1. **Start state.** Recommended: closed (the video icon plain), no UAV
+   picked; the map is clear until the operator taps the icon. Alternative:
+   open on the picker, as v11.
+2. **Close.** Recommended: removed; the video icon closes the window and the
+   UAV chip changes UAV. Alternative: keep Close (back to the picker) in the
+   bar, one more 32 px button.
+3. **Switching UAV.** Recommended: the UAV chip and its list, two taps.
+   Alternative: v11's row of UAV buttons in the bar, one tap, which needs a
+   wider window or a second row again.
+4. **Where the video icon sits.** Recommended: the right end of the action
+   bar, right above the window. Alternative: first icon after Edit plan.
+
 ## Owner decisions
 
 1. Approach approved (2026-10-18): camera protocol discovery, browser WHEP
@@ -785,3 +1154,14 @@ recommended answer below; the owner approved all six on 2026-10-20.
    follow selector and the map chase go; no live preview tiles (one stream at
    a time, no extra radio load). Approved by the owner on 2026-10-20,
    with the recommended answers to open questions 1-6.
+8. v12 approved (owner, 2026-10-20): "Approved: v12 design with the
+   recommended answers to the four open questions." The window starts
+   closed behind a video icon at the right end of the action bar; Close
+   goes; the UAV chip and its list switch UAV in two taps. The larger touch
+   size for the whole action bar is todo 94.
+9. v12.1 approved (owner, 2026-10-20): "approved just have better icon
+   this map I don't like much, but first check with me", then "OK use the
+   Today for now". The chip and the source switch form one UAV group;
+   Camera without a stream is shown but unavailable; only the operator
+   changes the source; no per-UAV memory; the Synthetic icon stays the
+   folded map.

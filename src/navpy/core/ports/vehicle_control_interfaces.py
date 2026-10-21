@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.core.kernel.location import Location
 from navpy.core.ports.flight_mode import FlightMode
 
+if TYPE_CHECKING:
+    from navpy.core.ports.parameter_exchange import ExchangePolicy, ParameterExchange
+
 ParameterValue = Union[int, float]
 CommandValue = Union[int, float]
+#: Sends of one parameter request or write before it fails. The MAVLink parameter
+#: protocol resends on a timeout, since a lost request or echo is not an answer;
+#: QGroundControl and MAVProxy also resend.
+PARAM_PROTOCOL_ATTEMPTS = 3
 
 
 class VehicleFlightControl(ABC):
@@ -115,7 +122,7 @@ class VehicleParameters(ABC):
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None: ...
 
@@ -124,7 +131,7 @@ class VehicleParameters(ABC):
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None: ...
 
@@ -137,6 +144,25 @@ class VehicleParameters(ABC):
         mav_param_type: int | None = None,
         timeout: float = 2.0,
     ) -> bool: ...
+
+    @abstractmethod
+    def read_parameter(
+        self,
+        name: str,
+        policy: ExchangePolicy,
+        timeout: float = 2.0,
+    ) -> ParameterExchange:
+        """One fresh read under ``policy`` (``parameter_exchange.py``)."""
+
+    @abstractmethod
+    def write_parameter(
+        self,
+        name: str,
+        value: ParameterValue,
+        policy: ExchangePolicy,
+        timeout: float = 2.0,
+    ) -> ParameterExchange:
+        """One write under ``policy``, with its outcome (``parameter_exchange.py``)."""
 
     @abstractmethod
     def send_parameter_unverified(
@@ -161,6 +187,7 @@ class VehicleSimulationAccess(ABC):
 
 __all__ = [
     "CommandValue",
+    "PARAM_PROTOCOL_ATTEMPTS",
     "ParameterValue",
     "VehicleFlightControl",
     "VehicleMissionAccess",

@@ -65,7 +65,9 @@ def test_boot_routes_sitl_serial1_and_discards_what_an_unadmitted_owner_would_ge
     boot = [r for r in records if r.get("phase") == "boot"]
     assert boot and all(r["members"] == [] for r in boot)
     copies = [event for k, phase, event in _events(records, "copy") if phase == "boot"]
-    assert {event[1][2] for event in copies} >= {serial1(i) for i in ROVERS}
+    # Every boot packet is the SITLs' autopilot traffic: routed to the backend
+    # endpoint only, since each SITL endpoint filters components 1 and 100.
+    assert {event[1][2] for event in copies} == {ROUTER}
     boot_discards = [event for _k, phase, event in _events(records, "discarded") if phase == "boot"]
     assert boot_discards and {event[2] for event in boot_discards} == {"unadmitted"}
     assert all(r["discarded"].get(ROUTER) for r in boot)  # the backend endpoint's copies

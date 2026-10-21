@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../styles';
 import { fpvHoldReason } from '../utils/fpvView';
-import { HEADER_FONT_PX, PICTURE_TAG_INSET_PX } from '../utils/vehicleWindowLayout';
+import { WINDOW_FONT_PX } from '../utils/vehicleWindowLayout';
+import { pictureTagStyle } from './windowStyles';
 import { ION_TERRAIN_ASSET_ID, MAP_TARGET_FRAME_RATE } from './map/constants/icons';
 import { createPoseMath, noseOrientation } from './map/utils/fpvPose';
 import { observeHeight } from './map/utils/observeHeight';
@@ -233,11 +234,11 @@ export default function SyntheticView({
         <div
           role="status"
           style={{
-            padding: '8px 10px',
-            fontSize: HEADER_FONT_PX,
+            position: 'relative',
+            padding: '6px 8px',
+            fontSize: WINDOW_FONT_PX,
             fontWeight: 700,
             color: colors.textDim,
-            background: colors.bgLight,
             borderTop: `1px solid ${colors.border}`,
           }}
         >
@@ -259,7 +260,7 @@ export default function SyntheticView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: HEADER_FONT_PX,
+              fontSize: WINDOW_FONT_PX,
               fontWeight: 700,
               color: colors.textDim,
               background: colors.bgLight,
@@ -274,21 +275,7 @@ export default function SyntheticView({
         />
         <div
           role="note"
-          style={{
-            position: 'absolute',
-            top: PICTURE_TAG_INSET_PX,
-            left: PICTURE_TAG_INSET_PX,
-            maxWidth: tagMaxWidth ?? undefined,
-            boxSizing: 'border-box',
-            padding: '4px 8px',
-            fontSize: HEADER_FONT_PX,
-            fontWeight: 700,
-            color: colors.textBright,
-            background: colors.bgLight,
-            border: `1px solid ${colors.accent}`,
-            borderRadius: 4,
-            pointerEvents: 'none',
-          }}
+          style={{ ...pictureTagStyle(colors.accent, tagMaxWidth), border: `1px solid ${colors.accent}` }}
         >
           {t('vehicleWindow.syntheticTag')}
         </div>

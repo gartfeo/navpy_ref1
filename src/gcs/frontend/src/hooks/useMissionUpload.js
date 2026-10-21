@@ -1,8 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { buildTargWpsUpdates, buildNavLastWpUpdates } from '../utils/simDockReindex';
 import { resolveUploadAssignments } from '../utils/uploadAssignments';
 import { activateUploadedSimPlan } from '../utils/missionUploadActivation';
 import { fenceSignature, fenceUploadFailures } from '../utils/fenceIntent';
+import { cameraCheckZone, confirmCameraCheck, zoneUploadAltitude } from '../utils/planCameraCheck';
+import { zoneLabel } from '../components/sidebar/DeliveryHubAssignmentSection';
 
 /**
  * Handles mission upload: zone sorting, vehicle assignment, corridor handling.
@@ -25,7 +28,9 @@ export default function useMissionUpload({
   fenceInvalid = false,
   fenceIntentGeneration = null,
   onFenceIntentResolved,
+  getAas,
 }) {
+  const { t } = useTranslation();
   const {
     polygon, searchPattern,
     launchPoint, corridorPoints,
@@ -96,8 +101,6 @@ export default function useMissionUpload({
     // Use plan zone order as-is — what the user sees in the plan is what gets uploaded.
     const sortedZones = activePlan.zones;
     const isCorridor = searchPattern === 'corridor';
-    const baseAlt = activePlan.altitude_m;
-    const sep = activePlan.altitude_separation_m ?? 20;
     const assignments = sortedZones.map((zone, i) => {
       const v = vehicleList[i];
       if (!v) return null;
@@ -118,7 +121,7 @@ export default function useMissionUpload({
       const corrBackbone = isCorridor && setCp.length > 0
         ? setCp.map((p) => ({ lat: p.lat, lon: p.lon }))
         : [];
-      const zoneAlt = zone.altitude_m ?? (baseAlt + (sortedZones.length - 1 - i) * sep);
+      const zoneAlt = zoneUploadAltitude(activePlan, zone, i);
       // Look up assigned delivery hub for this zone (resolved from the active plan above)
       const deliveryHubs = settings?.default_delivery_hubs || [];
       const assignedDeliveryHubIdx = effectiveAssignments[i];
@@ -138,9 +141,36 @@ export default function useMissionUpload({
       };
     }).filter(Boolean);
 
+    const simMode = settings?.simulation?.sim_mode;
+    const corridorLens = sortedZones.map((z) => {
+      const setIdx = z.set_index ?? 0;
+      const setCp = isCorridor ? [] : ((setCorridorPointsArr ?? [[]])[setIdx] ?? corridorPoints);
+      return isCorridor ? 0 : setCp.length;
+    });
+    // targ_wps / nav_last_wp exactly as the sim activation below writes them.
+    const tw = simMode ? buildTargWpsUpdates(simDockWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
+    const nl = simMode ? buildNavLastWpUpdates(detectAfterWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
+    if (simMode) {
+      // Warn before anything is sent: can the camera ever detect these docks?
+      const checkZones = assignments.map((a, i) => cameraCheckZone({
+        zoneIndex: i,
+        waypoints: a.waypoints,
+        altitude: a.altitude_m,
+        targWps: tw.updates[a.sys_id],
+        navLastWp: nl.updates[a.sys_id],
+        dockAlt: getAas?.(a.sys_id, 'targ_alt'),
+        useTerrain: getAas?.(a.sys_id, 'use_trn'),
+      }));
+      const proceed = await confirmCameraCheck({
+        zones: checkZones, check: api.checkPlanCamera, t,
+        zoneName: (i) => zoneLabel(sortedZones, i),
+      });
+      if (!proceed) return;
+    }
+
     const zonesWithAlt = sortedZones.map((zone, i) => ({
       ...zone,
-      altitude_m: baseAlt + (sortedZones.length - 1 - i) * sep,
+      altitude_m: zoneUploadAltitude(activePlan, zone, i),
       sys_id: vehicleList[i]?.sys_id ?? zone.sys_id,
     }));
     setPlan((prev) => prev ? { ...prev, zones: zonesWithAlt } : prev);
@@ -166,17 +196,7 @@ export default function useMissionUpload({
       const missionFailures = (result.results || []).filter((r) => r.error);
       if (result.status === 'complete' && fenceOk) {
         // Write sim POI params to vehicles
-        const simMode = settings?.simulation?.sim_mode;
         if (simMode) {
-          const corridorLens = sortedZones.map((z) => {
-            const setIdx = z.set_index ?? 0;
-            const setCp = isCorridor ? [] : ((setCorridorPointsArr ?? [[]])[setIdx] ?? corridorPoints);
-            return isCorridor ? 0 : setCp.length;
-          });
-          // targ_wps
-          const tw = buildTargWpsUpdates(simDockWps, sortedZones, vehicleList, isCorridor, corridorLens);
-          // nav_last_wp
-          const nl = buildNavLastWpUpdates(detectAfterWps, sortedZones, vehicleList, isCorridor, corridorLens);
           const activated = await activateUploadedSimPlan({
             targWpsCalls: tw.calls,
             navLastWpCalls: nl.calls,
@@ -219,7 +239,7 @@ export default function useMissionUpload({
     } finally {
       setUploading(false);
     }
-  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved]);
+  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t]);
 
   return { uploading, handleUpload };
 }

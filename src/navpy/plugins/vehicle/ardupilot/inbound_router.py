@@ -129,6 +129,7 @@ class InboundMessageRouter:
             self._parameters.update(message.param_id, message.param_value)
         if source_system == self._identity.target_system and component_id == MAV_COMP_ID_AUTOPILOT1:
             self._packet_loss.observe(component_id, message.get_seq())
+            self._heartbeat.observe_frame()
         verdict = self._accept_telemetry(message_type, message, component_id)
         if verdict is not None:
             accepted, reason = verdict

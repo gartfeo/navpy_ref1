@@ -80,7 +80,7 @@ class SitlFleet:
         """
         frames, raws = self.read(k)
         self._deadline.close()
-        parked: dict[str, Any] = {"tick": frames[0].tick,
+        parked: dict[str, Any] = {"tick": frames[0].tick, "t_us": frames[0].source_us,
                                   "frames": [{"length": len(raw), "sha256": sha256(raw)} for raw in raws]}
         return parked, self.egress(frames)
 

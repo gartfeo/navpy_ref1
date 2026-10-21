@@ -79,6 +79,11 @@ async def broadcast_sim_status() -> None:
     await ws_manager.broadcast({
         "type": "navpy_sim_status",
         "instances": statuses,
+        # Sim closest approach to the own dock (gcs_sim_closest_approach.md).
+        "closest_approaches": (
+            runtime.get_or_create_mgr().closest_approach_records()
+            if runtime.has_manager() else []
+        ),
     })
 
 

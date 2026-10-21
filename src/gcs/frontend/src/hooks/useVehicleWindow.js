@@ -21,40 +21,52 @@ function pickOf(fleet, sysId, previous) {
 
 /**
  * State of the monitor view's vehicle window (docs/design/gcs_video_streams.md,
- * section 5 "Vehicle window"): which UAV, which source, and the swap.
+ * section 5 "Vehicle window", v12 and v12.1): open or closed, which UAV, which
+ * source, and the swap.
  *
- * - No selection is the picker. Only the operator picks: the UAV buttons and
- *   View camera. A pick opens what the UAV's icon shows (Camera with a stream,
- *   else Synthetic); View camera always opens Camera; picking the selected UAV
- *   again does nothing. Close goes back to the picker; an empty fleet too.
- * - Once picked, the source changes only by the switch, Dismiss (to
- *   Synthetic) or a synthetic failure (to Camera, with a notice). A stream
- *   appearing or going away only changes what Camera shows: the same UAV's
- *   other stream, else "lost". Never another UAV.
+ * - The video icon in the map's action bar opens and closes the window; it
+ *   starts closed. Closing swaps back and stops the picture (the window
+ *   unmounts); the UAV and source are kept, and opening again plays them with
+ *   a fresh connection. View camera opens it. An empty fleet closes it and
+ *   clears the UAV, so a returning fleet starts closed with no UAV picked.
+ * - No selection is the picker. Only the operator picks: the picker, the UAV
+ *   list and View camera. A pick opens what the UAV's icon shows (Camera with
+ *   a stream, else Synthetic); View camera opens Camera and is refused for a
+ *   UAV without a stream; picking the selected UAV again does nothing.
+ * - Only the operator changes the source: the switch or Dismiss (to
+ *   Synthetic). Camera is available only while the selected UAV advertises a
+ *   stream; choosing it otherwise changes nothing and says why. A
+ *   synthetic failure keeps Synthetic and latches until Retry, a source change
+ *   or a pick. A stream appearing or going away only changes what Camera
+ *   shows: the same UAV's other stream, else "lost". Never another UAV.
  * - Not `active` (RC, leaving the monitor view): swap back; on return the
- *   window comes back on the same UAV with the source its icon gives.
- * - Nothing is saved: a reload opens the picker, unswapped.
+ *   window comes back on the same UAV and source, with a fresh connection.
+ * - Open or closed is kept across RC and view changes in the session, never
+ *   saved: a reload starts closed, with no UAV picked.
  * - `session` changes whenever a fresh camera connection is wanted (a pick,
- *   View camera, Reconnect video, back to Camera); the window keys its reader on it.
+ *   View camera, opening, Reconnect video, back to Camera); the window keys its
+ *   reader on it.
  *
  * @param {object} p
  * @param {Array} p.fleet - useVideoFleet entries.
  * @param {boolean} p.active - monitor view and not RC.
  */
 export default function useVehicleWindow({ fleet, active }) {
+  const [open, setOpen] = useState(false);
   const [selection, setSelection] = useState(null);
   const [maximized, setMaximized] = useState(false);
-  const [notice, setNotice] = useState(null);
+  const [cameraRefused, setCameraRefused] = useState(false);
 
   const empty = fleet.length === 0;
   const shown = resolveShownStream(selection, fleet);
 
-  // An empty fleet: the window goes, and the next UAV brings the picker.
+  // An empty fleet: the window closes, and the next fleet starts closed on the picker.
   useEffect(() => {
     if (!empty) return;
+    setOpen(false);
     setSelection(null);
     setMaximized(false);
-    setNotice(null);
+    setCameraRefused(false);
   }, [empty]);
 
   // Keep the same-UAV fallback (or the stream that appeared on "No camera"),
@@ -65,9 +77,7 @@ export default function useVehicleWindow({ fleet, active }) {
   }, [fallbackKey]);
 
   // RC entry or leaving the monitor view: swap back. Back again: the same UAV
-  // with the source its icon gives now.
-  const fleetRef = useRef(fleet);
-  fleetRef.current = fleet;
+  // and source, with a fresh connection.
   const wasActiveRef = useRef(active);
   useEffect(() => {
     const wasActive = wasActiveRef.current;
@@ -77,33 +87,44 @@ export default function useVehicleWindow({ fleet, active }) {
       return;
     }
     if (wasActive) return;
-    setNotice(null);
-    setSelection((s) => (s ? pickOf(fleetRef.current, s.sysId, s) : s));
+    setSelection((s) => (s ? { ...s, nonce: s.nonce + 1 } : s));
   }, [active]);
 
   const selectedSysId = selection?.sysId ?? null;
+  const cameraAvailable = selection != null && hasVideo(entryOf(fleet, selectedSysId));
 
   /** A UAV button: that UAV with the source its icon gives; the selected one is a no-op. */
   const selectUav = useCallback((sysId) => {
     if (sysId === selectedSysId) return;
-    setNotice(null);
+    setCameraRefused(false);
     setSelection((s) => pickOf(fleet, sysId, s));
   }, [fleet, selectedSysId]);
 
-  /** View camera on a confirm card: that UAV, Camera, a fresh connection, also from the picker. */
+  /** View camera on a confirm card: opens the window on that UAV, Camera, a fresh connection. */
   const viewCamera = useCallback((sysId) => {
-    setNotice(null);
+    if (!hasVideo(entryOf(fleet, sysId))) return;
+    setOpen(true);
+    setCameraRefused(false);
     setSelection((s) => ({ ...pickOf(fleet, sysId, s), source: SOURCE.CAMERA }));
   }, [fleet]);
 
-  /** The Camera / Synthetic switch. Back to Camera is a fresh connection. */
+  /**
+   * The Camera / Synthetic switch. Back to Camera is a fresh connection.
+   * Camera without a stream changes nothing and says why.
+   */
   const chooseSource = useCallback((next) => {
-    if (!selection || next === selection.source) return;
-    setNotice(null);
+    if (!selection) return;
+    // Before the same-source check: Camera still pressed after its last stream went says why too.
+    if (next === SOURCE.CAMERA && !cameraAvailable) {
+      setCameraRefused(true);
+      return;
+    }
+    if (next === selection.source) return;
+    setCameraRefused(false);
     setSelection((s) => (s ? {
-      ...s, source: next, nonce: next === SOURCE.CAMERA ? s.nonce + 1 : s.nonce,
+      ...s, source: next, syntheticFailed: false, nonce: next === SOURCE.CAMERA ? s.nonce + 1 : s.nonce,
     } : s));
-  }, [selection]);
+  }, [selection, cameraAvailable]);
 
   const reconnect = useCallback(() => {
     setSelection((s) => (s ? { ...s, nonce: s.nonce + 1 } : s));
@@ -111,49 +132,66 @@ export default function useVehicleWindow({ fleet, active }) {
 
   /** Dismiss a lost feed: Synthetic for the same UAV, as a pick of a map-icon UAV would. */
   const dismiss = useCallback(() => {
-    setNotice(null);
+    setCameraRefused(false);
     setSelection((s) => (s ? { ...s, key: null, source: SOURCE.SYNTHETIC } : s));
   }, []);
 
-  /** Close: swap back, stop the picture and show the picker. */
-  const close = useCallback(() => {
-    setMaximized(false);
-    setNotice(null);
-    setSelection(null);
-  }, []);
+  /**
+   * The video icon. Closing swaps back first; the window then unmounts, which
+   * stops the reader and the synthetic widget. Opening is a fresh connection.
+   */
+  const toggleOpen = useCallback(() => {
+    if (open) {
+      setMaximized(false);
+      setOpen(false);
+      return;
+    }
+    setSelection((s) => (s ? { ...s, nonce: s.nonce + 1 } : s));
+    setOpen(true);
+  }, [open]);
 
   /** Maximize is offered only while viewing, not in the picker. */
   const toggleMaximized = useCallback(() => {
-    if (selection) setMaximized((m) => !m);
-  }, [selection]);
+    if (open && selection) setMaximized((m) => !m);
+  }, [open, selection]);
   const unswap = useCallback(() => setMaximized(false), []);
 
-  /** The synthetic view failed: back to Camera with a notice. Retry is a new tap. */
-  const syntheticFailed = useCallback(() => {
-    setNotice('syntheticUnavailable');
-    setSelection((s) => (s ? { ...s, source: SOURCE.CAMERA, nonce: s.nonce + 1 } : s));
+  /** The synthetic view failed: Synthetic stays selected, the failure latched until Retry. */
+  const reportSyntheticFailure = useCallback(() => {
+    setSelection((s) => (s ? { ...s, syntheticFailed: true } : s));
+  }, []);
+  const retrySynthetic = useCallback(() => {
+    setSelection((s) => (s ? { ...s, syntheticFailed: false } : s));
   }, []);
 
   const source = selection?.source ?? SOURCE.CAMERA;
   return {
+    /** The window is open (the video icon pressed). */
+    open,
     /** The window's UAV; null is the picker. */
     sysId: selectedSysId,
     shown,
     source,
+    /** The selected UAV advertises a stream, so Camera can be chosen. */
+    cameraAvailable,
+    /** The synthetic view failed and waits for Retry. */
+    syntheticFailed: selection?.syntheticFailed === true,
     /** The map and window are swapped. */
-    swapped: active && !empty && maximized && selection != null,
-    notice,
+    swapped: active && !empty && open && maximized && selection != null,
+    /** Camera was chosen without a stream: the window says why. Cleared by the next source change or pick. */
+    cameraRefused,
     session: selection ? `${selection.sysId}:${shown.stream?.key ?? '-'}:${selection.nonce}` : null,
-    /** "Viewing" on a confirm card: this UAV's camera is on screen. */
-    viewing: (id) => active && source === SOURCE.CAMERA && selectedSysId === id && shown.kind === 'stream',
+    /** "Viewing" on a confirm card: this UAV's camera is on screen (App adds the picture room). */
+    viewing: (id) => active && open && source === SOURCE.CAMERA && selectedSysId === id && shown.kind === 'stream',
     selectUav,
     viewCamera,
     chooseSource,
     reconnect,
     dismiss,
-    close,
+    toggleOpen,
     toggleMaximized,
     unswap,
-    syntheticFailed,
+    reportSyntheticFailure,
+    retrySynthetic,
   };
 }

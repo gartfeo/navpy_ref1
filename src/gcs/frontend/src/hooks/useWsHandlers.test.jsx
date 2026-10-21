@@ -65,3 +65,25 @@ describe('task assignment routing', () => {
     expect(taskAssign.handleResolvedCleanupByTask).toHaveBeenCalledExactlyOnceWith(3, 6);
   });
 });
+
+describe('navpy sim status', () => {
+  it('keeps the closest-approach records beside the companion status, one new list per status', () => {
+    const messageHandlersRef = { current: {} };
+    const { result } = renderHook(() => useWsHandlers({
+      messageHandlersRef, taskConfirm: {}, taskAssign: {}, setUploadProgress: vi.fn(),
+    }));
+    expect(result.current.simClosestApproaches).toBeNull();
+    const records = [{ key: 'b:1:1', sys_id: 2 }];
+    const status = { type: 'navpy_sim_status', instances: [{ sys_id: 2, running: true }], closest_approaches: records };
+
+    act(() => messageHandlersRef.current.navpy_sim_status(status));
+    const first = result.current.simClosestApproaches;
+    act(() => messageHandlersRef.current.navpy_sim_status(status));
+
+    expect(result.current.navpyStatus).toEqual({ 2: { sys_id: 2, running: true } });
+    expect(result.current.simClosestApproaches).toEqual(records);
+    expect(result.current.simClosestApproaches).not.toBe(first);
+    act(() => messageHandlersRef.current.navpy_sim_status({ instances: [] }));
+    expect(result.current.simClosestApproaches).toEqual([]);
+  });
+});

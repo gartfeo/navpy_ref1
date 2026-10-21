@@ -1,6 +1,6 @@
 {
   "source": "home_coords of the deployed ~/ardupilot/Tools/autotest/run_swarm.sh (lines 253-271), run in WSL on 2026-10-14 for SITLs 1..N",
-  "run_swarm_sha256": "5d43296c7bf1008678359ac3bb10b73c541c7932e605dc142ff567392178d6c8",
+  "run_swarm_sha256": "38a518843f4a199207cad4443d1fc999472c6bf91464a28400c261bc28d60094",
   "cases": [
     {
       "home_coords": "40.3117414,44.455211099999985,1294.86,0.0",

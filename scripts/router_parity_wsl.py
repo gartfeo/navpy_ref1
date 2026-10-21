@@ -4,12 +4,17 @@ Runs under WSL's ``python3`` with the standard library only, offline, never
 inside a lockstep run. Reads a JSON job on stdin::
 
     {"binary": "/usr/bin/mavlink-routerd", "endpoints": [...names],
-     "cases": {name: [[endpoint, hex, fence], ...]}}
+     "cases": {name: [[endpoint, hex, fence], ...]},
+     "filters": {name: {endpoint: {"BlockMsgIdOut": [...], "BlockSrcCompOut": [...]}}}}
 
 Per case it starts its own router, ``-s 255`` as ``run_swarm.sh`` does, with
-a conf file holding only ``[General]`` and an empty conf dir (the default
-``main.conf`` stays unread), no TCP server, and one UDP server endpoint per
-name on a free loopback port.
+an empty conf dir (the default ``main.conf`` stays unread), no TCP server,
+and one UDP server endpoint per name on a free loopback port. Without
+filters the endpoints are command-line arguments and the conf file holds
+only ``[General]``; a case with filters declares every endpoint in the conf
+file instead (``[UdpEndpoint <name>]``, ``Mode = Server``, its nonempty
+``BlockMsgIdOut`` and ``BlockSrcCompOut``). The router logs at trace level; its lines ``to unknown
+sysid/compid`` count its ``msg_to_unknown``.
 Each harness socket first sends one ``0x00`` byte, which teaches the router
 the socket's address and nothing else (no start marker: the router skips
 it); the harness waits until the router has read it (its socket's receive
@@ -19,7 +24,8 @@ the harness waits until every other endpoint has received it, so every
 packet routed before it has arrived. The router is stopped by its own pid
 and the temporary directory removed.
 
-Writes ``{case: {endpoint: hex of everything it received}}`` on stdout.
+Writes ``{case: {"received": {endpoint: hex of everything it received},
+"unknown": count}}`` on stdout.
 """
 
 from __future__ import annotations
@@ -65,16 +71,38 @@ def wait_until(condition: Callable[[], bool], what: str) -> None:
         time.sleep(0.001)
 
 
-def run_case(binary: str, names: list[str], steps: list, workdir: str) -> dict[str, str]:
+UNKNOWN_LINE = "to unknown sysid/compid"
+
+
+def write_conf(path: str, names: list[str], ports: list[int],
+               filters: dict[str, dict[str, list[int]]]) -> list[str]:
+    """The conf file; returns the endpoint arguments the command line still needs."""
+    lines = ["[General]"]  # an empty file does not parse
+    endpoints = [f"127.0.0.1:{port}" for port in ports]
+    if filters:
+        endpoints = []
+        for name, port in zip(names, ports):
+            lines += ["", f"[UdpEndpoint {name}]", "Mode = Server", "Address = 127.0.0.1",
+                      f"Port = {port}"]
+            for key, values in sorted(filters.get(name, {}).items()):
+                if values:
+                    lines.append(f"{key} = " + ",".join(str(value) for value in values))
+    with open(path, "w", encoding="ascii") as stream:
+        stream.write("\n".join(lines) + "\n")
+    return endpoints
+
+
+def run_case(binary: str, names: list[str], steps: list, workdir: str,
+             filters: dict[str, dict[str, list[int]]]) -> dict[str, object]:
     conf_dir = os.path.join(workdir, "conf.d")
     os.makedirs(conf_dir, exist_ok=True)
     conf = os.path.join(workdir, "general.conf")
-    with open(conf, "w", encoding="ascii") as stream:  # an empty file does not parse
-        stream.write("[General]\n")
     ports = free_ports(len(names))
-    command = [binary, "-s", "255", "-t", "0", "-c", conf, "-d", conf_dir,
-               *(f"127.0.0.1:{port}" for port in ports)]
-    router = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    endpoints = write_conf(conf, names, ports, filters)
+    command = [binary, "-s", "255", "-t", "0", "-g", "trace", "-c", conf, "-d", conf_dir, *endpoints]
+    log_path = os.path.join(workdir, "router.log")
+    log = open(log_path, "w", encoding="utf-8")
+    router = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
     sockets = {}
     try:
         wait_until(lambda: all(receive_queue(port) is not None for port in ports), "router ports")
@@ -95,12 +123,17 @@ def run_case(binary: str, names: list[str], steps: list, workdir: str) -> dict[s
         _drain(sockets, received, names, b"")
         if router.poll() is not None:
             raise RuntimeError(f"the router exited ({router.returncode})")
-        return {name: bytes(data).hex() for name, data in received.items()}
+        result: dict[str, object] = {
+            "received": {name: bytes(data).hex() for name, data in received.items()}}
     finally:
         for sock in sockets.values():
             sock.close()
         router.terminate()
         router.wait(timeout=WAIT_S)
+        log.close()
+    with open(log_path, encoding="utf-8", errors="replace") as stream:
+        result["unknown"] = sum(UNKNOWN_LINE in line for line in stream)
+    return result
 
 
 def _drain(sockets: dict[str, socket.socket], received: dict[str, bytearray], names: list[str],
@@ -120,7 +153,8 @@ def main() -> int:
     job = json.load(sys.stdin)
     workdir = tempfile.mkdtemp(prefix="navpy-router-parity-")
     try:
-        results = {name: run_case(job["binary"], job["endpoints"], steps, workdir)
+        results = {name: run_case(job["binary"], job["endpoints"], steps, workdir,
+                                  job.get("filters", {}).get(name, {}))
                    for name, steps in job["cases"].items()}
     finally:
         shutil.rmtree(workdir, ignore_errors=True)

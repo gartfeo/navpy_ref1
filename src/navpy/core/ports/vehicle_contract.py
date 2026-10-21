@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from navpy.core.ports.parameter_exchange import ExchangePolicy, ParameterExchange
 from navpy.core.ports.vehicle_control_interfaces import (
     CommandValue,
+    PARAM_PROTOCOL_ATTEMPTS,
+    ParameterValue,
     VehicleFlightControl,
     VehicleMissionAccess,
     VehicleParameters,
@@ -77,7 +80,7 @@ class IVehicle(
         self,
         name: str,
         timeout: float = 2.0,
-        retries: int = 1,
+        retries: int = PARAM_PROTOCOL_ATTEMPTS,
         quiet: bool = False,
     ) -> float | None:
         del timeout, retries, quiet
@@ -85,6 +88,15 @@ class IVehicle(
 
     def send_parameter_unverified(self, name: str, value: int | float) -> bool:
         return bool(self.set_parameter(name, value))
+
+    def read_parameter(self, name: str, policy: ExchangePolicy, timeout: float = 2.0) -> ParameterExchange:
+        del name, policy, timeout
+        raise NotImplementedError("legacy vehicle has no bounded parameter exchange")
+
+    def write_parameter(self, name: str, value: ParameterValue, policy: ExchangePolicy,
+                        timeout: float = 2.0) -> ParameterExchange:
+        del name, value, policy, timeout
+        raise NotImplementedError("legacy vehicle has no bounded parameter exchange")
 
     def send_command_long(
         self,
