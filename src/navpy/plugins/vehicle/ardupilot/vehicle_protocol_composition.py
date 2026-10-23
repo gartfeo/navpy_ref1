@@ -36,6 +36,8 @@ def build_protocol_parts(
         foundation.link.logger_ref,
         foundation.state.messages,
         foundation.state.mission_inbox,
+        foundation.state.heartbeat_state,
+        cancelled=request.startup.stop_requested,
     )
     router = InboundMessageRouter(
         foundation.link.identity,

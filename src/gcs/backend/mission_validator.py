@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_DO_JUMP, MAV_CMD_NAV_TAKEOFF
+from gcs.backend.exchange_budget import held_within
 from gcs.backend.planner.waypoint_builder import (
     CORRIDOR_END_MARKER,
     META_POLYGON_VERTEX, META_CORRIDOR_VERTEX, META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB,
@@ -146,19 +147,24 @@ def parse_mission_items(vehicle, count: int, sys_id: int) -> dict:
     }
 
 
-def validate_vehicle_mission(vehicle, sys_id: int, on_progress=None) -> tuple[MissionProbe, dict | None]:
+def validate_vehicle_mission(vehicle, sys_id: int, on_progress=None,
+                             policy=None) -> tuple[MissionProbe, dict | None]:
     """Download and parse a vehicle's mission.
 
     *on_progress*, if given, is called as ``on_progress(current, total)`` as
     items arrive during the download (see VehicleMav.download_mission).
+    *policy* (``exchange_budget``) bounds the lock wait and the download; a
+    probe that cannot take the lock in time is invalid.
 
     Returns (probe, parsed_response_or_None).
     """
     # Hold the mission lock across download AND parse: parse_mission_items reads
     # the live shared loader, so without this a concurrent probe/download for the
     # same vehicle could clear/rebuild it mid-parse and yield a partial result.
-    with vehicle.mission_lock:
-        count = vehicle.download_mission(on_progress=on_progress)
+    with held_within(vehicle.mission_lock, policy) as held:
+        if not held:
+            return MissionProbe(valid=False, item_count=0), None
+        count = vehicle.download_mission(on_progress=on_progress, policy=policy)
         if count == 0:
             return MissionProbe(valid=False, item_count=0), None
         parsed = parse_mission_items(vehicle, count, sys_id)

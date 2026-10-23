@@ -59,7 +59,9 @@ def _link_identity_source(
 def build_capability_parts(
     foundation: VehicleFoundation,
     protocols: VehicleProtocolParts,
+    stop_requested: Callable[[], bool] | None = None,
 ) -> VehicleCapabilityParts:
+    """``stop_requested`` cancels parameter reads, not writes (todo 105)."""
     reader = ParameterReader(
         foundation.link.identity,
         foundation.link.transport,
@@ -67,6 +69,7 @@ def build_capability_parts(
         foundation.state.messages,
         foundation.link.logger_ref,
         foundation.state.heartbeat_state,
+        cancelled=stop_requested,
     )
     sim_state = SimAutopilotState()
     writer = ParameterWriter(

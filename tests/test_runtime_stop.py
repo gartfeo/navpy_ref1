@@ -195,3 +195,58 @@ def test_the_lifecycle_flag_is_opt_in_and_needs_the_participant(monkeypatch):
     both = parser.parse_args(["-ss", "4", "--stop-on-lifecycle", "--stop-on-stdin"])
     with pytest.raises(ValueError, match="exclusive"):
         compose_runtime(both, RuntimePorts(lifecycle_stop=object()))
+
+
+def test_a_stop_during_startup_starts_nothing_and_acks_after_cleanup():
+    """Todo 105: values read after the stop are defaults; never start on them."""
+    events: list[str] = []
+    stack = RuntimeResourceStack()
+    stack.own("vehicle", lambda: events.append("vehicle closed"))
+    session = RuntimeSession(
+        resources=stack,
+        start_vision=lambda: events.append("vision"),
+        start_controller=lambda: events.append("controller"),
+        health_check=lambda: None,
+        ui_step=lambda: events.append("ui") or True,
+        sleep=lambda _seconds: None,
+        stop_requested=lambda: True,
+        acknowledge_stop=lambda: events.append("ack"),
+    )
+    assert session.run() == 0
+    assert events == ["vehicle closed", "ack"]
+
+
+def test_the_vehicle_build_sees_the_stop_and_the_session_starts_nothing(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from navpy.app import runtime_composition as composition
+
+    events: list[str] = []
+    stopped = {"now": False}
+    built_with = {}
+
+    def create_vehicle(_args, _logger, *, bus, stop_requested):
+        built_with["stop_requested"] = stop_requested
+        stopped["now"] = True  # the stop arrives during the vehicle build
+        return SimpleNamespace(close=lambda: events.append("vehicle closed"))
+
+    monkeypatch.setattr(composition, "stop_hooks", lambda *_args: {
+        "stop_requested": lambda: stopped["now"],
+        "acknowledge_stop": lambda: events.append("ack"),
+    })
+    monkeypatch.setattr(composition, "ConnArgs", lambda _args: SimpleNamespace(source_system=1))
+    monkeypatch.setattr(composition, "LoggerArgs", lambda _args: object())
+    monkeypatch.setattr(composition.GroundStationLoggerNetwork, "create", MagicMock())
+    monkeypatch.setattr(composition, "initialize_logger", lambda *_args: MagicMock())
+    monkeypatch.setattr(composition, "build_terminal_handoff", lambda _args: None)
+    monkeypatch.setattr(composition, "open_vehicle_bus", lambda *_args: object())
+    monkeypatch.setattr(composition, "create_vehicle", create_vehicle)
+    monkeypatch.setattr(composition, "create_network",
+                        MagicMock(side_effect=AssertionError("built past the stop")))
+
+    session = composition.compose_runtime(SimpleNamespace())
+
+    assert built_with["stop_requested"]() is True
+    assert session.run() == 0
+    assert events == ["vehicle closed", "ack"]

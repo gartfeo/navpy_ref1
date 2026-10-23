@@ -20,6 +20,8 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_COMP_ID_AUTOPILOT1,
 )
 
+from navpy.core.kernel import runtime_time as rt
+from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from navpy.plugins.vehicle.ardupilot.attitude_command import euler_to_quaternion
 from navpy.core.ports.flight_mode import FlightMode
@@ -1265,6 +1267,11 @@ class VehicleMavTest(unittest.TestCase):
         return msg
 
 
+def _within(budget_s: float) -> ExchangePolicy:
+    """A transfer that ends ``budget_s`` from now (todo 105)."""
+    return ExchangePolicy(deadline_s=rt.monotonic() + budget_s)
+
+
 class TestUploadMission(unittest.TestCase):
     """Tests for the generation-based mission upload protocol."""
 
@@ -1330,7 +1337,7 @@ class TestUploadMission(unittest.TestCase):
         self.dm.load_mission_items(loader)
 
     def test_empty_mission_returns_true(self):
-        self.assertTrue(self.dm.upload_mission(timeout=1.0))
+        self.assertTrue(self.dm.upload_mission())
 
     def test_mission_inbox_publishes_request_after_cursor(self):
         inbox = MissionInbox()
@@ -1397,7 +1404,7 @@ class TestUploadMission(unittest.TestCase):
         """Full upload of a single waypoint via simulated autopilot responses."""
         self._load_wp(1)
         self._simulate_autopilot(1)
-        result = self.dm.upload_mission(timeout=5.0)
+        result = self.dm.upload_mission()
         self.assertTrue(result)
         self.fake_conn.mav.mission_count_send.assert_called()
         self.fake_conn.mav.mission_item_int_send.assert_called_once()
@@ -1406,14 +1413,14 @@ class TestUploadMission(unittest.TestCase):
         """Upload 3 waypoints — autopilot requests each sequentially."""
         self._load_wp(3)
         self._simulate_autopilot(3)
-        result = self.dm.upload_mission(timeout=5.0)
+        result = self.dm.upload_mission()
         self.assertTrue(result)
         self.assertEqual(self.fake_conn.mav.mission_item_int_send.call_count, 3)
 
     def test_upload_fails_no_request(self):
         """Upload fails when autopilot never sends MISSION_REQUEST."""
         self._load_wp(1)
-        result = self.dm.upload_mission(timeout=0.5, retries=1)
+        result = self.dm.upload_mission(policy=_within(0.5))
         self.assertFalse(result)
 
     def test_upload_fails_no_ack(self):
@@ -1430,7 +1437,7 @@ class TestUploadMission(unittest.TestCase):
             threading.Thread(target=respond, daemon=True).start()
         self.fake_conn.mav.mission_count_send.side_effect = on_count_send
 
-        result = self.dm.upload_mission(timeout=1.0)
+        result = self.dm.upload_mission(policy=_within(1.0))
         self.assertFalse(result)
 
     def test_stale_messages_drained_before_upload(self):
@@ -1440,7 +1447,7 @@ class TestUploadMission(unittest.TestCase):
 
         self._load_wp(1)
         self._simulate_autopilot(1)
-        result = self.dm.upload_mission(timeout=5.0)
+        result = self.dm.upload_mission()
         self.assertTrue(result)
 
 

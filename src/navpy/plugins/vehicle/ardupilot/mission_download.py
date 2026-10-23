@@ -1,4 +1,11 @@
-"""Fresh-response MAVLink mission download state machine."""
+"""Fresh-response MAVLink mission download state machine.
+
+Each step is one bounded exchange (``docs/design/radio_budget.md``, todo
+105): ``MISSION_REQUEST_LIST`` → ``MISSION_COUNT``, then each
+``MISSION_REQUEST_INT(seq)`` → that item, under one :class:`ExchangePolicy`
+for the whole transfer. Resending a request is safe: the autopilot answers
+download requests without state.
+"""
 
 from __future__ import annotations
 
@@ -9,11 +16,18 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_message,
 )
 
-from navpy.core.kernel import runtime_time as rt
+from navpy.core.ports.parameter_exchange import ExchangePolicy, with_cancel
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
 from navpy.plugins.vehicle.ardupilot.mission_store import MissionStore
+from navpy.plugins.vehicle.ardupilot.mission_timing import (
+    MISSION_ACK_TIMEOUT_S,
+    MISSION_ITEM_TIMEOUT_S,
+    default_mission_policy,
+)
+from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import ExchangeIo, run_exchange
 
 MissionProgress = Callable[[int, int], None]
 
@@ -26,87 +40,85 @@ class MissionDownloader:
         store: MissionStore,
         messages: MessageStore,
         logger_ref: LoggerRef,
+        link: HeartbeatState | None = None,
+        cancelled: Callable[[], bool] | None = None,
     ) -> None:
         self._target = target_system
         self._transport = transport
         self._store = store
         self._messages = messages
         self._logger_ref = logger_ref
+        self._link = link
+        self._cancelled = cancelled
 
     def download(
         self,
-        timeout: float = 10.0,
-        retries: int = 3,
         on_progress: MissionProgress | None = None,
         mission_type: int = MAV_MISSION_TYPE_MISSION,
+        policy: ExchangePolicy | None = None,
+        *,
+        ack_timeout: float = MISSION_ACK_TIMEOUT_S,
+        item_timeout: float = MISSION_ITEM_TIMEOUT_S,
     ) -> int:
+        """The item count, or 0 when empty or failed (the store is then unchanged)."""
         logger = self._logger_ref.value
-        logger.info("Downloading missionâ€¦")
-        count_message = None
-        for attempt in range(1, retries + 1):
-            cursor = self._messages.cursor()
-            self._transport.call(
-                lambda connection: connection.mav.mission_request_list_send(
-                    self._target,
-                    0,
-                    mission_type,
-                )
-            )
-            sample = self._messages.wait_after(
-                "MISSION_COUNT",
-                cursor,
-                lambda message: self._from_target_table(
-                    message,
-                    mission_type,
+        logger.info("Downloading mission…")
+        policy = with_cancel(policy or default_mission_policy(), self._cancelled)
+        log = self._log
+        exchange, sample = run_exchange(
+            policy, self._link, self._messages,
+            ExchangeIo(
+                "MISSION_REQUEST_LIST",
+                lambda: self._transport.call(
+                    lambda connection: connection.mav.mission_request_list_send(
+                        self._target, 0, mission_type,
+                    )
                 ),
-                deadline=rt.monotonic() + timeout / 2,
-            )
-            if sample is not None:
-                count_message = sample.message
-                break
-            logger.warning(f"No MISSION_COUNT (attempt {attempt}/{retries})")
-        if count_message is None:
-            logger.error("Giving up â€“ no MISSION_COUNT.")
+                lambda cursor, deadline: self._messages.wait_after(
+                    "MISSION_COUNT",
+                    cursor,
+                    lambda message: self._from_target_table(message, mission_type),
+                    deadline=deadline,
+                ),
+            ),
+            ack_timeout,
+            log=log,
+        )
+        if sample is None:
+            logger.error(f"Giving up – no MISSION_COUNT ({exchange.reason.value}).")
             return 0
-        total = count_message.count
+        total = sample.message.count
         if total == 0:
             self._store.replace_items([])
             return 0
         staged_items = []
         for sequence in range(total):
-            received = None
-            for attempt in range(1, retries + 1):
-                cursor = self._messages.cursor()
-                self._transport.call(
-                    lambda connection, seq=sequence: (
-                        connection.mav.mission_request_int_send(
-                            self._target,
-                            0,
-                            seq,
-                            mission_type,
+            exchange, sample = run_exchange(
+                policy, self._link, self._messages,
+                ExchangeIo(
+                    f"MISSION_REQUEST_INT {sequence}",
+                    lambda seq=sequence: self._transport.call(
+                        lambda connection: connection.mav.mission_request_int_send(
+                            self._target, 0, seq, mission_type,
                         )
-                    )
-                )
-                sample = self._messages.wait_after(
-                    ("MISSION_ITEM_INT", "MISSION_ITEM"),
-                    cursor,
-                    lambda message, seq=sequence: (
-                        self._from_target_table(message, mission_type)
-                        and getattr(message, "seq", None) == seq
                     ),
-                    deadline=rt.monotonic() + timeout,
-                )
-                if sample is not None:
-                    received = sample.message
-                    break
-                logger.warning(
-                    f"MISSION_ITEM {sequence} timeout "
-                    f"(attempt {attempt}/{retries})"
-                )
-            if received is None:
-                logger.error(f"Giving up â€“ item {sequence} missing.")
+                    lambda cursor, deadline, seq=sequence: self._messages.wait_after(
+                        ("MISSION_ITEM_INT", "MISSION_ITEM"),
+                        cursor,
+                        lambda message: (
+                            self._from_target_table(message, mission_type)
+                            and getattr(message, "seq", None) == seq
+                        ),
+                        deadline=deadline,
+                    ),
+                ),
+                item_timeout,
+                log=log,
+            )
+            if sample is None:
+                logger.error(f"Giving up – item {sequence} missing ({exchange.reason.value}).")
                 return 0
-            staged_items.append(received)
+            staged_items.append(sample.message)
             if on_progress:
                 on_progress(sequence + 1, total)
         self._store.replace_items(staged_items)
@@ -115,16 +127,18 @@ class MissionDownloader:
 
     def download_items(
         self,
-        timeout: float = 10.0,
-        retries: int = 3,
         mission_type: int = MAV_MISSION_TYPE_MISSION,
+        policy: ExchangePolicy | None = None,
     ) -> list[MAVLink_message]:
         snapshot = self._store.snapshot()
         try:
-            count = self.download(timeout, retries, mission_type=mission_type)
+            count = self.download(mission_type=mission_type, policy=policy)
             return self._store.snapshot() if count > 0 else []
         finally:
             self._store.restore(snapshot)
+
+    def _log(self, line: str) -> None:
+        self._logger_ref.value.info(line, "mission")
 
     def _from_target_table(
         self,

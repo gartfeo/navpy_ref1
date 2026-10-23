@@ -170,6 +170,14 @@ class VehicleCloseGate:
         return self._vehicle_close()
 
 
+class _StopBeforeStart(Exception):
+    pass
+
+
+def _nothing() -> None:
+    pass
+
+
 class RuntimeSession:
     """Run the UI pump and guarantee complete ordered cleanup."""
 
@@ -196,9 +204,18 @@ class RuntimeSession:
         self._stop_requested = stop_requested
         self._acknowledge_stop = acknowledge_stop
 
+    @classmethod
+    def stopped(cls, resources: RuntimeResourceStack, **hooks: Callable[..., object]) -> RuntimeSession:
+        """The session of a stop during startup: it only cleans up and acknowledges."""
+        return cls(resources=resources, start_vision=_nothing, start_controller=_nothing,
+                   health_check=_nothing, ui_step=lambda: False, sleep=rt.sleep, **hooks)
+
     def run(self) -> int:
         primary: BaseException | None = None
         try:
+            # A stop that came during startup starts nothing (todo 105).
+            if self._stop_was_requested():
+                raise _StopBeforeStart
             self._start_vision()
             self._start_controller()
             ready_pending = True
@@ -213,7 +230,7 @@ class RuntimeSession:
                 if not keep_running or self._stop_was_requested():
                     break
                 self._sleep(0.005)
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, _StopBeforeStart):
             pass
         except BaseException as error:
             primary = error

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
 from navpy.plugins.vehicle.ardupilot.vehicle_build_transaction import (
@@ -34,6 +36,7 @@ def build_vehicle_parts(
     mav_type: int,
     mav_comp_id: int,
     bus: MavBus | None,
+    stop_requested: Callable[[], bool] | None = None,
 ) -> VehicleParts:
     """Translate the compatibility signature into one immutable request."""
     return _build_vehicle_parts(
@@ -52,6 +55,7 @@ def build_vehicle_parts(
                 send_heartbeat,
                 heartbeat_hz,
                 heartbeat_timeout,
+                stop_requested,
             ),
             logger=logger,
         )

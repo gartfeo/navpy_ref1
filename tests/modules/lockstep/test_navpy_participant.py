@@ -140,11 +140,13 @@ def test_the_drain_end_stops_it_with_no_ack(make_loop):
     assert dones[-1].k == 5 and dones[-1].ended is True and composition.cleaned
 
 
-def test_a_stop_before_the_host_is_built_is_held(make_loop):
+def test_a_stop_before_the_run_starts_ends_it_without_readiness(make_loop):
+    """Todo 105: a stop during startup starts nothing (it was held until ready,
+    past the stop budget); the stop is acked and the exit is a startup failure."""
     composition = _Composition()
     loop, _hooks = make_loop(composition)
     dones = _run(loop, {1: _stop(1)})  # the admission tick carries it
-    assert [kind for _k, kind, _p in _events(dones)] == [READY_EVENT, "stopped"]
+    assert [kind for _k, kind, _p in _events(dones)] == ["stopped"]
     assert dones[-1].k == 1 and dones[-1].ended is True
 
 

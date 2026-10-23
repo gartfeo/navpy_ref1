@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_ONBOARD_CONTROLLER, MAV_COMP_ID_ONBOARD_COMPUTER
 
 from navpy.app.conn_args import ConnArgs
@@ -28,8 +30,12 @@ def create_vehicle(conn_args: ConnArgs,
                  component_id=MAV_COMP_ID_ONBOARD_COMPUTER,
                  mav_type=MAV_TYPE_ONBOARD_CONTROLLER,
                  open_bus: MavBusOpener = MavBus.get_or_create,
-                 bus: MavBus | None = None) -> IVehicle:
-    """``bus``, when the caller opened it, else opened with ``open_bus``."""
+                 bus: MavBus | None = None,
+                 stop_requested: Callable[[], bool] | None = None) -> IVehicle:
+    """``bus``, when the caller opened it, else opened with ``open_bus``.
+
+    ``stop_requested`` is NavPy's stop: once true, the vehicle's parameter
+    reads and mission transfers end at once (``radio_budget.md``, todo 105)."""
     if interface_type == 'vehicle-mav':
         if bus is None:
             bus = open_vehicle_bus(conn_args, open_bus, component_id)
@@ -42,6 +48,7 @@ def create_vehicle(conn_args: ConnArgs,
                           send_heartbeat,
                           mav_type=mav_type,
                           mav_comp_id=component_id,
-                          bus=bus)
+                          bus=bus,
+                          stop_requested=stop_requested)
     else:
         raise ValueError('Unknown interface type: {}'.format(interface_type))

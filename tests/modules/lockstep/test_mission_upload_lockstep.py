@@ -18,6 +18,7 @@ from types import SimpleNamespace
 import pytest
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
+from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.plugins.vehicle.ardupilot import mission_inbox, mission_upload
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
@@ -90,7 +91,9 @@ def run_baton_model(monkeypatch, count: int, *, ignore_counts=0, jitter=False):
                 inbox.publish(message, runtime.monotonic())
 
     def upload() -> None:
-        result["ok"] = uploader.upload(timeout=0.2, items=_items(count))
+        result["ok"] = uploader.upload(
+            items=_items(count), policy=ExchangePolicy(attempts=3), ack_timeout=0.1, abandon_s=0.2,
+        )
         result["tick"] = runtime.now_us // TICK_US
 
     runtime.spawn(reader, name="reader")
@@ -117,7 +120,10 @@ class SyncMissionUpload:
 
     It must copy the product's float deadline arithmetic (``now + timeout``
     in seconds) to match it: with integer deadlines a retry that the product's
-    float drift puts after a tick would fire one tick early.
+    float drift puts after a tick would fire one tick early. A ``MISSION_COUNT``
+    waits ``timeout_s / 2`` (the product's ``ack_timeout``) per send; after the
+    first request the upload ends ``timeout_s`` (its ``abandon_s``) after the
+    last reply.
     """
 
     def __init__(self, count: int, timeout_s: float, retries: int = 3) -> None:
@@ -141,7 +147,7 @@ class SyncMissionUpload:
                 )
                 last = message.seq + 1 >= self._count
                 self._state = "ack" if last else "items"
-                self._deadline_s = now_s + (3.0 if last else self._timeout_s)
+                self._deadline_s = now_s + self._timeout_s
             elif self._state == "ack" and message.get_type() == "MISSION_ACK":
                 self._finish(True, now_us)
         if self._state == "start" or (self._state == "count" and now_s >= self._deadline_s):

@@ -110,6 +110,7 @@ class ScriptedVehicle:
                 MavTransport(SimpleNamespace(mav=link), send),
                 store=None, inbox=inbox,
                 logger_ref=LoggerRef(logging.getLogger("lockstep.operator")),
+                link=None,  # the default policy never checks the link
             ),
         )
         runtime.spawn(self._reader, name=f"operator-reader-{self.sysid}")
@@ -184,7 +185,7 @@ class ScriptedVehicle:
             REPLY_TIMEOUT_S, "PARAM_VALUE AAS_NAV_CGT",
         )
         self._record("param_set", f"AAS_NAV_CGT={echo.param_value}")
-        ok = self._gcs.uploader.upload(timeout=REPLY_TIMEOUT_S, items=mission_items(self.home, self.sysid))
+        ok = self._gcs.uploader.upload(items=mission_items(self.home, self.sysid))
         if not ok:
             raise LockstepFault(f"scripted operator {self.sysid}: mission upload failed")
         self._record("mission_upload", f"ok={ok}")
