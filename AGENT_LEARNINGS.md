@@ -1219,3 +1219,16 @@
   paced sends, a sleep) stalls every stream of that vehicle; NetworkMavlink now dispatches on its own thread.
 - On a CRLF working-copy file, appending after the line's `\r` makes git treat the whole file as changed. Insert
   before the `\r`. Git Bash `grep -c $'\r'` printed 0 on that CRLF file; check endings with `git ls-files --eol`.
+
+## Todo 105: bounded mission transfers (2026-10-23)
+
+- An "exact" check against autopilot state needs its differences logged from the first version. The readback
+  after a lost final ACK never matched under `stress` (ArduPilot returns frame 0 for a command without a
+  location), and the first run could not say why; one logged line and a 2.5 min single stress cell
+  (`eval_gcs_navigation_demo.py --lockstep --sim-profile stress`) found it.
+- Passing deadline plumbing through a class or route can trip the SOLID guards (12 constructor dependencies,
+  300-line modules, 150-line functions). Run tests/guards with the first targeted tests, not at the end.
+- A request deadline must be checked where the work starts (in the executor thread), not before an awaited
+  broadcast, and a nested wait (reconnect's link wait) must take only the time left.
+- Mutation patterns in a Python list written through a bash heredoc lose their `\n` escapes; write them
+  with the Edit tool or build them with chr(92).

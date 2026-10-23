@@ -377,7 +377,7 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   transfer: its deadline and link check apply to every step.
 - **Attempts per step:** default `MISSION_PROTOCOL_ATTEMPTS = 6` (19 % per
   send gives 5e-5 per item if sends fail independently). GCS routes pass
-  `GCS_PARAM_ATTEMPTS` (12) with the request deadline and `stop_on_silence`, as todo 103.
+  `GCS_EXCHANGE_ATTEMPTS` (12) with the request deadline and `stop_on_silence`, as todo 103.
 - **Upload:** `MISSION_COUNT` → first request is a bounded exchange. Then
   each wait takes the vehicle's next request, any seq, so a re-request of
   the last item is answered too, or its final ACK. A wait is cut by the
@@ -391,7 +391,11 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   done only on an exact match: the count, and for every item but home
   frame, command, autocontinue, param1-4, x, y and z (floats compared as
   float32). Any difference, autopilot normalization included, falls back
-  to clear and re-upload, as today; the warn-only field check stays for
+  to clear and re-upload, as today, with one exception found in round 5:
+  ArduPilot stores no frame for a command without a location and returns
+  it as `MAV_FRAME_GLOBAL` (`AP_Mission.cpp`, `mission_cmd_to_mavlink_int`),
+  so a `MAV_FRAME_MISSION` item (the skip `DO_JUMP`) reading back with
+  frame 0 still matches; its other fields stay exact; the warn-only field check stays for
   confirmed uploads. Today a failed attempt re-uploads without a readback.
 - **Stop:** `ExchangePolicy` gets `cancelled` (a predicate; reason
   `cancelled`), checked with the deadline and the link before each send
@@ -436,6 +440,35 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   cap the lock wait. Mutations: the old waits, 3 attempts, no cancel check, writes
   cancelled, warn-only readback.
 - Runs: `none`, `hw`, `stress` matrices; full pytest.
+
+### Review additions
+
+- `POST /upload` starts no reconnect, `RTL_ALTITUDE` write, fence clear or
+  fence parameter write past its deadline; the fence's lock wait is bounded,
+  and a reconnect waits for the link only until the deadline. A lock won
+  after the deadline is given back unused. An error ACK to `MISSION_COUNT`
+  ends an upload at once.
+- Residual overrun: a parameter write or a reconnect already started may
+  end past the deadline (one write, about 6 s; building the reconnected
+  vehicle is not bounded). The eval's HTTP timeout is 15 s above the budget.
+- `VehicleMav` lost its `heartbeat_hz` argument (a constant now, 1 Hz as
+  every caller passed) to stay within the constructor guard.
+
+## Results (round 5, `.logs/radio-budget-r5`, `-r5b`, `-r5c`)
+
+- `none` and `hw` matrices pass (one digest each; `none` `61727653…`,
+  `hw` `84da3889…`). Opt-in tests pass (26). Wall eval passes when run
+  alone (`-r5b`); right after the matrices it failed on approach quality
+  (a 55.5° roll step on UAV 1, UAV 3 SNAP at 0.79 m without `DOCKED`),
+  with no mission-transfer link.
+- **105:** in `stress` NavPy's startup downloads take about 2 s (were
+  30-70 s), no stop overruns, and the GCS readbacks pass. One GCS upload
+  lost its final ACK; its readback differed only in the skip `DO_JUMP`'s
+  frame (above); with that fixed it counts as stored (`-r5c`).
+- **Not passing:** `stress` fails at one digest (`812fb485…`), later, at
+  the swarm task assignment: todo 111.
+- Full pytest: 8 failed, none from this change: the Codex agent sync
+  (untracked `.codex/agents/*.toml`) and the board detector.
 
 ## Not covered
 
