@@ -1,8 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { analyzeArea, generatePlan, computeSets, setTrackSpacingOverride } from '../utils/planner';
+import { analyzeArea, generatePlan, computeSets, getConfig, setTrackSpacingOverride } from '../utils/planner';
 import { autoAssignDeliveryHubs } from '../utils/deliveryHubAssignment';
 import { PHASES } from './useMissionState';
 import { autoUavCount } from '../utils/planLimits';
+
+// Marks a downloaded plan whose generator inputs are not committed yet.
+const HOLD_PENDING = Symbol('hold pending');
+
+// The planner configuration settings feed into generation (camera, overlap,
+// altitude separation, sets). The route offset override is an input of its
+// own, applied by an effect after render, so it is left out here.
+function generatorConfig() {
+  const { TRACK_SPACING_OVERRIDE_M, DEG2RAD, ...config } = getConfig();
+  return config;
+}
+
+// Per-set arrays grow with empty slots when the set count grows; those slots
+// are not an input change.
+function trimTrailing(items, isEmpty) {
+  let end = items.length;
+  while (end > 0 && isEmpty(items[end - 1])) end -= 1;
+  return items.slice(0, end);
+}
 
 /**
  * Manages local (instant) plan analysis and generation, plus auto-regen effects.
@@ -47,7 +66,42 @@ export default function usePlanGeneration({
     setTrackSpacingOverride(routeOffsetM);
   }, [routeOffsetM]);
 
-  // Resize per-set arrays when effective sets count changes
+  // A plan downloaded from the vehicles is held until the operator changes
+  // what plans are generated from. Its own follow-up commits (the hub save's
+  // settings round trip, per-set arrays resizing, planner readiness) must not
+  // replace the vehicles' missions with a regenerated plan. The hold keys on
+  // the generator inputs as they stand once the download has landed; a
+  // settings edit that changes the planner configuration is an input change.
+  const heldInputsRef = useRef(null);
+  const generationInputs = JSON.stringify({
+    polygon: polygon.map((p) => [p.lat, p.lon]),
+    searchPattern,
+    count: effectiveUavCount,
+    partitionAngleDeg,
+    routeOffsetM,
+    launchPoints: trimTrailing(setLaunchPoints, (lp) => lp == null),
+    corridors: trimTrailing(setCorridorPointsArr ?? [], (cp) => !cp?.length),
+    config: generatorConfig(),
+  });
+  const holdDownloadedPlan = useCallback(() => { heldInputsRef.current = HOLD_PENDING; }, []);
+  // A loaded plan file replaces the downloaded plan, even with equal inputs.
+  const releaseDownloadedPlan = useCallback(() => { heldInputsRef.current = null; }, []);
+  // Declared before every regen effect, so the commit that lands the download
+  // records its inputs before any of them runs. A download that lands before
+  // the planner is configured is recorded once it is: the fallback
+  // configuration is not the one the operator will plan with.
+  useEffect(() => {
+    if (heldInputsRef.current === HOLD_PENDING && plannerReady) heldInputsRef.current = generationInputs;
+  });
+  // True while the downloaded plan is held; an input change ends the hold.
+  const planHeld = () => {
+    if (heldInputsRef.current === generationInputs) return true;
+    heldInputsRef.current = null;
+    return false;
+  };
+
+  // Keep one per-set slot per set: when the set count changes, and when a
+  // replacement (a download, a plan file) sets arrays of another length.
   useEffect(() => {
     setSetLaunchPoints((prev) => {
       if (prev.length === effectiveSets) return prev;
@@ -60,7 +114,7 @@ export default function usePlanGeneration({
       return prev.slice(0, effectiveSets);
     });
     setActiveSetIndex((prev) => Math.min(prev, effectiveSets - 1));
-  }, [effectiveSets]);
+  }, [effectiveSets, setLaunchPoints.length, setCorridorPointsArr?.length]);
 
   // Per-set approach points: last corridor point for each set, or its launch point
   const setApproachPoints = setLaunchPoints.map((lp, si) => {
@@ -98,6 +152,7 @@ export default function usePlanGeneration({
         ap ? { lat: ap.lat, lon: ap.lon } : null, cp,
         setApproachPoints, partitionAngleDeg,
       );
+      heldInputsRef.current = null;
       setPlan(result);
     }
   }, [plannerReady, setAnalysis, setPlan, searchPattern, uavCount, uavCountLocked, setUavCount, launchPoint, corridorPoints, setApproachPoints, partitionAngleDeg]);
@@ -126,6 +181,7 @@ export default function usePlanGeneration({
         altitude_m: alt + (result.zones.length - 1 - i) * sep,
       }));
     }
+    heldInputsRef.current = null;
     setPlan(result);
     // Auto-assign delivery hubs when plan has zones and delivery hubs exist (skip if manually edited)
     const deliveryHubs = settings?.default_delivery_hubs;
@@ -157,6 +213,7 @@ export default function usePlanGeneration({
     if (!plannerReady) return;
     if (phaseRef.current !== PHASES.PLANNING) return;
     if (suppressRegenRef.current) return;
+    if (planHeld()) return;
     if (searchPattern === 'corridor') {
       if (corridorPath) {
         const polyArg = polygon.length >= 3 ? polygon : corridorPath;
@@ -176,6 +233,7 @@ export default function usePlanGeneration({
     if (!plannerReady) return;
     if (phaseRef.current !== PHASES.PLANNING) return;
     if (suppressRegenRef.current) return; // snapshot restore — keep the restored plan
+    if (planHeld()) return;
     if (searchPattern === 'corridor') {
       if (corridorPath) {
         const polyArg = polygon.length >= 3 ? polygon : corridorPath;
@@ -241,10 +299,13 @@ export default function usePlanGeneration({
   useEffect(() => {
     if (!plannerReady) return;
     if (phaseRef.current !== PHASES.PLANNING) return;
+    // The one-shot skip is consumed first, held plan or not: left set, it
+    // would block the operator's next regen.
     if (suppressRegenRef.current) {
       suppressRegenRef.current = false;
       return;
     }
+    if (planHeld()) return;
     const curCorridorPath = searchPattern === 'corridor' && launchPoint && corridorPoints.length > 0
       ? [launchPoint, ...corridorPoints] : null;
     if (searchPattern === 'corridor') {
@@ -271,7 +332,11 @@ export default function usePlanGeneration({
     if (!plannerReady) return;
     if (phaseRef.current !== PHASES.PLANNING) return;
     if (!settingsVersion) return; // skip initial mount
-    if (polygon.length >= 3) {
+    if (polygon.length < 3) return;
+    if (planHeld()) {
+      // Re-analyze for the UI only; the held plan keeps its tracks.
+      setAnalysis(analyzeArea(polygon.map((p) => ({ lat: p.lat, lon: p.lon }))));
+    } else {
       localAnalyze(polygon);
     }
   }, [plannerReady, settingsVersion]);
@@ -282,6 +347,8 @@ export default function usePlanGeneration({
     localAnalyze,
     localGenerate,
     regenerateLoadedPlan,
+    holdDownloadedPlan,
+    releaseDownloadedPlan,
     approachPoint,
     corridorPath,
   };

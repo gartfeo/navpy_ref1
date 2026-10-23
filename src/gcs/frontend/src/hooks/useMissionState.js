@@ -133,8 +133,8 @@ export default function useMissionState() {
     applyObservationState((prev) => reserveObservations(prev, sysIds, seq));
   }, [applyObservationState]);
 
-  const resetFenceObservations = useCallback(() => {
-    applyObservationState(resetObservations);
+  const resetFenceObservations = useCallback((options) => {
+    applyObservationState((prev) => resetObservations(prev, options));
   }, [applyObservationState]);
 
   // Mirror so a toggle reads the committed value without a state updater.

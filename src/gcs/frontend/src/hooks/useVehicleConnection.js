@@ -47,7 +47,7 @@ export default function useVehicleConnection({
     setFenceEnabled, setFenceTouched, setFenceCustomVertices,
     setExclusionPolygons,
     beginFenceObservation, recordFenceObservation, resetFenceObservations,
-    reserveFenceObservations, clearFenceIntent,
+    reserveFenceObservations, clearFenceIntent, fenceObservations,
   } = mission;
 
   // Read one vehicle's stored geofence into the OBSERVATION map.
@@ -84,6 +84,25 @@ export default function useVehicleConnection({
     reserveFenceObservations?.(sysIds);
     await Promise.all(sysIds.map((sysId) => observeFenceFromVehicle(sysId, isActive)));
   }, [observeFenceFromVehicle, reserveFenceObservations]);
+
+  // A loaded plan file starts an observation lifecycle that reads the fleet
+  // (resetFenceObservations readFleet): read every connected vehicle, and
+  // every vehicle that joins the roster later in it, a reconnect included.
+  // Answers from a later lifecycle are dropped by their token.
+  const fleetReadRef = useRef({ epoch: null, roster: new Set() });
+  const observationEpoch = fenceObservations?.epoch;
+  const readsFleet = !!fenceObservations?.readsFleet;
+  const rosterKey = vehicleList.map((v) => v.sys_id).join(',');
+  useEffect(() => {
+    if (!readsFleet) return;
+    const read = fleetReadRef.current;
+    const seen = read.epoch === observationEpoch ? read.roster : new Set();
+    fleetReadRef.current = {
+      epoch: observationEpoch, roster: new Set(vehicleList.map((v) => v.sys_id)),
+    };
+    const joined = vehicleList.filter((v) => !seen.has(v.sys_id));
+    if (joined.length > 0) observeFleetFence(joined);
+  }, [observationEpoch, readsFleet, rosterKey]);
   // Ref tracks latest plan to avoid stale closures after awaited API calls
   const planRef = useRef(plan);
   planRef.current = plan;

@@ -97,16 +97,24 @@ function watermarkOf(entry) {
 
 /** Initial (nothing observed, nothing asked) state. */
 export function emptyFenceObservations() {
-  return { epoch: 0, edit: 0, bySysId: {} };
+  return { epoch: 0, edit: 0, bySysId: {}, readsFleet: false };
 }
 
 /**
  * Start a new observation lifecycle — a new/replacement plan, a cleared plan,
  * or a roster change. Results still in flight from the previous epoch are
  * dropped by {@link recordFenceObservation}.
+ *
+ * `readFleet` starts a lifecycle that reads the whole fleet: a loaded plan
+ * file re-reads the fence of every vehicle connected during it
+ * (useVehicleConnection). Until a vehicle's read is reserved it reads as
+ * pending, so the demo default cannot fill the gap.
  */
-export function resetFenceObservations(state) {
-  return { epoch: (state?.epoch ?? 0) + 1, edit: state?.edit ?? 0, bySysId: {} };
+export function resetFenceObservations(state, { readFleet = false } = {}) {
+  return {
+    epoch: (state?.epoch ?? 0) + 1, edit: state?.edit ?? 0, bySysId: {},
+    readsFleet: readFleet,
+  };
 }
 
 /**
@@ -117,7 +125,7 @@ export function resetFenceObservations(state) {
  */
 export function invalidateFenceObservations(state) {
   const base = state ?? emptyFenceObservations();
-  return { epoch: base.epoch, edit: base.edit + 1, bySysId: base.bySysId };
+  return { ...base, edit: base.edit + 1 };
 }
 
 /**
@@ -142,7 +150,7 @@ export function reserveFenceObservations(state, sysIds, seq = null) {
       : (seq == null ? previous : Math.max(previous, seq));
     bySysId[sysId] = pendingFenceObservation(startedSeq);
   }
-  return { epoch: base.epoch, edit: base.edit, bySysId };
+  return { ...base, bySysId };
 }
 
 /** Token identifying one in-flight read: its lifecycle and its order. */
@@ -168,8 +176,7 @@ export function recordFenceObservation(state, sysId, observation, token) {
   const watermark = watermarkOf(previous);
   if (watermark != null && token.seq < watermark) return base;
   return {
-    epoch: base.epoch,
-    edit: base.edit,
+    ...base,
     bySysId: {
       ...base.bySysId,
       [sysId]: { ...observation, seq: token.seq, startedSeq: token.seq },
@@ -209,7 +216,8 @@ export function summarizeFenceObservations(state, sysIds) {
     modes[id] = observations[i].mode;
     autoenableModes[id] = observations[i].params?.autoenable ?? null;
   });
-  const asked = roster.some((id) => bySysId[id] !== undefined);
+  const asked = roster.some((id) => bySysId[id] !== undefined)
+    || (!!state?.readsFleet && roster.length > 0);
   const autoenableValues = roster.map((id) => autoenableModes[id]);
   const autoenableMode = autoenableValues.length > 0
     && autoenableValues.every((v) => v != null && v === autoenableValues[0])

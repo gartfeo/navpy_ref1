@@ -1207,3 +1207,21 @@
   later reload was denied in auto mode. Restore it to null afterwards.
 - A real link outage is hard to make live (suspending SITL or the router left
   link_ok true); the stale-then-fresh run break is proven by unit tests only.
+
+## Downloaded plan hold and loaded-plan fence read (todos 90, 91, 2026-10-23)
+
+- The Edit tool rewrote a CRLF hook file as LF. For CRLF files, edit with a small
+  script that normalizes to LF, replaces exact strings (assert one match) and saves CRLF.
+- Check phase gating before trusting a "reload" repro: every plan regen effect runs only
+  in PLANNING, and after a reload the app starts in MONITOR, so the race needed the
+  planner open. Reproduce the mechanism, not the reported path.
+- A download always saves its delivery hubs to settings, so a settings round trip
+  follows every download; anything keyed on settingsVersion runs after it.
+- A one-shot "skip the next regen" flag is consumed by whichever effect runs first.
+  Key a hold on the inputs it protects (a JSON of the generator inputs), released by
+  any input change or an explicit replacement.
+- Mirror App's effect declaration order in hook harnesses: a harness that ran
+  useVehicleConnection before App's demo-default effect hid a real window.
+- Five Codex rounds each found real lifecycle gaps (late joins, reconnects, corridor
+  files, multi-set arrays). Ask the reviewer to try roster changes, every file-load
+  variant and multi-set counts up front.
