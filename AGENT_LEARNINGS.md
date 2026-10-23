@@ -830,6 +830,8 @@
 - To tell a NavPy stall from a SITL stall, compare NavPy's ATTITUDE arrival lag with the GCS receiver's for the same UAV:
   equal lag is upstream (SITL/WSL), NavPy-only lag is NavPy.
 - In Git Bash pass Windows paths in PYTHONPATH (`pwd -W`); a /c/... path silently imports the main checkout's package.
+  Repeated 2026-10-23 (todo 31 fix): a new regression test "failed on the fix" because it ran main's code. Put
+  `python -c "import navpy; print(navpy.__file__)"` in the same command as the first test run.
 
 ## GCS video streams and FPV (2026-10-18)
 - `plugins/vehicle` must not import `core/perception`; pass the camera's stream specs in as plain
