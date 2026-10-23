@@ -8,7 +8,7 @@ import math
 import statistics
 from dataclasses import dataclass
 from itertools import accumulate
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 import numpy as np
 
@@ -74,19 +74,41 @@ class StreamSources:
         return loc, quat_slerp(a.quat, b.quat, w), b.board_us - a.board_us <= POSE_MAX_BRACKET_GAP_US
 
 
-def gimbal_at(steps: Sequence[GimbalStep], times: Sequence[float], qpc_s: float) -> Optional[tuple[GimbalStep, bool]]:
-    """FNavPyGimbalHistory::Query on the emulator's steps: a lerp inside a valid bracket (consecutive sequences at
-    most 30 ms apart), else the nearest step, not valid."""
+@dataclass(frozen=True)
+class GimbalBracket:
+    """The steps FNavPyGimbalHistory::Query uses at one instant: a bracket (weight towards ``newer``), or one step
+    on both ends for an exact hit or the nearest-step fallback; ``valid`` as the plugin's bValid."""
+    older: GimbalStep
+    newer: GimbalStep
+    weight: float
+    valid: bool
+
+
+def gimbal_bracket(steps: Sequence[GimbalStep], times: Sequence[float], qpc_s: float) -> Optional[GimbalBracket]:
+    """FNavPyGimbalHistory::Query on the emulator's steps: a valid bracket (consecutive sequences of one session at
+    most 30 ms apart; the plugin clears its history on a new session) or an exact hit, else the nearest step, not
+    valid; None outside the steps."""
     i = bisect.bisect_right(times, qpc_s) - 1
     if i < 0 or i + 1 >= len(steps) and steps[i].t != qpc_s:
         return None
     a = steps[i]
     if a.t == qpc_s:
-        return a, True
+        return GimbalBracket(a, a, 0.0, True)
     b = steps[i + 1]
-    if b.seq != a.seq + 1 or b.t - a.t > GIMBAL_MAX_BRACKET_GAP_S:
-        return (a if qpc_s - a.t <= b.t - qpc_s else b), False
-    w = (qpc_s - a.t) / (b.t - a.t)
+    if b.seq != a.seq + 1 or b.session != a.session or b.t - a.t > GIMBAL_MAX_BRACKET_GAP_S:
+        nearest = a if qpc_s - a.t <= b.t - qpc_s else b
+        return GimbalBracket(nearest, nearest, 0.0, False)
+    return GimbalBracket(a, b, (qpc_s - a.t) / (b.t - a.t), True)
+
+
+def gimbal_at(steps: Sequence[GimbalStep], times: Sequence[float], qpc_s: float) -> Optional[tuple[GimbalStep, bool]]:
+    """The gimbal the query renders: angles lerped inside a valid bracket, else the one step used."""
+    bracket = gimbal_bracket(steps, times, qpc_s)
+    if bracket is None:
+        return None
+    a, b, w = bracket.older, bracket.newer, bracket.weight
+    if a is b:
+        return a, bracket.valid
     return GimbalStep(qpc_s, a.seq, a.yaw + w * (b.yaw - a.yaw), a.pitch + w * (b.pitch - a.pitch),
                       a.roll + w * (b.roll - a.roll), a.roll_stabilized, a.zoom), True
 
@@ -128,12 +150,13 @@ def board_corners_world(board: BoardPose, flip_x: float, flip_y: float) -> np.nd
 
 def project(points_cm: np.ndarray, location: Vec, quat: Quat, camera: CameraModel) -> np.ndarray:
     """Pixels (OpenCV convention) of world points in an Unreal camera (X forward, Y right, Z up) with the native
-    camera's pinhole (NavPyGimbalCameraActor::BuildNativeCameraIntrinsicsProjection)."""
+    camera's pinhole, skew included (FNavPyPinhole::ProjectionMatrix)."""
     inverse = quat_conj(quat)
     out = []
     for p in points_cm:
         x, y, z = quat_rotate(inverse, (p[0] - location[0], p[1] - location[1], p[2] - location[2]))
-        out.append([camera.fx * y / x + camera.cx, -camera.fy * z / x + camera.cy] if x > 0 else [math.nan, math.nan])
+        out.append([camera.fx * y / x - camera.skew * z / x + camera.cx, -camera.fy * z / x + camera.cy]
+                   if x > 0 else [math.nan, math.nan])
     return np.array(out)
 
 
@@ -148,12 +171,17 @@ def record_transform(record: dict) -> tuple[Vec, Quat]:
     return parse_vec(record["cam_loc"]), parse_vec(record["cam_quat"])
 
 
-def check_oracle(log: UnrealLog, sent: Sequence[dict], steps: Sequence[GimbalStep], mount: Mount) -> dict:
+def stream_sources(log: UnrealLog, mount: Mount) -> dict[int, StreamSources]:
+    """The camera's receiver's admitted poses, by stream generation."""
     sources: dict[int, list[Admit]] = {}
     for a in log.admits:
         if a.port == mount.receiver_port and a.admitted:
             sources.setdefault(a.gen, []).append(a)
-    streams = {gen: StreamSources(admits) for gen, admits in sources.items()}
+    return {gen: StreamSources(admits) for gen, admits in sources.items()}
+
+
+def check_oracle(log: UnrealLog, sent: Sequence[dict], steps: Sequence[GimbalStep], mount: Mount) -> dict:
+    streams = stream_sources(log, mount)
     step_times = [s.t for s in steps]
     first_board: dict[int, int] = {}
     for s in sent:
@@ -191,34 +219,44 @@ def check_oracle(log: UnrealLog, sent: Sequence[dict], steps: Sequence[GimbalSte
             and max(angle_err) <= ANGLE_TOLERANCE_DEG and max(loc_err) <= LOCATION_TOLERANCE_CM}
 
 
-def _corner_errors(record: dict, frame: dict, corners: np.ndarray, camera: CameraModel) -> Optional[np.ndarray]:
+def _corner_errors(record: dict, frame: dict, corners: np.ndarray, camera: Optional[CameraModel]) -> Optional[np.ndarray]:
     detected = frame.get("corners") or []
-    if len(detected) < MIN_REPROJECTION_CORNERS:
+    if camera is None or len(detected) < MIN_REPROJECTION_CORNERS:
         return None
     loc, quat = record_transform(record)
     projected = project(corners[[int(c[0]) for c in detected]], loc, quat, camera)
     return np.linalg.norm(projected - np.array([[c[1], c[2]] for c in detected]), axis=1)
 
 
-def check_reprojection(log: UnrealLog, sent: Sequence[dict], recorded: dict[int, dict], camera: CameraModel) -> dict:
+def check_reprojection(log: UnrealLog, sent: Sequence[dict], recorded: dict[int, dict],
+                       camera_for: Callable[[dict], Optional[CameraModel]],
+                       group: Optional[Callable[[dict], str]] = None) -> dict:
+    """``camera_for`` gives the pinhole a frame must have rendered with (by its record; None: not scored);
+    ``group`` optionally names each frame's group for a p95 per group (the lens status)."""
     if log.board is None:
         return {"pass": False, "reason": "no NavPyBoardPose line"}
     ordered = sorted((s for s in sent if int(s["frame"]) in recorded), key=lambda s: int(s["frame"]))
     best = None
     for flips in ((1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)):
         corners = board_corners_world(log.board, *flips)
-        errors = [e for s in ordered if (e := _corner_errors(s, recorded[int(s["frame"])], corners, camera)) is not None]
-        median = statistics.median(float(np.median(e)) for e in errors) if errors else math.inf
+        errors = [(s, e) for s in ordered
+                  if (e := _corner_errors(s, recorded[int(s["frame"])], corners, camera_for(s))) is not None]
+        median = statistics.median(float(np.median(e)) for _s, e in errors) if errors else math.inf
         if best is None or median < best[0]:
             best = (median, flips, corners, errors)
     _median, flips, corners, own = best
     if not own:
         return {"pass": False, "reason": "no frame with enough detected corners"}
-    residuals = [float(r) for e in own for r in e]
+    residuals = [float(r) for _s, e in own for r in e]
+    by_group: dict[str, list[float]] = {}
+    for s, e in own:
+        if group is not None:
+            by_group.setdefault(group(s), []).extend(float(r) for r in e)
     # Timing probe: the frame's own record against its neighbours' records, where their cameras moved the board.
     own_moving, neighbour_moving = [], []
     for i, s in enumerate(ordered):
         frame = recorded[int(s["frame"])]
+        camera = camera_for(s)
         mine = _corner_errors(s, frame, corners, camera)
         if mine is None:
             continue
@@ -235,8 +273,11 @@ def check_reprojection(log: UnrealLog, sent: Sequence[dict], recorded: dict[int,
     p95 = _quantile(residuals, 0.95)
     timing_pass = (len(own_moving) >= MIN_NEIGHBOUR_FRAMES
                    and statistics.median(own_moving) < statistics.median(neighbour_moving))
-    return {"frames": len(own), "corners": len(residuals), "flips": flips, "p95_px": p95,
+    groups = {name: {"frames": sum(1 for s, _e in own if group(s) == name), "p95_px": _quantile(values, 0.95)}
+              for name, values in sorted(by_group.items())}
+    return {"frames": len(own), "corners": len(residuals), "flips": flips, "p95_px": p95, "groups": groups,
             "moving_pairs": len(own_moving),
             "own_median_px": statistics.median(own_moving) if own_moving else None,
             "neighbour_median_px": statistics.median(neighbour_moving) if neighbour_moving else None,
-            "pass": p95 is not None and p95 <= REPROJECTION_P95_PX and timing_pass}
+            "pass": p95 is not None and p95 <= REPROJECTION_P95_PX and timing_pass
+            and all(g["p95_px"] <= REPROJECTION_P95_PX for g in groups.values())}

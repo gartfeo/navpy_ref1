@@ -11,8 +11,10 @@ Two commands:
       --unreal-log ...\AasSimProject.log --emulator-log C:\tune_hitl\cadence\zr10.jsonl --out C:\tune_hitl\cadence\report.json
 
 Unreal runs with -NavPyNativeCameraBoardTimeCadence=1 -NavPyInterpolatedVehiclePose=1
--NavPyNativeCameraHeaderVersion=2 -NavPyNativeCameraIntrinsics=1 -NavPyDockCharucoBoard=1. One camera run per
-recording (one Unreal session, one camera connection).
+-NavPyNativeCameraHeaderVersion=2 -NavPyDockCharucoBoard=1 and either -NavPyLensProfile=<vision_profiles.json>
+(the lens table, step 5: a zooming lens, scored per frame with its row) or -NavPyNativeCameraIntrinsics=1 (fixed
+zoom-1 K at 1280 x 720: the lens must not move). One camera run per recording (one Unreal session, one camera
+connection).
 
 What is checked (step 4's done list, and the design's rendered-state identity):
 - identity: one camera run (reconnects of it allowed); no frame index twice in the log (sent and lost) or the
@@ -32,9 +34,13 @@ What is checked (step 4's done list, and the design's rendered-state identity):
   interpolated at the slot's board time, the emulator's true gimbal angles at that instant and the NavPyCameraMount
   offsets; it must equal the logged transform within 0.01 deg / 1 mm, with valid pose and gimbal brackets, after a
   2 s warm-up per stream;
-- reprojection: the board corners projected with each frame's logged camera and K fit the detected corners
-  (p95 of the corner residuals <= 2 px), better than the neighbouring frames' cameras do where the camera moved
-  between them.
+- lens (step 5, cadence_lens.py): the gimbal bracket of every capture rebuilt from the oracle's query instant and
+  the emulator's steps must equal the logged one, and the row and status (settled / held) FNavPyLensSelector's rule
+  gives on those steps' lens states must equal the logged ones; no-lens misses only while nothing is remembered;
+  every settled lens state has a row; >= 10 frames with the board at every settled setting and held in travel;
+- reprojection: the board corners projected with each frame's logged camera and the K it had to render with (its
+  expected row, settled or held; the fixed K) fit the detected corners (p95 of the corner residuals <= 2 px, also
+  per lens status), better than the neighbouring frames' cameras do where the camera moved between them.
 
 Scoring only: nothing here reaches navpy's navigation.
 """
@@ -46,11 +52,13 @@ import math
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
+from tools.unreal.cadence_lens import check_lens, lens_group, load_bound_table, row_camera
 from tools.unreal.cadence_log import GimbalStep, UnrealLog, parse_emulator_log, parse_log
 from tools.unreal.cadence_oracle import (ANGLE_TOLERANCE_DEG, LOCATION_TOLERANCE_CM, record_transform, check_oracle,
-                                         check_reprojection)
+                                         check_reprojection, stream_sources)
 from tools.unreal.cadence_record import DEFAULT_LISTEN, parse_endpoint, record
 from tools.unreal.dock_pass_geometry import zr10_camera
+from tools.unreal.lens_fixtures import PROFILE
 from tools.unreal.pose_stamp_log import _angle_deg as quat_angle_deg
 from tools.unreal.unreal_math import slot_time_us
 
@@ -92,12 +100,10 @@ def in_flight_at_close(sent_frames: Iterable[int], frames: Sequence[dict],
     return ok, bad
 
 
-def check_run(log: UnrealLog, frames: Sequence[dict], steps: Sequence[GimbalStep], zoom: float = 1.0) -> dict:
-    """``zoom`` is the run's fixed -NavPyNativeCameraZoom: K is scored at that zoom, so the gimbal must hold it."""
+def check_run(log: UnrealLog, frames: Sequence[dict], steps: Sequence[GimbalStep], profile: Path = PROFILE) -> dict:
+    """A run whose camera bound a lens table (NavPyLensTable line) is scored per frame with the row it had to render,
+    from ``profile`` (the file it loaded); one without is a fixed-K run, scored with the zoom-1 K at a still lens."""
     report: dict = {}
-    seen_zoom = sorted({s.zoom for s in steps})
-    report["zoom"] = {"expected": zoom, "seen": seen_zoom, "pass": seen_zoom == [zoom]}
-
     sent = [s for s in log.slots if s.get("outcome") == "sent"]
     runs = sorted({s["run"] for s in log.slots})
     # The camera's frame index never restarts within a run (reconnects included); missed slots have none.
@@ -115,6 +121,10 @@ def check_run(log: UnrealLog, frames: Sequence[dict], steps: Sequence[GimbalStep
     mount = log.mounts[runs[0]]
     by_frame = {int(s["frame"]): s for s in sent}
     recorded = {int(f["frame"]): f for f in frames}
+    bound = log.lens_tables.get(runs[0])
+    if bound is None:
+        seen_zoom = sorted({s.zoom for s in steps})
+        report["zoom"] = {"expected": 1.0, "seen": seen_zoom, "pass": seen_zoom == [1.0]}
 
     # Joins.
     joined = [i for i in by_frame if i in recorded and int(recorded[i]["board_us"]) == int(by_frame[i]["board_us"])
@@ -176,7 +186,20 @@ def check_run(log: UnrealLog, frames: Sequence[dict], steps: Sequence[GimbalStep
     report["repeated_pictures"] = {"count": repeated, "pass": repeated == 0}
 
     report["oracle"] = check_oracle(log, sent, steps, mount)
-    report["reprojection"] = check_reprojection(log, sent, recorded, zr10_camera(zoom))
+    if bound is None:
+        fixed = zr10_camera()
+        report["reprojection"] = check_reprojection(log, sent, recorded, lambda _s: fixed)
+    else:
+        try:
+            table, stream = load_bound_table(bound, profile)
+        except (OSError, ValueError, KeyError) as error:
+            report["lens"] = {"pass": False, "reason": str(error)}
+        else:
+            report["lens"], expected = check_lens(log, steps, stream_sources(log, mount), table, stream, recorded)
+            cameras = {frame: row_camera(row, stream) for frame, (row, *_rest) in expected.items()}
+            report["reprojection"] = check_reprojection(
+                log, sent, recorded, lambda s: cameras.get(int(s["frame"])),
+                lambda s: lens_group(*expected[int(s["frame"])]))
     report["pass"] = all(part["pass"] for part in report.values() if isinstance(part, dict))
     return report
 
@@ -192,7 +215,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     chk.add_argument("--frames", type=Path, required=True)
     chk.add_argument("--unreal-log", type=Path, required=True)
     chk.add_argument("--emulator-log", type=Path, required=True)
-    chk.add_argument("--zoom", type=float, default=1.0, help="-NavPyNativeCameraZoom of the run")
+    chk.add_argument("--profile", type=Path, default=PROFILE, help="the vision_profiles.json the run's camera loaded")
     chk.add_argument("--out", type=Path, default=None)
     args = parser.parse_args(argv)
     if args.command == "record":
@@ -201,7 +224,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     frames = [json.loads(line) for line in args.frames.read_text(encoding="utf-8").splitlines() if line.strip()]
     log = parse_log(args.unreal_log.read_text(encoding="utf-8", errors="replace").splitlines())
     steps = parse_emulator_log(args.emulator_log.read_text(encoding="utf-8").splitlines())
-    report = check_run(log, frames, steps, args.zoom)
+    report = check_run(log, frames, steps, args.profile)
     text = json.dumps(report, indent=1, default=str)
     if args.out is not None:
         args.out.write_text(text, encoding="utf-8")
