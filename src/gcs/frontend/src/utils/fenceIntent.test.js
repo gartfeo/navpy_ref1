@@ -7,6 +7,7 @@ import {
   fenceObservationToken,
   fenceUploadPayload,
   recordFenceObservation,
+  reserveFenceObservations,
   resetFenceObservations,
   summarizeFenceObservations,
   fenceMapDisplay,
@@ -166,6 +167,29 @@ describe('observation lifecycle', () => {
     const reset = resetFenceObservations(state);
     expect(Object.keys(reset.bySysId)).toHaveLength(0);
     expect(reset.epoch).not.toBe(state.epoch);
+  });
+
+  it("reads every vehicle of a fleet-read lifecycle as asked, also one not yet reserved", () => {
+    const reset = resetFenceObservations(emptyFenceObservations(), { readFleet: true });
+    const asked = summarizeFenceObservations(reset, [1, 2]);
+    expect(asked.hasObservations).toBe(true);
+    expect(asked.knownCount).toBe(0);
+    // With no vehicle connected nobody was asked.
+    expect(summarizeFenceObservations(reset, []).hasObservations).toBe(false);
+    // A vehicle that joins after the first reservation is still asked.
+    const reserved = reserveFenceObservations(reset, [1]);
+    const joined = summarizeFenceObservations(reserved, [2]);
+    expect(joined.hasObservations).toBe(true);
+    expect(joined.knownCount).toBe(0);
+    expect(reserved.epoch).toBe(reset.epoch);
+    // The next lifecycle starts without it.
+    expect(summarizeFenceObservations(resetFenceObservations(reserved), [2]).hasObservations)
+      .toBe(false);
+  });
+
+  it("starts a plain reset with nobody asked", () => {
+    const reset = resetFenceObservations(emptyFenceObservations());
+    expect(summarizeFenceObservations(reset, [1]).hasObservations).toBe(false);
   });
 });
 

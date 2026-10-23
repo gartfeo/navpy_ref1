@@ -830,6 +830,8 @@
 - To tell a NavPy stall from a SITL stall, compare NavPy's ATTITUDE arrival lag with the GCS receiver's for the same UAV:
   equal lag is upstream (SITL/WSL), NavPy-only lag is NavPy.
 - In Git Bash pass Windows paths in PYTHONPATH (`pwd -W`); a /c/... path silently imports the main checkout's package.
+  Repeated 2026-10-23 (todo 31 fix): a new regression test "failed on the fix" because it ran main's code. Put
+  `python -c "import navpy; print(navpy.__file__)"` in the same command as the first test run.
 
 ## GCS video streams and FPV (2026-10-18)
 - `plugins/vehicle` must not import `core/perception`; pass the camera's stream specs in as plain
@@ -1163,6 +1165,10 @@
   wants every new definition annotated. The 736-line checker passed five Codex
   rounds and only the full suite caught it. Run tests/guards with the targeted
   tests before the first review, not at the end.
+- Build Unreal with -DisableAdaptiveUnity before a PR. Adaptive unity compiles
+  changed files alone, so the incremental build hid a name clash (two test files'
+  anonymous-namespace constants) that broke the clean unity build on main
+  (aas-sim-unreal PR 2).
 
 ## Delivery demo as a normal run (2026-10-20)
 - I designed dock waypoints around the ZR10 preset altitudes (403/383/363 m),
@@ -1208,6 +1214,66 @@
 - A real link outage is hard to make live (suspending SITL or the router left
   link_ok true); the stale-then-fresh run break is proven by unit tests only.
 
+## Todo 31 root cause: reader blocked at approval (2026-10-23)
+
+- A "stale source" failure was a telemetry backlog, not a slow frame path. Before tracing detector stages, list
+  every NavPy ATTITUDE arrival gap above 150 ms and compare with the GCS's own reader: one NavPy-only gap per UAV,
+  with boot time contiguous afterwards (buffered, nothing lost), pointed at a blocked reader within minutes.
+- MAVLink callbacks run on the vehicle's single reader thread. Anything a callback waits on (a lock held across
+  paced sends, a sleep) stalls every stream of that vehicle; NetworkMavlink now dispatches on its own thread.
+- On a CRLF working-copy file, appending after the line's `\r` makes git treat the whole file as changed. Insert
+  before the `\r`. Git Bash `grep -c $'\r'` printed 0 on that CRLF file; check endings with `git ls-files --eol`.
+
+## Unreal lens table, HITL step 5 (2026-10-23)
+- Codex code review took five rounds, each finding a real hole in the checker's
+  coverage: a pooled p95 hid one wrong setting, travels counted from the actor's
+  own held captures skipped a travel it never captured, and travels without an
+  end let later held frames stand in. Derive every coverage requirement from the
+  independent source (emulator steps), gate each group on its own, and count only
+  frames whose mapped query falls inside the interval.
+- I set a 0.5 px reprojection gate in the design from a guess; the right rows
+  score 0.39-1.06 px live. Before fixing a pixel gate, measure the right row and
+  the nearest wrong rows on live data (scratch discriminate.py), then set it.
+- ReadingIntrinsicsTable.settings() and optics() take numbers: a string reading
+  ("1.1") returns () or None without an error. Pass float(reading).
+- A bare `cat > file` in a Bash command (no heredoc) waits on stdin until the
+  tool times out. Write scripts with the Write tool.
+- Other chats' pytest and GCS stacks started during the live run; check the
+  process list before and after a timing measurement and report the load.
+
+## NPYC v2 and reference-copy sync, HITL step 6 (2026-10-23)
+- I repeated the heredoc mistake again (a regex lost its backslashes). For edits with
+  backslashes or quotes, use the Edit tool or a script written with the Write tool and
+  run with `python -I`.
+- Syncing aas-hitl's Unreal reference copy moved every cited line number, and two
+  docstrings stated behaviour the new receiver no longer has (it now reads `sequence`
+  and `session_id`). After a sync, map each old citation by its line text
+  (scratch line_remap.py), then reread the producer for every "does not read" claim.
+- My first plan note claimed fragment sizes and a fixture count that no test used.
+  Codex caught it. Write each number in a completion note from the test's own
+  parametrization, and name what a test excludes.
+- A relay refusal test used a receiver sized 4x2 for 1280x720 fixtures, so a size
+  mismatch could stand in for the real refusal. Size the receiver to the fixture and
+  assert the fixture's own reason.
+
+## Downloaded plan hold and loaded-plan fence read (todos 90, 91, 2026-10-23)
+
+- The Edit tool rewrote a CRLF hook file as LF. For CRLF files, edit with a small
+  script that normalizes to LF, replaces exact strings (assert one match) and saves CRLF.
+- Check phase gating before trusting a "reload" repro: every plan regen effect runs only
+  in PLANNING, and after a reload the app starts in MONITOR, so the race needed the
+  planner open. Reproduce the mechanism, not the reported path.
+- A download always saves its delivery hubs to settings, so a settings round trip
+  follows every download; anything keyed on settingsVersion runs after it.
+- A one-shot "skip the next regen" flag is consumed by whichever effect runs first.
+  Key a hold on the inputs it protects (a JSON of the generator inputs), released by
+  any input change or an explicit replacement.
+- Mirror App's effect declaration order in hook harnesses: a harness that ran
+  useVehicleConnection before App's demo-default effect hid a real window.
+- Five Codex rounds each found real lifecycle gaps (late joins, reconnects, corridor
+  files, multi-set arrays). Ask the reviewer to try roster changes, every file-load
+  variant and multi-set counts up front.
+
 ## UniRC 10 Pro emulator (2026-10-23)
 - Application Control blocks cmdline-tools 23's `sdkmanager` (it calls the new
   `android` CLI, os error 4551). emulator, adb and avdmanager still run.
@@ -1222,7 +1288,7 @@
   (`default`): no Chrome, only WebView and its test browser
   (`org.chromium.webview_shell`); its devtools socket is
   `webview_devtools_remote_<pid>`. An old WebView exposes CSS gaps that
-  Chrome hides (todo 110: `dvh`).
+  Chrome hides (todo 113: `dvh`).
 - A background tool call that starts the emulator through a `2>&1 |` pipe
   did not return (likely the emulator holds the pipe). Write output to a
   file instead.

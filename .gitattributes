@@ -1,3 +1,6 @@
 # Scripts that run under bash on the Termux handheld must keep LF endings even
 # when checked out on Windows (core.autocrlf=true); CRLF breaks bash there.
 scripts/termux/*.sh text eol=lf
+
+# Byte-exact NPYC fixtures: their sha256 is pinned here and in aas-hitl (tests/modules/vision/test_npyc_fixtures.py).
+tests/fixtures/npyc/*.json -text
