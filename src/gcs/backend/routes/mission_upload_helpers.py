@@ -7,9 +7,9 @@ import math
 from typing import Callable
 from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.core.ports.vehicle_control_interfaces import VehicleParameters
-from gcs.backend.exchange_budget import expired
+from gcs.backend.exchange_budget import expired, remaining_s
 from gcs.backend.models import VehicleAssignment, FencePlan, FenceOutcome
-from gcs.backend.vehicle_manager import VehicleEntry
+from gcs.backend.vehicle_manager import VehicleEntry, VehicleManager
 from gcs.backend.full_params import FullParamCache
 from gcs.backend.planner.fence_builder import MIN_FENCE_VERTICES, FenceUploadResult
 
@@ -78,6 +78,20 @@ def read_fence_params(vehicle: VehicleParameters) -> dict | None:
             return None
         values[key] = value
     return values
+
+
+#: How long a reconnect waits for the new link when the request allows it.
+RECONNECT_WAIT_S = 10.0
+
+
+def reconnect_within(manager: VehicleManager, sys_id: int,
+                     policy: ExchangePolicy | None) -> VehicleEntry | None:
+    """Reconnect unless the request's deadline has passed; the link wait ends at it (todo 105)."""
+    remaining = remaining_s(policy)
+    if remaining <= 0.0:
+        log.warning("Vehicle %d not reconnected: the request deadline passed", sys_id)
+        return None
+    return manager.reconnect_vehicle(sys_id, timeout=min(RECONNECT_WAIT_S, remaining))
 
 
 def write_rtl_altitude(vehicle: VehicleParameters, altitude_m: float,

@@ -21,7 +21,7 @@ from gcs.backend.full_params import full_param_cache
 from gcs.backend.diagnostics import emit
 from gcs.backend.routes.mission_fence_download import download_fence_snapshot
 from gcs.backend.routes.mission_upload_helpers import (
-    assignment_geometry, apply_fence, fence_outcome_model, write_rtl_altitude,
+    assignment_geometry, apply_fence, fence_outcome_model, reconnect_within, write_rtl_altitude,
 )
 
 log = logging.getLogger(__name__)
@@ -241,7 +241,7 @@ async def upload_missions(req: UploadRequest):
                     "attempt": result.attempts,
                 })
                 new_entry = await loop.run_in_executor(
-                    None, lambda: vehicle_mgr.reconnect_vehicle(assignment.sys_id),
+                    None, reconnect_within, vehicle_mgr, assignment.sys_id, policy,
                 )
                 if new_entry:
                     entry = new_entry

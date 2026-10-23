@@ -52,6 +52,13 @@ def expired(policy: ExchangePolicy | None) -> bool:
     return policy is not None and policy.deadline_s is not None and rt.monotonic() >= policy.deadline_s
 
 
+def remaining_s(policy: ExchangePolicy | None) -> float:
+    """Seconds left before the request's deadline (infinite without one)."""
+    if policy is None or policy.deadline_s is None:
+        return math.inf
+    return max(0.0, policy.deadline_s - rt.monotonic())
+
+
 @contextmanager
 def held_within(lock: LockPort, policy: ExchangePolicy | None) -> Iterator[bool]:
     """Hold ``lock`` if it comes free before the policy's deadline; yields whether it did.
@@ -73,5 +80,5 @@ def held_within(lock: LockPort, policy: ExchangePolicy | None) -> Iterator[bool]
 
 __all__ = [
     "DEFAULT_MISSION_REQUEST_S", "GCS_EXCHANGE_ATTEMPTS", "MISSION_UPLOAD_REQUEST_S",
-    "expired", "gcs_policy", "held_within", "requested_policy",
+    "expired", "gcs_policy", "held_within", "remaining_s", "requested_policy",
 ]

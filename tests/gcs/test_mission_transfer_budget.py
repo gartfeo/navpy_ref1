@@ -237,3 +237,15 @@ def test_a_gcs_upload_logs_every_send():
     lines = [call.args[0] for call in logger.info.call_args_list if call.args[1:] == ("mission",)]
     assert lines == ["MISSION_COUNT send 1/12: MISSION_REQUEST_INT",
                      "MISSION_ITEM_INT 0/2 sent", "MISSION_ITEM_INT 1/2 sent"]
+
+
+def test_a_reconnect_waits_for_the_link_only_until_the_deadline():
+    from gcs.backend.routes.mission_upload_helpers import RECONNECT_WAIT_S, reconnect_within
+    manager = MagicMock()
+    reconnect_within(manager, 1, gcs_policy(0.5))
+    assert 0.0 < manager.reconnect_vehicle.call_args.kwargs["timeout"] <= 0.5
+    reconnect_within(manager, 1, gcs_policy(60.0))
+    assert manager.reconnect_vehicle.call_args.kwargs["timeout"] == RECONNECT_WAIT_S
+    manager.reset_mock()
+    assert reconnect_within(manager, 1, _spent()) is None  # the deadline passed while it was queued
+    manager.reconnect_vehicle.assert_not_called()
