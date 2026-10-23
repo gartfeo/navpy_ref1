@@ -343,6 +343,100 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   `.codex/agents/*.toml`), the board detector, and the HITL bridge (Windows
   Application Control blocks the jsbsim DLL).
 
+## Round 5 design: mission transfers (todo 105)
+
+### Cause (`stress` plain-a, `.logs/radio-budget-r4`)
+
+- Downloads lose item replies. A live `MISSION_ITEM_INT` answers its
+  request within 2 ticks (40 ms); a lost one is a broken 84-byte frame on
+  the SITL serial, or a broken frame before it (msgid 10, 261-byte random
+  header) that swallows it. NavPy's three startup downloads sent 57 item
+  requests and lost 11 replies (19 %; journal and `uav_*_navigation.log`).
+- Each lost reply costs the downloader's full 10 s wait (log gaps of
+  exactly 10 s), and 3 sends per item are too few. The GCS readbacks of
+  6-item missions took 31, 71 and 41 s; the next `GET /mission` lost one
+  item 3 times: 404 after 30.9 s. NavPy UAV 1 and 3 took 31 and 41 s; UAV 2
+  had not finished when the stop came.
+- NavPy downloads its mission inside the vehicle build, and nothing in the
+  startup reads the stop. The operator stop came while NavPy 2 was still
+  downloading: `HostFault` stop budget at tick 14702.
+- Uploads passed: ArduPilot drives them, re-requesting a missing item every
+  1 s (`MissionItemProtocol.cpp:409`) and abandoning after 8 s without one
+  (`MissionItemProtocol.h:95`).
+
+### Design
+
+- **Timeouts as QGroundControl** (`PlanManager.h:59-62`, the mavlink.io
+  mission protocol): wait `MISSION_ITEM_TIMEOUT_S = 0.25` for an item and
+  `MISSION_ACK_TIMEOUT_S = 1.5` for a count, request or ACK; 1 + 5 retries.
+  A resend after a late reply is harmless: requests are idempotent and the
+  reply cursor is taken before the first send, so a late reply still counts.
+- **Download steps are bounded exchanges.** `REQUEST_LIST` → `COUNT` and
+  each `REQUEST_INT(seq)` → `ITEM(_INT)` run through the todo 103 loop
+  (`run_exchange`, generalized to any reply type). One policy covers the
+  transfer: its deadline and link check apply to every step.
+- **Attempts per step:** default `MISSION_PROTOCOL_ATTEMPTS = 6` (19 % per
+  send gives 5e-5 per item if sends fail independently). GCS routes pass
+  `GCS_PARAM_ATTEMPTS` (12) with the request deadline and `stop_on_silence`, as todo 103.
+- **Upload:** `MISSION_COUNT` → first request is a bounded exchange. Then
+  each wait takes the vehicle's next request, any seq, so a re-request of
+  the last item is answered too, or its final ACK. A wait is cut by the
+  deadline, checks the link and `cancelled` every 1.5 s, and ends after
+  `UPLOAD_ABANDON_S = 8` without a request (ArduPilot has dropped the
+  upload). A non-accepted ACK ends it at once.
+- **Lost final ACK:** ArduPilot sends one ACK; an item after completion is
+  answered `MISSION_ERROR` (`GCS_Common.cpp:985`), so it cannot be asked
+  again. A failed GCS upload attempt therefore reads the mission back
+  before clearing and uploading again (`waypoint_builder.py`). It counts as
+  done only on an exact match: the count, and for every item but home
+  frame, command, autocontinue, param1-4, x, y and z (floats compared as
+  float32). Any difference, autopilot normalization included, falls back
+  to clear and re-upload, as today; the warn-only field check stays for
+  confirmed uploads. Today a failed attempt re-uploads without a readback.
+- **Stop:** `ExchangePolicy` gets `cancelled` (a predicate; reason
+  `cancelled`), checked with the deadline and the link before each send
+  and after each miss. Once the stop is requested, NavPy's vehicle cancels
+  every parameter read and mission transfer it runs, for the rest of the
+  process: reads return no value at once (not marked missing), transfers
+  fail. Parameter writes are not cancelled, so shutdown restores
+  (`WP_LOITER_RAD`, `SIM_SPEEDUP`) still run with their todo 103 bounds;
+  reads after the stop, such as the `NavArgs.refresh` in controller
+  cleanup, cost nothing. Composition checks the stop after the vehicle
+  build and before `navigation.start()`, and the session checks it before
+  starting vision and the controller; if set, nothing more starts, so no
+  value read as cancelled is acted on. (A loop already running that reads
+  an uncached parameter after the stop gets its default until cleanup
+  joins it.) Either way the session closes what
+  was built and acknowledges. A stop thus waits for at most one exchange
+  in flight plus the restores. The stdin stop is created before the
+  vehicle build for the same reason.
+- **GCS request deadline:** `GET /mission` takes `timeout_s` (default 85
+  s; the eval's HTTP timeout is 90 s); `POST /upload` sets one deadline for
+  the request (225 s; the eval's is 240 s); the connect and launch probes
+  use the 85 s default. The mission lock waits are capped by it too (GET,
+  probe, upload), and a request that times out on the lock fails without
+  touching the vehicle. Lockstep counts these in sim time.
+- **Logs:** each step that needed more than one send or failed logs its
+  outcome (as todo 103); a GCS transfer logs every send.
+- Not chosen: longer waits or a lower `stress` loss (hide the cause);
+  pipelined resends (todo 104); bounding the 30 s startup heartbeat wait
+  (not seen failing).
+
+### Checks
+
+- Tests: a lost item reply resent after 0.25 s; attempts per step (6
+  default, 12 GCS); deadline across steps; link silence ends a GCS
+  transfer; `cancelled` ends a download and an upload within one wait;
+  upload answers a re-request of the last item, ends on an error ACK and at
+  the abandon bound; a lost final ACK is verified by readback, and a
+  readback differing only in `DO_JUMP` param2 still re-uploads; stop during
+  startup (`NavArgs` reads with replies missing) acknowledges through
+  cleanup without starting the controller; reads after the stop return at
+  once; writes after the stop still run; GCS routes pass the policy and
+  cap the lock wait. Mutations: the old waits, 3 attempts, no cancel check, writes
+  cancelled, warn-only readback.
+- Runs: `none`, `hw`, `stress` matrices; full pytest.
+
 ## Not covered
 
 - Air timing and per-link loss: todo 96.
