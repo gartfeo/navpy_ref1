@@ -42,10 +42,37 @@ from navpy.core.flow.navigation_transition_handler import (
     TransitionPorts,
 )
 from navpy.core.approach.final_approach_nav_workflow import FinalApproachNavWorkflow
-from navpy.core.approach.dock_contact_episode import FinalApproachDockContact
-from navpy.core.ports.dock_contact import DockContactSensor
+from navpy.core.approach.dock_contact_episode import (
+    EpisodeEnding,
+    FinalApproachDockContact,
+)
+from navpy.core.approach.dock_episode_end import dock_episode_end
+from navpy.core.ports.dock_contact import (
+    DockContactIdentity,
+    DockContactSensor,
+    DockEpisodeEnd,
+)
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
+
+
+def _dock_episode_ending(
+    navigation: NavCapabilities,
+    poi: PoiMissionOwnership,
+) -> EpisodeEnding:
+    """Display only: how NAV left the episode, for the sim record."""
+
+    def ending(identity: DockContactIdentity, docked: bool) -> DockEpisodeEnd:
+        status = poi.confirmation_manager.status_by_id(identity.task_id)
+        return dock_episode_end(
+            identity,
+            docked,
+            navigation.dock_outcome.terminal(),
+            status is ConfirmationStatus.REJECTED,
+        )
+
+    return ending
 
 
 def compose_nav_application(
@@ -73,6 +100,7 @@ def compose_nav_application(
         logger,
         source_now_s=lambda: _attitude_boot_s(vehicle),
         end_episode=navigation.final_approach.end_dock_episode,
+        ending=_dock_episode_ending(navigation, poi),
     )
     nav_transition = NavTransition(
         NavEntry(

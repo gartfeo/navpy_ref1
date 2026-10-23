@@ -30,6 +30,7 @@ from navpy.core.ports.dock_contact import (
     DockContactCallback,
     DockContactEvent,
     DockContactIdentity,
+    DockEpisodeEnd,
 )
 from navpy.core.ports.pose_stream_rate import POSE_STREAM_RATE_HZ
 from navpy.sim.world.dock_contact_geometry import (
@@ -138,15 +139,15 @@ class SimDockContactSensor:
             self._published = False
             self._closest.take()
 
-    def disarm(self, docked: bool = False) -> None:
+    def disarm(self, end: DockEpisodeEnd = DockEpisodeEnd()) -> None:
         """End the episode; report its closest pass once.
 
-        ``docked`` is the lifecycle's accepted outcome, never the sensor's own
-        contact: a contact the lifecycle rejected reports as missed.
+        ``end`` is the lifecycle's accepted outcome, never the sensor's own
+        contact: a contact the lifecycle rejected does not report as docked.
         """
         with self._lock:
             identity = self._identity
-            best, contact = self._closest.take()
+            best, contact, last = self._closest.take()
             self._identity = None
             self._on_docked = None
             self._previous = None
@@ -154,7 +155,7 @@ class SimDockContactSensor:
         if identity is None or self._report is None:
             return
         try:
-            record = closest_approach(identity, docked, best, contact)
+            record = closest_approach(identity, end, best, contact, last)
             if record is not None:
                 self._report(record)
         except Exception:

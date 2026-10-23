@@ -122,6 +122,20 @@ it('colours a docked approach green and says so; no attitude, no ghost', () => {
   expect(mark.properties.closestApproachView.headingDeg).toBeNull();
 });
 
+it('colours an aborted approach amber and names its reason', () => {
+  renderWith([record({ outcome: 'aborted', reason: 'source_command_stale' })]);
+  const [mark] = marks();
+  expect(mark.point.color.css).toBe('#f59e0b');
+  expect(labelOf(mark)).toBe(
+    'UAV 2 · 1.84 m mapMarkers.closestApproach.aborted (source_command_stale)\nh 1.52 m · v 1.04 m',
+  );
+});
+
+it('an aborted approach without a known reason says only aborted', () => {
+  renderWith([record({ outcome: 'aborted', reason: null })]);
+  expect(labelOf(marks()[0])).toContain('mapMarkers.closestApproach.aborted\n');
+});
+
 it('consumes the first status after load unshown and never re-adds a key', () => {
   const { update } = renderWith([]);
   const hook = render({ records: [record()] });
