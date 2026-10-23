@@ -1240,3 +1240,18 @@
   tool times out. Write scripts with the Write tool.
 - Other chats' pytest and GCS stacks started during the live run; check the
   process list before and after a timing measurement and report the load.
+
+## NPYC v2 and reference-copy sync, HITL step 6 (2026-10-23)
+- I repeated the heredoc mistake again (a regex lost its backslashes). For edits with
+  backslashes or quotes, use the Edit tool or a script written with the Write tool and
+  run with `python -I`.
+- Syncing aas-hitl's Unreal reference copy moved every cited line number, and two
+  docstrings stated behaviour the new receiver no longer has (it now reads `sequence`
+  and `session_id`). After a sync, map each old citation by its line text
+  (scratch line_remap.py), then reread the producer for every "does not read" claim.
+- My first plan note claimed fragment sizes and a fixture count that no test used.
+  Codex caught it. Write each number in a completion note from the test's own
+  parametrization, and name what a test excludes.
+- A relay refusal test used a receiver sized 4x2 for 1280x720 fixtures, so a size
+  mismatch could stand in for the real refusal. Size the receiver to the fixture and
+  assert the fixture's own reason.
