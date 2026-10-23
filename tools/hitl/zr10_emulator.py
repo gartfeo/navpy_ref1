@@ -62,6 +62,10 @@ def encode_gimbal_state(state: TrueState, sys_id: int, device_id: int, session_i
         "sequence": sequence,
         "attitude_deg": {"yaw": state.yaw, "pitch": state.pitch, "roll": state.roll},
         "zoom": state.zoom,
+        # Unreal's lens row (step 5): the reading, the setting it was reached by and whether travel has finished.
+        "lens": {"reading": state.zoom,
+                 "set_by": None if state.lens_command is None else {"absolute_zoom": state.lens_command},
+                 "settled": state.lens_settled},
         "motion_mode": mode_name(state.motion_mode),
         "roll_stabilize": mode_name(state.motion_mode) != "fpv",
         # time.perf_counter (QPC) at the step, for the U2 stamped history and the logs; Unreal ignores it today.

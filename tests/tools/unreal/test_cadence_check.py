@@ -3,6 +3,7 @@ follow the plugin's rules (NavPyVehicleStateReceiver admission and clock map, Na
 TickBoardTimeCadence)."""
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 import socket
@@ -65,11 +66,15 @@ def test_compose_gimbal_points_and_stabilises():
 
 
 def test_projection_centre_and_axes():
-    camera = zr10_camera(1.0)
+    camera = zr10_camera()
     look = um.rotator_to_quat(0, 0, 0)                                # X forward, Y right, Z up
     px = co.project(np.array([[1000.0, 0, 0], [1000.0, 100.0, 0], [1000.0, 0, 100.0]]), (0, 0, 0), look, camera)
     assert px[0] == pytest.approx([camera.cx, camera.cy])
     assert px[1][0] > camera.cx and px[2][1] < camera.cy              # right is +u, up is -v
+    # Skew as OpenCV's K: u = fx x/z + skew y/z + cx with y down, so a point above the axis moves left.
+    skewed = dataclasses.replace(camera, skew=50.0)
+    px = co.project(np.array([[1000.0, 0, 100.0]]), (0, 0, 0), look, skewed)
+    assert px[0] == pytest.approx([camera.cx - 5.0, camera.cy - camera.fy * 0.1])
 
 
 def test_slot_time_rounds_half_up():
@@ -297,7 +302,7 @@ def test_coverage_fails_a_started_generation_without_outcomes_or_end():
 def board_view_run(lag_frames: int, bad_corners: int = 0):
     """A camera sweeping over the board; the detected corners come from the camera lag_frames earlier, and the
     first bad_corners of each frame are 10 px off."""
-    camera = zr10_camera(1.0)
+    camera = zr10_camera()
     corners = co.board_corners_world(BOARD, 1.0, -1.0)
     log = clog.UnrealLog(board=BOARD)
     frames, poses = [], []
@@ -320,11 +325,11 @@ def board_view_run(lag_frames: int, bad_corners: int = 0):
 
 def test_reprojection_passes_on_time_and_fails_one_frame_late():
     log, frames, camera = board_view_run(lag_frames=0)
-    report = co.check_reprojection(log, log.slots, frames, camera)
+    report = co.check_reprojection(log, log.slots, frames, lambda _s: camera)
     assert report["pass"], report
     assert report["flips"] == (1.0, -1.0) and report["p95_px"] < 1e-6
     log, frames, camera = board_view_run(lag_frames=1)
-    report = co.check_reprojection(log, log.slots, frames, camera)
+    report = co.check_reprojection(log, log.slots, frames, lambda _s: camera)
     assert not report["pass"]
     assert report["own_median_px"] > report["neighbour_median_px"]
 
@@ -335,7 +340,7 @@ def test_reprojection_p95_is_over_corners_not_frame_means():
     counts = [n for f in frames.values() if (n := len(f["corners"])) >= co.MIN_REPROJECTION_CORNERS]
     assert 2 * len(counts) / sum(counts) > 0.05
     assert np.median([20.0 / n for n in counts]) < co.REPROJECTION_P95_PX
-    report = co.check_reprojection(log, log.slots, frames, camera)
+    report = co.check_reprojection(log, log.slots, frames, lambda _s: camera)
     assert report["p95_px"] == pytest.approx(10.0, abs=1e-6) and not report["pass"]
 
 
@@ -370,6 +375,14 @@ def test_gimbal_query_falls_back_to_the_nearest_step_on_a_broken_bracket():
     steps = [clog.GimbalStep(10.000, 1, 0.0, 0.0, 0.0, True), clog.GimbalStep(10.040, 3, 40.0, 0.0, 0.0, True)]
     step, valid = co.gimbal_at(steps, [s.t for s in steps], 10.010)
     assert not valid and step.yaw == 0.0
+
+
+def test_consecutive_steps_of_two_sessions_are_not_a_bracket():
+    # The plugin clears its history on a new gimbal session, so a restart never brackets across the sessions.
+    steps = [clog.GimbalStep(10.000, 1, 0.0, 0.0, 0.0, True, session="a"),
+             clog.GimbalStep(10.020, 2, 40.0, 0.0, 0.0, True, session="b")]
+    bracket = co.gimbal_bracket(steps, [s.t for s in steps], 10.015)
+    assert not bracket.valid and bracket.older is bracket.newer is steps[1]
 
 
 def test_dropped_poses_are_not_sources():

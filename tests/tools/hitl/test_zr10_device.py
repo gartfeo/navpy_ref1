@@ -354,6 +354,53 @@ def test_manual_zoom_speed_stop_and_range(zoom_table):
     assert zoom_reading(device) == 1.1                  # the table's lowest reading
 
 
+def lens(device):
+    state = device.true_state()
+    return state.zoom, state.lens_command, state.lens_settled
+
+
+def test_lens_setting_starts_at_the_start_up_command_and_follows_absolute_zoom(zoom_table):
+    device = make(zoom_table)
+    assert lens(device) == (1.1, 1.0, True)
+    ask(device, 0x0F, bytes((2, 3)))
+    device.step()
+    assert lens(device) == (2.1, 2.3, True)            # command 2.3 settles at reading 2.1
+    ask(device, 0x0F, bytes((15, 0)))                  # refused: the lens and its setting stay
+    run(device, 0.2)
+    assert lens(device) == (2.1, 2.3, True)
+
+
+def test_lens_is_unsettled_while_it_travels_even_within_one_reading(zoom_table):
+    device = make(zoom_table, absolute_zoom_speed_per_s=2.0)
+    ask(device, 0x0F, bytes((1, 2)))                   # 1.2 reads 1.1, as the start: the reading cannot show it
+    assert lens(device) == (1.1, 1.2, False)           # unsettled until the plant has stepped to the target
+    device.step()
+    assert lens(device) == (1.1, 1.2, True)
+    ask(device, 0x0F, bytes((2, 0)))
+    device.step()
+    assert lens(device)[1:] == (2.0, False)
+    seen = []
+    for _ in range(100):
+        device.step()
+        seen.append(lens(device))
+    settled_at = next(i for i, (_reading, _command, settled) in enumerate(seen) if settled)
+    assert all(not s for _r, _c, s in seen[:settled_at]) and all(s for _r, _c, s in seen[settled_at:])
+    assert seen[settled_at] == (1.8, 2.0, True) and seen[settled_at - 1][0] == 1.8   # last 0.1 of travel at 1.8
+
+
+def test_manual_zoom_leaves_no_known_lens_setting(zoom_table):
+    device = make(zoom_table)
+    ask(device, 0x05, b"\x01")
+    device.step()
+    assert lens(device)[1:] == (None, False)
+    ask(device, 0x05, b"\x00")
+    device.step()
+    assert lens(device)[1:] == (None, True)
+    ask(device, 0x0F, bytes((2, 0)))
+    device.step()
+    assert lens(device) == (1.8, 2.0, True)
+
+
 def test_zoom_table_parsing_refuses_made_up_rows():
     profile = {"devices": [{"camera": {"zoom_calibration": {"1.0": 1.1, "2.0": 1.8}}}]}
     assert zoom_table_from_profile(profile) == {10: 1.1, 20: 1.8}

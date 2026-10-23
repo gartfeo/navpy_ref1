@@ -189,12 +189,7 @@ class Zr10Device:
 
     def _manual_zoom(self, data: bytes, source: Address) -> str:
         (direction,) = struct.unpack_from("<b", data)
-        if direction > 0:
-            self.gimbal.zoom.start(1)
-        elif direction < 0:
-            self.gimbal.zoom.start(-1)
-        else:
-            self.gimbal.zoom.stop()
+        self.gimbal.manual_zoom((direction > 0) - (direction < 0))
         return struct.pack("<H", int(round(reading(self.gimbal.zoom.level) * 10.0))).hex()
 
     def _gimbal_speed(self, data: bytes, source: Address) -> str:
@@ -254,10 +249,11 @@ class Zr10Device:
         whole, tenth = struct.unpack_from("<2B", data)
         if tenth > 9:
             raise ValueError(f"zoom tenths {tenth} out of range")
-        target = self._zoom_table.get(whole * 10 + tenth)
+        command = whole * 10 + tenth
+        target = self._zoom_table.get(command)
         if target is None:
             return self._refused()     # a command outside the profile's table: the lens does not move
-        self.gimbal.zoom.set_target(target)
+        self.gimbal.seek_zoom(command, target)
         return "01"
 
     def _current_zoom(self, data: bytes, source: Address) -> str:

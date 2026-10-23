@@ -71,7 +71,13 @@ ATTITUDE delay above that minimum, not the full link delay.
   through a pinhole with `NativeCameraFxPx`, `FyPx`, `CxPx`, `CyPx` (pixels at 1280 x 720, a custom projection
   matrix, so the off-centre principal point and fx != fy are exact). The defaults are the SIYI ZR10's zoom-1
   calibration on its 1280 x 720 stream (navpy `vision_profiles.json` `siyi_zr10`): 48.9 x 28.8 deg.
-  `-NavPyNativeCameraZoom=<factor>` multiplies fx and fy. Off, the camera keeps its FOV angle (90 deg) and
+  `-NavPyLensProfile=<vision_profiles.json>` (HITL step 5; needs `-NavPyNativeCameraBoardTimeCadence=1`, refused
+  together with the fixed pinhole) renders each frame instead through the `siyi_zr10` `camera.reading_intrinsics` row
+  of the ZR10 emulator's lens state (reading, set by an absolute zoom command, settled), at the row's frame size
+  (1920 x 1080); during zoom travel it holds the last settled row and logs `lens=held` (private); with no settled row
+  yet the slot is `missed:no-lens`. `-NavPyNativeCameraZoom` (fx and fy times a factor) is refused since step 5.
+  `tools/unreal/cadence_check.py` scores such a run per frame with its row; `lens_fov_check.py` fits the rendered
+  FOV per row against the private camera reference. Off, the camera keeps its FOV angle (90 deg) and
   the demo's zoom commands. No lens distortion is rendered. The capture's show flags turn motion blur, TAA,
   DOF, bloom, lens flares, grain, vignette and eye adaptation off; the HDR scene-colour capture already has
   none of them and no temporal jitter. Native camera connects without blocking the

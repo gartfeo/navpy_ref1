@@ -49,10 +49,11 @@ class CameraModel:
     fy: float
     cx: float
     cy: float
+    skew: float = 0.0
 
     @property
     def k(self) -> np.ndarray:
-        return np.array([[self.fx, 0, self.cx], [0, self.fy, self.cy], [0, 0, 1]], dtype=float)
+        return np.array([[self.fx, self.skew, self.cx], [0, self.fy, self.cy], [0, 0, 1]], dtype=float)
 
     @property
     def fov_h_deg(self) -> float:
@@ -62,22 +63,19 @@ class CameraModel:
 
 VISION_PROFILES = Path(__file__).resolve().parents[2] / "src/navpy/core/perception/profile/vision_profiles.json"
 ZR10_PROFILE, ZR10_DEVICE = "siyi_zr10", "siyi_zr10"
-MIN_ZOOM = 1.0                        # Unreal ignores -NavPyNativeCameraZoom below 1 (NativeCameraZoom ClampMin)
 
 
 @lru_cache(maxsize=None)
-def zr10_camera(zoom: float = 1.0) -> CameraModel:
-    """The ZR10's zoom-1 calibration on its 1280 x 720 stream (navpy's siyi_zr10 profile, the only measured row),
-    focal lengths scaled by ``zoom`` about the same principal point: what the Unreal native camera renders with
-    -NavPyNativeCameraIntrinsics=1 and -NavPyNativeCameraZoom (its default config holds the same numbers). The rows
-    above zoom 1 are not measured (test_zr10_profile_intrinsics.py), so a zoom here is a focal multiplier only."""
-    if not (math.isfinite(zoom) and zoom >= MIN_ZOOM):
-        raise ValueError(f"zoom must be finite and at least {MIN_ZOOM:g} (Unreal's NativeCameraZoom ClampMin)")
+def zr10_camera() -> CameraModel:
+    """The ZR10's zoom-1 calibration on its 1280 x 720 stream (navpy's siyi_zr10 profile ``intrinsics``): the fixed
+    K the Unreal native camera renders with -NavPyNativeCameraIntrinsics=1 (its default config holds the same
+    numbers). Fixed-K runs have a static lens; a zooming lens renders the reading_intrinsics rows instead (step 5,
+    -NavPyLensProfile), scored per frame by cadence_check."""
     profile = json.loads(VISION_PROFILES.read_text(encoding="utf-8"))["profiles"][ZR10_PROFILE]
     camera = next(d for d in profile["devices"] if d["name"] == ZR10_DEVICE)["camera"]
     row = camera["intrinsics"]["zooms"]["1"]
-    return CameraModel(f"zr10_zoom{zoom:g}", int(camera["image_width"]), int(camera["image_height"]),
-                       zoom * float(row["fx"]), zoom * float(row["fy"]), float(row["cx"]), float(row["cy"]))
+    return CameraModel("zr10_zoom1", int(camera["image_width"]), int(camera["image_height"]),
+                       float(row["fx"]), float(row["fy"]), float(row["cx"]), float(row["cy"]))
 
 
 def fov_camera(fov_h_deg: float, width: int = 1280, height: int = 720) -> CameraModel:
@@ -91,14 +89,14 @@ UNREAL_FOV90 = fov_camera(90.0)
 CAMERAS = ("zr10", "fov90")
 
 
-def camera_named(name: str, zoom: float = 1.0) -> CameraModel:
-    """The camera a run rendered with: ``zr10`` at the zoom Unreal was given (-NavPyNativeCameraZoom), or ``fov90``
-    (no zoom: its FOV came from the gimbal's commands, fixed at 90 deg in these runs)."""
+def camera_named(name: str) -> CameraModel:
+    """The camera a run rendered with: ``zr10`` (the fixed zoom-1 K), or ``fov90`` (its FOV came from the gimbal's
+    commands, fixed at 90 deg in these runs)."""
     if name == "zr10":
-        return zr10_camera(zoom)
-    if name == "fov90" and zoom == 1.0:
+        return zr10_camera()
+    if name == "fov90":
         return UNREAL_FOV90
-    raise ValueError(f"no camera {name!r} at zoom {zoom:g}")
+    raise ValueError(f"no camera {name!r}")
 
 
 def camera_matrix(camera: Optional[CameraModel] = None) -> np.ndarray:
