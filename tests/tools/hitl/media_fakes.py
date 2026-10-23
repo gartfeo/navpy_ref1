@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional
@@ -16,7 +17,7 @@ BINDING = "_gi.cp313-win_amd64.pyd"
 
 
 def install(root: Path, bindings: tuple[str, ...] = (BINDING,)) -> profiles.Layout:
-    """An official-looking install folder (empty files where DLLs, bindings and plugins would be)."""
+    """An official-looking install folder (empty files where the bindings would be)."""
     layout = profiles.layout_of(root)
     for folder in (layout.bin, layout.gi, layout.plugins):
         folder.mkdir(parents=True, exist_ok=True)
@@ -26,13 +27,18 @@ def install(root: Path, bindings: tuple[str, ...] = (BINDING,)) -> profiles.Layo
     return layout
 
 
-def installers(folder: Path, profile: profiles.HostProfile = PC) -> tuple[Path, dict[str, bytes]]:
-    """Installer stand-ins whose pinned sums are patched to match (see pinned_installers)."""
+def installers(folder: Path) -> tuple[Path, dict[str, bytes]]:
+    """Installer stand-ins; pinned_installers pins their sums in place of the official ones."""
     folder.mkdir(parents=True, exist_ok=True)
-    contents = {name: f"synthetic {name}".encode() for name in profile.installers}
+    contents = {name: f"synthetic {name}".encode() for name in PC.installers}
     for name, data in contents.items():
         (folder / name).write_bytes(data)
     return folder, contents
+
+
+def pinned_installers(monkeypatch, contents: dict[str, bytes]) -> None:
+    sums = {name: hashlib.sha256(data).hexdigest() for name, data in contents.items()}
+    monkeypatch.setitem(profiles.PROFILES, "pc", profiles.HostProfile(**{**PC.__dict__, "installers": sums}))
 
 
 class Plugin:
@@ -50,21 +56,21 @@ class Plugin:
 
 
 class Factory:
-    def __init__(self, plugin: Optional[Plugin], rank: int = 256) -> None:
-        self._plugin, self._rank = plugin, rank
+    def __init__(self, plugin: Plugin) -> None:
+        self._plugin = plugin
 
-    def get_plugin(self) -> Optional[Plugin]:
+    def get_plugin(self) -> Plugin:
         return self._plugin
 
     def get_rank(self) -> int:
-        return self._rank
+        return 256
 
 
 class FakeGst:
     """Gst with a registry of elements: name -> (plugin version, plugin file, creatable)."""
 
     def __init__(self, version: tuple[int, int, int, int], elements: dict[str, tuple[str, Optional[str], bool]]):
-        self._version, self.elements = version, elements
+        self.version_tuple, self.elements = version, elements
         registry = self
 
         class ElementFactory:
@@ -82,28 +88,27 @@ class FakeGst:
         self.ElementFactory = ElementFactory
 
     def version(self):
-        return self._version
+        return self.version_tuple
 
 
-def fake_gst(layout: Optional[profiles.Layout], profile: profiles.HostProfile = PC,
-             names: Optional[list[str]] = None) -> FakeGst:
+def fake_gst(layout: profiles.Layout) -> FakeGst:
     """A Gst holding every element the profile could select, each from layout's plugin folder."""
-    names = names or [*profile.elements, *profile.encoders, *profile.decoders]
-    folder = layout.plugins if layout is not None else Path("/usr/lib/aarch64-linux-gnu/gstreamer-1.0")
-    return FakeGst((*profile.gst_version, 0),
-                   {name: (profile.version_text, str(folder / f"gst{name}.dll"), True) for name in names})
+    names = [*PC.elements, *PC.encoders, *PC.decoders]
+    return FakeGst((*PC.gst_version, 0),
+                   {name: (PC.version_text, str(layout.plugins / f"gst{name}.dll"), True) for name in names})
 
 
-def fake_gi(layout: Optional[profiles.Layout]) -> SimpleNamespace:
-    folder = layout.gi if layout is not None else Path("/usr/lib/python3/dist-packages/gi")
-    return SimpleNamespace(__file__=str(folder / "__init__.py"), __version__="3.50.0")
+def fake_gi(layout: profiles.Layout) -> SimpleNamespace:
+    return SimpleNamespace(__file__=str(layout.gi / "__init__.py"), __version__="3.50.0",
+                           _gi=SimpleNamespace(__file__=str(layout.gi / BINDING)))
 
 
 class Loader:
-    """A loader that records its calls and yields the given fakes, or raises."""
+    """A loader that records its calls and yields the given fakes (by default from the install), or raises."""
 
-    def __init__(self, gi=None, gst=None, error: Optional[Exception] = None) -> None:
-        self.gi, self.gst, self.error, self.calls = gi, gst, error, []
+    def __init__(self, gi=None, gst=None, core_dll: Optional[str] = "install",
+                 error: Optional[Exception] = None) -> None:
+        self.gi, self.gst, self.core_dll, self.error, self.calls = gi, gst, core_dll, error, []
 
     @contextlib.contextmanager
     def __call__(self, layout):
@@ -111,14 +116,8 @@ class Loader:
         if self.error is not None:
             raise self.error
         yield (self.gi if self.gi is not None else fake_gi(layout),
-               self.gst if self.gst is not None else fake_gst(layout))
-
-
-def pinned_installers(monkeypatch, contents: dict[str, bytes], profile: profiles.HostProfile = PC) -> None:
-    """Pin the stand-ins' sums in place of the official ones, for this test only."""
-    import hashlib
-    sums = {name: hashlib.sha256(data).hexdigest() for name, data in contents.items()}
-    monkeypatch.setitem(profiles.PROFILES, profile.name, profiles.HostProfile(**{**profile.__dict__, "installers": sums}))
+               self.gst if self.gst is not None else fake_gst(layout),
+               str(layout.bin / profiles.CORE_DLL) if self.core_dll == "install" else self.core_dll)
 
 
 def passing_pc_result(tmp_path: Path, monkeypatch) -> dict:

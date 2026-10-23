@@ -64,10 +64,12 @@ MEDIA_RUNTIME_SPEC: Mapping[str, jc.Check] = {
     "verdict": jc.equals("pass"),
     "blockers": jc.equals([]),
     "python": jc.obj({"version": jc.text, "implementation": jc.equals("CPython"),
-                      "platform": jc.equals(media_profiles.PC_PLATFORM), "extension_suffixes": jc.list_of(jc.text, True),
+                      "platform": jc.equals(media_profiles.PC_PLATFORM),
+                      "extension_suffixes": jc.list_of(jc.text, True),
                       "executable": jc.text, "gi_extensions": jc.list_of(jc.text, True)}),
     "gstreamer": jc.obj({"pinned": jc.text, "root": jc.text, "version": jc.text, "nano": jc.equals(0),
-                         "gi_file": jc.text, "pygobject_version": jc.text}),
+                         "gi_file": jc.text, "gi_extension_file": jc.text, "core_dll": jc.text,
+                         "pygobject_version": jc.text}),
     "launch": jc.obj({"dll_directory": jc.text, "sys_path": jc.text}),
     "installers": jc.map_of(jc.hex_digits(64)),
     "selected": jc.obj({"encoder": jc.text, "decoder": jc.text}),
@@ -136,12 +138,21 @@ def _run_problems(record: Mapping[str, Any]) -> list[str]:
 
 def _media_runtime_problems(result: Mapping[str, Any], host: str) -> list[str]:
     """A passing result that is not the mode host's pinned runtime: another host, GStreamer release, installer,
-    element set or element version."""
+    element set or version, a binding this Python cannot load, or a file loaded from outside the install."""
     path = "record.media_runtime"
     if result["host"] != host:
         return [f"{path}.host {result['host']} is not this mode's video host {host}"]
     profile = media_profiles.PROFILES[host]
-    problems = []
+    layout = media_profiles.layout_of(Path(result["gstreamer"]["root"]))
+    problems = media_profiles.origin_problems(layout, result["gstreamer"], result["elements"], f"{path}.")
+    if result["launch"] != {"dll_directory": str(layout.bin), "sys_path": str(layout.site_packages)}:
+        problems.append(f"{path}.launch is not the install's DLL folder and bindings folder")
+    python, extension = result["python"], Path(result["gstreamer"]["gi_extension_file"]).name
+    loadable = media_profiles.loadable_bindings(python["gi_extensions"], python["extension_suffixes"])
+    if loadable != python["gi_extensions"]:
+        problems.append(f"{path}.python.gi_extensions are not all loadable with its extension_suffixes")
+    if extension not in python["gi_extensions"]:
+        problems.append(f"{path}.gstreamer.gi_extension_file {extension} is not one of python.gi_extensions")
     for field in ("pinned", "version"):
         if result["gstreamer"][field] != profile.version_text:
             problems.append(f"{path}.gstreamer.{field} {result['gstreamer'][field]} is not the pinned "
@@ -190,7 +201,8 @@ def source_identity(repo: Path = REPO_ROOT) -> dict[str, str]:
 
 def new_record(*, run_id: str, mode: str, created: datetime, model_input: Mapping[str, Any], model_dir: Path,
                bridge: BridgeRun, law: str, sources: Mapping[str, Mapping[str, str]],
-               media_runtime: Mapping[str, Any], extra_substitutions: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
+               media_runtime: Mapping[str, Any],
+               extra_substitutions: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
     """The validated record of a run about to start; the model folder must match the model input, and
     media_runtime is the video host's check_media_runtime.py result."""
     if created.tzinfo is None:

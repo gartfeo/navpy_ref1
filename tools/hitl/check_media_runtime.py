@@ -8,13 +8,14 @@ result (approach_records.py).
 
 Run from the repository root. It imports only the standard library and media_profiles.py, so it runs from a separate
 Python that matches the bindings: the official 1.26 MSVC installers ship PyGObject for one Python version (the
-gi\\_gi*.pyd tag), not necessarily navpy's.
-The bindings are loaded process-locally (sys.path and os.add_dll_directory), never through PATH, PYTHONPATH or the
-registry; the code that later streams video must load them the same way (the result's launch field).
+gi\\_gi*.pyd tag), not necessarily navpy's. The bindings are loaded process-locally (sys.path and
+os.add_dll_directory), never through PATH, PYTHONPATH or the registry; the code that later streams video must load
+them the same way (the result's launch field).
 
-pc checks the installers' official SHA-256 sums, the layout and a binding matching this interpreter, and imports gi
-and Gst only when layout and binding hold. Then: the pinned Gst version, and each element found, from the root's
-plugin folder at the pinned version (pc), and created. Exit 0 on a pass, 1 with every blocker listed.
+It checks the installers' official SHA-256 sums, the layout and a binding matching this interpreter, and imports gi
+and Gst only when layout and binding hold. Then: gi, its extension and the core DLL loaded from the install, the
+pinned Gst version, and each element found, from the install's plugin folder at the pinned version, and created.
+Exit 0 on a pass, 1 with every blocker listed.
 """
 from __future__ import annotations
 
@@ -33,7 +34,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ContextManager, Optional
 
-from tools.hitl.media_profiles import PC_PLATFORM, PROFILES, ROOT_ENV, HostProfile, Layout, layout_of
+from tools.hitl.media_profiles import (CORE_DLL, PC_PLATFORM, PROFILES, ROOT_ENV, HostProfile, Layout, layout_of,
+                                       loadable_bindings, origin_problems)
 
 SCHEMA_VERSION = 1
 
@@ -54,29 +56,38 @@ def this_interpreter() -> Interpreter:
                        extension_suffixes=tuple(importlib.machinery.EXTENSION_SUFFIXES), executable=sys.executable)
 
 
-# A loader yields (gi, Gst) with Gst initialised; it may raise ImportError, OSError or ValueError.
-Loader = Callable[[Optional[Layout]], ContextManager[tuple[Any, Any]]]
+# A loader yields (gi, Gst, path of the loaded core DLL) with Gst initialised; it may raise ImportError, OSError or
+# ValueError.
+Loader = Callable[[Layout], ContextManager[tuple[Any, Any, Optional[str]]]]
+
+
+def loaded_dll_path(name: str) -> Optional[str]:
+    """The file this process loaded as DLL name, or None (Windows only)."""
+    import ctypes
+    from ctypes import wintypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetModuleHandleW.argtypes, kernel32.GetModuleHandleW.restype = [wintypes.LPCWSTR], wintypes.HMODULE
+    kernel32.GetModuleFileNameW.argtypes = [wintypes.HMODULE, wintypes.LPWSTR, wintypes.DWORD]
+    handle = kernel32.GetModuleHandleW(name)
+    if not handle:
+        return None
+    buffer = ctypes.create_unicode_buffer(32768)
+    return buffer.value if kernel32.GetModuleFileNameW(handle, buffer, len(buffer)) else None
 
 
 @contextlib.contextmanager
-def load_gst(layout: Optional[Layout]) -> Iterator[tuple[Any, Any]]:
-    """Import gi and Gst from layout's install, process-locally, or from the system where layout is None. The DLL
-    directory stays added until the caller is done with Gst."""
+def load_gst(layout: Layout) -> Iterator[tuple[Any, Any, Optional[str]]]:
+    """Import gi and Gst from layout's install, process-locally. The DLL directory stays added until the caller is
+    done with Gst."""
     with contextlib.ExitStack() as stack:
-        if layout is not None:
-            stack.enter_context(os.add_dll_directory(str(layout.bin)))
-            sys.path.insert(0, str(layout.site_packages))
-            stack.callback(sys.path.remove, str(layout.site_packages))
+        stack.enter_context(os.add_dll_directory(str(layout.bin)))
+        sys.path.insert(0, str(layout.site_packages))
+        stack.callback(sys.path.remove, str(layout.site_packages))
         import gi
         gi.require_version("Gst", "1.0")
         from gi.repository import Gst
         Gst.init(None)
-        yield gi, Gst
-
-
-def _inside(path: Path, folder: Path) -> bool:
-    path, folder = Path(os.path.normcase(os.path.abspath(path))), Path(os.path.normcase(os.path.abspath(folder)))
-    return path == folder or folder in path.parents
+        yield gi, Gst, loaded_dll_path(CORE_DLL)
 
 
 def check_installers(profile: HostProfile, folder: Optional[Path]) -> tuple[dict[str, str], list[str]]:
@@ -110,7 +121,7 @@ def check_binding(layout: Layout, interpreter: Interpreter) -> tuple[list[str], 
         problems.append(f"this Python is {interpreter.implementation} {interpreter.platform}; the official MSVC "
                         f"bindings need CPython {PC_PLATFORM}")
     present = sorted(p.name for p in layout.gi.glob("_gi.*") if p.is_file()) if layout.gi.is_dir() else []
-    loadable = [name for name in present if any(name == "_gi" + s for s in interpreter.extension_suffixes)]
+    loadable = loadable_bindings(present, list(interpreter.extension_suffixes))
     if not present:
         problems.append(f"no gi extension (_gi.*) in {layout.gi}")
     elif not loadable:
@@ -120,57 +131,47 @@ def check_binding(layout: Layout, interpreter: Interpreter) -> tuple[list[str], 
     return loadable, problems
 
 
-def _element(gst: Any, name: str, profile: HostProfile, layout: Optional[Layout]) -> tuple[Optional[dict], list]:
+def _element(gst: Any, name: str, profile: HostProfile) -> tuple[Optional[dict], list]:
     factory = gst.ElementFactory.find(name)
     if factory is None:
         return None, [f"element {name} is not registered"]
     plugin = factory.get_plugin()
     if plugin is None:
         return None, [f"element {name} has no plugin"]
-    filename = plugin.get_filename()
-    found = {"plugin": plugin.get_name(), "version": plugin.get_version(), "filename": filename,
+    found = {"plugin": plugin.get_name(), "version": plugin.get_version(), "filename": plugin.get_filename(),
              "rank": int(factory.get_rank())}
     problems = []
-    if layout is not None:
-        if not filename or not _inside(Path(filename), layout.plugins):
-            problems.append(f"element {name} comes from {filename}, not from {layout.plugins}")
-        if found["version"] != profile.version_text:
-            problems.append(f"element {name} plugin {found['plugin']} is version {found['version']}, not "
-                            f"{profile.version_text}")
+    if found["version"] != profile.version_text:
+        problems.append(f"element {name} plugin {found['plugin']} is version {found['version']}, not "
+                        f"{profile.version_text}")
     if gst.ElementFactory.make(name, None) is None:
         problems.append(f"element {name} is registered but cannot be created")
     return found, problems
 
 
-def _gst_version(gst: Any) -> tuple[int, int, int, int]:
-    return tuple(int(part) for part in gst.version())
-
-
-def inspect_gst(gi: Any, gst: Any, profile: HostProfile, layout: Optional[Layout],
+def inspect_gst(gi: Any, gst: Any, core_dll: Optional[str], profile: HostProfile, layout: Layout,
                 names: Sequence[str]) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
     """GStreamer's identity and each element's origin, with every problem."""
-    version = _gst_version(gst)
-    gi_file = getattr(gi, "__file__", None)
-    gstreamer = {"version": ".".join(map(str, version[:3])), "nano": version[3], "gi_file": gi_file,
+    version = tuple(int(part) for part in gst.version())
+    gstreamer = {"version": ".".join(map(str, version[:3])), "nano": version[3],
+                 "gi_file": getattr(gi, "__file__", None),
+                 "gi_extension_file": getattr(getattr(gi, "_gi", None), "__file__", None), "core_dll": core_dll,
                  "pygobject_version": getattr(gi, "__version__", None)}
-    problems = []
-    if layout is not None and (not gi_file or not _inside(Path(gi_file), layout.gi)):
-        problems.append(f"gi was imported from {gi_file}, not from {layout.gi}")
     if version != (*profile.gst_version, 0):
-        problems.append(f"GStreamer is {'.'.join(map(str, version))}, not the pinned release "
-                        f"{profile.version_text}")
-        return gstreamer, {}, problems
+        problems = [f"GStreamer is {'.'.join(map(str, version))}, not the pinned release {profile.version_text}"]
+        return gstreamer, {}, problems + origin_problems(layout, gstreamer, {})
     elements: dict[str, Any] = {}
+    problems = []
     for name in names:
-        found, element_problems = _element(gst, name, profile, layout)
+        found, element_problems = _element(gst, name, profile)
         if found is not None:
             elements[name] = found
         problems.extend(element_problems)
-    return gstreamer, elements, problems
+    return gstreamer, elements, origin_problems(layout, gstreamer, elements) + problems
 
 
 def gpu_driver() -> str:
-    """The NVIDIA driver nvidia-smi reports, or 'none' where it cannot."""
+    """The NVIDIA GPU and driver nvidia-smi reports, or 'none' where it cannot."""
     try:
         result = subprocess.run(["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader"],
                                 capture_output=True, text=True, timeout=30, check=False)
@@ -179,42 +180,37 @@ def gpu_driver() -> str:
     return result.stdout.strip() if result.returncode == 0 and result.stdout.strip() else "none"
 
 
-def check_runtime(profile: HostProfile, *, root: Optional[Path], installers: Optional[Path], encoder: Optional[str],
+def check_runtime(profile: HostProfile, *, root: Optional[Path], installers: Optional[Path], encoder: str,
                   decoder: str, interpreter: Interpreter, loader: Loader = load_gst,
                   driver: Callable[[], str] = gpu_driver) -> dict[str, Any]:
     """The host's media runtime result (see the module docstring); verdict 'pass' only without blockers."""
     blockers: list[str] = []
-    if encoder is not None and encoder not in profile.encoders:
-        blockers.append(f"encoder {encoder} is not one of {', '.join(profile.encoders) or 'none on this host'}")
-    if encoder is None and profile.encoders:
-        blockers.append(f"an encoder is required: one of {', '.join(profile.encoders)}")
+    if encoder not in profile.encoders:
+        blockers.append(f"encoder {encoder} is not one of {', '.join(profile.encoders)}")
     if decoder not in profile.decoders:
         blockers.append(f"decoder {decoder} is not one of {', '.join(profile.decoders)}")
-    names = [*profile.elements, *([encoder] if encoder else []), decoder]
-
-    layout: Optional[Layout] = None
-    found_installers: dict[str, str] = {}
-    loadable: list[str] = []
     can_import = not blockers
-    if profile.windows_install:
-        found_installers, problems = check_installers(profile, installers)
-        blockers += problems
-        if root is None:
-            blockers.append(f"no GStreamer root: pass --root or set {ROOT_ENV}")
-            can_import = False
-        else:
-            layout = layout_of(root)
-            layout_problems = check_layout(layout)
-            loadable, binding_problems = check_binding(layout, interpreter)
-            blockers += layout_problems + binding_problems
-            can_import = can_import and not layout_problems and not binding_problems
+    found_installers, problems = check_installers(profile, installers)
+    blockers += problems                        # independent of the import: its diagnostics still run
+    layout: Optional[Layout] = None
+    loadable: list[str] = []
+    if root is None:
+        blockers.append(f"no GStreamer root: pass --root or set {ROOT_ENV}")
+        can_import = False
+    else:
+        layout = layout_of(root)
+        layout_problems = check_layout(layout)
+        loadable, binding_problems = check_binding(layout, interpreter)
+        blockers += layout_problems + binding_problems
+        can_import = can_import and not layout_problems and not binding_problems
 
     gstreamer: dict[str, Any] = {}
     elements: dict[str, Any] = {}
     if can_import:
         try:
-            with loader(layout) as (gi, gst):
-                gstreamer, elements, problems = inspect_gst(gi, gst, profile, layout, names)
+            with loader(layout) as (gi, gst, core_dll):
+                gstreamer, elements, problems = inspect_gst(gi, gst, core_dll, profile, layout,
+                                                            [*profile.elements, encoder, decoder])
                 blockers += problems
         except (ImportError, OSError, ValueError) as exc:
             blockers.append(f"importing gi/Gst failed: {type(exc).__name__}: {exc}")
@@ -234,24 +230,24 @@ def check_runtime(profile: HostProfile, *, root: Optional[Path], installers: Opt
         "installers": found_installers,
         "selected": {"encoder": encoder, "decoder": decoder},
         "elements": elements,
-        "gpu_driver": driver() if profile.windows_install else "none",
+        "gpu_driver": driver(),
     }
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--host", choices=sorted(PROFILES), required=True)
-    parser.add_argument("--root", type=Path, help=f"GStreamer root (pc; default ${ROOT_ENV})")
-    parser.add_argument("--installers", type=Path, help="folder holding the official installers (pc)")
-    parser.add_argument("--encoder", help="pc: nvh265enc (default) or x265enc")
-    parser.add_argument("--decoder", help="pc: nvh265dec (default), d3d11h265dec or avdec_h265; orin: nvv4l2decoder")
+    parser.add_argument("--root", type=Path, help=f"GStreamer root (default ${ROOT_ENV})")
+    parser.add_argument("--installers", type=Path, help="folder holding the official installers")
+    parser.add_argument("--encoder", help="nvh265enc (default) or x265enc")
+    parser.add_argument("--decoder", help="nvh265dec (default), d3d11h265dec or avdec_h265")
     parser.add_argument("--out", type=Path, help="also write the result here; refuses an existing file")
     args = parser.parse_args(argv)
     profile = PROFILES[args.host]
-    root = args.root or (Path(os.environ[ROOT_ENV]) if profile.windows_install and os.environ.get(ROOT_ENV) else None)
+    root = args.root or (Path(os.environ[ROOT_ENV]) if os.environ.get(ROOT_ENV) else None)
     result = check_runtime(profile, root=root, installers=args.installers,
-                           encoder=args.encoder or (profile.encoders[0] if profile.encoders else None),
-                           decoder=args.decoder or profile.decoders[0], interpreter=this_interpreter())
+                           encoder=args.encoder or profile.encoders[0], decoder=args.decoder or profile.decoders[0],
+                           interpreter=this_interpreter())
     text = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.out is not None:
         try:

@@ -358,6 +358,26 @@ def test_media_runtime_that_is_not_a_pinned_pass_is_refused(model_dir, path, val
     assert reason in refused(ar.validate_record, edited(record, ("media_runtime",) + path, value))
 
 
+@pytest.mark.parametrize("path, value, reason", [
+    (("gstreamer", "gi_file"), "C:/elsewhere/gi/__init__.py", "gstreamer.gi_file C:/elsewhere/gi/__init__.py"),
+    (("gstreamer", "gi_extension_file"), "C:/elsewhere/gi/_gi.cp313-win_amd64.pyd", "gstreamer.gi_extension_file"),
+    (("gstreamer", "core_dll"), "C:/Windows/System32/gstreamer-1.0-0.dll", "gstreamer.core_dll"),
+    (("elements", "rtspsrc", "filename"), "C:/plugins/gstrtsp.dll", "elements.rtspsrc.filename"),
+    (("launch", "dll_directory"), "C:/elsewhere/bin", "launch is not the install's"),
+    (("python", "gi_extensions"), ["_gi.cp39-win_amd64.pyd"], "gi_extensions are not all loadable"),
+    (("python", "extension_suffixes"), [".cp311-win_amd64.pyd"], "gi_extensions are not all loadable"),
+])
+def test_media_runtime_must_load_everything_from_its_install(model_dir, path, value, reason):
+    record = make(model_dir)
+    assert reason in refused(ar.validate_record, edited(record, ("media_runtime",) + path, value))
+
+
+def test_media_runtime_extension_must_be_a_listed_binding(model_dir):
+    record = edited(make(model_dir), ("media_runtime", "python", "gi_extensions"), ["_gi.pyd"])
+    assert "gi_extension_file _gi.cp313-win_amd64.pyd is not one of python.gi_extensions" in refused(
+        ar.validate_record, record)
+
+
 def test_media_runtime_needs_every_element_it_selected(model_dir):
     record = make(model_dir)
     assert "media_runtime.elements are" in refused(

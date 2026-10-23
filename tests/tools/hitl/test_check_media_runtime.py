@@ -126,15 +126,31 @@ def test_import_failures_are_blockers(pc, error):
     assert f"importing gi/Gst failed: {type(error).__name__}: {error}" in text
 
 
-def test_gi_from_elsewhere_is_refused(pc, tmp_path):
-    gi = fakes.fake_gi(fakes.install(tmp_path / "other"))
-    assert "gi was imported from" in blockers(pc(fakes.Loader(gi=gi)))
+@pytest.mark.parametrize("field", ["gi_file", "gi_extension_file", "core_dll"])
+def test_bindings_and_core_dll_from_another_install_are_refused(pc, tmp_path, field):
+    other = fakes.install(tmp_path / "other")
+    gi, core_dll = fakes.fake_gi(pc.layout), "install"
+    if field == "gi_file":
+        gi.__file__ = str(other.gi / "__init__.py")
+    elif field == "gi_extension_file":
+        gi._gi.__file__ = str(other.gi / fakes.BINDING)
+    else:
+        core_dll = str(other.bin / profiles.CORE_DLL)
+    loader = fakes.Loader(gi=gi, core_dll=core_dll)
+    text = blockers(pc(loader))
+    assert f"gstreamer.{field} " in text and "is not in" in text
+    assert text.count("is not in") == 1
+
+
+def test_unknown_core_dll_is_refused(pc):
+    text = blockers(pc(fakes.Loader(core_dll=None)))     # GetModuleHandleW found no gstreamer-1.0-0.dll
+    assert "gstreamer.core_dll None is not in" in text
 
 
 @pytest.mark.parametrize("version", [(1, 26, 10, 0), (1, 28, 0, 0), (1, 26, 11, 1)])
 def test_other_gstreamer_versions_stop_before_elements(pc, version):
     gst = fakes.fake_gst(pc.layout)
-    gst._version = version
+    gst.version_tuple = version
     result = pc(fakes.Loader(gst=gst))
     assert "not the pinned release 1.26.11" in blockers(result)
     assert result["elements"] == {}
@@ -159,13 +175,13 @@ def test_element_from_another_folder_or_version_is_refused(pc, tmp_path):
     gst.elements["rtspsrc"] = ("1.26.11", str(tmp_path / "GST_PLUGIN_PATH" / "gstrtsp.dll"), True)
     gst.elements["h265parse"] = ("1.24.0", gst.elements["h265parse"][1], True)
     text = blockers(pc(fakes.Loader(gst=gst)))
-    assert "element rtspsrc comes from" in text and "element h265parse plugin plugin-h265parse is version 1.24.0" in text
+    assert "elements.rtspsrc.filename" in text and "is not in" in text
+    assert "element h265parse plugin plugin-h265parse is version 1.24.0" in text
 
 
 def test_selection_outside_the_profile_blocks_before_import(pc):
     loader = fakes.Loader()
     assert "encoder openh264enc is not one of nvh265enc, x265enc" in blockers(pc(loader, encoder="openh264enc"))
-    assert "an encoder is required" in blockers(pc(loader, encoder=None))
     assert "decoder nvv4l2decoder is not one of" in blockers(pc(loader, decoder="nvv4l2decoder"))
     assert loader.calls == []
 
@@ -174,20 +190,6 @@ def test_alternative_encoder_and_decoder_are_inspected(pc):
     result = pc(encoder="x265enc", decoder="avdec_h265")
     assert result["verdict"] == "pass" and {"x265enc", "avdec_h265"} <= set(result["elements"])
     assert "nvh265enc" not in result["elements"]
-
-
-def test_orin_uses_the_system_gi_and_its_decoder():
-    profile = profiles.PROFILES["orin"]
-    loader = fakes.Loader(gst=fakes.fake_gst(None, profile))
-    result = media.check_runtime(profile, root=None, installers=None, encoder=None, decoder="nvv4l2decoder",
-                                 interpreter=fakes.INTERPRETER, loader=loader, driver=lambda: "unused")
-    assert result["verdict"] == "pass", result["blockers"]
-    assert loader.calls == [None] and result["installers"] == {} and result["launch"] is None
-    assert set(result["elements"]) == {*profile.elements, "nvv4l2decoder"}
-    assert result["gpu_driver"] == "none"
-    assert "encoder nvh265enc is not one of none on this host" in blockers(
-        media.check_runtime(profile, root=None, installers=None, encoder="nvh265enc", decoder="nvv4l2decoder",
-                            interpreter=fakes.INTERPRETER, loader=loader, driver=lambda: "unused"))
 
 
 def test_cli_writes_the_result_once_and_exits_by_verdict(tmp_path, monkeypatch, capsys):
@@ -236,6 +238,45 @@ def test_real_loader_restores_sys_path_on_failure(tmp_path, monkeypatch):
         with media.load_gst(layout):
             pass
     assert sys.path == before and added == [str(layout.bin), "closed"]
+
+
+def test_real_loader_keeps_the_dll_folder_until_inspection_ends(tmp_path, monkeypatch):
+    """The DLL directory and the bindings path stay in place while Gst is initialised and inspected."""
+    import types
+    layout = fakes.install(tmp_path / "gst")
+    events = []
+
+    class Handle:
+        def __enter__(self):
+            events.append("dll folder added")
+            return self
+
+        def __exit__(self, *exc):
+            events.append("dll folder removed")
+
+    gst = types.SimpleNamespace(init=lambda _: events.append(f"Gst.init, path has bindings: "
+                                                             f"{str(layout.site_packages) in sys.path}"))
+    gi = types.ModuleType("gi")
+    gi.require_version = lambda name, version: events.append(f"require {name} {version}")
+    repository = types.ModuleType("gi.repository")
+    repository.Gst = gst
+    gi.repository = repository
+    monkeypatch.setitem(sys.modules, "gi", gi)
+    monkeypatch.setitem(sys.modules, "gi.repository", repository)
+    monkeypatch.setattr(media.os, "add_dll_directory", lambda path: Handle(), raising=False)
+    monkeypatch.setattr(media, "loaded_dll_path", lambda name: str(layout.bin / name))
+    with media.load_gst(layout) as (loaded_gi, loaded_gst, core_dll):
+        events.append("inspecting")
+        assert loaded_gi is gi and loaded_gst is gst and core_dll == str(layout.bin / profiles.CORE_DLL)
+    assert events == ["dll folder added", "require Gst 1.0", "Gst.init, path has bindings: True", "inspecting",
+                      "dll folder removed"]
+    assert str(layout.site_packages) not in sys.path
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows module lookup")
+def test_loaded_dll_path_finds_a_loaded_module_and_not_a_missing_one():
+    assert Path(media.loaded_dll_path("kernel32.dll")).name.lower() == "kernel32.dll"
+    assert media.loaded_dll_path("no-such-module-navpy.dll") is None
 
 
 def test_documented_launch_runs_without_navpy_on_the_path(tmp_path):
