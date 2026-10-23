@@ -145,10 +145,9 @@ state (`simClosestApproaches`); the existing `navpyStatus` map (built from
 with the Trails controls (`showTrails`, `hiddenSysIds`, `historyPaused`) and
 the same composite reset the trail gets (`${trackResetKey}:${historyResetKey}`:
 Restart mission bumps `trackResetKey`, Clear all `historyResetKey`,
-`CesiumMap.jsx:295` on the Trails branch), to a new hook
-`useClosestApproachMarks`. Until the Trails control is on main, `CesiumMap`
-passes the layer toggle and `${trackResetKey}:${trailResetKey}` only; the
-hook already takes `hiddenSysIds` and `paused` (todo 107). Fleet membership comes from the telemetry store
+`CesiumMap.jsx`), to a new hook
+`useClosestApproachMarks`, with the same `hiddenSysIds`, `historyPaused`
+and `${trackResetKey}:${historyResetKey}` as `useUavTrails` (todo 107). Fleet membership comes from the telemetry store
 (`storeRef`, its vehicle list), as for the trail: `navpyStatus` lists companion
 processes, not the fleet.
 

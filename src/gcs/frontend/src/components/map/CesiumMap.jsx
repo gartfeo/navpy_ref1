@@ -297,7 +297,7 @@ function CesiumMap({
   useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${historyResetKey}`, hiddenSysIds, historyPaused);
   useClosestApproachMarks(
     cesiumRef, viewerRef, storeRef, viewerReady, simClosestApproaches,
-    simMode, showTrails, `${trackResetKey}:${historyResetKey}`,
+    simMode, showTrails, `${trackResetKey}:${historyResetKey}`, hiddenSysIds, historyPaused,
   );
   useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, historyResetKey, hiddenSysIds, historyPaused, viewerReady, plannerReady);
   useAssignmentMarkers(cesiumRef, viewerRef, assignments || {}, storeRef, viewerReady);

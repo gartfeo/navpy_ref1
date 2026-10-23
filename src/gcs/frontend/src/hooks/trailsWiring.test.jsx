@@ -5,6 +5,7 @@ import useDisplaySettings from './useDisplaySettings';
 import useVehicleCommands from './useVehicleCommands';
 import useUavTrails from '../components/map/hooks/useUavTrails';
 import useCoverageLayer from '../components/map/hooks/useCoverageLayer';
+import useClosestApproachMarks from '../components/map/hooks/useClosestApproachMarks';
 import TrailsControl from '../components/map/TrailsControl';
 
 vi.mock('../utils/planner', () => ({ getDeviceConfigs: () => [{ primary: true }] }));
@@ -28,7 +29,9 @@ class Cartesian3 {
   static fromDegrees(lon, lat) { return { lon, lat }; }
   static fromDegreesArrayHeights(flat) { return [...flat]; }
   static lerp(a) { return a; }
+  static midpoint(a) { return a; }
 }
+const fakeColor = () => ({ withAlpha: (a) => ({ a }) });
 
 function fakeStore() {
   const listeners = new Set();
@@ -49,8 +52,8 @@ function fakeStore() {
   return store;
 }
 
-/** App's wiring in miniature: panel -> display state -> commands -> both history layers. */
-function Harness({ store, viewer, cesium, plan, api, entitiesRef }) {
+/** App's wiring in miniature: panel -> display state -> commands -> the history layers. */
+function Harness({ store, viewer, cesium, plan, api, entitiesRef, records = null }) {
   const d = useDisplaySettings();
   const c = useVehicleCommands({
     api, vehicleList: [], taskConfirmReset: () => {}, taskAssignReset: () => {},
@@ -62,6 +65,8 @@ function Harness({ store, viewer, cesium, plan, api, entitiesRef }) {
     `${c.trackResetKey}:${c.historyResetKey}`, d.hiddenSysIds, paused);
   useCoverageLayer(cesium, viewer, storeRef, plan, d.showCoverage, d.showVision,
     c.trackResetKey, c.historyResetKey, d.hiddenSysIds, paused, true, true);
+  useClosestApproachMarks(cesium, viewer, storeRef, true, records, true, d.showTrails,
+    `${c.trackResetKey}:${c.historyResetKey}`, d.hiddenSysIds, paused);
   return (
     <>
       <button type="button" onClick={() => c.handleRestart([1]).catch(() => {})}>restart</button>
@@ -88,7 +93,13 @@ function setup(planRef = { current: { altitude_m: 100, zones: [] } }) {
     Cartesian3,
     PolygonHierarchy,
     CallbackProperty,
-    Color: { fromCssColorString: () => ({ withAlpha: (a) => ({ a }) }) },
+    Color: { fromCssColorString: fakeColor, WHITE: fakeColor(), BLACK: fakeColor() },
+    Cartesian2: class {},
+    NearFarScalar: class {},
+    DistanceDisplayCondition: class {},
+    PolylineDashMaterialProperty: class {},
+    LabelStyle: {},
+    VerticalOrigin: {},
     ClassificationType: { TERRAIN: 'terrain' },
   } };
   const viewer = { current: { entities } };
@@ -108,7 +119,9 @@ function setup(planRef = { current: { altitude_m: 100, zones: [] } }) {
     fireEvent.click(utils.getByRole('button', { name }));
   };
   const rerenderPlan = (plan) => utils.rerender(<Harness {...props} plan={plan} />);
-  return { store, utils, marks, trailPoints, panel, rerenderPlan };
+  const showRecords = (records) => utils.rerender(<Harness {...props} plan={planRef.current} records={records} />);
+  const approaches = () => [...live].filter((e) => e.properties?.closestApproachKey);
+  return { store, utils, marks, trailPoints, panel, rerenderPlan, showRecords, approaches };
 }
 
 describe('Trails panel wiring into both history layers', () => {
@@ -157,6 +170,27 @@ describe('Trails panel wiring into both history layers', () => {
     t.store.send(1, 44.06);
     expect(t.marks()).toBe(2);
     expect(t.trailPoints()).toBe(2);
+  });
+
+  it('the UAV toggle hides its closest-approach marks and Pause stops new ones', () => {
+    const t = setup();
+    t.store.send(1, 44.00);
+    const record = (key) => ({
+      key, sys_id: 1, outcome: 'missed', lat: 40, lon: 44, alt_rel_m: 41, d3_m: 2, h_m: 1, v_m: 1,
+      dock_lat: 40, dock_lon: 44, dock_alt_rel_m: 40,
+    });
+    t.showRecords([]); // the first status after load is consumed unshown
+    t.showRecords([record('b:1:1')]);
+    expect(t.approaches().map((e) => e.show)).toEqual([true]);
+    t.panel('UAV 1');
+    expect(t.approaches().map((e) => e.show)).toEqual([false]);
+    t.panel('UAV 1');
+    t.panel('trailsPanel.pause');
+    t.showRecords([record('b:1:1'), record('b:1:2')]);
+    expect(t.approaches()).toHaveLength(1);
+    t.panel('trailsPanel.resume');
+    t.showRecords([record('b:1:1'), record('b:1:2'), record('b:1:3')]);
+    expect(t.approaches()).toHaveLength(2);
   });
 
   it('a new plan object keeps the recorded marks', () => {
