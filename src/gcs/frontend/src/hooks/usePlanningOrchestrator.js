@@ -87,7 +87,7 @@ export default function usePlanningOrchestrator({
   // ---- Plan generation ----
   const {
     effectiveUavCount, effectiveSets,
-    localAnalyze, localGenerate, regenerateLoadedPlan,
+    localAnalyze, localGenerate, regenerateLoadedPlan, holdDownloadedPlan, releaseDownloadedPlan,
     approachPoint, corridorPath,
   } = usePlanGeneration({
     polygon, setPolygon,
@@ -222,7 +222,8 @@ export default function usePlanningOrchestrator({
     regenerateLoadedPlan,
     resetZoneSelectionBaseline,
     undoRef,
-    suppressRegenRef,
+    holdDownloadedPlan,
+    releaseDownloadedPlan,
     deliveryHubAssignments,
     setDeliveryHubAssignments,
     setManualDeliveryHubEdit,

@@ -63,7 +63,8 @@ export default function usePlanPersistence({
   regenerateLoadedPlan,
   resetZoneSelectionBaseline,
   undoRef,
-  suppressRegenRef,
+  holdDownloadedPlan,
+  releaseDownloadedPlan,
   deliveryHubAssignments,
   setDeliveryHubAssignments,
   setManualDeliveryHubEdit,
@@ -237,14 +238,16 @@ export default function usePlanPersistence({
         setFenceTouched?.(false);
       }
       // This is a replacement plan: the previous plan's vehicle fence
-      // observations no longer describe it.
-      resetFenceObservations?.();
+      // observations no longer describe it. The connected fleet is asked
+      // again, and the demo default waits for its answer.
+      resetFenceObservations?.({ readFleet: true });
       undoRef.current = [];
+      releaseDownloadedPlan?.();
       if (regenerates) regenerateLoadedPlan();
     } catch {
       window.alert(t('planFile.invalidData'));
     }
-  }, [t, setAnalysis, setPolygon, drawing.loadVertices, regenerateLoadedPlan, resetZoneSelectionBaseline, setSearchPattern, setUavCount, setPartitionAngleDeg, setRouteOffsetM, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations, handleSaveSettings, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, setDeliveryHubAssignments, setManualDeliveryHubEdit, setSimDockWps, setDetectAfterWps, setFenceOffsetM, setFenceCustomVertices, setExclusionPolygons, undoRef]);
+  }, [t, setAnalysis, setPolygon, drawing.loadVertices, regenerateLoadedPlan, resetZoneSelectionBaseline, setSearchPattern, setUavCount, setPartitionAngleDeg, setRouteOffsetM, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations, handleSaveSettings, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, setDeliveryHubAssignments, setManualDeliveryHubEdit, setSimDockWps, setDetectAfterWps, setFenceOffsetM, setFenceCustomVertices, setExclusionPolygons, undoRef, releaseDownloadedPlan]);
 
   // A file loaded before the planner is ready is held, not applied: applied
   // early, its analysis would be empty and the readiness transition would
@@ -298,8 +301,12 @@ export default function usePlanPersistence({
     if (tracks.length === 0) return;
     undoRef.current = [];
 
-    // Suppress auto-regeneration
-    suppressRegenRef.current = true;
+    // Keep the vehicles' missions on screen until the operator changes what
+    // plans are generated from (see usePlanGeneration).
+    holdDownloadedPlan?.();
+    // The plan flies one UAV per downloaded mission; the area's auto count
+    // would re-zone it.
+    setUavCount(zones.length);
 
     // Restoring a downloaded plan replaces the geometry a hand-edited fence
     // ring was shaped against — drop the stale ring (fence reverts to auto).
@@ -316,19 +323,22 @@ export default function usePlanPersistence({
       return 0;
     };
 
-    // Launch point from metadata (preferred) or heuristic fallback
+    // Launch point from metadata (preferred) or heuristic fallback. The
+    // download replaces every set's launch point and corridor: slots left
+    // from the replaced plan are not the vehicles' geometry.
     let heuristicSkip = 0;
+    let launch = null;
+    let corridor = [];
     if (downloadedLaunchPoint) {
-      setLaunchPoint({ lat: downloadedLaunchPoint.lat, lon: downloadedLaunchPoint.lon });
+      launch = { lat: downloadedLaunchPoint.lat, lon: downloadedLaunchPoint.lon };
       const firstCidx = getCorridorIdx(tracks[0]);
       if (downloadedCorridorBackbone?.length > 0) {
-        setCorridorPoints(downloadedCorridorBackbone.map((p) => ({ lat: p.lat, lon: p.lon })));
+        corridor = downloadedCorridorBackbone.map((p) => ({ lat: p.lat, lon: p.lon }));
       } else {
-        setCorridorPoints(firstCidx > 0 ? tracks[0].track.slice(0, firstCidx) : []);
+        corridor = firstCidx > 0 ? tracks[0].track.slice(0, firstCidx) : [];
       }
     } else {
       // Heuristic fallback: detect shared first waypoint across zones
-      heuristicSkip = 0;
       const first = tracks[0].track[0];
       const allShareFirst = tracks.length > 1 && tracks.every((z) =>
         Math.abs(z.track[0].lat - first.lat) < 1e-7 &&
@@ -340,17 +350,17 @@ export default function usePlanPersistence({
 
       const firstCidx = getCorridorIdx(tracks[0]) || heuristicSkip;
       if (firstCidx > 0 && tracks[0].track.length > firstCidx) {
-        setLaunchPoint({ lat: tracks[0].track[0].lat, lon: tracks[0].track[0].lon });
+        launch = { lat: tracks[0].track[0].lat, lon: tracks[0].track[0].lon };
         if (downloadedCorridorBackbone?.length > 0) {
-          setCorridorPoints(downloadedCorridorBackbone.map((p) => ({ lat: p.lat, lon: p.lon })));
+          corridor = downloadedCorridorBackbone.map((p) => ({ lat: p.lat, lon: p.lon }));
         } else {
-          setCorridorPoints(firstCidx > 1 ? tracks[0].track.slice(1, firstCidx) : []);
+          corridor = firstCidx > 1 ? tracks[0].track.slice(1, firstCidx) : [];
         }
-      } else {
-        setLaunchPoint(null);
-        setCorridorPoints([]);
       }
     }
+    setSetLaunchPoints([launch]);
+    setSetCorridorPoints([corridor]);
+    setActiveSetIndex(0);
 
     // Use downloaded polygon if available, otherwise convex-hull heuristic
     let resolvedPoly = null;
@@ -401,7 +411,7 @@ export default function usePlanPersistence({
       });
       return changed ? { ...prev, zones: trimmed } : prev;
     });
-  }, [plannerReady, setPolygon, drawing.loadVertices, setLaunchPoint, setCorridorPoints, setPlan, setSearchPattern, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, handleSaveSettings, setDeliveryHubAssignments, setFenceCustomVertices, notifyFenceGeometryReplaced, settings]);
+  }, [plannerReady, holdDownloadedPlan, setUavCount, setPolygon, drawing.loadVertices, setPlan, setSearchPattern, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, handleSaveSettings, setDeliveryHubAssignments, setFenceCustomVertices, notifyFenceGeometryReplaced, settings]);
 
   return {
     handleSavePolygon,
