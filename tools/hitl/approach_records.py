@@ -3,14 +3,16 @@
 One JSON manifest per run, approach_record.json, in the run's folder under the private folder
 (tools/tuning/private_data.py), never in a repository checkout. It names what the run used: the run's identity and
 mode, the source, Layer 1's model input (model_input.py, embedded whole), the bridge as the run starts it, the
-law and what the mode substitutes for the real aircraft chain. Two runs can then be shown to share their
+law, the media runtime it moves video with (check_media_runtime.py, a passing result embedded whole) and what the
+mode substitutes for the real aircraft chain. Two runs can then be shown to share their
 inputs, and a changed input starts a new series.
 
 A record is refused (RecordError, every problem listed) when a field is missing, unknown or malformed, when
 its model input is refused, or when the run disagrees with it: a plant version the model was not validated
 with, a step that is not the bridge's 1/N s or is longer than the model's maximum, a servo speed other than
 the declared one, a sensor map that is not the bridge's, a law other than the pure-vision law (AGENTS.md), or a
-substitution of the mode left out or reworded. new_record also refuses a model folder that differs from the model input.
+substitution of the mode left out or reworded, or a media runtime that did not pass on the mode's host with the
+pinned GStreamer, installers and elements. new_record also refuses a model folder that differs from the model input.
 """
 from __future__ import annotations
 
@@ -24,6 +26,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
+from tools.hitl import check_media_runtime as media
+from tools.hitl import media_profiles
 from tools.hitl import json_checks as jc
 from tools.hitl.json_checks import RecordError
 from tools.hitl.model_input import (BRIDGE_SENSOR_MAP, MODEL_INPUT_SPEC, PLANTS, check_model_files,
@@ -32,7 +36,7 @@ from tools.tuning.hitl_bridge.board_clock import step_rate_hz
 from tools.tuning.private_data import private_dir
 
 RECORD_FILE = "approach_record.json"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NAVPY_SOURCE = Path("src", "navpy")     # the package folder every navpy checkout holds at its top
 
@@ -50,6 +54,27 @@ MODE_SUBSTITUTIONS: Mapping[str, Mapping[str, str]] = {
 # The final approach flies the pure-vision law only; the legacy laws read dock geometry.
 APPROACH_LAWS = (NavigationAlgorithm.VISION_NAV_PN.value,)
 
+# The host each mode runs navpy's video on; its media runtime check must have passed there.
+MODE_MEDIA_HOST: Mapping[str, str] = {"pc-sitl": "pc"}
+
+# A passing check_media_runtime.py result of an official MSVC install (the pc host).
+MEDIA_RUNTIME_SPEC: Mapping[str, jc.Check] = {
+    "schema_version": jc.equals(media.SCHEMA_VERSION),
+    "host": jc.choice(tuple(MODE_MEDIA_HOST.values())),
+    "verdict": jc.equals("pass"),
+    "blockers": jc.equals([]),
+    "python": jc.obj({"version": jc.text, "implementation": jc.equals("CPython"),
+                      "platform": jc.equals(media_profiles.PC_PLATFORM), "extension_suffixes": jc.list_of(jc.text, True),
+                      "executable": jc.text, "gi_extensions": jc.list_of(jc.text, True)}),
+    "gstreamer": jc.obj({"pinned": jc.text, "root": jc.text, "version": jc.text, "nano": jc.equals(0),
+                         "gi_file": jc.text, "pygobject_version": jc.text}),
+    "launch": jc.obj({"dll_directory": jc.text, "sys_path": jc.text}),
+    "installers": jc.map_of(jc.hex_digits(64)),
+    "selected": jc.obj({"encoder": jc.text, "decoder": jc.text}),
+    "elements": jc.map_of(jc.obj({"plugin": jc.text, "version": jc.text, "filename": jc.text, "rank": jc.index})),
+    "gpu_driver": jc.text,
+}
+
 _SOURCE = jc.obj({"git_head": jc.hex_digits(40), "uncommitted_diff_sha256": jc.hex_digits(64),
                   "untracked_sha256": jc.hex_digits(64)})
 RECORD_SPEC: Mapping[str, jc.Check] = {
@@ -61,6 +86,7 @@ RECORD_SPEC: Mapping[str, jc.Check] = {
                       "loop_rate_hz": jc.positive, "servo_speed_s": jc.non_negative,
                       "sensor_map": jc.map_of(jc.text)}),
     "law": jc.obj({"algorithm": jc.text}),
+    "media_runtime": jc.obj(MEDIA_RUNTIME_SPEC),
     "substitutions": jc.map_of(jc.text),
 }
 
@@ -105,6 +131,35 @@ def _run_problems(record: Mapping[str, Any]) -> list[str]:
             problems.append(f"record.substitutions.{name} is missing for mode {mode}")
         elif substitutions[name] != text:
             problems.append(f"record.substitutions.{name} {substitutions[name]!r} is not mode {mode}'s {text!r}")
+    return problems + _media_runtime_problems(record["media_runtime"], MODE_MEDIA_HOST[mode])
+
+
+def _media_runtime_problems(result: Mapping[str, Any], host: str) -> list[str]:
+    """A passing result that is not the mode host's pinned runtime: another host, GStreamer release, installer,
+    element set or element version."""
+    path = "record.media_runtime"
+    if result["host"] != host:
+        return [f"{path}.host {result['host']} is not this mode's video host {host}"]
+    profile = media_profiles.PROFILES[host]
+    problems = []
+    for field in ("pinned", "version"):
+        if result["gstreamer"][field] != profile.version_text:
+            problems.append(f"{path}.gstreamer.{field} {result['gstreamer'][field]} is not the pinned "
+                            f"{profile.version_text}")
+    if dict(result["installers"]) != dict(profile.installers):
+        problems.append(f"{path}.installers are not the official {profile.version_text} installers and sums")
+    selected = result["selected"]
+    if selected["encoder"] not in profile.encoders:
+        problems.append(f"{path}.selected.encoder {selected['encoder']} is not one of {', '.join(profile.encoders)}")
+    if selected["decoder"] not in profile.decoders:
+        problems.append(f"{path}.selected.decoder {selected['decoder']} is not one of {', '.join(profile.decoders)}")
+    needed = {*profile.elements, selected["encoder"], selected["decoder"]}
+    if set(result["elements"]) != needed:
+        problems.append(f"{path}.elements are {', '.join(sorted(result['elements']))}, not the needed "
+                        f"{', '.join(sorted(needed))}")
+    problems.extend(f"{path}.elements.{name}.version {element['version']} is not {profile.version_text}"
+                    for name, element in sorted(result["elements"].items())
+                    if element["version"] != profile.version_text)
     return problems
 
 
@@ -135,8 +190,9 @@ def source_identity(repo: Path = REPO_ROOT) -> dict[str, str]:
 
 def new_record(*, run_id: str, mode: str, created: datetime, model_input: Mapping[str, Any], model_dir: Path,
                bridge: BridgeRun, law: str, sources: Mapping[str, Mapping[str, str]],
-               extra_substitutions: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
-    """The validated record of a run about to start; the model folder must match the model input."""
+               media_runtime: Mapping[str, Any], extra_substitutions: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
+    """The validated record of a run about to start; the model folder must match the model input, and
+    media_runtime is the video host's check_media_runtime.py result."""
     if created.tzinfo is None:
         raise RecordError(["created must carry its time zone"])
     record = {
@@ -149,6 +205,7 @@ def new_record(*, run_id: str, mode: str, created: datetime, model_input: Mappin
                    "integration_dt_s": bridge.integration_dt_s, "loop_rate_hz": bridge.loop_rate_hz,
                    "servo_speed_s": bridge.servo_speed_s, "sensor_map": dict(BRIDGE_SENSOR_MAP)},
         "law": {"algorithm": law},
+        "media_runtime": json.loads(json.dumps(media_runtime)),
         "substitutions": {**MODE_SUBSTITUTIONS.get(mode, {}), **(extra_substitutions or {})},
     }
     validate_record(record)
