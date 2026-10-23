@@ -139,7 +139,7 @@ def upload_mission_with_retry(
             if not held:
                 return UploadResult(
                     success=False, uploaded_count=0, expected_count=expected_count,
-                    attempts=attempt, error="Another mission transfer ran past the request deadline",
+                    attempts=attempt, error="Request deadline passed before the mission lock was free",
                 )
             if on_progress:
                 on_progress("clearing", attempt)

@@ -829,8 +829,8 @@ def test_mission_upload_fails_closed_when_its_reply_was_evicted():
 
     def burst(*_args):
         inbox.publish(_mission_message("MISSION_REQUEST_INT", seq=0), 1.0)
-        for _ in range(4):  # unrelated rejections evict the request
-            inbox.publish(_mission_message("MISSION_ACK", type=1), 2.0)
+        for seq in range(1, 5):  # requests that do not answer the count evict the one that does
+            inbox.publish(_mission_message("MISSION_REQUEST_INT", seq=seq), 2.0)
 
     connection.mav.mission_count_send.side_effect = burst
     uploader = MissionUploader(

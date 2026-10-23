@@ -5,7 +5,9 @@ import asyncio
 import logging
 import math
 from typing import Callable
+from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.core.ports.vehicle_control_interfaces import VehicleParameters
+from gcs.backend.exchange_budget import expired
 from gcs.backend.models import VehicleAssignment, FencePlan, FenceOutcome
 from gcs.backend.vehicle_manager import VehicleEntry
 from gcs.backend.full_params import FullParamCache
@@ -78,15 +80,29 @@ def read_fence_params(vehicle: VehicleParameters) -> dict | None:
     return values
 
 
-def _write_fence_params(vehicle: VehicleParameters, writes: list[tuple[str, float]]) -> list[str]:
+def write_rtl_altitude(vehicle: VehicleParameters, altitude_m: float,
+                       policy: ExchangePolicy | None) -> None:
+    """Set RTL_ALTITUDE unless the request's deadline has passed (todo 105)."""
+    if expired(policy):
+        log.warning("RTL_ALTITUDE not written: the request deadline passed")
+        return
+    vehicle.set_parameter("RTL_ALTITUDE", float(altitude_m))
+
+
+def _write_fence_params(vehicle: VehicleParameters, writes: list[tuple[str, float]],
+                        policy: ExchangePolicy | None = None) -> list[str]:
     """Write each fence param and return the names the vehicle did not ack.
 
     Every write is attempted and its result checked: a rejected FENCE_ENABLE
     must not be reported as an applied fence just because the writes before it
-    succeeded.
+    succeeded. Past the request's deadline a write is not started and counts
+    as failed.
     """
     failed: list[str] = []
     for name, value in writes:
+        if expired(policy):
+            failed.append(name)
+            continue
         try:
             ok = vehicle.set_parameter(name, value)
         except Exception as exc:  # noqa: BLE001 - reported, never raised on
@@ -120,6 +136,7 @@ async def apply_fence(
     *,
     upload_fence: Callable[..., FenceUploadResult],
     cache: FullParamCache,
+    policy: ExchangePolicy | None = None,
 ) -> dict | None:
     """Upload the shared geofence to one vehicle and set its fence params.
 
@@ -127,6 +144,7 @@ async def apply_fence(
     Never raises — fence problems are reported but must not fail the mission
     upload. The caller reports the outcome separately from the mission result
     so a partially applied fence is visible even on a successful mission.
+    ``policy`` is the request's budget (todo 105): no vehicle work starts past it.
     """
     if fence is None:
         return None
@@ -149,7 +167,7 @@ async def apply_fence(
             # left as the vehicle has them, so re-enabling later restores the
             # operator's own configuration rather than a guess.
             failed = _write_fence_params(
-                entry.vehicle, [("FENCE_ENABLE", 0.0), ("FENCE_AUTOENABLE", 0.0)],
+                entry.vehicle, [("FENCE_ENABLE", 0.0), ("FENCE_AUTOENABLE", 0.0)], policy,
             )
             # The vehicle's values changed even when one write was rejected.
             cache.invalidate_keys(sys_id, ["FENCE_ENABLE", "FENCE_AUTOENABLE"])
@@ -172,9 +190,11 @@ async def apply_fence(
             [{"lat": v.lat, "lon": v.lon} for v in ring]
             for ring in (fence.exclusions or [])
         ]
+        if expired(policy):
+            return _outcome("enable", applied=False, error="request deadline passed")
         geometry_attempted = True
         res = await loop.run_in_executor(
-            None, lambda: upload_fence(entry.vehicle, verts, exclusions),
+            None, lambda: upload_fence(entry.vehicle, verts, exclusions, policy=policy),
         )
         if not res.success:
             log.warning("Fence upload to vehicle %d failed: %s", sys_id, res.error)
@@ -189,7 +209,7 @@ async def apply_fence(
             ("FENCE_ACTION", float(fence.action)),
             ("FENCE_AUTOENABLE", 1.0),
             ("FENCE_ENABLE", 1.0),
-        ])
+        ], policy)
         cache.invalidate_keys(sys_id, _FENCE_PARAM_KEYS + ["FENCE_TOTAL"])
         return _outcome(
             "enable", applied=not failed, enabled=not failed, total=res.vertex_count,

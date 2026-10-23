@@ -47,15 +47,25 @@ def requested_policy(timeout_s: object, default_s: float) -> ExchangePolicy:
     return gcs_policy(budget)
 
 
+def expired(policy: ExchangePolicy | None) -> bool:
+    """Whether the request's deadline has passed: start no more vehicle work."""
+    return policy is not None and policy.deadline_s is not None and rt.monotonic() >= policy.deadline_s
+
+
 @contextmanager
 def held_within(lock: LockPort, policy: ExchangePolicy | None) -> Iterator[bool]:
-    """Hold ``lock`` if it comes free before the policy's deadline; yields whether it did."""
+    """Hold ``lock`` if it comes free before the policy's deadline; yields whether it did.
+
+    Past the deadline nothing is held, even a free lock: the caller must not
+    start a clear or a transfer it cannot finish (todo 105)."""
     if policy is None or policy.deadline_s is None:
         acquired = lock.acquire()
+    elif expired(policy):
+        acquired = False
     else:
         acquired = lock.acquire(timeout=max(0.0, policy.deadline_s - rt.monotonic()))
     try:
-        yield acquired
+        yield acquired and not expired(policy)
     finally:
         if acquired:
             lock.release()
@@ -63,5 +73,5 @@ def held_within(lock: LockPort, policy: ExchangePolicy | None) -> Iterator[bool]
 
 __all__ = [
     "DEFAULT_MISSION_REQUEST_S", "GCS_EXCHANGE_ATTEMPTS", "MISSION_UPLOAD_REQUEST_S",
-    "gcs_policy", "held_within", "requested_policy",
+    "expired", "gcs_policy", "held_within", "requested_policy",
 ]

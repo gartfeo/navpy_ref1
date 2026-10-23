@@ -6,13 +6,12 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
+from navpy.core.ports.parameter_exchange import ExchangePolicy
 from gcs.backend.planner.waypoint_builder import UploadResult, upload_mission_with_retry
-from gcs.backend.planner.fence_builder import (
-    upload_fence_with_retry,
-)
+from gcs.backend.planner.fence_builder import upload_fence_with_retry
 from gcs.backend.mission_validator import parse_mission_items
 from gcs.backend.exchange_budget import DEFAULT_MISSION_REQUEST_S, MISSION_UPLOAD_REQUEST_S
-from gcs.backend.exchange_budget import gcs_policy, held_within, requested_policy
+from gcs.backend.exchange_budget import expired, gcs_policy, held_within, requested_policy
 from gcs.backend.models import UploadRequest, UploadProgress, FencePlan, FenceOutcome
 from gcs.backend.settings_store import settings_store
 from gcs.backend.vehicle_manager import vehicle_mgr
@@ -22,7 +21,7 @@ from gcs.backend.full_params import full_param_cache
 from gcs.backend.diagnostics import emit
 from gcs.backend.routes.mission_fence_download import download_fence_snapshot
 from gcs.backend.routes.mission_upload_helpers import (
-    assignment_geometry, apply_fence, fence_outcome_model,
+    assignment_geometry, apply_fence, fence_outcome_model, write_rtl_altitude,
 )
 
 log = logging.getLogger(__name__)
@@ -31,10 +30,11 @@ router = APIRouter()
 #: Another transfer held the vehicle's mission lock past the request's deadline.
 _MISSION_BUSY = object()
 
-async def _apply_fence(loop, entry, sys_id: int, fence: FencePlan | None) -> dict | None:
+async def _apply_fence(loop, entry, sys_id: int, fence: FencePlan | None,
+                       policy: ExchangePolicy | None = None) -> dict | None:
     return await apply_fence(
         loop, entry, sys_id, fence, upload_fence=upload_fence_with_retry,
-        cache=full_param_cache,
+        cache=full_param_cache, policy=policy,
     )
 
 
@@ -233,7 +233,7 @@ async def upload_missions(req: UploadRequest):
             result = await upload()
 
             # If link lost, try reconnecting and retrying once
-            if result.link_lost:
+            if result.link_lost and not expired(policy):
                 await ws_manager.broadcast({
                     "type": "upload_progress",
                     "sys_id": assignment.sys_id,
@@ -253,11 +253,11 @@ async def upload_missions(req: UploadRequest):
                 entry.cached_mission = None  # invalidate probe cache
                 # A blocking MAVLink round trip: never on the loop thread.
                 await loop.run_in_executor(
-                    None, entry.vehicle.set_parameter, "RTL_ALTITUDE", float(assignment.altitude_m),
+                    None, write_rtl_altitude, entry.vehicle, assignment.altitude_m, policy,
                 )
                 full_param_cache.invalidate_keys(assignment.sys_id, ["RTL_ALTITUDE"])
                 # Apply the shared geofence (if any) after the mission upload.
-                fence_status = await _apply_fence(loop, entry, assignment.sys_id, req.fence)
+                fence_status = await _apply_fence(loop, entry, assignment.sys_id, req.fence, policy)
 
             progress = UploadProgress(
                 sys_id=assignment.sys_id,

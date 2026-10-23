@@ -6,17 +6,22 @@ from __future__ import annotations
 import copy
 import threading
 import time
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from gcs.backend.exchange_budget import GCS_EXCHANGE_ATTEMPTS, gcs_policy
+from pymavlink.dialects.v20.ardupilotmega import MAV_MISSION_ACCEPTED
+
+from gcs.backend.exchange_budget import GCS_EXCHANGE_ATTEMPTS, gcs_policy, held_within
+from gcs.backend.planner.fence_builder import upload_fence_with_retry
 from gcs.backend.planner.waypoint_builder import upload_mission_with_retry
 from gcs.backend.routes.missions import MISSION_UPLOAD_REQUEST_S
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
-from tests.modules.vehicle.test_mission_transfer import TARGET, Autopilot
+from tests.modules.vehicle.test_mission_transfer import TARGET, Autopilot, Receiver, _ack, _request
 
 TRACK = [{"lat": 32.0, "lon": 34.0}, {"lat": 32.001, "lon": 34.001}]
+TRIANGLE = [{"lat": 32.0, "lon": 34.0}, {"lat": 32.01, "lon": 34.0}, {"lat": 32.0, "lon": 34.01}]
 
 
 def test_a_gcs_download_sends_twelve_requests_while_the_autopilot_talks():
@@ -145,3 +150,90 @@ def test_the_upload_route_gives_every_attempt_one_request_deadline():
     policy = upload.call_args.kwargs["policy"]
     assert policy.attempts == 12
     assert before + MISSION_UPLOAD_REQUEST_S <= policy.deadline_s <= time.monotonic() + MISSION_UPLOAD_REQUEST_S
+
+
+def _spent():
+    """A request policy whose deadline has passed."""
+    policy = gcs_policy(60.0)
+    return replace(policy, deadline_s=time.monotonic() - 1.0)
+
+
+def test_past_the_deadline_a_free_lock_is_not_taken_and_nothing_is_cleared():
+    vehicle = StoredVehicle(lost_acks=0)
+    vehicle.clear_mission = MagicMock()
+    with held_within(vehicle.mission_lock, _spent()) as held:
+        assert not held
+        assert not vehicle.mission_lock.locked()
+    result = upload_mission_with_retry(vehicle, TRACK, 100.0, policy=_spent())
+    assert not result.success
+    vehicle.clear_mission.assert_not_called()
+    assert vehicle.uploads == 0
+
+
+class LateLock:
+    """Comes free only once the waiter's whole timeout has passed."""
+
+    def __init__(self) -> None:
+        self.released = False
+
+    def acquire(self, timeout: float = -1) -> bool:
+        time.sleep(timeout + 0.01)
+        return True
+
+    def release(self) -> None:
+        self.released = True
+
+
+def test_a_lock_won_after_the_deadline_is_given_back_unused():
+    lock = LateLock()
+    with held_within(lock, gcs_policy(0.02)) as held:
+        assert not held
+    assert lock.released
+
+
+def test_past_the_deadline_no_fence_is_cleared():
+    vehicle = MagicMock(target_system=1, mission_lock=threading.Lock())
+    result = upload_fence_with_retry(vehicle, TRIANGLE, policy=_spent())
+    assert not result.success
+    vehicle.clear_fence.assert_not_called()
+    vehicle.upload_fence.assert_not_called()
+
+
+def test_an_upload_past_its_deadline_starts_no_reconnect_rtl_write_or_fence():
+    from gcs.backend.planner.waypoint_builder import UploadResult
+    vehicle = MagicMock()
+    manager = MagicMock()
+    manager.get_vehicle.return_value = _entry(vehicle)
+    lost = UploadResult(success=False, uploaded_count=0, expected_count=4, attempts=1,
+                        error="link lost", link_lost=True)
+    stored = UploadResult(success=True, uploaded_count=4, expected_count=4, attempts=1)
+    fence = {"enabled": True, "action": 1, "type": 4, "vertices": TRIANGLE}
+    body = {"assignments": [{"sys_id": 1, "zone_index": 0, "altitude_m": 100.0, "waypoints": TRACK}],
+            "fence": fence}
+    from gcs.backend.main import app
+    for result in (lost, stored):
+        vehicle.reset_mock()
+        manager.reconnect_vehicle.reset_mock()
+        with patch("gcs.backend.routes.missions.vehicle_mgr", manager), \
+             patch("gcs.backend.routes.missions.gcs_policy", return_value=_spent()), \
+             patch("gcs.backend.routes.missions.upload_mission_with_retry", return_value=result), \
+             patch("gcs.backend.routes.missions.upload_fence_with_retry") as upload_fence:
+            response = TestClient(app).post("/api/vehicles/upload", json=body)
+        assert response.status_code == 200, response.text
+        manager.reconnect_vehicle.assert_not_called()
+        vehicle.set_parameter.assert_not_called()
+        upload_fence.assert_not_called()
+    assert response.json()["fence_ok"] is False
+
+
+def test_a_gcs_upload_logs_every_send():
+    receiver = Receiver(2)
+    receiver.script = {(0, 1): [_request(1)], (1, 1): [_ack(MAV_MISSION_ACCEPTED)]}
+    link = HeartbeatState(TARGET, 5.0)
+    link.observe_frame()
+    uploader = receiver.uploader(link=link)
+    logger = uploader._logger_ref.value
+    assert uploader.upload(policy=gcs_policy(30.0), ack_timeout=0.1, abandon_s=0.5)
+    lines = [call.args[0] for call in logger.info.call_args_list if call.args[1:] == ("mission",)]
+    assert lines == ["MISSION_COUNT send 1/12: MISSION_REQUEST_INT",
+                     "MISSION_ITEM_INT 0/2 sent", "MISSION_ITEM_INT 1/2 sent"]

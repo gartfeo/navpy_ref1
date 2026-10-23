@@ -8,7 +8,9 @@ Each wait is cut by the policy's deadline, checks the link and
 ``cancelled`` every ``ack_timeout``, and ends after ``abandon_s`` without a
 protocol reply, when ArduPilot has dropped the upload. An item the
 autopilot no longer expects is answered ``INVALID_SEQUENCE`` (a late
-duplicate), which is ignored; any other non-accepted ACK ends the upload.
+duplicate), which is ignored; any other non-accepted ACK ends the upload,
+also one answering ``MISSION_COUNT``. With ``stop_on_silence`` (a GCS
+transfer) every send is logged; otherwise only a missed count and a resent item.
 """
 
 from __future__ import annotations
@@ -97,7 +99,14 @@ class MissionUploader:
             else:
                 sequence = message.seq
                 if 0 <= sequence < total:
+                    reason = stop_reason(policy, self._link)  # one that came during the wait
+                    if reason is not None:
+                        logger.warning(f"Mission upload ended before item {sequence} ({reason.value}).")
+                        return False
                     self._send_item(waypoints[sequence], sequence, mission_type)
+                    if policy.stop_on_silence or sequence < next_sequence:
+                        self._log(f"MISSION_ITEM_INT {sequence}/{total} "
+                                  f"{'resent' if sequence < next_sequence else 'sent'}")
                     if sequence >= next_sequence:
                         next_sequence = sequence + 1
                         if on_wp_sent:
@@ -133,9 +142,15 @@ class MissionUploader:
             sent += 1
             envelope = self._inbox.wait_after(
                 cursor,
-                lambda message: self._matcher.is_request(message, 0, mission_type),
+                lambda message: (
+                    self._matcher.is_request(message, 0, mission_type)
+                    or self._is_refusal(message, mission_type)
+                ),
                 deadline=_capped(rt.monotonic() + ack_timeout, policy),
             )
+            if policy.stop_on_silence or envelope is None:
+                self._log(f"MISSION_COUNT send {sent}/{policy.attempts}: "
+                          f"{'no reply' if envelope is None else envelope.message.get_type()}")
             if envelope is not None:
                 return envelope, None
             reason = stop_reason(policy, self._link)
@@ -167,6 +182,15 @@ class MissionUploader:
             )
             if envelope is not None:
                 return envelope, None
+
+    def _is_refusal(self, message: MAVLink_message, mission_type: int) -> bool:
+        """An ACK that ends the upload: neither accepted nor a late duplicate's."""
+        return self._matcher.is_ack(message, mission_type) and getattr(message, "type", None) not in (
+            MAV_MISSION_ACCEPTED, MAV_MISSION_INVALID_SEQUENCE,
+        )
+
+    def _log(self, line: str) -> None:
+        self._logger_ref.value.info(line, "mission")
 
     def clear(self, mission_type: int = MAV_MISSION_TYPE_MISSION) -> None:
         self._transport.call(

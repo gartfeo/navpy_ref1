@@ -159,10 +159,10 @@ class Receiver:
         for reply in self.script.get((seq, self.items.count(seq)), []):
             self.publish(reply)
 
-    def uploader(self, cancelled=None) -> MissionUploader:
+    def uploader(self, cancelled=None, link=None) -> MissionUploader:
         return MissionUploader(TARGET, MavTransport(self.connection, threading.RLock()),
                                self.store, self.inbox, SimpleNamespace(value=MagicMock()),
-                               None, cancelled)
+                               link, cancelled)
 
 
 def _request(seq: int) -> MagicMock:
@@ -200,6 +200,17 @@ def test_any_other_refusal_ends_the_upload_at_once():
     assert not receiver.uploader().upload(ack_timeout=0.1, abandon_s=5.0)
     assert time.monotonic() - started < 0.5
     assert receiver.items == [0]
+
+
+def test_a_refusal_of_the_count_ends_the_upload_after_one_send():
+    receiver = Receiver(2)
+    receiver.connection.mav.mission_count_send.side_effect = lambda *_args: receiver.publish(
+        _ack(MAV_MISSION_ERROR))
+    started = time.monotonic()
+    assert not receiver.uploader().upload(ack_timeout=0.1, abandon_s=5.0)
+    assert time.monotonic() - started < 0.5
+    assert receiver.connection.mav.mission_count_send.call_count == 1
+    assert receiver.items == []
 
 
 def test_an_upload_the_autopilot_dropped_ends_at_the_abandon_bound():

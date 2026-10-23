@@ -1,4 +1,5 @@
 """Tests for fence_builder — polygon fence item construction and upload retry."""
+import threading
 import unittest
 
 from pymavlink.dialects.v20.ardupilotmega import (
@@ -178,7 +179,7 @@ class _FakeVehicle:
 
     def __init__(self, upload_ok=True, fail_times=0):
         self.target_system = 9
-        self.mission_lock = _NullLock()
+        self.mission_lock = threading.Lock()
         self._upload_ok = upload_ok
         self._fail_times = fail_times
         self.clear_calls = 0
@@ -188,21 +189,13 @@ class _FakeVehicle:
     def clear_fence(self):
         self.clear_calls += 1
 
-    def upload_fence(self, items):
+    def upload_fence(self, items, policy=None):
         self.upload_calls += 1
         self.last_items = items
         if self._fail_times > 0:
             self._fail_times -= 1
             return False
         return self._upload_ok
-
-
-class _NullLock:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        return False
 
 
 class TestUploadFenceWithRetry(unittest.TestCase):
