@@ -135,6 +135,9 @@ class ConfirmationManager(ListenerAbc):
     def get_status(self, poi: DetectedObject) -> Optional[ConfirmationStatus]:
         return self._state.registry.get_status(poi)
 
+    def status_by_id(self, poi_id: int) -> Optional[ConfirmationStatus]:
+        return self._state.registry.status_by_id(poi_id)
+
     def clear_status(self, poi: DetectedObject) -> None:
         self._state.registry.clear_status(poi)
 

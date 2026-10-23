@@ -21,11 +21,12 @@ from navpy.core.approach.logs.navigation_snap_geometry import (
 )
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.core.ports.dock_contact import DockContactIdentity
+from navpy.core.ports.dock_contact import DockContactIdentity, DockEpisodeEnd
 from navpy.core.ports.subscription import Subscription
 from navpy.sim.world import closest_approach_record as record_module
 from navpy.sim.world.closest_approach_record import (
     NAVPY_SIM_CLOSEST_APPROACH_MARKER,
+    OUTCOME_ABORTED,
     OUTCOME_DOCKED,
     OUTCOME_MISSED,
     encode,
@@ -108,8 +109,8 @@ def test_a_miss_reports_the_episode_minimum_once_at_disarm():
     _fly(sensor, _line(east_m=1.5, up_m=0.8))
     assert reports == [] and events == []  # nothing before the end
 
-    sensor.disarm(docked=False)
-    sensor.disarm(docked=False)  # once
+    sensor.disarm(DockEpisodeEnd())
+    sensor.disarm(DockEpisodeEnd())  # once
 
     [record] = reports
     assert record.outcome == OUTCOME_MISSED
@@ -181,7 +182,7 @@ def test_docked_reports_the_contact_segment_matching_the_docked_event():
     sensor, reports, events = _sensor()
     _fly(sensor, _line(east_m=0.2))
     [event] = events
-    sensor.disarm(docked=True)
+    sensor.disarm(DockEpisodeEnd(docked=True))
 
     [record] = reports
     assert record.outcome == OUTCOME_DOCKED
@@ -195,7 +196,7 @@ def test_a_contact_the_lifecycle_rejected_reports_missed_with_the_episode_minimu
     sensor, reports, events = _sensor()
     _fly(sensor, points)
     [event] = events
-    sensor.disarm(docked=False)
+    sensor.disarm(DockEpisodeEnd())
 
     locations = [_at(*point) for point in points]
     exact = min(
@@ -242,8 +243,8 @@ def test_contact_and_distances_do_not_depend_on_attitude():
     without, reports_b, events_b = _sensor()
     _fly(with_attitude, _line(east_m=0.2), attitude=Attitude(pitch=2.0, yaw=90.0, roll=-5.0))
     _fly(without, _line(east_m=0.2))
-    with_attitude.disarm(docked=True)
-    without.disarm(docked=True)
+    with_attitude.disarm(DockEpisodeEnd(docked=True))
+    without.disarm(DockEpisodeEnd(docked=True))
     assert events_a == events_b
     assert reports_a[0].d3_m == reports_b[0].d3_m
     assert (reports_a[0].roll_deg, reports_a[0].pitch_deg, reports_a[0].yaw_deg) == (-5.0, 2.0, 90.0)
@@ -470,3 +471,96 @@ def test_a_contact_held_past_the_episode_end_is_missed_and_unlatched(end):
     assert latched == []
     assert [r.outcome for r in reports] == [OUTCOME_MISSED]
     assert reports[0].episode == event.identity.episode
+
+
+# -- aborted: NAV ended the approach early (todo 108) -------------------------
+
+def test_an_episode_ended_while_still_closing_is_aborted_without_a_reason():
+    sensor, reports, _ = _sensor()
+    _fly(sensor, _line(east_m=1.0, start=-12.0))  # stops 4.5 m short, closing
+    sensor.disarm(DockEpisodeEnd())
+    [record] = reports
+    assert (record.outcome, record.reason) == (OUTCOME_ABORTED, None)
+    assert record.d3_m == pytest.approx(math.hypot(4.5, 1.0), abs=0.01)
+
+
+def test_a_named_abort_reason_wins_over_the_path():
+    sensor, reports, _ = _sensor()
+    _fly(sensor, _line(east_m=1.5))  # passed the dock
+    sensor.disarm(DockEpisodeEnd(abort_reason="source_command_stale"))
+    [record] = reports
+    assert (record.outcome, record.reason) == (OUTCOME_ABORTED, "source_command_stale")
+
+
+def test_a_latched_miss_is_missed_even_while_closing():
+    sensor, reports, _ = _sensor()
+    _fly(sensor, _line(east_m=1.0, start=-12.0))
+    sensor.disarm(DockEpisodeEnd(missed=True))
+    assert [(r.outcome, r.reason) for r in reports] == [(OUTCOME_MISSED, None)]
+
+
+def test_an_abort_reason_that_is_not_an_identifier_is_dropped():
+    sensor, reports, _ = _sensor()
+    _fly(sensor, _line(east_m=1.5))
+    sensor.disarm(DockEpisodeEnd(abort_reason="Bad reason!"))
+    assert [(r.outcome, r.reason) for r in reports] == [(OUTCOME_ABORTED, None)]
+
+
+def test_an_aborted_record_round_trips_with_its_reason():
+    record = _record(outcome=OUTCOME_ABORTED, reason="cancelled")
+    assert record is not None and parse(encode(record)) == record
+
+
+@pytest.mark.parametrize(
+    "outcome, reason",
+    [(OUTCOME_MISSED, "cancelled"), (OUTCOME_DOCKED, "cancelled"),
+     (OUTCOME_ABORTED, ""), (OUTCOME_ABORTED, "Bad reason"), (OUTCOME_ABORTED, 3),
+     (OUTCOME_ABORTED, "x" * 65)],
+)
+def test_a_reason_is_only_an_identifier_on_an_aborted_record(outcome, reason):
+    assert from_mapping(_values(outcome=outcome, reason=reason)) is None
+
+
+def test_the_lifecycle_passes_how_nav_left_the_episode():
+    reports, flat = _flat_reports()
+    sensor = SimDockContactSensor(_world(), report=flat)
+    ended = []
+
+    def ending(identity, docked):
+        ended.append((identity, docked))
+        return DockEpisodeEnd(abort_reason="cancelled")
+
+    lifecycle = FinalApproachDockContact(
+        sensor, lambda: 7, lambda _identity, _s: True, lambda _e: True, Mock(),
+        ending=ending,
+    )
+    poi = SimpleNamespace(identity=SimpleNamespace(obj_id=1, task_id=3))
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr("navpy.core.approach.dock_contact_episode.get_poi_task_id", lambda _poi: 3)
+        lifecycle.arm(poi)
+    _fly(sensor, _line(east_m=1.5))
+    lifecycle.disarm()
+    assert ended == [(DockContactIdentity(vehicle=7, task_id=3, dock_uid=1, episode=1), False)]
+    assert [(r.outcome, r.reason) for r in reports] == [(OUTCOME_ABORTED, "cancelled")]
+
+
+def test_a_failing_ending_falls_back_and_never_breaks_nav_exit():
+    reports, flat = _flat_reports()
+    sensor = SimDockContactSensor(_world(), report=flat)
+    logger = Mock()
+
+    def ending(_identity, _docked):
+        raise RuntimeError("no mode session")
+
+    lifecycle = FinalApproachDockContact(
+        sensor, lambda: 7, lambda _identity, _s: True, lambda _e: True, logger,
+        ending=ending,
+    )
+    poi = SimpleNamespace(identity=SimpleNamespace(obj_id=1, task_id=3))
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr("navpy.core.approach.dock_contact_episode.get_poi_task_id", lambda _poi: 3)
+        lifecycle.arm(poi)
+    _fly(sensor, _line(east_m=1.5))
+    assert lifecycle.disarm() is None
+    assert [r.outcome for r in reports] == [OUTCOME_MISSED]
+    logger.error.assert_called_once()

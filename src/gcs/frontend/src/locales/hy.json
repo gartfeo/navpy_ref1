@@ -401,7 +401,8 @@
     "dock": "D",
     "closestApproach": {
       "docked": "կցվեց",
-      "missed": "վրիպեց"
+      "missed": "վրիպեց",
+      "aborted": "ընդհատվեց"
     }
   },
   "trailsPanel": {

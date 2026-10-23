@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, fields
 from typing import Optional, TypeVar
@@ -19,7 +20,15 @@ NAVPY_SIM_CLOSEST_APPROACH_MARKER = "NAVPY_SIM_CLOSEST_APPROACH_V1"
 
 OUTCOME_DOCKED = "docked"
 OUTCOME_MISSED = "missed"
-OUTCOMES = frozenset({OUTCOME_DOCKED, OUTCOME_MISSED})
+# NAV ended the approach early (a NAV_FAIL or a cancel); see ``reason``.
+OUTCOME_ABORTED = "aborted"
+OUTCOMES = frozenset({OUTCOME_DOCKED, OUTCOME_MISSED, OUTCOME_ABORTED})
+# An abort reason is an identifier (``source_command_stale``, ``cancelled``).
+_REASON = re.compile(r"[a-z0-9_]{1,64}")
+
+
+def valid_reason(reason: object) -> bool:
+    return isinstance(reason, str) and _REASON.fullmatch(reason) is not None
 
 
 @dataclass(frozen=True)
@@ -59,6 +68,8 @@ class ClosestApproach:
     dock: ApproachPoint
     distance: MissDistance
     attitude: Optional[AttitudeDeg] = None
+    # Aborted only: why NAV ended it; None when unknown.
+    reason: Optional[str] = None
 
 
 # The wire record is flat: the GCS map reads these keys.
@@ -69,7 +80,8 @@ _DOCK_PREFIX = "dock_"
 def to_mapping(record: ClosestApproach) -> dict[str, object]:
     """The flat wire mapping (attitude keys None without one)."""
     values: dict[str, object] = {
-        key: getattr(record, key) for key in (*_INT_KEYS, "outcome", "aircraft_time_s")
+        key: getattr(record, key)
+        for key in (*_INT_KEYS, "outcome", "reason", "aircraft_time_s")
     }
     values.update(asdict(record.point))
     values.update({_DOCK_PREFIX + k: v for k, v in asdict(record.dock).items()})
@@ -107,6 +119,9 @@ def from_mapping(payload: Mapping[str, object]) -> Optional[ClosestApproach]:
     outcome = payload.get("outcome")
     if not isinstance(outcome, str) or outcome not in OUTCOMES:
         return None
+    reason = payload.get("reason")
+    if reason is not None and (outcome != OUTCOME_ABORTED or not valid_reason(reason)):
+        return None
     point = _point(payload, "")
     dock = _point(payload, _DOCK_PREFIX)
     distance = _values(payload, MissDistance)
@@ -129,6 +144,7 @@ def from_mapping(payload: Mapping[str, object]) -> Optional[ClosestApproach]:
         dock=dock,
         distance=distance,
         attitude=attitude,
+        reason=reason,  # type: ignore[arg-type]
     )
 
 
@@ -187,6 +203,7 @@ def publish(record: ClosestApproach) -> None:
 
 __all__ = [
     "NAVPY_SIM_CLOSEST_APPROACH_MARKER",
+    "OUTCOME_ABORTED",
     "OUTCOME_DOCKED",
     "OUTCOME_MISSED",
     "ApproachPoint",
@@ -201,4 +218,5 @@ __all__ = [
     "publish",
     "set_publisher",
     "to_mapping",
+    "valid_reason",
 ]
