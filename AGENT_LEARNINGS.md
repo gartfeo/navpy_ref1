@@ -1209,3 +1209,13 @@
   later reload was denied in auto mode. Restore it to null afterwards.
 - A real link outage is hard to make live (suspending SITL or the router left
   link_ok true); the stale-then-fresh run break is proven by unit tests only.
+
+## Todo 31 root cause: reader blocked at approval (2026-10-23)
+
+- A "stale source" failure was a telemetry backlog, not a slow frame path. Before tracing detector stages, list
+  every NavPy ATTITUDE arrival gap above 150 ms and compare with the GCS's own reader: one NavPy-only gap per UAV,
+  with boot time contiguous afterwards (buffered, nothing lost), pointed at a blocked reader within minutes.
+- MAVLink callbacks run on the vehicle's single reader thread. Anything a callback waits on (a lock held across
+  paced sends, a sleep) stalls every stream of that vehicle; NetworkMavlink now dispatches on its own thread.
+- On a CRLF working-copy file, appending after the line's `\r` makes git treat the whole file as changed. Insert
+  before the `\r`. Git Bash `grep -c $'\r'` printed 0 on that CRLF file; check endings with `git ls-files --eol`.
