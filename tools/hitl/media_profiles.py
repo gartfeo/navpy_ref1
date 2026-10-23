@@ -79,10 +79,11 @@ def inside(path: Any, folder: Path) -> bool:
     return path == folder or folder in path.parents
 
 
-def cpython_pc_suffix(version: str) -> str:
-    """The extension suffix CPython of this version ('3.13.9') imports on the PC, e.g. '.cp313-win_amd64.pyd'."""
+def cpython_pc_suffixes(version: str) -> list[str]:
+    """The extension suffixes CPython of this version ('3.13.9') imports on the PC (importlib.machinery
+    EXTENSION_SUFFIXES): ['.cp313-win_amd64.pyd', '.pyd']."""
     major, minor = version.split(".")[:2]
-    return f".cp{major}{minor}-{PC_PLATFORM.replace('-', '_')}.pyd"
+    return [f".cp{major}{minor}-{PC_PLATFORM.replace('-', '_')}.pyd", ".pyd"]
 
 
 def loadable_bindings(names: list[str], extension_suffixes: list[str]) -> list[str]:

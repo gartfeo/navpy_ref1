@@ -148,7 +148,7 @@ def _media_runtime_problems(result: Mapping[str, Any], host: str) -> list[str]:
     if result["launch"] != {"dll_directory": str(layout.bin), "sys_path": str(layout.site_packages)}:
         problems.append(f"{path}.launch is not the install's DLL folder and bindings folder")
     python, extension = result["python"], Path(result["gstreamer"]["gi_extension_file"]).name
-    if media_profiles.cpython_pc_suffix(python["version"]) not in python["extension_suffixes"]:
+    if python["extension_suffixes"] != media_profiles.cpython_pc_suffixes(python["version"]):
         problems.append(f"{path}.python.extension_suffixes are not CPython {python['version']}'s")
     loadable = media_profiles.loadable_bindings(python["gi_extensions"], python["extension_suffixes"])
     if loadable != python["gi_extensions"]:
