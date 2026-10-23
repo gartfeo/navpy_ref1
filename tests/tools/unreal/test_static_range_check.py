@@ -93,23 +93,26 @@ def test_the_wait_ends_at_the_timeout_even_while_earlier_frames_keep_coming():
 
 
 @pytest.mark.parametrize("module", [src, rep])
-def test_both_tools_score_with_the_zoom_unreal_was_given(module, monkeypatch, tmp_path):
+def test_both_tools_score_with_the_camera_named_and_take_no_zoom(module, monkeypatch, tmp_path):
     seen = {}
 
-    def fake_camera(name: str, zoom: float = 1.0):
-        seen["camera"] = (name, zoom)
+    def fake_camera(name: str):
+        seen["camera"] = name
         raise SystemExit(0)
     monkeypatch.setattr(module, "camera_named", fake_camera)
-    args = ["--out", str(tmp_path), "--camera", "zr10", "--zoom", "2"]
+    args = ["--out", str(tmp_path), "--camera", "fov90"]
     if module is rep:
         args += ["--run-json", "x", "--link-csv", "y", "--frames", "z"]
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as stop:
         module.main(args)
-    assert seen["camera"] == ("zr10", 2.0)
+    assert stop.value.code == 0 and seen["camera"] == "fov90"
+    with pytest.raises(SystemExit) as stop:             # Unreal refuses -NavPyNativeCameraZoom since step 5
+        module.main(args + ["--zoom", "2"])
+    assert stop.value.code == 2
 
 
-def test_the_90_deg_camera_has_no_zoom():
+def test_named_cameras():
     assert geo.camera_named("fov90") is geo.UNREAL_FOV90
-    assert geo.camera_named("zr10", 2.0).fx == pytest.approx(2 * 1407.42)
+    assert geo.camera_named("zr10").fx == pytest.approx(1407.42)
     with pytest.raises(ValueError):
-        geo.camera_named("fov90", 2.0)
+        geo.camera_named("wide")

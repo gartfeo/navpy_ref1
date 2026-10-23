@@ -144,10 +144,13 @@ def test_navpy_siyi_client_drives_the_emulator_end_to_end(running):
         assert gimbal.get_zoom_level() == 1.1
         assert gimbal.set_zoom(2.0)
         assert wait_for(lambda: gimbal.get_zoom_level() == 1.8)
-        assert running.gimbal_states(0.1)[-1]["zoom"] == 1.8
+        state = running.gimbal_states(0.1)[-1]
+        assert state["zoom"] == 1.8
+        assert state["lens"] == {"reading": 1.8, "set_by": {"absolute_zoom": 2.0}, "settled": True}
         assert gimbal.zoom_in()
         assert wait_for(lambda: gimbal.get_zoom_level() >= 2.0)
         assert gimbal.zoom_hold()
+        assert wait_for(lambda: running.gimbal_states(0.05)[-1]["lens"]["set_by"] is None)    # no row after manual
         held = running.emulator.device.true_state().zoom
         time.sleep(0.3)
         assert running.emulator.device.true_state().zoom == held

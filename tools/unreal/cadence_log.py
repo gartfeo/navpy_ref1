@@ -1,6 +1,6 @@
 """Parsing for the capture-cadence check: the Unreal log lines of the camera and the receiver
-(NavPyCaptureSlot, NavPyPoseAdmit, NavPyRenderClock, NavPyCameraMount, NavPyBoardPose) and the ZR10
-emulator's step log."""
+(NavPyCaptureSlot, NavPyPoseAdmit, NavPyRenderClock, NavPyCameraMount, NavPyBoardPose, NavPyLensTable) and the
+ZR10 emulator's step log."""
 from __future__ import annotations
 
 import json
@@ -64,6 +64,7 @@ class UnrealLog:
     generations: set[tuple[int, int]] = field(default_factory=set)                 # (port, gen) started
     mounts: dict[str, Mount] = field(default_factory=dict)                          # by camera run
     board: Optional[BoardPose] = None
+    lens_tables: dict[str, dict] = field(default_factory=dict)                      # by camera run: the bound table
 
 
 def parse_log(lines: Iterable[str]) -> UnrealLog:
@@ -86,6 +87,8 @@ def parse_log(lines: Iterable[str]) -> UnrealLog:
             log.mounts[f["run"]] = Mount(int(f["receiver_port"]), parse_vec(f["pivot_cm"]), parse_vec(f["camera_in_pitch_cm"]),
                                          parse_vec(f["camera_in_pitch_quat"]), f["stabilize_roll"] == "1",
                                          float(f["min_pitch"]), float(f["max_pitch"]), float(f["fps"]))
+        elif (at := line.find("NavPyLensTable ")) >= 0 and "run" in (f := _fields(line[at:])):
+            log.lens_tables[f["run"]] = f
         elif (at := line.find("NavPyBoardPose ")) >= 0:
             f = _fields(line[at:])
             log.board = BoardPose(parse_vec(f["loc"]), parse_vec(f["quat"]), float(f["width_cm"]), float(f["height_cm"]))
@@ -101,16 +104,22 @@ class GimbalStep:
     pitch: float
     roll: float
     roll_stabilized: bool
-    zoom: float = 1.0
+    zoom: float = 1.0                         # the lens reading
+    lens_command: Optional[float] = None      # the absolute zoom command the lens was set by; None: none known
+    lens_settled: Optional[bool] = None       # None: a log from before step 5 (no lens state)
+    session: str = ""                         # the emulator session (gimbal_state session_id)
 
 
 def parse_emulator_log(lines: Iterable[str]) -> list[GimbalStep]:
     steps = []
+    session = ""
     for line in lines:
         record = json.loads(line)
-        if record.get("event") == "step":
+        if record.get("event") == "start":
+            session = str(record.get("session_id", ""))
+        elif record.get("event") == "step":
             true = record["true"]
             steps.append(GimbalStep(float(record["t"]), int(record["seq"]), float(true["yaw"]), float(true["pitch"]),
                                     float(true["roll"]), mode_name(int(true["motion_mode"])) != "fpv",
-                                    float(true["zoom"])))
+                                    float(true["zoom"]), true.get("lens_command"), true.get("lens_settled"), session))
     return steps

@@ -75,13 +75,12 @@ def test_the_default_camera_is_the_zr10_zoom_one_calibration():
     assert geo.UNREAL_FOV90.fx == pytest.approx(640.0) and geo.UNREAL_FOV90.fov_h_deg == pytest.approx(90.0)
 
 
-def test_zoom_scales_the_focal_lengths_about_the_same_principal_point():
-    one, two = geo.zr10_camera(), geo.zr10_camera(2.0)
-    assert (two.fx, two.fy) == pytest.approx((2 * one.fx, 2 * one.fy))
-    assert (two.cx, two.cy) == (one.cx, one.cy)
-    for zoom in (0.0, 0.5, math.inf, math.nan):        # Unreal renders zoom 1 for any factor below 1
-        with pytest.raises(ValueError):
-            geo.zr10_camera(zoom)
+def test_the_zr10_camera_has_no_zoom_multiplier():
+    # Unreal no longer scales a base focal by a zoom (step 5 removed -NavPyNativeCameraZoom): fixed-K runs are
+    # zoom 1 only, and a zooming lens is scored per frame with its reading_intrinsics row (cadence_check).
+    with pytest.raises(TypeError):
+        geo.zr10_camera(2.0)
+    assert geo.camera_named("zr10") == geo.zr10_camera()
 
 
 def test_the_report_projects_with_the_camera_it_is_given():

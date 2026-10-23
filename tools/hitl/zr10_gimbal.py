@@ -11,7 +11,10 @@ FRotator angles in with the vehicle attitude.
 The wire reports yaw left-positive: report yaw = -scale * body yaw (design 3, "Signs"). Pitch is up-positive.
 Roll keeps the plant's sign (TBC: the real unit reported roll 0.00 throughout). What Unreal renders
 (``true_state``) is the same body rotation without report lag or scale (yaw right, pitch up, roll right wing down:
-the vehicle_state convention), and the zoom reading.
+the vehicle_state convention), the zoom reading and the lens setting: how the lens got there (the last accepted 0x0F
+command, none after a manual zoom: no lens row exists for an arbitrary stop) and whether it has settled. Unreal picks
+its lens row by them (hitl_final_approach.md section 9, step 5); the wire carries neither. The 1.0 wide stop is not
+modelled: the plant's floor is the table's lowest reading (1.1).
 
 Ordering: with a 0x07 dead time each rate command (a stop included) waits its own dead time in arrival order;
 ``cancel_rates`` drops the ones still waiting.
@@ -65,13 +68,16 @@ class Report:
 
 @dataclass(frozen=True)
 class TrueState:
-    """What Unreal renders: the body-relative camera rotation as FRotator angles, and the zoom reading."""
+    """What Unreal renders: the body-relative camera rotation as FRotator angles, the zoom reading and the lens
+    setting (the absolute zoom command it was set by, None for none, and whether travel has finished)."""
 
     yaw: float
     pitch: float
     roll: float
     zoom: float
     motion_mode: int
+    lens_command: float | None
+    lens_settled: bool
 
 
 def plant_body_angles(snapshot: GimbalAngularSnapshot) -> tuple[float, float, float]:
@@ -108,8 +114,9 @@ class Zr10Gimbal:
             max_pitch=config.pitch_max_deg,
         )
         self._angular: GimbalAngularPlant | None = None
-        # The reading of navpy's start-up "zoom 1" command, else the lowest reading.
+        # The reading of navpy's start-up "zoom 1" command, else the lowest reading (set by nothing known).
         self.zoom = GimbalZoomPlant(zoom_readings.get(10, min(readings)), self._zoom_limits)
+        self._lens_command_tenths: int | None = 10 if 10 in zoom_readings else None
         self._steps = 0
         self._time_s = 0.0
         self._pending_rates: deque[tuple[float, int, int]] = deque()
@@ -190,6 +197,20 @@ class Zr10Gimbal:
     def _deadband(self, speed: int) -> int:
         return 0 if abs(speed) <= self.config.rate_deadband else speed
 
+    # -- zoom commands -----------------------------------------------------------------------------------------
+    def seek_zoom(self, command_tenths: int, level: float) -> None:
+        """An accepted 0x0F absolute zoom: the lens travels to ``level`` and is then set by that command."""
+        self.zoom.set_target(level)
+        self._lens_command_tenths = command_tenths
+
+    def manual_zoom(self, direction: int) -> None:
+        """A 0x05 manual zoom start (+1 in, -1 out) or stop (0): the lens is set by no known setting from now on."""
+        if direction:
+            self.zoom.start(direction)
+        else:
+            self.zoom.stop()
+        self._lens_command_tenths = None
+
     # -- what is reported and what is rendered --------------------------------------------------------------
     def camera_angles(self, snapshot: GimbalAngularSnapshot) -> tuple[float, float, float]:
         """The camera's body angles (yaw, pitch, roll): the plant's, yaw and pitch held at the stops."""
@@ -210,7 +231,10 @@ class Zr10Gimbal:
             return None
         snapshot = self._angular.snapshot()
         yaw, pitch, roll = self.camera_angles(snapshot)
-        return TrueState(yaw, pitch, roll, reading(self.zoom.level), snapshot.motion_mode)
+        lens = self.zoom.snapshot()
+        command = None if self._lens_command_tenths is None else self._lens_command_tenths / 10.0
+        return TrueState(yaw, pitch, roll, reading(lens.level), snapshot.motion_mode, command,
+                         lens.target is None and lens.direction == 0)
 
     def reported(self) -> Report | None:
         """The 0x0D angles and the 0x18 reading the wire carries now, each with its own report lag."""
