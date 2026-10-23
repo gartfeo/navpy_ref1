@@ -17,7 +17,7 @@ import os
 import sys
 import urllib.request
 import webbrowser
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -133,7 +133,10 @@ def _stop_command() -> str:
     return powershell_command(sys.executable, _REPOSITORY_ROOT / "scripts" / "gcs_stop.py")
 
 
-def start(runs_dir: Path, clock: ClockPort, now: dt.datetime, open_browser=webbrowser.open) -> Path:
+def start(
+    runs_dir: Path, clock: ClockPort, now: dt.datetime,
+    open_browser: Callable[[str], object] = webbrowser.open,
+) -> Path:
     """Start the demo stack and open the UI; return the run directory."""
     fixture = load_fixture(FIXTURE_PATH)
     scenario = delivery_scenario(fixture, FIXTURE_PATH)
@@ -176,7 +179,10 @@ def frontend_answers(url: str) -> bool:
         return response.status == 200
 
 
-def wait_for_frontend(entry, clock: ClockPort, answers=frontend_answers) -> None:
+def wait_for_frontend(
+    entry: Mapping[str, JsonValue], clock: ClockPort,
+    answers: Callable[[str], bool] = frontend_answers,
+) -> None:
     """The UI the operator will open is served (a dead ``npm run dev`` logs nothing)."""
     url = f"http://localhost:{entry['frontend']}"
     try:
