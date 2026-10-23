@@ -42,13 +42,14 @@ class StoredVehicle:
     """Stores every upload; the first ``lost_acks`` uploads report no final ACK."""
 
     def __init__(self, lost_acks: int, changed_field: str | None = None,
-                 frameless_as_global: bool = False) -> None:
+                 frameless_as_global: bool = False, changed_jump: bool = False) -> None:
         self.target_system = 1
         self.mission_lock = threading.Lock()
         self.link_ok = True
         self.lost_acks = lost_acks
         self.changed_field = changed_field
         self.frameless_as_global = frameless_as_global
+        self.changed_jump = changed_jump
         self.uploads = 0
         self.policies = []
         self._loader = None
@@ -69,11 +70,15 @@ class StoredVehicle:
                 if item.frame == MAV_FRAME_MISSION:
                     item.frame = MAV_FRAME_GLOBAL
         if self.changed_field is not None:  # the autopilot normalized one field
-            item = self._stored[2]
+            item = self._stored[self._jump() if self.changed_jump else 2]
             setattr(item, self.changed_field, getattr(item, self.changed_field) + 1)
         if self.uploads <= self.lost_acks:
             return False
         return True
+
+    def _jump(self) -> int:
+        return next(i for i in range(self._loader.count())
+                    if self._loader.wp(i).frame == MAV_FRAME_MISSION)
 
     def download_mission(self, on_progress=None, policy=None) -> int:
         self.policies.append(policy)
@@ -100,6 +105,15 @@ def test_a_jump_read_back_with_frame_zero_still_matches():
     assert any(vehicle._loader.wp(i).frame == MAV_FRAME_MISSION
                for i in range(vehicle._loader.count()))  # the skip DO_JUMP
     assert result.success and vehicle.uploads == 1
+
+
+@pytest.mark.parametrize("changed_field", ["command", "param1", "param2"])
+def test_a_jump_read_back_with_frame_zero_and_another_change_uploads_again(changed_field):
+    vehicle = StoredVehicle(lost_acks=1, changed_field=changed_field,
+                            frameless_as_global=True, changed_jump=True)
+    upload_mission_with_retry(vehicle, TRACK, 100.0, default_delivery_hub={"lat": 32.002, "lon": 34.002},
+                              policy=gcs_policy(60.0))
+    assert vehicle.uploads == 2
 
 
 @pytest.mark.parametrize("changed_field", ["param2", "frame"])
