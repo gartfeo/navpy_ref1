@@ -366,6 +366,8 @@ def test_media_runtime_that_is_not_a_pinned_pass_is_refused(model_dir, path, val
     (("launch", "dll_directory"), "C:/elsewhere/bin", "launch is not the install's"),
     (("python", "gi_extensions"), ["_gi.cp39-win_amd64.pyd"], "gi_extensions are not all loadable"),
     (("python", "extension_suffixes"), [".cp311-win_amd64.pyd"], "gi_extensions are not all loadable"),
+    (("python", "version"), "3.11.9", "extension_suffixes are not CPython 3.11.9's"),
+    (("python", "version"), "3.1.3", "extension_suffixes are not CPython 3.1.3's"),
 ])
 def test_media_runtime_must_load_everything_from_its_install(model_dir, path, value, reason):
     record = make(model_dir)

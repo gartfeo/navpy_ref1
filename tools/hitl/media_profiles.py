@@ -79,6 +79,12 @@ def inside(path: Any, folder: Path) -> bool:
     return path == folder or folder in path.parents
 
 
+def cpython_pc_suffix(version: str) -> str:
+    """The extension suffix CPython of this version ('3.13.9') imports on the PC, e.g. '.cp313-win_amd64.pyd'."""
+    major, minor = version.split(".")[:2]
+    return f".cp{major}{minor}-{PC_PLATFORM.replace('-', '_')}.pyd"
+
+
 def loadable_bindings(names: list[str], extension_suffixes: list[str]) -> list[str]:
     """The gi extension file names an interpreter with these extension suffixes can import."""
     return [name for name in names if any(name == "_gi" + suffix for suffix in extension_suffixes)]
