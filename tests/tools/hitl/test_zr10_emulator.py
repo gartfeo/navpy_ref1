@@ -17,7 +17,7 @@ from tests.tools.hitl.zr10_frames import frame, parse
 from tests.tools.tuning.test_hitl_bridge_physics import rest_state
 from tools.hitl.zr10_config import EmulatorConfig, load_zoom_table
 from tools.hitl.zr10_device import Zr10Device
-from tools.hitl.zr10_emulator import GIMBAL_STATE_SCHEMA, Zr10Emulator, build_parser
+from tools.hitl.zr10_emulator import GIMBAL_STATE_SCHEMA, Zr10Emulator, build_parser, open_log
 from tools.hitl.zr10_vehicle_input import VEHICLE_STATE_TIMEOUT_S, VehicleInput, decode_vehicle_state
 from tools.tuning.hitl_bridge.unreal_pose import UnrealPoseSender
 
@@ -284,3 +284,13 @@ def test_the_bridges_vehicle_state_copy_is_the_emulators_attitude(running):
         assert running.emulator.device.has_attitude and sender.stats.copies_sent == 5
     finally:
         sender.close()
+
+
+def test_log_records_reach_the_file_before_close(tmp_path):
+    path = tmp_path / "emulator.jsonl"
+    log = open_log(str(path))
+    try:
+        log.write('{"event":"step"}\n')
+        assert path.read_text(encoding="utf-8") == '{"event":"step"}\n'     # a killed process keeps it
+    finally:
+        log.close()
