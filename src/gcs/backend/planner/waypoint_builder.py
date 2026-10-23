@@ -11,7 +11,9 @@ from pymavlink.mavwp import MAVWPLoader
 from pymavlink.dialects.v20.ardupilotmega import (
     MAV_CMD_NAV_WAYPOINT,
     MAV_CMD_NAV_TAKEOFF,
+    MAV_FRAME_GLOBAL,
     MAV_FRAME_GLOBAL_RELATIVE_ALT,
+    MAV_FRAME_MISSION,
 )
 
 # Shared mission metadata encoding — single source of truth
@@ -161,7 +163,11 @@ def upload_mission_with_retry(
                     if ok:
                         param_errors = verify_mission_params(vehicle, wp_loader)
                     else:
-                        stored_anyway = not mission_mismatches(vehicle, wp_loader)
+                        differences = mission_mismatches(vehicle, wp_loader)
+                        stored_anyway = not differences
+                        if differences:
+                            _log.warning("Upload attempt %d: readback differs (%d): %s", attempt,
+                                         len(differences), "; ".join(differences[:3]))
 
         # Interpret the attempt outside the lock (logging / retry control flow).
         if not ok:
@@ -223,7 +229,11 @@ def mission_mismatches(vehicle: VehicleMissionAccess, wp_loader: MAVWPLoader) ->
     """Every difference between the upload and the readback but home (seq 0).
 
     Exact, floats as float32 (the wire type): any difference, autopilot
-    normalization included, means the upload is not known to be stored.
+    normalization included, means the upload is not known to be stored. One
+    exception: ArduPilot stores no frame for a command without a location
+    and returns it as ``MAV_FRAME_GLOBAL`` (``AP_Mission.cpp``,
+    ``mission_cmd_to_mavlink_int``), so our ``MAV_FRAME_MISSION`` items
+    (the skip ``DO_JUMP``) read back with frame 0.
     """
     errors: list[str] = []
     for i in range(1, wp_loader.count()):
@@ -234,6 +244,8 @@ def mission_mismatches(vehicle: VehicleMissionAccess, wp_loader: MAVWPLoader) ->
             continue
         for name in _STORED_FIELDS:
             ev, av = getattr(expected, name, None), getattr(actual, name, None)
+            if name == "frame" and (ev, av) == (MAV_FRAME_MISSION, MAV_FRAME_GLOBAL):
+                continue
             if ev is None or av is None or not _same(ev, av):
                 errors.append(f"seq {i}: {name} expected={ev} got={av}")
     return errors

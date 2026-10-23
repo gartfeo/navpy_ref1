@@ -10,9 +10,14 @@ import time
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
-from pymavlink.dialects.v20.ardupilotmega import MAV_MISSION_ACCEPTED
+from pymavlink.dialects.v20.ardupilotmega import (
+    MAV_FRAME_GLOBAL,
+    MAV_FRAME_MISSION,
+    MAV_MISSION_ACCEPTED,
+)
 
 from gcs.backend.exchange_budget import GCS_EXCHANGE_ATTEMPTS, gcs_policy, held_within
 from gcs.backend.planner.fence_builder import upload_fence_with_retry
@@ -36,12 +41,14 @@ def test_a_gcs_download_sends_twelve_requests_while_the_autopilot_talks():
 class StoredVehicle:
     """Stores every upload; the first ``lost_acks`` uploads report no final ACK."""
 
-    def __init__(self, lost_acks: int, changed_field: str | None = None) -> None:
+    def __init__(self, lost_acks: int, changed_field: str | None = None,
+                 frameless_as_global: bool = False) -> None:
         self.target_system = 1
         self.mission_lock = threading.Lock()
         self.link_ok = True
         self.lost_acks = lost_acks
         self.changed_field = changed_field
+        self.frameless_as_global = frameless_as_global
         self.uploads = 0
         self.policies = []
         self._loader = None
@@ -57,6 +64,10 @@ class StoredVehicle:
         self.uploads += 1
         self.policies.append(policy)
         self._stored = [copy.copy(self._loader.wp(i)) for i in range(self._loader.count())]
+        if self.frameless_as_global:  # as ArduPilot returns a command without a location
+            for item in self._stored:
+                if item.frame == MAV_FRAME_MISSION:
+                    item.frame = MAV_FRAME_GLOBAL
         if self.changed_field is not None:  # the autopilot normalized one field
             item = self._stored[2]
             setattr(item, self.changed_field, getattr(item, self.changed_field) + 1)
@@ -81,8 +92,19 @@ def test_an_upload_whose_final_ack_was_lost_counts_on_an_exact_readback():
     assert vehicle.policies == [policy, policy]  # the upload and its readback
 
 
-def test_a_readback_that_differs_in_any_stored_field_uploads_again():
-    vehicle = StoredVehicle(lost_acks=1, changed_field="param2")
+def test_a_jump_read_back_with_frame_zero_still_matches():
+    vehicle = StoredVehicle(lost_acks=1, frameless_as_global=True)
+    hub = {"lat": 32.002, "lon": 34.002}
+    result = upload_mission_with_retry(vehicle, TRACK, 100.0, default_delivery_hub=hub,
+                                       policy=gcs_policy(60.0))
+    assert any(vehicle._loader.wp(i).frame == MAV_FRAME_MISSION
+               for i in range(vehicle._loader.count()))  # the skip DO_JUMP
+    assert result.success and vehicle.uploads == 1
+
+
+@pytest.mark.parametrize("changed_field", ["param2", "frame"])
+def test_a_readback_that_differs_in_any_stored_field_uploads_again(changed_field):
+    vehicle = StoredVehicle(lost_acks=1, changed_field=changed_field)
     result = upload_mission_with_retry(vehicle, TRACK, 100.0, policy=gcs_policy(60.0))
     assert vehicle.uploads == 2
     assert result.attempts == 2
