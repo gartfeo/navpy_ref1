@@ -466,7 +466,7 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   lost its final ACK; its readback differed only in the skip `DO_JUMP`'s
   frame (above); with that fixed it counts as stored (`-r5c`).
 - **Not passing:** `stress` fails at one digest (`812fb485…`), later, at
-  the swarm task assignment: todo 111.
+  the swarm task assignment: todo 112.
 - Full pytest: 8 failed, none from this change: the Codex agent sync
   (untracked `.codex/agents/*.toml`) and the board detector.
 

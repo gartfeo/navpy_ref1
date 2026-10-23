@@ -222,12 +222,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--camera", choices=CAMERAS, default="zr10",
                         help="the native camera the run rendered with (fov90: runs before 2026-10-14's ZR10 intrinsics)")
-    parser.add_argument("--zoom", type=float, default=1.0, help="zr10 only: the run's -NavPyNativeCameraZoom")
     args = parser.parse_args(argv)
-    try:
-        camera = camera_named(args.camera, args.zoom)
-    except ValueError as error:
-        parser.error(str(error))
+    camera = camera_named(args.camera)
     args.out.mkdir(parents=True, exist_ok=True)
     print(json.dumps(report(args.run_json, args.link_csv, args.frames, args.out, camera), indent=1))
     return 0

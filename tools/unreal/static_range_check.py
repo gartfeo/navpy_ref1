@@ -10,8 +10,8 @@ flag). The truth is the pose it sends; nothing reaches navpy's navigation.
   .venv\Scripts\python.exe -m tools.unreal.static_range_check --camera fov90 --out C:\tune_hitl\static_fov90
 
 Unreal as in hitl_unreal_camera.md "Running it" step 1 (header v2, exact pose, fixed body camera). --camera only
-selects the scoring geometry and must match that launch: zr10 (and --zoom) with -NavPyNativeCameraIntrinsics=1
-(and -NavPyNativeCameraZoom), fov90 without it.
+selects the scoring geometry and must match that launch: zr10 with -NavPyNativeCameraIntrinsics=1, fov90 without
+it.
 """
 from __future__ import annotations
 
@@ -141,16 +141,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--source", default="npyc://127.0.0.1:18110")
     parser.add_argument("--pose-endpoint", default="127.0.0.1:17110")
     parser.add_argument("--camera", choices=CAMERAS, default="zr10", help="the native camera Unreal renders with")
-    parser.add_argument("--zoom", type=float, default=1.0, help="zr10 only: Unreal's -NavPyNativeCameraZoom")
     parser.add_argument("--ranges", default=",".join(f"{r:g}" for r in DEFAULT_RANGES_M), help="slant ranges in m")
     parser.add_argument("--heading", type=float, default=0.0, help="vehicle heading, deg from north")
     parser.add_argument("--frames", type=int, default=10, help="frames per pose")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
-    try:
-        camera = camera_named(args.camera, args.zoom)
-    except ValueError as error:
-        parser.error(str(error))
+    camera = camera_named(args.camera)
     args.out.mkdir(parents=True, exist_ok=True)
     board = tuple(float(v) for v in DOCK_BOARD_YEGHVARD.split(","))
     ranges = [float(v) for v in args.ranges.split(",")]

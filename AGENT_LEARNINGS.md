@@ -1165,6 +1165,10 @@
   wants every new definition annotated. The 736-line checker passed five Codex
   rounds and only the full suite caught it. Run tests/guards with the targeted
   tests before the first review, not at the end.
+- Build Unreal with -DisableAdaptiveUnity before a PR. Adaptive unity compiles
+  changed files alone, so the incremental build hid a name clash (two test files'
+  anonymous-namespace constants) that broke the clean unity build on main
+  (aas-sim-unreal PR 2).
 
 ## Delivery demo as a normal run (2026-10-20)
 - I designed dock waypoints around the ZR10 preset altitudes (403/383/363 m),
@@ -1219,6 +1223,23 @@
   paced sends, a sleep) stalls every stream of that vehicle; NetworkMavlink now dispatches on its own thread.
 - On a CRLF working-copy file, appending after the line's `\r` makes git treat the whole file as changed. Insert
   before the `\r`. Git Bash `grep -c $'\r'` printed 0 on that CRLF file; check endings with `git ls-files --eol`.
+
+## Unreal lens table, HITL step 5 (2026-10-23)
+- Codex code review took five rounds, each finding a real hole in the checker's
+  coverage: a pooled p95 hid one wrong setting, travels counted from the actor's
+  own held captures skipped a travel it never captured, and travels without an
+  end let later held frames stand in. Derive every coverage requirement from the
+  independent source (emulator steps), gate each group on its own, and count only
+  frames whose mapped query falls inside the interval.
+- I set a 0.5 px reprojection gate in the design from a guess; the right rows
+  score 0.39-1.06 px live. Before fixing a pixel gate, measure the right row and
+  the nearest wrong rows on live data (scratch discriminate.py), then set it.
+- ReadingIntrinsicsTable.settings() and optics() take numbers: a string reading
+  ("1.1") returns () or None without an error. Pass float(reading).
+- A bare `cat > file` in a Bash command (no heredoc) waits on stdin until the
+  tool times out. Write scripts with the Write tool.
+- Other chats' pytest and GCS stacks started during the live run; check the
+  process list before and after a timing measurement and report the load.
 
 ## Todo 105: bounded mission transfers (2026-10-23)
 
