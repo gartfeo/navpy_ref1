@@ -90,9 +90,10 @@ class SimDetectorFactory:
     def _report_closest_approach(self, record: ClosestApproach) -> None:
         """Display evidence only: the NavPy log and the GCS stdout record."""
         distance = record.distance
+        reason = "" if record.reason is None else f" reason={record.reason}"
         self._logger.info(
             f"SIM_CLOSEST_APPROACH: task={record.task_id} dock={record.dock_uid} "
-            f"episode={record.episode} {record.outcome} 3d={distance.d3_m:.2f}m "
+            f"episode={record.episode} {record.outcome}{reason} 3d={distance.d3_m:.2f}m "
             f"h={distance.h_m:.2f}m v={distance.v_m:.2f}m"
         )
         closest_approach_record.publish(record)

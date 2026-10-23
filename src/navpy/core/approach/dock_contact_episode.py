@@ -19,7 +19,16 @@ from navpy.core.ports.dock_contact import (
     DockContactEvent,
     DockContactIdentity,
     DockContactSensor,
+    DockEpisodeEnd,
 )
+
+# (armed identity, lifecycle accepted DOCKED) -> how NAV left the episode.
+EpisodeEnding = Callable[[DockContactIdentity, bool], DockEpisodeEnd]
+
+
+def _docked_only(_identity: DockContactIdentity, docked: bool) -> DockEpisodeEnd:
+    return DockEpisodeEnd(docked=docked)
+
 
 
 class FinalApproachDockContact:
@@ -35,6 +44,7 @@ class FinalApproachDockContact:
         end_episode: Callable[[DockContactIdentity, Optional[float]], None] = (
             lambda _identity, _source_s: None
         ),
+        ending: EpisodeEnding = _docked_only,
     ) -> None:
         self._sensor = sensor
         self._vehicle_id = vehicle_id
@@ -44,6 +54,8 @@ class FinalApproachDockContact:
         # The latest ATTITUDE boot time: evidence rows only, never a command.
         self._source_now_s = source_now_s
         self._end_episode = end_episode
+        # Display only: the sensor's closest-approach record.
+        self._ending = ending
         self._episode = 0
         self._armed: Optional[DockContactIdentity] = None
         # The armed episode's latched contact: the DOCKED state's source.
@@ -57,10 +69,10 @@ class FinalApproachDockContact:
         # Detach first, under the lock, so the sensor's report and the latch
         # agree: a contact callback after this finds no armed episode.
         with self._lock:
+            armed, self._armed = self._armed, None
             docked = self._docked is not None
-            self._armed = None
             self._docked = None
-        self._sensor.disarm(docked)
+        self._sensor.disarm(self._end(armed, docked))
         task_id = None if poi is None else get_poi_task_id(poi)
         if poi is None or task_id is None:
             return
@@ -86,10 +98,20 @@ class FinalApproachDockContact:
             armed, self._armed = self._armed, None
             docked, self._docked = self._docked, None
         if self._sensor is not None:
-            self._sensor.disarm(docked is not None)
+            self._sensor.disarm(self._end(armed, docked is not None))
         if armed is not None:
             self._end_episode(armed, self._source_now_s())
         return docked
+
+    def _end(self, armed: Optional[DockContactIdentity], docked: bool) -> DockEpisodeEnd:
+        """Read after the contact is detached; never breaks NAV cleanup."""
+        if armed is None:
+            return DockEpisodeEnd(docked=docked)
+        try:
+            return self._ending(armed, docked)
+        except Exception as error:  # noqa: BLE001 - display evidence only
+            self._logger.error("dock episode end unavailable", error)
+            return DockEpisodeEnd(docked=docked)
 
     def _on_docked(self, event: DockContactEvent) -> None:
         # Latch and keep under one lock, so NAV exit sees both or neither.
@@ -107,4 +129,4 @@ class FinalApproachDockContact:
         )
 
 
-__all__ = ["FinalApproachDockContact"]
+__all__ = ["EpisodeEnding", "FinalApproachDockContact"]

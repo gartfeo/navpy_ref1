@@ -401,7 +401,8 @@
     "dock": "D",
     "closestApproach": {
       "docked": "docked",
-      "missed": "missed"
+      "missed": "missed",
+      "aborted": "aborted"
     }
   },
   "trailsPanel": {

@@ -8,7 +8,8 @@ export const SIM_CLOSEST_APPROACH_MARKS_PER_UAV = 20;
 /** Camera range (m) within which the ghost and the leg labels show. */
 export const SIM_CLOSEST_APPROACH_DETAIL_RANGE_M = 200;
 
-const OUTCOME_COLORS = { docked: '#22c55e', missed: '#ef4444' };
+// Aborted: NAV ended the approach early (a NAV_FAIL or a cancel).
+const OUTCOME_COLORS = { docked: '#22c55e', missed: '#ef4444', aborted: '#f59e0b' };
 const GHOST_ALPHA = 0.35;
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
@@ -28,7 +29,8 @@ function hasAttitude(record) {
 const metres = (value) => `${value.toFixed(2)} m`;
 
 export function closestApproachLabel(record, t) {
-  const outcome = t(`mapMarkers.closestApproach.${record.outcome}`);
+  const reason = record.outcome === 'aborted' && record.reason ? ` (${record.reason})` : '';
+  const outcome = `${t(`mapMarkers.closestApproach.${record.outcome}`)}${reason}`;
   return `UAV ${record.sys_id} · ${metres(record.d3_m)} ${outcome}\n`
     + `h ${metres(record.h_m)} · v ${metres(record.v_m)}`;
 }
