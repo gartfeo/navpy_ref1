@@ -1207,3 +1207,25 @@
   later reload was denied in auto mode. Restore it to null afterwards.
 - A real link outage is hard to make live (suspending SITL or the router left
   link_ok true); the stale-then-fresh run break is proven by unit tests only.
+
+## UniRC 10 Pro emulator (2026-10-23)
+- Application Control blocks cmdline-tools 23's `sdkmanager` (it calls the new
+  `android` CLI, os error 4551). emulator, adb and avdmanager still run.
+  Install system images with Android Studio's SDK Manager.
+- A 1920x1200 AVD is naturally landscape: user_rotation 0 is landscape, 1 is
+  portrait. `wm density` changes dpr live, with no reboot.
+- Measure the page through Chrome's DevTools socket (`adb forward tcp:<p>
+  localabstract:chrome_devtools_remote`), not screenshots. Chrome reads
+  `/data/local/tmp/chrome-command-line` only as the debug app, which skips
+  first run. The `application_id` extra did not make it reuse a tab.
+- Android Studio's "Intel x86_64 Atom System Image" is the plain image
+  (`default`): no Chrome, only WebView and its test browser
+  (`org.chromium.webview_shell`); its devtools socket is
+  `webview_devtools_remote_<pid>`. An old WebView exposes CSS gaps that
+  Chrome hides (todo 110: `dvh`).
+- A background tool call that starts the emulator through a `2>&1 |` pipe
+  did not return (likely the emulator holds the pipe). Write output to a
+  file instead.
+- On a busy host the first boot hangs System UI (ANR) and the Vite dev page
+  takes about a minute to leave its splash. Wait for state, not for a fixed
+  time.

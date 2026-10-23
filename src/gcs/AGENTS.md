@@ -142,6 +142,16 @@ Frontend:
   don't build against a live dev server, or restart it afterwards.
 - Frontend JavaScript utilities: prefer tests that invoke Node.js subprocesses
   from Python tests, matching the existing test style.
+- Handheld screen (SIYI UniRC 10 Pro: 10.1 inch 1920x1200, Android 13):
+  start this checkout's GCS, then run
+  `powershell -ExecutionPolicy Bypass -File <repo>\scripts\unirc_emulator.ps1`.
+  It creates a 1920x1200, density 240 AVD, boots it on `emulator-5580` and
+  opens this checkout's frontend via `10.0.2.2`: in Chrome on a Google APIs
+  image, else in the image's own WebView (the plain API 33 image has
+  WebView 101). Options: `-Density 320`, `-Portrait`, `-Api 36`, `-Stop`.
+  SIYI does not publish the density; an emulator is not the device for touch
+  size or gloves (todo 94). Install system images with Android Studio's SDK
+  Manager: Application Control blocks the command-line `sdkmanager` here.
 - Live testing: delegate the full GCS/SITL flow (launch, connect, exercise,
   check logs, tear down) to the `live-tester` subagent; its procedure is in
   `.claude/agents/live-tester.md`.
