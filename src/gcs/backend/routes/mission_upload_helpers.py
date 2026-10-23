@@ -86,7 +86,9 @@ RECONNECT_WAIT_S = 10.0
 
 def reconnect_within(manager: VehicleManager, sys_id: int,
                      policy: ExchangePolicy | None) -> VehicleEntry | None:
-    """Reconnect unless the request's deadline has passed; the link wait ends at it (todo 105)."""
+    """Reconnect unless the request's deadline has passed, with the link wait capped at
+    the time left (todo 105). Building the new connection is not bounded, so a
+    reconnect that starts may still end a little past the deadline."""
     remaining = remaining_s(policy)
     if remaining <= 0.0:
         log.warning("Vehicle %d not reconnected: the request deadline passed", sys_id)

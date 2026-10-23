@@ -3,6 +3,7 @@ todo 105): 12 sends per step, a deadline that also bounds the mission-lock wait,
 and an unconfirmed upload that counts only on an exact readback."""
 from __future__ import annotations
 
+import asyncio
 import copy
 import threading
 import time
@@ -248,4 +249,27 @@ def test_a_reconnect_waits_for_the_link_only_until_the_deadline():
     assert manager.reconnect_vehicle.call_args.kwargs["timeout"] == RECONNECT_WAIT_S
     manager.reset_mock()
     assert reconnect_within(manager, 1, _spent()) is None  # the deadline passed while it was queued
+    manager.reconnect_vehicle.assert_not_called()
+
+
+def test_the_route_does_not_reconnect_when_the_deadline_passes_during_its_broadcast():
+    from gcs.backend.planner.waypoint_builder import UploadResult
+    manager = MagicMock()
+    manager.get_vehicle.return_value = _entry(MagicMock())
+    lost = UploadResult(success=False, uploaded_count=0, expected_count=4, attempts=1,
+                        error="link lost", link_lost=True)
+
+    async def slow_broadcast(message):
+        if message.get("stage") == "reconnecting":
+            await asyncio.sleep(0.3)  # the budget runs out while the operator is told
+
+    from gcs.backend.main import app
+    with patch("gcs.backend.routes.missions.vehicle_mgr", manager), \
+         patch("gcs.backend.routes.missions.gcs_policy", return_value=gcs_policy(0.2)), \
+         patch("gcs.backend.routes.missions.ws_manager.broadcast", side_effect=slow_broadcast), \
+         patch("gcs.backend.routes.missions.upload_mission_with_retry", return_value=lost):
+        response = TestClient(app).post("/api/vehicles/upload", json={
+            "assignments": [{"sys_id": 1, "zone_index": 0, "altitude_m": 100.0, "waypoints": TRACK}],
+        })
+    assert response.status_code == 200, response.text
     manager.reconnect_vehicle.assert_not_called()
