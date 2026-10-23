@@ -1,9 +1,9 @@
 # GCS map: closest approach to the dock (sim only)
 
 Status: design v5, 2026-10-21. Owner approved the 2D mark and asked for the
-3D view in section 4 ("yeah something like that", after the mock). Every
-end without contact shows as missed (the recommended answer; the owner did
-not pick the split).
+3D view in section 4 ("yeah something like that", after the mock). An
+approach NAV ended early shows as aborted with its reason (owner decision on
+todo 108, 2026-10-23); other ends without contact show as missed.
 
 Owner request (2026-10-20): in simulation mode the GCS map shows each UAV's
 closest approach point to its dock after a final approach: the point on the
@@ -50,16 +50,23 @@ While armed, the sensor keeps the episode's best segment by **exact** distance:
 
 **Outcome comes from the lifecycle, not the sensor.** `FinalApproachDockContact`
 remembers whether its latch accepted DOCKED for the current episode and tells
-the sensor at the end: `DockContactSensor.disarm(docked: bool)` (one flag from
-the lifecycle to the sensor; nothing flows back).
+the sensor at the end: `DockContactSensor.disarm(end: DockEpisodeEnd)` (how
+the lifecycle saw the end; nothing flows back). `dock_episode_end` builds it
+after the contact is detached, from the episode's terminal latch and the
+POI's confirmation state: docked, a latched aft-dock miss, an abort reason
+(the `NAV_FAIL` reason, or `cancelled` when the GCS cancelled the confirmed
+task), or nothing known.
 
 - **docked**: the reported geometry is the contact segment's, so `d3_m` equals
   the DOCKED row's `closest_3d_m` (the contact segment, not the episode
   minimum: the contact rule includes the chord-bow allowance).
-- **missed**: every other end (missed dock, other `NAV_FAIL`, RESET, re-arm,
-  new assignment). The geometry is the episode minimum, which may be a
-  contact segment the lifecycle rejected. The distance in the label tells an
-  approach that ended far out from a near miss.
+- **aborted** (with `reason`): NAV ended the approach early: a `NAV_FAIL`
+  other than the aft-dock miss, or a cancel. With no known reason, an episode
+  whose closest point is its last joined sample is aborted too (still
+  closing, `reason` null). The geometry is the episode minimum.
+- **missed**: every other end (the aft-dock miss, RESET, re-arm, new
+  assignment). The geometry is the episode minimum, which may be a contact
+  segment the lifecycle rejected.
 - No joined segment in the episode: no report.
 
 **Threads.** The outcome and the end of the episode are decided in one place,
@@ -106,7 +113,7 @@ else ignored), and a replaceable publisher whose default writes one flushed
 stdout line:
 
 ```
-NAVPY_SIM_CLOSEST_APPROACH_V1 {"vehicle":2,"task_id":7,"dock_uid":3,"episode":1,"outcome":"missed","aircraft_time_s":512.3,"lat":..,"lon":..,"alt_amsl_m":..,"alt_rel_m":..,"d3_m":1.84,"h_m":1.52,"v_m":1.04}
+NAVPY_SIM_CLOSEST_APPROACH_V1 {"vehicle":2,"task_id":7,"dock_uid":3,"episode":1,"outcome":"missed","reason":null,"aircraft_time_s":512.3,"lat":..,"lon":..,"alt_amsl_m":..,"alt_rel_m":..,"d3_m":1.84,"h_m":1.52,"v_m":1.04}
 ```
 
 Every record is also written to the NavPy log (evidence in every mode).
@@ -153,8 +160,9 @@ processes, not the fleet.
 
 - **Marker**: a point (10 px, white outline) at (lon, lat, `alt_rel_m`): the
   trail draws `alt_rel` (`useUavTrails.js:102`), so the mark sits on the trail.
-- **Colour and text**: docked green, missed red, and the label says it in
-  words, so colour is never the only cue.
+- **Colour and text**: docked green, missed red, aborted amber with its
+  reason (`aborted (source_command_stale)`), and the label says it in words,
+  so colour is never the only cue.
 - **Label**, two lines, dark background, above the point, distance-scaled like
   the dock labels: `UAV 2 · 1.84 m missed` / `h 1.52 m · v 1.04 m`. No click or
   tooltip is needed (the Cesium info box is off).
