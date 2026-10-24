@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.tools.hitl import media_fakes
 from tools.hitl import approach_records as ar
 from tools.hitl import model_input as mi
 from tools.hitl.json_checks import RecordError, sha256_file
@@ -19,6 +20,14 @@ CREATED = datetime(2026, 10, 19, 8, 30, 5, tzinfo=timezone(timedelta(hours=2)))
 SOURCES = {"navpy": {"git_head": "a" * 40, "uncommitted_diff_sha256": "b" * 64, "untracked_sha256": "c" * 64}}
 BRIDGE = ar.BridgeRun(plant="program", jsbsim_version="synthetic-1.0", integration_dt_s=1.0 / 1200.0,
                       loop_rate_hz=200.0, servo_speed_s=0.03)
+
+
+@pytest.fixture(autouse=True)
+def media_runtime(tmp_path, monkeypatch):
+    """A passing pc media runtime result over a synthetic install (test_check_media_runtime.py)."""
+    global MEDIA
+    MEDIA = media_fakes.passing_pc_result(tmp_path / "media", monkeypatch)
+    return MEDIA
 
 
 @pytest.fixture
@@ -48,7 +57,8 @@ def declaration_of(name: str, files_sha256: dict) -> dict:
 
 def make(folder: Path, **changes) -> dict:
     kwargs = dict(run_id="r001-pc-sitl", mode="pc-sitl", created=CREATED, model_input=declaration(folder),
-                  model_dir=folder, bridge=BRIDGE, law="vision-nav-pn", sources=SOURCES)
+                  model_dir=folder, bridge=BRIDGE, law="vision-nav-pn", sources=SOURCES,
+                  media_runtime=MEDIA)
     kwargs.update(changes)
     return ar.new_record(**kwargs)
 
@@ -144,8 +154,9 @@ def test_missing_fields_are_named(model_dir):
 
 
 @pytest.mark.parametrize("path, value, reason", [
-    (("schema_version",), True, "must be 1"),
-    (("schema_version",), 1.0, "must be 1"),
+    (("schema_version",), True, "must be 2"),
+    (("schema_version",), 2.0, "must be 2"),
+    (("schema_version",), 1, "must be 2"),
     (("run", "run_id"), "run 1", "must be a name"),
     (("run", "run_id"), "CON", "not a Windows device name"),
     (("run", "run_id"), "aux.r001", "not a Windows device name"),
@@ -317,3 +328,73 @@ def test_source_identity_follows_commit_diff_and_untracked_files(tmp_path):
     assert sha256_file(repo / "b.txt") != added["untracked_sha256"]
     with pytest.raises(RecordError, match="not a git repository"):
         ar.source_identity(tmp_path)
+
+
+def test_media_runtime_is_frozen_in_the_record(model_dir):
+    record = make(model_dir)
+    assert record["media_runtime"] == MEDIA
+    assert "record.media_runtime is missing" in refused(ar.validate_record, without(record, ("media_runtime",)))
+
+
+@pytest.mark.parametrize("path, value, reason", [
+    (("verdict",), "blocked", "media_runtime.verdict must be 'pass'"),
+    (("blockers",), ["no GStreamer root"], "media_runtime.blockers must be []"),
+    (("host",), "orin", "media_runtime.host must be one of pc"),
+    (("surprise",), 1, "media_runtime.surprise is not a known field"),
+    (("python", "platform"), "win32", "must be 'win-amd64'"),
+    (("python", "gi_extensions"), [], "gi_extensions must be a non-empty list"),
+    (("gstreamer", "nano"), 1, "nano must be 0"),
+    (("gstreamer", "version"), "1.26.10", "gstreamer.version 1.26.10 is not the pinned 1.26.11"),
+    (("gstreamer", "pinned"), "1.28.0", "gstreamer.pinned 1.28.0 is not the pinned 1.26.11"),
+    (("installers",), {"gstreamer-1.0-msvc-x86_64-1.26.11.msi": "0" * 64}, "are not the official 1.26.11"),
+    (("selected", "encoder"), "openh264enc", "selected.encoder openh264enc is not one of"),
+    (("selected", "decoder"), "nvv4l2decoder", "selected.decoder nvv4l2decoder is not one of"),
+    (("elements", "rtph265pay", "version"), "1.24.0", "elements.rtph265pay.version 1.24.0 is not 1.26.11"),
+    (("elements", "rtph265pay", "rank"), -1, "whole number >= 0"),
+    (("gpu_driver",), "", "non-empty text"),
+])
+def test_media_runtime_that_is_not_a_pinned_pass_is_refused(model_dir, path, value, reason):
+    record = make(model_dir)
+    assert reason in refused(ar.validate_record, edited(record, ("media_runtime",) + path, value))
+
+
+@pytest.mark.parametrize("path, value, reason", [
+    (("gstreamer", "gi_file"), "C:/elsewhere/gi/__init__.py", "gstreamer.gi_file C:/elsewhere/gi/__init__.py"),
+    (("gstreamer", "gi_extension_file"), "C:/elsewhere/gi/_gi.cp313-win_amd64.pyd", "gstreamer.gi_extension_file"),
+    (("gstreamer", "core_dll"), "C:/Windows/System32/gstreamer-1.0-0.dll", "gstreamer.core_dll"),
+    (("elements", "rtspsrc", "filename"), "C:/plugins/gstrtsp.dll", "elements.rtspsrc.filename"),
+    (("launch", "dll_directory"), "C:/elsewhere/bin", "launch is not the install's"),
+    (("python", "gi_extensions"), ["_gi.cp39-win_amd64.pyd"], "gi_extensions are not all loadable"),
+    (("python", "extension_suffixes"), [".cp311-win_amd64.pyd"], "gi_extensions are not all loadable"),
+    (("python", "version"), "3.11.9", "extension_suffixes are not CPython 3.11.9's"),
+    (("python", "version"), "3.1.3", "extension_suffixes are not CPython 3.1.3's"),
+    (("python", "extension_suffixes"), [".cp311-win_amd64.pyd", ".cp313-win_amd64.pyd", ".pyd"],
+     "extension_suffixes are not CPython 3.13.9's"),
+])
+def test_media_runtime_must_load_everything_from_its_install(model_dir, path, value, reason):
+    record = make(model_dir)
+    assert reason in refused(ar.validate_record, edited(record, ("media_runtime",) + path, value))
+
+
+def test_media_runtime_cp313_binding_is_refused_for_python_311(model_dir):
+    record = make(model_dir)
+    record = edited(record, ("media_runtime", "python", "version"), "3.11.9")
+    record = edited(record, ("media_runtime", "python", "extension_suffixes"),
+                    [".cp311-win_amd64.pyd", ".cp313-win_amd64.pyd", ".pyd"])
+    assert "extension_suffixes are not CPython 3.11.9's" in refused(ar.validate_record, record)
+    record = edited(record, ("media_runtime", "python", "extension_suffixes"), [".cp311-win_amd64.pyd", ".pyd"])
+    assert "gi_extensions are not all loadable" in refused(ar.validate_record, record)
+
+
+def test_media_runtime_extension_must_be_a_listed_binding(model_dir):
+    record = edited(make(model_dir), ("media_runtime", "python", "gi_extensions"), ["_gi.pyd"])
+    assert "gi_extension_file _gi.cp313-win_amd64.pyd is not one of python.gi_extensions" in refused(
+        ar.validate_record, record)
+
+
+def test_media_runtime_needs_every_element_it_selected(model_dir):
+    record = make(model_dir)
+    assert "media_runtime.elements are" in refused(
+        ar.validate_record, without(record, ("media_runtime", "elements", "nvh265enc")))
+    assert "media_runtime.elements are" in refused(
+        ar.validate_record, edited(record, ("media_runtime", "selected", "encoder"), "x265enc"))
