@@ -160,10 +160,19 @@ def test_waiting_received_for_its_copy_drops_it(slot):
     assert slot.state() is SlotState.EMPTY
 
 
-def test_waiting_processing_keeps_it(slot):
+def test_waiting_processing_keeps_it_as_owner_progress(slot):
     reply = _reply(slot, _wait(slot))
 
     assert slot.on_ack(reply, ACK_STATUS_PROCESSING, MsgRef(OWNER, BOOT, 60))[0] is (
+        AckKind.PROGRESS
+    )
+    assert slot.state() is SlotState.WAITING
+
+
+def test_waiting_processing_from_another_owner_boot_is_no_progress(slot):
+    reply = _reply(slot, _wait(slot))
+
+    assert slot.on_ack(reply, ACK_STATUS_PROCESSING, MsgRef(OWNER, BOOT + 1, 60))[0] is (
         AckKind.NONE
     )
     assert slot.state() is SlotState.WAITING

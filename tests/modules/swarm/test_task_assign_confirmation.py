@@ -44,11 +44,13 @@ from navpy.core.ports.vehicle_contract import IVehicle
 
 
 class FakeTimer:
-    def __init__(self, interval, function, args=None):
+    def __init__(self, interval, function, args=None, clock=None):
         self.interval = interval
         self.function = function
         self.args = args or ()
         self.alive = False
+        self.clock = clock
+        self.due = None if clock is None else clock.now + interval
 
     def start(self):
         self.alive = True
@@ -61,19 +63,29 @@ class FakeTimer:
 
     def fire(self):
         self.alive = False
+        if self.clock is not None:
+            self.clock.now = max(self.clock.now, self.due)
         self.function(*self.args)
 
 
 class FakeTimers:
-    """Deterministic stand-in for TaskDispatch's threading.Timer."""
+    """Deterministic stand-in for TaskDispatch's threading.Timer.
+
+    It is also the clock to inject as ``monotonic_s``: firing a timer moves
+    ``now`` to its due time.
+    """
 
     def __init__(self):
         self.created: list[FakeTimer] = []
+        self.now = 1000.0
 
     def make(self, *args, **kwargs):
-        timer = FakeTimer(*args, **kwargs)
+        timer = FakeTimer(*args, clock=self, **kwargs)
         self.created.append(timer)
         return timer
+
+    def __call__(self) -> float:
+        return self.now
 
     def patch(self):
         return patch(
@@ -144,9 +156,11 @@ class TestOwnerConfirmation:
         vehicle.source_system = 1
         vehicle.location.return_value = Location(12.34, 56.78, 90.0)
         self.network = Mock(spec=NetworkAbc)
-        self.actor = TaskActor(vehicle, self.network, Mock(spec=ILogger))
-        self.actor.start()
         self.timers = FakeTimers()
+        self.actor = TaskActor(
+            vehicle, self.network, Mock(spec=ILogger), monotonic_s=self.timers,
+        )
+        self.actor.start()
 
     def teardown_method(self):
         self.actor.reset()
@@ -180,25 +194,26 @@ class TestOwnerConfirmation:
 
     def test_unanswered_request_is_resent_then_released_as_a_retry(self):
         from navpy.core.swarm.task_auction_coordinator import (
-            ASSIGN_REQUEST_SCHEDULE as schedule,
+            ASSIGN_REQUEST_TIMING as timing,
         )
 
         with self.timers.patch():
             dispatch = self._reserve_task_10_for_peer_2()
-            for _ in range(schedule.copies):
-                self.timers.fire_pending()
+            started = self.timers.now
+            while dispatch.status is TaskDispatchStatus.CONFIRMING:
+                assert self.timers.fire_pending()
         # The post-release re-advertisement is the only zero-delay timer.
         confirm_timers = [t for t in self.timers.created if t.interval > 0.0]
 
+        # A copy every interval until the silence bound, then the release.
+        copies = round(timing.silence_s / timing.interval_s)
+        assert self.timers.now - started == timing.silence_s
         requests = _sent(self.network, TaskAssignRequestMsg)
-        assert len(requests) == schedule.copies
+        assert len(requests) == copies
         assert {(m.receiver_id, m.task.task_id) for m in requests} == {(2, 10)}
         # Every copy carries a fresh UID.
-        assert len({m.meta.msg_seq for m in requests}) == schedule.copies
-        assert [t.interval for t in confirm_timers] == [
-            schedule.delay_after(sent)
-            for sent in range(1, schedule.copies + 1)
-        ]
+        assert len({m.meta.msg_seq for m in requests}) == copies
+        assert {t.interval for t in confirm_timers} == {timing.interval_s}
         # Released like a rejection: the silent peer's bid is dropped and
         # the release counts against the retry budget.
         assert dispatch.status is TaskDispatchStatus.AVAILABLE
@@ -259,7 +274,7 @@ class TestOwnerConfirmation:
 
 def test_stale_confirmation_timer_cannot_touch_replacement_generation():
     from navpy.core.swarm.task_auction_coordinator import (
-        ASSIGN_REQUEST_SCHEDULE,
+        ASSIGN_REQUEST_TIMING,
     )
     from navpy.core.swarm.task_auction_models import (
         AssignConfirmationPorts,
@@ -288,7 +303,7 @@ def test_stale_confirmation_timer_cannot_touch_replacement_generation():
     outcome = confirmation.due(
         stale,
         AssignConfirmationPorts(send, Mock(), lambda _reservation: None),
-        ASSIGN_REQUEST_SCHEDULE,
+        ASSIGN_REQUEST_TIMING,
     )
 
     assert outcome.kind == "stale"

@@ -343,16 +343,17 @@ def test_lost_request_copy_is_resent(swarm):
 
 
 def test_every_request_copy_lost_releases_with_nobody_waiting(swarm):
-    swarm.drop = drop_while(swarm.clock, 9.0, TaskAssignRequestMsg, OWNER)
+    swarm.drop = drop_while(swarm.clock, 5.0, TaskAssignRequestMsg, OWNER)
 
     swarm.detect()
-    swarm.run_until(8.9)
+    swarm.run_until(4.9)
     assert swarm.state(NEAR_PEER) is SlotState.EMPTY
     assert swarm.dispatch().status is TaskDispatchStatus.CONFIRMING
-    swarm.run_until(10.0)
+    swarm.run_until(6.0)
 
     assert _confirmed_to(swarm, NEAR_PEER)
-    assert len(swarm.sent(TaskAssignRequestMsg, OWNER)) == 4  # 3 + retry
+    # A copy every 0.5 s until the 5 s silence, then the retry's first copy.
+    assert len(swarm.sent(TaskAssignRequestMsg, OWNER)) == 11
 
 
 def test_lost_request_ack_is_answered_processing_until_acked_again(swarm):
@@ -366,6 +367,29 @@ def test_lost_request_ack_is_answered_processing_until_acked_again(swarm):
     assert swarm.sent(SwarmAckMsg, OWNER, status=ACK_STATUS_PROCESSING)
     assert swarm.state(NEAR_PEER) is SlotState.WAITING
     swarm.run_until(2.0)
+
+    assert _confirmed_to(swarm, NEAR_PEER)
+
+
+def test_owner_confirms_from_the_helpers_re_ack_when_every_other_ack_is_lost(swarm):
+    # The helper hears only the first step-3 copy and its ack of it is lost:
+    # the floor can come only from the re-ack before its next step-4 copy.
+    lose_ack = drop_first(
+        1, SwarmAckMsg, NEAR_PEER,
+        ref_msg_type=MsgType.TASK_ASSIGN_REQUEST.value,
+    )
+    first_copy = []
+
+    def drop(sender_id, message):
+        if _kind(message, TaskAssignRequestMsg, OWNER, sender_id):
+            first_copy.append(message)
+            return len(first_copy) > 1
+        return lose_ack(sender_id, message)
+
+    swarm.drop = drop
+    swarm.detect()
+    assert swarm.dispatch().status is TaskDispatchStatus.CONFIRMING
+    swarm.run_until(0.5)
 
     assert _confirmed_to(swarm, NEAR_PEER)
 
@@ -388,11 +412,11 @@ def test_every_response_lost_never_flies_two_uavs(swarm):
     )
 
     swarm.detect()
-    swarm.run_until(8.9)
+    swarm.run_until(4.9)
     assert swarm.state(NEAR_PEER) is SlotState.WAITING
     assert swarm.assigned() == set()
     swarm.vehicles[NEAR_PEER]._location = AWAY
-    swarm.run_until(12.0)
+    swarm.run_until(8.0)
 
     assert _confirmed_to(swarm, FAR_PEER)
     assert swarm.state(NEAR_PEER) is SlotState.EMPTY
@@ -415,9 +439,9 @@ def test_every_applied_lost_strands_the_task_without_duplicating_it(swarm):
     )
 
     swarm.detect()
-    swarm.run_until(17.9)
+    swarm.run_until(4.9)
     assert swarm.state(NEAR_PEER) is SlotState.WAITING
-    swarm.run_until(18.0)
+    swarm.run_until(5.0)  # no owner progress for 5 s
 
     assert swarm.state(NEAR_PEER) is SlotState.EMPTY
     assert swarm.assigned() == set()
@@ -478,24 +502,22 @@ def test_peer_without_fuel_declines_and_is_left_out(swarm):
     assert _confirmed_to(swarm, FAR_PEER)
 
 
-def test_lost_release_advert_still_reaches_the_waiting_peer(swarm):
+def test_lost_release_advert_still_reaches_the_released_peer(swarm):
     # Peer 3 cannot fly the task, so it stays open after the release: the
-    # waiting peer is the only candidate and must hear the re-advert.
+    # released peer is the only candidate and must hear the re-advert.
     swarm.vehicles[FAR_PEER].battery_level = 10.0
     lose_release_adverts = drop_first(2, AvailableTaskRequestMsg, OWNER)
     swarm.drop = lambda sender_id, message: (
-        swarm.clock.now_s < 9.0
+        swarm.clock.now_s < 5.0
         and _kind(message, TaskAssignResponseMsg, NEAR_PEER, sender_id)
-    ) or (swarm.clock.now_s >= 9.0 and lose_release_adverts(sender_id, message))
+    ) or (swarm.clock.now_s >= 5.0 and lose_release_adverts(sender_id, message))
     swarm.detect()
 
-    swarm.run_until(9.0)
+    swarm.run_until(5.0)
     assert swarm.dispatch().status is TaskDispatchStatus.AVAILABLE
-    assert swarm.state(NEAR_PEER) is SlotState.WAITING
-    swarm.run_until(9.5)
+    swarm.run_until(6.0)
 
-    # Advertised again to the released, still-busy peer: it stops waiting
-    # long before its own 18 s expiry, bids, and gets the task.
+    # Advertised again to the released peer, which bids and gets the task.
     assert _confirmed_to(swarm, NEAR_PEER)
 
 

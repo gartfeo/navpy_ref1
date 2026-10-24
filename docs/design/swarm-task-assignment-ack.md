@@ -18,7 +18,7 @@ Implementation notes:
   reviewed: it is dropped like one under CONFIRM.
 - Owners stop advertising to a released peer once the task is reserved
   again; that peer then learns from the RECEIVED answer to its next step 4,
-  or its 18 s expiry.
+  or its no-progress drop (5 s).
 - GCS: a step-4 copy and the APPLIED naming it arrive on different vehicle
   links (threads), so an APPLIED heard first waits, one per helper, for its
   copy. `swarm` is a telemetry change key, so a new beat is broadcast.
@@ -80,8 +80,8 @@ Losses can delay or rarely strand a task, never duplicate it.
 |---|---|---|---|---|
 | 1 | `AVAILABLE_TASK_REQUEST` (owner → all) | every 0.5 s while a FREE, non-silent peer (or the released peer) has no reply | the reply | reply recorded |
 | 2 | `AVAILABLE_TASK_RESPONSE` (bid or "can't do") | once per advert copy, only if FREE | owner keeps advertising | owner has the reply |
-| 3 | `TASK_ASSIGN_REQUEST` | owner: copies at 0, 2, 4 s, fresh UID each, recorded | helper: RECEIVED for every copy | first step-3 ack, or a valid step 4; release at 9 s |
-| 4 | `TASK_ASSIGN_RESPONSE` | helper while WAITING: 0, 2, 4, 6, 8 s, fresh UID each | owner: verdict table | APPLIED → ASSIGNED; RECEIVED → drop; newer advert; expiry 18 s |
+| 3 | `TASK_ASSIGN_REQUEST` | owner: a copy every 0.5 s until CONFIRMED, fresh UID each, recorded | helper: RECEIVED for every copy | CONFIRMED or rejected; release after 5 s without progress |
+| 4 | `TASK_ASSIGN_RESPONSE` | helper while WAITING: a copy every 0.5 s, fresh UID each, each after a re-ack of the held step 3 | owner: verdict table | APPLIED → ASSIGNED; RECEIVED → drop; newer advert; drop after 5 s without owner progress |
 | – | `SWARM_ACK` | never repeated, never acked | – | – |
 | – | `SWARM_HEARTBEAT` (1 Hz) | existing | – | carries the node state (see Busy UAVs) |
 
@@ -121,7 +121,7 @@ Every accepted step-4 copy also counts as a BUSY report for its sender.
 | WAITING | RECEIVED naming one of its copies | EMPTY + warning |
 | WAITING | advert from same owner boot, newer than the accepted request, listing the task | EMPTY, then bid |
 | WAITING | own final approach starts | EMPTY + reject repeat (owner retries) |
-| WAITING | expiry 18 s | EMPTY + ERROR log |
+| WAITING | 5 s without owner progress (PROCESSING of its copies) | EMPTY + ERROR log |
 | WAITING | `TaskActor.reset()` / `clear_selected_poi()` | unchanged |
 | ASSIGNED | any advert or ack | unchanged |
 | ASSIGNED | other step 3 | ack + reject |
@@ -186,7 +186,7 @@ counter, so a report is exactly ordered against step-4 copies.
   also plan (the exhausted path no longer excludes its task).
 - Released peer: a release records `released_to`; rebroadcast keeps
   advertising to that peer until it replies, reports FREE, or the task is
-  reserved/reset (otherwise a lost release advert keeps it WAITING 18 s).
+  reserved/reset (otherwise a lost release advert keeps it WAITING up to 5 s).
 - Silence: a peer with no heartbeat/check-in for TTL(`SWARM_HEARTBEAT`) =
   5 s is silent, checked at the owner's own heartbeat tick (no new timers;
   an error there is logged and never stops the heartbeat);
@@ -228,11 +228,10 @@ owner O` must appear before `Peer navigation started`.
 
 | Name | Value | Derivation |
 |---|---|---|
-| resend interval | 2.0 s | new `SWARM_RESEND_INTERVAL_MS`; the cadence `ttl_defaults.py` documents and `ConfirmationManager` uses |
+| resend interval | 0.5 s | `SWARM_RESEND_INTERVAL_MS`; the advert cadence (todo 112) |
 | ack TTL | TTL of the acked message (5 s) | a shorter ack could be dropped while its message is admitted |
-| owner step-3 copies / release | 3 (0, 2, 4 s) / 9 s | `ceil(TTL(REQ)/interval)` / last copy + TTL(REQ) |
-| helper step-4 copies | 5 (0–8 s) | answer while the owner may still confirm |
-| WAITING expiry | 18 s | last copy + TTL(RSP) + ack TTL |
+| no-progress silence (owner release, helper drop) | 5 s | TTL(`SWARM_HEARTBEAT`), as peer silence (todo 112) |
+| sent-UID retention | 10 s | TTL of the copy + its ack TTL |
 | busy visible | ≤ 1 s | heartbeat interval |
 | peer silence | 5 s | TTL(`SWARM_HEARTBEAT`) |
 
@@ -254,10 +253,10 @@ from heartbeats, took queue delay for clock skew and admitted stale bids
 | Case | Outcome |
 |---|---|
 | advert or bid lost | re-advertised 0.5 s later |
-| step-3 copies lost / all lost | next copy 2 s later / release at 9 s, nobody waiting |
+| step-3 copies lost / all lost | next copy 0.5 s later / release at 5 s, nobody waiting |
 | step-3 ack lost | step 4 answered PROCESSING; next step-3 copy acked, next step 4 passes |
-| every step 4 lost (original defect) | helper WAITING, not flying; release at 9 s; advert drops WAITING |
-| one / every APPLIED lost | next copy re-acked / expiry 18 s with ERROR: stranded, not duplicated |
+| every step 4 lost (original defect) | helper WAITING, not flying; release at 5 s; helper drops at 5 s |
+| one / every APPLIED lost | next copy re-acked / helper drop at 5 s with ERROR: stranded, not duplicated |
 | stale step 4 | fenced: PROCESSING |
 | owner restart (new boot) | new-boot step 3 replaces WAITING; new-boot APPLIED cannot assign it |
 | peer busy (other task, or approaching) | no bid; owners skip it within 1 s and assign among free peers |

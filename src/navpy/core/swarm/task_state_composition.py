@@ -31,10 +31,10 @@ def create_task_state(
     peers = PeerRoster(lock, monotonic_s)
     store = _TaskAuctionStore(lock=lock, peers=peers, dispatches={})
     return SwarmTaskState(
-        SelectedTaskSlot(lock),
+        SelectedTaskSlot(lock, monotonic_s),
         TaskAuctionState(store, TaskAuctionLifecycle(store)),
         TaskRebroadcastState(store),
-        TaskAssignConfirmation(store),
+        TaskAssignConfirmation(store, monotonic_s),
     )
 
 

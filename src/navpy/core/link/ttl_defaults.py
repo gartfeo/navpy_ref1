@@ -16,8 +16,9 @@ from navpy.core.link.types import MsgType
 # Default TTL for message types not explicitly listed (5 seconds)
 DEFAULT_TTL_MS = 5000
 
-# Cadence at which a sender repeats an unacknowledged swarm message.
-SWARM_RESEND_INTERVAL_MS = 2000
+# Cadence at which a sender repeats an unanswered swarm message: the advert
+# cadence, about twice the median round trip on the lossiest sim link.
+SWARM_RESEND_INTERVAL_MS = 500
 
 # TTL defaults per message type in milliseconds
 TTL_DEFAULTS = {

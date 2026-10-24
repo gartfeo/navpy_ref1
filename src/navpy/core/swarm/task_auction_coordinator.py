@@ -32,8 +32,8 @@ from navpy.core.swarm.task_rebroadcast import TaskRebroadcastCoordinator
 
 PEER_SELECTION_DELAY_S = 2.0
 
-# Step-3 copies, then the release of an unconfirmed reservation.
-ASSIGN_REQUEST_SCHEDULE = ASSIGN_ACK_TIMING.request
+# Step-3 repeats until confirmed; release after a silence without progress.
+ASSIGN_REQUEST_TIMING = ASSIGN_ACK_TIMING.request
 
 # (log level, message) per step-4 verdict; a repeat is not logged.
 _VERDICT_LOGS = {
@@ -184,7 +184,7 @@ class TaskAuctionCoordinator:
             reservation,
             request,
             self._on_confirmation_due,
-            ASSIGN_REQUEST_SCHEDULE,
+            ASSIGN_REQUEST_TIMING,
         )
         return True
 
@@ -192,20 +192,20 @@ class TaskAuctionCoordinator:
         outcome = self._confirmation.due(
             reservation,
             self._confirmation_ports,
-            ASSIGN_REQUEST_SCHEDULE,
+            ASSIGN_REQUEST_TIMING,
         )
         if outcome.kind == "resent":
             self._logger.warning(
                 f"Task {reservation.task_id}: request not acked by "
-                f"{reservation.peer_id}; resent it "
-                f"({outcome.sends}/{ASSIGN_REQUEST_SCHEDULE.copies})."
+                f"{reservation.peer_id}; resent it (copy {outcome.sends})."
             )
             return
         if outcome.kind != "released":
             return
         self._logger.warning(
             f"Task {reservation.task_id}: no confirmed response from "
-            f"{reservation.peer_id} after {outcome.sends} requests; "
+            f"{reservation.peer_id} (no progress for "
+            f"{ASSIGN_REQUEST_TIMING.silence_s:g}s, {outcome.sends} requests); "
             f"released and re-advertising (retry {outcome.retry_count})."
         )
         self._rebroadcast.restart(expected_generation=outcome.generation)

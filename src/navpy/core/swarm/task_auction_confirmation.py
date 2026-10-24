@@ -1,7 +1,8 @@
 """Owner side of the acknowledged assign handshake, under the store lock.
 
-Request copies, the fence floor, release on silence, and the verdict on
-each response copy follow docs/design/swarm-task-assignment-ack.md.
+Request copies until CONFIRMED, the fence floor, release after a silence
+without progress, and the verdict on each response copy follow
+docs/design/swarm-task-assignment-ack.md.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
     ACK_STATUS_PROCESSING,
@@ -19,7 +21,7 @@ from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.task_assignment_msg import TaskAssignResponseMsg
 from navpy.core.link.types import TaskDispatchStatus
 from navpy.core.swarm.task_ack_routing import acked_ref
-from navpy.core.swarm.task_ack_timing import RepeatSchedule
+from navpy.core.swarm.task_ack_timing import HandshakeTiming
 from navpy.core.swarm.task_auction_evidence import report_peer_state
 from navpy.core.swarm.task_auction_models import (
     AssignConfirmationPorts,
@@ -32,7 +34,7 @@ from navpy.core.swarm.task_auction_models import (
 )
 from navpy.core.swarm.task_auction_queries import reserved_dispatch
 from navpy.core.swarm.task_dispatch import TaskDispatch
-from navpy.core.swarm.task_msg_refs import MsgRef, msg_ref
+from navpy.core.swarm.task_msg_refs import MsgRef, RecentRefs, msg_ref
 
 
 _HELD = (TaskDispatchStatus.CONFIRMING, TaskDispatchStatus.CONFIRMED)
@@ -41,41 +43,50 @@ _HELD = (TaskDispatchStatus.CONFIRMING, TaskDispatchStatus.CONFIRMED)
 class TaskAssignConfirmation:
     """Confirm a reservation only through its helper's fenced response."""
 
-    def __init__(self, store: _TaskAuctionStore) -> None:
+    def __init__(
+        self,
+        store: _TaskAuctionStore,
+        monotonic_s: Callable[[], float] = rt.monotonic,
+    ) -> None:
         self._store = store
+        self._monotonic_s = monotonic_s
 
     def arm(
         self,
         reservation: TaskReservation,
         request: MsgRef,
         on_due: Callable[[TaskReservation], None],
-        schedule: RepeatSchedule,
+        timing: HandshakeTiming,
     ) -> None:
-        """Record the first request copy and wait for the next slot."""
+        """Record the first request copy and wait one interval."""
         with self._store.lock:
             dispatch = self._current(reservation)
             if dispatch is None:
                 return
-            dispatch.attempt.sends = 1
-            dispatch.attempt.request_refs.add(request)
+            attempt = dispatch.attempt
+            attempt.sends = 1
+            attempt.request_refs = RecentRefs(timing.retention_s, self._monotonic_s)
+            attempt.request_refs.add(request)
+            attempt.progress_s = self._monotonic_s()
             dispatch.start_confirm_timer(
                 lambda _task_id: on_due(reservation),
-                schedule.delay_after(1),
+                timing.interval_s,
             )
 
     def due(
         self,
         reservation: TaskReservation,
         ports: AssignConfirmationPorts,
-        schedule: RepeatSchedule,
+        timing: HandshakeTiming,
     ) -> TaskConfirmationOutcome:
-        """Send the next request copy, or release an unconfirmed reservation.
+        """Send the next request copy, or release a silent reservation.
 
         Only the reservation's own generation, peer and attempt are touched,
-        so a stale timer cannot affect a reset or newer reservation. Once
-        the helper acked a copy, a slot sends nothing. Release drops the
-        silent peer's bid like a rejection, counts as a retry, and
-        re-advertises the task in the same lock section.
+        so a stale timer cannot affect a reset or newer reservation. Copies
+        go on after the floor too, until CONFIRMED: each delivered one
+        brings another ack and step 4. Release, after ``silence_s`` without
+        progress, drops the silent peer's bid like a rejection, counts as a
+        retry, and re-advertises the task in the same lock section.
         """
         with self._store.lock:
             generation = self._store.generation
@@ -83,24 +94,22 @@ class TaskAssignConfirmation:
             if dispatch is None:
                 return TaskConfirmationOutcome("stale", generation)
             attempt = dispatch.attempt
-            if attempt.sends < schedule.copies:
+            if self._monotonic_s() - attempt.progress_s < timing.silence_s:
                 attempt.sends += 1
                 # Arm before sending so a raising send cannot end the chain.
                 dispatch.start_confirm_timer(
                     lambda _task_id: ports.on_due(reservation),
-                    schedule.delay_after(attempt.sends),
+                    timing.interval_s,
                 )
-                if attempt.floor is not None:
-                    return TaskConfirmationOutcome(
-                        "acked", generation, sends=attempt.sends,
-                    )
                 request = ports.send_request(reservation)
                 if request is not None:
                     attempt.request_refs.add(request)
                 return TaskConfirmationOutcome(
-                    "resent", generation, sends=attempt.sends,
+                    "resent" if attempt.floor is None else "acked",
+                    generation,
+                    sends=attempt.sends,
                 )
-            sends = len(attempt.request_refs)
+            sends = attempt.sends
             dispatch.peer_reject(reservation.peer_id)
             dispatch.answers.released_to = reservation.peer_id
             dispatch.retry_count += 1
@@ -118,7 +127,8 @@ class TaskAssignConfirmation:
     def on_request_ack(self, ack: SwarmAckMsg) -> Optional[int]:
         """Set the fence floor from the reserved helper's first ack.
 
-        Returns the task id whose floor was set.
+        Returns the task id whose floor was set. Later acks are not
+        progress: a helper that acks but never answers is still released.
         """
         floor = msg_ref(ack)
         acked = acked_ref(ack)
@@ -138,6 +148,7 @@ class TaskAssignConfirmation:
                 ):
                     return None
                 attempt.floor = floor
+                attempt.progress_s = self._monotonic_s()
                 return task_id
         return None
 
@@ -161,12 +172,20 @@ class TaskAssignConfirmation:
                     ResponseVerdict.NOT_YOURS, ACK_STATUS_RECEIVED,
                     busy_changed=busy_changed,
                 )
-            if response is None or not response.follows(dispatch.attempt.floor):
+            attempt = dispatch.attempt
+            confirming = dispatch.status is TaskDispatchStatus.CONFIRMING
+            if (
+                confirming
+                and response is not None
+                and attempt.floor is not None
+                and response.owner == attempt.floor.owner
+            ):
+                attempt.progress_s = self._monotonic_s()
+            if response is None or not response.follows(attempt.floor):
                 return AssignVerdict(
                     ResponseVerdict.UNFENCED, ACK_STATUS_PROCESSING,
                     busy_changed=busy_changed,
                 )
-            confirming = dispatch.status is TaskDispatchStatus.CONFIRMING
             if message.is_accepted:
                 if confirming:
                     dispatch.peer_accept(peer_id)

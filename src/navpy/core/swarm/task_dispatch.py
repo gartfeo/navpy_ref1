@@ -7,23 +7,26 @@ from navpy.core.link.task_message_data import (
     TaskMsgData,
 )
 from navpy.core.link.types import TaskDispatchStatus
-from navpy.core.swarm.task_msg_refs import MsgRef
+from navpy.core.swarm.task_msg_refs import MsgRef, RecentRefs
 
 
 @dataclass
 class AssignAttempt:
     """One reservation of the task to a peer; a newer one fences it off.
 
-    ``sends`` counts the elapsed request-copy slots (a slot after the
-    helper's first ack sends nothing) and ``request_refs`` the copies sent.
-    ``floor`` is that first ack: only a response the helper sent after it
-    can confirm the task.
+    ``sends`` counts the request copies sent and ``request_refs`` holds
+    the recent ones. ``floor`` is the helper's first ack of one: only a
+    response the helper sent after it can confirm the task.
+    ``progress_s`` is when the helper last made progress (the first copy,
+    the floor, a response from the floor's boot); a long silence after it
+    releases the reservation.
     """
 
     number: int = 0
     sends: int = 0
-    request_refs: set[MsgRef] = field(default_factory=set)
+    request_refs: RecentRefs = field(default_factory=lambda: RecentRefs(0.0))
     floor: Optional[MsgRef] = None
+    progress_s: float = 0.0
 
 
 @dataclass

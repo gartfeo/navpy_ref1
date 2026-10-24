@@ -39,7 +39,7 @@ from navpy.core.swarm.task_msg_refs import MsgRef
 from navpy.core.swarm.task_state_composition import create_task_state
 from tests.modules.swarm.test_task_assign_confirmation import FakeTimers
 
-SCHEDULE = ASSIGN_ACK_TIMING.request
+TIMING = ASSIGN_ACK_TIMING.request
 HELPER_BOOT = 70
 REQUEST = MsgRef(1, 5, 100)
 
@@ -81,9 +81,11 @@ def _response(accepted, peer_id=2, seq=11, task_id=7, meta=True, boot_id=HELPER_
 class Owner:
     """Owner state with peers 2 and 3 and task 7 reserved to peer 2."""
 
+    clock = None  # the test's FakeTimers, set by the timers fixture
+
     def __init__(self) -> None:
         _, self.auction, rebroadcast, self.confirmation = create_task_state(
-            threading.RLock()
+            threading.RLock(), Owner.clock,
         )
         for peer_id in (2, 3):
             rebroadcast.discover_peer(peer_id, lambda *_: None)
@@ -94,7 +96,7 @@ class Owner:
         (self.reservation,) = self.auction.plan_and_reserve(
             MinimumEtaAssignmentPlanner(), generation,
         )
-        self.confirmation.arm(self.reservation, REQUEST, Mock(), SCHEDULE)
+        self.confirmation.arm(self.reservation, REQUEST, Mock(), TIMING)
 
     def acked(self) -> "Owner":
         assert self.confirmation.on_request_ack(_request_ack()) == 7
@@ -110,9 +112,10 @@ class Owner:
 
 
 @pytest.fixture(autouse=True)
-def fake_timers():
-    with FakeTimers().patch():
-        yield
+def timers():
+    fake = Owner.clock = FakeTimers()
+    with fake.patch():
+        yield fake
 
 
 def test_first_request_ack_from_the_reserved_helper_sets_the_floor():
@@ -262,31 +265,111 @@ def test_timer_of_an_older_attempt_is_stale():
     send = Mock()
 
     outcome = owner.confirmation.due(
-        owner.reservation, AssignConfirmationPorts(send, Mock(), Mock()), SCHEDULE,
+        owner.reservation, AssignConfirmationPorts(send, Mock(), Mock()), TIMING,
     )
 
     assert outcome.kind == "stale"
     send.assert_not_called()
 
 
-def test_request_copies_stop_once_acked_then_release_re_advertises():
+def _ports(seq=101):
+    return AssignConfirmationPorts(
+        Mock(return_value=MsgRef(1, 5, seq)), Mock(), Mock(),
+    )
+
+
+def _due(owner, ports):
+    return owner.confirmation.due(owner.reservation, ports, TIMING).kind
+
+
+def test_request_copies_go_on_after_the_floor_until_confirmed():
     owner = Owner()
-    send = Mock(return_value=MsgRef(1, 5, 101))
-    advertise = Mock()
-    ports = AssignConfirmationPorts(send, advertise, Mock())
+    ports = _ports()
 
-    first = owner.confirmation.due(owner.reservation, ports, SCHEDULE)
+    first = _due(owner, ports)
     owner.acked()
-    second = owner.confirmation.due(owner.reservation, ports, SCHEDULE)
-    released = owner.confirmation.due(owner.reservation, ports, SCHEDULE)
+    second = _due(owner, ports)
+    assert owner.verdict(_response(True)) is ResponseVerdict.CONFIRMED
+    after = _due(owner, ports)
 
-    assert [first.kind, second.kind, released.kind] == ["resent", "acked", "released"]
-    send.assert_called_once_with(owner.reservation)
-    assert owner.dispatch.attempt.request_refs == {REQUEST, MsgRef(1, 5, 101)}
+    assert [first, second, after] == ["resent", "acked", "stale"]
+    assert ports.send_request.call_count == 2
+    assert REQUEST in owner.dispatch.attempt.request_refs
+    assert MsgRef(1, 5, 101) in owner.dispatch.attempt.request_refs
+
+
+def test_silence_without_a_floor_releases_and_re_advertises(timers):
+    owner = Owner()
+    ports = _ports()
+    timers.now += TIMING.silence_s - TIMING.interval_s
+    assert _due(owner, ports) == "resent"
+
+    timers.now += TIMING.interval_s
+    assert _due(owner, ports) == "released"
+
     assert owner.dispatch.status is TaskDispatchStatus.AVAILABLE
     assert owner.dispatch.answers.released_to == 2
     assert set(owner.dispatch.task_handle_by_peer) == {3}
-    advertise.assert_called_once_with([owner.dispatch.task])
+    ports.advertise.assert_called_once_with([owner.dispatch.task])
+
+
+def test_the_floor_restarts_the_silence(timers):
+    owner = Owner()
+    ports = _ports()
+    timers.now += TIMING.silence_s - TIMING.interval_s
+    owner.acked()
+
+    timers.now += TIMING.silence_s - TIMING.interval_s
+    assert _due(owner, ports) == "acked"
+    timers.now += TIMING.interval_s
+    assert _due(owner, ports) == "released"
+
+
+def test_acks_after_the_floor_are_not_progress(timers):
+    owner = Owner().acked()
+    ports = _ports()
+    timers.now += TIMING.silence_s - TIMING.interval_s
+    assert owner.confirmation.on_request_ack(_request_ack(seq=12)) is None
+
+    timers.now += TIMING.interval_s
+    assert _due(owner, ports) == "released"
+
+
+@pytest.mark.parametrize(
+    ("message", "progress"),
+    [
+        (_response(True, seq=9), True),  # unfenced, but from the floor's boot
+        (_response(True, seq=12, boot_id=HELPER_BOOT + 1), False),
+        (_response(True, peer_id=3, seq=12), False),
+    ],
+    ids=["floor-boot", "other-boot", "other-peer"],
+)
+def test_only_a_response_from_the_floor_boot_is_progress(timers, message, progress):
+    owner = Owner().acked()
+    ports = _ports()
+    timers.now += TIMING.silence_s - TIMING.interval_s
+    owner.confirmation.answer_response(message)
+
+    timers.now += TIMING.interval_s
+    assert _due(owner, ports) == ("acked" if progress else "released")
+
+
+def test_no_response_before_the_floor_is_progress(timers):
+    owner = Owner()
+    ports = _ports()
+    timers.now += TIMING.silence_s - TIMING.interval_s
+    owner.confirmation.answer_response(_response(True, seq=9))
+
+    timers.now += TIMING.interval_s
+    assert _due(owner, ports) == "released"
+
+
+def test_an_ack_naming_a_pruned_copy_sets_no_floor(timers):
+    owner = Owner()
+    timers.now += TIMING.retention_s
+
+    assert owner.confirmation.on_request_ack(_request_ack()) is None
+    assert owner.dispatch.attempt.floor is None
 
 
 @pytest.mark.parametrize("close", ["reset", "shutdown"])
