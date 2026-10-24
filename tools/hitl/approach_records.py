@@ -12,7 +12,7 @@ its model input is refused, or when the run disagrees with it: a plant version t
 with, a step that is not the bridge's 1/N s or is longer than the model's maximum, a servo speed other than
 the declared one, a sensor map that is not the bridge's, a law other than the pure-vision law (AGENTS.md), or a
 substitution of the mode left out or reworded, or a media runtime that did not pass on the mode's host with the
-pinned GStreamer, installers and elements. new_record also refuses a model folder that differs from the model input.
+pinned GStreamer, packages and elements. new_record also refuses a model folder that differs from the model input.
 """
 from __future__ import annotations
 
@@ -22,12 +22,12 @@ import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Optional
 
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
 from tools.hitl import check_media_runtime as media
-from tools.hitl import media_profiles
+from tools.hitl import media_profiles, media_roundtrip
 from tools.hitl import json_checks as jc
 from tools.hitl.json_checks import RecordError
 from tools.hitl.model_input import (BRIDGE_SENSOR_MAP, MODEL_INPUT_SPEC, PLANTS, check_model_files,
@@ -55,25 +55,29 @@ MODE_SUBSTITUTIONS: Mapping[str, Mapping[str, str]] = {
 APPROACH_LAWS = (NavigationAlgorithm.VISION_NAV_PN.value,)
 
 # The host each mode runs navpy's video on; its media runtime check must have passed there.
-MODE_MEDIA_HOST: Mapping[str, str] = {"pc-sitl": "pc"}
+MODE_MEDIA_HOST: Mapping[str, str] = {"pc-sitl": "pc-wsl"}
 
-# A passing check_media_runtime.py result of an official MSVC install (the pc host).
+# A passing check_media_runtime.py result of the pinned distro packages.
 MEDIA_RUNTIME_SPEC: Mapping[str, jc.Check] = {
     "schema_version": jc.equals(media.SCHEMA_VERSION),
     "host": jc.choice(tuple(MODE_MEDIA_HOST.values())),
     "verdict": jc.equals("pass"),
     "blockers": jc.equals([]),
-    "python": jc.obj({"version": jc.text, "implementation": jc.equals("CPython"),
-                      "platform": jc.equals(media_profiles.PC_PLATFORM),
+    "python": jc.obj({"version": jc.text, "implementation": jc.equals("CPython"), "platform": jc.text,
                       "extension_suffixes": jc.list_of(jc.text, True),
                       "executable": jc.text, "gi_extensions": jc.list_of(jc.text, True)}),
-    "gstreamer": jc.obj({"pinned": jc.text, "root": jc.text, "version": jc.text, "nano": jc.equals(0),
-                         "gi_file": jc.text, "gi_extension_file": jc.text, "core_dll": jc.text,
-                         "pygobject_version": jc.text}),
-    "launch": jc.obj({"dll_directory": jc.text, "sys_path": jc.text}),
-    "installers": jc.map_of(jc.hex_digits(64)),
+    "gstreamer": jc.obj({"pinned": jc.text, "version": jc.text, "nano": jc.equals(0), "gi_file": jc.text,
+                         "gi_extension_file": jc.text, "core_library": jc.text, "pygobject_version": jc.text}),
+    "packages": jc.map_of(jc.text),
+    "package_files_verified": jc.equals(True),
+    "file_packages": jc.map_of(jc.text),
+    "loaded_files": jc.list_of(jc.text, True),
     "selected": jc.obj({"encoder": jc.text, "decoder": jc.text}),
     "elements": jc.map_of(jc.obj({"plugin": jc.text, "version": jc.text, "filename": jc.text, "rank": jc.index})),
+    "roundtrip": jc.obj({"frames_pushed": jc.equals(media_roundtrip.FRAMES),
+                         "frames_decoded": jc.equals(media_roundtrip.FRAMES), "caps": jc.text,
+                         "format": jc.equals(media_roundtrip.OUTPUT_FORMAT), "width": jc.equals(media_roundtrip.WIDTH),
+                         "height": jc.equals(media_roundtrip.HEIGHT)}),
     "gpu_driver": jc.text,
 }
 
@@ -137,18 +141,23 @@ def _run_problems(record: Mapping[str, Any]) -> list[str]:
 
 
 def _media_runtime_problems(result: Mapping[str, Any], host: str) -> list[str]:
-    """A passing result that is not the mode host's pinned runtime: another host, GStreamer release, installer,
-    element set or version, a binding this Python cannot load, or a file loaded from outside the install."""
+    """A passing result that is not the mode host's pinned runtime: another host, GStreamer release, package version,
+    element set or version, a binding this Python cannot load, or a file loaded from outside the pinned packages."""
     path = "record.media_runtime"
     if result["host"] != host:
         return [f"{path}.host {result['host']} is not this mode's video host {host}"]
     profile = media_profiles.PROFILES[host]
-    layout = media_profiles.layout_of(Path(result["gstreamer"]["root"]))
-    problems = media_profiles.origin_problems(layout, result["gstreamer"], result["elements"], f"{path}.")
-    if result["launch"] != {"dll_directory": str(layout.bin), "sys_path": str(layout.site_packages)}:
-        problems.append(f"{path}.launch is not the install's DLL folder and bindings folder")
-    python, extension = result["python"], Path(result["gstreamer"]["gi_extension_file"]).name
-    if python["extension_suffixes"] != media_profiles.cpython_pc_suffixes(python["version"]):
+    problems = media_profiles.package_problems(profile, result["packages"], f"{path}.")
+    problems += media_profiles.origin_problems(profile, result["file_packages"], result["gstreamer"],
+                                               result["elements"], f"{path}.")
+    problems += media_profiles.loaded_file_problems(profile, result["file_packages"], result["loaded_files"],
+                                                    f"{path}.")
+    named = {file for _, file in media_profiles.loaded_files(result["gstreamer"], result["elements"])}
+    problems += [f"{path}.loaded_files lacks {file}" for file in sorted(named - set(result["loaded_files"]))]
+    python, extension = result["python"], PurePosixPath(result["gstreamer"]["gi_extension_file"]).name
+    if python["platform"] != profile.platform:
+        problems.append(f"{path}.python.platform {python['platform']} is not {profile.platform}")
+    if python["extension_suffixes"] != media_profiles.cpython_suffixes(python["version"]):
         problems.append(f"{path}.python.extension_suffixes are not CPython {python['version']}'s")
     loadable = media_profiles.loadable_bindings(python["gi_extensions"], python["extension_suffixes"])
     if loadable != python["gi_extensions"]:
@@ -159,8 +168,6 @@ def _media_runtime_problems(result: Mapping[str, Any], host: str) -> list[str]:
         if result["gstreamer"][field] != profile.version_text:
             problems.append(f"{path}.gstreamer.{field} {result['gstreamer'][field]} is not the pinned "
                             f"{profile.version_text}")
-    if dict(result["installers"]) != dict(profile.installers):
-        problems.append(f"{path}.installers are not the official {profile.version_text} installers and sums")
     selected = result["selected"]
     if selected["encoder"] not in profile.encoders:
         problems.append(f"{path}.selected.encoder {selected['encoder']} is not one of {', '.join(profile.encoders)}")
@@ -170,9 +177,6 @@ def _media_runtime_problems(result: Mapping[str, Any], host: str) -> list[str]:
     if set(result["elements"]) != needed:
         problems.append(f"{path}.elements are {', '.join(sorted(result['elements']))}, not the needed "
                         f"{', '.join(sorted(needed))}")
-    problems.extend(f"{path}.elements.{name}.version {element['version']} is not {profile.version_text}"
-                    for name, element in sorted(result["elements"].items())
-                    if element["version"] != profile.version_text)
     return problems
 
 

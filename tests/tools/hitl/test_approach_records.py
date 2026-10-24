@@ -23,10 +23,10 @@ BRIDGE = ar.BridgeRun(plant="program", jsbsim_version="synthetic-1.0", integrati
 
 
 @pytest.fixture(autouse=True)
-def media_runtime(tmp_path, monkeypatch):
-    """A passing pc media runtime result over a synthetic install (test_check_media_runtime.py)."""
+def media_runtime():
+    """A passing pc-wsl media runtime result over a synthetic package database (test_check_media_runtime.py)."""
     global MEDIA
-    MEDIA = media_fakes.passing_pc_result(tmp_path / "media", monkeypatch)
+    MEDIA = media_fakes.passing_pc_result()
     return MEDIA
 
 
@@ -330,26 +330,40 @@ def test_source_identity_follows_commit_diff_and_untracked_files(tmp_path):
         ar.source_identity(tmp_path)
 
 
+
 def test_media_runtime_is_frozen_in_the_record(model_dir):
     record = make(model_dir)
     assert record["media_runtime"] == MEDIA
     assert "record.media_runtime is missing" in refused(ar.validate_record, without(record, ("media_runtime",)))
 
 
+CORE = media_fakes.CORE
+RTSP = media_fakes.plugin_file("rtspsrc")
+
+
 @pytest.mark.parametrize("path, value, reason", [
     (("verdict",), "blocked", "media_runtime.verdict must be 'pass'"),
-    (("blockers",), ["no GStreamer root"], "media_runtime.blockers must be []"),
-    (("host",), "orin", "media_runtime.host must be one of pc"),
+    (("blockers",), ["packages.gstreamer1.0-rtsp is not installed"], "media_runtime.blockers must be []"),
+    (("host",), "pc", "media_runtime.host must be one of pc-wsl"),
     (("surprise",), 1, "media_runtime.surprise is not a known field"),
-    (("python", "platform"), "win32", "must be 'win-amd64'"),
+    (("python", "platform"), "win-amd64", "python.platform win-amd64 is not linux-x86_64"),
     (("python", "gi_extensions"), [], "gi_extensions must be a non-empty list"),
     (("gstreamer", "nano"), 1, "nano must be 0"),
-    (("gstreamer", "version"), "1.26.10", "gstreamer.version 1.26.10 is not the pinned 1.26.11"),
-    (("gstreamer", "pinned"), "1.28.0", "gstreamer.pinned 1.28.0 is not the pinned 1.26.11"),
-    (("installers",), {"gstreamer-1.0-msvc-x86_64-1.26.11.msi": "0" * 64}, "are not the official 1.26.11"),
+    (("gstreamer", "version"), "1.24.1", "gstreamer.version 1.24.1 is not the pinned 1.24.2"),
+    (("gstreamer", "pinned"), "1.26.11", "gstreamer.pinned 1.26.11 is not the pinned 1.24.2"),
+    (("packages", "gstreamer1.0-plugins-good"), "1.24.2-1ubuntu1.9", "packages.gstreamer1.0-plugins-good is "
+                                                                     "1.24.2-1ubuntu1.9, not the pinned"),
+    (("packages", "gstreamer1.0-plugins-ugly"), "1.24.0-1", "packages.gstreamer1.0-plugins-ugly is not a pinned"),
+    (("package_files_verified",), False, "package_files_verified must be True"),
+    (("roundtrip", "frames_decoded"), 29, "roundtrip.frames_decoded must be 30"),
+    (("roundtrip", "format"), "I420", "roundtrip.format must be 'BGR'"),
+    (("roundtrip", "width"), 1920, "roundtrip.width must be 640"),
+    (("roundtrip", "height"), 1080, "roundtrip.height must be 360"),
+    (("loaded_files",), [], "loaded_files must be a non-empty list"),
     (("selected", "encoder"), "openh264enc", "selected.encoder openh264enc is not one of"),
     (("selected", "decoder"), "nvv4l2decoder", "selected.decoder nvv4l2decoder is not one of"),
-    (("elements", "rtph265pay", "version"), "1.24.0", "elements.rtph265pay.version 1.24.0 is not 1.26.11"),
+    (("elements", "rtph265pay", "version"), "1.24.1", "elements.rtph265pay.version 1.24.1 is not "
+                                                      "gstreamer1.0-plugins-good's 1.24.2"),
     (("elements", "rtph265pay", "rank"), -1, "whole number >= 0"),
     (("gpu_driver",), "", "non-empty text"),
 ])
@@ -359,42 +373,51 @@ def test_media_runtime_that_is_not_a_pinned_pass_is_refused(model_dir, path, val
 
 
 @pytest.mark.parametrize("path, value, reason", [
-    (("gstreamer", "gi_file"), "C:/elsewhere/gi/__init__.py", "gstreamer.gi_file C:/elsewhere/gi/__init__.py"),
-    (("gstreamer", "gi_extension_file"), "C:/elsewhere/gi/_gi.cp313-win_amd64.pyd", "gstreamer.gi_extension_file"),
-    (("gstreamer", "core_dll"), "C:/Windows/System32/gstreamer-1.0-0.dll", "gstreamer.core_dll"),
-    (("elements", "rtspsrc", "filename"), "C:/plugins/gstrtsp.dll", "elements.rtspsrc.filename"),
-    (("launch", "dll_directory"), "C:/elsewhere/bin", "launch is not the install's"),
-    (("python", "gi_extensions"), ["_gi.cp39-win_amd64.pyd"], "gi_extensions are not all loadable"),
-    (("python", "extension_suffixes"), [".cp311-win_amd64.pyd"], "gi_extensions are not all loadable"),
+    (("gstreamer", "gi_file"), "/home/u/.local/gi/__init__.py", "gstreamer.gi_file /home/u/.local/gi/__init__.py"),
+    (("gstreamer", "gi_extension_file"), "/opt/gi/" + media_fakes.BINDING, "gstreamer.gi_extension_file /opt/gi/"),
+    (("gstreamer", "core_library"), "/opt/gst/libgstreamer-1.0.so.0", "gstreamer.core_library /opt/gst/"),
+    (("elements", "rtspsrc", "filename"), "/opt/plugins/libgstrtsp.so", "elements.rtspsrc.filename /opt/plugins/"),
+    (("file_packages", RTSP), "gstreamer1.0-plugins-good-extra", "owner gstreamer1.0-plugins-good-extra"),
+    (("file_packages", CORE), "libgstreamer-custom", "gstreamer.core_library " + CORE + " is not from a pinned"),
+    (("python", "gi_extensions"), ["_gi.cpython-311-x86_64-linux-gnu.so"], "gi_extensions are not all loadable"),
+    (("python", "extension_suffixes"), [".cpython-311-x86_64-linux-gnu.so"], "gi_extensions are not all loadable"),
     (("python", "version"), "3.11.9", "extension_suffixes are not CPython 3.11.9's"),
     (("python", "version"), "3.1.3", "extension_suffixes are not CPython 3.1.3's"),
-    (("python", "extension_suffixes"), [".cp311-win_amd64.pyd", ".cp313-win_amd64.pyd", ".pyd"],
-     "extension_suffixes are not CPython 3.13.9's"),
 ])
-def test_media_runtime_must_load_everything_from_its_install(model_dir, path, value, reason):
+def test_media_runtime_must_load_everything_from_the_pinned_packages(model_dir, path, value, reason):
     record = make(model_dir)
     assert reason in refused(ar.validate_record, edited(record, ("media_runtime",) + path, value))
 
 
-def test_media_runtime_cp313_binding_is_refused_for_python_311(model_dir):
+def test_media_runtime_file_without_an_owner_is_refused(model_dir):
+    record = without(make(model_dir), ("media_runtime", "file_packages", RTSP))
+    assert f"elements.rtspsrc.filename {RTSP} is not from a pinned package (owner none)" in refused(
+        ar.validate_record, record)
+
+
+def test_media_runtime_loaded_files_must_cover_the_named_files_and_come_from_packages(model_dir):
     record = make(model_dir)
-    record = edited(record, ("media_runtime", "python", "version"), "3.11.9")
-    record = edited(record, ("media_runtime", "python", "extension_suffixes"),
-                    [".cp311-win_amd64.pyd", ".cp313-win_amd64.pyd", ".pyd"])
-    assert "extension_suffixes are not CPython 3.11.9's" in refused(ar.validate_record, record)
-    record = edited(record, ("media_runtime", "python", "extension_suffixes"), [".cp311-win_amd64.pyd", ".pyd"])
-    assert "gi_extensions are not all loadable" in refused(ar.validate_record, record)
+    loaded = record["media_runtime"]["loaded_files"]
+    assert f"media_runtime.loaded_files lacks {CORE}" in refused(
+        ar.validate_record, edited(record, ("media_runtime", "loaded_files"), [f for f in loaded if f != CORE]))
+    stray = "/home/u/typelibs/Gst-1.0.typelib"
+    assert f"loaded_files: {stray} is not from a pinned package (owner none)" in refused(
+        ar.validate_record, edited(record, ("media_runtime", "loaded_files"), [*loaded, stray]))
+    override = "/usr/local/lib/python3.12/dist-packages/gi/overrides/GstExtra.py"
+    record = edited(record, ("media_runtime", "file_packages", override), "python3-gst-extra")
+    assert f"loaded_files: {override} is not from a pinned package (owner python3-gst-extra)" in refused(
+        ar.validate_record, edited(record, ("media_runtime", "loaded_files"), [*loaded, override]))
 
 
 def test_media_runtime_extension_must_be_a_listed_binding(model_dir):
-    record = edited(make(model_dir), ("media_runtime", "python", "gi_extensions"), ["_gi.pyd"])
-    assert "gi_extension_file _gi.cp313-win_amd64.pyd is not one of python.gi_extensions" in refused(
+    record = edited(make(model_dir), ("media_runtime", "python", "gi_extensions"), ["_gi.so"])
+    assert f"gi_extension_file {media_fakes.BINDING} is not one of python.gi_extensions" in refused(
         ar.validate_record, record)
 
 
 def test_media_runtime_needs_every_element_it_selected(model_dir):
     record = make(model_dir)
     assert "media_runtime.elements are" in refused(
-        ar.validate_record, without(record, ("media_runtime", "elements", "nvh265enc")))
+        ar.validate_record, without(record, ("media_runtime", "elements", "nvcudah265enc")))
     assert "media_runtime.elements are" in refused(
         ar.validate_record, edited(record, ("media_runtime", "selected", "encoder"), "x265enc"))
