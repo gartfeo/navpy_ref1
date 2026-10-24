@@ -486,10 +486,11 @@ repeats every 0.5 s until answered.
 - **114:** `stress` seed 1 (0.30 % per byte) gets every UAV through the
   swarm handover and the operator approvals, at one digest (`87fc996a…`).
 - **Not passing:** `stress` still fails:
-  - seed 1: 4 adverts from UAV 1 never leave its SITL. While NavPy 1
-    sends its confirmation image, SITL 1's serial1 (5.76 kB/s) is offered
-    6.1-6.3 kB/s; NAVLINK waits 2-3.4 s and ArduPilot drops more than
-    half of it (todo 116).
+  - seed 1: 2 adverts from UAV 1 never leave its SITL (4 failed
+    forwarding paths). While NavPy 1 sends its confirmation image, SITL
+    1's serial1 (5.76 kB/s) is offered 6.1-6.3 kB/s; NAVLINK waits 2-3.4 s
+    and much of it is never re-emitted (9 of 22 in that window; seed 4: 38
+    of 62), likely ArduPilot forwarding only with TX space (todo 116).
   - seed 4 (0.56 %): the same flood during UAV 1's image; UAV 3 gets no
     APPLIED for 5 s, drops task 3 and flies home while the owner holds it
     CONFIRMED (todos 116, 115).
