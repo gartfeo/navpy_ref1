@@ -23,6 +23,12 @@ of one UID with the same bytes (an unchanged retry after the MAVLink
 sequence wrapped) cannot be told apart downstream: their traces are marked
 ``ambiguous`` (a gate must not count them as delivered).
 
+When the radio loses bytes (``radio_link``) and ArduPilot i's serial1 write
+of the packet was broken, hop 3 is ``radio_broken`` instead and the trace
+ends there: a ``broken`` record on SITL i's serial1 with the packet's UID
+and bytes, written after hop 2 (claimed once, as a re-emission is). Loss on
+any other stream never stands in for it.
+
 A trace records each hop's tick and its latency: ticks from NavPy i's
 emission to NavPy j's delivery. SITL i is sysid i and NavPy ordinal i
 (``FleetLayout``). A trace that stops short names the hop it stopped at. A
@@ -40,10 +46,13 @@ from typing import Any
 
 from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS
 from navpy.sim.lockstep.coordinator_types import serial0_device, serial1_device
+from navpy.sim.lockstep.radio_link import radio_events
 
 Id = tuple[Any, ...]
 #: The hops of a complete trace, in order.
 HOPS = ("navpy_emitted", "sitl_serial0", "ap_serial1", "router_copy", "ap_serial0", "navpy_delivered")
+#: The hop that ends a trace whose serial1 write the radio broke.
+RADIO_BROKEN = "radio_broken"
 #: Targets that address every peer: none (the router table's -1) or broadcast.
 _EVERY_PEER = (-1, 0)
 
@@ -85,11 +94,17 @@ class _Records:
         self.delivered: dict[Id, tuple[int, Any]] = {}
         #: ``(origin, device, uid, sha256)`` -> the unclaimed ids emitted there, in order.
         self._unclaimed: dict[tuple[Any, str, tuple, str], list[Id]] = {}
+        #: ``(device, uid, sha256)`` -> the unclaimed ticks of radio-broken writes, in order.
+        self._broken: dict[tuple[str, tuple, str], list[int]] = {}
+        records = list(records)
         for record in records:
             if "packets" in record:
                 self._read(record["k"], record["packets"])
             elif "parked" in record and "packets" in record["parked"]:
                 self._read(record["parked"]["tick"], record["parked"]["packets"])
+        for event in radio_events(records):
+            if event[0] == "broken" and "uid" in event[8]:
+                self._broken.setdefault((event[1], tuple(event[8]["uid"]), event[4]), []).append(event[2])
 
     def _read(self, k: int, events: list[list[Any]]) -> None:
         for event in events:
@@ -117,6 +132,15 @@ class _Records:
         found = self._unclaimed.get((f"sitl{sitl}", device, emission.uid, emission.sha256), [])
         for index, packet_id in enumerate(found):
             if self.emitted[packet_id].tick > after:
+                return found.pop(index)
+        return None
+
+    def claim_broken(self, device: str, emission: _Emission, after: int) -> int | None:
+        """The earliest unclaimed radio-broken write of ``emission`` on ``device``
+        after tick ``after`` (its tick), now claimed."""
+        found = self._broken.get((device, emission.uid, emission.sha256), [])
+        for index, tick in enumerate(found):
+            if tick > after:
                 return found.pop(index)
         return None
 
@@ -153,6 +177,10 @@ def _upstream(book: _Records, packet_id: Id, emission: _Emission,
     up = book.claim(sender, serial1_device(sender), emission, delivered[0])
     if up is not None:
         hops.append(("ap_serial1", book.emitted[up].tick))
+        return hops, up
+    broken = book.claim_broken(serial1_device(sender), emission, delivered[0])
+    if broken is not None:
+        hops.append((RADIO_BROKEN, broken))
     return hops, up
 
 
@@ -179,4 +207,4 @@ def _trace(book: _Records, emission: _Emission, sender: int, receiver: int, up: 
     return done()
 
 
-__all__ = ["HOPS", "NavlinkTrace", "trace_navlink"]
+__all__ = ["HOPS", "NavlinkTrace", "RADIO_BROKEN", "trace_navlink"]

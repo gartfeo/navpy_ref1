@@ -46,22 +46,35 @@ class Clock:
 
 
 class Autopilot:
-    """Answers a download: ``drop`` holds item seqs whose next reply is lost."""
+    """Answers a download: ``drop`` holds item seqs whose next reply is lost, ``lost_requests``
+    item seqs whose next request never arrives, ``lost_count_requests`` how many count
+    requests never arrive (the uplink is a lossy radio too, todo 114)."""
 
     def __init__(self, total: int, *, count_replies: bool = True) -> None:
         self.messages = MessageStore(MESSAGE_HISTORY_POLICY)
         self.connection = SimpleNamespace(mav=MagicMock())
         self.total = total
         self.drop: list[int] = []
+        self.lost_requests: list[int] = []
+        self.lost_count_requests = 0
         self.answer_items = True
         self.on_item_request = lambda _seq: None
         mav = self.connection.mav
         if count_replies:
-            mav.mission_request_list_send.side_effect = lambda *_args: self.messages.publish(
-                "MISSION_COUNT", _message("MISSION_COUNT", count=total), receipt_time_s=1.0)
+            mav.mission_request_list_send.side_effect = self._count
         mav.mission_request_int_send.side_effect = self._item
 
+    def _count(self, *_args) -> None:
+        if self.lost_count_requests:
+            self.lost_count_requests -= 1
+            return
+        self.messages.publish("MISSION_COUNT", _message("MISSION_COUNT", count=self.total),
+                              receipt_time_s=1.0)
+
     def _item(self, _target, _component, seq, _mission_type) -> None:
+        if seq in self.lost_requests:
+            self.lost_requests.remove(seq)
+            return
         self.on_item_request(seq)
         if seq in self.drop:
             self.drop.remove(seq)
@@ -87,6 +100,23 @@ def test_a_lost_item_reply_is_requested_again_after_a_quarter_second():
     assert autopilot.downloader().download() == 3
     assert time.monotonic() - started < 1.0  # one 0.25 s item wait, not a 10 s one
     assert [autopilot.item_requests(seq) for seq in range(3)] == [1, 2, 1]
+
+
+def test_a_lost_item_request_is_sent_again_as_a_lost_reply_is():
+    autopilot = Autopilot(3)
+    autopilot.lost_requests = [2]
+    seen: list[int] = []
+    autopilot.on_item_request = seen.append
+    assert autopilot.downloader().download() == 3
+    assert seen == [0, 1, 2]  # the autopilot saw item 2's request once, the second copy
+    assert [autopilot.item_requests(seq) for seq in range(3)] == [1, 1, 2]
+
+
+def test_a_lost_count_request_is_sent_again():
+    autopilot = Autopilot(3)
+    autopilot.lost_count_requests = 2
+    assert autopilot.downloader().download(ack_timeout=0.05) == 3
+    assert autopilot.connection.mav.mission_request_list_send.call_count == 3
 
 
 def test_a_silent_autopilot_gets_six_count_requests_by_default():

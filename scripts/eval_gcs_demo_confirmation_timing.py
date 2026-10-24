@@ -29,7 +29,8 @@ A certified lockstep run has one approval per vehicle
 (:func:`approval_timing_errors`): each approval's e2-e4 and e6 are the
 records with its confirmation identity, k1 is its vehicle's line, its sends
 are the backend's ``TASK_CONFIRM_RESPONSE`` emissions to its vehicle (packet
-records on the router endpoint, ``lockstep_fleet.md`` Approval timing),
+records on the router endpoint, ``lockstep_fleet.md`` Approval timing, or
+``broken`` radio records there: a send the radio broke was still sent),
 so a SITL's admission backlog moves none of them, and the wait bound is
 the polling-schedule replay's (``eval_gcs_demo_approval_replay``): a request
 that becomes due during another approval's blocking POST waits a pass longer.
@@ -48,6 +49,7 @@ from gcs.backend.task_confirm_resend import (
 )
 from navpy.sim.lockstep.coordinator_mavlink import message_id
 from navpy.sim.lockstep.coordinator_types import ROUTER_DEVICE, serial0_device
+from navpy.sim.lockstep.radio_link import radio_events
 from scripts.eval_gcs_demo_confirmation import CONFIRMATION_POLL_S
 
 CONFIRM_REQUEST_EVENT = "task_confirm_request"
@@ -108,11 +110,16 @@ def admitted_sends(records: Sequence[Mapping], sys_id: int, k4: int, k6: int) ->
 
 def emitted_sends(records: Sequence[Mapping], sys_id: int, k4: int, k6: int) -> list[int]:
     """A fleet approval's sends: the backend's responses to vehicle ``sys_id``, emitted on
-    its router endpoint in (k4, k6] (``coordinator_packets``)."""
-    return [record["k"] for record in records if k4 < record.get("k", -1) <= k6
-            for event in record.get("packets", ())
-            if event[0] == "emitted" and event[1][2] == ROUTER_DEVICE and event[4] == RESPONSE_ID
-            and event[6][0] == sys_id]
+    its router endpoint in (k4, k6] (``coordinator_packets``), or written there and broken
+    by radio byte loss, at the tick written (``radio_link``)."""
+    emitted = [record["k"] for record in records if k4 < record.get("k", -1) <= k6
+               for event in record.get("packets", ())
+               if event[0] == "emitted" and event[1][2] == ROUTER_DEVICE and event[4] == RESPONSE_ID
+               and event[6][0] == sys_id]
+    broken = [event[2] for event in radio_events(records)
+              if event[0] == "broken" and event[1] == ROUTER_DEVICE and event[5] == RESPONSE_ID
+              and event[7][0] == sys_id and k4 < event[2] <= k6]
+    return sorted(emitted + broken)
 
 
 def confirmation_ticks(records: Sequence[Mapping], lines: Sequence[tuple[int, str]],

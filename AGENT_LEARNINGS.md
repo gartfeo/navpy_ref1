@@ -1253,3 +1253,17 @@
   broadcast, and a nested wait (reconnect's link wait) must take only the time left.
 - Mutation patterns in a Python list written through a bash heredoc lose their `\n` escapes; write them
   with the Edit tool or build them with chr(92).
+
+## Todo 114: swarm handover under byte loss (2026-10-24)
+
+- The owner rejected raising copy counts: find why each message is lost first (per-message journal
+  traces) and fix the cause. Here the sim lost bytes on the serial0 cable too, and the protocol stopped
+  after a fixed count instead of repeating until answered.
+- When a sim model deletes data itself, keep the clean stream beside it and match by position (offset
+  map), not by content: byte-identical repeats and frames embedded in payloads defeat content matching.
+- At the end of a lossy stream, ask which clean packets can still be waiting and why. My first settle
+  recorded only packets a lost byte fell in, and missed an intact packet held behind a frame the loss
+  started; Codex found it. Every packet complete in the clean stream but unmatched is loss-caused.
+- model_stream keys allow only [A-Za-z0-9._-]; key per-device draws by router endpoint name.
+- Both Manifest and RoutedPorts sat at the 12-field SOLID limit; adding a field means removing one or
+  passing it as an argument. Run tests/guards early.

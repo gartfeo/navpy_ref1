@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from navpy.core.link.swarm_ack_msg import ACK_STATUS_APPLIED, ACK_STATUS_RECEIVED
-from navpy.sim.lockstep.coordinator_types import serial0_device
+from navpy.sim.lockstep.coordinator_types import ROUTER_DEVICE, serial0_device
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 from scripts.eval_gcs_demo_confirmation import CONFIRMATION_POLL_S
 from scripts.eval_gcs_demo_constants import backend_log_path
@@ -34,8 +34,7 @@ from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS
 from navpy.sim.lockstep.router_entries import load_entry_table
 from scripts.eval_gcs_demo_fleet_packets import (forwarding_errors, held_tasks, packet_run_errors,
                                                  unverified_sources)
-from scripts.eval_gcs_demo_inputs import INPUT_MANIFEST, recorded_profile_parameters
-from scripts.eval_gcs_demo_models import RegressionError
+from scripts.eval_gcs_demo_inputs import INPUT_MANIFEST
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_resolved_plan, load_scenario
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, pose_cadence_errors, run_errors
 from tests.scripts.fleet_journal_evidence import (
@@ -245,75 +244,97 @@ def test_an_advert_that_stops_short_fails_unless_sent_after_stop_all(fleet):
     stopped = copy.deepcopy(changed)
     stopped[5]["lifecycle"] = [{"kind": "stop"}]  # stop-all's first request, before the advert
     assert _forwarding(stopped) == []
-    # SITL's byte loss explains only a missing SITL re-emission, never a missing coordinator hop.
-    assert forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=True) == errors
+    # Radio loss explains only a broken serial1 write of the sender, never a missing coordinator hop.
+    up = next(e for e in emitted if e[1][0] == "sitl1" and e[1][2] == "sitl1.serial1")
+    tick = next(r["k"] for r, e in _events(changed) if e[0] == "emitted" and e[1] == up[1])
+    assert _forwarding(_with_radio(changed, "sitl1.serial1", [(up, tick)])) == errors
 
 
-@pytest.mark.parametrize("sitl", ["sitl1", "sitl3"])
-def test_with_sitl_byte_loss_an_advert_may_stop_only_at_a_sitls_write(fleet, sitl):
-    """Step 3 of deterministic_dev_sim.md: SITL 1's serial1 re-emission or SITL 3's serial0
-    re-emission missing is SITL's loss with ``uart_loss`` and a fault without it; a lost router
-    copy is a fault either way."""
-    records, _lines, _approvals = fleet
-    _uid, emitted = _uid_events(records, ADVERT, OWNER)
-    gone = copy.deepcopy(records)  # the SITL never wrote its re-emission: every record of it goes
-    ids = {tuple(e[1]) for e in emitted if e[1][0] == sitl}
-    ids |= {tuple(e[1]) for _r, e in _events(gone) if e[0] == "copy" and tuple(e[2]) in ids}
+def _broken(device, tick, emission):
+    """A radio ``broken`` record (``radio_link``) of ``emission``'s bytes on ``device`` at ``tick``."""
+    start, end = emission[2]
+    return ["broken", device, tick, [start, end], emission[3], emission[4], emission[5], emission[6],
+            emission[7] if len(emission) > 7 else {}]
+
+
+def _with_radio(records, device, writes, tick_shift=0, sha=None):
+    """``records`` with a ``broken`` record per ``(emission, tick)`` of ``writes`` on ``device``."""
+    changed = copy.deepcopy(records)
+    for emission, tick in writes:
+        event = _broken(device, tick + tick_shift, emission)
+        if sha is not None:
+            event[4] = sha
+        record = next(r for r in changed if r.get("k") == tick)
+        record.setdefault("radio", []).append(event)
+    return changed
+
+
+def _without(records, ids):
+    """``records`` without every packet event of ``ids`` and of their router copies."""
+    ids = set(ids) | {tuple(e[1]) for _r, e in _events(records) if e[0] == "copy" and tuple(e[2]) in ids}
+    gone = copy.deepcopy(records)
     for record in gone:
         if "packets" in record:
             record["packets"] = [e for e in record["packets"] if tuple(e[1]) not in ids]
-    stop = "sitl_serial0" if sitl == "sitl1" else "router_copy"
+    return gone
+
+
+def test_an_advert_may_stop_only_where_the_radio_broke_its_senders_serial1_write(fleet):
+    """Todo 114 fix 1: SITL 1's serial1 re-emission missing passes only with a ``broken`` record
+    of it on SITL 1's serial1 (same UID and bytes, after the delivery to SITL 1); a record on
+    another stream, of other bytes or from before the delivery, never excuses it."""
+    records, _lines, _approvals = fleet
+    _uid, emitted = _uid_events(records, ADVERT, OWNER)
+    up = {tuple(e[1]) for e in emitted if e[1][0] == "sitl1" and e[1][2] == "sitl1.serial1"}
+    writes = [(e, r["k"]) for r, e in _events(records) if e[0] == "emitted" and tuple(e[1]) in up]
+    assert writes
+    gone = _without(records, up)
     errors = _forwarding(gone)
-    assert errors and all(e.startswith(f"forwarding: advert {ADVERT} ") and e.endswith(f"stopped at {stop}")
+    assert errors and all(e.startswith(f"forwarding: advert {ADVERT} ") and e.endswith("stopped at sitl_serial0")
                           for e in errors)
-    assert forwarding_errors(gone, OWNER, PEERS, SYS_IDS, uart_loss=True) == []
+    assert _forwarding(_with_radio(gone, "sitl1.serial1", writes)) == []
+    assert _forwarding(_with_radio(gone, "sitl2.serial1", writes)) == errors
+    assert _forwarding(_with_radio(gone, "sitl1.serial1", writes, sha="f" * 64)) == errors
+    early = _with_radio(gone, "sitl1.serial1", writes)
+    for record in early:
+        for event in record.get("radio", ()):
+            event[2] = 0  # before the delivery to SITL 1
+    assert _forwarding(early) == errors
+
+
+def test_serial0_and_the_router_are_clean_so_their_missing_hops_always_fail(fleet):
+    """SITL 3's serial0 re-emission or a router copy missing fails even with radio records."""
+    records, _lines, _approvals = fleet
+    _uid, emitted = _uid_events(records, ADVERT, OWNER)
+    down = {tuple(e[1]) for e in emitted if e[1][0] == "sitl3"}
+    writes = [(e, r["k"]) for r, e in _events(records) if e[0] == "emitted" and tuple(e[1]) in down]
+    errors = _forwarding(_with_radio(_without(records, down), "sitl3.serial1", writes))
+    assert errors and all(e.endswith("stopped at router_copy") for e in errors)
     up = {tuple(e[1]) for e in emitted if e[1][0] == "sitl1" and e[1][2] == "sitl1.serial1"}
     copies = {tuple(e[1]) for _r, e in _events(records)
               if e[0] == "copy" and tuple(e[2]) in up and e[1][2] == "sitl3.serial1"}
     no_copy = _drop(records, lambda e: e[0] == "delivered" and tuple(e[1]) in copies)
-    lost_copy = forwarding_errors(no_copy, OWNER, PEERS, SYS_IDS, uart_loss=True)
+    lost_copy = _forwarding(no_copy)
     assert len(lost_copy) == 1 and lost_copy[0].endswith("from 1 to 3 stopped at ap_serial1")
 
 
-def test_the_certified_gate_skips_adverts_only_when_the_manifest_records_byte_loss(tmp_path, monkeypatch):
-    """Step 3 of deterministic_dev_sim.md: ``uart_loss`` comes from the run's own input manifest;
-    no manifest, or a loss of 0, keeps the advert check; a broken manifest fails the gate."""
+def test_the_certified_gate_reads_no_loss_flag_from_the_manifest(tmp_path, monkeypatch):
+    """Todo 114 fix 1: the forwarding gate takes its loss evidence from the journal's radio
+    records, so a recorded ``SIM_UART_LOSS`` changes nothing."""
     approvals = write_fleet_run(tmp_path)
     plan = _plan(tmp_path)
     seen = []
 
-    def spy(*args, uart_loss):
-        seen.append(uart_loss)
+    def spy(*args, **kwargs):
+        seen.append(kwargs)
         return []
 
     monkeypatch.setattr(eval_gcs_demo_fleet_gates, "forwarding_errors", spy)
-    manifest = tmp_path / INPUT_MANIFEST
     assert certified_lockstep_gate_errors(tmp_path, plan, approvals) == []
-    for loss in (0.0, 0.15):
-        manifest.write_text(json.dumps({"sitl": {"profile_parameters": {
-            "SIM_GPS_NOISE": 0.5, "SIM_UART_LOSS": loss}}}), encoding="utf-8")
-        assert certified_lockstep_gate_errors(tmp_path, plan, approvals) == []
-    assert seen == [False, False, True]
-    manifest.write_text(json.dumps({"sitl": {"profile_parameters": {"SIM_UART_LOSS": "x"}}}),
-                        encoding="utf-8")
-    errors = certified_lockstep_gate_errors(tmp_path, plan, approvals)
-    assert len(errors) == 1 and errors[0].startswith("certified lockstep evidence: input manifest")
-
-
-def test_recorded_profile_parameters_reads_the_manifests_sitl_parameters(tmp_path):
-    assert recorded_profile_parameters(tmp_path) == {}
-    (tmp_path / INPUT_MANIFEST).write_text(json.dumps({"sitl": {}}), encoding="utf-8")
-    assert recorded_profile_parameters(tmp_path) == {}
     (tmp_path / INPUT_MANIFEST).write_text(json.dumps({"sitl": {"profile_parameters": {
-        "SIM_BAUDLIMIT_EN": 1, "SIM_UART_LOSS": 0.15}}}), encoding="utf-8")
-    assert recorded_profile_parameters(tmp_path) == {"SIM_BAUDLIMIT_EN": 1.0, "SIM_UART_LOSS": 0.15}
-    for bad in ('{"sitl": {"profile_parameters": [1]}}', '{"sitl": {"profile_parameters": {"A": true}}}',
-                '{"sitl": {"profile_parameters": {"SIM_UART_LOSS": Infinity}}}',
-                '{"sitl": {"profile_parameters": {"SIM_UART_LOSS": NaN}}}',
-                '{"sitl": {"profile_parameters": {"SIM_UART_LOSS": 1e309}}}', "{not json"):
-        (tmp_path / INPUT_MANIFEST).write_text(bad, encoding="utf-8")
-        with pytest.raises(RegressionError):
-            recorded_profile_parameters(tmp_path)
+        "SIM_GPS_NOISE": 0.5, "SIM_UART_LOSS": 0.15}}}), encoding="utf-8")
+    assert certified_lockstep_gate_errors(tmp_path, plan, approvals) == []
+    assert seen == [{}, {}]
 
 
 def test_a_source_outside_the_fleet_fails(fleet):
@@ -341,25 +362,23 @@ def _foreign_emission(records, origin_is_sitl: bool, unknown_id: bool):
     return changed, emitted, record["k"]
 
 
-@pytest.mark.parametrize("loss", [False, True])
+@pytest.mark.parametrize("origin_is_sitl", [False, True])
 @pytest.mark.parametrize("unknown_id", [False, True])
-def test_only_an_unverified_sitl_packet_under_byte_loss_skips_the_source_check(fleet, loss, unknown_id):
-    """With SIM_UART_LOSS, a SITL packet whose id the router table lacks had no CRC check, so a
-    lost byte can give it any source; it is counted, not gated. Known ids and lossless runs stay gated."""
+@pytest.mark.parametrize("recorded", ["false", "other_false", "none"])
+def test_only_an_emission_the_radio_recorded_false_skips_the_source_check(fleet, recorded, unknown_id,
+                                                                          origin_is_sitl):
+    """Todo 114 fix 1: a parse the radio's byte loss made (``radio_link`` ``false``) may carry any
+    source; it is counted, not gated. Every other emission stays gated, whatever its id or origin."""
     records, _lines, _approvals = fleet
-    changed, emitted, k = _foreign_emission(records, origin_is_sitl=True, unknown_id=unknown_id)
-    exempt = loss and unknown_id
-    errors = forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=loss)
+    changed, emitted, k = _foreign_emission(records, origin_is_sitl=origin_is_sitl, unknown_id=unknown_id)
+    record = next(r for r in changed if r.get("k") == k)
+    if recorded != "none":
+        packet_id = emitted[1] if recorded == "false" else [*emitted[1][:3], 1234]
+        record["radio"] = [["false", emitted[1][2], packet_id]]
+    exempt = recorded == "false"
+    errors = forwarding_errors(changed, OWNER, PEERS, SYS_IDS)
     assert errors == ([] if exempt else [f"forwarding: {emitted[1]} from system 7 at tick {k}"])
-    assert unverified_sources(changed, SYS_IDS, loss) == ([emitted] if exempt else [])
-
-
-def test_an_unknown_id_from_outside_the_fleet_fails_from_a_participant_even_with_byte_loss(fleet):
-    records, _lines, _approvals = fleet
-    changed, emitted, k = _foreign_emission(records, origin_is_sitl=False, unknown_id=True)
-    assert forwarding_errors(changed, OWNER, PEERS, SYS_IDS, uart_loss=True) == [
-        f"forwarding: {emitted[1]} from system 7 at tick {k}"]
-    assert unverified_sources(changed, SYS_IDS, True) == []
+    assert unverified_sources(changed, SYS_IDS) == ([emitted] if exempt else [])
 
 
 @pytest.mark.parametrize("end", ["router_dropped", "router_filtered"])
@@ -501,6 +520,23 @@ def test_an_approval_fails_on_its_own_k1_sends_or_audit(fleet):
     errors = fleet_approval_errors(records, lines, audited)
     assert errors[0].startswith("vehicle 1: confirmation timing: audited actual_delay_s")
     assert errors[-1].startswith("approval replay: approval [1, 1,")
+
+
+@pytest.mark.parametrize("target", [3, 2])
+def test_a_response_send_the_radio_broke_still_counts_at_the_tick_written(fleet, target):
+    """Todo 114 fix 1: the uplink is lossy, so a response the backend wrote may never be
+    emitted; its ``broken`` record on the router device counts, only for its own vehicle."""
+    records, lines, approvals = fleet
+    k4 = confirmation_ticks(records, lines[3], 1, 3, [3, 1, approvals[2]["round_uid"]]).k["k4"]
+    emitted = next(e for r in records if r.get("k") == k4 + 1 for e in r["packets"]
+                   if e[0] == "emitted" and e[4] == RESPONSE_ID)
+    lost = _without(records, {tuple(emitted[1])})
+    gone = fleet_approval_errors(lost, lines, approvals)
+    assert gone and all(e.startswith("vehicle 3: confirmation timing:") for e in gone)
+    broken = _broken(ROUTER_DEVICE, k4 + 1, emitted)
+    broken[7] = [target, broken[7][1]]
+    next(r for r in lost if r.get("k") == k4 + 1).setdefault("radio", []).append(broken)
+    assert fleet_approval_errors(lost, lines, approvals) == ([] if target == 3 else gone)
 
 
 def test_response_sends_are_the_backends_emissions_to_the_approvals_vehicle(fleet):

@@ -16,9 +16,9 @@ at the last of them. Sim time is cut into windows of :data:`WINDOW_US`; a
 node's rate is its bytes per window second, a partial last window scaled by
 its length. Setup (up to the tick of the first NavPy spawn: connect,
 parameter writes, mission uploads) is reported apart from the mission.
-SITL drops lost bytes before the coordinator sees them, so only a run with
-``SIM_UART_LOSS`` off measures the offered load; a loss-on run reports what
-it observed.
+With radio byte loss (``radio_link``) the router frames what survives, so
+only a run without it measures the offered load; a loss-on run reports the
+emissions after radio loss.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from typing import Any
 
 from navpy.sim.lockstep.coordinator_mavlink import ROUTER_LINK, ROUTER_SKIPPED_BYTES
 from navpy.sim.lockstep.coordinator_types import ROUTER_DEVICE
+from navpy.sim.lockstep.radio_link import journal_radio_loss_pct
 
 #: One window of sim time, 1 s.
 WINDOW_US = 1_000_000
@@ -81,8 +82,9 @@ def _rates(samples: list[tuple[int, str, int]], names: Sequence[str], start_us: 
     return {"seconds": round(span_us / 1e6, 3), "nodes": out}
 
 
-def air_load(records: Sequence[Mapping[str, Any]], uart_loss: bool) -> dict[str, Any]:
-    """The report section; ``uart_loss`` says whether SITL dropped bytes before they were seen."""
+def air_load(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """The report section; the journal's grid says whether the radio lost bytes before framing."""
+    radio_loss = journal_radio_loss_pct(records) > 0.0
     nodes = _nodes(records)
     names = sorted(set(nodes.values()))
     samples = []
@@ -99,7 +101,7 @@ def air_load(records: Sequence[Mapping[str, Any]], uart_loss: bool) -> dict[str,
     links = {**{device: node for device, node in nodes.items() if node != BACKEND}, ROUTER_LINK: BACKEND}
     return {
         "basis": "framed bytes of emitted packets per 1 s window of sim time",
-        "measures": "observed after SITL byte loss" if uart_loss else "offered load",
+        "measures": "observed after radio byte loss" if radio_loss else "offered load",
         "setup": _rates([s for s in samples if s[0] <= split], names, 0, split),
         "mission": _rates([s for s in samples if s[0] > split], names, split, end),
         "skipped_bytes": {node: counts.get(link, {}).get(ROUTER_SKIPPED_BYTES, {}).get("skipped_bytes", 0)

@@ -15,7 +15,6 @@ from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, profile_names
 from scripts.eval_gcs_demo_air_load import air_load
 from scripts.eval_gcs_demo_analysis import analyze_run
 from scripts.eval_gcs_demo_fleet_packets import unverified_sources
-from scripts.eval_gcs_demo_inputs import recorded_profile_parameters
 from scripts.eval_gcs_demo_models import (
     GateLimits,
     RegressionError,
@@ -139,10 +138,9 @@ def run_lockstep(
     try:
         records = [json.loads(row) for row in
                    (run_dir / JOURNAL_FILE).read_text(encoding="utf-8").splitlines()]
-        uart_loss = recorded_profile_parameters(run_dir).get("SIM_UART_LOSS", 0.0) > 0.0
-        load: dict[str, JsonValue] = air_load(records, uart_loss)
+        load: dict[str, JsonValue] = air_load(records)
         fleet = range(1, len(next(r["grid"] for r in records if "grid" in r)["sitl_ports"]) + 1)
-        unverified: int | None = len(unverified_sources(records, tuple(fleet), uart_loss))
+        unverified: int | None = len(unverified_sources(records, tuple(fleet)))
     except (OSError, ValueError, KeyError, TypeError, StopIteration, RegressionError) as error:
         load = {"error": scrub(f"{type(error).__name__}: {error}")}  # report only: no gate
         unverified = None

@@ -75,6 +75,7 @@ from navpy.sim.lockstep.coordinator_types import (
 )
 from navpy.sim.lockstep.coordinator_tick import TickExchange, TickOutput
 from navpy.sim.lockstep.participant_hooks import RequestIds
+from navpy.sim.lockstep.radio_link import RADIO_LOSS_RECORD
 from navpy.sim.lockstep.step_wire import Frame
 
 FAULT_HOST_FILE = "lockstep_fault_host.json"
@@ -98,14 +99,15 @@ class LockstepCoordinator:
     def __init__(self, manifest: Manifest, sitls: Sequence[Sitl], operator: OperatorHost,
                  roster: Roster, ids: RequestIds, host_dir: Path, *,
                  delay: Callable[[str], None] = lambda point: None,
-                 launch: Callable[[ExchangeDeadline], None] = anchor_now) -> None:
+                 launch: Callable[[ExchangeDeadline], None] = anchor_now,
+                 radio_loss_pct: float = 0.0) -> None:
         self._manifest = manifest
         self._fleet = SitlFleet(manifest, sitls, roster.deadline, launch=launch)
         self._operator = operator
         self._roster = roster
         self._book = LifecycleBook(roster, ids)
         self._exchange = TickExchange(roster, self._book, manifest.companion_roles,
-                                      RoutedPorts(manifest, roster))
+                                      RoutedPorts(manifest, roster, radio_loss_pct=radio_loss_pct))
         self._snaps = SnapLatch(manifest.expected_fleet)
         self._ids = ids
         self._host_dir = host_dir
@@ -145,6 +147,7 @@ class LockstepCoordinator:
             "sitl_ports": [list(ports) for ports in plan.sitl_ports],
             "boot_budget_us": plan.boot_budget_us,
             "expected_fleet": list(plan.expected_fleet),
+            "radio_loss": {"model": RADIO_LOSS_RECORD, "loss_pct": self._exchange.ports.radio.loss_pct},
         }
 
     def _fail(self, fault: BaseException) -> None:

@@ -100,9 +100,9 @@ class Sources:
 
 
 class PortsHarness:
-    def __init__(self) -> None:
+    def __init__(self, radio_loss_pct: float = 0.0) -> None:
         self.roster = FakeRoster()
-        self.ports = RoutedPorts(routed_manifest(), self.roster)
+        self.ports = RoutedPorts(routed_manifest(), self.roster, radio_loss_pct=radio_loss_pct)
         self.records: list[dict] = []
         self.parked: dict | None = None
 

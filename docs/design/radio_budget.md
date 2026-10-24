@@ -138,9 +138,9 @@ Two separate problems follow:
   length. Setup (SITL boot to the first NavPy spawn: connect, parameter
   writes, mission uploads) is reported apart. Built: `eval_gcs_demo_air_load.py`,
   `report.json` `air_load`.
-- SITL drops lost bytes before the coordinator sees them, so offered load is
+- Radio loss drops bytes before the router frames them, so offered load is
   measured only on runs with `uart_loss` off. A loss-on run reports what it
-  observed and says so.
+  observed after loss and says so.
 - No pass or fail until the owner sets a usable budget from the bench test, so
   no threshold is invented.
 
@@ -215,7 +215,8 @@ topology. Parameter writes get more attempts and fail fast on a dead link
 (heartbeat), without treating heartbeats as lossless. Pipelined resend
 rounds are todo 104.
 
-How SITL loses bytes (`UARTDriver.cpp:283-293`): each UART write call drops
+How SITL loses bytes (`UARTDriver.cpp:283-293`; rounds 3-5 only, round 6
+replaced it with the coordinator's radio loss): each UART write call drops
 its last byte with probability `SIM_UART_LOSS` % × the call's size. ArduPilot
 writes a frame as three calls, header, payload and CRC (`mavlink_helpers.h:
 380-382`), so a frame breaks with about loss × its length. Reads lose
@@ -466,9 +467,38 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   lost its final ACK; its readback differed only in the skip `DO_JUMP`'s
   frame (above); with that fixed it counts as stored (`-r5c`).
 - **Not passing:** `stress` fails at one digest (`812fb485…`), later, at
-  the swarm task assignment: todo 112.
+  the swarm task assignment: todo 114.
 - Full pytest: 8 failed, none from this change: the Codex agent sync
   (untracked `.codex/agents/*.toml`) and the board detector.
+
+## Round 6: radio-only loss and repeat until answered (todo 114)
+
+Design: `swarm-task-assignment-ack.md` "Lossy link". The coordinator now
+loses radio bytes (each SITL's serial1 and the backend uplink), not SITL;
+serial0 is clean, and each broken packet is journaled. The swarm handover
+repeats every 0.5 s until answered.
+
+## Results (round 6, `.logs/radio-budget-r6`)
+
+- `none` and `hw` matrices pass (one digest each; `none` `ca654c38…`,
+  `hw` `474a62e5…`). Opt-in tests pass (26). Full pytest: 8 failed, the
+  same as round 5 (Codex agent sync, board detector).
+- **114:** `stress` seed 1 (0.30 % per byte) gets every UAV through the
+  swarm handover and the operator approvals, at one digest (`87fc996a…`).
+- **Not passing:** `stress` still fails:
+  - seed 1: 4 adverts from UAV 1 never leave its SITL. While NavPy 1
+    sends its confirmation image, SITL 1's serial1 (5.76 kB/s) is offered
+    6.1-6.3 kB/s; NAVLINK waits 2-3.4 s and ArduPilot drops more than
+    half of it (todo 116).
+  - seed 4 (0.56 %): the same flood during UAV 1's image; UAV 3 gets no
+    APPLIED for 5 s, drops task 3 and flies home while the owner holds it
+    CONFIRMED (todos 116, 115).
+  - seed 8 (0.42 %): UAV 2's `SET_MODE` (AUTO) was broken on the uplink;
+    the launch never checks the mode, so UAV 2 never took off (todo 117).
+- Wall eval (no lockstep radio): failed after the matrices on approach
+  quality, a 53.6° roll-command step, as in round 5; not rerun alone.
+- Gate fix found by these runs: a confirmation response the uplink broke
+  still counts as sent (`eval_gcs_demo_confirmation_timing.py`).
 
 ## Not covered
 

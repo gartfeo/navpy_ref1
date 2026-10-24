@@ -6,7 +6,7 @@ NAVLINK traces built from them (``navpy.sim.lockstep.navlink_trace``):
 | Gate | Pass |
 |---|---|
 | Run (packets) | every packet id is defined once and has exactly one terminal disposition (``PacketJournal``); no NAVLINK packet is ``undelivered`` |
-| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (when the SITLs lose bytes, ``SIM_UART_LOSS``, an advert may stop where a SITL should re-emit it: SITL journals no lost byte); every packet's source is a fleet sysid or the ground station (with loss, except an unverified SITL packet, below, counted in ``report.json``); no NAVLINK packet is ``router_dropped`` or ``router_filtered`` |
+| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (an advert may stop only at ``radio_broken``: the radio broke its sender SITL's serial1 write, ``navlink_trace``); every packet's source is a fleet sysid or the ground station, except an emission the radio journal records ``false`` (below, counted in ``report.json``); no NAVLINK packet is ``router_dropped`` or ``router_filtered`` |
 
 The chain of a peer task, correlated by UID and ``task_id`` (auction task ids
 are the detector's namespace, so the plan's POIs are joined by the backend
@@ -19,14 +19,12 @@ owner's fence floor, same boot and a later ``msg_seq``), its
 serial1, the router's copy to SITL j (the bytes kept, so the sha256), SITL
 j's serial0, NavPy j. The peers' tasks are distinct, one per peer.
 
-An unverified SITL packet (:func:`unverified_sources`): in a run with SITL
-byte loss, a packet a SITL output stream carried, whose id the router entry
-table lacks and whose source is outside the fleet. Without the id's CRC
-extra its CRC was never checked, so a frame a lost byte broke can carry any
-header, as mavlink-router forwards it too. Unverified is not proven corrupt:
-a real foreign packet with an unknown id would pass too. Known ids, NavPy's
-and the backend's emissions, and every packet of a run without loss stay
-checked.
+A false emission (:func:`unverified_sources`): with radio byte loss
+(``radio_link``) the router's framer can parse a frame out of a broken one
+(an embedded or stitched frame, whose CRC it never checks for an id outside
+its table). The coordinator does the deletion, so it records every emission
+that is no clean packet as ``false``; only those are exempt from the source
+check, and every other emission stays checked.
 """
 
 from __future__ import annotations
@@ -39,11 +37,10 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 from navpy.core.link.swarm_ack_msg import ACK_STATUS_APPLIED, ACK_STATUS_RECEIVED
 from navpy.core.link.types import MsgType
 from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS
-from navpy.sim.lockstep.coordinator_packets import sitl_origin
 from navpy.sim.lockstep.coordinator_types import serial0_device
-from navpy.sim.lockstep.navlink_trace import NavlinkTrace, trace_navlink
+from navpy.sim.lockstep.navlink_trace import RADIO_BROKEN, NavlinkTrace, trace_navlink
 from navpy.sim.lockstep.packet_journal import PacketJournal
-from navpy.sim.lockstep.router_entries import EntryTable, load_entry_table
+from navpy.sim.lockstep.radio_link import radio_events
 from scripts.eval_gcs_demo_slice_gates import GCS_SYSTEM
 from scripts.lockstep_navlink_gate import first_stop_tick
 
@@ -52,9 +49,6 @@ RESPONSE = mavlink.MAVLINK_MSG_ID_TASK_ASSIGN_RESPONSE
 ACK = mavlink.MAVLINK_MSG_ID_SWARM_ACK
 #: A free peer's availability advert and the owner's offer.
 ADVERT_IDS = (mavlink.MAVLINK_MSG_ID_AVAILABLE_TASK_REQUEST, mavlink.MAVLINK_MSG_ID_AVAILABLE_TASK_RESPONSE)
-#: The last hops of a trace whose next hop is a SITL's re-emission (``navlink_trace.HOPS``):
-#: SITL i's serial1 write and SITL j's serial0 write, the only hops SITL's byte loss can remove.
-SITL_WRITE_STOPS = ("sitl_serial0", "router_copy")
 
 
 def packet_events(records: Iterable[Mapping[str, Any]]) -> Iterator[tuple[int, list[Any]]]:
@@ -198,13 +192,13 @@ def _assignment_errors(records: Sequence[Mapping[str, Any]], owner: int, peers: 
     return errors
 
 
-def _advert_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int], uart_loss: bool) -> list[str]:
+def _advert_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int]) -> list[str]:
     stop = first_stop_tick(list(records))
     errors = []
     for trace in trace_navlink(records, sys_ids):
         if trace.msgid not in ADVERT_IDS or (stop is not None and trace.hops[0][1] >= stop):
             continue
-        if uart_loss and not trace.ambiguous and trace.hops[-1][0] in SITL_WRITE_STOPS:
+        if not trace.ambiguous and trace.hops[-1][0] == RADIO_BROKEN:
             continue
         if not trace.complete or trace.ambiguous:
             errors.append(f"forwarding: advert {trace.msgid} {list(trace.uid)} from {trace.sender} "
@@ -213,22 +207,17 @@ def _advert_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int],
     return errors
 
 
-def unverified_sources(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int], uart_loss: bool,
-                       table: EntryTable | None = None) -> list[list[Any]]:
-    """The emissions the source check exempts: unverified SITL packets (module docstring)."""
-    if not uart_loss:
-        return []
-    table = table or load_entry_table()
+def unverified_sources(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int]) -> list[list[Any]]:
+    """The emissions the source check exempts: false emissions from outside the fleet (module docstring)."""
     allowed = {*sys_ids, GCS_SYSTEM}
-    sitls = {sitl_origin(sys_id) for sys_id in sys_ids}
+    false = {tuple(event[2]) for event in radio_events(records) if event[0] == "false"}
     return [event for _k, event in packet_events(records)
-            if event[0] == "emitted" and event[5][0] not in allowed and event[1][0] in sitls
-            and table.get(event[4]) is None]
+            if event[0] == "emitted" and event[5][0] not in allowed and tuple(event[1]) in false]
 
 
-def _source_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int], uart_loss: bool) -> list[str]:
+def _source_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int]) -> list[str]:
     allowed = {*sys_ids, GCS_SYSTEM}
-    exempt = {tuple(event[1]) for event in unverified_sources(records, sys_ids, uart_loss)}
+    exempt = {tuple(event[1]) for event in unverified_sources(records, sys_ids)}
     roots = _roots(records)
     errors = []
     for k, event in packet_events(records):
@@ -241,11 +230,11 @@ def _source_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int],
 
 
 def forwarding_errors(records: Sequence[Mapping[str, Any]], owner: int, peers: Sequence[int],
-                      sys_ids: Sequence[int], *, uart_loss: bool = False) -> list[str]:
-    """``uart_loss``: the run's SITLs lose bytes (``SIM_UART_LOSS``), so an advert may stop
-    before a SITL's re-emission, and an unverified SITL packet may come from any source."""
-    return (_assignment_errors(records, owner, peers, sys_ids) + _advert_errors(records, sys_ids, uart_loss)
-            + _source_errors(records, sys_ids, uart_loss))
+                      sys_ids: Sequence[int]) -> list[str]:
+    """The radio's own journal (``radio_link``) says what its byte loss broke: an advert may
+    stop only at ``radio_broken``, and only a ``false`` emission may come from any source."""
+    return (_assignment_errors(records, owner, peers, sys_ids) + _advert_errors(records, sys_ids)
+            + _source_errors(records, sys_ids))
 
 
 __all__ = ["ADVERT_IDS", "applied_chains", "applied_emissions", "forwarding_errors", "held_tasks", "packet_events", "packet_run_errors",

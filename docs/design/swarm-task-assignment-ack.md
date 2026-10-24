@@ -228,9 +228,9 @@ owner O` must appear before `Peer navigation started`.
 
 | Name | Value | Derivation |
 |---|---|---|
-| resend interval | 0.5 s | `SWARM_RESEND_INTERVAL_MS`; the advert cadence (todo 112) |
+| resend interval | 0.5 s | `SWARM_RESEND_INTERVAL_MS`; the advert cadence (todo 114) |
 | ack TTL | TTL of the acked message (5 s) | a shorter ack could be dropped while its message is admitted |
-| no-progress silence (owner release, helper drop) | 5 s | TTL(`SWARM_HEARTBEAT`), as peer silence (todo 112) |
+| no-progress silence (owner release, helper drop) | 5 s | TTL(`SWARM_HEARTBEAT`), as peer silence (todo 114) |
 | sent-UID retention | 10 s | TTL of the copy + its ack TTL |
 | busy visible | ≤ 1 s | heartbeat interval |
 | peer silence | 5 s | TTL(`SWARM_HEARTBEAT`) |
@@ -268,7 +268,7 @@ from heartbeats, took queue delay for clock skew and admitted stale bids
 | release advert lost while helper WAITING | re-advertised to it until it bids or stops WAITING |
 | helper nav RESET while ASSIGNED | released, as today |
 
-## Lossy link (todo 112, 2026-10-24, owner approved both fixes)
+## Lossy link (todo 114, 2026-10-24, owner approved both fixes)
 
 **Cause.** In the `stress` sim about half of all swarm messages are lost.
 A NAVLINK message crosses two lossy writes: ArduPilot i's radio port
@@ -331,7 +331,7 @@ gives up only when the other side stops answering this handshake.
 - **Residual strand (unchanged, stated):** the owner CONFIRMED, every
   APPLIED then lost until the helper's no-progress drop, or the helper
   restarts after CONFIRMED: the task stays with that helper, unflown. Never
-  duplicated; recovering it needs a reconciliation rule (new todo).
+  duplicated; recovering it needs a reconciliation rule (todo 115).
 
 ### Fix 1: loss on the radio only (sim)
 
@@ -341,9 +341,10 @@ cable. ArduPilot sets `SIM_UART_LOSS` for every port at once, so the
 lockstep coordinator applies the loss where bytes enter the radio:
 
 - `uart_loss` no longer sets `SIM_UART_LOSS`; its draw (`loss_pct`, same
-  ranges) is a per-byte loss rate b = loss_pct / 100, passed as
-  `Manifest.radio_loss_pct` and recorded in the journal's grid with the
-  model name `radio_byte_loss`.
+  ranges) is a per-byte loss rate b = loss_pct / 100, passed as the
+  coordinator's `radio_loss_pct` argument (built: `Manifest` is at the
+  field limit; the input manifest's `run_options` records it) and recorded
+  in the journal's grid with the model name `radio_byte_loss`.
 - Every byte a radio transmits is lost with probability b before the
   router frames it: each SITL's serial1 egress and the ground station's
   egress into the router. A frame with a lost byte fails the router's
@@ -351,7 +352,8 @@ lockstep coordinator applies the loss where bytes enter the radio:
   102's boundary (broken frames before route learning) stays exercised.
   One transmission reaches every receiver alike (losses are not drawn per
   receiver).
-- Draws: per device, `model_stream(seed, "uart_loss", "radio.<device>")`,
+- Draws: per radio, `model_stream(seed, "uart_loss", "radio.<endpoint>")`
+  (`sitl1`, ..., `backend`),
   as geometric gaps between lost bytes, so the result depends only on the
   seed and the bytes; no draws at zero loss.
 - Router input: the backend endpoint gets the SITL endpoints' input
@@ -372,7 +374,9 @@ lockstep coordinator applies the loss where bytes enter the radio:
   fields]` (clean offsets, the tick the packet was written) and
   `["false", device, packet id]`; `device` is the physical stream (a
   SITL instance's serial1 or the backend). Clean packets still open at a
-  tick's end wait for later ticks and are settled at parking or close.
+  tick's end wait for later ticks. At parking or close every one still
+  open is broken: it is complete in the clean stream, so only the loss
+  kept it from the router (also one held behind a frame the loss started).
   The packet list and its exactly-one-terminal check are unchanged.
 - This is a different model from ArduPilot's (independent byte loss
   instead of the last byte of each write), so old and new results at the
