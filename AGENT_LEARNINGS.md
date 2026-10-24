@@ -1307,6 +1307,16 @@
 - A probe that must run from a separate Python without navpy's dependencies still meets the 300-line module guard
   by splitting into sibling stdlib-only modules and running `python -E -s -m tools.hitl.<name>` from the repository
   root. `-I` implies `-P`, which drops the root from sys.path, so package imports fail under it.
+- Check the host's code-integrity policy before installing native Windows binaries: Smart App Control (registry
+  `HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy` VerifiedAndReputablePolicyState=1, CodeIntegrity events
+  3033/3077) refused the unsigned `_gi.cp313-win_amd64.pyd` after both installs succeeded, and it has no per-file
+  exception. Linux binaries in WSL are outside it; the media stack moved to WSL Ubuntu-24.04 (2026-10-24).
+- An element that registers can still fail on frames: `nvh265enc` (1.24) refused its preset with driver 597.13 while
+  `nvcudah265enc` worked. A media check must push real buffers, not only find and create elements.
+- packages.ubuntu.com can return HTTP 500; `dpkg-deb -c` on the .deb from archive.ubuntu.com's pool and
+  Launchpad's `git.launchpad.net/ubuntu/+source/<src>/plain/debian/...?h=ubuntu/<suite>` settle package contents.
+  Codex's claim that jammy lacks nvcodec came from that site and was wrong.
+- A session hook refuses writes to another session's worktree; branch inside this session's own worktree.
 
 ## Todo 105: bounded mission transfers (2026-10-23)
 
