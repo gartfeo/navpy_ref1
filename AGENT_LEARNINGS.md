@@ -1241,6 +1241,73 @@
 - Other chats' pytest and GCS stacks started during the live run; check the
   process list before and after a timing measurement and report the load.
 
+## NPYC v2 and reference-copy sync, HITL step 6 (2026-10-23)
+- I repeated the heredoc mistake again (a regex lost its backslashes). For edits with
+  backslashes or quotes, use the Edit tool or a script written with the Write tool and
+  run with `python -I`.
+- Syncing aas-hitl's Unreal reference copy moved every cited line number, and two
+  docstrings stated behaviour the new receiver no longer has (it now reads `sequence`
+  and `session_id`). After a sync, map each old citation by its line text
+  (scratch line_remap.py), then reread the producer for every "does not read" claim.
+- My first plan note claimed fragment sizes and a fixture count that no test used.
+  Codex caught it. Write each number in a completion note from the test's own
+  parametrization, and name what a test excludes.
+- A relay refusal test used a receiver sized 4x2 for 1280x720 fixtures, so a size
+  mismatch could stand in for the real refusal. Size the receiver to the fixture and
+  assert the fixture's own reason.
+
+## Downloaded plan hold and loaded-plan fence read (todos 90, 91, 2026-10-23)
+
+- The Edit tool rewrote a CRLF hook file as LF. For CRLF files, edit with a small
+  script that normalizes to LF, replaces exact strings (assert one match) and saves CRLF.
+- Check phase gating before trusting a "reload" repro: every plan regen effect runs only
+  in PLANNING, and after a reload the app starts in MONITOR, so the race needed the
+  planner open. Reproduce the mechanism, not the reported path.
+- A download always saves its delivery hubs to settings, so a settings round trip
+  follows every download; anything keyed on settingsVersion runs after it.
+- A one-shot "skip the next regen" flag is consumed by whichever effect runs first.
+  Key a hold on the inputs it protects (a JSON of the generator inputs), released by
+  any input change or an explicit replacement.
+- Mirror App's effect declaration order in hook harnesses: a harness that ran
+  useVehicleConnection before App's demo-default effect hid a real window.
+- Five Codex rounds each found real lifecycle gaps (late joins, reconnects, corridor
+  files, multi-set arrays). Ask the reviewer to try roster changes, every file-load
+  variant and multi-set counts up front.
+
+## UniRC 10 Pro emulator (2026-10-23)
+- Application Control blocks cmdline-tools 23's `sdkmanager` (it calls the new
+  `android` CLI, os error 4551). emulator, adb and avdmanager still run.
+  Install system images with Android Studio's SDK Manager.
+- A 1920x1200 AVD is naturally landscape: user_rotation 0 is landscape, 1 is
+  portrait. `wm density` changes dpr live, with no reboot.
+- Measure the page through Chrome's DevTools socket (`adb forward tcp:<p>
+  localabstract:chrome_devtools_remote`), not screenshots. Chrome reads
+  `/data/local/tmp/chrome-command-line` only as the debug app, which skips
+  first run. The `application_id` extra did not make it reuse a tab.
+- Android Studio's "Intel x86_64 Atom System Image" is the plain image
+  (`default`): no Chrome, only WebView and its test browser
+  (`org.chromium.webview_shell`); its devtools socket is
+  `webview_devtools_remote_<pid>`. An old WebView exposes CSS gaps that
+  Chrome hides (todo 113: `dvh`).
+- A background tool call that starts the emulator through a `2>&1 |` pipe
+  did not return (likely the emulator holds the pipe). Write output to a
+  file instead.
+- On a busy host the first boot hangs System UI (ANR) and the Vite dev page
+  takes about a minute to leave its splash. Wait for state, not for a fixed
+  time.
+
+## Media runtime check, HITL step 7 (2026-10-24)
+
+- Read this file before the first test run and Codex call. I repeated two recorded mistakes: Git Bash POSIX
+  PYTHONPATH (imports came from the shared checkout; see "ZR10 SIYI emulator") and Codex's read-only shell failing
+  to start (see "Codex's read-only shell"); both cost a round.
+- Official GStreamer 1.26.x Windows installers ship PyGObject for one Python only (`_gi.cp313-win_amd64.pyd`, per a
+  GStreamer maintainer); navpy's venv is 3.11. Match `gi\_gi*.pyd` against `importlib.machinery.EXTENSION_SUFFIXES`
+  before assuming a venv can import the bindings.
+- A probe that must run from a separate Python without navpy's dependencies still meets the 300-line module guard
+  by splitting into sibling stdlib-only modules and running `python -E -s -m tools.hitl.<name>` from the repository
+  root. `-I` implies `-P`, which drops the root from sys.path, so package imports fail under it.
+
 ## Todo 105: bounded mission transfers (2026-10-23)
 
 - An "exact" check against autopilot state needs its differences logged from the first version. The readback

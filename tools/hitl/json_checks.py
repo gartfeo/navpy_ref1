@@ -112,6 +112,17 @@ def map_of(value_check: Check, required: tuple = (), keys: Optional[tuple] = Non
     return check
 
 
+def list_of(item_check: Check, non_empty: bool = False) -> Check:
+    """A list, each item checked by item_check; non_empty refuses an empty one."""
+    def check(value: Any, path: str, problems: list) -> None:
+        if not isinstance(value, list) or (non_empty and not value):
+            problems.append(f"{path} must be a {'non-empty ' if non_empty else ''}list")
+            return
+        for number, item in enumerate(value):
+            item_check(item, f"{path}[{number}]", problems)
+    return check
+
+
 def require(data: Any, spec: Mapping[str, Check], what: str,
             agreement: Callable[[Mapping[str, Any]], list[str]]) -> None:
     """Refuse data that does not match spec; once it does, refuse what agreement finds between its fields."""
