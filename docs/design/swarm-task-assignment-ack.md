@@ -269,6 +269,163 @@ from heartbeats, took queue delay for clock skew and admitted stale bids
 | release advert lost while helper WAITING | re-advertised to it until it bids or stops WAITING |
 | helper nav RESET while ASSIGNED | released, as today |
 
+## Lossy link (todo 112, 2026-10-24, owner approved both fixes)
+
+**Cause.** In the `stress` sim about half of all swarm messages are lost.
+A NAVLINK message crosses two lossy writes: ArduPilot i's radio port
+(serial1) and ArduPilot j's port to NavPy j (serial0). `SIM_UART_LOSS`
+drops the last byte of a write with probability loss % x write size,
+which breaks that message; at seed 1 (0.303 %) about 18 % are lost on the
+radio and 28 % on the serial0 wire. The handover then needs a chain to
+survive: a step-3 copy and its ack (about 1 in 5), then a step 4 and its
+APPLIED (about 1 in 4). The code sends 3 step-3 copies and 5 step-4
+copies, 2 s apart, and gives up, so about 70 % of rounds fail. Seeds 8
+(0.42 %) and 4 (0.56 %) fail at the swarm assignment too
+(`.logs/swarm-112-seeds`). Two causes, two fixes.
+
+### Fix 2: repeat until answered (protocol)
+
+Decision 2 says the sender repeats until acknowledged; the code stopped
+after a fixed count. Now each side repeats until it has its answer, and
+gives up only when the other side stops answering this handshake.
+
+- **Interval:** `SWARM_RESEND_INTERVAL_MS` = 500 ms (the advert cadence;
+  about twice the median `stress` round trip, 0.25 s).
+- **Owner:** while CONFIRMING, a step-3 copy every interval until
+  CONFIRMED or rejected; it keeps sending after the floor, so every
+  delivered copy brings an ack and a step 4 (more chances, no new state).
+- **Helper:** while WAITING, a step-4 copy every interval; each scheduled
+  copy is preceded by a fresh `SWARM_ACK` (RECEIVED) of the held newest
+  step-3 copy (the first copy already follows the step-3 ack). It stops on
+  APPLIED, RECEIVED, a newer advert or its own approach, as today. Reject
+  repeats: every interval until RECEIVED or APPLIED.
+- **Giving up (no progress):** `HANDSHAKE_SILENCE_S` = the heartbeat TTL
+  (5 s, as `PEER_SILENCE_EXPIRY_S`); heartbeats play no part. Progress is
+  the answer each side waits for, from the peer boot it is talking to:
+  - Owner: the floor (the first ack naming one of its requests), then a
+    step 4 from the floor's boot. It releases a CONFIRMING reservation 5 s
+    after the first copy without a floor, or 5 s after the floor or the
+    last such step 4 (a fenced one gives a verdict at once). Acks after the
+    floor do not count: a helper that acks but never answers still ends.
+    Release does what the 9 s release did (drop the bid, count a retry,
+    re-advertise).
+  - Helper: an ack naming one of its step-4 copies from the held request's
+    owner boot (PROCESSING, APPLIED). It drops WAITING (ERROR log kept) 5 s
+    after entering it or after the last such ack. A reject repeat ends the
+    same way, or on RECEIVED / APPLIED.
+  This covers a dead peer, a restarted one (its new boot never counts for
+  the old round) and one that receives but does not answer. A peer whose
+  handlers fail in other ways is out of scope. False alarm at the `stress`
+  top: about 10 exchanges in a row must all fail, under 1e-4 with fix 1's
+  single lossy hop. Replaces the copy counts, the 9 s release and the 18 s
+  expiry.
+- **Fence:** unchanged. The floor is the first step-3 ack of the attempt,
+  boots are not ordered, and an ack or step 4 from any other boot never
+  passes. A helper that restarts mid-round stops answering it, so the
+  owner releases on no progress and the next round fences on the new boot.
+- **Bounded memory (retention policy):** the owner keeps the request UIDs
+  sent in the last copy TTL + ack TTL (10 s, at most 20); the helper keeps
+  its step-4 and reject UIDs the same way (TTL(RSP) + ack TTL). An ordinary
+  ack arrives well inside that; a late re-ack naming a pruned copy neither
+  sets the floor nor counts as progress. The floor is kept apart. Reject
+  repeat keys end with their repeat.
+- **Residual strand (unchanged, stated):** the owner CONFIRMED, every
+  APPLIED then lost until the helper's no-progress drop, or the helper
+  restarts after CONFIRMED: the task stays with that helper, unflown. Never
+  duplicated; recovering it needs a reconciliation rule (new todo).
+
+### Fix 1: loss on the radio only (sim)
+
+The `stress` and `hw` profiles put the radio's byte loss on the serial0
+wire between ArduPilot and NavPy too; on an aircraft that is a short
+cable. ArduPilot sets `SIM_UART_LOSS` for every port at once, so the
+lockstep coordinator applies the loss where bytes enter the radio:
+
+- `uart_loss` no longer sets `SIM_UART_LOSS`; its draw (`loss_pct`, same
+  ranges) is a per-byte loss rate b = loss_pct / 100, passed as
+  `Manifest.radio_loss_pct` and recorded in the journal's grid with the
+  model name `radio_byte_loss`.
+- Every byte a radio transmits is lost with probability b before the
+  router frames it: each SITL's serial1 egress and the ground station's
+  egress into the router. A frame with a lost byte fails the router's
+  CRC check, as a frame broken by `SIM_UART_LOSS` does today, so todo
+  102's boundary (broken frames before route learning) stays exercised.
+  One transmission reaches every receiver alike (losses are not drawn per
+  receiver).
+- Draws: per device, `model_stream(seed, "uart_loss", "radio.<device>")`,
+  as geometric gaps between lost bytes, so the result depends only on the
+  seed and the bytes; no draws at zero loss.
+- Router input: the backend endpoint gets the SITL endpoints' input
+  filter (`allow_msg_id_in`: only ids whose CRC the router checks; every
+  dialect id is in the table), so a broken uplink frame never teaches the
+  router a source (todo 102 at the new lossy ingress). The SITL output
+  filters stay SITL-only.
+- Journal: a broken frame shows as skipped bytes, as today. The
+  coordinator does the deletion, so it keeps, per device, each surviving
+  byte's clean-stream offset, and also frames the clean stream (an
+  observer framer, same table). Matching is by position, not content: a
+  lossy emission is genuine when its bytes map to one contiguous clean
+  range that is exactly a clean packet's range; any other emission (an
+  embedded or stitched frame) is false. A clean packet with no genuine
+  emission is broken, directly or by the parser's resync. These go in a
+  separate `radio` list of the journal, not the packet list:
+  `["broken", device, tick, [start, end], sha256, msgid, src, target,
+  fields]` (clean offsets, the tick the packet was written) and
+  `["false", device, packet id]`; `device` is the physical stream (a
+  SITL instance's serial1 or the backend). Clean packets still open at a
+  tick's end wait for later ticks and are settled at parking or close.
+  The packet list and its exactly-one-terminal check are unchanged.
+- This is a different model from ArduPilot's (independent byte loss
+  instead of the last byte of each write), so old and new results at the
+  same seed are not comparable.
+- Effects: NAVLINK crosses one lossy hop instead of two; ground-station
+  uplinks (PARAM_SET, mission count/items, requests) become lossy; NavPy's
+  own transfers on serial0 are clean. Todos 103 and 105 already retry lost
+  requests the same as lost replies; their tests get uplink-loss cases.
+- Gates (`eval_gcs_demo_fleet_packets`, `eval_gcs_demo_fleet_gates`,
+  `eval_gcs_demo_cli`, `eval_gcs_demo_air_load`) use that evidence, not a
+  loss flag: `navlink_trace` gives a packet the radio broke the terminal
+  hop `radio_broken` only from a `broken` record on the sender's own
+  serial1 device whose bytes and tick match its emission; loss on another
+  stream never excuses it. An advert may end only there, and every other
+  stop fails, including a missing re-emission at the receiver. The source
+  check exempts only an emission recorded `false`. Air load counts
+  emissions after radio loss, labelled as such.
+
+### Checks
+
+- Fix 2: owner resends until CONFIRMED, after the floor too; releases
+  only after 5 s without progress; helper re-acks before each scheduled
+  copy and drops WAITING after 5 s without owner progress; an owner whose
+  step-3 acks were all lost confirms from a re-ack; a step 4 or ack from
+  another boot never passes; request and reply UIDs pruned after 10 s.
+  Mutations for each.
+- Fix 2 also: a restarted helper answering the old round never refreshes
+  its progress, so the owner releases and the next round confirms on the
+  new boot; a late re-ack after pruning neither sets the floor nor counts.
+- Fix 2 also: a helper that acks every request but never answers is
+  released 5 s after the floor; a helper whose step 4s get no ack drops
+  WAITING after 5 s.
+- Fix 1: byte loss rate near b over many bytes; the same stream split
+  across different chunks and ticks loses the same bytes; a lost byte
+  breaks its frame and the router neither routes nor learns from it, from
+  a SITL or the backend; serial0 is not lossy; zero loss draws nothing; no
+  `SIM_UART_LOSS` set. Matching: a byte dropped in frame A's CRC or
+  header with an untouched frame B after it (B lost by resync, recorded
+  `broken`), recovery at C, a valid frame F embedded in A's payload with
+  A's start marker dropped (the embedded F is `false`, the real B and F
+  genuine), byte-identical repeats, and the same traffic on two streams
+  with loss on only one, also split across chunks and ticks; an advert trace
+  ending without `radio_broken` fails, and so does a foreign source not
+  recorded `false`. Todo 102's malformed-input and filter tests
+  stay.
+- Interleavings: reject-repeat end on no progress and key cleanup; UID
+  pruning under scheduled and immediate replies; false silence before
+  CONFIRMED (safe retry) and after (documented strand, never reassigned);
+  a recycled task id with delayed accepted and rejecting step 4s.
+- `none`, `hw`, `stress` matrices; stress seeds 8 and 4 as evidence (not
+  gates); full pytest.
+
 ## Unchanged and out of scope
 
 - Comm hot path, `MessageFilter`, navlink dialect, nav readers,
