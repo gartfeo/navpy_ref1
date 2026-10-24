@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import math
+import struct
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -9,7 +11,9 @@ from pymavlink.mavwp import MAVWPLoader
 from pymavlink.dialects.v20.ardupilotmega import (
     MAV_CMD_NAV_WAYPOINT,
     MAV_CMD_NAV_TAKEOFF,
+    MAV_FRAME_GLOBAL,
     MAV_FRAME_GLOBAL_RELATIVE_ALT,
+    MAV_FRAME_MISSION,
 )
 
 # Shared mission metadata encoding — single source of truth
@@ -21,7 +25,10 @@ from navpy.plugins.vehicle.ardupilot.mission_encoding import (  # noqa: E402
 )
 
 
+from gcs.backend.exchange_budget import held_within
 from gcs.backend.planner.mission_items import build_mission
+from navpy.core.ports.parameter_exchange import ExchangePolicy
+from navpy.core.ports.vehicle_control_interfaces import VehicleMissionAccess
 
 
 def load_mission_to_vehicle(vehicle, track_latlon: list[dict], altitude_m: float,
@@ -95,8 +102,13 @@ def upload_mission_with_retry(
     max_retries: int = 3,
     on_progress: Callable[[str, int], None] | None = None,
     on_wp_progress: Callable[[int, int], None] | None = None,
+    policy: ExchangePolicy | None = None,
 ) -> UploadResult:
     """Build, upload, and verify a mission with retries.
+
+    ``policy`` bounds every transfer and the mission-lock wait (``radio_budget.md``,
+    todo 105). A failed upload may still be stored (its final ACK lost), so it is
+    read back before another clear and upload, and counts only on an exact match.
 
     Args:
         vehicle: VehicleMav instance
@@ -125,7 +137,12 @@ def upload_mission_with_retry(
         # sequence is one transaction: hold the per-vehicle mission lock so a
         # concurrent probe/download can't clear or rebuild the shared loader
         # mid-upload (which would corrupt the upload or the verification).
-        with vehicle.mission_lock:
+        with held_within(vehicle.mission_lock, policy) as held:
+            if not held:
+                return UploadResult(
+                    success=False, uploaded_count=0, expected_count=expected_count,
+                    attempts=attempt, error="Request deadline passed before the mission lock was free",
+                )
             if on_progress:
                 on_progress("clearing", attempt)
             vehicle.clear_mission()
@@ -133,16 +150,24 @@ def upload_mission_with_retry(
             if on_progress:
                 on_progress("uploading", attempt)
             vehicle.load_mission_items(wp_loader)
-            ok = vehicle.upload_mission(on_wp_sent=on_wp_progress)
+            ok = vehicle.upload_mission(on_wp_sent=on_wp_progress, policy=policy)
 
             downloaded_count = 0
             param_errors = None
-            if ok:
+            stored_anyway = False
+            if ok or vehicle.link_ok:
                 if on_progress:
                     on_progress("verifying", attempt)
-                downloaded_count = vehicle.download_mission()
+                downloaded_count = vehicle.download_mission(policy=policy)
                 if downloaded_count == expected_count:
-                    param_errors = verify_mission_params(vehicle, wp_loader)
+                    if ok:
+                        param_errors = verify_mission_params(vehicle, wp_loader)
+                    else:
+                        differences = mission_mismatches(vehicle, wp_loader)
+                        stored_anyway = not differences
+                        if differences:
+                            _log.warning("Upload attempt %d: readback differs (%d): %s", attempt,
+                                         len(differences), "; ".join(differences[:3]))
 
         # Interpret the attempt outside the lock (logging / retry control flow).
         if not ok:
@@ -151,6 +176,13 @@ def upload_mission_with_retry(
                 return UploadResult(
                     success=False, uploaded_count=0, expected_count=expected_count,
                     attempts=attempt, error="Link lost during upload", link_lost=True,
+                )
+            if stored_anyway:
+                _log.warning("Upload attempt %d: unconfirmed, but the readback matches exactly",
+                             attempt)
+                return UploadResult(
+                    success=True, uploaded_count=downloaded_count,
+                    expected_count=expected_count, attempts=attempt,
                 )
             _log.warning("Upload attempt %d/%d failed, retrying...", attempt, max_retries)
             continue
@@ -175,6 +207,48 @@ def upload_mission_with_retry(
         attempts=max_retries,
         error=f"Upload failed after {max_retries} attempts",
     )
+
+
+#: What a stored item must equal for an unconfirmed upload to count (todo 105).
+_STORED_FIELDS = ("frame", "command", "autocontinue", "param1", "param2", "param3", "param4",
+                  "x", "y", "z")
+
+
+def _float32(value: float) -> float:
+    return struct.unpack("<f", struct.pack("<f", float(value)))[0]
+
+
+def _same(expected: object, actual: object) -> bool:
+    if isinstance(expected, float) or isinstance(actual, float):
+        a, b = _float32(expected), _float32(actual)
+        return a == b or (math.isnan(a) and math.isnan(b))
+    return expected == actual
+
+
+def mission_mismatches(vehicle: VehicleMissionAccess, wp_loader: MAVWPLoader) -> list[str]:
+    """Every difference between the upload and the readback but home (seq 0).
+
+    Exact, floats as float32 (the wire type): any difference, autopilot
+    normalization included, means the upload is not known to be stored. One
+    exception: ArduPilot stores no frame for a command without a location
+    and returns it as ``MAV_FRAME_GLOBAL`` (``AP_Mission.cpp``,
+    ``mission_cmd_to_mavlink_int``), so our ``MAV_FRAME_MISSION`` items
+    (the skip ``DO_JUMP``) read back with frame 0.
+    """
+    errors: list[str] = []
+    for i in range(1, wp_loader.count()):
+        expected = wp_loader.wp(i)
+        actual = vehicle.get_mission_item(i)
+        if actual is None:
+            errors.append(f"seq {i}: missing after download")
+            continue
+        for name in _STORED_FIELDS:
+            ev, av = getattr(expected, name, None), getattr(actual, name, None)
+            if name == "frame" and (ev, av) == (MAV_FRAME_MISSION, MAV_FRAME_GLOBAL):
+                continue
+            if ev is None or av is None or not _same(ev, av):
+                errors.append(f"seq {i}: {name} expected={ev} got={av}")
+    return errors
 
 
 def verify_mission_params(vehicle, wp_loader: MAVWPLoader) -> list[str]:

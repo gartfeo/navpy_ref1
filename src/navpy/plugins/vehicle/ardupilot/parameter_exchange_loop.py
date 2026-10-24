@@ -1,4 +1,4 @@
-"""The send-and-wait loop of one parameter exchange under an :class:`ExchangePolicy`.
+"""The send-and-wait loop of one exchange under an :class:`ExchangePolicy`.
 
 ``docs/design/radio_budget.md``, todo 103: the deadline caps the lock wait and
 every answer wait and is checked again before each send; with
@@ -6,7 +6,9 @@ every answer wait and is checked again before each send; with
 send. The answer cursor is taken after the lock, so an answer to an earlier
 exchange never confirms this one. An exchange that sent nothing is
 ``unattempted``; one that sent without a matching answer is ``unconfirmed``,
-with why it stopped: deadline, link lost, or the budget spent (no echo).
+with why it stopped: deadline, link lost, cancelled, or the budget spent
+(no echo). Mission download steps run the same loop (todo 105); only a
+``PARAM_VALUE`` answer carries a value.
 """
 
 from __future__ import annotations
@@ -28,16 +30,18 @@ from navpy.plugins.vehicle.ardupilot.message_store import MessageSample, Message
 
 @dataclass(frozen=True)
 class ExchangeIo:
-    """One exchange's wire side: ``send()`` sends once; ``matches`` picks its answer."""
+    """One exchange's wire side: ``send()`` sends once; ``await_reply(cursor, deadline)``
+    waits for its answer after ``cursor`` (a ``MessageStore.wait_after`` with literal
+    reply types, which the history guard checks)."""
 
     label: str
     send: Callable[[], None]
-    matches: Callable[[object], bool]
+    await_reply: Callable[[int, float], MessageSample | None]
 
 
 def run_exchange(
     policy: ExchangePolicy,
-    link: HeartbeatState,
+    link: HeartbeatState | None,
     messages: MessageStore,
     io: ExchangeIo,
     timeout: float,
@@ -69,17 +73,20 @@ def _acquire(lock: LockPort, policy: ExchangePolicy) -> bool:
     return lock.acquire(timeout=max(0.0, policy.deadline_s - rt.monotonic()))
 
 
-def _stop_reason(policy: ExchangePolicy, link: HeartbeatState) -> ExchangeReason | None:
+def stop_reason(policy: ExchangePolicy, link: HeartbeatState | None) -> ExchangeReason | None:
+    """Why the exchange must end now, if it must; ``link`` is read only with ``stop_on_silence``."""
+    if policy.cancelled is not None and policy.cancelled():
+        return ExchangeReason.CANCELLED
     if policy.deadline_s is not None and rt.monotonic() >= policy.deadline_s:
         return ExchangeReason.DEADLINE
-    if policy.stop_on_silence and link.autopilot_silent:
+    if policy.stop_on_silence and (link is None or link.autopilot_silent):
         return ExchangeReason.LINK_LOST
     return None
 
 
 def _exchange(
     policy: ExchangePolicy,
-    link: HeartbeatState,
+    link: HeartbeatState | None,
     messages: MessageStore,
     io: ExchangeIo,
     timeout: float,
@@ -88,24 +95,25 @@ def _exchange(
     # Taken under the caller's lock; an answer to an earlier send of this exchange still counts.
     cursor = messages.cursor()
     sent = 0
-    reason = _stop_reason(policy, link)
+    reason = stop_reason(policy, link)
     while reason is None and sent < policy.attempts:
         io.send()
         sent += 1
         deadline = rt.monotonic() + timeout
         if policy.deadline_s is not None:
             deadline = min(deadline, policy.deadline_s)
-        sample = messages.wait_after("PARAM_VALUE", cursor, io.matches, deadline=deadline)
+        sample = io.await_reply(cursor, deadline)
         if log is not None and (policy.stop_on_silence or sample is None):
             log(f"{io.label} send {sent}/{policy.attempts}: {'echo' if sample is not None else 'no echo'}")
         if sample is not None:
+            value = getattr(sample.message, "param_value", None)
             return ParameterExchange(
-                ExchangeOutcome.CONFIRMED, None, sent, float(sample.message.param_value),
+                ExchangeOutcome.CONFIRMED, None, sent, None if value is None else float(value),
             ), sample
         # Checked after every miss, the last one too, so a cut wait is never "no echo".
-        reason = _stop_reason(policy, link)
+        reason = stop_reason(policy, link)
     outcome = ExchangeOutcome.UNCONFIRMED if sent else ExchangeOutcome.UNATTEMPTED
     return ParameterExchange(outcome, reason or ExchangeReason.NO_ECHO, sent), None
 
 
-__all__ = ["ExchangeIo", "run_exchange"]
+__all__ = ["ExchangeIo", "run_exchange", "stop_reason"]

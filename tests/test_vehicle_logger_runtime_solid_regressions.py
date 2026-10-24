@@ -600,7 +600,7 @@ def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
     monkeypatch.setattr(composition, "NavController", lambda *_args, **_kw: controller)
     monkeypatch.setattr(composition, "NavArgs", lambda *_args: object())
 
-    session = composition._build_session(object(), foundation, ResourceSpy())
+    session = composition._build_session(object(), foundation, ResourceSpy(), {})
 
     assert [(role, label) for role, label, _action in registrations] == [
         ("quiescence", "vision"),
@@ -618,6 +618,36 @@ def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
         vision.stop,
         ANY,
     )
+
+
+def test_a_stop_before_navigation_starts_builds_no_controller(monkeypatch):
+    """Todo 105: parameters read after the stop are defaults; start nothing on them."""
+    composition = importlib.import_module("navpy.app.runtime_composition")
+    runtime_stop = importlib.import_module("navpy.app.runtime_stop")
+    navigation = SimpleNamespace(start=MagicMock(), stop=MagicMock())
+    vision = SimpleNamespace(
+        stop=MagicMock(), geo_ref=object(), coordination=object(), approach_kind=object(),
+        dock_contact=None, profile=object(),
+    )
+    vehicle = MagicMock()
+    vehicle.get_param_or_default.return_value = 50
+    foundation = SimpleNamespace(
+        vehicle=vehicle, vision_args=object(), logger=MagicMock(), zc_util=None,
+        navigation_args=object(), scheduler_cadence=None, network=MagicMock(),
+        vehicle_close_gate=SimpleNamespace(stop_vision=MagicMock()), terminal_handoff=None,
+    )
+    nav_args = MagicMock(side_effect=AssertionError("read NavArgs after the stop"))
+    monkeypatch.setattr(composition, "VisionController", lambda *_args, **_kw: vision)
+    monkeypatch.setattr(composition, "MissionPlanner", lambda *_args: object())
+    monkeypatch.setattr(composition, "MissionPlannerArgs", lambda _args: object())
+    monkeypatch.setattr(composition, "Navigation", lambda *_args, **_kw: navigation)
+    monkeypatch.setattr(composition, "NavArgs", nav_args)
+    resources = SimpleNamespace(own=MagicMock(), own_quiescence=MagicMock())
+
+    with pytest.raises(runtime_stop.StoppedBeforeStart):
+        composition._build_session(object(), foundation, resources, {"stop_requested": lambda: True})
+    navigation.start.assert_not_called()
+    nav_args.assert_not_called()
 
 
 def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
@@ -661,7 +691,7 @@ def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
                         lambda _args, open_bus: openers.append(open_bus) or bus)
     buses = []
     monkeypatch.setattr(composition, "create_vehicle",
-                        lambda *_args, bus: buses.append(bus) or vehicle)
+                        lambda *_args, bus, stop_requested: buses.append(bus) or vehicle)
     monkeypatch.setattr(composition, "NetworkArgs", lambda _args: object())
     monkeypatch.setattr(composition, "create_network", lambda *_args: network)
     monkeypatch.setattr(composition, "NavigationArgs", lambda *_args: navigation_args)

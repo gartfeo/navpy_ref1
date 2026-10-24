@@ -138,9 +138,9 @@ Two separate problems follow:
   length. Setup (SITL boot to the first NavPy spawn: connect, parameter
   writes, mission uploads) is reported apart. Built: `eval_gcs_demo_air_load.py`,
   `report.json` `air_load`.
-- SITL drops lost bytes before the coordinator sees them, so offered load is
+- Radio loss drops bytes before the router frames them, so offered load is
   measured only on runs with `uart_loss` off. A loss-on run reports what it
-  observed and says so.
+  observed after loss and says so.
 - No pass or fail until the owner sets a usable budget from the bench test, so
   no threshold is invented.
 
@@ -215,7 +215,8 @@ topology. Parameter writes get more attempts and fail fast on a dead link
 (heartbeat), without treating heartbeats as lossless. Pipelined resend
 rounds are todo 104.
 
-How SITL loses bytes (`UARTDriver.cpp:283-293`): each UART write call drops
+How SITL loses bytes (`UARTDriver.cpp:283-293`; rounds 3-5 only, round 6
+replaced it with the coordinator's radio loss): each UART write call drops
 its last byte with probability `SIM_UART_LOSS` % × the call's size. ArduPilot
 writes a frame as three calls, header, payload and CRC (`mavlink_helpers.h:
 380-382`), so a frame breaks with about loss × its length. Reads lose
@@ -342,6 +343,163 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   annotation guard (`delivery_demo.py`), the Codex agent sync (untracked
   `.codex/agents/*.toml`), the board detector, and the HITL bridge (Windows
   Application Control blocks the jsbsim DLL).
+
+## Round 5 design: mission transfers (todo 105)
+
+### Cause (`stress` plain-a, `.logs/radio-budget-r4`)
+
+- Downloads lose item replies. A live `MISSION_ITEM_INT` answers its
+  request within 2 ticks (40 ms); a lost one is a broken 84-byte frame on
+  the SITL serial, or a broken frame before it (msgid 10, 261-byte random
+  header) that swallows it. NavPy's three startup downloads sent 57 item
+  requests and lost 11 replies (19 %; journal and `uav_*_navigation.log`).
+- Each lost reply costs the downloader's full 10 s wait (log gaps of
+  exactly 10 s), and 3 sends per item are too few. The GCS readbacks of
+  6-item missions took 31, 71 and 41 s; the next `GET /mission` lost one
+  item 3 times: 404 after 30.9 s. NavPy UAV 1 and 3 took 31 and 41 s; UAV 2
+  had not finished when the stop came.
+- NavPy downloads its mission inside the vehicle build, and nothing in the
+  startup reads the stop. The operator stop came while NavPy 2 was still
+  downloading: `HostFault` stop budget at tick 14702.
+- Uploads passed: ArduPilot drives them, re-requesting a missing item every
+  1 s (`MissionItemProtocol.cpp:409`) and abandoning after 8 s without one
+  (`MissionItemProtocol.h:95`).
+
+### Design
+
+- **Timeouts as QGroundControl** (`PlanManager.h:59-62`, the mavlink.io
+  mission protocol): wait `MISSION_ITEM_TIMEOUT_S = 0.25` for an item and
+  `MISSION_ACK_TIMEOUT_S = 1.5` for a count, request or ACK; 1 + 5 retries.
+  A resend after a late reply is harmless: requests are idempotent and the
+  reply cursor is taken before the first send, so a late reply still counts.
+- **Download steps are bounded exchanges.** `REQUEST_LIST` → `COUNT` and
+  each `REQUEST_INT(seq)` → `ITEM(_INT)` run through the todo 103 loop
+  (`run_exchange`, generalized to any reply type). One policy covers the
+  transfer: its deadline and link check apply to every step.
+- **Attempts per step:** default `MISSION_PROTOCOL_ATTEMPTS = 6` (19 % per
+  send gives 5e-5 per item if sends fail independently). GCS routes pass
+  `GCS_EXCHANGE_ATTEMPTS` (12) with the request deadline and `stop_on_silence`, as todo 103.
+- **Upload:** `MISSION_COUNT` → first request is a bounded exchange. Then
+  each wait takes the vehicle's next request, any seq, so a re-request of
+  the last item is answered too, or its final ACK. A wait is cut by the
+  deadline, checks the link and `cancelled` every 1.5 s, and ends after
+  `UPLOAD_ABANDON_S = 8` without a request (ArduPilot has dropped the
+  upload). A non-accepted ACK ends it at once.
+- **Lost final ACK:** ArduPilot sends one ACK; an item after completion is
+  answered `MISSION_ERROR` (`GCS_Common.cpp:985`), so it cannot be asked
+  again. A failed GCS upload attempt therefore reads the mission back
+  before clearing and uploading again (`waypoint_builder.py`). It counts as
+  done only on an exact match: the count, and for every item but home
+  frame, command, autocontinue, param1-4, x, y and z (floats compared as
+  float32). Any difference, autopilot normalization included, falls back
+  to clear and re-upload, as today, with one exception found in round 5:
+  ArduPilot stores no frame for a command without a location and returns
+  it as `MAV_FRAME_GLOBAL` (`AP_Mission.cpp`, `mission_cmd_to_mavlink_int`),
+  so a `MAV_FRAME_MISSION` item (the skip `DO_JUMP`) reading back with
+  frame 0 still matches; its other fields stay exact; the warn-only field check stays for
+  confirmed uploads. Today a failed attempt re-uploads without a readback.
+- **Stop:** `ExchangePolicy` gets `cancelled` (a predicate; reason
+  `cancelled`), checked with the deadline and the link before each send
+  and after each miss. Once the stop is requested, NavPy's vehicle cancels
+  every parameter read and mission transfer it runs, for the rest of the
+  process: reads return no value at once (not marked missing), transfers
+  fail. Parameter writes are not cancelled, so shutdown restores
+  (`WP_LOITER_RAD`, `SIM_SPEEDUP`) still run with their todo 103 bounds;
+  reads after the stop, such as the `NavArgs.refresh` in controller
+  cleanup, cost nothing. Composition checks the stop after the vehicle
+  build and before `navigation.start()`, and the session checks it before
+  starting vision and the controller; if set, nothing more starts, so no
+  value read as cancelled is acted on. (A loop already running that reads
+  an uncached parameter after the stop gets its default until cleanup
+  joins it.) Either way the session closes what
+  was built and acknowledges. A stop thus waits for at most one exchange
+  in flight plus the restores. The stdin stop is created before the
+  vehicle build for the same reason.
+- **GCS request deadline:** `GET /mission` takes `timeout_s` (default 85
+  s; the eval's HTTP timeout is 90 s); `POST /upload` sets one deadline for
+  the request (225 s; the eval's is 240 s); the connect and launch probes
+  use the 85 s default. The mission lock waits are capped by it too (GET,
+  probe, upload), and a request that times out on the lock fails without
+  touching the vehicle. Lockstep counts these in sim time.
+- **Logs:** each step that needed more than one send or failed logs its
+  outcome (as todo 103); a GCS transfer logs every send.
+- Not chosen: longer waits or a lower `stress` loss (hide the cause);
+  pipelined resends (todo 104); bounding the 30 s startup heartbeat wait
+  (not seen failing).
+
+### Checks
+
+- Tests: a lost item reply resent after 0.25 s; attempts per step (6
+  default, 12 GCS); deadline across steps; link silence ends a GCS
+  transfer; `cancelled` ends a download and an upload within one wait;
+  upload answers a re-request of the last item, ends on an error ACK and at
+  the abandon bound; a lost final ACK is verified by readback, and a
+  readback differing only in `DO_JUMP` param2 still re-uploads; stop during
+  startup (`NavArgs` reads with replies missing) acknowledges through
+  cleanup without starting the controller; reads after the stop return at
+  once; writes after the stop still run; GCS routes pass the policy and
+  cap the lock wait. Mutations: the old waits, 3 attempts, no cancel check, writes
+  cancelled, warn-only readback.
+- Runs: `none`, `hw`, `stress` matrices; full pytest.
+
+### Review additions
+
+- `POST /upload` starts no reconnect, `RTL_ALTITUDE` write, fence clear or
+  fence parameter write past its deadline; the fence's lock wait is bounded,
+  and a reconnect waits for the link only until the deadline. A lock won
+  after the deadline is given back unused. An error ACK to `MISSION_COUNT`
+  ends an upload at once.
+- Residual overrun: a parameter write or a reconnect already started may
+  end past the deadline (one write, about 6 s; building the reconnected
+  vehicle is not bounded). The eval's HTTP timeout is 15 s above the budget.
+- `VehicleMav` lost its `heartbeat_hz` argument (a constant now, 1 Hz as
+  every caller passed) to stay within the constructor guard.
+
+## Results (round 5, `.logs/radio-budget-r5`, `-r5b`, `-r5c`)
+
+- `none` and `hw` matrices pass (one digest each; `none` `61727653…`,
+  `hw` `84da3889…`). Opt-in tests pass (26). Wall eval passes when run
+  alone (`-r5b`); right after the matrices it failed on approach quality
+  (a 55.5° roll step on UAV 1, UAV 3 SNAP at 0.79 m without `DOCKED`),
+  with no mission-transfer link.
+- **105:** in `stress` NavPy's startup downloads take about 2 s (were
+  30-70 s), no stop overruns, and the GCS readbacks pass. One GCS upload
+  lost its final ACK; its readback differed only in the skip `DO_JUMP`'s
+  frame (above); with that fixed it counts as stored (`-r5c`).
+- **Not passing:** `stress` fails at one digest (`812fb485…`), later, at
+  the swarm task assignment: todo 114.
+- Full pytest: 8 failed, none from this change: the Codex agent sync
+  (untracked `.codex/agents/*.toml`) and the board detector.
+
+## Round 6: radio-only loss and repeat until answered (todo 114)
+
+Design: `swarm-task-assignment-ack.md` "Lossy link". The coordinator now
+loses radio bytes (each SITL's serial1 and the backend uplink), not SITL;
+serial0 is clean, and each broken packet is journaled. The swarm handover
+repeats every 0.5 s until answered.
+
+## Results (round 6, `.logs/radio-budget-r6`)
+
+- `none` and `hw` matrices pass (one digest each; `none` `ca654c38…`,
+  `hw` `474a62e5…`). Opt-in tests pass (26). Full pytest: 8 failed, the
+  same as round 5 (Codex agent sync, board detector).
+- **114:** `stress` seed 1 (0.30 % per byte) gets every UAV through the
+  swarm handover and the operator approvals, at one digest (`87fc996a…`).
+- **Not passing:** `stress` still fails:
+  - seed 1: 2 adverts from UAV 1 never leave its SITL (4 failed
+    forwarding paths). While NavPy 1 sends its confirmation image, SITL
+    1's serial1 (5.76 kB/s) is offered 6.1-6.3 kB/s; NAVLINK waits 2-3.4 s
+    and much of it is never re-emitted (9 of 22 in that window; seed 4: 38
+    of 62), likely ArduPilot forwarding only with TX space (todo 116).
+  - seed 4 (0.56 %): the same flood during UAV 1's image; UAV 3 gets no
+    APPLIED for 5 s, drops task 3 and flies home while the owner holds it
+    CONFIRMED (todos 116, 115).
+  - seed 8 (0.42 %): UAV 2's `SET_MODE` (AUTO) was broken on the uplink;
+    the launch never checks the mode, so UAV 2 never took off (todo 117).
+- Wall eval (no lockstep radio): failed after the matrices on approach
+  quality, a 53.6° roll-command step, as in round 5; not rerun alone.
+- Gate fix found by these runs: a confirmation response the uplink broke
+  still counts as sent (`eval_gcs_demo_confirmation_timing.py`).
 
 ## Not covered
 

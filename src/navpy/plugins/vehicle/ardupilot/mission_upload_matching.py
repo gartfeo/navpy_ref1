@@ -32,6 +32,9 @@ class MissionUploadMatcher:
             )
         )
 
+    def is_ack(self, message: MAVLink_message, mission_type: int) -> bool:
+        return message.get_type() == "MISSION_ACK" and self._from_target_table(message, mission_type)
+
     def is_accepted_ack(
         self,
         message: MAVLink_message,

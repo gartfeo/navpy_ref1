@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from navpy.sim.lockstep.coordinator_spawn import PYTHON_HASH_SEED
 from navpy.sim.lockstep.coordinator_types import Manifest
+from navpy.sim.lockstep.radio_link import radio_loss_pct
 from navpy.sim.lockstep.sim_profile import Realization
 from navpy.sim.lockstep.sitl_models import sitl_parameters
 from scripts import lockstep_wsl
@@ -77,6 +78,7 @@ def write_lockstep_input_manifest(run_dir: Path, scenario: DemoScenario, plan: M
         "mission_budget_us": plan.mission_budget_us,
         "roles_sha256": _canonical_sha256(roles),
         "sim_profile": realization.to_json(),
+        "radio_loss_pct": radio_loss_pct(realization),
     }
     # A participant's whole environment besides its record and host start
     # variables (``coordinator_spawn.hermetic_environment``).

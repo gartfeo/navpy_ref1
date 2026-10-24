@@ -91,5 +91,6 @@ def test_a_slice_whose_sitl_never_quiets_ends_as_a_boot_barrier_fault(tmp_path):
                                                "tick": expected, "ordinal": None,
                                                "context": {"waiting": [1]}}
     assert coordinator.journal.records[0]["grid"]["boot_budget_us"] == BOOT_BUDGET_US
+    assert coordinator.journal.records[0]["grid"]["radio_loss"] == {"model": "radio_byte_loss", "loss_pct": 0.0}
     assert sitl.stopped and [m.ordinal for m in roster.members] == [2]
     assert not any(pid_alive(m.child.pid) for m in roster.members)

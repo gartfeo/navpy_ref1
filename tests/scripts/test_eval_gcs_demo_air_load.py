@@ -44,7 +44,7 @@ def _records(*ending: dict, parked_us: int = 2_500_000) -> list[dict]:
 
 
 def test_setup_and_mission_are_apart_and_only_the_radio_senders_count():
-    report = air_load(_records(), uart_loss=False)
+    report = air_load(_records())
     setup, mission = report["setup"], report["mission"]
     assert setup["seconds"] == 1.0  # SITL boot to the spawn tick
     assert setup["nodes"]["sitl1"] == {"bytes": 207, "mean_bytes_per_s": 207.0, "max_bytes_per_s": 207.0}
@@ -55,7 +55,7 @@ def test_setup_and_mission_are_apart_and_only_the_radio_senders_count():
 
 
 def test_a_partial_last_window_is_scaled_by_its_length():
-    mission = air_load(_records(), uart_loss=False)["mission"]["nodes"]
+    mission = air_load(_records())["mission"]["nodes"]
     # Windows (1.0 s, 2.0 s] and (2.0 s, 2.5 s]: sitl1 has 20 B, then the parked 5 B in half a second.
     assert mission["sitl1"]["max_bytes_per_s"] == 20.0
     assert mission["sitl1"]["mean_bytes_per_s"] == 16.7  # 25 B over 1.5 s
@@ -64,7 +64,7 @@ def test_a_partial_last_window_is_scaled_by_its_length():
 
 def test_a_parked_frame_on_a_window_boundary_without_drain_ticks_keeps_its_bytes():
     """Codex P1: the parked frame has its own time, so its bytes end the last window."""
-    mission = air_load(_records(parked_us=3_000_000), uart_loss=False)["mission"]
+    mission = air_load(_records(parked_us=3_000_000))["mission"]
     assert mission["seconds"] == 2.0
     assert mission["nodes"]["sitl1"]["bytes"] == 25
     assert mission["nodes"]["sitl1"]["max_bytes_per_s"] == 20.0  # (2.0 s, 3.0 s] holds the parked 5 B
@@ -73,22 +73,28 @@ def test_a_parked_frame_on_a_window_boundary_without_drain_ticks_keeps_its_bytes
 def test_drain_ticks_after_the_parked_frame_extend_the_measurement():
     drain = {"k": 125, "phase": "drain", "t_us": 2_520_000,
              "packets": [_emitted(4, "lockstep:router", 12)]}
-    mission = air_load(_records(drain), uart_loss=False)["mission"]
+    mission = air_load(_records(drain))["mission"]
     assert mission["seconds"] == 1.52
     assert mission["nodes"]["backend"]["bytes"] == 12 and mission["nodes"]["sitl1"]["bytes"] == 25
 
 
 def test_skipped_and_held_bytes_are_reported_apart_and_loss_is_named():
-    report = air_load(_records(), uart_loss=True)
+    """The journal's grid names the radio's loss (``radio_link``); without it the load is offered."""
+    lossy = _records()
+    lossy[0] = {"grid": {**GRID["grid"], "radio_loss": {"model": "radio_byte_loss", "loss_pct": 0.3}}}
+    report = air_load(lossy)
     assert report["skipped_bytes"] == {"backend": 0, "sitl1": 6, "sitl2": 0}
     assert report["held_bytes"] == {"backend": 0, "sitl1": 0, "sitl2": 15}
-    assert report["measures"] == "observed after SITL byte loss"
-    assert air_load(_records(), uart_loss=False)["measures"] == "offered load"
+    assert report["measures"] == "observed after radio byte loss"
+    assert air_load(_records())["measures"] == "offered load"
+    clean = _records()
+    clean[0] = {"grid": {**GRID["grid"], "radio_loss": {"model": "radio_byte_loss", "loss_pct": 0.0}}}
+    assert air_load(clean)["measures"] == "offered load"
 
 
 def test_a_run_without_a_spawn_is_all_setup():
     records = [r for r in _records() if not r.get("lifecycle")]
-    report = air_load(records, uart_loss=False)
+    report = air_load(records)
     assert report["mission"] == {"seconds": 0.0, "nodes": {}}
     assert report["setup"]["seconds"] == 2.5
     assert report["setup"]["nodes"]["sitl1"]["bytes"] == 225

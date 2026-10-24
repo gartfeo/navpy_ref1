@@ -144,7 +144,6 @@ class VehicleManager:
                         skip_mission_download=True,
                         wait_heartbeat=False,
                         send_heartbeat=True,
-                        heartbeat_hz=1.0,
                         heartbeat_timeout=5.0,
                         mav_type=MAV_TYPE_GCS,
                         mav_comp_id=MAV_COMP_ID_MISSIONPLANNER,

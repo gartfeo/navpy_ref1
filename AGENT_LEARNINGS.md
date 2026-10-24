@@ -1307,3 +1307,30 @@
 - A probe that must run from a separate Python without navpy's dependencies still meets the 300-line module guard
   by splitting into sibling stdlib-only modules and running `python -E -s -m tools.hitl.<name>` from the repository
   root. `-I` implies `-P`, which drops the root from sys.path, so package imports fail under it.
+
+## Todo 105: bounded mission transfers (2026-10-23)
+
+- An "exact" check against autopilot state needs its differences logged from the first version. The readback
+  after a lost final ACK never matched under `stress` (ArduPilot returns frame 0 for a command without a
+  location), and the first run could not say why; one logged line and a 2.5 min single stress cell
+  (`eval_gcs_navigation_demo.py --lockstep --sim-profile stress`) found it.
+- Passing deadline plumbing through a class or route can trip the SOLID guards (12 constructor dependencies,
+  300-line modules, 150-line functions). Run tests/guards with the first targeted tests, not at the end.
+- A request deadline must be checked where the work starts (in the executor thread), not before an awaited
+  broadcast, and a nested wait (reconnect's link wait) must take only the time left.
+- Mutation patterns in a Python list written through a bash heredoc lose their `\n` escapes; write them
+  with the Edit tool or build them with chr(92).
+
+## Todo 114: swarm handover under byte loss (2026-10-24)
+
+- The owner rejected raising copy counts: find why each message is lost first (per-message journal
+  traces) and fix the cause. Here the sim lost bytes on the serial0 cable too, and the protocol stopped
+  after a fixed count instead of repeating until answered.
+- When a sim model deletes data itself, keep the clean stream beside it and match by position (offset
+  map), not by content: byte-identical repeats and frames embedded in payloads defeat content matching.
+- At the end of a lossy stream, ask which clean packets can still be waiting and why. My first settle
+  recorded only packets a lost byte fell in, and missed an intact packet held behind a frame the loss
+  started; Codex found it. Every packet complete in the clean stream but unmatched is loss-caused.
+- model_stream keys allow only [A-Za-z0-9._-]; key per-device draws by router endpoint name.
+- Both Manifest and RoutedPorts sat at the 12-field SOLID limit; adding a field means removing one or
+  passing it as an argument. Run tests/guards early.

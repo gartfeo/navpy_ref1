@@ -37,6 +37,7 @@ from navpy.plugins.vehicle.ardupilot.parameter_client import ParameterReader
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
 from navpy.plugins.vehicle.ardupilot.parameter_writer import ParameterWriter
 from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
+from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from navpy.plugins.vehicle.ardupilot.vehicle_composition import build_vehicle_parts
 from navpy.plugins.vehicle.ardupilot.heartbeat_runtime import HeartbeatRuntime
@@ -536,7 +537,7 @@ def test_mission_download_rejects_count_older_than_request():
         logger_ref,
     )
 
-    assert downloader.download(timeout=0.1, retries=1) == 0
+    assert downloader.download(policy=ExchangePolicy(attempts=1), ack_timeout=0.1, item_timeout=0.1) == 0
     store.replace_items.assert_called_once_with([])
 
 
@@ -573,7 +574,7 @@ def test_mission_download_partial_timeout_preserves_prior_store():
         SimpleNamespace(value=MagicMock()),
     )
 
-    assert downloader.download(timeout=0.01, retries=1) == 0
+    assert downloader.download(policy=ExchangePolicy(attempts=1), ack_timeout=0.01, item_timeout=0.01) == 0
     assert store.items == [old_item]
 
 
@@ -601,7 +602,7 @@ def test_mission_download_valid_empty_count_clears_prior_store():
         SimpleNamespace(value=MagicMock()),
     )
 
-    assert downloader.download(timeout=0.1, retries=1) == 0
+    assert downloader.download(policy=ExchangePolicy(attempts=1), ack_timeout=0.1, item_timeout=0.1) == 0
     assert store.items == []
 
 
@@ -731,7 +732,7 @@ def test_mission_upload_accepts_next_request_published_during_item_send():
         SimpleNamespace(value=MagicMock()),
     )
 
-    assert uploader.upload(timeout=0.1, retries=1)
+    assert uploader.upload(policy=ExchangePolicy(attempts=1), ack_timeout=0.1, abandon_s=0.1)
     assert connection.mav.mission_item_int_send.call_count == 2
 
 
@@ -828,8 +829,8 @@ def test_mission_upload_fails_closed_when_its_reply_was_evicted():
 
     def burst(*_args):
         inbox.publish(_mission_message("MISSION_REQUEST_INT", seq=0), 1.0)
-        for _ in range(4):  # unrelated rejections evict the request
-            inbox.publish(_mission_message("MISSION_ACK", type=1), 2.0)
+        for seq in range(1, 5):  # requests that do not answer the count evict the one that does
+            inbox.publish(_mission_message("MISSION_REQUEST_INT", seq=seq), 2.0)
 
     connection.mav.mission_count_send.side_effect = burst
     uploader = MissionUploader(
@@ -841,7 +842,7 @@ def test_mission_upload_fails_closed_when_its_reply_was_evicted():
     )
 
     with pytest.raises(MessageHistoryOverrun):
-        uploader.upload(timeout=0.1, retries=1)
+        uploader.upload(policy=ExchangePolicy(attempts=1), ack_timeout=0.1, abandon_s=0.1)
     connection.mav.mission_item_int_send.assert_not_called()
 
 

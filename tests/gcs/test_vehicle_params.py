@@ -154,9 +154,10 @@ class TestSetVehicleParams:
 
     def test_writes_use_the_gcs_budget_and_one_request_deadline(self, client, mock_vehicle):
         """radio_budget.md, todo 103: 12 sends, a link check, one deadline for the request."""
+        from gcs.backend import exchange_budget
         from gcs.backend.routes import params
 
-        with patch.object(params.rt, "monotonic", return_value=100.0):
+        with patch.object(exchange_budget.rt, "monotonic", return_value=100.0):
             client.put("/api/vehicles/1/params",
                        json={"params": {"del_pitch": 5.0, "use_trn": True}, "timeout_s": 20})
         policies = {c.args[2] for c in mock_vehicle.write_parameter.call_args_list}

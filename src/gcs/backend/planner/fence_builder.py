@@ -10,6 +10,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from gcs.backend.exchange_budget import held_within
+from navpy.core.ports.parameter_exchange import ExchangePolicy
 from pymavlink.dialects.v20.ardupilotmega import (
     MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION,
     MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION,
@@ -156,6 +158,7 @@ def upload_fence_with_retry(
     vertices: list[dict],
     exclusions: list[list[dict]] | None = None,
     max_retries: int = 3,
+    policy: ExchangePolicy | None = None,
 ) -> FenceUploadResult:
     """Clear + upload the inclusion fence (+ exclusion keep-outs), retrying
     until the vehicle ACKs.
@@ -168,7 +171,8 @@ def upload_fence_with_retry(
     failed (leaving the vehicle armed with a fence the operator was told failed).
 
     ``vertex_count`` is the total items uploaded (inclusion + exclusions), which
-    is what ArduPilot writes to FENCE_TOTAL.
+    is what ArduPilot writes to FENCE_TOTAL. ``policy`` is the request's
+    budget: past its deadline no clear starts and the transfer ends (todo 105).
     """
     if len(vertices) < MIN_FENCE_VERTICES:
         return FenceUploadResult(
@@ -181,9 +185,14 @@ def upload_fence_with_retry(
     for attempt in range(1, max_retries + 1):
         # clear + upload is one transaction under the mission lock so a
         # concurrent mission op can't interleave on the shared protocol queue.
-        with vehicle.mission_lock:
+        with held_within(vehicle.mission_lock, policy) as held:
+            if not held:
+                return FenceUploadResult(
+                    success=False, vertex_count=len(vertices),
+                    error="Request deadline passed before the mission lock was free",
+                )
             vehicle.clear_fence()
-            ok = vehicle.upload_fence(items)
+            ok = vehicle.upload_fence(items, policy=policy)
 
         if ok:
             return FenceUploadResult(success=True, vertex_count=len(items))

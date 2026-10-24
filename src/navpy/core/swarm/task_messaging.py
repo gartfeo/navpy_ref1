@@ -125,18 +125,22 @@ class TaskMessageSender:
                 "it carries no message UID."
             )
             return None
+        return self.ack_ref(acked, acked_type, status)
+
+    def ack_ref(self, acked: MsgRef, acked_type: MsgType, status: int) -> Optional[MsgRef]:
+        """Acknowledge a received message by the UID kept for it."""
         return self._send(
             SwarmAckMsg(
                 sender_id=self._actor_id,
-                receiver_id=message.sender_id,
+                receiver_id=acked.sender_id,
                 ref_boot_id=acked.boot_id,
                 ref_msg_seq=acked.msg_seq,
                 ref_msg_type=acked_type.value,
                 status=status,
             ),
             f"Ack {acked_type.name} {acked.boot_id}:{acked.msg_seq} "
-            f"to {message.sender_id} (status {status})",
-            f"Failed to ack {acked_type.name} to {message.sender_id}",
+            f"to {acked.sender_id} (status {status})",
+            f"Failed to ack {acked_type.name} to {acked.sender_id}",
             ttl_ms=ack_ttl_ms(acked_type),
         )
 

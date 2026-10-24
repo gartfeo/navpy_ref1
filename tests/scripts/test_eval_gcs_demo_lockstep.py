@@ -93,6 +93,7 @@ def test_lockstep_records_the_sim_profile_realization_in_the_input_manifest(tmp_
     import json
 
     from navpy.sim.lockstep.sim_profile import load_profile, realize
+    from navpy.sim.lockstep.radio_link import radio_loss_pct
     from navpy.sim.lockstep.sitl_models import sitl_parameters, sitl_rng_seeds
 
     merged = []
@@ -106,6 +107,9 @@ def test_lockstep_records_the_sim_profile_realization_in_the_input_manifest(tmp_
     assert merged == [sitl_parameters(realization)] and "SIM_GPS_NOISE" in merged[0]
     assert inputs["sitl"]["profile_parameters"] == merged[0]
     assert inputs["sitl"]["rng_seeds"] == {"1": sitl_rng_seeds(realization, (1,))[1]}
+    # Todo 114: the radio's byte loss is the coordinator's, recorded apart from SITL's parameters.
+    assert inputs["run_options"]["radio_loss_pct"] == radio_loss_pct(realization)
+    assert "SIM_UART_LOSS" not in merged[0]
 
 
 def test_lockstep_launches_each_sitl_with_the_input_manifests_rng_seed(tmp_path, monkeypatch):

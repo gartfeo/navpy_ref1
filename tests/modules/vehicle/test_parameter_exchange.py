@@ -79,6 +79,23 @@ def test_a_stale_heartbeat_with_other_autopilot_frames_does_not_end_the_exchange
     assert exchange.confirmed and exchange.attempts == 9
 
 
+def test_a_lost_param_set_is_sent_again_until_one_arrives():
+    """The uplink is a lossy radio too (todo 114): a write the autopilot never saw gets no echo,
+    as a lost echo does, and the next attempt carries it."""
+    link = HeartbeatState(7, 5.0)
+    arrived: list[tuple] = []
+
+    def uplink_loses_two(messages, args):
+        if connection.mav.param_set_send.call_count <= 2:
+            return  # lost on the radio: the autopilot never applies it
+        arrived.append(args)
+        messages.publish("PARAM_VALUE", _param_value("TEST", 2.0), receipt_time_s=1.0)
+
+    writer, connection = _writer(link, uplink_loses_two)
+    exchange = writer.write("TEST", 2.0, GCS, timeout=0.001)
+    assert exchange.confirmed and exchange.attempts == 3 and len(arrived) == 1
+
+
 def test_silence_ends_the_exchange_before_and_after_a_send():
     clock = Clock()
     link = HeartbeatState(7, 5.0, clock)

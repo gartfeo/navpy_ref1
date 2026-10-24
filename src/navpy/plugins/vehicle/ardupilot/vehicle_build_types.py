@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -52,6 +53,8 @@ class VehicleStartupPolicy:
     send_heartbeat: bool
     heartbeat_hz: float
     heartbeat_timeout: float
+    #: A NavPy stop: once true, parameter reads and mission transfers end (todo 105).
+    stop_requested: Callable[[], bool] | None = None
 
 
 @dataclass(frozen=True)

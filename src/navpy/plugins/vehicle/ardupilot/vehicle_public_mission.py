@@ -11,6 +11,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from pymavlink.mavwp import MAVWPLoader
 
 from navpy.core.kernel.location import Location
+from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.plugins.vehicle.ardupilot.vehicle_public_ports import MissionParts
 
 
@@ -51,19 +52,18 @@ class VehicleMissionTransferFacet:
 
     def download_mission(
         self,
-        timeout: float = 10.0,
-        retries: int = 3,
         on_progress: Callable[[int, int], None] | None = None,
+        policy: ExchangePolicy | None = None,
     ) -> int:
-        return self._parts.mission.download(timeout, retries, on_progress)
+        """The item count, 0 when empty or failed; ``policy`` bounds the transfer."""
+        return self._parts.mission.download(on_progress, policy=policy)
 
     def upload_mission(
         self,
-        timeout: float = 10.0,
-        retries: int = 3,
         on_wp_sent: Callable[[int, int], None] | None = None,
+        policy: ExchangePolicy | None = None,
     ) -> bool:
-        return self._parts.mission.upload(timeout, retries, on_wp_sent)
+        return self._parts.mission.upload(on_wp_sent, policy=policy)
 
     def clear_mission(self) -> None:
         return self._parts.mission.clear()
@@ -83,26 +83,19 @@ class VehicleFenceFacet:
     def upload_fence(
         self,
         items: Iterable[MAVLink_message],
-        timeout: float = 10.0,
-        retries: int = 3,
+        policy: ExchangePolicy | None = None,
     ) -> bool:
         return self._parts.mission.upload(
-            timeout,
-            retries,
             items=items,
             mission_type=MAV_MISSION_TYPE_FENCE,
+            policy=policy,
         )
 
     def download_fence(
         self,
-        timeout: float = 10.0,
-        retries: int = 3,
+        policy: ExchangePolicy | None = None,
     ) -> list[MAVLink_message]:
-        return self._parts.mission.download_items(
-            timeout,
-            retries,
-            MAV_MISSION_TYPE_FENCE,
-        )
+        return self._parts.mission.download_items(MAV_MISSION_TYPE_FENCE, policy)
 
     def clear_fence(self) -> None:
         return self._parts.mission.clear(MAV_MISSION_TYPE_FENCE)

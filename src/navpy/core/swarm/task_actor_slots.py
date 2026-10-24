@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import itertools
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Optional
@@ -11,11 +11,13 @@ from typing import Optional
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_APPLIED,
+    ACK_STATUS_PROCESSING,
     ACK_STATUS_RECEIVED,
 )
 from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.task_message_data import TaskAssignMsgData
-from navpy.core.swarm.task_msg_refs import MsgRef, OwnerRef
+from navpy.core.swarm.task_ack_timing import ASSIGN_ACK_TIMING
+from navpy.core.swarm.task_msg_refs import MsgRef, OwnerRef, RecentRefs
 
 
 class SlotState(Enum):
@@ -59,6 +61,7 @@ class RequestDecision:
 
 class AckKind(Enum):
     NONE = "none"
+    PROGRESS = "progress"  # PROCESSING from the offer's owner boot
     ASSIGNED = "assigned"
     DROPPED = "dropped"
 
@@ -70,11 +73,17 @@ class SelectedTaskSlot:
     slot table in docs/design/swarm-task-assignment-ack.md.
     """
 
-    def __init__(self, lock: rt.RLock) -> None:
+    def __init__(
+        self,
+        lock: rt.RLock,
+        monotonic_s: Callable[[], float] = rt.monotonic,
+        reply_retention_s: float = ASSIGN_ACK_TIMING.response.retention_s,
+    ) -> None:
         self._lock = lock
+        self._new_replies = lambda: RecentRefs(reply_retention_s, monotonic_s)
         self._state = SlotState.EMPTY
         self._held: Optional[HeldTask] = None
-        self._replies: set[MsgRef] = set()
+        self._replies = self._new_replies()
         self._approaching = False
         self._docked = False
         self._tokens = itertools.count(1)
@@ -145,8 +154,10 @@ class SelectedTaskSlot:
                 return AckKind.NONE, None
             if status == ACK_STATUS_APPLIED and ack.owner == held.owner:
                 self._state = SlotState.ASSIGNED
-                self._replies = set()
+                self._replies = self._new_replies()
                 return AckKind.ASSIGNED, held
+            if status == ACK_STATUS_PROCESSING and ack.owner == held.owner:
+                return AckKind.PROGRESS, held
             if (
                 status == ACK_STATUS_RECEIVED
                 and ack.sender_id == held.owner.owner_id
@@ -243,7 +254,7 @@ class SelectedTaskSlot:
     def _clear(self) -> None:
         self._state = SlotState.EMPTY
         self._held = None
-        self._replies = set()
+        self._replies = self._new_replies()
 
 
 __all__ = [

@@ -281,12 +281,12 @@ class TestDownloadMissionCacheReuse:
         cached = {"sys_id": 1, "waypoints": [{"lat": 1.0, "lon": 2.0, "alt": 3.0}]}
 
         class LockSetsCache:
-            def __enter__(self_lock):
+            def acquire(self_lock, timeout=-1):
                 mock_entry.cached_mission = cached  # probe cached while we waited
-                return None
+                return True
 
-            def __exit__(self_lock, *exc):
-                return False
+            def release(self_lock):
+                pass
 
         mock_entry.cached_mission = None
         mock_vehicle.mission_lock = LockSetsCache()

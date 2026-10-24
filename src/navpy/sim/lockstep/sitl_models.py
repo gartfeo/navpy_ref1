@@ -24,12 +24,10 @@ its baud / 10 bytes per second, metered on simulated time (``UARTDriver.cpp``
 57600, the firmware defaults. A slow line fills the write buffer and shrinks
 ``txspace``, so the autopilot defers its streams as on a real line.
 
-``uart_loss`` is ``SIM_UART_LOSS``: each UART write loses its last byte with
-probability ``loss_pct`` % times its size, on every UART of every SITL (serial0
-and serial1 alike). The receiver then drops the broken packet on its CRC. The
-draw is glibc ``random()``, the noise's stream, so it seeds the SITL too and
-shifts the noise draws after it (todo 81). The coordinator never sees the lost
-byte: the journal shows only the broken packet.
+``uart_loss`` sets no SITL parameter. ``SIM_UART_LOSS`` would break every UART
+at once, serial0 (a short cable to NavPy) too, so the coordinator loses the
+bytes where they enter the radio instead: ``loss_pct`` % of each byte a SITL's
+serial1 or the backend transmits (``radio_link``, todo 114).
 
 A model that is off, or not in the profile, sets no parameter; with every model
 off the SITL runs as before step 2 (glibc's default seed 1, ``get_random16``'s
@@ -51,14 +49,13 @@ UART_LOSS = "uart_loss"
 SITL_PARAMETERS: Mapping[str, Mapping[str, str]] = {
     BAUD_LIMIT: {},
     SENSOR_NOISE: {"gps_noise_m": "SIM_GPS_NOISE"},
-    UART_LOSS: {"loss_pct": "SIM_UART_LOSS"},
     WIND: {"speed_mps": "SIM_WIND_SPD", "direction_deg": "SIM_WIND_DIR",
            "turbulence_mps": "SIM_WIND_TURB"},
 }
 #: The SITL parameters an on model sets whatever its draw.
 SITL_SWITCHES: Mapping[str, Mapping[str, float]] = {BAUD_LIMIT: {"SIM_BAUDLIMIT_EN": 1.0}}
 #: The models that draw from glibc's stream, so need the SITL seeded.
-RANDOM_MODELS = (SENSOR_NOISE, UART_LOSS, WIND)
+RANDOM_MODELS = (SENSOR_NOISE, WIND)
 #: ``NAVPY_STEP_RNG_SEED`` is 1..2**32-1: ``srandom`` takes 32 bits and the firmware refuses 0.
 RNG_SEED_MAX = 2**32 - 1
 

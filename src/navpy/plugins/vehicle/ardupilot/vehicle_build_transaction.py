@@ -86,7 +86,9 @@ class VehicleBuildTransaction:
         )
         protocols = build_protocol_parts(self._request, foundation)
         self._lifecycle = protocols.lifecycle
-        capabilities = build_capability_parts(foundation, protocols)
+        capabilities = build_capability_parts(
+            foundation, protocols, self._request.startup.stop_requested,
+        )
         parts = assemble_vehicle_parts(foundation, protocols, capabilities)
         self._activate(protocols, parts)
         return parts

@@ -23,7 +23,7 @@ from navpy.core.link.task_availability_msg import AvailableTaskRequestMsg, Avail
 from navpy.core.link.ttl_defaults import get_ttl_ms
 from navpy.core.link.types import MsgType, TaskDispatchStatus
 from navpy.core.swarm.task_actor_slots import SlotState
-from navpy.core.swarm.task_auction_coordinator import ASSIGN_REQUEST_SCHEDULE, PEER_SELECTION_DELAY_S
+from navpy.core.swarm.task_auction_coordinator import ASSIGN_REQUEST_TIMING, PEER_SELECTION_DELAY_S
 from navpy.sim.lockstep.mavlink_wire import encoder
 from tests.modules.lockstep.swarm_baton import (
     DETECT_TICK,
@@ -147,8 +147,8 @@ def _ack_run(rule):
 def test_a_request_ack_on_the_resend_deadline_tick_is_handled_before_the_resend():
     lost, _ = _ack_run(lambda s, r: DROP if _near_replies_to_owner(s, r) else None)
     first_k = _owner_requests(lost)[0][0]
-    resend_k = _ticks(lost, OWNER, "request not acked by 2; resent it (2/3)")[0]
-    assert resend_k == first_k + tick_of(ASSIGN_REQUEST_SCHEDULE.interval_s)
+    resend_k = _ticks(lost, OWNER, "request not acked by 2; resent it (copy 2)")[0]
+    assert resend_k == first_k + tick_of(ASSIGN_REQUEST_TIMING.interval_s)
 
     # The acceptance would cancel the resend timer itself, so it lands after the
     # deadline: on the deadline tick the task is still confirming, with only the ACK.
@@ -164,10 +164,11 @@ def test_a_request_ack_on_the_resend_deadline_tick_is_handled_before_the_resend(
 
     on_time, confirmed = _ack_run(held_to(resend_k))
     assert confirmed and _ticks(on_time, OWNER, "resent it") == []
-    assert _owner_requests(on_time) == [(first_k, NEAR_PEER)]
+    # Copies go on after the ack until CONFIRMED; only the log tells them apart.
+    assert _owner_requests(on_time)[:2] == [(first_k, NEAR_PEER), (resend_k, NEAR_PEER)]
     assert on_time.lines(OWNER, "delivered TASK_ASSIGN_RESPONSE from 2")[0][0] == accepted_k
     late, confirmed = _ack_run(held_to(resend_k + 1))
-    assert confirmed and _ticks(late, OWNER, "resent it (2/3)") == [resend_k]
+    assert confirmed and _ticks(late, OWNER, "resent it (copy 2)") == [resend_k]
 
 
 # -- stale BUSY evidence (MsgRef.follows) -------------------------------------
@@ -233,17 +234,18 @@ def test_a_bid_sent_before_a_busy_report_is_stale_even_once_the_peer_is_free_aga
 
 # -- a retry and a release ------------------------------------------------------
 
-def test_every_request_copy_lost_releases_on_schedule_and_the_retry_assigns():
-    release_s = ASSIGN_REQUEST_SCHEDULE.deadline_s
+def test_every_request_copy_lost_releases_after_silence_and_the_retry_assigns():
+    release_s = ASSIGN_REQUEST_TIMING.silence_s
     with baton_swarm() as swarm:
         end = DETECT_TICK + tick_of(release_s) + 50
         swarm.rule = lambda s, _r: DROP if _is(s, TaskAssignRequestMsg, OWNER) and s.k < end else None
         swarm.run(end + 200, {DETECT_TICK: _detect(swarm)})
         copies = _owner_requests(swarm)
         first = copies[0][0]
-        step = tick_of(ASSIGN_REQUEST_SCHEDULE.interval_s)
-        assert copies[:ASSIGN_REQUEST_SCHEDULE.copies] == [
-            (first + i * step, NEAR_PEER) for i in range(ASSIGN_REQUEST_SCHEDULE.copies)]
+        step = tick_of(ASSIGN_REQUEST_TIMING.interval_s)
+        silent_copies = tick_of(release_s) // step
+        assert copies[:silent_copies] == [
+            (first + i * step, NEAR_PEER) for i in range(silent_copies)]
         assert _ticks(swarm, OWNER, "released and re-advertising (retry 1)") == [first + tick_of(release_s)]
         assert _confirmed_to(swarm, NEAR_PEER)
 

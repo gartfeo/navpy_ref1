@@ -28,10 +28,11 @@ task ids and sequence numbers are sent in plaintext.
    flies once an APPLIED names one of its step-4 copies (see 5).
 3. **High-`msg_seq` pin.** A forged copy of the WAITING request with a very
    high `msg_seq` raises the held request (`SelectedTaskSlot.on_request`).
-   Genuine release adverts are then ignored until the 18 s WAITING expiry.
+   Genuine release adverts are then ignored until the WAITING no-progress drop
+   (5 s, longer while forged acks report progress).
 4. **Forged best bid.** A forged low-ETA bid, with forged heartbeats so an
    offline roster peer does not fall silent, wins the auction. The owner
-   releases the task 9 s after its first assign request, but this can repeat
+   releases the task after 5 s without progress, but this can repeat
    indefinitely.
 5. **Forged acks and node state.** A forged APPLIED naming a helper's step-4
    copy (its UID is plaintext) makes a WAITING helper fly although its owner

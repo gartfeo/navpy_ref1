@@ -38,7 +38,12 @@ from navpy.plugins.vehicle.ardupilot.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )
 from navpy.app.perception.vision_controller import VisionController
-from navpy.app.runtime_stop import LifecycleStopRequest, stop_hooks
+from navpy.app.runtime_stop import (
+    LifecycleStopRequest,
+    StoppedBeforeStart,
+    raise_if_stopped,
+    stop_hooks,
+)
 from navpy.app.runtime_resources import (
     RuntimeResourceStack,
     RuntimeSession,
@@ -115,6 +120,7 @@ def _build_foundation(
     args: Namespace,
     resources: RuntimeResourceStack,
     ports: RuntimePorts = RuntimePorts(),
+    stop_requested: Callable[[], bool] | None = None,
 ) -> RuntimeFoundation:
     connection_args = ConnArgs(args)
     logger_args = LoggerArgs(args)
@@ -133,11 +139,14 @@ def _build_foundation(
 
     terminal_handoff = build_terminal_handoff(args)
     bus = open_vehicle_bus(connection_args, fenced_opener(ports.open_bus, terminal_handoff))
-    vehicle = create_vehicle(connection_args, logger, bus=bus)
+    # After the stop the vehicle's reads and mission transfers end at once,
+    # so startup reaches a stop check without waiting on the link.
+    vehicle = create_vehicle(connection_args, logger, bus=bus, stop_requested=stop_requested)
     close_gate = VehicleCloseGate(vehicle.close)
     # Quiescence: the MAVLink reader dispatches into the logger, so the
     # logger stays open until the reader has really stopped.
     resources.own_quiescence("vehicle", close_gate.close_vehicle)
+    raise_if_stopped(stop_requested)
     status_logger.set_vehicle(vehicle)
     _log_configuration(args, vehicle, logger)
 
@@ -178,7 +187,7 @@ def _build_session(
     args: Namespace,
     foundation: RuntimeFoundation,
     resources: RuntimeResourceStack,
-    ports: RuntimePorts = RuntimePorts(),
+    hooks: dict[str, Callable[..., object]],
 ) -> RuntimeSession:
     vision = VisionController(
         foundation.vehicle,
@@ -208,6 +217,8 @@ def _build_session(
         on_terminal=terminal_observer(foundation.terminal_handoff),
     )
     resources.own_quiescence("navigation", navigation.stop)
+    # Values read after the stop are defaults: never start on them.
+    raise_if_stopped(hooks.get("stop_requested"))
     navigation.start()
     nav_args = NavArgs(args, foundation.vehicle)
     controller = NavController(
@@ -255,7 +266,7 @@ def _build_session(
         ui_step=vision.ui_step,
         sleep=rt.sleep,
         ready_signal=signal_runtime_ready,
-        **stop_hooks(args, ports.lifecycle_stop),
+        **hooks,
     )
 
 
@@ -267,8 +278,12 @@ def compose_runtime(args: Namespace, ports: RuntimePorts = RuntimePorts()) -> Ru
             raise ValueError("--stop-on-lifecycle needs a lockstep participant's lifecycle stop")
     resources = RuntimeResourceStack()
     try:
-        foundation = _build_foundation(args, resources, ports)
-        return _build_session(args, foundation, resources, ports)
+        # Before the vehicle build, so a stop during startup is seen there.
+        hooks = stop_hooks(args, ports.lifecycle_stop)
+        foundation = _build_foundation(args, resources, ports, hooks.get("stop_requested"))
+        return _build_session(args, foundation, resources, hooks)
+    except StoppedBeforeStart:
+        return RuntimeSession.stopped(resources, **hooks)
     except BaseException as primary:
         try:
             resources.close()

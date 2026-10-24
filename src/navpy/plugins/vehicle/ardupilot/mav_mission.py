@@ -11,6 +11,8 @@ from pymavlink.mavwp import MAVWPLoader
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
+from navpy.core.ports.parameter_exchange import ExchangePolicy
+from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
@@ -32,10 +34,13 @@ class MavMission:
         logger_ref: LoggerRef,
         message_store: MessageStore,
         inbox: MissionInbox,
+        link: HeartbeatState | None = None,
         store: MissionStore | None = None,
         downloader: MissionDownloader | None = None,
         uploader: MissionUploader | None = None,
+        cancelled: Callable[[], bool] | None = None,
     ) -> None:
+        """``cancelled`` ends every transfer once true (a NavPy stop, todo 105)."""
         self._lock = rt.RLock()
         self._store = store or MissionStore(target_system, message_store)
         self._downloader = downloader or MissionDownloader(
@@ -44,9 +49,11 @@ class MavMission:
             self._store,
             message_store,
             logger_ref,
+            link,
+            cancelled,
         )
         self._uploader = uploader or MissionUploader(
-            target_system, transport, self._store, inbox, logger_ref,
+            target_system, transport, self._store, inbox, logger_ref, link, cancelled,
         )
 
     @property
@@ -92,33 +99,30 @@ class MavMission:
 
     def download(
         self,
-        timeout: float = 10.0,
-        retries: int = 3,
         on_progress: MissionProgress | None = None,
         mission_type: int = MAV_MISSION_TYPE_MISSION,
+        policy: ExchangePolicy | None = None,
     ) -> int:
         with self._lock:
-            return self._downloader.download(timeout, retries, on_progress, mission_type)
+            return self._downloader.download(on_progress, mission_type, policy)
 
     def download_items(
         self,
-        timeout: float = 10.0,
-        retries: int = 3,
         mission_type: int = MAV_MISSION_TYPE_MISSION,
+        policy: ExchangePolicy | None = None,
     ) -> list[MAVLink_message]:
         with self._lock:
-            return self._downloader.download_items(timeout, retries, mission_type)
+            return self._downloader.download_items(mission_type, policy)
 
     def upload(
         self,
-        timeout: float = 10.0,
-        retries: int = 3,
         on_wp_sent: MissionProgress | None = None,
         items: Iterable[MAVLink_message] | None = None,
         mission_type: int = MAV_MISSION_TYPE_MISSION,
+        policy: ExchangePolicy | None = None,
     ) -> bool:
         with self._lock:
-            return self._uploader.upload(timeout, retries, on_wp_sent, items, mission_type)
+            return self._uploader.upload(on_wp_sent, items, mission_type, policy)
 
     def clear(self, mission_type: int = MAV_MISSION_TYPE_MISSION) -> None:
         with self._lock:

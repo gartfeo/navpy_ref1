@@ -7,6 +7,7 @@ import math
 import pytest
 
 from navpy.sim.lockstep import sitl_models as sm
+from navpy.sim.lockstep.radio_link import radio_loss_pct
 from navpy.sim.lockstep.sim_profile import CATALOGUE, ModelDraw, ModelEntry, ParamRange, Realization, \
     load_profile, model_stream, realize
 
@@ -21,9 +22,10 @@ def realization(*models: ModelDraw, seed: int = 7) -> Realization:
 
 
 def test_every_parameter_of_the_built_models_has_one_sitl_parameter():
-    assert set(sm.SITL_PARAMETERS) == set(CATALOGUE)
-    for name, spec in CATALOGUE.items():
-        assert set(sm.SITL_PARAMETERS[name]) == set(spec.params)
+    """Every model but ``uart_loss``, the coordinator's radio loss (``radio_link``, todo 114)."""
+    assert set(sm.SITL_PARAMETERS) == set(CATALOGUE) - {"uart_loss"}
+    for name, params in sm.SITL_PARAMETERS.items():
+        assert set(params) == set(CATALOGUE[name].params)
     assert set(sm.SITL_SWITCHES) <= set(CATALOGUE)
     names = [p for params in sm.SITL_PARAMETERS.values() for p in params.values()]
     names += [p for switches in sm.SITL_SWITCHES.values() for p in switches]
@@ -44,21 +46,23 @@ def test_an_on_model_sets_its_sitl_parameters_and_an_off_or_unlisted_one_sets_no
     assert sm.sitl_parameters(realize(load_profile("none"), 1)) == {}
 
 
-def test_the_line_rate_and_byte_loss_are_sitls_own_parameters():
-    """``baud_limit`` turns on SITL's line rate, whatever its (empty) draw; ``uart_loss`` sets
-    SITL's byte loss in percent. Off, neither sets anything, so the firmware default (0) holds."""
+def test_the_line_rate_is_sitls_own_parameter_and_byte_loss_is_the_radios():
+    """``baud_limit`` turns on SITL's line rate, whatever its (empty) draw. ``uart_loss`` sets no
+    SITL parameter (``SIM_UART_LOSS`` would break serial0 too): it is the radio's loss in percent.
+    Off, neither sets anything, so the firmware default (0) holds."""
     assert sm.sitl_parameters(realization(BAUD)) == {"SIM_BAUDLIMIT_EN": 1.0}
-    assert sm.sitl_parameters(realization(LOSS)) == {"SIM_UART_LOSS": 0.15}
+    assert sm.sitl_parameters(realization(LOSS)) == {}
     assert sm.sitl_parameters(realization(BAUD, LOSS, NOISE)) == {
-        "SIM_BAUDLIMIT_EN": 1.0, "SIM_GPS_NOISE": 0.5, "SIM_UART_LOSS": 0.15}
+        "SIM_BAUDLIMIT_EN": 1.0, "SIM_GPS_NOISE": 0.5}
+    assert radio_loss_pct(realization(LOSS)) == 0.15
     off = (ModelDraw("baud_limit", False), ModelDraw("uart_loss", False, {"loss_pct": 0.15}))
     assert sm.sitl_parameters(realization(*off)) == {}
+    assert radio_loss_pct(realization(*off)) == 0.0 == radio_loss_pct(realization())
 
 
-def test_byte_loss_seeds_the_sitl_and_the_line_rate_alone_does_not():
-    """SITL draws its byte loss from the noise's glibc stream; the line rate draws nothing."""
-    seed = 1 + math.floor(model_stream(7, "sensor_noise", "sitl.2").random() * (2**32 - 1))
-    assert sm.sitl_rng_seed(realization(LOSS, seed=7), 2) == seed
+def test_neither_byte_loss_nor_the_line_rate_seeds_the_sitl():
+    """The coordinator draws the radio's loss; the line rate draws nothing."""
+    assert sm.sitl_rng_seed(realization(LOSS, seed=7), 2) is None
     assert sm.sitl_rng_seed(realization(BAUD, seed=7), 2) is None
     assert sm.sitl_rng_seed(realization(BAUD, ModelDraw("uart_loss", False), seed=7), 2) is None
 
@@ -132,8 +136,9 @@ def test_the_shipped_profiles_draw_the_line_rate_and_byte_loss():
     assert "uart_loss" not in load_profile("quiet").models
     assert load_profile("hw").models["uart_loss"] == ModelEntry(0.5, {"loss_pct": ParamRange(0.0, 0.2)})
     assert load_profile("stress").models["uart_loss"] == ModelEntry(1.0, {"loss_pct": ParamRange(0.0, 0.6)})
-    stress = sm.sitl_parameters(realize(load_profile("stress"), 1))
-    assert stress["SIM_BAUDLIMIT_EN"] == 1.0 and 0.0 <= stress["SIM_UART_LOSS"] <= 0.6
+    stress = realize(load_profile("stress"), 1)
+    assert sm.sitl_parameters(stress)["SIM_BAUDLIMIT_EN"] == 1.0
+    assert "SIM_UART_LOSS" not in sm.sitl_parameters(stress) and 0.0 <= radio_loss_pct(stress) <= 0.6
     draws = [realize(load_profile("hw"), seed) for seed in range(1, 201)]
     assert 70 < sum(d.model("baud_limit").on for d in draws) < 130
     assert 70 < sum(d.model("uart_loss").on for d in draws) < 130

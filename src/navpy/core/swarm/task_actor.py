@@ -75,6 +75,7 @@ class TaskActor(ListenerAbc):
             selection,
             AssignReplies(
                 lock, selection, sender, ASSIGN_ACK_TIMING.response, logger,
+                monotonic_s,
             ),
             TaskCapabilityEvaluator(
                 vehicle,

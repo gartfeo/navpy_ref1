@@ -136,6 +136,15 @@ def stop_hooks(
     }
 
 
+class StoppedBeforeStart(Exception):
+    """The stop came during startup: start nothing more (``radio_budget.md``, todo 105)."""
+
+
+def raise_if_stopped(stop_requested: Callable[[], bool] | None) -> None:
+    if stop_requested is not None and stop_requested():
+        raise StoppedBeforeStart
+
+
 def add_args(parser: ArgumentParser) -> None:
     parser.add_argument(
         "--stop-on-stdin",
@@ -160,8 +169,10 @@ __all__ = [
     "NAVPY_STOPPED_MARKER",
     "NAVPY_STOP_REQUEST",
     "StdinStopRequest",
+    "StoppedBeforeStart",
     "acknowledge_stop",
     "add_args",
     "flush_pose_cadence",
+    "raise_if_stopped",
     "stop_hooks",
 ]

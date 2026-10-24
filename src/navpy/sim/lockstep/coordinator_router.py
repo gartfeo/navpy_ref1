@@ -58,9 +58,10 @@ from navpy.sim.lockstep.coordinator_packets import PacketBook, PacketId, packet_
 from navpy.sim.lockstep.coordinator_queues import ReplyQueues
 from navpy.sim.lockstep.coordinator_streams import StreamAccount
 from navpy.sim.lockstep.coordinator_types import CoordinatorFault, Manifest
+from navpy.sim.lockstep.radio_link import RadioLinks
 from navpy.sim.lockstep.router_entries import EntryTable, load_entry_table
 from navpy.sim.lockstep.router_framer import RouterFramer, RouterPacket
-from navpy.sim.lockstep.router_model import SITL_FILTER, ReferenceRouter
+from navpy.sim.lockstep.router_model import SITL_FILTER, EndpointFilter, ReferenceRouter
 from navpy.sim.lockstep.step_wire import Frame
 
 BACKEND_ENDPOINT = "backend"
@@ -77,16 +78,23 @@ def router_endpoints(fleet_size: int) -> list[str]:
 
 
 class RoutedPorts:
-    def __init__(self, manifest: Manifest, roster: Roster, table: EntryTable | None = None) -> None:
+    def __init__(self, manifest: Manifest, roster: Roster, table: EntryTable | None = None, *,
+                 radio_loss_pct: float = 0.0) -> None:
+        """``radio_loss_pct``: each radio byte's loss in % (``radio_link``); 0 is a clean radio."""
         self._sitls = manifest.sitl_ports
-        self._router_device = manifest.router
         endpoints = router_endpoints(len(self._sitls))
         #: Each router endpoint's device, in endpoint order.
         self._endpoint_device = dict(zip(endpoints, [ports[1] for ports in self._sitls]
                                          + [manifest.router]))
-        self._router = ReferenceRouter(endpoints, filters={
-            sitl_origin(index): SITL_FILTER for index in range(1, len(self._sitls) + 1)})
+        filters = {sitl_origin(index): SITL_FILTER for index in range(1, len(self._sitls) + 1)}
+        # The uplink is a radio too: only ids whose CRC the router checks (todo 102).
+        filters[BACKEND_ENDPOINT] = EndpointFilter(allow_msg_id_in=SITL_FILTER.allow_msg_id_in)
+        self._router = ReferenceRouter(endpoints, filters=filters)
         self._table = table or load_entry_table()
+        #: Byte loss where bytes enter a radio: each SITL's serial1 and the backend's egress.
+        self.radio = RadioLinks(radio_loss_pct, manifest.seed,
+                                {device: endpoint for endpoint, device in self._endpoint_device.items()},
+                                self._table)
         self._roster = roster
         self._framers: dict[tuple[Hashable, int, str], RouterFramer] = {}
         self._book = PacketBook()
@@ -108,7 +116,7 @@ class RoutedPorts:
             packets = [(packet_id, at, at + len(piece))
                        for packet_id, piece, _packet, at in pieces if packet_id is not None]
             self._ledger.add(serial0, start, data, packets, framer.held_start)
-            pieces = self._emit(origin, SITL_GENERATION, serial1, egress.get(serial1, b""))
+            pieces = self._emit(origin, SITL_GENERATION, serial1, egress.get(serial1, b""), k)
             self._count(record.data, serial1, FROM_SITL, [p for p in pieces if p[0] is not None])
             self._route(record, origin, serial1, pieces)
 
@@ -122,13 +130,13 @@ class RoutedPorts:
         stream = (member.ordinal, member.spawn.generation)
         if draining:
             record.drain_egress(member.ordinal, device, data)
-        if device != self._router_device:
+        if device != self._endpoint_device[BACKEND_ENDPOINT]:
             self._queue_stream(record, stream, device, data, k if draining else None)
         elif draining:
-            pieces = self._emit(*stream, device, data)
+            pieces = self._emit(*stream, device, data, k)
             self._end_all(record.data, ROUTER_LINK, DRAIN_TO_SITL, pieces, "drain")
         else:
-            self._route(record, BACKEND_ENDPOINT, ROUTER_LINK, self._emit(*stream, device, data))
+            self._route(record, BACKEND_ENDPOINT, ROUTER_LINK, self._emit(*stream, device, data, k))
 
     def reply(self, k: int, record: TickRecord, frames: Sequence[Frame]) -> dict[str, bytes]:
         ingress: dict[str, bytes] = {}
@@ -138,21 +146,23 @@ class RoutedPorts:
                 # Unclassified bytes (a frame not yet complete) count once framing resolves them.
                 self._account.admitted(record.data, device, progress)
         record.note("pending", self._queues.pending())
-        record.note("packets", self._book.take())
+        note_packets(record.data, self._book, self.radio)
         return ingress
 
     def drained(self, record: TickRecord) -> None:
-        record.note("packets", self._book.take())
+        note_packets(record.data, self._book, self.radio)
 
     def park(self, parked: dict, egress: Mapping[str, bytes]) -> None:
         for index, devices in enumerate(self._sitls, start=1):
             for device in devices:
-                pieces = self._emit(sitl_origin(index), SITL_GENERATION, device, egress.get(device, b""))
+                pieces = self._emit(sitl_origin(index), SITL_GENERATION, device, egress.get(device, b""),
+                                    parked["tick"])
                 self._end_all(parked, device, FROM_SITL, pieces, "drain")
+        self.radio.settle(ports[1] for ports in self._sitls)  # a parked SITL transmits no more
         undelivered, leftovers = self._queues.park()
         self._account.park(leftovers)
         parked["undelivered"] = undelivered
-        parked["packets"] = self._book.take()
+        note_packets(parked, self._book, self.radio)
 
     def closing(self) -> dict[str, object]:
         unended = self._book.open_ids()
@@ -164,6 +174,10 @@ class RoutedPorts:
                             if not isinstance(origin, str)})
         counts: dict[str, object] = {"mavlink_counts": self.tally.totals(),
                                      "stream_bytes": self._account.summary()}
+        self.radio.settle()
+        radio = self.radio.take()
+        if radio:
+            counts["radio"] = radio
         held = {f"{origin}/{generation}/{device}": {"bytes": len(framer.held),
                                                      "sha256": sha256(framer.held)}
                 for (origin, generation, device), framer in self._framers.items() if framer.held}
@@ -177,11 +191,24 @@ class RoutedPorts:
             framer = self._framers[(origin, generation, device)] = RouterFramer(self._table)
         return framer
 
-    def _emit(self, origin: Hashable, generation: int, device: str, data: bytes) -> list[Piece]:
-        return [(None if segment.packet is None
-                 else self._book.emit(origin, generation, device, segment),
-                 segment.data, segment.packet, segment.start)
-                for segment in self._framer(origin, generation, device).feed(data)]
+    def _emit(self, origin: Hashable, generation: int, device: str, data: bytes,
+              tick: int | None = None) -> list[Piece]:
+        """Frame and emit a stream's next bytes; a radio's (``tick``: when sent) lose some first."""
+        key = (origin, generation, device)
+        lossy = self.radio.lossy(device)
+        if lossy:
+            assert tick is not None, f"radio bytes on {device} need their tick"
+            data = self.radio.transmit(key, tick, data)
+        framer = self._framer(*key)
+        pieces: list[Piece] = [(None if segment.packet is None
+                                else self._book.emit(origin, generation, device, segment),
+                                segment.data, segment.packet, segment.start)
+                               for segment in framer.feed(data)]
+        if lossy:
+            self.radio.observe(key, [(packet_id, start, len(piece))
+                                      for packet_id, piece, _packet, start in pieces
+                                      if packet_id is not None], framer.held_start)
+        return pieces
 
     def _queue_stream(self, record: TickRecord, stream: tuple[int, int], device: str,
                       data: bytes, drain_tick: int | None) -> None:
@@ -211,7 +238,7 @@ class RoutedPorts:
                 device = self._endpoint_device[destination]
                 copy = self._book.copy(packet_id, device)
                 self.tally.count(record.data, self._link(device), ROUTED_OUT, [packet_key(packet)])
-                if device == self._router_device:
+                if device == self._endpoint_device[BACKEND_ENDPOINT]:
                     self._ledger.add_whole(device, copy, piece)
                 else:
                     queue = self._queues[device]
@@ -233,7 +260,14 @@ class RoutedPorts:
         self.tally.count(record, link, direction, keys, skipped)
 
     def _link(self, device: str) -> str:
-        return ROUTER_LINK if device == self._router_device else device
+        return ROUTER_LINK if device == self._endpoint_device[BACKEND_ENDPOINT] else device
+
+
+def note_packets(record: dict, book: PacketBook, radio: RadioLinks) -> None:
+    """A record's packet events, and its radio evidence while the radio loses bytes."""
+    record["packets"] = book.take()
+    if radio.rate:
+        record["radio"] = radio.take()
 
 
 def no_receiver_reason(members: Sequence[Member], device: str) -> str:
@@ -242,5 +276,5 @@ def no_receiver_reason(members: Sequence[Member], device: str) -> str:
     return "retired" if owners and not owners[-1].live else "unadmitted"
 
 
-__all__ = ["BACKEND_ENDPOINT", "RoutedPorts", "SITL_GENERATION", "no_receiver_reason",
+__all__ = ["BACKEND_ENDPOINT", "RoutedPorts", "SITL_GENERATION", "no_receiver_reason", "note_packets",
            "router_endpoints"]

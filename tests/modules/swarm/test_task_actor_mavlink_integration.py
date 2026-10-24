@@ -1,6 +1,7 @@
 """In-memory MAVLink regression for the three-UAV task auction."""
 
 import threading
+import time
 from collections import deque
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -168,7 +169,7 @@ def test_owner_dispatches_exact_second_and_third_pois_to_distinct_peers():
             actor.reset()
 
 
-def _three_uav_swarm(bus, owner_loc, peer_2_loc, peer_3_loc):
+def _three_uav_swarm(bus, owner_loc, peer_2_loc, peer_3_loc, monotonic_s=time.monotonic):
     vehicles = [
         _Vehicle(1, owner_loc, bus),
         _Vehicle(2, peer_2_loc, bus),
@@ -178,7 +179,7 @@ def _three_uav_swarm(bus, owner_loc, peer_2_loc, peer_3_loc):
     for vehicle in vehicles:
         logger = MagicMock()
         network = NetworkMavlink(vehicle.source_system, vehicle, logger)
-        actor = TaskActor(vehicle, network, logger)
+        actor = TaskActor(vehicle, network, logger, monotonic_s=monotonic_s)
         actor.start()
         network.set_listener(actor)
         bus.networks.append(network)
@@ -247,8 +248,7 @@ def test_lost_assign_response_is_recovered_by_the_next_response_copy():
             assert _waiting(actors, 2) == {2}
             assert _holders(actors, 2) == set()
 
-            # The owner's acked request slot sends nothing; the peer's
-            # next response copy confirms.
+            # The next request copy and response copy confirm.
             timers.fire_pending()
             bus.drain()
 
@@ -268,7 +268,7 @@ def test_peer_stranded_by_lost_responses_releases_task_before_reassignment():
     bus = _MavlinkBus()
     timers = FakeTimers()
     vehicles, actors = _three_uav_swarm(
-        bus, owner_loc, poi, Location(40.2974053, 44.4329561, 1339.7),
+        bus, owner_loc, poi, Location(40.2974053, 44.4329561, 1339.7), timers,
     )
     bus.drop = lambda sender_id, mav_msg: _is_assign_response_from(
         sender_id, mav_msg, 2,

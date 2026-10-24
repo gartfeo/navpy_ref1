@@ -163,10 +163,13 @@ class TaskParticipationCoordinator:
         if sender is None:
             return
         with self._lock:
-            if self._replies.on_reject_ack(acked, ack.status):
+            if self._replies.on_reject_ack(acked, ack.status, sender.sender_id):
                 return
             kind, held = self._selection.on_ack(acked, ack.status, sender)
             if kind is AckKind.NONE:
+                return
+            if kind is AckKind.PROGRESS:
+                self._replies.accept_progress(held.token)
                 return
             self._replies.stop_accept()
             if kind is AckKind.ASSIGNED:

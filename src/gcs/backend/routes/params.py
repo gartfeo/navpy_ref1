@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -11,32 +10,21 @@ from fastapi import APIRouter, HTTPException
 from gcs.backend.vehicle_manager import vehicle_mgr
 from gcs.backend.aas_params import AAS_PARAM_MAP, AAS_BOOL_FIELDS, AAS_INT_FIELDS
 from gcs.backend.full_params import full_param_cache
-from navpy.core.kernel import runtime_time as rt
+from gcs.backend.exchange_budget import GCS_EXCHANGE_ATTEMPTS, requested_policy
 from navpy.core.ports.parameter_exchange import ExchangePolicy, ParameterExchange
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-#: Sends per parameter exchange (``docs/design/radio_budget.md``, todo 103): a
-#: provisional budget from an estimated 44 % per-attempt failure at the
-#: ``stress`` byte loss, 0.44^12 < 1e-4 if attempts are independent.
-GCS_PARAM_ATTEMPTS = 12
+#: Sends per parameter exchange (``docs/design/radio_budget.md``, todo 103).
+GCS_PARAM_ATTEMPTS = GCS_EXCHANGE_ATTEMPTS
 #: A request's server budget when it names none: callers keep their HTTP
 #: timeout above it. Lockstep counts it in sim time.
 DEFAULT_PARAM_REQUEST_S = 55.0
 
 
 def _policy(timeout_s: object) -> ExchangePolicy:
-    raw = DEFAULT_PARAM_REQUEST_S if timeout_s is None else timeout_s
-    try:
-        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
-            raise TypeError(raw)
-        budget = float(raw)  # an oversized JSON integer overflows here
-    except (TypeError, OverflowError):
-        budget = math.nan
-    if not math.isfinite(budget) or budget <= 0:
-        raise HTTPException(status_code=400, detail="timeout_s must be a finite positive number")
-    return ExchangePolicy(GCS_PARAM_ATTEMPTS, rt.monotonic() + budget, stop_on_silence=True)
+    return requested_policy(timeout_s, DEFAULT_PARAM_REQUEST_S)
 
 
 def _result(exchange: ParameterExchange) -> bool | dict[str, Any]:

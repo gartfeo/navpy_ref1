@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
-from navpy.core.ports.parameter_exchange import ExchangePolicy, ExchangeReason, ParameterExchange
+from navpy.core.ports.parameter_exchange import ExchangePolicy, ExchangeReason, ParameterExchange, with_cancel
 from navpy.core.ports.vehicle_control_interfaces import PARAM_PROTOCOL_ATTEMPTS
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
@@ -28,13 +29,16 @@ class ParameterReader:
         messages: MessageStore,
         logger_ref: LoggerRef,
         link: HeartbeatState,
+        cancelled: Callable[[], bool] | None = None,
     ) -> None:
+        """``cancelled`` ends every read once true: a NavPy stop (todo 105)."""
         self._identity = identity
         self._transport = transport
         self._repository = repository
         self._messages = messages
         self._logger_ref = logger_ref
         self._link = link
+        self._cancelled = cancelled
 
     def get(
         self,
@@ -75,7 +79,7 @@ class ParameterReader:
         missing."""
         normalized = name.upper()
         exchange, _sample = run_exchange(
-            policy,
+            with_cancel(policy, self._cancelled),
             self._link,
             self._messages,
             ExchangeIo(
@@ -88,7 +92,12 @@ class ParameterReader:
                         -1,
                     )
                 ),
-                lambda message: self._matches(message, normalized),
+                lambda cursor, deadline: self._messages.wait_after(
+                    "PARAM_VALUE",
+                    cursor,
+                    lambda message: self._matches(message, normalized),
+                    deadline=deadline,
+                ),
             ),
             timeout,
             log=None if quiet else lambda line: self._logger_ref.value.info(line, "param"),

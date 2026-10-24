@@ -33,7 +33,7 @@ class TestProbeExistingMissionProgress(unittest.TestCase):
     def test_progress_updates_during_download_and_clears_after(self):
         captured = []
 
-        def fake_validate(vehicle, sys_id, on_progress=None):
+        def fake_validate(vehicle, sys_id, on_progress=None, policy=None):
             for i in range(1, 4):
                 if on_progress:
                     on_progress(i, 3)
@@ -63,7 +63,7 @@ class TestProbeExistingMissionProgress(unittest.TestCase):
         None."""
         other = [2, 9]  # a value "another writer" published
 
-        def fake_validate(vehicle, sys_id, on_progress=None):
+        def fake_validate(vehicle, sys_id, on_progress=None, policy=None):
             on_progress(1, 3)  # we publish our progress
             self.entry.mission_download_progress = other  # someone else takes over
             return (
@@ -78,7 +78,7 @@ class TestProbeExistingMissionProgress(unittest.TestCase):
         self.assertEqual(self.entry.mission_download_progress, other)
 
     def test_progress_cleared_even_on_failed_probe(self):
-        def fake_validate(vehicle, sys_id, on_progress=None):
+        def fake_validate(vehicle, sys_id, on_progress=None, policy=None):
             if on_progress:
                 on_progress(1, 5)
             raise RuntimeError("download boom")
@@ -124,8 +124,6 @@ class TestMavMissionDownloadProgress(unittest.TestCase):
         )
         progress_calls = []
         result = downloader.download(
-            timeout=1.0,
-            retries=1,
             on_progress=lambda current, total: progress_calls.append(
                 (current, total)
             ),

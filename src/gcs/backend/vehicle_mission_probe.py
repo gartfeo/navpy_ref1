@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from gcs.backend.vehicle_entry import VehicleEntry
 
 log = logging.getLogger("gcs.backend.vehicle_manager")
+#: A connect or launch probe's server budget, as ``GET /mission``'s default
+#: (``docs/design/radio_budget.md``, todo 105).
+MISSION_PROBE_REQUEST_S = 85.0
 
 
 def _probe_mission_async(manager: VehicleManager, entry: "VehicleEntry") -> None:
@@ -86,6 +89,7 @@ def probe_existing_mission(
     lands stale mission state on a live entry.
     """
     from gcs.backend.mission_validator import validate_vehicle_mission, MissionProbe
+    from gcs.backend.exchange_budget import gcs_policy
     entry = manager.get_vehicle(sys_id)
     if not entry or (expected is not None and entry is not expected):
         return MissionProbe(valid=False)
@@ -102,7 +106,10 @@ def probe_existing_mission(
         entry.mission_download_progress = p
 
     try:
-        probe, cached = validate_vehicle_mission(entry.vehicle, sys_id, on_progress=_progress)
+        probe, cached = validate_vehicle_mission(
+            entry.vehicle, sys_id, on_progress=_progress,
+            policy=gcs_policy(MISSION_PROBE_REQUEST_S),
+        )
     finally:
         if entry.mission_download_progress is _last[0]:
             entry.mission_download_progress = None
