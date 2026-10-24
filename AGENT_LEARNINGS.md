@@ -1295,3 +1295,15 @@
 - On a busy host the first boot hangs System UI (ANR) and the Vite dev page
   takes about a minute to leave its splash. Wait for state, not for a fixed
   time.
+
+## Media runtime check, HITL step 7 (2026-10-24)
+
+- Read this file before the first test run and Codex call. I repeated two recorded mistakes: Git Bash POSIX
+  PYTHONPATH (imports came from the shared checkout; see "ZR10 SIYI emulator") and Codex's read-only shell failing
+  to start (see "Codex's read-only shell"); both cost a round.
+- Official GStreamer 1.26.x Windows installers ship PyGObject for one Python only (`_gi.cp313-win_amd64.pyd`, per a
+  GStreamer maintainer); navpy's venv is 3.11. Match `gi\_gi*.pyd` against `importlib.machinery.EXTENSION_SUFFIXES`
+  before assuming a venv can import the bindings.
+- A probe that must run from a separate Python without navpy's dependencies still meets the 300-line module guard
+  by splitting into sibling stdlib-only modules and running `python -E -s -m tools.hitl.<name>` from the repository
+  root. `-I` implies `-P`, which drops the root from sys.path, so package imports fail under it.
