@@ -26,10 +26,12 @@ Implementation notes:
   the APPLIED's ref) orders it; a round without one ends by advert, reject
   or APPLIED. Available tasks are keyed `${owner}:${task}` like rounds. A
   helper's confirm carries its own POI id, not the owner's task id, so
-  confirm events are matched by UAV, to its helper slot: a request raises
-  the slot to confirming and records the round (POI id, round uid), and
-  only an answer for that round raises it to confirmed or, denied, drops
-  it. A later request re-points a slot not yet confirmed. A WAITING round
+  confirm events are matched by UAV, to its helper slot: a request from
+  the helper's boot after its "doing" raises the slot to confirming and
+  records the round (POI id, round uid), and only an answer naming that
+  round raises it to confirmed or, denied, drops it. A later request
+  re-points a slot not yet confirmed; a round without a uid never counts.
+  A WAITING round
   is never raised: before APPLIED the GCS cannot tell the task's round from
   an own-POI round, so a confirm heard before APPLIED leaves the task
   ASSIGNED (todo 88) (fixed 2026-10-25; before, the card never showed

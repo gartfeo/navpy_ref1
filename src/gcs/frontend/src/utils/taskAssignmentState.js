@@ -17,10 +17,12 @@
  * its POIs itself, so a helper confirms the owner's task 2 as its POI 1. They
  * are matched by UAV, to that UAV's helper slot, which records the round (POI
  * id, round uid) the GCS heard the UAV ask while it held the task
- * (CONFIRMING). Only an answer for that round moves the slot; an answer for
- * another (an own-POI round asked before the assignment, a later round at its
- * home dock, a stale page's decision) does not. A round the GCS heard before
- * it heard the owner's APPLIED is never counted: it may be an own-POI round.
+ * (CONFIRMING). The round must come from the helper's boot after its "doing";
+ * only an answer naming that round moves the slot. Anything else (an own-POI
+ * round asked before the assignment, a restarted helper's round, a later
+ * round at its home dock, a stale page's decision, a round without a uid) does
+ * not. A round the GCS heard before it heard the owner's APPLIED is never
+ * counted either: it may be an own-POI round.
  *
  * Every function returns the same state reference when nothing changes.
  */
@@ -89,17 +91,15 @@ function dropAvailable(state, keys) {
   return { ...state, availableTasks };
 }
 
-// The round a UAV asked while it held the task: its own POI id and the round
-// uid (null from a sender without one).
-function askedRound(data) {
-  return { taskId: data.task_id, roundUid: data.round_uid ?? null };
+// A round uid as the backend publishes it, `${boot}:${seq}`
+// (gcs/backend/task_confirm_uid.py); null for "legacy" or none.
+function parseRoundUid(roundUid) {
+  const match = /^(\d+):(\d+)$/.exec(roundUid ?? '');
+  return match ? { boot_id: Number(match[1]), msg_seq: Number(match[2]) } : null;
 }
 
-// An answer is for the asked round as a confirm card decides it
-// (taskConfirmationState.js): same POI id, and same round uid when both have one.
 function answersRound(asked, data) {
-  return !!asked && asked.taskId === data.task_id
-    && (asked.roundUid == null || data.round_uid == null || asked.roundUid === data.round_uid);
+  return !!asked && asked.taskId === data.task_id && asked.roundUid === data.round_uid;
 }
 
 // The helper slot a confirm answer applies to, if any.
@@ -193,14 +193,17 @@ export function assignAck(state, data) {
   if (!round || round.receiverId !== data.helper_id) return state;
   const key = helperKey(data.helper_id);
   const slot = state.assignments[key];
+  const doingUid = isNewer(data.ref, round.doingUid) ? data.ref : round.doingUid;
   let status = higher(round.status, ASSIGNMENT_STATUS.ASSIGNED);
   let kept = {};
+  // The same assignment applied again to the same helper boot keeps how far
+  // its confirmation got; a restarted helper confirms afresh.
   if (slot && slot.senderId === round.senderId && slot.taskId === round.taskId
-      && slot.requestUid?.boot_id === round.requestUid?.boot_id) {
+      && slot.requestUid?.boot_id === round.requestUid?.boot_id
+      && slot.doingUid?.boot_id === doingUid?.boot_id) {
     status = higher(status, slot.status);
     if (slot.confirm) kept = { confirm: slot.confirm };
   }
-  const doingUid = isNewer(data.ref, round.doingUid) ? data.ref : round.doingUid;
   const assignments = { ...state.assignments };
   delete assignments[round.key];
   assignments[key] = { ...round, key, status, doingUid, ...kept };
@@ -223,10 +226,13 @@ export function swarmHeartbeat(state, data) {
 export function taskConfirming(state, data) {
   const slot = state.assignments[helperKey(data.sys_id)];
   if (!slot || slot.status === ASSIGNMENT_STATUS.CONFIRMED) return state;
-  const confirm = askedRound(data);
-  if (slot.status === ASSIGNMENT_STATUS.CONFIRMING && slot.confirm.taskId === confirm.taskId
-      && slot.confirm.roundUid === confirm.roundUid) return state;
-  return withAssignment(state, { ...slot, status: ASSIGNMENT_STATUS.CONFIRMING, confirm });
+  if (!follows(parseRoundUid(data.round_uid), slot.doingUid)) return state;
+  if (answersRound(slot.confirm, data)) return state;
+  return withAssignment(state, {
+    ...slot,
+    status: ASSIGNMENT_STATUS.CONFIRMING,
+    confirm: { taskId: data.task_id, roundUid: data.round_uid },
+  });
 }
 
 export function taskConfirmed(state, data) {

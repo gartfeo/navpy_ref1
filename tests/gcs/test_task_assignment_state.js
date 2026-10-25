@@ -147,9 +147,9 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   // ---- copies never lower a rank ----
   assert.strictEqual(reduce(assigned, request(OWNER, HELPER, 5, 20)), assigned,
     'a late step-3 copy does not reopen an assigned task');
-  r = reduce(confirming, onTask('task_confirmed', HELPER, 1));
+  r = reduce(confirming, onTask('task_confirmed', HELPER, 1, '3:50'));
   assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMED);
-  assert.strictEqual(reduce(r, onTask('task_confirming', HELPER, 1)), r);
+  assert.strictEqual(reduce(r, onTask('task_confirming', HELPER, 1, '3:55')), r);
   s = run([request(OWNER, HELPER, 5, 22), applied(OWNER, HELPER, 5, 40)], confirming);
   assert.strictEqual(s.assignments['helper:2'].status, S.CONFIRMING,
     'a later step 3 and APPLIED keep the slot rank');
@@ -181,17 +181,17 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   assert.strictEqual(reduce(s, beat(HELPER, 'FREE', 99)), s, 'no doing: cannot be ordered');
   assert.ok(!('helper:2' in reduce(assigned, beat(HELPER, 'FREE', 41)).assignments),
     'nav ended the assigned task');
-  r = reduce(confirming, onTask('task_confirmed', HELPER, 1));
+  r = reduce(confirming, onTask('task_confirmed', HELPER, 1, '3:50'));
   assert.strictEqual(reduce(r, beat(HELPER, 'FREE', 41)), r, 'confirmed stays');
 
   // ---- confirm events are matched by UAV, to its helper slot ----
   // Delivery demo 2026-10-25: owner 1 assigned its task 2 to UAV 2, which
   // confirmed it as its own POI 1.
   s = run([request(OWNER, HELPER, 2, 8), doing(HELPER, OWNER, 2, 7), applied(OWNER, HELPER, 2, 7)]);
-  r = run([onTask('task_confirming', HELPER, 1), onTask('task_confirmed', HELPER, 1)], s);
+  r = run([onTask('task_confirming', HELPER, 1, '3:20'), onTask('task_confirmed', HELPER, 1, '3:20')], s);
   assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMED, 'own POI id, the owner task');
   s = run([request(OTHER, 4, 5, 20), doing(4, OTHER, 5, 40), applied(OTHER, 4, 5, 40)], assigned);
-  r = reduce(s, onTask('task_confirming', HELPER, 5));
+  r = reduce(s, onTask('task_confirming', HELPER, 5, '3:50'));
   assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMING);
   assert.strictEqual(r.assignments['helper:4'].status, S.ASSIGNED, 'same task id, other helper');
   assert.strictEqual(reduce(assigned, onTask('task_confirming', OTHER, 5)), assigned, 'no slot');
@@ -216,8 +216,24 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
     confirming.assignments, 'a deny for another POI');
   assert.strictEqual(reduce(confirming, onTask('task_confirmed', HELPER, 1, '3:45')), confirming,
     'an answer for an earlier round of the same POI');
-  assert.strictEqual(reduce(confirming, onTask('task_confirmed', HELPER, 1))
-    .assignments['helper:2'].status, S.CONFIRMED, 'an answer without a round uid: POI id alone');
+  assert.strictEqual(reduce(confirming, onTask('task_confirmed', HELPER, 1)), confirming,
+    'an answer without a round uid cannot name the round');
+  assert.strictEqual(reduce(confirming, onTask('task_resolved', HELPER, 1)).assignments,
+    confirming.assignments, 'nor can a deny without one');
+  for (const [roundUid, why] of [
+    ['4:20', 'a restarted helper asks about its own POI'],
+    ['3:30', 'a round asked before its doing'],
+    ['legacy', 'a round without metadata'],
+    [undefined, 'a round without a uid'],
+  ]) {
+    assert.strictEqual(reduce(assigned, onTask('task_confirming', HELPER, 1, roundUid)), assigned, why);
+    assert.strictEqual(reduce(confirming, onTask('task_confirming', HELPER, 2, roundUid)), confirming, why);
+  }
+  r = run([request(OWNER, HELPER, 5, 22), applied(OWNER, HELPER, 5, 10, 4)], confirming);
+  assert.strictEqual(r.assignments['helper:2'].status, S.ASSIGNED,
+    'the task applied again to a restarted helper is confirmed afresh');
+  assert.strictEqual(reduce(r, onTask('task_resolved', HELPER, 1, '3:50')).assignments, r.assignments,
+    'the old boot round answers nothing');
   r = run([onTask('task_confirming', HELPER, 2, '3:55'), onTask('task_confirmed', HELPER, 1, '3:50')],
     confirming);
   assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMING, 'a later round re-points the slot');
