@@ -94,13 +94,16 @@ class VehicleFtp:
             progress_callback_bytes=progress_callback,
         )
         result = self.ftp.process_ftp_reply("OpenFileRO", timeout=timeout)
+        # The callback gets the file only when the read completed. The
+        # result is the status of the last packet processed, which can be
+        # a late reply discarded after completion.
+        if "data" in captured:
+            return captured["data"]
         if result.error_code != 0:
             raise RuntimeError(
                 f"MAVFTP get {path} failed: {result.operation_name} "
                 f"error={result.error_code}"
             )
-        if "data" not in captured:
-            raise RuntimeError(
-                f"MAVFTP get {path} completed but no data was captured."
-            )
-        return captured["data"]
+        raise RuntimeError(
+            f"MAVFTP get {path} completed but no data was captured."
+        )
