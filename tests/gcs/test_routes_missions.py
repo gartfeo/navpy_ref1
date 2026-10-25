@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from pymavlink.dialects.v20.ardupilotmega import (
     MAV_CMD_NAV_LOITER_UNLIM, MAV_CMD_NAV_WAYPOINT, MAV_CMD_NAV_TAKEOFF,
 )
+from navpy.core.ports.mission_download import MissionDownload, MissionDownloadOutcome
 from gcs.backend.planner.waypoint_builder import (
     CORRIDOR_END_MARKER, META_POLYGON_VERTEX, META_CORRIDOR_VERTEX,
     META_LAUNCH_POINT, META_DEFAULT_DELIVERY_HUB, encode_meta_z, encode_location_type_into_z,
@@ -28,6 +29,10 @@ def _make_wp(command, lat=0.0, lon=0.0, alt=0.0, param1=0.0, param2=0.0, param3=
     return wp
 
 
+def _complete(count: int) -> MissionDownload:
+    return MissionDownload(MissionDownloadOutcome.COMPLETE, count)
+
+
 def _make_location(lat, lon, alt):
     """Create a mock Location."""
     loc = MagicMock()
@@ -42,6 +47,8 @@ def mock_vehicle():
     """Create a mock VehicleMav with mission download support."""
     vehicle = MagicMock()
     vehicle.download_mission = MagicMock(return_value=0)
+    vehicle.download_mission_outcome = MagicMock(
+        return_value=MissionDownload(MissionDownloadOutcome.FAILED))
     vehicle.upload_mission = MagicMock(return_value=True)
     vehicle.clear_mission = MagicMock()
     vehicle.load_mission_items = MagicMock()
@@ -78,10 +85,28 @@ class TestDownloadMission:
             resp = c.get("/api/vehicles/99/mission")
             assert resp.status_code == 404
 
-    def test_empty_mission(self, client, mock_vehicle):
-        mock_vehicle.download_mission.return_value = 0
+    def test_empty_mission_is_200_with_no_waypoints_and_not_cached(
+            self, client, mock_entry, mock_vehicle):
+        """A confirmed empty table is a normal answer, not a download failure."""
+        mock_vehicle.download_mission_outcome.return_value = MissionDownload(
+            MissionDownloadOutcome.EMPTY)
+        resp = client.get("/api/vehicles/1/mission")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["sys_id"] == 1
+        assert data["mission_count"] == 0
+        assert data["waypoints"] == []
+        assert mock_entry.cached_mission is None
+        # Not cached: the next GET asks the vehicle again.
+        assert client.get("/api/vehicles/1/mission").status_code == 200
+        assert mock_vehicle.download_mission_outcome.call_count == 2
+
+    def test_failed_download_is_404(self, client, mock_vehicle):
+        mock_vehicle.download_mission_outcome.return_value = MissionDownload(
+            MissionDownloadOutcome.FAILED)
         resp = client.get("/api/vehicles/1/mission")
         assert resp.status_code == 404
+        assert resp.json()["detail"] == "Mission download failed"
 
     def test_simple_mission_download(self, client, mock_vehicle):
         """Download a mission with home + takeoff + 2 nav waypoints."""
@@ -91,7 +116,7 @@ class TestDownloadMission:
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=32.001, lon=34.001), # wp 1
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=32.002, lon=34.002), # wp 2
         ]
-        mock_vehicle.download_mission.return_value = len(items)
+        mock_vehicle.download_mission_outcome.return_value = _complete(len(items))
         mock_vehicle.get_mission_item = MagicMock(side_effect=lambda i: items[i])
         mock_vehicle.get_mission_item_location = MagicMock(
             side_effect=lambda i: _make_location(
@@ -126,7 +151,7 @@ class TestDownloadMission:
             _make_wp(MAV_CMD_NAV_LOITER_UNLIM, lat=39.0, lon=43.0),
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=32.002, lon=34.002),
         ]
-        mock_vehicle.download_mission.return_value = len(items)
+        mock_vehicle.download_mission_outcome.return_value = _complete(len(items))
         mock_vehicle.get_mission_item = MagicMock(side_effect=lambda index: items[index])
         mock_vehicle.get_mission_item_location = MagicMock(
             side_effect=lambda index: _make_location(
@@ -160,7 +185,7 @@ class TestDownloadMission:
         ]
         # Corridor approach at 200m, scanning at 120m
         altitudes = {2: 200.0, 3: 200.0, 4: 120.0, 5: 120.0}
-        mock_vehicle.download_mission.return_value = len(items)
+        mock_vehicle.download_mission_outcome.return_value = _complete(len(items))
         mock_vehicle.get_mission_item = MagicMock(side_effect=lambda i: items[i])
         mock_vehicle.get_mission_item_location = MagicMock(
             side_effect=lambda i: _make_location(
@@ -198,7 +223,7 @@ class TestDownloadMission:
             # track wp
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=32.003, lon=34.003),
         ]
-        mock_vehicle.download_mission.return_value = len(items)
+        mock_vehicle.download_mission_outcome.return_value = _complete(len(items))
         mock_vehicle.get_mission_item = MagicMock(side_effect=lambda i: items[i])
         mock_vehicle.get_mission_item_location = MagicMock(
             side_effect=lambda i: _make_location(
@@ -234,7 +259,7 @@ class TestDownloadMission:
             # trailing NAV_WAYPOINT duplicating default_delivery_hub coords
             _make_wp(MAV_CMD_NAV_WAYPOINT, lat=poi_lat, lon=poi_lon),
         ]
-        mock_vehicle.download_mission.return_value = len(items)
+        mock_vehicle.download_mission_outcome.return_value = _complete(len(items))
         mock_vehicle.get_mission_item = MagicMock(side_effect=lambda i: items[i])
         mock_vehicle.get_mission_item_location = MagicMock(
             side_effect=lambda i: _make_location(
@@ -272,7 +297,7 @@ class TestDownloadMissionCacheReuse:
         resp = client.get("/api/vehicles/1/mission")
         assert resp.status_code == 200
         assert resp.json() == cached
-        mock_vehicle.download_mission.assert_not_called()
+        mock_vehicle.download_mission_outcome.assert_not_called()
 
     def test_reuses_cache_populated_while_waiting_for_lock(self, client, mock_entry, mock_vehicle):
         """Outer pre-lock check sees no cache, but the probe finishes + caches
@@ -293,7 +318,7 @@ class TestDownloadMissionCacheReuse:
         resp = client.get("/api/vehicles/1/mission")
         assert resp.status_code == 200
         assert resp.json() == cached
-        mock_vehicle.download_mission.assert_not_called()
+        mock_vehicle.download_mission_outcome.assert_not_called()
 
 
 class TestDownloadFence:

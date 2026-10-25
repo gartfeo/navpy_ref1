@@ -15,9 +15,10 @@ beforeEach(() => {
 });
 
 it('flies to a closest-approach mark in monitor mode', () => {
-  pickEntity.mockReturnValue({ type: 'closestApproach', key: 'b:1:1', view });
+  const entity = { id: 'mark' };
+  pickEntity.mockReturnValue({ type: 'closestApproach', key: 'b:1:1', view, entity });
   handleClick('Cesium', 'viewer', click, { current: { editable: false } });
-  expect(flyToClosestApproach).toHaveBeenCalledExactlyOnceWith('Cesium', 'viewer', view);
+  expect(flyToClosestApproach).toHaveBeenCalledExactlyOnceWith('Cesium', 'viewer', view, entity);
 });
 
 it('does nothing for another entity outside drawing', () => {

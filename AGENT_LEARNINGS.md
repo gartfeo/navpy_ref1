@@ -1392,6 +1392,40 @@
 - A mutation killed by a NameError proves nothing; make sure the killing test fails on the behaviour.
 - A broad test subset is not full pytest: a demo test outside my subset still expected 640x480.
 
+## Sim closest-approach marks v6 (2026-10-25)
+
+- A height shown on the Cesium map needs its datum checked against the terrain provider. The
+  record's heights are over home; drawn as ellipsoid heights they sat 1.3 km under Ion terrain,
+  and the fly-to camera was lifted to the ground. Anchor such heights to a ground the map
+  already shows (the dock icon), and test the redraw when terrain arrives later.
+- An outcome that depends on which thread latched first needs evidence that cannot be lost
+  between samples. "Still closing" judged on the last sample hid near misses; per-segment pass
+  evidence in the dock frame, cut at NAV's own latch, kept them.
+- I repeated the heredoc-with-apostrophe mistake (2026-10-16 entry above) twice in this task.
+  Before any Bash heredoc, scan the body for an apostrophe; any JavaScript body has one.
+- python -I ignores PYTHONIOENCODING; a script that prints vitest output needs
+  sys.stdout.reconfigure(encoding="utf-8").
+- A mutation script that restores each file in a finally block let 12 frontend mutants run
+  in one call; check the restored text with grep afterwards.
+- Cesium camera.changed fires only after a move of percentageChanged (0.5) of the camera
+  height, so a "restore when above X m" watch on it ran hundreds of metres late over high
+  terrain. Watch scene.postRender, and make test fakes raise changed the way Cesium does.
+- The full suite, not my subset, caught the 300-line module guard; run tests/guards after
+  any file grows.
+
+## Mission download outcome: empty vehicle is not a failure (2026-10-25)
+- A count of 0 meant both "empty table" and "transfer failed". Return a typed outcome
+  (core/ports/mission_download.py) instead of overloading the count.
+- Guards to check before adding API: MavMission sits at the 15-method cap, IVehicle is
+  now at 15, and routes/missions.py is exactly 300 lines. I changed MavMission.download's
+  return type instead of adding a method, and a new IVehicle capability gets a default
+  that raises NotImplementedError (the legacy abstract-set test pins the abstract list).
+- In a worktree-isolated agent, Bash refuses `PYTHONPATH=... python`; run pytest from
+  PowerShell with `$env:PYTHONPATH` set to the worktree's Windows src path.
+- The node logic tests (tests/gcs/frontend/*_logic.js) load a util by stripping
+  `export`, not `import`: a util they load must not import other modules.
+- The stop test in test_mission_transfer.py failed once at 0.5004 s in a broad run and
+  passes alone; its measured window is ~0 s here and on main, so it is load timing.
 ## Delivery demo GCS fixes: plan button, helper confirm, dock label (2026-10-25)
 - A helper confirms the owner's task under its own POI id (`PoiTaskIdAllocator`), so any GCS
   match of confirm traffic against swarm task ids silently misses. Match by UAV (the helper slot);

@@ -5,6 +5,7 @@ import { inputStyle } from './SettingsField.jsx';
 import { PARAM_SECTIONS, SIM_PARAM_SECTIONS, CONFIRMATION_PARAM_SECTION } from './paramSections.js';
 import WaypointEditorOverlay from './WaypointEditorOverlay.jsx';
 import BitmaskInput from './BitmaskInput.jsx';
+import { applyMissionAnswers } from '../../utils/missionAssembly';
 
 export default function AasTab({ vehicleList, onOpenConnect, onClose, vehicleMissions, setVehicleMissions, simMode, onVehicleTargWpsChange, onVehicleNavLastWpChange, preSaveRef, preResetRef, aasParams }) {
   const { t } = useTranslation();
@@ -84,12 +85,8 @@ export default function AasTab({ vehicleList, onOpenConnect, onClose, vehicleMis
         refreshVehicles(ids),
         Promise.all(ids.map((sid) => fetch(`/api/vehicles/${sid}/mission`).then((r) => r.ok ? r.json() : null).catch(() => null))),
       ]);
-      const newMissions = { ...vehicleMissions };
-      for (let i = 0; i < ids.length; i++) {
-        const md = missionResults[i];
-        if (md?.waypoints) newMissions[ids[i]] = md.waypoints;
-      }
-      setVehicleMissions(newMissions);
+      // An empty vehicle drops its entry; a failed download keeps it.
+      setVehicleMissions(applyMissionAnswers(vehicleMissions, vehicleMissions, ids, missionResults));
       setParamStatus({ key: 'vehicle.downloadedFrom', fallback: 'Downloaded from {{count}} UAV(s)', options: { count: ids.length } });
     } catch { setParamStatus({ key: 'vehicle.downloadError', fallback: 'Download error' }); }
   };
@@ -215,11 +212,8 @@ export default function AasTab({ vehicleList, onOpenConnect, onClose, vehicleMis
       const results = await Promise.all(
         vehicles.map((v) => fetch(`/api/vehicles/${v.sys_id}/mission`).then((r) => r.ok ? r.json() : null).catch(() => null)),
       );
-      const newMissions = {};
-      results.forEach((data, i) => {
-        if (data?.waypoints) newMissions[vehicles[i].sys_id] = data.waypoints;
-      });
-      setVehicleMissions(newMissions);
+      // Only the listed vehicles; an empty one has no entry, a failed one keeps its own.
+      setVehicleMissions(applyMissionAnswers({}, vehicleMissions, vehicles.map((v) => v.sys_id), results));
     } catch { /* ignore */ }
     setDlMissionStatus(false);
   };

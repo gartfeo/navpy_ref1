@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from navpy.sim.world.dock_contact_sensor import SIM_DOCK_NET_RADIUS_ENV, SIM_DOCK_NET_RADIUS_M
+from navpy.sim.world.dock_net_radius import SIM_DOCK_NET_RADIUS_ENV, SIM_DOCK_NET_RADIUS_M
 from navpy.sim.world.fleet_dock_world import FLEET_DOCKS_ENV
 from scripts.eval_gcs_demo_audit import validate_approval_records
 from scripts.eval_gcs_demo_config import build_environment, build_settings

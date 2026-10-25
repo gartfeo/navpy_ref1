@@ -7,23 +7,33 @@ accepted outcome. Display evidence only.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
+import threading
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from navpy.core.approach.dock_contact_episode import FinalApproachDockContact
+from navpy.core.approach.dock_contact_episode import (
+    FinalApproachDockContact,
+    with_dock_evidence_cut,
+)
 from navpy.core.approach.logs.navigation_snap_geometry import (
     calc_distance,
     closest_point_components_on_segment,
+)
+from navpy.core.approach.vision_nav.episode_latch import (
+    FinalApproachEpisodeLatch,
+    FinalApproachTerminal,
 )
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.ports.dock_contact import DockContactIdentity, DockEpisodeEnd
 from navpy.core.ports.subscription import Subscription
 from navpy.sim.world import closest_approach_record as record_module
+from navpy.sim.world.closest_approach_tracker import ClosestApproachTracker
 from navpy.sim.world.closest_approach_record import (
     NAVPY_SIM_CLOSEST_APPROACH_MARKER,
     OUTCOME_ABORTED,
@@ -53,6 +63,8 @@ HOME_AMSL = 60.0
 M_PER_DEG_LAT = 111_132.0
 M_PER_DEG_LON = 111_320.0 * math.cos(math.radians(LAT))
 IDENTITY = DockContactIdentity(vehicle=7, task_id=3, dock_uid=1, episode=4)
+# NAV's own failure after the dock left the image.
+FAILED = DockEpisodeEnd(failed=True, abort_reason="no_detection")
 DT = 0.025  # 40 Hz
 MAX_AGE_S = max_segment_s(POSE_STREAM_RATE_HZ)
 
@@ -109,8 +121,8 @@ def test_a_miss_reports_the_episode_minimum_once_at_disarm():
     _fly(sensor, _line(east_m=1.5, up_m=0.8))
     assert reports == [] and events == []  # nothing before the end
 
-    sensor.disarm(DockEpisodeEnd())
-    sensor.disarm(DockEpisodeEnd())  # once
+    sensor.disarm(FAILED)
+    sensor.disarm(FAILED)  # once
 
     [record] = reports
     assert record.outcome == OUTCOME_MISSED
@@ -190,20 +202,24 @@ def test_docked_reports_the_contact_segment_matching_the_docked_event():
     assert record.h_m == event.closest_h_m and record.v_m == event.closest_v_m
 
 
-def test_a_contact_the_lifecycle_rejected_reports_missed_with_the_episode_minimum():
-    """Contact comes before the closest point; tracking goes on after it."""
+@pytest.mark.parametrize(
+    "end, outcome", [(DockEpisodeEnd(), OUTCOME_ABORTED), (FAILED, OUTCOME_MISSED)],
+)
+def test_a_contact_the_lifecycle_rejected_reports_the_episode_minimum(end, outcome):
+    """Contact comes before the closest point; tracking goes on after it.
+    Nothing latched is aborted; NAV's failure after the pass is missed."""
     points = _line(east_m=0.2)
     sensor, reports, events = _sensor()
     _fly(sensor, points)
     [event] = events
-    sensor.disarm(DockEpisodeEnd())
+    sensor.disarm(end)
 
     locations = [_at(*point) for point in points]
     exact = min(
         closest_point_components_on_segment(a, b, _at(0.0)).slant
         for a, b in zip(locations, locations[1:])
     )
-    assert reports[0].outcome == OUTCOME_MISSED
+    assert reports[0].outcome == outcome
     assert reports[0].d3_m == pytest.approx(exact, abs=1e-9)
     assert event.closest_3d_m > exact + 0.05  # the contact segment was not the minimum
 
@@ -440,17 +456,17 @@ def test_an_accepted_contact_reports_docked_at_nav_exit():
     assert len(latched) == 1
 
 
-def test_a_refused_latch_reports_missed():
+def test_a_refused_latch_with_nothing_latched_reports_aborted():
     lifecycle, sensor, reports, _, _ = _lifecycle(latch=False)
     _fly(sensor, _line(east_m=0.2))
     assert lifecycle.disarm() is None
-    assert [r.outcome for r in reports] == [OUTCOME_MISSED]
+    assert [(r.outcome, r.reason) for r in reports] == [(OUTCOME_ABORTED, None)]
 
 
 @pytest.mark.parametrize("end", ["disarm", "rearm"])
-def test_a_contact_held_past_the_episode_end_is_missed_and_unlatched(end):
+def test_a_contact_held_past_the_episode_end_is_aborted_and_unlatched(end):
     """The sensor saw contact, but its callback reaches the lifecycle only
-    after NAV exit (or re-arm) detached the episode."""
+    after NAV exit (or re-arm) detached the episode: no terminal latched."""
     lifecycle, sensor, reports, latched, poi = _lifecycle()
     held = []
     sensor._on_docked = held.append  # hold the callback between the two locks
@@ -469,7 +485,7 @@ def test_a_contact_held_past_the_episode_end_is_missed_and_unlatched(end):
     lifecycle._on_docked(event)  # the held callback lands late
 
     assert latched == []
-    assert [r.outcome for r in reports] == [OUTCOME_MISSED]
+    assert [r.outcome for r in reports] == [OUTCOME_ABORTED]
     assert reports[0].episode == event.identity.episode
 
 
@@ -484,12 +500,26 @@ def test_an_episode_ended_while_still_closing_is_aborted_without_a_reason():
     assert record.d3_m == pytest.approx(math.hypot(4.5, 1.0), abs=0.01)
 
 
-def test_a_named_abort_reason_wins_over_the_path():
+def test_nav_failure_while_still_closing_is_aborted_with_its_reason():
+    sensor, reports, _ = _sensor()
+    _fly(sensor, _line(east_m=1.0, start=-12.0))
+    sensor.disarm(FAILED)
+    assert [(r.outcome, r.reason) for r in reports] == [(OUTCOME_ABORTED, "no_detection")]
+
+
+@pytest.mark.parametrize(
+    "end, expected",
+    [
+        (DockEpisodeEnd(abort_reason="cancelled"), (OUTCOME_ABORTED, "cancelled")),
+        (DockEpisodeEnd(), (OUTCOME_ABORTED, None)),
+        (DockEpisodeEnd(failed=True, abort_reason="source_command_stale"), (OUTCOME_MISSED, None)),
+    ],
+)
+def test_after_the_pass_only_navs_own_failure_is_missed(end, expected):
     sensor, reports, _ = _sensor()
     _fly(sensor, _line(east_m=1.5))  # passed the dock
-    sensor.disarm(DockEpisodeEnd(abort_reason="source_command_stale"))
-    [record] = reports
-    assert (record.outcome, record.reason) == (OUTCOME_ABORTED, "source_command_stale")
+    sensor.disarm(end)
+    assert [(r.outcome, r.reason) for r in reports] == [expected]
 
 
 def test_a_latched_miss_is_missed_even_while_closing():
@@ -562,5 +592,296 @@ def test_a_failing_ending_falls_back_and_never_breaks_nav_exit():
         lifecycle.arm(poi)
     _fly(sensor, _line(east_m=1.5))
     assert lifecycle.disarm() is None
-    assert [r.outcome for r in reports] == [OUTCOME_MISSED]
+    assert [r.outcome for r in reports] == [OUTCOME_ABORTED]
     logger.error.assert_called_once()
+
+
+# -- pass evidence (v6): the dock clearly ahead, then the range opening -------
+
+def _cut_after(sensor, points, count, *, t0=10.0):
+    """Fly the first ``count`` points, NAV ends the approach, fly the rest."""
+    _fly(sensor, points[:count], t0=t0)
+    sensor.end_evidence(IDENTITY)
+    _fly(sensor, points[count:], t0=t0 + count * DT)
+
+
+def test_a_near_miss_cut_one_sample_after_its_closest_point_is_missed():
+    sensor, reports, events = _sensor()
+    _cut_after(sensor, _line(east_m=0.72), 8)  # the closest point is in 6 -> 7
+    sensor.disarm(FAILED)
+    [record] = reports
+    assert events == []
+    assert (record.outcome, record.reason) == (OUTCOME_MISSED, None)
+    assert record.d3_m == pytest.approx(0.72, abs=0.01)
+
+
+def test_a_near_miss_cut_at_its_closest_sample_is_aborted():
+    """Later samples before the disarm pass the dock; they never count."""
+    sensor, reports, _ = _sensor()
+    _cut_after(sensor, _line(east_m=0.72, step=0.5, count=17), 9)  # ends at north 0
+    sensor.disarm(FAILED)
+    [record] = reports
+    assert (record.outcome, record.reason) == (OUTCOME_ABORTED, "no_detection")
+    assert record.d3_m == pytest.approx(0.72, abs=0.01)
+
+
+def test_the_minimum_stops_at_the_cut():
+    sensor, reports, _ = _sensor()
+    _cut_after(sensor, _line(east_m=1.0, start=-12.0, count=25), 10)  # cut at north -6.375
+    sensor.disarm(FAILED)
+    [record] = reports
+    assert record.outcome == OUTCOME_ABORTED
+    assert record.d3_m == pytest.approx(math.hypot(6.375, 1.0), abs=0.01)
+
+
+def test_a_cut_stored_before_the_next_sample_excludes_its_opening_and_minimum():
+    sensor, reports, _ = _sensor()
+    points = _line(east_m=0.72)
+    _fly(sensor, points[:7])  # still closing at north -0.25
+    sensor.end_evidence(IDENTITY)
+    # The next sample opens the range and holds the lower minimum.
+    sensor.sample(_s(10.0 + 7 * DT, _at(*points[7])))
+    # A late sample (older aircraft time) past the dock.
+    sensor.sample(_s(10.0 + 6.5 * DT, _at(1.0, 0.72)))
+    sensor.disarm(FAILED)
+    [record] = reports
+    assert (record.outcome, record.reason) == (OUTCOME_ABORTED, "no_detection")
+    assert record.d3_m == pytest.approx(math.hypot(0.25, 0.72), abs=0.01)
+
+
+def _store_cut_inside_sample(monkeypatch, sensor, index):
+    """NAV stores the cut while the sensor is inside its ``index``-th sample,
+    after that sample's ingress read."""
+    own_frame = sensor._own_frame
+    calls = itertools.count()
+
+    def frame(dock_uid):
+        if next(calls) == index:
+            sensor.end_evidence(IDENTITY)
+        return own_frame(dock_uid)
+
+    monkeypatch.setattr(sensor, "_own_frame", frame)
+
+
+@pytest.mark.parametrize(
+    "inside, outcome, d3_m",
+    [
+        (8, OUTCOME_MISSED, 0.72),  # 7 -> 8 holds the closest point and opens
+        (7, OUTCOME_ABORTED, math.hypot(0.125, 0.72)),  # 7 -> 8 is after the cut
+    ],
+)
+def test_a_sample_read_before_the_store_counts_and_the_next_does_not(
+    monkeypatch, inside, outcome, d3_m,
+):
+    sensor, reports, _ = _sensor()
+    _store_cut_inside_sample(monkeypatch, sensor, inside)
+    _fly(sensor, _line(east_m=0.72, start=-4.5))  # 7 at north -0.125, 8 at 0.5
+    sensor.disarm(FAILED)
+    [record] = reports
+    assert record.outcome == outcome
+    assert record.d3_m == pytest.approx(d3_m, abs=0.01)
+
+
+def test_a_cut_for_another_identity_is_ignored():
+    sensor, reports, _ = _sensor()
+    points = _line(east_m=0.72)
+    _fly(sensor, points[:5])
+    sensor.end_evidence(DockContactIdentity(vehicle=7, task_id=3, dock_uid=1, episode=3))
+    _fly(sensor, points[5:], t0=10.0 + 5 * DT)
+    sensor.disarm(FAILED)
+    assert [r.outcome for r in reports] == [OUTCOME_MISSED]
+
+
+def test_a_stale_cut_never_cuts_the_next_episode():
+    sensor, reports, _ = _sensor()
+    sensor.end_evidence(IDENTITY)
+    sensor.arm(DockContactIdentity(7, 3, 1, 5), lambda _event: None)
+    _fly(sensor, _line(east_m=0.72))
+    sensor.disarm(FAILED)
+    assert [(r.episode, r.outcome) for r in reports] == [(5, OUTCOME_MISSED)]
+
+
+def test_a_contact_after_the_cut_still_publishes_and_the_record_keeps_the_cut():
+    sensor, reports, events = _sensor()
+    _cut_after(sensor, _line(east_m=0.2), 5)  # cut at north -1.5, closing
+    assert len(events) == 1  # the lifecycle refuses it after FAILED
+    sensor.disarm(FAILED)
+    [record] = reports
+    assert record.outcome == OUTCOME_ABORTED
+    assert record.d3_m == pytest.approx(math.hypot(1.5, 0.2), abs=0.01)
+
+
+def _turn():
+    """A 100 m radius turn centred 316 m east of the dock at 30 m/s and
+    40 Hz: the dock nearly dead ahead at first, abeam at 216 m (sample 209.4)."""
+    step = 0.75 / 100.0
+    return [
+        (100.0 * math.sin(math.pi / 2 + i * step), 316.0 + 100.0 * math.cos(math.pi / 2 + i * step), 0.0)
+        for i in range(213)  # to 0.075 s after the closest point
+    ]
+
+
+def test_a_cancel_just_before_a_far_turns_closest_point_is_aborted():
+    """Codex design r3: evidence to the disarm would read missed 216 m."""
+    sensor, reports, _ = _sensor()
+    _fly(sensor, _turn())
+    sensor.disarm(DockEpisodeEnd(abort_reason="cancelled"))
+    [record] = reports
+    assert (record.outcome, record.reason) == (OUTCOME_ABORTED, "cancelled")
+    assert record.d3_m == pytest.approx(216.0, rel=0.005)  # the test's flat degrees
+
+
+def test_a_nav_fail_just_before_a_far_turns_closest_point_is_aborted():
+    sensor, reports, _ = _sensor()
+    _cut_after(sensor, _turn(), 208)  # 0.05 s before the closest point
+    sensor.disarm(FAILED)
+    assert [(r.outcome, r.reason) for r in reports] == [(OUTCOME_ABORTED, "no_detection")]
+
+
+def test_an_abeam_orbit_dip_then_an_inbound_leg_cut_while_closing_is_aborted():
+    """The orbit sets the minimum and its range opens, but the dock was
+    never ahead; the inbound leg had it ahead but never opened."""
+    step = 0.025
+    orbit = [
+        (30.0 * math.sin(i * step), 2.0 + 30.0 * math.cos(i * step), 0.0)
+        for i in range(round(2 * math.pi / step) + 1)
+    ]
+    inbound = [(0.0, 32.0 - 0.75 * i, 0.0) for i in range(1, 3)]
+    sensor, reports, _ = _sensor()
+    _fly(sensor, orbit + inbound)
+    sensor.disarm(FAILED)
+    [record] = reports
+    assert record.outcome == OUTCOME_ABORTED
+    assert record.d3_m == pytest.approx(28.0, rel=0.005)  # the test's flat degrees
+
+
+def test_closing_then_a_repeated_position_is_aborted():
+    sensor, reports, _ = _sensor()
+    points = _line(east_m=0.72)[:7]
+    _fly(sensor, points + [points[-1]])  # a new time, the same position
+    sensor.disarm(FAILED)
+    assert [r.outcome for r in reports] == [OUTCOME_ABORTED]
+
+
+@pytest.mark.parametrize("cause", ["gap", "clock_reset", "invalid", "dock_change"])
+def test_ahead_then_a_break_then_an_opening_segment_is_aborted(cause):
+    docks = [SimulationObject(0, _at(0.0, 30.0), 10), SimulationObject(1, _at(0.0), 10)]
+    reports, flat = _flat_reports()
+    sensor = SimDockContactSensor(lambda: docks, report=flat)
+    sensor.arm(IDENTITY, lambda _event: None)
+    points = _line(east_m=0.72)
+    _fly(sensor, points[:7])  # ahead, still closing at north -0.25
+    t = 10.0 + 7 * DT
+    if cause == "gap":
+        t += 2 * DT
+    elif cause == "clock_reset":
+        t -= 1.0
+    elif cause == "invalid":
+        sensor.sample(PositionSample(t, _at(*points[7]), -1.0))
+        t += DT
+    else:
+        docks[1] = SimulationObject(1, _at(0.0), 10)  # a world reload
+    _fly(sensor, points[7:], t0=t)
+    sensor.disarm(FAILED)
+    assert [r.outcome for r in reports] == [OUTCOME_ABORTED]
+
+
+@pytest.mark.parametrize(
+    "start, end, passed",
+    [
+        ((0.72, -2.0, 0.0), (0.72, 0.5, 0.0), True),  # crosses, ends nearer than it started
+        ((0.72, -2.0, 0.0), (0.72, 2.0, 0.0), True),
+        ((0.72, -2.0, 0.0), (0.72, 0.0, 0.0), False),  # ends at its closest point
+        ((0.72, -2.0, 0.0), (0.72, -2.0, 0.0), False),  # stationary
+    ],
+)
+def test_one_segment_is_a_pass_only_if_the_range_opens_at_its_end(start, end, passed):
+    tracker = ClosestApproachTracker()
+    tracker.observe(start, end)
+    assert tracker.take().passed is passed
+
+
+def test_rearm_clears_the_pass_evidence():
+    tracker = ClosestApproachTracker()
+    tracker.observe((0.72, -4.0, 0.0), (0.72, -0.25, 0.0))  # ahead
+    tracker.take()
+    tracker.observe((0.72, 0.375, 0.0), (0.72, 1.0, 0.0))  # opening, dock behind
+    assert tracker.take().passed is False
+
+
+def test_the_pass_evidence_counts_segments_the_flat_filter_skips(monkeypatch):
+    from navpy.sim.world import dock_contact_sensor as module
+
+    # Only the first segment gets the exact geometry; every later one is
+    # flat-farther than it.
+    monkeypatch.setattr(module, "_flat_distance", lambda _previous, _current: (1e9, 0.0))
+    sensor, reports, _ = _sensor()
+    _fly(sensor, _line(east_m=0.72))
+    sensor.disarm(FAILED)
+    assert [r.outcome for r in reports] == [OUTCOME_MISSED]
+
+
+# -- the cut: NAV's FAILED or MISSED latch, first observer, never raising ------
+
+def test_a_handoff_that_blocks_while_samples_arrive_leaves_them_excluded():
+    sensor, reports, _ = _sensor()
+    points = _line(east_m=0.72)
+    _fly(sensor, points[:7])  # the dock ahead, still closing
+    stored = []
+
+    def handoff(_terminal, _identity):
+        stored.append(sensor._evidence_end)  # the cut ran first
+        # The opening segment and the lower minimum arrive on another thread.
+        feeder = threading.Thread(
+            target=_fly, args=(sensor, points[7:]), kwargs={"t0": 10.0 + 7 * DT},
+        )
+        feeder.start()
+        feeder.join()
+
+    latch = FinalApproachEpisodeLatch(with_dock_evidence_cut(sensor, handoff))
+    latch.begin(IDENTITY)
+    assert latch.latch_failure("no_detection")
+    sensor.disarm(FAILED)
+    assert stored == [IDENTITY]
+    [record] = reports
+    assert (record.outcome, record.reason) == (OUTCOME_ABORTED, "no_detection")
+    assert record.d3_m == pytest.approx(math.hypot(0.25, 0.72), abs=0.01)
+
+
+def test_a_cut_that_raises_never_reaches_the_latch(caplog):
+    sensor = Mock()
+    sensor.end_evidence.side_effect = RuntimeError("cut down")
+    handoff = Mock()
+    latch = FinalApproachEpisodeLatch(with_dock_evidence_cut(sensor, handoff))
+    latch.begin(IDENTITY)
+    assert latch.latch_failure("no_detection")
+    assert latch.commands_ended  # the caller retires commands next
+    handoff.assert_called_once_with(FinalApproachTerminal.FAILED, IDENTITY)
+    assert "dock evidence cut failed" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "terminal, cut",
+    [
+        (FinalApproachTerminal.FAILED, True),
+        (FinalApproachTerminal.MISSED, True),
+        (FinalApproachTerminal.DOCKED, False),
+    ],
+)
+def test_the_composed_observer_cuts_first_and_only_for_navs_own_end(terminal, cut):
+    calls = []
+    sensor = SimpleNamespace(end_evidence=lambda identity: calls.append(("cut", identity)))
+    observer = with_dock_evidence_cut(
+        sensor, lambda kind, identity: calls.append(("handoff", kind, identity)),
+    )
+    observer(terminal, IDENTITY)
+    assert calls == [("cut", IDENTITY)] * cut + [("handoff", terminal, IDENTITY)]
+
+
+def test_without_a_sensor_or_an_armed_identity_nothing_is_cut():
+    handoff = Mock()
+    assert with_dock_evidence_cut(None, handoff) is handoff
+    assert with_dock_evidence_cut(None, None) is None
+    sensor = Mock()
+    with_dock_evidence_cut(sensor, None)(FinalApproachTerminal.FAILED, None)
+    sensor.end_evidence.assert_not_called()

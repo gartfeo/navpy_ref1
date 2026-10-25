@@ -112,6 +112,21 @@ async function main() {
   });
   assert.deepStrictEqual(finalFailures, [[163, 'timeout']]);
 
+  // A vehicle with no mission (200, no waypoints) settles without republishing
+  // the plan: it adds nothing to it.
+  const emptyPublished = [];
+  const emptySettled = [];
+  await reconcileMissionDownloads({
+    vehicles: [{ sys_id: 171 }, { sys_id: 172 }],
+    downloadMission: async (sysId) => (
+      sysId === 171 ? { mission_count: 0, waypoints: [] } : { waypoints: [{ lat: 4, lon: 4 }] }
+    ),
+    onResultsChanged: (results, latest) => emptyPublished.push([latest.sys_id, results.map((r) => r.sys_id)]),
+    onVehicleSettled: (sysId, result) => emptySettled.push([sysId, result.waypoints.length]),
+  });
+  assert.deepStrictEqual(emptyPublished, [[172, [172]]]);
+  assert.deepStrictEqual(emptySettled.sort(), [[171, 0], [172, 1]]);
+
   console.log('Mission reconciliation regression passed');
 }
 

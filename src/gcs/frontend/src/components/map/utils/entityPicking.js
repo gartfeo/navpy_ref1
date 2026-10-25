@@ -91,6 +91,7 @@ export function pickEntity(Cesium, viewer, screenPos) {
         type: 'closestApproach',
         key: props.closestApproachKey.getValue(),
         view: props.closestApproachView.getValue(),
+        entity: picked.id,
       };
     }
     if (Cesium.defined(props.deliveryHubIndex)) {

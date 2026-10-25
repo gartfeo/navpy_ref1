@@ -8,14 +8,14 @@ path; it only hands one correlated event to the approach lifecycle.
 
 It also keeps the episode's closest pass and, when the lifecycle ends the
 episode, reports it once as a display record (gcs_sim_closest_approach.md).
+That evidence stops at NAV's own FAILED or MISSED latch (``end_evidence``).
 """
 
 from __future__ import annotations
 
 import logging
 import math
-import os
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Optional
 
@@ -46,39 +46,16 @@ from navpy.sim.world.closest_approach_tracker import (
     closest_approach,
     exact_pass,
 )
+from navpy.sim.world.dock_net_radius import SIM_DOCK_NET_RADIUS_M, valid_radius_m
 from navpy.sim.world.simulation_object import SimulationObject
 
 _LOG = logging.getLogger(__name__)
 
-# Owner-set net radius (2026-10-13). Contact is strictly inside it, matching
-# the eval's strict `< 0.5 m` SNAP gate.
-SIM_DOCK_NET_RADIUS_M = 0.5
-# Sim-only override that shrinks the net for a forced-miss check
-# (missed_dock.md): 0 makes every pass a miss. Never wider than the default,
-# which the eval's DOCKED check assumes.
-SIM_DOCK_NET_RADIUS_ENV = "NAVPY_SIM_DOCK_NET_RADIUS_M"
 # Two consecutive position samples are joined only across at most this many
 # nominal periods of the position stream (one missed sample). A longer gap
 # could straight-line a curved path into a crossing that never happened, so
 # it starts a new segment instead.
 SIM_DOCK_CONTACT_MAX_SEGMENT_PERIODS = 2.0
-
-
-def sim_dock_net_radius_m(env: Mapping[str, str] | None = None) -> float:
-    """The net radius: the override when set, else the owner-set default."""
-    raw = (os.environ if env is None else env).get(SIM_DOCK_NET_RADIUS_ENV)
-    if raw is None or not raw.strip():
-        return SIM_DOCK_NET_RADIUS_M
-    radius_m = _valid_radius_m(float(raw))
-    if radius_m > SIM_DOCK_NET_RADIUS_M:
-        raise ValueError(f"{SIM_DOCK_NET_RADIUS_ENV} may only shrink the net, got {raw!r}")
-    return radius_m
-
-
-def _valid_radius_m(radius_m: float) -> float:
-    if not math.isfinite(radius_m) or radius_m < 0.0:
-        raise ValueError(f"dock net radius must be finite and >= 0, got {radius_m!r}")
-    return radius_m
 
 
 def max_segment_s(position_rate_hz: float) -> float:
@@ -117,7 +94,7 @@ class SimDockContactSensor:
     ) -> None:
         self._docks = docks
         self._report = report
-        self._net_radius_m = _valid_radius_m(net_radius_m)
+        self._net_radius_m = valid_radius_m(net_radius_m)
         self._max_segment_s = max_segment_s(position_rate_hz)
         self._lock = rt.Lock()
         self._identity: Optional[DockContactIdentity] = None
@@ -126,6 +103,9 @@ class SimDockContactSensor:
         self._frame: Optional[DockFrame] = None
         self._published = False
         self._closest = ClosestApproachTracker()
+        # Display only: the episode NAV ended, stored without the lock. Each
+        # episode's identity is unique, so a stale one never matches.
+        self._evidence_end: Optional[DockContactIdentity] = None
 
     def arm(
         self,
@@ -147,7 +127,7 @@ class SimDockContactSensor:
         """
         with self._lock:
             identity = self._identity
-            best, contact, last = self._closest.take()
+            evidence = self._closest.take()
             self._identity = None
             self._on_docked = None
             self._previous = None
@@ -155,12 +135,20 @@ class SimDockContactSensor:
         if identity is None or self._report is None:
             return
         try:
-            record = closest_approach(identity, end, best, contact, last)
+            record = closest_approach(identity, end, evidence)
             if record is not None:
                 self._report(record)
         except Exception:
             # Display evidence must never break NAV cleanup.
             _LOG.exception("closest-approach report failed")
+
+    def end_evidence(self, identity: DockContactIdentity) -> None:
+        """NAV latched FAILED or MISSED: one store, no lock, no wait.
+
+        The boundary is on ingress: a sample reads it before it touches any
+        evidence, so no sample read after this store counts.
+        """
+        self._evidence_end = identity
 
     def sample(self, sample: PositionSample) -> None:
         """One telemetry position; never joined across a gap or a reset."""
@@ -184,12 +172,16 @@ class SimDockContactSensor:
         identity = self._identity
         if identity is None:
             return None, None
+        if self._evidence_end == identity:
+            self._closest.cut()
         if not _valid(sample):
             self._previous = None
+            self._closest.break_run()
             return None, None
         frame = self._own_frame(identity.dock_uid)
         if frame is None:
             self._previous = None
+            self._closest.break_run()
             return None, None
         previous = self._previous
         if previous is not None and (
@@ -199,9 +191,11 @@ class SimDockContactSensor:
         current = _Joined(sample, frame, frame.local(sample.location))
         self._previous = current
         if previous is None or not self._joinable(previous, current):
+            self._closest.break_run()
             return None, None
         flat_m, margin_m = _flat_distance(previous, current)
         segment = self._closest.keep(previous.sample, sample, frame.dock, flat_m, margin_m)
+        self._closest.observe(previous.local, current.local)
         if self._published:
             return None, None
         # Coarse filter; never false for a segment the exact test docks: the
@@ -292,9 +286,6 @@ __all__ = [
     "ClosestApproachSink",
     "PositionSample",
     "SIM_DOCK_CONTACT_MAX_SEGMENT_PERIODS",
-    "SIM_DOCK_NET_RADIUS_ENV",
-    "SIM_DOCK_NET_RADIUS_M",
     "SimDockContactSensor",
-    "sim_dock_net_radius_m",
     "max_segment_s",
 ]

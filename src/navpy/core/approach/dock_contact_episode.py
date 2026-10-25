@@ -3,13 +3,19 @@
 NAV entry arms it for (vehicle, task, own dock uid, episode); NAV exit
 disarms it. A new assignment or an approach restart is a new NAV entry, so
 it re-arms with a new episode number and never carries a segment across.
+NAV's own FAILED or MISSED latch ends the sim record's evidence first.
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Optional
 
+from navpy.core.approach.vision_nav.episode_latch import (
+    FinalApproachTerminal,
+    TerminalObserver,
+)
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -25,9 +31,39 @@ from navpy.core.ports.dock_contact import (
 # (armed identity, lifecycle accepted DOCKED) -> how NAV left the episode.
 EpisodeEnding = Callable[[DockContactIdentity, bool], DockEpisodeEnd]
 
+_LOG = logging.getLogger(__name__)
+
 
 def _docked_only(_identity: DockContactIdentity, docked: bool) -> DockEpisodeEnd:
     return DockEpisodeEnd(docked=docked)
+
+
+def with_dock_evidence_cut(
+    sensor: Optional[DockContactSensor],
+    then: Optional[TerminalObserver],
+) -> Optional[TerminalObserver]:
+    """Display only: NAV's FAILED or MISSED latch stops the sim record's
+    evidence (gcs_sim_closest_approach.md), before ``then`` runs.
+
+    The cut is one store and never raises into the latch, which retires
+    commands after its observer returns (the standard logger never raises).
+    """
+    if sensor is None:
+        return then
+
+    def on_terminal(
+        terminal: FinalApproachTerminal,
+        identity: Optional[DockContactIdentity],
+    ) -> None:
+        if identity is not None and terminal is not FinalApproachTerminal.DOCKED:
+            try:
+                sensor.end_evidence(identity)
+            except Exception:  # noqa: BLE001 - display evidence only
+                _LOG.exception("dock evidence cut failed")
+        if then is not None:
+            then(terminal, identity)
+
+    return on_terminal
 
 
 
@@ -129,4 +165,4 @@ class FinalApproachDockContact:
         )
 
 
-__all__ = ["EpisodeEnding", "FinalApproachDockContact"]
+__all__ = ["EpisodeEnding", "FinalApproachDockContact", "with_dock_evidence_cut"]

@@ -8,6 +8,7 @@ import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from pymavlink.dialects.v20.ardupilotmega import (
     MAV_MISSION_ACCEPTED,
     MAV_MISSION_ERROR,
@@ -16,6 +17,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger
+from navpy.core.ports.mission_download import MissionDownload, MissionDownloadOutcome
 from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
@@ -86,9 +88,9 @@ class Autopilot:
         return sum(1 for call in self.connection.mav.mission_request_int_send.call_args_list
                    if call.args[2] == seq)
 
-    def downloader(self, link=None, cancelled=None) -> MissionDownloader:
+    def downloader(self, link=None, cancelled=None, store=None) -> MissionDownloader:
         return MissionDownloader(TARGET, MavTransport(self.connection, threading.RLock()),
-                                 MissionStore(TARGET, self.messages), self.messages,
+                                 store or MissionStore(TARGET, self.messages), self.messages,
                                  SimpleNamespace(value=MagicMock()),
                                  link, cancelled)
 
@@ -164,6 +166,88 @@ def test_a_stop_ends_a_download_within_one_wait():
     assert autopilot.downloader(cancelled=stopped.is_set).download() == 0
     assert time.monotonic() - started < 0.5  # one 0.25 s item wait, then the cancel
     assert autopilot.item_requests(0) == 1
+
+
+def _stored(autopilot: Autopilot) -> MissionStore:
+    """A store that already holds a two-item mission from an earlier download."""
+    store = MissionStore(TARGET, autopilot.messages)
+    store.replace(_loader(2))
+    return store
+
+
+def _unchanged(store: MissionStore, before: list) -> bool:
+    after = store.snapshot()
+    return len(after) == len(before) and all(a is b for a, b in zip(after, before))
+
+
+def test_no_mission_count_is_a_failed_download():
+    autopilot = Autopilot(3, count_replies=False)
+    store = _stored(autopilot)
+    before = store.snapshot()
+    result = autopilot.downloader(store=store).download_outcome(ack_timeout=0.001)
+    assert result == MissionDownload(MissionDownloadOutcome.FAILED, 0)
+    assert result.failed and _unchanged(store, before)
+
+
+def test_a_missing_item_after_a_positive_count_fails_and_keeps_the_store():
+    autopilot = Autopilot(3)
+    autopilot.on_item_request = lambda seq: setattr(autopilot, "answer_items", seq == 0)
+    store = _stored(autopilot)
+    before = store.snapshot()
+    result = autopilot.downloader(store=store).download_outcome(item_timeout=0.001)
+    assert result.outcome is MissionDownloadOutcome.FAILED and result.count == 0
+    assert autopilot.item_requests(1) > 1  # item 0 came; item 1 was asked for again, never sent
+    assert _unchanged(store, before)
+
+
+def test_a_cancel_is_a_failed_download():
+    stopped = threading.Event()
+    autopilot = Autopilot(3)
+    autopilot.answer_items = False
+    autopilot.on_item_request = lambda _seq: stopped.set()
+    store = _stored(autopilot)
+    before = store.snapshot()
+    result = autopilot.downloader(cancelled=stopped.is_set, store=store).download_outcome()
+    assert result.outcome is MissionDownloadOutcome.FAILED
+    assert _unchanged(store, before)
+
+
+def test_a_deadline_mid_transfer_is_a_failed_download():
+    autopilot = Autopilot(3)
+    autopilot.drop = [2] * 100
+    store = _stored(autopilot)
+    before = store.snapshot()
+    result = autopilot.downloader(store=store).download_outcome(
+        policy=ExchangePolicy(attempts=100, deadline_s=time.monotonic() + 0.2), item_timeout=0.02)
+    assert result.outcome is MissionDownloadOutcome.FAILED
+    assert autopilot.item_requests(2) < 100  # the deadline ended it, not the attempt budget
+    assert _unchanged(store, before)
+
+
+def test_a_confirmed_count_of_zero_is_an_empty_table():
+    autopilot = Autopilot(0)
+    store = _stored(autopilot)
+    result = autopilot.downloader(store=store).download_outcome()
+    assert result == MissionDownload(MissionDownloadOutcome.EMPTY, 0)
+    assert not result.failed
+    assert store.count == 0  # the vehicle holds no mission, as the store now says
+    autopilot.connection.mav.mission_request_int_send.assert_not_called()
+
+
+def test_every_item_arriving_is_a_complete_download():
+    autopilot = Autopilot(3)
+    store = _stored(autopilot)
+    result = autopilot.downloader(store=store).download_outcome()
+    assert result == MissionDownload(MissionDownloadOutcome.COMPLETE, 3)
+    assert store.count == 3
+
+
+@pytest.mark.parametrize(("total", "count_replies", "expected"),
+                         [(3, True, 3), (0, True, 0), (3, False, 0)],
+                         ids=["complete", "empty", "failed"])
+def test_download_keeps_its_count(total, count_replies, expected):
+    autopilot = Autopilot(total, count_replies=count_replies)
+    assert autopilot.downloader().download(ack_timeout=0.05) == expected
 
 
 class Receiver:

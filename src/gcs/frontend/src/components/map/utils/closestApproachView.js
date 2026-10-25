@@ -19,8 +19,38 @@ export const CLOSEST_APPROACH_MIN_ZOOM_M = 2;
 // active watch, the latest flight.
 const closeViews = new WeakMap();
 
-/** Destination and orientation for `view` = {lon, lat, alt, headingDeg|null}. */
-export function closestApproachCamera(Cesium, view) {
+/**
+ * `position` raised to `CLOSEST_APPROACH_VIEW_UP_M` over the rendered ground
+ * under it (the height the collision step uses); null while that ground is
+ * not rendered.
+ */
+function withClearance(Cesium, viewer, position) {
+  const carto = Cesium.Cartographic.fromCartesian(position);
+  const ground = viewer.scene.globe.getHeight(carto);
+  if (!Number.isFinite(ground)) return null;
+  const lowest = ground + CLOSEST_APPROACH_VIEW_UP_M;
+  if (carto.height >= lowest) return position;
+  return Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, lowest);
+}
+
+/** Look from `from` straight at `target`, the horizon level. */
+function aimAt(Cesium, from, target) {
+  const { Cartesian3 } = Cesium;
+  const direction = Cartesian3.normalize(
+    Cartesian3.subtract(target, from, new Cartesian3()), new Cartesian3(),
+  );
+  const surfaceUp = Cesium.Ellipsoid.WGS84.geodeticSurfaceNormal(from, new Cartesian3());
+  const right = Cartesian3.normalize(
+    Cartesian3.cross(direction, surfaceUp, new Cartesian3()), new Cartesian3(),
+  );
+  return { direction, up: Cartesian3.cross(right, direction, new Cartesian3()) };
+}
+
+/**
+ * Destination and orientation for `view` = {lon, lat, alt, headingDeg|null},
+ * `alt` the drawn point's height; null while the ground there is not rendered.
+ */
+export function closestApproachCamera(Cesium, viewer, view) {
   // Without a recorded heading, look from the south (heading north).
   const heading = Cesium.Math.toRadians(Number.isFinite(view.headingDeg) ? view.headingDeg : 0);
   const target = Cesium.Cartesian3.fromDegrees(view.lon, view.lat, view.alt);
@@ -30,14 +60,11 @@ export function closestApproachCamera(Cesium, view) {
     -CLOSEST_APPROACH_VIEW_BACK_M * Math.cos(heading),
     CLOSEST_APPROACH_VIEW_UP_M,
   );
-  return {
-    destination: Cesium.Matrix4.multiplyByPoint(enu, offset, new Cesium.Cartesian3()),
-    orientation: {
-      heading,
-      pitch: -Math.atan2(CLOSEST_APPROACH_VIEW_UP_M, CLOSEST_APPROACH_VIEW_BACK_M),
-      roll: 0,
-    },
-  };
+  const destination = withClearance(
+    Cesium, viewer, Cesium.Matrix4.multiplyByPoint(enu, offset, new Cesium.Cartesian3()),
+  );
+  if (!destination) return null;
+  return { destination, orientation: aimAt(Cesium, destination, target) };
 }
 
 function heightOverGround(viewer) {
@@ -45,7 +72,12 @@ function heightOverGround(viewer) {
   return camera.height - (viewer.scene.globe.getHeight(camera) ?? 0);
 }
 
-/** Restore the normal minimum once the camera is above it again. */
+/**
+ * Restore the normal minimum once the camera is above it again. Checked after
+ * each rendered frame (every camera move renders one): `camera.changed` waits
+ * for a move of half the camera's ellipsoid height, hundreds of metres over
+ * high terrain.
+ */
 function watchUntilAbove(viewer, state) {
   const controller = viewer.scene.screenSpaceCameraController;
   const check = () => {
@@ -54,11 +86,18 @@ function watchUntilAbove(viewer, state) {
     controller.minimumZoomDistance = state.normalMin;
     closeViews.delete(viewer);
   };
-  state.stop = viewer.camera.changed.addEventListener(check);
+  state.stop = viewer.scene.postRender.addEventListener(check);
   check();
 }
 
-export function flyToClosestApproach(Cesium, viewer, view) {
+/**
+ * Fly to the mark `entity` shows. On arrival the clearance and the aim are
+ * applied once more over the ground rendered by then; after that the camera
+ * is the operator's.
+ */
+export function flyToClosestApproach(Cesium, viewer, view, entity) {
+  const camera = closestApproachCamera(Cesium, viewer, view);
+  if (!camera) return; // no rendered ground there yet: a later click flies
   const controller = viewer.scene.screenSpaceCameraController;
   let state = closeViews.get(viewer);
   if (state) {
@@ -72,13 +111,26 @@ export function flyToClosestApproach(Cesium, viewer, view) {
   // Starting this flight cancels an earlier one: only this one may watch.
   const flight = {};
   state.flight = flight;
+  const latest = () => (
+    !viewer.isDestroyed() && closeViews.get(viewer) === state && state.flight === flight
+  );
+  const target = Cesium.Cartesian3.fromDegrees(view.lon, view.lat, view.alt);
   const arrived = () => {
-    if (closeViews.get(viewer) === state && state.flight === flight) watchUntilAbove(viewer, state);
+    if (!latest()) return;
+    if (viewer.entities.contains(entity) && entity.isShowing) {
+      const here = Cesium.Cartesian3.clone(viewer.camera.positionWC);
+      const from = withClearance(Cesium, viewer, here) ?? here;
+      viewer.camera.setView({ destination: from, orientation: aimAt(Cesium, from, target) });
+    }
+    watchUntilAbove(viewer, state);
+  };
+  const cancelled = () => {
+    if (latest()) watchUntilAbove(viewer, state);
   };
   viewer.camera.flyTo({
-    ...closestApproachCamera(Cesium, view),
+    ...camera,
     duration: CLOSEST_APPROACH_FLY_S,
     complete: arrived,
-    cancel: arrived,
+    cancel: cancelled,
   });
 }

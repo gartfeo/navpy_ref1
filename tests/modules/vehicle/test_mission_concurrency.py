@@ -38,7 +38,7 @@ class TestMissionLock(unittest.TestCase):
             return 7
 
         downloader = MagicMock()
-        downloader.download.side_effect = blocked_download
+        downloader.download_outcome.side_effect = blocked_download
         mission = _mission(downloader, MagicMock(), store)
         transfer = threading.Thread(target=mission.download)
         result = []
@@ -77,7 +77,7 @@ class TestMissionLock(unittest.TestCase):
             return 0
 
         downloader = MagicMock()
-        downloader.download.side_effect = busy_download
+        downloader.download_outcome.side_effect = busy_download
         mission = _mission(downloader, MagicMock())
         threads = [threading.Thread(target=mission.download) for _ in range(5)]
 
@@ -104,7 +104,7 @@ class TestMissionLock(unittest.TestCase):
             return 0
 
         downloader = MagicMock()
-        downloader.download.side_effect = busy
+        downloader.download_outcome.side_effect = busy
         uploader = MagicMock()
         uploader.upload.side_effect = busy
         mission = _mission(downloader, uploader)
