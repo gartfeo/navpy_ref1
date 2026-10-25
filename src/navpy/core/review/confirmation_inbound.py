@@ -54,13 +54,13 @@ class ConfirmationInboundHandler:
         poi = self._state.pending_poi(message.subject_id)
         if poi is None:
             return
-        request_ref = ConfirmationRequestRef.from_meta(message.meta)
         try:
+            request_ref = ConfirmationRequestRef.from_meta(message.meta)
             self._media.send(
                 poi,
                 message.subject_id,
-                lambda send: self._state.send_pending_if_current(
-                    message.subject_id, poi, request_ref, send,
+                lambda unit: self._state.send_pending_if_current(
+                    message.subject_id, poi, request_ref, unit,
                 ),
             )
         except OSError as exc:

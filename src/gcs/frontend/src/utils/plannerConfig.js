@@ -112,6 +112,12 @@ export function computeMaxDetectDist(fy, imageWidth, imageHeight, referenceHeigh
   return fy * getDockDetectSize() / MIN_CONFIRM_PIXELS;
 }
 
+function effectiveProfileName(selected, profileCatalog, defaultProfile) {
+  if (!profileCatalog) return null;
+  if (selected && profileCatalog[selected]) return selected;
+  return defaultProfile && profileCatalog[defaultProfile] ? defaultProfile : null;
+}
+
 /**
  * Update planner config from backend settings object.
  * Called from useSettings when settings are fetched or changed.
@@ -120,8 +126,10 @@ export function computeMaxDetectDist(fy, imageWidth, imageHeight, referenceHeigh
  * @param {object} [detectorClassDimensions] - the catalog's top-level `detector_class_dimensions` block
  *   ({ classId: { width_m, height_m, size_m } }) — the single source for per-class
  *   characteristic sizes. Threaded through so CLASS_DETECT_SIZES is backend-owned.
+ * @param {string} [defaultProfile] - the catalog's `default_profile`, the camera
+ *   NavPy flies when the settings select none
  */
-export function configurePlanner(settings, profileCatalog, detectorClassDimensions) {
+export function configurePlanner(settings, profileCatalog, detectorClassDimensions, defaultProfile) {
   if (!settings) return;
   configureDetectorClassDimensions(detectorClassDimensions);
   const f = settings.flight || {};
@@ -139,8 +147,12 @@ export function configurePlanner(settings, profileCatalog, detectorClassDimensio
   // (the single source of truth). Settings carries only the SELECTION
   // (vision_profile / vision_device / vision_zoom) — pitch_deg and
   // dock_presets live in vision_profiles.json and arrive via the catalog.
-  if (profileCatalog && c.vision_profile && profileCatalog[c.vision_profile]) {
-    const prof = profileCatalog[c.vision_profile];
+  // No selection means the catalog default, the camera NavPy launches with
+  // (navpy_sim_launch_policy.effective_vision_profile), so the plan's
+  // altitudes match the camera that flies it.
+  const profileName = effectiveProfileName(c.vision_profile, profileCatalog, defaultProfile);
+  if (profileName) {
+    const prof = profileCatalog[profileName];
     const selDev = prof.devices.find((d) => d.name === c.vision_device) || prof.devices[0];
     if (selDev) {
       const selZoom = c.vision_zoom || '1';
@@ -168,8 +180,8 @@ export function configurePlanner(settings, profileCatalog, detectorClassDimensio
 
   // Resolve multi-device configs from the backend catalog.
   // Live coverage uses the same raw detect range the backend detector uses.
-  if (profileCatalog && c.vision_profile && profileCatalog[c.vision_profile]) {
-    const profile = profileCatalog[c.vision_profile];
+  if (profileName) {
+    const profile = profileCatalog[profileName];
     const selectedDevice = c.vision_device;
     const selectedZoom = c.vision_zoom || '1';
     DEVICE_CONFIGS = profile.devices.map((dev) => {

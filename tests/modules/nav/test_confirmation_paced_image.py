@@ -220,12 +220,48 @@ class ConfirmationMediaHandOverTests(unittest.TestCase):
         time.sleep(0.05)
         self.assertEqual(vehicle.sent, [])
 
+    def test_a_refused_hand_over_leaves_the_link_queue_empty(self):
+        network, vehicle = self._queueing_network()
+        self.assertEqual(network.send_image(7, IMAGE_B64, lambda unit: False), CHUNKS)
+        time.sleep(0.05)
+        self.assertEqual(vehicle.sent, [])
+
+    def test_a_refused_hand_over_does_not_replace_the_waiting_image_of_its_poi(self):
+        network, vehicle = self._queueing_network()
+
+        def image(byte: int) -> str:
+            return base64.b64encode(bytes([byte]) * 253).decode()
+
+        network.send_image(1, image(1), lambda unit: (unit(), True)[1])  # being sent
+        network.send_image(7, image(2), lambda unit: (unit(), True)[1])  # waits behind it
+        network.send_image(7, image(3), lambda unit: False)  # a stale round's image
+        self.assertTrue(self._wait_for(lambda: len(vehicle.chunks()) == 2))
+        self.assertEqual([chunk.data[0] for chunk in vehicle.chunks()], [1, 2])
+
+    @staticmethod
+    def _wait_for(predicate, timeout=5.0):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline and not predicate():
+            time.sleep(0.005)
+        return predicate()
+
+    def test_a_refusal_during_the_send_reports_the_round_gone(self):
+        answers = iter([True, True, False])  # the round check, the header, then a chunk
+
+        def run_unit(unit):
+            if next(answers):
+                unit()
+                return True
+            return False
+
+        self.assertFalse(self._media(_SyncNetwork()).send(self._poi(), 7, run_unit))
+
     def test_the_fence_is_held_for_one_step_at_a_time(self):
         network, _vehicle = self._queueing_network()
         local = threading.local()
         depths = []
 
-        def admit(send):
+        def run_unit(send):
             local.depth = getattr(local, "depth", 0) + 1
             depths.append(local.depth)
             try:
@@ -234,7 +270,7 @@ class ConfirmationMediaHandOverTests(unittest.TestCase):
                 local.depth -= 1
             return True
 
-        self.assertTrue(self._media(network).send(self._poi(), 7, admit))
+        self.assertTrue(self._media(network).send(self._poi(), 7, run_unit))
         deadline = time.monotonic() + 5
         while len(depths) < 3 and time.monotonic() < deadline:  # the hand-over, then frames
             time.sleep(0.005)

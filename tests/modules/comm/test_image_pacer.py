@@ -95,7 +95,7 @@ def test_a_refused_frame_ends_that_image_and_the_next_one_goes(sender, recorder)
     assert len(calls) == 2
 
 
-def test_the_wait_between_frames_is_outside_the_admit(sender, recorder):
+def test_the_wait_between_frames_is_outside_the_fence(sender, recorder):
     fence = threading.Lock()
     first_sent = threading.Event()
 

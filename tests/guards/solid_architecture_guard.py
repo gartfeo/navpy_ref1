@@ -119,7 +119,7 @@ FOCUSED_CLASS_LINE_LIMITS = {
 
 VENDORED_SHA256 = {
     "src/navpy/plugins/vehicle/ardupilot/_mavftp/_upstream_mavftp.py":
-        "6977ACE6D7FF6DE95AF5FF63FEB1883F3863C76266A2FF6E1607C86312BCBE9F",
+        "62B9D1E436401B01EB10453B4944313093F1A1877ABA10384211610A4BECE6EA",
     "src/navpy/plugins/gimbal/siyi/siyi_sdk.py":
         "DCEBF8A3BB4EFAE396D213236918CB66D1C95D67816B8681A377255E4A8C8843",
     "src/navpy/plugins/gimbal/siyi/siyi_message.py":

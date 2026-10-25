@@ -15,7 +15,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.msg_abc import MsgABC, MsgRegistry
 from navpy.core.link.message_filter import MessageFilter
-from navpy.core.ports.network_abc import ImageAdmit, NetworkAbc, admit_always
+from navpy.core.ports.network_abc import ImageSendUnitRunner, NetworkAbc, run_now
 from navpy.plugins.radio.mavlink.image_pacer import PacedImageSender
 from navpy.plugins.radio.mavlink.image_transfer import ImageTransferType
 
@@ -141,10 +141,15 @@ class NetworkMavlink(NetworkAbc):
                 self._message_filter.metrics.increment_decode_error()
                 self.logger.error(f"Failed to process MAVLink message: {e}")
 
-    def send_image(self, poi_id: int, image_b64: str, admit: ImageAdmit = admit_always) -> int:
+    def send_image(
+        self,
+        poi_id: int,
+        image_b64: str,
+        run_unit: Optional[ImageSendUnitRunner] = None,
+    ) -> int:
         """Queue the image to the paced sender; returns its chunk count.
 
-        ``admit`` runs the hand-over to the queue and then each frame's send.
+        ``run_unit`` runs the hand-over to the queue and then each frame's send.
         """
         if not image_b64:
             return 0
@@ -155,7 +160,8 @@ class NetworkMavlink(NetworkAbc):
             self._image_chunk(seq, image_bytes[seq * MAVLINK_CHUNK_SIZE:(seq + 1) * MAVLINK_CHUNK_SIZE])
             for seq in range(num_chunks)
         ]
-        admit(lambda: self._images.queue(poi_id, frames, admit))
+        run = run_unit or run_now
+        run(lambda: self._images.queue(poi_id, frames, run))
         return num_chunks
 
     def _send_image_header(self, poi_id: int, total_size: int, num_chunks: int) -> None:

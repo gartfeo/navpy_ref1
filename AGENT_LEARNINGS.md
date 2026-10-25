@@ -1345,6 +1345,15 @@
 - Both Manifest and RoutedPorts sat at the 12-field SOLID limit; adding a field means removing one or
   passing it as an argument. Run tests/guards early.
 
+## Todos 92, 110: demo open points (2026-10-25)
+- A retry that opens a new protocol session drops the late reply to the old one. Before changing an
+  FTP/MAVLink retry, read the firmware's server (ArduPilot GCS_FTP.cpp replays its last reply for a
+  same-session, same-seq resend). Build test fakes from that source, not from the client.
+- A UI default and the companion default can disagree silently: check which profile each side picks
+  when settings name none, and guard the preset with a test against the real reach check.
+- Hold a round's fence per wire unit, not around a whole multi-chunk send; do slow work outside it.
+- The shared venv had OpenCV 5.0.0 on 2026-10-25, so 4 board-detector tests failed; not a code fault.
+
 ## Todos 116, 117: image share and confirmed launch mode (2026-10-25)
 
 - I repeated the time.monotonic mistake above: a pacer test timed 30 ms gaps with it and failed

@@ -527,8 +527,8 @@ never reads the mode, so it armed UAV 2 in its old mode and timed out.
   (57600 baud 8N1, the radio port's rate): 1440 B/s. Basis: other traffic
   peaks at 3.4 kB/s, leaving 2.36 kB/s; 1440 keeps 0.9 kB/s for bursts. A
   12 kB image takes about 8.5 s. Seeds 1, 4 and 8 check that it is enough.
-- `send_image(poi_id, image_b64, admit)` queues the image and returns.
-  `admit(send) -> bool` runs one frame's send under the round's exact fence
+- `send_image(poi_id, image_b64, run_unit)` queues the image and returns.
+  `run_unit(unit) -> bool` runs one frame's send under the round's exact fence
   (`send_if_current` / `send_pending_if_current`) and refuses once the round
   is resolved or retired; the sender then drops the rest of that image. The
   wait between frames is outside the fence. A send error is logged and ends
@@ -537,7 +537,8 @@ never reads the mode, so it armed UAV 2 in its old mode and timed out.
   queued one for it (a replaced round's frames would be refused anyway);
   for the POI being sent, it waits behind it.
 - The base `NetworkAbc.send_image` (WiFi, serial) keeps its synchronous
-  loop and gains the same `admit` per frame.
+  loop with the same `run_unit` per frame (todo 110, merged from main
+  `983d3d54`, which made the same change in parallel).
 
 ### 110. The approval no longer waits for the image
 
@@ -612,7 +613,7 @@ handshake or chunk of that round's image.
 - Pacing from wire size and share (fake clock); one image at a time across
   POIs; a newer image replaces a queued one for its POI, also when a
   replacement round arrives before its first image and before a fallback.
-- `admit` refusing ends the image; waits are outside the fence; a response
+- `run_unit` refusing ends the image; waits are outside the fence; a response
   delivered synchronously inside a frame's send resolves and the next frame
   is refused; a response mid-image resolves at once.
 - Request resends keep their 2 s cadence during an image; the thumbnail

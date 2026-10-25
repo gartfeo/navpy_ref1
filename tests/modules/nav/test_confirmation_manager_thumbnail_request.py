@@ -40,13 +40,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         self.mock_args.is_confirm_on_fail = False
 
         self.mock_network = MagicMock(spec=NetworkAbc)
-        self.frames_sent: list[int] = []
-
-        def _fake_send_image(poi_id, image_b64, admit):
-            # Like a real network: each frame goes out through the round's fence.
-            admit(lambda: self.frames_sent.append(poi_id))
-            return 1
-        self.mock_network.send_image.side_effect = _fake_send_image
+        self.mock_network.send_image.return_value = 1
 
         def _fake_broadcast(message):
             # Mirror NetworkAbc.broadcast()'s real auto-fill-meta behavior.
@@ -127,7 +121,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
 
         confirm_calls = self._confirm_request_calls()
         self.assertGreaterEqual(len(confirm_calls), 2, "expected at least one resend")
-        self.mock_network.send_image.assert_called_once_with(501, "b64-image", ANY)
+        self.mock_network.send_image.assert_called_once_with(501, "b64-image", run_unit=ANY)
 
     def test_swarm_request_resource_for_pending_poi_resends_thumbnail(self):
         """SWARM_REQUEST(RESOURCE, THUMBNAIL) for a still-pending task_id
@@ -199,7 +193,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
         ):
             self.confirmation_manager.on_message(self._resource_request(501))
 
-        self.assertEqual(self.frames_sent, [], "a stale image frame reached the link")
+        self.mock_network.send_image.assert_not_called()
 
     def test_resource_media_programmer_typeerror_propagates(self):
         request = self._resource_request(501)

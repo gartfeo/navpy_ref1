@@ -100,7 +100,7 @@ class ConfirmationRoundRunner:
                 if not self._media.send(
                     poi,
                     confirmation.poi_id,
-                    lambda send: self._state.send_if_current(confirmation, send),
+                    lambda unit: self._state.send_if_current(confirmation, unit),
                 ):
                     return
             except _OUTBOUND_ERRORS as exc:

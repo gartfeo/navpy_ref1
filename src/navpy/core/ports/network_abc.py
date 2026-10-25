@@ -12,12 +12,13 @@ from navpy.core.link.message_filter import MessageFilter
 # Default chunk size (can be overridden by subclasses)
 DEFAULT_CHUNK_SIZE = 4096  # 4KB for WiFi/Serial
 
-#: Runs one image frame's send and returns True, or returns False to end the image.
-ImageAdmit = Callable[[Callable[[], None]], bool]
+# Runs one image send unit (header or chunk); False means it was not run and
+# the transfer stops.
+ImageSendUnitRunner = Callable[[Callable[[], None]], bool]
 
 
-def admit_always(send: Callable[[], None]) -> bool:
-    send()
+def run_now(unit: Callable[[], None]) -> bool:
+    unit()
     return True
 
 
@@ -60,7 +61,12 @@ class NetworkAbc(ABC):
         serialized_message = self.serializer.serialize_message(message)
         self.broadcast_data(serialized_message.encode('utf-8'))
 
-    def send_image(self, poi_id: int, image_b64: str, admit: ImageAdmit = admit_always) -> int:
+    def send_image(
+        self,
+        poi_id: int,
+        image_b64: str,
+        run_unit: Optional[ImageSendUnitRunner] = None,
+    ) -> int:
         """
         Send confirmation image for a POI using chunked transfer.
 
@@ -70,10 +76,12 @@ class NetworkAbc(ABC):
         Args:
             poi_id: POI ID for this confirmation
             image_b64: Base64 encoded JPEG image
-            admit: Runs each frame's send; when it refuses, the image ends there
+            run_unit: runs the header and each chunk send; returning False
+                stops the transfer (the caller's round was resolved). The
+                pauses between chunks run outside it.
 
         Returns:
-            Number of chunks in the image
+            Number of chunks sent
         """
         if not image_b64:
             return 0
@@ -83,9 +91,11 @@ class NetworkAbc(ABC):
         total_size = len(image_bytes)
         num_chunks = math.ceil(total_size / self._image_chunk_size)
 
+        run = run_unit or run_now
+
         # Send header/handshake
-        if not admit(lambda: self._send_image_header(poi_id, total_size, num_chunks)):
-            return num_chunks
+        if not run(lambda: self._send_image_header(poi_id, total_size, num_chunks)):
+            return 0
 
         if self._inter_chunk_delay_sec > 0:
             rt.sleep(self._inter_chunk_delay_sec * 2)  # Extra delay after header
@@ -96,8 +106,8 @@ class NetworkAbc(ABC):
             end = min(start + self._image_chunk_size, total_size)
             chunk_data = image_bytes[start:end]
 
-            if not admit(lambda: self._send_image_chunk(poi_id, seq, chunk_data)):
-                break
+            if not run(lambda s=seq, d=chunk_data: self._send_image_chunk(poi_id, s, d)):
+                return seq
 
             if self._inter_chunk_delay_sec > 0 and seq < num_chunks - 1:
                 rt.sleep(self._inter_chunk_delay_sec)
