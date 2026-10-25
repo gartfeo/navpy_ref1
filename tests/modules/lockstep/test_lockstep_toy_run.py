@@ -326,3 +326,21 @@ def test_a_message_emitted_during_drain_is_counted(tmp_path):
     drain = [r for r in coordinator.journal.records if r.get("phase") == "drain" and r["drain_egress"]]
     assert drain and drain[0]["navlink"][ROUTER_LINK]["drain_to_sitl"]
     assert any("TASK_ASSIGN_RESPONSE" in e for e in assignment_errors(coordinator.journal.records, [], 1))
+
+
+def test_a_process_freeze_in_the_role_config_holds_the_rovers_beats_the_same_way_each_run(tmp_path):
+    """Step 4 end to end: ``participant_main`` takes the freeze from the role config."""
+    freeze = {"process_freeze": {"min_ticks": 10, "max_ticks": 10, "min_gap_s": 0.3, "max_gap_s": 0.3}}
+    plain, frozen, again = (_run(tmp_path, name, plan=manifest(rover={"snap_at_s": 2.2, **extra}))
+                            for name, extra in (("plain", {}), ("frozen", {"sim_models": freeze}),
+                                                ("again", {"sim_models": freeze})))
+
+    def beat_gaps(run):
+        beats = [float(line.split("=")[1]) for line in run[2].log_lines if line.startswith("rover t=")]
+        return [round(b - a, 2) for a, b in zip(beats, beats[1:])]
+
+    assert all(run[4].outcome == "ok" for run in (plain, frozen, again))
+    assert max(beat_gaps(plain)) <= 0.12  # a 0.1 s beat on the 20 ms grid
+    # A 10-tick freeze holds a due beat at least 0.2 s; its deadline is not moved.
+    assert sum(gap >= 0.2 for gap in beat_gaps(frozen)) >= 2
+    assert frozen[0].journal.digest == again[0].journal.digest != plain[0].journal.digest

@@ -8,11 +8,14 @@ first; this is step 3 on. Per ``TICK k`` (``lockstep_slice.md``):
    ``TICK`` must be exactly the next tick.
 2. ``BatonRuntime.tick`` sets ``t_k`` and delivers the inputs in tick input
    order: the drain ``end``, lifecycle records, cancels, requests (id order),
-   then the port bytes per device; then quiescence, then due timers.
+   then the port bytes per device; then quiescence, then due timers, within
+   the tick's handoff cap (``participant_budget``: 0 in a process freeze, the
+   CPU budget, or none), which the end's steps share.
 3. Once the product's own end is complete (a lifecycle stop, or ``end``),
    the strict flushes run on a managed thread (:meth:`Participant.drain_flush`).
 4. ``DONE k`` carries the links' egress and the hooks' outbox; when the
-   flush thread has finished, it carries ``ended{flushed}`` and is the last
+   flush thread has finished and nothing is left runnable or due (a capped
+   tick may leave work), it carries ``ended{flushed}`` and is the last
    message: the loop returns the exit code.
 
 A product or contract fault becomes ``DONE k`` with a stable fault kind
@@ -39,10 +42,13 @@ EXIT_COORDINATOR_GONE = 3
 
 class ParticipantLoop:
     def __init__(self, participant: Participant, hooks: ParticipantHooks, link: PartSocket, *,
-                 host_delay: Callable[[], None] = lambda: None) -> None:
+                 host_delay: Callable[[], None] = lambda: None,
+                 handoffs: Callable[[int], int | None] = lambda t_us: None) -> None:
         self._participant = participant
         #: Acceptance (c): a seeded host delay before each ``DONE`` leaves (host only).
         self._host_delay = host_delay
+        #: The handoff cap of the tick at ``t_us`` (``TickBudget.handoffs``), asked once per tick.
+        self._handoffs = handoffs
         self._baton = participant.runtime.baton
         self._hooks = hooks
         self._link = link
@@ -74,8 +80,9 @@ class ParticipantLoop:
             check_tick(tick.k, self._expected)
         self._expected = tick.k + 1
         try:
-            self._baton.tick(tick.t_us, lambda: self._deliver(tick))
-            self._settle_end()
+            cap = self._handoffs(tick.t_us)
+            used = self._baton.tick(tick.t_us, lambda: self._deliver(tick), handoffs=cap)
+            self._settle_end(None if cap is None else cap - used)
         except Exception as error:  # a fault: reported, then the end
             # The wire carries a stable kind only; the text (paths, OS errors)
             # goes to stderr, which the coordinator's host captures in a log.
@@ -99,11 +106,15 @@ class ParticipantLoop:
                 raise PartWireError(f"TICK {tick.k} carries bytes for unknown device {device!r}")
             link.deliver(data)
 
-    def _settle_end(self) -> None:
+    def _settle_end(self, handoffs: int | None) -> None:
         if self._end_thread is None and self._hooks.finished():
             self._end_thread = self._baton.spawn(self._end, name="participant-end")
-            self._baton.run_until_quiescent()
-            self._baton.settle_timers()
+            used = self._baton.run_until_quiescent(handoffs=handoffs)
+            self._baton.settle_timers(handoffs=None if handoffs is None else handoffs - used)
+
+    def _idle(self) -> bool:
+        """No thread runnable and no timer due: a capped tick may leave either."""
+        return not self._baton.runnable and not self._baton.timers.any_due(self._baton.monotonic())
 
     def _end(self) -> None:
         self._flushed = self._participant.drain_flush(self._hooks.flushes())
@@ -116,7 +127,7 @@ class ParticipantLoop:
         faults = outbox.faults + ((fault,) if fault else ())
         if faults:
             ended: bool | None = False
-        elif self._end_thread is not None and self._end_thread.done:
+        elif self._end_thread is not None and self._end_thread.done and self._idle():
             ended = self._flushed
         else:
             ended = None

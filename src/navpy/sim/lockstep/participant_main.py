@@ -8,7 +8,8 @@
    ``navpy.sim.lockstep`` are imported, then the runtime is bound.
 3. The hooks factory named in the environment record is loaded (it must not
    import the product; ``construct`` does, at the admission tick), the loop
-   connects to the coordinator and registers.
+   connects to the coordinator and registers. Its handoff caps come from the
+   role config's participant models (``participant_budget``), if any.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from collections.abc import Callable
 
 from navpy.sim.lockstep.part_socket import PartSocket
 from navpy.sim.lockstep.participant import bootstrap
+from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY, TickBudget
 from navpy.sim.lockstep.participant_env import ENVIRONMENT_VARIABLE, EnvironmentRecord
 from navpy.sim.lockstep.participant_hooks import ParticipantContext, ParticipantHooks, RequestIds
 from navpy.sim.lockstep.participant_loop import ParticipantLoop
@@ -61,9 +63,11 @@ def main() -> int:
     participant = bootstrap(record.spec())
     factory = load_factory(record.hooks)
     hooks = factory(ParticipantContext(participant, record.config, RequestIds(record.ordinal)))
+    budget = TickBudget(record.config.get(SIM_MODELS_KEY, {}), record.seed, record.ordinal, record.generation)
     link = PartSocket.connect(record.coordinator, timeout_s=CONNECT_WALL_BUDGET_S)
     try:
-        return ParticipantLoop(participant, hooks, link, host_delay=host_delay()).run(record.register())
+        return ParticipantLoop(participant, hooks, link, host_delay=host_delay(),
+                               handoffs=budget.handoffs).run(record.register())
     finally:
         link.close()
 

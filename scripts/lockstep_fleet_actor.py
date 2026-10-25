@@ -24,7 +24,7 @@ the layout with N = 1 (``scripts.lockstep_slice_actor``).
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from gcs.backend.navpy_process_launch import lockstep_navpy_argv
@@ -45,6 +45,7 @@ from navpy.sim.lockstep.operator_ports import (
     polling_start_hook,
 )
 from navpy.sim.lockstep.operator_tail import LockstepLogTail
+from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY
 from navpy.sim.lockstep.participant_hooks import DEVICE_KEY
 from navpy.sim.lockstep.pose_recording import POSE_CADENCE_DIR
 from scripts.eval_gcs_demo_command_bounds import command_bounds_from_snapshot
@@ -186,13 +187,16 @@ def companion_argv(settings: dict, layout: FleetLayout, sys_id: int) -> list[str
 
 def fleet_roles(settings: dict, layout: FleetLayout, *, navpy: bool = False,
                 companion: Callable[[int], RoleSpec] | None = None,
-                pose_cadence_dir: str | None = None) -> dict[str, RoleSpec]:
+                pose_cadence_dir: str | None = None,
+                participant_models: Mapping[str, object] | None = None) -> dict[str, RoleSpec]:
     """The backend role; with ``navpy`` (or a stand-in ``companion`` per sysid)
     each companion role ``navpy<i>`` that its launcher port spawns, with one
     command line (:func:`companion_argv`) in both the backend's ``companions``
     map and the role's spawn record. A run-relative ``pose_cadence_dir`` makes
-    every role record the pose-cadence CSVs there."""
+    every role record the pose-cadence CSVs there; non-empty ``participant_models``
+    (``participant_budget.participant_models``) cap each NavPy's handoffs."""
     recording = {} if pose_cadence_dir is None else {POSE_CADENCE_DIR: pose_cadence_dir}
+    navpy_config = {**recording, **({SIM_MODELS_KEY: dict(participant_models)} if participant_models else {})}
     roles: dict[str, RoleSpec] = {}
     companions = None
     if navpy or companion is not None:
@@ -203,7 +207,7 @@ def fleet_roles(settings: dict, layout: FleetLayout, *, navpy: bool = False,
             companions[str(sys_id)] = {"role": name, "ordinal": layout.navpy(sys_id),
                                        "device": device, "argv": argv}
             roles[name] = (companion(sys_id) if companion is not None
-                           else role(NAVPY_HOOKS, device, {"argv": argv, **recording}))
+                           else role(NAVPY_HOOKS, device, {"argv": argv, **navpy_config}))
     roles["backend"] = backend_role(settings, layout, companions=companions,
                                     pose_cadence_dir=pose_cadence_dir)
     return roles
