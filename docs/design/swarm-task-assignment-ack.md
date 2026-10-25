@@ -24,10 +24,13 @@ Implementation notes:
   copy. `swarm` is a telemetry change key, so a new beat is broadcast.
 - Frontend: a FREE beat retires a round only once the helper's "doing" (or
   the APPLIED's ref) orders it; a round without one ends by advert, reject
-  or APPLIED. Confirm events match entries by (UAV, task id), and available
-  tasks are keyed `${owner}:${task}` like rounds. A helper's confirm carries
-  its own POI id, which can differ from the owner's task id; the card then
-  never shows CONFIRMED, as before this change (follow-up).
+  or APPLIED. Available tasks are keyed `${owner}:${task}` like rounds. A
+  helper's confirm carries its own POI id, not the owner's task id, so
+  confirm events are matched by UAV, to its helper slot: a request raises
+  the slot to confirming, and only then does an approve raise it to
+  confirmed or a deny drop it. A WAITING round is never raised, and an
+  own-POI round asked before the assignment does not answer for the slot
+  (fixed 2026-10-25; before, the card never showed CONFIRMED).
 - Audit: the backend log's format also switches the peer gate, so recorded
   legacy runs need no `assigned by owner` line. The gate orders the
   assignment against `Peer navigation started`: a free peer's hub return

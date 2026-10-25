@@ -1,15 +1,15 @@
-"""Names must not imply that arbitrary model IDs identify a dock or vehicle."""
+"""The thumbnail label names the dock class; other class IDs stay numbers."""
 
 import pytest
 
+from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
 from navpy.core.review.confirmation_media import poi_class_name
 
 
-@pytest.mark.parametrize("class_id", [0, 1, 2, 3, 4, 17])
-def test_unverified_model_class_is_identified_by_number(class_id):
+def test_dock_class_is_named_dock():
+    assert poi_class_name(DOCK_DETECT_CLASS_ID) == "Dock"
+
+
+@pytest.mark.parametrize("class_id", [1, 2, 3, 4, 17])
+def test_other_model_class_is_identified_by_number(class_id):
     assert poi_class_name(class_id) == f"Detection class {class_id}"
-
-
-def test_delivery_hub_keeps_its_operator_defined_type():
-    assert poi_class_name(0, "vehicle") == "Vehicle"
-    assert poi_class_name(0, "operations_site") == "Operations site"

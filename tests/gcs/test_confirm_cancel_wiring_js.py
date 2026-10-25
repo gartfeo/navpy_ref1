@@ -92,16 +92,14 @@ class TestUseTaskAssignment(unittest.TestCase):
         self.assertIn("handleConfirmedStatusByTask", self.src)
         self.assertIn("handleResolvedCleanupByTask", self.src)
 
-    def test_cleanup_is_task_keyed(self):
-        # Precise removal by (UAV, task id) so a stale event cannot wipe a
-        # newer task's assignment; task ids are per owner, so the task id
-        # alone no longer names one entry.
+    def test_cleanup_is_uav_keyed(self):
+        # A confirm carries the UAV's own POI id, never the owner's task id,
+        # so removal goes by UAV: only the helper slot it was confirming, so an
+        # own-POI round from before the assignment cannot wipe the task.
+        # Behaviour: tests/gcs/test_task_assignment_state.js.
         state = _read("utils", "taskAssignmentState.js")
-        self.assertIn(
-            "entry.receiverId === data.sys_id && entry.taskId === data.task_id",
-            state,
-        )
-        self.assertIn("dropAssignments(state, forTask(data))", state)
+        self.assertIn("const slot = confirmingSlot(state, data.sys_id);", state)
+        self.assertNotIn("entry.taskId === data.task_id", state)
 
 
 class TestMissionStatusUsesPendingOnly(unittest.TestCase):

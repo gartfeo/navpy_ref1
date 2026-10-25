@@ -1,6 +1,7 @@
 /**
  * Tests for the taskAssignmentState reducer (one case per action, copies,
- * same task id from two owners, recycled id, lost APPLIED).
+ * same task id from two owners, recycled id, lost APPLIED, confirms carrying
+ * the helper's own POI id).
  * Dynamically imports the REAL ESM module (frontend is type:module) so the
  * actual exports are exercised, not a copy.
  *
@@ -74,6 +75,8 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   const assigned = run([
     request(OWNER, HELPER, 5, 20), doing(HELPER, OWNER, 5, 40), applied(OWNER, HELPER, 5, 40),
   ]);
+  // The helper asks about the owner's task 5 under its own POI id 1.
+  const confirming = reduce(assigned, onTask('task_confirming', HELPER, 1));
   let s;
   let r;
 
@@ -144,18 +147,12 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   // ---- copies never lower a rank ----
   assert.strictEqual(reduce(assigned, request(OWNER, HELPER, 5, 20)), assigned,
     'a late step-3 copy does not reopen an assigned task');
-  r = reduce(assigned, onTask('task_confirmed', HELPER, 5));
+  r = reduce(confirming, onTask('task_confirmed', HELPER, 1));
   assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMED);
-  assert.strictEqual(reduce(r, onTask('task_confirming', HELPER, 5)), r);
-  s = run([
-    request(OWNER, HELPER, 5, 20), doing(HELPER, OWNER, 5, 40),
-    onTask('task_confirming', HELPER, 5),
-  ]);
-  assert.strictEqual(s.assignments['1:5'].status, S.CONFIRMING, 'APPLIED lost at the GCS');
-  assert.strictEqual(reduce(s, request(OWNER, HELPER, 5, 22)).assignments['1:5'].status,
-    S.CONFIRMING);
-  assert.strictEqual(reduce(s, applied(OWNER, HELPER, 5, 40)).assignments['helper:2'].status,
-    S.CONFIRMING);
+  assert.strictEqual(reduce(r, onTask('task_confirming', HELPER, 1)), r);
+  s = run([request(OWNER, HELPER, 5, 22), applied(OWNER, HELPER, 5, 40)], confirming);
+  assert.strictEqual(s.assignments['helper:2'].status, S.CONFIRMING,
+    'a later step 3 and APPLIED keep the slot rank');
 
   // ---- an advert after the step 3 releases the pending round ----
   s = run([request(OWNER, HELPER, 5, 20)]);
@@ -182,28 +179,38 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   assert.strictEqual(reduce(s, beat(HELPER, 'FREE', 99)), s, 'no doing: cannot be ordered');
   assert.ok(!('helper:2' in reduce(assigned, beat(HELPER, 'FREE', 41)).assignments),
     'nav ended the assigned task');
-  r = reduce(assigned, onTask('task_confirmed', HELPER, 5));
+  r = reduce(confirming, onTask('task_confirmed', HELPER, 1));
   assert.strictEqual(reduce(r, beat(HELPER, 'FREE', 41)), r, 'confirmed stays');
 
-  // ---- confirm events are keyed by (UAV, task) ----
-  s = run([request(OWNER, HELPER, 5, 20), request(OTHER, 4, 5, 20)]);
+  // ---- confirm events are matched by UAV, to its helper slot ----
+  // Delivery demo 2026-10-25: owner 1 assigned its task 2 to UAV 2, which
+  // confirmed it as its own POI 1.
+  s = run([request(OWNER, HELPER, 2, 8), doing(HELPER, OWNER, 2, 7), applied(OWNER, HELPER, 2, 7)]);
+  r = run([onTask('task_confirming', HELPER, 1), onTask('task_confirmed', HELPER, 1)], s);
+  assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMED, 'own POI id, the owner task');
+  s = run([request(OTHER, 4, 5, 20), doing(4, OTHER, 5, 40), applied(OTHER, 4, 5, 40)], assigned);
   r = reduce(s, onTask('task_confirming', HELPER, 5));
-  assert.strictEqual(r.assignments['1:5'].status, S.CONFIRMING);
-  assert.strictEqual(r.assignments['3:5'].status, S.WAITING, 'same task id, other helper');
-  assert.strictEqual(reduce(s, onTask('task_confirming', HELPER, 6)), s, 'its own POI');
-  r = reduce(s, onTask('task_confirmed', 4, 5));
-  assert.strictEqual(r.assignments['3:5'].status, S.CONFIRMED);
-  assert.strictEqual(r.assignments['1:5'].status, S.WAITING);
+  assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMING);
+  assert.strictEqual(r.assignments['helper:4'].status, S.ASSIGNED, 'same task id, other helper');
+  assert.strictEqual(reduce(assigned, onTask('task_confirming', OTHER, 5)), assigned, 'no slot');
+  s = run([request(OWNER, HELPER, 5, 20), doing(HELPER, OWNER, 5, 40)]);
+  assert.strictEqual(reduce(s, onTask('task_confirming', HELPER, 5)), s,
+    'a WAITING helper confirms its own POI, not the offered task');
+  assert.strictEqual(reduce(assigned, onTask('task_confirmed', HELPER, 7)), assigned,
+    'an own-POI round asked before the assignment does not answer for it');
 
-  // ---- task_resolved: the denied POI's round and advert go ----
-  s = run([advert(HELPER, [7], 10), advert(OWNER, [8], 10), request(OWNER, HELPER, 5, 20)]);
-  r = reduce(s, onTask('task_resolved', HELPER, 5));
-  assert.ok(!('1:5' in r.assignments));
-  assert.deepStrictEqual(Object.keys(r.availableTasks).sort(), ['1:8', '2:7']);
+  // ---- task_resolved: the denied POI's advert and confirming task go ----
+  s = run([advert(HELPER, [7], 10), advert(OWNER, [5, 8], 30)], confirming);
+  assert.ok('helper:2' in s.assignments);
+  r = reduce(s, onTask('task_resolved', HELPER, 1));
+  assert.ok(!('helper:2' in r.assignments));
+  assert.deepStrictEqual(Object.keys(r.availableTasks).sort(), ['1:8', '2:7'],
+    'the owner advert of the denied task goes too');
+  s = run([advert(HELPER, [7], 10)], assigned);
   r = reduce(s, onTask('task_resolved', HELPER, 7));
   assert.ok(!('2:7' in r.availableTasks), 'its own advertised POI');
-  assert.ok('1:5' in r.assignments);
-  assert.strictEqual(reduce(s, onTask('task_resolved', OTHER, 5)), s);
+  assert.strictEqual(r.assignments, s.assignments, 'not confirming: the assigned task stays');
+  assert.strictEqual(reduce(confirming, onTask('task_resolved', OTHER, 1)), confirming);
 
   // ---- disarm_after_guided: the UAV's rounds and its adverts go ----
   s = run([advert(HELPER, [7], 10), request(OWNER, HELPER, 5, 20), request(OWNER, OTHER, 6, 21)]);

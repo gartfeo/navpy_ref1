@@ -38,7 +38,7 @@ export default function useWsHandlers({
     };
     messageHandlersRef.current['task_confirm_image'] = taskConfirm.handleConfirmImage;
     // Response converges on ALL clients (not just the initiator's wrapper):
-    // the card state AND the (UAV, task)-keyed assignment state are updated here.
+    // the card state AND the UAV's assignment state are updated here.
     messageHandlersRef.current['task_confirm_response'] = (data) => {
       taskConfirm.handleConfirmResponse(data);
       if (data.is_confirmed) taskAssign.handleConfirmedStatusByTask(data.sys_id, data.task_id);
@@ -148,8 +148,8 @@ export default function useWsHandlers({
 
   // ---- Approve / deny / cancel wrappers ----
   // Card-only on purpose: assignment state converges for ALL clients
-  // (including this one) via the task_confirm_response WS handler, keyed by
-  // task_id. Mutating assignment here too would diverge card vs assignment
+  // (including this one) via the task_confirm_response WS handler, matched
+  // by UAV. Mutating assignment here too would diverge card vs assignment
   // state on a failed POST (the card is gated on res.ok; assignment was not).
   const handleTaskApprove = useCallback((sysId) => {
     taskConfirm.approve(sysId);

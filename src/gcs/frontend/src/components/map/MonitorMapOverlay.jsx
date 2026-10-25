@@ -19,11 +19,11 @@ export default function MonitorMapOverlay({
   onToggleManualControl,
   showVision, onToggleVision,
   trails,
-  onEditPlan, planEntry,
+  onEditPlan, hasPlan,
   videoOpen, onToggleVideo,
 }) {
   const { t } = useTranslation();
-  const planLabel = planEntry?.isEdit ? t('monitor.editPlan') : t('monitor.startPlanning');
+  const planLabel = hasPlan ? t('monitor.editPlan') : t('monitor.startPlanning');
   const topRightRef = useRef(null);
   const topRight = useElementSize(topRightRef, NO_SIZE);
   useEffect(() => {
@@ -73,36 +73,36 @@ export default function MonitorMapOverlay({
       }}>
         {/* Plan entry — moved off the sidebar UAV-status header so a long
             translated label (e.g. Armenian) can never crowd E-STOP. The wide
-            map absorbs the label, and it sits with the plan drawn beneath it. */}
-        {planEntry?.show && (
-          <button
-            type="button"
-            onClick={onEditPlan}
-            title={planLabel}
-            aria-label={planLabel}
-            style={{
-              height: 32,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '0 12px',
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              border: `1px solid ${colors.accent}`,
-              background: 'rgba(22, 33, 62, 0.85)',
-              color: colors.accent,
-              backdropFilter: 'blur(4px)',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-              <path d="M10.8 2.6l2.6 2.6M2.5 13.5l2.9-.6 7.2-7.2-2.3-2.3-7.2 7.2-.6 2.9z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            {planLabel}
-          </button>
-        )}
+            map absorbs the label, and it sits with the plan drawn beneath it.
+            Always shown, so planning is found in one place in every state;
+            the sidebar's own Start Planning button may be below the fold. */}
+        <button
+          type="button"
+          onClick={onEditPlan}
+          title={planLabel}
+          aria-label={planLabel}
+          style={{
+            height: 32,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '0 12px',
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            border: `1px solid ${colors.accent}`,
+            background: 'rgba(22, 33, 62, 0.85)',
+            color: colors.accent,
+            backdropFilter: 'blur(4px)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+            <path d="M10.8 2.6l2.6 2.6M2.5 13.5l2.9-.6 7.2-7.2-2.3-2.3-7.2 7.2-.6 2.9z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {planLabel}
+        </button>
         {/* Vision toggle */}
         <MapIconBtn
           title={t('monitorOverlay.toggleVision')}

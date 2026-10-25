@@ -44,7 +44,6 @@ import VehicleSelector from './components/VehicleSelector';
 import TaskConfirmCard from './components/TaskConfirmCard';
 import PlanningToolbar from './components/map/PlanningToolbar';
 import MonitorMapOverlay from './components/map/MonitorMapOverlay';
-import { computePlanEntry } from './constants/monitorPhases';
 import NotificationBanner from './components/NotificationBanner';
 import LoadingScreen from './components/LoadingScreen';
 import VehicleWindow, { MAP_SWAPPED_Z_INDEX } from './components/VehicleWindow';
@@ -779,12 +778,7 @@ export default function App() {
                 onClearAll: commands.handleClearHistory,
               }}
               onEditPlan={planning.handleGoToPlanning}
-              planEntry={computePlanEntry({
-                hasPlan: (plan?.zones?.length || 0) > 0,
-                vehiclesHaveMission: vehicleList.some((v) => (v.mission_total || 0) > 0),
-                isBusyConnecting: (downloadingSysIds?.size || 0) > 0,
-                allDisarmed: vehicleList.length > 0 && vehicleList.every((v) => !v.armed),
-              })}
+              hasPlan={(plan?.zones?.length || 0) > 0}
               videoOpen={win.open}
               onToggleVideo={win.toggleOpen}
             />

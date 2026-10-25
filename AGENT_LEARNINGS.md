@@ -1391,3 +1391,14 @@
 - msys sed -i strips CR from CRLF sources. Edit them with Python opened with newline="".
 - A mutation killed by a NameError proves nothing; make sure the killing test fails on the behaviour.
 - A broad test subset is not full pytest: a demo test outside my subset still expected 640x480.
+
+## Delivery demo GCS fixes: plan button, helper confirm, dock label (2026-10-25)
+- A helper confirms the owner's task under its own POI id (`PoiTaskIdAllocator`), so any GCS
+  match of confirm traffic against swarm task ids silently misses. Match by UAV (the helper slot);
+  the design doc had flagged this as a follow-up, so read its "follow-up" notes before keying.
+- A Python heredoc turned `\'` into a bare quote in a JS test string, breaking the file. Write
+  JS strings with quotes through the Edit or Write tool, not a heredoc script.
+- tests/guards/test_core_knows_no_product.py rejects product words such as "hub" even in a core
+  docstring. Run tests/guards right after editing src/navpy/core.
+- A worktree has no .venv: run pytest with the main checkout's
+  `.venv/Scripts/python.exe` and PYTHONPATH set to the worktree's src.

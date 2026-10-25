@@ -7,7 +7,7 @@ const props = (extra = {}) => ({
   onToggleVision: vi.fn(),
   trails: { vehicleList: [{ sys_id: 1 }], hiddenSysIds: new Set(), pausedAt: null },
   onEditPlan: vi.fn(),
-  planEntry: { show: true, isEdit: false },
+  hasPlan: false,
   ...extra,
 });
 
@@ -34,6 +34,24 @@ describe('MonitorMapOverlay top-right bar', () => {
     expect(bar.style.flexWrap).toBe('wrap');
     expect(bar.style.maxWidth).toBe('calc(100% - 68px)');
     expect(getByRole('button', { name: 'monitor.startPlanning' })).toBeInTheDocument();
+  });
+
+  // The props carry no arm, mission or download state: the plan entry is shown
+  // in every state, including idle with no plan, where it used to hide.
+  it('idle with no plan: Start Planning is shown and opens planning', () => {
+    const p = props();
+    const { getByRole, queryByRole } = render(<MonitorMapOverlay {...p} />);
+    fireEvent.click(getByRole('button', { name: 'monitor.startPlanning' }));
+    expect(p.onEditPlan).toHaveBeenCalledTimes(1);
+    expect(queryByRole('button', { name: 'monitor.editPlan' })).toBeNull();
+  });
+
+  it('with a plan: Edit Plan replaces Start Planning', () => {
+    const p = props({ hasPlan: true });
+    const { getByRole, queryByRole } = render(<MonitorMapOverlay {...p} />);
+    fireEvent.click(getByRole('button', { name: 'monitor.editPlan' }));
+    expect(p.onEditPlan).toHaveBeenCalledTimes(1);
+    expect(queryByRole('button', { name: 'monitor.startPlanning' })).toBeNull();
   });
 
   it('reports the bottom edge of the top controls', () => {

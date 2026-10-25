@@ -68,7 +68,7 @@ class TestAppDenyWiring(unittest.TestCase):
     def test_deny_cleanup_converges_via_ws_response(self):
         """Assignment cleanup is no longer done in the deny wrapper (that would
         diverge from the card on a failed POST). It converges for all clients,
-        task-keyed, via the task_confirm_response WS handler."""
+        matched by UAV, via the task_confirm_response WS handler."""
         self.assertIn("taskAssign.handleResolvedCleanupByTask", self.ws_source)
         self.assertNotIn("taskAssign.handleDeniedCleanup(sysId)", self.ws_source)
 

@@ -418,8 +418,8 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
   // The ubiquitous planning entry point ("Edit Plan" / "Start Planning") now
   // lives on the monitor map overlay (top-right), not in this header row — a
   // long translated label there could crowd or clip E-STOP. See
-  // computePlanEntry + MonitorMapOverlay. This header keeps only the section
-  // title and E-STOP, so it stays clean in every language.
+  // MonitorMapOverlay. This header keeps only the section title and E-STOP,
+  // so it stays clean in every language.
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

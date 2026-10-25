@@ -5,26 +5,21 @@ from typing import Callable, Optional
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
 from navpy.core.ports.network_abc import ImageSendUnitRunner
 from navpy.core.review.confirmation_ports import ConfirmationImageSender
 from navpy.core.review.confirmation_image_artifacts import ConfirmationImageArtifacts
 from navpy.core.ports.detect_data import DetectedObject
 
 
-_LOCATION_TYPE_LABELS = {
-    "building": "Building",
-    "vehicle": "Vehicle",
-    "antenna": "Comms",
-    "operations_site": "Operations site",
-    "bridge": "Bridge",
-    "fuel": "Fuel",
-    "other": "Other",
-}
+def poi_class_name(class_id: int) -> str:
+    """Name the detected class: the dock class by name, any other by its ID.
 
-def poi_class_name(class_id: int, location_type: Optional[str] = None) -> str:
-    """Describe a location type or an ID without guessing the model's labels."""
-    if location_type:
-        return _LOCATION_TYPE_LABELS.get(location_type, location_type.capitalize())
+    The label names what was detected, never the location type of the site
+    it stands on.
+    """
+    if class_id == DOCK_DETECT_CLASS_ID:
+        return "Dock"
     return f"Detection class {class_id}"
 
 
@@ -80,10 +75,7 @@ class ConfirmationMedia:
         classification = poi.classification
         if confirmation.frame is None or confirmation.bbox_cxcywh is None:
             return True
-        class_name = poi_class_name(
-            classification.class_id,
-            classification.location_type,
-        )
+        class_name = poi_class_name(classification.class_id)
         image_b64 = self._thumbnail_builder(
             frame=confirmation.frame,
             poi_id=poi_id,

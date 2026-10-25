@@ -13,6 +13,12 @@
  * confirmed are never lowered within a round. Available tasks are keyed
  * `${owner}:${task}` too: task ids are per owner.
  *
+ * Confirm events carry the confirming UAV's own POI id: each companion numbers
+ * its POIs itself, so a helper confirms the owner's task 2 as its POI 1. They
+ * are matched by UAV, to that UAV's helper slot. Only a round the GCS heard the
+ * UAV ask while it held the task (CONFIRMING) is answered for the slot; an
+ * own-POI round asked before the assignment is not.
+ *
  * Every function returns the same state reference when nothing changes.
  */
 
@@ -56,10 +62,6 @@ function follows(uid, floor) {
     && uid.boot_id === floor.boot_id && uid.msg_seq > floor.msg_seq;
 }
 
-function forTask(data) {
-  return (entry) => entry.receiverId === data.sys_id && entry.taskId === data.task_id;
-}
-
 function forVehicle(sysId) {
   return (entry) => entry.receiverId === sysId;
 }
@@ -84,14 +86,15 @@ function dropAvailable(state, keys) {
   return { ...state, availableTasks };
 }
 
-function raise(state, data, status) {
-  let assignments = state.assignments;
-  for (const entry of Object.values(state.assignments).filter(forTask(data))) {
-    if (higher(entry.status, status) === entry.status) continue;
-    if (assignments === state.assignments) assignments = { ...assignments };
-    assignments[entry.key] = { ...entry, status };
-  }
-  return assignments === state.assignments ? state : { ...state, assignments };
+// The helper slot a confirm answer from this UAV applies to, if any.
+function confirmingSlot(state, sysId) {
+  const slot = state.assignments[helperKey(sysId)];
+  return slot && RANK[slot.status] >= RANK.confirming ? slot : null;
+}
+
+function raise(state, slot, status) {
+  if (!slot || higher(slot.status, status) === slot.status) return state;
+  return withAssignment(state, { ...slot, status });
 }
 
 function sameAvailable(current, entry) {
@@ -197,18 +200,21 @@ export function swarmHeartbeat(state, data) {
 }
 
 export function taskConfirming(state, data) {
-  return raise(state, data, ASSIGNMENT_STATUS.CONFIRMING);
+  return raise(state, state.assignments[helperKey(data.sys_id)], ASSIGNMENT_STATUS.CONFIRMING);
 }
 
 export function taskConfirmed(state, data) {
-  return raise(state, data, ASSIGNMENT_STATUS.CONFIRMED);
+  return raise(state, confirmingSlot(state, data.sys_id), ASSIGNMENT_STATUS.CONFIRMED);
 }
 
+// A denied POI: the UAV's own advert of it goes, and so does the task it was
+// confirming for its owner.
 export function taskResolved(state, data) {
-  const resolved = Object.values(state.assignments).filter(forTask(data));
-  return dropAvailable(dropAssignments(state, forTask(data)), [
+  const slot = confirmingSlot(state, data.sys_id);
+  const next = slot ? dropAssignments(state, (entry) => entry === slot) : state;
+  return dropAvailable(next, [
     roundKey(data.sys_id, data.task_id),
-    ...resolved.map((entry) => roundKey(entry.senderId, entry.taskId)),
+    ...(slot ? [roundKey(slot.senderId, slot.taskId)] : []),
   ]);
 }
 
