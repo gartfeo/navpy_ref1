@@ -1396,6 +1396,9 @@
 - A helper confirms the owner's task under its own POI id (`PoiTaskIdAllocator`), so any GCS
   match of confirm traffic against swarm task ids silently misses. Match by UAV (the helper slot);
   the design doc had flagged this as a follow-up, so read its "follow-up" notes before keying.
+- Matching by UAV alone let an answer for another of that UAV's POIs confirm or drop the task
+  (Codex P1). Record the asked round (POI id, round uid) in the slot and match answers against it,
+  as the confirm card reducer already did. Reuse a sibling reducer's guard before inventing a key.
 - A Python heredoc turned `\'` into a bare quote in a JS test string, breaking the file. Write
   JS strings with quotes through the Edit or Write tool, not a heredoc script.
 - tests/guards/test_core_knows_no_product.py rejects product words such as "hub" even in a core

@@ -34,15 +34,16 @@ export default function useWsHandlers({
   useEffect(() => {
     messageHandlersRef.current['task_confirm_request'] = (data) => {
       taskConfirm.handleConfirmRequest(data);
-      confirmingStatusRef.current?.(data.sys_id, data.task_id);
+      confirmingStatusRef.current?.(data.sys_id, data.task_id, data.round_uid);
     };
     messageHandlersRef.current['task_confirm_image'] = taskConfirm.handleConfirmImage;
     // Response converges on ALL clients (not just the initiator's wrapper):
     // the card state AND the UAV's assignment state are updated here.
     messageHandlersRef.current['task_confirm_response'] = (data) => {
       taskConfirm.handleConfirmResponse(data);
-      if (data.is_confirmed) taskAssign.handleConfirmedStatusByTask(data.sys_id, data.task_id);
-      else taskAssign.handleResolvedCleanupByTask(data.sys_id, data.task_id);
+      const { sys_id: sysId, task_id: taskId, round_uid: roundUid } = data;
+      if (data.is_confirmed) taskAssign.handleConfirmedStatusByTask(sysId, taskId, roundUid);
+      else taskAssign.handleResolvedCleanupByTask(sysId, taskId, roundUid);
     };
     // Mission restart / E-STOP (incl. a per-UAV E-STOP): clear cards +
     // assignments for the listed UAVs.

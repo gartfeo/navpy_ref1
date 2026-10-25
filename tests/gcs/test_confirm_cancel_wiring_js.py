@@ -94,11 +94,12 @@ class TestUseTaskAssignment(unittest.TestCase):
 
     def test_cleanup_is_uav_keyed(self):
         # A confirm carries the UAV's own POI id, never the owner's task id,
-        # so removal goes by UAV: only the helper slot it was confirming, so an
-        # own-POI round from before the assignment cannot wipe the task.
+        # so removal goes by UAV: only the helper slot whose asked round this
+        # answers, so another POI's round cannot wipe the task.
         # Behaviour: tests/gcs/test_task_assignment_state.js.
         state = _read("utils", "taskAssignmentState.js")
-        self.assertIn("const slot = confirmingSlot(state, data.sys_id);", state)
+        self.assertIn("const slot = confirmingSlot(state, data);", state)
+        self.assertIn("answersRound(slot.confirm, data)", state)
         self.assertNotIn("entry.taskId === data.task_id", state)
 
 

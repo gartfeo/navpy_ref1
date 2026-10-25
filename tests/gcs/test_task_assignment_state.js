@@ -54,7 +54,7 @@ const beat = (sys_id, state, seq, boot = 3) => ({
   type: 'swarm_heartbeat',
   data: { sys_id, swarm: { state, boot, seq, stale: false } },
 });
-const onTask = (type, sys_id, task_id) => ({ type, data: { sys_id, task_id } });
+const onTask = (type, sys_id, task_id, round_uid) => ({ type, data: { sys_id, task_id, round_uid } });
 const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
 
 (async () => {
@@ -76,7 +76,7 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
     request(OWNER, HELPER, 5, 20), doing(HELPER, OWNER, 5, 40), applied(OWNER, HELPER, 5, 40),
   ]);
   // The helper asks about the owner's task 5 under its own POI id 1.
-  const confirming = reduce(assigned, onTask('task_confirming', HELPER, 1));
+  const confirming = reduce(assigned, onTask('task_confirming', HELPER, 1, '3:50'));
   let s;
   let r;
 
@@ -153,6 +153,8 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   s = run([request(OWNER, HELPER, 5, 22), applied(OWNER, HELPER, 5, 40)], confirming);
   assert.strictEqual(s.assignments['helper:2'].status, S.CONFIRMING,
     'a later step 3 and APPLIED keep the slot rank');
+  assert.strictEqual(reduce(s, onTask('task_confirmed', HELPER, 1, '3:50'))
+    .assignments['helper:2'].status, S.CONFIRMED, 'and the round it asked');
 
   // ---- an advert after the step 3 releases the pending round ----
   s = run([request(OWNER, HELPER, 5, 20)]);
@@ -195,14 +197,49 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   assert.strictEqual(reduce(assigned, onTask('task_confirming', OTHER, 5)), assigned, 'no slot');
   s = run([request(OWNER, HELPER, 5, 20), doing(HELPER, OWNER, 5, 40)]);
   assert.strictEqual(reduce(s, onTask('task_confirming', HELPER, 5)), s,
-    'a WAITING helper confirms its own POI, not the offered task');
+    'before APPLIED the GCS cannot tell the task round from an own-POI round');
   assert.strictEqual(reduce(assigned, onTask('task_confirmed', HELPER, 7)), assigned,
     'an own-POI round asked before the assignment does not answer for it');
+  // Fail closed: APPLIED heard only after the confirm request leaves the task
+  // ASSIGNED rather than risk confirming it with an own-POI round (todo 88).
+  r = run([
+    onTask('task_confirming', HELPER, 1, '3:50'), applied(OWNER, HELPER, 5, 40),
+    onTask('task_confirmed', HELPER, 1, '3:50'),
+  ], s);
+  assert.strictEqual(r.assignments['helper:2'].status, S.ASSIGNED, 'APPLIED heard late');
+
+  // ---- only an answer for the asked round moves the slot ----
+  assert.deepStrictEqual(confirming.assignments['helper:2'].confirm, { taskId: 1, roundUid: '3:50' });
+  assert.strictEqual(reduce(confirming, onTask('task_confirmed', HELPER, 9, '3:60')), confirming,
+    'an approve for another POI');
+  assert.strictEqual(reduce(confirming, onTask('task_resolved', HELPER, 9, '3:60')).assignments,
+    confirming.assignments, 'a deny for another POI');
+  assert.strictEqual(reduce(confirming, onTask('task_confirmed', HELPER, 1, '3:45')), confirming,
+    'an answer for an earlier round of the same POI');
+  assert.strictEqual(reduce(confirming, onTask('task_confirmed', HELPER, 1))
+    .assignments['helper:2'].status, S.CONFIRMED, 'an answer without a round uid: POI id alone');
+  r = run([onTask('task_confirming', HELPER, 2, '3:55'), onTask('task_confirmed', HELPER, 1, '3:50')],
+    confirming);
+  assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMING, 'a later round re-points the slot');
+  assert.strictEqual(reduce(r, onTask('task_confirmed', HELPER, 2, '3:55'))
+    .assignments['helper:2'].status, S.CONFIRMED);
+  const confirmed = reduce(confirming, onTask('task_confirmed', HELPER, 1, '3:50'));
+  r = run([onTask('task_confirming', HELPER, 3, '3:70'), onTask('task_resolved', HELPER, 3, '3:70')],
+    confirmed);
+  assert.strictEqual(r.assignments, confirmed.assignments,
+    'a confirmed task stays when the UAV then asks and is denied its home dock');
+  r = run([
+    request(OWNER, HELPER, 8, 30), doing(HELPER, OWNER, 8, 60), applied(OWNER, HELPER, 8, 60),
+    onTask('task_confirming', HELPER, 2, '3:70'), onTask('task_resolved', HELPER, 1, '3:50'),
+  ], confirmed);
+  assert.strictEqual(r.assignments['helper:2'].taskId, 8);
+  assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMING,
+    'canceling the earlier approved POI keeps the next assignment');
 
   // ---- task_resolved: the denied POI's advert and confirming task go ----
   s = run([advert(HELPER, [7], 10), advert(OWNER, [5, 8], 30)], confirming);
   assert.ok('helper:2' in s.assignments);
-  r = reduce(s, onTask('task_resolved', HELPER, 1));
+  r = reduce(s, onTask('task_resolved', HELPER, 1, '3:50'));
   assert.ok(!('helper:2' in r.assignments));
   assert.deepStrictEqual(Object.keys(r.availableTasks).sort(), ['1:8', '2:7'],
     'the owner advert of the denied task goes too');

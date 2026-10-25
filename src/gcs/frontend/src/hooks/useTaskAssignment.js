@@ -33,8 +33,8 @@ export default function useTaskAssignment() {
 
   const handlers = useMemo(() => {
     const on = (type) => (data) => dispatch({ type, data });
-    const onTask = (type) => (sysId, taskId) => dispatch({
-      type, data: { sys_id: sysId, task_id: taskId },
+    const onTask = (type) => (sysId, taskId, roundUid = null) => dispatch({
+      type, data: { sys_id: sysId, task_id: taskId, round_uid: roundUid },
     });
     return {
       handleAvailableTaskRequest: on('available_task_request'),

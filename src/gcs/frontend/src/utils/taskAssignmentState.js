@@ -15,9 +15,12 @@
  *
  * Confirm events carry the confirming UAV's own POI id: each companion numbers
  * its POIs itself, so a helper confirms the owner's task 2 as its POI 1. They
- * are matched by UAV, to that UAV's helper slot. Only a round the GCS heard the
- * UAV ask while it held the task (CONFIRMING) is answered for the slot; an
- * own-POI round asked before the assignment is not.
+ * are matched by UAV, to that UAV's helper slot, which records the round (POI
+ * id, round uid) the GCS heard the UAV ask while it held the task
+ * (CONFIRMING). Only an answer for that round moves the slot; an answer for
+ * another (an own-POI round asked before the assignment, a later round at its
+ * home dock, a stale page's decision) does not. A round the GCS heard before
+ * it heard the owner's APPLIED is never counted: it may be an own-POI round.
  *
  * Every function returns the same state reference when nothing changes.
  */
@@ -86,10 +89,24 @@ function dropAvailable(state, keys) {
   return { ...state, availableTasks };
 }
 
-// The helper slot a confirm answer from this UAV applies to, if any.
-function confirmingSlot(state, sysId) {
-  const slot = state.assignments[helperKey(sysId)];
-  return slot && RANK[slot.status] >= RANK.confirming ? slot : null;
+// The round a UAV asked while it held the task: its own POI id and the round
+// uid (null from a sender without one).
+function askedRound(data) {
+  return { taskId: data.task_id, roundUid: data.round_uid ?? null };
+}
+
+// An answer is for the asked round as a confirm card decides it
+// (taskConfirmationState.js): same POI id, and same round uid when both have one.
+function answersRound(asked, data) {
+  return !!asked && asked.taskId === data.task_id
+    && (asked.roundUid == null || data.round_uid == null || asked.roundUid === data.round_uid);
+}
+
+// The helper slot a confirm answer applies to, if any.
+function confirmingSlot(state, data) {
+  const slot = state.assignments[helperKey(data.sys_id)];
+  return slot && RANK[slot.status] >= RANK.confirming
+    && answersRound(slot.confirm, data) ? slot : null;
 }
 
 function raise(state, slot, status) {
@@ -177,14 +194,16 @@ export function assignAck(state, data) {
   const key = helperKey(data.helper_id);
   const slot = state.assignments[key];
   let status = higher(round.status, ASSIGNMENT_STATUS.ASSIGNED);
+  let kept = {};
   if (slot && slot.senderId === round.senderId && slot.taskId === round.taskId
       && slot.requestUid?.boot_id === round.requestUid?.boot_id) {
     status = higher(status, slot.status);
+    if (slot.confirm) kept = { confirm: slot.confirm };
   }
   const doingUid = isNewer(data.ref, round.doingUid) ? data.ref : round.doingUid;
   const assignments = { ...state.assignments };
   delete assignments[round.key];
-  assignments[key] = { ...round, key, status, doingUid };
+  assignments[key] = { ...round, key, status, doingUid, ...kept };
   return { ...state, assignments };
 }
 
@@ -199,18 +218,25 @@ export function swarmHeartbeat(state, data) {
     && entry.doingUid != null && isNewer(beat, entry.doingUid));
 }
 
+// The latest round a UAV asks while it holds the task answers for it, until
+// the task is confirmed.
 export function taskConfirming(state, data) {
-  return raise(state, state.assignments[helperKey(data.sys_id)], ASSIGNMENT_STATUS.CONFIRMING);
+  const slot = state.assignments[helperKey(data.sys_id)];
+  if (!slot || slot.status === ASSIGNMENT_STATUS.CONFIRMED) return state;
+  const confirm = askedRound(data);
+  if (slot.status === ASSIGNMENT_STATUS.CONFIRMING && slot.confirm.taskId === confirm.taskId
+      && slot.confirm.roundUid === confirm.roundUid) return state;
+  return withAssignment(state, { ...slot, status: ASSIGNMENT_STATUS.CONFIRMING, confirm });
 }
 
 export function taskConfirmed(state, data) {
-  return raise(state, confirmingSlot(state, data.sys_id), ASSIGNMENT_STATUS.CONFIRMED);
+  return raise(state, confirmingSlot(state, data), ASSIGNMENT_STATUS.CONFIRMED);
 }
 
 // A denied POI: the UAV's own advert of it goes, and so does the task it was
 // confirming for its owner.
 export function taskResolved(state, data) {
-  const slot = confirmingSlot(state, data.sys_id);
+  const slot = confirmingSlot(state, data);
   const next = slot ? dropAssignments(state, (entry) => entry === slot) : state;
   return dropAvailable(next, [
     roundKey(data.sys_id, data.task_id),

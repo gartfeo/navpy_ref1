@@ -53,16 +53,18 @@ describe('task assignment routing', () => {
     expect(taskAssign.handleAssignAck).toHaveBeenCalledExactlyOnceWith(ack);
   });
 
-  it('keys confirm events by UAV and task', () => {
+  it('keys confirm events by UAV, POI and round', () => {
     const { handlers, taskAssign } = setup();
 
-    act(() => handlers.task_confirm_request({ sys_id: 2, task_id: 5 }));
-    act(() => handlers.task_confirm_response({ sys_id: 2, task_id: 5, is_confirmed: true }));
+    act(() => handlers.task_confirm_request({ sys_id: 2, task_id: 5, round_uid: '3:40' }));
+    act(() => handlers.task_confirm_response({
+      sys_id: 2, task_id: 5, round_uid: '3:40', is_confirmed: true,
+    }));
     act(() => handlers.task_confirm_response({ sys_id: 3, task_id: 6, is_confirmed: false }));
 
-    expect(taskAssign.handleConfirmingStatus).toHaveBeenCalledExactlyOnceWith(2, 5);
-    expect(taskAssign.handleConfirmedStatusByTask).toHaveBeenCalledExactlyOnceWith(2, 5);
-    expect(taskAssign.handleResolvedCleanupByTask).toHaveBeenCalledExactlyOnceWith(3, 6);
+    expect(taskAssign.handleConfirmingStatus).toHaveBeenCalledExactlyOnceWith(2, 5, '3:40');
+    expect(taskAssign.handleConfirmedStatusByTask).toHaveBeenCalledExactlyOnceWith(2, 5, '3:40');
+    expect(taskAssign.handleResolvedCleanupByTask).toHaveBeenCalledExactlyOnceWith(3, 6, undefined);
   });
 });
 

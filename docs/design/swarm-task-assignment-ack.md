@@ -27,10 +27,13 @@ Implementation notes:
   or APPLIED. Available tasks are keyed `${owner}:${task}` like rounds. A
   helper's confirm carries its own POI id, not the owner's task id, so
   confirm events are matched by UAV, to its helper slot: a request raises
-  the slot to confirming, and only then does an approve raise it to
-  confirmed or a deny drop it. A WAITING round is never raised, and an
-  own-POI round asked before the assignment does not answer for the slot
-  (fixed 2026-10-25; before, the card never showed CONFIRMED).
+  the slot to confirming and records the round (POI id, round uid), and
+  only an answer for that round raises it to confirmed or, denied, drops
+  it. A later request re-points a slot not yet confirmed. A WAITING round
+  is never raised: before APPLIED the GCS cannot tell the task's round from
+  an own-POI round, so a confirm heard before APPLIED leaves the task
+  ASSIGNED (todo 88) (fixed 2026-10-25; before, the card never showed
+  CONFIRMED).
 - Audit: the backend log's format also switches the peer gate, so recorded
   legacy runs need no `assigned by owner` line. The gate orders the
   assignment against `Peer navigation started`: a free peer's hub return
