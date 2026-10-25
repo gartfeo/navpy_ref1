@@ -12,6 +12,8 @@
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
   newlines five times (three more in dev-sim step 1: a test, a scratch script and this
   note). Insert or change code with the Edit tool, never a heredoc; check with `ast.parse`.
+  A "\x00" in a heredoc edit script became a real NUL, so its search string never matched
+  (todo 70): write such scripts with the Write tool and raw strings.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
   5501 + 10 x instance (AP_RCProtocol_UDP.cpp). Driving the "pilot" this way keeps Lua
   RC overrides behaving as on the aircraft; MAVLink RC overrides would compete with them.
@@ -1440,3 +1442,22 @@
   docstring. Run tests/guards right after editing src/navpy/core.
 - A worktree has no .venv: run pytest with the main checkout's
   `.venv/Scripts/python.exe` and PYTHONPATH set to the worktree's src.
+
+## Preflight camera rows (todos 70, 72a, 2026-10-26)
+- pymavlink decodes a `uint8_t[N]` text field (`CAMERA_INFORMATION.vendor_name`) as a list of
+  ints, not str or bytes. Tests that fed a str passed while the wire would have failed; a
+  NavPy-to-GCS test that packs and decodes the real message caught it. Add one for every new
+  field read from a message.
+- Check when a field is sent before reusing it: NavPy's swarm heartbeat carries the boot id only
+  from DETECT on, so preflight needed its own boot id (camera HEARTBEAT `custom_mode`).
+- A new method on a facade fails `FACADE_METHOD_ALLOWANCES` in
+  `tests/guards/solid_architecture_guard.py`. The project raises that allowance by one with a
+  comment naming the approved design; say so in the report.
+- The "lost record takes no replies" test survived a mutation that removed the guard until it was
+  parametrized over every reply kind (information, stream, ACK). Mutate each guard once.
+- Two JS test expectations of mine disagreed with the approved rule ("cameras seen" counts lost
+  ones). When a new test fails, read the design text before changing code or test.
+- The global Vitest setup's `t(key)` drops interpolation; mock react-i18next in the test file with
+  an interpolating `t` (as `VehicleWindow.test.jsx` does) to check names in a cell.
+- One full `npm test` failed once in `trailsWiring.test.jsx` (untouched) while the PC was busy;
+  it passed alone three times and in the next full run. Rerun alone before blaming a change.

@@ -13,6 +13,13 @@ from navpy.core.perception.camera.frame_capture_runtime import (
 )
 from navpy.core.perception.camera.frame_publication import FrameSnapshot
 
+# Newest frame age up to which the detector camera reports ready (camera
+# HEARTBEAT ACTIVE; docs/design/gcs_preflight_camera_row.md). 25 or more frame
+# periods at the ZR10's 25-30 fps, so only a stalled capture fails it; a stall
+# shows within two 1 Hz camera heartbeats. Provisional until the Orin and
+# ZR10 bench check measures the publication jitter.
+DETECTOR_FRAME_FRESH_S = 1.0
+
 
 class FrameProvider:
     """One-field adapter over capture lifecycle and atomic publications."""
@@ -57,6 +64,10 @@ class FrameProvider:
 
     def get_frame_seq(self) -> int:
         return self._parts.publications.sequence()
+
+    def has_fresh_frame(self) -> bool:
+        """Display only: the running capture published a frame recently."""
+        return self._parts.publications.has_fresh_frame(DETECTOR_FRAME_FRESH_S)
 
     def wait_for_newer_frame(
         self,

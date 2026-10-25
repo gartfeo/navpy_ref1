@@ -41,7 +41,8 @@ def _has_changed(prev: dict, curr: dict) -> bool:
                 "companion_ok", "companion_status", "mission_progress", "roll", "pitch",
                 "prearm_ok", "prearm_check_state", "is_probing", "mission_uploaded",
                 "mission_total", "mission_download_progress", "swarm",
-                "video_streams"):
+                "video_streams", "cameras", "camera_wait_over",
+                "video_stream_expected", "video_stream_duplicates"):
         p, c = prev.get(key), curr.get(key)
         if p is None and c is None:
             continue

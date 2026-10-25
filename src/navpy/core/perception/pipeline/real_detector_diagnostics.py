@@ -75,6 +75,9 @@ class DetectorDiagnostics:
         frame, _, _ = self._frame_provider.get_frame()
         return frame
 
+    def has_fresh_frame(self) -> bool:
+        return self._frame_provider.has_fresh_frame()
+
     def get_debug_frame(self) -> np.ndarray | None:
         frame, _, _ = self._frame_provider.get_frame()
         if frame is None:

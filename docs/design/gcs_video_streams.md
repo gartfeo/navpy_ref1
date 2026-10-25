@@ -306,8 +306,8 @@ always starts 12 px below it.
     as a pick of a map-icon UAV would (open question 1). Never a silent switch
     to another UAV.
   - The GCS learns of streams only from the camera protocol: a camera that is
-    expected but never advertises shows the map icon; preflight reports it
-    (`architecture_todo.md` 70).
+    expected but never advertises shows the map icon; the preflight Video
+    stream row reports it (`gcs_preflight_camera_row.md`).
 - Deadlines: no first frame within `VIDEO_FIRST_FRAME_DEADLINE_S` (default 10 s:
   ICE setup plus one keyframe interval, which the display stream keeps at 2 s or
   less), or no new frame for `VIDEO_STALL_DEADLINE_S` (default 5 s, a few
