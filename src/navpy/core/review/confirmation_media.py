@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.network_abc import ImageSendUnitRunner
@@ -48,8 +49,10 @@ class ConfirmationMedia:
         self._logger = logger
         self._thumbnail_builder = thumbnail_builder
         self._artifact_saver = artifact_saver
-        #: The last image saved per POI: a new round's, as every round saves.
+        #: The image whose artifacts each POI's current round holds or is
+        #: saving: claimed by every round's first send, before its network send.
         self._saved_images: dict[int, str] = {}
+        self._saved_lock = rt.Lock()
 
     def send(
         self,
@@ -67,6 +70,9 @@ class ConfirmationMedia:
         Building the thumbnail and saving artifacts run outside the fence.
         A ``resend`` within the same round saves artifacts only if its image
         differs from the one saved for that round, so a resent copy adds none.
+        The save is claimed before the network send, so a resend that arrives
+        while the first send is still sending sees it, and released if the
+        save fails, so a resend can still save the round's artifacts.
         """
         if not run_unit(_nothing):  # resolved already: send and save nothing
             return False
@@ -105,6 +111,7 @@ class ConfirmationMedia:
                 )
             return False
 
+        claimed = self._claim_save(poi_id, image_b64, resend)
         try:
             network = self._network()
             if network is None:
@@ -117,10 +124,21 @@ class ConfirmationMedia:
                     dest=LogStatusDest.DRONE,
                 )
         finally:
-            if not resend or self._saved_images.get(poi_id) != image_b64:
-                self._saved_images[poi_id] = image_b64
-                self._save_artifacts(poi, poi_id, class_name, image_b64)
+            if claimed and not self._save_artifacts(poi, poi_id, class_name, image_b64):
+                self._release_save(poi_id, image_b64)
         return not refused
+
+    def _claim_save(self, poi_id: int, image_b64: str, resend: bool) -> bool:
+        with self._saved_lock:
+            if resend and self._saved_images.get(poi_id) == image_b64:
+                return False
+            self._saved_images[poi_id] = image_b64
+            return True
+
+    def _release_save(self, poi_id: int, image_b64: str) -> None:
+        with self._saved_lock:
+            if self._saved_images.get(poi_id) == image_b64:
+                del self._saved_images[poi_id]
 
     def _save_artifacts(
         self,
@@ -128,10 +146,11 @@ class ConfirmationMedia:
         poi_id: int,
         class_name: str,
         image_b64: str,
-    ) -> None:
+    ) -> bool:
+        """True once the artifacts are written."""
         log_path = getattr(self._logger, "log_path", None)
         if not log_path:
-            return
+            return False
         try:
             artifacts = self._artifact_saver(
                 log_path=log_path,
@@ -146,16 +165,19 @@ class ConfirmationMedia:
                 frame_bboxes=poi.confirmation.frame_bboxes,
                 confirmation_degraded=poi.confirmation.degraded,
             )
-            if artifacts is not None:
-                self._logger.info(
-                    f"P{poi_id} confirmation images saved: "
-                    f"{artifacts.source_path.name}, "
-                    f"{artifacts.sent_thumbnail_path.name}",
-                    key="nav_state",
-                )
+            if artifacts is None:
+                return False
+            self._logger.info(
+                f"P{poi_id} confirmation images saved: "
+                f"{artifacts.source_path.name}, "
+                f"{artifacts.sent_thumbnail_path.name}",
+                key="nav_state",
+            )
+            return True
         except OSError as exc:
             self._logger.warning(
                 f"Failed to save confirmation image artifacts for "
                 f"P{poi_id}: {exc}",
                 key="nav_state",
             )
+            return False

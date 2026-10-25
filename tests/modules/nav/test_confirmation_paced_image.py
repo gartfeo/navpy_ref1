@@ -312,16 +312,16 @@ class ConfirmationArtifactsPerRoundTests(unittest.TestCase):
     """A round keeps one set of artifacts; a resent copy of its image adds none."""
 
     def setUp(self):
-        self.saver = MagicMock(return_value=None)
+        self.saver = MagicMock()  # returns the written artifacts
         self.images = iter([IMAGE_A, IMAGE_A])
 
-    def _media(self):
+    def _media(self, network=None):
         from navpy.core.review.confirmation_media import ConfirmationMedia
 
         logger = MagicMock(spec=ILogger)
         logger.log_path = "session-logs"
         return ConfirmationMedia(
-            sys_id=1, network=lambda: _SyncNetwork(), logger=logger,
+            sys_id=1, network=lambda: network or _SyncNetwork(), logger=logger,
             thumbnail_builder=lambda **kwargs: next(self.images), artifact_saver=self.saver,
         )
 
@@ -340,6 +340,31 @@ class ConfirmationArtifactsPerRoundTests(unittest.TestCase):
         media.send(poi, 7, _admit)
         media.send(poi, 7, _admit, resend=True)
         self.assertEqual(self._sent_images(), [IMAGE_A, IMAGE_B])
+
+    def test_a_failed_save_lets_a_resend_save(self):
+        media, poi = self._media(), ConfirmationMediaHandOverTests._poi(None)
+        self.saver.side_effect = [OSError("disk full"), MagicMock()]
+        media.send(poi, 7, _admit)
+        media.send(poi, 7, _admit, resend=True)
+        self.assertEqual(self._sent_images(), [IMAGE_A, IMAGE_A])
+
+    def test_a_resend_while_the_first_send_is_sending_saves_nothing(self):
+        poi = ConfirmationMediaHandOverTests._poi(None)
+
+        class _ResendDuringSend:
+            resent = False
+
+            def send_image(self, poi_id, image_b64, run_unit=None):
+                if not self.resent:  # the GCS's request, on the inbound thread
+                    self.resent = True
+                    inbound = threading.Thread(target=lambda: media.send(poi, poi_id, _admit, resend=True))
+                    inbound.start()
+                    inbound.join()
+                return 1
+
+        media = self._media(_ResendDuringSend())
+        media.send(poi, 7, _admit)
+        self.assertEqual(self._sent_images(), [IMAGE_A])
 
     def test_every_round_saves_even_the_same_image(self):
         media, poi = self._media(), ConfirmationMediaHandOverTests._poi(None)
