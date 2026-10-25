@@ -193,6 +193,10 @@ export function assignAck(state, data) {
   if (!round || round.receiverId !== data.helper_id) return state;
   const key = helperKey(data.helper_id);
   const slot = state.assignments[key];
+  // An APPLIED copy no newer than the one this owner last applied the slot by
+  // arrived late: it must not bring back an older task or helper boot.
+  if (slot && slot.senderId === data.owner_id && slot.appliedUid != null
+      && !isNewer(data.uid, slot.appliedUid)) return state;
   const doingUid = isNewer(data.ref, round.doingUid) ? data.ref : round.doingUid;
   let status = higher(round.status, ASSIGNMENT_STATUS.ASSIGNED);
   let kept = {};
@@ -206,7 +210,7 @@ export function assignAck(state, data) {
   }
   const assignments = { ...state.assignments };
   delete assignments[round.key];
-  assignments[key] = { ...round, key, status, doingUid, ...kept };
+  assignments[key] = { ...round, key, status, doingUid, appliedUid: data.uid ?? null, ...kept };
   return { ...state, assignments };
 }
 
@@ -226,8 +230,9 @@ export function swarmHeartbeat(state, data) {
 export function taskConfirming(state, data) {
   const slot = state.assignments[helperKey(data.sys_id)];
   if (!slot || slot.status === ASSIGNMENT_STATUS.CONFIRMED) return state;
-  if (!follows(parseRoundUid(data.round_uid), slot.doingUid)) return state;
-  if (answersRound(slot.confirm, data)) return state;
+  const uid = parseRoundUid(data.round_uid);
+  if (!follows(uid, slot.doingUid)) return state;
+  if (slot.confirm && !follows(uid, parseRoundUid(slot.confirm.roundUid))) return state;
   return withAssignment(state, {
     ...slot,
     status: ASSIGNMENT_STATUS.CONFIRMING,

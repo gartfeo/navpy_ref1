@@ -31,6 +31,9 @@ Implementation notes:
   records the round (POI id, round uid), and only an answer naming that
   round raises it to confirmed or, denied, drops it. A later request
   re-points a slot not yet confirmed; a round without a uid never counts.
+  Both go in order: an APPLIED copy older than the one the slot was
+  applied by, or a request older than the recorded round, is ignored, so
+  a late copy never brings back an older task, helper boot or round.
   A WAITING round
   is never raised: before APPLIED the GCS cannot tell the task's round from
   an own-POI round, so a confirm heard before APPLIED leaves the task

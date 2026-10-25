@@ -43,11 +43,11 @@ const doing = (helper, owner, task_id, seq, is_accepted = true, boot = 3) => ({
   type: 'task_assign_response',
   data: { sender_id: helper, receiver_id: owner, task_id, is_accepted, uid: uid(boot, seq) },
 });
-const applied = (owner, helper, task_id, refSeq, refBoot = 3) => ({
+const applied = (owner, helper, task_id, refSeq, refBoot = 3, seq = 90) => ({
   type: 'task_assign_ack',
   data: {
     owner_id: owner, helper_id: helper, task_id, status: 'APPLIED',
-    ref: uid(refBoot, refSeq), uid: uid(7, 90),
+    ref: uid(refBoot, refSeq), uid: uid(7, seq),
   },
 });
 const beat = (sys_id, state, seq, boot = 3) => ({
@@ -133,7 +133,7 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   assert.deepStrictEqual(assigned.assignments['helper:2'], {
     key: 'helper:2', taskId: 5, taskType: 'DOCK', lat: 45, lon: 44, alt: 0,
     senderId: OWNER, receiverId: HELPER, status: S.ASSIGNED,
-    requestUid: uid(7, 20), doingUid: uid(3, 40),
+    requestUid: uid(7, 20), doingUid: uid(3, 40), appliedUid: uid(7, 90),
   });
   assert.strictEqual(reduce(assigned, applied(OWNER, HELPER, 5, 41)), assigned,
     'a repeated APPLIED changes nothing');
@@ -150,7 +150,7 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   r = reduce(confirming, onTask('task_confirmed', HELPER, 1, '3:50'));
   assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMED);
   assert.strictEqual(reduce(r, onTask('task_confirming', HELPER, 1, '3:55')), r);
-  s = run([request(OWNER, HELPER, 5, 22), applied(OWNER, HELPER, 5, 40)], confirming);
+  s = run([request(OWNER, HELPER, 5, 22), applied(OWNER, HELPER, 5, 40, 3, 95)], confirming);
   assert.strictEqual(s.assignments['helper:2'].status, S.CONFIRMING,
     'a later step 3 and APPLIED keep the slot rank');
   assert.strictEqual(reduce(s, onTask('task_confirmed', HELPER, 1, '3:50'))
@@ -229,11 +229,20 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
     assert.strictEqual(reduce(assigned, onTask('task_confirming', HELPER, 1, roundUid)), assigned, why);
     assert.strictEqual(reduce(confirming, onTask('task_confirming', HELPER, 2, roundUid)), confirming, why);
   }
-  r = run([request(OWNER, HELPER, 5, 22), applied(OWNER, HELPER, 5, 10, 4)], confirming);
+  r = run([request(OWNER, HELPER, 5, 22), applied(OWNER, HELPER, 5, 10, 4, 95)], confirming);
   assert.strictEqual(r.assignments['helper:2'].status, S.ASSIGNED,
     'the task applied again to a restarted helper is confirmed afresh');
   assert.strictEqual(reduce(r, onTask('task_resolved', HELPER, 1, '3:50')).assignments, r.assignments,
     'the old boot round answers nothing');
+  s = run([request(OWNER, HELPER, 5, 23), applied(OWNER, HELPER, 5, 40, 3, 90)], r);
+  assert.deepStrictEqual(s.assignments['helper:2'].doingUid, uid(4, 10),
+    'a late APPLIED copy does not bring the old helper boot back');
+  assert.strictEqual(reduce(s, onTask('task_confirming', HELPER, 1, '3:50')), s);
+  s = run([onTask('task_confirming', HELPER, 2, '3:55'), onTask('task_confirming', HELPER, 1, '3:50')],
+    confirming);
+  assert.deepStrictEqual(s.assignments['helper:2'].confirm, { taskId: 2, roundUid: '3:55' },
+    'a late older request does not re-point the slot');
+  assert.ok('helper:2' in reduce(s, onTask('task_resolved', HELPER, 1, '3:50')).assignments);
   r = run([onTask('task_confirming', HELPER, 2, '3:55'), onTask('task_confirmed', HELPER, 1, '3:50')],
     confirming);
   assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMING, 'a later round re-points the slot');
@@ -245,7 +254,7 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   assert.strictEqual(r.assignments, confirmed.assignments,
     'a confirmed task stays when the UAV then asks and is denied its home dock');
   r = run([
-    request(OWNER, HELPER, 8, 30), doing(HELPER, OWNER, 8, 60), applied(OWNER, HELPER, 8, 60),
+    request(OWNER, HELPER, 8, 30), doing(HELPER, OWNER, 8, 60), applied(OWNER, HELPER, 8, 60, 3, 100),
     onTask('task_confirming', HELPER, 2, '3:70'), onTask('task_resolved', HELPER, 1, '3:50'),
   ], confirmed);
   assert.strictEqual(r.assignments['helper:2'].taskId, 8);
