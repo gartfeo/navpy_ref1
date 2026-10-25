@@ -4,31 +4,40 @@ import { colors } from '../styles';
 import UavBadge from './UavBadge';
 import ConfirmModal from './ConfirmModal';
 
-// Host-specific sizing for the toggle button; the menu itself is identical.
-const TOGGLE_SIZE = {
-  sidebar: { padding: '4px 12px', fontSize: 12, caret: 10 },
-  topbar: { padding: '6px 16px', fontSize: 13, caret: 11 },
-};
+/** The app's 32 px control size (todo 69; larger waits for todo 94's gloved check). */
+const TOGGLE_HEIGHT_PX = 32;
+/** Gap between the button and its menu, and the least room the menu leaves under it. */
+const MENU_GAP_PX = 4;
+const MENU_SCREEN_MARGIN_PX = 8;
 
 /**
- * E-STOP split-button dropdown, shared by its two hosts: the MonitoringSidebar
- * UAV Status header (primary) and the TopBar (fallback, shown only when the
- * sidebar instance is not mounted — planning phase or manual control).
+ * E-STOP split-button dropdown. Its one host is the TopBar, in every phase
+ * (planning, monitor, RC), so it is never inside a scroll (todo 69).
  *
  * The button opens a scope menu — Stop ALL, or a single UAV (colored UAV
  * badge, then a red "Stop" label) — and every choice is gated by the danger
  * ConfirmModal before onEstop fires: undefined = ALL, [sysId] = one.
  */
-export default function EstopDropdown({ vehicleList, onEstop, size = 'sidebar' }) {
+export default function EstopDropdown({ vehicleList, onEstop }) {
   const { t } = useTranslation();
   const [showEstop, setShowEstop] = useState(false);
   // null = stop ALL; otherwise { sysId, name } for a single-UAV E-STOP.
   const [estopTarget, setEstopTarget] = useState(null);
   const [showEstopMenu, setShowEstopMenu] = useState(false);
+  // The menu's height cap, measured when it opens and on resize: the app never
+  // scrolls, so a long fleet's rows scroll inside the menu instead of running
+  // off screen.
+  const [menuMaxHeight, setMenuMaxHeight] = useState(null);
   const estopRef = useRef(null);
 
-  // Close the E-STOP scope menu on click-outside (ref wraps the split button
-  // + menu so a row click isn't swallowed before it fires).
+  const measureMenu = () => {
+    const bottom = estopRef.current ? estopRef.current.getBoundingClientRect().bottom : 0;
+    setMenuMaxHeight(Math.max(0, window.innerHeight - bottom - MENU_GAP_PX - MENU_SCREEN_MARGIN_PX));
+  };
+
+  // While open: close the E-STOP scope menu on click-outside (ref wraps the
+  // split button + menu so a row click isn't swallowed before it fires), and
+  // re-measure its cap when the screen size changes.
   useEffect(() => {
     if (!showEstopMenu) return undefined;
     const handler = (e) => {
@@ -37,8 +46,17 @@ export default function EstopDropdown({ vehicleList, onEstop, size = 'sidebar' }
       }
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    window.addEventListener('resize', measureMenu);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('resize', measureMenu);
+    };
   }, [showEstopMenu]);
+
+  const toggleMenu = () => {
+    measureMenu();
+    setShowEstopMenu((v) => !v);
+  };
 
   const openEstop = (target) => {
     setEstopTarget(target);
@@ -59,13 +77,12 @@ export default function EstopDropdown({ vehicleList, onEstop, size = 'sidebar' }
     padding: '8px 12px',
     cursor: 'pointer',
   };
-  const toggle = TOGGLE_SIZE[size] || TOGGLE_SIZE.sidebar;
 
   return (
     <div style={{ position: 'relative' }} ref={estopRef}>
       <button
         type="button"
-        onClick={() => setShowEstopMenu((v) => !v)}
+        onClick={toggleMenu}
         aria-haspopup="menu"
         aria-expanded={showEstopMenu}
         style={{
@@ -76,13 +93,16 @@ export default function EstopDropdown({ vehicleList, onEstop, size = 'sidebar' }
           color: '#fff',
           border: 'none',
           borderRadius: 4,
-          padding: toggle.padding,
+          height: TOGGLE_HEIGHT_PX,
+          boxSizing: 'border-box',
+          padding: '0 16px',
           fontWeight: 700,
-          fontSize: toggle.fontSize,
+          fontSize: 13,
           cursor: 'pointer',
+          touchAction: 'manipulation',
         }}
       >
-        {t('topBar.estop')} <span style={{ fontSize: toggle.caret }}>▾</span>
+        {t('topBar.estop')} <span style={{ fontSize: 11 }}>▾</span>
       </button>
 
       {showEstopMenu && (
@@ -92,14 +112,16 @@ export default function EstopDropdown({ vehicleList, onEstop, size = 'sidebar' }
             position: 'absolute',
             top: '100%',
             right: 0,
-            marginTop: 4,
+            marginTop: MENU_GAP_PX,
+            maxHeight: menuMaxHeight ?? undefined,
             background: colors.bgLight,
             border: `1px solid ${colors.border}`,
             borderRadius: 6,
             boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
             zIndex: 1000,
             minWidth: 180,
-            overflow: 'hidden',
+            overflowX: 'hidden',
+            overflowY: 'auto',
           }}
         >
           {/* Inline styles can't express :hover — rows need a fill on

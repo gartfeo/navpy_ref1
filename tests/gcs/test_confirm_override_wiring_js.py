@@ -56,7 +56,8 @@ class TestTaskConfirmCardForcedMark(unittest.TestCase):
         self.assertIn("forced = false", self.src)
 
     def test_gate_overridden_mark_shown_only_when_forced(self):
-        self.assertIn("pending && forced", self.src)
+        # The full card renders only while pending (decided rounds are rows).
+        self.assertIn("{forced && (", self.src)
         self.assertIn("task.gateOverridden", self.src)
 
     def test_forced_approve_uses_long_press(self):
@@ -90,16 +91,24 @@ class TestUseTaskConfirmationForceOverride(unittest.TestCase):
         self.assertLess(fetch_pos, mark_pos)
 
 
+class TestConfirmCardListMarksForcedCards(unittest.TestCase):
+    # The cards moved from MonitoringSidebar into ConfirmCardList (todo 69).
+    def setUp(self):
+        self.src = _read("components", "ConfirmCardList.jsx")
+
+    def test_accepts_forced_confirms(self):
+        self.assertIn("forcedConfirms,", self.src)
+
+    def test_task_confirm_card_gets_forced_flag(self):
+        self.assertIn("forced={forcedConfirms?.[sid] === entry.taskId}", self.src)
+
+
 class TestMonitoringSidebarForwardsForceConfirm(unittest.TestCase):
     def setUp(self):
         self.src = _read("components", "sidebar", "MonitoringSidebar.jsx")
 
     def test_top_level_accepts_props(self):
-        self.assertIn("forcedConfirms,", self.src)
         self.assertIn("onForceConfirm,", self.src)
-
-    def test_task_confirm_card_gets_forced_flag(self):
-        self.assertIn("forced={forcedConfirms?.[sid] === entry.taskId}", self.src)
 
     def test_active_monitoring_forwards_to_vehicle_status_card(self):
         # 1x MonitoringSidebar -> ActiveMonitoring, + 2x ActiveMonitoring ->
@@ -115,11 +124,11 @@ class TestAppWiresForceConfirm(unittest.TestCase):
     def setUp(self):
         self.src = _read("App.jsx")
 
-    def test_manual_overlay_card_gets_forced_flag(self):
-        self.assertIn("forced={taskConfirm.forcedConfirms[sid] === entry.taskId}", self.src)
+    def test_both_confirm_lists_get_forced_confirms(self):
+        # Right panel + RC overlay.
+        self.assertEqual(self.src.count("forcedConfirms={taskConfirm.forcedConfirms}"), 2)
 
-    def test_sidebar_gets_forced_confirms_and_handler(self):
-        self.assertIn("forcedConfirms={taskConfirm.forcedConfirms}", self.src)
+    def test_sidebar_gets_force_confirm_handler(self):
         self.assertIn("onForceConfirm={taskConfirm.forceConfirm}", self.src)
 
 
