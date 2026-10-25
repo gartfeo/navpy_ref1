@@ -78,7 +78,7 @@ def test_only_a_valid_exact_or_interpolated_pose_stamp_is_an_exposure_on_the_boa
 
 @pytest.mark.parametrize("mutate, message", [
     (lambda raw: b"XXXX" + raw[4:], "magic"),
-    (lambda raw: raw[:4] + (3).to_bytes(2, "little") + raw[6:], "version"),
+    (lambda raw: raw[:4] + (4).to_bytes(2, "little") + raw[6:], "version"),
     (lambda raw: raw[:6] + (36).to_bytes(2, "little") + raw[8:], "header size"),
     (lambda raw: raw[:-1], "wrong size"),
 ])

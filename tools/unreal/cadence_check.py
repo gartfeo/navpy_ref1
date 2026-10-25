@@ -11,10 +11,10 @@ Two commands:
       --unreal-log ...\AasSimProject.log --emulator-log C:\tune_hitl\cadence\zr10.jsonl --out C:\tune_hitl\cadence\report.json
 
 Unreal runs with -NavPyNativeCameraBoardTimeCadence=1 -NavPyInterpolatedVehiclePose=1
--NavPyNativeCameraHeaderVersion=2 -NavPyDockCharucoBoard=1 and either -NavPyLensProfile=<vision_profiles.json>
-(the lens table, step 5: a zooming lens, scored per frame with its row) or -NavPyNativeCameraIntrinsics=1 (fixed
-zoom-1 K at 1280 x 720: the lens must not move). One camera run per recording (one Unreal session, one camera
-connection).
+-NavPyNativeCameraHeaderVersion=2 (3, step 8's, adds the lens row and reads the same) -NavPyDockCharucoBoard=1
+and either -NavPyLensProfile=<vision_profiles.json> (the lens table, step 5: a zooming lens, scored per frame with
+its row) or -NavPyNativeCameraIntrinsics=1 (fixed zoom-1 K at 1280 x 720: the lens must not move). One camera run
+per recording (one Unreal session, one camera connection).
 
 What is checked (step 4's done list, and the design's rendered-state identity):
 - identity: one camera run (reconnects of it allowed); no frame index twice in the log (sent and lost) or the

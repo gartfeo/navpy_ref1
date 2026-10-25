@@ -19,6 +19,22 @@ v2 (56 bytes): v1, then
   makes the board time the time of the pose the frame shows, its exposure
   time; receive-time smoothing sets neither.
 
+v3 (80 bytes): v2, then the lens and stream identity of the frame, for the HITL
+encoder's distortion stage (aas-hitl) and private run logs only:
+- ``lens_reading_tenths`` (uint16) and ``lens_setting_tenths`` (uint16; 0 =
+  the wide stop): the reading-keyed lens table row Unreal rendered (0 = no
+  lens table);
+- ``lens_status`` (uint8): 0 none, 1 settled, 2 held (the remembered row
+  during zoom travel); three reserved bytes, always 0;
+- ``pose_generation`` (uint32) and ``camera_run_hash`` (uint32, FNV-1a of
+  the camera run id): the stream identity;
+- ``overscan_x``, ``overscan_y`` (uint16): pixels rendered beyond the lens
+  row's frame on each side (the frame is the row's size plus twice these);
+- ``lens_table_hash`` (uint32): FNV-1a of the lens profile file Unreal loaded.
+
+navpy reads these fields for tools and tests only; the navigation path never
+uses them (tests/guards/test_unreal_pose_isolation.py).
+
 The version field selects the layout; a v1 sender stays readable.
 """
 
@@ -30,6 +46,10 @@ from dataclasses import dataclass
 NPYC_MAGIC = b"NPYC"
 NPYC_VERSION_1 = 1
 NPYC_VERSION_2 = 2
+NPYC_VERSION_3 = 3
+LENS_STATUS_NONE = 0
+LENS_STATUS_SETTLED = 1
+LENS_STATUS_HELD = 2
 NPYC_PIXEL_FORMAT_BGRA8 = 1
 NPYC_PIXEL_FORMAT_BGR8 = 2
 POSE_STAMP_VALID = 1 << 0
@@ -41,11 +61,29 @@ NPYC_MAX_DIMENSION = 8192
 
 _V1 = struct.Struct("<4sHHHHHHQdI")
 _V2_TAIL = struct.Struct("<QQI")
+_V3_TAIL = struct.Struct("<HHB3sIIHHI")
 NPYC_V1_HEADER_SIZE = _V1.size                      # 36
 NPYC_V2_HEADER_SIZE = _V1.size + _V2_TAIL.size      # 56
+NPYC_V3_HEADER_SIZE = NPYC_V2_HEADER_SIZE + _V3_TAIL.size  # 80
 NPYC_PREFIX_SIZE = NPYC_V1_HEADER_SIZE              # every version starts with the v1 fields
-_HEADER_SIZES = {NPYC_VERSION_1: NPYC_V1_HEADER_SIZE, NPYC_VERSION_2: NPYC_V2_HEADER_SIZE}
+_HEADER_SIZES = {NPYC_VERSION_1: NPYC_V1_HEADER_SIZE, NPYC_VERSION_2: NPYC_V2_HEADER_SIZE,
+                 NPYC_VERSION_3: NPYC_V3_HEADER_SIZE}
+_LENS_STATUSES = (LENS_STATUS_NONE, LENS_STATUS_SETTLED, LENS_STATUS_HELD)
 _BYTES_PER_PIXEL = {NPYC_PIXEL_FORMAT_BGRA8: 4, NPYC_PIXEL_FORMAT_BGR8: 3}
+
+
+@dataclass(frozen=True)
+class NpycLensStream:
+    """The v3 tail: rendered lens row and stream identity (all 0 before v3)."""
+
+    lens_reading_tenths: int = 0
+    lens_setting_tenths: int = 0
+    lens_status: int = LENS_STATUS_NONE
+    pose_generation: int = 0
+    camera_run_hash: int = 0
+    overscan_x: int = 0
+    overscan_y: int = 0
+    lens_table_hash: int = 0
 
 
 @dataclass(frozen=True)
@@ -60,6 +98,7 @@ class NpycHeader:
     board_time_us: int = 0
     pose_sequence: int = 0
     pose_flags: int = 0
+    lens_stream: NpycLensStream = NpycLensStream()
 
     @property
     def header_size(self) -> int:
@@ -86,7 +125,14 @@ def encode_header(header: NpycHeader) -> bytes:
                     header.pixel_format, 0, header.frame_index, header.capture_time_s, header.payload_size)
     if header.version == NPYC_VERSION_1:
         return head
-    return head + _V2_TAIL.pack(header.board_time_us, header.pose_sequence, header.pose_flags)
+    head += _V2_TAIL.pack(header.board_time_us, header.pose_sequence, header.pose_flags)
+    if header.version == NPYC_VERSION_2:
+        return head
+    tail = header.lens_stream
+    _check_lens(tail.lens_status, tail.lens_reading_tenths)
+    return head + _V3_TAIL.pack(tail.lens_reading_tenths, tail.lens_setting_tenths, tail.lens_status, b"\0\0\0",
+                                tail.pose_generation, tail.camera_run_hash, tail.overscan_x, tail.overscan_y,
+                                tail.lens_table_hash)
 
 
 def decode_prefix(raw: bytes) -> tuple[int, int]:
@@ -113,10 +159,26 @@ def decode_header(raw: bytes) -> NpycHeader:
      payload_size) = _V1.unpack_from(raw)
     _check_dimensions(width, height, pixel_format, payload_size)
     board_time_us = pose_sequence = pose_flags = 0
-    if version == NPYC_VERSION_2:
+    if version >= NPYC_VERSION_2:
         board_time_us, pose_sequence, pose_flags = _V2_TAIL.unpack_from(raw, NPYC_V1_HEADER_SIZE)
+    lens_stream = NpycLensStream()
+    if version == NPYC_VERSION_3:
+        (reading, setting, status, reserved, generation, run_hash, overscan_x, overscan_y,
+         table_hash) = _V3_TAIL.unpack_from(raw, NPYC_V2_HEADER_SIZE)
+        if reserved != b"\0\0\0":
+            raise ValueError("NPYC v3 reserved bytes are not zero")
+        _check_lens(status, reading)
+        lens_stream = NpycLensStream(reading, setting, status, generation, run_hash, overscan_x, overscan_y,
+                                     table_hash)
     return NpycHeader(version, width, height, pixel_format, frame_index, capture_time_s, payload_size,
-                      board_time_us, pose_sequence, pose_flags)
+                      board_time_us, pose_sequence, pose_flags, lens_stream)
+
+
+def _check_lens(status: int, reading_tenths: int) -> None:
+    if status not in _LENS_STATUSES:
+        raise ValueError(f"NPYC v3 lens status {status} is not 0, 1 or 2")
+    if (status == LENS_STATUS_NONE) != (reading_tenths == 0):
+        raise ValueError("NPYC v3 lens status and reading disagree (a row needs a reading, no row none)")
 
 
 def _check_dimensions(width: int, height: int, pixel_format: int, payload_size: int) -> None:
@@ -133,9 +195,15 @@ __all__ = [
     "NPYC_PREFIX_SIZE",
     "NPYC_V1_HEADER_SIZE",
     "NPYC_V2_HEADER_SIZE",
+    "NPYC_V3_HEADER_SIZE",
     "NPYC_VERSION_1",
     "NPYC_VERSION_2",
+    "NPYC_VERSION_3",
+    "LENS_STATUS_HELD",
+    "LENS_STATUS_NONE",
+    "LENS_STATUS_SETTLED",
     "NpycHeader",
+    "NpycLensStream",
     "POSE_EXACT",
     "POSE_INTERPOLATED",
     "POSE_STAMP_VALID",

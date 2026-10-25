@@ -1318,6 +1318,17 @@
   Codex's claim that jammy lacks nvcodec came from that site and was wrong.
 - A session hook refuses writes to another session's worktree; branch inside this session's own worktree.
 
+## Encoded publisher, HITL step 8 (2026-10-25)
+
+- The publisher, lens remap and stream check live in aas-hitl (its AGENT_LEARNINGS has the GStreamer lessons);
+  navpy only gained the NPYC v3 decoder. Keep the v3 fixture hashes in step with Unreal's header and the aas-hitl
+  decoder: one header change touches three repos.
+- rtspclientsink starts ANNOUNCE/SETUP/RECORD only on the first buffer's caps, and MediaMTX answered SETUP about
+  1 s later; a backlog guard counting from the first push trips on that handshake. Hold later frames as
+  "connecting" until MediaMTX's API reports the publisher.
+- An AF_UNIX socket path under the repo on /mnt/c is too long and unreliable; use mkdtemp under /tmp and record
+  the path.
+
 ## Todo 105: bounded mission transfers (2026-10-23)
 
 - An "exact" check against autopilot state needs its differences logged from the first version. The readback
