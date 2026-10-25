@@ -30,6 +30,7 @@ from navpy.app.approach.navigation import Navigation
 from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner, MissionPlannerArgs
 from navpy.app.flow.nav_controller import NavController
+from navpy.core.approach.dock_contact_episode import with_dock_evidence_cut
 from navpy.app.vehicle_factory import create_vehicle, open_vehicle_bus
 from navpy.app.wall_scheduler_cadence import speedup_scheduler_cadence
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
@@ -214,7 +215,10 @@ def _build_session(
         foundation.logger,
         foundation.navigation_args,
         scheduler_cadence=foundation.scheduler_cadence,
-        on_terminal=terminal_observer(foundation.terminal_handoff),
+        on_terminal=with_dock_evidence_cut(
+            vision.dock_contact,
+            terminal_observer(foundation.terminal_handoff),
+        ),
     )
     resources.own_quiescence("navigation", navigation.stop)
     # Values read after the stop are defaults: never start on them.

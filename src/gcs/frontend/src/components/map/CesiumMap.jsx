@@ -298,6 +298,7 @@ function CesiumMap({
   useClosestApproachMarks(
     cesiumRef, viewerRef, storeRef, viewerReady, simClosestApproaches,
     simMode, showTrails, `${trackResetKey}:${historyResetKey}`, hiddenSysIds, historyPaused,
+    terrainReady,
   );
   useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, historyResetKey, hiddenSysIds, historyPaused, viewerReady, plannerReady);
   useAssignmentMarkers(cesiumRef, viewerRef, assignments || {}, storeRef, viewerReady);

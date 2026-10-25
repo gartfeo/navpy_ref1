@@ -14,7 +14,8 @@ const GHOST_ALPHA = 0.35;
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 
-/** A record the map can place: both heights over home are known. */
+/** A record the map can place: both heights over home are known, so it can
+ * be anchored to the dock. */
 function drawable(record) {
   return [
     record.lat, record.lon, record.alt_rel_m, record.dock_lat, record.dock_lon,
@@ -44,17 +45,25 @@ export function closestApproachLabel(record, t) {
  * not the first status after load. The marks follow the trail: `show` and
  * `hiddenSysIds` hide them, a change of `resetKey` clears them (keys stay
  * consumed), leaving the fleet or sim mode removes them.
+ *
+ * Heights over home are drawn from the ground the dock icon is clamped to:
+ * the ellipsoid (0) until `terrainReady`, then the terrain sampled at the
+ * dock. A mark whose dock ground is not known yet is kept but not drawn.
  */
 export default function useClosestApproachMarks(
   cesiumRef, viewerRef, storeRef, viewerReady, records,
   simMode = false, show = true, resetKey = 0, hiddenSysIds = null, paused = false,
+  terrainReady = false,
 ) {
   const { t, i18n } = useTranslation();
-  const marksRef = useRef(new Map()); // key -> { record, colorIdx, entities }
+  // key -> { record, colorIdx, entities, ground, sampling }
+  const marksRef = useRef(new Map());
   const consumedRef = useRef(new Set());
   const firstStatusSeenRef = useRef(false);
+  // Bumped when terrain comes or goes and on unmount: older samples are stale.
+  const terrainGenRef = useRef(0);
   const stateRef = useRef({});
-  stateRef.current = { simMode, show, hiddenSysIds, paused, t };
+  stateRef.current = { simMode, show, hiddenSysIds, paused, t, terrainReady };
 
   const visibleFor = (sysId) => stateRef.current.show && !stateRef.current.hiddenSysIds?.has(sysId);
 
@@ -74,23 +83,33 @@ export default function useClosestApproachMarks(
     }
   }
 
+  /** The ground the dock icon stands on; undefined while not known. */
+  function dockGround(mark) {
+    return stateRef.current.terrainReady ? mark.ground : 0;
+  }
+
   function draw(key, mark) {
     const Cesium = cesiumRef.current;
     const viewer = viewerRef.current;
     if (!Cesium || !viewer || mark.entities) return;
+    const ground = dockGround(mark);
+    if (!finite(ground)) return;
     const r = mark.record;
+    // Heights over home, anchored so the dock dot sits on the dock icon.
+    const base = ground - r.dock_alt_rel_m;
+    const pointAlt = base + r.alt_rel_m;
     const shown = visibleFor(r.sys_id);
     const outcome = Cesium.Color.fromCssColorString(OUTCOME_COLORS[r.outcome] || OUTCOME_COLORS.missed);
     const uavColor = Cesium.Color.fromCssColorString(zoneColorsSolid[mark.colorIdx % zoneColorsSolid.length]);
     const detail = new Cesium.DistanceDisplayCondition(0, SIM_CLOSEST_APPROACH_DETAIL_RANGE_M);
-    const point = Cesium.Cartesian3.fromDegrees(r.lon, r.lat, r.alt_rel_m);
-    const dock = Cesium.Cartesian3.fromDegrees(r.dock_lon, r.dock_lat, r.dock_alt_rel_m);
-    const corner = Cesium.Cartesian3.fromDegrees(r.lon, r.lat, r.dock_alt_rel_m);
+    const point = Cesium.Cartesian3.fromDegrees(r.lon, r.lat, pointAlt);
+    const dock = Cesium.Cartesian3.fromDegrees(r.dock_lon, r.dock_lat, ground);
+    const corner = Cesium.Cartesian3.fromDegrees(r.lon, r.lat, ground);
     const midpoint = (a, b) => Cesium.Cartesian3.midpoint(a, b, new Cesium.Cartesian3());
     const ghost = hasAttitude(r);
     const properties = {
       closestApproachKey: key,
-      closestApproachView: { lon: r.lon, lat: r.lat, alt: r.alt_rel_m, headingDeg: ghost ? r.yaw_deg : null },
+      closestApproachView: { lon: r.lon, lat: r.lat, alt: pointAlt, headingDeg: ghost ? r.yaw_deg : null },
     };
     const legLabel = (text) => ({
       text,
@@ -173,6 +192,36 @@ export default function useClosestApproachMarks(
     for (const [key, mark] of marksRef.current) draw(key, mark);
   }
 
+  /** Sample the terrain at the mark's dock; one request at a time per mark. */
+  function sampleGround(key, mark) {
+    const Cesium = cesiumRef.current;
+    const viewer = viewerRef.current;
+    const generation = terrainGenRef.current;
+    if (!Cesium || !viewer || !stateRef.current.terrainReady) return;
+    if (finite(mark.ground) || mark.sampling === generation) return;
+    mark.sampling = generation;
+    const carto = Cesium.Cartographic.fromDegrees(mark.record.dock_lon, mark.record.dock_lat);
+    const apply = (sampled) => {
+      // Cleared, evicted, removed (sim off, fleet) or older terrain: stale.
+      if (terrainGenRef.current !== generation || marksRef.current.get(key) !== mark) return;
+      mark.sampling = null;
+      // A rejected or non-finite sample: the rendered globe there, else none
+      // (the next status samples again).
+      const height = finite(sampled) ? sampled : viewer.scene.globe.getHeight(carto);
+      if (!finite(height)) return;
+      mark.ground = height;
+      undraw(mark);
+      draw(key, mark);
+    };
+    Promise.resolve()
+      .then(() => Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, [carto]))
+      .then((sampled) => apply(sampled?.[0]?.height), () => apply(undefined));
+  }
+
+  function sampleAll() {
+    for (const [key, mark] of marksRef.current) sampleGround(key, mark);
+  }
+
   // Consume each new record key once.
   useEffect(() => {
     if (records == null) return;
@@ -189,7 +238,7 @@ export default function useClosestApproachMarks(
       if (firstStatus || !simOn || isPaused || !drawable(record)) continue;
       const colorIdx = fleet.findIndex(v => v.sys_id === record.sys_id);
       if (colorIdx < 0) continue;
-      marksRef.current.set(record.key, { record, colorIdx, entities: null });
+      marksRef.current.set(record.key, { record, colorIdx, entities: null, ground: undefined, sampling: null });
       const own = [...marksRef.current].filter(([, m]) => m.record.sys_id === record.sys_id);
       for (const [key, mark] of own.slice(0, Math.max(0, own.length - SIM_CLOSEST_APPROACH_MARKS_PER_UAV))) {
         undraw(mark);
@@ -199,7 +248,21 @@ export default function useClosestApproachMarks(
     // The backend never shows a dropped key again: keep the set bounded.
     for (const key of consumed) if (!listed.has(key)) consumed.delete(key);
     drawAll();
+    // New marks, and marks whose sample found no ground yet.
+    sampleAll();
   }, [records]);
+
+  // Terrain came or went: every mark moves to the new ground.
+  useEffect(() => {
+    terrainGenRef.current += 1;
+    for (const mark of marksRef.current.values()) {
+      mark.ground = undefined;
+      mark.sampling = null;
+      undraw(mark);
+    }
+    drawAll();
+    sampleAll();
+  }, [terrainReady]);
 
   // Clear all / Restart mission.
   useEffect(() => {
@@ -241,5 +304,8 @@ export default function useClosestApproachMarks(
     return store.subscribe(update);
   }, []);
 
-  useEffect(() => () => removeWhere(() => true), []);
+  useEffect(() => () => {
+    terrainGenRef.current += 1;
+    removeWhere(() => true);
+  }, []);
 }

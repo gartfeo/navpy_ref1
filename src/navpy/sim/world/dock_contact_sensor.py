@@ -8,6 +8,7 @@ path; it only hands one correlated event to the approach lifecycle.
 
 It also keeps the episode's closest pass and, when the lifecycle ends the
 episode, reports it once as a display record (gcs_sim_closest_approach.md).
+That evidence stops at NAV's own FAILED or MISSED latch (``end_evidence``).
 """
 
 from __future__ import annotations
@@ -126,6 +127,9 @@ class SimDockContactSensor:
         self._frame: Optional[DockFrame] = None
         self._published = False
         self._closest = ClosestApproachTracker()
+        # Display only: the episode NAV ended, stored without the lock. Each
+        # episode's identity is unique, so a stale one never matches.
+        self._evidence_end: Optional[DockContactIdentity] = None
 
     def arm(
         self,
@@ -147,7 +151,7 @@ class SimDockContactSensor:
         """
         with self._lock:
             identity = self._identity
-            best, contact, last = self._closest.take()
+            evidence = self._closest.take()
             self._identity = None
             self._on_docked = None
             self._previous = None
@@ -155,12 +159,20 @@ class SimDockContactSensor:
         if identity is None or self._report is None:
             return
         try:
-            record = closest_approach(identity, end, best, contact, last)
+            record = closest_approach(identity, end, evidence)
             if record is not None:
                 self._report(record)
         except Exception:
             # Display evidence must never break NAV cleanup.
             _LOG.exception("closest-approach report failed")
+
+    def end_evidence(self, identity: DockContactIdentity) -> None:
+        """NAV latched FAILED or MISSED: one store, no lock, no wait.
+
+        The boundary is on ingress: a sample reads it before it touches any
+        evidence, so no sample read after this store counts.
+        """
+        self._evidence_end = identity
 
     def sample(self, sample: PositionSample) -> None:
         """One telemetry position; never joined across a gap or a reset."""
@@ -184,12 +196,16 @@ class SimDockContactSensor:
         identity = self._identity
         if identity is None:
             return None, None
+        if self._evidence_end == identity:
+            self._closest.cut()
         if not _valid(sample):
             self._previous = None
+            self._closest.break_run()
             return None, None
         frame = self._own_frame(identity.dock_uid)
         if frame is None:
             self._previous = None
+            self._closest.break_run()
             return None, None
         previous = self._previous
         if previous is not None and (
@@ -199,9 +215,11 @@ class SimDockContactSensor:
         current = _Joined(sample, frame, frame.local(sample.location))
         self._previous = current
         if previous is None or not self._joinable(previous, current):
+            self._closest.break_run()
             return None, None
         flat_m, margin_m = _flat_distance(previous, current)
         segment = self._closest.keep(previous.sample, sample, frame.dock, flat_m, margin_m)
+        self._closest.observe(previous.local, current.local)
         if self._published:
             return None, None
         # Coarse filter; never false for a segment the exact test docks: the
