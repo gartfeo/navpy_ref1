@@ -6,7 +6,9 @@ threads, but each runs only while it holds the baton. A thread gives the
 baton back when it parks (lock contention, condition, event, queue, sleep,
 join) or ends. The coordinator, the thread that created the runtime, owns
 time: :meth:`BatonRuntime.tick` sets ``t_k``, delivers inputs, runs to
-quiescence and then fires due timers.
+quiescence and then fires due timers. A tick may cap its handoffs (a
+participant's CPU budget or freeze, ``participant_budget``); runnable threads
+and due timers then wait for the next tick.
 
 Order is deterministic: runnable threads run first-in first-out, timers fire
 in ``(due, park seq)`` order, and since only one thread runs at a time every
@@ -106,8 +108,8 @@ class BatonRuntime:
         return self._aborted
 
     def tick(self, now_us: int, deliver: Callable[[], None] | None = None, *,
-             deadline: float | None = None) -> None:
-        """One tick in contract order: time, inputs to quiescence, then timers."""
+             deadline: float | None = None, handoffs: int | None = None) -> int:
+        """One tick in contract order: time, inputs to quiescence, then timers. Returns its handoffs."""
         self.require_coordinator()
         if now_us < self._now_us:
             self.fail(f"time went back: {now_us} < {self._now_us}")
@@ -116,19 +118,21 @@ class BatonRuntime:
         try:
             if deliver is not None:
                 deliver()
-            self.run_until_quiescent(deadline)
+            steps = self.run_until_quiescent(deadline, handoffs)
         finally:
             self._in_timer_phase = True
-        self.settle_timers(deadline)
+        return steps + self.settle_timers(deadline, None if handoffs is None else handoffs - steps)
 
-    def settle_timers(self, deadline: float | None = None) -> None:
-        """Fire due timers and run to quiescence until nothing is due now."""
+    def settle_timers(self, deadline: float | None = None, handoffs: int | None = None) -> int:
+        """Fire due timers and run to quiescence until nothing is due now or the ``handoffs``
+        are taken (woken threads then stay runnable, due timers due). Returns the handoffs taken."""
+        steps = 0
         for _round in range(MAX_TIMER_ROUNDS_PER_TICK):
-            if not self.timers.any_due(self.monotonic()):
-                return
+            if steps == handoffs or not self.timers.any_due(self.monotonic()):
+                return steps
             for thread in self.timers.pop_due(self.monotonic()):
                 self.wake(thread)
-            self.run_until_quiescent(deadline)
+            steps += self.run_until_quiescent(deadline, None if handoffs is None else handoffs - steps)
         self.fail(f"timers still due after {MAX_TIMER_ROUNDS_PER_TICK} rounds")
 
     def fail(self, message: str) -> NoReturn:
@@ -139,12 +143,9 @@ class BatonRuntime:
 
     # -- threads ------------------------------------------------------------
     def spawn(self, target: Callable[[], object], *, name: str) -> ManagedThread:
-        """Start a managed thread; it first runs at the next scheduling step.
-
-        It runs in a copy of its creator's context, so it inherits the
-        creator's cancellation scope (:mod:`navpy.sim.lockstep.cancel_scope`).
-        A ``Cancelled`` of a cancelled scope retires it normally.
-        """
+        """Start a managed thread; it first runs at the next scheduling step, in a copy of its
+        creator's context, so in the creator's cancellation scope (``cancel_scope``). A
+        ``Cancelled`` of a cancelled scope retires it normally."""
         if threading.get_ident() != self._coordinator:
             self.current()  # a managed thread may spawn only while it holds the baton
         thread = self.threads.new(name)
@@ -176,14 +177,14 @@ class BatonRuntime:
         self._runnable.append(thread)
         return thread
 
-    def run_until_quiescent(self, deadline: float | None = None) -> int:
-        """Hand the baton around until every thread is parked or done."""
+    def run_until_quiescent(self, deadline: float | None = None, handoffs: int | None = None) -> int:
+        """Hand the baton around until all are parked or done, or ``handoffs`` were taken."""
         self.require_coordinator()
         if self._scheduling:
             self.fail("scheduling re-entered")
         self._scheduling = True
         steps = 0
-        while self._runnable:
+        while self._runnable and steps != handoffs:
             thread = self._runnable.popleft()
             self._current = thread
             self.threads.switches += 1

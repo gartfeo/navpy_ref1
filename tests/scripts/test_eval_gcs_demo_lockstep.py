@@ -142,12 +142,27 @@ def test_lockstep_refuses_an_unknown_sim_profile_before_the_run_directory(tmp_pa
     assert not (tmp_path / "run").exists()
 
 
-def test_the_sim_profile_never_reaches_the_coordinators_manifest():
-    """The journal digest comes from the Manifest's grid and the run's bytes; a profile
-    with no built model must leave both as they were (step 1 keeps the digest)."""
+def test_the_sim_profile_reaches_the_coordinators_manifest_only_as_navpy_participant_models():
+    """The journal digest comes from the Manifest's grid and the run's bytes; a profile's
+    SITL and radio models leave both as they were (step 1 keeps the digest). Its on
+    participant models (step 4) go into each NavPy role's config, and nowhere else."""
     import dataclasses
 
-    assert manifest(SLICE, dataclasses.replace(OPTIONS, sim_profile="none")) == manifest(SLICE, OPTIONS)
+    from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY, participant_models
+
+    none = dataclasses.replace(OPTIONS, sim_profile="none")
+    assert participant_models(lockstep_eval.sim_realization(OPTIONS)) == {}  # hw seed 1: freeze off
+    assert manifest(SLICE, none) == manifest(SLICE, OPTIONS)
+    stress = dataclasses.replace(OPTIONS, sim_profile="stress")
+    models = participant_models(lockstep_eval.sim_realization(stress))
+    assert set(models) == {"cpu_budget", "process_freeze"} and models["cpu_budget"] == {"handoffs": 90}
+    plain, stressed = manifest(CERTIFIED, none), manifest(CERTIFIED, stress)
+    assert dataclasses.replace(stressed, roles=plain.roles) == plain
+    assert list(stressed.roles) == list(plain.roles)
+    for name, role in stressed.roles.items():
+        config = dict(role.config)
+        assert config.pop(SIM_MODELS_KEY, None) == (models if name.startswith("navpy") else None)
+        assert dataclasses.replace(role, config=config) == plain.roles[name]
 
 
 def test_cli_passes_the_sim_profile_and_defaults_to_hw(tmp_path, monkeypatch):

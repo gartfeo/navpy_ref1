@@ -42,6 +42,7 @@ from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSideca
 from navpy.sim.lockstep.coordinator_types import Manifest, WallBudgets
 from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.operator_baton import OperatorBaton
+from navpy.sim.lockstep.participant_budget import participant_models
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, Realization, load_profile, realize
 from navpy.sim.lockstep.radio_link import radio_loss_pct
@@ -152,11 +153,14 @@ def fleet_layout(scenario: DemoScenario) -> FleetLayout:
 
 
 def manifest(scenario: DemoScenario, options: LockstepOptions) -> Manifest:
+    """Each NavPy role carries the profile's participant models for the seed (step 4)."""
     layout = fleet_layout(scenario)
+    roles = fleet_roles(build_settings(scenario), layout, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR,
+                        participant_models=participant_models(sim_realization(options)))
     return Manifest(
         seed=options.seed, epoch_us=EPOCH_US, max_frame_gap_us=MAX_FRAME_GAP_US,
         drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(MISSION_BUDGET_S * 1_000_000),
-        roles=fleet_roles(build_settings(scenario), layout, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR),
+        roles=roles,
         sitl_ports=layout.sitl_ports, router=layout.router, initial=(("backend", layout.backend),),
         companion_roles=layout.companion_roles, expected_fleet=layout.expected_fleet,
         boot_budget_us=BOOT_BUDGET_US,
