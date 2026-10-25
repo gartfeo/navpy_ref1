@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Full-screen Android shell for the handheld GCS.
      It shows the page the Termux backend serves at 127.0.0.1:8000; the
-     backend itself still runs in Termux. Built by scripts/termux/build_apk.sh. -->
+     backend itself still runs in Termux. Built by scripts/termux/build_apk.sh
+     on the handheld or scripts/build_apk.ps1 on Windows. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.aas.gcs"
     android:versionCode="1"
