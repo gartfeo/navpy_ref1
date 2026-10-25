@@ -331,6 +331,10 @@ processes, not the fleet.
       collision step can then lift the camera. When the flight completes,
       the clearance is applied again over the ground now rendered under the
       camera, and the camera is aimed again at the drawn point.
+      Over coarse tiles the rendered ground can be metres above the real
+      ground, so the camera then ends higher than 6 m over the point, still
+      aimed at it (live check 2026-10-25 at 100% CPU: 13.7 and 17.7 m; 6.0 m
+      once the fine tiles had loaded).
     - That arrival step runs only if this is still the viewer's latest
       flight, the viewer is not destroyed, and the mark's entity is still in
       the viewer and showing (not cleared, removed, evicted, hidden or gone
@@ -570,3 +574,13 @@ sensor module had passed the 300-line guard (the net-radius setting moved to
 `camera.changed` restored the minimum hundreds of metres late over high
 ground (now `scene.postRender`). Codex implementation round 2: approve, no
 findings.
+Live check (2026-10-25, `.logs/closest-approach-live/v6`, PC at 100% CPU
+from other stacks): with the net radius 0, all three approaches ended missed
+with red marks; a normal run gave one docked green mark and two aborted
+(`source_command_stale`) amber marks. Each label matched its
+`SIM_CLOSEST_APPROACH` line. Dock dots sat on the sampled ground (within
+0.03 m of the rendered ground once fine tiles loaded). Flights over loaded
+tiles ended 15.0 m behind and 6.0 m above the point, with the point in the
+centre and the dock in frame; the minimum zoom read 50 m again after
+zooming out (tester readback). No mission request answered 404. Follow-ups:
+todos 129-131.
