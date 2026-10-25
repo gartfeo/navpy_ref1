@@ -133,7 +133,7 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   assert.deepStrictEqual(assigned.assignments['helper:2'], {
     key: 'helper:2', taskId: 5, taskType: 'DOCK', lat: 45, lon: 44, alt: 0,
     senderId: OWNER, receiverId: HELPER, status: S.ASSIGNED,
-    requestUid: uid(7, 20), doingUid: uid(3, 40), appliedUid: uid(7, 90),
+    requestUid: uid(7, 20), doingUid: uid(3, 40), assignedUid: uid(3, 40), appliedUid: uid(7, 90),
   });
   assert.strictEqual(reduce(assigned, applied(OWNER, HELPER, 5, 41)), assigned,
     'a repeated APPLIED changes nothing');
@@ -243,6 +243,10 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   assert.deepStrictEqual(s.assignments['helper:2'].confirm, { taskId: 2, roundUid: '3:55' },
     'a late older request does not re-point the slot');
   assert.ok('helper:2' in reduce(s, onTask('task_resolved', HELPER, 1, '3:50')).assignments);
+  s = run([request(OWNER, HELPER, 5, 24), doing(HELPER, OWNER, 5, 60), applied(OWNER, HELPER, 5, 60, 3, 96),
+    onTask('task_confirming', HELPER, 1, '3:50'), onTask('task_confirmed', HELPER, 1, '3:50')], assigned);
+  assert.strictEqual(s.assignments['helper:2'].status, S.CONFIRMED,
+    'a request sent before a repeated doing still counts: the floor is the assigning doing');
   r = run([onTask('task_confirming', HELPER, 2, '3:55'), onTask('task_confirmed', HELPER, 1, '3:50')],
     confirming);
   assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMING, 'a later round re-points the slot');

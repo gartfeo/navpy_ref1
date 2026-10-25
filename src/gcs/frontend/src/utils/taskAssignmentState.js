@@ -17,12 +17,12 @@
  * its POIs itself, so a helper confirms the owner's task 2 as its POI 1. They
  * are matched by UAV, to that UAV's helper slot, which records the round (POI
  * id, round uid) the GCS heard the UAV ask while it held the task
- * (CONFIRMING). The round must come from the helper's boot after its "doing";
- * only an answer naming that round moves the slot. Anything else (an own-POI
- * round asked before the assignment, a restarted helper's round, a later
- * round at its home dock, a stale page's decision, a round without a uid) does
- * not. A round the GCS heard before it heard the owner's APPLIED is never
- * counted either: it may be an own-POI round.
+ * (CONFIRMING). The round must come from the helper's boot after the "doing"
+ * it was assigned by; only an answer naming that round moves the slot.
+ * Anything else (an own-POI round asked before the assignment, a restarted
+ * helper's round, a later round at its home dock, a stale page's decision, a
+ * round without a uid) does not. A round the GCS heard before it heard the
+ * owner's APPLIED is never counted either: it may be an own-POI round.
  *
  * Every function returns the same state reference when nothing changes.
  */
@@ -200,17 +200,22 @@ export function assignAck(state, data) {
   const doingUid = isNewer(data.ref, round.doingUid) ? data.ref : round.doingUid;
   let status = higher(round.status, ASSIGNMENT_STATUS.ASSIGNED);
   let kept = {};
+  let assignedUid = doingUid;
   // The same assignment applied again to the same helper boot keeps how far
-  // its confirmation got; a restarted helper confirms afresh.
+  // its confirmation got, and the "doing" it was first assigned by; a
+  // restarted helper confirms afresh.
   if (slot && slot.senderId === round.senderId && slot.taskId === round.taskId
       && slot.requestUid?.boot_id === round.requestUid?.boot_id
       && slot.doingUid?.boot_id === doingUid?.boot_id) {
     status = higher(status, slot.status);
+    assignedUid = slot.assignedUid;
     if (slot.confirm) kept = { confirm: slot.confirm };
   }
   const assignments = { ...state.assignments };
   delete assignments[round.key];
-  assignments[key] = { ...round, key, status, doingUid, appliedUid: data.uid ?? null, ...kept };
+  assignments[key] = {
+    ...round, key, status, doingUid, assignedUid, appliedUid: data.uid ?? null, ...kept,
+  };
   return { ...state, assignments };
 }
 
@@ -231,7 +236,7 @@ export function taskConfirming(state, data) {
   const slot = state.assignments[helperKey(data.sys_id)];
   if (!slot || slot.status === ASSIGNMENT_STATUS.CONFIRMED) return state;
   const uid = parseRoundUid(data.round_uid);
-  if (!follows(uid, slot.doingUid)) return state;
+  if (!follows(uid, slot.assignedUid)) return state;
   if (slot.confirm && !follows(uid, parseRoundUid(slot.confirm.roundUid))) return state;
   return withAssignment(state, {
     ...slot,

@@ -27,13 +27,15 @@ Implementation notes:
   or APPLIED. Available tasks are keyed `${owner}:${task}` like rounds. A
   helper's confirm carries its own POI id, not the owner's task id, so
   confirm events are matched by UAV, to its helper slot: a request from
-  the helper's boot after its "doing" raises the slot to confirming and
+  the helper's boot after the "doing" that assigned it raises the slot to
+  confirming and
   records the round (POI id, round uid), and only an answer naming that
   round raises it to confirmed or, denied, drops it. A later request
   re-points a slot not yet confirmed; a round without a uid never counts.
   Both go in order: an APPLIED copy older than the one the slot was
   applied by, or a request older than the recorded round, is ignored, so
   a late copy never brings back an older task, helper boot or round.
+  Ordering across owner or helper boots is open (todo 134).
   A WAITING round
   is never raised: before APPLIED the GCS cannot tell the task's round from
   an own-POI round, so a confirm heard before APPLIED leaves the task
