@@ -14,7 +14,8 @@ first; this is step 3 on. Per ``TICK k`` (``lockstep_slice.md``):
 3. Once the product's own end is complete (a lifecycle stop, or ``end``),
    the strict flushes run on a managed thread (:meth:`Participant.drain_flush`).
 4. ``DONE k`` carries the links' egress and the hooks' outbox; when the
-   flush thread has finished, it carries ``ended{flushed}`` and is the last
+   flush thread has finished and nothing is left runnable or due (a capped
+   tick may leave work), it carries ``ended{flushed}`` and is the last
    message: the loop returns the exit code.
 
 A product or contract fault becomes ``DONE k`` with a stable fault kind
@@ -111,6 +112,10 @@ class ParticipantLoop:
             used = self._baton.run_until_quiescent(handoffs=handoffs)
             self._baton.settle_timers(handoffs=None if handoffs is None else handoffs - used)
 
+    def _idle(self) -> bool:
+        """No thread runnable and no timer due: a capped tick may leave either."""
+        return not self._baton.runnable and not self._baton.timers.any_due(self._baton.monotonic())
+
     def _end(self) -> None:
         self._flushed = self._participant.drain_flush(self._hooks.flushes())
 
@@ -122,7 +127,7 @@ class ParticipantLoop:
         faults = outbox.faults + ((fault,) if fault else ())
         if faults:
             ended: bool | None = False
-        elif self._end_thread is not None and self._end_thread.done:
+        elif self._end_thread is not None and self._end_thread.done and self._idle():
             ended = self._flushed
         else:
             ended = None

@@ -6,9 +6,8 @@ threads, but each runs only while it holds the baton. A thread gives the
 baton back when it parks (lock contention, condition, event, queue, sleep,
 join) or ends. The coordinator, the thread that created the runtime, owns
 time: :meth:`BatonRuntime.tick` sets ``t_k``, delivers inputs, runs to
-quiescence and then fires due timers. A tick may cap its handoffs (a
-participant's CPU budget or freeze, ``participant_budget``); runnable threads
-and due timers then wait for the next tick.
+quiescence and then fires due timers, within its handoff cap if it has one
+(``participant_budget``: the rest waits, runnable or due, for the next tick).
 
 Order is deterministic: runnable threads run first-in first-out, timers fire
 in ``(due, park seq)`` order, and since only one thread runs at a time every
@@ -77,7 +76,8 @@ class BatonRuntime:
     def __init__(self, start_us: int = 0) -> None:
         self._coordinator = threading.get_ident()
         self._now_us = int(start_us)
-        self._runnable: deque[ManagedThread] = deque()
+        #: Threads waiting for the baton, in run order (read-only outside the runtime).
+        self.runnable: deque[ManagedThread] = deque()
         self._yielded = threading.Semaphore(0)
         self._current: ManagedThread | None = None
         self._scheduling = False
@@ -174,7 +174,7 @@ class BatonRuntime:
         finally:
             self.starting = None
         self.threads.add(thread)
-        self._runnable.append(thread)
+        self.runnable.append(thread)
         return thread
 
     def run_until_quiescent(self, deadline: float | None = None, handoffs: int | None = None) -> int:
@@ -184,8 +184,8 @@ class BatonRuntime:
             self.fail("scheduling re-entered")
         self._scheduling = True
         steps = 0
-        while self._runnable and steps != handoffs:
-            thread = self._runnable.popleft()
+        while self.runnable and steps != handoffs:
+            thread = self.runnable.popleft()
             self._current = thread
             self.threads.switches += 1
             steps += 1
@@ -241,7 +241,7 @@ class BatonRuntime:
             scope.watch(thread, self)
         thread.park_token += 1
         if requeue:
-            self._runnable.append(thread)
+            self.runnable.append(thread)
         else:
             thread.parked_on = reason
             thread.has_timer = timeout_s is not None
@@ -262,7 +262,7 @@ class BatonRuntime:
         if thread.parked_on is not None:
             thread.parked_on = None
             thread.park_token += 1
-            self._runnable.append(thread)
+            self.runnable.append(thread)
 
     def require_coordinator(self, *, after_fault: bool = False) -> None:
         if threading.get_ident() != self._coordinator:

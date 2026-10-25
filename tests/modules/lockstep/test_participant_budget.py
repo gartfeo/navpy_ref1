@@ -40,8 +40,8 @@ def freezes(ticks: list[int]) -> list[tuple[int, int]]:
     return runs
 
 
-def test_freezes_start_a_gap_after_the_last_start_and_last_their_ticks():
-    # 1.01 s is not a whole number of ticks: a start taken from the actual tick would drift.
+def test_freezes_are_due_a_gap_after_the_last_due_time_and_last_their_ticks():
+    # 1.01 s is not a whole number of ticks: a gap counted from the actual start tick would drift.
     budget = TickBudget({PROCESS_FREEZE: fixed(3, 1.01)}, seed=1, ordinal=1, generation=1)
     runs = freezes(frozen_ticks(budget, 260))
     # The first tick (20 ms) anchors it: due at 1.03 s, 2.04 s, 3.05 s, 4.06 s, 5.07 s.

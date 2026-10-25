@@ -83,15 +83,22 @@ class TimerHeap:
         heapq.heappush(self._heap, (due_s, next(self._park_seq), thread, thread.park_token))
 
     def any_due(self, now_s: float) -> bool:
+        """Whether a live timer is due; stale entries (a wake cancelled them) at the
+        head go first, so a capped tick that left them is not taken as busy."""
+        while self._heap and not self._live(self._heap[0]):
+            heapq.heappop(self._heap)
         return bool(self._heap) and self._heap[0][0] <= now_s
 
     def pop_due(self, now_s: float) -> list[ManagedThread]:
         due = []
         while self.any_due(now_s):
-            _due, _seq, thread, token = heapq.heappop(self._heap)
-            if thread.park_token == token and thread.parked_on is not None:
-                due.append(thread)
+            due.append(heapq.heappop(self._heap)[2])
         return due
+
+    @staticmethod
+    def _live(entry: tuple[float, int, ManagedThread, int]) -> bool:
+        _due, _seq, thread, token = entry
+        return thread.park_token == token and thread.parked_on is not None
 
 
 __all__ = ["ManagedThread", "ThreadTable", "TimerHeap"]

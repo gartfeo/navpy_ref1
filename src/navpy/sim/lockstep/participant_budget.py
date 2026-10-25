@@ -5,14 +5,18 @@ handoffs of one tick (``BatonRuntime.tick(handoffs=...)``); compute still takes
 no sim time, so a starved process is one that gets fewer handoffs:
 
 - ``process_freeze`` (a GC pass, a host stall): from a freeze tick the
-  participant runs no thread for ``min_ticks``-``max_ticks`` ticks; the next
-  freeze starts ``min_gap_s``-``max_gap_s`` of sim time after this one started
-  (the first one after the participant's first tick). Its inputs still queue
-  and sim time goes on. On resume, work already runnable runs first, then the
-  work the queued inputs woke, in tick order, then the timers that came due, in
-  ``(due, park seq)`` order with their deadlines unchanged.
+  participant runs no thread for ``min_ticks``-``max_ticks`` ticks. The next
+  freeze is due ``min_gap_s``-``max_gap_s`` of sim time after this one was due
+  (the first that long after the participant's first tick) and starts on the
+  first tick at or after it, so tick rounding does not add up. Its inputs
+  still queue and sim time goes on. On resume, work already runnable runs
+  first, then the work the queued inputs woke, in tick order, then the timers
+  that came due, in ``(due, park seq)`` order with their deadlines unchanged.
 - ``cpu_budget`` (a host under load): at most ``handoffs`` handoffs per tick;
   the rest stay runnable, and due timers stay due, for the next tick.
+
+A participant reports its end only from a tick that leaves nothing runnable
+or due, so work a cap left at the flush still runs, and its faults still count.
 
 The swarm draw turns each model on per seed (``sim_profile.realize``); each
 freeze's gap and length come from the model stream
