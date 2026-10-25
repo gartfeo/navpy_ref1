@@ -53,6 +53,7 @@ import useVideoFleet from './hooks/useVideoFleet';
 import useVehicleWindow from './hooks/useVehicleWindow';
 import useFpvView from './hooks/useFpvView';
 import useElementSize from './hooks/useElementSize';
+import useSimAutoConnect from './hooks/useSimAutoConnect';
 import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, vehicleWindowLayout } from './utils/vehicleWindowLayout';
 import { vehicleWindowVisible } from './utils/videoStreams';
 import { fleetEntryHoldReason } from './utils/fpvView';
@@ -451,45 +452,13 @@ export default function App() {
   );
 
   // ---- Auto-connect on startup (sim mode) ----
-  // After settings load, if auto_connect is on and we're in sim mode, discover
-  // + connect on the default device without waiting for a manual Connect click.
-  // SITL may not be up yet, so retry quietly until vehicles appear. Depend only
-  // on stable primitives (not handleScan's identity, which churns while drawing)
-  // so the retry loop isn't cancelled mid-flight; read handleScan via a ref.
-  // Latches only AFTER a successful connect (or exhausting retries) — NOT
-  // synchronously at the top. Under React StrictMode (dev) the effect runs
-  // mount → cleanup → mount; latching up front left autoConnected=true after the
-  // first (immediately-cancelled) run, so the second run bailed and the 20×/3 s
-  // retry loop never fired. Deferring the latch lets the second mount re-arm it.
-  const autoConnectDoneRef = useRef(false);
-  const handleScanRef = useRef(handleScan);
-  handleScanRef.current = handleScan;
-  const acEnabled = settings?.connection?.auto_connect;
-  const acSimMode = settings?.simulation?.sim_mode;
-  const acDevice = settings?.connection?.default_device;
-  useEffect(() => {
-    if (autoConnectDoneRef.current || !acEnabled || !acSimMode || !acDevice) return;
-    let cancelled = false;
-    let timer = null;
-    let attempts = 0;
-    const tryConnect = async () => {
-      if (cancelled) return;
-      attempts += 1;
-      let found = 0;
-      try {
-        const res = await handleScanRef.current(acDevice);
-        found = res?.found || 0;
-      } catch { /* SITL not up yet */ }
-      if (cancelled) return;
-      if (found > 0 || attempts >= 20) {
-        autoConnectDoneRef.current = true;   // connected (or gave up) — stop retrying
-        return;
-      }
-      timer = setTimeout(tryConnect, 3000);
-    };
-    tryConnect();
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [acEnabled, acSimMode, acDevice]);
+  useSimAutoConnect({
+    enabled: settings?.connection?.auto_connect,
+    simMode: settings?.simulation?.sim_mode,
+    device: settings?.connection?.default_device,
+    scan: handleScan,
+    vehicleCount: vehicleList.length,
+  });
 
   // ---- Mission upload ----
   const { uploading, handleUpload } = useMissionUpload({

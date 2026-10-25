@@ -1,6 +1,7 @@
 """Tests for image transfer module."""
 import unittest
 import base64
+from unittest.mock import patch
 
 from navpy.plugins.radio.mavlink.image_transfer import (
     ImageChunker,
@@ -179,6 +180,23 @@ class TestImageReassembler(unittest.TestCase):
 
         result = reassembler.on_handshake(msg)
         self.assertIsNone(result)
+
+    def test_new_transfer_drops_timed_out_unfinished_ones(self):
+        """An image the sender stopped (round resolved) does not stay buffered."""
+        reassembler = ImageReassembler(timeout_sec=15.0)
+        clock = iter([100.0, 100.0, 120.0, 120.0])
+
+        def handshake(poi_id):
+            header, chunks = ImageChunker.chunk_image(
+                base64.b64encode(bytes(CHUNK_SIZE * 3)).decode('utf-8'), poi_id=poi_id,
+            )
+            reassembler.on_handshake(ImageChunker.create_handshake_message(header))
+            reassembler.on_chunk(ImageChunker.create_chunk_message(0, chunks[0]), poi_id)
+
+        with patch("navpy.plugins.radio.mavlink.image_transfer.rt.time", lambda: next(clock)):
+            handshake(1)  # stopped after its first chunk
+            handshake(2)  # 20 s later
+        self.assertEqual(set(reassembler._transfers), {2})
 
 
 class TestRoundTrip(unittest.TestCase):

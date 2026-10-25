@@ -1364,3 +1364,12 @@
   `Network.setBypassServiceWorker` to split the two.
 - Python one-liners in a Bash heredoc turned `\b` and `\a` in Windows paths
   into control bytes. Write such text with the Edit or Write tool.
+
+## Todos 92, 110: demo open points (2026-10-25)
+- A retry that opens a new protocol session drops the late reply to the old one. Before changing an
+  FTP/MAVLink retry, read the firmware's server (ArduPilot GCS_FTP.cpp replays its last reply for a
+  same-session, same-seq resend). Build test fakes from that source, not from the client.
+- A UI default and the companion default can disagree silently: check which profile each side picks
+  when settings name none, and guard the preset with a test against the real reach check.
+- Hold a round's fence per wire unit, not around a whole multi-chunk send; do slow work outside it.
+- The shared venv had OpenCV 5.0.0 on 2026-10-25, so 4 board-detector tests failed; not a code fault.

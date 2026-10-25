@@ -122,8 +122,10 @@ Frontend:
 
 - `Connect` should discover vehicles after a short wait; buttons should then
   say `Stop NavPy`, not `Start NavPy`.
-- `START` launches all UAVs with a short click. Long-press `START` is only for
-  low-battery force-start override.
+- Container launch: hold `HOLD TO LAUNCH` for 1 s, then confirm; a single
+  stray click never launches. Bungee `START MISSION` starts with a short
+  click. When not ready (for example low battery), holding `START` then
+  confirming is the force-start override.
 - `E-STOP` requires confirmation.
 - `Companion computer not connected` usually means NavPy crashed or failed to
   start — NavPy runs as separate processes, so check NavPy process logs, not

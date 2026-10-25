@@ -4,6 +4,7 @@ from typing import Callable, Optional
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.ports.network_abc import ImageSendUnitRunner
 from navpy.core.review.confirmation_ports import ConfirmationImageSender
 from navpy.core.review.confirmation_image_artifacts import ConfirmationImageArtifacts
 from navpy.core.ports.detect_data import DetectedObject
@@ -26,6 +27,10 @@ def poi_class_name(class_id: int, location_type: Optional[str] = None) -> str:
     return f"Detection class {class_id}"
 
 
+def _nothing() -> None:
+    return None
+
+
 class ConfirmationMedia:
     """Build, send, and persist operator confirmation imagery."""
 
@@ -44,11 +49,25 @@ class ConfirmationMedia:
         self._thumbnail_builder = thumbnail_builder
         self._artifact_saver = artifact_saver
 
-    def send(self, poi: DetectedObject, poi_id: int) -> None:
+    def send(
+        self,
+        poi: DetectedObject,
+        poi_id: int,
+        run_unit: ImageSendUnitRunner,
+    ) -> bool:
+        """Send the confirmation image; False once the round no longer takes it.
+
+        ``run_unit`` runs each wire send inside the round's outbound fence and
+        refuses once the round is resolved, so a response resolves between two
+        chunks instead of after the whole image, and the rest is not sent.
+        Building the thumbnail and saving artifacts run outside the fence.
+        """
+        if not run_unit(_nothing):  # resolved already: send and save nothing
+            return False
         confirmation = poi.confirmation
         classification = poi.classification
         if confirmation.frame is None or confirmation.bbox_cxcywh is None:
-            return
+            return True
         class_name = poi_class_name(
             classification.class_id,
             classification.location_type,
@@ -63,13 +82,26 @@ class ConfirmationMedia:
             degraded=confirmation.degraded,
         )
         if not image_b64:
-            return
+            return True
+        refused = False
+
+        def run_current(unit: Callable[[], None]) -> bool:
+            nonlocal refused
+            refused = not run_unit(unit)
+            return not refused
+
         try:
             network = self._network()
             if network is None:
-                return
-            num_packets = network.send_image(poi_id, image_b64)
-            if num_packets > 0:
+                return True
+            num_packets = network.send_image(poi_id, image_b64, run_unit=run_current)
+            if refused:
+                self._logger.info(
+                    f"P{poi_id} image send stopped after {num_packets} "
+                    f"packets: confirmation resolved.",
+                    key="nav_state",
+                )
+            elif num_packets > 0:
                 self._logger.info(
                     f"P{poi_id} image sent ({num_packets} packets).",
                     key="nav_state",
@@ -77,6 +109,7 @@ class ConfirmationMedia:
                 )
         finally:
             self._save_artifacts(poi, poi_id, class_name, image_b64)
+        return not refused
 
     def _save_artifacts(
         self,

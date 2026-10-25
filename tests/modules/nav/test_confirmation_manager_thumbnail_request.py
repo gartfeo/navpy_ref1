@@ -10,7 +10,7 @@ FORCE_CONFIRM belongs to 02-05).
 import threading
 import time
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import numpy as np
 
@@ -121,7 +121,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
 
         confirm_calls = self._confirm_request_calls()
         self.assertGreaterEqual(len(confirm_calls), 2, "expected at least one resend")
-        self.mock_network.send_image.assert_called_once_with(501, "b64-image")
+        self.mock_network.send_image.assert_called_once_with(501, "b64-image", run_unit=ANY)
 
     def test_swarm_request_resource_for_pending_poi_resends_thumbnail(self):
         """SWARM_REQUEST(RESOURCE, THUMBNAIL) for a still-pending task_id
