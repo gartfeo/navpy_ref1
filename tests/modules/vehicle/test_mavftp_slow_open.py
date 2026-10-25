@@ -27,7 +27,11 @@ from navpy.plugins.vehicle.ardupilot._mavftp.vehicle_ftp import VehicleFtp
 
 ERR_FAIL = 1
 ERR_INVALID_SESSION = 4
+ERR_EOF = 6
+ERR_FILE_NOT_FOUND = 10
 SESSION_TIMEOUT_S = 3.0  # FTP_SESSION_TIMEOUT in GCS_FTP.cpp
+BURST_PACKETS = 500      # transfer_size in GCS_FTP.cpp
+PUSH_S = 0.001           # time to push one reply
 FILE = bytes(range(256)) * 3 + bytes(range(100))  # 868 bytes, not a burst multiple
 
 
@@ -51,7 +55,12 @@ def _parse(payload) -> FTP_OP:
 
 
 class _FakeAutopilot:
-    """Single-threaded FTP server with link delay and per-opcode work time."""
+    """GCS_FTP.cpp ftp_worker: one request at a time, link delay each way.
+
+    ``last_send`` is the time of the last reply pushed (``ftp.last_send_ms``,
+    zeroed after a TerminateSession reply), and only the last reply is kept
+    for a re-request.
+    """
 
     def __init__(self, clock: _Clock, *, link_delay: float, open_work: float,
                  drop_requests=(), drop_replies=(), silent: bool = False) -> None:
@@ -62,9 +71,10 @@ class _FakeAutopilot:
         self.drop_replies = set(drop_replies)    # indexes of OpenFileRO replies
         self.silent = silent
         self.busy_until = 0.0
-        self.session = None  # session holding the open file, None when closed
-        self.last_activity = 0.0
-        self.cached = None   # (reply seq, session, replies)
+        self.fd_open = False
+        self.current_session = None
+        self.last_send = 0.0
+        self.reply = None  # the last reply pushed
         self.opens_seen = 0
         self.open_replies = 0
         self.inbox: list[tuple[float, SimpleNamespace]] = []
@@ -82,68 +92,81 @@ class _FakeAutopilot:
                 return
         if self.silent:
             return
-        arrival = self.clock.now + self.link_delay
-        start = max(arrival, self.busy_until)
-        replies, work = self._handle(op, start)
-        self.busy_until = start + work
-        for reply in replies:
-            if reply.req_opcode == OP_OpenFileRO:
-                index = self.open_replies
-                self.open_replies += 1
-                if index in self.drop_replies:
-                    continue
-            self._deliver(self.busy_until + self.link_delay, reply)
+        self.busy_until = max(self.clock.now + self.link_delay, self.busy_until)
+        reply = self.reply
+        if (reply is not None and reply.session == op.session
+                and (op.seq + 1) % 65536 == reply.seq):
+            self._push(reply)  # a re-request: send the last reply again
+            return
+        self._dispatch(op, self.busy_until)
 
-    def _handle(self, op: FTP_OP, now: float):
-        cached = self.cached
-        if (cached is not None and cached[1] == op.session
-                and (op.seq + 1) % 65536 == cached[0]):
-            return cached[2], 0.001  # ftp_worker replays the last reply
-        self.last_activity = now
-        replies, work = self._process(op, now)
-        if replies:
-            self.cached = (replies[-1].seq, op.session, replies)
-        return replies, work
+    def _push(self, reply: FTP_OP) -> None:
+        self.busy_until += PUSH_S
+        self.last_send = self.busy_until
+        if reply.req_opcode == OP_TerminateSession:
+            self.last_send = 0.0
+        self.reply = reply
+        if reply.req_opcode == OP_OpenFileRO:
+            index = self.open_replies
+            self.open_replies += 1
+            if index in self.drop_replies:
+                return
+        self._deliver(self.busy_until + self.link_delay, reply)
 
-    def _reply(self, op: FTP_OP, opcode: int, *, payload=None, offset=0,
-               burst_complete=0) -> FTP_OP:
-        payload = bytearray(payload or b"")
-        return FTP_OP((op.seq + 1) % 65536, op.session, opcode, len(payload),
-                      op.opcode, burst_complete, offset, payload)
+    def _reply(self, op: FTP_OP, opcode: int, *, payload=b"", offset=0,
+               burst_complete=0, seq=None) -> FTP_OP:
+        payload = bytearray(payload)
+        seq = (op.seq + 1) % 65536 if seq is None else seq
+        return FTP_OP(seq, op.session, opcode, len(payload), op.opcode,
+                      burst_complete, offset, payload)
 
-    def _nack(self, op: FTP_OP, error: int) -> FTP_OP:
-        return self._reply(op, OP_Nack, payload=bytes([error]))
+    def _nack(self, op: FTP_OP, error: int, **kwargs) -> FTP_OP:
+        return self._reply(op, OP_Nack, payload=bytes([error]), **kwargs)
 
-    def _process(self, op: FTP_OP, now: float):
-        if op.opcode == OP_ResetSessions:
-            self.session = None
-            return [self._reply(op, OP_Ack)], 0.001
-        if op.opcode == OP_TerminateSession:
-            if op.session == self.session:
-                self.session = None
-            return [self._reply(op, OP_Ack)], 0.001
-        if op.opcode == OP_OpenFileRO:
-            if self.session is not None:
-                if op.session == self.session:
-                    return [self._nack(op, ERR_FAIL)], 0.001
-                if now - self.last_activity < SESSION_TIMEOUT_S:
-                    return [self._nack(op, ERR_INVALID_SESSION)], 0.001
-            self.session = op.session
-            size = struct.pack("<I", len(FILE))
-            return [self._reply(op, OP_Ack, payload=size)], self.open_work
-        if op.opcode == OP_BurstReadFile:
-            if op.session != self.session:
-                return [self._nack(op, ERR_INVALID_SESSION)], 0.001
-            replies = []
+    def _close(self) -> None:
+        self.fd_open = False
+        self.current_session = None
+
+    def _dispatch(self, op: FTP_OP, now: float) -> None:
+        other_session = op.session != self.current_session
+        if other_session and op.opcode in (OP_TerminateSession, OP_ResetSessions):
+            self._push(self._reply(op, OP_Ack))
+            return
+        if self.fd_open and other_session and now - self.last_send < SESSION_TIMEOUT_S:
+            self._push(self._nack(op, ERR_INVALID_SESSION))
+            return
+        if self.fd_open and other_session:
+            self._close()  # the old session idled out
+        if op.opcode in (OP_TerminateSession, OP_ResetSessions):
+            self._close()
+            self._push(self._reply(op, OP_Ack))
+        elif op.opcode == OP_OpenFileRO:
+            if self.fd_open and now - self.last_send > SESSION_TIMEOUT_S:
+                self._close()
+            if self.fd_open:
+                self._push(self._nack(op, ERR_FAIL))
+                return
+            self.fd_open = True
+            self.current_session = op.session
+            self.busy_until += self.open_work
+            self._push(self._reply(op, OP_Ack, payload=struct.pack("<I", len(FILE))))
+        elif op.opcode == OP_BurstReadFile:
+            if not self.fd_open:
+                self._push(self._nack(op, ERR_FILE_NOT_FOUND))
+                return
+            seq = (op.seq + 1) % 65536
             offset = op.offset
-            while offset < len(FILE):
+            for i in range(BURST_PACKETS):
                 chunk = FILE[offset:offset + op.size]
-                last = offset + len(chunk) >= len(FILE)
-                replies.append(self._reply(op, OP_Ack, payload=chunk, offset=offset,
-                                           burst_complete=int(last)))
+                if not chunk:
+                    self._push(self._nack(op, ERR_EOF, offset=offset, seq=seq))
+                    return
+                self._push(self._reply(op, OP_Ack, payload=chunk, offset=offset,
+                                       burst_complete=int(i == BURST_PACKETS - 1), seq=seq))
                 offset += len(chunk)
-            return replies, 0.001 * len(replies)
-        raise AssertionError(f"unexpected opcode {op.opcode}")
+                seq = (seq + 1) % 65536
+        else:
+            raise AssertionError(f"unexpected opcode {op.opcode}")
 
     def _deliver(self, when: float, reply: FTP_OP) -> None:
         payload = reply.pack()
@@ -197,6 +220,22 @@ class TestMavFtpSlowOpen(unittest.TestCase):
         data, autopilot = self._fetch(link_delay=0.01, open_work=0.01)
         self.assertEqual(data, FILE)
         self.assertEqual(autopilot.opens_seen, 1)
+
+    def test_captured_file_wins_over_a_late_error_status(self):
+        """The result is the status of the last packet processed; a reply
+        discarded after the read completed must not fail a complete file."""
+
+        class LateStatusFtp:
+            def cmd_get(self, _args, callback, progress_callback_bytes=None):
+                callback(SimpleNamespace(read=lambda: FILE))
+
+            def process_ftp_reply(self, _operation, timeout):
+                return SimpleNamespace(error_code=ERR_INVALID_SESSION,
+                                       operation_name="mavlink_packet")
+
+        adapter = VehicleFtp.__new__(VehicleFtp)
+        adapter.ftp = LateStatusFtp()
+        self.assertEqual(adapter.fetch_param_pck(), FILE)
 
     def test_silent_autopilot_fails_bounded(self):
         with self.assertRaisesRegex(RuntimeError, r"MAVFTP get .* failed"):
