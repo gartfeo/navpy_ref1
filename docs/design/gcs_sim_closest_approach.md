@@ -81,7 +81,7 @@ The latch is NAV endgame code and is not changed.
   lock time, no segment straddles it, and the disarm takes the evidence as it
   stood at the boundary. A late sample (older aircraft time) after the store
   is dropped: fail-closed.
-- **Known gap (an approximation, owner decision pending).** The store runs
+- **Known gap (an approximation, accepted 2026-10-25 by the managing chat; todo 132).** The store runs
   one call after the latch records the terminal (`episode_latch.py`,
   `_latch`). A sample read in between counts. That needs the NAV thread to be
   paused by the scheduler inside those few instructions while a position
