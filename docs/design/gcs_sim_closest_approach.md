@@ -314,7 +314,8 @@ processes, not the fleet.
     explicit because automatic framing clamps to the viewer's 50 m minimum
     zoom; the camera controller also lifts the camera to that minimum over
     the ground, so the fly-to lowers it to 2 m and restores it once the camera
-    is back above 50 m). The target is the drawn point (`base +
+    is back above 50 m, checked after each rendered frame: `camera.changed`
+    fires only after a move of half the camera height). The target is the drawn point (`base +
     alt_rel_m`). The point may sit at or just below the ground (a docked
     UAV at dock height, or below it), and the ground behind it may rise, so
     the click reads the ground under the destination itself: the rendered
@@ -562,3 +563,10 @@ finding: samples between the latch's terminal record and its observer call
 still count; the exact alternatives (a latch hook, or reading the terminal
 under the command lock per sample) change endgame code or NAV timing, so the
 gap is stated above as an approximation for the owner to accept.
+Implementation (2026-10-25): Codex implementation round 1 approve, no
+findings. A further adversarial review found two faults, both fixed: the
+sensor module had passed the 300-line guard (the net-radius setting moved to
+`sim/world/dock_net_radius.py`), and the minimum-zoom watch on
+`camera.changed` restored the minimum hundreds of metres late over high
+ground (now `scene.postRender`). Codex implementation round 2: approve, no
+findings.
