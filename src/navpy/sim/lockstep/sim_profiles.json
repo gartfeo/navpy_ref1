@@ -16,7 +16,7 @@
     }},
     "stress": {"models": {
       "baud_limit": {"p_on": 1.0},
-      "cpu_budget": {"p_on": 1.0, "params": {"handoffs": [50, 200]}},
+      "cpu_budget": {"p_on": 1.0, "params": {"handoffs": [4, 12]}},
       "process_freeze": {"p_on": 1.0, "params": {"min_ticks": 5, "max_ticks": 12, "min_gap_s": 5.0, "max_gap_s": 60.0}},
       "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}},
       "uart_loss": {"p_on": 1.0, "params": {"loss_pct": [0.0, 0.6]}},

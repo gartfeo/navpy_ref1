@@ -122,7 +122,7 @@ def test_the_profiles_give_the_designed_ranges():
         assert freeze.p_on == 0.5 and dict(freeze.params) == HW_FREEZE
     stress = load_profile("stress").models
     assert stress[CPU_BUDGET].p_on == 1.0
-    assert (stress[CPU_BUDGET].params["handoffs"].lo, stress[CPU_BUDGET].params["handoffs"].hi) == (50, 200)
+    assert (stress[CPU_BUDGET].params["handoffs"].lo, stress[CPU_BUDGET].params["handoffs"].hi) == (4, 12)
     assert stress[PROCESS_FREEZE].p_on == 1.0
     assert dict(stress[PROCESS_FREEZE].params) == {**HW_FREEZE, "min_ticks": 5, "max_ticks": 12}
     assert participant_models(realize(load_profile("none"), 1)) == {}

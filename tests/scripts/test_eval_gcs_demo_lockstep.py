@@ -155,7 +155,7 @@ def test_the_sim_profile_reaches_the_coordinators_manifest_only_as_navpy_partici
     assert manifest(SLICE, none) == manifest(SLICE, OPTIONS)
     stress = dataclasses.replace(OPTIONS, sim_profile="stress")
     models = participant_models(lockstep_eval.sim_realization(stress))
-    assert set(models) == {"cpu_budget", "process_freeze"} and models["cpu_budget"] == {"handoffs": 90}
+    assert set(models) == {"cpu_budget", "process_freeze"} and models["cpu_budget"] == {"handoffs": 6}
     plain, stressed = manifest(CERTIFIED, none), manifest(CERTIFIED, stress)
     assert dataclasses.replace(stressed, roles=plain.roles) == plain
     assert list(stressed.roles) == list(plain.roles)

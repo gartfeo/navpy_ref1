@@ -1440,3 +1440,22 @@
   docstring. Run tests/guards right after editing src/navpy/core.
 - A worktree has no .venv: run pytest with the main checkout's
   `.venv/Scripts/python.exe` and PYTHONPATH set to the worktree's src.
+
+## Dev sim step 4: freeze and CPU budget (2026-10-26)
+
+- A handoff cap means a tick can leave work: runnable threads and timers still due. Every
+  place that asks "is this participant done" must then ask the scheduler's actual state
+  (nothing runnable, no live timer due), not a flag the last settle set; Codex found the
+  early end (round 1) and then that my flag could block the end forever (round 2).
+- A timer heap keeps cancelled entries until they reach the head, so "any timer due" must
+  drop stale heads first, or a cancelled timeout reads as work left (Codex round 3).
+- Each yield costs a handoff: a reader that yields after each item takes two per item.
+  Count handoffs from the trace before writing a cap's expected numbers.
+- A mutation script counted "no tests ran" (pytest exit 5, after I renamed tests) as a kill.
+  Count a kill only on exit 1, and refresh the test ids after every rename.
+- A Python replacement string written in a bash heredoc turned an escaped newline into a
+  real one, twice. Edit source with the Edit tool, or build the backslash with chr(92).
+- Measure a model's natural demand before trusting its range. The design's stress CPU budget
+  (50-200 handoffs per tick) never bound: a NavPy takes about 9 per tick. A temporary per-tick
+  count in a scratch worktree showed it; a participant's environment is hermetic, so such a
+  diagnostic must write to its cwd (the run dir), not read an env var.
