@@ -31,7 +31,7 @@ Lockstep today, from the code:
 - **SITL noise is one fixed sequence, not the seed** (before step 2, which seeds it and sets wind; section 2). Checked in the firmware locked then (`2dbd7e38dd`): noise comes from glibc `random()`/`rand()` (`AP_Math.cpp:343-346`, `SIM_Aircraft.cpp:356-375`), and nothing calls `srandom` (only Lua's `math.randomseed`, `lmathlib.c:282`), so every SITL start uses glibc's default seed 1. `get_random16` has fixed seeds 1234/76542 (`AP_Math.cpp:332-338`). No `SIM_` seed parameter exists; the branch does not touch noise. Default ArduPlane noise is on (`SIM_BARO_RND` 0.2, `SIM_ARSPD_RND` 2.0, `SIM_DYN_GYR_RND` 0.1, `SIM_DYN_ACC_RND` 0.3); GPS noise, mag noise and wind are 0. Lockstep set no `SIM_WIND_*` or noise parameter. No deployed Lua script calls `math.random` (grep of `scripts/lua`), so the main-thread draw order is fixed.
 - **Missing features.** Lockstep refuses MAVFTP, has no ESP32 HTTP simulator, and has no frontend (`deterministic_demo_eval.md:63-77`; `lockstep_slice.md:61`).
 
-Effects that can cause a bug in wall mode but not in lockstep today, with the wall evidence:
+Effects that can cause a bug in wall mode, with the wall evidence and what lockstep has (the models of section 2 add them step by step):
 
 | Effect | Wall evidence | Lockstep today |
 |---|---|---|
