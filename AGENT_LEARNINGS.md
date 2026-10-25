@@ -1345,6 +1345,26 @@
 - Both Manifest and RoutedPorts sat at the 12-field SOLID limit; adding a field means removing one or
   passing it as an argument. Run tests/guards early.
 
+## Handheld app build and todo 113 (2026-10-25)
+- The Windows APK build (`scripts/build_apk.ps1`) needs `zipalign -p 4` before
+  `apksigner`: Android 11+ refuses an APK whose resources.arsc is not aligned.
+  Adding classes.dex works with .NET `ZipFile` (no `zip` on Windows).
+- PowerShell 5.1 with `$ErrorActionPreference = "Stop"` and `*>` redirection
+  turns adb's stderr ("daemon not running") into a terminating error. Run
+  `unirc_emulator.ps1` from Bash with `> file 2>&1` instead; the script then
+  also sets `accelerometer_rotation 0`, which `user_rotation` needs.
+- To test the APK against this PC: start the GCS with `GCS_FRONTEND_DIST` set
+  to the built dist, then `adb reverse tcp:8000 tcp:<backend port>`. This
+  tests the production bundle, which is what the handheld runs.
+- The Claude browser pane is hidden during tool work, so rAF stops and Cesium
+  never sizes its canvas (300x150). For desktop checks use headless Chrome
+  with its own `--user-data-dir` in the scratchpad and CDP.
+- A desktop map that is black with Cesium's CSS missing came from the service
+  worker (todo 118), not the layout: bypass it with CDP
+  `Network.setBypassServiceWorker` to split the two.
+- Python one-liners in a Bash heredoc turned `\b` and `\a` in Windows paths
+  into control bytes. Write such text with the Edit or Write tool.
+
 ## Todos 92, 110: demo open points (2026-10-25)
 - A retry that opens a new protocol session drops the late reply to the old one. Before changing an
   FTP/MAVLink retry, read the firmware's server (ArduPilot GCS_FTP.cpp replays its last reply for a
