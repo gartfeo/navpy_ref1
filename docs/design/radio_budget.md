@@ -606,7 +606,7 @@ handshake or chunk of that round's image.
 
 - Image delivery under byte loss: every chunk is needed; at 0.30 % per byte
   a 267-byte chunk survives about 45 % of the time, so a `stress` image
-  rarely arrives whole. The matrices do not check image receipt. New todo.
+  rarely arrives whole. The matrices do not check image receipt. Todo 119.
 
 ### Checks
 
@@ -624,11 +624,60 @@ handshake or chunk of that round's image.
   operator command stops resends and, after arm, blocks release; the EKF
   check runs before every arm attempt; release refuses a vehicle no longer
   AUTO and armed; abort stops.
-- Each mechanism test proved by mutation (23 mutations, all killed).
+- Each mechanism test proved by mutation (36 mutations with the follow-up
+  below, all killed).
 - `none`, `hw` and `stress` seed-1 matrices pass from a fresh worktree off
   origin/main; `stress` seeds 4 and 8 run as diagnostics, with serial1
   offered load and NAVLINK lag in the image window read from the journal;
   full pytest shows only main's failures.
+
+## Results (round 7, `.logs/radio-budget-r7`, `-r7b`, `-r7c`)
+
+- First run (`db259462`): `none` and `hw` pass; `stress` fails every cell
+  at one digest, each UAV on "expected exactly one confirmation metadata
+  artifact, found 2". Cause (journal): one round and one approval per UAV;
+  the image never arrives whole, so the GCS asks for a thumbnail, and
+  NavPy's resend saved a second, byte-identical artifact set. This predates
+  round 7: round 6's `stress` reports carry the same error, hidden because
+  the matrix summary prints only top-level errors (todo 121).
+- Follow-up fix (`31ffc41e`, `385c0ec9`, Codex-reviewed): a resend within a
+  round saves artifacts only if its image differs from the round's; the
+  save is claimed before the network send and released if it fails. A
+  refusal in the middle of an image is logged where it happens (the pacer
+  thread), which round 7 had lost.
+- Rerun (`31ffc41e`): `none`, `hw` and `stress` matrices pass, one digest
+  each (`none` `0f39d395…`, `hw` `522dc304…`, unchanged; `stress`
+  `d8df66f1…`). Final run (`adf2a2c7`, with main): the same three digests, no error in
+  any vehicle's report, one artifact set per UAV.
+- Image window, owner's serial1 (offered load against 5.76 kB/s; NAVLINK
+  lag from serial0 to serial1):
+
+  | Run | Before the image | During the image | NAVLINK lag (median, max) |
+  | --- | --- | --- | --- |
+  | `stress` seed 1, UAV 1 | 3.6 kB/s | 5.1 kB/s | 3, 9 ticks (round 6: 100-170) |
+  | `stress` seed 8, UAV 1 | 3.6 kB/s | 5.2 kB/s | 8, 16 ticks |
+  | `stress` seed 4, UAV 2 | 3.7 kB/s | 5.4 kB/s | 8, 10 ticks |
+
+  The image now fits under the line rate (round 6: 6.1-6.3 kB/s). The
+  share of NavPy 1's NAVLINK that never leaves serial1 is the same before
+  and during the image (35 of 60, 40 of 65 in seed 1), mostly swarm
+  heartbeats; cause not traced (todo 125).
+- **116, 117:** the swarm handover, launch and approvals pass in every
+  `stress` run. The launch resent `SET_MODE` and arm where the first was
+  lost (seed 8: two of each for UAV 1).
+- Seed 4 (0.56 %): every UAV passes; the run fails only on two garbage
+  frames with ids in the NAVLINK range that the router's id filter dropped
+  as designed, which the forwarding gate counts as NAVLINK (todo 121).
+- Seed 8 (0.42 %, wind 3.8 m/s): no UAV docks. UAV 1 misses in wind
+  (approach quality, out of scope); its 70° roll step follows an
+  observation gap from bursty ATTITUDE on serial0 (todo 124). The peers
+  were assigned 9-10 s late, inside their orbit, and lost the dock (todo
+  123); a broken image chunk also breaks the next packet at the router,
+  5 owner handover messages among them (todo 122).
+- Pytest (`adf2a2c7`): 4 failed, 9674 passed. The 4 board-detector tests
+  also fail on main `36cfa811` (OpenCV 5.0.0 in the shared venv), where
+  `test_mission_transfer` also failed once on timing. Opt-in tests pass (26).
+- No image reaches the GCS whole under `stress` (todo 119).
 
 ## Not covered
 
