@@ -4,6 +4,7 @@ from typing import Callable, Optional
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.ports.network_abc import ImageAdmit
 from navpy.core.review.confirmation_ports import ConfirmationImageSender
 from navpy.core.review.confirmation_image_artifacts import ConfirmationImageArtifacts
 from navpy.core.ports.detect_data import DetectedObject
@@ -44,11 +45,18 @@ class ConfirmationMedia:
         self._thumbnail_builder = thumbnail_builder
         self._artifact_saver = artifact_saver
 
-    def send(self, poi: DetectedObject, poi_id: int) -> None:
+    def send(self, poi: DetectedObject, poi_id: int, admit: ImageAdmit) -> bool:
+        """Build the thumbnail and hand it to the network with ``admit``.
+
+        ``admit`` is the round's exact fence, held for one step at a time: each
+        frame the network sends, and for a queueing network also the hand-over
+        (so a stale round cannot replace a current one's waiting image).
+        Returns False when it refused before ``send_image`` returned.
+        """
         confirmation = poi.confirmation
         classification = poi.classification
         if confirmation.frame is None or confirmation.bbox_cxcywh is None:
-            return
+            return True
         class_name = poi_class_name(
             classification.class_id,
             classification.location_type,
@@ -63,18 +71,29 @@ class ConfirmationMedia:
             degraded=confirmation.degraded,
         )
         if not image_b64:
-            return
+            return True
         try:
             network = self._network()
             if network is None:
-                return
-            num_packets = network.send_image(poi_id, image_b64)
+                return True
+            refused: list[bool] = []
+
+            def fenced(send: Callable[[], None]) -> bool:
+                if admit(send):
+                    return True
+                refused.append(True)
+                return False
+
+            num_packets = network.send_image(poi_id, image_b64, fenced)
+            if refused:
+                return False
             if num_packets > 0:
                 self._logger.info(
-                    f"P{poi_id} image sent ({num_packets} packets).",
+                    f"P{poi_id} image queued ({num_packets} packets).",
                     key="nav_state",
                     dest=LogStatusDest.DRONE,
                 )
+            return True
         finally:
             self._save_artifacts(poi, poi_id, class_name, image_b64)
 

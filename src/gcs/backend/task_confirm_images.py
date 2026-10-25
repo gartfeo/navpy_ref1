@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 from navpy.plugins.radio.mavlink.image_transfer import ImageReassembler
@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 class ActiveImage:
     poi_id: int
     round_uid: Optional[str]
+    last_frame_at: float = 0.0  # its handshake or latest chunk
 
 
 class ConfirmationImageSession:
@@ -30,7 +31,9 @@ class ConfirmationImageSession:
         accept_image: Callable[[int, int, Optional[str]], bool],
         broadcast: Callable[[dict], None],
         is_companion: Callable[[int, object], bool],
+        clock: Callable[[], float],
     ) -> None:
+        self._clock = clock
         self._open_round_uid = open_round_uid
         self._accept_image = accept_image
         self._broadcast = broadcast
@@ -40,6 +43,15 @@ class ConfirmationImageSession:
 
     def register_vehicle(self, sys_id: int) -> None:
         self.reassemblers[sys_id] = ImageReassembler(timeout_sec=15.0)
+
+    def last_frame_at(self, sys_id: int, task_id: int) -> Optional[float]:
+        """When the open round's image last delivered a frame (None: no such image)."""
+        active = self.current_pois.get(sys_id)
+        if active is None or active.poi_id != task_id:
+            return None
+        if active.round_uid is None or active.round_uid != self._open_round_uid(sys_id, task_id):
+            return None
+        return active.last_frame_at
 
     def abandon(self, sys_id: int, task_id: int) -> None:
         active = self.current_pois.get(sys_id)
@@ -62,6 +74,7 @@ class ConfirmationImageSession:
         self.current_pois[sys_id] = ActiveImage(
             poi_id,
             self._open_round_uid(sys_id, poi_id),
+            self._clock(),
         )
         log.info("Image handshake for vehicle %d, poi_id=%d", sys_id, poi_id)
 
@@ -76,6 +89,7 @@ class ConfirmationImageSession:
         active = self.current_pois.get(sys_id)
         if reassembler is None or active is None:
             return
+        self.current_pois[sys_id] = replace(active, last_frame_at=self._clock())
         image_b64 = reassembler.on_chunk(message, active.poi_id)
         if image_b64 is None:
             return

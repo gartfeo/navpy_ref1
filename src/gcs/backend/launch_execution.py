@@ -5,6 +5,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Callable
 
+from gcs.backend.launch_commands import arm, ekf_blocks, set_auto, trigger
 from gcs.backend.launch_state import VehicleState, _ALREADY_AIRBORNE_MIN_ALT_M
 from navpy.core.kernel import runtime_time as rt
 
@@ -48,7 +49,6 @@ async def _run_vehicle(controller: LaunchController, sys_id: int) -> None:
 
 async def _run_vehicle_locked(controller: LaunchController, sys_id: int) -> None:
     """Inner launch sequence — runs while holding _launch_lock."""
-    loop = asyncio.get_running_loop()
     channel = controller._channel_map.get(sys_id, sys_id)
 
     log.info("[launch] V%d _run_vehicle START  channel=%d  alt=%.1f  armed=%s",
@@ -64,31 +64,21 @@ async def _run_vehicle_locked(controller: LaunchController, sys_id: int) -> None
         log.warning("[launch] V%d already flying (alt %.1f >= floor %.1f) — "
                     "skipping ESP32 trigger and marking airborne.",
                     sys_id, controller._altitudes.get(sys_id, 0.0), _ALREADY_AIRBORNE_MIN_ALT_M)
-        controller._auto_func(sys_id)
+        if not await set_auto(controller, sys_id):
+            return
         if not controller._armed.get(sys_id, False):
             await controller._set_state(sys_id, VehicleState.arming)
-            if await _ekf_blocks(controller, sys_id, "arm"):
-                return
-            controller._arm_func(sys_id)
-            arm_ok = await controller._poll(
-                lambda: controller._armed.get(sys_id, False),
-                controller._arm_timeout,
-            )
-            if arm_ok is None:
-                await controller._abort_vehicle(sys_id)
-                return
-            if not arm_ok:
-                log.error("[launch] V%d ARM TIMEOUT (airborne path)", sys_id)
-                await controller._fail_session(sys_id, "Arm timeout")
+            if not await arm(controller, sys_id):
                 return
         await controller._set_state(sys_id, VehicleState.airborne)
         log.info("[launch] V%d already airborne, set AUTO and armed", sys_id)
         await controller._check_all_done()
         return
 
-    # Step 1: Set AUTO mode
+    # Step 1: Set AUTO mode, confirmed from the heartbeat
     log.info("[launch] V%d step 1: setting AUTO mode", sys_id)
-    controller._auto_func(sys_id)
+    if not await set_auto(controller, sys_id):
+        return
     if controller._settle_s > 0:
         # Abort-aware so a tuned-up settle can't hold an abort.
         await controller._sleep_or_abort(controller._settle_s)
@@ -104,32 +94,21 @@ async def _run_vehicle_locked(controller: LaunchController, sys_id: int) -> None
         log.info("[launch] V%d step 2: sending arm command (timeout=%.1fs)",
                  sys_id, controller._arm_timeout)
         await controller._set_state(sys_id, VehicleState.arming)
-        if await _ekf_blocks(controller, sys_id, "arm"):
-            return
-        controller._arm_func(sys_id)
-        arm_ok = await controller._poll(
-            lambda: controller._armed.get(sys_id, False),
-            controller._arm_timeout,
-        )
-        if arm_ok is None:
-            await controller._abort_vehicle(sys_id)
-            return
-        if not arm_ok:
-            log.error("[launch] V%d ARM TIMEOUT after %.1fs", sys_id, controller._arm_timeout)
-            await controller._fail_session(sys_id, "Arm timeout")
+        if not await arm(controller, sys_id):
             return
         log.info("[launch] V%d armed successfully", sys_id)
         await controller._set_state(sys_id, VehicleState.armed)
 
-    # Step 3: ESP32 trigger — the EKF may have gone bad during the settle,
-    # arm or state-broadcast waits, so it is re-checked right before release.
+    # Step 3: ESP32 trigger — the EKF, the mode, the arm state or the
+    # operator may have changed during the settle, arm or state-broadcast
+    # waits, so they are re-checked right before release.
     log.info("[launch] V%d step 3: triggering ESP32 channel %d", sys_id, channel)
     await controller._set_state(sys_id, VehicleState.launching)
-    if await _ekf_blocks(controller, sys_id, "release"):
+    if await ekf_blocks(controller, sys_id, "release"):
         return
-    result = await loop.run_in_executor(
-        None, controller._esp32_client.trigger_channel, channel,
-    )
+    result = await trigger(controller, sys_id, channel)
+    if result is None:
+        return
     if not result.success:
         log.error("[launch] V%d ESP32 trigger FAILED: %s", sys_id, result.message)
         await controller._fail_session(sys_id, f"Trigger failed: {result.message}")
@@ -174,20 +153,6 @@ async def _run_vehicle_locked(controller: LaunchController, sys_id: int) -> None
         await controller._sleep_or_abort(delay)
 
     await controller._check_all_done()
-
-async def _ekf_blocks(controller: LaunchController, sys_id: int, step: str) -> bool:
-    """Fail the session when the EKF re-check blocks *sys_id*'s next *step*.
-
-    Callers run it after their last await and immediately before dispatching
-    the arm or release, so no wait (a settle, an arm poll, a state broadcast)
-    sits between the check and the command.
-    """
-    issues = controller._ekf_recheck(sys_id)
-    if not issues:
-        return False
-    log.error("[launch] V%d %s BLOCKED by EKF re-check: %s", sys_id, step, issues)
-    await controller._fail_session(sys_id, "; ".join(issues))
-    return True
 
 async def _sleep_or_abort(controller: LaunchController, seconds: float) -> None:
     """Sleep up to *seconds*, returning early if abort is signalled."""

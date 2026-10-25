@@ -26,6 +26,7 @@ class HeartbeatState:
         self._last_receipt_s = clock()
         self._last_frame_s = self._last_receipt_s
         self._message = None
+        self._count = 0
 
     def observe(
         self,
@@ -40,6 +41,7 @@ class HeartbeatState:
                 self._clock() if receipt_time_s is None else receipt_time_s
             )
             self._message = message
+            self._count += 1
 
     def touch(self, receipt_time_s: float | None = None) -> None:
         with self._lock:
@@ -57,6 +59,12 @@ class HeartbeatState:
     def message(self) -> MAVLink_message | None:
         with self._lock:
             return self._message
+
+    @property
+    def count(self) -> int:
+        """Autopilot heartbeats observed so far: a later count is a newer heartbeat."""
+        with self._lock:
+            return self._count
 
     @property
     def age_s(self) -> float:

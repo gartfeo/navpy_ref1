@@ -1344,3 +1344,14 @@
 - model_stream keys allow only [A-Za-z0-9._-]; key per-device draws by router endpoint name.
 - Both Manifest and RoutedPorts sat at the 12-field SOLID limit; adding a field means removing one or
   passing it as an argument. Run tests/guards early.
+
+## Todos 116, 117: image share and confirmed launch mode (2026-10-25)
+
+- I repeated the time.monotonic mistake above: a pacer test timed 30 ms gaps with it and failed
+  at random under mutation runs. Time wall-clock tests with time.perf_counter.
+- Never run a test baseline while a mutation script is editing the same source files: the
+  baseline then tests a mutant. Wait for the mutation run, then run the baseline.
+- A surviving mutation can mean the guarded state is unreachable through the caller (a new
+  round already abandons the old image). Test the guard at its own unit, or remove it.
+- Guards to run early: launch_execution.py is near its 300-line cap and task_confirm_rounds.py
+  near 180. VehicleMav's method count is a ratchet: raise it only with a dated comment.

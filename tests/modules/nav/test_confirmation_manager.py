@@ -3,7 +3,7 @@ import time
 import unittest
 from dataclasses import replace
 from time import sleep
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.link.task_assignment_msg import TaskAssignRequestMsg
@@ -94,7 +94,11 @@ class ConfirmationManagerTests(unittest.TestCase):
         self.confirmation_manager.set_network(self.mock_network)
         self.mock_nav_args.confirm_wait_time_sec = 1.0
         poi = self.detected_pois[0]
-        self.confirmation_manager._media.send = MagicMock()
+        image_frames = []
+        # The media hands its image over through the round's fence (admit).
+        self.confirmation_manager._media.send = MagicMock(
+            side_effect=lambda _poi, poi_id, admit: admit(lambda: image_frames.append(poi_id)),
+        )
 
         def respond_during_broadcast(message):
             if not isinstance(message, TaskConfirmRequestMsg):
@@ -126,7 +130,7 @@ class ConfirmationManagerTests(unittest.TestCase):
             "synchronous inbound response deadlocked the outbound transaction",
         )
         self.assertNotIn(poi.identity.obj_id, self.confirmation_manager._state.pending_events())
-        self.confirmation_manager._media.send.assert_not_called()
+        self.assertEqual(image_frames, [], "the resolved round admitted its image")
 
     def test_stale_response_token_cannot_resolve_reused_poi_id(self):
         """A response belongs to the request round, not merely its task ID."""
@@ -939,7 +943,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
             self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
-        self.mock_network.send_image.assert_called_once_with(303, "b64-image")
+        self.mock_network.send_image.assert_called_once_with(303, "b64-image", ANY)
         save_spy.assert_called_once()
         kwargs = save_spy.call_args.kwargs
         self.assertEqual(kwargs["log_path"], "C:\\logs\\session")
@@ -1013,7 +1017,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
             self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
-        self.mock_network.send_image.assert_called_once_with(303, "b64-image")
+        self.mock_network.send_image.assert_called_once_with(303, "b64-image", ANY)
         self.assertEqual(self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED)
         warning_messages = [
             call.args[0] for call in self.mock_logger.warning.call_args_list
@@ -1038,7 +1042,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
             self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
-        self.mock_network.send_image.assert_called_once_with(303, "b64-image")
+        self.mock_network.send_image.assert_called_once_with(303, "b64-image", ANY)
         save_spy.assert_called_once()
         self.assertEqual(self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED)
 
@@ -1059,7 +1063,7 @@ class TestConfirmationImagePropagation(unittest.TestCase):
             self.confirmation_manager.review([self.poi])
             sleep(0.2)
 
-        self.mock_network.send_image.assert_called_once_with(303, "b64-image")
+        self.mock_network.send_image.assert_called_once_with(303, "b64-image", ANY)
         self.assertEqual(self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED)
 
         error_messages = [

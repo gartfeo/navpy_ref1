@@ -160,7 +160,10 @@ class TelemetryLoop:
                             snap.get("armed", False),
                             snap.get("climb") or 0.0,
                             snap.get("throttle") or 0.0,
+                            mode=snap.get("mode") if snap.get("link_ok") else None,
+                            heartbeat_count=snap.get("heartbeat_count") or 0,
                         )
+                    launch_controller.forget_missing(active_ids)
 
                 # Only broadcast if there's meaningful change
                 changed = []

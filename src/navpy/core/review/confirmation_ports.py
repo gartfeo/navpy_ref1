@@ -7,6 +7,7 @@ from typing import Optional, Protocol
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.msg_abc import MsgABC
+from navpy.core.ports.network_abc import ImageAdmit
 from navpy.core.review.confirmation_round_transaction import (
     ConfirmationRequestRef,
     ConfirmationResponseKind,
@@ -22,7 +23,7 @@ class ConfirmationMessageBroadcaster(Protocol):
 
 
 class ConfirmationImageSender(Protocol):
-    def send_image(self, poi_id: int, image_b64: str) -> int: ...
+    def send_image(self, poi_id: int, image_b64: str, admit: ImageAdmit) -> int: ...
 
 
 class ConfirmationNetworkPort(

@@ -28,6 +28,7 @@ from navpy.core.link.types import (
     TaskTypeMsgData,
 )
 from navpy.core.kernel.location import Location
+from navpy.core.ports.network_abc import admit_always
 from navpy.core.review.confirmation_dependencies import FreshnessGate
 from navpy.core.review.confirmation_round_transaction import (
     ConfirmationRequestRef,
@@ -371,7 +372,7 @@ def test_confirmation_artifact_programmer_error_propagates() -> None:
         bbox_cxcywh=(1.0, 1.0, 1.0, 1.0),
     )
     with pytest.raises(TypeError, match="bad artifact signature"):
-        media.send(poi, 7)
+        media.send(poi, 7, admit_always)
 
 
 def test_auction_cleanup_attempts_all_and_surfaces_exception_group() -> None:

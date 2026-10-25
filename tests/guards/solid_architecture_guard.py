@@ -194,10 +194,13 @@ FACADE_METHOD_ALLOWANCES = {
     # 86 = 84 + read_parameter and write_parameter, the bounded parameter
     # exchanges the GCS routes use (radio_budget.md round 4 design, todo 103,
     # Codex-reviewed 2026-10-20) -- a ratchet, not headroom.
+    # 87 = 86 + heartbeat_count, which dates a mode reading so the launch
+    # confirms AUTO only from a heartbeat after its command (radio_budget.md
+    # round 7 design, todo 117, Codex-reviewed 2026-10-25) -- a ratchet.
     (
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
-    ): FacadeMethodAllowance(1, 86, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 87, frozenset({"_parts"})),
     (
         "src/navpy/core/perception/camera/camera_mount.py",
         "CameraMount",
