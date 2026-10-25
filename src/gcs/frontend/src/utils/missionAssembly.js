@@ -44,6 +44,43 @@ export function assembleMissionsFromResults(missionResults) {
 }
 
 /**
+ * What one mission download answer says: 'failed' (no answer, an error, or no
+ * waypoint list), 'empty' (the vehicle answered and holds no waypoints) or
+ * 'mission'.
+ *
+ * @param {object | null} answer - a GET /api/vehicles/{id}/mission body, or null
+ * @returns {'failed' | 'empty' | 'mission'}
+ */
+export function missionAnswerKind(answer) {
+  if (!answer || typeof answer !== 'object' || answer.error || !Array.isArray(answer.waypoints)) {
+    return 'failed';
+  }
+  return answer.waypoints.length ? 'mission' : 'empty';
+}
+
+/**
+ * The per-vehicle waypoint map after downloading the missions of `ids`
+ * (`answers` in the same order) on top of `base`. An empty answer removes the
+ * vehicle's entry; a failed one keeps its entry from `previous`.
+ *
+ * @param {object} base - the map to build on (not mutated)
+ * @param {object} previous - the map before the download
+ * @param {Array<number>} ids - the vehicles asked
+ * @param {Array<object | null>} answers - one answer per id
+ * @returns {object} the new map
+ */
+export function applyMissionAnswers(base, previous, ids, answers) {
+  const next = { ...base };
+  ids.forEach((sysId, i) => {
+    const kind = missionAnswerKind(answers[i]);
+    if (kind === 'mission') next[sysId] = answers[i].waypoints;
+    else if (kind === 'empty') delete next[sysId];
+    else if (Object.prototype.hasOwnProperty.call(previous, sysId)) next[sysId] = previous[sysId];
+  });
+  return next;
+}
+
+/**
  * Merge a single downloaded mission into an existing plan's zones.
  *
  * Replaces any existing zone for the same vehicle (idempotent re-download) and

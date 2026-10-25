@@ -304,6 +304,8 @@ def test_composite_vehicle_preserves_legacy_constructor_and_abstract_surface():
         vehicle.read_parameter("TEST", ExchangePolicy())
     with pytest.raises(NotImplementedError):
         vehicle.write_parameter("TEST", 1.0, ExchangePolicy())
+    with pytest.raises(NotImplementedError):
+        vehicle.download_mission_outcome()
 
 
 @pytest.mark.parametrize(

@@ -197,10 +197,14 @@ FACADE_METHOD_ALLOWANCES = {
     # 87 = 86 + heartbeat_count, which dates a mode reading so the launch
     # confirms AUTO only from a heartbeat after its command (radio_budget.md
     # round 7 design, todo 117, Codex-reviewed 2026-10-25) -- a ratchet.
+    # 88 = 87 + download_mission_outcome, which tells an empty mission table
+    # from a failed download so the GCS mission route answers an empty vehicle
+    # with 200 (mission download outcome design, Codex-reviewed 2026-10-25)
+    # -- a ratchet.
     (
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
-    ): FacadeMethodAllowance(1, 87, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 88, frozenset({"_parts"})),
     (
         "src/navpy/core/perception/camera/camera_mount.py",
         "CameraMount",

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Union
 
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.core.kernel.location import Location
 from navpy.core.ports.flight_mode import FlightMode
+from navpy.core.ports.mission_download import MissionDownload
 
 if TYPE_CHECKING:
     from navpy.core.ports.parameter_exchange import ExchangePolicy, ParameterExchange
@@ -102,6 +104,14 @@ class VehicleMissionAccess(ABC):
 
     @abstractmethod
     def download_mission(self) -> int: ...
+
+    @abstractmethod
+    def download_mission_outcome(
+        self,
+        on_progress: Callable[[int, int], None] | None = None,
+        policy: ExchangePolicy | None = None,
+    ) -> MissionDownload:
+        """Empty, complete or failed (``mission_download.py``); a count of 0 is either."""
 
     @abstractmethod
     def upload_mission(self) -> bool: ...

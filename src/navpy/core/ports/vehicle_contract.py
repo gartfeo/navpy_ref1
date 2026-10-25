@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
+from navpy.core.ports.mission_download import MissionDownload
 from navpy.core.ports.parameter_exchange import ExchangePolicy, ParameterExchange
 from navpy.core.ports.vehicle_control_interfaces import (
     CommandValue,
@@ -97,6 +100,11 @@ class IVehicle(
                         timeout: float = 2.0) -> ParameterExchange:
         del name, value, policy, timeout
         raise NotImplementedError("legacy vehicle has no bounded parameter exchange")
+
+    def download_mission_outcome(self, on_progress: Callable[[int, int], None] | None = None,
+                                 policy: ExchangePolicy | None = None) -> MissionDownload:
+        del on_progress, policy
+        raise NotImplementedError("legacy vehicle has no mission download outcome")
 
     def send_command_long(
         self,

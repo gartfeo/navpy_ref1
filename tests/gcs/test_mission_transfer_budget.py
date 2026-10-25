@@ -23,6 +23,7 @@ from gcs.backend.exchange_budget import GCS_EXCHANGE_ATTEMPTS, gcs_policy, held_
 from gcs.backend.planner.fence_builder import upload_fence_with_retry
 from gcs.backend.planner.waypoint_builder import upload_mission_with_retry
 from gcs.backend.routes.missions import MISSION_UPLOAD_REQUEST_S
+from navpy.core.ports.mission_download import MissionDownload, MissionDownloadOutcome
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from tests.modules.vehicle.test_mission_transfer import TARGET, Autopilot, Receiver, _ack, _request
 
@@ -150,13 +151,13 @@ def _entry(vehicle):
 def test_get_mission_downloads_within_its_timeout_and_is_busy_past_it():
     vehicle = MagicMock()
     vehicle.mission_lock = threading.Lock()
-    vehicle.download_mission.return_value = 0
+    vehicle.download_mission_outcome.return_value = MissionDownload(MissionDownloadOutcome.FAILED)
     with _client(_entry(vehicle)):
         from gcs.backend.main import app
         client = TestClient(app)
         before = time.monotonic()
         assert client.get("/api/vehicles/1/mission?timeout_s=30").status_code == 404
-        policy = vehicle.download_mission.call_args.kwargs["policy"]
+        policy = vehicle.download_mission_outcome.call_args.kwargs["policy"]
         assert policy.attempts == 12 and policy.stop_on_silence
         assert before + 30 <= policy.deadline_s <= time.monotonic() + 30
 

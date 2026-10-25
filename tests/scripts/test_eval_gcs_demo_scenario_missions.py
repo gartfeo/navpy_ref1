@@ -110,6 +110,18 @@ def test_every_scenario_mission_reads_back_exactly_after_encode_and_parse():
         assert readback == assignment
 
 
+def test_an_empty_vehicle_answer_is_still_rejected_on_readback():
+    """The mission route answers an empty table with 200; the eval still refuses it."""
+    sys_id = SYS_IDS[0]
+    empty = parse_mission_items(SimpleNamespace(), 0, sys_id)  # the route's empty answer
+    with pytest.raises(models.RegressionError, match=f"vehicle {sys_id} mission is empty"):
+        upload.mission_assignment(empty, expected_sys_id=sys_id, zone_index=0)
+    context = SimpleNamespace(sys_ids=(sys_id,),
+                              api=SimpleNamespace(get_json=lambda *_args, **_kwargs: empty))
+    with pytest.raises(models.RegressionError, match="invalid mission_count"):
+        upload.capture_nav_start_bindings(context, {sys_id: 1})
+
+
 def test_resolved_pois_are_the_mission_items_navpy_selects():
     manifest = CERTIFIED
     owner = scenario_missions.bind_missions(manifest.missions, SYS_IDS)[manifest.owner_index]
