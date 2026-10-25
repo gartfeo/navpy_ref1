@@ -26,6 +26,7 @@ import useMapSwap from './hooks/useMapSwap';
 import useUavPoseSource from './hooks/useUavPoseSource';
 import { observeHeight } from './utils/observeHeight';
 import useTrackWpMarkers from './hooks/useTrackWpMarkers';
+import MapStoppedNotice from './MapStoppedNotice';
 import { resolveSimDocks, resolveSimDocksFromPlan, resolveDetectionStart, resolveDetectionStartFromPlan } from './utils/dockResolver';
 
 export { pointInPolygon };
@@ -235,7 +236,7 @@ function CesiumMap({
   // The viewer's own fit and fly-to; useMapSwap publishes the ones that wait for the large map.
   const fitRef = useRef(null);
   const flyRef = useRef(null);
-  const { containerRef, viewerRef, cesiumRef, readyRef, fitFlyingRef, viewerReady, terrainReady, tilesReady } = useCesiumViewer(
+  const { containerRef, viewerRef, cesiumRef, readyRef, fitFlyingRef, viewerReady, terrainReady, tilesReady, mapStopped } = useCesiumViewer(
     fitRef, flyRef, mapDefaults, { persistSuspendedRef, mapCameraRef },
   );
   useMapSwap({
@@ -367,7 +368,20 @@ function CesiumMap({
     return () => clearTimeout(fallback);
   }, [viewerReady, tilesReady, onViewerReady]);
 
-  return <div ref={containerRef} style={{ flex: 1, height: '100%', position: 'relative' }} />;
+  // A stopped map paints no more tiles: dismiss the loading overlay at once so
+  // the map-stopped notice shows.
+  useEffect(() => {
+    if (mapStopped) onViewerReady?.(true);
+  }, [mapStopped, onViewerReady]);
+
+  // useCesiumViewer clears its container on start, so the notice is a sibling
+  // of the Cesium container, not a child.
+  return (
+    <div style={{ flex: 1, height: '100%', position: 'relative' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {mapStopped && <MapStoppedNotice />}
+    </div>
+  );
 }
 
 function cesiumMapPropsEqual(prev, next) {

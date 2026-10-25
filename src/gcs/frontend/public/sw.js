@@ -38,6 +38,27 @@ async function evictOldEntries(cacheName, maxEntries) {
   }
 }
 
+// Cache-first for static assets. A failing cache step falls back to the
+// network: CacheStorage can reject (Chrome: "Unexpected internal error" on a
+// profile it cannot write), and answering undefined then would turn every
+// /Cesium/ file into a network error (todo 118). A network failure after a
+// cache miss stays a network error.
+async function cacheFirst(event) {
+  let cache = null;
+  try {
+    cache = await caches.open(STATIC_CACHE);
+    const cached = await cache.match(event.request);
+    if (cached) return cached;
+  } catch {
+    cache = null;
+  }
+  const response = await fetch(event.request);
+  if (cache && response.ok) {
+    event.waitUntil(cache.put(event.request, response.clone()).catch(() => {}));
+  }
+  return response;
+}
+
 // Install — pre-cache nothing, just activate immediately
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -62,37 +83,28 @@ self.addEventListener('fetch', (event) => {
 
   // Static assets: cache-first (fingerprinted, immutable)
   if (isStaticAsset(url)) {
-    event.respondWith(
-      caches.open(STATIC_CACHE).then((cache) =>
-        cache.match(event.request).then((cached) => {
-          if (cached) return cached;
-          return fetch(event.request).then((response) => {
-            if (response.ok) {
-              cache.put(event.request, response.clone());
-            }
-            return response;
-          });
-        })
-      ).catch(() => caches.match(event.request))
-    );
+    event.respondWith(cacheFirst(event));
     return;
   }
 
-  // Tile requests: network-first with cache fallback
+  // Tile requests: network-first with cache fallback; a cache failure never
+  // reaches the page, and an uncached tile offline is a network error.
   if (isTileRequest(url)) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
           if (response.ok) {
             const clone = response.clone();
-            caches.open(TILE_CACHE).then((cache) => {
-              cache.put(event.request, clone);
-              evictOldEntries(TILE_CACHE, MAX_TILE_ENTRIES);
-            });
+            event.waitUntil(
+              caches.open(TILE_CACHE)
+                .then((cache) => cache.put(event.request, clone))
+                .then(() => evictOldEntries(TILE_CACHE, MAX_TILE_ENTRIES))
+                .catch(() => {})
+            );
           }
           return response;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => caches.match(event.request).then((cached) => cached || Response.error()))
     );
     return;
   }

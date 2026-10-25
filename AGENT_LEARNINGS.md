@@ -1462,3 +1462,23 @@
 - Do not edit the worktree while a matrix runs: each run's manifest records
   `uncommitted_diff_sha256`, so a doc edit after the first cell makes the artifact check fail
   on `input_manifest.json` with equal digests. Commit first, then start the matrix.
+
+## Todos 87(a), 118: map load errors (2026-10-25)
+- CDP probes: auto-attach with `waitForDebuggerOnStart: true` pauses the service worker, so the
+  page never gets a controller; use false. A `Target.createTarget` tab in headless Chrome is
+  hidden (no rAF, canvas 300x150): drive the first existing page. Send
+  `Page.addScriptToEvaluateOnNewDocument` about 300 ms after attach, or the first load misses it.
+- Random probe clicks hit Cesium's credit link and opened a tab, which hid the app tab; that run's
+  stopped redraw was the probe's fault. Click only named controls.
+- Headless Chrome with its profile under the long scratchpad path could not write CacheStorage
+  ("Unexpected internal error"); a short profile path could. Use a short path unless testing that.
+- "Rendering has stopped" from `GlobeDepth.update` ("Expected width to be greater than 0") with a
+  0x0 drawing buffer is a lost WebGL context, not a 0-size layout. Check `gl.isContextLost()`.
+- Cesium reports every render-loop stop through `showErrorPanel`; `scene.renderError` sees only
+  errors inside `scene.render`, not the clock tick where entities update.
+- A changed service worker reaches a browser with the old one a load late: the update load is
+  still served by the old worker. Test the upgrade path before claiming "next load".
+- The full tests/gcs run failed two event-loop stall tests while a Codex review ran beside it;
+  alone they passed. Run the full suite with nothing heavy alongside.
+- At a 375 px viewport the main map is a 55x716 strip, so "canvas larger than 300x150" fails
+  there by layout. Size criteria must name the layout's map box per size.
