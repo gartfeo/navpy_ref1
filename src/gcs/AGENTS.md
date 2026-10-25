@@ -154,6 +154,14 @@ Frontend:
   SIYI does not publish the density; an emulator is not the device for touch
   size or gloves (todo 94). Install system images with Android Studio's SDK
   Manager: Application Control blocks the command-line `sdkmanager` here.
+- Handheld app (`src/gcs/android`, a WebView shell on `127.0.0.1:8000`;
+  choice: `docs/design/handheld_app_shell.md`): build it on this PC with
+  `powershell -ExecutionPolicy Bypass -File <repo>\scripts\build_apk.ps1`
+  (SDK build-tools, API 33 platform, JDK 17; APK in `~\.gcs\apk`). To run it
+  against this PC, start the GCS with `GCS_FRONTEND_DIST` set to the built
+  `frontend\dist`, boot the emulator, then `adb -s emulator-5580 install -r
+  <apk>` and `adb -s emulator-5580 reverse tcp:8000 tcp:<backend port>`.
+  Measure through `webview_devtools_remote_<pid>`.
 - Live testing: delegate the full GCS/SITL flow (launch, connect, exercise,
   check logs, tear down) to the `live-tester` subagent; its procedure is in
   `.claude/agents/live-tester.md`.

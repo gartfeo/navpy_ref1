@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { colors, topBarHeight, bottomBarHeight, sidebarWidth, setColors } from './styles';
+import { colors, sidebarWidth, setColors } from './styles';
 import useTelemetry from './hooks/useTelemetry';
 import useMissionState, { PHASES } from './hooks/useMissionState';
 import useDisplaySettings from './hooks/useDisplaySettings';
@@ -567,13 +567,14 @@ export default function App() {
   }, [videoFleet, pictureShown, viewing, viewCamera]);
   const fpvEntry = videoFleet.find((e) => e.sysId === fpv.fpvSysId);
 
-  const mapHeight = `calc(100dvh - ${topBarHeight}px - ${bottomBarHeight}px)`;
-
+  // The viewport height is set once, on #root in index.html, with a 100vh
+  // fallback: Chromium before 108 (Android 13's WebView 101) drops dvh, and
+  // an inline style has no fallback (todo 113). The map row fills the rest.
   return (
     <div
       style={{
         width: '100vw',
-        height: '100dvh',
+        height: '100%',
         background: colors.bg,
         display: 'flex',
         flexDirection: 'column',
@@ -604,7 +605,7 @@ export default function App() {
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Map */}
-        <div ref={mapPaneRef} style={{ flex: 1, position: 'relative', height: mapHeight }}>
+        <div ref={mapPaneRef} style={{ flex: 1, position: 'relative', height: '100%' }}>
           {/* The map box. Swapped with the maximized vehicle window it shrinks
               into a small box at the top right of the window's picture: CSS
               only, never a remount, never an animation, never size 0. */}
@@ -915,7 +916,7 @@ export default function App() {
         {!mc.manualControlEnabled && <div
           style={{
             width: sidebarWidth,
-            height: mapHeight,
+            height: '100%',
             background: colors.bgLight,
             borderLeft: `1px solid ${colors.border}`,
             overflowY: 'auto',
