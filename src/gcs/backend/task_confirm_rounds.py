@@ -129,6 +129,7 @@ class ConfirmationRoundRegistry:
         task_id: int,
         now: float,
         grace_s: float,
+        last_frame_at: Optional[float] = None,  # of its image: a paced image is still coming
     ) -> Optional[str]:
         key = (sys_id, task_id)
         with self._lock:
@@ -137,7 +138,7 @@ class ConfirmationRoundRegistry:
                 return None
             if key in self._image_received or key in self._thumbnail_requested:
                 return None
-            if (now - open_round.first_seen) < grace_s:
+            if (now - max(open_round.first_seen, last_frame_at or 0.0)) < grace_s:
                 return None
             self._thumbnail_requested.add(key)
             return open_round.round_uid

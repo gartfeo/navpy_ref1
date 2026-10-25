@@ -17,7 +17,7 @@ DEFAULT_CHUNK_SIZE = 4096  # 4KB for WiFi/Serial
 ImageSendUnitRunner = Callable[[Callable[[], None]], bool]
 
 
-def _run_now(unit: Callable[[], None]) -> bool:
+def run_now(unit: Callable[[], None]) -> bool:
     unit()
     return True
 
@@ -91,7 +91,7 @@ class NetworkAbc(ABC):
         total_size = len(image_bytes)
         num_chunks = math.ceil(total_size / self._image_chunk_size)
 
-        run = run_unit or _run_now
+        run = run_unit or run_now
 
         # Send header/handshake
         if not run(lambda: self._send_image_header(poi_id, total_size, num_chunks)):

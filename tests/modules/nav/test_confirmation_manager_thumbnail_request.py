@@ -144,6 +144,24 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             )
             time.sleep(0.6)  # let the worker exit cleanly before teardown
 
+    def test_a_thumbnail_request_resends_the_image_without_a_second_artifact(self):
+        """The GCS's thumbnail request in the same round resends the image and
+        saves nothing new: a round keeps one set of artifacts."""
+        self.mock_logger.log_path = "session-logs"
+        with patch(
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
+            return_value="b64-image",
+        ), patch(
+            "navpy.core.review.confirmation_manager.save_confirmation_image_artifacts",
+        ) as save_spy:
+            self.confirmation_manager.review([self.poi])
+            time.sleep(0.05)
+            self.confirmation_manager.on_message(self._resource_request(501))
+
+            self.assertEqual(self.mock_network.send_image.call_count, 2)
+            save_spy.assert_called_once()
+            time.sleep(0.6)  # let the worker exit cleanly before teardown
+
     def test_swarm_request_resource_for_unknown_task_id_is_noop(self):
         """A RESOURCE/THUMBNAIL request for a task_id with no pending
         confirmation is a no-op -- no send_image, no error."""

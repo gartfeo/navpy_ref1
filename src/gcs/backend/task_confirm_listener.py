@@ -55,6 +55,7 @@ class TaskConfirmListener:
             self._rounds.accept_image,
             self._broadcast,
             self._is_from_registered_companion,
+            lambda: rt.monotonic(),
         )
 
     def register_vehicle(self, sys_id: int, vehicle: TaskConfirmVehiclePort) -> None:
@@ -137,6 +138,7 @@ class TaskConfirmListener:
             task_id,
             rt.monotonic(),
             self._THUMBNAIL_GRACE_S,
+            self._images.last_frame_at(sys_id, task_id),
         )
         if uid is not None:
             self._transport.request_thumbnail(sys_id, task_id, uid)

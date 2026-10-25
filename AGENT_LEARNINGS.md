@@ -1373,3 +1373,21 @@
   when settings name none, and guard the preset with a test against the real reach check.
 - Hold a round's fence per wire unit, not around a whole multi-chunk send; do slow work outside it.
 - The shared venv had OpenCV 5.0.0 on 2026-10-25, so 4 board-detector tests failed; not a code fault.
+
+## Todos 116, 117: image share and confirmed launch mode (2026-10-25)
+
+- I repeated the time.monotonic mistake above: a pacer test timed 30 ms gaps with it and failed
+  at random under mutation runs. Time wall-clock tests with time.perf_counter.
+- Never run a test baseline while a mutation script is editing the same source files: the
+  baseline then tests a mutant. Wait for the mutation run, then run the baseline.
+- A surviving mutation can mean the guarded state is unreachable through the caller (a new
+  round already abandons the old image). Test the guard at its own unit, or remove it.
+- Guards to run early: launch_execution.py is near its 300-line cap and task_confirm_rounds.py
+  near 180. VehicleMav's method count is a ratchet: raise it only with a dated comment.
+- The matrix summary prints only top-level errors, so per-vehicle failures stayed hidden for a
+  whole round (todo 121). Read each vehicle's report errors before calling a matrix cell clear.
+- An artifact counter that advances per send doubled the artifacts when the GCS asked for a resend.
+  Key one-per-round outputs by round at the producer, and claim them before the slow send.
+- msys sed -i strips CR from CRLF sources. Edit them with Python opened with newline="".
+- A mutation killed by a NameError proves nothing; make sure the killing test fails on the behaviour.
+- A broad test subset is not full pytest: a demo test outside my subset still expected 640x480.

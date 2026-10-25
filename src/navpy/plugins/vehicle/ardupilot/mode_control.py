@@ -52,6 +52,11 @@ class ModeControl:
         return bool(self._transport.call(_send))
 
     @property
+    def heartbeat_count(self) -> int:
+        """Heartbeats observed so far; read it before :attr:`current` to pair them."""
+        return self._heartbeat.count
+
+    @property
     def current(self) -> FlightMode | None:
         heartbeat = self._heartbeat.message
         if heartbeat is None:
