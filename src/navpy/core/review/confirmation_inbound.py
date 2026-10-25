@@ -62,6 +62,7 @@ class ConfirmationInboundHandler:
                 lambda unit: self._state.send_pending_if_current(
                     message.subject_id, poi, request_ref, unit,
                 ),
+                resend=True,
             )
         except OSError as exc:
             self._logger.error(

@@ -48,12 +48,16 @@ class ConfirmationMedia:
         self._logger = logger
         self._thumbnail_builder = thumbnail_builder
         self._artifact_saver = artifact_saver
+        #: The last image saved per POI: a new round's, as every round saves.
+        self._saved_images: dict[int, str] = {}
 
     def send(
         self,
         poi: DetectedObject,
         poi_id: int,
         run_unit: ImageSendUnitRunner,
+        *,
+        resend: bool = False,
     ) -> bool:
         """Send the confirmation image; False once the round no longer takes it.
 
@@ -61,6 +65,8 @@ class ConfirmationMedia:
         refuses once the round is resolved, so a response resolves between two
         chunks instead of after the whole image, and the rest is not sent.
         Building the thumbnail and saving artifacts run outside the fence.
+        A ``resend`` within the same round saves artifacts only if its image
+        differs from the one saved for that round, so a resent copy adds none.
         """
         if not run_unit(_nothing):  # resolved already: send and save nothing
             return False
@@ -86,29 +92,34 @@ class ConfirmationMedia:
         refused = False
 
         def run_current(unit: Callable[[], None]) -> bool:
+            # A queueing network calls this from its own sender thread, after
+            # send() has returned, so the refusal is logged here, where it happens.
             nonlocal refused
-            refused = not run_unit(unit)
-            return not refused
+            if run_unit(unit):
+                return True
+            if not refused:
+                refused = True
+                self._logger.info(
+                    f"P{poi_id} image send stopped: confirmation resolved.",
+                    key="nav_state",
+                )
+            return False
 
         try:
             network = self._network()
             if network is None:
                 return True
             num_packets = network.send_image(poi_id, image_b64, run_unit=run_current)
-            if refused:
-                self._logger.info(
-                    f"P{poi_id} image send stopped after {num_packets} "
-                    f"packets: confirmation resolved.",
-                    key="nav_state",
-                )
-            elif num_packets > 0:
+            if not refused and num_packets > 0:
                 self._logger.info(
                     f"P{poi_id} image handed to the link ({num_packets} packets).",
                     key="nav_state",
                     dest=LogStatusDest.DRONE,
                 )
         finally:
-            self._save_artifacts(poi, poi_id, class_name, image_b64)
+            if not resend or self._saved_images.get(poi_id) != image_b64:
+                self._saved_images[poi_id] = image_b64
+                self._save_artifacts(poi, poi_id, class_name, image_b64)
         return not refused
 
     def _save_artifacts(

@@ -277,6 +277,76 @@ class ConfirmationMediaHandOverTests(unittest.TestCase):
         self.assertGreaterEqual(len(depths), 3)
         self.assertEqual(set(depths), {1}, "the fence was taken inside itself")
 
+    def test_a_refusal_on_the_link_s_sender_thread_is_logged(self):
+        network, _vehicle = self._queueing_network()
+        logger = MagicMock(spec=ILogger)
+        media = self._media(network)
+        media._logger = logger
+        answers = iter([True, True, True, False])  # the round check, hand-over, header, a chunk
+
+        def run_unit(unit):
+            if next(answers, False):
+                unit()
+                return True
+            return False
+
+        self.assertTrue(media.send(self._poi(), 7, run_unit))  # handed over: send() is done
+
+        def stopped():
+            return [c.args[0] for c in logger.info.call_args_list if "image send stopped" in c.args[0]]
+
+        self.assertTrue(self._wait_for(lambda: stopped()))
+        self.assertEqual(stopped(), ["P7 image send stopped: confirmation resolved."])
+
+
+IMAGE_A = base64.b64encode(bytes([1]) * 253).decode()
+IMAGE_B = base64.b64encode(bytes([2]) * 253).decode()
+
+
+def _admit(unit):
+    unit()
+    return True
+
+
+class ConfirmationArtifactsPerRoundTests(unittest.TestCase):
+    """A round keeps one set of artifacts; a resent copy of its image adds none."""
+
+    def setUp(self):
+        self.saver = MagicMock(return_value=None)
+        self.images = iter([IMAGE_A, IMAGE_A])
+
+    def _media(self):
+        from navpy.core.review.confirmation_media import ConfirmationMedia
+
+        logger = MagicMock(spec=ILogger)
+        logger.log_path = "session-logs"
+        return ConfirmationMedia(
+            sys_id=1, network=lambda: _SyncNetwork(), logger=logger,
+            thumbnail_builder=lambda **kwargs: next(self.images), artifact_saver=self.saver,
+        )
+
+    def _sent_images(self):
+        return [c.kwargs["sent_image_b64"] for c in self.saver.call_args_list]
+
+    def test_a_resent_copy_saves_nothing(self):
+        media, poi = self._media(), ConfirmationMediaHandOverTests._poi(None)
+        media.send(poi, 7, _admit)
+        media.send(poi, 7, _admit, resend=True)
+        self.assertEqual(self._sent_images(), [IMAGE_A])
+
+    def test_a_resend_with_a_new_image_saves_it(self):
+        media, poi = self._media(), ConfirmationMediaHandOverTests._poi(None)
+        self.images = iter([IMAGE_A, IMAGE_B])
+        media.send(poi, 7, _admit)
+        media.send(poi, 7, _admit, resend=True)
+        self.assertEqual(self._sent_images(), [IMAGE_A, IMAGE_B])
+
+    def test_every_round_saves_even_the_same_image(self):
+        media, poi = self._media(), ConfirmationMediaHandOverTests._poi(None)
+        media.send(poi, 7, _admit)
+        media.send(poi, 7, _admit)
+        self.assertEqual(self._sent_images(), [IMAGE_A, IMAGE_A])
+
 
 if __name__ == "__main__":
     unittest.main()
