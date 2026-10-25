@@ -21,7 +21,12 @@ export default function useSettings(vehicleList) {
     setPlannerLoadError(resolved.plannerLoadError);
     if (!resolved.plannerReady) return;
 
-    configurePlanner(nextSettings, resolved.plannerProfiles, resolved.plannerDetectorClassDimensions);
+    configurePlanner(
+      nextSettings,
+      resolved.plannerProfiles,
+      resolved.plannerDetectorClassDimensions,
+      nextCatalog?.default_profile,
+    );
     setSettingsVersion((v) => v + 1);
   }, []);
 
