@@ -1,6 +1,6 @@
 """Sim profiles: which realism models a lockstep run turns on, drawn from its seed.
 
-Steps 1-4 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
+Steps 1-5 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
 models, each with a swarm probability ``p_on`` and its parameters, a fixed
 number or a ``[lo, hi]`` range. Per run seed the swarm draw decides which
 models are on and draws a value inside each range. The result, the
@@ -61,9 +61,13 @@ class ModelSpec:
 #: The built models; each model step adds its spec here. Step 2: wind and sensor noise, and
 #: step 3: the UART line rate, as SITL parameters (``sitl_models``); step 3's byte loss, in the
 #: coordinator's radio (``radio_link``). Step 4: process freeze and CPU budget, in each NavPy's
-#: participant loop (``participant_budget``).
+#: participant loop (``participant_budget``). Step 5: camera latency and frame drops, in each
+#: NavPy's sim camera (``camera_frames``).
 CATALOGUE: Mapping[str, ModelSpec] = {
     "baud_limit": ModelSpec("baud_limit", {}),
+    "camera_frames": ModelSpec("camera_frames", {
+        "min_latency_ticks": "int", "max_latency_ticks": "int", "tail_latency_ticks": "int",
+        "tail_pct": "float", "min_gap_ticks": "int", "max_gap_ticks": "int", "drop_pct": "float"}),
     "cpu_budget": ModelSpec("cpu_budget", {"handoffs": "int"}),
     "process_freeze": ModelSpec("process_freeze", {
         "min_ticks": "int", "max_ticks": "int", "min_gap_s": "float", "max_gap_s": "float"}),

@@ -4,11 +4,13 @@
     "none": {"models": {}},
     "quiet": {"models": {
       "baud_limit": {},
+      "camera_frames": {"p_on": 1.0, "params": {"min_latency_ticks": 4, "max_latency_ticks": 6, "tail_latency_ticks": 8, "tail_pct": 1.0, "min_gap_ticks": 1, "max_gap_ticks": 5, "drop_pct": 4.0}},
       "process_freeze": {"params": {"min_ticks": 2, "max_ticks": 6, "min_gap_s": 5.0, "max_gap_s": 60.0}},
       "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}}
     }},
     "hw": {"models": {
       "baud_limit": {},
+      "camera_frames": {"params": {"min_latency_ticks": 4, "max_latency_ticks": 6, "tail_latency_ticks": 8, "tail_pct": 1.0, "min_gap_ticks": 2, "max_gap_ticks": 3, "drop_pct": [0.0, 2.0]}},
       "process_freeze": {"params": {"min_ticks": 2, "max_ticks": 6, "min_gap_s": 5.0, "max_gap_s": 60.0}},
       "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}},
       "uart_loss": {"params": {"loss_pct": [0.0, 0.2]}},
@@ -16,6 +18,7 @@
     }},
     "stress": {"models": {
       "baud_limit": {"p_on": 1.0},
+      "camera_frames": {"p_on": 1.0, "params": {"min_latency_ticks": 4, "max_latency_ticks": 8, "tail_latency_ticks": 12, "tail_pct": 2.0, "min_gap_ticks": 2, "max_gap_ticks": 4, "drop_pct": [0.0, 5.0]}},
       "cpu_budget": {"p_on": 1.0, "params": {"handoffs": [4, 12]}},
       "process_freeze": {"p_on": 1.0, "params": {"min_ticks": 5, "max_ticks": 12, "min_gap_s": 5.0, "max_gap_s": 60.0}},
       "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}},

@@ -1265,5 +1265,59 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         mount.stop.assert_called_once_with()
 
 
+    def test_real_detector_refuses_the_sim_camera_model(self):
+        from navpy.app.perception.vision_controller_composition import (
+            build_vision_controller,
+        )
+        from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
+
+        mount = Mock()
+        mount.name = "main"
+        profile = Mock()
+        profile.mount_specs = (CameraMountSpec(mount, {}, 1, 0),)
+        profile.profile = {}
+        profile.detector_settings = {}
+        vision_args = Mock()
+        vision_args.detector_type = "real"
+
+        with patch(
+            "navpy.app.perception.vision_controller_composition.build_vision_profile",
+            return_value=profile,
+        ):
+            with self.assertRaisesRegex(ValueError, "camera_frames models the sim camera"):
+                build_vision_controller(
+                    _create_mock_vehicle(), Mock(), vision_args, Mock(), None, None,
+                    camera_frames=lambda _mount_index: Mock(),
+                )
+
+        mount.stop.assert_called_once_with()
+
+
+class TestSimDetectorFactoryCameraFrames(unittest.TestCase):
+    """Dev sim step 5: each mount gets its own camera schedule."""
+
+    def _create(self, camera_frames):
+        from navpy.app.perception.sim_detector_factory import SimDetectorFactory
+        from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
+
+        mount = Mock()
+        mount.name = "main"
+        factory = SimDetectorFactory(
+            _create_mock_vehicle(), create_mock_args(), Mock(), Mock(), {}, None, None,
+            camera_frames,
+        )
+        with patch(
+            "navpy.app.perception.sim_detector_factory.DetectorSim",
+        ) as detector_sim:
+            factory.create(CameraMountSpec(mount, {}, 1, 0), {}, 2)
+        return detector_sim.call_args.kwargs["camera_frames"]
+
+    def test_the_schedule_is_drawn_for_the_mount_index(self):
+        self.assertEqual(self._create(lambda index: f"schedule-{index}"), "schedule-2")
+
+    def test_no_model_gives_no_schedule(self):
+        self.assertIsNone(self._create(None))
+
+
 if __name__ == '__main__':
     unittest.main()

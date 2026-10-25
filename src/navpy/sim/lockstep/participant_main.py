@@ -9,7 +9,8 @@
 3. The hooks factory named in the environment record is loaded (it must not
    import the product; ``construct`` does, at the admission tick), the loop
    connects to the coordinator and registers. Its handoff caps come from the
-   role config's participant models (``participant_budget``), if any.
+   role config's participant models (``participant_budget``), if any, and so
+   do the sim camera's frame schedules (``camera_frames``), which the hooks get.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import sys
 import time
 from collections.abc import Callable
 
+from navpy.sim.lockstep.camera_frames import camera_frame_factory
 from navpy.sim.lockstep.part_socket import PartSocket
 from navpy.sim.lockstep.participant import bootstrap
 from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY, TickBudget
@@ -62,8 +64,10 @@ def main() -> int:
     record = EnvironmentRecord.from_json(os.environ[ENVIRONMENT_VARIABLE])
     participant = bootstrap(record.spec())
     factory = load_factory(record.hooks)
-    hooks = factory(ParticipantContext(participant, record.config, RequestIds(record.ordinal)))
-    budget = TickBudget(record.config.get(SIM_MODELS_KEY, {}), record.seed, record.ordinal, record.generation)
+    models = record.config.get(SIM_MODELS_KEY, {})
+    camera_frames = camera_frame_factory(models, record.seed, record.ordinal, record.generation)
+    hooks = factory(ParticipantContext(participant, record.config, RequestIds(record.ordinal), camera_frames))
+    budget = TickBudget(models, record.seed, record.ordinal, record.generation)
     link = PartSocket.connect(record.coordinator, timeout_s=CONNECT_WALL_BUDGET_S)
     try:
         return ParticipantLoop(participant, hooks, link, host_delay=host_delay(),

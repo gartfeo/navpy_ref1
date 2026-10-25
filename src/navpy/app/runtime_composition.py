@@ -7,7 +7,7 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGrou
 
 from argparse import Namespace
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import NoReturn
 
 import cv2
@@ -33,14 +33,14 @@ from navpy.app.flow.nav_controller import NavController
 from navpy.core.approach.dock_contact_episode import with_dock_evidence_cut
 from navpy.app.vehicle_factory import create_vehicle, open_vehicle_bus
 from navpy.app.wall_scheduler_cadence import speedup_scheduler_cadence
-from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.plugins.vehicle.ardupilot.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )
 from navpy.app.perception.vision_controller import VisionController
+from navpy.sim.detection.camera_frame_ports import CameraFrameFactoryPort
+from navpy.app.runtime_ports import RuntimePorts
 from navpy.app.runtime_stop import (
-    LifecycleStopRequest,
     StoppedBeforeStart,
     raise_if_stopped,
     stop_hooks,
@@ -63,20 +63,6 @@ from navpy.core.perception.geo.zc_util_instance import ZcUtilInstance
 
 
 @dataclass(frozen=True)
-class RuntimePorts:
-    """What a host binds in place of the wall defaults (a lockstep participant).
-
-    ``observe_logger`` sees the navigation logger once it exists;
-    ``lifecycle_stop`` is the stop that ``--stop-on-lifecycle`` requires.
-    """
-
-    open_bus: MavBusOpener = MavBus.get_or_create
-    scheduler_cadence: Callable[[IVehicle, MavBus], SchedulerCadence] = speedup_scheduler_cadence
-    observe_logger: Callable[[ILogger], None] = field(default=lambda _logger: None)
-    lifecycle_stop: LifecycleStopRequest | None = None
-
-
-@dataclass(frozen=True)
 class RuntimeFoundation:
     logger: ILogger
     vehicle: IVehicle
@@ -87,6 +73,7 @@ class RuntimeFoundation:
     scheduler_cadence: SchedulerCadence | None
     vehicle_close_gate: VehicleCloseGate
     terminal_handoff: TerminalHandoff | None = None
+    camera_frames: CameraFrameFactoryPort | None = None
 
 
 def _raise_composition_failure(
@@ -181,6 +168,7 @@ def _build_foundation(
         scheduler_cadence=scheduler_cadence,
         vehicle_close_gate=close_gate,
         terminal_handoff=terminal_handoff,
+        camera_frames=ports.camera_frames,
     )
 
 
@@ -198,6 +186,7 @@ def _build_session(
         foundation.zc_util,
         scheduler_cadence=foundation.scheduler_cadence,
         siyi_fence=siyi_fence(foundation.terminal_handoff),
+        camera_frames=foundation.camera_frames,
     )
     resources.own_quiescence(
         "vision",
@@ -296,4 +285,4 @@ def compose_runtime(args: Namespace, ports: RuntimePorts = RuntimePorts()) -> Ru
         raise
 
 
-__all__ = ["RuntimeFoundation", "RuntimePorts", "compose_runtime", "speedup_scheduler_cadence"]
+__all__ = ["RuntimeFoundation", "compose_runtime", "speedup_scheduler_cadence"]

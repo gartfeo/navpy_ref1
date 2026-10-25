@@ -14,6 +14,7 @@ from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
 from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
+from navpy.sim.detection.camera_frame_ports import CameraFrameSchedulePort
 from navpy.sim.detection.detection_publication_buffer import (
     DetectionPublicationBuffer,
 )
@@ -50,6 +51,8 @@ class SimDetectorOptions:
     zoom_config: Optional[PoiZoomTrackerConfig]
     ideal_360: bool
     frame_generator_factory: ConfirmationFrameFactory
+    #: The sim camera's latency and drops (dev sim step 5), or None: render and publish at once.
+    camera_frames: Optional[CameraFrameSchedulePort] = None
 
 
 @dataclass(frozen=True)

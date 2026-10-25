@@ -23,7 +23,8 @@ freeze's gap and length come from the model stream
 ``participant.<ordinal>.<generation>``, a gap then a length per freeze. The
 draw reaches a NavPy role through its role config (:data:`SIM_MODELS_KEY`), so it
 is a run input in the manifest. A model that is off sets no key; with none the
-loop runs as before step 4.
+loop runs as before step 4. The same key carries the sim camera's model
+(``camera_frames``, step 5), which the NavPy host applies, not this loop.
 """
 
 from __future__ import annotations
@@ -32,11 +33,14 @@ import math
 import random
 from collections.abc import Mapping
 
+from navpy.sim.lockstep.camera_frames import CAMERA_FRAMES, camera_frame_factory
 from navpy.sim.lockstep.sim_profile import Number, Realization, model_stream
 
 PROCESS_FREEZE = "process_freeze"
 CPU_BUDGET = "cpu_budget"
 MODELS = (CPU_BUDGET, PROCESS_FREEZE)
+#: Every model a NavPy's role config may carry: these two and the sim camera's (``camera_frames``).
+PARTICIPANT_MODELS = (CAMERA_FRAMES, *MODELS)
 #: The role config key of the on participant models and their drawn parameters.
 SIM_MODELS_KEY = "sim_models"
 
@@ -101,9 +105,9 @@ class TickBudget:
 
     def __init__(self, models: Mapping[str, Mapping[str, Number]], seed: int, ordinal: int,
                  generation: int) -> None:
-        unknown = sorted(set(models) - set(MODELS))
+        unknown = sorted(set(models) - set(PARTICIPANT_MODELS))
         if unknown:
-            raise ValueError(f"unknown participant models {unknown}; known: {sorted(MODELS)}")
+            raise ValueError(f"unknown participant models {unknown}; known: {sorted(PARTICIPANT_MODELS)}")
         freeze = models.get(PROCESS_FREEZE)
         self._freeze = None if freeze is None else FreezeSchedule(
             freeze, model_stream(seed, PROCESS_FREEZE, f"participant.{ordinal}.{generation}"))
@@ -121,13 +125,15 @@ def participant_models(realization: Realization) -> dict[str, dict[str, Number]]
     """The NavPy role config's :data:`SIM_MODELS_KEY` entry: each on model and its draw.
 
     Checked here, so a bad profile refuses the run before anything starts."""
-    models = {name: dict(draw.params) for name in MODELS
+    models = {name: dict(draw.params) for name in PARTICIPANT_MODELS
               if (draw := realization.model(name)) is not None and draw.on}
     TickBudget(models, realization.seed, 1, 1)
+    camera_frame_factory(models, realization.seed, 1, 1)
     return models
 
 
 __all__ = [
-    "SIM_MODELS_KEY", "CPU_BUDGET", "FreezeSchedule", "MODELS", "PROCESS_FREEZE", "TickBudget",
+    "SIM_MODELS_KEY", "CPU_BUDGET", "FreezeSchedule", "MODELS", "PARTICIPANT_MODELS", "PROCESS_FREEZE",
+    "TickBudget",
     "participant_models",
 ]
