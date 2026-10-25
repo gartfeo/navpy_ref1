@@ -445,7 +445,7 @@ Each is kept exactly as it runs today; only delivery's parts move. No simulation
 | SIM_SPEEDUP apply and restore | Untouched (`nta:96`, `core/approach/nav_exit_cleanup.py:93`, `ntr:145,174-176`). | Deleted with the wall sim route (`deterministic_dev_sim.md` step 14); lockstep refuses `SIM_SPEEDUP` other than 1. |
 | Hub sim POI | Moves with the hub route (c8), behind the same ports (`fbn:24-25,63-68`). | Moves to `sim/`. |
 | One-shot sim disarm | Moves with delivery's finish (c7), behind `OneShotCompletionPorts.disarm`, gated by `is_simulated_autopilot` (`core/flow/nav_oneshot_completion.py:13-16,36-40`). It also runs for a one-shot failed dock (`missed_dock.md` rule 5). | Only the disarm moves to `sim/`. |
-| Failed-dock end (`missed_dock.md`) | Stays in core; an episode is armed only with the sim contact sensor (`app/perception/sim_detector_factory.py:66-69`); the net-radius override is sim-only (`sim/world/dock_contact_sensor.py:45,53-61`). | The real build, when a real capture signal exists. |
+| Failed-dock end (`missed_dock.md`) | Stays in core; an episode is armed only with the sim contact sensor (`app/perception/sim_detector_factory.py:66-69`); the net-radius override is sim-only (`sim/world/dock_net_radius.py`). | The real build, when a real capture signal exists. |
 
 ## Commits
 **Gate for every commit:**

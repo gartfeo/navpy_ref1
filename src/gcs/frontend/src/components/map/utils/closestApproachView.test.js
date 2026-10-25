@@ -36,8 +36,10 @@ const southGround = (view, behind, at) => (carto) => (
 
 function fakeViewer(ground = () => 0) {
   const listeners = new Set();
+  const changedListeners = new Set();
   const viewer = {
     height: 500,
+    changedAt: 500,
     ground,
     destroyed: false,
     shown: new Set(),
@@ -46,6 +48,9 @@ function fakeViewer(ground = () => 0) {
     scene: {
       screenSpaceCameraController: { minimumZoomDistance: 50 },
       globe: { getHeight: (carto) => viewer.ground(carto) },
+      postRender: {
+        addEventListener: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
+      },
     },
     camera: {
       // The flight ends at its destination unless a test moves the camera.
@@ -54,10 +59,20 @@ function fakeViewer(ground = () => 0) {
       positionWC: Cesium.Cartesian3.fromDegrees(VIEW.lon, VIEW.lat - 0.001, 500),
       get positionCartographic() { return { height: viewer.height }; },
       changed: {
-        addEventListener: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
+        addEventListener: (fn) => { changedListeners.add(fn); return () => changedListeners.delete(fn); },
       },
     },
-    moveTo: (height) => { viewer.height = height; [...listeners].forEach(fn => fn()); },
+    // Every camera move renders a frame; Cesium raises `changed` only after a
+    // move of half the ellipsoid height (percentageChanged 0.5).
+    moveTo: (height) => {
+      const changed = Math.abs(height - viewer.changedAt) > 0.5 * viewer.changedAt;
+      viewer.height = height;
+      [...listeners].forEach(fn => fn());
+      if (changed) {
+        viewer.changedAt = height;
+        [...changedListeners].forEach(fn => fn());
+      }
+    },
     listeners,
   };
   return viewer;
@@ -129,6 +144,19 @@ it('flies the camera to that explicit destination below the normal minimum zoom'
   viewer.moveTo(30); // orbiting close
   expect(controller.minimumZoomDistance).toBe(CLOSEST_APPROACH_MIN_ZOOM_M);
   viewer.moveTo(80); // zoomed back out: the normal minimum returns
+  expect(controller.minimumZoomDistance).toBe(50);
+  expect(viewer.listeners.size).toBe(0);
+});
+
+it('over high ground restores the normal minimum once 50 m over it, not hundreds of metres later', () => {
+  const viewer = fakeViewer(() => 1310);
+  flyToClosestApproach(Cesium, viewer, { ...VIEW, alt: 1311, headingDeg: 0 }, markIn(viewer));
+  viewer.moveTo(1317); // arrived 7 m over the ground
+  viewer.camera.flyTo.mock.calls[0][0].complete();
+  const controller = viewer.scene.screenSpaceCameraController;
+  viewer.moveTo(1350); // 40 m over the ground: still close
+  expect(controller.minimumZoomDistance).toBe(CLOSEST_APPROACH_MIN_ZOOM_M);
+  viewer.moveTo(1390); // 80 m over the ground
   expect(controller.minimumZoomDistance).toBe(50);
   expect(viewer.listeners.size).toBe(0);
 });

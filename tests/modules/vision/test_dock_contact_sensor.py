@@ -30,11 +30,13 @@ from navpy.sim.world.dock_contact_geometry import (
 )
 from navpy.sim.world.dock_contact_sensor import (
     SIM_DOCK_CONTACT_MAX_SEGMENT_PERIODS,
-    SIM_DOCK_NET_RADIUS_ENV,
-    SIM_DOCK_NET_RADIUS_M,
     PositionSample,
     SimDockContactSensor,
     max_segment_s,
+)
+from navpy.sim.world.dock_net_radius import (
+    SIM_DOCK_NET_RADIUS_ENV,
+    SIM_DOCK_NET_RADIUS_M,
     sim_dock_net_radius_m,
 )
 from navpy.sim.world.simulation_object import SimulationObject

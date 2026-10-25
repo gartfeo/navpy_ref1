@@ -24,11 +24,8 @@ from navpy.app.perception.vision_zoom_profile import build_zoom_config
 from navpy.sim.world import closest_approach_record
 from navpy.sim.world.closest_approach_record import ClosestApproach
 from navpy.sim.world.dock_contact_feed import SimDockContactFeed
-from navpy.sim.world.dock_contact_sensor import (
-    SimDockContactSensor,
-    max_segment_s,
-    sim_dock_net_radius_m,
-)
+from navpy.sim.world.dock_contact_sensor import SimDockContactSensor, max_segment_s
+from navpy.sim.world.dock_net_radius import sim_dock_net_radius_m
 
 
 class SimDetectorFactory:

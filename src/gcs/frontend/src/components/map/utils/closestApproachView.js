@@ -72,7 +72,12 @@ function heightOverGround(viewer) {
   return camera.height - (viewer.scene.globe.getHeight(camera) ?? 0);
 }
 
-/** Restore the normal minimum once the camera is above it again. */
+/**
+ * Restore the normal minimum once the camera is above it again. Checked after
+ * each rendered frame (every camera move renders one): `camera.changed` waits
+ * for a move of half the camera's ellipsoid height, hundreds of metres over
+ * high terrain.
+ */
 function watchUntilAbove(viewer, state) {
   const controller = viewer.scene.screenSpaceCameraController;
   const check = () => {
@@ -81,7 +86,7 @@ function watchUntilAbove(viewer, state) {
     controller.minimumZoomDistance = state.normalMin;
     closeViews.delete(viewer);
   };
-  state.stop = viewer.camera.changed.addEventListener(check);
+  state.stop = viewer.scene.postRender.addEventListener(check);
   check();
 }
 
