@@ -1459,3 +1459,6 @@
   (50-200 handoffs per tick) never bound: a NavPy takes about 9 per tick. A temporary per-tick
   count in a scratch worktree showed it; a participant's environment is hermetic, so such a
   diagnostic must write to its cwd (the run dir), not read an env var.
+- Do not edit the worktree while a matrix runs: each run's manifest records
+  `uncommitted_diff_sha256`, so a doc edit after the first cell makes the artifact check fail
+  on `input_manifest.json` with equal digests. Commit first, then start the matrix.
