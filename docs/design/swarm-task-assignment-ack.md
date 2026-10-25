@@ -30,7 +30,10 @@ Implementation notes:
   the helper's boot after the "doing" that assigned it raises the slot to
   confirming and
   records the round (POI id, round uid), and only an answer naming that
-  round raises it to confirmed or, denied, drops it. A later request
+  round raises it to confirmed or, denied, back to assigned (a deny does
+  not show the helper let the task go; its FREE beat, when received,
+  retires the slot,
+  2026-10-25). A later request
   re-points a slot not yet confirmed; a round without a uid never counts.
   Both go in order: an APPLIED copy older than the one the slot was
   applied by, or a request older than the recorded round, is ignored, so
@@ -507,8 +510,9 @@ covers recovery). Fits todo 114's lossy-link fix (merged): the helper stays
 BUSY while it asks again, so owners keep it out of auctions. Two existing GCS
 limits weaken "only an operator's no is final" and are logged, not fixed
 here: the GCS card's countdown sends a deny, which NavPy reads as REJECTED
-if it arrives before NavPy's own timeout and, arriving after it, can drop
-the kept helper slot from the GCS display (todo 136), and a delayed copy
+if it arrives before NavPy's own timeout (todo 136; arriving after it, it
+used to drop the kept helper slot from the GCS display, now it returns the
+slot to assigned), and a delayed copy
 of an older round's request replaces the open round on the GCS card and
 in the backend's round registry; the helper slot status ignores it (todo
 137).
