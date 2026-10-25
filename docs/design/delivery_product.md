@@ -160,7 +160,8 @@ sim/       unchanged
 | Approach passed | Logs "RESET: PASSED POI", then RESET (`nd:203-204`) |
 | Approach failed | Clears the POI, then requests RESET (`nd:159-160`). Core's NAV exit keeps it as RESET (real build) or, for an armed sim episode, turns it into DOCKED with "dock failed" (`nx:69-89`) |
 | POI confirmed and ready | NAV (`rel:45`) |
-| Review closed (rejected, timed out, dwell or re-acquire limit) | Resumes AUTO, then logs "REJECTED: resuming AUTO mission" (`rej:103-110`) |
+| Review closed (rejected, timed out, dwell or re-acquire limit; a timed-out assigned dock with re-asks left: next row) | Resumes AUTO, then logs "REJECTED: resuming AUTO mission" (`rej:103-110`) |
+| Assigned dock's review timed out, re-asks left | Keeps the peer task in its orbit and asks again at the next detection (`core/swarm/peer_task_reask.py`, called from `ConfirmationStatusDecision.dispatch` in `products/delivery/poi_status_decision.py`; `swarm-task-assignment-ack.md` "Unanswered confirmation of the assigned dock") |
 | Geo hold aborted | Logs "GEO-HOLD abort: … resuming AUTO mission", then resumes AUTO (`trk:74-80`) |
 | Peer task pending while not in NAV | Hands off its own POI, then DETECT (`psd:51-56`) |
 | RESET, RECOVERY or DOCKED goes to DETECT | Restarts AUTO at item 1 (`rec:96-98`, wired at `nth:67-69`) |
