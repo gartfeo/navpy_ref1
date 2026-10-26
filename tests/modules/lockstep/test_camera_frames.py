@@ -103,8 +103,10 @@ def test_the_profiles_give_the_designed_camera_ranges():
     assert hw.p_on == 0.5
     assert {k: v for k, v in hw.params.items() if k != "drop_pct"} == {k: v for k, v in HW.items() if k != "drop_pct"}
     assert (hw.params["drop_pct"].lo, hw.params["drop_pct"].hi) == (0.0, 2.0)
-    quiet = load_profile("quiet").models[CAMERA_FRAMES]
-    assert quiet.p_on == 1.0 and quiet.params["min_latency_ticks"] == 4 and quiet.params["tail_latency_ticks"] == 8
+    quiet = load_profile("quiet").models
+    # quiet is calibrated against quiet wall runs: hw's camera with no drops and no line-rate limit.
+    assert quiet[CAMERA_FRAMES].p_on == 1.0 and dict(quiet[CAMERA_FRAMES].params) == {**HW, "drop_pct": 0.0}
+    assert quiet["baud_limit"].p_on == 0.0
     stress = load_profile("stress").models[CAMERA_FRAMES]
     assert stress.p_on == 1.0 and stress.params["tail_latency_ticks"] == 12
     assert CAMERA_FRAMES not in load_profile("none").models
