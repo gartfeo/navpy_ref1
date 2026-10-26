@@ -320,8 +320,8 @@ Where the code differs from the text above, and why:
   grace.
 - Decision 8 counted four more `e.currentPoi` files; three remain
   (`SettingsModal.jsx`, `WaypointEditorOverlay.jsx`, `VirtualParamGrid.jsx`),
-  todo 137. Follow-ups: the bench check is todo 135, the router filter todo
-  136.
+  todo 139. Follow-ups: the bench check is todo 141, the router filter todo
+  142.
 
 ## Radio cost (decision 1)
 

@@ -1483,3 +1483,50 @@
 - Do not edit the worktree while a matrix runs: each run's manifest records
   `uncommitted_diff_sha256`, so a doc edit after the first cell makes the artifact check fail
   on `input_manifest.json` with equal digests. Commit first, then start the matrix.
+## Unanswered peer confirmation keeps the task (2026-10-25)
+- The vision walk guard (`test_step1_vision_walk.py`) failed when a core module that
+  `products/delivery/poi_status_decision.py` imports pulled in geo code (peer_geo -> geo_ref_calc).
+  Pass geo actions as callable ports and build them in an app/flow composition module.
+- `nav_task_composition.py` sits near the SOLID caps (150-line function, 300-line module).
+  Put new wiring in its own small composition module instead of growing it.
+- Injected statuses skip the confirmation round lifecycle (Codex nit). For an end-to-end
+  test, tick sense/decide/act with a frameless detection (`supports_confirmation_frame=False`)
+  and a network mock that stamps request meta; keep the answered round open with a long wait.
+- More param reads at startup move every later lockstep sim stamp (120 ms here), and
+  `test_navpy_participant_run.py` pins absolute stamps. Run it, or full pytest, after any
+  change to startup reads.
+- From Git Bash, `PYTHONPATH="$PWD/src;$PWD"` is ignored (POSIX paths with `;`) and imports
+  come from the shared checkout; `"$PWD/src:$PWD"` or Windows paths with `;` work.
+- A lockstep test's NavPy child takes its source from the test file's repo root, so
+  `git archive HEAD src` plus PYTHONPATH does not test old code there: export src, scripts
+  and tests and run from that tree.
+- After a rebase that took todo numbers, a blanket replace of "(todo N)" also rewrote
+  main's own new reference. Renumber only the lines your commit adds, then check each
+  reference in `git diff origin/main`.
+
+## Todo 69: E-STOP and Cancel task reach, design (2026-10-25)
+
+- A mock that scales a control to make it fit hides the fit problem the owner must judge
+  (Codex caught a 0.9 scale). Draw new controls at true size, and copy no current-size
+  control into a 'new' figure without redrawing it.
+- RC screenshots with no UAV selected have no HUD. Before placing anything over the RC
+  map, read TelemetryHud.jsx (heading tape, status, altitude tape, five-line warning
+  strip) and VehicleSelector.jsx, and say which layer draws on top.
+- Moving a host of the confirm cards: check every phase that can show while UAVs fly.
+  Edit plan is offered in flight, and planning mounted no cards at all.
+- The 2026-10-07 Target->Poi rename turned every e.currentTarget into e.currentPoi (no
+  currentTarget left in the frontend). After a bulk rename, grep for DOM and library
+  names it may have hit.
+- Inject confirm rounds into the page's telemetry WebSocket and block /api/control/
+  task_confirm* POSTs in the page to see cards live without answering a vehicle
+  (scripts kept in .logs/gcs-estop-reach/current).
+- The approved RC list from top 60 would have covered the centred first-person tag at
+  960 and 1280 px wide; found only while deriving the placement from the real sizes.
+  Derive an overlay's edges from every layer it may meet (exported sizes, plus a test
+  that the component really draws them), not from one screenshot with no UAV selected.
+  The "View held" banner, drawn only during a hold, was still missed and found only
+  live: list the conditional layers too (banners, holds, warnings, open menus).
+  Narrowing the banner on one side then moved its centred text under the flight-mode
+  buttons on the other (Codex). When an overlay moves, check both of its edges.
+- A height cap measured only when a menu opens goes stale on resize; listen for resize
+  while it is open.

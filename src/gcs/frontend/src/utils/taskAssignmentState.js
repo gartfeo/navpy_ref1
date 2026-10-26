@@ -10,7 +10,8 @@
  * Keys: a pending round is `${owner}:${task}`; once assigned it moves to the
  * helper's slot `helper:${id}` (one per helper), so a recycled task id never
  * collides with a task being flown. Ranks waiting < assigned < confirming <
- * confirmed are never lowered within a round. Available tasks are keyed
+ * confirmed are never lowered within a round, except that a deny returns a
+ * confirming slot to assigned (`taskResolved`). Available tasks are keyed
  * `${owner}:${task}` too: task ids are per owner.
  *
  * Confirm events carry the confirming UAV's own POI id: each companion numbers
@@ -249,11 +250,14 @@ export function taskConfirmed(state, data) {
   return raise(state, confirmingSlot(state, data), ASSIGNMENT_STATUS.CONFIRMED);
 }
 
-// A denied POI: the UAV's own advert of it goes, and so does the task it was
-// confirming for its owner.
+// A denied POI: the UAV's own advert of it goes, and the task it was
+// confirming for its owner goes back to ASSIGNED. A deny does not show that
+// the UAV let the task go: after its own timeout it keeps the task and asks
+// again (the card's countdown deny then comes late). Its FREE beat retires
+// the slot once it lets the task go.
 export function taskResolved(state, data) {
   const slot = confirmingSlot(state, data);
-  const next = slot ? dropAssignments(state, (entry) => entry === slot) : state;
+  const next = slot ? withAssignment(state, { ...slot, status: ASSIGNMENT_STATUS.ASSIGNED }) : state;
   return dropAvailable(next, [
     roundKey(data.sys_id, data.task_id),
     ...(slot ? [roundKey(slot.senderId, slot.taskId)] : []),

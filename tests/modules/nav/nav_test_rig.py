@@ -167,6 +167,7 @@ class NavTestRig:
         self.release = self.poi_status._confirmed._release
         self.freshness = self.release._freshness
         self.auto_resume = self.poi_status._resume_auto
+        self.peer_task_priority = self.poi_status._peer_task
 
         self.detect_action = self.actions._actions[NavState.DETECT].__self__
         self.confirmation_action = (

@@ -111,7 +111,7 @@ def _log_configuration(
     logger.info(f"Args (non-default): {format_kv(non_defaults)}")
     overrides = collect_param_overrides(
         vehicle.get_param_or_default,
-        NavigationArgs.PARAMS,
+        {**NavigationArgs.PARAMS, **NavArgs.PARAMS, **NavigationPoiArgs.PARAMS},
     )
     if overrides:
         logger.info(f"AAS params (non-default): {format_kv(overrides)}")
