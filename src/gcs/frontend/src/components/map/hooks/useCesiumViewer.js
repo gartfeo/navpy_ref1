@@ -133,6 +133,9 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
   // Base map has painted its first tiles — the signal that dismisses the loading
   // overlay (perceived speed), distinct from the slower Ion terrain upgrade.
   const [tilesReady, setTilesReady] = useState(false);
+  // The map has stopped for good (WebGL context lost or a render-loop error);
+  // CesiumMap then shows the map-stopped notice.
+  const [mapStopped, setMapStopped] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,6 +187,26 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
         useBrowserRecommendedResolution: true,
         requestRenderMode: true,
         maximumRenderTimeChange: Infinity,
+        // Keeps Cesium reporting render-loop stops through showErrorPanel,
+        // which is replaced below.
+        showRenderLoopErrors: true,
+      });
+
+      // The map stops for good when its WebGL context is lost or its render
+      // loop throws. Cesium reports every error stop of the loop through the
+      // widget's showErrorPanel; scene.renderError misses errors in the clock
+      // tick, where entities update. Show the GCS notice instead of Cesium's
+      // English panel (docs/design/gcs_map_stopped_notice.md).
+      const stop = () => {
+        if (!cancelled) setMapStopped(true);
+      };
+      viewer.cesiumWidget.showErrorPanel = (title, _message, error) => {
+        console.error(title, error);
+        stop();
+      };
+      viewer.canvas.addEventListener('webglcontextlost', () => {
+        console.error('Map WebGL context lost');
+        stop();
       });
 
       // Continuous clock ticking so CallbackProperty animations render
@@ -349,5 +372,5 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
     };
   }, []);
 
-  return { containerRef, viewerRef, cesiumRef, readyRef, fitFlyingRef, viewerReady, terrainReady, tilesReady };
+  return { containerRef, viewerRef, cesiumRef, readyRef, fitFlyingRef, viewerReady, terrainReady, tilesReady, mapStopped };
 }

@@ -406,6 +406,11 @@
       "aborted": "aborted"
     }
   },
+  "mapStopped": {
+    "title": "Map stopped",
+    "line": "Check UAV status in the sidebar. To restore the map, try reloading the page; unsaved plan edits are lost.",
+    "reload": "Reload"
+  },
   "trailsPanel": {
     "button": "Trails",
     "title": "Trails and camera marks",
