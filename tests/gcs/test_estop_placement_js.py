@@ -5,11 +5,13 @@ Final layout:
   the button opens a scope menu — Stop ALL, or a single UAV (colored UAV
   badge, then a red "Stop" label) — and every choice is gated by the danger
   ConfirmModal before onEstop fires (undefined = ALL, [sysId] = one).
-- Primary host: MonitoringSidebar UAV Status header (monitor view).
-- Fallback host: TopBar, rendered ONLY when the sidebar instance is not
-  mounted — planning phase or manual control — while vehicles are connected
-  (Codex review of PR #222: E-STOP used to vanish entirely in those states).
-- VehicleStatusCard carries no stop control (and no ConfirmModal).
+- One host: the TopBar, in every phase (planning, monitor, RC) while
+  vehicles are connected. Todo 69: E-STOP in the monitor sidebar's UAV
+  Status header scrolled out of view behind stacked confirm cards; the top
+  bar never scrolls. (Before that, the TopBar was only the fallback host for
+  planning and RC, where the sidebar is not mounted; Codex review of PR #222.)
+- MonitoringSidebar and VehicleStatusCard carry no stop control (and the
+  card no ConfirmModal).
 """
 import os
 import unittest
@@ -58,41 +60,36 @@ class TestEstopDropdownComponent(unittest.TestCase):
         self.assertIn(".estopMenuItem:hover", self.src)
 
 
-class TestSidebarHostsPrimaryDropdown(unittest.TestCase):
+class TestSidebarHasNoEstop(unittest.TestCase):
     def setUp(self):
         self.src = _read("components", "sidebar", "MonitoringSidebar.jsx")
 
-    def test_renders_shared_component(self):
-        self.assertIn("import EstopDropdown", self.src)
-        self.assertIn("<EstopDropdown vehicleList={vehicleList} onEstop={onEstop} />", self.src)
+    def test_no_estop_in_the_scrolling_sidebar(self):
+        self.assertNotIn("EstopDropdown", self.src)
+        self.assertNotIn("onEstop", self.src)
 
     def test_no_inline_menu_leftovers(self):
-        # The dropdown internals live in the shared component only.
         self.assertNotIn("setShowEstopMenu", self.src)
         self.assertNotIn("openEstop", self.src)
         self.assertNotIn("topBar.stopAll", self.src)
         self.assertNotIn("topBar.disarm", self.src)
 
 
-class TestTopBarFallbackHost(unittest.TestCase):
-    """Codex findings on PR #222: the sidebar is unmounted in the planning
-    phase (App gates it on PHASES.MONITOR) and hidden under manual control —
-    both left connected/armed fleets with NO E-STOP anywhere. The TopBar hosts
-    the same shared dropdown exactly in those states."""
+class TestTopBarHostsEstop(unittest.TestCase):
+    """The TopBar is E-STOP's only host, in every phase: no phase or manual
+    control condition may hide it while vehicles are connected."""
 
     def setUp(self):
         self.src = _read("components", "TopBar.jsx")
 
-    def test_renders_shared_component_as_fallback(self):
+    def test_renders_shared_component(self):
         self.assertIn("import EstopDropdown", self.src)
-        self.assertIn('size="topbar"', self.src)
-        self.assertIn("showEstopFallback &&", self.src)
+        self.assertIn("{showEstop && <EstopDropdown vehicleList={vehicleList} onEstop={onEstop} />}", self.src)
 
-    def test_fallback_condition_covers_both_gaps(self):
-        # Vehicles connected AND (not monitor phase OR manual control).
-        self.assertIn("uavCount > 0", self.src)
-        self.assertIn("phase !== PHASES.MONITOR || manualControlEnabled", self.src)
-        self.assertIn("import { PHASES }", self.src)
+    def test_shown_whenever_vehicles_are_connected(self):
+        self.assertIn("const showEstop = uavCount > 0 && !!onEstop;", self.src)
+        self.assertNotIn("manualControlEnabled", self.src)
+        self.assertNotIn("PHASES.MONITOR", self.src)
 
     def test_no_inline_menu_of_its_own(self):
         self.assertNotIn("setShowEstopMenu", self.src)
@@ -120,16 +117,16 @@ class TestEstopCommandForwardsScope(unittest.TestCase):
 
 
 class TestAppWiring(unittest.TestCase):
-    def test_estop_wired_to_both_hosts(self):
+    def test_estop_wired_to_the_top_bar_only(self):
         src = _read("App.jsx")
         self.assertEqual(
-            src.count("onEstop={commands.handleEstop}"), 2,
-            "E-STOP handler goes to both hosts: TopBar (fallback) + MonitoringSidebar",
+            src.count("onEstop={commands.handleEstop}"), 1,
+            "E-STOP handler goes to its one host, the TopBar",
         )
         block = src[src.index("<TopBar"):]
         block = block[:block.index("/>")]
         self.assertIn("onEstop={commands.handleEstop}", block)
-        self.assertIn("manualControlEnabled={mc.manualControlEnabled}", block)
+        self.assertNotIn("manualControlEnabled", block)
 
 
 class TestLocaleStrings(unittest.TestCase):

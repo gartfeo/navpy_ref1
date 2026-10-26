@@ -53,7 +53,7 @@ hand and through Chrome's 16-context limit
 - A loop stopped without an error (code setting `useDefaultRenderLoop`
   false; none in the app) and a hidden tab (no frames, not a stop).
 - What lost v11's context (87(a), not reproduced).
-- The Viewer is never destroyed on unmount (todo 135); the canvas listener
+- The Viewer is never destroyed on unmount (todo 144); the canvas listener
   goes with it.
 
 ## Tests

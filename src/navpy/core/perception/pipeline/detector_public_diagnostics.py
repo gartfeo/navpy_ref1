@@ -21,6 +21,10 @@ class DetectorDiagnosticsFacet:
     def get_raw_frame(self) -> np.ndarray | None:
         return self._parts.diagnostics.get_raw_frame()
 
+    def has_fresh_frame(self) -> bool:
+        """Display only: the camera HEARTBEAT's detector readiness."""
+        return self._parts.diagnostics.has_fresh_frame()
+
     def get_debug_frame(self) -> np.ndarray | None:
         return self._parts.diagnostics.get_debug_frame()
 

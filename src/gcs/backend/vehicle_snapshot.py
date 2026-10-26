@@ -81,6 +81,7 @@ def snapshot(entry: VehicleEntry) -> dict:
         "confirm_blocked": entry._confirm_blocked,
         "swarm": entry._swarm_state.snapshot(),
         "video_streams": entry._video_streams.snapshot(),
+        "cameras": entry._video_streams.cameras(),
     }
     rc_channels = entry._rc_channels_snapshot()
     if rc_channels is not None:

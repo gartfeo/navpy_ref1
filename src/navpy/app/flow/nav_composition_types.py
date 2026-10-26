@@ -28,6 +28,7 @@ from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPoli
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
 from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
+from navpy.core.swarm.peer_task_reask import PeerTaskReask
 from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.core.flow.navigation_task_reset import (
     AutoMissionResume,
@@ -155,6 +156,7 @@ class NavigationTaskWorkflows:
     selector: PoiSelector
     peer_notifier: PeerPoiNotifier
     peer_task_priority: PeerTaskPriority
+    peer_reask: PeerTaskReask
     work_source: DeliveryWorkSource
 
 

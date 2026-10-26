@@ -177,6 +177,17 @@ export function canCancel(entry) {
   return !!entry && entry.status === CONFIRM_STATUS.APPROVED;
 }
 
+/**
+ * Identity of the confirm round an entry shows. The same POI can be asked
+ * again (a bounded re-ask), so the task id alone does NOT change between
+ * rounds -- the round uid is what makes it a different question. Rounds from
+ * a sender without a uid fall back to receivedAt, which a re-ask also
+ * refreshes.
+ */
+export function confirmRoundKey(entry) {
+  return `${entry.taskId}:${entry.roundUid ?? entry.receivedAt ?? ''}`;
+}
+
 export function hasPendingConfirm(state, sysId) {
   return isPending(state[sysId]);
 }

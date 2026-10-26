@@ -22,7 +22,8 @@ class TestTaskConfirmCard(unittest.TestCase):
         self.src = _read("components", "TaskConfirmCard.jsx")
 
     def test_uses_reducer_selectors(self):
-        self.assertIn("import { isPending, canCancel } from '../hooks/taskConfirmationState'", self.src)
+        self.assertIn("import { isPending, canCancel, confirmRoundKey } from '../hooks/taskConfirmationState'",
+                      self.src)
 
     def test_auto_timeout_guarded_to_pending(self):
         # Decided cards must never count down or auto-fire.
@@ -115,12 +116,14 @@ class TestRenderSitesWireCancel(unittest.TestCase):
         src = _read("App.jsx")
         self.assertEqual(
             src.count("onCancel={ws.handleTaskCancel}"), 2,
-            "Both confirm-card render sites (sidebar + manual overlay) must wire onCancel",
+            "Both confirm lists (right panel + RC overlay) must wire onCancel",
         )
 
-    def test_sidebar_forwards_cancel(self):
-        src = _read("components", "sidebar", "MonitoringSidebar.jsx")
+    def test_list_forwards_cancel(self):
+        # The cards moved from MonitoringSidebar into ConfirmCardList (todo 69).
+        src = _read("components", "ConfirmCardList.jsx")
         self.assertIn("onCancel={onCancel}", src)
+        self.assertNotIn("TaskConfirmCard", _read("components", "sidebar", "MonitoringSidebar.jsx"))
 
 
 if __name__ == "__main__":

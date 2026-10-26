@@ -27,7 +27,9 @@ GCS_SYSTEM = 255
 GCS_COMPONENT = mav.MAV_COMP_ID_MISSIONPLANNER
 
 
-def _router() -> tuple[InboundMessageRouter, list[mav.MAVLink_message]]:
+def _router(
+    heartbeat: HeartbeatState | None = None,
+) -> tuple[InboundMessageRouter, list[mav.MAVLink_message]]:
     callbacks = CallbackRegistry()
     router = InboundMessageRouter(
         VehicleIdentity(
@@ -36,7 +38,7 @@ def _router() -> tuple[InboundMessageRouter, list[mav.MAVLink_message]]:
         MessageStore({}),
         callbacks,
         ParameterRepository(),
-        HeartbeatState(OWN, 3.0),
+        heartbeat or HeartbeatState(OWN, 3.0),
         PacketLossTracker(),
         MissionInbox(),
         SimpleNamespace(value=MagicMock()),
@@ -143,6 +145,36 @@ def test_other_foreign_traffic_stays_dropped():
         router.ingest(message)
 
     assert seen == []
+
+
+@pytest.mark.parametrize("status", [mav.MAV_STATE_ACTIVE, mav.MAV_STATE_CRITICAL])
+def test_own_camera_heartbeat_with_boot_id_leaves_autopilot_heartbeat_alone(status):
+    """The camera HEARTBEAT carries NavPy's boot id in custom_mode and the
+    detector readiness in system_status (docs/design/gcs_preflight_camera_row.md);
+    neither may reach the autopilot heartbeat that flight mode is read from."""
+    heartbeat = HeartbeatState(OWN, 3.0)
+    router, _ = _router(heartbeat)
+    autopilot = _wire(
+        mav.MAVLink_heartbeat_message(
+            mav.MAV_TYPE_FIXED_WING, mav.MAV_AUTOPILOT_ARDUPILOTMEGA,
+            mav.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, 10, mav.MAV_STATE_ACTIVE, 3,
+        ),
+        OWN,
+        mav.MAV_COMP_ID_AUTOPILOT1,
+    )
+    camera = _wire(
+        mav.MAVLink_heartbeat_message(
+            mav.MAV_TYPE_CAMERA, mav.MAV_AUTOPILOT_INVALID, 0, 0xDEADBEEF, status, 3,
+        ),
+        OWN,
+        mav.MAV_COMP_ID_CAMERA,
+    )
+
+    router.ingest(autopilot)
+    router.ingest(camera)
+
+    assert heartbeat.message is autopilot
+    assert heartbeat.count == 1
 
 
 def test_own_system_commands_still_pass_unchanged():

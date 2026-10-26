@@ -1,11 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../../styles';
-import EstopDropdown from '../EstopDropdown';
 import { missionWpOffset } from '../../utils/geo';
 import { computeZoneDistances } from '../../utils/missionProgress';
 import LaunchPanel from './LaunchPanel';
-import TaskConfirmCard from '../TaskConfirmCard';
 import ConfirmModal from '../ConfirmModal';
 import { useTelemetryStore } from '../../hooks/useTelemetryStore';
 import { computeLaunchReadiness, launchGatesFromSettings } from '../../utils/prearmChecks';
@@ -16,7 +14,6 @@ import useLoadStages from '../../hooks/useLoadStages';
 import { ForceStartButton, LauncherStatus, EditButton, EditPlanLink } from './LaunchControls';
 import { MONITOR_PHASES, computeMonitorPhase } from '../../constants/monitorPhases';
 import { SectionTitle, Divider } from './SidebarPrimitives';
-import { AAS_DEFAULTS } from '../../utils/aasParams';
 import { groupVehiclesByContainer } from '../../utils/containers';
 import { mergePendingVehicles } from '../../utils/pendingVehicles';
 import { selectLaunchVehicles } from '../../utils/launchSequence';
@@ -47,10 +44,6 @@ export default function MonitoringSidebar({
   downloadingSysIds,
   pendingVehicles,
   pendingConfirms,
-  onApprove,
-  onDeny,
-  onCancel,
-  forcedConfirms,
   onForceConfirm,
   assignments,
   settings,
@@ -59,10 +52,7 @@ export default function MonitoringSidebar({
   onTriggerVehicle,
   navpyStatus,
   onFlyToLocation,
-  aasParams,
-  onEstop,
   onOpenReadiness,
-  videoActionFor,
 }) {
   // Subscribe to telemetry store for fresh vehicle data (battery, speed, etc.)
   // The prop vehicleList only updates structurally; this gives us live data.
@@ -70,31 +60,9 @@ export default function MonitoringSidebar({
   const liveVehicleList = useTelemetryStore(s => s.getVehicleList());
   vehicleList = liveVehicleList.length > 0 ? liveVehicleList : vehicleList;
 
-  const confirmEntries = pendingConfirms ? Object.entries(pendingConfirms) : [];
-
+  // The confirm cards are above this sidebar, in App's ConfirmCardList.
   return (
     <div style={{ padding: 16 }}>
-      {confirmEntries.map(([sysId, entry]) => {
-        const sid = Number(sysId);
-        const vi = vehicleList.findIndex((v) => v.sys_id === sid);
-        const vehicle = vi >= 0 ? vehicleList[vi] : null;
-        return (
-          <TaskConfirmCard
-            key={`${sid}-${entry.taskId}-${entry.roundUid ?? ''}`}
-            sysId={sid}
-            entry={entry}
-            vehicleName={vehicle?.name || `UAV ${sysId}`}
-            vehicleIndex={vi >= 0 ? vi : 0}
-            onApprove={onApprove}
-            onDeny={onDeny}
-            onCancel={onCancel}
-            autoApprove={aasParams.getConfirmedValue(sid, 'nav_cm_fl', AAS_DEFAULTS.nav_cm_fl)}
-            timeoutSec={aasParams.getConfirmedValue(sid, 'nav_cwt', AAS_DEFAULTS.nav_cwt)}
-            forced={forcedConfirms?.[sid] === entry.taskId}
-            videoAction={videoActionFor?.(sid) ?? null}
-          />
-        );
-      })}
       <ActiveMonitoring
         vehicleList={vehicleList}
         plan={plan}
@@ -120,14 +88,13 @@ export default function MonitoringSidebar({
         pendingConfirms={pendingConfirms}
         onForceConfirm={onForceConfirm}
         onFlyToLocation={onFlyToLocation}
-        onEstop={onEstop}
         onOpenReadiness={onOpenReadiness}
       />
     </div>
   );
 }
 
-function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, corridorPoints, searchPattern, onEditPlan, onLaunch, onOpenConnect, onRestart, onDownloadPlan, downloadingSysIds, pendingVehicles, launchType, launchStates, onAbortLaunch, onTriggerVehicle, settings, navpyStatus, assignments, pendingConfirms, onForceConfirm, onFlyToLocation, onEstop, onOpenReadiness }) {
+function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, corridorPoints, searchPattern, onEditPlan, onLaunch, onOpenConnect, onRestart, onDownloadPlan, downloadingSysIds, pendingVehicles, launchType, launchStates, onAbortLaunch, onTriggerVehicle, settings, navpyStatus, assignments, pendingConfirms, onForceConfirm, onFlyToLocation, onOpenReadiness }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   // Per-launch operator ack that pitots are covered / air is calm, allowing
@@ -415,22 +382,12 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
   const containerGroups = groupVehiclesByContainer(statusVehicleList);
   const showContainers = containerGroups.length > 1;
 
-  // The ubiquitous planning entry point ("Edit Plan" / "Start Planning") now
-  // lives on the monitor map overlay (top-right), not in this header row — a
-  // long translated label there could crowd or clip E-STOP. See
-  // MonitorMapOverlay. This header keeps only the section title and E-STOP,
-  // so it stays clean in every language.
+  // The planning entry point ("Edit Plan" / "Start Planning") lives on the
+  // monitor map overlay (top-right) and E-STOP in the TopBar (todo 69), so
+  // this header keeps only the section title.
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <SectionTitle>{t('monitor.uavStatus')}</SectionTitle>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* E-STOP lives here while the monitor sidebar is mounted; TopBar
-              renders the same dropdown as a fallback for the states where this
-              one is gone (planning phase, manual control). */}
-          {onEstop && <EstopDropdown vehicleList={vehicleList} onEstop={onEstop} />}
-        </div>
-      </div>
+      <SectionTitle>{t('monitor.uavStatus')}</SectionTitle>
       <Divider />
 
       {containerGroups.map((grp) => {

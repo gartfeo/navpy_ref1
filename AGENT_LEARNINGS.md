@@ -12,6 +12,8 @@
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
   newlines five times (three more in dev-sim step 1: a test, a scratch script and this
   note). Insert or change code with the Edit tool, never a heredoc; check with `ast.parse`.
+  A "\x00" in a heredoc edit script became a real NUL, so its search string never matched
+  (todo 70): write such scripts with the Write tool and raw strings.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
   5501 + 10 x instance (AP_RCProtocol_UDP.cpp). Driving the "pilot" this way keeps Lua
   RC overrides behaving as on the aircraft; MAVLink RC overrides would compete with them.
@@ -1441,6 +1443,25 @@
 - A worktree has no .venv: run pytest with the main checkout's
   `.venv/Scripts/python.exe` and PYTHONPATH set to the worktree's src.
 
+## Preflight camera rows (todos 70, 72a, 2026-10-26)
+- pymavlink decodes a `uint8_t[N]` text field (`CAMERA_INFORMATION.vendor_name`) as a list of
+  ints, not str or bytes. Tests that fed a str passed while the wire would have failed; a
+  NavPy-to-GCS test that packs and decodes the real message caught it. Add one for every new
+  field read from a message.
+- Check when a field is sent before reusing it: NavPy's swarm heartbeat carries the boot id only
+  from DETECT on, so preflight needed its own boot id (camera HEARTBEAT `custom_mode`).
+- A new method on a facade fails `FACADE_METHOD_ALLOWANCES` in
+  `tests/guards/solid_architecture_guard.py`. The project raises that allowance by one with a
+  comment naming the approved design; say so in the report.
+- The "lost record takes no replies" test survived a mutation that removed the guard until it was
+  parametrized over every reply kind (information, stream, ACK). Mutate each guard once.
+- Two JS test expectations of mine disagreed with the approved rule ("cameras seen" counts lost
+  ones). When a new test fails, read the design text before changing code or test.
+- The global Vitest setup's `t(key)` drops interpolation; mock react-i18next in the test file with
+  an interpolating `t` (as `VehicleWindow.test.jsx` does) to check names in a cell.
+- One full `npm test` failed once in `trailsWiring.test.jsx` (untouched) while the PC was busy;
+  it passed alone three times and in the next full run. Rerun alone before blaming a change.
+
 ## Dev sim step 4: freeze and CPU budget (2026-10-26)
 
 - A handoff cap means a tick can leave work: runnable threads and timers still due. Every
@@ -1462,6 +1483,53 @@
 - Do not edit the worktree while a matrix runs: each run's manifest records
   `uncommitted_diff_sha256`, so a doc edit after the first cell makes the artifact check fail
   on `input_manifest.json` with equal digests. Commit first, then start the matrix.
+## Unanswered peer confirmation keeps the task (2026-10-25)
+- The vision walk guard (`test_step1_vision_walk.py`) failed when a core module that
+  `products/delivery/poi_status_decision.py` imports pulled in geo code (peer_geo -> geo_ref_calc).
+  Pass geo actions as callable ports and build them in an app/flow composition module.
+- `nav_task_composition.py` sits near the SOLID caps (150-line function, 300-line module).
+  Put new wiring in its own small composition module instead of growing it.
+- Injected statuses skip the confirmation round lifecycle (Codex nit). For an end-to-end
+  test, tick sense/decide/act with a frameless detection (`supports_confirmation_frame=False`)
+  and a network mock that stamps request meta; keep the answered round open with a long wait.
+- More param reads at startup move every later lockstep sim stamp (120 ms here), and
+  `test_navpy_participant_run.py` pins absolute stamps. Run it, or full pytest, after any
+  change to startup reads.
+- From Git Bash, `PYTHONPATH="$PWD/src;$PWD"` is ignored (POSIX paths with `;`) and imports
+  come from the shared checkout; `"$PWD/src:$PWD"` or Windows paths with `;` work.
+- A lockstep test's NavPy child takes its source from the test file's repo root, so
+  `git archive HEAD src` plus PYTHONPATH does not test old code there: export src, scripts
+  and tests and run from that tree.
+- After a rebase that took todo numbers, a blanket replace of "(todo N)" also rewrote
+  main's own new reference. Renumber only the lines your commit adds, then check each
+  reference in `git diff origin/main`.
+
+## Todo 69: E-STOP and Cancel task reach, design (2026-10-25)
+
+- A mock that scales a control to make it fit hides the fit problem the owner must judge
+  (Codex caught a 0.9 scale). Draw new controls at true size, and copy no current-size
+  control into a 'new' figure without redrawing it.
+- RC screenshots with no UAV selected have no HUD. Before placing anything over the RC
+  map, read TelemetryHud.jsx (heading tape, status, altitude tape, five-line warning
+  strip) and VehicleSelector.jsx, and say which layer draws on top.
+- Moving a host of the confirm cards: check every phase that can show while UAVs fly.
+  Edit plan is offered in flight, and planning mounted no cards at all.
+- The 2026-10-07 Target->Poi rename turned every e.currentTarget into e.currentPoi (no
+  currentTarget left in the frontend). After a bulk rename, grep for DOM and library
+  names it may have hit.
+- Inject confirm rounds into the page's telemetry WebSocket and block /api/control/
+  task_confirm* POSTs in the page to see cards live without answering a vehicle
+  (scripts kept in .logs/gcs-estop-reach/current).
+- The approved RC list from top 60 would have covered the centred first-person tag at
+  960 and 1280 px wide; found only while deriving the placement from the real sizes.
+  Derive an overlay's edges from every layer it may meet (exported sizes, plus a test
+  that the component really draws them), not from one screenshot with no UAV selected.
+  The "View held" banner, drawn only during a hold, was still missed and found only
+  live: list the conditional layers too (banners, holds, warnings, open menus).
+  Narrowing the banner on one side then moved its centred text under the flight-mode
+  buttons on the other (Codex). When an overlay moves, check both of its edges.
+- A height cap measured only when a menu opens goes stale on resize; listen for resize
+  while it is open.
 
 ## Todos 87(a), 118: map load errors (2026-10-25)
 - CDP probes: auto-attach with `waitForDebuggerOnStart: true` pauses the service worker, so the
