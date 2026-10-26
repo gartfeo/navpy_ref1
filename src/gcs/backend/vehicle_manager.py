@@ -21,6 +21,7 @@ from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusClosedError
 from gcs.backend.vehicle_entry import VehicleEntry
+from gcs.backend.camera_preflight import CameraPreflight
 from gcs.backend import vehicle_connections, vehicle_mission_probe
 from gcs.backend.ekf_status_gate import request_ekf_status_stream
 from gcs.backend.vehicle_status import (
@@ -52,6 +53,7 @@ class VehicleManager:
         self._lock = rt.RLock()
         self._buses: dict[str, MavBus] = {}  # device -> MavBus
         self._telemetry_loop = None  # lazy: set by start_telemetry_loop
+        self._camera_preflight = CameraPreflight()
         self._task_confirm_listener = None
         self._task_assign_listener = None
         self._compass_cal_listener = None
@@ -263,6 +265,7 @@ class VehicleManager:
                 snapshots.append(snap)
             except Exception as e:
                 log.error("Snapshot error for vehicle %d: %s", entry.sys_id, e)
+        self._camera_preflight.annotate(snapshots)
         return snapshots
 
     def get_seen_ids(self, timeout: float = 5.0) -> list[int]:

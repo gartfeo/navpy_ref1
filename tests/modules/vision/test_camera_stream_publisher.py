@@ -1,7 +1,9 @@
 """NavPy's camera components: heartbeats and camera-protocol answers.
 
 docs/design/gcs_video_streams.md, section 1 and the test plan's NavPy unit
-bullet. Video is operator display only; none of this touches navigation.
+bullet; docs/design/gcs_preflight_camera_row.md for the detector readiness,
+vendor and boot id. Video and camera status are operator display only; none
+of this touches navigation.
 """
 
 from __future__ import annotations
@@ -15,11 +17,17 @@ from pymavlink.dialects.v20 import ardupilotmega as mav
 
 from navpy.core.perception.profile.vision_profile_types import CameraMountSpec
 from navpy.core.perception.vision_publisher_group import VisionPublisherGroup
+from navpy.core.ports.camera_health import (
+    NAVPY_CAMERA_VENDOR,
+    NAVPY_SIM_CAMERA_VENDOR,
+    CameraHealth,
+)
 from navpy.core.ports.subscription import Subscription
 from navpy.plugins.vehicle.ardupilot.camera_protocol_timing import (
     CAMERA_HEARTBEAT_PERIOD_S,
 )
 from navpy.app.perception.camera_stream_composition import streaming_cameras
+from navpy.plugins.vehicle.ardupilot import camera_stream_messages
 from navpy.plugins.vehicle.ardupilot.camera_stream_publisher import CameraStreamPublisher
 
 OWN = 42
@@ -69,9 +77,17 @@ class FakeVehicle:
         return Subscription(lambda: self.callbacks.remove(callback))
 
 
-def _publisher(specs, vehicle=None) -> tuple[CameraStreamPublisher, FakeVehicle]:
+def _ready() -> bool:
+    return True
+
+
+def _publisher(specs, vehicle=None, health=None) -> tuple[CameraStreamPublisher, FakeVehicle]:
     vehicle = vehicle or FakeVehicle()
-    return CameraStreamPublisher(vehicle, OWN, streaming_cameras(specs), Mock()), vehicle
+    if health is None:
+        health = [CameraHealth(NAVPY_CAMERA_VENDOR, _ready) for _ in specs]
+    return CameraStreamPublisher(
+        vehicle, OWN, streaming_cameras(specs, health), Mock()
+    ), vehicle
 
 
 def _wire(message, system=GCS_SYSTEM, component=GCS_COMPONENT):
@@ -95,7 +111,7 @@ def _answer(publisher, vehicle, request):
 TWO_STREAMS = [_spec(1, [_stream(2, "raw"), _stream(1)]), _spec(2, None)]
 
 
-def test_heartbeats_only_from_cameras_with_streams():
+def test_heartbeats_from_every_camera_mount_with_or_without_streams():
     publisher, vehicle = _publisher(
         [_spec(1, [_stream(1)]), _spec(2, None), _spec(3, [_stream(1)])]
     )
@@ -103,12 +119,66 @@ def test_heartbeats_only_from_cameras_with_streams():
     publisher.send_heartbeats()
 
     assert [source for _, source in vehicle.sent] == [
-        mav.MAV_COMP_ID_CAMERA, mav.MAV_COMP_ID_CAMERA3,
+        mav.MAV_COMP_ID_CAMERA, mav.MAV_COMP_ID_CAMERA2, mav.MAV_COMP_ID_CAMERA3,
     ]
     for heartbeat, _ in vehicle.sent:
         assert heartbeat.get_type() == "HEARTBEAT"
         assert heartbeat.type == mav.MAV_TYPE_CAMERA
         assert heartbeat.autopilot == mav.MAV_AUTOPILOT_INVALID
+
+
+def test_heartbeat_status_is_each_mount_detector_readiness_at_send_time():
+    first = {"ready": True}
+    health = [
+        CameraHealth(NAVPY_CAMERA_VENDOR, lambda: first["ready"]),
+        CameraHealth(NAVPY_CAMERA_VENDOR, lambda: False),
+    ]
+    publisher, vehicle = _publisher([_spec(1, [_stream(1)]), _spec(2, None)], health=health)
+
+    publisher.send_heartbeats()
+    first["ready"] = False
+    publisher.send_heartbeats()
+
+    statuses = [
+        _wire(message, OWN, source).system_status for message, source in vehicle.sent
+    ]
+    assert statuses == [
+        mav.MAV_STATE_ACTIVE, mav.MAV_STATE_CRITICAL,
+        mav.MAV_STATE_CRITICAL, mav.MAV_STATE_CRITICAL,
+    ]
+
+
+def test_heartbeats_carry_one_boot_id_per_publisher_in_custom_mode(monkeypatch):
+    boot_ids = iter([0xFFFFFFFF, 7])
+    monkeypatch.setattr(
+        "navpy.plugins.vehicle.ardupilot.camera_stream_publisher.new_camera_boot_id",
+        lambda: next(boot_ids),
+    )
+    first, first_vehicle = _publisher([_spec(1, None), _spec(2, None)])
+    second, second_vehicle = _publisher([_spec(1, None)])
+
+    first.send_heartbeats()
+    first.send_heartbeats()
+    second.send_heartbeats()
+
+    assert [
+        _wire(message, OWN, source).custom_mode for message, source in first_vehicle.sent
+    ] == [0xFFFFFFFF] * 4  # uint32 range survives encoding
+    assert [message.custom_mode for message, _ in second_vehicle.sent] == [7]
+
+
+def test_boot_id_is_drawn_from_the_runtime_rng_and_never_zero(monkeypatch):
+    calls = []
+
+    class Rng:
+        def randint(self, low, high):
+            calls.append((low, high))
+            return low
+
+    monkeypatch.setattr(camera_stream_messages.rt, "rng", lambda: Rng())
+
+    assert camera_stream_messages.new_camera_boot_id() == 1
+    assert calls == [(1, 0xFFFFFFFF)]
 
 
 def test_ack_comes_from_the_camera_and_targets_the_requester():
@@ -134,8 +204,34 @@ def test_camera_information_announces_video_streams():
     info = _wire(replies[1][1], OWN, mav.MAV_COMP_ID_CAMERA)  # survives encoding
     assert info.flags & mav.CAMERA_CAP_FLAGS_HAS_VIDEO_STREAM
     assert bytes(info.model_name).rstrip(b"\0") == b"siyi_zr10"
-    assert list(info.vendor_name) == [0] * 32
+    assert bytes(info.vendor_name).rstrip(b"\0") == b"NavPy"
     assert (info.resolution_h, info.resolution_v) == (1920, 1080)
+
+
+def test_sim_detector_camera_names_the_sim_vendor():
+    publisher, vehicle = _publisher(
+        [_spec(1, None)], health=[CameraHealth(NAVPY_SIM_CAMERA_VENDOR, _ready)]
+    )
+
+    replies = _answer(publisher, vehicle, _request(259))
+
+    info = _wire(replies[1][1], OWN, mav.MAV_COMP_ID_CAMERA)
+    assert bytes(info.vendor_name).rstrip(b"\0") == b"NavPy sim"
+
+
+def test_camera_without_streams_answers_information_and_denies_streams():
+    publisher, vehicle = _publisher(TWO_STREAMS)
+
+    info_replies = _answer(publisher, vehicle, _request(259, component=mav.MAV_COMP_ID_CAMERA2))
+    stream_replies = _answer(publisher, vehicle, _request(269, component=mav.MAV_COMP_ID_CAMERA2))
+
+    assert [kind for kind, _, _ in info_replies] == ["COMMAND_ACK", "CAMERA_INFORMATION"]
+    info = _wire(info_replies[1][1], OWN, mav.MAV_COMP_ID_CAMERA2)
+    assert info.flags & mav.CAMERA_CAP_FLAGS_HAS_VIDEO_STREAM == 0
+    assert info.gimbal_device_id == 2
+    assert [kind for kind, _, _ in stream_replies] == ["COMMAND_ACK"]
+    assert stream_replies[0][1].result == mav.MAV_RESULT_DENIED
+    assert all(source == mav.MAV_COMP_ID_CAMERA2 for _, _, source in info_replies + stream_replies)
 
 
 def test_all_streams_on_param2_zero_each_with_count():
@@ -183,19 +279,19 @@ def test_unknown_stream_id_is_denied_with_nothing_else(param2):
 @pytest.mark.parametrize(
     "request_",
     [
-        pytest.param(_request(259, component=mav.MAV_COMP_ID_CAMERA2), id="camera-without-streams"),
+        pytest.param(_request(259, component=mav.MAV_COMP_ID_CAMERA3), id="no-such-camera"),
         pytest.param(_request(259, target=OWN + 1), id="other-system"),
         pytest.param(_request(260), id="other-message"),
     ],
 )
-def test_requests_not_for_a_streaming_camera_get_no_answer(request_):
+def test_requests_not_for_one_of_our_cameras_get_no_answer(request_):
     publisher, vehicle = _publisher(TWO_STREAMS)
 
     assert _answer(publisher, vehicle, request_) == []
 
 
-def test_nothing_is_sent_or_subscribed_when_no_streams_are_configured():
-    publisher, vehicle = _publisher([_spec(1, None), _spec(2, None)])
+def test_nothing_is_sent_or_subscribed_without_a_camera_mount():
+    publisher, vehicle = _publisher([])
 
     publisher.start()
     publisher.send_heartbeats()
@@ -256,7 +352,25 @@ def test_profile_without_gimbal_device_component_is_rejected():
         gimbal_device_id=None,
     )
     with pytest.raises(ValueError, match="no camera component"):
-        streaming_cameras([spec])
+        streaming_cameras([spec], [CameraHealth(NAVPY_CAMERA_VENDOR, _ready)])
+
+
+def test_mount_without_gimbal_device_component_or_streams_is_left_out():
+    spec = CameraMountSpec(
+        mount=Mock(), device=MappingProxyType({"name": "x"}), gimbal_device_id=None,
+    )
+    health = [CameraHealth(NAVPY_CAMERA_VENDOR, _ready)] * 2
+
+    cameras = streaming_cameras([spec, _spec(2, None)], health)
+
+    assert [camera.component_id for camera in cameras] == [mav.MAV_COMP_ID_CAMERA2]
+
+
+def test_each_mount_needs_its_own_health_port():
+    with pytest.raises(ValueError, match="2 camera mounts but 1 health ports"):
+        streaming_cameras(
+            [_spec(1, None), _spec(2, None)], [CameraHealth(NAVPY_CAMERA_VENDOR, _ready)]
+        )
 
 
 class _Member:

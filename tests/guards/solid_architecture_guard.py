@@ -224,10 +224,13 @@ FACADE_METHOD_ALLOWANCES = {
         "src/navpy/core/perception/detection_coordinator.py",
         "DetectionCoordinator",
     ): FacadeMethodAllowance(1, 31, frozenset({"_parts"})),
+    # 41 = 40 + has_fresh_frame, the detector readiness the camera HEARTBEAT
+    # reports for the preflight camera row (gcs_preflight_camera_row.md,
+    # Codex-reviewed, owner-approved 2026-10-25) -- a ratchet, not headroom.
     (
         "src/navpy/core/perception/pipeline/detector.py",
         "Detector",
-    ): FacadeMethodAllowance(1, 40, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 41, frozenset({"_parts"})),
     (
         "src/navpy/core/perception/zoom/poi_zoom_orchestrator.py",
         "PoiZoomTracker",

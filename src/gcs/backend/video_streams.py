@@ -12,6 +12,11 @@ autopilot-proxied cameras behind component 1 are out of scope in v1.
 The MAVLink reader thread calls the ``on_*`` handlers; the telemetry loop
 calls :meth:`tick` and :meth:`snapshot` every cycle, which is what turns
 request timeouts and lost cameras into state. Sends happen outside the lock.
+
+Each camera component keeps one record for the life of the vehicle's entry
+(``video_camera_record``): a lost camera stays in :meth:`cameras` as lost,
+for the preflight camera rows (docs/design/gcs_preflight_camera_row.md), and
+its streams leave :meth:`snapshot`.
 """
 from __future__ import annotations
 
@@ -29,8 +34,9 @@ from pymavlink.dialects.v20.ardupilotmega import (
 
 from gcs.backend.companion_identity import is_from_companion, source_ids
 from gcs.backend.video_camera_discovery import (
-    PHASE_FAILED, CameraDiscovery, CameraRequest, VideoStream,
+    PHASE_FAILED, CameraRequest, VideoStream,
 )
+from gcs.backend.video_camera_record import CameraRecord
 from gcs.backend.video_stream_policy import VideoPolicy, current_video_policy
 from gcs.backend.video_stream_uri import validate_rtsp_uri, whep_url, RtspLocation
 from navpy.core.kernel import runtime_time as rt
@@ -58,6 +64,18 @@ def _text_field(msg: MAVLink_message, name: str) -> str:
     return str(value).rstrip("\x00")
 
 
+def _byte_text_field(msg: MAVLink_message, name: str) -> str:
+    """A ``uint8_t[]`` text field, which pymavlink gives as a list of ints."""
+    value = getattr(msg, name, None)
+    if isinstance(value, (list, tuple)):
+        if not all(isinstance(b, int) and 0 <= b <= 0xFF for b in value):
+            return ""
+        value = bytes(value)
+    if not isinstance(value, (bytes, bytearray)):
+        return ""
+    return bytes(value).split(b"\0", 1)[0].decode("ascii", errors="replace")
+
+
 class CameraRequestSink(Protocol):
     """The part of a vehicle the requests go out through."""
 
@@ -65,7 +83,7 @@ class CameraRequestSink(Protocol):
 
 
 class VehicleVideoStreams:
-    """Discovery generations of one vehicle's camera components."""
+    """Camera records and discovery generations of one vehicle's cameras."""
 
     def __init__(
         self,
@@ -77,20 +95,21 @@ class VehicleVideoStreams:
         self._vehicle = vehicle
         self._policy = policy
         self._lock = rt.Lock()
-        self._cameras: dict[int, CameraDiscovery] = {}
+        self._cameras: dict[int, CameraRecord] = {}
 
     def on_heartbeat(self, msg: MAVLink_message) -> None:
         component = self._camera_component(msg)
         if component is None or getattr(msg, "type", None) != MAV_TYPE_CAMERA:
             return
+        boot_id = _int_field(msg, "custom_mode") or 0
         now = rt.monotonic()
         with self._lock:
-            camera = self._cameras.get(component)
-            if camera is None or camera.is_lost(now):
-                camera = CameraDiscovery(component, now)
-                self._cameras[component] = camera
+            camera = self._cameras.setdefault(component, CameraRecord(component))
+            generation = camera.discovery
+            if not camera.admit_heartbeat(boot_id, _int_field(msg, "system_status"), now):
+                return
+            if camera.discovery is not generation:
                 log.info("Camera %d:%d seen: discovery started", self._sys_id, component)
-            camera.heartbeat(now)
             request = self._poll(camera, now)
         self._send(component, request)
 
@@ -111,7 +130,8 @@ class VehicleVideoStreams:
         flags = _int_field(msg, "flags")
         if component is None or flags is None:
             return
-        self._update(component, lambda camera: camera.on_camera_information(flags))
+        vendor = _byte_text_field(msg, "vendor_name")
+        self._update(component, lambda camera: camera.on_camera_information(flags, vendor))
 
     def on_video_stream_information(self, msg: MAVLink_message) -> None:
         component = self._camera_component(msg)
@@ -119,31 +139,28 @@ class VehicleVideoStreams:
         count = _int_field(msg, "count")
         if component is None or stream_id is None or count is None:
             return
-        stream = self._validated_stream(component, stream_id, msg)
+        stream, reason = self._validated_stream(component, stream_id, msg)
         self._update(
             component,
-            lambda camera: camera.on_stream_information(stream_id, count, stream),
+            lambda camera: camera.on_stream_information(stream_id, count, stream, reason),
         )
 
     def tick(self) -> None:
-        """Expire request sends and drop cameras whose heartbeats stopped."""
+        """Expire request sends and mark cameras whose heartbeats stopped lost."""
         now = rt.monotonic()
         requests: list[tuple[int, Optional[CameraRequest]]] = []
         with self._lock:
-            for component, camera in list(self._cameras.items()):
-                if camera.is_lost(now):
-                    del self._cameras[component]
+            for component, camera in self._cameras.items():
+                if camera.became_lost(now):
                     log.info("Camera %d:%d lost: its streams removed", self._sys_id, component)
-                    continue
                 requests.append((component, self._poll(camera, now)))
         for component, request in requests:
             self._send(component, request)
 
     def snapshot(self) -> list[dict]:
-        """Streams ordered by camera component, then stream id."""
+        """Streams of cameras not lost, ordered by camera component, then stream id."""
         whep_port = self._policy().whep_port
-        with self._lock:
-            found = [(c, self._cameras[c].streams()) for c in sorted(self._cameras)]
+        found = self._streams()
         return [
             {
                 "key": f"{component}:{stream.stream_id}",
@@ -157,6 +174,19 @@ class VehicleVideoStreams:
             for stream in streams
         ]
 
+    def cameras(self) -> list[dict]:
+        """Every camera component seen, lost ones included, by component."""
+        with self._lock:
+            return [self._cameras[c].snapshot() for c in sorted(self._cameras)]
+
+    def _streams(self) -> list[tuple[int, list[VideoStream]]]:
+        with self._lock:
+            return [
+                (component, camera.discovery.streams())
+                for component, camera in sorted(self._cameras.items())
+                if not camera.lost and camera.discovery is not None
+            ]
+
     def _camera_component(self, msg: MAVLink_message) -> Optional[int]:
         if not is_from_companion(msg, self._sys_id, CAMERA_COMPONENT_IDS):
             return None
@@ -165,7 +195,8 @@ class VehicleVideoStreams:
 
     def _validated_stream(
         self, component: int, stream_id: int, msg: MAVLink_message,
-    ) -> Optional[VideoStream]:
+    ) -> tuple[Optional[VideoStream], str]:
+        """The stream, or None and the reason its URI was rejected."""
         uri = _text_field(msg, "uri")
         verdict = validate_rtsp_uri(uri, self._policy().networks)
         if verdict.location is None:
@@ -173,31 +204,32 @@ class VehicleVideoStreams:
                 "Camera %d:%d stream %d URI rejected (%s): %r",
                 self._sys_id, component, stream_id, verdict.reason, uri,
             )
-            return None
+            return None, verdict.reason
         return VideoStream(
             stream_id=stream_id,
             name=_text_field(msg, "name"),
             encoding=ENCODING_NAMES.get(_int_field(msg, "encoding")),
             host=verdict.location.host,
             path=verdict.location.path,
-        )
+        ), ""
 
     def _update(
-        self, component: int, change: Callable[[CameraDiscovery], None],
+        self, component: int, change: Callable[[CameraRecord], None],
     ) -> None:
         now = rt.monotonic()
         with self._lock:
             camera = self._cameras.get(component)
             if camera is None:
-                return  # not seen in this generation: an answer to nothing
+                return  # not seen: an answer to nothing (a lost record ignores it too)
             change(camera)
             request = self._poll(camera, now)
         self._send(component, request)
 
-    def _poll(self, camera: CameraDiscovery, now: float) -> Optional[CameraRequest]:
-        before = camera.phase
+    def _poll(self, camera: CameraRecord, now: float) -> Optional[CameraRequest]:
+        discovery = camera.discovery
+        before = None if discovery is None else discovery.phase
         request = camera.poll(now)
-        if camera.phase == PHASE_FAILED and before != PHASE_FAILED:
+        if discovery is not None and discovery.phase == PHASE_FAILED and before != PHASE_FAILED:
             log.warning(
                 "Camera %d:%d discovery failed: retries exhausted; next try after "
                 "the camera is lost and seen again", self._sys_id, camera.component,

@@ -23,6 +23,7 @@ from navpy.plugins.vehicle.ardupilot.camera_stream_messages import (
     CameraStreamResponder,
     StreamingCamera,
     camera_heartbeat,
+    new_camera_boot_id,
 )
 
 # Requests held between worker passes. A ground station asks one camera one
@@ -53,7 +54,7 @@ class CameraStreamLogger(Protocol):
 
 
 class CameraStreamPublisher:
-    """Own one retryable worker for every camera component with streams."""
+    """Own one retryable worker for every camera component."""
 
     def __init__(
         self,
@@ -64,6 +65,7 @@ class CameraStreamPublisher:
     ) -> None:
         self._vehicle = vehicle
         self._responder = CameraStreamResponder(own_system, cameras)
+        self._boot_id = new_camera_boot_id()
         self._logger = logger
         self._requests: deque[MAVLink_message] = deque(maxlen=CAMERA_REQUEST_BACKLOG)
         self._requests_ready = rt.Condition(rt.Lock())
@@ -76,7 +78,7 @@ class CameraStreamPublisher:
 
     def start(self) -> None:
         if not self._responder.component_ids:
-            return  # no streams configured: nothing is ever sent
+            return  # no camera component: nothing is ever sent
         with self._lifecycle_lock:
             if self._thread is not None:
                 if (
@@ -161,9 +163,10 @@ class CameraStreamPublisher:
         self._failures.raise_if_failed()
 
     def send_heartbeats(self) -> None:
-        for component_id in self._responder.component_ids:
+        for camera in self._responder.cameras:
             self._vehicle.send_mavlink_message(
-                camera_heartbeat(), source_component=component_id
+                camera_heartbeat(camera.camera_health.ready(), self._boot_id),
+                source_component=camera.component_id,
             )
 
     def answer(self, request: MAVLink_message) -> None:

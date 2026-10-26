@@ -105,7 +105,10 @@ def build_vision_controller(
             CameraStreamPublisher(
                 vehicle,
                 vehicle.target_system,
-                streaming_cameras(profile.mount_specs),
+                streaming_cameras(
+                    profile.mount_specs,
+                    [node.camera_health for node in nodes],
+                ),
                 logger,
             ),
         ))
