@@ -1477,3 +1477,6 @@
   with the camera off still lost coverage, which pointed at the line rate, not the camera.
 - A SimpleNamespace stand-in for an options dataclass breaks when the dataclass gains a field;
   grep the tests for the stand-in (`SimpleNamespace(ideal_360=`) when adding one.
+- Check a range proof per sample before writing "Passed". I marked step 5 passed from summary
+  ranges; Codex showed three of fifteen UAVs and the SNAP maximum outside the wall range. List
+  each run against the range and write the step as open when any one is outside.
