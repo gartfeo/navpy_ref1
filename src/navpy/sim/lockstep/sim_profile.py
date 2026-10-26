@@ -67,7 +67,7 @@ CATALOGUE: Mapping[str, ModelSpec] = {
     "baud_limit": ModelSpec("baud_limit", {}),
     "camera_frames": ModelSpec("camera_frames", {
         "min_latency_ticks": "int", "max_latency_ticks": "int", "tail_latency_ticks": "int",
-        "tail_pct": "float", "min_gap_ticks": "int", "max_gap_ticks": "int", "drop_pct": "float"}),
+        "tail_pct": "float", "gap_ticks": "int", "long_gap_pct": "float", "drop_pct": "float"}),
     "cpu_budget": ModelSpec("cpu_budget", {"handoffs": "int"}),
     "process_freeze": ModelSpec("process_freeze", {
         "min_ticks": "int", "max_ticks": "int", "min_gap_s": "float", "max_gap_s": "float"}),

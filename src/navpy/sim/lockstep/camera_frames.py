@@ -4,12 +4,16 @@ Step 5 of ``docs/design/deterministic_dev_sim.md``. The sim camera in a NavPy
 participant captures the whole frame at a tick, as without the model (pose,
 gimbal, optics, POIs and capture time), and publishes it ``L`` ticks later. Its
 capture time is kept; its receipt time is the tick it is published in, on the
-same host clock as a pose receipt. Per frame slot the stream draws, in order:
+same host clock as a pose receipt. The camera's own latency is drawn once, first,
+from ``min_latency_ticks``-``max_latency_ticks``: the ZR10 publishes at a steady
+interval (median 41.8 ms, p99 53.7 ms), so its latency does not change from frame
+to frame. Then per frame slot the stream draws, in order:
 
 - ``dropped``: with ``drop_pct`` % the slot's frame is skipped (never rendered);
-- the latency: ``min_latency_ticks``-``max_latency_ticks``, and with ``tail_pct`` %
-  a tail value above ``max_latency_ticks`` up to ``tail_latency_ticks``;
-- the gap to the next slot: ``min_gap_ticks``-``max_gap_ticks``.
+- the tail: with ``tail_pct`` % the frame's latency is a value above the camera's
+  latency up to ``tail_latency_ticks`` (a stall; the frames behind it then publish
+  in a burst);
+- the gap to the next slot: ``gap_ticks``, and with ``long_gap_pct`` % one tick more.
 
 Every slot draws all four values, so the sequence does not depend on which
 frames were dropped. Frames are published in capture order (a camera pipeline
@@ -78,27 +82,27 @@ class CameraFrameSchedule:
     """One camera's frame slots, drawn in slot order from its own stream."""
 
     def __init__(self, params: Mapping[str, Number], stream: random.Random) -> None:
-        self._min_latency = _ticks(params, "min_latency_ticks", 0)
-        self._max_latency = _ticks(params, "max_latency_ticks", 0)
+        min_latency = _ticks(params, "min_latency_ticks", 0)
+        max_latency = _ticks(params, "max_latency_ticks", 0)
         self._tail_latency = _ticks(params, "tail_latency_ticks", 0)
         self._tail_pct = _pct(params, "tail_pct")
-        self._min_gap = _ticks(params, "min_gap_ticks", 1)
-        self._max_gap = _ticks(params, "max_gap_ticks", 1)
+        self._gap = _ticks(params, "gap_ticks", 1)
+        self._long_gap_pct = _pct(params, "long_gap_pct")
         self._drop_pct = _pct(params, "drop_pct")
-        if self._min_latency > self._max_latency or self._max_latency > self._tail_latency:
+        if min_latency > max_latency or max_latency > self._tail_latency:
             raise ValueError("camera latency ticks need min <= max <= tail, got "
-                             f"{self._min_latency}, {self._max_latency}, {self._tail_latency}")
-        if self._min_gap > self._max_gap:
-            raise ValueError(f"camera gap ticks need min <= max, got {self._min_gap}, {self._max_gap}")
+                             f"{min_latency}, {max_latency}, {self._tail_latency}")
         self._stream = stream
+        self.latency_ticks = _uniform_int(stream, min_latency, max_latency)
 
     def next_frame(self) -> FrameDraw:
         stream = self._stream
         dropped = stream.random() * 100.0 < self._drop_pct
-        tail = stream.random() * 100.0 < self._tail_pct and self._tail_latency > self._max_latency
-        latency = _uniform_int(stream, self._max_latency + 1, self._tail_latency) if tail else _uniform_int(
-            stream, self._min_latency, self._max_latency)
-        return FrameDraw(dropped, latency, _uniform_int(stream, self._min_gap, self._max_gap))
+        tail = stream.random() * 100.0 < self._tail_pct
+        tail_latency = _uniform_int(stream, self.latency_ticks + 1, self._tail_latency)
+        latency = tail_latency if tail and self._tail_latency > self.latency_ticks else self.latency_ticks
+        gap = self._gap + (stream.random() * 100.0 < self._long_gap_pct)
+        return FrameDraw(dropped, latency, gap)
 
 
 #: A NavPy's camera schedules, one per mount index.

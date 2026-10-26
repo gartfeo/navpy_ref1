@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import statistics
 from collections import Counter
 
 import pytest
@@ -17,35 +18,67 @@ from navpy.sim.lockstep.camera_frames import (
 from navpy.sim.lockstep.participant_budget import participant_models
 from navpy.sim.lockstep.sim_profile import CATALOGUE, load_profile, model_stream, parse_profile, realize
 
-HW = {"min_latency_ticks": 4, "max_latency_ticks": 6, "tail_latency_ticks": 8, "tail_pct": 1.0,
-      "min_gap_ticks": 2, "max_gap_ticks": 3, "drop_pct": 2.0}
+HW = {"min_latency_ticks": 4, "max_latency_ticks": 5, "tail_latency_ticks": 8, "tail_pct": 0.5,
+      "gap_ticks": 2, "long_gap_pct": 3.0, "drop_pct": 2.0}
 
 
 def draws(schedule: CameraFrameSchedule, n: int) -> list[FrameDraw]:
     return [schedule.next_frame() for _ in range(n)]
 
 
-def test_draws_stay_in_range_reach_every_value_and_hit_tail_and_drop_at_their_rates():
-    frames = draws(CameraFrameSchedule(HW, model_stream(1, CAMERA_FRAMES, "t")), 50_000)
+def publication_intervals_ms(schedule: CameraFrameSchedule, n: int) -> list[float]:
+    """The gaps between publications, as the camera loop publishes: in capture order, each at its due tick."""
+    captured, latest, published = 0, -1, []
+    for draw in draws(schedule, n):
+        if not draw.dropped:
+            latest = max(latest, captured + draw.latency_ticks)
+            published.append(latest)
+        captured += draw.gap_ticks
+    return [(later - earlier) * TICK_S * 1000.0 for earlier, later in zip(published, published[1:])]
+
+
+def test_the_camera_holds_one_latency_with_a_rare_tail_and_hits_gap_and_drop_at_their_rates():
+    schedule = CameraFrameSchedule(HW, model_stream(1, CAMERA_FRAMES, "t"))
+    frames = draws(schedule, 50_000)
     latencies = Counter(f.latency_ticks for f in frames)
-    assert set(latencies) == {4, 5, 6, 7, 8}
-    tail = (latencies[7] + latencies[8]) / len(frames)
-    assert 0.007 < tail < 0.013  # tail_pct 1 %
+    assert schedule.latency_ticks in (4, 5)
+    assert set(latencies) <= {schedule.latency_ticks, *range(schedule.latency_ticks + 1, 9)}
+    assert 0.003 < 1 - latencies[schedule.latency_ticks] / len(frames) < 0.007  # tail_pct 0.5 %
     assert {f.gap_ticks for f in frames} == {2, 3}
+    assert 0.027 < sum(f.gap_ticks == 3 for f in frames) / len(frames) < 0.033  # long_gap_pct 3 %
     assert 0.016 < sum(f.dropped for f in frames) / len(frames) < 0.024  # drop_pct 2 %
-    for value in (4, 5, 6):
-        assert abs(latencies[value] / len(frames) - 0.99 / 3) < 0.01  # uniform within [min, max]
+    held = Counter(CameraFrameSchedule(HW, model_stream(1, CAMERA_FRAMES, f"c{k}")).latency_ticks for k in range(400))
+    assert set(held) == {4, 5} and abs(held[4] - held[5]) < 80  # uniform within [min, max]
 
 
-def test_a_slot_draws_drop_tail_latency_then_gap_from_its_stream():
+def test_the_publication_intervals_match_the_zr10_report():
+    # REPORT.md (docs/measurements/zr10-latency-20260830), "Cadence and continuity": median 41.815 ms,
+    # p95 46.974 ms, p99 53.724 ms; 32 of 7226 intervals below 20 ms (0.44 %), 23 above 62.5 ms (0.32 %).
+    # On 20 ms ticks the median and p95 round to 40 ms and the p99 to 60 ms.
+    params = load_profile("quiet").models[CAMERA_FRAMES].params
+    intervals: list[float] = []
+    for camera in range(20):
+        intervals += publication_intervals_ms(
+            CameraFrameSchedule(params, model_stream(camera, CAMERA_FRAMES, "zr10")), 5_000)
+    ranked = sorted(intervals)
+    assert statistics.median(intervals) == pytest.approx(40.0)
+    assert ranked[int(0.95 * len(ranked))] == pytest.approx(40.0)
+    assert ranked[int(0.99 * len(ranked))] == pytest.approx(60.0)
+    assert 0.001 < sum(i < 20.0 for i in intervals) / len(intervals) < 0.01
+    assert 0.001 < sum(i > 62.5 for i in intervals) / len(intervals) < 0.01
+
+
+def test_a_camera_draws_its_latency_first_then_drop_tail_latency_then_gap_per_slot():
     stream = model_stream(3, CAMERA_FRAMES, "participant.2.1.camera.0")
     schedule = CameraFrameSchedule(HW, model_stream(3, CAMERA_FRAMES, "participant.2.1.camera.0"))
-    for _ in range(200):
+    held = 4 + math.floor(stream.random() * 2)
+    assert schedule.latency_ticks == held
+    for _ in range(2_000):
         dropped = stream.random() * 100.0 < 2.0
-        tail = stream.random() * 100.0 < 1.0
-        latency = (7 + math.floor(stream.random() * 2)) if tail else 4 + math.floor(stream.random() * 3)
-        gap = 2 + math.floor(stream.random() * 2)
-        assert schedule.next_frame() == FrameDraw(dropped, latency, gap)
+        tail = stream.random() * 100.0 < 0.5
+        tail_latency = held + 1 + math.floor(stream.random() * (8 - held))
+        gap = 2 + (stream.random() * 100.0 < 3.0)
+        assert schedule.next_frame() == FrameDraw(dropped, tail_latency if tail else held, gap)
 
 
 def test_due_and_next_slot_are_whole_ticks_after_the_capture_less_a_half_tick_margin():
@@ -73,13 +106,13 @@ def test_the_model_off_builds_no_schedule():
     ({"min_latency_ticks": -1}, "min_latency_ticks must be an int of at least 0"),
     ({"max_latency_ticks": 5.0}, "max_latency_ticks must be an int"),
     ({"tail_latency_ticks": True}, "tail_latency_ticks must be an int"),
-    ({"min_gap_ticks": 0}, "min_gap_ticks must be an int of at least 1"),
+    ({"gap_ticks": 0}, "gap_ticks must be an int of at least 1"),
     ({"tail_pct": 101.0}, "tail_pct must be a percentage"),
+    ({"long_gap_pct": -1.0}, "long_gap_pct must be a percentage"),
     ({"drop_pct": -0.1}, "drop_pct must be a percentage"),
     ({"drop_pct": math.nan}, "drop_pct must be a percentage"),
     ({"min_latency_ticks": 7}, "min <= max <= tail"),
-    ({"tail_latency_ticks": 5}, "min <= max <= tail"),
-    ({"min_gap_ticks": 4}, "gap ticks need min <= max"),
+    ({"tail_latency_ticks": 4}, "min <= max <= tail"),
 ])
 def test_a_bad_camera_entry_is_refused_before_the_run(change, message):
     with pytest.raises(ValueError, match=message):
@@ -92,9 +125,9 @@ def test_participant_models_carry_the_camera_draw_and_refuse_a_bad_one():
                           catalogue)
     models = participant_models(realize(entry, 5))
     assert list(models) == [CAMERA_FRAMES] and 0.0 <= models[CAMERA_FRAMES]["drop_pct"] <= 2.0
-    bad = parse_profile("t", {"models": {CAMERA_FRAMES: {"p_on": 1.0, "params": {**HW, "min_gap_ticks": 4}}}},
+    bad = parse_profile("t", {"models": {CAMERA_FRAMES: {"p_on": 1.0, "params": {**HW, "tail_latency_ticks": 3}}}},
                         catalogue)
-    with pytest.raises(ValueError, match="gap ticks"):
+    with pytest.raises(ValueError, match="min <= max <= tail"):
         participant_models(realize(bad, 5))
 
 
