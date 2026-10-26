@@ -1482,3 +1482,30 @@
 - After a rebase that took todo numbers, a blanket replace of "(todo N)" also rewrote
   main's own new reference. Renumber only the lines your commit adds, then check each
   reference in `git diff origin/main`.
+
+## Todo 69: E-STOP and Cancel task reach, design (2026-10-25)
+
+- A mock that scales a control to make it fit hides the fit problem the owner must judge
+  (Codex caught a 0.9 scale). Draw new controls at true size, and copy no current-size
+  control into a 'new' figure without redrawing it.
+- RC screenshots with no UAV selected have no HUD. Before placing anything over the RC
+  map, read TelemetryHud.jsx (heading tape, status, altitude tape, five-line warning
+  strip) and VehicleSelector.jsx, and say which layer draws on top.
+- Moving a host of the confirm cards: check every phase that can show while UAVs fly.
+  Edit plan is offered in flight, and planning mounted no cards at all.
+- The 2026-10-07 Target->Poi rename turned every e.currentTarget into e.currentPoi (no
+  currentTarget left in the frontend). After a bulk rename, grep for DOM and library
+  names it may have hit.
+- Inject confirm rounds into the page's telemetry WebSocket and block /api/control/
+  task_confirm* POSTs in the page to see cards live without answering a vehicle
+  (scripts kept in .logs/gcs-estop-reach/current).
+- The approved RC list from top 60 would have covered the centred first-person tag at
+  960 and 1280 px wide; found only while deriving the placement from the real sizes.
+  Derive an overlay's edges from every layer it may meet (exported sizes, plus a test
+  that the component really draws them), not from one screenshot with no UAV selected.
+  The "View held" banner, drawn only during a hold, was still missed and found only
+  live: list the conditional layers too (banners, holds, warnings, open menus).
+  Narrowing the banner on one side then moved its centred text under the flight-mode
+  buttons on the other (Codex). When an overlay moves, check both of its edges.
+- A height cap measured only when a menu opens goes stale on resize; listen for resize
+  while it is open.

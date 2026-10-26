@@ -120,6 +120,15 @@ describe('TaskConfirmCard forced press-and-hold', () => {
 
   const holdButton = (view) => view.getByRole('button', { name: 'task.holdToApprove' });
 
+  it('marks only a forced card gate-overridden', () => {
+    const handlers = { onApprove: vi.fn(), onDeny: vi.fn(), onCancel: vi.fn() };
+    const forced = renderCard(entryFor({ roundUid: 'f' }), handlers, { forced: true });
+    expect(forced.getByText('task.gateOverridden')).toBeInTheDocument();
+    forced.unmount();
+    const normal = renderCard(entryFor({ roundUid: 'n' }), handlers);
+    expect(normal.queryByText('task.gateOverridden')).toBeNull();
+  });
+
   it('approves after an uninterrupted hold on one round', () => {
     const handlers = { onApprove: vi.fn(), onDeny: vi.fn(), onCancel: vi.fn() };
     const view = renderCard(entryFor({ roundUid: '424242:11' }), handlers, { forced: true });
