@@ -1462,6 +1462,26 @@
 - Do not edit the worktree while a matrix runs: each run's manifest records
   `uncommitted_diff_sha256`, so a doc edit after the first cell makes the artifact check fail
   on `input_manifest.json` with equal digests. Commit first, then start the matrix.
+## Unanswered peer confirmation keeps the task (2026-10-25)
+- The vision walk guard (`test_step1_vision_walk.py`) failed when a core module that
+  `products/delivery/poi_status_decision.py` imports pulled in geo code (peer_geo -> geo_ref_calc).
+  Pass geo actions as callable ports and build them in an app/flow composition module.
+- `nav_task_composition.py` sits near the SOLID caps (150-line function, 300-line module).
+  Put new wiring in its own small composition module instead of growing it.
+- Injected statuses skip the confirmation round lifecycle (Codex nit). For an end-to-end
+  test, tick sense/decide/act with a frameless detection (`supports_confirmation_frame=False`)
+  and a network mock that stamps request meta; keep the answered round open with a long wait.
+- More param reads at startup move every later lockstep sim stamp (120 ms here), and
+  `test_navpy_participant_run.py` pins absolute stamps. Run it, or full pytest, after any
+  change to startup reads.
+- From Git Bash, `PYTHONPATH="$PWD/src;$PWD"` is ignored (POSIX paths with `;`) and imports
+  come from the shared checkout; `"$PWD/src:$PWD"` or Windows paths with `;` work.
+- A lockstep test's NavPy child takes its source from the test file's repo root, so
+  `git archive HEAD src` plus PYTHONPATH does not test old code there: export src, scripts
+  and tests and run from that tree.
+- After a rebase that took todo numbers, a blanket replace of "(todo N)" also rewrote
+  main's own new reference. Renumber only the lines your commit adds, then check each
+  reference in `git diff origin/main`.
 
 ## Todo 69: E-STOP and Cancel task reach, design (2026-10-25)
 

@@ -15,6 +15,7 @@ from navpy.app.flow.nav_composition_types import (
 )
 from navpy.app.flow.nav_poi_status_composition import _compose_poi_status
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
+from navpy.core.swarm.peer_task_reask import PeerTaskReask
 from navpy.app.flow.nav_track_recovery_composition import (
     _compose_track_recovery,
 )
@@ -32,6 +33,7 @@ def compose_confirmation_workflows(
     reset: ResetWorkflows,
     navigation: NavCapabilities,
     peer_task: PeerTaskPriority,
+    peer_reask: PeerTaskReask,
 ) -> ConfirmationWorkflows:
     tracking = _compose_track_recovery(
         detection,
@@ -54,6 +56,7 @@ def compose_confirmation_workflows(
         tracking,
         admission.release,
         peer_task,
+        peer_reask,
     )
     return ConfirmationWorkflows(
         reset=reset,
