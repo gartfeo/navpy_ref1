@@ -1609,3 +1609,7 @@
 - `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
   in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
   and check line endings with `file` after any scripted edit.
+- A Windows path written into a Python string through the Bash tool lost one of its
+  doubled backslashes, so \2026... became the octal escape \202 and todo 147 got a
+  control character in place of the run folder. Build backslashes with chr(92) and
+  scan changed files for control characters before committing.
