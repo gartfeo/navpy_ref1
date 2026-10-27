@@ -11,6 +11,7 @@ from navpy.core.perception.geo.zc_util import ZcUtil
 from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
+from navpy.sim.detection.camera_frame_ports import CameraFrameSchedulePort
 from navpy.sim.detection.sim_detector_assembly import (
     SimDetectorDependencies,
     SimDetectorOptions,
@@ -56,6 +57,7 @@ class DetectorSim(
         zoom_config: PoiZoomTrackerConfig | None = None,
         scheduler_cadence: SchedulerCadence | None = None,
         ideal_360: bool = False,
+        camera_frames: CameraFrameSchedulePort | None = None,
     ) -> None:
         self._parts: SimDetectorPorts = build_sim_detector(
             SimDetectorDependencies(
@@ -73,6 +75,7 @@ class DetectorSim(
                 zoom_config=zoom_config,
                 ideal_360=ideal_360,
                 frame_generator_factory=SimFrameGenerator,
+                camera_frames=camera_frames,
             ),
         )
 

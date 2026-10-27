@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from navpy.sim.detection.sim_camera_loop import SimCamera
 from navpy.sim.detection.sim_detection_pipeline import SimDetectionPipeline
 from navpy.sim.detection.sim_detector_config import (
     SimDetectorDependencies,
@@ -35,6 +36,8 @@ def build_execution_graph(
     render: SimRenderFoundation,
     pipeline: SimDetectionPipeline,
 ) -> SimExecutionGraph:
+    if options.camera_frames is not None and render.evidence_recorder is not None:
+        raise ValueError("camera_frames does not record projection evidence: unset NAVPY_SIM_PROJECTION_RECORDER")
     cadence_lease = SchedulerCadenceLease.create(
         dependencies.vehicle.sim_speedup,
         dependencies.scheduler_cadence,
@@ -51,6 +54,11 @@ def build_execution_graph(
         detect_pois=pipeline.detect_pois,
         record_outcome=source.record_outcome,
         poll_timer=source.poll_timer,
+        camera=(
+            None
+            if options.camera_frames is None
+            else SimCamera(options.camera_frames, pipeline.capture_frame)
+        ),
     )
     resetter = SimDetectorReset(
         pose_source=source.pose_source,

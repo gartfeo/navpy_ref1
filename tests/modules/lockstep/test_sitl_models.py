@@ -7,7 +7,7 @@ import math
 import pytest
 
 from navpy.sim.lockstep import sitl_models as sm
-from navpy.sim.lockstep.participant_budget import MODELS as PARTICIPANT_MODELS
+from navpy.sim.lockstep.participant_budget import PARTICIPANT_MODELS
 from navpy.sim.lockstep.radio_link import radio_loss_pct
 from navpy.sim.lockstep.sim_profile import CATALOGUE, ModelDraw, ModelEntry, ParamRange, Realization, \
     load_profile, model_stream, realize
@@ -24,7 +24,7 @@ def realization(*models: ModelDraw, seed: int = 7) -> Realization:
 
 def test_every_parameter_of_the_built_models_has_one_sitl_parameter():
     """Every model but ``uart_loss``, the coordinator's radio loss (``radio_link``, todo 114),
-    and the NavPy participant models (``participant_budget``, step 4)."""
+    and the NavPy participant models (``participant_budget``, steps 4 and 5)."""
     assert set(sm.SITL_PARAMETERS) == set(CATALOGUE) - {"uart_loss", *PARTICIPANT_MODELS}
     for name, params in sm.SITL_PARAMETERS.items():
         assert set(params) == set(CATALOGUE[name].params)
@@ -129,12 +129,13 @@ def test_the_shipped_profiles_draw_wind_and_noise_in_the_designs_ranges():
 
 
 def test_the_shipped_profiles_draw_the_line_rate_and_byte_loss():
-    """The line rate in every profile but ``none``; byte loss 0-0.2 % in ``hw`` (about 0-10 % of
-    50-byte packets) and 0-0.6 % in ``stress``, none in ``quiet``. ``stress`` turns both on in
-    every run, so its seed-1 matrix exercises them."""
-    for name in ("quiet", "hw", "stress"):
-        assert load_profile(name).models["baud_limit"] == ModelEntry(
-            1.0 if name == "stress" else 0.5, {})
+    """The line rate in ``hw`` and ``stress``; byte loss 0-0.2 % in ``hw`` (about 0-10 % of
+    50-byte packets) and 0-0.6 % in ``stress``, neither in ``quiet``: the quiet wall runs it is
+    calibrated against had no line-rate limit, and the limit alone took quiet's coverage out of
+    their range (dev sim step 5). ``stress`` turns both on in every run, so its seed-1 matrix
+    exercises them."""
+    for name, p_on in (("quiet", 0.0), ("hw", 0.5), ("stress", 1.0)):
+        assert load_profile(name).models["baud_limit"] == ModelEntry(p_on, {})
     assert "uart_loss" not in load_profile("quiet").models
     assert load_profile("hw").models["uart_loss"] == ModelEntry(0.5, {"loss_pct": ParamRange(0.0, 0.2)})
     assert load_profile("stress").models["uart_loss"] == ModelEntry(1.0, {"loss_pct": ParamRange(0.0, 0.6)})
