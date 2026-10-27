@@ -86,16 +86,6 @@ class FinalApproachCommandWorkRuntime:
         return FinalApproachCommandWork(payload.frame, payload.diagnostic_token, lease)
 
     def execute_work(self, work: _Work) -> CalcData | None:
-        from navpy.core.kernel.logging import reader_trace as _tr  # TEMP diag
-        if not _tr.ENABLED:
-            return self._execute_work(work)
-        _t0 = _tr._pc()
-        try:
-            return self._execute_work(work)
-        finally:
-            _tr.rec("wk", _t0, _tr._pc() - _t0, e=type(work).__name__)
-
-    def _execute_work(self, work: _Work) -> CalcData | None:  # TEMP diag split
         if isinstance(work, FinalApproachDockedEvidenceWork):
             return None
         if isinstance(work, FinalApproachHeldCommandWork):

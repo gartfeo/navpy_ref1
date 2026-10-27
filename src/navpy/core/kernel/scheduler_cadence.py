@@ -115,8 +115,6 @@ class SchedulerCadence:
             requested = bool(active)
             if requested == self._command_cadence_active:
                 return
-            from navpy.core.kernel.logging import reader_trace  # TEMP diag
-            reader_trace.nav(requested)
             self._command_cadence_active = requested
             self._sync_interpreter_cadence_locked()
 

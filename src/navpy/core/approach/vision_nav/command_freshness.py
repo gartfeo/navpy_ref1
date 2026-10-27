@@ -27,9 +27,6 @@ class FinalApproachCommandFreshness:
         self._wall_period_s = wall_period_s
 
     def is_fresh(self, timing: FinalApproachCommandTiming) -> bool:
-        from navpy.core.kernel.logging import reader_trace as _tr  # TEMP diag
-        if _tr.ENABLED:
-            return self._is_fresh_traced(timing, _tr)
         return _age_is_fresh(
             timing.source_timestamp_s,
             timing.source_now_s,
@@ -39,26 +36,6 @@ class FinalApproachCommandFreshness:
             timing.receipt_now_s,
             self._receipt_max_age_s(),
         )
-
-    def _is_fresh_traced(self, timing, _tr) -> bool:  # TEMP diag
-        def detail(ts, provider, limit):
-            try:
-                now = provider() if provider is not None else None
-            except Exception:  # noqa: BLE001
-                now = None
-            fresh = _age_is_fresh(ts, (lambda: now) if provider is not None else None, limit)
-            age = None if ts is None or now is None else float(now) - float(ts)
-            return fresh, ts, now, age, limit
-
-        source = detail(timing.source_timestamp_s, timing.source_now_s,
-                        FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S)
-        receipt = detail(timing.receipt_timestamp_s, timing.receipt_now_s,
-                         self._receipt_max_age_s())
-        fresh = source[0] and receipt[0]
-        if not fresh:
-            _tr.rec("fr", _tr._pc(), int(source[0]), int(receipt[0]),
-                    e="|".join(str(v) for v in (*source[1:], *receipt[1:])))
-        return fresh
 
     def _receipt_max_age_s(self) -> float:
         try:

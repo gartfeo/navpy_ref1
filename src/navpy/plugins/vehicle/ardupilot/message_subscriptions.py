@@ -7,7 +7,6 @@ from collections.abc import Callable
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.core.kernel import runtime_time as rt
-from navpy.core.kernel.logging import reader_trace as _tr  # TEMP diag
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.core.ports.subscription import Subscription
 
@@ -71,11 +70,6 @@ class CallbackRegistry:
     ) -> None:
         for callback in self.snapshot(message_type, is_navlink=is_navlink):
             try:
-                if _tr.ENABLED:  # TEMP diag
-                    _t0 = _tr._pc()
-                    callback(message)
-                    _tr.rec("cb", _t0, _tr._pc() - _t0, e=f"{message_type}|{getattr(callback, '__qualname__', type(callback).__name__)}")
-                    continue
                 callback(message)
             except Exception as exc:  # callbacks must not kill the bus reader
                 if self._logger_ref is not None:

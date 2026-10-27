@@ -9,7 +9,6 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.kernel import runtime_time as rt
-from navpy.core.kernel.logging import reader_trace as _tr  # TEMP diag
 from navpy.core.link.msg_abc import MsgRegistry
 import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 from navpy.core.ports.admission_tap import (
@@ -139,22 +138,15 @@ class InboundMessageRouter:
             if not accepted:
                 return
         boot_time_ms = message_boot_time_ms(message)
-        _t0 = _tr._pc()  # TEMP diag
         self._store.publish(
             message_type,
             message,
             receipt_time_s=receipt_time_s,
             boot_time_ms=boot_time_ms,
         )
-        _t1 = _tr._pc()
         self._record_pose_arrival(message_type, receipt_time_s, boot_time_ms)
-        _t2 = _tr._pc()
         self._mission_inbox.publish(message, receipt_time_s)
-        _t3 = _tr._pc()
         self._callbacks.dispatch(message_type, message, is_navlink=is_navlink)
-        if _tr.ENABLED:
-            _tr.rec("in", _t0, _t1 - _t0, _t2 - _t1, _t3 - _t2, _tr._pc() - _t3,
-                    f"{message_type}|{boot_time_ms}")
 
     def feed_message(self, message: MAVLink_message) -> None:
         self.ingest(message)
