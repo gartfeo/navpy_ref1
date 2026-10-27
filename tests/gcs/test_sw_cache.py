@@ -1,8 +1,66 @@
 """Tests for offline Cesium support: service worker and local asset config."""
 
+import json
 import pathlib
 
+from tests.gcs.js_runner import run_node
+
 FRONTEND = pathlib.Path(__file__).resolve().parents[2] / "src" / "gcs" / "frontend"
+
+# Runs sw.js in Node with stub caches/fetch and dispatches one fetch event.
+# Prints {kind, tag, fetched, put, unhandled}: kind is "response", "undefined"
+# or "rejected" for what respondWith settled with.
+_SW_HARNESS = r"""
+const listeners = {};
+globalThis.self = {
+  addEventListener: (type, fn) => { listeners[type] = fn; },
+  skipWaiting() {},
+  clients: { claim() {} },
+};
+const S = SCENARIO;
+const unhandled = [];
+process.on('unhandledRejection', (e) => unhandled.push(String(e)));
+const calls = { fetched: 0, put: 0 };
+const fail = (what) => Promise.reject(new Error(`UnknownError: ${what}`));
+const net = { tag: 'net', ok: true, clone() { return { tag: 'net-clone' }; } };
+const cache = {
+  match: () => (S.matchRejects ? fail('match') : Promise.resolve(S.cached ? { tag: 'cached' } : undefined)),
+  put: () => { calls.put += 1; return S.putRejects ? fail('put') : Promise.resolve(); },
+  keys: () => Promise.resolve([]),
+  delete: () => Promise.resolve(true),
+};
+globalThis.caches = {
+  open: () => (S.openRejects ? fail('open') : Promise.resolve(cache)),
+  match: () => Promise.resolve(undefined),
+  keys: () => Promise.resolve([]),
+  delete: () => Promise.resolve(true),
+};
+globalThis.fetch = () => { calls.fetched += 1; return S.offline ? fail('offline') : Promise.resolve(net); };
+""" + "SW_SOURCE" + r"""
+(async () => {
+  let responded = null;
+  const waits = [];
+  listeners.fetch({
+    request: { url: S.url },
+    respondWith: (p) => { responded = Promise.resolve(p); },
+    waitUntil: (p) => { waits.push(p); },
+  });
+  let out;
+  try {
+    const r = await responded;
+    if (r === undefined) out = { kind: 'undefined' };
+    else out = { kind: 'response', tag: r.tag ?? r.type };
+  } catch (e) {
+    out = { kind: 'rejected' };
+  }
+  await Promise.allSettled(waits);
+  await new Promise((r) => setTimeout(r, 20));
+  console.log(JSON.stringify({ ...out, ...calls, unhandled }));
+})();
+"""
+
+_CESIUM_URL = "http://127.0.0.1:8000/Cesium/Widgets/widgets.css"
+_TILE_URL = "https://tile.openstreetmap.org/1/0/0.png"
 
 
 class TestServiceWorker:
@@ -91,3 +149,65 @@ class TestMainJsxSwRegistration:
         assert "serviceWorker" in self.main_text
         assert "register" in self.main_text
         assert "/sw.js" in self.main_text
+
+
+def _dispatch(**scenario):
+    """Run one fetch event through sw.js; return the harness's JSON result."""
+    sw_source = (FRONTEND / "public" / "sw.js").read_text(encoding="utf-8")
+    code = (
+        _SW_HARNESS
+        .replace("SCENARIO", json.dumps(scenario))
+        .replace("SW_SOURCE", sw_source)
+    )
+    result = run_node(code, timeout=10)
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+class TestServiceWorkerFetch:
+    """Behaviour of the fetch handler (todo 118).
+
+    A Chrome profile whose CacheStorage cannot be written makes caches.open
+    reject ("Unexpected internal error"). The worker must then serve the file
+    from the network, never answer undefined (a network error for every
+    /Cesium/ file: no widgets.css, a 300x150 black map).
+    """
+
+    def test_static_cache_open_failure_falls_back_to_network(self):
+        out = _dispatch(url=_CESIUM_URL, openRejects=True)
+        assert out["kind"] == "response" and out["tag"] == "net", out
+        assert out["unhandled"] == [], out
+
+    def test_static_cache_match_failure_falls_back_to_network(self):
+        out = _dispatch(url=_CESIUM_URL, matchRejects=True)
+        assert out["kind"] == "response" and out["tag"] == "net", out
+        assert out["unhandled"] == [], out
+
+    def test_static_cache_hit_is_served_without_network(self):
+        """Cache-first stays: the handheld serves Cesium offline from the cache."""
+        out = _dispatch(url=_CESIUM_URL, cached=True, offline=True)
+        assert out["kind"] == "response" and out["tag"] == "cached", out
+        assert out["fetched"] == 0, out
+
+    def test_static_cache_miss_fetches_and_stores(self):
+        out = _dispatch(url=_CESIUM_URL)
+        assert out["kind"] == "response" and out["tag"] == "net", out
+        assert out["put"] == 1, out
+
+    def test_static_put_failure_still_serves_and_is_handled(self):
+        out = _dispatch(url=_CESIUM_URL, putRejects=True)
+        assert out["kind"] == "response" and out["tag"] == "net", out
+        assert out["unhandled"] == [], out
+
+    def test_static_offline_miss_is_a_network_error_not_undefined(self):
+        out = _dispatch(url=_CESIUM_URL, offline=True)
+        assert out["kind"] != "undefined", out
+
+    def test_tile_offline_miss_is_a_network_error_not_undefined(self):
+        out = _dispatch(url=_TILE_URL, offline=True)
+        assert out["kind"] != "undefined", out
+
+    def test_tile_cache_failure_is_handled(self):
+        out = _dispatch(url=_TILE_URL, openRejects=True)
+        assert out["kind"] == "response" and out["tag"] == "net", out
+        assert out["unhandled"] == [], out

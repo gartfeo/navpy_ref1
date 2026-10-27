@@ -1213,6 +1213,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
                     cleanup=cleanup,
                     real_ui=None,
                     sim_debug=None,
+                    camera_health=Mock(),
                 )
 
         with self.assertRaises(RuntimeError) as raised:

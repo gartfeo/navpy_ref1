@@ -11,7 +11,6 @@ import { usePlanCameraCheckResult, usePlanCameraGate } from './hooks/usePlanCame
 import useFullParams from './hooks/useFullParams';
 import useCompassCal from './hooks/useCompassCal';
 import useAccelCal from './hooks/useAccelCal';
-import { AAS_DEFAULTS } from './utils/aasParams';
 import usePlanningOrchestrator from './hooks/usePlanningOrchestrator';
 import useMissionUpload from './hooks/useMissionUpload';
 import useVehicleConnection from './hooks/useVehicleConnection';
@@ -30,7 +29,7 @@ import SettingsModal from './components/SettingsModal';
 import PreflightReadiness from './components/PreflightReadiness';
 import MapIconBtn from './components/MapIconBtn';
 import MapDisplayToggles from './components/map/MapDisplayToggles';
-import ManualControlOverlay from './components/ManualControlOverlay';
+import ManualControlOverlay, { STICK_INSET_PX, STICK_SIZE_PX } from './components/ManualControlOverlay';
 import { rcPwmToStickY } from './utils/joystickMath';
 import { APP_BRANCH } from './utils/appBranch';
 import { fenceInclusion, fenceCoversPlan, isSimpleRing, analyzeExclusionConflicts, DEFAULT_ORBIT_RADIUS_M } from './utils/geo';
@@ -38,16 +37,16 @@ import { fenceMapDisplay, fenceUploadPayload, shouldAutoEnableDemoFence, summari
 import useFenceEditing from './hooks/useFenceEditing';
 import useVehicleFence from './hooks/useVehicleFence';
 import TelemetryHud from './components/TelemetryHud';
-import FlightModeColumn from './components/FlightModeColumn';
+import FlightModeColumn, { MODE_COLUMN_INSET_PX, MODE_BUTTON_WIDTH_PX } from './components/FlightModeColumn';
 import { computePrearmWarnings, launchGatesFromSettings } from './utils/prearmChecks';
-import VehicleSelector from './components/VehicleSelector';
-import TaskConfirmCard from './components/TaskConfirmCard';
+import VehicleSelector, { VEHICLE_SELECTOR_SPAN_PX } from './components/VehicleSelector';
+import ConfirmCardList from './components/ConfirmCardList';
 import PlanningToolbar from './components/map/PlanningToolbar';
 import MonitorMapOverlay from './components/map/MonitorMapOverlay';
 import NotificationBanner from './components/NotificationBanner';
 import LoadingScreen from './components/LoadingScreen';
 import VehicleWindow, { MAP_SWAPPED_Z_INDEX } from './components/VehicleWindow';
-import FpvViewOverlay from './components/map/FpvViewOverlay';
+import FpvViewOverlay, { FPV_TAG_HEIGHT_PX } from './components/map/FpvViewOverlay';
 import useVideoFleet from './hooks/useVideoFleet';
 import useVehicleWindow from './hooks/useVehicleWindow';
 import useFpvView from './hooks/useFpvView';
@@ -60,6 +59,19 @@ import { prunePendingVehicles, upsertPendingVehicles } from './utils/pendingVehi
 
 // RC FPV: the SYNTHETIC tag sits below the HUD heading tape (top 12, 36 px tall).
 const RC_FPV_TAG_TOP_PX = 12 + 36 + 6;
+// RC confirm list (todo 69, decision 4c): 8 px from what it must not cover —
+// below the FPV tag, left of the right stick, above the UAV selector.
+const RC_CONFIRM_GAP_PX = 8;
+const RC_CONFIRM_TOP_PX = RC_FPV_TAG_TOP_PX + FPV_TAG_HEIGHT_PX + RC_CONFIRM_GAP_PX;
+const RC_CONFIRM_RIGHT_PX = STICK_INSET_PX + STICK_SIZE_PX + RC_CONFIRM_GAP_PX;
+const RC_CONFIRM_BOTTOM_PX = VEHICLE_SELECTOR_SPAN_PX + RC_CONFIRM_GAP_PX;
+// Below the HUD's warning strip (z-index 10, takes no taps) so warnings stay
+// readable over it; above the FPV frame and tag (8) and the attitude (5).
+const RC_CONFIRM_Z_INDEX = 9;
+// While the RC list shows, the first-person "View held" banner spans the room
+// between the flight-mode buttons and the list, so neither hides its text.
+const RC_HELD_LEFT_PX = MODE_COLUMN_INSET_PX + MODE_BUTTON_WIDTH_PX + RC_CONFIRM_GAP_PX;
+const RC_HELD_RIGHT_PX = RC_CONFIRM_RIGHT_PX + sidebarWidth + RC_CONFIRM_GAP_PX;
 /** Desktop map pane, used until the real pane is measured. */
 const FALLBACK_PANE = { width: 1280, height: 800 };
 
@@ -565,6 +577,8 @@ export default function App() {
     };
   }, [videoFleet, pictureShown, viewing, viewCamera]);
   const fpvEntry = videoFleet.find((e) => e.sysId === fpv.fpvSysId);
+  // RC shows its confirm list (todo 69, decision 4c) while any round exists.
+  const rcConfirmShown = mc.manualControlEnabled && Object.keys(taskConfirm.pendingConfirms || {}).length > 0;
 
   // The viewport height is set once, on #root in index.html, with a 100vh
   // fallback: Chromium before 108 (Android 13's WebView 101) drops dvh, and
@@ -599,7 +613,6 @@ export default function App() {
         autoScan={connFromSidebarRef.current}
         devMode={devMode}
         onEstop={commands.handleEstop}
-        manualControlEnabled={mc.manualControlEnabled}
       />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -805,6 +818,8 @@ export default function App() {
               label={fpvEntry?.label ?? `UAV ${fpv.fpvSysId}`}
               holdReason={fleetEntryHoldReason(fpvEntry)}
               top={RC_FPV_TAG_TOP_PX}
+              heldLeft={rcConfirmShown ? RC_HELD_LEFT_PX : undefined}
+              heldRight={rcConfirmShown ? RC_HELD_RIGHT_PX : undefined}
             />
           )}
           {mc.manualControlEnabled && (
@@ -843,37 +858,31 @@ export default function App() {
               <TelemetryHud key={mc.manualControlTarget} sysId={mc.manualControlTarget} />
           )}
           <NotificationBanner text={notification} />
-          {/* Confirm cards — visible even during manual control */}
-          {mc.manualControlEnabled && Object.entries(taskConfirm.pendingConfirms || {}).length > 0 && (
-            <div style={{
-              position: 'absolute',
-              top: 60,
-              right: 12,
-              width: 260,
-              zIndex: 20,
-              pointerEvents: 'auto',
-            }}>
-              {Object.entries(taskConfirm.pendingConfirms).map(([sysId, entry]) => {
-                const sid = Number(sysId);
-                const vi = vehicleList.findIndex((v) => v.sys_id === sid);
-                const vehicle = vi >= 0 ? vehicleList[vi] : null;
-                return (
-                  <TaskConfirmCard
-                    key={`${sid}-${entry.taskId}-${entry.roundUid ?? ''}`}
-                    sysId={sid}
-                    entry={entry}
-                    vehicleName={vehicle?.name || `UAV ${sysId}`}
-                    vehicleIndex={vi >= 0 ? vi : 0}
-                    onApprove={ws.handleTaskApprove}
-                    onDeny={ws.handleTaskDeny}
-                    onCancel={ws.handleTaskCancel}
-                    autoApprove={aasParams.getConfirmedValue(sid, 'nav_cm_fl', AAS_DEFAULTS.nav_cm_fl)}
-                    timeoutSec={aasParams.getConfirmedValue(sid, 'nav_cwt', AAS_DEFAULTS.nav_cwt)}
-                    forced={taskConfirm.forcedConfirms[sid] === entry.taskId}
-                  />
-                );
-              })}
-            </div>
+          {/* Confirm list in RC: beside the right stick, never over a stick or the selector */}
+          {rcConfirmShown && (
+            <ConfirmCardList
+              pendingConfirms={taskConfirm.pendingConfirms}
+              vehicleList={vehicleList}
+              onApprove={ws.handleTaskApprove}
+              onDeny={ws.handleTaskDeny}
+              onCancel={ws.handleTaskCancel}
+              forcedConfirms={taskConfirm.forcedConfirms}
+              aasParams={aasParams}
+              style={{
+                position: 'absolute',
+                top: RC_CONFIRM_TOP_PX,
+                right: RC_CONFIRM_RIGHT_PX,
+                width: sidebarWidth,
+                maxHeight: `calc(100% - ${RC_CONFIRM_TOP_PX + RC_CONFIRM_BOTTOM_PX}px)`,
+                zIndex: RC_CONFIRM_Z_INDEX,
+                pointerEvents: 'auto',
+                background: colors.bgLight,
+                border: `1px solid ${colors.border}`,
+                borderRadius: 6,
+                boxSizing: 'border-box',
+                overflow: 'hidden',
+              }}
+            />
           )}
           {!mc.manualControlEnabled && <MapDisplayToggles
             phase={phase}
@@ -906,15 +915,23 @@ export default function App() {
           </div>}
         </div>
 
-        {/* Sidebar — hidden during manual control for full-width map */}
-        {!mc.manualControlEnabled && <div
+        {/* Right panel — hidden during manual control for full-width map. The
+            confirm list's pinned rows sit over one scrolling part: pending
+            cards, then the planning or monitor sidebar (todo 69). */}
+        {!mc.manualControlEnabled && <ConfirmCardList
+          pendingConfirms={taskConfirm.pendingConfirms}
+          vehicleList={vehicleList}
+          onApprove={ws.handleTaskApprove}
+          onDeny={ws.handleTaskDeny}
+          onCancel={ws.handleTaskCancel}
+          forcedConfirms={taskConfirm.forcedConfirms}
+          aasParams={aasParams}
+          videoActionFor={phase === PHASES.MONITOR ? videoActionFor : null}
           style={{
             width: sidebarWidth,
             height: '100%',
             background: colors.bgLight,
             borderLeft: `1px solid ${colors.border}`,
-            overflowY: 'auto',
-            overflowX: 'hidden', // sidebar must never scroll horizontally — rows shrink to fit
             flexShrink: 0,
           }}
         >
@@ -983,10 +1000,6 @@ export default function App() {
               downloadingSysIds={downloadingSysIds}
               pendingVehicles={statusPendingVehicles}
               pendingConfirms={taskConfirm.pendingConfirms}
-              onApprove={ws.handleTaskApprove}
-              onDeny={ws.handleTaskDeny}
-              onCancel={ws.handleTaskCancel}
-              forcedConfirms={taskConfirm.forcedConfirms}
               onForceConfirm={taskConfirm.forceConfirm}
               assignments={taskAssign.assignments}
               settings={settings}
@@ -995,13 +1008,10 @@ export default function App() {
               onTriggerVehicle={commands.handleTriggerVehicle}
               navpyStatus={ws.navpyStatus}
               onFlyToLocation={flyToLocation}
-              aasParams={aasParams}
-              onEstop={commands.handleEstop}
               onOpenReadiness={() => setShowReadiness(true)}
-              videoActionFor={videoActionFor}
             />
           )}
-        </div>}
+        </ConfirmCardList>}
       </div>
 
       <BottomBar

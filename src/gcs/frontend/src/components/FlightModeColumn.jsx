@@ -9,9 +9,13 @@ import useLongPress from '../hooks/useLongPress';
 export const armBtnColor = (prearmOk) =>
   prearmOk === false ? colors.error : colors.success;
 
+/** The column's inset from the map's top-left corner, and its buttons' width (App keeps RC overlays clear of them). */
+export const MODE_COLUMN_INSET_PX = 12;
+export const MODE_BUTTON_WIDTH_PX = 80;
+
 const btnBase = {
   minHeight: 32,
-  width: 80,
+  width: MODE_BUTTON_WIDTH_PX,
   padding: '4px 8px',
   borderRadius: 6,
   fontSize: 12,
@@ -119,8 +123,8 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
   return (
     <div style={{
       position: 'absolute',
-      top: 12,
-      left: 12,
+      top: MODE_COLUMN_INSET_PX,
+      left: MODE_COLUMN_INSET_PX,
       zIndex: 10,
       display: 'flex',
       flexDirection: 'column',

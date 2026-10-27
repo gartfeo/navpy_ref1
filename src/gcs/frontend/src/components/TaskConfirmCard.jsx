@@ -2,20 +2,25 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../styles';
 import UavBadge from './UavBadge';
-import { isPending, canCancel } from '../hooks/taskConfirmationState';
+import { isPending, canCancel, confirmRoundKey } from '../hooks/taskConfirmationState';
 import { LONG_PRESS_MS } from '../utils/armAction';
 import useLongPress from '../hooks/useLongPress';
 
 const DEFAULT_TIMEOUT_SEC = 30;
+/** Every control on a decided row: the app's 32 px map-button size (todo 69). */
+const ROW_CONTROL_PX = 32;
+/** The opened still of a decided row (ConfirmStill), smaller than a pending card's 160 px. */
+const OPEN_STILL_MAX_PX = 120;
 
 /**
  * Confirmation card for a task confirm request.
  *
- * While the card is PENDING it shows the countdown + Approve/Deny and auto-
- * fires the timeout action (per the per-vehicle AAS params). Once DECIDED it
- * persists for review: APPROVED shows approval sent with a "Cancel task"
- * control; DENIED/CANCELED show the outcome and auto-dismiss (handled by the
- * owning hook). The auto-timeout never runs once decided.
+ * While the card is PENDING it is the full card: the countdown +
+ * Approve/Deny, and it auto-fires the timeout action (per the per-vehicle AAS
+ * params). Once DECIDED it is a compact row (ConfirmCardList pins it, so
+ * Cancel task never scrolls away): APPROVED shows "Approval sent", a Still
+ * button and Cancel task; DENIED/CANCELED show the outcome and auto-dismiss
+ * (handled by the owning hook). The auto-timeout never runs once decided.
  *
  * timeoutSec and autoApprove come from the per-vehicle AAS confirmed values
  * (AAS_NAV_CWT and AAS_NAV_CM_FL). The defensive fallback to
@@ -35,15 +40,16 @@ export default function TaskConfirmCard({
   // UAV has no stream, or RC is on): { viewing, onView }. It only moves the
   // video; it never approves, denies or pauses the countdown.
   videoAction = null,
+  // Decided row only: whether this round's still is open (ConfirmCardList
+  // shows it), and the toggle, or null when there is no still to show.
+  stillOpen = false,
+  onToggleStill = null,
 }) {
   const { t } = useTranslation();
   const pending = isPending(entry);
-  // Identity of the confirm round on screen. The same POI can be asked
-  // again (a bounded re-ask), so the task id alone does NOT change between
-  // rounds -- the round uid is what makes this a different question. Rounds
-  // from a sender without a uid fall back to receivedAt, which a re-ask also
-  // refreshes.
-  const roundKey = `${entry.taskId}:${entry.roundUid ?? entry.receivedAt ?? ''}`;
+  // Identity of the confirm round on screen (a re-ask of the same POI is a
+  // new round with the same task id).
+  const roundKey = confirmRoundKey(entry);
   const { handlers: approveHoldHandlers, progress: approveProgress } = useLongPress({
     onComplete: () => onApprove(sysId),
     duration: LONG_PRESS_MS,
@@ -92,17 +98,16 @@ export default function TaskConfirmCard({
     return () => { if (interval) clearInterval(interval); };
   }, [pending, sysId, entry.receivedAt, autoApprove, onApprove, onDeny, effectiveTimeout]);
 
-  const DECIDED_UI = {
-    approved: { label: t('task.approved'), color: colors.success, sub: t('task.approvalSent') },
-    denied: { label: t('task.denied'), color: colors.error, sub: null },
-    canceled: { label: t('task.cancellationRequested'), color: colors.warning, sub: null },
-  };
-  const decided = DECIDED_UI[entry.status] || null;
-  const accent = pending ? colors.warning : (decided?.color || colors.border);
+  if (!pending) {
+    return (
+      <DecidedRow
+        sysId={sysId} entry={entry} vehicleName={vehicleName} vehicleIndex={vehicleIndex}
+        onCancel={onCancel} stillOpen={stillOpen} onToggleStill={onToggleStill}
+      />
+    );
+  }
+
   const timerColor = remaining > 10 ? colors.success : remaining > 5 ? colors.warning : colors.error;
-  // The companion sends no position when it has not geolocated the POI.
-  const hasPosition = entry.lat != null && entry.lon != null;
-  const mapsUrl = `https://www.google.com/maps?q=${entry.lat},${entry.lon}`;
 
   return (
     <div style={{
@@ -110,38 +115,30 @@ export default function TaskConfirmCard({
       padding: 10,
       background: colors.surface,
       borderRadius: 6,
-      border: `2px solid ${accent}`,
-      ...(pending ? { animation: 'taskConfirmPulse 1.5s ease-in-out infinite' } : {}),
+      border: `2px solid ${colors.warning}`,
+      animation: 'taskConfirmPulse 1.5s ease-in-out infinite',
     }}>
-      {pending && (
-        <style>{`
-          @keyframes taskConfirmPulse {
-            0%, 100% { box-shadow: 0 0 4px ${colors.warning}40; }
-            50% { box-shadow: 0 0 12px ${colors.warning}80; }
-          }
-        `}</style>
-      )}
+      <style>{`
+        @keyframes taskConfirmPulse {
+          0%, 100% { box-shadow: 0 0 4px ${colors.warning}40; }
+          50% { box-shadow: 0 0 12px ${colors.warning}80; }
+        }
+      `}</style>
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: accent }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: colors.warning }}>
           <UavBadge name={vehicleName} index={vehicleIndex} /> {t('task.title', { id: entry.taskId })}
         </span>
-        {pending ? (
-          <span style={{ color: timerColor, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-            {Math.ceil(remaining)}s
-          </span>
-        ) : (
-          <span style={{ color: decided?.color, fontSize: 12, fontWeight: 700 }}>
-            {decided?.label}{decided?.sub ? ` · ${decided.sub}` : ''}
-          </span>
-        )}
+        <span style={{ color: timerColor, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          {Math.ceil(remaining)}s
+        </span>
       </div>
 
       {/* CONF-03 gate-overridden mark (D-20): shown only for the locally
           forced (sysId, taskId) so the operator judges the image with the
           right context -- it may be small/unstable. */}
-      {pending && forced && (
+      {forced && (
         <div style={{
           marginBottom: 6,
           padding: '2px 6px',
@@ -155,23 +152,8 @@ export default function TaskConfirmCard({
         </div>
       )}
 
-      {/* Location */}
       <div style={{ fontSize: 11, color: colors.textDim, marginBottom: 6 }}>
-        {hasPosition ? (
-          <>
-            {entry.lat.toFixed(6)}, {entry.lon.toFixed(6)}
-            {' '}
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: colors.accent, textDecoration: 'none' }}
-            >{t('task.map')}</a>
-          </>
-        ) : t('task.positionUnknown')}
-        {entry.alt != null && (
-          <span> — {Math.round(entry.alt)}m</span>
-        )}
+        <PoiLocation entry={entry} />
       </div>
 
       {/* Image */}
@@ -188,7 +170,7 @@ export default function TaskConfirmCard({
             background: '#000',
           }}
         />
-      ) : pending ? (
+      ) : (
         <div style={{
           width: '100%',
           height: 60,
@@ -203,10 +185,10 @@ export default function TaskConfirmCard({
         }}>
           {t('task.waitingForImage')}
         </div>
-      ) : null}
+      )}
 
       {/* View camera: neutral, beside the still and away from Approve/Deny. */}
-      {pending && videoAction && (
+      {videoAction && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -225,78 +207,187 @@ export default function TaskConfirmCard({
         </div>
       )}
 
-      {/* Timer bar (pending only) */}
-      {pending && (
+      {/* Timer bar */}
+      <div style={{
+        height: 3,
+        background: colors.bgLight,
+        borderRadius: 2,
+        marginBottom: 8,
+        overflow: 'hidden',
+      }}>
         <div style={{
-          height: 3,
-          background: colors.bgLight,
-          borderRadius: 2,
-          marginBottom: 8,
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            height: '100%',
-            width: effectiveTimeout > 0 ? `${(remaining / effectiveTimeout) * 100}%` : '0%',
-            background: timerColor,
-            transition: 'width 1s linear, background-color 0.5s',
-          }} />
-        </div>
-      )}
+          height: '100%',
+          width: effectiveTimeout > 0 ? `${(remaining / effectiveTimeout) * 100}%` : '0%',
+          background: timerColor,
+          transition: 'width 1s linear, background-color 0.5s',
+        }} />
+      </div>
 
       {/* Actions */}
-      {pending ? (
-        <div style={{ display: 'flex', gap: 8 }}>
-          {forced ? (
-            // CONF-03 (D-19): a forced (gate-overridden) popup's approve
-            // requires press-and-hold, mirroring the "Ask me anyway" button
-            // itself -- no accidental approve of a degraded image.
-            <button
-              type="button"
-              {...approveHoldHandlers}
-              style={{
-                flex: 1, padding: '8px 0', color: '#fff',
-                border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
-                touchAction: 'manipulation',
-                background: approveProgress > 0
-                  ? `linear-gradient(to right, ${colors.success} ${approveProgress * 100}%, ${colors.warning} ${approveProgress * 100}%)`
-                  : colors.warning,
-              }}
-            >
-              {t('task.holdToApprove')}
-            </button>
-          ) : (
-            <button
-              onClick={() => onApprove(sysId)}
-              style={{
-                flex: 1, padding: '8px 0', background: colors.success, color: '#fff',
-                border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
-              }}
-            >
-              {t('task.approve')}
-            </button>
-          )}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {forced ? (
+          // CONF-03 (D-19): a forced (gate-overridden) popup's approve
+          // requires press-and-hold, mirroring the "Ask me anyway" button
+          // itself -- no accidental approve of a degraded image.
           <button
-            onClick={() => onDeny(sysId)}
+            type="button"
+            {...approveHoldHandlers}
             style={{
-              flex: 1, padding: '8px 0', background: colors.error, color: '#fff',
+              flex: 1, padding: '8px 0', color: '#fff',
+              border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              touchAction: 'manipulation',
+              background: approveProgress > 0
+                ? `linear-gradient(to right, ${colors.success} ${approveProgress * 100}%, ${colors.warning} ${approveProgress * 100}%)`
+                : colors.warning,
+            }}
+          >
+            {t('task.holdToApprove')}
+          </button>
+        ) : (
+          <button
+            onClick={() => onApprove(sysId)}
+            style={{
+              flex: 1, padding: '8px 0', background: colors.success, color: '#fff',
               border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
             }}
           >
-            {t('task.deny')}
+            {t('task.approve')}
           </button>
-        </div>
-      ) : canCancel(entry) ? (
+        )}
         <button
+          onClick={() => onDeny(sysId)}
+          style={{
+            flex: 1, padding: '8px 0', background: colors.error, color: '#fff',
+            border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+          }}
+        >
+          {t('task.deny')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The POI's position line: coordinates, a map link and the altitude. */
+function PoiLocation({ entry }) {
+  const { t } = useTranslation();
+  // The companion sends no position when it has not geolocated the POI.
+  if (entry.lat == null || entry.lon == null) {
+    return <>{t('task.positionUnknown')}{entry.alt != null && <span> — {Math.round(entry.alt)}m</span>}</>;
+  }
+  return (
+    <>
+      {entry.lat.toFixed(6)}, {entry.lon.toFixed(6)}
+      {' '}
+      <a
+        href={`https://www.google.com/maps?q=${entry.lat},${entry.lon}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: colors.accent, textDecoration: 'none' }}
+      >{t('task.map')}</a>
+      {entry.alt != null && <span> — {Math.round(entry.alt)}m</span>}
+    </>
+  );
+}
+
+const DECIDED_ROW = {
+  approved: { labelKey: 'task.approvalSent', color: colors.success },
+  denied: { labelKey: 'task.denied', color: colors.error },
+  canceled: { labelKey: 'task.cancellationRequested', color: colors.warning },
+};
+
+/**
+ * A decided round as one 32 px row: UAV badge and outcome, then for an
+ * approved round the Still toggle and Cancel task. The row never grows (the
+ * still opens elsewhere), so pinned rows keep their places. A long label
+ * shortens; Cancel task wraps onto two lines inside its 32 px rather than
+ * leave the row (the Armenian label is wider than the row's free width); a
+ * UAV name too long for the row is cut off, never Cancel task.
+ */
+function DecidedRow({ sysId, entry, vehicleName, vehicleIndex, onCancel, stillOpen, onToggleStill }) {
+  const { t } = useTranslation();
+  const ui = DECIDED_ROW[entry.status];
+  const label = ui ? t(ui.labelKey) : entry.status;
+  const approved = canCancel(entry);
+  return (
+    <div
+      data-testid={`confirm-row-${sysId}`}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, height: ROW_CONTROL_PX, marginBottom: 4 }}
+    >
+      <span title={vehicleName} style={{ flex: '0 1 auto', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+        <UavBadge name={vehicleName} index={vehicleIndex} />
+      </span>
+      <span
+        title={label}
+        style={{
+          flex: '1 1 0', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          color: ui?.color ?? colors.textDim, fontSize: 12, fontWeight: 700,
+        }}
+      >
+        {label}
+      </span>
+      {approved && onToggleStill && (
+        <button
+          type="button"
+          onClick={onToggleStill}
+          aria-pressed={stillOpen}
+          aria-label={t(stillOpen ? 'task.hideStill' : 'task.showStill')}
+          title={t(stillOpen ? 'task.hideStill' : 'task.showStill')}
+          style={{
+            flex: '0 0 auto', width: ROW_CONTROL_PX, height: ROW_CONTROL_PX, boxSizing: 'border-box', padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6,
+            border: `1px solid ${stillOpen ? colors.accent : colors.border}`,
+            background: stillOpen ? 'rgba(0, 210, 255, 0.2)' : colors.bgLighter,
+            color: stillOpen ? colors.accent : colors.textBright,
+            cursor: 'pointer', touchAction: 'manipulation',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="1.5" y="3" width="13" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M3.5 11l3-3.5 2.2 2.4L10.5 8l2 3" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+      {approved && (
+        <button
+          type="button"
           onClick={() => onCancel(sysId)}
           style={{
-            width: '100%', padding: '8px 0', background: 'transparent', color: colors.error,
-            border: `1px solid ${colors.error}`, borderRadius: 4, fontWeight: 700, fontSize: 13,
-            cursor: 'pointer',
+            flex: '0 1 auto', height: ROW_CONTROL_PX, boxSizing: 'border-box', padding: '0 12px',
+            background: 'transparent', color: colors.error, border: `1px solid ${colors.error}`,
+            borderRadius: 4, fontWeight: 700, fontSize: 13, lineHeight: '14px', whiteSpace: 'normal',
+            textAlign: 'center', cursor: 'pointer', touchAction: 'manipulation',
           }}
         >
           {t('task.cancelTask')}
         </button>
-      ) : null}
+      )}
+    </div>
+  );
+}
+
+/**
+ * The opened still of an approved round, at the top of ConfirmCardList's
+ * scrolling part: its UAV badge and POI line, then the picture.
+ */
+export function ConfirmStill({ entry, vehicleName, vehicleIndex }) {
+  const { t } = useTranslation();
+  return (
+    <div data-testid="confirm-still" style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 12, fontWeight: 700, color: colors.textBright }}>
+        <UavBadge name={vehicleName} index={vehicleIndex} /> {t('task.title', { id: entry.taskId })}
+      </div>
+      <div style={{ fontSize: 11, color: colors.textDim, marginBottom: 6 }}>
+        <PoiLocation entry={entry} />
+      </div>
+      <img
+        src={`data:image/jpeg;base64,${entry.imageB64}`}
+        alt="Detection"
+        style={{
+          display: 'block', width: '100%', maxHeight: OPEN_STILL_MAX_PX,
+          objectFit: 'contain', borderRadius: 4, background: '#000',
+        }}
+      />
     </div>
   );
 }

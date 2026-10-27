@@ -265,13 +265,39 @@ const onVehicle = (type, sys_id) => ({ type, data: { sys_id } });
   assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMING,
     'canceling the earlier approved POI keeps the next assignment');
 
-  // ---- task_resolved: the denied POI's advert and confirming task go ----
+  // ---- task_resolved: the denied POI's advert goes; its task is ASSIGNED ----
   s = run([advert(HELPER, [7], 10), advert(OWNER, [5, 8], 30)], confirming);
   assert.ok('helper:2' in s.assignments);
   r = reduce(s, onTask('task_resolved', HELPER, 1, '3:50'));
-  assert.ok(!('helper:2' in r.assignments));
+  assert.strictEqual(r.assignments['helper:2'].status, S.ASSIGNED,
+    'a deny does not show the helper let the task go');
   assert.deepStrictEqual(Object.keys(r.availableTasks).sort(), ['1:8', '2:7'],
     'the owner advert of the denied task goes too');
+  assert.strictEqual(reduce(r, onTask('task_resolved', HELPER, 1, '3:50')).assignments, r.assignments,
+    'a repeated deny changes nothing');
+  assert.ok(!('helper:2' in reduce(r, beat(HELPER, 'FREE', 41)).assignments),
+    'an operator deny: the helper releases the task and its FREE beat retires the slot');
+  // Peer re-ask (2026-10-25): the card's countdown deny of a round the helper
+  // already timed out reaches the GCS before its next round's request.
+  r = run([
+    onTask('task_resolved', HELPER, 1, '3:50'), beat(HELPER, 'BUSY', 51),
+    onTask('task_confirming', HELPER, 1, '3:52'), onTask('task_confirmed', HELPER, 1, '3:52'),
+  ], confirming);
+  assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMED, 'the next round confirms the kept task');
+  r = run([
+    onTask('task_confirming', HELPER, 1, '3:52'), onTask('task_resolved', HELPER, 1, '3:50'),
+    onTask('task_confirmed', HELPER, 1, '3:52'),
+  ], confirming);
+  assert.strictEqual(r.assignments['helper:2'].status, S.CONFIRMED, 'the deny after the next request');
+  assert.ok(!('helper:2' in run([beat(HELPER, 'FREE', 51), onTask('task_resolved', HELPER, 1, '3:50')],
+    confirming).assignments), 'FREE before the deny broadcast: the deny brings nothing back');
+  r = run([onTask('task_resolved', HELPER, 1, '3:50'), onTask('task_confirmed', HELPER, 1, '3:50')],
+    confirming);
+  assert.strictEqual(r.assignments['helper:2'].status, S.ASSIGNED, 'a late approve of the denied round');
+  r = run([onTask('task_resolved', HELPER, 1, '3:50'), onTask('task_confirming', HELPER, 1, '3:45')],
+    confirming);
+  assert.deepStrictEqual(r.assignments['helper:2'].confirm, { taskId: 1, roundUid: '3:50' },
+    'a late copy of an older request does not re-point the denied slot');
   s = run([advert(HELPER, [7], 10)], assigned);
   r = reduce(s, onTask('task_resolved', HELPER, 7));
   assert.ok(!('2:7' in r.availableTasks), 'its own advertised POI');

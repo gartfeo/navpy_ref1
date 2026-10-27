@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import cast
 
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.ports.camera_health import NAVPY_CAMERA_VENDOR, CameraHealth
 from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.plugins.detection.charuco.charuco_board import (
@@ -176,6 +177,7 @@ class RealDetectorFactory:
             cleanup=detector,
             real_ui=detector,
             sim_debug=None,
+            camera_health=CameraHealth(NAVPY_CAMERA_VENDOR, detector.has_fresh_frame),
         )
 
 
