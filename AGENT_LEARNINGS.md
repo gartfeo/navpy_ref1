@@ -1328,6 +1328,27 @@
   "connecting" until MediaMTX's API reports the publisher.
 - An AF_UNIX socket path under the repo on /mnt/c is too long and unreliable; use mkdtemp under /tmp and record
   the path.
+- Live runs (2026-10-27): a global -NavPyNativeCameraPort makes all three gimbal actors connect to one port, and
+  accept order decides which camera streams; keep each actor's level port (UAV1 18110, UAV2 18120, UAV3 18130).
+- After a WSL listener closes, the VM-wide wslrelay keeps a stale Windows listener; a restarted publisher adds a
+  second one and Unreal's connect can land on the stale one (a void run). Before starting Unreal, check exactly one
+  Windows LISTENING socket on the port, and after it an ESTAB to python3 inside WSL. The relay exits once the VM
+  idles out (about 1-2 min without wsl.exe calls).
+- The WSL distro idle-stops, and \\wsl.localhost reads then fail; keep `wsl.exe --exec /bin/sleep N` running while
+  reading. From Git Bash pass //wsl.localhost/... with MSYS_NO_PATHCONV=1 ('\\wsl.localhost' arrives with one
+  backslash).
+- A quiet-PC watcher must treat a failed check (wsl.exe once failed with Wsl/Service/0x80072747) as not quiet. A CIM
+  process list missed another chat's job; a CPU-delta check (no process above 200 % for 6 samples) caught it.
+- Unreal profiling: -csvCaptureFrames on the command line asserts (IsRayTracingAllowed before RHI init); start it
+  with ExecCmds "csvprofile frames=N". Unreal Insights exports without UI via -OpenTraceFile, -AutoQuit -NoUI and
+  -ExecOnAnalysisCompleteCmd="TimingInsights.ExportTimerStatistics ..." (or ExportTimingEvents for per-call times);
+  pass the argument string through PowerShell Start-Process, as Git Bash quoting silently dropped the command.
+- Replay a hand-off design against the run's own log (ready times, measured job times) before choosing it. The
+  planned tick-quantised hold looked sufficient but reached 23-25 fps of 27-28 captured, because the game thread
+  hands off once per tick; a one-deep worker queue plus one held frame reached the capture rate.
+- orin1 has no h265parse; for a read-only RTSP rate check use rtph265depay with alignment=au.
+- Smart App Control refused a rebuilt unsigned plugin DLL (LoadLibrary GetLastError=4551). Report WAITING; never
+  change the binary to get past it. The signed build is the fix.
 
 ## Todo 105: bounded mission transfers (2026-10-23)
 
