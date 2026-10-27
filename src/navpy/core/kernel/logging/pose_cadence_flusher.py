@@ -111,8 +111,12 @@ class PoseCadenceFlusher:
         self._started = False
 
     def _loop(self, stop: rt.Event) -> None:
+        from navpy.core.kernel.logging import reader_trace as _tr  # TEMP diag
         while not stop.wait(self._interval_s):
+            _t0 = _tr._pc()
             self._flush()
+            if _tr.ENABLED:
+                _tr.rec("fl", _t0, _tr._pc() - _t0)
 
 
 __all__ = ["PoseCadenceFlusher"]

@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Optional
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.kernel.logging import reader_trace as _tr  # TEMP diag
 from navpy.sim.detection.detector_poll_timer import DetectorPollTimer
 from navpy.sim.detection.ideal_pose_source import IdealPoseSample
 from navpy.sim.detection.scheduler_cadence_lease import SchedulerCadenceLease
@@ -113,6 +114,8 @@ class SimDetectorExecution:
                 timer.begin()
             outcome = self._poll_once()
             elapsed_s = rt.perf_counter() - started_s
+            if _tr.ENABLED:  # TEMP diag
+                _tr.rec("dt", started_s, elapsed_s, e=outcome)
             wait_s = max(
                 0.0,
                 self.wall_period_for_scheduler_period(

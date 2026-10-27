@@ -7,6 +7,8 @@ from navpy.core.kernel.windows_process_qos import raise_process_qos
 
 def main(args) -> int:
     raise_process_qos()
+    from navpy.core.kernel.logging import reader_trace  # TEMP diag
+    reader_trace.enable()
     return compose_runtime(args).run()
 
 
