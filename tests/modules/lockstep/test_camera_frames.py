@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import random
 import statistics
 from collections import Counter
 
@@ -20,6 +21,9 @@ from navpy.sim.lockstep.sim_profile import CATALOGUE, load_profile, model_stream
 
 HW = {"min_latency_ticks": 4, "max_latency_ticks": 5, "tail_latency_ticks": 8, "tail_pct": 0.5,
       "gap_ticks": 2, "long_gap_pct": 3.0, "drop_pct": 2.0}
+#: The shipped `hw` and `quiet` camera (`sim_profiles.json`), fitted to the ZR10 report.
+SHIPPED = {"min_latency_ticks": 4, "max_latency_ticks": 4, "tail_latency_ticks": 6, "tail_pct": 0.6,
+           "gap_ticks": 2, "long_gap_pct": 3.0}
 
 
 def draws(schedule: CameraFrameSchedule, n: int) -> list[FrameDraw]:
@@ -66,6 +70,24 @@ def test_the_publication_intervals_match_the_zr10_report():
     assert ranked[int(0.99 * len(ranked))] == pytest.approx(60.0)
     assert 0.001 < sum(i < 20.0 for i in intervals) / len(intervals) < 0.01
     assert 0.001 < sum(i > 62.5 for i in intervals) / len(intervals) < 0.01
+
+
+def test_the_event_latency_matches_the_zr10_report():
+    # REPORT.md, "Result": LED event to first published frame, median 99.841 ms, p99 121.540 ms,
+    # max 154.339 ms. An event lands anywhere in the frame interval before the capture that sees it,
+    # so the sim's equivalent is the capture-to-publication latency plus a uniform wait over that interval.
+    params = load_profile("quiet").models[CAMERA_FRAMES].params
+    phase = random.Random(0)
+    latencies: list[float] = []
+    for camera in range(20):
+        captured, latest, previous_gap = 0, -1, 2
+        for draw in draws(CameraFrameSchedule(params, model_stream(camera, CAMERA_FRAMES, "zr10")), 5_000):
+            latest = max(latest, captured + draw.latency_ticks)
+            latencies.append((latest - captured + phase.uniform(0.0, previous_gap)) * TICK_S * 1000.0)
+            captured, previous_gap = captured + draw.gap_ticks, draw.gap_ticks
+    ranked = sorted(latencies)
+    assert abs(statistics.median(latencies) - 99.8) < 5.0
+    assert ranked[int(0.99 * len(ranked))] < 121.5 + TICK_S * 1000.0  # within one tick of the report's p99
 
 
 def test_a_camera_draws_its_latency_first_then_drop_tail_latency_then_gap_per_slot():
@@ -134,11 +156,11 @@ def test_participant_models_carry_the_camera_draw_and_refuse_a_bad_one():
 def test_the_profiles_give_the_designed_camera_ranges():
     hw = load_profile("hw").models[CAMERA_FRAMES]
     assert hw.p_on == 0.5
-    assert {k: v for k, v in hw.params.items() if k != "drop_pct"} == {k: v for k, v in HW.items() if k != "drop_pct"}
+    assert {k: v for k, v in hw.params.items() if k != "drop_pct"} == SHIPPED
     assert (hw.params["drop_pct"].lo, hw.params["drop_pct"].hi) == (0.0, 2.0)
     quiet = load_profile("quiet").models
     # quiet is calibrated against quiet wall runs: hw's camera with no drops and no line-rate limit.
-    assert quiet[CAMERA_FRAMES].p_on == 1.0 and dict(quiet[CAMERA_FRAMES].params) == {**HW, "drop_pct": 0.0}
+    assert quiet[CAMERA_FRAMES].p_on == 1.0 and dict(quiet[CAMERA_FRAMES].params) == {**SHIPPED, "drop_pct": 0.0}
     assert quiet["baud_limit"].p_on == 0.0
     stress = load_profile("stress").models[CAMERA_FRAMES]
     assert stress.p_on == 1.0 and stress.params["tail_latency_ticks"] == 12
