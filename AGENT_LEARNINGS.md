@@ -1550,3 +1550,30 @@
   alone they passed. Run the full suite with nothing heavy alongside.
 - At a 375 px viewport the main map is a 55x716 strip, so "canvas larger than 300x150" fails
   there by layout. Size criteria must name the layout's map box per size.
+
+## NAV reader lag: closest-approach tracker on the reader thread (todo 65 (b), 2026-10-27)
+- Cause found by comparing per-callback wall time in NAV against the seconds before NAV
+  in one bounded trace (reader recv/select/decode/dispatch, callbacks by name, worker,
+  GC). The sim-only dock contact callback went from 24 ms to 1454 ms per window; nothing
+  else changed that much. Trace the phase that fails against the phase that does not.
+- The same cause was fixed on 2026-10-13 (todo 34); a later feature (the closest-approach
+  tracker) reintroduced it while its docstring still said "cheap unless near the dock".
+  Guard per-sample reader-thread cost with a test that counts the expensive calls, not a
+  comment.
+- py-spy --gil gave 580-742 sample errors per 4 s on these processes, so it cannot measure
+  GIL occupancy. Per-thread CPU from QueryThreadCycleTime (`.logs/t31/thread_cycles.py`)
+  worked.
+- Isolated microbenchmarks understated the cost: pymap3d took 163 us alone but about
+  1.3 ms per call in NAV, where threads already sum to more than one core. Measure cost
+  inside the loaded process.
+- Driving the hand demo from the built-in browser: POST
+  `/api/vehicles/discover?device=udp:0.0.0.0:15550&timeout=3`, then Retry; inject the plan
+  file by overriding `HTMLInputElement.prototype.click` once; HOLD TO LAUNCH needs a JS
+  mousedown, 1.6 s wait, mouseup. Tools: `.logs/nav-reader-lag/tools`.
+- An unfixed comparison run may fail differently: here the NAV phases lasted 2.9 s wall
+  and ended (one `DOCKED`, one `no_detection`) before a catch-up burst could trip
+  `source_command_stale`. Compare the measured mechanism (reader busy share, lag), not
+  only the end state.
+- `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
+  in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
+  and check line endings with `file` after any scripted edit.
