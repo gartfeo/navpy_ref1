@@ -1569,7 +1569,12 @@
 - Driving the hand demo from the built-in browser: POST
   `/api/vehicles/discover?device=udp:0.0.0.0:15550&timeout=3`, then Retry; inject the plan
   file by overriding `HTMLInputElement.prototype.click` once; HOLD TO LAUNCH needs a JS
-  mousedown, 1.6 s wait, mouseup. Tools: `.logs/nav-reader-lag/tools`.
+  mousedown, 1.6 s wait, mouseup. Click APPROVE by its find() ref: a coordinate click
+  on the confirm card missed once and the request timed out (REJECTED, re-asked).
+  Tools: `.logs/nav-reader-lag/tools`.
+- Reader lag needs no diagnostic code: the demo's source-time CSVs log every ATTITUDE
+  arrival at NavPy and at the GCS (wall_s, boot_ms), so NavPy minus GCS for the same
+  boot_ms is the reader's lag (`tools/arrival_lag.py`). It matched the trace.
 - An unfixed comparison run may fail differently: here the NAV phases lasted 2.9 s wall
   and ended (one `DOCKED`, one `no_detection`) before a catch-up burst could trip
   `source_command_stale`. Compare the measured mechanism (reader busy share, lag), not
