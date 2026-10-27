@@ -1475,7 +1475,8 @@
 - A mutation script counted "no tests ran" (pytest exit 5, after I renamed tests) as a kill.
   Count a kill only on exit 1, and refresh the test ids after every rename.
 - A Python replacement string written in a bash heredoc turned an escaped newline into a
-  real one, twice. Edit source with the Edit tool, or build the backslash with chr(92).
+  real one, twice. Edit source with the Edit tool, or build the backslash with chr(92). It happened again in step 5
+  (a nested heredoc and a sed edit of a mutation list): read this file before scripting edits.
 - Measure a model's natural demand before trusting its range. The design's stress CPU budget
   (50-200 handoffs per tick) never bound: a NavPy takes about 9 per tick. A temporary per-tick
   count in a scratch worktree showed it; a participant's environment is hermetic, so such a
@@ -1550,6 +1551,27 @@
   alone they passed. Run the full suite with nothing heavy alongside.
 - At a 375 px viewport the main map is a 55x716 strip, so "canvas larger than 300x150" fails
   there by layout. Size criteria must name the layout's map box per size.
+
+## Dev sim step 5: camera latency and frame drops (2026-10-26)
+
+- A guard checked twice survives a mutation of one check. The frame generation is checked at
+  reserve and at commit, so swapping it in one place still rejected stale frames. Mutate the
+  input both checks read (the frame's generation), not one of the checks.
+- A mutation nobody can kill can mean dead code, not a weak test: "keep FIFO by raising the due
+  time" survived because the loop only ever publishes and waits on the queue head. Remove such
+  code instead of writing a test for it.
+- To find which model moves a calibration, rerun the same seed with only the new model off.
+  `p_on` 0 moves the switch but no other draw, so the rest of the run stays the same: quiet seed 3
+  with the camera off still lost coverage, which pointed at the line rate, not the camera.
+- A SimpleNamespace stand-in for an options dataclass breaks when the dataclass gains a field;
+  grep the tests for the stand-in (`SimpleNamespace(ideal_360=`) when adding one.
+- Check a range proof per sample before writing "Passed". I marked step 5 passed from summary
+  ranges; Codex showed three of fifteen UAVs and the SNAP maximum outside the wall range. List
+  each run against the range and write the step as open when any one is outside.
+- Fit a sim model to its source's own distributions, not only to a few end-to-end ranges. The
+  per-frame latency draw matched the wall runs' cadence by chance, but published 22 % of
+  intervals over 62.5 ms where the ZR10 report has 0.32 %. Before fitting, check what the
+  reference itself measured: the wall runs had no camera latency, so they could not judge one.
 
 ## NAV reader lag: closest-approach tracker on the reader thread (todo 65 (b), 2026-10-27)
 - Cause found by comparing per-callback wall time in NAV against the seconds before NAV

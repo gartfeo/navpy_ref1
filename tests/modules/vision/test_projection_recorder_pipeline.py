@@ -80,11 +80,21 @@ def test_execution_composition_wires_owned_recorder_close_without_starting_worke
                              polling_reader=Mock(),poll_timer=None)
     render = SimpleNamespace(poi_provider=Mock(),capture=Mock(),gap=Mock(),tracking=Mock(),
                              ideal_camera=Mock(),evidence_recorder=recorder)
-    graph = build_execution_graph(deps, SimpleNamespace(ideal_360=False),source,render,Mock())
+    graph = build_execution_graph(deps, SimpleNamespace(ideal_360=False,camera_frames=None),source,render,Mock())
     assert graph.lifecycle.stop() is True
     assert file.status['complete']
     assert graph.lifecycle.stop() is True
 
+
+def test_execution_composition_refuses_the_recorder_with_the_camera_model(tmp_path):
+    recorder = ProjectionRunRecorder(RunEvidenceFile(tmp_path,'camera',3,EvidenceBudget(2,10_000)))
+    deps = SimpleNamespace(vehicle=Mock(), mount=Mock(), logger=Mock(), scheduler_cadence=Mock())
+    source = SimpleNamespace(coordinator=Mock(),pose_source=Mock(),activation=Mock(),record_outcome=Mock(),
+                             polling_reader=Mock(),poll_timer=None)
+    render = SimpleNamespace(poi_provider=Mock(),capture=Mock(),gap=Mock(),tracking=Mock(),
+                             ideal_camera=Mock(),evidence_recorder=recorder)
+    with pytest.raises(ValueError, match='NAVPY_SIM_PROJECTION_RECORDER'):
+        build_execution_graph(deps, SimpleNamespace(ideal_360=False,camera_frames=Mock()),source,render,Mock())
 
 def test_configured_factory_opens_once_and_default_ideal_does_no_io(tmp_path, monkeypatch):
     monkeypatch.setenv('NAVPY_SIM_PROJECTION_RECORDER','1')

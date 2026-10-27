@@ -45,10 +45,12 @@ class _Composition:
         self.cleanup_fails = cleanup_fails
         self.compose_fails = compose_fails
         self.args = None
+        self.ports = None
         self.cleaned = False
 
     def __call__(self, args, ports) -> RuntimeSession:
         self.args = args
+        self.ports = ports
         if self.compose_fails:
             raise RuntimeError("Vehicle 1 is not broadcasting heartbeats.")
         stack = RuntimeResourceStack()
@@ -75,7 +77,8 @@ def make_loop(monkeypatch):
     monkeypatch.setattr(logger_factory, "_run_log_dir", None)
     monkeypatch.setattr(pose_cadence_debug, "ENABLED", False)
 
-    def make(composition: _Composition, argv: list[str] | None = None) -> tuple[ParticipantLoop, NavpyHooks]:
+    def make(composition: _Composition, argv: list[str] | None = None,
+             camera_frames=None) -> tuple[ParticipantLoop, NavpyHooks]:
         baton = BatonRuntime()
         runtime = LockstepRuntime.create(baton, epoch_us=0, seed=1, ordinal=1)
         binding = rt.RuntimeBinding()
@@ -85,7 +88,7 @@ def make_loop(monkeypatch):
         participant = Participant(runtime, LockstepIdentity(1, 1), uninstalls=())
         argv = lockstep_navpy_argv(1, SERIAL0) if argv is None else argv
         hooks = NavpyHooks(ParticipantContext(participant, {DEVICE_KEY: SERIAL0, "argv": argv},
-                                              RequestIds(1)))
+                                              RequestIds(1), camera_frames))
         return ParticipantLoop(participant, hooks, link=None), hooks
 
     return make
@@ -122,6 +125,15 @@ def test_a_lifecycle_stop_ends_with_the_ack_and_a_flushed_done(make_loop):
     assert events[1:] == [(4, "stopped", {"id": list(STOP_ID)})]
     assert dones[-1].k == 4 and dones[-1].ended is True and not dones[-1].faults
     assert composition.cleaned and hooks.exit_code(True) == 0
+    assert composition.ports.camera_frames is None  # the camera model off
+
+
+def test_the_sim_camera_schedules_reach_the_runtime_ports(make_loop):
+    composition = _Composition()
+    camera_frames = lambda _mount_index: None  # noqa: E731
+    loop, _hooks = make_loop(composition, camera_frames=camera_frames)
+    _run(loop, {4: _stop(4)})
+    assert composition.ports.camera_frames is camera_frames
 
 
 def test_a_cleanup_failure_sends_no_ack_and_ends_unflushed(make_loop):

@@ -22,6 +22,7 @@ from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
 from navpy.app.perception.vision_controller_ports import VisionControllerPorts
+from navpy.sim.detection.camera_frame_ports import CameraFrameFactoryPort
 from navpy.sim.debug_view.vision_debug_hud import SimTrackerHudRenderer
 from navpy.sim.debug_view.vision_debug_panel import SimPanelRenderer
 from navpy.sim.debug_view.vision_debug_pois import SimPoiOverlayRenderer
@@ -48,7 +49,9 @@ def build_vision_controller(
     zc_util: ZcUtil | None,
     scheduler_cadence: SchedulerCadence | None,
     siyi_fence: SiyiCommandFence | None = None,
+    camera_frames: CameraFrameFactoryPort | None = None,
 ) -> VisionControllerPorts:
+    """``camera_frames``: the sim camera's latency and drops (a lockstep run only)."""
     profile = build_vision_profile(
         vision_args.profile_name,
         vehicle,
@@ -61,6 +64,11 @@ def build_vision_controller(
     try:
         factory: VisionDetectorFactory
         if vision_args.detector_type == "real":
+            if camera_frames is not None:
+                raise ValueError(
+                    "camera_frames models the sim camera and cannot be "
+                    "used with --detector-type=real"
+                )
             if bool(profile.detector_settings.get("ideal_360", False)):
                 raise ValueError(
                     "ideal_360 is a simulator-only sensor and cannot be "
@@ -91,6 +99,7 @@ def build_vision_controller(
                 profile.profile,
                 zc_util,
                 scheduler_cadence,
+                camera_frames,
             )
         nodes = build_detector_nodes(
             factory,

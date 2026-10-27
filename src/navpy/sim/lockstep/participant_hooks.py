@@ -21,6 +21,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from navpy.sim.lockstep.camera_frames import CameraFrameFactory
 from navpy.sim.lockstep.part_wire import (
     Event,
     Lifecycle,
@@ -100,6 +101,8 @@ class ParticipantContext:
     #: The product's run inputs from the environment record (JSON).
     config: Mapping[str, Any]
     ids: RequestIds
+    #: The sim camera's frame schedules (``camera_frames``), or None while that model is off.
+    camera_frames: CameraFrameFactory | None = None
 
     @property
     def device(self) -> str:

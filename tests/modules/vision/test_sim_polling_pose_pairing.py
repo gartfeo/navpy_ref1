@@ -605,10 +605,37 @@ def test_execution_composition_wires_pairing_collaborators() -> None:
         "navpy.sim.detection.sim_execution_composition.SimDetectorWorker"
     ) as worker_type:
         build_execution_graph(
-            deps, SimpleNamespace(ideal_360=False), source, render, Mock(),
+            deps, SimpleNamespace(ideal_360=False, camera_frames=None), source, render, Mock(),
         )
 
     kwargs = worker_type.call_args.kwargs
     assert kwargs["polling_pose_reader"] is source.polling_reader
     assert kwargs["advance_source_time"] is source.pose_source.advance_source_now
     assert isinstance(kwargs["unpaired_pose_monitor"], UnpairedPoseMonitor)
+    assert kwargs["camera"] is None
+
+
+def test_execution_composition_gives_the_worker_the_camera_schedule_and_capture() -> None:
+    from navpy.sim.detection.sim_camera_loop import SimCamera
+    from navpy.sim.detection.sim_execution_composition import build_execution_graph
+
+    deps = SimpleNamespace(
+        vehicle=Mock(), mount=Mock(), logger=Mock(), scheduler_cadence=Mock(),
+    )
+    source = SimpleNamespace(
+        coordinator=Mock(), pose_source=Mock(), activation=Mock(),
+        record_outcome=Mock(), polling_reader=Mock(), poll_timer=None,
+    )
+    render = SimpleNamespace(
+        poi_provider=Mock(), capture=Mock(), gap=Mock(), tracking=Mock(),
+        ideal_camera=Mock(), evidence_recorder=None,
+    )
+    schedule, pipeline = Mock(), Mock()
+    with patch(
+        "navpy.sim.detection.sim_execution_composition.SimDetectorWorker"
+    ) as worker_type:
+        build_execution_graph(
+            deps, SimpleNamespace(ideal_360=False, camera_frames=schedule), source, render, pipeline,
+        )
+
+    assert worker_type.call_args.kwargs["camera"] == SimCamera(schedule, pipeline.capture_frame)

@@ -145,17 +145,19 @@ def test_lockstep_refuses_an_unknown_sim_profile_before_the_run_directory(tmp_pa
 def test_the_sim_profile_reaches_the_coordinators_manifest_only_as_navpy_participant_models():
     """The journal digest comes from the Manifest's grid and the run's bytes; a profile's
     SITL and radio models leave both as they were (step 1 keeps the digest). Its on
-    participant models (step 4) go into each NavPy role's config, and nowhere else."""
+    participant models (steps 4 and 5) go into each NavPy role's config, and nowhere else."""
     import dataclasses
 
     from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY, participant_models
 
     none = dataclasses.replace(OPTIONS, sim_profile="none")
-    assert participant_models(lockstep_eval.sim_realization(OPTIONS)) == {}  # hw seed 1: freeze off
-    assert manifest(SLICE, none) == manifest(SLICE, OPTIONS)
+    # hw seed 1: freeze off, the camera on.
+    assert set(participant_models(lockstep_eval.sim_realization(OPTIONS))) == {"camera_frames"}
+    plain_slice, hw_slice = manifest(SLICE, none), manifest(SLICE, OPTIONS)
+    assert hw_slice != plain_slice and dataclasses.replace(hw_slice, roles=plain_slice.roles) == plain_slice
     stress = dataclasses.replace(OPTIONS, sim_profile="stress")
     models = participant_models(lockstep_eval.sim_realization(stress))
-    assert set(models) == {"cpu_budget", "process_freeze"} and models["cpu_budget"] == {"handoffs": 6}
+    assert set(models) == {"camera_frames", "cpu_budget", "process_freeze"} and models["cpu_budget"] == {"handoffs": 6}
     plain, stressed = manifest(CERTIFIED, none), manifest(CERTIFIED, stress)
     assert dataclasses.replace(stressed, roles=plain.roles) == plain
     assert list(stressed.roles) == list(plain.roles)
@@ -331,13 +333,16 @@ def test_a_failed_lockstep_report_names_no_host_path(tmp_path, monkeypatch):
 
 def test_the_slice_manifest_is_unchanged_by_the_fleet_wiring():
     """10g-3: the manifest comes from the scenario's layout; for the slice it
-    is the 1-UAV manifest built from the slice actor's constants (digest kept)."""
+    is the 1-UAV manifest built from the slice actor's constants (digest kept).
+    With every model off: a profile's participant models add a role config key."""
+    import dataclasses
     from navpy.sim.lockstep.coordinator_types import Manifest
     from scripts.lockstep_slice_actor import BACKEND, ROUTER, SITL_PORTS, slice_roles
     from scripts.lockstep_slice_actor import SLICE as SLICE_LAYOUT
     from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 
-    assert manifest(SLICE, OPTIONS) == Manifest(
+    none = dataclasses.replace(OPTIONS, sim_profile="none")
+    assert manifest(SLICE, none) == Manifest(
         seed=OPTIONS.seed, epoch_us=lockstep_eval.EPOCH_US, max_frame_gap_us=MAX_FRAME_GAP_US,
         drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(lockstep_eval.MISSION_BUDGET_S * 1_000_000),
         roles=slice_roles(SLICE, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR),
