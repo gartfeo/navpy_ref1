@@ -1480,3 +1480,7 @@
 - Check a range proof per sample before writing "Passed". I marked step 5 passed from summary
   ranges; Codex showed three of fifteen UAVs and the SNAP maximum outside the wall range. List
   each run against the range and write the step as open when any one is outside.
+- Fit a sim model to its source's own distributions, not only to a few end-to-end ranges. The
+  per-frame latency draw matched the wall runs' cadence by chance, but published 22 % of
+  intervals over 62.5 ms where the ZR10 report has 0.32 %. Before fitting, check what the
+  reference itself measured: the wall runs had no camera latency, so they could not judge one.

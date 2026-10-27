@@ -68,8 +68,10 @@ def test_the_publication_intervals_match_the_zr10_report():
     assert statistics.median(intervals) == pytest.approx(40.0)
     assert ranked[int(0.95 * len(ranked))] == pytest.approx(40.0)
     assert ranked[int(0.99 * len(ranked))] == pytest.approx(60.0)
-    assert 0.001 < sum(i < 20.0 for i in intervals) / len(intervals) < 0.01
-    assert 0.001 < sum(i > 62.5 for i in intervals) / len(intervals) < 0.01
+    # The report counts only 32 and 23 such intervals, so each share is known to about +-35 % (two sigma);
+    # the sim must stay within a factor of two of each.
+    assert 0.0044 / 2 < sum(i < 20.0 for i in intervals) / len(intervals) < 0.0044 * 2
+    assert 0.0032 / 2 < sum(i > 62.5 for i in intervals) / len(intervals) < 0.0032 * 2
 
 
 def test_the_event_latency_matches_the_zr10_report():
@@ -87,7 +89,7 @@ def test_the_event_latency_matches_the_zr10_report():
             captured, previous_gap = captured + draw.gap_ticks, draw.gap_ticks
     ranked = sorted(latencies)
     assert abs(statistics.median(latencies) - 99.8) < 5.0
-    assert ranked[int(0.99 * len(ranked))] < 121.5 + TICK_S * 1000.0  # within one tick of the report's p99
+    assert abs(ranked[int(0.99 * len(ranked))] - 121.5) < TICK_S * 1000.0  # within one tick of the report's p99
 
 
 def test_a_camera_draws_its_latency_first_then_drop_tail_latency_then_gap_per_slot():
