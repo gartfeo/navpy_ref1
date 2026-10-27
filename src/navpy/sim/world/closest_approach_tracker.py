@@ -47,8 +47,9 @@ _STILL_CLOSING_TOLERANCE_M = 1e-6
 # within the flat-earth bounds of the nearest one stay candidates: one to three
 # on a pass. A path that holds its range to the dock within those bounds (an
 # orbit) keeps adding them; past this many the oldest is resolved at once, so
-# the reader thread never does more than one exact computation per sample,
-# and the record resolves at most this many.
+# the tracker never runs more than one exact computation per sample (the
+# contact test runs its own, only within reach of the net), and the record
+# resolves at most this many.
 CLOSEST_APPROACH_MAX_CANDIDATES = 16
 
 

@@ -52,14 +52,18 @@ While armed, the sensor keeps the episode's best segment by **exact** distance:
   and drops the rest. So no segment that could be the exact minimum is
   skipped. The record resolves the kept candidates with the exact geodetic
   closest point at disarm, off the telemetry thread.
-- The sensor samples on the telemetry reader thread, so a sample costs only
-  flat-frame work there. (Until 2026-10-27 the exact closest point ran for
+- The sensor samples on the telemetry reader thread; there the tracker adds
+  only flat-frame work per sample. (Until 2026-10-27 the exact closest point ran for
   every segment that could beat the kept minimum: every sample while closing,
   at any range. In NAV at 10x that pymap3d work made the reader fall behind
   SITL, todo 65.) A pass keeps one to three candidates. A path that holds its
   range within the bounds (an orbit) keeps adding them; past
   `CLOSEST_APPROACH_MAX_CANDIDATES` (16) the oldest is resolved at once, so
-  the reader does at most one exact computation per sample.
+  the tracker does at most one exact computation per sample. The contact
+  test adds its own only within reach of the net ("What exists today").
+- The bound includes the height scale: the flat frame uses the ellipsoid's
+  surface radii, so at height h a horizontal distance is off by up to
+  |h| / R. Without that term an elevated dock could drop the true minimum.
 - The contact segment is kept separately, as today.
 
 **Outcome comes from the lifecycle, not the sensor.** `FinalApproachDockContact`

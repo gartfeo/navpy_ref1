@@ -1574,6 +1574,11 @@
   and ended (one `DOCKED`, one `no_detection`) before a catch-up burst could trip
   `source_command_stale`. Compare the measured mechanism (reader busy share, lag), not
   only the end state.
+- Codex found that the flat-earth bound ignored height (the flat frame uses surface
+  radii): at 3000 m it failed at 4 m reach, and the upper bound the fix used for
+  pruning could drop the true minimum at an elevated dock. The existing random check
+  ran at one height (300 m) and passed. Check a geometric bound over the whole range of
+  every input (latitude, height, scale, still segments), in both directions.
 - `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
   in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
   and check line endings with `file` after any scripted edit.
