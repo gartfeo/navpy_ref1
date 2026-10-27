@@ -190,6 +190,74 @@ def test_a_segment_flat_farther_but_exactly_nearer_is_still_kept(monkeypatch):
     assert reports[0].d3_m == pytest.approx(exact_near, abs=1e-9)
 
 
+def _count_exact_geometry(monkeypatch):
+    """Count the tracker's and sensor's exact geodetic computations."""
+    from navpy.sim.world import closest_approach_tracker as module
+
+    calls = []
+
+    def counted(*args):
+        calls.append(args)
+        return closest_point_components_on_segment(*args)
+
+    monkeypatch.setattr(module, "closest_point_components_on_segment", counted)
+    return calls
+
+
+def _exact_minimum(points):
+    locations = [_at(*point) for point in points]
+    return min(
+        closest_point_components_on_segment(a, b, _at(0.0)).slant
+        for a, b in zip(locations, locations[1:])
+    )
+
+
+def test_a_long_approach_runs_no_exact_geometry_on_the_reader_thread(monkeypatch):
+    """The sensor samples on the telemetry reader thread. Closing on the dock
+    from 500 m sets a new minimum every sample; that must cost only flat
+    bounds there (an exact pass per sample starved the reader in NAV), and
+    the record still resolves the exact minimum at disarm."""
+    calls = _count_exact_geometry(monkeypatch)
+    points = [(-500.0 + i * 0.625, 20.0, 5.0) for i in range(840)]
+    sensor, reports, events = _sensor()
+    _fly(sensor, points)
+    assert calls == [] and events == []
+
+    sensor.disarm(FAILED)
+
+    assert len(calls) <= 3  # the few candidates around the closest point
+    assert reports[0].d3_m == pytest.approx(_exact_minimum(points), abs=1e-9)
+
+
+def test_an_orbit_at_constant_range_resolves_at_most_one_segment_per_sample(
+    monkeypatch,
+):
+    """Segments equally near in the flat frame (an orbit) all stay
+    candidates; past the cap the oldest resolves, one per sample."""
+    from navpy.sim.world import dock_contact_sensor as module
+    from navpy.sim.world.closest_approach_tracker import CLOSEST_APPROACH_MAX_CANDIDATES
+
+    monkeypatch.setattr(module, "_flat_distance", lambda _previous, _current: (30.0, 1e-3))
+    calls = _count_exact_geometry(monkeypatch)
+    step = 0.625 / 30.0
+    points = [
+        (30.0 * math.cos(i * step), 30.0 * math.sin(i * step), 0.0)
+        for i in range(3 * CLOSEST_APPROACH_MAX_CANDIDATES)
+    ]
+    sensor, reports, _ = _sensor()
+    for index, point in enumerate(points):
+        before = len(calls)
+        _fly(sensor, [point], t0=10.0 + index * DT)
+        assert len(calls) - before <= 1
+    assert 0 < len(calls) <= len(points)
+
+    calls.clear()
+    sensor.disarm()
+
+    assert len(calls) <= CLOSEST_APPROACH_MAX_CANDIDATES
+    assert reports[0].d3_m == pytest.approx(_exact_minimum(points), abs=1e-9)
+
+
 def test_docked_reports_the_contact_segment_matching_the_docked_event():
     sensor, reports, events = _sensor()
     _fly(sensor, _line(east_m=0.2))
