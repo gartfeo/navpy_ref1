@@ -9,8 +9,9 @@ time: :meth:`BatonRuntime.tick` sets ``t_k``, delivers inputs, runs to
 quiescence and then fires due timers, within its handoff cap if it has one
 (``participant_budget``: the rest waits, runnable or due, for the next tick).
 
-Order is deterministic: runnable threads run first-in first-out, timers fire
-in ``(due, park seq)`` order, and since only one thread runs at a time every
+Order is deterministic: runnable threads run first-in first-out, or in a
+seeded order (``scheduling_models``, dev sim step 6), timers fire in
+``(due, park seq)`` order, and since only one thread runs at a time every
 wake-up order follows. Primitive state needs no OS lock: nothing else runs
 while the baton holder (or the coordinator, between handoffs) touches it.
 
@@ -24,6 +25,8 @@ never wakes early, and a product deadline that float drift puts just after
 from __future__ import annotations
 
 import contextvars
+import math
+import random
 import threading
 import time
 from collections import deque
@@ -31,7 +34,7 @@ from collections.abc import Callable
 from typing import NoReturn
 
 from navpy.sim.lockstep import cancel_scope
-from navpy.sim.lockstep.baton_parts import ManagedThread, ThreadTable, TimerHeap
+from navpy.sim.lockstep.baton_parts import ManagedThread, ReaderBudget, ThreadTable, TimerHeap
 
 
 #: Rounds of "fire due timers, run to quiescence" one tick may take. Only a
@@ -89,6 +92,13 @@ class BatonRuntime:
         self.starting: threading.Thread | None = None
         self.threads = ThreadTable()
         self.timers = TimerHeap()
+        #: Dev sim step 6 (``scheduling_models``), set before the first tick. ``order``: the
+        #: stream that picks the next runnable thread (None: first-in first-out).
+        self.order: random.Random | None = None
+        #: Fire a tick's due timers before its inputs (False: inputs first).
+        self.timers_first = False
+        #: Each lockstep bus reader's service budget (None: one packet, then a yield).
+        self.reader_budget: ReaderBudget | None = None
 
     # -- time ---------------------------------------------------------------
     @property
@@ -109,19 +119,21 @@ class BatonRuntime:
 
     def tick(self, now_us: int, deliver: Callable[[], None] | None = None, *,
              deadline: float | None = None, handoffs: int | None = None) -> int:
-        """One tick in contract order: time, inputs to quiescence, then timers. Returns its handoffs."""
+        """One tick in contract order: time, inputs to quiescence, then timers (with
+        ``timers_first``, due timers first as well). Returns its handoffs."""
         self.require_coordinator()
         if now_us < self._now_us:
             self.fail(f"time went back: {now_us} < {self._now_us}")
         self._now_us = int(now_us)
+        steps = self.settle_timers(deadline, handoffs) if self.timers_first else 0
         self._in_timer_phase = False
         try:
             if deliver is not None:
                 deliver()
-            steps = self.run_until_quiescent(deadline, handoffs)
+            steps += self.run_until_quiescent(deadline, _left(handoffs, steps))
         finally:
             self._in_timer_phase = True
-        return steps + self.settle_timers(deadline, None if handoffs is None else handoffs - steps)
+        return steps + self.settle_timers(deadline, _left(handoffs, steps))
 
     def settle_timers(self, deadline: float | None = None, handoffs: int | None = None) -> int:
         """Fire due timers and run to quiescence until nothing is due now or the ``handoffs``
@@ -132,7 +144,7 @@ class BatonRuntime:
                 return steps
             for thread in self.timers.pop_due(self.monotonic()):
                 self.wake(thread)
-            steps += self.run_until_quiescent(deadline, None if handoffs is None else handoffs - steps)
+            steps += self.run_until_quiescent(deadline, _left(handoffs, steps))
         self.fail(f"timers still due after {MAX_TIMER_ROUNDS_PER_TICK} rounds")
 
     def fail(self, message: str) -> NoReturn:
@@ -185,7 +197,7 @@ class BatonRuntime:
         self._scheduling = True
         steps = 0
         while self.runnable and steps != handoffs:
-            thread = self.runnable.popleft()
+            thread = self._next_runnable()
             self._current = thread
             self.threads.switches += 1
             steps += 1
@@ -204,6 +216,16 @@ class BatonRuntime:
                 raise self._fault or self.threads.errors.pop(0)
         self._scheduling = False
         return steps
+
+    def _next_runnable(self) -> ManagedThread:
+        """The head of the runnable queue, or a seeded pick among two or more."""
+        count = len(self.runnable)
+        if self.order is None or count == 1:
+            return self.runnable.popleft()
+        index = min(count - 1, math.floor(self.order.random() * count))
+        thread = self.runnable[index]
+        del self.runnable[index]
+        return thread
 
     def abort(self) -> None:
         """Unwind every parked thread (each gets ``LockstepAborted``)."""
@@ -271,6 +293,10 @@ class BatonRuntime:
             raise self._fault  # a latched fault ends the run; only abort remains
 
 
+def _left(handoffs: int | None, steps: int) -> int | None:
+    return None if handoffs is None else handoffs - steps
+
+
 def audit(runtime: BatonRuntime, baseline: set[threading.Thread]) -> None:
     """Every live OS thread is either pre-existing or managed."""
     stray = runtime.threads.stray(baseline)
@@ -293,6 +319,7 @@ __all__ = [
     "LockstepFault",
     "MAX_TIMER_ROUNDS_PER_TICK",
     "ManagedThread",
+    "ReaderBudget",
     "ThreadTable",
     "TimerHeap",
     "audit",

@@ -11,6 +11,9 @@ the reader's ``_dispatch`` fans out. Only the edges change:
   persistent :class:`StreamDecoder` and dispatches in byte order, yielding
   after each packet (the wall reader yields once per bounded batch,
   ``docs/design/reader_batch.md``; lockstep keeps the per-packet baton point).
+  With the baton's ``reader_budget`` (dev sim step 6) it dispatches at most
+  ``packets_per_tick`` per tick, yields once per ``batch``, and carries the
+  rest over, in order, to the next tick.
 - **Outbound:** :class:`LockstepConnection` is the encoder (a ``MAVLink`` on
   the link's byte sink, with the product's source ids) plus ``mode_mapping``;
   the link drains the sink into ``DONE``.
@@ -20,6 +23,7 @@ the reader's ``_dispatch`` fans out. Only the edges change:
 from __future__ import annotations
 
 import logging
+from collections import deque
 from collections.abc import Callable
 
 from pymavlink import mavutil
@@ -31,12 +35,43 @@ from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
 from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusLifecycle
 from navpy.plugins.vehicle.ardupilot.mav_bus_membership import MavBusMembership
 from navpy.plugins.vehicle.ardupilot.mav_bus_reader import MavBusReader
-from navpy.sim.lockstep.baton import BatonRuntime
+from navpy.sim.lockstep.baton import BatonRuntime, ReaderBudget
 from navpy.sim.lockstep.baton_queue import BatonQueue
-from navpy.sim.lockstep.baton_sync import yield_now
+from navpy.sim.lockstep.baton_sync import sleep, yield_now
 from navpy.sim.lockstep.mavlink_wire import ByteSink, StreamDecoder, encoder
 
 log = logging.getLogger(__name__)
+
+#: A wait that is due at the next tick: any positive wait is (ticks are about 20 ms).
+NEXT_TICK_S = 1e-6
+
+
+class ReaderService:
+    """When a lockstep reader yields: after each packet, or by its ``ReaderBudget``."""
+
+    def __init__(self, baton: BatonRuntime, budget: ReaderBudget | None) -> None:
+        self._baton = baton
+        self._budget = budget
+        self._tick_us: int | None = None
+        self._served = 0
+
+    def before_packet(self) -> None:
+        """Wait for the next tick once this tick's packets are served."""
+        if self._budget is None:
+            return
+        if self._baton.now_us != self._tick_us:
+            self._tick_us, self._served = self._baton.now_us, 0
+        if self._served == self._budget.packets_per_tick:
+            sleep(self._baton, NEXT_TICK_S)
+            self._tick_us, self._served = self._baton.now_us, 0
+
+    def after_packet(self) -> None:
+        if self._budget is None:
+            yield_now(self._baton)
+            return
+        self._served += 1
+        if self._served % self._budget.batch == 0:
+            yield_now(self._baton)
 
 class LockstepConnection:
     """What composition uses of a ``mavfile``: ``mav`` and ``mode_mapping``."""
@@ -81,14 +116,15 @@ class LockstepBusReader(MavBusReader):
         membership: MavBusMembership,
         heartbeats: MavBusHeartbeats,
         lifecycle: MavBusLifecycle,
-        cooperative_yield: Callable[[], None],
+        service: ReaderService,
     ) -> None:
         super().__init__(
             connection, device, membership, heartbeats, lifecycle.stop_event,
-            cooperative_yield=cooperative_yield, on_exit=lifecycle.reader_exited,
+            cooperative_yield=service.after_packet, on_exit=lifecycle.reader_exited,
         )
         self._inbound = inbound
         self._decoder = StreamDecoder()
+        self._service = service
 
     def join(self, timeout_s: float | None = None) -> bool:
         """Close sets the stop, then joins: wake a reader parked on input first."""
@@ -96,20 +132,26 @@ class LockstepBusReader(MavBusReader):
         return super().join(timeout_s)
 
     def _read_until_stopped(self) -> None:
+        pending: deque[mavlink.MAVLink_message] = deque()
         while not self._stop.is_set():
-            for message in self._decoder.feed(self._inbound.get()):
-                if self._stop.is_set():
-                    return
-                self._connection.observe(message)
-                try:
-                    self._dispatch(message)
-                except Exception:
-                    log.exception("MavBus %s reader error", self._device)
-                finally:
-                    # Per packet, unlike the wall reader's per-batch yield: a
-                    # woken consumer runs before the next packet at the same
-                    # tick, so a burst cannot evict the answer it waits for.
-                    self._cooperative_yield()
+            if not pending:
+                pending.extend(self._decoder.feed(self._inbound.get()))
+                continue
+            self._service.before_packet()
+            if self._stop.is_set():
+                return
+            message = pending.popleft()
+            self._connection.observe(message)
+            try:
+                self._dispatch(message)
+            except Exception:
+                log.exception("MavBus %s reader error", self._device)
+            finally:
+                # Per packet by default, unlike the wall reader's per-batch
+                # yield: with first-in first-out order a woken consumer runs
+                # before the next packet at the same tick, so a burst cannot
+                # evict the answer it waits for. A reader budget batches.
+                self._cooperative_yield()
 
 
 class LockstepBus:
@@ -131,7 +173,7 @@ class LockstepBus:
         self.lifecycle = MavBusLifecycle(connection, device, self._membership, unregister)
         reader = LockstepBusReader(
             self._inbound, connection, device, self._membership, self._heartbeats, self.lifecycle,
-            lambda: yield_now(baton),
+            ReaderService(baton, baton.reader_budget),
         )
         self.lifecycle.bind_reader(reader)
         reader.start()
@@ -182,4 +224,4 @@ class LockstepBus:
         self._inbound.deliver(data)
 
 
-__all__ = ["LockstepBus", "LockstepBusReader", "LockstepConnection"]
+__all__ = ["LockstepBus", "LockstepBusReader", "LockstepConnection", "NEXT_TICK_S", "ReaderService"]

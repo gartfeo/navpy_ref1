@@ -72,6 +72,16 @@ class ThreadTable:
         ]
 
 
+@dataclass(frozen=True)
+class ReaderBudget:
+    """A lockstep bus reader's service budget (dev sim step 6, ``scheduling_models``)."""
+
+    #: Packets dispatched per tick at most; the rest carry over to the next tick.
+    packets_per_tick: int
+    #: Packets dispatched between two yields.
+    batch: int
+
+
 class TimerHeap:
     """Timers in ``(due seconds, park seq)`` order; stale entries are skipped."""
 
@@ -101,4 +111,4 @@ class TimerHeap:
         return thread.park_token == token and thread.parked_on is not None
 
 
-__all__ = ["ManagedThread", "ThreadTable", "TimerHeap"]
+__all__ = ["ManagedThread", "ReaderBudget", "ThreadTable", "TimerHeap"]
