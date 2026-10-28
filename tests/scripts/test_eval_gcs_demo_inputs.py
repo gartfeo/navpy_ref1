@@ -38,8 +38,10 @@ def test_merge_rejects_values_that_are_not_finite_numbers(bad):
 def test_overrides_state_flown_values_but_no_calibration_or_lua_params():
     overrides = sitl_root.SITL_DEFAULT_OVERRIDES
     assert overrides["ROLL_LIMIT_DEG"] == FINAL_APPROACH_ROLL_LIMIT_DEG
-    # The companion link: a fresh eeprom would stream almost nothing on serial0.
-    assert overrides["SR0_EXTRA1"] == 4.0 and overrides["SR0_POSITION"] == 2.0
+    # The companion link: a fresh eeprom would stream almost nothing on serial0,
+    # and NavPy reads none of EXTRA1 and RAW_SENS (it requests ATTITUDE itself).
+    assert overrides["SR0_POSITION"] == 2.0
+    assert overrides["SR0_EXTRA1"] == 0.0 and overrides["SR0_RAW_SENS"] == 0.0
     # The command bounds read these from the vehicle.
     assert {"PTCH_LIM_MIN_DEG", "PTCH_LIM_MAX_DEG", "TRIM_THROTTLE"} <= set(overrides)
     forbidden = ("AAS_", "STAT_", "INS_", "BARO", "AHRS_TRIM", "ARSPD_OFFSET",
