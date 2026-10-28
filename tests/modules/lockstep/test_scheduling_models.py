@@ -191,6 +191,10 @@ def test_a_reader_budget_serves_its_packets_per_tick_in_batches_and_carries_the_
     assert Counter(tick for tick, _index in received) == {1: 12, 2: 12, 3: 6}
     # A woken consumer runs only at the reader's yields: after each batch, and at each tick's end.
     assert seen == [5, 10, 12, 17, 22, 24, 29, 30]
+    # A batch above the tick's packets yields only at the tick's end.
+    received, seen = _served(ReaderBudget(packets_per_tick=4, batch=8), 10, 4)
+    assert Counter(tick for tick, _index in received) == {1: 4, 2: 4, 3: 2}
+    assert seen == [4, 8, 10]
 
 
 def _burst_read(budget: ReaderBudget | None) -> list[str]:
@@ -233,7 +237,8 @@ def test_profiles_draw_the_scheduling_models_in_their_ranges():
     assert all(draw.on for draw in stress)
     packets = [draw.params["packets_per_tick"] for draw in stress]
     batches = [draw.params["batch"] for draw in stress]
-    assert min(packets) >= 20 and max(packets) <= 200 and min(batches) == 1 and max(batches) == 16
+    # Calibrated from measured demand (section 2, "Reader budget calibration").
+    assert min(packets) == 4 and max(packets) == 16 and min(batches) == 1 and max(batches) == 8
     assert load_profile("none").models == {}
 
 
@@ -251,7 +256,7 @@ def test_apply_sets_only_the_on_models_and_refuses_a_bad_budget():
     assert (baton.order, baton.reader_budget, baton.timers_first) == (None, None, False)
     apply_scheduling(baton, {READER_BUDGET: {"packets_per_tick": 20, "batch": 4}}, 1, 1, 1)
     assert baton.reader_budget == ReaderBudget(20, 4) and baton.order is None
-    for bad in ({"packets_per_tick": 4, "batch": 5}, {"packets_per_tick": 0, "batch": 0},
+    for bad in ({"packets_per_tick": 4, "batch": 0}, {"packets_per_tick": 0, "batch": 1},
                 {"packets_per_tick": 20.0, "batch": 4}):
         with pytest.raises(ValueError):
             check_scheduling({READER_BUDGET: bad})

@@ -10,7 +10,8 @@ one participant's baton schedules, never what product code does:
   ``participant.<ordinal>.<generation>``, one per pick among two or more.
 - ``reader_budget``: each lockstep bus reader dispatches at most
   ``packets_per_tick`` packets per tick and yields once per ``batch`` packets
-  instead of after each one; packets past the budget carry over, in order, to
+  instead of after each one (a batch at or above ``packets_per_tick`` yields
+  only at the tick's end); packets past the budget carry over, in order, to
   the next tick (the wall reader's lag and batching, ``reader_batch.md``).
 - ``timers_first``: each tick fires its due timers before its inputs, so a
   reply that lands on its waiter's deadline tick loses to the timeout (the
@@ -45,11 +46,8 @@ def _count(params: Mapping[str, Number], name: str) -> int:
 
 
 def reader_budget(params: Mapping[str, Number]) -> ReaderBudget:
-    """The drawn reader budget, checked: a batch no larger than the tick's packets."""
-    budget = ReaderBudget(_count(params, "packets_per_tick"), _count(params, "batch"))
-    if budget.batch > budget.packets_per_tick:
-        raise ValueError(f"batch {budget.batch} is above packets_per_tick {budget.packets_per_tick}")
-    return budget
+    """The drawn reader budget, checked."""
+    return ReaderBudget(_count(params, "packets_per_tick"), _count(params, "batch"))
 
 
 def check_scheduling(models: Mapping[str, Mapping[str, Number]]) -> None:
