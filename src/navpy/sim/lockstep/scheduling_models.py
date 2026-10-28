@@ -21,7 +21,7 @@ one participant's baton schedules, never what product code does:
 
 The NavPy roles and the backend role carry these draws in their role config
 (``participant_budget.SIM_MODELS_KEY``); :func:`apply_scheduling` sets them on
-the baton before the first tick. A model that is off sets nothing, so with
+the baton's ``runnable.scheduling`` before the first tick. A model that is off sets nothing, so with
 none the baton schedules as before step 6.
 """
 
@@ -61,11 +61,12 @@ def check_scheduling(models: Mapping[str, Mapping[str, Number]]) -> None:
 def apply_scheduling(baton: BatonRuntime, models: Mapping[str, Mapping[str, Number]], seed: int,
                      ordinal: int, generation: int) -> None:
     """Set the on scheduling models on a participant's baton, before its first tick."""
+    scheduling = baton.runnable.scheduling
     if THREAD_ORDER in models:
-        baton.order = model_stream(seed, THREAD_ORDER, f"participant.{ordinal}.{generation}")
+        scheduling.order = model_stream(seed, THREAD_ORDER, f"participant.{ordinal}.{generation}")
     if READER_BUDGET in models:
-        baton.reader_budget = reader_budget(models[READER_BUDGET])
-    baton.timers_first = TIMERS_FIRST in models
+        scheduling.reader_budget = reader_budget(models[READER_BUDGET])
+    scheduling.timers_first = TIMERS_FIRST in models
 
 
 def scheduling_subset(models: Mapping[str, Mapping[str, Number]]) -> dict[str, dict[str, Number]]:

@@ -35,7 +35,8 @@ from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
 from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusLifecycle
 from navpy.plugins.vehicle.ardupilot.mav_bus_membership import MavBusMembership
 from navpy.plugins.vehicle.ardupilot.mav_bus_reader import MavBusReader
-from navpy.sim.lockstep.baton import BatonRuntime, ReaderBudget
+from navpy.sim.lockstep.baton import BatonRuntime
+from navpy.sim.lockstep.baton_parts import ReaderBudget
 from navpy.sim.lockstep.baton_queue import BatonQueue
 from navpy.sim.lockstep.baton_sync import yield_now
 from navpy.sim.lockstep.mavlink_wire import ByteSink, StreamDecoder, encoder
@@ -174,7 +175,7 @@ class LockstepBus:
         self.lifecycle = MavBusLifecycle(connection, device, self._membership, unregister)
         reader = LockstepBusReader(
             self._inbound, connection, device, self._membership, self._heartbeats, self.lifecycle,
-            ReaderService(baton, baton.reader_budget),
+            ReaderService(baton, baton.runnable.scheduling.reader_budget),
         )
         self.lifecycle.bind_reader(reader)
         reader.start()

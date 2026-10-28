@@ -10,7 +10,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import RESPONSE_HISTORY_DEPTH
 from navpy.sim.lockstep.baton import BatonRuntime
-from navpy.sim.lockstep.baton_parts import ReaderBudget
+from navpy.sim.lockstep.baton_parts import ReaderBudget, Scheduling
 from navpy.sim.lockstep.baton_queue import BatonQueue
 from navpy.sim.lockstep.baton_sync import BatonEvent, sleep, yield_now
 from navpy.sim.lockstep.lockstep_link import LockstepLink
@@ -185,7 +185,7 @@ def _served(budget: ReaderBudget | None, packets: int, ticks: int) -> tuple[list
     """One tick's burst of ``packets`` through a lockstep bus: each packet's (tick, index), and
     how many packets a consumer woken by each one had seen when it ran."""
     with _lockstep(None) as (baton, _rng):
-        baton.reader_budget = budget
+        baton.runnable.scheduling.reader_budget = budget
         link = LockstepLink(baton, SERIAL0)
         receiver = _Receiver(baton)
         seen: list[int] = []
@@ -227,7 +227,8 @@ def test_a_reader_budget_serves_its_packets_per_tick_in_batches_and_carries_the_
 
 def test_a_close_wakes_a_reader_waiting_out_its_budget_in_the_same_tick():
     with _lockstep(None) as (baton, _rng):
-        baton.reader_budget = ReaderBudget(packets_per_tick=2, batch=4)  # yields at the tick's end
+        # A batch above the tick's packets: the reader yields only at the tick's end.
+        baton.runnable.scheduling.reader_budget = ReaderBudget(packets_per_tick=2, batch=4)
         link = LockstepLink(baton, SERIAL0)
         receiver = _Receiver(baton)
 
@@ -245,7 +246,7 @@ def test_a_close_wakes_a_reader_waiting_out_its_budget_in_the_same_tick():
 
 def _burst_read(budget: ReaderBudget | None) -> list[str]:
     with _lockstep(None) as (baton, rng):
-        baton.reader_budget = budget
+        baton.runnable.scheduling.reader_budget = budget
         harness = _Harness(baton, ReferenceAutopilot(param_burst=RESPONSE_HISTORY_DEPTH))
 
         def navpy() -> None:
@@ -300,9 +301,9 @@ def test_the_backend_carries_only_the_scheduling_models():
 def test_apply_sets_only_the_on_models_and_refuses_a_bad_budget():
     baton = BatonRuntime()
     apply_scheduling(baton, {}, 1, 1, 1)
-    assert (baton.order, baton.reader_budget, baton.timers_first) == (None, None, False)
+    assert baton.runnable.scheduling == Scheduling()
     apply_scheduling(baton, {READER_BUDGET: {"packets_per_tick": 20, "batch": 4}}, 1, 1, 1)
-    assert baton.reader_budget == ReaderBudget(20, 4) and baton.order is None
+    assert baton.runnable.scheduling == Scheduling(reader_budget=ReaderBudget(20, 4))
     for bad in ({"packets_per_tick": 4, "batch": 0}, {"packets_per_tick": 0, "batch": 1},
                 {"packets_per_tick": 20.0, "batch": 4}):
         with pytest.raises(ValueError):
@@ -320,7 +321,8 @@ def test_the_participant_process_sets_its_role_configs_scheduling_on_its_baton()
     record = SimpleNamespace(config={SIM_MODELS_KEY: models}, seed=4, ordinal=2, generation=3)
     baton = BatonRuntime()
     camera, budget = apply_sim_models(record, SimpleNamespace(runtime=SimpleNamespace(baton=baton)))
-    assert baton.timers_first and baton.reader_budget == ReaderBudget(30, 3)
+    scheduling = baton.runnable.scheduling
+    assert scheduling.timers_first and scheduling.reader_budget == ReaderBudget(30, 3)
     expected = model_stream(4, THREAD_ORDER, "participant.2.3")
-    assert [baton.order.random() for _ in range(3)] == [expected.random() for _ in range(3)]
+    assert [scheduling.order.random() for _ in range(3)] == [expected.random() for _ in range(3)]
     assert camera is None and budget.handoffs(TICK_US) == 5

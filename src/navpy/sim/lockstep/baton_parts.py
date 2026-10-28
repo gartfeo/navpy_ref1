@@ -1,10 +1,13 @@
-"""The baton runtime's parts: thread records, the thread table, the timer heap."""
+"""The baton runtime's parts: thread records, the thread table, the run queue, the timer heap."""
 
 from __future__ import annotations
 
 import heapq
 import itertools
+import math
+import random
 import threading
+from collections import deque
 from dataclasses import dataclass, field
 
 
@@ -82,6 +85,41 @@ class ReaderBudget:
     batch: int
 
 
+@dataclass
+class Scheduling:
+    """A baton's dev sim step 6 models (``scheduling_models``), set before the first tick."""
+
+    #: Picks the next runnable thread (None: first-in first-out).
+    order: random.Random | None = None
+    #: Fire a tick's due timers before its inputs (False: inputs first).
+    timers_first: bool = False
+    #: Each lockstep bus reader's service budget (None: one packet, then a yield).
+    reader_budget: ReaderBudget | None = None
+
+
+class RunQueue(deque[ManagedThread]):
+    """Threads waiting for the baton, in run order, and the baton's ``scheduling``."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.scheduling = Scheduling()
+
+    def take(self) -> ManagedThread:
+        """The head, or with a thread order a seeded pick among two or more."""
+        count, order = len(self), self.scheduling.order
+        if order is None or count == 1:
+            return self.popleft()
+        index = min(count - 1, math.floor(order.random() * count))
+        thread = self[index]
+        del self[index]
+        return thread
+
+
+def handoffs_left(handoffs: int | None, steps: int) -> int | None:
+    """What is left of a tick's handoff cap (None: no cap)."""
+    return None if handoffs is None else handoffs - steps
+
+
 class TimerHeap:
     """Timers in ``(due seconds, park seq)`` order; stale entries are skipped."""
 
@@ -111,4 +149,7 @@ class TimerHeap:
         return thread.park_token == token and thread.parked_on is not None
 
 
-__all__ = ["ManagedThread", "ReaderBudget", "ThreadTable", "TimerHeap"]
+__all__ = [
+    "ManagedThread", "ReaderBudget", "RunQueue", "Scheduling", "ThreadTable", "TimerHeap",
+    "handoffs_left",
+]
