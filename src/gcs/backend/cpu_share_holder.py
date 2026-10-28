@@ -45,7 +45,7 @@ class StackScheduling:
         native: object | None = None,
         *,
         timer: Callable[..., threading.Timer] = threading.Timer,
-        background: Callable[[], int] = apply_background,
+        background: Callable[[], bool] = apply_background,
         demote_jobs: Callable[[int, int], int] = demote_open_jobs,
     ) -> None:
         self._record = record
@@ -72,7 +72,8 @@ class StackScheduling:
 
     def start(self, seconds: float | None, label: str) -> str:
         """Claim a share for *seconds* when asked, else run as background;
-        returns ``holder`` or ``background``."""
+        returns ``holder``, ``background`` or ``normal`` (background priority
+        could not be set; this stack's NavPys still start BELOW_NORMAL)."""
         native = self._native = self._native or native_scheduling()
         record = self._record = self._record or ShareRecord()
         if seconds is not None and seconds > 0:
@@ -81,9 +82,13 @@ class StackScheduling:
                 try:
                     native.set_own(ABOVE_NORMAL_PRIORITY_CLASS, mask_of(outcome.cpus))  # type: ignore[attr-defined]
                 except OSError as error:
+                    if not self._background():
+                        log.error("CPU share %s not applied (%s) and this stack could not run "
+                                  "as background; its CPUs stay held until this backend exits",
+                                  outcome.id, error)
+                        return "normal"
                     log.warning("CPU share %s not applied (%s): this stack runs as background",
                                 outcome.id, error)
-                    self._background()
                     record.release(outcome)
                     return "background"
                 with JOBS_LOCK:
@@ -97,8 +102,7 @@ class StackScheduling:
                          list(outcome.cpus), seconds)
                 return "holder"
             log.warning("CPU share refused (%s): this stack runs as background", outcome)
-        self._background()
-        return "background"
+        return "background" if self._background() else "normal"
 
     def give_up(self, reason: str) -> bool:
         """Demote this stack to background, then release the share.

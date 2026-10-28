@@ -23,6 +23,13 @@ def test_without_a_share_the_launcher_and_its_children_run_as_background(monkeyp
     assert calls == ["background"]
 
 
+def test_without_the_flag_an_inherited_request_is_dropped(monkeypatch):
+    monkeypatch.setattr(share, "apply_background", lambda: True)
+    monkeypatch.setenv(CPU_SHARE_ENV, "900")
+    assert share.scheduling_env(_parse()) == {}
+    assert CPU_SHARE_ENV not in share.os.environ
+
+
 def test_a_share_request_goes_to_the_backend(monkeypatch):
     monkeypatch.setattr(share, "apply_background", lambda: pytest.fail("not background"))
     assert share.scheduling_env(_parse("--cpu-share-s", "900")) == {CPU_SHARE_ENV: "900.0"}

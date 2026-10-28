@@ -5,9 +5,11 @@ time, while everything else runs as background on the other cores at lower
 priority. ``cpu_shares.json``, next to the instance registry, lists the
 shares.
 
-An entry holds its CPUs while its owner (pid and exact creation time,
-compared strictly) is alive and has not released it; the next transaction
-drops a dead owner's entry. Background work avoids an entry only before its
+An entry holds its CPUs while its owner (pid and exact creation time) may be
+alive and has not released it; the next transaction drops an entry whose
+owner is known dead: no running process has the pid, or the process has
+another creation time. An identity that cannot be read keeps its entry
+(fail closed). Background work avoids an entry only before its
 ``expires_at``. Every transaction, reads included, takes the record's named
 mutex: on Windows an open reader makes the atomic replace fail. A
 transaction holds it for milliseconds, so each waits for it at most the
@@ -26,7 +28,7 @@ from pathlib import Path
 from typing import Callable
 
 from gcs.backend import instance_registry_runtime as runtime
-from gcs.backend.cpu_share_native import NamedMutex
+from gcs.backend.cpu_share_native import NamedMutex, pid_gone
 from gcs.backend.instance_registry_store import LOCK_TIMEOUT_S, registry_path
 
 #: Logical CPUs per share: one per NavPy of a 3-UAV run plus its backend
@@ -57,8 +59,12 @@ def shares_path() -> Path:
 
 
 def owner_alive(pid: int, start: int | None) -> bool:
-    """Strict identity: the same pid with the same, known, creation time."""
-    return start is not None and runtime.pid_alive(pid) and runtime.pid_start_time(pid) == start
+    """False only for an owner known dead: its pid is gone, or now names a
+    process with another creation time (a reused pid)."""
+    if pid_gone(pid):
+        return False
+    current = runtime.pid_start_time(pid)
+    return current is None or start is None or current == start
 
 
 def pick_cpus(classes: dict[int, int], taken: set[int], count: int = SHARE_CPUS) -> list[int]:
@@ -87,7 +93,14 @@ class ShareRecord:
         self._alive = alive
         self._clock = self.clock = clock
         digest = hashlib.sha1(os.path.normcase(str(self.path.resolve())).encode()).hexdigest()
-        self._mutex = NamedMutex(f"navpy-cpu-shares-{digest[:16]}")
+        # Without its lock the record is unusable: claims are refused and
+        # background avoids nothing.
+        self._mutex: NamedMutex | None = None
+        self._mutex_error = ""
+        try:
+            self._mutex = NamedMutex(f"navpy-cpu-shares-{digest[:16]}")
+        except OSError as error:
+            self._mutex_error = str(error)
 
     def claim(self, label: str, seconds: float, classes: dict[int, int]) -> Share | str:
         """A new share for this process, or why it was refused."""
@@ -97,6 +110,8 @@ class ShareRecord:
         start = runtime.pid_start_time(pid)
         if start is None:
             return "this process's start time is unreadable"
+        if self._mutex is None:
+            return f"the share record's lock is unavailable: {self._mutex_error}"
         if not self._mutex.acquire(LOCK_TIMEOUT_S):
             return "the share record stayed busy"
         try:
@@ -118,7 +133,7 @@ class ShareRecord:
     def release(self, share: Share) -> bool:
         """Remove *share*; False when the record stayed busy or unusable (its
         CPUs stay held until this process exits)."""
-        if not self._mutex.acquire(LOCK_TIMEOUT_S):
+        if self._mutex is None or not self._mutex.acquire(LOCK_TIMEOUT_S):
             return False
         try:
             self._save([held for held in self._held(self._load()) if held.id != share.id])
@@ -163,6 +178,8 @@ class ShareRecord:
         return [share for share in shares if self._alive(share.pid, share.start)]
 
     def _locked_load(self) -> list[Share]:
+        if self._mutex is None:
+            raise ValueError(f"the share record's lock is unavailable: {self._mutex_error}")
         if not self._mutex.acquire(LOCK_TIMEOUT_S):
             raise ValueError("the share record stayed busy")
         try:

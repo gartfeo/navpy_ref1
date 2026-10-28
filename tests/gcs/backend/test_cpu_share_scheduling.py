@@ -12,6 +12,7 @@ from gcs.backend.cpu_share_native import ABOVE_NORMAL_PRIORITY_CLASS as ABOVE
 from gcs.backend.cpu_share_native import BELOW_NORMAL_PRIORITY_CLASS as BELOW
 from gcs.backend.cpu_share_native import mask_of
 
+NORMAL = 0x20
 P_CORES = (0, 1, 6, 7, 8, 9, 18, 19)
 HYBRID = {cpu: int(cpu in P_CORES) for cpu in range(20)}
 SYSTEM = (1 << 20) - 1
@@ -26,8 +27,10 @@ class Clock:
 
 
 class FakeNative:
-    def __init__(self, events: list, system: int = SYSTEM, fail: bool = False) -> None:
-        self.events, self.system, self.fail = events, system, fail
+    def __init__(self, events: list, system: int = SYSTEM, fail: bool = False,
+                 affinity_fails: bool = False) -> None:
+        self.events, self.system, self.fail, self.affinity_fails = events, system, fail, affinity_fails
+        self.priority = NORMAL
 
     def efficiency_classes(self) -> dict[int, int]:
         return dict(HYBRID)
@@ -35,10 +38,16 @@ class FakeNative:
     def system_mask(self) -> int:
         return self.system
 
+    def own(self) -> tuple[int, int]:
+        return self.priority, self.system
+
     def set_own(self, priority: int, mask: int) -> None:
         self.events.append(("set_own", priority, mask))
         if self.fail:
             raise OSError("denied")
+        self.priority = priority  # before the affinity, as WindowsScheduling sets them
+        if self.affinity_fails:
+            raise OSError("affinity denied")
 
 
 class FakeTimer:
@@ -90,7 +99,7 @@ def test_background_avoids_valid_shares_and_recomputes_at_each_expiry(record, cl
     events: list = []
     background = BackgroundScheduling(record, FakeNative(events), timer=timers)
 
-    assert background.apply() == SYSTEM & ~mask_of(first.cpus + second.cpus)
+    assert background.apply() is True
     assert events[-1] == ("set_own", BELOW, SYSTEM & ~mask_of(first.cpus + second.cpus))
     assert (timers.made[-1].interval, timers.made[-1].daemon, timers.made[-1].started) == (30.0, True, True)
 
@@ -109,28 +118,37 @@ def test_background_keeps_priority_only_when_every_cpu_is_shared(record, timers)
     share = record.claim("a", 60.0, HYBRID)
     events: list = []
     only_shared = mask_of(share.cpus)
-    assert BackgroundScheduling(record, FakeNative(events, only_shared), timer=timers).apply() == only_shared
+    assert BackgroundScheduling(record, FakeNative(events, only_shared), timer=timers).apply()
     assert events == [("set_own", BELOW, only_shared)]
 
 
-def test_background_is_a_no_op_without_cpus_and_survives_a_refused_call(record, timers):
+def test_background_is_a_no_op_without_cpus_and_reports_a_refused_priority(record, timers, caplog):
     events: list = []
-    assert BackgroundScheduling(record, FakeNative(events, system=0), timer=timers).apply() == 0
+    assert BackgroundScheduling(record, FakeNative(events, system=0), timer=timers).apply() is False
     assert events == []
-    assert BackgroundScheduling(record, FakeNative(events, fail=True), timer=timers).apply() == 0
+    assert BackgroundScheduling(record, FakeNative(events, fail=True), timer=timers).apply() is False
     assert timers.made == []
+    assert [r.levelname for r in caplog.records] == ["ERROR"]
+
+
+def test_background_priority_without_its_cpus_is_still_background(record, timers):
+    record.claim("a", 60.0, HYBRID)
+    events: list = []
+    native = FakeNative(events, affinity_fails=True)
+    assert BackgroundScheduling(record, native, timer=timers).apply() is True
+    assert native.priority == BELOW and timers.made[-1].interval == 60.0
 
 
 # Holder: every row of the design's scheduling table.
 
-def _stack(record, events, timers, native=None, demote=None):
+def _stack(record, events, timers, native=None, demote=None, background=True):
     def demote_jobs(priority, affinity):
         events.append(("demote_jobs", priority, affinity, [s.id for s, _ in record.listing()]))
         return 3
 
     return StackScheduling(
         record, native or FakeNative(events), timer=timers,
-        background=lambda: events.append("background") or 1,
+        background=lambda: events.append("background") or background,
         demote_jobs=demote or demote_jobs,
     )
 
@@ -158,6 +176,10 @@ def test_no_request_runs_as_background(record, timers):
     events: list = []
     assert _stack(record, events, timers).start(None, "live test") == "background"
     assert events == ["background"] and not record.path.exists()
+
+
+def test_a_stack_that_cannot_run_as_background_says_so(record, timers):
+    assert _stack(record, [], timers, background=False).start(None, "live test") == "normal"
 
 
 def test_expiry_demotes_the_stack_then_releases_the_share(record, timers):
@@ -188,6 +210,15 @@ def test_a_share_that_cannot_be_applied_is_released_and_the_stack_runs_as_backgr
     stack = _stack(record, events, timers, native=FakeNative(events, fail=True))
     assert stack.start(60.0, "eval") == "background"
     assert events[1:] == ["background"] and record.listing() == [] and not stack.holding
+
+
+def test_a_share_neither_applied_nor_backed_out_stays_held(record, timers):
+    # It may run ABOVE_NORMAL on every CPU: no other holder gets these CPUs.
+    events: list = []
+    stack = _stack(record, events, timers, native=FakeNative(events, affinity_fails=True),
+                   background=False)
+    assert stack.start(60.0, "eval") == "normal"
+    assert len(record.listing()) == 1 and not stack.holding
 
 
 def test_shutdown_before_expiry_cancels_the_timer_and_releases(record, timers):

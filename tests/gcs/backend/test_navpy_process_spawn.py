@@ -28,13 +28,14 @@ FLAGS = subprocess.CREATE_NEW_PROCESS_GROUP
 
 
 class FakeScheduling:
-    def __init__(self, events: list, holding: bool) -> None:
-        self.events, self.holding = events, holding
+    def __init__(self, events: list, holding: bool, demotes: bool = True) -> None:
+        self.events, self.holding, self.demotes = events, holding, demotes
 
     def give_up(self, reason: str) -> bool:
         self.events.append(("give_up", reason))
-        self.holding = False
-        return True
+        # A failed demotion keeps the share held.
+        self.holding = self.holding and not self.demotes
+        return not self.holding
 
 
 @pytest.fixture
@@ -59,16 +60,22 @@ def _popen(events: list):
     return factory
 
 
-def _spawn(events, holding=False):
+def _spawn(events, holding=False, demotes=True):
     return spawn.spawn_in_job(["navpy"], {"creationflags": FLAGS}, popen_factory=_popen(events),
-                              sys_id=1, logger=MagicMock(), scheduling=FakeScheduling(events, holding))
+                              sys_id=1, logger=MagicMock(),
+                              scheduling=FakeScheduling(events, holding, demotes))
 
 
 def test_navpy_starts_suspended_joins_its_job_then_resumes(events):
     proc, job = _spawn(events)
     assert (proc.n, job) == (1, 77)
-    assert events == ["create_job", ("popen", 1, FLAGS | spawn.CREATE_SUSPENDED),
+    assert events == ["create_job", ("popen", 1, FLAGS | BELOW_NORMAL_PRIORITY_CLASS | spawn.CREATE_SUSPENDED),
                       ("assign", 77, 1), ("resume", 1)]
+
+
+def test_a_holders_navpy_starts_at_normal_and_raises_itself(events):
+    _spawn(events, holding=True)
+    assert events[1] == ("popen", 1, FLAGS | spawn.CREATE_SUSPENDED)
 
 
 def test_a_holder_without_a_job_gives_up_its_share_before_spawning(events, monkeypatch):
@@ -78,7 +85,8 @@ def test_a_holder_without_a_job_gives_up_its_share_before_spawning(events, monke
     monkeypatch.setattr(spawn, "_create_job", refused)
     proc, job = _spawn(events, holding=True)
     assert job is None
-    assert events == [("give_up", "job creation failed"), ("popen", 1, FLAGS)]
+    assert events == [("give_up", "job creation failed"),
+                      ("popen", 1, FLAGS | BELOW_NORMAL_PRIORITY_CLASS)]
 
 
 def test_a_holders_unassigned_child_is_ended_before_it_runs(events, monkeypatch):
@@ -91,7 +99,27 @@ def test_a_holders_unassigned_child_is_ended_before_it_runs(events, monkeypatch)
     # The suspended child never resumes; the share ends before the background NavPy starts.
     assert events == ["create_job", ("popen", 1, FLAGS | spawn.CREATE_SUSPENDED),
                       ("close_job", 77), ("kill", 1), ("give_up", "job assignment failed"),
-                      ("popen", 2, FLAGS)]
+                      ("popen", 2, FLAGS | BELOW_NORMAL_PRIORITY_CLASS)]
+
+
+def test_a_holder_that_cannot_be_demoted_starts_no_navpy_without_a_job(events, monkeypatch):
+    def refused():
+        raise OSError("no job")
+
+    monkeypatch.setattr(spawn, "_create_job", refused)
+    with pytest.raises(OSError, match="could not be given up"):
+        _spawn(events, holding=True, demotes=False)
+    assert events == [("give_up", "job creation failed")]
+
+
+def test_a_holder_that_cannot_be_demoted_ends_its_unassigned_child(events, monkeypatch):
+    def refused(_job, _proc):
+        raise OSError("access denied")
+
+    monkeypatch.setattr(spawn, "_assign_job", refused)
+    with pytest.raises(OSError, match="could not be given up"):
+        _spawn(events, holding=True, demotes=False)
+    assert events[-3:] == [("close_job", 77), ("kill", 1), ("give_up", "job assignment failed")]
 
 
 def test_without_a_share_an_unassigned_child_runs_on(events, monkeypatch):

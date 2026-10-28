@@ -88,13 +88,15 @@ def test_a_dead_owners_entry_is_dropped_by_the_next_claim(tmp_path):
     assert [raw["id"] for raw in json.loads(record.path.read_text())["shares"]] == [share.id]
 
 
-def test_owner_identity_is_strict(monkeypatch):
-    monkeypatch.setattr(cpu_share.runtime, "pid_alive", lambda _pid: True)
+def test_only_an_owner_known_dead_loses_its_entry(monkeypatch):
+    monkeypatch.setattr(cpu_share, "pid_gone", lambda _pid: False)
     monkeypatch.setattr(cpu_share.runtime, "pid_start_time", lambda _pid: 5)
     assert owner_alive(42, 5)
     assert not owner_alive(42, 6)  # a reused pid
-    assert not owner_alive(42, None)
-    monkeypatch.setattr(cpu_share.runtime, "pid_alive", lambda _pid: False)
+    assert owner_alive(42, None)  # nothing recorded to compare: kept
+    monkeypatch.setattr(cpu_share.runtime, "pid_start_time", lambda _pid: None)
+    assert owner_alive(42, 5)  # an unreadable identity fails closed
+    monkeypatch.setattr(cpu_share, "pid_gone", lambda _pid: True)
     assert not owner_alive(42, 5)
 
 
@@ -160,7 +162,54 @@ def test_an_unwritable_record_refuses_the_claim_and_keeps_a_release_held(tmp_pat
     assert not record.release(share)
 
 
+def test_a_record_without_its_lock_refuses_claims_and_avoids_nothing(tmp_path, monkeypatch):
+    def refused(_name):
+        raise OSError("no mutex")
+
+    monkeypatch.setattr(cpu_share, "NamedMutex", refused)
+    record = _record(tmp_path)
+    assert record.claim("eval", 60.0, HYBRID) == "the share record's lock is unavailable: no mutex"
+    assert not record.release(Share("x", os.getpid(), START, "eval", (0,), 2000.0))
+    assert record.avoided() == (set(), None)
+    with pytest.raises(ValueError, match="lock is unavailable"):
+        record.listing()
+
+
 windows = pytest.mark.skipif(sys.platform != "win32", reason="named mutex: Windows only")
+
+
+@windows
+def test_the_mutex_is_machine_wide_and_a_bad_name_raises():
+    import ctypes
+
+    k = ctypes.WinDLL("kernel32", use_last_error=True)
+    k.OpenMutexW.restype = ctypes.c_void_p
+    k.OpenMutexW.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_wchar_p]
+    k.CloseHandle.argtypes = [ctypes.c_void_p]
+    name = f"navpy-cpu-shares-test-{os.urandom(4).hex()}"
+    mutex = cpu_share.NamedMutex(name)
+    synchronize = 0x00100000
+    handle = k.OpenMutexW(synchronize, False, f"Global\\{name}")
+    assert handle  # every session of this user opens the same mutex
+    k.CloseHandle(handle)
+    assert not k.OpenMutexW(synchronize, False, f"Local\\{name}")
+    del mutex
+    with pytest.raises(OSError):
+        cpu_share.NamedMutex("bad\\name")  # a backslash is no object name
+
+
+@windows
+def test_pid_gone_only_for_a_process_windows_knows_has_ended():
+    import subprocess
+
+    from gcs.backend.cpu_share_native import pid_gone
+
+    assert not pid_gone(os.getpid())
+    assert not pid_gone(4)  # System: running, even when it cannot be opened
+    child = subprocess.Popen([sys.executable, "-c", "pass"])
+    child.wait(30)
+    assert pid_gone(child.pid)  # exited, though its handle is still open
+    assert pid_gone(0x3FFFFFFC)  # no such process
 
 
 def _hold_mutex(path, done: threading.Event, release: bool) -> threading.Thread:

@@ -8,7 +8,10 @@ call is a no-op (``NoScheduling``).
 from __future__ import annotations
 
 import ctypes
+import logging
 import sys
+
+_LOG = logging.getLogger(__name__)
 
 ABOVE_NORMAL_PRIORITY_CLASS = 0x00008000
 BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
@@ -138,11 +141,50 @@ def native_scheduling() -> WindowsScheduling | NoScheduling:
 
 _WAIT_OBJECT_0 = 0x0
 _WAIT_ABANDONED = 0x80
+_WAIT_FAILED = 0xFFFFFFFF
+_SYNCHRONIZE = 0x00100000
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_ERROR_INVALID_PARAMETER = 87
+
+
+def _kernel32() -> object:
+    from ctypes import wintypes
+
+    k = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+    k.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k.OpenProcess.restype = wintypes.HANDLE
+    k.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+    k.CreateMutexW.restype = wintypes.HANDLE
+    k.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    k.WaitForSingleObject.restype = wintypes.DWORD
+    k.ReleaseMutex.argtypes = [wintypes.HANDLE]
+    k.ReleaseMutex.restype = wintypes.BOOL
+    k.CloseHandle.argtypes = [wintypes.HANDLE]
+    k.CloseHandle.restype = wintypes.BOOL
+    return k
+
+
+def pid_gone(pid: int) -> bool:
+    """True only when no running process has *pid*: Windows knows no such
+    process, or it has exited. A process this one may not open is not gone.
+    Off win32 nothing is known gone (no share is claimed there)."""
+    if sys.platform != "win32":
+        return False
+    k = _kernel32()
+    handle = k.OpenProcess(_SYNCHRONIZE | _PROCESS_QUERY_LIMITED_INFORMATION, False, pid)  # type: ignore[attr-defined]
+    if not handle:
+        return ctypes.get_last_error() == _ERROR_INVALID_PARAMETER  # type: ignore[attr-defined]
+    try:
+        return k.WaitForSingleObject(handle, 0) == _WAIT_OBJECT_0  # type: ignore[attr-defined]
+    finally:
+        k.CloseHandle(handle)  # type: ignore[attr-defined]
 
 
 class NamedMutex:
-    """A machine-session mutex: a holder that dies hands it over at once
-    (``WAIT_ABANDONED``), so no stale lock is ever left behind.
+    """A machine-wide mutex (``Global\\``, so every session of this user
+    shares it): a holder that dies hands it over at once
+    (``WAIT_ABANDONED``), so no stale lock is ever left behind. OSError when
+    it cannot be created.
 
     Off win32 it always acquires: there are no shares to guard there.
     """
@@ -151,30 +193,29 @@ class NamedMutex:
         self._handle = None
         if sys.platform != "win32":
             return
-        from ctypes import wintypes
-
-        k = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
-        k.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
-        k.CreateMutexW.restype = wintypes.HANDLE
-        k.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-        k.WaitForSingleObject.restype = wintypes.DWORD
-        k.ReleaseMutex.argtypes = [wintypes.HANDLE]
-        k.ReleaseMutex.restype = wintypes.BOOL
-        self._k = k
-        self._handle = k.CreateMutexW(None, False, f"Local\\{name}")
+        self._k = _kernel32()
+        self._handle = self._k.CreateMutexW(None, False, f"Global\\{name}")  # type: ignore[attr-defined]
         if not self._handle:
             raise ctypes.WinError(ctypes.get_last_error())  # type: ignore[attr-defined]
 
     def acquire(self, timeout_s: float) -> bool:
-        """Take it within *timeout_s* (0: one attempt); False when busy."""
+        """Take it within *timeout_s* (0: one attempt); False when busy or
+        when the wait failed (logged)."""
         if self._handle is None:
             return True
-        result = self._k.WaitForSingleObject(self._handle, int(timeout_s * 1000))
+        result = self._k.WaitForSingleObject(self._handle, int(timeout_s * 1000))  # type: ignore[attr-defined]
+        if result == _WAIT_FAILED:
+            _LOG.error("CPU share record lock: wait failed (error %s)", ctypes.get_last_error())  # type: ignore[attr-defined]
         return result in (_WAIT_OBJECT_0, _WAIT_ABANDONED)
 
     def release(self) -> None:
-        if self._handle is not None:
-            self._k.ReleaseMutex(self._handle)
+        if self._handle is not None and not self._k.ReleaseMutex(self._handle):  # type: ignore[attr-defined]
+            _LOG.error("CPU share record lock: release failed (error %s)", ctypes.get_last_error())  # type: ignore[attr-defined]
+
+    def __del__(self) -> None:
+        if self._handle:
+            self._k.CloseHandle(self._handle)  # type: ignore[attr-defined]
+            self._handle = None
 
 
 __all__ = [
@@ -186,4 +227,5 @@ __all__ = [
     "cpus_of",
     "mask_of",
     "native_scheduling",
+    "pid_gone",
 ]

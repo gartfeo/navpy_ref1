@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 
 from gcs.backend.cpu_share_background import apply_background
 from gcs.backend.cpu_share_holder import CPU_SHARE_ENV
@@ -26,8 +27,10 @@ def add_cpu_share_argument(parser: argparse.ArgumentParser) -> None:
 
 def scheduling_env(args: argparse.Namespace) -> dict[str, str]:
     """The backend's share request. Without one, this launcher, and so every
-    child it starts from now on, runs as background."""
+    child it starts from now on, runs as background, and an inherited
+    request is dropped: only the flag claims a share."""
     if args.cpu_share_s is None:
+        os.environ.pop(CPU_SHARE_ENV, None)
         apply_background()
         return {}
     return {CPU_SHARE_ENV: repr(args.cpu_share_s)}

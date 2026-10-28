@@ -53,19 +53,22 @@ size below is a candidate that the acceptance runs confirm or change.
 ## Design
 
 **Share record.** `~/.gcs/cpu_shares.json`, next to the instance registry,
-guarded by a named mutex (`cpu_share.py`; a holder that dies hands it over
-at once, so no stale lock is left). Every transaction, reads included, takes
+guarded by a named mutex (`cpu_share.py`; `Global\`, so a scheduled task
+in another session shares it; a holder that dies hands it over at once, so
+no stale lock is left). Every transaction, reads included, takes
 it: on Windows an open reader makes the atomic replace fail. A transaction
 holds it for milliseconds, so each waits for it at most the registry's lock
 timeout (10 s). A claim that cannot get it, or finds the record unreadable
 or unwritable, is refused; a release that cannot leaves the CPUs held until
 the owner exits (fail closed); a background read that cannot avoids
-nothing. Nothing waits for a share. Each entry holds an id, the
-owner (pid and exact creation time, compared strictly, unlike the
-registry's lenient `pid_matches`), a label, its logical CPUs, and
-`expires_at`. An entry holds its CPUs while its owner is alive with the
-same creation time and has not released it; a dead owner's entry is
-dropped by the next transaction. Background work avoids an entry only
+nothing. A mutex that cannot be created makes the record unusable the same
+way. Nothing waits for a share. Each entry holds an id, the
+owner (pid and exact creation time), a label, its logical CPUs, and
+`expires_at`. An entry holds its CPUs until it is released or its owner is
+known dead: Windows knows no process with the pid, the process has exited,
+or the pid now has another creation time. An owner that cannot be read
+keeps its entry (fail closed). The next transaction drops a dead owner's
+entry. Background work avoids an entry only
 before its `expires_at`. A claim prunes, picks CPUs disjoint from the held
 entries, and writes, all under the lock. There is no renewal.
 
@@ -87,7 +90,8 @@ logs a warning and the NavPy runs on (`navpy_process_launch.py:221-244`).
 In a holder, the backend first releases the share as at expiry: on a
 failed creation before it spawns; on a failed assignment it first
 terminates the still-suspended child. Then it starts that NavPy as
-background.
+background. When the demotion fails, the share stays held and that NavPy
+does not start: it would run outside any job.
 Two callers pass the flag: the wall branch of the GCS demo eval
 (`--timeout-s` plus 300 s setup margin) and `delivery_demo.py`, the hand
 demo (`--cpu-share-min`, default 30, at most 120). Lockstep runs never
@@ -101,6 +105,7 @@ claim, because load changes only their wall time.
 | Share refused (none free, record busy or unusable) | background, and the backend log says so |
 | No `--cpu-share-s` (`AAS_GCS.bat`, live tests) | background |
 | Share expired | background |
+| Background priority refused by Windows | backend keeps its class (state `normal`, an ERROR in its log); NavPys still start BELOW_NORMAL |
 
 A refused claim never waits. Its run is todo-65 evidence, not a reason to
 wait.
@@ -143,7 +148,9 @@ CPUs. Callers:
 
 **NavPy priority.** `raise_process_qos` raises to ABOVE_NORMAL only from
 NORMAL. A NavPy that inherited BELOW_NORMAL keeps it. It still opts out of
-EcoQoS.
+EcoQoS. A backend without a share starts each NavPy with the
+`BELOW_NORMAL_PRIORITY_CLASS` creation flag, so its NavPys never raise
+themselves, even when the backend's own background priority was refused.
 
 **Visibility.** `python scripts\cpu_share.py --list` reads the record
 without changing it.
@@ -178,12 +185,16 @@ both pass). A long-lived background child that spans a share's expiry and
 a later claim shows the best-effort affinity case. After todo 66, C runs
 again and the share size is re-measured.
 
-Unit tests cover: claim, strict owner identity, expiry, dead owner, no free
-share, busy and abandoned mutex, disjoint CPUs, P/E selection (fake kernel),
+Unit tests cover: claim, owner identity (a reused pid is dead, an
+unreadable one is kept), expiry, dead owner, no free
+share, busy, abandoned and unavailable mutex, its `Global\` name, disjoint
+CPUs, P/E selection (fake kernel),
 every row of the scheduling table, release only after demotion (a late
 timer keeps the CPUs held), a NavPy spawned during and after expiry, job
 creation and assignment failure (the suspended child is terminated before
-it runs, then started as background), background mask recompute, a real
+it runs, then started as background; with a failed demotion nothing
+starts), a refused background priority, an inherited `GCS_CPU_SHARE_S`
+without the flag, background mask recompute, a real
 child inheriting affinity and BELOW_NORMAL, a real suspended venv-launched
 child whose interpreter is inside the job after resume, and a real job
 demoting that running child.
@@ -191,7 +202,9 @@ demoting that running child.
 ## Results (2026-10-28)
 
 Runs in `.logs/cpu-share` (`acc/`, `t66/`), at 10x beside one lockstep
-matrix and a pytest subset, with the other chats' work running as usual:
+matrix and a pytest subset, with the other chats' work running as usual
+(in A1 the pytest stopped at collection: Application Control blocked a
+numpy DLL, so A1 ran beside the matrix only):
 
 | Runs | Pass | NavPy's extra ATTITUDE delay, p95 per UAV |
 |---|---|---|
@@ -202,14 +215,15 @@ matrix and a pytest subset, with the other chats' work running as usual:
 
 - Priority keeps the load from blocking the run; the share also removes
   NavPy's reader lag. The C3 miss (UAV 2, SNAP without `DOCKED`) had no
-  lag: its frames were slow (todo 65's load sensitivity).
+  lasting backlog (p95 61 ms, max 77 ms) but slow frames (todo 65's load
+  sensitivity); a share of the miss from that lag is not ruled out.
 - The load kept running during every final approach (matrix 0.3-0.9 core
   in C2-C6; 0.05 in C7, between cells, with about 16 cores idle) and
   finished. In C2 one matrix cell failed: another chat's 20 NORMAL burners
   (a checkout without this change) starved this branch's BELOW_NORMAL
   lockstep cell past its 30 s exit budget (`STEP_DEADLINE_US`). Until every
   checkout has this change, older NORMAL work outranks background work.
-- Expiry and a later claim (scratch record): the background parent widened
+- Expiry and a later claim (own record, `acc/expiry`): the background parent widened
   its mask at expiry, its child kept its start mask, neither learned of the
   later claim, and both stayed BELOW_NORMAL, as designed.
 - **Two wall runs at once stay unreliable on this PC.** With two shares,
@@ -218,21 +232,24 @@ matrix and a pytest subset, with the other chats' work running as usual:
   holder passed 1 of 2. The failing stacks kept 10x with little lag, but
   their observation coverage fell to 0.19-0.39: during the overlap 17-19 of
   20 cores were busy and the clock fell to about 85% of nominal (about 160%
-  when light). A share bounds cores, not the CPU's power limit, so
-  `MAX_SHARES` stays 2 and this is todo 65's open load sensitivity. The
+  when light), consistent with the CPU's power limit but not proven to
+  be it. A share bounds cores, not that, so `MAX_SHARES` stays 2 and this
+  is todo 65's open load sensitivity. The
   probe's processes and WSL's guest (vmmemWSL, about 3 cores) explain only
   about 10 of those cores; WSL's own Windows processes used under 0.5 core
   and DPCs 2%, so the rest is not yet attributed.
 - **Size stays 4.** In final approach a stack used 2.2-2.5 cores on Windows
   (NavPy 0.65-0.8 each, backend 0.1-0.25), leaving room for NavPy's peaks
-  (1.27 core p95 in m1). Todo 66 saved about 0.02 core per NavPy.
+  (1.27 core p95 in m1). Four is a safe size, not shown to be the
+  smallest. Todo 66 saved an estimated 0.02 core per NavPy (the cut
+  packets times m1's cost per packet), not a measured one.
 
 ## Risks
 
 - Timing-sensitive unit tests run at BELOW_NORMAL and may lose to NORMAL
   desktop work. Re-run such a failure on its own before calling it a
   regression (as today).
-- C can still miss with no reader lag (C3): frame cost under host load
+- C can still miss with no lasting reader backlog (C3): frame cost under host load
   (todo 65), not packets (about 0.1 core per NavPy, todo 66).
 - The suspended start changes every NavPy launch, not only holders'. It
   also closes the same gap for `KILL_ON_JOB_CLOSE` today.
@@ -243,5 +260,8 @@ Done 2026-10-28 (todo 66 in `architecture_todo.md`). A temporary tally in
 the router counted 149 packets per sim second per NavPy, by (system,
 component, type). `SR0_EXTRA1` and `SR0_RAW_SENS` carried 28 of them and
 NavPy reads none of their messages, so both are 0 now: 123 per sim second,
-ATTITUDE 40.0 from NavPy's own request. Groups that mix read and unread
-messages stay; cutting those needs a request per message.
+ATTITUDE 40.0 from NavPy's own request (tallies in `t66/tally-Q3` and
+`t66/tally-Q4`). Groups that mix read and unread messages stay; cutting
+those needs a request per message. That request is sent once, without an
+acknowledgement; since the cut a lost one leaves NavPy without ATTITUDE
+(todo 151).

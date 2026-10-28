@@ -965,6 +965,8 @@
 ## Moving a product out of core in reviewed steps (delivery move c2-c9, 2026-10-19)
 - Never edit a worktree while its pytest or lockstep gate runs: the suite reads the files mid-run. Gate in
   one worktree, build the next commit in a side worktree, and fast-forward the gate worktree between commits.
+  Repeated 2026-10-28 (bounded CPU share): review fixes made while a background `tests/gcs` run was still
+  going gave two subprocess tests an ImportError from a half-applied edit. Check for running suites first.
 - Long edit scripts sent inline through the Bash tool failed to parse ("unexpected EOF while looking for
   matching `''"), even in a quoted heredoc. Write them to files with the Write tool and run them; a small helper
   that keeps CRLF and fails on a missing or repeated match made every edit checkable.
