@@ -1587,6 +1587,8 @@
 - A new park point needs a wake path for close: the budget wait used a plain sleep, so a
   close in the same tick could not join the reader (Codex). Wait on the stop event instead,
   and test close while the thread sits in the new wait.
+- Run the guard tests (`tests/guards`) before the long gates. The SOLID guard failed only in
+  full pytest, after the matrices; the fix moved code, so every gate ran a third time.
 - A `cat > file` with no input in the Bash tool waits on stdin forever. Write files with the
   Write tool.
 - Kill a stopped background batch by its process tree (`taskkill /T` on its own bash and
