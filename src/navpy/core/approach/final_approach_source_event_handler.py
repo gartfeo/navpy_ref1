@@ -8,6 +8,7 @@ from typing import Callable, Optional, Protocol
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
+from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 
 
 class FinalApproachSourceCommandRouter(Protocol):
@@ -65,7 +66,7 @@ class FinalApproachSourceEventHandler:
         active_poi = self._ports.active_poi()
         if active_poi is None:
             self._mark_failed(
-                "source_event_active_poi_missing",
+                fail_reason.SOURCE_EVENT_ACTIVE_POI_MISSING,
                 "NAV_FAIL: source_event_active_poi_missing",
             )
             return self._reject()

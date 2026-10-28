@@ -86,6 +86,9 @@ class SelectedTaskSlot:
         self._replies = self._new_replies()
         self._approaching = False
         self._docked = False
+        # Nav's display bits for the heartbeat byte (nav_display.py); read
+        # with node_state() under the shared actor lock.
+        self.display_bits = 0
         self._tokens = itertools.count(1)
 
     def on_request(
@@ -188,15 +191,18 @@ class SelectedTaskSlot:
         self,
         approaching: bool,
         docked: bool,
+        display_bits: int = 0,
     ) -> Optional[HeldTask]:
         """Track nav's approach and dock; becoming busy drops a WAITING task.
 
-        Both flags change in one update, so NAV -> DOCKED is never FREE.
+        Both flags and the display bits change in one update, so NAV ->
+        DOCKED is never FREE and a beat never mixes two nav states.
         """
         with self._lock:
             started = (approaching or docked) and not self._busy()
             self._approaching = approaching
             self._docked = docked
+            self.display_bits = display_bits
             if not started or self._state is not SlotState.WAITING:
                 return None
             held = self._held

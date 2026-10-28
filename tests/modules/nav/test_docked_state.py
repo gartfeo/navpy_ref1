@@ -157,7 +157,7 @@ def test_an_own_dock_contact_redirects_to_docked_whatever_the_snap():
     assert outcome == NavExitOutcome(redirect=NavState.DOCKED)
     assert events == []
     message = logger.info.call_args.args[0]
-    assert message.startswith("STATE DOCKED: contact 3d=0.07m dock=4")
+    assert message.startswith("STATE DOCKED (sim): 3d=0.07m dock=4")
 
 
 def test_no_contact_keeps_todays_flow_even_with_a_close_snap():

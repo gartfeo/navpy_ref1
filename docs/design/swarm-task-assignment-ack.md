@@ -148,12 +148,14 @@ Reject repeats stop only on RECEIVED or APPLIED.
 
 ## Busy UAVs, fuel and priority
 
-**Node state** (`SwarmNodeState` in `swarm_heartbeat_msg.py`, sent in the
-existing `SWARM_HEARTBEAT.state` byte, always 0 today; no dialect change):
+**Node state** (`SwarmNodeState` in `swarm_heartbeat_msg.py`, sent in bit 0
+of the existing `SWARM_HEARTBEAT.state` byte; no dialect change):
 `FREE=0`, `BUSY=1`. BUSY = slot WAITING/ASSIGNED, or nav is **approaching**
 (committed phase NAV: flying a final approach). Everything else is FREE:
 searching, CONFIRM of an own POI, DDH return, ONHOLD/RESET/RECOVERY.
-Receivers treat any non-zero code as busy.
+Receivers read bit 0 only; bits 1-7 carry nav's display phase and last
+outcome for the GCS (`gcs_mission_phase.md`). All UAVs of a fleet run one
+build: an older build reads any non-zero byte as busy.
 
 **Approaching** is published by the nav thread after each cycle commits the
 phase (`NavNetworkRuntime.publish_approaching` →
@@ -219,8 +221,9 @@ SWARM_ACK APPLIED for step 4: resolve `(helper, ref)` against that helper's
 current round, emit WS `task_assign_ack` and log
 `Task assign ack: owner=O helper=H task_id=T status=APPLIED ref=B:S uid=B:S`.
 `vehicle_entry.py` subscribes to the own companion's `SWARM_HEARTBEAT`, keeps
-the newest by `(boot, seq)`, and adds `swarm {state, boot, seq, stale}` to the
-snapshot (stale after the beat's `ttl_ms`).
+the newest by `(boot, seq)` (dropping beats from boots it replaced), and adds
+`swarm {state, phase, outcome, fail_reason, boot, seq, stale}` to the snapshot
+(stale after the beat's `ttl_ms`; display fields per `gcs_mission_phase.md`).
 
 **Frontend**: new pure reducer `utils/taskAssignmentState.js` (dispatch table
 by action; `useTaskAssignment` becomes a thin wrapper).

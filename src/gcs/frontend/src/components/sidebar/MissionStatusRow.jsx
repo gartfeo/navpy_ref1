@@ -167,7 +167,44 @@ const STATUS_RENDERERS = {
     ),
     extra: null,
   }),
+
+  // NavPy phases and outcomes (docs/design/gcs_mission_phase.md); the outcome
+  // reason row and the "Last: ..." line are drawn below for every status.
+  homing: () => ({ inline: null, extra: null }),
+  recovering: () => ({ inline: null, extra: null }),
+  docked: () => ({ inline: null, extra: null }),
+  dock_failed: () => ({ inline: null, extra: null }),
 };
+
+const LAST_KEYS = {
+  docked: 'missionStatus.lastDocked',
+  dock_failed: 'missionStatus.lastDockFailed',
+};
+
+/** Why the dock failed, under a DOCK FAILED (SIM) badge. */
+function ReasonRow({ outcome }) {
+  const { t } = useTranslation();
+  if (!outcome?.reasonKey) return null;
+  return (
+    <div style={{
+      marginTop: 4, padding: '3px 6px', borderRadius: 3, fontSize: 10,
+      background: 'rgba(244,67,54,.12)', color: colors.error,
+    }}>
+      {t('missionStatus.reason', { reason: t(outcome.reasonKey) })}
+    </div>
+  );
+}
+
+/** A held outcome while NavPy has moved on, e.g. searching after a dock. */
+function LastOutcome({ last }) {
+  const { t } = useTranslation();
+  if (!last) return null;
+  return (
+    <div style={{ color: colors.textDim, fontSize: 10, marginTop: 4 }}>
+      {t('missionStatus.last', { outcome: t(LAST_KEYS[last.kind]) })}
+    </div>
+  );
+}
 
 /**
  * MissionStatusRow renders Row 3 of the UAV status card:
@@ -182,13 +219,17 @@ export default function MissionStatusRow({ vehicle, missionStatus, assignment, o
 
   const { inline, extra } = renderer(vehicle, assignment, onFlyToLocation, searchProgress);
 
+  const stale = !!missionStatus.stale;
   return (
-    <div>
+    <div style={stale ? { opacity: 0.55 } : undefined}>
       <div style={{ display: 'flex', gap: 6, fontSize: 10, alignItems: 'center' }}>
         <Badge label={t(missionStatus.labelKey)} color={missionStatus.color} />
         {inline}
+        {stale && <span style={{ color: colors.textDim }}>{t('missionStatus.lastHeard')}</span>}
       </div>
       {extra}
+      <ReasonRow outcome={missionStatus.outcome} />
+      <LastOutcome last={missionStatus.last} />
     </div>
   );
 }

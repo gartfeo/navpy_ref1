@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.msg_meta import MsgMeta
+from navpy.core.flow.nav_display import NavDisplay, NavOutcome, NavPhase
 from navpy.core.link.swarm_heartbeat_msg import (
     SwarmHeartbeatMsg,
     SwarmNodeState,
@@ -144,7 +145,7 @@ class HeartbeatNodeStateTest(unittest.TestCase):
         report()
         (message,) = [call.args[0] for call in self.network.broadcast.call_args_list]
         self.assertIsInstance(message, SwarmHeartbeatMsg)
-        return SwarmNodeState(message.state)
+        return SwarmNodeState.from_code(message.state)
 
     def _assert_reported(self, expected):
         for report in (
@@ -158,6 +159,24 @@ class HeartbeatNodeStateTest(unittest.TestCase):
 
     def test_final_approach_is_busy(self):
         self.slot.set_participation(True, False)
+        self._assert_reported(SwarmNodeState.BUSY)
+
+    def test_display_bits_ride_along_and_never_read_busy(self):
+        self.presence = _presence(
+            TaskMessageSender(1, self.network, Mock(spec=ILogger)),
+            lock=self.lock,
+            node_state=lambda: (
+                int(self.slot.node_state()) | self.slot.display_bits
+            ),
+        )
+        searching = NavDisplay(NavPhase.SEARCH, NavOutcome(True)).state_bits()
+        self.slot.set_participation(False, False, searching)
+        self._assert_reported(SwarmNodeState.FREE)
+        (message,) = [c.args[0] for c in self.network.broadcast.call_args_list]
+        self.assertEqual(message.state, searching)
+
+        approach = NavDisplay(NavPhase.APPROACH).state_bits()
+        self.slot.set_participation(True, False, approach)
         self._assert_reported(SwarmNodeState.BUSY)
 
     def test_waiting_task_is_busy(self):

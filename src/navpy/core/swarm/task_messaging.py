@@ -24,10 +24,7 @@ from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.msg_abc import MsgABC
 from navpy.core.link.msg_meta import MsgMetaProvider
 from navpy.core.link.swarm_ack_msg import SwarmAckMsg
-from navpy.core.link.swarm_heartbeat_msg import (
-    SwarmHeartbeatMsg,
-    SwarmNodeState,
-)
+from navpy.core.link.swarm_heartbeat_msg import SwarmHeartbeatMsg
 from navpy.core.link.ttl_defaults import get_ttl_ms
 from navpy.core.link.types import MsgType
 from navpy.core.swarm.task_ack_timing import ack_ttl_ms
@@ -144,8 +141,11 @@ class TaskMessageSender:
             ttl_ms=ack_ttl_ms(acked_type),
         )
 
-    def heartbeat_message(self, state: SwarmNodeState) -> SwarmHeartbeatMsg:
-        """Build and stamp a state report; send it with send_heartbeat()."""
+    def heartbeat_message(self, state: int) -> SwarmHeartbeatMsg:
+        """Build and stamp a state report; send it with send_heartbeat().
+
+        ``state`` is the whole state byte (swarm_heartbeat_msg.py).
+        """
         message = SwarmHeartbeatMsg(self._actor_id, state=int(state))
         self._stamp(message, None)
         return message
