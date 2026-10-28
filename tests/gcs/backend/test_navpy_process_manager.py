@@ -24,6 +24,10 @@ class TestNavpyProcessManager(unittest.TestCase):
 
     def setUp(self):
         self.mgr = NavpyProcessManager()
+        # The mocked processes were never really started suspended.
+        resume = patch("gcs.backend.navpy_process_spawn._resume")
+        resume.start()
+        self.addCleanup(resume.stop)
 
     def test_runtime_marker_includes_emitting_python_pid(self):
         output = StringIO()
@@ -640,10 +644,10 @@ class TestNavpyProcessManager(unittest.TestCase):
             "gcs.backend.navpy_process_manager._foreign_udp_holders",
             return_value=[],
         ), patch(
-            "gcs.backend.navpy_process_launch._create_job",
+            "gcs.backend.navpy_process_spawn._create_job",
             return_value=77,
         ), patch(
-            "gcs.backend.navpy_process_launch._close_job",
+            "gcs.backend.navpy_process_spawn._close_job",
         ) as close_job:
             with self.assertRaises(OSError) as raised:
                 self.mgr.start(1, "udp:0.0.0.0:14550")

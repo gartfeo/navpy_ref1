@@ -67,10 +67,13 @@ SITL_DEFAULT_OVERRIDES: Mapping[str, float] = {
     "SCR_DEBUG_OPTS": 0.0,
     "SERVO5_FUNCTION": 94.0,
     # serial0 feeds the companion and serial1 the GCS; without these rates a
-    # fresh eeprom streams almost nothing to NavPy.
-    "SR0_ADSB": 5.0, "SR0_EXT_STAT": 2.0, "SR0_EXTRA1": 4.0,
+    # fresh eeprom streams almost nothing to NavPy. EXTRA1 and RAW_SENS stay
+    # off on serial0: NavPy reads none of their messages and requests its
+    # ATTITUDE itself (pose_streams.py). They were 28 of the 149 packets per
+    # sim second each NavPy read (todo 66).
+    "SR0_ADSB": 5.0, "SR0_EXT_STAT": 2.0, "SR0_EXTRA1": 0.0,
     "SR0_EXTRA2": 4.0, "SR0_EXTRA3": 2.0, "SR0_POSITION": 2.0,
-    "SR0_RAW_CTRL": 1.0, "SR0_RAW_SENS": 2.0, "SR0_RC_CHAN": 2.0,
+    "SR0_RAW_CTRL": 1.0, "SR0_RAW_SENS": 0.0, "SR0_RC_CHAN": 2.0,
     "SR1_EXT_STAT": 2.0, "SR1_EXTRA1": 4.0, "SR1_EXTRA2": 4.0,
     "SR1_EXTRA3": 2.0, "SR1_POSITION": 2.0, "SR1_RAW_SENS": 2.0,
     "SR1_RC_CHAN": 2.0,

@@ -18,6 +18,10 @@ sets both itself: a venv ``python.exe`` is a launcher, and the interpreter it
 starts does not inherit an above-normal class. Other platforms are left
 unchanged (raising priority on Linux needs privileges, and the aircraft
 companion runs alone).
+
+Only a NORMAL process is raised. A NavPy started by background work
+inherits BELOW_NORMAL and keeps it, so it never competes with the stack
+that holds a CPU share (``docs/design/bounded_cpu_share.md``).
 """
 
 from __future__ import annotations
@@ -29,6 +33,7 @@ import sys
 _LOG = logging.getLogger(__name__)
 
 ABOVE_NORMAL_PRIORITY_CLASS = 0x00008000
+NORMAL_PRIORITY_CLASS = 0x00000020
 PROCESS_POWER_THROTTLING = 4  # PROCESS_INFORMATION_CLASS ProcessPowerThrottling
 POWER_THROTTLING_VERSION = 1  # PROCESS_POWER_THROTTLING_CURRENT_VERSION
 EXECUTION_SPEED = 0x1  # PROCESS_POWER_THROTTLING_EXECUTION_SPEED
@@ -48,6 +53,8 @@ def _kernel32() -> object:
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
     kernel32.GetCurrentProcess.argtypes = []
     kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.GetPriorityClass.argtypes = [wintypes.HANDLE]
+    kernel32.GetPriorityClass.restype = wintypes.DWORD
     kernel32.SetPriorityClass.argtypes = [wintypes.HANDLE, wintypes.DWORD]
     kernel32.SetPriorityClass.restype = wintypes.BOOL
     kernel32.SetProcessInformation.argtypes = [
@@ -58,7 +65,7 @@ def _kernel32() -> object:
 
 
 def raise_process_qos(platform: str = sys.platform, kernel32: object | None = None) -> bool:
-    """Set above-normal priority and high QoS; True when both were set.
+    """Raise NORMAL priority to above-normal and set high QoS; True when both hold.
 
     A failure is logged and returns False: NavPy still runs, only without the
     protection against a loaded host.
@@ -68,9 +75,17 @@ def raise_process_qos(platform: str = sys.platform, kernel32: object | None = No
     try:
         native = _kernel32() if kernel32 is None else kernel32
         process = native.GetCurrentProcess()
-        priority = bool(native.SetPriorityClass(process, ABOVE_NORMAL_PRIORITY_CLASS))
-        if not priority:
-            _LOG.warning("SetPriorityClass(ABOVE_NORMAL) failed: error %s", ctypes.get_last_error())
+        current = native.GetPriorityClass(process)
+        if current == NORMAL_PRIORITY_CLASS:
+            priority = bool(native.SetPriorityClass(process, ABOVE_NORMAL_PRIORITY_CLASS))
+            if not priority:
+                _LOG.warning("SetPriorityClass(ABOVE_NORMAL) failed: error %s", ctypes.get_last_error())
+        else:
+            priority = bool(current)
+            if priority:
+                _LOG.info("Priority class %#x kept: started as background", current)
+            else:
+                _LOG.warning("GetPriorityClass failed: error %s", ctypes.get_last_error())
         # Control the execution-speed bit and clear it: never throttle.
         state = PowerThrottlingState(POWER_THROTTLING_VERSION, EXECUTION_SPEED, 0)
         qos = bool(native.SetProcessInformation(
@@ -84,4 +99,6 @@ def raise_process_qos(platform: str = sys.platform, kernel32: object | None = No
     return False
 
 
-__all__ = ["ABOVE_NORMAL_PRIORITY_CLASS", "EXECUTION_SPEED", "raise_process_qos"]
+__all__ = [
+    "ABOVE_NORMAL_PRIORITY_CLASS", "EXECUTION_SPEED", "NORMAL_PRIORITY_CLASS", "raise_process_qos",
+]

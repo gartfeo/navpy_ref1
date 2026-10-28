@@ -49,6 +49,10 @@ EXEMPT = {
         "the machine-wide slot registry: host process liveness and claim "
         "times, never a product outcome"
     ),
+    "src/gcs/backend/cpu_share": (
+        "the machine-wide CPU share: host scheduling and its wall expiry "
+        "(bounded_cpu_share.md), never a product outcome"
+    ),
 }
 # The operator side of the GCS demo eval: its clock is StackContext.clock.
 OPERATOR_GLOB = "scripts/eval_gcs_demo_*.py"
