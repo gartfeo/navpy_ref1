@@ -1572,3 +1572,44 @@
   per-frame latency draw matched the wall runs' cadence by chance, but published 22 % of
   intervals over 62.5 ms where the ZR10 report has 0.32 %. Before fitting, check what the
   reference itself measured: the wall runs had no camera latency, so they could not judge one.
+
+## NAV reader lag: closest-approach tracker on the reader thread (todo 65 (b), 2026-10-27)
+- Cause found by comparing per-callback wall time in NAV against the seconds before NAV
+  in one bounded trace (reader recv/select/decode/dispatch, callbacks by name, worker,
+  GC). The sim-only dock contact callback went from 24 ms to 1454 ms per window; nothing
+  else changed that much. Trace the phase that fails against the phase that does not.
+- The same cause was fixed on 2026-10-13 (todo 34); a later feature (the closest-approach
+  tracker) reintroduced it while its docstring still said "cheap unless near the dock".
+  Guard per-sample reader-thread cost with a test that counts the expensive calls, not a
+  comment.
+- py-spy --gil gave 580-742 sample errors per 4 s on these processes, so it cannot measure
+  GIL occupancy. Per-thread CPU from QueryThreadCycleTime (`.logs/t31/thread_cycles.py`)
+  worked.
+- Isolated microbenchmarks understated the cost: pymap3d took 163 us alone but about
+  1.3 ms per call in NAV, where threads already sum to more than one core. Measure cost
+  inside the loaded process.
+- Driving the hand demo from the built-in browser: POST
+  `/api/vehicles/discover?device=udp:0.0.0.0:15550&timeout=3`, then Retry; inject the plan
+  file by overriding `HTMLInputElement.prototype.click` once; HOLD TO LAUNCH needs a JS
+  mousedown, 1.6 s wait, mouseup. Click APPROVE by its find() ref: a coordinate click
+  on the confirm card missed once and the request timed out (REJECTED, re-asked).
+  Tools: `.logs/nav-reader-lag/tools`.
+- Reader lag needs no diagnostic code: the demo's source-time CSVs log every ATTITUDE
+  arrival at NavPy and at the GCS (wall_s, boot_ms), so NavPy minus GCS for the same
+  boot_ms is the reader's lag (`tools/arrival_lag.py`). It matched the trace.
+- An unfixed comparison run may fail differently: here the NAV phases lasted 2.9 s wall
+  and ended (one `DOCKED`, one `no_detection`) before a catch-up burst could trip
+  `source_command_stale`. Compare the measured mechanism (reader busy share, lag), not
+  only the end state.
+- Codex found that the flat-earth bound ignored height (the flat frame uses surface
+  radii): at 3000 m it failed at 4 m reach, and the upper bound the fix used for
+  pruning could drop the true minimum at an elevated dock. The existing random check
+  ran at one height (300 m) and passed. Check a geometric bound over the whole range of
+  every input (latitude, height, scale, still segments), in both directions.
+- `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
+  in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
+  and check line endings with `file` after any scripted edit.
+- A Windows path written into a Python string through the Bash tool lost one of its
+  doubled backslashes, so \2026... became the octal escape \202 and todo 147 got a
+  control character in place of the run folder. Build backslashes with chr(92) and
+  scan changed files for control characters before committing.

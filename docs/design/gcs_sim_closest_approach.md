@@ -45,12 +45,25 @@ Display only. Simulation never proves physical docking.
 
 While armed, the sensor keeps the episode's best segment by **exact** distance:
 
-- Every joined segment already gets the flat distance. If the flat distance
-  minus the flat-earth error bound (`flat_earth_error_bound_m`, the same bound
-  the contact filter uses) is below the best exact distance so far, it runs
-  the exact geodetic closest point and keeps it if smaller. So no segment that
-  could beat the kept one is skipped. Near the dock this is one exact
-  computation per sample (a few `pymap3d` calls), on the telemetry thread.
+- Every joined segment already gets the flat distance; its exact distance
+  lies within the flat-earth error bound of it (`flat_earth_error_bound_m`,
+  the same bound the contact filter uses). The tracker keeps every segment
+  whose lower bound is not above the smallest kept upper bound, unresolved,
+  and drops the rest. So no segment that could be the exact minimum is
+  skipped. The record resolves the kept candidates with the exact geodetic
+  closest point at disarm, off the telemetry thread.
+- The sensor samples on the telemetry reader thread; there the tracker adds
+  only flat-frame work per sample. (Until 2026-10-27 the exact closest point ran for
+  every segment that could beat the kept minimum: every sample while closing,
+  at any range. In NAV at 10x that pymap3d work made the reader fall behind
+  SITL, todo 65.) A pass keeps one to three candidates. A path that holds its
+  range within the bounds (an orbit) keeps adding them; past
+  `CLOSEST_APPROACH_MAX_CANDIDATES` (16) the oldest is resolved at once, so
+  the tracker does at most one exact computation per sample. The contact
+  test adds its own only within reach of the net ("What exists today").
+- The bound includes the height scale: the flat frame uses the ellipsoid's
+  surface radii, so at height h a horizontal distance is off by up to
+  |h| / R. Without that term an elevated dock could drop the true minimum.
 - The contact segment is kept separately, as today.
 
 **Outcome comes from the lifecycle, not the sensor.** `FinalApproachDockContact`
@@ -416,7 +429,9 @@ The record is display evidence only:
 
 - Sensor: a miss reports once at disarm with the episode minimum; competing
   segments where the smallest flat distance is not the smallest exact distance
-  report the exact minimum; docked reports the contact segment and matches the
+  report the exact minimum; a 500 m approach runs no exact geometry while
+  sampling, and an orbit at most one per sample, both still reporting the
+  exact minimum; docked reports the contact segment and matches the
   DOCKED distance; a contact the lifecycle rejected with no terminal latched
   reports `aborted`, and with FAILED latched first after pass evidence,
   `missed`; re-arm

@@ -416,34 +416,42 @@ def test_a_turn_well_inside_the_net_docks(dock_inside):
 # --- reader-thread cost: a flat coarse filter that never misses a contact --
 
 
+@pytest.mark.parametrize("alt_m", (-400.0, 300.0, 3000.0))
 @pytest.mark.parametrize("lat_deg", (0.0, 40.0, 70.0))
-def test_flat_frame_agrees_with_exact_geometry_within_its_bound(lat_deg):
+def test_flat_frame_agrees_with_exact_geometry_within_its_bound(lat_deg, alt_m):
+    """Both ways, so it is a lower and an upper bound; the height term
+    matters most for still segments tens of metres from an elevated dock."""
     import random
 
     from navpy.core.approach.logs.navigation_snap_geometry import (
         closest_point_components_on_segment,
     )
-    dock = SimulationObject(1, Location(lat_deg, 44.0, 300.0, is_absolute=True), 10)
+    dock = SimulationObject(1, Location(lat_deg, 44.0, alt_m, is_absolute=True), 10)
     frame = DockFrame.at(dock)
     m_lat = frame.north_m_per_deg
     m_lon = frame.east_m_per_deg
     rng = random.Random(1234)
-    for scale_m in (2.0, 20.0, 500.0):
-        for _ in range(200):
+    for scale_m in (2.0, 20.0, 80.0, 500.0):
+        for index in range(200):
             a, b = (
                 Location(
                     lat_deg + rng.uniform(-scale_m, scale_m) / m_lat,
                     44.0 + rng.uniform(-scale_m, scale_m) / m_lon,
-                    300.0 + rng.uniform(-scale_m, scale_m) / 4.0,
+                    alt_m + rng.uniform(-scale_m, scale_m) / 4.0,
                     is_absolute=True,
                 )
                 for _ in range(2)
             )
+            if index % 3 == 0:
+                b = a  # a still segment
             local_a, local_b = frame.local(a), frame.local(b)
             exact = closest_point_components_on_segment(a, b, dock.g_loc).slant
             flat = flat_segment_distance(local_a, local_b)
             reach = math.dist((0, 0, 0), local_a) + math.dist((0, 0, 0), local_b)
-            assert abs(flat - exact) <= flat_earth_error_bound_m(reach, frame.abs_tan_lat)
+            height = max(abs(alt_m), abs(a.alt), abs(b.alt))
+            assert abs(flat - exact) <= flat_earth_error_bound_m(
+                reach, frame.abs_tan_lat, height,
+            )
 
 
 def _count_exact(sensor):
