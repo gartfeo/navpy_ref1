@@ -17,6 +17,7 @@ pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows job obj
 from gcs.backend import navpy_process_instance as instance  # noqa: E402
 from gcs.backend import navpy_process_spawn as spawn  # noqa: E402
 from gcs.backend.cpu_share_native import (  # noqa: E402
+    ABOVE_NORMAL_PRIORITY_CLASS,
     BELOW_NORMAL_PRIORITY_CLASS,
     WindowsScheduling,
     cpus_of,
@@ -207,17 +208,24 @@ def _query(pid: int, job: int) -> tuple[int, int, bool]:
         k.CloseHandle(wintypes.HANDLE(handle))
 
 
+#: What a holder's NavPy does first (``raise_process_qos``).
+_RAISE_ABOVE = (
+    "import ctypes\nfrom ctypes import wintypes\n"
+    "assert ctypes.WinDLL('kernel32').SetPriorityClass(wintypes.HANDLE(-1), 0x8000)\n"
+)
+
+
 def test_a_real_venv_child_runs_inside_its_job_and_the_job_demotes_it():
     proc, job = spawn.spawn_in_job(
-        [sys.executable, "-c", _REPORT + "sys.stdin.readline()\n"],
+        [sys.executable, "-c", _RAISE_ABOVE + _REPORT + "sys.stdin.readline()\n"],
         {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "creationflags": FLAGS},
         popen_factory=subprocess.Popen, sys_id=1, logger=MagicMock(),
-        scheduling=FakeScheduling([], holding=False))
+        scheduling=FakeScheduling([], holding=True))
     try:
         assert job is not None
         pid = int(proc.stdout.readline().split()[0])  # the real interpreter, past the launcher
-        _priority, mask, in_job = _query(pid, job)
-        assert in_job
+        priority, mask, in_job = _query(pid, job)
+        assert in_job and priority == ABOVE_NORMAL_PRIORITY_CLASS
         one_cpu = mask_of(cpus_of(mask)[:1])
         assert instance.demote_open_jobs(BELOW_NORMAL_PRIORITY_CLASS, one_cpu) >= 1
         assert _query(pid, job) == (BELOW_NORMAL_PRIORITY_CLASS, one_cpu, True)
@@ -226,6 +234,34 @@ def test_a_real_venv_child_runs_inside_its_job_and_the_job_demotes_it():
         proc.wait(10)
         proc.stdin.close()
         proc.stdout.close()
+
+
+def test_a_real_navpy_beside_the_shares_starts_below_normal_from_a_normal_backend():
+    """The creation flag, not inheritance: the backend here is NORMAL, as when
+    its background priority was refused (pytest itself runs as background)."""
+    parent = (
+        "import ctypes, subprocess, sys\n"
+        "from ctypes import wintypes\n"
+        "from unittest.mock import MagicMock\n"
+        "from gcs.backend import navpy_process_instance as instance\n"
+        "from gcs.backend import navpy_process_spawn as spawn\n"
+        "k = ctypes.WinDLL('kernel32')\n"
+        "k.GetPriorityClass.argtypes = [wintypes.HANDLE]\n"
+        "assert k.SetPriorityClass(wintypes.HANDLE(-1), 0x20)\n"  # NORMAL
+        "class Beside:\n"
+        "    holding = False\n"
+        "    def give_up(self, reason): return True\n"
+        f"proc, job = spawn.spawn_in_job([sys.executable, '-c', {_REPORT!r}],"
+        f" {{'stdout': subprocess.PIPE, 'creationflags': {FLAGS}}}, popen_factory=subprocess.Popen,"
+        " sys_id=1, logger=MagicMock(), scheduling=Beside())\n"
+        "child = proc.stdout.read().decode().split()\n"
+        "proc.wait(10)\n"
+        "instance._terminate_job(job)\n"
+        "print(k.GetPriorityClass(wintypes.HANDLE(-1)), child[1])\n"
+    )
+    out = subprocess.run([sys.executable, "-c", parent], capture_output=True, text=True,
+                         env=_child_env(), timeout=60, check=True).stdout
+    assert tuple(map(int, out.split())) == (0x20, BELOW_NORMAL_PRIORITY_CLASS)
 
 
 def test_a_real_grandchild_inherits_below_normal_and_the_affinity():

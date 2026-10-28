@@ -73,7 +73,9 @@ class StackScheduling:
     def start(self, seconds: float | None, label: str) -> str:
         """Claim a share for *seconds* when asked, else run as background;
         returns ``holder``, ``background`` or ``normal`` (background priority
-        could not be set; this stack's NavPys still start BELOW_NORMAL)."""
+        could not be set; this stack's NavPys still start BELOW_NORMAL).
+        RuntimeError when a granted share could be neither applied nor
+        backed out."""
         native = self._native = self._native or native_scheduling()
         record = self._record = self._record or ShareRecord()
         if seconds is not None and seconds > 0:
@@ -83,10 +85,12 @@ class StackScheduling:
                     native.set_own(ABOVE_NORMAL_PRIORITY_CLASS, mask_of(outcome.cpus))  # type: ignore[attr-defined]
                 except OSError as error:
                     if not self._background():
-                        log.error("CPU share %s not applied (%s) and this stack could not run "
-                                  "as background; its CPUs stay held until this backend exits",
-                                  outcome.id, error)
-                        return "normal"
+                        # It may run ABOVE_NORMAL on every CPU with no share
+                        # to bound it: the backend stops, its entry with it.
+                        raise RuntimeError(
+                            f"CPU share {outcome.id} not applied ({error}) and this stack "
+                            "could not run as background"
+                        ) from error
                     log.warning("CPU share %s not applied (%s): this stack runs as background",
                                 outcome.id, error)
                     record.release(outcome)

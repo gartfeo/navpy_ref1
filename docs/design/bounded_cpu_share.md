@@ -108,7 +108,10 @@ claim, because load changes only their wall time.
 | Background priority refused by Windows | backend keeps its class (state `normal`, an ERROR in its log); NavPys still start BELOW_NORMAL |
 
 A refused claim never waits. Its run is todo-65 evidence, not a reason to
-wait.
+wait. A granted share that can be neither applied nor backed out to
+background stops the backend at startup: it might run ABOVE_NORMAL on every
+CPU with nothing to bound it. Its entry is dropped once the backend has
+exited.
 
 **Holder.** Before it spawns NavPy, the backend sets ABOVE_NORMAL and the
 share's CPUs on itself, level with its NavPys: at NORMAL their threads
@@ -196,8 +199,9 @@ it runs, then started as background; with a failed demotion nothing
 starts), a refused background priority, an inherited `GCS_CPU_SHARE_S`
 without the flag, background mask recompute, a real
 child inheriting affinity and BELOW_NORMAL, a real suspended venv-launched
-child whose interpreter is inside the job after resume, and a real job
-demoting that running child.
+child whose interpreter is inside the job after resume, a real job
+demoting that running child from ABOVE_NORMAL, and a real child of a NORMAL
+backend starting BELOW_NORMAL by its creation flag.
 
 ## Results (2026-10-28)
 
@@ -249,8 +253,9 @@ numpy DLL, so A1 ran beside the matrix only):
 - Timing-sensitive unit tests run at BELOW_NORMAL and may lose to NORMAL
   desktop work. Re-run such a failure on its own before calling it a
   regression (as today).
-- C can still miss with no lasting reader backlog (C3): frame cost under host load
-  (todo 65), not packets (about 0.1 core per NavPy, todo 66).
+- C can still miss with no lasting reader backlog (C3), most likely from
+  frame cost under host load (todo 65); packets cost about 0.1 core per
+  NavPy (todo 66), and a part from the remaining lag is not ruled out.
 - The suspended start changes every NavPy launch, not only holders'. It
   also closes the same gap for `KILL_ON_JOB_CLOSE` today.
 

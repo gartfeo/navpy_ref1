@@ -212,13 +212,15 @@ def test_a_share_that_cannot_be_applied_is_released_and_the_stack_runs_as_backgr
     assert events[1:] == ["background"] and record.listing() == [] and not stack.holding
 
 
-def test_a_share_neither_applied_nor_backed_out_stays_held(record, timers):
-    # It may run ABOVE_NORMAL on every CPU: no other holder gets these CPUs.
+def test_a_share_neither_applied_nor_backed_out_stops_the_backend(record, timers):
+    # ABOVE_NORMAL on every CPU with nothing to bound it: startup fails, and the
+    # entry stays held until the backend has exited.
     events: list = []
-    stack = _stack(record, events, timers, native=FakeNative(events, affinity_fails=True),
-                   background=False)
-    assert stack.start(60.0, "eval") == "normal"
-    assert len(record.listing()) == 1 and not stack.holding
+    native = FakeNative(events, affinity_fails=True)
+    stack = _stack(record, events, timers, native=native, background=False)
+    with pytest.raises(RuntimeError, match="could not run as background"):
+        stack.start(60.0, "eval")
+    assert native.priority == ABOVE and len(record.listing()) == 1 and not stack.holding
 
 
 def test_shutdown_before_expiry_cancels_the_timer_and_releases(record, timers):
