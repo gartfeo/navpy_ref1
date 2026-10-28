@@ -67,6 +67,7 @@ def launch_command(
     instances: int | None = None,
     headless: bool = True,
     browser: bool = True,
+    cpu_share_s: float | None = None,
 ) -> list[str]:
     """Use only the isolated launcher; its directory owns the slot.
 
@@ -74,6 +75,8 @@ def launch_command(
     SITL vehicles of the slot's reserved sysids, in order. The hand demo
     (``delivery_demo.py``) keeps the frontend (*headless* False) and opens
     the browser itself once the vehicle params are set (*browser* False).
+    *cpu_share_s* asks the stack's backend for a CPU share that long
+    (``bounded_cpu_share.md``); without it the stack runs as background.
     """
     command = [sys.executable, str(GCS_LAUNCH)]
     if headless:
@@ -82,6 +85,11 @@ def launch_command(
         command.append("--no-browser")
     if instances is not None:
         command.extend(("-n", str(positive_int("instances", instances))))
+    if cpu_share_s is not None:
+        seconds = finite_number("cpu_share_s", cpu_share_s)
+        if seconds <= 0.0:
+            raise ValueError("cpu_share_s must be positive")
+        command.extend(("--cpu-share-s", repr(seconds)))
     if launch_token is not None:
         if type(launch_token) is not str or not launch_token:
             raise ValueError("launch token must be a non-empty string")

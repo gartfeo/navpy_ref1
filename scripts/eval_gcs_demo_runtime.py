@@ -24,6 +24,11 @@ from scripts.eval_gcs_demo_mission import run_mission
 from scripts.eval_gcs_demo_process import SystemClock, with_owned_stack
 from scripts.eval_gcs_demo_scenario import DemoScenario
 
+#: The wall run's CPU share outlasts its timeout by the stack's setup (SITL
+#: boot, connect, upload) before the timed mission starts
+#: (``bounded_cpu_share.md``).
+CPU_SHARE_SETUP_MARGIN_S = 300.0
+
 
 def execute_live_run(
     run_dir: Path,
@@ -83,6 +88,7 @@ def execute_live_run(
         sitl_root.launch_arguments(),
         clock=SystemClock(),
         scenario=scenario,
+        cpu_share_s=timeout + CPU_SHARE_SETUP_MARGIN_S,
     )
     if not isinstance(mission, MissionArtifacts):
         raise TypeError("mission action returned an invalid artifact")

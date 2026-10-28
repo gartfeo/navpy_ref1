@@ -190,6 +190,118 @@ def test_a_segment_flat_farther_but_exactly_nearer_is_still_kept(monkeypatch):
     assert reports[0].d3_m == pytest.approx(exact_near, abs=1e-9)
 
 
+def _count_exact_geometry(monkeypatch):
+    """Count the tracker's and sensor's exact geodetic computations."""
+    from navpy.sim.world import closest_approach_tracker as module
+
+    calls = []
+
+    def counted(*args):
+        calls.append(args)
+        return closest_point_components_on_segment(*args)
+
+    monkeypatch.setattr(module, "closest_point_components_on_segment", counted)
+    return calls
+
+
+def _exact_minimum(points):
+    locations = [_at(*point) for point in points]
+    return min(
+        closest_point_components_on_segment(a, b, _at(0.0)).slant
+        for a, b in zip(locations, locations[1:])
+    )
+
+
+def test_a_long_approach_runs_no_exact_geometry_on_the_reader_thread(monkeypatch):
+    """The sensor samples on the telemetry reader thread. Closing on the dock
+    from 500 m sets a new minimum every sample; that must cost only flat
+    bounds there (an exact pass per sample starved the reader in NAV), and
+    the record still resolves the exact minimum at disarm."""
+    calls = _count_exact_geometry(monkeypatch)
+    points = [(-500.0 + i * 0.625, 20.0, 5.0) for i in range(840)]
+    sensor, reports, events = _sensor()
+    _fly(sensor, points)
+    assert calls == [] and events == []
+
+    sensor.disarm(FAILED)
+
+    assert len(calls) <= 3  # the few candidates around the closest point
+    assert reports[0].d3_m == pytest.approx(_exact_minimum(points), abs=1e-9)
+
+
+def test_the_tracker_resolves_an_orbit_past_its_cap_one_segment_per_keep(
+    monkeypatch,
+):
+    """Segments with overlapping bounds (an orbit) all stay candidates; past
+    the cap the oldest resolves, at most one exact pass per keep. The record
+    is the exact minimum, the earliest on a tie, and a segment whose lower
+    bound is above a kept bound is dropped unresolved."""
+    from navpy.sim.world import closest_approach_tracker as module
+    from navpy.sim.world.closest_approach_tracker import (
+        CLOSEST_APPROACH_MAX_CANDIDATES,
+        ClosestPass,
+    )
+
+    count = 3 * CLOSEST_APPROACH_MAX_CANDIDATES
+    # Resolved by the 4th overflow, then the bound for the later segments.
+    nearest, far, pruned, tie = 3, 10, 25, 30
+    flat = {far: (40.0, 2e-3), pruned: (30.0015, 1e-3)}
+    exact = {nearest: 29.9985, far: 39.999, pruned: 30.002, tie: 29.9985}
+    samples = [SimpleNamespace(index=i) for i in range(count + 1)]
+    resolved = []
+
+    def exact_pass(start, end, dock):
+        resolved.append(start.index)
+        slant = exact.get(start.index, 30.001)
+        return ClosestPass(SimpleNamespace(slant=slant), start, end, dock)
+
+    monkeypatch.setattr(module, "exact_pass", exact_pass)
+    tracker = ClosestApproachTracker()
+    for index in range(count):
+        flat_m, margin_m = flat.get(index, (30.0, 2e-3))
+        assert abs(exact.get(index, 30.001) - flat_m) <= margin_m  # a true bound
+        before = len(resolved)
+        tracker.keep(samples[index], samples[index + 1], "dock", flat_m, margin_m)
+        assert len(resolved) - before <= 1
+    kept = count - 2  # all but far and pruned
+    assert len(resolved) == kept - CLOSEST_APPROACH_MAX_CANDIDATES
+
+    best = tracker.take().best()
+
+    assert len(resolved) == kept
+    assert far not in resolved and pruned not in resolved
+    assert best.start is samples[nearest] and best.components.slant == 29.9985
+    assert tracker.take().best() is None  # take starts a new episode
+    tracker.cut()
+    tracker.keep(samples[0], samples[1], "dock", 1.0, 2e-3)
+    assert tracker.take().best() is None  # nothing after the cut
+
+
+def test_an_elevated_dock_keeps_the_exactly_nearer_segment():
+    """The flat frame uses the ellipsoid's surface radii, so at 1000 m a
+    horizontal 50 m is about 8 mm longer exactly. A segment straight above
+    the dock, flat farther but exactly nearer, must still be the record."""
+    from navpy.sim.world.dock_contact_geometry import DockFrame
+
+    dock = SimulationObject(1, Location(0.0, LON, 1000.0, is_absolute=True), 10)
+    north = Location(50.0 / DockFrame.at(dock).north_m_per_deg, LON, 1000.0, is_absolute=True)
+    above = Location(0.0, LON, 1050.006, is_absolute=True)
+    reports, flat = _flat_reports()
+    sensor = SimDockContactSensor(lambda: [dock], report=flat)
+    sensor.arm(IDENTITY, lambda _event: None)
+    # Two still segments, not joined to each other.
+    for time_s, location in ((10.0, north), (10.0 + DT, north), (11.0, above), (11.0 + DT, above)):
+        sensor.sample(_s(time_s, location))
+    sensor.disarm(FAILED)
+
+    exact_north, exact_above = (
+        closest_point_components_on_segment(point, point, dock.g_loc).slant
+        for point in (north, above)
+    )
+    assert exact_above < exact_north
+    assert reports[0].d3_m == pytest.approx(exact_above, abs=1e-9)
+
+
 def test_docked_reports_the_contact_segment_matching_the_docked_event():
     sensor, reports, events = _sensor()
     _fly(sensor, _line(east_m=0.2))
