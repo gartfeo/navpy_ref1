@@ -15,7 +15,9 @@ one participant's baton schedules, never what product code does:
   the next tick (the wall reader's lag and batching, ``reader_batch.md``).
 - ``timers_first``: each tick fires its due timers before its inputs, so a
   reply that lands on its waiter's deadline tick loses to the timeout (the
-  wall race behind a just-late reply). Off, inputs come first.
+  wall race behind a just-late reply). Off, inputs come first. Under a handoff
+  cap a timed-out waiter may stay runnable past the inputs; it then takes a
+  reply that came first, as CPython's ``Queue.get`` re-checks the queue.
 
 The NavPy roles and the backend role carry these draws in their role config
 (``participant_budget.SIM_MODELS_KEY``); :func:`apply_scheduling` sets them on

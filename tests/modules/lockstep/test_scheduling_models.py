@@ -135,6 +135,34 @@ def test_timers_first_runs_a_due_timer_before_the_inputs_and_shares_the_handoff_
     assert trace == ["timer", "input x"]
 
 
+def test_with_timers_first_a_timed_out_waiter_the_cap_leaves_runnable_takes_a_reply_first():
+    """As CPython's ``Queue.get``: a waiter whose timeout fired re-checks the queue when it runs,
+    so a reply that comes before it gets the CPU wins, as on a starved wall thread."""
+    runtime = BatonRuntime()
+    apply_scheduling(runtime, {TIMERS_FIRST: {}}, 1, 1, 1)
+    inbox = BatonQueue(runtime)
+    trace: list[str] = []
+
+    def sleeper() -> None:
+        sleep(runtime, 0.02)
+        trace.append("timer")
+
+    def waiter() -> None:
+        try:
+            trace.append(inbox.get(timeout=0.02))
+        except Empty:
+            trace.append("timeout")
+
+    runtime.spawn(sleeper, name="sleeper")
+    runtime.spawn(waiter, name="waiter")
+    runtime.run_until_quiescent()
+    # Both timers fire first; the cap of one handoff runs only the sleeper before the reply.
+    runtime.tick(TICK_US, lambda: inbox.deliver("reply"), handoffs=1)
+    assert trace == ["timer"]
+    runtime.tick(2 * TICK_US)
+    assert trace == ["timer", "reply"]
+
+
 def _param_values(count: int) -> bytes:
     link, sink = encoder(1, 1)
     for index in range(count):
@@ -195,6 +223,24 @@ def test_a_reader_budget_serves_its_packets_per_tick_in_batches_and_carries_the_
     received, seen = _served(ReaderBudget(packets_per_tick=4, batch=8), 10, 4)
     assert Counter(tick for tick, _index in received) == {1: 4, 2: 4, 3: 2}
     assert seen == [4, 8, 10]
+
+
+def test_a_close_wakes_a_reader_waiting_out_its_budget_in_the_same_tick():
+    with _lockstep(None) as (baton, _rng):
+        baton.reader_budget = ReaderBudget(packets_per_tick=2, batch=4)  # yields at the tick's end
+        link = LockstepLink(baton, SERIAL0)
+        receiver = _Receiver(baton)
+
+        def consumer() -> None:
+            link.open(SERIAL0).reserve(1).attach(receiver)
+            receiver.event.wait()
+            link.close()  # the reader waits for the next tick, with 3 packets left
+
+        baton.spawn(consumer, name="consumer")
+        baton.run_until_quiescent()
+        baton.tick(TICK_US, lambda: link.deliver(_param_values(5)))
+        assert not baton.threads.alive()
+        assert receiver.received == [(1, 0), (1, 1)]
 
 
 def _burst_read(budget: ReaderBudget | None) -> list[str]:

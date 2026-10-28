@@ -37,7 +37,7 @@ from navpy.plugins.vehicle.ardupilot.mav_bus_membership import MavBusMembership
 from navpy.plugins.vehicle.ardupilot.mav_bus_reader import MavBusReader
 from navpy.sim.lockstep.baton import BatonRuntime, ReaderBudget
 from navpy.sim.lockstep.baton_queue import BatonQueue
-from navpy.sim.lockstep.baton_sync import sleep, yield_now
+from navpy.sim.lockstep.baton_sync import yield_now
 from navpy.sim.lockstep.mavlink_wire import ByteSink, StreamDecoder, encoder
 
 log = logging.getLogger(__name__)
@@ -55,14 +55,15 @@ class ReaderService:
         self._tick_us: int | None = None
         self._served = 0
 
-    def before_packet(self) -> None:
-        """Wait for the next tick once this tick's packets are served."""
+    def before_packet(self, stop: rt.Event) -> None:
+        """Wait for the next tick once this tick's packets are served; ``stop`` ends the wait,
+        so a close in this tick still joins the reader."""
         if self._budget is None:
             return
         if self._baton.now_us != self._tick_us:
             self._tick_us, self._served = self._baton.now_us, 0
         if self._served == self._budget.packets_per_tick:
-            sleep(self._baton, NEXT_TICK_S)
+            stop.wait(NEXT_TICK_S)
             self._tick_us, self._served = self._baton.now_us, 0
 
     def after_packet(self) -> None:
@@ -137,7 +138,7 @@ class LockstepBusReader(MavBusReader):
             if not pending:
                 pending.extend(self._decoder.feed(self._inbound.get()))
                 continue
-            self._service.before_packet()
+            self._service.before_packet(self._stop)
             if self._stop.is_set():
                 return
             message = pending.popleft()
