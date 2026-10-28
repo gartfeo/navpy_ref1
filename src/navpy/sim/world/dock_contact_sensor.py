@@ -166,6 +166,8 @@ class SimDockContactSensor:
         Every sample costs a flat-frame segment distance. The exact
         geodetic closest point and the chord-bow bound run only when that
         distance, widened by the flat-earth error bound, is within the net.
+        The closest-approach tracker adds flat bounds only, and at most one
+        exact pass on a sample that overflows its candidates (an orbit).
         After the one contact the episode minimum is still kept: the
         lifecycle may reject that contact.
         """
@@ -194,7 +196,7 @@ class SimDockContactSensor:
             self._closest.break_run()
             return None, None
         flat_m, margin_m = _flat_distance(previous, current)
-        segment = self._closest.keep(previous.sample, sample, frame.dock, flat_m, margin_m)
+        self._closest.keep(previous.sample, sample, frame.dock, flat_m, margin_m)
         self._closest.observe(previous.local, current.local)
         if self._published:
             return None, None
@@ -204,9 +206,9 @@ class SimDockContactSensor:
         # one, so flat closest < radius + bound covers every contact.
         if not flat_m < self._net_radius_m + margin_m:
             return None, None
-        if segment is None:
-            segment = exact_pass(previous.sample, sample, frame.dock)
-        return self._exact_contact(identity, segment)
+        return self._exact_contact(
+            identity, exact_pass(previous.sample, sample, frame.dock),
+        )
 
     def _exact_contact(
         self,
@@ -270,7 +272,14 @@ def _flat_distance(previous: _Joined, current: _Joined) -> tuple[float, float]:
     reach_m = math.dist((0.0, 0.0, 0.0), previous.local) + math.dist(
         (0.0, 0.0, 0.0), current.local,
     )
-    return flat_m, flat_earth_error_bound_m(reach_m, current.frame.abs_tan_lat)
+    height_m = max(
+        abs(current.frame.alt_m),
+        abs(previous.sample.location.alt),
+        abs(current.sample.location.alt),
+    )
+    return flat_m, flat_earth_error_bound_m(
+        reach_m, current.frame.abs_tan_lat, height_m,
+    )
 
 
 def _valid(sample: PositionSample) -> bool:
