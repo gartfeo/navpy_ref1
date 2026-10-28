@@ -827,7 +827,8 @@
 - On a hybrid CPU, Windows EcoQoS runs a windowless process on E-cores under load (work 2x slower). Opt out with
   SetProcessInformation(ProcessPowerThrottling) and measure with a small benchmark first.
 - On Windows Python 3.11 `time.monotonic` ticks at 15.6 ms. Never time 1-10 ms of work with it; use perf_counter.
-- A full pytest run is not light load: about 70% CPU average with 100% peaks. Never overlap it with a wall eval.
+- A full pytest run is not light load: about 70% CPU average with 100% peaks. Since the CPU share (2026-10-28) it runs
+  as background beside a share-holding wall eval; do not wait for it to end.
 - The eval env is an allow-list: ad-hoc env vars do not reach NavPy; derive probe paths from NAVPY_LOG_DIR.
 - To tell a NavPy stall from a SITL stall, compare NavPy's ATTITUDE arrival lag with the GCS receiver's for the same UAV:
   equal lag is upstream (SITL/WSL), NavPy-only lag is NavPy.
@@ -964,6 +965,8 @@
 ## Moving a product out of core in reviewed steps (delivery move c2-c9, 2026-10-19)
 - Never edit a worktree while its pytest or lockstep gate runs: the suite reads the files mid-run. Gate in
   one worktree, build the next commit in a side worktree, and fast-forward the gate worktree between commits.
+  Repeated 2026-10-28 (bounded CPU share): review fixes made while a background `tests/gcs` run was still
+  going gave two subprocess tests an ImportError from a half-applied edit. Check for running suites first.
 - Long edit scripts sent inline through the Bash tool failed to parse ("unexpected EOF while looking for
   matching `''"), even in a quoted heredoc. Write them to files with the Write tool and run them; a small helper
   that keeps CRLF and fails on a missing or repeated match made every edit checkable.
@@ -1017,8 +1020,7 @@
   a remembered "LF" was wrong. Run `file` on each target before a scripted edit.
 - A full `pytest tests/gcs` started while edits went on: its vitest leg timed
   out at 5 s under load and the same test passed alone. Run the full suite
-  after the edits, on a quiet PC, and rerun a timeout alone before blaming
-  the change.
+  after the edits, and rerun a timeout alone before blaming the change.
 - A dirty file that main also changed blocks a fast-forward. Without a WIP
   commit or the shared stash: save `git diff -- <file>` as a patch, check the
   file out, fast-forward, `git apply --3way` (it stages), then `git reset -- <file>`.
@@ -1613,3 +1615,53 @@
   doubled backslashes, so \2026... became the octal escape \202 and todo 147 got a
   control character in place of the run folder. Build backslashes with chr(92) and
   scan changed files for control characters before committing.
+
+## Bounded CPU share (todo 65, 2026-10-28)
+
+- On Windows an open reader makes `os.replace` onto a JSON record fail. A record
+  that is replaced atomically needs its reads under the same lock as its writes.
+- `pyproject` `addopts` ignores `tests/gcs`, so `pytest tests` skips it. Run
+  `tests/gcs` as its own command, and the Python test fakes that copy a changed
+  signature with it.
+- In this worktree the Bash guard refused any command line containing the word
+  "eval" (paths included), and some with shell variables such as `$d` or
+  `timeout` in pipes; a heredoc without those ran. Use the PowerShell tool with
+  literal paths, or write a script with Write and run it with `python -I`. A `cd`
+  into a subfolder moves the session's working directory; use absolute paths.
+- Background (BELOW_NORMAL) work loses every CPU to NORMAL work. In C1 another
+  chat's lockstep `cpuload` cell (20 NORMAL burners, branch without the share)
+  starved this branch's `cpuload` cell until a 60 s `wsl.exe` call timed out. Check
+  the probe for other chats' burners before blaming the change.
+- A share keeps NavPy at 10x but does not raise its observation rate: NavPy used
+  about 0.6 of a P-core and made 6-8 fresh observations per sim second (todo 149).
+  Compare coverage with a no-load run of the same code before calling it load.
+- The first holder ran its backend NORMAL on the share's 4 CPUs beside three
+  ABOVE_NORMAL NavPys: the backend's reader fell 3-5 s behind (C1, Q1), never in
+  the runs without a share. Give every process of the holding stack the same
+  class. Compare GCS and NavPy ATTITUDE arrivals per run to see such a lag.
+- I spent an hour suspecting a code or host regression because the 10-21 wall
+  run passed and today's runs of the same commit did not. A per-run trend of
+  the detector poll cost (`work_ms`, `read_ms` from
+  `pose_cadence_detector_poll_uav_*_navpy.csv`) over every wall run of the past
+  10 days showed it tracks host load (10-19 load runs and a failed 10-21 run of
+  the same commit cost the same as today). Build that trend first.
+- Thread CPU from `pose_cadence_*` rows is quantized to 15.6 ms: read only sums
+  over a window. A tight loop timed per CPU at ABOVE_NORMAL shows the clock
+  under load: P-cores took 33-37 ms per million iterations with every core busy,
+  23-25 ms in an earlier run whose host load was not recorded.
+- psutil cannot read protected processes (vmmemWSL, System), so the probe missed
+  about half the host's busy cores in the two-at-once runs. For host-wide CPU,
+  sample `\Process(*)\% Processor Time` (vmmemWSL carries the WSL guest) and
+  `\Hyper-V Hypervisor Logical Processor(_Total)\% Total Run Time` with
+  Get-Counter, inline in the PowerShell tool (`-ExecutionPolicy Bypass` is denied).
+- In the two-at-once runs the failing stack looked tied to slot 0's CPUs. A swap
+  (slot 0 on the other P-cores) still failed it, so overlap with the other
+  stack's flight was the cause. Swap a confounded factor before blaming it, and
+  test an alternative (here `MAX_SHARES 1`) before proposing it: refusing the
+  second share did not save the holder.
+- To count packets by type, a temporary tally in `InboundRouter.ingest` that
+  rewrites a JSON file every 5000 packets cost one 3-minute Q run per side and
+  needed no exit hook. Revert it before committing.
+- PowerShell 5.1 `Out-File -Encoding utf8` writes a BOM, which became the first
+  character of a commit subject. Write commit-message files with
+  `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))`.

@@ -92,6 +92,13 @@ Frontend:
   unclaimable) while a recorded child lives, until `gcs_stop` cleans it. Manual
   `run_swarm.sh` invocations (WSL, `~/ardupilot/Tools/autotest/run_swarm.sh`)
   must pass `COMPANION_UDP=1` to match launcher-started companions.
+- **CPU share** (`docs/design/bounded_cpu_share.md`): a wall run claims 4
+  P-cores for a time limit in `~/.gcs/cpu_shares.json` (`gcs_launch.py
+  --cpu-share-s N`, passed by the wall demo eval and `delivery_demo.py`).
+  Everything else runs as background (BELOW_NORMAL, off the held CPUs): other
+  `gcs_launch` stacks, `swarm_run.py --eval`, lockstep evals and pytest. No
+  chat waits for a quiet PC; a refused claim runs as background and the
+  backend log says so. `python scripts\cpu_share.py --list` reads the shares.
 - `--chat N` exists as an advanced manual override of the slot/band — never
   use it in chats; slots always auto-resolve by launch directory.
 - Demo (`sim_mode`) + `dev_mode` default on; `connection.auto_connect`
