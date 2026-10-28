@@ -1647,3 +1647,19 @@
   over a window. A tight loop timed per CPU at ABOVE_NORMAL shows the clock
   under load: P-cores took 33-37 ms per million iterations with every core busy,
   23-25 ms in an earlier run whose host load was not recorded.
+- psutil cannot read protected processes (vmmemWSL, System), so the probe missed
+  about half the host's busy cores in the two-at-once runs. For host-wide CPU,
+  sample `\Process(*)\% Processor Time` (vmmemWSL carries the WSL guest) and
+  `\Hyper-V Hypervisor Logical Processor(_Total)\% Total Run Time` with
+  Get-Counter, inline in the PowerShell tool (`-ExecutionPolicy Bypass` is denied).
+- In the two-at-once runs the failing stack looked tied to slot 0's CPUs. A swap
+  (slot 0 on the other P-cores) still failed it, so overlap with the other
+  stack's flight was the cause. Swap a confounded factor before blaming it, and
+  test an alternative (here `MAX_SHARES 1`) before proposing it: refusing the
+  second share did not save the holder.
+- To count packets by type, a temporary tally in `InboundRouter.ingest` that
+  rewrites a JSON file every 5000 packets cost one 3-minute Q run per side and
+  needed no exit hook. Revert it before committing.
+- PowerShell 5.1 `Out-File -Encoding utf8` writes a BOM, which became the first
+  character of a commit subject. Write commit-message files with
+  `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))`.

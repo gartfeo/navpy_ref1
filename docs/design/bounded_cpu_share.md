@@ -2,7 +2,7 @@
 
 Status: approved by the owner as written (2026-10-28), including
 best-effort background affinity; target `main`. Replaces the quiet-PC rule
-withdrawn in todo 65 (`8a0b880e`).
+withdrawn in todo 65 (`8a0b880e`). Built and measured 2026-10-28 (Results).
 
 ## Problem
 
@@ -188,30 +188,60 @@ child inheriting affinity and BELOW_NORMAL, a real suspended venv-launched
 child whose interpreter is inside the job after resume, and a real job
 demoting that running child.
 
+## Results (2026-10-28)
+
+Runs in `.logs/cpu-share` (`acc/`, `t66/`), at 10x beside one lockstep
+matrix and a pytest subset, with the other chats' work running as usual:
+
+| Runs | Pass | NavPy's extra ATTITUDE delay, p95 per UAV |
+|---|---|---|
+| A (main) | 0 of 3 | 71-226 ms |
+| B (priority only) | 3 of 3 | 38-197 ms |
+| C (priority and share) | 2 of 3 | 4-61 ms |
+| C after todo 66 (C5-C7) | 3 of 3 | 2-12 ms |
+
+- Priority keeps the load from blocking the run; the share also removes
+  NavPy's reader lag. The C3 miss (UAV 2, SNAP without `DOCKED`) had no
+  lag: its frames were slow (todo 65's load sensitivity).
+- The load kept running during every final approach (matrix 0.3-0.9 core
+  in C2-C6; 0.05 in C7, between cells, with about 16 cores idle) and
+  finished. In C2 one matrix cell failed: another chat's 20 NORMAL burners
+  (a checkout without this change) starved this branch's BELOW_NORMAL
+  lockstep cell past its 30 s exit budget (`STEP_DEADLINE_US`). Until every
+  checkout has this change, older NORMAL work outranks background work.
+- Expiry and a later claim (scratch record): the background parent widened
+  its mask at expiry, its child kept its start mask, neither learned of the
+  later claim, and both stayed BELOW_NORMAL, as designed.
+- **Two wall runs at once stay unreliable on this PC.** With two shares,
+  5 of 14 stacks passed (6 pairs before todo 66, 1 after); with the second
+  run refused and background (`MAX_SHARES 1` emulated, `ref1`, `ref2`), the
+  holder passed 1 of 2. The failing stacks kept 10x with little lag, but
+  their observation coverage fell to 0.19-0.39: during the overlap 17-19 of
+  20 cores were busy and the clock fell to about 85% of nominal (about 160%
+  when light). A share bounds cores, not the CPU's power limit, so
+  `MAX_SHARES` stays 2 and this is todo 65's open load sensitivity. The
+  probe's processes and WSL's guest (vmmemWSL, about 3 cores) explain only
+  about 10 of those cores; WSL's own Windows processes used under 0.5 core
+  and DPCs 2%, so the rest is not yet attributed.
+- **Size stays 4.** In final approach a stack used 2.2-2.5 cores on Windows
+  (NavPy 0.65-0.8 each, backend 0.1-0.25), leaving room for NavPy's peaks
+  (1.27 core p95 in m1). Todo 66 saved about 0.02 core per NavPy.
+
 ## Risks
 
 - Timing-sensitive unit tests run at BELOW_NORMAL and may lose to NORMAL
   desktop work. Re-run such a failure on its own before calling it a
   regression (as today).
-- If C still fails, the next suspect is NavPy's own per-packet cost: see
-  todo 66.
+- C can still miss with no reader lag (C3): frame cost under host load
+  (todo 65), not packets (about 0.1 core per NavPy, todo 66).
 - The suspended start changes every NavPy launch, not only holders'. It
   also closes the same gap for `KILL_ON_JOB_CLOSE` today.
 
 ## Todo 66 (packet-stream cut)
 
-Count NavPy's inbound packets at the companion link, before dispatch, by
-(source system, component, message type), per wall second and per sim
-second. `run_swarm.sh` already blocks peer autopilot and camera traffic on
-the router path (`BlockSrcCompOut = 1,100`), so most of the traffic is
-probably the SITL's own `SR0_*` streams at 10x
-(`eval_gcs_demo_sitl_root.py:69-76`). A stream group sends several
-messages, so the established cut is per message: set the unneeded groups to
-0 and request each message NavPy reads with `MAV_CMD_SET_MESSAGE_INTERVAL`,
-as `pose_streams.py` already does for the 40 Hz pose. Audit every consumer
-first (`pose_telemetry.py`, `flight_telemetry.py`, `position_service.py`,
-`preflight_health.py`, `power_gps_telemetry.py`, mission and parameter
-protocols). Measure the cut on its own, after the share: reader lag, NavPy
-CPU, and the eval verdict. The session "Find and fix NavPy telemetry lag in
-NAV" (worktree `nav-reader-lag-3a2c04`) is tracing this reader now; agree
-who makes the cut before editing.
+Done 2026-10-28 (todo 66 in `architecture_todo.md`). A temporary tally in
+the router counted 149 packets per sim second per NavPy, by (system,
+component, type). `SR0_EXTRA1` and `SR0_RAW_SENS` carried 28 of them and
+NavPy reads none of their messages, so both are 0 now: 123 per sim second,
+ATTITUDE 40.0 from NavPy's own request. Groups that mix read and unread
+messages stay; cutting those needs a request per message.
