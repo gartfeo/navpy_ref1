@@ -110,8 +110,8 @@ claim, because load changes only their wall time.
 A refused claim never waits. Its run is todo-65 evidence, not a reason to
 wait. A granted share that can be neither applied nor backed out to
 background stops the backend at startup: it might run ABOVE_NORMAL on every
-CPU with nothing to bound it. Its entry is dropped once the backend has
-exited.
+CPU with nothing to bound it. Once the backend has exited its entry no
+longer holds CPUs, and the next transaction drops it.
 
 **Holder.** Before it spawns NavPy, the backend sets ABOVE_NORMAL and the
 share's CPUs on itself, level with its NavPys: at NORMAL their threads
