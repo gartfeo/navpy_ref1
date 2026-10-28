@@ -227,3 +227,21 @@ def test_live_run_refuses_an_invalid_net_radius_before_launch(monkeypatch, tmp_p
         runtime.execute_live_run(
             tmp_path, 1.0, scenario=scenario, sim_dock_net_radius_m=radius,
         )
+
+
+def test_a_wall_run_holds_a_cpu_share_for_its_timeout_plus_the_setup_margin(monkeypatch, tmp_path):
+    from scripts import eval_gcs_demo_runtime as runtime
+
+    scenario = fixture.load_eval_scenario(fixture.FIXTURE_PATH)
+    seen = {}
+
+    def launch(_env, *_args, **kwargs):
+        seen.update(kwargs)
+        raise _Launched
+
+    monkeypatch.setattr(runtime, "dem_tiles", lambda *_: None)
+    monkeypatch.setattr(runtime, "write_input_manifest", lambda *_: None)
+    monkeypatch.setattr(runtime, "with_owned_stack", launch)
+    with pytest.raises(_Launched):
+        runtime.execute_live_run(tmp_path, 600.0, scenario=scenario)
+    assert seen["cpu_share_s"] == 600.0 + runtime.CPU_SHARE_SETUP_MARGIN_S

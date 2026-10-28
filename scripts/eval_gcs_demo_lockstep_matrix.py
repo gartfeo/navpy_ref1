@@ -27,6 +27,7 @@ for directory in (ROOT, ROOT / "src"):
     if str(directory) not in sys.path:
         sys.path.insert(0, str(directory))
 
+from gcs.backend.cpu_share_background import apply_background
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, profile_names
 from scripts.eval_gcs_demo_lockstep import JOURNAL_FILE, RUN_HOST_FILE
 from scripts.gcs_demo_artifacts import compare_inventories, without_host_only
@@ -148,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     if base.exists() and any(base.iterdir()):
         parser.error(f"run directory is not empty: {base}")
     base.mkdir(parents=True, exist_ok=True)
+    apply_background()  # the cells, their CPU load included, inherit it (bounded_cpu_share.md)
     runs, inventories = {}, {}
     for cell in CELLS:
         print(f"matrix cell {cell.name} ...", flush=True)

@@ -10,6 +10,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence, cast
 
+from gcs.backend.cpu_share_background import apply_background
 from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, profile_names
 from scripts.eval_gcs_demo_air_load import air_load
@@ -119,6 +120,8 @@ def run_lockstep(
         raise RegressionError("--lockstep has no --navigation-speedup: its cadence factor is 1")
     if args.sim_dock_net_radius_m is not None:
         raise RegressionError("--lockstep has no --sim-dock-net-radius-m")
+    # Load changes only a lockstep run's wall time: background (bounded_cpu_share.md).
+    apply_background()
     run_dir = args.run_dir or Path(tempfile.mkdtemp(prefix="navpy-gcs-demo-lockstep-"))
     print(f"GCS demo lockstep artifacts: {run_dir.resolve()}", flush=True)
     options = LockstepOptions(args.seed, args.timeout_s, args.confirmation_delay_s,

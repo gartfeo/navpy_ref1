@@ -53,9 +53,14 @@ size below is a candidate that the acceptance runs confirm or change.
 ## Design
 
 **Share record.** `~/.gcs/cpu_shares.json`, next to the instance registry,
-with its own lock file. A transaction takes the lock in one non-blocking
-attempt (a lock whose holder is dead is broken at once); if the lock is
-busy, the claim is refused and nothing waits. Each entry holds an id, the
+guarded by a named mutex (`cpu_share.py`; a holder that dies hands it over
+at once, so no stale lock is left). Every transaction, reads included, takes
+it: on Windows an open reader makes the atomic replace fail. A transaction
+holds it for milliseconds, so each waits for it at most the registry's lock
+timeout (10 s). A claim that cannot get it, or finds the record unreadable
+or unwritable, is refused; a release that cannot leaves the CPUs held until
+the owner exits (fail closed); a background read that cannot avoids
+nothing. Nothing waits for a share. Each entry holds an id, the
 owner (pid and exact creation time, compared strictly, unlike the
 registry's lenient `pid_matches`), a label, its logical CPUs, and
 `expires_at`. An entry holds its CPUs while its owner is alive with the
@@ -92,17 +97,21 @@ claim, because load changes only their wall time.
 
 | Stack | Backend and its NavPys |
 |---|---|
-| Share granted | backend NORMAL on the share's CPUs; NavPys raise to ABOVE_NORMAL |
-| Share refused (none free, lock busy) | background, and the backend log says so |
+| Share granted | backend ABOVE_NORMAL on the share's CPUs; NavPys raise to ABOVE_NORMAL |
+| Share refused (none free, record busy or unusable) | background, and the backend log says so |
 | No `--cpu-share-s` (`AAS_GCS.bat`, live tests) | background |
 | Share expired | background |
 
 A refused claim never waits. Its run is todo-65 evidence, not a reason to
 wait.
 
-**Holder.** Before it spawns NavPy, the backend sets NORMAL and the share's
-CPUs on itself. Every NavPy inherits the affinity (checked through the venv
-launcher, a new process group and a grandchild).
+**Holder.** Before it spawns NavPy, the backend sets ABOVE_NORMAL and the
+share's CPUs on itself, level with its NavPys: at NORMAL their threads
+starved its reader, which fell 3-5 s behind the SITL in acceptance runs C1
+and Q1 (not in the runs without a share). Every NavPy inherits the affinity
+(checked through the venv launcher, a new process group and a grandchild);
+ABOVE_NORMAL is not inherited, so each NavPy starts NORMAL and raises
+itself.
 
 **Time limit (confirmed release).** At `expires_at` a one-shot timer in the
 backend demotes the stack, then releases the entry: it sets BELOW_NORMAL
@@ -113,9 +122,11 @@ interpreter are in the job and took the limits). NavPy spawn and this
 demotion share one lock, and a NavPy spawned later inherits background.
 Until the release is written, the CPUs stay held, so no new holder gets
 them early; a claim that finds no free CPUs is refused at once. The run
-itself keeps going.
+itself keeps going. A backend that shuts down before `expires_at` gives the
+share up the same way. The expiry timer is a host thread, so only the wall
+lifespan starts it, never the lockstep backend.
 
-**Everyone else (background).** `cpu_share.apply_background()` sets
+**Everyone else (background).** `cpu_share_background.apply_background()` sets
 BELOW_NORMAL, which children inherit, and limits affinity to the CPUs
 outside the valid shares. At each avoided share's `expires_at` a one-shot
 timer recomputes the process's own mask from the shares valid then.
@@ -168,7 +179,7 @@ a later claim shows the best-effort affinity case. After todo 66, C runs
 again and the share size is re-measured.
 
 Unit tests cover: claim, strict owner identity, expiry, dead owner, no free
-share, busy and stale lock, disjoint CPUs, P/E selection (fake kernel),
+share, busy and abandoned mutex, disjoint CPUs, P/E selection (fake kernel),
 every row of the scheduling table, release only after demotion (a late
 timer keeps the CPUs held), a NavPy spawned during and after expiry, job
 creation and assignment failure (the suspended child is terminated before

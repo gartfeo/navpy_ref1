@@ -18,10 +18,7 @@ from scripts.eval_gcs_demo_api import (
     TelemetryEventStream,
 )
 from scripts.eval_gcs_demo_config import launch_command, stop_command
-from scripts.eval_gcs_demo_constants import (
-    ROOT,
-    SIM_SPEEDUP,
-)
+from scripts.eval_gcs_demo_constants import ROOT, SIM_SPEEDUP
 from scripts.eval_gcs_demo_lifecycle import stop_companions
 from scripts.eval_gcs_demo_execution import (
     SystemClock,
@@ -84,6 +81,7 @@ def launch_stack(
     headless: bool = True,
     browser: bool = True,
     launch_token: str | None = None,
+    cpu_share_s: float | None = None,
 ) -> StackContext:
     if owned_entry(env) is not None:
         raise PreexistingOwnedStackError(
@@ -99,6 +97,7 @@ def launch_stack(
         launch_command(
             launch_token, scenario.home, sitl_arguments,
             instances=len(scenario.slots), headless=headless, browser=browser,
+            cpu_share_s=cpu_share_s,
         ),
         env,
         timeout_s=min(timeout_s, 60.0),
@@ -243,6 +242,7 @@ def with_owned_stack(
     *,
     clock: ClockPort,
     scenario: DemoScenario,
+    cpu_share_s: float | None = None,
 ) -> T:
     """Attempt companion stop, close, scoped stop, and tail; report every failure."""
     context: StackContext | None = None
@@ -250,7 +250,8 @@ def with_owned_stack(
     errors: list[BaseException] = []
     try:
         context = launch_stack(
-            env, timeout_s, sitl_arguments, clock=clock, scenario=scenario
+            env, timeout_s, sitl_arguments, clock=clock, scenario=scenario,
+            cpu_share_s=cpu_share_s,
         )
         result = action(context)
     except PreexistingOwnedStackError:

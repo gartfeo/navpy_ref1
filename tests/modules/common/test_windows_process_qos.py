@@ -13,20 +13,27 @@ from navpy.core.kernel import windows_process_qos
 from navpy.core.kernel.windows_process_qos import (
     ABOVE_NORMAL_PRIORITY_CLASS,
     EXECUTION_SPEED,
+    NORMAL_PRIORITY_CLASS,
     raise_process_qos,
 )
 
 _SRC = Path(__file__).resolve().parents[3] / "src"
+_BELOW_NORMAL = 0x4000
 
 
 class _Kernel:
-    def __init__(self, priority: bool = True, qos: bool = True) -> None:
+    def __init__(self, priority: bool = True, qos: bool = True,
+                 current: int = NORMAL_PRIORITY_CLASS) -> None:
         self.results = {"priority": priority, "qos": qos}
+        self.current = current
         self.priority_calls: list[tuple[object, int]] = []
         self.qos_calls: list[tuple[object, int, int, int]] = []
 
     def GetCurrentProcess(self) -> object:  # noqa: N802 - Win32 name
         return "this-process"
+
+    def GetPriorityClass(self, handle: object) -> int:  # noqa: N802
+        return self.current
 
     def SetPriorityClass(self, handle: object, priority: int) -> bool:  # noqa: N802
         self.priority_calls.append((handle, priority))
@@ -60,17 +67,42 @@ def test_a_failure_is_logged_and_navpy_keeps_running(
     assert "failed" in caplog.text
 
 
+def test_a_background_start_keeps_its_priority_and_still_opts_out_of_ecoqos() -> None:
+    """A NavPy that inherited BELOW_NORMAL never outranks a CPU share's stack."""
+    kernel = _Kernel(current=_BELOW_NORMAL)
+
+    assert raise_process_qos("win32", kernel) is True
+    assert kernel.priority_calls == []
+    assert kernel.qos_calls == [("this-process", 4, EXECUTION_SPEED, 0)]
+
+
+def test_an_unreadable_priority_class_is_a_failure(caplog, monkeypatch) -> None:
+    monkeypatch.setattr(windows_process_qos.ctypes, "get_last_error", lambda: 5, raising=False)
+    kernel = _Kernel(current=0)
+
+    assert raise_process_qos("win32", kernel) is False
+    assert kernel.priority_calls == [] and len(kernel.qos_calls) == 1
+    assert "GetPriorityClass failed" in caplog.text
+
+
 def test_other_platforms_are_unchanged(monkeypatch) -> None:
     monkeypatch.setattr(windows_process_qos, "_kernel32", pytest.fail)
 
     assert raise_process_qos("linux") is False
 
 
-def test_navpy_main_runs_above_normal_at_high_qos() -> None:
+@pytest.mark.parametrize("start_class, expected", [
+    (NORMAL_PRIORITY_CLASS, ABOVE_NORMAL_PRIORITY_CLASS),
+    (_BELOW_NORMAL, _BELOW_NORMAL),
+])
+def test_navpy_main_raises_only_from_normal_at_high_qos(start_class, expected) -> None:
     """The real calls, in the process that runs ``navpy.main.main``.
 
-    A child is used so the test runner keeps its own policy. The child stops
-    ``compose_runtime`` before it builds anything and reports its state.
+    A child is used so the test runner keeps its own policy; its start class
+    is set explicitly because the runner itself runs as background
+    (``tests/conftest.py``). The venv launcher passes the class on to the
+    interpreter. The child stops ``compose_runtime`` before it builds
+    anything and reports its state.
     """
     if sys.platform != "win32":
         pytest.skip("Windows scheduling policy")
@@ -93,5 +125,6 @@ def test_navpy_main_runs_above_normal_at_high_qos() -> None:
     out = subprocess.run(
         [sys.executable, "-c", script], capture_output=True, text=True, check=True,
         env={"PYTHONPATH": str(_SRC), "SYSTEMROOT": os.environ["SYSTEMROOT"]},
+        creationflags=start_class,
     ).stdout.split()
-    assert out[-3:] == [hex(ABOVE_NORMAL_PRIORITY_CLASS), "1", "0"]
+    assert out[-3:] == [hex(expected), "1", "0"]

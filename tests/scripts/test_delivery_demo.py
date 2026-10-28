@@ -130,6 +130,7 @@ def test_start_launches_a_normal_stack_sets_params_then_opens_the_ui(monkeypatch
     # targ_wps 0 until the operator's plan upload writes its own.
     assert kwargs["scenario"] == SCENARIO and SCENARIO.poi_nav_waypoint_ordinals == ()
     assert kwargs["launch_token"]
+    assert kwargs["cpu_share_s"] == demo.CPU_SHARE_DEFAULT_MIN * 60.0
     # No connect, mission upload or companion start: auto-connect and the
     # operator's plan do those, as in a normal run.
     assert steps == [
@@ -237,6 +238,20 @@ def test_launch_command_keeps_the_eval_default_and_maps_the_demo_keywords():
     demo_argv = config.launch_command(headless=False, browser=False)
     assert "--headless" not in demo_argv and "--no-browser" in demo_argv
     assert "--no-browser" not in config.launch_command(headless=False)
+
+
+def test_launch_command_asks_for_a_bounded_cpu_share_only_when_given_one():
+    assert "--cpu-share-s" not in config.launch_command()
+    assert config.launch_command(cpu_share_s=900.0)[-2:] == ["--cpu-share-s", "900.0"]
+    for invalid in (0.0, -1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError):
+            config.launch_command(cpu_share_s=invalid)
+
+
+@pytest.mark.parametrize("minutes", ("0", "-5", str(demo.CPU_SHARE_MAX_MIN + 1)))
+def test_the_demo_share_is_bounded(minutes):
+    with pytest.raises(SystemExit):
+        demo.main(["--cpu-share-min", minutes])
 
 
 def _owned_context(monkeypatch, tmp_path, entries):

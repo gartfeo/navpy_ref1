@@ -1193,7 +1193,7 @@ def test_second_evaluator_for_same_worktree_is_rejected(tmp_path):
 def test_owned_stack_always_uses_scoped_stop_when_launch_fails(monkeypatch):
     stopped = []
 
-    def fail_launch(env, timeout_s, sitl_arguments=(), *, clock, scenario):
+    def fail_launch(env, timeout_s, sitl_arguments=(), *, clock, scenario, cpu_share_s=None):
         raise evaluator.RegressionError("launch failed")
 
     monkeypatch.setattr(demo_process, "launch_stack", fail_launch)
@@ -1266,8 +1266,8 @@ def test_live_run_launches_the_stack_once(monkeypatch, tmp_path):
     launched_with = []
     environments = []
 
-    def with_owned_stack(env, timeout_s, action, sitl_arguments, *, clock, scenario):
-        del timeout_s, clock
+    def with_owned_stack(env, timeout_s, action, sitl_arguments, *, clock, scenario, cpu_share_s):
+        del timeout_s, clock, cpu_share_s
         assert scenario is CERTIFIED
         environments.append(env)
         launched_with.append(list(sitl_arguments))
