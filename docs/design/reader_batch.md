@@ -65,7 +65,9 @@ packet, keep dispatching packets that are already decodable without blocking
 - Applies to every `MavBusReader` (NavPy and GCS backend). Lockstep is
   unaffected: `LockstepBusReader` keeps its per-packet `yield_now(baton)`
   (`lockstep_bus.py:97,110,132`); wall and lockstep reader scheduling now
-  differ, and the parity wording says so.
+  differ, and the parity wording says so. Since dev sim step 6 the sim
+  profile's `reader_budget` gives the lockstep reader a seeded per-tick
+  budget and batch (`deterministic_dev_sim.md`, section 2).
 
 Not in this change: a reader-lag fail-closed check (separate design, see
 `reader_lag.md` review), and the lag-independent `no_detection` seen at

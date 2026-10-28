@@ -1573,6 +1573,26 @@
   intervals over 62.5 ms where the ZR10 report has 0.32 %. Before fitting, check what the
   reference itself measured: the wall runs had no camera latency, so they could not judge one.
 
+## Dev sim step 6: thread order, reader budget, timers first (2026-10-28)
+
+- Measure a model's demand under the profile it will run in. The design's reader budget
+  (20-200 packets per tick) came from the wall's 3000 pkt/s; under `stress`'s line rate a
+  NavPy reader sees at most 6 per tick, so the range could never bind. A per-tick counter in
+  a scratch run gave the real range in one run.
+- A model can relieve another: the reader budget's batching saves baton handoffs, so under
+  the CPU cap `stress` seed 1 went from failing the gap gates to passing. Compare a model's
+  run against the same seed with only that model off before calling it harsher.
+- Check origin/main before starting long gates, and again before reporting: shared refs
+  moved under this worktree mid-matrix, and every gate had to run again on the merge.
+- A new park point needs a wake path for close: the budget wait used a plain sleep, so a
+  close in the same tick could not join the reader (Codex). Wait on the stop event instead,
+  and test close while the thread sits in the new wait.
+- A `cat > file` with no input in the Bash tool waits on stdin forever. Write files with the
+  Write tool.
+- Kill a stopped background batch by its process tree (`taskkill /T` on its own bash and
+  python PIDs), then release its eval slots with `gcs_stop.py --chat N` for the slots this
+  worktree owns; `gcs_launch.py --list` shows them.
+
 ## NAV reader lag: closest-approach tracker on the reader thread (todo 65 (b), 2026-10-27)
 - Cause found by comparing per-callback wall time in NAV against the seconds before NAV
   in one bounded trace (reader recv/select/decode/dispatch, callbacks by name, worker,
