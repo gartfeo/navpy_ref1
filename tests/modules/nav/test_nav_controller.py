@@ -7971,7 +7971,7 @@ class TestNavControllerApproachAvailability(unittest.TestCase):
         self.swarm_network.reset_mock()
         self.actor._presence.heartbeat()
         (beat,) = [c.args[0] for c in self.swarm_network.broadcast.call_args_list]
-        return SwarmNodeState(beat.state)
+        return SwarmNodeState.from_code(beat.state)
 
     def test_nav_phase_is_busy_and_rejects_a_step_three(self):
         _commit(self.controller, NavState.NAV)

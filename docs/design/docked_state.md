@@ -54,9 +54,9 @@ DOCKED is always entered and committed (status text, swarm BUSY). What follows d
   one-shot.
 
 ## GCS
-Contact already sends STATUSTEXT `DOCKED: task=… dock=… episode=… 3d=…` (contact evidence). The state entry sends a
-different one: `STATE DOCKED: contact 3d=0.07m dock=… task=…`. The GCS shows both in its status-text feed.
-No new UI in this step; a vehicle-card badge is a follow-up.
+Contact already sends STATUSTEXT `DOCKED (sim): task=… dock=… episode=… 3d=…` (contact evidence). The state entry
+sends a different one: `STATE DOCKED (sim): 3d=0.07m dock=… task=…`. The GCS shows both in its status-text feed.
+The vehicle card shows DOCKED (SIM CONTACT) from the heartbeat (`gcs_mission_phase.md`).
 
 ## Boundary note for e6 (no eval edits here)
 Score docking from the `DOCKED` row `closest_3d_m`, as the state does. The SNAP row prints 1 decimal and misses the

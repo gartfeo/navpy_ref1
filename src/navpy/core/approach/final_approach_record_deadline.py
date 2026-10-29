@@ -11,6 +11,7 @@ from navpy.core.flow.nav_constants import FINAL_APPROACH_RECORD_TIMEOUT_S
 from navpy.core.flow.nav_state import FinalApproachNavState
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
+from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 
 
 class FinalApproachRecordDeadline:
@@ -38,7 +39,7 @@ class FinalApproachRecordDeadline:
             now_s - self._state.deferred_record_started_at
             > FINAL_APPROACH_RECORD_TIMEOUT_S
         ):
-            self._mark_failed("final_approach_record_unavailable")
+            self._mark_failed(fail_reason.FINAL_APPROACH_RECORD_UNAVAILABLE)
             try:
                 self._logger.info(
                     "NAV_FAIL: final_approach_record_unavailable after "

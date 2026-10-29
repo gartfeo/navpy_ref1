@@ -4,7 +4,7 @@ import { colors } from '../../styles';
 import UavBadge from '../UavBadge';
 import { gpsFixLabel, gpsColor, haccLabel, linkBars, linkBarColor } from '../hud/StatusBarIndicator';
 import { batteryColor } from '../hud/BatteryIndicator';
-import { computeMissionStatus, computeSwarmBadge } from '../../utils/missionStatus';
+import { computeMissionStatus, computeSwarmBadge, currentTaskSlot } from '../../utils/missionStatus';
 import { vehicleAssignment } from '../../utils/taskAssignmentState';
 import { isInitializing } from '../../utils/loadStage';
 import { hasPendingConfirm } from '../../hooks/taskConfirmationState';
@@ -162,6 +162,14 @@ export default function VehicleStatusCard({
   else if (!inAuto && totalKm > 0) statusText = `0.0 / ${totalKm.toFixed(1)} km`;
 
   const vAssignment = vehicleAssignment(assignments || {}, v.sys_id);
+  // With NavPy's phase only a current-boot ASSIGNED / CONFIRMING slot may
+  // label the card (docs/design/gcs_mission_phase.md).
+  const statusAssignment = v.swarm?.phase
+    ? currentTaskSlot(assignments || {}, v.sys_id, v.swarm)
+    : vAssignment;
+  const missionStatus = computeMissionStatus(
+    v, statusAssignment, wpOffset, hasPendingConfirm(pendingConfirms || {}, v.sys_id),
+  );
   const readiness = computeLaunchReadiness(v, gates);
   // Non-blocking advisories (e.g. arming checks disabled) are dismissible so they
   // don't nag. Dismissal is per-card and lasts while this card stays mounted.
@@ -235,8 +243,8 @@ export default function VehicleStatusCard({
       ) : (
         <MissionStatusRow
           vehicle={v}
-          missionStatus={computeMissionStatus(v, vAssignment, wpOffset, hasPendingConfirm(pendingConfirms || {}, v.sys_id))}
-          assignment={vAssignment}
+          missionStatus={missionStatus}
+          assignment={missionStatus.assignment}
           onFlyToLocation={onFlyToLocation}
           searchProgress={totalKm > 0 ? { pct: pct * 100, statusText: statusText } : null}
         />
