@@ -241,7 +241,7 @@ def test_each_nav_fail_reason_ends_in_docked_with_one_status_line(reason):
     record.assert_called_once_with(_failed(reason), reason)
     logger.info.assert_called_once()
     assert logger.info.call_args.args[0] == (
-        f"STATE DOCK_FAILED: reason={reason} dock=0 task=11"
+        f"STATE DOCK_FAILED (sim): reason={reason} dock=0 task=11"
     )
 
 
@@ -265,7 +265,7 @@ def test_a_kept_contact_is_docked_not_failed():
 
     assert outcome.redirect is NavState.DOCKED
     record.assert_not_called()
-    assert logger.info.call_args.args[0].startswith("STATE DOCKED:")
+    assert logger.info.call_args.args[0].startswith("STATE DOCKED (sim):")
 
 
 def test_one_shot_failed_dock_disarms_and_stays_final():
@@ -465,7 +465,7 @@ def test_a_failed_dock_enters_docked_after_the_drain_and_never_restarts_auto(one
     expected = ["reset", "disarm", row] if oneshot else ["reset", row]
     assert events == expected  # the row follows the reset that drained commands
     assert [call.args[0] for call in logger.info.call_args_list] == [
-        "STATE DOCK_FAILED: reason=no_detection dock=0 task=11",
+        "STATE DOCK_FAILED (sim): reason=no_detection dock=0 task=11",
     ]
 
 
@@ -507,4 +507,4 @@ def test_a_contact_before_the_nav_fail_is_docked_end_to_end():
 
     assert result.effective_state is NavState.DOCKED
     assert events == ["reset"]  # no DOCK_FAILED row
-    assert logger.info.call_args.args[0].startswith("STATE DOCKED:")
+    assert logger.info.call_args.args[0].startswith("STATE DOCKED (sim):")

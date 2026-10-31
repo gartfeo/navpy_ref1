@@ -62,6 +62,10 @@ STACK_TIMEOUT_S = 600.0
 FRONTEND_TIMEOUT_S = 60.0
 #: A shared dock world replaces the waypoint docks the plan marks.
 SIM_DOCKS_ENV = "NAVPY_SIM_DOCKS"
+#: The demo's CPU share (``bounded_cpu_share.md``): long enough to fly by
+#: hand, bounded so a forgotten stack gives the cores back.
+CPU_SHARE_DEFAULT_MIN = 30
+CPU_SHARE_MAX_MIN = 120
 #: Run paths from the eval's environment: settings and logs only.
 RUN_ENV = (
     "GCS_SETTINGS_PATH", "NAVPY_LOG_DIR", GCS_LOG_DIR_ENV, SOURCE_TIME_ENV,
@@ -136,8 +140,9 @@ def _stop_command() -> str:
 def start(
     runs_dir: Path, clock: ClockPort, now: dt.datetime,
     open_browser: Callable[[str], object] = webbrowser.open,
+    cpu_share_min: float = CPU_SHARE_DEFAULT_MIN,
 ) -> Path:
-    """Start the demo stack and open the UI; return the run directory."""
+    """Start the demo stack with a CPU share and open the UI; return the run directory."""
     fixture = load_fixture(FIXTURE_PATH)
     scenario = delivery_scenario(fixture, FIXTURE_PATH)
     run_dir = runs_dir / now.strftime("%Y%m%d-%H%M%S")
@@ -154,6 +159,7 @@ def start(
             env, STACK_TIMEOUT_S, sitl_root.launch_arguments(),
             clock=clock, scenario=scenario,
             headless=False, browser=False, launch_token=os.urandom(16).hex(),
+            cpu_share_s=cpu_share_min * 60.0,
         )
     except PreexistingOwnedStackError as error:
         raise RegressionError(
@@ -195,11 +201,24 @@ def wait_for_frontend(
         ) from error
 
 
+def _share_minutes(text: str) -> float:
+    minutes = float(text)
+    if not 0 < minutes <= CPU_SHARE_MAX_MIN:
+        raise argparse.ArgumentTypeError(f"must be in (0, {CPU_SHARE_MAX_MIN}] minutes")
+    return minutes
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.parse_args(argv)
+    parser.add_argument(
+        "--cpu-share-min", type=_share_minutes, default=CPU_SHARE_DEFAULT_MIN,
+        help=f"how long the stack holds its CPU share (default {CPU_SHARE_DEFAULT_MIN}, "
+             f"at most {CPU_SHARE_MAX_MIN}); afterwards it runs as background",
+    )
+    args = parser.parse_args(argv)
     try:
-        run_dir = start(RUNS_DIR, SystemClock(), dt.datetime.now())
+        run_dir = start(RUNS_DIR, SystemClock(), dt.datetime.now(),
+                        cpu_share_min=args.cpu_share_min)
     except RegressionError as error:
         print(f"DELIVERY DEMO FAILED: {error}", file=sys.stderr)
         return 2

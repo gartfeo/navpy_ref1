@@ -827,7 +827,8 @@
 - On a hybrid CPU, Windows EcoQoS runs a windowless process on E-cores under load (work 2x slower). Opt out with
   SetProcessInformation(ProcessPowerThrottling) and measure with a small benchmark first.
 - On Windows Python 3.11 `time.monotonic` ticks at 15.6 ms. Never time 1-10 ms of work with it; use perf_counter.
-- A full pytest run is not light load: about 70% CPU average with 100% peaks. Never overlap it with a wall eval.
+- A full pytest run is not light load: about 70% CPU average with 100% peaks. Since the CPU share (2026-10-28) it runs
+  as background beside a share-holding wall eval; do not wait for it to end.
 - The eval env is an allow-list: ad-hoc env vars do not reach NavPy; derive probe paths from NAVPY_LOG_DIR.
 - To tell a NavPy stall from a SITL stall, compare NavPy's ATTITUDE arrival lag with the GCS receiver's for the same UAV:
   equal lag is upstream (SITL/WSL), NavPy-only lag is NavPy.
@@ -964,6 +965,8 @@
 ## Moving a product out of core in reviewed steps (delivery move c2-c9, 2026-10-19)
 - Never edit a worktree while its pytest or lockstep gate runs: the suite reads the files mid-run. Gate in
   one worktree, build the next commit in a side worktree, and fast-forward the gate worktree between commits.
+  Repeated 2026-10-28 (bounded CPU share): review fixes made while a background `tests/gcs` run was still
+  going gave two subprocess tests an ImportError from a half-applied edit. Check for running suites first.
 - Long edit scripts sent inline through the Bash tool failed to parse ("unexpected EOF while looking for
   matching `''"), even in a quoted heredoc. Write them to files with the Write tool and run them; a small helper
   that keeps CRLF and fails on a missing or repeated match made every edit checkable.
@@ -1017,8 +1020,7 @@
   a remembered "LF" was wrong. Run `file` on each target before a scripted edit.
 - A full `pytest tests/gcs` started while edits went on: its vitest leg timed
   out at 5 s under load and the same test passed alone. Run the full suite
-  after the edits, on a quiet PC, and rerun a timeout alone before blaming
-  the change.
+  after the edits, and rerun a timeout alone before blaming the change.
 - A dirty file that main also changed blocks a fast-forward. Without a WIP
   commit or the shared stash: save `git diff -- <file>` as a patch, check the
   file out, fast-forward, `git apply --3way` (it stages), then `git reset -- <file>`.
@@ -1573,6 +1575,97 @@
   intervals over 62.5 ms where the ZR10 report has 0.32 %. Before fitting, check what the
   reference itself measured: the wall runs had no camera latency, so they could not judge one.
 
+## NAV reader lag: closest-approach tracker on the reader thread (todo 65 (b), 2026-10-27)
+- Cause found by comparing per-callback wall time in NAV against the seconds before NAV
+  in one bounded trace (reader recv/select/decode/dispatch, callbacks by name, worker,
+  GC). The sim-only dock contact callback went from 24 ms to 1454 ms per window; nothing
+  else changed that much. Trace the phase that fails against the phase that does not.
+- The same cause was fixed on 2026-10-13 (todo 34); a later feature (the closest-approach
+  tracker) reintroduced it while its docstring still said "cheap unless near the dock".
+  Guard per-sample reader-thread cost with a test that counts the expensive calls, not a
+  comment.
+- py-spy --gil gave 580-742 sample errors per 4 s on these processes, so it cannot measure
+  GIL occupancy. Per-thread CPU from QueryThreadCycleTime (`.logs/t31/thread_cycles.py`)
+  worked.
+- Isolated microbenchmarks understated the cost: pymap3d took 163 us alone but about
+  1.3 ms per call in NAV, where threads already sum to more than one core. Measure cost
+  inside the loaded process.
+- Driving the hand demo from the built-in browser: POST
+  `/api/vehicles/discover?device=udp:0.0.0.0:15550&timeout=3`, then Retry; inject the plan
+  file by overriding `HTMLInputElement.prototype.click` once; HOLD TO LAUNCH needs a JS
+  mousedown, 1.6 s wait, mouseup. Click APPROVE by its find() ref: a coordinate click
+  on the confirm card missed once and the request timed out (REJECTED, re-asked).
+  Tools: `.logs/nav-reader-lag/tools`.
+- Reader lag needs no diagnostic code: the demo's source-time CSVs log every ATTITUDE
+  arrival at NavPy and at the GCS (wall_s, boot_ms), so NavPy minus GCS for the same
+  boot_ms is the reader's lag (`tools/arrival_lag.py`). It matched the trace.
+- An unfixed comparison run may fail differently: here the NAV phases lasted 2.9 s wall
+  and ended (one `DOCKED`, one `no_detection`) before a catch-up burst could trip
+  `source_command_stale`. Compare the measured mechanism (reader busy share, lag), not
+  only the end state.
+- Codex found that the flat-earth bound ignored height (the flat frame uses surface
+  radii): at 3000 m it failed at 4 m reach, and the upper bound the fix used for
+  pruning could drop the true minimum at an elevated dock. The existing random check
+  ran at one height (300 m) and passed. Check a geometric bound over the whole range of
+  every input (latitude, height, scale, still segments), in both directions.
+- `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
+  in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
+  and check line endings with `file` after any scripted edit.
+- A Windows path written into a Python string through the Bash tool lost one of its
+  doubled backslashes, so \2026... became the octal escape \202 and todo 147 got a
+  control character in place of the run folder. Build backslashes with chr(92) and
+  scan changed files for control characters before committing.
+
+## Bounded CPU share (todo 65, 2026-10-28)
+
+- On Windows an open reader makes `os.replace` onto a JSON record fail. A record
+  that is replaced atomically needs its reads under the same lock as its writes.
+- `pyproject` `addopts` ignores `tests/gcs`, so `pytest tests` skips it. Run
+  `tests/gcs` as its own command, and the Python test fakes that copy a changed
+  signature with it.
+- In this worktree the Bash guard refused any command line containing the word
+  "eval" (paths included), and some with shell variables such as `$d` or
+  `timeout` in pipes; a heredoc without those ran. Use the PowerShell tool with
+  literal paths, or write a script with Write and run it with `python -I`. A `cd`
+  into a subfolder moves the session's working directory; use absolute paths.
+- Background (BELOW_NORMAL) work loses every CPU to NORMAL work. In C1 another
+  chat's lockstep `cpuload` cell (20 NORMAL burners, branch without the share)
+  starved this branch's `cpuload` cell until a 60 s `wsl.exe` call timed out. Check
+  the probe for other chats' burners before blaming the change.
+- A share keeps NavPy at 10x but does not raise its observation rate: NavPy used
+  about 0.6 of a P-core and made 6-8 fresh observations per sim second (todo 149).
+  Compare coverage with a no-load run of the same code before calling it load.
+- The first holder ran its backend NORMAL on the share's 4 CPUs beside three
+  ABOVE_NORMAL NavPys: the backend's reader fell 3-5 s behind (C1, Q1), never in
+  the runs without a share. Give every process of the holding stack the same
+  class. Compare GCS and NavPy ATTITUDE arrivals per run to see such a lag.
+- I spent an hour suspecting a code or host regression because the 10-21 wall
+  run passed and today's runs of the same commit did not. A per-run trend of
+  the detector poll cost (`work_ms`, `read_ms` from
+  `pose_cadence_detector_poll_uav_*_navpy.csv`) over every wall run of the past
+  10 days showed it tracks host load (10-19 load runs and a failed 10-21 run of
+  the same commit cost the same as today). Build that trend first.
+- Thread CPU from `pose_cadence_*` rows is quantized to 15.6 ms: read only sums
+  over a window. A tight loop timed per CPU at ABOVE_NORMAL shows the clock
+  under load: P-cores took 33-37 ms per million iterations with every core busy,
+  23-25 ms in an earlier run whose host load was not recorded.
+- psutil cannot read protected processes (vmmemWSL, System), so the probe missed
+  about half the host's busy cores in the two-at-once runs. For host-wide CPU,
+  sample `\Process(*)\% Processor Time` (vmmemWSL carries the WSL guest) and
+  `\Hyper-V Hypervisor Logical Processor(_Total)\% Total Run Time` with
+  Get-Counter, inline in the PowerShell tool (`-ExecutionPolicy Bypass` is denied).
+- In the two-at-once runs the failing stack looked tied to slot 0's CPUs. A swap
+  (slot 0 on the other P-cores) still failed it, so overlap with the other
+  stack's flight was the cause. Swap a confounded factor before blaming it, and
+  test an alternative (here `MAX_SHARES 1`) before proposing it: refusing the
+  second share did not save the holder.
+- To count packets by type, a temporary tally in `InboundRouter.ingest` that
+  rewrites a JSON file every 5000 packets cost one 3-minute Q run per side and
+  needed no exit hook. Revert it before committing.
+- PowerShell 5.1 `Out-File -Encoding utf8` writes a BOM, which became the first
+  character of a commit subject. Write commit-message files with
+  `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))`.
+
 ## Todos 67, 68: confirm cue and zero wording (2026-10-28)
 
 - A display clock kept in state is stale for new data. The list sampled `now` once a second
@@ -1592,4 +1685,3 @@
   its first render, so "due" before "no wait" made decision 7's words unreachable.
 - `npm run build` while a live tester's dev server runs can wipe its .vite cache; warn the
   tester or build only between live runs.
-

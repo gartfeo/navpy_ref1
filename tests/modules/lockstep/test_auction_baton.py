@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
+from navpy.core.flow.nav_display import NavDisplay, NavPhase
 from navpy.core.link.check_msg import CheckInMsg
 from navpy.core.link.listener_abc import ListenerAbc
 from navpy.core.link.message_filter import MessageFilter
@@ -174,11 +175,19 @@ def test_a_request_ack_on_the_resend_deadline_tick_is_handled_before_the_resend(
 # -- stale BUSY evidence (MsgRef.follows) -------------------------------------
 
 def _set_approaching(swarm: BatonSwarm, node: int, approaching: bool):
-    return lambda: swarm.actors[node].set_participation(approaching, False)
+    # With nav's display bits set, as nav publishes them: receivers read
+    # bit 0 only (gcs_mission_phase.md).
+    display = NavDisplay(NavPhase.APPROACH if approaching else NavPhase.SEARCH)
+    return lambda: swarm.actors[node].set_participation(
+        approaching, False, display.state_bits(),
+    )
 
 
 def _heartbeat(s: Sent, sender: int, state: SwarmNodeState) -> bool:
-    return _is(s, SwarmHeartbeatMsg, sender) and s.message.state == state
+    return (
+        _is(s, SwarmHeartbeatMsg, sender)
+        and SwarmNodeState.from_code(s.message.state) is state
+    )
 
 
 def test_a_busy_report_older_than_a_bid_never_marks_the_peer_busy():
@@ -224,7 +233,7 @@ def test_a_bid_sent_before_a_busy_report_is_stale_even_once_the_peer_is_free_aga
         swarm.rule = rule
         swarm.run(400, {DETECT_TICK: _detect(swarm), 160: _set_approaching(swarm, NEAR_PEER, True),
                         210: _set_approaching(swarm, NEAR_PEER, False)})
-        reports = [(s.k, s.message.state) for s in swarm.log if _is(s, SwarmHeartbeatMsg, NEAR_PEER) and s.k >= 200]
+        reports = [(s.k, SwarmNodeState.from_code(s.message.state)) for s in swarm.log if _is(s, SwarmHeartbeatMsg, NEAR_PEER) and s.k >= 200]
         assert reports[:2] == [(200, SwarmNodeState.BUSY), (300, SwarmNodeState.FREE)]
         at_330 = [line for k, line in swarm.lines(OWNER) if k == 330]
         assert "warning: Task 2: offer from 2 not recorded (no available task, invalid ETA, "                "or sent before it was busy)." in at_330

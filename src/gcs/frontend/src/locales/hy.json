@@ -417,9 +417,9 @@
     "detectionStart": "ՀՍ",
     "dock": "D",
     "closestApproach": {
-      "docked": "կցվեց",
-      "missed": "վրիպեց",
-      "aborted": "ընդհատվեց"
+      "docked": "կցվեց (սիմ.)",
+      "missed": "վրիպեց (սիմ.)",
+      "aborted": "ընդհատվեց (սիմ.)"
     }
   },
   "mapStopped": {
@@ -1163,7 +1163,28 @@
     "assigned": "ՆՇԱՆԱԿՎԱԾ",
     "approaching": "ՄՈՏԵՆՈՒՄ Է",
     "confirming": "ՀԱՍՏԱՏՈՒՄ",
-    "confirmed": "ՀԱՍՏԱՏՎԱԾ"
+    "confirmed": "ՀԱՍՏԱՏՎԱԾ",
+    "homing": "ՎԵՐԱԴԱՐՁ",
+    "recovering": "ՎԵՐԱԿԱՆԳՆՈՒՄ",
+    "docked": "ԿՑՎԱԾ (ՍԻՄ. ՀՊՈՒՄ)",
+    "dockFailed": "ԿՑՈՒՄԸ ՁԱԽՈՂՎԵՑ (ՍԻՄ.)",
+    "reason": "Պատճառ՝ {{reason}}",
+    "last": "Վերջինը՝ {{outcome}}",
+    "lastDocked": "կցված (սիմ. հպում)",
+    "lastDockFailed": "կցումը ձախողվեց (սիմ.)",
+    "lastHeard": "(վերջին ստացվածը)",
+    "reasons": {
+      "nav_fail": "նավարկումը ձախողվեց",
+      "no_detection": "հայտնաբերում չկա",
+      "missed_dock": "կայանը բաց թողնվեց",
+      "navigation_rejected": "նավարկումը մերժվեց",
+      "source_command_stale": "հրամանները հնացան",
+      "discontinuity_source_missing": "տեսողական աղբյուրը կորավ",
+      "final_approach_record_unavailable": "մոտեցման գրառումը հասանելի չէ",
+      "source_event_active_poi_missing": "POI-ն բացակայում է",
+      "source_event_pump": "տեսողական աղբյուրը ձախողվեց",
+      "unknown": "այլ, տե՛ս NavPy-ի մատյանը"
+    }
   },
   "loadStage": {
     "connecting": "Միանում է",

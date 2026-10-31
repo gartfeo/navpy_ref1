@@ -150,5 +150,50 @@ class TestFlatDistUsedForApproaching(unittest.TestCase):
         self.assertEqual(out, "1.1 km")
 
 
+class TestEveryStatusRendersAndIsTranslated(unittest.TestCase):
+    """Each status id has a renderer, and its label and the mission-phase
+    strings exist in every locale (gcs_mission_phase.md)."""
+
+    def setUp(self):
+        import json
+        base = os.path.dirname(_COMPONENT_PATH)
+        status_js = open(os.path.join(base, "..", "..", "utils", "missionStatus.js"),
+                         encoding="utf-8").read()
+        table = status_js.split("const STATUS_TABLE = {", 1)[1].split("};", 1)[0]
+        self.statuses = re.findall(r"^\s*(\w+):\s*\{\s*labelKey: '([\w.]+)'", table, re.M)
+        self.reasons = re.findall(r"'(\w+)'", status_js.split("FAIL_REASON_KEYS = new Set([", 1)[1]
+                                   .split("]);", 1)[0])
+        self.locales = {
+            name: json.load(open(os.path.join(base, "..", "..", "locales", f"{name}.json"),
+                                 encoding="utf-8"))
+            for name in ("en", "hy")
+        }
+
+    def test_every_status_has_a_renderer(self):
+        component = open(_COMPONENT_PATH, encoding="utf-8").read()
+        renderers = component.split("const STATUS_RENDERERS = {", 1)[1]
+        for status, _ in self.statuses:
+            self.assertRegex(renderers, rf"(?m)^  {status}: ", status)
+
+    def test_every_key_is_translated(self):
+        keys = [key for _, key in self.statuses] + [
+            f"missionStatus.reasons.{r}" for r in self.reasons + ["unknown"]
+        ] + [f"missionStatus.{k}" for k in (
+            "reason", "last", "lastDocked", "lastDockFailed", "lastHeard")]
+        for name, locale in self.locales.items():
+            for key in keys:
+                node = locale
+                for part in key.split("."):
+                    node = node[part]
+                self.assertIsInstance(node, str, (name, key))
+
+    def test_sim_outcomes_carry_the_sim_tag(self):
+        en = self.locales["en"]
+        self.assertIn("(SIM", en["missionStatus"]["docked"])
+        self.assertIn("(SIM", en["missionStatus"]["dockFailed"])
+        for value in en["mapMarkers"]["closestApproach"].values():
+            self.assertIn("(sim)", value)
+
+
 if __name__ == "__main__":
     unittest.main()

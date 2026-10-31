@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mission phase card mock</title>
+<style>
+  :root {
+    --bg: #1a1a2e; --surface: #16213e; --accent: #00d2ff; --text: #e0e0e0;
+    --dim: #8899aa; --bright: #fff; --go: #4caf50; --warn: #ff9800;
+    --nogo: #f44336; --border: #2a3f5f;
+  }
+  body { margin: 0; padding: 16px; background: #0d0d1a; color: var(--text);
+    font: 13px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size: 18px; color: var(--bright); margin: 0 0 4px; }
+  .note { color: var(--dim); font-size: 12px; margin: 0 0 14px; max-width: 900px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 16px; }
+  .col { width: 320px; max-width: 100%; }
+  .cap { font-size: 11px; color: var(--accent); margin: 0 0 4px; font-weight: 600; }
+  .why { font-size: 11px; color: var(--dim); margin: 0 0 6px; }
+  .card { padding: 8px; background: var(--surface); border-radius: 4px;
+    border: 1px solid var(--border); font-size: 11px; }
+  .card.armed { border-color: var(--nogo); }
+  .r { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .uav { display: inline-block; padding: 0 5px; border-radius: 3px; color: #fff;
+    font-size: 11px; font-weight: 700; line-height: 18px; }
+  .u1 { background: #D90012; } .u2 { background: #0033A0; } .u3 { background: #F2A800; }
+  .cc { padding: 1px 4px; font-size: 9px; font-weight: 700; border-radius: 3px; background: var(--go); color: #fff; }
+  .mode { color: var(--accent); font-weight: 600; }
+  .row3 { display: flex; gap: 6px; font-size: 10px; align-items: center; }
+  .b { padding: 1px 5px; border-radius: 3px; color: #fff; font-weight: 700; font-size: 9px;
+    text-transform: uppercase; flex-shrink: 0; }
+  .task { color: var(--bright); font-weight: 600; }
+  .coords { color: var(--accent); margin-left: auto; }
+  .reason { margin-top: 4px; padding: 3px 6px; background: rgba(244,67,54,.12);
+    border-radius: 3px; font-size: 10px; color: var(--nogo); }
+  .stale { opacity: .55; }
+  .d { color: var(--dim); }
+  .new { box-shadow: inset 3px 0 0 var(--accent); }
+</style>
+</head>
+<body>
+<h1>Sidebar UAV card: mission phase from NavPy</h1>
+<p class="note">Static mock for docs/design/gcs_mission_phase.md. Only row 3 (the status row) changes; rows 1-2 as today.
+A blue left bar marks a state that is new or reads differently from today.</p>
+<div class="grid" id="g"></div>
+<script>
+const S = {
+  idle: ['IDLE', 'var(--dim)'], search: ['SEARCHING', 'var(--go)'], homing: ['HOMING', 'var(--accent)'],
+  confirming: ['CONFIRMING', 'var(--warn)'], approaching: ['APPROACHING', 'var(--warn)'],
+  confirmed: ['CONFIRMED', 'var(--nogo)'], waiting: ['WAITING', 'var(--dim)'], assigned: ['ASSIGNED', 'var(--accent)'],
+  docked: ['DOCKED (SIM CONTACT)', 'var(--go)'], failed: ['DOCK FAILED (SIM)', 'var(--nogo)'],
+  recovering: ['RECOVERING', 'var(--dim)'],
+};
+const cards = [
+  { cap: 'Owner on its own dock, review', why: 'Today: IDLE (todo 60). Phase CONFIRM.', u: 1, mode: 'GUIDED', armed: 1, s: 'confirming', isNew: 1 },
+  { cap: 'Owner, approved, approaching', why: 'Today: IDLE. Phase APPROACH (NAV is entered only once confirmed).', u: 1, mode: 'GUIDED', armed: 1, s: 'confirmed', isNew: 1 },
+  { cap: 'Helper flying to the owner’s task', why: 'Phase TO_TASK; task label from the assignment.', u: 2, mode: 'GUIDED', armed: 1, s: 'approaching', task: '#3 dock', coords: 1, extra: '<span class="d">420 m</span>' },
+  { cap: 'Helper confirmed', why: 'Todo 61: phase APPROACH. No label: a confirmed slot cannot be tied to this approach.', u: 2, mode: 'GUIDED', armed: 1, s: 'confirmed', isNew: 1 },
+  { cap: 'Approach over, resetting', why: 'Phase RECOVERING (RESET / RECOVERY). Real build: one tick, then SEARCHING.', u: 3, mode: 'GUIDED', armed: 1, s: 'recovering', isNew: 1 },
+  { cap: 'Cyclic: searching after a dock', why: 'Phase SEARCH, last outcome docked.', u: 1, mode: 'AUTO', armed: 1, s: 'search', km: '3.0 / 6.1 km', bar: 49, last: 'Last: docked (sim contact)', isNew: 1 },
+  { cap: 'Searching', why: 'Phase SEARCH; progress bar as today.', u: 3, mode: 'AUTO', armed: 1, s: 'search', km: '2.4 / 6.1 km', bar: 39 },
+  { cap: 'Home UAV going home', why: 'Today: SEARCHING in AUTO. Phase HOMING.', u: 3, mode: 'GUIDED', armed: 1, s: 'homing', isNew: 1, extra: '<span class="d coords">Home dock</span>' },
+  { cap: 'Docked, after disarm', why: 'Today: IDLE (todo 63). One-shot DOCKED is final.', u: 1, mode: 'GUIDED', armed: 0, s: 'docked', isNew: 1 },
+  { cap: 'Dock failed, after disarm', why: 'Todo 76. Reason index in the same beat.', u: 2, mode: 'GUIDED', armed: 0, s: 'failed', isNew: 1, reason: 'Reason: no detection' },
+  { cap: 'Dock failed, reason not in table', why: 'Reason index 0.', u: 2, mode: 'GUIDED', armed: 0, s: 'failed', isNew: 1, reason: 'Reason: other, see the NavPy log' },
+  { cap: 'Docked, companion silent', why: 'Beats stale: last end phase kept, dimmed.', u: 1, mode: 'MANUAL', armed: 0, s: 'docked', stale: 1, isNew: 1 },
+  { cap: 'Old trace / no phase', why: 'Fallback: today’s guess, unchanged.', u: 3, mode: 'AUTO', armed: 1, s: 'search' },
+];
+const g = document.getElementById('g');
+for (const c of cards) {
+  const [label, color] = S[c.s];
+  const inline = [
+    c.task ? `<span class="task">${c.task}</span>` : '',
+    c.extra || '',
+    c.coords ? '<span class="coords">40.31174, 44.45521</span>' : '',
+    c.km ? `<span class="d" style="margin-left:auto">${c.km}</span>` : '',
+    c.stale ? '<span class="d">(last heard)</span>' : '',
+  ].join('');
+  g.insertAdjacentHTML('beforeend', `
+  <div class="col">
+    <div class="cap">${c.cap}</div>
+    <div class="why">${c.why}</div>
+    <div class="card ${c.armed ? 'armed' : ''}">
+      <div class="r"><span><span class="uav u${c.u}">UAV ${c.u}</span> <span class="cc">CC</span></span>
+        <span class="d">GPS 3D &nbsp; 97% &nbsp; 88%</span></div>
+      <div class="r"><span class="mode">${c.mode}</span><span class="d">${c.armed ? '24.1 m/s &nbsp; 80 m' : '0.0 m/s &nbsp; 0 m'}</span></div>
+      <div class="${c.isNew ? 'new' : ''}" style="padding-left:${c.isNew ? 6 : 0}px">
+        <div class="row3 ${c.stale ? 'stale' : ''}"><span class="b" style="background:${color}">${label}</span>${inline}</div>
+        ${c.bar ? `<div style="height:4px;background:var(--bg);border-radius:2px;margin-top:4px"><div style="height:100%;width:${c.bar}%;background:var(--accent)"></div></div>` : ''}
+        ${c.reason ? `<div class="reason">${c.reason}</div>` : ''}
+        ${c.last ? `<div class="d" style="font-size:10px;margin-top:4px">${c.last}</div>` : ''}
+      </div>
+    </div>
+  </div>`);
+}
+</script>
+</body>
+</html>

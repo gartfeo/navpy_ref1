@@ -18,6 +18,7 @@ from navpy.core.approach.vision_nav.episode_latch import (
     FinalApproachEpisodeTerminal,
     FinalApproachTerminal,
 )
+from navpy.core.flow.nav_display import NavOutcomeLatch
 from navpy.core.flow.nav_state import NavigationTaskState, NavState
 
 
@@ -45,6 +46,7 @@ class NavTransition:
         is_oneshot: Callable[[], bool],
         *,
         logger: Optional[ILogger] = None,
+        outcome: Optional[NavOutcomeLatch] = None,
     ) -> None:
         self._entry = entry
         self._cleanup = cleanup
@@ -53,6 +55,7 @@ class NavTransition:
         self._navigation_task = navigation_task
         self._is_oneshot = is_oneshot
         self._logger = logger
+        self._outcome = outcome
 
     def enter(self) -> None:
         self._entry.run()
@@ -115,11 +118,13 @@ class NavTransition:
             return
         reason = terminal.reason or UNNAMED_FAILURE_REASON
         self._cleanup.record_dock_failed(terminal, reason)
+        if self._outcome is not None:
+            self._outcome.record_failed(reason)
         if self._logger is None:
             return
         identity = terminal.identity
         self._logger.info(
-            f"STATE DOCK_FAILED: reason={reason} "
+            f"STATE DOCK_FAILED (sim): reason={reason} "
             f"dock={identity.dock_uid} task={identity.task_id}",
             key="nav",
             dest=LogStatusDest.DRONE,
@@ -127,12 +132,14 @@ class NavTransition:
 
     def _report_docked(self, cleanup: NavCleanupResult) -> None:
         """Operator status line, once the exit succeeded."""
+        if self._outcome is not None:
+            self._outcome.record_docked()
         if self._logger is None:
             return
         event = cleanup.own_dock_contact
         identity = event.identity
         self._logger.info(
-            f"STATE DOCKED: contact 3d={event.closest_3d_m:.2f}m "
+            f"STATE DOCKED (sim): 3d={event.closest_3d_m:.2f}m "
             f"dock={identity.dock_uid} task={identity.task_id}",
             key="nav",
             dest=LogStatusDest.DRONE,

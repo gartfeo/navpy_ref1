@@ -158,7 +158,7 @@ class FinalApproachDockContact:
             self._docked = event
         identity = event.identity
         self._logger.info(
-            f"DOCKED: task={identity.task_id} dock={identity.dock_uid} "
+            f"DOCKED (sim): task={identity.task_id} dock={identity.dock_uid} "
             f"episode={identity.episode} 3d={event.closest_3d_m:.2f}m",
             key="nav",
             dest=LogStatusDest.DRONE,

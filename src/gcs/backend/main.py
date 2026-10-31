@@ -216,10 +216,16 @@ async def shutdown(autoconnect_task: asyncio.Task) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/shutdown lifecycle."""
+    """Wall lifecycle (lockstep runs ``startup`` itself): the CPU share or background is
+    set before any NavPy starts, released after they stop (``bounded_cpu_share.md``)."""
+    from gcs.backend.cpu_share_holder import stack_scheduling
+
+    _add_file_logging()  # so the share's outcome reaches backend.log
+    log.info("Stack scheduling: %s", stack_scheduling.start_from_env())
     autoconnect_task = await startup()
     yield
     await shutdown(autoconnect_task)
+    await asyncio.to_thread(stack_scheduling.give_up, "backend shutdown")
 
 
 app = FastAPI(

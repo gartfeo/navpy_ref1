@@ -417,9 +417,9 @@
     "detectionStart": "DS",
     "dock": "D",
     "closestApproach": {
-      "docked": "docked",
-      "missed": "missed",
-      "aborted": "aborted"
+      "docked": "docked (sim)",
+      "missed": "missed (sim)",
+      "aborted": "aborted (sim)"
     }
   },
   "mapStopped": {
@@ -1163,7 +1163,28 @@
     "assigned": "ASSIGNED",
     "approaching": "APPROACHING",
     "confirming": "CONFIRMING",
-    "confirmed": "CONFIRMED"
+    "confirmed": "CONFIRMED",
+    "homing": "HOMING",
+    "recovering": "RECOVERING",
+    "docked": "DOCKED (SIM CONTACT)",
+    "dockFailed": "DOCK FAILED (SIM)",
+    "reason": "Reason: {{reason}}",
+    "last": "Last: {{outcome}}",
+    "lastDocked": "docked (sim contact)",
+    "lastDockFailed": "dock failed (sim)",
+    "lastHeard": "(last heard)",
+    "reasons": {
+      "nav_fail": "navigation failed",
+      "no_detection": "no detection",
+      "missed_dock": "missed the dock",
+      "navigation_rejected": "navigation rejected",
+      "source_command_stale": "commands went stale",
+      "discontinuity_source_missing": "vision source lost",
+      "final_approach_record_unavailable": "approach record unavailable",
+      "source_event_active_poi_missing": "POI missing",
+      "source_event_pump": "vision source failed",
+      "unknown": "other, see the NavPy log"
+    }
   },
   "loadStage": {
     "connecting": "Connecting",

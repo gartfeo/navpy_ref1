@@ -55,6 +55,7 @@ from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 from navpy.core.ports.detect_request import DetectRequest
+from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 
 
 @dataclass(frozen=True)
@@ -233,7 +234,7 @@ def _report_pump_failure(
     state: NavStateOwnership,
     logger: ILogger,
 ) -> None:
-    state.navigation_failures.mark_failed("source_event_pump")
+    state.navigation_failures.mark_failed(fail_reason.SOURCE_EVENT_PUMP)
     try:
         logger.error(
             f"NAV_FAIL: source_event_pump {failure.reason}",

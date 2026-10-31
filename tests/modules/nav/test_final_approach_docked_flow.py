@@ -186,7 +186,7 @@ def test_contact_is_completed_by_the_navigation_thread_not_the_callback():
     assert flow.phase.current is NavState.NAV
     assert flow.task.final_approach_nav_completed is False
     flow.logger.info.assert_called_once()
-    assert flow.logger.info.call_args.args[0].startswith("DOCKED: task=1 dock=2")
+    assert flow.logger.info.call_args.args[0].startswith("DOCKED (sim): task=1 dock=2")
 
     assert flow.decide() is True
     assert flow.task.final_approach_nav_completed is True
