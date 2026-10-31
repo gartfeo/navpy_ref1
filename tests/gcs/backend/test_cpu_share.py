@@ -63,6 +63,25 @@ def test_shares_are_disjoint_and_bounded(tmp_path):
     assert record.claim("c", 60.0, HYBRID) == f"{MAX_SHARES} shares are held (at most {MAX_SHARES})"
 
 
+def test_every_free_core_takes_all_the_free_performance_cores(tmp_path):
+    record = _record(tmp_path)
+    assert record.claim("demo", 60.0, HYBRID, every_free_core=True).cpus == P_CORES
+    assert record.claim("eval", 60.0, HYBRID) == "no free performance cores"
+
+
+def test_every_free_core_beside_a_held_share_takes_the_rest(tmp_path):
+    record = _record(tmp_path)
+    assert record.claim("eval", 60.0, HYBRID).cpus == (0, 1, 6, 7)
+    assert record.claim("demo", 60.0, HYBRID, every_free_core=True).cpus == (8, 9, 18, 19)
+
+
+def test_every_free_core_still_needs_a_full_share(tmp_path):
+    record = _record(tmp_path)
+    six = {cpu: int(cpu < 6) for cpu in range(10)}
+    assert record.claim("eval", 60.0, six).cpus == (0, 1, 2, 3)
+    assert record.claim("demo", 60.0, six, every_free_core=True) == "no free performance cores"
+
+
 def test_a_claim_without_enough_free_performance_cores_is_refused_at_once(tmp_path):
     record = _record(tmp_path)
     five = {cpu: int(cpu < 5) for cpu in range(10)}

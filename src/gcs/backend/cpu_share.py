@@ -31,8 +31,9 @@ from gcs.backend import instance_registry_runtime as runtime
 from gcs.backend.cpu_share_native import NamedMutex, pid_gone
 from gcs.backend.instance_registry_store import LOCK_TIMEOUT_S, registry_path
 
-#: Logical CPUs per share: one per NavPy of a 3-UAV run plus its backend
-#: (m1: NavPy about 1.0 core each, p95 1.3; backend 0.4).
+#: Logical CPUs per share, and the least any claim accepts: one per NavPy of a
+#: 3-UAV run plus its backend (m1: NavPy about 1.0 core each, p95 1.3; backend
+#: 0.4). The hand demo asks for every free performance core instead.
 SHARE_CPUS = 4
 #: Two shares cover the 8 performance cores of this PC's CPU and leave the
 #: efficiency cores to everyone else.
@@ -102,8 +103,14 @@ class ShareRecord:
         except OSError as error:
             self._mutex_error = str(error)
 
-    def claim(self, label: str, seconds: float, classes: dict[int, int]) -> Share | str:
-        """A new share for this process, or why it was refused."""
+    def claim(
+        self, label: str, seconds: float, classes: dict[int, int], *, every_free_core: bool = False,
+    ) -> Share | str:
+        """A new share for this process, or why it was refused.
+
+        *every_free_core* takes all the free performance cores instead of
+        ``SHARE_CPUS`` of them; fewer than ``SHARE_CPUS`` is still refused.
+        """
         if not classes:
             return "no CPU information on this platform"
         pid = os.getpid()
@@ -118,7 +125,8 @@ class ShareRecord:
             held = self._held(self._load())
             if len(held) >= MAX_SHARES:
                 return f"{len(held)} shares are held (at most {MAX_SHARES})"
-            cpus = pick_cpus(classes, {cpu for share in held for cpu in share.cpus})
+            taken = {cpu for share in held for cpu in share.cpus}
+            cpus = pick_cpus(classes, taken, len(classes) if every_free_core else SHARE_CPUS)
             if len(cpus) < SHARE_CPUS:
                 return "no free performance cores"
             share = Share(os.urandom(8).hex(), pid, start, label, tuple(cpus),

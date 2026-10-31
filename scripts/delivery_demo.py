@@ -63,7 +63,9 @@ FRONTEND_TIMEOUT_S = 60.0
 #: A shared dock world replaces the waypoint docks the plan marks.
 SIM_DOCKS_ENV = "NAVPY_SIM_DOCKS"
 #: The demo's CPU share (``bounded_cpu_share.md``): long enough to fly by
-#: hand, bounded so a forgotten stack gives the cores back.
+#: hand, bounded so a forgotten stack gives the cores back. It claims every
+#: free performance core: on 4 of them an all-core burst outside the stack
+#: starved the NavPys past their freshness limit, on 8 it did not.
 CPU_SHARE_DEFAULT_MIN = 30
 CPU_SHARE_MAX_MIN = 120
 #: Run paths from the eval's environment: settings and logs only.
@@ -159,7 +161,7 @@ def start(
             env, STACK_TIMEOUT_S, sitl_root.launch_arguments(),
             clock=clock, scenario=scenario,
             headless=False, browser=False, launch_token=os.urandom(16).hex(),
-            cpu_share_s=cpu_share_min * 60.0,
+            cpu_share_s=cpu_share_min * 60.0, cpu_share_all_cores=True,
         )
     except PreexistingOwnedStackError as error:
         raise RegressionError(
