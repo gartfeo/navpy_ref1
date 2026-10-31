@@ -43,7 +43,7 @@ function calcRemaining(receivedAt, nowMs, timeoutSec = 30) {
 })();
 
 (function testCountdownDefaultFallback() {
-  // Mirrors TaskConfirmCard's effectiveTimeout = (finite && >=0) ? prop : DEFAULT_TIMEOUT_SEC.
+  // Mirrors confirmWaitSec (taskConfirmationState.js): (finite && >=0) ? prop : DEFAULT_CONFIRM_WAIT_SEC.
   // 0 is honored as "immediate timeout" since the settings UI allows nav_cwt min 0.
   const effective = (val) => (Number.isFinite(val) && val >= 0 ? val : 30);
   assert.strictEqual(effective(undefined), 30, 'Undefined timeout falls back to 30');

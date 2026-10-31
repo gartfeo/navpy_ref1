@@ -371,7 +371,23 @@
     "holdToApprove": "HOLD TO APPROVE",
     "viewCamera": "View camera",
     "viewing": "Viewing",
-    "viewCameraNote": "The countdown keeps running"
+    "viewCameraNote": "The countdown keeps running",
+    "zero": {
+      "autoDeny": "Auto-deny in {{time}}",
+      "autoApprove": "Auto-approve in {{time}}",
+      "autoDenyUnknown": "Auto-deny in {{time}} (policy not loaded)",
+      "noWaitDeny": "No wait: GCS denies now",
+      "noWaitApprove": "No wait: GCS approves now",
+      "due": "Time up; sending answer",
+      "fired": "Time up; answer not confirmed"
+    },
+    "zeroChip": {
+      "autoDeny": "Auto-deny",
+      "autoApprove": "Auto-approve",
+      "autoDenyUnknown": "Auto-deny (policy not loaded)"
+    },
+    "soundOff": "Sound off, tap to enable",
+    "noSound": "No sound"
   },
   "flightMode": {
     "rc": "RC",

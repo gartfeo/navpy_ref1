@@ -89,5 +89,30 @@ class TestRcHost(unittest.TestCase):
         self.assertIn("zIndex: 8", _read("components", "map", "FpvViewOverlay.jsx"))
 
 
+class TestConfirmCueWiring(unittest.TestCase):
+    """Todos 67/68: both hosts show the cards by time left, with the chip and
+    the sound, from the one useTaskConfirmation instance."""
+
+    def setUp(self):
+        self.app = _read("App.jsx")
+        self.list = _read("components", "ConfirmCardList.jsx")
+
+    def test_both_hosts_get_the_cue(self):
+        self.assertEqual(self.app.count("<ConfirmCardList"), 2)
+        self.assertEqual(self.app.count("cue={taskConfirm.cue}"), 2)
+
+    def test_the_hook_reads_each_uavs_raw_wait(self):
+        self.assertIn("aasParams.getConfirmedValue(sysId, 'nav_cwt', undefined)", self.app)
+        self.assertIn("useTaskConfirmation({ waitSecFor: confirmWaitSecFor })", self.app)
+
+    def test_the_list_orders_by_the_selector(self):
+        self.assertIn("orderedConfirmEntries(pendingConfirms, waitSecFor, fired)", self.list)
+        self.assertNotIn("Object.entries(pendingConfirms", self.list)
+
+    def test_the_list_reads_raw_params_for_labels_and_order(self):
+        self.assertIn("aasParams.getConfirmedValue(sid, key, undefined)", self.list)
+        self.assertIn("<ConfirmSummary", self.list)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   confirmRequest,
   confirmImage,
@@ -7,7 +7,11 @@ import {
   confirmReset,
   expireDecided,
   resetAll,
+  confirmRoundId,
+  roundIdFromKey,
 } from './taskConfirmationState';
+import useConfirmAlert from './useConfirmAlert';
+import { confirmNow } from '../utils/confirmClock';
 
 // Decided (denied/canceled) cards stay reviewable for this long, then auto-
 // dismiss. Approved cards persist until disarm_after_guided / cancel / reset.
@@ -25,38 +29,51 @@ const ACTION_CONFIRMED = {
   timeout_deny: false,
 };
 
+const NO_WAIT = () => undefined;
+
 /**
  * Manages task confirmation cards: pending + decided state via the pure
  * taskConfirmationState reducer, image association, approve/deny/cancel
- * actions, lifecycle clears (disarm-after-GUIDED/reset), and audio alerts.
+ * actions, lifecycle clears (disarm-after-GUIDED/reset), the fired latch and
+ * the alert sound (useConfirmAlert).
+ *
+ * `waitSecFor(sysId)` is that UAV's cached NAV_CWT (undefined when not
+ * loaded); the sound needs it to know the soonest deadline. The returned
+ * `cue` is what ConfirmCardList needs for the order, the labels and the chip.
  */
-export default function useTaskConfirmation() {
+export default function useTaskConfirmation({ waitSecFor = NO_WAIT } = {}) {
   const [pendingConfirms, setPendingConfirms] = useState({});
   const [forcedConfirms, setForcedConfirms] = useState({});
-  const audioCtxRef = useRef(null);
+  // Fired latch: confirmRoundId -> the time the card's auto-fire ran for that
+  // round. A fired round stays "time up" for the cue even if a later wait or
+  // a backward clock jump gives it time again; it never decides the round.
+  const [fired, setFired] = useState({});
+  const alert = useConfirmAlert(pendingConfirms, waitSecFor, fired);
+  const onArrivalRef = useRef(alert.onArrival);
+  onArrivalRef.current = alert.onArrival;
 
-  const playAlertBeep = useCallback(() => {
-    try {
-      const ctx = audioCtxRef.current || new (window.AudioContext || window.webkitAudioContext)();
-      audioCtxRef.current = ctx;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 880;
-      gain.gain.value = 0.3;
-      osc.start();
-      osc.stop(ctx.currentTime + 0.15);
-    } catch {
-      // Audio not available
-    }
+  const markFired = useCallback((sysId, roundKey) => {
+    const id = roundIdFromKey(sysId, roundKey);
+    setFired((prev) => (prev[id] != null ? prev : { ...prev, [id]: confirmNow() }));
   }, []);
+
+  // Drop latches of rounds no longer on screen.
+  useEffect(() => {
+    setFired((prev) => {
+      const current = new Set(Object.entries(pendingConfirms).map(([sid, e]) => confirmRoundId(sid, e)));
+      const keys = Object.keys(prev);
+      if (keys.every((k) => current.has(k))) return prev;
+      const next = {};
+      for (const k of keys) if (current.has(k)) next[k] = prev[k];
+      return next;
+    });
+  }, [pendingConfirms]);
 
   // ---- WS-driven transitions (apply to all clients) ----
   const handleConfirmRequest = useCallback((data) => {
-    setPendingConfirms((prev) => confirmRequest(prev, { ...data, receivedAt: Date.now() }));
-    playAlertBeep();
-  }, [playAlertBeep]);
+    setPendingConfirms((prev) => confirmRequest(prev, { ...data, receivedAt: confirmNow() }));
+    onArrivalRef.current(data.sys_id);
+  }, []);
 
   const handleConfirmImage = useCallback((data) => {
     setPendingConfirms((prev) => confirmImage(prev, data));
@@ -175,7 +192,18 @@ export default function useTaskConfirmation() {
   const deny = useCallback((sysId) => respond(sysId, 'deny'), [respond]);
   const cancel = useCallback((sysId) => respond(sysId, 'cancel'), [respond]);
 
-  const reset = useCallback(() => setPendingConfirms(resetAll()), []);
+  const reset = useCallback(() => {
+    setPendingConfirms(resetAll());
+    setFired({});
+  }, []);
+
+  const cue = useMemo(() => ({
+    waitSecFor,
+    fired,
+    onAutoFire: markFired,
+    soundState: alert.soundState,
+    unlockSound: alert.unlockSound,
+  }), [waitSecFor, fired, markFired, alert.soundState, alert.unlockSound]);
 
   return {
     pendingConfirms,
@@ -190,5 +218,6 @@ export default function useTaskConfirmation() {
     reset,
     forcedConfirms,
     forceConfirm,
+    cue,
   };
 }

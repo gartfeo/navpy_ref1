@@ -398,7 +398,12 @@ export default function App() {
   });
 
   // ---- Task / WS handler wiring ----
-  const taskConfirm = useTaskConfirmation();
+  // The confirm sound needs each UAV's cached NAV_CWT (undefined when not loaded).
+  const confirmWaitSecFor = useCallback(
+    (sysId) => aasParams.getConfirmedValue(sysId, 'nav_cwt', undefined),
+    [aasParams],
+  );
+  const taskConfirm = useTaskConfirmation({ waitSecFor: confirmWaitSecFor });
   const taskAssign = useTaskAssignment();
   const ws = useWsHandlers({
     messageHandlersRef,
@@ -868,6 +873,7 @@ export default function App() {
               onCancel={ws.handleTaskCancel}
               forcedConfirms={taskConfirm.forcedConfirms}
               aasParams={aasParams}
+              cue={taskConfirm.cue}
               style={{
                 position: 'absolute',
                 top: RC_CONFIRM_TOP_PX,
@@ -926,6 +932,7 @@ export default function App() {
           onCancel={ws.handleTaskCancel}
           forcedConfirms={taskConfirm.forcedConfirms}
           aasParams={aasParams}
+          cue={taskConfirm.cue}
           videoActionFor={phase === PHASES.MONITOR ? videoActionFor : null}
           style={{
             width: sidebarWidth,
