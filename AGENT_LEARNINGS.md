@@ -1665,3 +1665,23 @@
 - PowerShell 5.1 `Out-File -Encoding utf8` writes a BOM, which became the first
   character of a commit subject. Write commit-message files with
   `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))`.
+
+## Todos 67, 68: confirm cue and zero wording (2026-10-28)
+
+- A display clock kept in state is stale for new data. The list sampled `now` once a second
+  and froze it while nothing was pending, so a new card showed more than its wait (0:31 for
+  30 s; 3:48 after a gap). Unit tests missed it because act() runs the resample effect before
+  the assertion; the live check caught it. Read the clock at render and keep the interval only
+  as a re-render trigger. A MutationObserver with attributeOldValue sees the overwritten first
+  value in a test.
+- Do not floor a clock with a past reading (max(sample, newest receipt)): a backward wall-clock
+  step then holds it ahead. Codex found this in the floor I first used.
+- When a component stops updating a state, grep every reader of it. Skipping a hosted card's
+  own countdown state froze its timer bar, which also read that state; no reviewer flagged it.
+- An effect's deps that list every input restart its interval on each update (images, param
+  drafts), so a periodic sound never comes due. Key the effect to the fact that starts or stops
+  the timer (here: whether any round is live) and read the inputs through refs.
+- Check a first-match label order against every phase a param forces: NAV_CWT 0 is due from
+  its first render, so "due" before "no wait" made decision 7's words unreachable.
+- `npm run build` while a live tester's dev server runs can wipe its .vite cache; warn the
+  tester or build only between live runs.

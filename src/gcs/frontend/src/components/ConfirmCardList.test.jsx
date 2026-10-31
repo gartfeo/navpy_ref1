@@ -213,8 +213,10 @@ describe('ConfirmCardList hosts', () => {
       expect(cancelIn(view, 8)).toBeInTheDocument();
       expect(view.getByText('task.holdToApprove')).toBeInTheDocument();
     }
-    // 24 s gone: UAV 7's and 9's rounds still ask, with their original deadline.
-    expect(view.getAllByText('6s')).toHaveLength(2);
+    // 24 s gone: UAV 7's and 9's rounds still ask, with their original deadline
+    // ("~": NAV_CWT is not loaded here, so the 30 s default is an estimate).
+    expect(['7', '9'].map((sid) => view.getByTestId(`confirm-countdown-${sid}`).dataset.time))
+      .toEqual(['~0:06', '~0:06']);
     await act(async () => { vi.advanceTimersByTime(7_000); });
 
     const sevens = postedBodies(fetchSpy).filter((b) => b.sys_id === 7);

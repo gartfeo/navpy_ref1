@@ -38,9 +38,14 @@ class TestSourceExports(unittest.TestCase):
         for name in [
             "confirmRequest", "confirmImage", "confirmResponse",
             "disarmAfterGuided", "confirmReset", "expireDecided", "hasPendingConfirm",
-            "canCancel", "visibleConfirmEntries",
+            "canCancel", "confirmWaitSec", "confirmDeadlineMs", "secondsLeft",
+            "orderedConfirmEntries", "pendingSummary", "confirmZeroLabel",
         ]:
             self.assertIn(f"export function {name}", self.src)
+
+    def test_arrival_order_selector_removed(self):
+        """Todo 67: cards are ordered by time left; the arrival-order selector is gone."""
+        self.assertNotIn("visibleConfirmEntries", self.src)
 
     def test_vehicle_abort_removed(self):
         self.assertNotIn("export function vehicleAbort", self.src)
