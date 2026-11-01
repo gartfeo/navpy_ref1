@@ -11,9 +11,10 @@ the reader's ``_dispatch`` fans out. Only the edges change:
   persistent :class:`StreamDecoder` and dispatches in byte order, yielding
   after each packet (the wall reader yields once per bounded batch,
   ``docs/design/reader_batch.md``; lockstep keeps the per-packet baton point).
-  With the baton's ``reader_budget`` (dev sim step 6) it dispatches at most
-  ``packets_per_tick`` per tick, yields once per ``batch``, and carries the
-  rest over, in order, to the next tick.
+  With the baton's ``reader_budget`` (dev sim step 6) it drains as the wall
+  reader does: its turn ends when the delivery is drained or at
+  ``packets_per_tick``. The rest stays queued, in order; the reader then waits
+  on a timer, which a delivery does not wake (todo 200).
 - **Outbound:** :class:`LockstepConnection` is the encoder (a ``MAVLink`` on
   the link's byte sink, with the product's source ids) plus ``mode_mapping``;
   the link drains the sink into ``DONE``.
@@ -57,7 +58,7 @@ class ReaderService:
         self._served = 0
 
     def before_packet(self, stop: rt.Event) -> None:
-        """Wait for the next tick once this tick's packets are served; ``stop`` ends the wait,
+        """Wait on a timer due at the next tick once this tick's packets are served; ``stop`` ends the wait,
         so a close in this tick still joins the reader."""
         if self._budget is None:
             return
@@ -71,9 +72,9 @@ class ReaderService:
         if self._budget is None:
             yield_now(self._baton)
             return
+        # No yield: the turn ends where the reader blocks, on empty input or
+        # in before_packet (``todo65_root_cause.md``).
         self._served += 1
-        if self._served % self._budget.batch == 0:
-            yield_now(self._baton)
 
 class LockstepConnection:
     """What composition uses of a ``mavfile``: ``mav`` and ``mode_mapping``."""
@@ -152,7 +153,7 @@ class LockstepBusReader(MavBusReader):
                 # Per packet by default, unlike the wall reader's per-batch
                 # yield: with first-in first-out order a woken consumer runs
                 # before the next packet at the same tick, so a burst cannot
-                # evict the answer it waits for. A reader budget batches.
+                # evict the answer it waits for. A reader budget drains.
                 self._cooperative_yield()
 
 

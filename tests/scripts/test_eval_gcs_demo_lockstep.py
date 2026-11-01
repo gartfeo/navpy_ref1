@@ -159,10 +159,10 @@ def test_the_sim_profile_reaches_the_coordinators_manifest_only_as_navpy_partici
     assert hw_slice != plain_slice and dataclasses.replace(hw_slice, roles=plain_slice.roles) == plain_slice
     stress = dataclasses.replace(OPTIONS, sim_profile="stress")
     models = participant_models(lockstep_eval.sim_realization(stress))
-    assert set(models) == {"camera_frames", "cpu_budget", "process_freeze", "thread_order"}
+    assert set(models) == {"camera_frames", "cpu_budget", "process_freeze", "reader_budget", "thread_order"}
     assert models["cpu_budget"] == {"handoffs": 6}
     backend = scheduling_subset(models)
-    assert set(backend) == {"thread_order"}
+    assert set(backend) == {"reader_budget", "thread_order"}
     plain, stressed = manifest(CERTIFIED, none), manifest(CERTIFIED, stress)
     assert dataclasses.replace(stressed, roles=plain.roles) == plain
     assert list(stressed.roles) == list(plain.roles)

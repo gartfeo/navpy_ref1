@@ -1734,3 +1734,23 @@
 - Readers timing arrival cannot alone show a producer kept time. Use what the producer
   cannot hide: SITL loses any stall over 100 ms for good, so fit wall(boot) lines before
   and after and compare them at the event (`producer_test.py`). Codex caught this gap.
+
+## Lockstep load and parallel runs (todo 65, 2026-11-01)
+
+- A lockstep budget that counts handoffs turns a model's own yields into load. Before calling a stress failure a product bug, count what spends the cap per tick; here the reader's per-packet yield did, and the product reader had stopped yielding per packet long before.
+- Do not start several `eval_gcs_demo_lockstep_matrix.py` at once: their CPU-load cells overlap and a spawn misses the 30 s step deadline, a host fault. Run them one at a time, or use plain parallel runs (N = 8 holds on a host other chats are not loading; on a saturated one plain runs host-fault too, so budget for reruns).
+- A matrix hashes the source tree per cell. Editing even a doc while one runs fails its artifact comparison on `input_manifest.json`. Freeze the tree, or run from a separate worktree.
+- A simplified load script is not the same load: mine timed out at WSL setup with 20 busy processes that the real matrix survives. To check a fault, repeat the exact command that gave it.
+- Participants do not inherit the shell's env. For a temporary counter, print to stderr (the host logs it) and add temporary profiles.
+- When a fix removes a reproduction, grep the plan for rules that require it. I removed `stress`'s todo-65 mode and left section 4's "`stress` must reproduce todo 65" standing; the final review caught it, and only the owner could change the rule.
+- Do not write one cause for several seeds from a shared outcome. My commit message put seed 24 under the per-packet cause; it ran batch 4 with healthy observation and failed a swarm task drop. Read each seed's draw and its log before grouping it.
+- A check the design lists is a promise. "Combinations" stayed in the design with no test behind them, and they found the parked reader's behaviour (todo 200) once written. Before reporting, map each listed check to a test or run, and mark timings with no retained log as your own observation.
+- Do not label a failure "out of scope" beside "cause not checked". Run the one comparison that classes it (here, the seed with no cap).
+- Stop and look when a retry repeats its digest on a fault that is not a wall-time one. I retried stress seed 212 eleven times as a host fault; each run that got past registration gave the same digest and tick. `HostFault` there only meant an unflushed end. A wall fault at a spawn repeats a digest too, because replay is the same up to that tick (tick 1, and mid-run at ticks 4826 and 8990), so judge by the fault's kind.
+- When a tick counter says "cap used up", exclude freeze ticks: their cap is 0, they run nothing. My first starved-tick counts included them and were wrong.
+- A counterfactual is "the same run plus one change" only until its journal splits. Report where it leaves the base run. Changing B leaves it at tick 5 because the backend's reader takes the same path; only the cap change stays equal to tick 9842. Other seeds with the same draw are what rule out a re-roll, not more arms on one seed.
+- Prove a review finding with a small test, and run that test on the baseline too. Codex's timer starvation is real on the prototype; the same script shows it on the baseline for a reader below its budget, which changes what the finding means.
+- Check a scheduling change against every scheduling model before a full run. Form 3 fixed the inputs-first path and demoted the reader under `timers_first` (drain at tick 18 instead of 11). A small table of packets served per model and case shows that in seconds.
+- A worktree hook refuses edits to another worktree's files. Keep a session's temp source copies under its own ignored `.logs`, and use `( cd ... )`: a plain `cd` in the Bash tool moves the session's primary directory.
+- A retry script that classes faults must class setup faults too. Mine read a WSL `TimeoutExpired` at tick 0 with a repeated digest as a deterministic end. Treat anything by tick 2 and any wall budget message as wall time, whatever the digest does.
+- On a saturated host, do not spend hours on tries that die of wall budgets. For a comparison run, raise the wall budgets in a temp copy, and prove the digest is unchanged against a known one. Final runs still use the commit as it is.
