@@ -1,6 +1,6 @@
 """Sim profiles: which realism models a lockstep run turns on, drawn from its seed.
 
-Steps 1-5 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
+Steps 1-6 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
 models, each with a swarm probability ``p_on`` and its parameters, a fixed
 number or a ``[lo, hi]`` range. Per run seed the swarm draw decides which
 models are on and draws a value inside each range. The result, the
@@ -62,7 +62,8 @@ class ModelSpec:
 #: step 3: the UART line rate, as SITL parameters (``sitl_models``); step 3's byte loss, in the
 #: coordinator's radio (``radio_link``). Step 4: process freeze and CPU budget, in each NavPy's
 #: participant loop (``participant_budget``). Step 5: camera latency and frame drops, in each
-#: NavPy's sim camera (``camera_frames``).
+#: NavPy's sim camera (``camera_frames``). Step 6: thread order, reader budget and timers first, in
+#: each product participant's baton (``scheduling_models``).
 CATALOGUE: Mapping[str, ModelSpec] = {
     "baud_limit": ModelSpec("baud_limit", {}),
     "camera_frames": ModelSpec("camera_frames", {
@@ -71,7 +72,10 @@ CATALOGUE: Mapping[str, ModelSpec] = {
     "cpu_budget": ModelSpec("cpu_budget", {"handoffs": "int"}),
     "process_freeze": ModelSpec("process_freeze", {
         "min_ticks": "int", "max_ticks": "int", "min_gap_s": "float", "max_gap_s": "float"}),
+    "reader_budget": ModelSpec("reader_budget", {"packets_per_tick": "int", "batch": "int"}),
     "sensor_noise": ModelSpec("sensor_noise", {"gps_noise_m": "float"}),
+    "thread_order": ModelSpec("thread_order", {}),
+    "timers_first": ModelSpec("timers_first", {}),
     "uart_loss": ModelSpec("uart_loss", {"loss_pct": "float"}),
     "wind": ModelSpec("wind", {"speed_mps": "float", "direction_deg": "float", "turbulence_mps": "float"}),
 }

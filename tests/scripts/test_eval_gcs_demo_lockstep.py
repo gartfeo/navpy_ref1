@@ -145,25 +145,30 @@ def test_lockstep_refuses_an_unknown_sim_profile_before_the_run_directory(tmp_pa
 def test_the_sim_profile_reaches_the_coordinators_manifest_only_as_navpy_participant_models():
     """The journal digest comes from the Manifest's grid and the run's bytes; a profile's
     SITL and radio models leave both as they were (step 1 keeps the digest). Its on
-    participant models (steps 4 and 5) go into each NavPy role's config, and nowhere else."""
+    participant models (steps 4-6) go into each NavPy role's config, and the scheduling ones
+    (step 6) also into the backend's, and nowhere else."""
     import dataclasses
 
     from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY, participant_models
+    from navpy.sim.lockstep.scheduling_models import scheduling_subset
 
     none = dataclasses.replace(OPTIONS, sim_profile="none")
-    # hw seed 1: freeze off, the camera on.
-    assert set(participant_models(lockstep_eval.sim_realization(OPTIONS))) == {"camera_frames"}
+    # hw seed 1: freeze off, the camera and the thread order on.
+    assert set(participant_models(lockstep_eval.sim_realization(OPTIONS))) == {"camera_frames", "thread_order"}
     plain_slice, hw_slice = manifest(SLICE, none), manifest(SLICE, OPTIONS)
     assert hw_slice != plain_slice and dataclasses.replace(hw_slice, roles=plain_slice.roles) == plain_slice
     stress = dataclasses.replace(OPTIONS, sim_profile="stress")
     models = participant_models(lockstep_eval.sim_realization(stress))
-    assert set(models) == {"camera_frames", "cpu_budget", "process_freeze"} and models["cpu_budget"] == {"handoffs": 6}
+    assert set(models) == {"camera_frames", "cpu_budget", "process_freeze", "thread_order"}
+    assert models["cpu_budget"] == {"handoffs": 6}
+    backend = scheduling_subset(models)
+    assert set(backend) == {"thread_order"}
     plain, stressed = manifest(CERTIFIED, none), manifest(CERTIFIED, stress)
     assert dataclasses.replace(stressed, roles=plain.roles) == plain
     assert list(stressed.roles) == list(plain.roles)
     for name, role in stressed.roles.items():
         config = dict(role.config)
-        assert config.pop(SIM_MODELS_KEY, None) == (models if name.startswith("navpy") else None)
+        assert config.pop(SIM_MODELS_KEY, None) == (models if name.startswith("navpy") else backend)
         assert dataclasses.replace(role, config=config) == plain.roles[name]
 
 

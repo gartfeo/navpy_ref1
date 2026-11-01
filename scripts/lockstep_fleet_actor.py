@@ -48,6 +48,7 @@ from navpy.sim.lockstep.operator_tail import LockstepLogTail
 from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY
 from navpy.sim.lockstep.participant_hooks import DEVICE_KEY
 from navpy.sim.lockstep.pose_recording import POSE_CADENCE_DIR
+from navpy.sim.lockstep.scheduling_models import scheduling_subset
 from scripts.eval_gcs_demo_command_bounds import command_bounds_from_snapshot
 from scripts.eval_gcs_demo_config import aas_params_for
 from scripts.eval_gcs_demo_constants import (
@@ -166,13 +167,17 @@ def role(hooks: str, device: str, config: dict) -> RoleSpec:
 
 
 def backend_role(settings: dict, layout: FleetLayout, *, companions: dict | None = None,
-                 pose_cadence_dir: str | None = None) -> RoleSpec:
+                 pose_cadence_dir: str | None = None,
+                 sim_models: Mapping[str, object] | None = None) -> RoleSpec:
     """The backend on the router device with its settings document; with
-    ``companions`` its launcher port's ``{sys_id: spec}`` map, and with a
-    run-relative ``pose_cadence_dir`` the pose-cadence recording."""
+    ``companions`` its launcher port's ``{sys_id: spec}`` map, with a
+    run-relative ``pose_cadence_dir`` the pose-cadence recording, and with
+    non-empty ``sim_models`` its baton's scheduling models."""
     config: dict = {"settings": settings}
     if pose_cadence_dir is not None:
         config[POSE_CADENCE_DIR] = pose_cadence_dir
+    if sim_models:
+        config[SIM_MODELS_KEY] = dict(sim_models)
     if companions is not None:
         config["companions"] = companions
     return role(BACKEND_HOOKS, layout.router, config)
@@ -194,7 +199,8 @@ def fleet_roles(settings: dict, layout: FleetLayout, *, navpy: bool = False,
     command line (:func:`companion_argv`) in both the backend's ``companions``
     map and the role's spawn record. A run-relative ``pose_cadence_dir`` makes
     every role record the pose-cadence CSVs there; non-empty ``participant_models``
-    (``participant_budget.participant_models``) cap each NavPy's handoffs."""
+    (``participant_budget.participant_models``) cap each NavPy's handoffs, and
+    their scheduling models also reach the backend's baton."""
     recording = {} if pose_cadence_dir is None else {POSE_CADENCE_DIR: pose_cadence_dir}
     navpy_config = {**recording, **({SIM_MODELS_KEY: dict(participant_models)} if participant_models else {})}
     roles: dict[str, RoleSpec] = {}
@@ -209,7 +215,8 @@ def fleet_roles(settings: dict, layout: FleetLayout, *, navpy: bool = False,
             roles[name] = (companion(sys_id) if companion is not None
                            else role(NAVPY_HOOKS, device, {"argv": argv, **navpy_config}))
     roles["backend"] = backend_role(settings, layout, companions=companions,
-                                    pose_cadence_dir=pose_cadence_dir)
+                                    pose_cadence_dir=pose_cadence_dir,
+                                    sim_models=scheduling_subset(participant_models or {}))
     return roles
 
 
