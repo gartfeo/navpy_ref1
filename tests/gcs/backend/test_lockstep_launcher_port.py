@@ -67,6 +67,48 @@ def test_a_stale_generation_pid_never_stops_the_replacement(monkeypatch):
     assert baton.threads.alive() == [] and not baton.threads.errors
 
 
+def test_a_scheduled_restart_is_the_spawns_next_generation_with_its_own_readiness(monkeypatch):
+    baton, out = _bound(monkeypatch), OutboxBuffer()
+    launcher = LockstepLauncher({SYS_ID: SPEC}, out, RequestIds(2))
+    seen = {}
+    commits = iter(range(1, 100))
+
+    def record(kind: str, request, generation: int, result=None, payload=None) -> Lifecycle:
+        return Lifecycle(kind, (0, next(commits)), request, ORDINAL, generation, result, payload)
+
+    def start() -> None:
+        seen["pid"] = launcher.start(SYS_ID, "ignored", vision_profile="siyi_zr10").pid
+        seen["ready"] = launcher.wait_ready(SYS_ID, seen["pid"], 5.0)
+
+    baton.spawn(start, name="executor-1")
+    baton.run_until_quiescent()
+    [spawn] = out.spawn_requests
+    baton.tick(TICK_US, lambda: launcher.deliver(record("spawn", spawn.id, 1, "ok")))
+    baton.tick(2 * TICK_US, lambda: launcher.deliver(record("ready", spawn.id, 1, None, {"boot": 1})))
+    assert seen["ready"] == {"boot": 1}
+
+    def restart() -> None:  # the coordinator's ticks: the old generation's exit, then the respawn
+        launcher.deliver(record("exited", spawn.id, 1, None, {"failed": False}))
+        launcher.deliver(record("spawn", spawn.id, 2, "ok", {"fault": "navpy_restart:uav1"}))
+
+    baton.tick(3 * TICK_US, restart)
+
+    def second() -> None:
+        seen["status"] = launcher.get_status(SYS_ID)
+        seen["second"] = launcher.wait_ready(SYS_ID, generation_pid(ORDINAL, 2), 5.0)
+        seen["ready_now"] = launcher.get_status(SYS_ID)["ready"]
+
+    baton.spawn(second, name="executor-2")
+    baton.run_until_quiescent()
+    status = seen["status"]
+    assert status["pid"] == generation_pid(ORDINAL, 2) and status["running"] and not status["ready"]
+    assert out.spawn_requests == [spawn]  # the coordinator's respawn asked for no spawn here
+    assert "second" not in seen  # the first generation's readiness does not count
+    baton.tick(4 * TICK_US, lambda: launcher.deliver(record("ready", spawn.id, 2, None, {"boot": 2})))
+    assert seen["second"] == {"boot": 2} and seen["ready_now"]
+    assert baton.threads.alive() == [] and not baton.threads.errors
+
+
 def test_a_refused_process_manager_cannot_be_built(monkeypatch):
     """Lockstep fails closed: the subprocess manager is never constructed."""
     import pytest

@@ -71,7 +71,7 @@ class RunFault(LockstepFault):
 
 
 class CoordinatorFault(RunFault):
-    """The tick contract broke (relay, frame, protocol, EOF without an end)."""
+    """The tick contract broke (relay, frame, protocol)."""
 
 
 class HostFault(RunFault):
@@ -79,7 +79,8 @@ class HostFault(RunFault):
 
 
 class ParticipantFault(RunFault):
-    """A participant reported a fault in its ``DONE``."""
+    """A participant failed: it reported a fault in its ``DONE``, or exited with nobody
+    having scheduled it (``unscheduled_exit``). The plan's product failure, section 4."""
 
 
 @dataclass(frozen=True)

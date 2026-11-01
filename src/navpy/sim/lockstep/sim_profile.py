@@ -1,6 +1,6 @@
 """Sim profiles: which realism models a lockstep run turns on, drawn from its seed.
 
-Steps 1-6 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
+Steps 1-7 of ``docs/design/deterministic_dev_sim.md``. A profile names realism
 models, each with a swarm probability ``p_on`` and its parameters, a fixed
 number or a ``[lo, hi]`` range. Per run seed the swarm draw decides which
 models are on and draws a value inside each range. The result, the
@@ -63,15 +63,20 @@ class ModelSpec:
 #: coordinator's radio (``radio_link``). Step 4: process freeze and CPU budget, in each NavPy's
 #: participant loop (``participant_budget``). Step 5: camera latency and frame drops, in each
 #: NavPy's sim camera (``camera_frames``). Step 6: thread order, reader budget and timers first, in
-#: each product participant's baton (``scheduling_models``).
+#: each product participant's baton (``scheduling_models``). Step 7: the scheduled faults, in the
+#: coordinator (``fault_schedule``, ``coordinator_faults``).
 CATALOGUE: Mapping[str, ModelSpec] = {
     "baud_limit": ModelSpec("baud_limit", {}),
     "camera_frames": ModelSpec("camera_frames", {
         "min_latency_ticks": "int", "max_latency_ticks": "int", "tail_latency_ticks": "int",
         "tail_pct": "float", "gap_ticks": "int", "long_gap_pct": "float", "drop_pct": "float"}),
     "cpu_budget": ModelSpec("cpu_budget", {"handoffs": "int"}),
+    "late_heartbeat": ModelSpec("late_heartbeat", {"start_s": "float", "duration_s": "float"}),
+    "link_drop": ModelSpec("link_drop", {"start_s": "float", "duration_s": "float"}),
+    "navpy_restart": ModelSpec("navpy_restart", {"start_s": "float"}),
     "process_freeze": ModelSpec("process_freeze", {
         "min_ticks": "int", "max_ticks": "int", "min_gap_s": "float", "max_gap_s": "float"}),
+    "radio_partition": ModelSpec("radio_partition", {"start_s": "float", "duration_s": "float"}),
     "reader_budget": ModelSpec("reader_budget", {"packets_per_tick": "int", "batch": "int"}),
     "sensor_noise": ModelSpec("sensor_noise", {"gps_noise_m": "float"}),
     "thread_order": ModelSpec("thread_order", {}),

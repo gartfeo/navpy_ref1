@@ -28,9 +28,11 @@ def trace_rows(traces: list[NavlinkTrace]) -> list[dict]:
 
 
 def first_stop_tick(records: list[dict]) -> int | None:
-    """The tick of the run's first lifecycle stop request (stop-all's first)."""
+    """The tick of the run's first lifecycle stop request (stop-all's first). A
+    scheduled fault's stop names its fault in its payload and is not one."""
     return next((record["k"] for record in records if "k" in record
-                 for entry in record.get("lifecycle", ()) if entry["kind"] == "stop"), None)
+                 for entry in record.get("lifecycle", ())
+                 if entry["kind"] == "stop" and entry["payload"] is None), None)
 
 
 def trace_summary(traces: list[NavlinkTrace], sys_ids: tuple[int, ...], stop_tick: int | None) -> dict:

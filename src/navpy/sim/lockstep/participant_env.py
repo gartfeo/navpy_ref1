@@ -16,6 +16,14 @@ from navpy.sim.lockstep.part_wire import Register, RequestId
 from navpy.sim.lockstep.participant import ParticipantSpec
 
 ENVIRONMENT_VARIABLE = "NAVPY_LOCKSTEP_PARTICIPANT"
+#: The coordinator closed the link before this participant ended: its fault, never a membership change.
+EXIT_COORDINATOR_GONE = 3
+#: The child never got ``go``.
+EXIT_NO_GO = 4
+#: The child never reached the coordinator's listener.
+EXIT_NO_CONNECT = 5
+#: What a process says it left for a host reason, not the product's (``deterministic_dev_sim.md``, section 4).
+HOST_CAUSED_EXITS = frozenset({EXIT_COORDINATOR_GONE, EXIT_NO_GO, EXIT_NO_CONNECT})
 
 
 @dataclass(frozen=True)

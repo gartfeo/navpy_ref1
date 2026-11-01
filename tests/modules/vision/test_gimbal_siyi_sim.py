@@ -490,6 +490,27 @@ def test_public_adapter_start_stop_and_initial_pitch():
     assert not sim.is_connected()
 
 
+@dataclass
+class _TimedReader(_AttitudeReader):
+    def read_timed(self) -> tuple[Attitude, int]:
+        return self.attitude, 1_000
+
+
+def test_a_start_in_flight_keeps_the_mounts_yaw_to_the_body():
+    sim, _, _ = _make_public_sim(pitch=-14.0, reader=_TimedReader(Attitude(0.0, 120.0, 0.0)))
+
+    sim.start()
+    try:
+        deadline_s = time.monotonic() + 5.0
+        while sim.get_data().timestamp_s <= 0.0 and time.monotonic() < deadline_s:
+            time.sleep(0.005)
+        assert sim.get_data().timestamp_s > 0.0
+        assert sim.get_data().att.yaw == pytest.approx(0.0, abs=0.5)
+        assert sim.get_data().att.pitch == pytest.approx(-14.0, abs=0.5)
+    finally:
+        sim.stop()
+
+
 def test_public_adapter_stop_before_start_is_safe():
     sim, _, _ = _make_public_sim()
     sim.stop()

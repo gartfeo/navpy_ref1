@@ -39,12 +39,13 @@ from navpy.sim.lockstep.coordinator_journal import RunJournal
 from navpy.sim.lockstep.coordinator_members import Roster
 from navpy.sim.lockstep.coordinator_run import LockstepCoordinator
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar, LocalSpawner
-from navpy.sim.lockstep.coordinator_types import Manifest, WallBudgets
+from navpy.sim.lockstep.coordinator_types import Manifest, ParticipantFault, WallBudgets
 from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.participant_budget import participant_models
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, Realization, load_profile, realize
+from navpy.sim.lockstep.fault_schedule import fault_plans
 from navpy.sim.lockstep.radio_link import radio_loss_pct
 from navpy.sim.lockstep.sitl_models import sitl_parameters, sitl_rng_seeds
 from scripts import lockstep_topology, lockstep_wsl
@@ -59,7 +60,7 @@ from scripts.eval_gcs_demo_inputs import dem_tiles, scenario_points
 from scripts.eval_gcs_demo_lifecycle import stop_companions
 from scripts.eval_gcs_demo_lockstep_inputs import write_lockstep_input_manifest
 from scripts.eval_gcs_demo_mission import run_mission
-from scripts.eval_gcs_demo_models import RegressionError
+from scripts.eval_gcs_demo_models import ProductFailure, RegressionError
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoScenario
 from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles
@@ -249,7 +250,8 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     # The backend spawns and registers before the coordinator launches the SITL.
     coordinator = LockstepCoordinator(plan, fleet.sitls, operator, roster, ids, run_dir,
                                       delay=HostDelays(options.host_delay_seed), launch=fleet.launch,
-                                      radio_loss_pct=radio_loss_pct(realization))
+                                      radio_loss_pct=radio_loss_pct(realization),
+                                      faults=fault_plans(realization, len(plan.sitl_ports)))
     result = fault = None
     try:
         result = coordinator.run()
@@ -273,6 +275,8 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
         "result": None if result is None else asdict(result),
         "fault": None if fault is None else f"{type(fault).__name__}: {fault}",
     }, indent=2) + "\n", encoding="utf-8")
+    if isinstance(fault, ParticipantFault):
+        raise ProductFailure(f"lockstep product failure: {fault.kind}: {fault}") from fault
     if fault is not None:
         raise RegressionError(f"lockstep run fault: {type(fault).__name__}: {fault}") from fault
     return LockstepRun(journal.digest, result.outcome, approvals, script["error"])

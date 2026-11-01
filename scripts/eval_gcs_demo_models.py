@@ -19,6 +19,10 @@ class RegressionError(RuntimeError):
     """A deterministic setup, workflow, or evidence gate failed."""
 
 
+class ProductFailure(RegressionError):
+    """The product ended the run (``deterministic_dev_sim.md``, section 4): a failed run, not a failed setup."""
+
+
 def finite_number(name: str, value: object, *, minimum: float = 0.0) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"{name} must be a finite number")
@@ -274,6 +278,7 @@ class MissionArtifacts:
 
 
 __all__ = [
+    "ProductFailure",
     "AchievedRollScore",
     "CadenceLimits",
     "EpisodeMetrics",

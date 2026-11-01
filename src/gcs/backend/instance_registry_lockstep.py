@@ -163,6 +163,11 @@ class RegistryChildRecorder:
     def forget(self, child: Any, spawn: Any) -> None:
         forget_child(self._chat, self._identity, child.pid, access=self._access)
 
+    def stopping(self) -> bool:
+        with self._access.locked():
+            entry = _owned(self._access.load(), self._chat, self._identity)
+        return entry is None or entry["lockstep"]["phase"] == STOPPING
+
 
 __all__ = [
     "ACTIVE", "LOCKSTEP_LABEL", "RegistryChildRecorder", "STOPPING", "claim", "forget_child",

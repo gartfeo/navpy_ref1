@@ -1734,3 +1734,30 @@
 - Readers timing arrival cannot alone show a producer kept time. Use what the producer
   cannot hide: SITL loses any stall over 100 ms for good, so fit wall(boot) lines before
   and after and compare them at the event (`producer_test.py`). Codex caught this gap.
+
+## Dev sim step 7: scheduled faults (2026-11-02)
+
+- Try every new gate on real runs before building on it. "Sent after the heal" matched repeated heartbeat
+  bytes first in, first out per receiver. It passed its hand-built journals and failed `hw` seeds 21 and 54
+  falsely: a copy lost on the way shifted every later match, so a fresh heartbeat read as an old one. Now
+  each SITL's copies are queued, and a real run's case became a test.
+- A new kind of event reaches sim code that only ever ran on the ground. The first NavPy restarted in flight
+  lost a whole detection lap (hw seeds 48, 50; seed 34 lost its approval). It looked like a product bug. The
+  sim gimbal's plant started in LOCK, and its switch to FOLLOW read the mount's body yaw as a world yaw, so
+  the camera looked off to the side. Walk the mechanism before logging a product todo.
+- Prove a gate on real evidence as well as doubles: load a passing run, remove one kind of evidence in memory
+  and expect that gate's exact error (`broken.py` this time, 18 breaks). Mutations prove the tests, this
+  proves the gate reads the real journal.
+- A mutation run on a private copy needs what the tests read through the tree: the terrain tiles, and a git
+  repository of its own (the input manifest runs `git diff HEAD`). Each missing piece showed up as a failed
+  baseline, not as a survivor. Count a kill only on pytest's exit 1 and print the test that failed.
+- A faults-off baseline is what separates a fault's effect from a known failure. A temporary profile, `hw`
+  without the four faults, draws the same other models on the same seed, as each model's draw is independent
+  of the profile. Without it every windy miss looked like the fault's. Remove the profile before committing.
+- On a starved host, runs fail with `exchange deadline ran out in the register wait`, a relay deadline or a
+  WSL timeout: NavPy's imports can pass the SITL's 30 s tick limit. Those are host faults. Check the load with
+  `Get-Counter` (`Win32_Processor.LoadPercentage` read 11 % while the counter read 95 %), lower the parallel
+  limit and rerun; the same seed fails at the same tick, as its spawn tick is deterministic.
+- A wall-clock test can depend on test order. `test_auto_heal_does_not_block_the_event_loop` fails alone,
+  because its first imports land in the measured window (todo 167). Rerunning it with a neighbour showed that.
+- `python -I` ignores `PYTHONPATH`, so a scratch script that imports `navpy` or `scripts` inserts the paths.

@@ -24,7 +24,7 @@ from gcs.backend import instance_registry as reg
 from gcs.backend import instance_registry_lockstep as lockstep
 from navpy.sim.lockstep.coordinator_members import Roster
 from navpy.sim.lockstep.coordinator_spawn import HostSidecar, LocalSpawner
-from navpy.sim.lockstep.coordinator_types import HostFault, WallBudgets
+from navpy.sim.lockstep.coordinator_types import HostFault, RunFault, WallBudgets
 from tests.modules.lockstep.coordinator_doubles import PYTHON_PATH, build, child_environment, manifest
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -186,7 +186,8 @@ def test_a_partial_spawn_failure_stops_every_child_then_releases(tmp_path, monke
         coordinator, *_ = build(tmp_path, plan=plan, recorder=lockstep.RegistryChildRecorder(slot, identity),
                                 budgets=WallBudgets(register_s=5))
         spawned = _capture_children(monkeypatch)
-        with pytest.raises(HostFault, match="did not register"):
+        # Whether the broken child had finished dying when its wait ran out names the fault.
+        with pytest.raises(RunFault, match="did not register"):
             coordinator.run()
         children = reg.get(slot)["lockstep"]["children"]
         assert [c["role"] for c in children] == ["hub"]  # the unadmitted rover's record is released
@@ -357,6 +358,9 @@ def test_a_stop_landing_exactly_between_record_and_go_leaves_no_child(tmp_path, 
             def forget(self, child, spawn):
                 recorder.forget(child, spawn)
 
+            def stopping(self):
+                return recorder.stopping()
+
         roster = Roster(manifest(), LocalSpawner(tmp_path / "host", PYTHON_PATH), StopAfterRecord(),
                         HostSidecar(tmp_path / "participants_host.json"), WallBudgets(register_s=5))
         spawned = _capture_children(monkeypatch)
@@ -367,6 +371,16 @@ def test_a_stop_landing_exactly_between_record_and_go_leaves_no_child(tmp_path, 
         assert reg.get(slot) is None and roster.members == []
     finally:
         keeper.kill()
+
+
+def test_the_recorder_says_when_its_slot_is_stopping_so_a_lost_child_is_no_product_failure():
+    slot, identity = _claim()
+    recorder = lockstep.RegistryChildRecorder(slot, identity)
+    assert not recorder.stopping()
+    lockstep.mark_stopping(slot)
+    assert recorder.stopping()
+    assert lockstep.release_if_owner(slot, identity)
+    assert recorder.stopping()  # the entry is gone
 
 
 def test_a_wsl_timeout_leaves_the_child_unconfirmed_and_teardown_continues(monkeypatch):
