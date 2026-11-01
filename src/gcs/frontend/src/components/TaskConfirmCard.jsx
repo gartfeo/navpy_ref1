@@ -4,7 +4,7 @@ import { colors } from '../styles';
 import UavBadge from './UavBadge';
 import {
   isPending, canCancel, confirmRoundKey, confirmWaitSec, confirmDeadlineMs, msLeft, secondsLeft,
-  confirmZeroLabel, CONFIRM_PHASE,
+  confirmZeroLabel, confirmAgeSec, formatClock, CONFIRM_PHASE,
 } from '../hooks/taskConfirmationState';
 import { confirmNow } from '../utils/confirmClock';
 import { LONG_PRESS_MS } from '../utils/armAction';
@@ -22,8 +22,15 @@ export function timerColorFor(seconds) {
 
 /** Every control on a decided row: the app's 32 px map-button size (todo 69). */
 const ROW_CONTROL_PX = 32;
-/** The opened still of a decided row (ConfirmStill), smaller than a pending card's 160 px. */
+/**
+ * A pending card's picture height, with or without the image, so the buttons
+ * do not move when it arrives (gcs_still_age.md decision 6).
+ */
+const PENDING_STILL_PX = 160;
+/** The opened still of a decided row (ConfirmStill), smaller than a pending card's still. */
 const OPEN_STILL_MAX_PX = 120;
+/** How often an open still re-reads the clock for its age. */
+const OPEN_STILL_TICK_MS = 1000;
 
 /**
  * Confirmation card for a task confirm request.
@@ -205,36 +212,43 @@ export default function TaskConfirmCard({
         <PoiLocation entry={entry} />
       </div>
 
-      {/* Image */}
-      {entry.imageB64 ? (
-        <img
-          src={`data:image/jpeg;base64,${entry.imageB64}`}
-          alt="Detection"
-          style={{
+      {/* Image: one size in every state. The delay attribute is for the live
+          check: two receipt times, not the picture's age. */}
+      <div
+        data-testid={`confirm-picture-${sysId}`}
+        data-image-delay-ms={entry.imageAt != null ? entry.imageAt - entry.receivedAt : undefined}
+        style={{ marginBottom: 8 }}
+      >
+        {entry.imageB64 ? (
+          <img
+            src={`data:image/jpeg;base64,${entry.imageB64}`}
+            alt="Detection"
+            style={{
+              display: 'block',
+              width: '100%',
+              height: PENDING_STILL_PX,
+              borderRadius: 4,
+              objectFit: 'contain',
+              background: '#000',
+            }}
+          />
+        ) : (
+          <div style={{
             width: '100%',
+            height: PENDING_STILL_PX,
             borderRadius: 4,
-            marginBottom: 8,
-            maxHeight: 160,
-            objectFit: 'contain',
-            background: '#000',
-          }}
-        />
-      ) : (
-        <div style={{
-          width: '100%',
-          height: 60,
-          borderRadius: 4,
-          marginBottom: 8,
-          background: colors.bgLighter,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: colors.textDim,
-          fontSize: 11,
-        }}>
-          {t('task.waitingForImage')}
-        </div>
-      )}
+            background: colors.bgLighter,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: colors.textDim,
+            fontSize: 11,
+          }}>
+            {t(phase === CONFIRM_PHASE.LIVE ? 'task.waitingForImage' : 'task.noImage')}
+          </div>
+        )}
+        <StillCaption entry={entry} now={clockNow} noteShown={!!entry.imageB64} />
+      </div>
 
       {/* View camera: neutral, beside the still and away from Approve/Deny. */}
       {videoAction && (
@@ -252,7 +266,14 @@ export default function TaskConfirmCard({
           >
             {videoAction.viewing ? t('task.viewing') : t('task.viewCamera')}
           </button>
-          <span style={{ fontSize: 11, color: colors.textDim }}>{t('task.viewCameraNote')}</span>
+          {/* Beside the button when it fits. The countdown sentence keeps its
+              space at zero, so the note's height does not change. */}
+          <span style={{ flex: '1 1 120px', fontSize: 11, color: colors.textDim }}>
+            {t('task.viewCameraPoiNote', { id: entry.taskId })}{' '}
+            <span style={{ visibility: phase === CONFIRM_PHASE.LIVE ? 'visible' : 'hidden' }}>
+              {t('task.viewCameraNote')}
+            </span>
+          </span>
         </div>
       )}
 
@@ -339,6 +360,24 @@ function PoiLocation({ entry }) {
   );
 }
 
+/**
+ * The still's POI and age, as far as the GCS knows it (gcs_still_age.md): the
+ * time since the request reached this browser, and that the picture is older.
+ * The second line keeps its space until the image is in.
+ */
+function StillCaption({ entry, now, noteShown }) {
+  const { t } = useTranslation();
+  const time = formatClock(confirmAgeSec(entry, now));
+  return (
+    <div style={{ marginTop: 4, fontSize: 11, color: colors.textDim, fontVariantNumeric: 'tabular-nums' }}>
+      <div data-testid="still-caption" data-age={time}>{t('task.stillCaption', { id: entry.taskId, time })}</div>
+      <div data-testid="still-age-note" style={{ visibility: noteShown ? 'visible' : 'hidden' }}>
+        {t('task.stillAgeNote')}
+      </div>
+    </div>
+  );
+}
+
 const DECIDED_ROW = {
   approved: { labelKey: 'task.approvalSent', color: colors.success },
   denied: { labelKey: 'task.denied', color: colors.error },
@@ -417,10 +456,16 @@ function DecidedRow({ sysId, entry, vehicleName, vehicleIndex, onCancel, stillOp
 
 /**
  * The opened still of an approved round, at the top of ConfirmCardList's
- * scrolling part: its UAV badge and POI line, then the picture.
+ * scrolling part: its UAV badge and POI line, the picture, then its caption.
+ * The list's tick stops once no round is pending, so it ticks on its own.
  */
 export function ConfirmStill({ entry, vehicleName, vehicleIndex }) {
   const { t } = useTranslation();
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), OPEN_STILL_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
   return (
     <div data-testid="confirm-still" style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 12, fontWeight: 700, color: colors.textBright }}>
@@ -437,6 +482,7 @@ export function ConfirmStill({ entry, vehicleName, vehicleIndex }) {
           objectFit: 'contain', borderRadius: 4, background: '#000',
         }}
       />
+      <StillCaption entry={entry} now={confirmNow()} noteShown />
     </div>
   );
 }
