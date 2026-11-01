@@ -230,7 +230,8 @@ describe('ConfirmCardList hosts', () => {
     const control = { current: null };
     const view = render(<Harness host="monitor" control={control} videoActionFor={videoActionFor} />);
     ask(control, 7, 107);
-    expect(view.getByText('task.viewCamera')).toBeInTheDocument();
+    // By role: getByText also matches the label held hidden inside a "Viewing" button.
+    expect(view.getByRole('button', { name: 'task.viewCamera' })).toBeInTheDocument();
 
     view.rerender(<Harness host="planning" control={control} videoActionFor={videoActionFor} />);
     expect(view.getByText('task.approve')).toBeInTheDocument();

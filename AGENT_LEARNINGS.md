@@ -1772,4 +1772,32 @@
 - A press can land on what moved under it. A row above Approve that goes during a round puts
   Approve under a finger aimed at the row, and that called the real approve handler (todo 166;
   fetch was stubbed). When attacking a layout fix, also try the events that add or remove a
-  control near a decision button, with real input, not only the event the fix is about.
+  control near a decision button, with real input, not only the event the fix is about. The
+  final review found two more such events: a pinned row expiring and a sooner round inserted
+  above.
+- I wrote "This is not new in this PR" about that press after an attack that never pressed View
+  camera on the card above. In that state the PR does change the result (English, app's font,
+  width 320: origin/main posts nothing, the PR posts approve). Before writing "not new" or "the
+  same", compare base and head in each state, including row-height differences: a 23 px row
+  difference was what kept Approve away on origin/main, by accident. Unless frequency was
+  measured, say changes in size, not in likelihood.
+- Hidden text stays findable by `getByText`. After I added the hidden label, one presence check
+  could pass on the hidden span, so forcing every card to Viewing passed all the card tests; two
+  clicks could pass on it too, so swapping the labels failed only 3 tests. When a change adds
+  hidden text, find the tests that match that text, use `getByRole` with the name, and show it
+  with a mutation.
+- On Windows, `chrome.exe --version` does not print a version. It starts the browser: it prints
+  "Opening in existing browser session", so a window or tab probably opened in the owner's Chrome
+  (inferred), or a new Chrome starts on the owner's default profile; whether that changed the
+  profile's session or history files was not checked. It happened in four agents on this PR,
+  three of them in the final review. Read the file's version resource instead
+  (`(Get-Item $chrome).VersionInfo.ProductVersion`), and always start Chrome with
+  `--headless=new` and a temporary `--user-data-dir`.
+- I copied one long record into three documents and they drifted: an audit found conditions in one
+  copy that another lacked. Keep one complete record, and let the others give a short form that
+  points to it, generated from one source if they must say the same thing.
+- I cut a failing test run's error with `tail -n 8`: the run ended "1 error" and the error text was
+  gone, so its cause stays unknown. Save the whole output of any run that can fail, then read it.
+- Mark what came from a reviewer's prose and what from a saved result. Harness output that is only
+  printed cannot be rechecked later: on this PR the sooner-round press results exist only in a
+  report, and two reports disagree on one Armenian case with nothing saved to settle it.
