@@ -3,6 +3,8 @@
 Status: approved by the owner as written (2026-10-28), including
 best-effort background affinity; target `main`. Replaces the quiet-PC rule
 withdrawn in todo 65 (`8a0b880e`). Built and measured 2026-10-28 (Results).
+The hand demo's larger share (2026-10-31) is a later change to that design,
+approved by the owner on 2026-11-01.
 
 ## Problem
 
@@ -75,7 +77,10 @@ entries, and writes, all under the lock. There is no renewal.
 **Size.** `SHARE_CPUS = 4` P-cores (P-cores found with
 `GetSystemCpuSetInformation`; on a non-hybrid CPU, any CPUs): one per NavPy
 plus the backend. At most `MAX_SHARES = 2`, which covers all 8 P-cores and
-leaves the E-cores to everyone else.
+leaves the E-cores to everyone else. The hand demo instead claims every free
+P-core, at least 4 (`--cpu-share-all-cores`; "Hand demo" under Results): 8 on
+this PC, or the 4 left beside a holding eval. While a demo holds all 8, a wall
+eval's claim is refused and that eval runs as background.
 
 **Who claims.** The stack's GCS backend, at startup, when `gcs_launch.py
 --cpu-share-s N` asks for it. The backend lives as long as the stack, so
@@ -196,8 +201,9 @@ every row of the scheduling table, release only after demotion (a late
 timer keeps the CPUs held), a NavPy spawned during and after expiry, job
 creation and assignment failure (the suspended child is terminated before
 it runs, then started as background; with a failed demotion nothing
-starts), a refused background priority, an inherited `GCS_CPU_SHARE_S`
-without the flag, background mask recompute, a real
+starts), a refused background priority, an inherited `GCS_CPU_SHARE_S` or
+`GCS_CPU_SHARE_ALL_CORES` without its flag, every free P-core (alone, beside
+a holder, too few), background mask recompute, a real
 child inheriting affinity and BELOW_NORMAL, a real suspended venv-launched
 child whose interpreter is inside the job after resume, a real job
 demoting that running child from ABOVE_NORMAL, and a real child of a NORMAL
@@ -247,6 +253,60 @@ numpy DLL, so A1 ran beside the matrix only):
   (1.27 core p95 in m1). Four is a safe size, not shown to be the
   smallest. Todo 66 saved an estimated 0.02 core per NavPy (the cut
   packets times m1's cost per packet), not a measured one.
+
+### Hand demo: every free P-core (2026-10-31)
+
+The 2026-10-29 hand demo lost UAV 3 at 606 m (`NAV_FAIL: source_command_stale`,
+10:06:54.550; `.logs\navpy-demo\delivery-demo\20261029-094230`). The receipt
+limit tripped: the frame's pose was received at 54.444, and the limit at 10x is
+100 ms. The aircraft lost no time: lines fitted to each UAV's earliest arrivals
+over 60 s either side give 10.27x before and after and meet within 1 ms at the
+trip. SITL's pacing (`sync_frame_time`) repays a stall of up to 100 ms and loses
+the rest for good, so any stall in SITL was at most about 100 ms and repaid. A
+short slowing within that cannot be excluded: these CSVs time reader acceptance.
+The other 300 ms or more at the trip was readers. All three NavPys and the
+backend fell behind together and caught up (peak over the line 588 ms on UAV 3,
+161-192 ms on the others, GCS 675-685 ms; 426 ms on UAV 3 at the trip). A window
+that ends inside the GCS's backlog shows a low rate for it (7.4x over 53-55 s).
+Frame wall time was about 3x its CPU time and the poll's log time was 0 ms, so
+they waited for CPU or the GIL, not for disk. The trip was correct: the UAV flew
+on telemetry about 4 s of aircraft time old. The limit stays as it is. How it
+behaves if the clock itself slows for longer was not reached by this failure, and
+stays with todo 54 and design a3.
+
+Replays of that demo with a probe, at 10x with the page open, under one outside
+burst at NORMAL priority (8 `git status` and 3 WMI loops, all 20 CPUs 99-100%,
+240 s; `.logs/stale-receipt/`, phases in `flights.md`):
+
+| Flight (real approaches) | CPUs | Stale | Largest pose gap | Poll gap p99.9 | Poll gaps >= 50 ms |
+|---|---|---|---|---|---|
+| A, previous code | 4 | 2 of 3 | 114 ms | 24-25 ms | 13 |
+| D, this code, forced to 4 | 4 | 0 of 2 | 198 ms | 13-15 ms | 14 |
+| B, previous code, widened by hand | 8 | 0 of 3 | 63 ms | 7 ms | 5 |
+| C, this code as shipped | 8 | 0 of 3 | 65 ms | 7-9 ms | 6 |
+
+D had a third UAV whose request timed out unapproved (the driver's timing), so
+2 approaches. Its 198 ms stall hit all three NavPys but fell outside an approach.
+
+In two more flights with the same burst, the NavPys moved at run time, NavPy lag
+p99 was 42-109 ms on 4 CPUs, 18-38 ms on 8 and 18-42 ms on all 20; HIGH priority
+on 4 CPUs was 24-81 ms, so priority does not replace the CPUs. Likely mechanism,
+not traced thread by thread: confined to 4 CPUs, the stack waits behind threads
+it cannot outrank there (WSL's vCPU threads run at Windows priority 15), though
+other CPUs may be free for it to use on a wider share.
+
+Limits of this evidence:
+
+- 2 of 5 against 0 of 6 approaches is a small sample (Fisher p about 0.18). The
+  tail difference is the stronger evidence, and it repeated in every comparison.
+- The trips in A came with poll stalls of 40-67 ms and no pose gap of 100 ms: the
+  100 ms covers the whole path from pose receipt to command, not one stall. So 8
+  CPUs make a trip less likely and do not rule it out. Their remaining 53-65 ms
+  stalls (about 2 per UAV per 240 s) and rarer quiet spikes of 90-136 ms stay
+  (todo 154).
+- The 2026-10-29 run had no probe, so what took the CPUs that day is not known
+  (todo 155). The mechanism is reproduced, not that day's load.
+- Evals stay on 4 CPUs (todo 153): an 8-CPU eval would refuse the owner's demo.
 
 ## Risks
 
