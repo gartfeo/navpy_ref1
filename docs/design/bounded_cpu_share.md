@@ -3,7 +3,8 @@
 Status: approved by the owner as written (2026-10-28), including
 best-effort background affinity; target `main`. Replaces the quiet-PC rule
 withdrawn in todo 65 (`8a0b880e`). Built and measured 2026-10-28 (Results).
-The hand demo's larger share (2026-10-31) is a later change to that design.
+The hand demo's larger share (2026-10-31) is a later change to that design,
+approved by the owner on 2026-11-01.
 
 ## Problem
 
