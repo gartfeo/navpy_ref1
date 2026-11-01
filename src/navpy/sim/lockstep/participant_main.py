@@ -10,7 +10,8 @@
    import the product; ``construct`` does, at the admission tick), the loop
    connects to the coordinator and registers. Its handoff caps come from the
    role config's participant models (``participant_budget``), if any, and so
-   do the sim camera's frame schedules (``camera_frames``), which the hooks get.
+   do the sim camera's frame schedules (``camera_frames``), which the hooks get,
+   and the baton's scheduling (``scheduling_models``), set before the hooks.
 """
 
 from __future__ import annotations
@@ -22,13 +23,14 @@ import sys
 import time
 from collections.abc import Callable
 
-from navpy.sim.lockstep.camera_frames import camera_frame_factory
+from navpy.sim.lockstep.camera_frames import CameraFrameFactory, camera_frame_factory
 from navpy.sim.lockstep.part_socket import PartSocket
-from navpy.sim.lockstep.participant import bootstrap
+from navpy.sim.lockstep.participant import Participant, bootstrap
 from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY, TickBudget
 from navpy.sim.lockstep.participant_env import ENVIRONMENT_VARIABLE, EnvironmentRecord
 from navpy.sim.lockstep.participant_hooks import ParticipantContext, ParticipantHooks, RequestIds
 from navpy.sim.lockstep.participant_loop import ParticipantLoop
+from navpy.sim.lockstep.scheduling_models import apply_scheduling
 
 #: Exit code of a child that never got ``go``.
 EXIT_NO_GO = 4
@@ -58,16 +60,24 @@ def load_factory(path: str) -> Callable[[ParticipantContext], ParticipantHooks]:
     return getattr(importlib.import_module(module), attribute)
 
 
+def apply_sim_models(record: EnvironmentRecord, participant: Participant) -> tuple[
+        CameraFrameFactory | None, TickBudget]:
+    """The role config's sim models: the baton's scheduling is set here, before the first
+    tick; the camera schedules (for the hooks) and the handoff caps (for the loop) are returned."""
+    models = record.config.get(SIM_MODELS_KEY, {})
+    apply_scheduling(participant.runtime.baton, models, record.seed, record.ordinal, record.generation)
+    return (camera_frame_factory(models, record.seed, record.ordinal, record.generation),
+            TickBudget(models, record.seed, record.ordinal, record.generation))
+
+
 def main() -> int:
     if not wait_for_go():
         return EXIT_NO_GO
     record = EnvironmentRecord.from_json(os.environ[ENVIRONMENT_VARIABLE])
     participant = bootstrap(record.spec())
     factory = load_factory(record.hooks)
-    models = record.config.get(SIM_MODELS_KEY, {})
-    camera_frames = camera_frame_factory(models, record.seed, record.ordinal, record.generation)
+    camera_frames, budget = apply_sim_models(record, participant)
     hooks = factory(ParticipantContext(participant, record.config, RequestIds(record.ordinal), camera_frames))
-    budget = TickBudget(models, record.seed, record.ordinal, record.generation)
     link = PartSocket.connect(record.coordinator, timeout_s=CONNECT_WALL_BUDGET_S)
     try:
         return ParticipantLoop(participant, hooks, link, host_delay=host_delay(),

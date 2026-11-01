@@ -42,8 +42,8 @@ With pose-cadence recording on in both participants (after Codex round 1, `r3-a`
   3. Run to quiescence.
   4. Fire due timers and run to quiescence; repeat while anything is due at `t_k`.
 
-  So an input that arrives at a waiter's deadline tick wins over its timeout.
-- **Order.** Runnable threads run first-in first-out. Timers fire in `(due, park seq)` order. Every wake-up order follows, so the order is deterministic under host delays (pinned with injected sleeps).
+  So an input that arrives at a waiter's deadline tick wins over its timeout. With the sim profile's `timers_first` (`scheduling_models.py`), due timers fire first as well, before step 2, inside the same handoff cap, and the timeout wins.
+- **Order.** Runnable threads run first-in first-out, or in a seeded order with the sim profile's `thread_order` (one draw from the participant's model stream per pick among two or more). Timers fire in `(due, park seq)` order. Every wake-up order follows, so the order is deterministic under host delays (pinned with injected sleeps).
 - **Deadlines.** A wait of `d` seconds started at `t0` is due at the first tick with `t_k >= t0 + d`, evaluated in float seconds: the comparison the product makes when it re-checks.
   - A plain sleep never wakes early: `sleep(0.0200004)` wakes at tick 2.
   - A deadline that float drift puts just after `t_k` waits for the next tick instead of re-arming forever: `0.2 + 0.1` fires at tick 16, not 15.
@@ -113,7 +113,7 @@ Emulates mavlink-router `d59ef94` (`/usr/bin/mavlink-routerd`), `Endpoint::read_
 
 ## Bus adapter (wire pinned: `mavlink_wire.py`; the adapter in step 9)
 One narrow bus replaces `mavutil.mavfile` for NavPy and the backend in lockstep.
-- **Inbound.** Per tick bytes, decoded with persistent parser state and dispatched through the existing `_dispatch` fan-out (`MavBusReader._dispatch`) in byte order, on the managed reader thread. After each packet the reader yields: it goes to the back of the runnable queue at the same t_k (`baton_sync.yield_now`, no timer round), so a woken consumer runs before the next packet. The wall reader differs: it yields once per batch of already-decodable packets, bounded by one scheduler wall slot (`reader_batch.md`), so wall and lockstep reader scheduling are not the same.
+- **Inbound.** Per tick bytes, decoded with persistent parser state and dispatched through the existing `_dispatch` fan-out (`MavBusReader._dispatch`) in byte order, on the managed reader thread. After each packet the reader yields: it goes to the back of the runnable queue at the same t_k (`baton_sync.yield_now`, no timer round), so a woken consumer runs before the next packet. With the sim profile's `reader_budget` the reader serves at most B packets per tick, yields once per batch of b, and carries the rest to the next tick in order. The wall reader differs: it yields once per batch of already-decodable packets, bounded by one scheduler wall slot (`reader_batch.md`), so wall and lockstep reader scheduling are not the same.
 - **Outbound.** A `MAVLink(file=ByteSink)` encoder per source keeps `seq` and MAVLink 2 framing as a real link would. Each participant's `(sysid, compid)` is its product value.
 - **`mode_mapping()`** is `mavfile`'s: the fixed-wing table before any heartbeat, then the table for the latest probable vehicle heartbeat's type (`mavfile.probably_vehicle_heartbeat`), or PX4's map for a PX4 autopilot.
 - **Heartbeat admission.** The bus admits as `MavBusHeartbeats` does today: any non-GCS, non-companion heartbeat from an eligible sysid counts. The router's compid-1 filter governs the vehicle's heartbeat state, not bus admission.
