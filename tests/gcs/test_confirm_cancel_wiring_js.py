@@ -22,8 +22,10 @@ class TestTaskConfirmCard(unittest.TestCase):
         self.src = _read("components", "TaskConfirmCard.jsx")
 
     def test_uses_reducer_selectors(self):
-        self.assertIn("import { isPending, canCancel, confirmRoundKey } from '../hooks/taskConfirmationState'",
-                      self.src)
+        end = self.src.index("} from '../hooks/taskConfirmationState'")
+        imported = self.src[self.src.rindex("import {", 0, end):end]
+        for name in ("isPending", "canCancel", "confirmRoundKey"):
+            self.assertIn(name, imported)
 
     def test_auto_timeout_guarded_to_pending(self):
         # Decided cards must never count down or auto-fire.

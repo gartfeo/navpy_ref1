@@ -195,15 +195,15 @@ describe('TaskConfirmCard View camera', () => {
   it('tapped midway keeps the original deadline, calls neither approve nor deny, and expiry fires once', () => {
     const h = handlers();
     const onView = vi.fn();
-    const { getByText } = render(card(entryFor({ roundUid: 'a' }), h, { viewing: false, onView }));
+    const { getByText, getByTestId } = render(card(entryFor({ roundUid: 'a' }), h, { viewing: false, onView }));
     advance(10_000);
-    expect(getByText('20s')).toBeInTheDocument();
+    expect(getByTestId('confirm-countdown-1').dataset.time).toBe('0:20');
     fireEvent.click(getByText('task.viewCamera'));
     expect(onView).toHaveBeenCalledTimes(1);
     expect(h.onApprove).not.toHaveBeenCalled();
     expect(h.onDeny).not.toHaveBeenCalled();
     advance(5_000);
-    expect(getByText('15s')).toBeInTheDocument();
+    expect(getByTestId('confirm-countdown-1').dataset.time).toBe('0:15');
     advance(16_000);
     expect(h.onDeny).toHaveBeenCalledTimes(1);
     expect(h.onApprove).not.toHaveBeenCalled();
@@ -221,11 +221,11 @@ describe('TaskConfirmCard View camera', () => {
         </div>
       );
     }
-    const { getByText } = render(<Host />);
+    const { getByText, getByTestId } = render(<Host />);
     advance(12_000);
     fireEvent.click(getByText('task.viewCamera'));
     expect(getByText('fpv:false')).toBeInTheDocument();
-    expect(getByText('18s')).toBeInTheDocument();
+    expect(getByTestId('confirm-countdown-1').dataset.time).toBe('0:18');
     advance(19_000);
     expect(h.onDeny).toHaveBeenCalledTimes(1);
   });

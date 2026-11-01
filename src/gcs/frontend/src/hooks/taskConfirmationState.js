@@ -196,9 +196,142 @@ export function getConfirm(state, sysId) {
   return state[sysId] || null;
 }
 
-export function visibleConfirmEntries(state) {
-  // [numericSysId, entry] pairs, oldest first by receivedAt.
-  return Object.entries(state)
-    .map(([sid, e]) => [Number(sid), e])
-    .sort((a, b) => ((a[1].receivedAt ?? 0) - (b[1].receivedAt ?? 0)) || (a[0] - b[0]));
+// ---- Deadline, order and summary (todos 67, 68; gcs_confirm_cue.md) ----
+//
+// The ONE place a confirm round's deadline is computed: the card's countdown
+// and auto-fire, the list order, the summary chip and the alert sound all
+// use these helpers with a `now` from utils/confirmClock.js, so the sim-time
+// move (deterministic_dev_sim.md) changes the clock in one place.
+
+/** The card's wait when the vehicle's NAV_CWT is not loaded or not valid. */
+export const DEFAULT_CONFIRM_WAIT_SEC = 30;
+
+/**
+ * The wait the GCS counts down for a round: the cached NAV_CWT when it is a
+ * finite number 0 or more (0 = no wait), else DEFAULT_CONFIRM_WAIT_SEC,
+ * flagged `estimated` so the label can say the time is a guess.
+ */
+export function confirmWaitSec(waitSec) {
+  const known = typeof waitSec === 'number' && Number.isFinite(waitSec) && waitSec >= 0;
+  return known ? { sec: waitSec, estimated: false } : { sec: DEFAULT_CONFIRM_WAIT_SEC, estimated: true };
+}
+
+/** Epoch ms (confirmNow's clock) at which the GCS's countdown for `entry` ends. */
+export function confirmDeadlineMs(entry, waitSec) {
+  return entry.receivedAt + confirmWaitSec(waitSec).sec * 1000;
+}
+
+/** Milliseconds left until `deadlineMs`, never negative. */
+export function msLeft(deadlineMs, now) {
+  return Math.max(0, deadlineMs - now);
+}
+
+/** Whole seconds left, rounded up: what the card and the chip both show. */
+export function secondsLeft(deadlineMs, now) {
+  return Math.ceil(msLeft(deadlineMs, now) / 1000);
+}
+
+/**
+ * Identity of one round of one UAV. confirmRoundKey alone has no UAV in it,
+ * so the fired latch, the alert bookkeeping and the chip's scroll target key
+ * by this.
+ */
+export function confirmRoundId(sysId, entry) {
+  return roundIdFromKey(sysId, confirmRoundKey(entry));
+}
+
+/** confirmRoundId from a round key the caller already has. */
+export function roundIdFromKey(sysId, roundKey) {
+  return `${sysId}|${roundKey}`;
+}
+
+/** The phases of a pending round. */
+export const CONFIRM_PHASE = Object.freeze({
+  LIVE: 'live', // time left, not fired: the operator can still answer in time
+  DUE: 'due', // at 0, the card has not fired yet (between ticks)
+  FIRED: 'fired', // the card's auto-fire ran for this round (latched)
+});
+
+function pendingPhase(sysId, entry, waitSecFor, now, fired) {
+  if (fired && fired[confirmRoundId(sysId, entry)] != null) return CONFIRM_PHASE.FIRED;
+  return msLeft(confirmDeadlineMs(entry, waitSecFor(sysId)), now) > 0
+    ? CONFIRM_PHASE.LIVE : CONFIRM_PHASE.DUE;
+}
+
+const DECIDED_RANK = Object.freeze({
+  [CONFIRM_STATUS.APPROVED]: 1,
+  [CONFIRM_STATUS.DENIED]: 2,
+  [CONFIRM_STATUS.CANCELED]: 2,
+});
+
+/**
+ * [numericSysId, entry] pairs in display order: pending rounds first -- the
+ * fired ones by fire time, then the rest by deadline, soonest first -- then
+ * approved, then denied or canceled; ties and decided groups by numeric
+ * sys_id. `waitSecFor(sysId)` is the cached NAV_CWT (or undefined); `fired`
+ * maps confirmRoundId -> fire time.
+ */
+export function orderedConfirmEntries(state, waitSecFor, fired = {}) {
+  const rows = Object.entries(state || {}).map(([sid, entry]) => {
+    const sysId = Number(sid);
+    if (!isPending(entry)) return { sysId, entry, rank: DECIDED_RANK[entry.status] ?? 2, at: 0 };
+    const firedAt = fired[confirmRoundId(sysId, entry)];
+    return firedAt != null
+      ? { sysId, entry, rank: -1, at: firedAt }
+      : { sysId, entry, rank: 0, at: confirmDeadlineMs(entry, waitSecFor(sysId)) };
+  });
+  rows.sort((a, b) => (a.rank - b.rank) || (a.at - b.at) || (a.sysId - b.sysId));
+  return rows.map((r) => [r.sysId, r.entry]);
+}
+
+/**
+ * What the summary chip shows, or null when no round is pending. The shown
+ * round is the soonest LIVE one; with none, the earliest DUE one; else the
+ * first FIRED one. `sysIds` are all pending UAVs in display order, the shown
+ * one first.
+ */
+export function pendingSummary(state, waitSecFor, now, fired = {}) {
+  const pending = orderedConfirmEntries(state, waitSecFor, fired)
+    .filter(([, entry]) => isPending(entry))
+    .map(([sysId, entry]) => ({ sysId, entry, phase: pendingPhase(sysId, entry, waitSecFor, now, fired) }));
+  if (pending.length === 0) return null;
+  const shown = pending.find((p) => p.phase === CONFIRM_PHASE.LIVE)
+    ?? pending.find((p) => p.phase === CONFIRM_PHASE.DUE)
+    ?? pending[0];
+  const deadlineMs = confirmDeadlineMs(shown.entry, waitSecFor(shown.sysId));
+  return {
+    count: pending.length,
+    sysIds: [shown.sysId, ...pending.filter((p) => p !== shown).map((p) => p.sysId)],
+    shownSysId: shown.sysId,
+    shownEntry: shown.entry,
+    phase: shown.phase,
+    deadlineMs,
+    secondsLeft: shown.phase === CONFIRM_PHASE.LIVE ? secondsLeft(deadlineMs, now) : 0,
+    liveCount: pending.filter((p) => p.phase === CONFIRM_PHASE.LIVE).length,
+  };
+}
+
+/** m:ss for a whole number of seconds. */
+export function formatClock(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/**
+ * The words for what the GCS sends at zero (gcs_confirm_cue.md decision 5),
+ * from the RAW cached params (undefined = not loaded; no AAS_DEFAULTS here).
+ * Returns the card's and the chip's locale keys and the `time` argument
+ * ("0:21", "~0:21" when the wait is estimated). First match wins.
+ */
+export function confirmZeroLabel({ phase, cmFl, cwt, seconds }) {
+  const { estimated } = confirmWaitSec(cwt);
+  const time = `${estimated ? '~' : ''}${formatClock(seconds)}`;
+  const same = (k) => ({ cardKey: `task.zero.${k}`, chipKey: `task.zero.${k}`, time });
+  if (phase === CONFIRM_PHASE.FIRED) return same('fired');
+  const approves = cmFl == null ? null : Boolean(cmFl);
+  // A zero wait is due from the start; say why (decision 7) instead of "due".
+  if (cwt === 0) return same(approves ? 'noWaitApprove' : 'noWaitDeny');
+  if (phase === CONFIRM_PHASE.DUE) return same('due');
+  const k = approves == null ? 'autoDenyUnknown' : approves ? 'autoApprove' : 'autoDeny';
+  return { cardKey: `task.zero.${k}`, chipKey: `task.zeroChip.${k}`, time };
 }

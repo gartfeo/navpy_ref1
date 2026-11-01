@@ -2,11 +2,24 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../styles';
 import UavBadge from './UavBadge';
-import { isPending, canCancel, confirmRoundKey } from '../hooks/taskConfirmationState';
+import {
+  isPending, canCancel, confirmRoundKey, confirmWaitSec, confirmDeadlineMs, msLeft, secondsLeft,
+  confirmZeroLabel, CONFIRM_PHASE,
+} from '../hooks/taskConfirmationState';
+import { confirmNow } from '../utils/confirmClock';
 import { LONG_PRESS_MS } from '../utils/armAction';
 import useLongPress from '../hooks/useLongPress';
 
-const DEFAULT_TIMEOUT_SEC = 30;
+/** Countdown colour steps (s left): green above, amber above, red at or below. */
+const TIMER_AMBER_ABOVE_SEC = 5;
+const TIMER_GREEN_ABOVE_SEC = 10;
+
+/** The countdown colour for `seconds` left; the summary chip uses it too. */
+export function timerColorFor(seconds) {
+  if (seconds > TIMER_GREEN_ABOVE_SEC) return colors.success;
+  return seconds > TIMER_AMBER_ABOVE_SEC ? colors.warning : colors.error;
+}
+
 /** Every control on a decided row: the app's 32 px map-button size (todo 69). */
 const ROW_CONTROL_PX = 32;
 /** The opened still of a decided row (ConfirmStill), smaller than a pending card's 160 px. */
@@ -23,9 +36,15 @@ const OPEN_STILL_MAX_PX = 120;
  * (handled by the owning hook). The auto-timeout never runs once decided.
  *
  * timeoutSec and autoApprove come from the per-vehicle AAS confirmed values
- * (AAS_NAV_CWT and AAS_NAV_CM_FL). The defensive fallback to
- * DEFAULT_TIMEOUT_SEC = 30 fires only when the prop is non-finite or negative
- * -- explicit `0` is honored as "immediate timeout".
+ * (AAS_NAV_CWT and AAS_NAV_CM_FL) and drive the auto-fire. The defensive
+ * fallback to DEFAULT_CONFIRM_WAIT_SEC = 30 fires only when the prop is
+ * non-finite or negative -- explicit `0` is honored as "immediate timeout".
+ *
+ * The countdown label names what the GCS sends at zero (todo 68,
+ * gcs_confirm_cue.md decision 5) from `labelPolicy` -- the RAW cached
+ * { cmFl, cwt }, undefined when not loaded -- so a vehicle whose params are
+ * not loaded never reads as a definite policy. Without it (a card alone) the
+ * label uses the auto-fire props.
  */
 export default function TaskConfirmCard({
   sysId, entry, vehicleName, vehicleIndex,
@@ -44,6 +63,14 @@ export default function TaskConfirmCard({
   // shows it), and the toggle, or null when there is no still to show.
   stillOpen = false,
   onToggleStill = null,
+  // Pending card only (ConfirmCardList passes them): the raw cached policy
+  // for the label, the list's shared `now` (so the card and the summary chip
+  // show the same second), whether the fired latch holds for this round, and
+  // the latch callback, called from the auto-fire path.
+  labelPolicy = null,
+  now = null,
+  fired = false,
+  onAutoFire = null,
 }) {
   const { t } = useTranslation();
   const pending = isPending(entry);
@@ -58,11 +85,10 @@ export default function TaskConfirmCard({
     // round must not carry over and approve the new one without a fresh hold.
     resetKey: roundKey,
   });
-  const effectiveTimeout = Number.isFinite(timeoutSec) && timeoutSec >= 0 ? timeoutSec : DEFAULT_TIMEOUT_SEC;
-  const [remaining, setRemaining] = useState(() => {
-    const elapsed = (Date.now() - entry.receivedAt) / 1000;
-    return Math.max(0, effectiveTimeout - elapsed);
-  });
+  const effectiveTimeout = confirmWaitSec(timeoutSec).sec;
+  const deadlineMs = confirmDeadlineMs(entry, timeoutSec);
+  // Only re-renders a standalone card each second; the render reads the clock.
+  const [, setRemaining] = useState(0);
 
   // Guards against double-firing the auto-action within ONE confirm round.
   // Reset it the moment the round changes: if the previous round auto-fired,
@@ -71,6 +97,14 @@ export default function TaskConfirmCard({
   // already clear when the countdown effect below runs for the new round.
   const firedRef = useRef(false);
   const firedRoundRef = useRef(roundKey);
+  // The latch callback is read at fire time, so a new callback identity
+  // never re-runs the countdown effect.
+  const onAutoFireRef = useRef(onAutoFire);
+  onAutoFireRef.current = onAutoFire;
+  // Hosted by the list, the label reads the list's `now`: the tick then only
+  // decides the fire and does not re-render the card for its own display.
+  const hostedRef = useRef(now != null);
+  hostedRef.current = now != null;
   if (firedRoundRef.current !== roundKey) {
     firedRoundRef.current = roundKey;
     firedRef.current = false;
@@ -86,17 +120,17 @@ export default function TaskConfirmCard({
       if (interval) clearInterval(interval);
       if (autoApprove) onApprove(sysId);
       else onDeny(sysId);
+      onAutoFireRef.current?.(sysId, firedRoundRef.current);
     };
     const tick = () => {
-      const elapsed = (Date.now() - entry.receivedAt) / 1000;
-      const r = Math.max(0, effectiveTimeout - elapsed);
-      setRemaining(r);
+      const r = msLeft(deadlineMs, confirmNow()) / 1000;
+      if (!hostedRef.current) setRemaining(r);
       if (r <= 0) fire();
     };
     tick();
     if (!firedRef.current) interval = setInterval(tick, 1000);
     return () => { if (interval) clearInterval(interval); };
-  }, [pending, sysId, entry.receivedAt, autoApprove, onApprove, onDeny, effectiveTimeout]);
+  }, [pending, sysId, deadlineMs, autoApprove, onApprove, onDeny]);
 
   if (!pending) {
     return (
@@ -107,7 +141,16 @@ export default function TaskConfirmCard({
     );
   }
 
-  const timerColor = remaining > 10 ? colors.success : remaining > 5 ? colors.warning : colors.error;
+  // The label's second: the list's shared sample when given, else the clock
+  // at this render (the card's own tick re-renders it each second). A fired
+  // round stays at 0 even if a longer wait or a clock step back gives it time.
+  const clockNow = now ?? confirmNow();
+  const shownSeconds = fired ? 0 : secondsLeft(deadlineMs, clockNow);
+  const barFraction = fired || effectiveTimeout <= 0 ? 0 : msLeft(deadlineMs, clockNow) / 1000 / effectiveTimeout;
+  const phase = fired ? CONFIRM_PHASE.FIRED : shownSeconds > 0 ? CONFIRM_PHASE.LIVE : CONFIRM_PHASE.DUE;
+  const policy = labelPolicy ?? { cmFl: autoApprove, cwt: timeoutSec };
+  const label = confirmZeroLabel({ phase, cmFl: policy.cmFl, cwt: policy.cwt, seconds: shownSeconds });
+  const timerColor = timerColorFor(shownSeconds);
 
   return (
     <div style={{
@@ -126,12 +169,18 @@ export default function TaskConfirmCard({
       `}</style>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+      {/* The countdown words wrap under the title rather than shrink it. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '2px 6px', marginBottom: 6 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: colors.warning }}>
           <UavBadge name={vehicleName} index={vehicleIndex} /> {t('task.title', { id: entry.taskId })}
         </span>
-        <span style={{ color: timerColor, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-          {Math.ceil(remaining)}s
+        <span
+          data-testid={`confirm-countdown-${sysId}`}
+          data-time={label.time}
+          data-label={label.cardKey}
+          style={{ marginLeft: 'auto', color: timerColor, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
+        >
+          {t(label.cardKey, { time: label.time })}
         </span>
       </div>
 
@@ -217,7 +266,7 @@ export default function TaskConfirmCard({
       }}>
         <div style={{
           height: '100%',
-          width: effectiveTimeout > 0 ? `${(remaining / effectiveTimeout) * 100}%` : '0%',
+          width: `${barFraction * 100}%`,
           background: timerColor,
           transition: 'width 1s linear, background-color 0.5s',
         }} />

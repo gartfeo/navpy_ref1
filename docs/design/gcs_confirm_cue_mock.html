@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Confirm cue mock</title>
+<style>
+  :root {
+    --bg: #1a1a2e; --bgLight: #16213e; --surface: #1f3050; --accent: #00d2ff;
+    --text: #e0e0e0; --dim: #8899aa; --bright: #fff; --go: #4caf50;
+    --warn: #ff9800; --nogo: #f44336; --border: #2a3f5f;
+  }
+  body { margin: 0; padding: 20px; background: #0d0d1a; color: var(--text);
+    font: 13px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size: 18px; color: var(--bright); margin: 0 0 4px; }
+  h2 { font-size: 14px; color: var(--accent); margin: 22px 0 8px; }
+  .note { color: var(--dim); font-size: 12px; margin: 0 0 10px; max-width: 1000px; }
+  .wrap { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .col { display: flex; flex-direction: column; gap: 6px; width: 320px; }
+  .cap { font-size: 11px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+  /* Real hosts at 960 x 448: panel = 448 - 48 top bar - 48 bottom bar = 352 px. */
+  .panel { width: 320px; height: 352px; background: var(--bgLight); border: 1px solid var(--border);
+    box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+  .rc { height: 173px; border-radius: 6px; }
+  .pinned { flex-shrink: 0; padding: 10px 16px 4px; border-bottom: 1px solid var(--border); }
+  .scroll { flex: 1 1 auto; overflow: hidden; padding: 16px 16px 0; position: relative; min-height: 0; }
+  .scroll::after { content: "scrolls"; position: absolute; right: 6px; bottom: 2px;
+    font-size: 10px; color: var(--dim); background: var(--bgLight); padding: 0 3px; }
+  .uav { display: inline-block; padding: 0 5px; border-radius: 3px; color: #fff; flex-shrink: 0; max-width: 72px; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
+    font-size: 11px; font-weight: 700; line-height: 18px; }
+  .u7 { background: #D90012; } .u8 { background: #0033A0; } .u9 { background: #8a6d00; } .u10 { background: #2a7a2a; }
+  .card { margin-bottom: 12px; padding: 10px; background: var(--surface); border-radius: 6px;
+    border: 2px solid var(--warn); box-shadow: 0 0 8px #ff980060; }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 2px 6px;
+    font-size: 13px; font-weight: 700; color: var(--warn); margin-bottom: 6px; }
+  .t { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; }
+  .g { color: var(--go); } .w { color: var(--warn); } .r { color: var(--nogo); }
+  .pos { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+  .img { height: 160px; margin: 6px 0; background: repeating-linear-gradient(45deg,#24344f,#24344f 8px,#2a3d5c 8px,#2a3d5c 16px);
+    border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 11px; }
+  .btns { display: flex; gap: 6px; }
+  .btn { flex: 1; text-align: center; padding: 7px 0; border-radius: 4px; font-weight: 700; font-size: 12px; color: #fff; }
+  .ap { background: var(--go); } .dn { background: var(--nogo); }
+  .row { display: flex; align-items: center; gap: 6px; height: 32px; margin-bottom: 4px; font-size: 12px; }
+  .row .x { margin-left: auto; background: var(--nogo); color: #fff; font-weight: 700; padding: 0 8px;
+    line-height: 32px; border-radius: 4px; font-size: 11px; }
+  .row .s { border: 1px solid var(--border); padding: 0 6px; line-height: 30px; border-radius: 4px; font-size: 11px; }
+  /* The chip: one 32 px line; words ellipsize, the time never does. */
+  .chip { display: flex; align-items: center; gap: 5px; height: 30px; box-sizing: border-box; margin-bottom: 4px;
+    padding: 0 8px; border-radius: 6px; border: 2px solid var(--warn); background: #ff980022; cursor: pointer;
+    font-size: 12px; font-weight: 700; color: var(--bright); white-space: nowrap; }
+  .chip.urgent { border-color: var(--nogo); background: #f4433622; }
+  .chip .cnt { flex-shrink: 0; }
+  .chip .more { flex-shrink: 0; max-width: 24px; color: var(--dim); font-size: 11px; }
+  .chip .words { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .chip .t { flex-shrink: 0; max-width: 40px; }
+  .chip .words { flex: 1 1 auto; }
+  .snd { height: 22px; margin: -2px 0 6px; font-size: 11px; color: var(--warn); }
+  table { border-collapse: collapse; font-size: 12px; }
+  td, th { border: 1px solid var(--border); padding: 4px 8px; text-align: left; vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Confirm cue, order and countdown wording (todos 67, 68)</h1>
+<p class="note">Static mock at the real host sizes for 960 x 448: right panel 320 x 352 px (between the 48 px
+top and bottom bars), RC list 320 x 173 px; full pending cards with their 160 px still. Scenario: s1-u7 received
+at t=0 with NAV_CWT 30, s1-u8 at t=2 with NAV_CWT 30, s1-u9 at t=5 with NAV_CWT 10; now t=6; demo policy
+(NAV_CM_FL 0). s1-u9 has the soonest deadline (9 s left) but arrived last. Fit in the running app is checked
+live (jsdom has no layout); this page is a drawing. Note: <code>gcs_confirm_cue.md</code>.</p>
+
+<div class="wrap">
+  <div class="col">
+    <div class="cap">Today (origin/main)</div>
+    <div class="panel">
+      <div class="scroll">
+        <div class="card"><div class="head"><span><span class="uav u7">s1-u7</span> POI #1</span><span class="t g">24s</span></div>
+          <div class="pos">40.18120, 44.51490 — 120m [Map]</div><div class="img">still</div>
+          <div class="btns"><span class="btn ap">APPROVE</span><span class="btn dn">DENY</span></div></div>
+        <div class="card"><div class="head"><span><span class="uav u8">s1-u8</span> POI #1</span><span class="t g">26s</span></div></div>
+      </div>
+    </div>
+    <div class="note">sys_id order. s1-u9 (9 s) is the third card, two screens down. "24s" does not say the dock
+      is rejected at zero. One beep per request.</div>
+  </div>
+
+  <div class="col">
+    <div class="cap">Proposed, right panel</div>
+    <div class="panel">
+      <div class="pinned">
+        <div class="chip urgent"><span class="cnt">&#128276; 3</span><span class="uav u9">s1-u9</span><span class="more">+2</span><span class="t w">0:09</span><span class="words">Auto-deny</span></div>
+      </div>
+      <div class="scroll">
+        <div class="card"><div class="head"><span><span class="uav u9">s1-u9</span> POI #1</span><span class="t w">Auto-deny in 0:09</span></div>
+          <div class="pos">40.18120, 44.51490 — 120m [Map]</div><div class="img">still</div>
+          <div class="btns"><span class="btn ap">APPROVE</span><span class="btn dn">DENY</span></div></div>
+        <div class="card"><div class="head"><span><span class="uav u7">s1-u7</span> POI #1</span><span class="t g">Auto-deny in 0:24</span></div></div>
+      </div>
+    </div>
+    <div class="note">Chip: count, the badge of the UAV whose time is shown, +N for the others (named in its title), the soonest card's words and time,
+      from the same tick as the card. Tap brings the soonest card into view. Red border at 10 s or less
+      (the card's own timer stays amber until 5 s). Three badges do not fit beside the time and the words in 268 px.</div>
+  </div>
+
+  <div class="col">
+    <div class="cap">Proposed, decided rows, still open, sound off</div>
+    <div class="panel">
+      <div class="pinned">
+        <div class="chip"><span class="cnt">&#128276; 1</span><span class="uav u8">s1-u8</span><span class="t g">0:22</span><span class="words">Sound off, tap to enable</span></div>
+                <div class="row"><span class="uav u7">s1-u7</span> Approval sent <span class="s" style="margin-left:auto">Hide still</span><span class="x" style="margin-left:0">CANCEL TASK</span></div>
+        <div class="row"><span class="uav u9">s1-u9</span> <span class="r" style="font-weight:700">DENIED</span></div>
+      </div>
+      <div class="scroll">
+        <div style="font-size:11px;color:var(--dim)"><span class="uav u7">s1-u7</span> POI #1 still</div>
+        <div class="img" style="height:120px">open still (above the pending cards)</div>
+        <div class="card"><div class="head"><span><span class="uav u8">s1-u8</span> POI #1</span><span class="t g">Auto-deny in 0:22</span></div></div>
+      </div>
+    </div>
+    <div class="note">Pinned: chip, approved rows, then denied or cancel-requested rows (each by sys_id).
+      A chip tap scrolls the s1-u8 card itself to the top, past the open still. While audio is blocked the chip
+      words read "Sound off, tap to enable" (no extra line); any tap on the page unlocks it.</div>
+  </div>
+
+  <div class="col">
+    <div class="cap">Proposed, RC list (320 x 173)</div>
+    <div class="panel rc">
+      <div class="pinned">
+        <div class="chip urgent"><span class="cnt">&#128276; 2</span><span class="uav u9">s1-u9</span><span class="more">+1</span><span class="t w">0:09</span><span class="words">Auto-deny</span></div>
+        <div class="row"><span class="uav u7">s1-u7</span> Approval sent <span class="x">CANCEL TASK</span></div>
+        <div class="row"><span class="uav u10">s1-u10</span> Approval sent <span class="x">CANCEL TASK</span></div>
+      </div>
+      <div class="scroll"><div class="card"><div class="head"><span><span class="uav u9">s1-u9</span> POI #1</span><span class="t w">Auto-deny in 0:09</span></div><div class="pos">40.18120, 44.51490 — 120m [Map]</div><div class="img">still</div><div class="btns"><span class="btn ap">APPROVE</span><span class="btn dn">DENY</span></div></div></div>
+    </div>
+    <div class="note">Same chip as the right panel. The chip is 30 px + 4 px, todo 69's 34 px budget, so the
+      pending card keeps the room todo 69 measured (about 50 px with two rows). The chip is the way to the soonest card here; its APPROVE and DENY are reached by scrolling the list (live check).</div>
+  </div>
+</div>
+
+<h2>Longest words in a pending card header and the chip (320 px)</h2>
+<div class="wrap">
+  <div class="col">
+    <div class="cap">en, NAV_CM_FL not loaded</div>
+    <div class="card" style="margin:0"><div class="head"><span><span class="uav u8">s1-u8</span> POI #12</span><span class="t g">Auto-deny in 0:21 (policy not loaded)</span></div></div>
+    <div class="chip"><span class="cnt">&#128276; 3</span><span class="uav u8">s1-u8-long-name</span><span class="more">+2</span><span class="t g">~0:21</span><span class="words">Auto-deny (policy not loaded)</span></div>
+  </div>
+  <div class="col">
+    <div class="cap">hy, NAV_CM_FL not loaded (owner to check wording)</div>
+    <div class="card" style="margin:0"><div class="head"><span><span class="uav u8">s1-u8</span> POI #12</span><span class="t g">Ավտոմերժում 0:21 հետո (կանոնը բեռնված չէ)</span></div></div>
+    <div class="chip"><span class="cnt">&#128276; 3</span><span class="uav u8">s1-u8-long-name</span><span class="more">+2</span><span class="t g">~0:21</span><span class="words">Ավտոմերժում (կանոնը բեռնված չէ)</span></div>
+  </div>
+  <div class="col">
+    <div class="cap">hy, RC list 320 x 173, sound blocked, two decided rows</div>
+    <div class="panel rc" lang="hy">
+      <div class="pinned">
+        <div class="chip urgent"><span class="cnt">&#128276; 2</span><span class="uav u9">s1-u9-long-name</span><span class="more">+1</span><span class="t w">0:09</span><span class="words">Ձայնն անջատված է, հպեք միացնելու համար</span></div>
+        <div class="row"><span class="uav u7">s1-u7</span> Հաստատումն ուղարկված է <span class="x">ՉԵՂԱՐԿԵԼ</span></div>
+        <div class="row"><span class="uav u10">s1-u10</span> Հաստատումն ուղարկված է <span class="x">ՉԵՂԱՐԿԵԼ</span></div>
+      </div>
+      <div class="scroll"><div class="card"><div class="head"><span><span class="uav u9">s1-u9</span> POI #12</span><span class="t w">Ավտոմերժում 0:09 հետո (կանոնը բեռնված չէ)</span></div>
+        <div class="pos">40.18120, 44.51490 — 120m [Map]</div><div class="img">still</div>
+        <div class="btns"><span class="btn ap">ՀԱՍՏԱՏԵԼ</span><span class="btn dn">ՄԵՐԺԵԼ</span></div></div></div>
+    </div>
+    <div class="note">Drawing only; existing hy strings for the rows and buttons may differ. The live check
+      asserts the chip, both CANCEL TASK and, after scrolling, APPROVE and DENY are in view and hit-testable.</div>
+  </div>
+</div>
+<p class="note">The card header wraps the words to a second line. The chip shows the time first and the same
+outcome words after it (a short form without "in 0:21"); they ellipsize, the time never does, and the full card
+words are the chip's title and accessible name.</p>
+
+<h2>Countdown wording (decision 5, first match wins): what the GCS sends at zero</h2>
+<table>
+  <tr><th>Card state / GCS cached params</th><th>en card</th><th>en chip words</th><th>hy card (owner to check)</th><th>GCS at zero</th></tr>
+  <tr><td>Time up, fired, still pending</td><td>Time up; answer not confirmed</td><td>same</td><td>Ժամանակը սպառվեց, պատասխանը հաստատված չէ</td><td>already sent (or tried)</td></tr>
+  <tr><td>At 0, not fired yet (due)</td><td>Time up; sending answer</td><td>same</td><td>Ժամանակը սպառվեց, պատասխանն ուղարկվում է</td><td>fires on its next tick</td></tr>
+  <tr><td>NAV_CWT 0, NAV_CM_FL 0 or not loaded</td><td>No wait: GCS denies now</td><td>same</td><td>Առանց սպասման. GCS-ը մերժում է հիմա</td><td>Deny at once (decision 7)</td></tr>
+  <tr><td>NAV_CWT 0, NAV_CM_FL 1</td><td>No wait: GCS approves now</td><td>same</td><td>Առանց սպասման. GCS-ը հաստատում է հիմա</td><td>Approve at once</td></tr>
+  <tr><td>NAV_CM_FL not loaded</td><td>Auto-deny in 0:21 (policy not loaded)</td><td>Auto-deny (policy not loaded)</td><td>Ավտոմերժում 0:21 հետո (կանոնը բեռնված չէ)</td><td>Deny</td></tr>
+  <tr><td>NAV_CM_FL 0 (demo)</td><td>Auto-deny in 0:21</td><td>Auto-deny</td><td>Ավտոմերժում 0:21 հետո</td><td>Deny</td></tr>
+  <tr><td>NAV_CM_FL 1</td><td>Auto-approve in 0:21</td><td>Auto-approve</td><td>Ավտոհաստատում 0:21 հետո</td><td>Approve</td></tr>
+  <tr><td>NAV_CWT not loaded or invalid</td><td colspan="4">the time reads ~0:21 (30 s fallback)</td></tr>
+</table>
+<p class="note">Alternative (the brief's wording): "Rejects in 0:21" / "Approves in 0:21 if still tracked". The
+second overstates: a GCS Approve on an open round confirms it without the vehicle's freshness check.</p>
+
+<h2>Sound (decision 2)</h2>
+<table>
+  <tr><th>State</th><th>Sound</th></tr>
+  <tr><td>A new round (re-ask and zero wait included)</td><td>one beep at once (880 Hz, 0.15 s); one pattern per tick, urgent wins</td></tr>
+  <tr><td>Soonest round with time left: more than 10 s</td><td>one beep every 5 s</td></tr>
+  <tr><td>10 s or less</td><td>double beep (1320 Hz, 2 x 0.1 s) every 2 s since the last sound (also on arrival under 10 s); back to 5 s if that round ends</td></tr>
+  <tr><td>No live round (decided, fired, due, reset, disarm)</td><td>silent, tick stopped; a pattern already playing (at most 0.3 s) finishes</td></tr>
+  <tr><td>Unmount</td><td>every oscillator stopped at once, context closed</td></tr>
+  <tr><td>Audio not running</td><td>nothing queued; chip words "Sound off, tap to enable" until it runs; unlock listeners back on any later suspend</td></tr>
+</table>
+</body>
+</html>
