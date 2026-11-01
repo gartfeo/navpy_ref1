@@ -374,7 +374,7 @@
     "holdToApprove": "ՍԵՂՄԵՔ ԵՎ ՊԱՀԵՔ՝ ՀԱՍՏԱՏԵԼՈՒ ՀԱՄԱՐ",
     "viewCamera": "Դիտել տեսախցիկը",
     "viewing": "Դիտվում է",
-    "viewCameraNote": "Հետհաշվարկը շարունակվում է",
+    "viewCameraNote": "Հետհաշվարկը շարունակվում է։",
     "viewCameraPoiNote": "Տեսախցիկն արդեն կարող է ցույց չտալ POI #{{id}}-ը։",
     "zero": {
       "autoDeny": "Ավտոմերժում {{time}} հետո",

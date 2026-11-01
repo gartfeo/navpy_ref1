@@ -1734,3 +1734,21 @@
 - Readers timing arrival cannot alone show a producer kept time. Use what the producer
   cannot hide: SITL loses any stall over 100 ms for good, so fit wall(boot) lines before
   and after and compare them at the event (`producer_test.py`). Codex caught this gap.
+
+## Todo 71: the confirm still's age (2026-11-01)
+
+- A card's vitest stub returns the key and drops the arguments, so it cannot test wording
+  or interpolation. A test file can `vi.mock('react-i18next')` over the setup file's mock
+  and resolve the real en.json. Assert values through `data-*` attributes, as the
+  countdown's `data-time` does.
+- For "does this move", a layout check in jsdom proves nothing. Compare the styles in
+  vitest, then measure `getBoundingClientRect` live before and after the event.
+- `delivery_demo.py` opens the owner's browser, and that window stays connected and answers
+  rounds. Rounds then end early, so close it or expect it when driving the page elsewhere.
+- vitest's "Timeout waiting for worker to respond" means no tests ran, so it is not a result.
+  I first blamed CPU load, but the CPU read 3 %: free RAM was about 5 GB of 31, 750 pages/s,
+  with other chats' Python jobs holding over 50 GB. Memory pressure is the suspect, not proven.
+  Check memory as well as CPU. 14 tests/gcs tests also failed in a full run, mostly on
+  5 s Node timeouts, and passed when rerun alone.
+- A PowerShell line holding both `Select-String -Pattern '...\s...'` and `Remove-Item` was
+  blocked as a removal of system path `\s`. Keep removals in their own command.

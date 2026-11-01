@@ -374,7 +374,7 @@
     "holdToApprove": "HOLD TO APPROVE",
     "viewCamera": "View camera",
     "viewing": "Viewing",
-    "viewCameraNote": "The countdown keeps running",
+    "viewCameraNote": "The countdown keeps running.",
     "viewCameraPoiNote": "Live view may no longer show POI #{{id}}.",
     "zero": {
       "autoDeny": "Auto-deny in {{time}}",

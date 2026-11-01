@@ -187,10 +187,22 @@ describe('pending card: the age and the countdown', () => {
   });
 
   it('a late NAV_CWT load moves the countdown, not the age', () => {
-    const view = render(hostedCard(entryAt(t0), { now: t0 + 10_000 }));
-    expect(shown(view)).toEqual({ age: '0:10', countdown: '0:20' });
+    const notLoaded = { timeoutSec: undefined, labelPolicy: { cmFl: undefined, cwt: undefined } };
+    const view = render(hostedCard(entryAt(t0), { now: t0 + 10_000, ...notLoaded }));
+    expect(shown(view)).toEqual({ age: '0:10', countdown: '~0:20' });
     view.rerender(hostedCard(entryAt(t0), { now: t0 + 10_000, timeoutSec: 60, labelPolicy: { cmFl: 0, cwt: 60 } }));
     expect(shown(view)).toEqual({ age: '0:10', countdown: '0:50' });
+  });
+
+  it('a card alone reads the clock itself until it fires, then stops ticking', () => {
+    const view = render(hostedCard(entryAt(Date.now()), { labelPolicy: null }));
+    expect(view.getByTestId('still-caption').dataset.age).toBe('0:00');
+    advance(7000);
+    expect(view.getByTestId('still-caption').dataset.age).toBe('0:07');
+    advance(23_000);
+    expect(view.getByTestId('still-caption').dataset.age).toBe('0:30');
+    advance(5000);
+    expect(view.getByTestId('still-caption').dataset.age).toBe('0:30');
   });
 });
 
@@ -228,6 +240,16 @@ describe('pending card: rounds', () => {
     image(control, { taskId: 7, roundUid: null });
     expect(getByRole('img')).toBeInTheDocument();
   });
+
+  it('a request with no round uid takes an image that has one, without moving the age', () => {
+    const { control, getByRole, getByTestId } = setupList();
+    request(control, { roundUid: null });
+    advance(2000);
+    image(control, { roundUid: 'r9' });
+    expect(getByRole('img')).toBeInTheDocument();
+    expect(getByTestId('confirm-picture-1').dataset.imageDelayMs).toBe('2000');
+    expect(getByTestId('still-caption').dataset.age).toBe('0:02');
+  });
 });
 
 describe('pending card: nothing moves when the image arrives (decision 6)', () => {
@@ -258,7 +280,7 @@ describe('pending card: nothing moves when the image arrives (decision 6)', () =
 describe('pending card: View camera note', () => {
   const t0 = 1_000_000;
   const videoAction = { viewing: false, onView: NO_OP };
-  const countdownSentence = (view) => view.getByText('The countdown keeps running');
+  const countdownSentence = (view) => view.getByText('The countdown keeps running.');
 
   it('names the POI and keeps the countdown sentence while the round is live', () => {
     const view = render(hostedCard(entryAt(t0), { now: t0, videoAction }));

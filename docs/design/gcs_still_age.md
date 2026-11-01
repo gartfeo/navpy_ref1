@@ -137,8 +137,9 @@ Under `src/gcs/frontend/src`:
   sentence by phase (with a 120 px flex basis, so the note sits beside the button when
   it fits and under it when not), `ConfirmStill`'s caption and tick.
 - `locales/en.json`, `locales/hy.json`: add `task.stillCaption`, `task.stillAgeNote`,
-  `task.noImage`, `task.viewCameraPoiNote`; `task.viewCameraNote` is unchanged; drop
-  the dots from `task.waitingForImage`. hy for the owner to check.
+  `task.noImage`, `task.viewCameraPoiNote`; `task.viewCameraNote` ends its sentence now
+  that it follows another; drop the dots from `task.waitingForImage`. hy for the owner
+  to check.
 - `docs/design/architecture_todo.md`: mark 71 done, add the true-capture-time
   follow-up.
 
