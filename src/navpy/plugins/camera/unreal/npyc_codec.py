@@ -1,7 +1,7 @@
 """NPYC frame header: the Unreal NavPyUnrealBridge native camera stream.
 
 Each frame on the TCP stream is a little-endian header followed by the raw
-pixels (written by NavPyGimbalCameraActor.cpp, SendNativeCameraFrame):
+pixels (written by NavPyNativeCameraHeader.cpp, sent by NavPyNativeFrameSender.cpp):
 
 v1 (36 bytes): magic ``NPYC``, version, header size, width, height, pixel
 format (1 = BGRA8, 2 = BGR8), reserved, frame index, Unreal wall time of
@@ -33,7 +33,8 @@ encoder's distortion stage (aas-hitl) and private run logs only:
 - ``lens_table_hash`` (uint32): FNV-1a of the lens profile file Unreal loaded.
 
 navpy reads these fields for tools and tests only; the navigation path never
-uses them (tests/guards/test_unreal_pose_isolation.py).
+uses them (tests/guards/test_unreal_pose_isolation.py). The npyc:// capture
+only refuses a frame with overscan (``has_overscan``).
 
 The version field selects the layout; a v1 sender stays readable.
 """
@@ -109,6 +110,11 @@ class NpycHeader:
         """The board time is the time of the pose this frame shows (v2, valid, exact or interpolated)."""
         return (self.version >= NPYC_VERSION_2 and bool(self.pose_flags & POSE_STAMP_VALID)
                 and bool(self.pose_flags & (POSE_EXACT | POSE_INTERPOLATED)))
+
+    @property
+    def has_overscan(self) -> bool:
+        """The frame is rendered larger than its lens row (v3): the HITL encoder's input, not a camera image."""
+        return self.lens_stream.overscan_x != 0 or self.lens_stream.overscan_y != 0
 
 
 def bytes_per_pixel(pixel_format: int) -> int:

@@ -1,4 +1,4 @@
-"""Unreal native camera frames (NPYC v1/v2) through the npyc:// frame-capture backend, and the board clock."""
+"""Unreal native camera frames (NPYC v1-v3) through the npyc:// frame-capture backend, and the board clock."""
 
 from __future__ import annotations
 
@@ -19,14 +19,18 @@ from navpy.core.perception.camera.board_clock_map import (
 from navpy.core.ports.frame_capture_ports import CaptureStampKind
 from navpy.plugins.camera.unreal.frame_capture_npyc import NpycFrameCapture, parse_npyc_source
 from navpy.plugins.camera.unreal.npyc_codec import (
+    LENS_STATUS_SETTLED,
     NPYC_PIXEL_FORMAT_BGR8,
     NPYC_PIXEL_FORMAT_BGRA8,
     NPYC_V1_HEADER_SIZE,
     NPYC_V2_HEADER_SIZE,
+    NPYC_V3_HEADER_SIZE,
+    NPYC_VERSION_3,
     POSE_EXACT,
     POSE_INTERPOLATED,
     POSE_STAMP_VALID,
     NpycHeader,
+    NpycLensStream,
     decode_header,
     encode_header,
 )
@@ -42,6 +46,13 @@ def header(version=2, flags=POSE_STAMP_VALID | POSE_EXACT, board_time_us=7_000_0
     bpp = 3 if pixel_format == NPYC_PIXEL_FORMAT_BGR8 else 4
     sequence = 42 if version == 2 else 0        # v1 carries no pose fields
     return NpycHeader(version, W, H, pixel_format, index, 123.25, W * H * bpp, board_time_us, sequence, flags)
+
+
+def v3_header(overscan_x=0, overscan_y=0, index=0):
+    lens = NpycLensStream(lens_reading_tenths=10, lens_status=LENS_STATUS_SETTLED, overscan_x=overscan_x,
+                          overscan_y=overscan_y)
+    return NpycHeader(NPYC_VERSION_3, W, H, NPYC_PIXEL_FORMAT_BGR8, index, 123.25, W * H * 3, 7_000_000, 42,
+                      POSE_STAMP_VALID | POSE_EXACT, lens)
 
 
 def frame_bytes(h: NpycHeader) -> bytes:
@@ -90,6 +101,12 @@ def test_malformed_headers_are_refused(mutate, message):
 def test_payload_size_must_match_the_dimensions():
     with pytest.raises(ValueError, match="payload size"):
         encode_header(NpycHeader(2, W, H, NPYC_PIXEL_FORMAT_BGR8, 0, 0.0, W * H * 4))
+
+
+@pytest.mark.parametrize("h, overscan", [(header(version=1, flags=0, board_time_us=0), False), (header(), False),
+                                         (v3_header(), False), (v3_header(2, 0), True), (v3_header(0, 2), True)])
+def test_only_a_v3_header_with_overscan_says_it_has_overscan(h, overscan):
+    assert decode_header(encode_header(h)).has_overscan is overscan
 
 
 # --- board clock ------------------------------------------------------------------------------
@@ -258,6 +275,39 @@ def test_unreal_reconnecting_after_a_drop_or_a_protocol_error_is_accepted_again(
             second.sendall(frame_bytes(header(index=1)) + frame_bytes(header(index=2)))
             rig.wait_for(2)
         assert len(rig.published) == 3 and rig.backend.connections == 3
+    finally:
+        rig.stop()
+
+
+def test_a_v3_frame_without_overscan_is_published():
+    rig = Harness(FixedClock(1234.5))
+    try:
+        h = v3_header()
+        with rig.connect() as unreal:
+            unreal.sendall(frame_bytes(h))
+            rig.wait_for(1)
+        frame, stamp = rig.published[0]
+        assert (stamp.kind, stamp.captured_at_s) == (CaptureStampKind.EXPOSURE, 1234.5)
+        assert frame.tobytes() == frame_bytes(h)[NPYC_V3_HEADER_SIZE:]
+    finally:
+        rig.stop()
+
+
+@pytest.mark.parametrize("overscan", [(2, 0), (0, 2), (80, 48)])
+def test_a_frame_with_overscan_drops_the_connection_and_is_never_published(overscan):
+    rig = Harness()
+    try:
+        with rig.connect() as encoder_input:
+            encoder_input.sendall(frame_bytes(v3_header(*overscan)))
+            try:                                    # the backend dropped this connection: EOF, or a reset
+                assert encoder_input.recv(1) == b""     # for the bytes it left unread
+            except ConnectionResetError:
+                pass
+        with rig.connect() as unreal:
+            unreal.sendall(frame_bytes(v3_header(index=1)))
+            rig.wait_for(1)
+        assert [stamped[0].shape for stamped in rig.published] == [(H, W, 3)]   # only the frame without overscan
+        assert rig.backend.frames == 1 and rig.backend.connections == 2
     finally:
         rig.stop()
 

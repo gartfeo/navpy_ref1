@@ -11,7 +11,7 @@ import ast
 from dataclasses import fields
 from pathlib import Path
 
-from navpy.plugins.camera.unreal.npyc_codec import NpycHeader
+from navpy.plugins.camera.unreal.npyc_codec import NpycHeader, NpycLensStream
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
@@ -43,8 +43,7 @@ def test_no_source_file_imports_the_bridge_pose_sender_or_speaks_its_pose_schema
     assert offenders == []
 
 
-V3_TRUTH_FIELDS = ("lens_stream", "lens_reading_tenths", "lens_setting_tenths", "lens_status", "pose_generation", "camera_run_hash",
-                   "overscan_x", "overscan_y", "lens_table_hash")
+V3_TRUTH_FIELDS = ("lens_stream", *(f.name for f in fields(NpycLensStream)))
 CODEC = SRC / "navpy" / "plugins" / "camera" / "unreal" / "npyc_codec.py"
 
 
@@ -62,6 +61,6 @@ def test_no_source_file_reads_the_v3_lens_or_stream_fields():
 
 def test_the_frame_header_carries_timing_and_identity_only():
     pose_like = {"lat", "lon", "alt", "roll", "pitch", "yaw", "position", "attitude", "heading", "range"}
-    names = {f.name for f in fields(NpycHeader)}
+    names = {f.name for f in fields(NpycHeader)} | {f.name for f in fields(NpycLensStream)}
     assert not {name for name in names if any(part in name for part in pose_like)}
-    assert {"board_time_us", "pose_sequence", "pose_flags"} <= names
+    assert {"board_time_us", "pose_sequence", "pose_flags", "lens_status", "pose_generation"} <= names

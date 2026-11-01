@@ -11,6 +11,11 @@ and published as an EXPOSURE stamp. Every other frame (v1, receive-time
 smoothed pose, no mapping yet) gets a READ stamp taken when its last byte
 arrived: the stamp kind always says which it is, and an exposure time is
 never synthesized.
+
+A v3 frame with overscan is the HITL encoder's input, rendered larger than
+its lens row. This backend has no crop, and K would be scaled to the larger
+size, so such a frame is a protocol error: the connection drops, nothing is
+published.
 """
 
 from __future__ import annotations
@@ -203,6 +208,8 @@ def _read_frame(connection: socket.socket) -> tuple[NpycHeader, bytearray]:
     _version, header_size = decode_prefix(bytes(prefix))
     raw = bytes(prefix) + bytes(_recv_exact(connection, header_size - NPYC_PREFIX_SIZE))
     header = decode_header(raw)
+    if header.has_overscan:
+        raise ValueError("a frame with overscan goes to the HITL encoder, not to npyc:// capture")
     return header, _recv_exact(connection, header.payload_size)
 
 
